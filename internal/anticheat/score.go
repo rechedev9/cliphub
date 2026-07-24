@@ -135,9 +135,9 @@ var metricDefs = []metricDef{
 type MetricBaseline struct {
 	Mean   float64 `json:"mean"`
 	StdDev float64 `json:"stddev"`
-	// Samples is how many professional player-matches produced this
-	// distribution. Zero marks an editorial estimate that has never been
-	// measured, which is what the shipped default is.
+	// Samples is how many player-matches produced this distribution. Zero
+	// marks a metric a calibration could not measure, which kept the shipped
+	// distribution instead.
 	Samples int `json:"samples"`
 }
 
