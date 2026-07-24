@@ -1,0 +1,52 @@
+{
+  "id": "cs2-population-v1",
+  "source": "measured-cs2-population",
+  "description": "Distribución medida sobre 3 partidas locales distintas de CS2 (19-30 jugadores-partida por métrica), con mediana y MAD para que los tramposos presentes en el propio corpus no ensanchen la referencia. Es una población de matchmaking y un corpus pequeño, no juego profesional: para comparar contra los mejores del mundo, recalibra con `zv demo anticheat calibrate --demos <carpeta de demos profesionales>`.",
+  "metrics": {
+    "wall_tracking_pct": {
+      "mean": 6.42,
+      "stddev": 1.57,
+      "samples": 30
+    },
+    "unspotted_preaim_kill_pct": {
+      "mean": 19.05,
+      "stddev": 8.48,
+      "samples": 23
+    },
+    "preshot_settle_ms": {
+      "mean": 250.0,
+      "stddev": 69.5,
+      "samples": 23
+    },
+    "flick_speed_p90": {
+      "mean": 183.12,
+      "stddev": 89.61,
+      "samples": 23
+    },
+    "reaction_ms": {
+      "mean": 375.0,
+      "stddev": 69.49,
+      "samples": 19
+    },
+    "aim_jitter": {
+      "mean": 0.08,
+      "stddev": 0.03,
+      "samples": 23
+    },
+    "unspotted_kill_pct": {
+      "mean": 33.33,
+      "stddev": 17.74,
+      "samples": 22
+    },
+    "headshot_pct": {
+      "mean": 53.85,
+      "stddev": 11.93,
+      "samples": 23
+    },
+    "kills_per_round": {
+      "mean": 0.71,
+      "stddev": 0.21,
+      "samples": 23
+    }
+  }
+}
