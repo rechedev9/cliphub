@@ -1,0 +1,233 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "demo": {
+    "path": "testdata/agent.dem",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "map": "de_inferno",
+    "tickrate": 64,
+    "duration_ticks": 60000,
+    "format": "cs2",
+    "max_rounds": 24
+  },
+  "teams": [
+    {
+      "key": "ct-start",
+      "name": "Blue",
+      "start_side": "CT",
+      "slots": [0, 1],
+      "steamids": ["76561198000000001", "76561198000000002"]
+    },
+    {
+      "key": "t-start",
+      "name": "Orange",
+      "start_side": "T",
+      "slots": [2, 3],
+      "steamids": ["76561198000000003", "76561198000000004"]
+    }
+  ],
+  "players": [
+    {"slot": 0, "steamid64": "76561198000000001", "name": "blue-one", "team_key": "ct-start", "start_side": "CT"},
+    {"slot": 1, "steamid64": "76561198000000002", "name": "blue-two", "team_key": "ct-start", "start_side": "CT"},
+    {"slot": 2, "steamid64": "76561198000000003", "name": "orange-one", "team_key": "t-start", "start_side": "T"},
+    {"slot": 3, "steamid64": "76561198000000004", "name": "orange-two", "team_key": "t-start", "start_side": "T"}
+  ],
+  "rounds": [
+    {
+      "number": 1,
+      "tick_start": 1000,
+      "tick_freeze_end": 2000,
+      "tick_end": 6000,
+      "tick_official": 6400,
+      "score_ct_before": 0,
+      "score_t_before": 0,
+      "winner": "T",
+      "end_reason": "bomb_exploded",
+      "half": 1,
+      "bomb": {"plant_tick": 5000, "site": "A", "planter_slot": 2, "explode_tick": 7400},
+      "economy": {
+        "ct_equip_value": 900, "t_equip_value": 850, "ct_money": 200, "t_money": 150,
+        "ct_buy": "pistol", "t_buy": "pistol", "sample_tick": 2448
+      },
+      "class": {
+        "t_side": "execute", "ct_side": "hold", "site": "A",
+        "opening_slot": 2, "opening_side": "T", "opening_tick": 3200,
+        "opening_traded": false, "first_contact_tick": 3200,
+        "tags": ["pistol", "postplant"], "reasons": ["utility burst before site contact"]
+      },
+      "players": [
+        {"slot": 0, "side": "CT", "kills": 0, "deaths": 1, "assists": 0, "damage": 42, "equip_value": 450, "money": 100, "death_tick": 3200, "survived": false, "opening_death": true},
+        {"slot": 1, "side": "CT", "kills": 1, "deaths": 1, "assists": 0, "damage": 130, "equip_value": 450, "money": 100, "death_tick": 5200, "survived": false},
+        {"slot": 2, "side": "T", "kills": 2, "deaths": 0, "assists": 0, "damage": 210, "equip_value": 425, "money": 75, "survived": true, "opening_kill": true},
+        {"slot": 3, "side": "T", "kills": 0, "deaths": 1, "assists": 1, "damage": 60, "equip_value": 425, "money": 75, "death_tick": 4100, "survived": false}
+      ],
+      "events": [
+        {"tick": 3200, "kind": "kill", "actor_slot": 2, "target_slot": 0, "side": "T", "weapon": "glock", "pos": [100, 200, 64], "target_pos": [140, 260, 64], "place": "BananaLower", "site": "A", "opening": true},
+        {"tick": 4100, "kind": "kill", "actor_slot": 1, "target_slot": 3, "side": "CT", "weapon": "usp_silencer", "pos": [300, 120, 64], "target_pos": [280, 160, 64], "place": "BombsiteA", "headshot": true},
+        {"tick": 5000, "kind": "plant", "actor_slot": 2, "side": "T", "pos": [320, 140, 64], "site": "A"},
+        {"tick": 5200, "kind": "kill", "actor_slot": 2, "target_slot": 1, "side": "T", "weapon": "glock", "pos": [318, 150, 64], "target_pos": [360, 190, 64], "place": "BombsiteA"}
+      ]
+    },
+    {
+      "number": 2,
+      "tick_start": 7000,
+      "tick_freeze_end": 8000,
+      "tick_end": 11000,
+      "tick_official": 11400,
+      "score_ct_before": 0,
+      "score_t_before": 1,
+      "winner": "CT",
+      "end_reason": "ct_eliminated_t",
+      "half": 1,
+      "economy": {
+        "ct_equip_value": 4200, "t_equip_value": 1100, "ct_money": 1500, "t_money": 900,
+        "ct_buy": "full", "t_buy": "eco", "sample_tick": 8448
+      },
+      "class": {
+        "t_side": "eco_rush", "ct_side": "hold", "site": "B",
+        "opening_slot": 0, "opening_side": "CT", "opening_tick": 8600,
+        "opening_traded": false, "first_contact_tick": 8600,
+        "tags": ["anti_eco"], "reasons": ["eco economy with an immediate commit"]
+      },
+      "players": [
+        {"slot": 0, "side": "CT", "kills": 2, "deaths": 0, "assists": 0, "damage": 210, "equip_value": 2100, "money": 800, "survived": true, "opening_kill": true},
+        {"slot": 1, "side": "CT", "kills": 0, "deaths": 0, "assists": 1, "damage": 40, "equip_value": 2100, "money": 700, "survived": true},
+        {"slot": 2, "side": "T", "kills": 0, "deaths": 1, "assists": 0, "damage": 25, "equip_value": 550, "money": 450, "death_tick": 8600, "survived": false, "opening_death": true},
+        {"slot": 3, "side": "T", "kills": 0, "deaths": 1, "assists": 0, "damage": 10, "equip_value": 550, "money": 450, "death_tick": 9200, "survived": false}
+      ],
+      "events": [
+        {"tick": 8600, "kind": "kill", "actor_slot": 0, "target_slot": 2, "side": "CT", "weapon": "m4a1", "pos": [800, 400, 32], "target_pos": [860, 420, 32], "place": "BombsiteB", "opening": true},
+        {"tick": 9200, "kind": "kill", "actor_slot": 0, "target_slot": 3, "side": "CT", "weapon": "m4a1", "pos": [810, 405, 32], "target_pos": [880, 460, 32], "place": "BombsiteB"}
+      ]
+    },
+    {
+      "number": 3,
+      "tick_start": 12000,
+      "tick_freeze_end": 13000,
+      "tick_end": 17000,
+      "tick_official": 17400,
+      "score_ct_before": 1,
+      "score_t_before": 1,
+      "winner": "T",
+      "end_reason": "t_eliminated_ct",
+      "half": 1,
+      "economy": {
+        "ct_equip_value": 4400, "t_equip_value": 4100, "ct_money": 1200, "t_money": 1300,
+        "ct_buy": "full", "t_buy": "full", "sample_tick": 13448
+      },
+      "class": {
+        "t_side": "split", "ct_side": "stack", "site": "A",
+        "opening_slot": 3, "opening_side": "T", "opening_tick": 14100,
+        "opening_traded": true, "first_contact_tick": 14100,
+        "tags": ["opening_traded"], "reasons": ["site entered from two corridors"]
+      },
+      "players": [
+        {"slot": 0, "side": "CT", "kills": 1, "deaths": 1, "assists": 0, "damage": 145, "equip_value": 2200, "money": 600, "death_tick": 14100, "survived": false, "opening_death": true, "traded": true},
+        {"slot": 1, "side": "CT", "kills": 0, "deaths": 1, "assists": 0, "damage": 70, "equip_value": 2200, "money": 600, "death_tick": 15600, "survived": false},
+        {"slot": 2, "side": "T", "kills": 1, "deaths": 1, "assists": 0, "damage": 120, "equip_value": 2050, "money": 650, "death_tick": 14400, "survived": false, "trade_kills": 1},
+        {"slot": 3, "side": "T", "kills": 1, "deaths": 0, "assists": 1, "damage": 155, "equip_value": 2050, "money": 650, "survived": true, "opening_kill": true, "traded": false}
+      ],
+      "events": [
+        {"tick": 14100, "kind": "kill", "actor_slot": 3, "target_slot": 0, "side": "T", "weapon": "ak47", "pos": [220, 640, 96], "target_pos": [260, 700, 96], "place": "Apartments", "opening": true, "traded": true},
+        {"tick": 14400, "kind": "kill", "actor_slot": 0, "target_slot": 2, "side": "CT", "weapon": "m4a1", "pos": [265, 700, 96], "target_pos": [230, 660, 96], "place": "Apartments"},
+        {"tick": 15600, "kind": "kill", "actor_slot": 3, "target_slot": 1, "side": "T", "weapon": "ak47", "pos": [240, 680, 96], "target_pos": [180, 720, 96], "place": "BombsiteA", "headshot": true}
+      ]
+    },
+    {
+      "number": 4,
+      "tick_start": 18000,
+      "tick_freeze_end": 19000,
+      "tick_end": 24000,
+      "tick_official": 24400,
+      "score_ct_before": 1,
+      "score_t_before": 2,
+      "winner": "CT",
+      "end_reason": "bomb_defused",
+      "half": 1,
+      "bomb": {"plant_tick": 22000, "site": "B", "planter_slot": 3, "defuse_tick": 23600, "defuser_slot": 1},
+      "economy": {
+        "ct_equip_value": 4600, "t_equip_value": 4300, "ct_money": 900, "t_money": 800,
+        "ct_buy": "full", "t_buy": "full", "sample_tick": 19448
+      },
+      "class": {
+        "t_side": "default", "ct_side": "retake", "site": "B",
+        "opening_slot": 2, "opening_side": "T", "opening_tick": 20500,
+        "opening_traded": true, "first_contact_tick": 20500,
+        "tags": ["postplant", "retake_won", "opening_traded"], "reasons": ["map control first, late commit"]
+      },
+      "players": [
+        {"slot": 0, "side": "CT", "kills": 1, "deaths": 1, "assists": 0, "damage": 190, "equip_value": 2300, "money": 450, "death_tick": 20500, "survived": false, "opening_death": true, "traded": true},
+        {"slot": 1, "side": "CT", "kills": 2, "deaths": 0, "assists": 0, "damage": 230, "equip_value": 2300, "money": 450, "survived": true, "trade_kills": 1},
+        {"slot": 2, "side": "T", "kills": 1, "deaths": 1, "assists": 0, "damage": 135, "equip_value": 2150, "money": 400, "death_tick": 20900, "survived": false, "opening_kill": true},
+        {"slot": 3, "side": "T", "kills": 0, "deaths": 1, "assists": 1, "damage": 85, "equip_value": 2150, "money": 400, "death_tick": 23100, "survived": false}
+      ],
+      "events": [
+        {"tick": 20500, "kind": "kill", "actor_slot": 2, "target_slot": 0, "side": "T", "weapon": "ak47", "pos": [900, 380, 32], "target_pos": [940, 400, 32], "place": "Banana", "opening": true, "traded": true},
+        {"tick": 20900, "kind": "kill", "actor_slot": 1, "target_slot": 2, "side": "CT", "weapon": "m4a1", "pos": [945, 405, 32], "target_pos": [905, 385, 32], "place": "Banana"},
+        {"tick": 22000, "kind": "plant", "actor_slot": 3, "side": "T", "pos": [860, 430, 32], "site": "B"},
+        {"tick": 23100, "kind": "kill", "actor_slot": 1, "target_slot": 3, "side": "CT", "weapon": "m4a1", "pos": [880, 450, 32], "target_pos": [858, 432, 32], "place": "BombsiteB", "through_smoke": true},
+        {"tick": 23600, "kind": "defuse", "actor_slot": 1, "side": "CT", "pos": [860, 430, 32], "site": "B"}
+      ]
+    },
+    {
+      "number": 5,
+      "tick_start": 25000,
+      "tick_freeze_end": 26000,
+      "tick_end": 29000,
+      "tick_official": 29400,
+      "score_ct_before": 2,
+      "score_t_before": 2,
+      "winner": "CT",
+      "end_reason": "ct_eliminated_t",
+      "half": 1,
+      "economy": {
+        "ct_equip_value": 4700, "t_equip_value": 2400, "ct_money": 1800, "t_money": 1100,
+        "ct_buy": "full", "t_buy": "force", "sample_tick": 26448
+      },
+      "class": {
+        "t_side": "fast", "ct_side": "aggression", "site": "A",
+        "opening_slot": 1, "opening_side": "CT", "opening_tick": 26800,
+        "opening_traded": false, "first_contact_tick": 26800,
+        "tags": [], "reasons": ["site contact inside the opening window"]
+      },
+      "players": [
+        {"slot": 0, "side": "CT", "kills": 1, "deaths": 0, "assists": 1, "damage": 120, "equip_value": 2350, "money": 900, "survived": true},
+        {"slot": 1, "side": "CT", "kills": 1, "deaths": 0, "assists": 0, "damage": 145, "equip_value": 2350, "money": 900, "survived": true, "opening_kill": true},
+        {"slot": 2, "side": "T", "kills": 0, "deaths": 1, "assists": 0, "damage": 55, "equip_value": 1200, "money": 550, "death_tick": 26800, "survived": false, "opening_death": true},
+        {"slot": 3, "side": "T", "kills": 0, "deaths": 1, "assists": 0, "damage": 30, "equip_value": 1200, "money": 550, "death_tick": 27500, "survived": false}
+      ],
+      "events": [
+        {"tick": 26800, "kind": "kill", "actor_slot": 1, "target_slot": 2, "side": "CT", "weapon": "awp", "pos": [400, 300, 64], "target_pos": [520, 340, 64], "place": "BombsiteA", "opening": true, "no_scope": true},
+        {"tick": 27500, "kind": "kill", "actor_slot": 0, "target_slot": 3, "side": "CT", "weapon": "m4a1", "pos": [420, 320, 64], "target_pos": [540, 360, 64], "place": "BombsiteA"}
+      ]
+    },
+    {
+      "number": 6,
+      "tick_start": 30000,
+      "tick_freeze_end": 31000,
+      "tick_end": 33000,
+      "tick_official": 33400,
+      "score_ct_before": 3,
+      "score_t_before": 2,
+      "winner": "CT",
+      "end_reason": "time_expired",
+      "half": 1,
+      "economy": {
+        "ct_equip_value": 4800, "t_equip_value": 700, "ct_money": 2400, "t_money": 300,
+        "ct_buy": "full", "t_buy": "eco", "sample_tick": 31448
+      },
+      "class": {
+        "t_side": "save", "ct_side": "hold", "site": "none",
+        "opening_traded": false,
+        "tags": ["full_save", "anti_eco", "time_expired"], "reasons": ["no committed take; equipment preserved"]
+      },
+      "players": [
+        {"slot": 0, "side": "CT", "kills": 0, "deaths": 0, "assists": 0, "damage": 0, "equip_value": 2400, "money": 1200, "survived": true},
+        {"slot": 1, "side": "CT", "kills": 0, "deaths": 0, "assists": 0, "damage": 0, "equip_value": 2400, "money": 1200, "survived": true},
+        {"slot": 2, "side": "T", "kills": 0, "deaths": 0, "assists": 0, "damage": 0, "equip_value": 350, "money": 150, "survived": true},
+        {"slot": 3, "side": "T", "kills": 0, "deaths": 0, "assists": 0, "damage": 0, "equip_value": 350, "money": 150, "survived": true}
+      ],
+      "events": []
+    }
+  ]
+}

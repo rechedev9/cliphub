@@ -1136,7 +1136,12 @@ func TestZVBinaryCurrentDirectDocExamplesEndToEnd(t *testing.T) {
 			if len(command) < 2 || (command[1] != "moments" && command[1] != "select") {
 				wantSubcommandCalls++
 			}
-		case "utility", "record", "compose", "shorts", "music", "stream", "analysis", "serve":
+		case "analysis":
+			// tactical, rounds, and tendencies run in-process inside zv.
+			if len(command) < 2 || (command[1] != "tactical" && command[1] != "rounds" && command[1] != "tendencies") {
+				wantSubcommandCalls++
+			}
+		case "utility", "record", "compose", "shorts", "music", "stream", "serve":
 			wantSubcommandCalls++
 		}
 		runZVBinaryWithEnv(t, exe, root, env, command...)

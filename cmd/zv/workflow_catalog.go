@@ -149,6 +149,24 @@ func buildWorkflowCatalog() []workflowInfo {
 			RunArgs:     []string{"stream", "render"},
 		},
 		{
+			Name:        "analysis-tactical",
+			Description: "Scan a demo into the durable tactical document and its position blob.",
+			Command:     "zv analysis tactical --demo <match.dem> --out <tactical.json>",
+			RunArgs:     []string{"analysis", "tactical"},
+		},
+		{
+			Name:        "analysis-rounds",
+			Description: "List the rounds a tactical filter selects.",
+			Command:     "zv analysis rounds --tactical <tactical.json>",
+			RunArgs:     []string{"analysis", "rounds"},
+		},
+		{
+			Name:        "analysis-tendencies",
+			Description: "Aggregate filtered rounds into buys, sites, patterns, openings, and players.",
+			Command:     "zv analysis tendencies --tactical <tactical.json>",
+			RunArgs:     []string{"analysis", "tendencies"},
+		},
+		{
 			Name:        "analysis-tactical-data",
 			Description: "Export sampled tactical data for replay experiments.",
 			Command:     "zv analysis tactical-data --demo <demo.dem> --out <tactical.json> --start <tick> --end <tick>",
@@ -323,7 +341,8 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 			constraint("--variant", streamclips.DefaultVariant().Name, "zv stream variants --format json", streamclips.VariantNames()...),
 			constraint("--format", "text", "", "text", "json"),
 		}
-	case "faceit-index", "stream-render", "stream-killfeed", "stream-transcribe", "stream-captions", "stream-variants", "demo-players", "demo-moments", "demo-select", "flows-run":
+	case "faceit-index", "stream-render", "stream-killfeed", "stream-transcribe", "stream-captions", "stream-variants", "demo-players", "demo-moments", "demo-select", "flows-run",
+		"analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		return []workflowValueConstraint{
 			constraint("--format", "text", "", "text", "json"),
 		}
@@ -348,14 +367,19 @@ func workflowRequiredFlags(workflow workflowInfo) []string {
 func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) workflowSafety {
 	readOnly := false
 	switch workflow.Name {
-	case "capabilities", "stream-variants", "analysis-viewer", "gallery-open", "skills-check", "workflows-check", "project-check":
+	case "capabilities", "stream-variants", "analysis-viewer", "gallery-open", "skills-check", "workflows-check", "project-check",
+		"analysis-rounds", "analysis-tendencies":
+		// analysis-rounds and analysis-tendencies only read a tactical document
+		// and print; analysis-tactical is not here because it writes artifacts.
 		readOnly = true
 	}
 
 	longRunning := false
 	switch workflow.Name {
-	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-plan", "stream-transcribe", "stream-render", "analysis-viewer", "serve", "flows-run":
-		// flows-run really parses demos and probes media across a whole journey.
+	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-plan", "stream-transcribe", "stream-render", "analysis-viewer", "serve", "flows-run",
+		"analysis-tactical":
+		// flows-run really parses demos and probes media across a whole journey,
+		// and analysis-tactical parses a whole demo before it writes anything.
 		longRunning = true
 	}
 

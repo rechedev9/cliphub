@@ -119,6 +119,21 @@ func runAnalysis(args []string, stdout, stderr io.Writer, stdin io.Reader, runne
 		return exitSuccess
 	}
 	switch args[0] {
+	case "tactical":
+		if issue := validateSkillCommand(append([]string{"analysis"}, args...)); issue != "" {
+			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
+		}
+		return runAnalysisTactical(args[1:], stdout, stderr)
+	case "rounds":
+		if issue := validateSkillCommand(append([]string{"analysis"}, args...)); issue != "" {
+			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
+		}
+		return runAnalysisRounds(args[1:], stdout, stderr)
+	case "tendencies":
+		if issue := validateSkillCommand(append([]string{"analysis"}, args...)); issue != "" {
+			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
+		}
+		return runAnalysisTendencies(args[1:], stdout, stderr)
 	case "tactical-data":
 		return runCanonicalDelegate(append([]string{"analysis"}, args...), "zv-tactical-data", args[1:], stdout, stderr, stdin, runner)
 	case "view":

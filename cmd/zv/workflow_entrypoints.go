@@ -161,6 +161,8 @@ func workflowDelegatedCommand(args []string) string {
 			return ""
 		}
 		switch args[1] {
+		case "tactical", "rounds", "tendencies":
+			return "zv"
 		case "tactical-data":
 			return "zv-tactical-data"
 		case "view":

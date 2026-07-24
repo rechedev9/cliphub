@@ -1,16 +1,19 @@
+// Command zv-tactical-data exports a sampled window of a demo as plain JSON for
+// replay experiments. It owns no scanning logic of its own: the whole export is
+// derived from internal/tactical's document plus the position blob it describes,
+// so there is exactly one demo-scanning implementation in the product.
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
-	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
-	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+	"github.com/rechedev9/fragforge/internal/tactical"
+	"github.com/rechedev9/fragforge/internal/tacticalplan"
 )
 
 type frame struct {
@@ -72,67 +75,20 @@ func main() {
 		sampleTicks = 1
 	}
 
-	// #nosec G304 -- demo path is an explicit local CLI input.
-	f, err := os.Open(demoPath)
+	// The shared scan takes a sample rate in Hz, not an interval in ticks, and a
+	// CS2 demo only reveals its tick rate part-way through parsing. Scanning at
+	// the maximum rate therefore samples as finely as the demo allows, and the
+	// requested interval is applied while decoding, which is exact whenever the
+	// scan's own interval divides it.
+	scan, err := tactical.ScanFile(context.Background(), demoPath, tactical.Options{SampleHZ: tactical.MaxSampleHZ})
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
-	defer p.Close()
-
-	result := output{Demo: demoPath, Start: startTick, End: endTick, Sample: sampleTicks}
-
-	p.RegisterEventHandler(func(e events.Kill) {
-		tick := p.GameState().IngameTick()
-		if tick < startTick || tick > endTick || e.Killer == nil || e.Victim == nil {
-			return
-		}
-		result.Kills = append(result.Kills, kill{
-			Tick:       tick,
-			KillerID:   strconv.FormatUint(e.Killer.SteamID64, 10),
-			KillerName: e.Killer.Name,
-			VictimID:   strconv.FormatUint(e.Victim.SteamID64, 10),
-			VictimName: e.Victim.Name,
-			Weapon:     weaponName(e.Weapon),
-			Headshot:   e.IsHeadshot,
-			KillerTeam: teamLabel(e.Killer.Team),
-			VictimTeam: teamLabel(e.Victim.Team),
-		})
-	})
-
-	p.RegisterEventHandler(func(events.FrameDone) {
-		gs := p.GameState()
-		tick := gs.IngameTick()
-		if tick < startTick || tick > endTick || (tick-startTick)%sampleTicks != 0 {
-			return
-		}
-		fr := frame{Tick: tick}
-		for _, pl := range gs.Participants().All() {
-			if pl == nil || pl.SteamID64 == 0 || pl.Team == common.TeamSpectators {
-				continue
-			}
-			pos := pl.Position()
-			fr.Players = append(fr.Players, player{
-				SteamID64: strconv.FormatUint(pl.SteamID64, 10),
-				Name:      pl.Name,
-				Team:      teamLabel(pl.Team),
-				Alive:     pl.IsAlive(),
-				X:         pos.X,
-				Y:         pos.Y,
-				Z:         pos.Z,
-				Yaw:       float64(pl.ViewDirectionX()),
-				Health:    pl.Health(),
-			})
-		}
-		result.Frames = append(result.Frames, fr)
-	})
-
-	if err := p.ParseToEnd(); err != nil {
+	result, err := export(scan, demoPath, startTick, endTick, sampleTicks)
+	if err != nil {
 		log.Fatal(err)
 	}
-	result.Tickrate = p.TickRate()
 
 	b, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
@@ -143,23 +99,91 @@ func main() {
 	}
 }
 
-func weaponName(w *common.Equipment) string {
-	if w == nil {
-		return ""
+func export(scan tactical.Result, demoPath string, startTick, endTick, sampleTicks int) (output, error) {
+	doc := scan.Document
+	result := output{
+		Demo:     demoPath,
+		Start:    startTick,
+		End:      endTick,
+		Sample:   sampleTicks,
+		Tickrate: doc.Demo.Tickrate,
+		Frames:   []frame{},
+		Kills:    []kill{},
 	}
-	if w.OriginalString != "" {
-		return w.OriginalString
+
+	names := map[uint8]tacticalplan.Player{}
+	for _, p := range doc.Players {
+		names[p.Slot] = p
 	}
-	return fmt.Sprint(w.Type)
+
+	lastEmitted := startTick - sampleTicks
+	for _, offset := range doc.Positions.RoundOffsets {
+		if offset.LastTick < startTick || offset.FirstTick > endTick {
+			continue
+		}
+		frames, err := tacticalplan.DecodeFrames(scan.Positions.Data, offset.ByteOffset, offset.FrameCount, doc.Positions)
+		if err != nil {
+			return output{}, fmt.Errorf("decode round %d positions: %w", offset.Round, err)
+		}
+		for _, f := range frames {
+			if f.Tick < startTick || f.Tick > endTick || f.Tick-lastEmitted < sampleTicks {
+				continue
+			}
+			lastEmitted = f.Tick
+			out := frame{Tick: f.Tick}
+			for _, s := range f.Samples {
+				identity := names[s.Slot]
+				out.Players = append(out.Players, player{
+					SteamID64: identity.SteamID64,
+					Name:      identity.Name,
+					Team:      sampleTeam(s.Flags),
+					Alive:     s.Flags.Has(tacticalplan.FlagAlive),
+					X:         s.X,
+					Y:         s.Y,
+					Z:         s.Z,
+					Yaw:       s.Yaw,
+					Health:    s.Health,
+				})
+			}
+			result.Frames = append(result.Frames, out)
+		}
+	}
+
+	for _, round := range doc.Rounds {
+		sides := map[uint8]tacticalplan.Side{}
+		for _, pr := range round.Players {
+			sides[pr.Slot] = pr.Side
+		}
+		for _, event := range round.Events {
+			if event.Kind != tacticalplan.EventKill || event.Tick < startTick || event.Tick > endTick {
+				continue
+			}
+			// A kill with no actor is a suicide or a world kill; the export has
+			// always described attacker-versus-victim pairs only.
+			if event.ActorSlot == nil || event.TargetSlot == nil {
+				continue
+			}
+			killer := names[*event.ActorSlot]
+			victim := names[*event.TargetSlot]
+			result.Kills = append(result.Kills, kill{
+				Tick:       event.Tick,
+				KillerID:   killer.SteamID64,
+				KillerName: killer.Name,
+				VictimID:   victim.SteamID64,
+				VictimName: victim.Name,
+				Weapon:     event.Weapon,
+				Headshot:   event.Headshot,
+				KillerTeam: string(sides[*event.ActorSlot]),
+				VictimTeam: string(sides[*event.TargetSlot]),
+			})
+		}
+	}
+	return result, nil
 }
 
-func teamLabel(t common.Team) string {
-	switch t {
-	case common.TeamCounterTerrorists:
-		return "CT"
-	case common.TeamTerrorists:
-		return "T"
-	default:
-		return ""
+func sampleTeam(flags tacticalplan.SampleFlags) string {
+	if flags.Has(tacticalplan.FlagSideT) {
+		return string(tacticalplan.SideT)
 	}
+	return string(tacticalplan.SideCT)
 }

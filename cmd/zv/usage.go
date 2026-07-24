@@ -27,6 +27,9 @@ Usage:
   zv stream captions --plan <edit-plan.json> --words <caption-words.json> --out <captioned-plan.json> [--dry-run] [--format text|json]
   zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir> [--dry-run] [--format text|json]
   zv music analyze [zv-rhythm analyze flags]
+  zv analysis tactical --demo <match.dem> --out <tactical.json> [--positions <positions.zvpos>] [--hz <n>] [--cell-size <n>] [--dry-run] [--format text|json]
+  zv analysis rounds --tactical <tactical.json> [filters] [--format text|json]
+  zv analysis tendencies --tactical <tactical.json> [filters] [--format text|json]
   zv analysis tactical-data [zv-tactical-data flags]
   zv analysis view [zv-analysis-viewer flags]
   zv gallery open --path <index.html>
@@ -201,7 +204,61 @@ clip ranges/killfeed events, then render production artifacts directly under
 const musicUsage = `usage: zv music analyze --input <audio-or-video> --out <rhythm.json> [--killplan <plan.json>]
 `
 
-const analysisUsage = `usage: zv analysis tactical-data [zv-tactical-data flags] | zv analysis view [zv-analysis-viewer flags]
+const analysisUsage = `usage: zv analysis tactical --demo <match.dem> --out <tactical.json> [flags]
+  zv analysis rounds --tactical <tactical.json> [filters] [--format text|json]
+  zv analysis tendencies --tactical <tactical.json> [filters] [--format text|json]
+  zv analysis tactical-data [zv-tactical-data flags]
+  zv analysis view [zv-analysis-viewer flags]
+`
+
+const analysisTacticalUsage = `usage: zv analysis tactical --demo <match.dem> --out <tactical.json> [flags]
+
+Scan a CS2 demo into the durable tactical document: the round index with its
+economy and deterministic classification, the per-round event list, and the map
+geometry derived from where players actually walked.
+
+Flags:
+  --demo <match.dem>       demo to scan; required
+  --out <tactical.json>    tactical document artifact; required
+  --positions <path>       also write the sidecar position blob the document describes
+  --hz <n>                 position sample rate in Hz (default 8, max 64)
+  --cell-size <n>          occupancy grid resolution in world units (default 64)
+  --dry-run                settle the argv and print the plan without reading the demo or writing
+  --format <text|json>     output format (default text)
+`
+
+const analysisRoundsUsage = `usage: zv analysis rounds --tactical <tactical.json> [filters] [--format text|json]
+
+List the rounds a filter selects, with the economy, site, patterns, winner, and
+tags an analyst reads before deciding what to watch.
+
+Flags:
+  --tactical <path>        tactical document written by "zv analysis tactical"; required
+  --format <text|json>     output format (default text)
+
+Filters (AND across flags, OR within one; repeat or comma-separate a value):
+  --side <CT|T>            perspective side
+  --team <key>             team key, followed across the side swap
+  --buy <type>             pistol, eco, semi, force, full, or unknown
+  --opponent-buy <type>    the same vocabulary, for the opponent
+  --site <a|b|mid|none>    where the round was decided
+  --outcome <win|loss>     result from the perspective
+  --t-pattern <pattern>    execute, default, split, fast, eco_rush, save, unknown
+  --ct-pattern <pattern>   hold, retake, aggression, stack, save, unknown
+  --tag <tag>              round tag that must be present
+  --slot <n>               player slot that must have played the round
+  --round-from <n>         first round number
+  --round-to <n>           last round number
+  --phase <regulation|overtime>
+`
+
+const analysisTendenciesUsage = `usage: zv analysis tendencies --tactical <tactical.json> [filters] [--format text|json]
+
+Aggregate the rounds a filter selects into buys, matchups, sites, patterns,
+opening duels, timings, and players. Every rate prints its denominator, and any
+rate below the reliable sample size is marked low-sample.
+
+Flags and filters are the same as "zv analysis rounds"; see its --help.
 `
 
 const galleryUsage = `usage: zv gallery open --path <index.html>

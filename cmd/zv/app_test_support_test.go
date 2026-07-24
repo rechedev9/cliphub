@@ -605,6 +605,14 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 		return []string{"--", "--input", "stream.mp4", "--plan", "run/stream-edit-plan.json", "--out", "run/stream", "--dry-run"}
 	case "music-analyze":
 		return []string{"--", "--input", "data/music/track.mp4", "--out", "run/rhythm.json"}
+	case "analysis-tactical":
+		return []string{"--", "--demo", "inferno.dem", "--out", "run/tactical-document.json", "--dry-run"}
+	case "analysis-rounds":
+		documentPath := writeTacticalDocument(t, filepath.Dir(filepath.Dir(galleryPath)))
+		return []string{"--", "--tactical", documentPath}
+	case "analysis-tendencies":
+		documentPath := writeTacticalDocument(t, filepath.Dir(filepath.Dir(galleryPath)))
+		return []string{"--", "--tactical", documentPath, "--team", "t-start"}
 	case "analysis-tactical-data":
 		return []string{"--", "--demo", "inferno.dem", "--out", "run/tactical.json", "--start", "1000", "--end", "2000"}
 	case "analysis-viewer":
@@ -970,7 +978,9 @@ func assertDiscoveredWorkflowRunMatchesDirect(t *testing.T, exe, root, source st
 }
 
 func workflowDelegatesExternally(workflow workflowInfo) bool {
-	if workflow.Name == "demo-moments" || workflow.Name == "demo-select" {
+	switch workflow.Name {
+	case "demo-moments", "demo-select", "analysis-tactical", "analysis-rounds", "analysis-tendencies":
+		// These run in-process inside zv itself; they never spawn a subcommand.
 		return false
 	}
 	if len(workflow.RunArgs) == 0 {
@@ -1094,6 +1104,9 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
 		"./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
 		"./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
+		"./bin/zv analysis tactical --demo testdata/foo.dem --out data/analysis/foo-tactical.json --positions data/analysis/foo-positions.zvpos --format json",
+		"./bin/zv analysis rounds --tactical data/analysis/foo-tactical.json --side T --format json",
+		"./bin/zv analysis tendencies --tactical data/analysis/foo-tactical.json --team t-start --format json",
 		"./bin/zv analysis tactical-data --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000",
 		"./bin/zv analysis view --json data/analysis/MarcusN1-deaths.json",
 		"./bin/zv gallery open --path data/runs/run-004/shorts/publish/index.html",
@@ -1136,6 +1149,12 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show stream-captions --format json",
 		"./bin/zv workflows show stream-render",
 		"./bin/zv workflows show stream-render --format json",
+		"./bin/zv workflows show analysis-tactical",
+		"./bin/zv workflows show analysis-tactical --format json",
+		"./bin/zv workflows show analysis-rounds",
+		"./bin/zv workflows show analysis-rounds --format json",
+		"./bin/zv workflows show analysis-tendencies",
+		"./bin/zv workflows show analysis-tendencies --format json",
 		"./bin/zv workflows show analysis-tactical-data",
 		"./bin/zv workflows show analysis-tactical-data --format json",
 		"./bin/zv workflows show analysis-viewer",
@@ -1164,6 +1183,9 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
 		"./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
 		"./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
+		"./bin/zv workflows run analysis-tactical -- --demo testdata/foo.dem --out data/analysis/foo-tactical.json --dry-run --format json",
+		"./bin/zv workflows run analysis-rounds -- --tactical data/analysis/foo-tactical.json --side T --format json",
+		"./bin/zv workflows run analysis-tendencies -- --tactical data/analysis/foo-tactical.json --team t-start --format json",
 		"./bin/zv workflows run analysis-tactical-data -- --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000",
 		"./bin/zv workflows run analysis-viewer -- --json data/analysis/MarcusN1-deaths.json",
 		"./bin/zv workflows run gallery-open -- --path data/runs/run-004/shorts/publish/index.html",
@@ -1340,6 +1362,12 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show stream-captions --format json",
 		"./bin/zv workflows show stream-render",
 		"./bin/zv workflows show stream-render --format json",
+		"./bin/zv workflows show analysis-tactical",
+		"./bin/zv workflows show analysis-tactical --format json",
+		"./bin/zv workflows show analysis-rounds",
+		"./bin/zv workflows show analysis-rounds --format json",
+		"./bin/zv workflows show analysis-tendencies",
+		"./bin/zv workflows show analysis-tendencies --format json",
 		"./bin/zv workflows show analysis-tactical-data",
 		"./bin/zv workflows show analysis-tactical-data --format json",
 		"./bin/zv workflows show analysis-viewer",
@@ -1368,6 +1396,9 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
 		"./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
 		"./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
+		"./bin/zv analysis tactical --demo testdata/foo.dem --out data/analysis/foo-tactical.json --dry-run --format json",
+		"./bin/zv analysis rounds --tactical data/analysis/foo-tactical.json --side T --format json",
+		"./bin/zv analysis tendencies --tactical data/analysis/foo-tactical.json --team t-start --format json",
 		"./bin/zv analysis tactical-data --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000",
 		"./bin/zv analysis view --json data/analysis/MarcusN1-deaths.json",
 		"./bin/zv gallery open --path data/runs/run-004/shorts/publish/index.html",
@@ -1386,6 +1417,9 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
 		"./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
 		"./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
+		"./bin/zv workflows run analysis-tactical -- --demo testdata/foo.dem --out data/analysis/foo-tactical.json --dry-run --format json",
+		"./bin/zv workflows run analysis-rounds -- --tactical data/analysis/foo-tactical.json --side T --format json",
+		"./bin/zv workflows run analysis-tendencies -- --tactical data/analysis/foo-tactical.json --team t-start --format json",
 		"./bin/zv workflows run analysis-tactical-data -- --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000",
 		"./bin/zv workflows run analysis-viewer -- --json data/analysis/MarcusN1-deaths.json",
 		"./bin/zv workflows run gallery-open -- --path data/runs/run-004/shorts/publish/index.html",
