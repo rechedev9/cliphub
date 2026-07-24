@@ -50,7 +50,14 @@ const (
 	// really turned, so "time since the peak" is noise — and a player holding a
 	// static angle would otherwise record a settle of 0 ms, the most suspicious
 	// value the metric has, for the most ordinary kill in the game.
-	settlePeakFloorDegPerSec = 100.0
+	//
+	// 15 °/s is a quarter of a degree per tick at 64: above hand jitter, far
+	// below any deliberate turn. It has to stay low. Professional flick speed
+	// sits at 162 °/s for the *90th* percentile of a player's kills, so a floor
+	// anywhere near that discards almost every kill and the metric dies: at
+	// 100 °/s no player in a 15-map professional corpus kept enough sample to
+	// score at all.
+	settlePeakFloorDegPerSec = 15.0
 
 	// instantReactionMS is the reaction time below which a kill is flagged as
 	// evidence. Trained human reaction to a visual cue bottoms out near 150 ms.

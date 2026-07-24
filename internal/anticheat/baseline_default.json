@@ -1,7 +1,7 @@
 {
   "id": "pro-elite-2026",
   "source": "measured-professional-play",
-  "description": "Distribución medida sobre 15 mapas de máximo nivel de 2026 (BLAST Bounty, StarLadder StarSeries, Stake Ranked): Vitality, Liquid, Spirit, OG, Heroic, The MongolZ, Astralis, 3DMAX y k27, con 118-150 jugadores-partida por métrica. Mediana y MAD para que un partido atípico no ensanche la referencia, y cada demo cuenta una vez por SHA-256. Recalíbrala con `zv demo anticheat calibrate` si quieres otra referencia.",
+  "description": "Distribución medida con `zv demo anticheat calibrate` sobre 15 mapas de máximo nivel de 2026 (BLAST Bounty, StarLadder StarSeries y Stake Ranked: Vitality, Liquid, Spirit, OG, Heroic, The MongolZ, Astralis, 3DMAX y k27), las 15 parseadas sin fallos. Mediana y MAD, y cada demo cuenta una vez por SHA-256. Las demos son datos locales y no se pueden versionar aquí, así que la prueba está en el recuento de muestras de cada métrica: son jugadores-partida reales, no una estimación.",
   "metrics": {
     "wall_tracking_pct": {
       "mean": 5.73,
@@ -9,14 +9,14 @@
       "samples": 150
     },
     "unspotted_preaim_kill_pct": {
-      "mean": 25.0,
+      "mean": 25,
       "stddev": 15.26,
       "samples": 140
     },
     "preshot_settle_ms": {
-      "mean": 246.1,
-      "stddev": 86.87,
-      "samples": 140
+      "mean": 257.81,
+      "stddev": 81.08,
+      "samples": 135
     },
     "flick_speed_p90": {
       "mean": 161.79,
@@ -34,8 +34,8 @@
       "samples": 140
     },
     "unspotted_kill_pct": {
-      "mean": 37.5,
-      "stddev": 16.06,
+      "mean": 30.6,
+      "stddev": 15.72,
       "samples": 132
     },
     "headshot_pct": {
