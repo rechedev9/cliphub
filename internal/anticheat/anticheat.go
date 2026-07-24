@@ -1,5 +1,6 @@
 // Package anticheat derives statistical cheat-suspicion signals from a CS2
-// demo and scores them against a measured reference distribution.
+// demo and scores them against a reference distribution. Every report names the
+// baseline it used and whether that baseline was measured or only estimated.
 //
 // Everything here is demo-only and deterministic: one parser pass, no game
 // launch, no rendered video, no network call. The demo remains the source of

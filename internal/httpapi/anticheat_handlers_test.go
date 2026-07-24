@@ -129,6 +129,37 @@ func TestStartAnticheatIsIdempotentWhileRunning(t *testing.T) {
 	}
 }
 
+// A screening whose attempt timed out, was discarded at shutdown, or died with
+// the process leaves a "running" document nothing will ever finish. Past the
+// claim TTL the lane has to be re-takeable, or the job polls forever.
+func TestStartAnticheatReclaimsAStaleRunningLane(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	j := scannedJob()
+	repo.jobs[j.ID] = j
+	stale := time.Now().Add(-anticheatClaimTTL - time.Minute)
+	putAnticheat(t, store, j.ID, anticheat.NewRunningDocument(j.ID.String(), stale))
+	h := NewHandlers(repo, store, queue)
+
+	rw := httptest.NewRecorder()
+	anticheatRouter(h).ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/anticheat", nil))
+
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("queue = %#v, want the abandoned screening re-queued", queue.enqueued)
+	}
+	var doc anticheat.Document
+	if err := json.Unmarshal(store.puts[artifacts.AnticheatKey(j.ID)], &doc); err != nil {
+		t.Fatal(err)
+	}
+	if !doc.StartedAt.After(stale) {
+		t.Fatalf("started_at = %s, want the lane re-claimed with a fresh timestamp", doc.StartedAt)
+	}
+}
+
 func TestStartAnticheatReleasesTheLaneWhenTheQueueRejects(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()

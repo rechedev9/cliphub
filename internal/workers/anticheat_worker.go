@@ -34,27 +34,22 @@ func (w *ParserWorker) HandleAnalyzeAnticheat(ctx context.Context, t *asynq.Task
 // therefore reported into the document (and the obs journal) rather than
 // returned, because there is no job state for the queue to retry into.
 func (w *ParserWorker) ProcessAnalyzeAnticheat(ctx context.Context, jobID uuid.UUID) error {
-	j, err := w.repo.GetMeta(ctx, jobID)
-	if err != nil {
-		return fmt.Errorf("load job %s: %w", jobID, err)
+	doc := anticheat.NewRunningDocument(jobID.String(), time.Now())
+	if err := w.putAnticheatDocument(jobID, doc); err != nil {
+		return err
 	}
 
-	doc := anticheat.NewRunningDocument(j.ID.String(), time.Now())
-	if err := w.putAnticheatDocument(j.ID, doc); err != nil {
-		return err
+	j, err := w.repo.GetMeta(ctx, jobID)
+	if err != nil {
+		// The document is already claimed at this point, so a job that cannot
+		// be loaded has to be recorded as a failure; returning would leave the
+		// lane reading "running" with nothing left to finish it.
+		return w.failAnticheat(ctx, jobID, doc, fmt.Errorf("load job %s: %w", jobID, err))
 	}
 
 	report, analyzeErr := w.analyzeAnticheat(ctx, j)
 	if analyzeErr != nil {
-		// A cancelled context means the process is going away, not that the
-		// demo is unscreenable; leave the document running so a restart can
-		// pick it up instead of recording a false failure.
-		if ctx.Err() != nil {
-			return analyzeErr
-		}
-		recordWorkerFailure(j.ID, tasks.TypeAnalyzeAnticheat, analyzeErr)
-		logWorkerError(j.ID, "anticheat", analyzeErr)
-		return w.putAnticheatDocument(j.ID, doc.Fail(analyzeErr.Error(), time.Now()))
+		return w.failAnticheat(ctx, j.ID, doc, analyzeErr)
 	}
 
 	if err := w.putAnticheatDocument(j.ID, doc.Complete(report, time.Now())); err != nil {
@@ -62,6 +57,19 @@ func (w *ParserWorker) ProcessAnalyzeAnticheat(ctx context.Context, jobID uuid.U
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeAnalyzeAnticheat, []string{artifacts.AnticheatKey(j.ID)})
 	return nil
+}
+
+// failAnticheat records cause in the job's analysis document. A cancelled
+// context means the process or the attempt is going away rather than the demo
+// being unscreenable, so the document is left running for the retry and the
+// error is returned to the queue instead.
+func (w *ParserWorker) failAnticheat(ctx context.Context, jobID uuid.UUID, doc anticheat.Document, cause error) error {
+	if ctx.Err() != nil {
+		return cause
+	}
+	recordWorkerFailure(jobID, tasks.TypeAnalyzeAnticheat, cause)
+	logWorkerError(jobID, "anticheat", cause)
+	return w.putAnticheatDocument(jobID, doc.Fail(cause.Error(), time.Now()))
 }
 
 func (w *ParserWorker) analyzeAnticheat(ctx context.Context, j job.Job) (anticheat.Report, error) {

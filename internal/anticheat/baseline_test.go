@@ -30,7 +30,12 @@ func calibrationReports(playerCount int, value float64) []Report {
 func TestDefaultBaselineIsMeasuredAndOwnsItsMap(t *testing.T) {
 	b := DefaultBaseline()
 	if !b.header().Measured {
-		t.Fatal("the shipped baseline must carry a sample count for every metric")
+		t.Fatal("the shipped baseline was measured over professional demos; it must report itself as measured")
+	}
+	for _, def := range metricDefs {
+		if got := b.Metrics[def.id].Samples; got <= 0 {
+			t.Fatalf("metric %q declares %d samples; the sample count is the only evidence the shipped numbers were measured", def.id, got)
+		}
 	}
 	delete(b.Metrics, MetricWallTracking)
 	if _, ok := DefaultBaseline().Metrics[MetricWallTracking]; !ok {

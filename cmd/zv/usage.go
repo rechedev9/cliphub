@@ -163,7 +163,7 @@ the user can file their own report; FragForge never submits one.
 const demoAnticheatCalibrateUsage = `usage: zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]
 
 Measure a baseline from a directory of demos that are known to contain
-professional play, replacing the shipped editorial estimate. Metrics without
+professional play, replacing the shipped distribution. Metrics without
 enough samples keep the estimate and are named in the baseline description.
 `
 

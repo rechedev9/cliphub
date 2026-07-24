@@ -10,15 +10,17 @@ import (
 // only has to state the property it cares about.
 func gunKill(tick int) killObservation {
 	return killObservation{
-		tick:          tick,
-		round:         1,
-		victimName:    "victim",
-		weapon:        "AK-47",
-		hasAngles:     true,
-		peakDegPerSec: 300,
-		settleMS:      200,
-		jitter:        0.25,
-		visibleForMS:  400,
+		tick:              tick,
+		round:             1,
+		victimName:        "victim",
+		weapon:            "AK-47",
+		hasAngles:         true,
+		hasSettle:         true,
+		peakDegPerSec:     300,
+		settleMS:          200,
+		jitter:            0.25,
+		visibleForMS:      400,
+		victimEverSpotted: true,
 	}
 }
 
@@ -165,6 +167,7 @@ func TestWallhackLikeProfileScoresHigh(t *testing.T) {
 			k.visibleForMS = 60
 		} else {
 			k.visibleForMS = -1
+			k.victimEverSpotted = false
 		}
 		kills = append(kills, k)
 	}
@@ -224,6 +227,7 @@ func TestSmokeAndWallbangKillsLeaveTheUnspottedDenominator(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		k := gunKill(1000 + i*100)
 		k.visibleForMS = -1
+		k.victimEverSpotted = false
 		if i < 5 {
 			k.throughSmoke = true
 		}
@@ -240,6 +244,56 @@ func TestSmokeAndWallbangKillsLeaveTheUnspottedDenominator(t *testing.T) {
 	}
 }
 
+// Holding a static angle and killing whoever walks into it is the most ordinary
+// kill in CS2, and it leaves no pre-shot turn to settle from. Those kills must
+// stay out of the settle metric instead of entering it as 0 ms, which is the
+// most suspicious value the metric has.
+func TestKillsWithoutAPreShotTurnLeaveTheSettleMetric(t *testing.T) {
+	kills := make([]killObservation, 0, 20)
+	for i := 0; i < 20; i++ {
+		k := gunKill(1000 + i*100)
+		k.peakDegPerSec = 0
+		k.settleMS = 0
+		k.hasSettle = false
+		kills = append(kills, k)
+	}
+	report := newTrack(kills, 40000, 700).playerReport(DefaultBaseline(), 26, 64)
+
+	if m := metricByID(t, report, MetricSettle); m.Applied || m.Samples != 0 {
+		t.Fatalf("settle metric = %+v, want no samples for kills with no pre-shot turn", m)
+	}
+	if m := metricByID(t, report, MetricFlickSpeed); !m.Applied {
+		t.Fatal("flick speed still has a usable sample and must stay applied")
+	}
+	if report.Verdict != VerdictClean {
+		t.Fatalf("verdict = %q, want %q for a player who simply held angles (score %.1f)",
+			report.Verdict, VerdictClean, report.Score)
+	}
+}
+
+// A victim the killer had already seen this round is not an unseen kill, even
+// when the spotted mask happened to be off at the exact kill tick.
+func TestUnspottedKillsCountOnlyVictimsNeverSeen(t *testing.T) {
+	kills := make([]killObservation, 0, 10)
+	for i := 0; i < 10; i++ {
+		k := gunKill(1000 + i*100)
+		// Visibility had broken by the kill tick for every one of them, but
+		// half had been in view earlier in the round.
+		k.visibleForMS = -1
+		k.victimEverSpotted = i < 5
+		kills = append(kills, k)
+	}
+	report := newTrack(kills, 40000, 700).playerReport(DefaultBaseline(), 20, 64)
+
+	m := metricByID(t, report, MetricUnspottedKills)
+	if m.Samples != 10 {
+		t.Fatalf("unspotted-kill samples = %d, want all 10 kills in the denominator", m.Samples)
+	}
+	if math.Abs(m.Value-50) > 1e-9 {
+		t.Fatalf("unspotted-kill value = %g, want 50: only the never-seen half counts", m.Value)
+	}
+}
+
 func TestEvidencePrefersPreaimAndStaysCapped(t *testing.T) {
 	kills := make([]killObservation, 0, 40)
 	for i := 0; i < 20; i++ {
@@ -252,7 +306,7 @@ func TestEvidencePrefersPreaimAndStaysCapped(t *testing.T) {
 		k.preaimLocked = true
 		kills = append(kills, k)
 	}
-	evidence := newTrack(kills, 40000, 700).evidence(64)
+	evidence := newTrack(kills, 40000, 700).evidence()
 
 	if len(evidence) != maxEvidencePerPlayer {
 		t.Fatalf("evidence count = %d, want the %d cap", len(evidence), maxEvidencePerPlayer)
@@ -331,11 +385,13 @@ func proMedianKill(tick int) killObservation {
 	b := DefaultBaseline()
 	return killObservation{
 		tick: tick, round: 1, victimName: "victim", weapon: "AK-47",
-		hasAngles:     true,
-		peakDegPerSec: b.Metrics[MetricFlickSpeed].Mean,
-		settleMS:      b.Metrics[MetricSettle].Mean,
-		jitter:        b.Metrics[MetricJitter].Mean,
-		visibleForMS:  b.Metrics[MetricReaction].Mean,
+		hasAngles:         true,
+		hasSettle:         true,
+		peakDegPerSec:     b.Metrics[MetricFlickSpeed].Mean,
+		settleMS:          b.Metrics[MetricSettle].Mean,
+		jitter:            b.Metrics[MetricJitter].Mean,
+		visibleForMS:      b.Metrics[MetricReaction].Mean,
+		victimEverSpotted: true,
 	}
 }
 
@@ -349,7 +405,8 @@ func TestWallOnlyProfileStillReachesTheReviewBand(t *testing.T) {
 		k := proMedianKill(1000 + i*100)
 		k.preaimLocked = true
 		if i%2 == 0 {
-			k.visibleForMS = -1 // never visible: killed through cover
+			k.visibleForMS = -1 // killed through cover
+			k.victimEverSpotted = false
 		}
 		kills = append(kills, k)
 	}

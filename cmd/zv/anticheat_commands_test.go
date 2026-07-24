@@ -182,3 +182,44 @@ func TestShippedBaselineIsValidAndNamesItsProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValidateSkillCommandChecksDemoAnticheatFlags(t *testing.T) {
+	cases := []struct {
+		name    string
+		command []string
+		want    string
+	}{
+		{
+			name:    "missing demo",
+			command: []string{"demo", "anticheat", "--format", "json"},
+			want:    `missing required flag --demo for "demo anticheat"`,
+		},
+		{
+			name:    "unknown flag",
+			command: []string{"demo", "anticheat", "--demo", "match.dem", "--bogus", "x"},
+			want:    `unknown flag --bogus for "demo anticheat"`,
+		},
+		{
+			name:    "valid screening",
+			command: []string{"demo", "anticheat", "--demo", "match.dem", "--dry-run", "--format", "json"},
+			want:    "",
+		},
+		{
+			name:    "calibrate missing id",
+			command: []string{"demo", "anticheat", "calibrate", "--demos", "pro"},
+			want:    `missing required flag --id for "demo anticheat calibrate"`,
+		},
+		{
+			name:    "valid calibrate",
+			command: []string{"demo", "anticheat", "calibrate", "--demos", "pro", "--id", "pro-2026", "--out", "b.json"},
+			want:    "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := validateSkillCommand(tc.command); got != tc.want {
+				t.Fatalf("validateSkillCommand(%q) = %q, want %q", tc.command, got, tc.want)
+			}
+		})
+	}
+}

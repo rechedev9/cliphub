@@ -30,7 +30,8 @@ const (
 	// direction: machine micro-correction reverses far more than a hand.
 	MetricJitter MetricID = "aim_jitter"
 	// MetricUnspottedKills is the share of gun kills on a victim who was never
-	// visible, excluding smoke and wallbang kills where that is expected.
+	// visible to the killer at any point in the round, excluding smoke and
+	// wallbang kills where an unseen victim is expected.
 	MetricUnspottedKills MetricID = "unspotted_kill_pct"
 	// MetricHeadshot is the headshot share of gun kills.
 	MetricHeadshot MetricID = "headshot_pct"
@@ -97,7 +98,7 @@ var metricDefs = []metricDef{
 	{
 		id: MetricSettle, label: "Estabilización antes del disparo", unit: "ms",
 		direction: DirectionLow, cluster: clusterAim, weight: 0.15, minSamples: 8,
-		description: "Tiempo mediano entre el pico de giro de la mira y la baja. Una mira asistida no necesita corregir.",
+		description: "Tiempo mediano entre el pico de giro de la mira y la baja, solo en bajas con un giro real previo. Una mira asistida no necesita corregir.",
 	},
 	{
 		id: MetricFlickSpeed, label: "Velocidad de flick (p90)", unit: "°/s",
@@ -322,7 +323,7 @@ func (t *track) playerReport(baseline Baseline, rounds int, tickRate float64) Pl
 		Rounds:    rounds,
 		GunKills:  len(t.kills),
 		Metrics:   metrics,
-		Evidence:  t.evidence(tickRate),
+		Evidence:  t.evidence(),
 	}
 	report.Score = round1(composite(sums))
 	report.Confidence = round2(confidence(len(t.kills), rounds, t.aliveTicks, tickRate))
@@ -365,14 +366,16 @@ func (t *track) metricValues(rounds int) (map[MetricID]float64, map[MetricID]int
 		// denominator rather than counted as clean.
 		if !k.throughSmoke && k.penetrated == 0 {
 			unspottedEligible++
-			if k.visibleForMS < 0 {
+			if !k.victimEverSpotted {
 				unspotted++
 			}
 		}
 		if k.hasAngles {
-			settles = append(settles, k.settleMS)
 			flicks = append(flicks, k.peakDegPerSec)
 			jitters = append(jitters, k.jitter)
+		}
+		if k.hasSettle {
+			settles = append(settles, k.settleMS)
 		}
 		if k.visibleForMS >= 0 && k.visibleForMS <= reactionWindowSeconds*1000 {
 			reactions = append(reactions, k.visibleForMS)
@@ -407,7 +410,7 @@ func (t *track) metricValues(rounds int) (map[MetricID]float64, map[MetricID]int
 
 // evidence returns the reviewable moments behind the metrics, worst first, so
 // a human can seek straight to the ticks instead of trusting the numbers.
-func (t *track) evidence(tickRate float64) []Evidence {
+func (t *track) evidence() []Evidence {
 	out := make([]Evidence, 0, maxEvidencePerPlayer)
 	for _, k := range t.kills {
 		switch {

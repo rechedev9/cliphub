@@ -55,7 +55,7 @@ func runDemoAnticheat(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("demo anticheat", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	demoPath := fs.String("demo", "", "CS2 demo to screen")
-	baselinePath := fs.String("baseline", "", "optional calibrated baseline JSON; defaults to the shipped editorial estimate")
+	baselinePath := fs.String("baseline", "", "optional baseline JSON; defaults to the shipped professional-play distribution")
 	outPath := fs.String("out", "", "optional analysis JSON artifact")
 	dossierID := fs.String("dossier", "", "optional SteamID64 to render a report dossier for")
 	format := fs.String("format", "text", "text or json")

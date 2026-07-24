@@ -41,6 +41,13 @@ var loadDefaultBaseline = sync.OnceValue(func() Baseline {
 // top-level professional play, measured with a median and a MAD-derived spread
 // so one atypical match cannot widen it.
 //
+// The demos it was measured over are local files that cannot be versioned here,
+// so the evidence that travels with the numbers is the per-metric sample count:
+// those are real player-matches, and BaselineHeader.Measured reports false the
+// moment any metric loses its count. Do not "fix" a mismatch between these
+// numbers and some other text by zeroing the counts — that turns a measurement
+// into a claim it never made.
+//
 // Professional play is the right reference in both directions. Pros do not
 // track enemies through walls any more than anyone else, so the information
 // metrics stay just as tight as they would against a general population; but

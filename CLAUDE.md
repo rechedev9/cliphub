@@ -60,7 +60,9 @@ It is exposed over `POST|GET /api/jobs/{id}/anticheat`, backed by the `analyze:a
 The screening is a side lane: it never changes a demo job's status, so a demo can be screened and clipped independently and a failed screening never makes a healthy job look broken.
 
 Metric definitions, weights, and verdict bands live in `internal/anticheat/score.go`; the shipped reference distribution is data in `internal/anticheat/baseline_default.json`.
-That baseline is measured over top-level professional play, and its provenance and per-metric sample counts travel inside every report — recalibrate with `demo anticheat calibrate` rather than editing numbers by hand.
+The shipped baseline was measured over 15 top-level professional maps; the demos are local files that cannot be versioned, so the per-metric sample count is the evidence that travels with the numbers.
+Do not reconcile a mismatch between the baseline and some other text by zeroing those counts: that turns a measurement into a claim it never made. Fix the other text, or recalibrate.
+Never raise a metric's `samples` without a calibration run that actually produced it, and recalibrate with `demo anticheat calibrate` rather than editing numbers by hand; provenance and per-metric sample counts travel inside every report.
 Calibration uses a median and a MAD-derived spread and counts each demo once by SHA-256, so neither an atypical match nor a re-uploaded one can bend the reference.
 The composite blends the strongest of the information and aim clusters with the overall mean, because a plain mean across every metric cannot flag a single-kind cheat: a wall-only user maxes the information metrics and sits at the median on aim.
 

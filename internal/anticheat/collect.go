@@ -45,6 +45,13 @@ const (
 	// before its settle time is worth flagging at all.
 	roboticFlickDegPerSec = 400.0
 
+	// settlePeakFloorDegPerSec is the peak angular speed a pre-shot window must
+	// reach before its settle time means anything. Below it the crosshair never
+	// really turned, so "time since the peak" is noise — and a player holding a
+	// static angle would otherwise record a settle of 0 ms, the most suspicious
+	// value the metric has, for the most ordinary kill in the game.
+	settlePeakFloorDegPerSec = 100.0
+
 	// instantReactionMS is the reaction time below which a kill is flagged as
 	// evidence. Trained human reaction to a visual cue bottoms out near 150 ms.
 	instantReactionMS = 100.0
@@ -86,6 +93,12 @@ type track struct {
 	// so a kill reads the age of the current sighting, not a stale one.
 	spottedSince map[uint64]int
 
+	// everSpotted remembers which enemies became visible at any point in the
+	// current round. spottedSince cannot answer that — it is cleared the moment
+	// visibility breaks — and "was never seen this round" is what the unspotted
+	// kill metric claims to measure.
+	everSpotted map[uint64]struct{}
+
 	kills []killObservation
 }
 
@@ -104,8 +117,13 @@ type killObservation struct {
 	// peakDegPerSec is the fastest view-angle change in the pre-shot window.
 	peakDegPerSec float64
 	// settleMS is the time from that peak to the kill. Human aim needs time
-	// to correct after a fast angle change; an assisted aim does not.
+	// to correct after a fast angle change; an assisted aim does not. It only
+	// means anything when hasSettle is true.
 	settleMS float64
+	// hasSettle reports whether the crosshair actually turned before the shot.
+	// Without a real peak there is nothing to settle from, and the kill is left
+	// out of the settle metric instead of entering it as a 0 ms outlier.
+	hasSettle bool
 	// jitter is the share of the pre-shot window's angle deltas that reversed
 	// direction. Machine micro-correction reverses far more often than a hand.
 	jitter float64
@@ -116,9 +134,14 @@ type killObservation struct {
 	// preaimLocked is true when the crosshair had been locked onto the victim
 	// through cover for at least preaimLockSeconds right before the kill.
 	preaimLocked bool
-	// visibleForMS is how long the victim had been visible to the killer when
-	// the kill landed, or -1 when the victim was never visible.
+	// visibleForMS is how long the victim had been continuously visible to the
+	// killer when the kill landed, or -1 when the victim was not visible at
+	// that moment. It is the reaction-time input, not a "never seen" flag.
 	visibleForMS float64
+	// victimEverSpotted is true when the victim had been visible to the killer
+	// at any point in the round. A victim who was visible earlier and merely
+	// stepped out of the spotted mask is not an unseen kill.
+	victimEverSpotted bool
 }
 
 // collector wires the demo event handlers and holds every track.
@@ -175,6 +198,7 @@ func (c *collector) register(p demoinfocs.Parser) {
 		for _, t := range c.tracks {
 			clear(t.preaimTicks)
 			clear(t.spottedSince)
+			clear(t.everSpotted)
 		}
 	})
 
@@ -225,6 +249,7 @@ func (c *collector) sample() {
 				if _, ok := t.spottedSince[enemy.SteamID64]; !ok {
 					t.spottedSince[enemy.SteamID64] = tick
 				}
+				t.everSpotted[enemy.SteamID64] = struct{}{}
 				delete(t.preaimTicks, enemy.SteamID64)
 				continue
 			}
@@ -281,10 +306,12 @@ func (c *collector) recordKill(e events.Kill) {
 	}
 
 	obs.peakDegPerSec, obs.settleMS, obs.jitter, obs.hasAngles = t.preShotAim(tick, c.tickRate)
+	obs.hasSettle = obs.hasAngles && obs.peakDegPerSec >= settlePeakFloorDegPerSec
 	obs.preaimLocked = float64(t.preaimTicks[e.Victim.SteamID64]) >= preaimLockSeconds*c.tickRate
 	if since, ok := t.spottedSince[e.Victim.SteamID64]; ok {
 		obs.visibleForMS = float64(tick-since) / c.tickRate * 1000
 	}
+	_, obs.victimEverSpotted = t.everSpotted[e.Victim.SteamID64]
 
 	t.kills = append(t.kills, obs)
 }
@@ -297,6 +324,7 @@ func (c *collector) track(pl *common.Player) *track {
 			ring:         make([]angleSample, c.ringSize),
 			preaimTicks:  map[uint64]int{},
 			spottedSince: map[uint64]int{},
+			everSpotted:  map[uint64]struct{}{},
 		}
 		c.tracks[pl.SteamID64] = t
 	}

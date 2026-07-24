@@ -15,6 +15,14 @@ import (
 	"github.com/rechedev9/fragforge/internal/tasks"
 )
 
+// anticheatClaimTTL is how long a "running" analysis document keeps the lane to
+// itself. It is longer than the queue's own parse attempt timeout, so a genuine
+// in-flight screening is never restarted underneath itself; past it, the pass
+// that wrote the document can no longer be running — the attempt timed out, the
+// task was discarded at shutdown, or the process died — and the lane must be
+// re-claimable, otherwise the job would poll "running" forever.
+const anticheatClaimTTL = 30 * time.Minute
+
 // StartAnticheat handles POST /api/jobs/{id}/anticheat: it queues the
 // CheaterDetect screening pass over the job's demo.
 //
@@ -32,14 +40,16 @@ func (h *Handlers) StartAnticheat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if doc, err := h.readAnticheatDocument(j.ID); err == nil && doc.Status == anticheat.StatusRunning {
+	now := time.Now()
+	if doc, err := h.readAnticheatDocument(j.ID); err == nil &&
+		doc.Status == anticheat.StatusRunning && now.Sub(doc.StartedAt) < anticheatClaimTTL {
 		writeJSON(w, http.StatusAccepted, map[string]any{"id": j.ID, "status": doc.Status})
 		return
 	}
 
 	// Claim the lane before enqueueing so a poll issued right after this
 	// response already sees "running" instead of a stale ready document.
-	doc := anticheat.NewRunningDocument(j.ID.String(), time.Now())
+	doc := anticheat.NewRunningDocument(j.ID.String(), now)
 	if err := h.putAnticheatDocument(j.ID, doc); err != nil {
 		internalError(w, "store anticheat document", err)
 		return
