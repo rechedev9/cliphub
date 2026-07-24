@@ -324,3 +324,100 @@ func TestLimitationsRefuseToClaimProof(t *testing.T) {
 		t.Fatalf("limitations must state this is not proof, got: %s", joined)
 	}
 }
+
+// proMedianKill returns a kill whose aim matches the shipped professional
+// baseline exactly, so a test can isolate one signal from the rest.
+func proMedianKill(tick int) killObservation {
+	b := DefaultBaseline()
+	return killObservation{
+		tick: tick, round: 1, victimName: "victim", weapon: "AK-47",
+		hasAngles:     true,
+		peakDegPerSec: b.Metrics[MetricFlickSpeed].Mean,
+		settleMS:      b.Metrics[MetricSettle].Mean,
+		jitter:        b.Metrics[MetricJitter].Mean,
+		visibleForMS:  b.Metrics[MetricReaction].Mean,
+	}
+}
+
+// A wall-only cheat is the common case and the hardest to see: the information
+// metrics max out while the aim metrics stay ordinary. A plain weighted mean
+// over every metric lands halfway and reads as inconclusive, which is what the
+// cluster blend exists to prevent.
+func TestWallOnlyProfileStillReachesTheReviewBand(t *testing.T) {
+	kills := make([]killObservation, 0, 20)
+	for i := 0; i < 20; i++ {
+		k := proMedianKill(1000 + i*100)
+		k.preaimLocked = true
+		if i%2 == 0 {
+			k.visibleForMS = -1 // never visible: killed through cover
+		}
+		kills = append(kills, k)
+	}
+	// 22% of living time with the crosshair on an enemy behind cover.
+	report := newTrack(kills, 40000, 8800).playerReport(DefaultBaseline(), 26, 64)
+
+	if report.Score < scoreAnomalousBand {
+		t.Fatalf("score = %.1f, want at least %d for a maxed-out wallhack profile",
+			report.Score, scoreAnomalousBand)
+	}
+	if report.Verdict != VerdictAnomalous && report.Verdict != VerdictHighlyAnomalous {
+		t.Fatalf("verdict = %q, want a review band (score %.1f)", report.Verdict, report.Score)
+	}
+}
+
+// The mirror case: ordinary information, machine-grade aim.
+func TestAimOnlyProfileStillReachesTheReviewBand(t *testing.T) {
+	kills := make([]killObservation, 0, 20)
+	for i := 0; i < 20; i++ {
+		k := proMedianKill(1000 + i*100)
+		k.settleMS = 20
+		k.peakDegPerSec = 900
+		k.jitter = 0.35
+		k.visibleForMS = 70
+		kills = append(kills, k)
+	}
+	report := newTrack(kills, 40000, 2292).playerReport(DefaultBaseline(), 26, 64)
+
+	if report.Score < scoreAnomalousBand {
+		t.Fatalf("score = %.1f, want at least %d for a maxed-out aim profile",
+			report.Score, scoreAnomalousBand)
+	}
+}
+
+// The blend must not turn skill into an accusation: a player well above the
+// professional median on every legitimate axis stays clean.
+func TestVeryStrongLegitimatePlayerStaysClean(t *testing.T) {
+	b := DefaultBaseline()
+	kills := make([]killObservation, 0, 24)
+	for i := 0; i < 24; i++ {
+		k := proMedianKill(1000 + i*100)
+		// Reaction and flick a step and a half beyond the professional median,
+		// and headshots on nearly every kill.
+		k.visibleForMS = b.Metrics[MetricReaction].Mean - 1.5*b.Metrics[MetricReaction].StdDev
+		k.peakDegPerSec = b.Metrics[MetricFlickSpeed].Mean + 1.5*b.Metrics[MetricFlickSpeed].StdDev
+		k.headshot = i%5 != 0
+		kills = append(kills, k)
+	}
+	report := newTrack(kills, 40000, 2292).playerReport(b, 26, 64)
+
+	if report.Verdict != VerdictClean {
+		t.Fatalf("verdict = %q, want %q (score %.1f)", report.Verdict, VerdictClean, report.Score)
+	}
+}
+
+// Raw output alone must never carry a verdict: headshot share and kills per
+// round are exactly what a strong legitimate player produces.
+func TestOutputMetricsAloneCannotDriveTheComposite(t *testing.T) {
+	sums := map[cluster]*weightedSum{clusterOutput: {}}
+	sums[clusterOutput].add(0.05, 100)
+	sums[clusterOutput].add(0.03, 100)
+	if got := composite(sums); got >= scoreInconclusiveBand {
+		t.Fatalf("composite = %.1f from output metrics alone, want below %d", got, scoreInconclusiveBand)
+	}
+}
+
+func TestCompositeIsZeroWithoutAnyAppliedMetric(t *testing.T) {
+	if got := composite(map[cluster]*weightedSum{}); got != 0 {
+		t.Fatalf("composite = %g, want 0", got)
+	}
+}

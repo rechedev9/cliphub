@@ -37,15 +37,18 @@ var loadDefaultBaseline = sync.OnceValue(func() Baseline {
 	return b
 })
 
-// DefaultBaseline returns the reference distribution FragForge ships with: the
-// observed CS2 player population, measured with a median and a MAD-derived
-// spread so cheaters inside the corpus cannot widen it.
+// DefaultBaseline returns the reference distribution FragForge ships with:
+// top-level professional play, measured with a median and a MAD-derived spread
+// so one atypical match cannot widen it.
 //
-// It is a population baseline, not professional play. That is the stricter
-// choice for the signals that carry the composite — pros do not track enemies
-// through walls any more than anyone else — but a report always names the
-// baseline it used, and `zv demo anticheat calibrate` replaces it with one
-// measured over demos of your choosing.
+// Professional play is the right reference in both directions. Pros do not
+// track enemies through walls any more than anyone else, so the information
+// metrics stay just as tight as they would against a general population; but
+// pros do react far faster and pre-aim far more from map knowledge, so scoring
+// those against a general population would flag skill as cheating.
+//
+// A report always names the baseline it used, and `zv demo anticheat calibrate`
+// replaces it with one measured over demos of your choosing.
 //
 // The returned Baseline owns its map, so a caller can adjust a copy without
 // changing what the next caller sees.

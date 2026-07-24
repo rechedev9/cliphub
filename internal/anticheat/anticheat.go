@@ -181,7 +181,7 @@ func standardLimitations() []string {
 		"Este informe es un detector de anomalías estadísticas, no una prueba de trampas.",
 		"La visibilidad se aproxima con la máscara de 'spotted' de la demo, que no es un trazado de línea de visión real.",
 		"Una muestra corta, una demo POV o una partida con nivel muy desigual pueden elevar la puntuación de un jugador legítimo.",
-		"La línea base por defecto describe la población de CS2 medida en demos locales, no juego profesional; recalíbrala para comparar contra los mejores del mundo.",
+		"La referencia es juego profesional medido; un jugador legítimo por debajo de ese nivel puede desviarse sin hacer trampas.",
 		"Solo una revisión humana de los ticks señalados puede confirmar o descartar lo que miden las métricas.",
 	}
 }

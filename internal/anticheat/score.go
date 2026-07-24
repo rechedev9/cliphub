@@ -49,13 +49,32 @@ const (
 	DirectionLow Direction = "low"
 )
 
+// cluster groups metrics by the kind of advantage they measure. Cheating comes
+// in kinds: a wall-only user is extreme on information and ordinary on aim, and
+// an aim-assisted one is the reverse. Scoring each kind separately is what lets
+// either be caught (see composite).
+type cluster string
+
+const (
+	// clusterInformation covers knowing where enemies are without seeing them.
+	clusterInformation cluster = "information"
+	// clusterAim covers how the crosshair reaches and settles on a target.
+	clusterAim cluster = "aim"
+	// clusterOutput covers raw results. It is context, never evidence: a strong
+	// legitimate player scores as high here as a cheater, so it can inform the
+	// composite but never drive it.
+	clusterOutput cluster = "output"
+)
+
 // metricDef is the fixed description of one metric: what it means, which tail
-// matters, and how much of the composite it carries.
+// matters, which kind of advantage it belongs to, and how much of the composite
+// it carries.
 type metricDef struct {
 	id          MetricID
 	label       string
 	unit        string
 	direction   Direction
+	cluster     cluster
 	weight      float64
 	minSamples  int
 	description string
@@ -67,47 +86,47 @@ type metricDef struct {
 var metricDefs = []metricDef{
 	{
 		id: MetricWallTracking, label: "Seguimiento a través de muros", unit: "%",
-		direction: DirectionHigh, weight: 0.22, minSamples: 2000,
+		direction: DirectionHigh, cluster: clusterInformation, weight: 0.22, minSamples: 2000,
 		description: "Porcentaje del tiempo con vida apuntando a un enemigo que el jugador no puede ver.",
 	},
 	{
 		id: MetricPreaimKills, label: "Bajas con preapuntado", unit: "%",
-		direction: DirectionHigh, weight: 0.18, minSamples: 8,
+		direction: DirectionHigh, cluster: clusterInformation, weight: 0.18, minSamples: 8,
 		description: "Bajas precedidas de un bloqueo sostenido de mira sobre la víctima a través de cobertura.",
 	},
 	{
 		id: MetricSettle, label: "Estabilización antes del disparo", unit: "ms",
-		direction: DirectionLow, weight: 0.15, minSamples: 8,
+		direction: DirectionLow, cluster: clusterAim, weight: 0.15, minSamples: 8,
 		description: "Tiempo mediano entre el pico de giro de la mira y la baja. Una mira asistida no necesita corregir.",
 	},
 	{
 		id: MetricFlickSpeed, label: "Velocidad de flick (p90)", unit: "°/s",
-		direction: DirectionHigh, weight: 0.12, minSamples: 8,
+		direction: DirectionHigh, cluster: clusterAim, weight: 0.12, minSamples: 8,
 		description: "Percentil 90 de la velocidad angular máxima en el medio segundo previo a cada baja.",
 	},
 	{
 		id: MetricReaction, label: "Tiempo de reacción", unit: "ms",
-		direction: DirectionLow, weight: 0.12, minSamples: 6,
+		direction: DirectionLow, cluster: clusterAim, weight: 0.12, minSamples: 6,
 		description: "Tiempo mediano entre que el enemigo se hace visible y la baja.",
 	},
 	{
 		id: MetricJitter, label: "Micro-corrección de mira", unit: "ratio",
-		direction: DirectionHigh, weight: 0.08, minSamples: 8,
+		direction: DirectionHigh, cluster: clusterAim, weight: 0.08, minSamples: 8,
 		description: "Proporción de cambios de ángulo que invierten el sentido antes del disparo.",
 	},
 	{
 		id: MetricUnspottedKills, label: "Bajas sobre enemigo nunca visible", unit: "%",
-		direction: DirectionHigh, weight: 0.05, minSamples: 8,
+		direction: DirectionHigh, cluster: clusterInformation, weight: 0.05, minSamples: 8,
 		description: "Bajas sobre una víctima que nunca fue visible, excluyendo humo y penetraciones.",
 	},
 	{
 		id: MetricHeadshot, label: "Porcentaje de headshots", unit: "%",
-		direction: DirectionHigh, weight: 0.05, minSamples: 8,
+		direction: DirectionHigh, cluster: clusterOutput, weight: 0.05, minSamples: 8,
 		description: "Proporción de bajas con arma de fuego que fueron a la cabeza.",
 	},
 	{
 		id: MetricKillsPerRound, label: "Bajas por ronda", unit: "kpr",
-		direction: DirectionHigh, weight: 0.03, minSamples: 8,
+		direction: DirectionHigh, cluster: clusterOutput, weight: 0.03, minSamples: 8,
 		description: "Producción bruta. Es contexto: un jugador legítimo muy fuerte también puntúa alto aquí.",
 	},
 }
@@ -225,6 +244,11 @@ const (
 	// zMidpoint is the z-score mapped to a suspicion of 50: two standard
 	// deviations beyond the professional mean.
 	zMidpoint = 2.0
+	// clusterWeight is how much of the composite the strongest kind of
+	// advantage carries, with the rest coming from the overall mean. At 0.6 a
+	// maxed-out single-kind cheat clears the anomalous band while a very strong
+	// legitimate player stays well inside "clean".
+	clusterWeight = 0.6
 	// zClamp bounds z so one wild metric cannot dominate the composite.
 	zClamp = 6.0
 )
@@ -263,7 +287,7 @@ func (t *track) playerReport(baseline Baseline, rounds int, tickRate float64) Pl
 	values, samples := t.metricValues(rounds)
 
 	metrics := make([]MetricScore, 0, len(metricDefs))
-	var weighted, weight float64
+	sums := map[cluster]*weightedSum{}
 	applied := 0
 	for _, def := range metricDefs {
 		mb := baseline.Metrics[def.id]
@@ -282,8 +306,10 @@ func (t *track) playerReport(baseline Baseline, rounds int, tickRate float64) Pl
 			score.Z = round2(zScore(values[def.id], mb, def.direction))
 			score.Suspicion = round1(suspicionFromZ(score.Z))
 			score.Applied = true
-			weighted += def.weight * score.Suspicion
-			weight += def.weight
+			if sums[def.cluster] == nil {
+				sums[def.cluster] = &weightedSum{}
+			}
+			sums[def.cluster].add(def.weight, score.Suspicion)
 			applied++
 		}
 		metrics = append(metrics, score)
@@ -298,9 +324,7 @@ func (t *track) playerReport(baseline Baseline, rounds int, tickRate float64) Pl
 		Metrics:   metrics,
 		Evidence:  t.evidence(tickRate),
 	}
-	if weight > 0 {
-		report.Score = round1(weighted / weight)
-	}
+	report.Score = round1(composite(sums))
 	report.Confidence = round2(confidence(len(t.kills), rounds, t.aliveTicks, tickRate))
 	report.Verdict = verdict(report.Score, report.Confidence, len(t.kills), applied)
 	return report
@@ -434,6 +458,63 @@ func evidenceRank(k EvidenceKind) int {
 	default:
 		return 0
 	}
+}
+
+// weightedSum accumulates one cluster's weighted suspicion.
+type weightedSum struct {
+	weighted float64
+	weight   float64
+}
+
+func (w *weightedSum) add(weight, suspicion float64) {
+	w.weighted += weight * suspicion
+	w.weight += weight
+}
+
+// applied reports whether any metric of this cluster cleared its sample
+// minimum.
+func (w *weightedSum) applied() bool {
+	return w != nil && w.weight > 0
+}
+
+// mean returns the cluster's weighted suspicion, or 0 when nothing applied.
+func (w *weightedSum) mean() float64 {
+	if !w.applied() {
+		return 0
+	}
+	return w.weighted / w.weight
+}
+
+// composite folds the per-cluster suspicions into one 0..100 score.
+//
+// A plain weighted mean across every metric cannot flag a single-kind cheat: a
+// wall-only user maxes out the information metrics and sits at the median on
+// aim, so the mean lands halfway and reads as inconclusive. Taking the strongest
+// of the information and aim clusters lets either kind carry the verdict, while
+// keeping the overall mean in the blend stops one extreme metric — inside an
+// otherwise ordinary cluster — from doing it alone.
+//
+// The output cluster (headshots, kills per round) never enters the max: a
+// strong legitimate player scores just as high there as a cheater, so it may
+// only nudge the mean.
+func composite(sums map[cluster]*weightedSum) float64 {
+	if !sums[clusterInformation].applied() && !sums[clusterAim].applied() {
+		// Only raw output survived the sample minimums. That is context and
+		// never evidence, so there is nothing here to score — and without it
+		// the mean below would collapse onto the output metrics alone.
+		return 0
+	}
+	strongest := math.Max(sums[clusterInformation].mean(), sums[clusterAim].mean())
+
+	var weighted, weight float64
+	for _, sum := range sums {
+		weighted += sum.weighted
+		weight += sum.weight
+	}
+	if weight <= 0 {
+		return 0
+	}
+	return clusterWeight*strongest + (1-clusterWeight)*(weighted/weight)
 }
 
 // zScore returns how many standard deviations value sits on the suspicious

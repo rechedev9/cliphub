@@ -1,52 +1,52 @@
 {
-  "id": "cs2-population-v1",
-  "source": "measured-cs2-population",
-  "description": "Distribución medida sobre 3 partidas locales distintas de CS2 (19-30 jugadores-partida por métrica), con mediana y MAD para que los tramposos presentes en el propio corpus no ensanchen la referencia. Es una población de matchmaking y un corpus pequeño, no juego profesional: para comparar contra los mejores del mundo, recalibra con `zv demo anticheat calibrate --demos <carpeta de demos profesionales>`.",
+  "id": "pro-elite-2026",
+  "source": "measured-professional-play",
+  "description": "Distribución medida sobre 15 mapas de máximo nivel de 2026 (BLAST Bounty, StarLadder StarSeries, Stake Ranked): Vitality, Liquid, Spirit, OG, Heroic, The MongolZ, Astralis, 3DMAX y k27, con 118-150 jugadores-partida por métrica. Mediana y MAD para que un partido atípico no ensanche la referencia, y cada demo cuenta una vez por SHA-256. Recalíbrala con `zv demo anticheat calibrate` si quieres otra referencia.",
   "metrics": {
     "wall_tracking_pct": {
-      "mean": 6.42,
-      "stddev": 1.57,
-      "samples": 30
+      "mean": 5.73,
+      "stddev": 1.44,
+      "samples": 150
     },
     "unspotted_preaim_kill_pct": {
-      "mean": 19.05,
-      "stddev": 8.48,
-      "samples": 23
+      "mean": 25.0,
+      "stddev": 15.26,
+      "samples": 140
     },
     "preshot_settle_ms": {
-      "mean": 250.0,
-      "stddev": 69.5,
-      "samples": 23
+      "mean": 246.1,
+      "stddev": 86.87,
+      "samples": 140
     },
     "flick_speed_p90": {
-      "mean": 183.12,
-      "stddev": 89.61,
-      "samples": 23
+      "mean": 161.79,
+      "stddev": 73.15,
+      "samples": 140
     },
     "reaction_ms": {
-      "mean": 375.0,
-      "stddev": 69.49,
-      "samples": 19
+      "mean": 292.97,
+      "stddev": 110.04,
+      "samples": 118
     },
     "aim_jitter": {
-      "mean": 0.08,
-      "stddev": 0.03,
-      "samples": 23
+      "mean": 0.06,
+      "stddev": 0.04,
+      "samples": 140
     },
     "unspotted_kill_pct": {
-      "mean": 33.33,
-      "stddev": 17.74,
-      "samples": 22
+      "mean": 37.5,
+      "stddev": 16.06,
+      "samples": 132
     },
     "headshot_pct": {
-      "mean": 53.85,
-      "stddev": 11.93,
-      "samples": 23
+      "mean": 53.59,
+      "stddev": 19.39,
+      "samples": 140
     },
     "kills_per_round": {
-      "mean": 0.71,
-      "stddev": 0.21,
-      "samples": 23
+      "mean": 0.66,
+      "stddev": 0.18,
+      "samples": 140
     }
   }
 }

@@ -60,8 +60,9 @@ It is exposed over `POST|GET /api/jobs/{id}/anticheat`, backed by the `analyze:a
 The screening is a side lane: it never changes a demo job's status, so a demo can be screened and clipped independently and a failed screening never makes a healthy job look broken.
 
 Metric definitions, weights, and verdict bands live in `internal/anticheat/score.go`; the shipped reference distribution is data in `internal/anticheat/baseline_default.json`.
-That baseline is a measured CS2 population, not professional play, and its provenance and per-metric sample counts travel inside every report — recalibrate with `demo anticheat calibrate` rather than editing numbers by hand.
-Calibration uses a median and a MAD-derived spread and counts each demo once by SHA-256, so neither cheaters inside the corpus nor a re-uploaded match can bend the reference.
+That baseline is measured over top-level professional play, and its provenance and per-metric sample counts travel inside every report — recalibrate with `demo anticheat calibrate` rather than editing numbers by hand.
+Calibration uses a median and a MAD-derived spread and counts each demo once by SHA-256, so neither an atypical match nor a re-uploaded one can bend the reference.
+The composite blends the strongest of the information and aim clusters with the overall mean, because a plain mean across every metric cannot flag a single-kind cheat: a wall-only user maxes the information metrics and sits at the median on aim.
 
 The output is an anomaly report, never a verdict of guilt, and every surface must keep saying so: the report carries its own `limitations`, and the score is a prompt to review the listed ticks by hand.
 FragForge prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
