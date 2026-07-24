@@ -8,6 +8,7 @@ import {
   Crosshair,
   Film,
   Newspaper,
+  Radar,
   Settings,
   UploadCloud,
   type LucideIcon,
@@ -32,6 +33,7 @@ import { cn } from '@/lib/utils';
 const NAV_META: Record<NavHref, { icon: LucideIcon; stream?: boolean }> = {
   '/matches': { icon: Crosshair },
   '/upload': { icon: UploadCloud },
+  '/tactical': { icon: Radar },
   '/streams': { icon: Clapperboard, stream: true },
   '/news': { icon: Newspaper },
   '/videos': { icon: Film },
@@ -47,9 +49,11 @@ function isActiveHref(pathname: string, href: string): boolean {
 }
 
 /**
- * The persistent left sidebar shell: brand lockup up top, the numbered 01-07
+ * The persistent left sidebar shell: brand lockup up top, the numbered 01-08
  * nav (active item gets the inset accent bar; the active destination always
- * uses cyan), and a footer with the local CAPTURA readiness card.
+ * uses cyan), and a footer with the local CAPTURA readiness card. The divider
+ * between creation and content destinations comes from `startsGroup` in the
+ * nav data, so inserting a section can never leave it on the wrong row.
  */
 export function AppSidebar() {
   const pathname = usePathname();
@@ -70,13 +74,13 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup className="p-0 pt-8">
           <SidebarMenu className="gap-1">
-            {NAV_ITEMS.map((item, index) => {
+            {NAV_ITEMS.map((item) => {
               const active = isActiveHref(pathname, item.href);
               const Icon = item.icon;
               return (
                 <SidebarMenuItem
                   key={item.href}
-                  className={cn(index === 4 && 'mt-4 border-t border-sidebar-border pt-4')}
+                  className={cn(item.startsGroup && 'mt-4 border-t border-sidebar-border pt-4')}
                 >
                   <SidebarMenuButton
                     asChild
