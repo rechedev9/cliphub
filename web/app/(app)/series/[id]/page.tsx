@@ -2,10 +2,10 @@
 
 import { use, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Layers, ChevronRight } from 'lucide-react';
+import { ChevronRight, Layers } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import type { SeriesDemo, Video } from '@/lib/api/types';
+import type { RosterMatch, SeriesDemo, Video } from '@/lib/api/types';
 import {
   isSeriesId,
   seriesReelIsActive,
@@ -20,17 +20,18 @@ import {
   type SeriesStatusTone,
 } from '@/lib/series-status';
 import { prettyMapName } from '@/lib/format';
-import { navSection } from '@/lib/nav';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
+import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
+import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
+import { LongOperation } from '@/components/studio/long-operation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 // A series detail belongs to the demo-upload journey, so it shares its number.
-const UPLOAD_NAV = navSection('/upload');
 
 /** Fast while any map is still working, relaxed once the series has settled. */
 const FAST_MS = 2500;
@@ -82,14 +83,59 @@ function latestReelPerJob(demos: readonly SeriesDemo[], videos: readonly Video[]
   return byJob;
 }
 
-/** Pill colours per status tone, matching the app's cyan/amber/destructive language. */
-const TONE_CLASSES: Record<SeriesStatusTone, string> = {
-  pending: 'border-border bg-muted/60 text-muted-foreground',
-  ready: 'border-primary/40 bg-primary/15 text-primary',
-  progress: 'border-amber-400/30 bg-amber-400/10 text-amber-400',
-  done: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400',
-  failed: 'border-destructive/30 bg-destructive/10 text-destructive',
+/**
+ * The five series tones expressed in the kit's vocabulary. v3 painted these with
+ * raw `amber-400`/`emerald-400`, which neither tracked the theme nor matched the
+ * warning/success roles that already exist as tokens.
+ */
+const TAG_TONE: Record<SeriesStatusTone, StatusTagTone> = {
+  pending: 'neutral',
+  ready: 'primary',
+  progress: 'warning',
+  done: 'success',
+  failed: 'danger',
 };
+
+/**
+ * The spine node's lit edge. A node is a square plate on the well surface whose
+ * border and glyph carry the map's state, so a bo3 reads as a lit bracket down
+ * the left margin rather than as three unrelated boxes.
+ */
+const NODE_TONE_CLASS: Record<SeriesStatusTone, string> = {
+  pending: 'border-border-strong text-fg-2',
+  ready: 'border-primary/55 text-primary shadow-[var(--elev-1),var(--glow-primary-sm)]',
+  progress: 'border-warning/55 text-warning shadow-[var(--elev-1)]',
+  done: 'border-success/55 text-success shadow-[var(--elev-1)]',
+  failed: 'border-destructive/55 text-destructive shadow-[var(--elev-1)]',
+};
+
+/** The rail leaving a node, tinted by that node's state. */
+const RAIL_TONE_CLASS: Record<SeriesStatusTone, string> = {
+  pending: 'bg-border-subtle',
+  ready: 'bg-primary/45',
+  progress: 'bg-warning/45',
+  done: 'bg-success/45',
+  failed: 'bg-destructive/45',
+};
+
+/** A map's live state, reel-aware: a queued reel outranks the settled job status. */
+function demoTone(demo: SeriesDemo, reel: Video | undefined): SeriesStatusTone {
+  return reel ? seriesReelTone(reel.status) : seriesStatusTone(demo.status);
+}
+
+/** The Spanish label matching {@link demoTone}. */
+function demoLabel(demo: SeriesDemo, reel: Video | undefined): string {
+  return reel ? seriesReelLabel(reel.status) : seriesStatusLabel(demo.status);
+}
+
+/**
+ * The part whose status stands for the whole map, matching the bucket the page
+ * header counts it in, so the spine node and the header never contradict.
+ */
+function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
+  const status = representativeSeriesStatus(demos.map((d) => d.status));
+  return demos.find((d) => d.status === status) ?? demos[0];
+}
 
 /**
  * Series view (/series/[id]) — the demos uploaded together as one bo3/bo5. It
@@ -174,8 +220,9 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         icon={Layers}
         title="Serie no encontrada"
         description="Ese enlace de serie no es válido. Sube tus demos para empezar una serie nueva."
+        note="Las series se identifican con el id que acuña /upload al soltar varias demos."
         actions={
-          <Button asChild className="font-[family-name:var(--font-display)] tracking-[0.06em]">
+          <Button asChild variant="hero">
             <Link href="/upload">SUBIR DEMOS</Link>
           </Button>
         }
@@ -198,8 +245,9 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
             ? 'Arranca el servicio de análisis local y vuelve a intentarlo.'
             : 'Hubo un problema al cargar esta serie. Recarga la página para reintentar.'
         }
+        note={offline ? 'FragForge no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
-          <Button asChild variant="secondary" className="font-[family-name:var(--font-display)] tracking-[0.06em]">
+          <Button asChild variant="outline">
             <Link href="/upload">SUBIR DEMOS</Link>
           </Button>
         }
@@ -215,7 +263,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         title="Esta serie está vacía"
         description="No hay demos en esta serie. Sube las demos de tu bo3/bo5 para forjar sus highlights."
         actions={
-          <Button asChild className="font-[family-name:var(--font-display)] tracking-[0.06em]">
+          <Button asChild variant="hero">
             <Link href="/upload">SUBIR DEMOS</Link>
           </Button>
         }
@@ -226,115 +274,102 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
   // HLTV-style downloads split one map into several .dem parts; fold them back
   // into one logical map card so a bo3 reads "SERIE DE 3 MAPAS", not 4.
   const groups = groupSeriesDemos(list);
+  const mapStatuses = groups.map((g) => representativeSeriesStatus(g.demos.map((d) => d.status)));
+  // The maps the poll loop is still waiting on, named, so the live region says
+  // which ones rather than just that something is happening.
+  const workingTitles = groups
+    .map((group, index) => ({ group, index }))
+    .filter(({ group }) =>
+      group.demos.some((d) => {
+        const reel = reelByJob.get(d.jobId);
+        return seriesStatusIsPending(d.status) || (reel !== undefined && seriesReelIsActive(reel.status));
+      }),
+    )
+    .map(({ group, index }) => demoTitle(group.demos.find((d) => d.match) ?? group.demos[0], index));
 
   return (
     <div className="flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
-        number={Number(UPLOAD_NAV.number)}
-        label="SERIE"
         title={seriesTitle(groups.length)}
-        description={seriesDescription(groups.map((g) => representativeSeriesStatus(g.demos.map((d) => d.status))))}
+        description={seriesDescription(mapStatuses)}
       />
 
-      <div className="flex flex-col gap-3">
-        {groups.map((group, i) =>
-          group.demos.length === 1 ? (
-            <SeriesDemoCard
-              key={group.demos[0].jobId}
-              demo={group.demos[0]}
-              index={i}
-              seriesId={id}
-              reel={reelByJob.get(group.demos[0].jobId)}
-            />
-          ) : (
-            <SeriesMultiPartCard key={group.key} group={group} index={i} seriesId={id} reelByJob={reelByJob} />
-          ),
-        )}
-      </div>
+      {workingTitles.length > 0 ? (
+        // No percentage exists for a demo parse, so the bar stays indeterminate
+        // rather than inventing one. This is also the page's polite live region.
+        <LongOperation
+          className="studio-panel px-5 py-4"
+          stage={workingTitles.length === 1 ? 'ANALIZANDO 1 MAPA' : `ANALIZANDO ${workingTitles.length} MAPAS`}
+          detail={workingTitles.join(' · ')}
+        />
+      ) : null}
+
+      <ol className="flex flex-col gap-4">
+        {groups.map((group, i) => (
+          <SeriesSpineItem
+            key={group.demos.length === 1 ? group.demos[0].jobId : group.key}
+            group={group}
+            index={i}
+            last={i === groups.length - 1}
+            seriesId={id}
+            reelByJob={reelByJob}
+          />
+        ))}
+      </ol>
     </div>
   );
 }
 
 /**
- * One map's row: title + score/status, plus a CTA into its picker when ready.
- * When the map already has a reel, the pill describes the reel (en cola →
- * grabando → renderizando → listo) instead of the raw job status, so queueing
- * plays on every map of the series reads as one visible capture queue.
+ * One rung of the series spine: the numbered status node, the rail that carries
+ * its tone down to the next map, and the map card itself. The rail is what turns
+ * the list into a bracket — it is decorative, so it is `aria-hidden` and the
+ * ordered list carries the sequence for assistive tech.
  */
-function SeriesDemoCard({
-  demo,
+function SeriesSpineItem({
+  group,
   index,
+  last,
   seriesId,
-  reel,
+  reelByJob,
 }: {
-  demo: SeriesDemo;
+  group: SeriesGroup<SeriesDemo>;
   index: number;
+  last: boolean;
   seriesId: string;
-  reel?: Video;
-}) {
-  const tone = reel ? seriesReelTone(reel.status) : seriesStatusTone(demo.status);
-  const label = reel ? seriesReelLabel(reel.status) : seriesStatusLabel(demo.status);
-  const forgeable = seriesStatusIsForgeable(demo.status);
-  const failed = demo.status === 'failed';
+  reelByJob: ReadonlyMap<string, Video>;
+}): ReactNode {
+  const lead = representativeDemo(group.demos);
+  const tone = demoTone(lead, reelByJob.get(lead.jobId));
 
   return (
-    <div className="studio-panel studio-panel-raised flex flex-col gap-4 rounded-xl p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-      <div className="flex min-w-0 items-center gap-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/10 font-[family-name:var(--font-mono)] text-sm text-primary">
-          {index + 1}
-        </span>
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="truncate font-[family-name:var(--font-display)] text-lg font-bold uppercase tracking-tight text-foreground">
-            {demoTitle(demo, index)}
-          </h2>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
-            {demo.match ? (
-              <span className="tabular-nums">
-                {demo.match.scoreT}-{demo.match.scoreCt} · {demo.match.rounds} rondas
-              </span>
-            ) : null}
-            {failed && demo.failureReason ? (
-              <span className="normal-case tracking-normal text-destructive">{demo.failureReason}</span>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3">
+    <li className="flex gap-4 sm:gap-5">
+      <div className="relative flex w-11 shrink-0 justify-center">
         <span
+          aria-hidden
           className={cn(
-            'inline-flex items-center rounded-full border px-2.5 py-0.5 font-[family-name:var(--font-mono)] text-[0.65rem] font-semibold uppercase tracking-wider',
-            TONE_CLASSES[tone],
+            'z-10 grid size-11 place-items-center border bg-surface-0 font-mono text-body tabular-nums',
+            NODE_TONE_CLASS[tone],
           )}
         >
-          {label}
+          {String(index + 1).padStart(2, '0')}
         </span>
-        {forgeable ? (
-          <Button
-            asChild
-            size="sm"
-            variant={reel ? 'secondary' : 'default'}
-            className="font-[family-name:var(--font-display)] tracking-[0.05em]"
-          >
-            <Link href={`/matches/${demo.jobId}?series=${seriesId}`}>
-              {reel ? 'OTRO REEL' : 'ELEGIR JUGADAS'}
-              <ChevronRight className="size-4" />
-            </Link>
-          </Button>
-        ) : null}
+        {last ? null : (
+          <span aria-hidden className={cn('absolute inset-x-0 top-12 -bottom-4 mx-auto w-px', RAIL_TONE_CLASS[tone])} />
+        )}
       </div>
-    </div>
+      <SeriesMapCard group={group} index={index} seriesId={seriesId} reelByJob={reelByJob} />
+    </li>
   );
 }
 
 /**
- * One logical map split across several .dem parts: a single card titled by the
- * map (from the first part that carries a match), with one compact row per part.
- * The parts share the map header but each keeps its own status/reel pill and its
- * own picker link, so a half that failed to parse or already has a reel reads
- * independently while the map still counts as one entry in the series.
+ * One logical map. A map downloaded as a single .dem carries its status tag and
+ * forge CTA in the header; an HLTV `-pN` split renders the same header over an
+ * indented sub-list, one row per part, each with its own state and link. v3
+ * shipped these as two components with byte-identical pill/CTA logic.
  */
-function SeriesMultiPartCard({
+function SeriesMapCard({
   group,
   index,
   seriesId,
@@ -344,43 +379,75 @@ function SeriesMultiPartCard({
   index: number;
   seriesId: string;
   reelByJob: ReadonlyMap<string, Video>;
-}) {
+}): ReactNode {
   // Title from the first part that has a roster match; fall back to the first
   // part's own title so a still-scanning map still names itself.
-  const headDemo = group.demos.find((d) => d.match) ?? group.demos[0];
+  const head = group.demos.find((d) => d.match) ?? group.demos[0];
+  const split = group.demos.length > 1;
+  const single = split ? null : group.demos[0];
+  const singleReel = single ? reelByJob.get(single.jobId) : undefined;
+  const lead = representativeDemo(group.demos);
+  const leadTone = demoTone(lead, reelByJob.get(lead.jobId));
 
   return (
-    <div className="studio-panel studio-panel-raised flex flex-col gap-4 rounded-xl p-5">
-      <div className="flex min-w-0 items-center gap-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/10 font-[family-name:var(--font-mono)] text-sm text-primary">
-          {index + 1}
-        </span>
-        <h2 className="truncate font-[family-name:var(--font-display)] text-lg font-bold uppercase tracking-tight text-foreground">
-          {demoTitle(headDemo, index)}
-        </h2>
+    <article className="studio-panel studio-panel-interactive flex min-w-0 flex-1 flex-col gap-4 p-4 sm:p-5">
+      <div className="flex flex-col gap-4 @[42rem]/content:flex-row @[42rem]/content:items-center @[42rem]/content:justify-between @[42rem]/content:gap-6">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h2 className="truncate font-display text-title font-bold uppercase text-fg-1">{demoTitle(head, index)}</h2>
+          <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
+            {split ? `${group.demos.length} partes` : null}
+            {split && head.match ? ' · ' : null}
+            {head.match ? `${head.match.rounds} rondas` : null}
+            {!split && !head.match ? 'sin marcador todavía' : null}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 @[42rem]/content:shrink-0 @[42rem]/content:justify-end">
+          {head.match ? <MapScore match={head.match} /> : null}
+          {split ? (
+            <StatusTag tone={TAG_TONE[leadTone]} dot>
+              {demoLabel(lead, reelByJob.get(lead.jobId))}
+            </StatusTag>
+          ) : null}
+          {single ? (
+            <>
+              <StatusTag tone={TAG_TONE[demoTone(single, singleReel)]} dot>
+                {demoLabel(single, singleReel)}
+              </StatusTag>
+              <ForgeLink demo={single} seriesId={seriesId} reel={singleReel} />
+            </>
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex flex-col divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60 bg-muted/20">
-        {group.demos.map((demo, partIndex) => (
-          <SeriesPartRow
-            key={demo.jobId}
-            demo={demo}
-            partIndex={partIndex}
-            seriesId={seriesId}
-            reel={reelByJob.get(demo.jobId)}
-          />
-        ))}
-      </div>
-    </div>
+      {single && single.status === 'failed' && single.failureReason ? (
+        <FailureNote>{single.failureReason}</FailureNote>
+      ) : null}
+
+      {split ? (
+        <ol className="flex flex-col gap-2 border-l-2 border-border-subtle pl-3 sm:pl-4">
+          {group.demos.map((demo, partIndex) => (
+            <li key={demo.jobId}>
+              <SeriesPart
+                demo={demo}
+                partIndex={partIndex}
+                seriesId={seriesId}
+                reel={reelByJob.get(demo.jobId)}
+              />
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </article>
   );
 }
 
 /**
- * One part of a multi-part map: "PARTE N" plus that part's score/status and its
- * own picker CTA. Mirrors {@link SeriesDemoCard}'s pill/CTA logic so a part reads
- * exactly like a single-map card, just scoped to one half of the split demo.
+ * One part of a split map. `StudioDataRow` supplies the shared label/value/state
+ * geometry; the part only decides what goes in each slot, so a part row and an
+ * upload scan row are the same object.
  */
-function SeriesPartRow({
+function SeriesPart({
   demo,
   partIndex,
   seriesId,
@@ -389,70 +456,111 @@ function SeriesPartRow({
   demo: SeriesDemo;
   partIndex: number;
   seriesId: string;
-  reel?: Video;
-}) {
-  const tone = reel ? seriesReelTone(reel.status) : seriesStatusTone(demo.status);
-  const label = reel ? seriesReelLabel(reel.status) : seriesStatusLabel(demo.status);
-  const forgeable = seriesStatusIsForgeable(demo.status);
+  reel: Video | undefined;
+}): ReactNode {
+  const tone = demoTone(demo, reel);
   const failed = demo.status === 'failed';
+  const reason = failed ? demo.failureReason : undefined;
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
-          <span className="font-semibold text-foreground/70">PARTE {partIndex + 1}</span>
-          {demo.match ? (
-            <span className="tabular-nums">
-              {demo.match.scoreT}-{demo.match.scoreCt} · {demo.match.rounds} rondas
-            </span>
-          ) : null}
-        </div>
-        {failed && demo.failureReason ? (
-          <span className="font-[family-name:var(--font-mono)] text-[0.7rem] normal-case tracking-normal text-destructive">
-            {demo.failureReason}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-full border px-2.5 py-0.5 font-[family-name:var(--font-mono)] text-[0.65rem] font-semibold uppercase tracking-wider',
-            TONE_CLASSES[tone],
-          )}
-        >
-          {label}
-        </span>
-        {forgeable ? (
-          <Button
-            asChild
-            size="sm"
-            variant={reel ? 'secondary' : 'default'}
-            className="font-[family-name:var(--font-display)] tracking-[0.05em]"
-          >
-            <Link href={`/matches/${demo.jobId}?series=${seriesId}`}>
-              {reel ? 'OTRO REEL' : 'ELEGIR JUGADAS'}
-              <ChevronRight className="size-4" />
-            </Link>
-          </Button>
-        ) : null}
-      </div>
-    </div>
+    <>
+      <StudioDataRow
+        className={cn('bg-surface-1', failed && 'border-destructive/45', reason !== undefined && 'border-b-0')}
+        label={`Parte ${partIndex + 1}`}
+        value={demo.match ? `${demo.match.scoreT}-${demo.match.scoreCt}` : undefined}
+        status={
+          <>
+            <StatusTag tone={TAG_TONE[tone]} dot>
+              {demoLabel(demo, reel)}
+            </StatusTag>
+            <ForgeLink demo={demo} seriesId={seriesId} reel={reel} />
+          </>
+        }
+      />
+      {reason !== undefined ? <FailureNote attached>{reason}</FailureNote> : null}
+    </>
   );
 }
 
-/** Skeleton while the first series poll is in flight. */
+/** The forge CTA, present only once a map actually has a kill plan. */
+function ForgeLink({
+  demo,
+  seriesId,
+  reel,
+}: {
+  demo: SeriesDemo;
+  seriesId: string;
+  reel: Video | undefined;
+}): ReactNode {
+  if (!seriesStatusIsForgeable(demo.status)) return null;
+  return (
+    <Button asChild size="sm" variant={reel ? 'outline' : 'hero'}>
+      <Link href={`/matches/${demo.jobId}?series=${seriesId}`}>
+        {reel ? 'OTRO REEL' : 'ELEGIR JUGADAS'}
+        <ChevronRight className="size-4" />
+      </Link>
+    </Button>
+  );
+}
+
+/** The orchestrator's own words about why a demo failed, kept verbatim. */
+function FailureNote({ children, attached = false }: { children: ReactNode; attached?: boolean }): ReactNode {
+  return (
+    <p
+      className={cn(
+        'border border-destructive/45 bg-destructive/8 px-3.5 py-2 text-body-sm text-destructive',
+        attached && 'border-t-0',
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+/**
+ * The map scoreline, typeset as a scoreboard rather than as body text: mono,
+ * tabular, and the largest number on the card. The winning half stays in --fg-1
+ * and the losing half drops to --fg-3, with a hairline rule between them — the
+ * literal spaces v3 used rendered as digit-width figure spaces inside a
+ * tabular-nums run and jittered against the figures.
+ */
+function MapScore({ match }: { match: RosterMatch }): ReactNode {
+  const tWon = match.scoreT > match.scoreCt;
+  const ctWon = match.scoreCt > match.scoreT;
+  return (
+    <span
+      className="inline-flex items-center gap-2.5 font-mono text-title tabular-nums @[34rem]/content:text-stat"
+      aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`}
+    >
+      <span className={tWon ? 'text-fg-1' : 'text-fg-3'}>{match.scoreT}</span>
+      <span aria-hidden className="h-6 w-px bg-border-strong" />
+      <span className={ctWon ? 'text-fg-1' : 'text-fg-3'}>{match.scoreCt}</span>
+    </span>
+  );
+}
+
+/**
+ * Skeleton while the first series poll is in flight. It reproduces the spine —
+ * node column, rail, card — so the first paint does not reflow into a different
+ * shape once the demos land.
+ */
 function LoadingState(): ReactNode {
   return (
-    <div className="flex flex-col gap-8 sm:gap-10">
+    <div className="flex flex-col gap-8 sm:gap-10" role="status" aria-label="Cargando la serie">
       <div className="flex flex-col gap-3">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-10 w-72 max-w-full" />
         <Skeleton className="h-5 w-96 max-w-full" />
       </div>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-[92px] w-full rounded-xl" />
+          <div key={i} className="flex gap-4 sm:gap-5">
+            <div className="relative flex w-11 shrink-0 justify-center">
+              <Skeleton className="size-11 rounded-none" />
+              {i < 2 ? <span aria-hidden className="absolute inset-x-0 top-12 -bottom-4 mx-auto w-px bg-border-subtle" /> : null}
+            </div>
+            <Skeleton className="h-[104px] flex-1" />
+          </div>
         ))}
       </div>
     </div>

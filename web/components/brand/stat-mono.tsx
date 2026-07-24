@@ -12,11 +12,20 @@ export type StatMonoProps = {
   className?: string;
 };
 
+/** The label is the app's smallest legible step: 12px, --fg-3 (6.26:1 on a
+ *  panel), and the widest tracking the scale allows, so it frames the number
+ *  without competing with it. */
+const LABEL_CLASS = 'font-mono text-meta uppercase tracking-widest text-fg-3';
+
 /**
  * StatMono — a labeled mono number, NEON HUD style. Every stat in FragForge
  * (K / D / A / MVP / K/D / scores / ticks / durations) is rendered through
- * this: Share Tech Mono tabular value over a dim mono label with wide
- * tracking, so the scoreboard/demo-tick feel is consistent.
+ * this: a Share Tech Mono tabular value at the scoreboard step over a dim
+ * wide-tracked label, so the scoreboard/demo-tick feel is consistent.
+ *
+ * The size step lives on the wrapper and the value inherits it, so a caller
+ * that needs a tighter strip can drop one type utility into `className`
+ * instead of re-typing the whole treatment.
  */
 export function StatMono({
   label,
@@ -25,37 +34,21 @@ export function StatMono({
   accent = false,
   className,
 }: StatMonoProps) {
+  const valueClass = cn('font-mono tabular-nums', accent ? 'text-primary' : 'text-fg-1');
+
   if (layout === 'inline') {
     return (
-      <span className={cn('inline-flex items-baseline gap-1.5', className)}>
-        <span className="font-[family-name:var(--font-mono)] text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground/70">
-          {label}
-        </span>
-        <span
-          className={cn(
-            'font-[family-name:var(--font-mono)] text-sm tabular-nums',
-            accent ? 'text-primary' : 'text-foreground',
-          )}
-        >
-          {value}
-        </span>
+      <span className={cn('inline-flex items-baseline gap-1.5 text-body-lg', className)}>
+        <span className={LABEL_CLASS}>{label}</span>
+        <span className={valueClass}>{value}</span>
       </span>
     );
   }
 
   return (
-    <div className={cn('flex flex-col gap-0.5', className)}>
-      <span className="font-[family-name:var(--font-mono)] text-[9.5px] uppercase tracking-[0.2em] text-muted-foreground/70">
-        {label}
-      </span>
-      <span
-        className={cn(
-          'font-[family-name:var(--font-mono)] text-lg leading-none tabular-nums',
-          accent ? 'text-primary' : 'text-foreground',
-        )}
-      >
-        {value}
-      </span>
+    <div className={cn('flex min-w-0 flex-col gap-1 text-stat', className)}>
+      <span className={LABEL_CLASS}>{label}</span>
+      <span className={valueClass}>{value}</span>
     </div>
   );
 }

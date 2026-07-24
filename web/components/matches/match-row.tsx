@@ -1,18 +1,27 @@
 import Link from 'next/link';
+import { ReelCover } from '@/components/brand/reel-cover';
+import { CoverImage } from '@/components/studio/cover-image';
 import { ScoreBar } from '@/components/brand/score-bar';
 import { StatMono } from '@/components/brand/stat-mono';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
+import { Button } from '@/components/ui/button';
 import { formatKd, matchDateLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Match } from '@/lib/api/types';
-import { isWin, parseScore } from './match-score';
+import { isWin, MatchScore, parseScore } from './match-score';
+import { MATCH_ROW_MARKER } from './row-parallax';
 
 export type MatchRowProps = {
   match: Match;
   /**
-   * The spotlight row (the first in the list): corner brackets, cyan border,
-   * tinted background, and the notched FORJAR REEL CTA. Other rows get the
-   * quiet "VER ▸" mono link instead.
+   * The spotlight row (the first in the list): raised panel, accented edge and
+   * the notched FORJAR REEL CTA. Other rows get the quiet outline link instead.
+   *
+   * It deliberately does NOT add `.neon-brackets`: the brackets are square
+   * 14×14 corners pinned at -1px, and a `studio-panel` is rounded, so they float
+   * off the corner exactly the way the audit flagged on the Library's capture
+   * card. design.md also caps a component at one dominant angular treatment —
+   * here that is the accented raised edge, and the notch belongs to the CTA.
    */
   featured?: boolean;
   /** Deletes this match (and its artifacts); when set, the row shows a trash button. */
@@ -22,14 +31,42 @@ export type MatchRowProps = {
 };
 
 /**
- * One scoreboard row, NEON HUD style: a 3px win/loss accent bar, the map in
- * display caps over a dim mono meta line, the round score in mono (own score
- * cyan on a win), the K/D/A/MVP stat strip, and the per-row CTA.
+ * The map still. `Match.thumbnailUrl` is optional and the jobs index does not
+ * carry one, so the frame paints the seeded `ReelCover` plate and only layers a
+ * real image over it when the API supplied one — the image is the top layer, so
+ * a URL that never resolves (the app's CSP is `img-src 'self' data: blob:`,
+ * which blocks any off-origin cover outright) degrades to the plate instead of a
+ * broken box. Nothing here invents media that the API did not report.
+ */
+function MatchThumb({ match }: { match: Match }) {
+  return (
+    <span className="relative hidden aspect-video w-[5.5rem] shrink-0 self-center overflow-hidden border border-border-subtle bg-surface-0 @[42rem]/content:block">
+      <ReelCover seed={match.id} plain className="absolute inset-0" />
+      <CoverImage src={match.thumbnailUrl} className="absolute inset-0" />
+    </span>
+  );
+}
+
+/**
+ * One scoreboard row. The layout is keyed to `@container/content` (the real
+ * content column), not to viewport breakpoints: the previous `xl:` grid needed
+ * ~858px of track inside a box that is 544px wide at a 1280px viewport, which is
+ * why the densest surface in the product overflowed hardest at exactly the
+ * breakpoint meant to enable it.
+ *
+ * Depth is three composited signals and no layout: the plane tilts by at most
+ * 1.1° under the cursor, the content lifts 10px toward a deliberately short
+ * 640px perspective, and the specular sweep tracks the pointer. All three read
+ * `--shell-depth`, so the efficiency profile, an inactive window, reduced motion
+ * and forced colours flatten them through the foundation's single gate. The
+ * ceiling is tiny on purpose — this is a dense scoreboard and a text baseline
+ * that visibly rotates is a reading regression, not depth.
  */
 export function MatchRow({ match, featured = false, onDelete, onDeleted }: MatchRowProps) {
   const win = isWin(match.score);
   const { stats } = match;
   const { ours, theirs } = parseScore(match.score);
+  const hasScore = ours !== null && theirs !== null;
   // Lead the meta line with the clipped player when known ("<PLAYER> · HACE X"),
   // dropping it cleanly (no stray separator) when it is absent.
   const meta = [
@@ -42,68 +79,98 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
 
   return (
     <article
+      {...MATCH_ROW_MARKER}
       className={cn(
-        'studio-defer-render flex items-stretch gap-4 px-4 py-4 transition-colors sm:gap-5 sm:px-5',
-        featured
-          ? 'studio-panel studio-panel-raised'
-          : 'studio-panel studio-panel-interactive bg-card/80',
+        'studio-tilt studio-defer-render group/row',
+        // A short perspective is what makes 10px of Z legible at all; at the
+        // global 900px the same lift resolves to a 1% scale, i.e. nothing.
+        '[--perspective:640px] [--sheen-opacity:calc(var(--shell-depth)*0.06)]',
+        'hover:[--row-lift:10px] focus-within:[--row-lift:10px]',
       )}
     >
-      <ScoreBar win={win} className="w-1 shrink-0" />
-
-      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-4 xl:grid-cols-[minmax(160px,1.1fr)_90px_minmax(320px,1.7fr)_auto] xl:gap-x-8">
-        <div className="min-w-0">
-          <h2 className="truncate font-[family-name:var(--font-display)] text-xl font-bold uppercase leading-tight text-foreground">
-            {match.map}
-          </h2>
-          <p className="mt-1 truncate font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.1em] text-muted-foreground">
-            {meta}
-          </p>
-        </div>
-
-        <div className="shrink-0 text-right font-[family-name:var(--font-mono)] text-lg tabular-nums xl:text-left">
-          {ours !== null && theirs !== null ? (
-            <>
-              <span className={win ? 'text-primary' : 'text-muted-foreground'}>{ours}</span>
-              <span className="text-muted-foreground"> : </span>
-              <span className="text-muted-foreground">{theirs}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">{match.score}</span>
+      <div
+        className={cn(
+          'studio-tilt-plane studio-tilt-sheen studio-panel after:rounded-[inherit]',
+          'px-4 py-4 @[34rem]/content:px-5',
+          '[--tilt-max:calc(var(--shell-depth)*1.1deg)]',
+          'transition-[border-color,box-shadow] duration-(--dur-base) ease-standard',
+          featured
+            ? 'studio-panel-raised'
+            : 'group-hover/row:border-border-strong group-hover/row:shadow-md group-focus-within/row:border-border-strong group-focus-within/row:shadow-md',
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-stretch gap-4 @[34rem]/content:gap-5',
+            '[transform:translateZ(calc(var(--row-lift,0px)*var(--shell-depth)))]',
+            'transition-transform duration-(--dur-base) ease-standard',
           )}
-        </div>
+        >
+          <ScoreBar win={win} className="w-1 shrink-0" />
+          <MatchThumb match={match} />
 
-        <div className="col-span-2 grid grid-cols-5 gap-3 border-y border-border/55 py-3 sm:gap-5 xl:col-span-1 xl:border-0 xl:py-0">
-          <StatMono label="K" value={stats.kills} />
-          <StatMono label="D" value={stats.deaths} />
-          <StatMono label="A" value={stats.assists} />
-          <StatMono label="MVP" value={stats.mvps} />
-          <StatMono label="K/D" value={formatKd(stats.kd)} accent />
-        </div>
+          <div
+            className={cn(
+              'grid min-w-0 flex-1 items-center gap-x-4 gap-y-3',
+              hasScore ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1',
+              hasScore
+                ? '@[56rem]/content:grid-cols-[minmax(0,1.2fr)_auto_auto_auto]'
+                : '@[56rem]/content:grid-cols-[minmax(0,1.2fr)_auto_auto]',
+              '@[56rem]/content:gap-x-6',
+            )}
+          >
+            <div className="min-w-0">
+              <h2 className="truncate font-display text-title font-bold uppercase text-fg-1">{match.map}</h2>
+              <p className="mt-1 truncate font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</p>
+            </div>
 
-        <div className="col-span-2 flex min-w-0 items-start justify-end gap-2 xl:col-span-1">
-          {featured ? (
-            <Link
-              href={`/matches/${match.id}`}
-              className="neon-glow rounded-md inline-flex h-11 flex-1 items-center justify-center bg-primary px-5 font-[family-name:var(--font-display)] text-sm font-bold tracking-[0.06em] text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:flex-initial"
+            {hasScore ? (
+              <MatchScore
+                score={match.score}
+                className="items-end @[56rem]/content:items-start"
+              />
+            ) : null}
+
+            <div
+              className={cn(
+                'col-span-full grid grid-cols-5 gap-3 border-y border-border-subtle py-3 @[34rem]/content:gap-5',
+                '@[56rem]/content:col-span-1 @[56rem]/content:flex @[56rem]/content:items-center @[56rem]/content:gap-6 @[56rem]/content:border-0 @[56rem]/content:py-0',
+              )}
             >
-              FORJAR REEL
-            </Link>
-          ) : (
-            <Link
-              href={`/matches/${match.id}`}
-              className="inline-flex h-11 flex-1 items-center justify-center border border-border-strong bg-background/45 px-4 font-[family-name:var(--font-mono)] text-xs tracking-[0.14em] text-muted-foreground transition-colors hover:border-primary/55 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:flex-initial"
-            >
-              VER PARTIDA ▸
-            </Link>
-          )}
-          {onDelete ? (
-            <DeleteMatchButton
-              label={match.map}
-              onConfirm={() => onDelete(match.id)}
-              onDeleted={() => onDeleted?.()}
-            />
-          ) : null}
+              <StatMono label="K" value={stats.kills} />
+              <StatMono label="D" value={stats.deaths} />
+              <StatMono label="A" value={stats.assists} />
+              <StatMono label="MVP" value={stats.mvps} />
+              <StatMono label="K/D" value={formatKd(stats.kd)} accent />
+            </div>
+
+            <div className="col-span-full flex min-w-0 items-center justify-end gap-2 @[56rem]/content:col-span-1">
+              {featured ? (
+                <Button
+                  asChild
+                  variant="hero"
+                  className="neon-notch flex-1 rounded-none @[34rem]/content:flex-initial"
+                >
+                  <Link href={`/matches/${match.id}`}>FORJAR REEL</Link>
+                </Button>
+              ) : (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex-1 font-mono text-meta uppercase tracking-wider text-fg-2 @[34rem]/content:flex-initial"
+                >
+                  <Link href={`/matches/${match.id}`}>VER PARTIDA</Link>
+                </Button>
+              )}
+              {onDelete ? (
+                <DeleteMatchButton
+                  label={match.map}
+                  onConfirm={() => onDelete(match.id)}
+                  onDeleted={() => onDeleted?.()}
+                />
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </article>

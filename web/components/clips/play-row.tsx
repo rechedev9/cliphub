@@ -1,103 +1,138 @@
 'use client';
 
-import { Check, Crosshair } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 import type { Play } from '@/lib/api/types';
 import { ReelCover } from '@/components/brand/reel-cover';
+import { CoverImage } from '@/components/studio/cover-image';
+import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
+import { SelectionMark } from './selection-mark';
 
 export type PlayRowProps = {
   play: Play;
   selected: boolean;
+  /** 1-based position of this play in the reel, or null when it is not picked. */
+  reelPosition: number | null;
   onToggle: () => void;
 };
 
 /**
- * Kill badge styling by frag count, per the NEON HUD mockup: ACE (5K) is the
- * solid cyan chip, 2K-4K the neutral chip, and 1K stays quiet. CLUTCH's magenta
- * chip exists in the mockup only; the plan has no clutch data to drive it.
+ * Kill badge by frag count. ACE (5K) is the cyan chip, 2K-4K neutral, 1K quiet.
+ * CLUTCH's magenta chip exists in the mockup only; the plan has no clutch data
+ * to drive it, and inventing one would be a fabricated fact.
  */
-function killBadge(kills: number): { label: string; className: string } {
-  if (kills >= 5) return { label: 'ACE', className: 'bg-primary text-primary-foreground' };
-  if (kills >= 2) return { label: `${kills}K`, className: 'bg-foreground/15 text-foreground' };
-  return { label: `${kills}K`, className: 'bg-foreground/10 text-muted-foreground' };
+function killBadge(kills: number): { label: string; tone: StatusTagTone } {
+  if (kills >= 5) return { label: 'ACE', tone: 'primary' };
+  return { label: `${kills}K`, tone: 'neutral' };
 }
 
 /**
- * PlayRow — a single selectable row in the highlights PlayList (the vertical
- * layout the e2e suite pins down; the mockup's tile treatments — cyan 1.5px
- * border, square corner check, italic display round label, mono badge — are
- * applied to each row). The whole row toggles selection on click; a square
- * check affordance mirrors the row's `aria-pressed` state. Multiple rows can
- * be selected at once to build a concatenated reel.
+ * The frame. `Play.thumbnailUrl` is finally read — it has existed in the typed
+ * client since the killplan mapper and no component had ever rendered it — with
+ * the seeded `ReelCover` painted *underneath* rather than as an either/or
+ * fallback, so a cover URL the app cannot load (its CSP is
+ * `img-src 'self' data: blob:`, which blocks any off-origin thumbnail outright)
+ * degrades to the brand plate instead of a broken image box.
+ *
+ * Painting it underneath is necessary but not sufficient: a failed <img> still
+ * renders the browser's broken-image glyph on top of the plate, which is what
+ * `CoverImage` exists to prevent.
  */
-export function PlayRow({ play, selected, onToggle }: PlayRowProps) {
+function PlayFrame({ play, selected }: { play: Play; selected: boolean }) {
+  return (
+    <span className="shrink-0 [perspective:620px]">
+      <span
+        className={cn(
+          'relative block aspect-video w-28 transform-3d @[30rem]/reel:w-32 @[52rem]/reel:w-36',
+          'transition-transform duration-(--dur-base) ease-standard',
+          '[transform:rotateY(calc(var(--frame-turn)*var(--shell-depth)))_translateZ(calc(var(--frame-z)*var(--shell-depth)))]',
+          selected
+            ? '[--frame-turn:0deg] [--frame-z:14px]'
+            : '[--frame-turn:-7deg] [--frame-z:-12px] group-hover/play:[--frame-turn:-3deg] group-hover/play:[--frame-z:-2px]',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute inset-0 overflow-hidden border transition-[border-color,filter] duration-(--dur-base) ease-standard',
+            selected ? 'border-primary' : 'border-border-strong brightness-75 group-hover/play:brightness-100',
+          )}
+        >
+          <ReelCover seed={play.id} plain className="absolute inset-0" />
+          <CoverImage src={play.thumbnailUrl} className="absolute inset-0" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface-0/85 via-transparent to-transparent"
+          />
+        </span>
+
+        {/* Round slug and kill badge ride the frame's rotation but stand off its
+            face, so the frame reads as a physical plate with labels on top. */}
+        <span
+          aria-hidden
+          className="absolute bottom-1.5 left-1.5 border border-border-strong bg-surface-0/85 px-1.5 py-0.5 font-mono text-meta tabular-nums text-fg-2 [transform:translateZ(calc(12px*var(--shell-depth)))]"
+        >
+          R{String(play.round).padStart(2, '0')}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * PlayRow — one highlight in the vertical selector (the layout the E2E suite
+ * and design.md pin down; the horizontal filmstrip stays retired).
+ *
+ * Selection is staged as a physical action rather than as a checkbox tint:
+ * unselected frames sit turned away and pushed back, as if racked in a film bin,
+ * and picking one swings it square to the viewer, brings it forward and lights
+ * its edge cyan. Everything is `transform`/`filter` on one element, multiplied
+ * by `--shell-depth`, so the whole choreography collapses to the flat ring +
+ * tint under the efficiency profile, reduced motion and forced colours.
+ */
+export function PlayRow({ play, selected, reelPosition, onToggle }: PlayRowProps) {
   const badge = killBadge(play.kills);
+
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={selected}
       className={cn(
-        'group flex w-full items-center gap-3 border-b border-primary/10 bg-card px-3 py-2.5 text-left transition-colors last:border-b-0',
-        'focus:outline-none focus-visible:bg-primary/10',
-        selected
-          ? 'bg-primary/[0.08] ring-[1.5px] ring-inset ring-primary'
-          : 'hover:bg-muted/40 hover:ring-1 hover:ring-inset hover:ring-primary/25',
+        'group/play flex w-full items-center gap-3.5 border-b border-border-subtle px-3 py-3 text-left last:border-b-0',
+        'transition-colors duration-(--dur-fast) ease-standard',
+        'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+        selected ? 'bg-primary/8' : 'bg-surface-2 hover:bg-surface-3',
       )}
     >
-      {/* Square check affordance — reflects the row's selected state. */}
-      <span
-        aria-hidden
-        className={cn(
-          'flex size-5 shrink-0 items-center justify-center border transition-colors',
-          selected
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-foreground/20 bg-muted/40 text-transparent',
-        )}
-      >
-        <Check className="size-3.5" strokeWidth={3} />
-      </span>
+      <SelectionMark selected={selected} />
+      <PlayFrame play={play} selected={selected} />
 
-      {/* Compact thumbnail with the mockup's big italic round label. */}
-      <span className="relative aspect-video w-20 shrink-0 overflow-hidden bg-muted sm:w-24">
-        <ReelCover seed={play.id} plain />
-        <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-        <span
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute inset-0 flex items-center justify-center font-[family-name:var(--font-display)] text-lg font-bold italic',
-            selected ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          R{play.round}
-        </span>
-      </span>
-
-      {/* Round / weapon meta. min-w-0 lets it shrink instead of forcing horizontal scroll. */}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      {/* min-w-0 lets the meta shrink instead of forcing horizontal scroll. */}
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span
           className={cn(
-            'truncate font-[family-name:var(--font-display)] text-sm font-bold italic tracking-wide',
-            selected ? 'text-foreground' : 'text-muted-foreground',
+            'truncate font-display text-body-lg font-bold uppercase',
+            selected ? 'text-fg-1' : 'text-fg-2',
           )}
         >
-          RONDA {play.round}
+          Ronda {play.round}
         </span>
-        <span className="truncate font-[family-name:var(--font-mono)] text-xs uppercase tracking-wide text-muted-foreground/70">
+        <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
           {play.weapon ?? `${play.kills} ${play.kills === 1 ? 'kill' : 'kills'}`}
         </span>
       </span>
 
-      {/* Kill badge — square mono chip per the mockup. The Crosshair icon also
-          anchors the e2e pick-a-clip selector (button:has(.lucide-crosshair)). */}
-      <span
-        className={cn(
-          'ml-auto inline-flex shrink-0 items-center gap-1 px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10px] tracking-[0.16em] tabular-nums',
-          badge.className,
-        )}
-      >
-        <Crosshair className="size-3" />
-        {badge.label}
+      <span className="ml-auto flex shrink-0 items-center gap-3">
+        {reelPosition !== null ? (
+          <span className="hidden font-mono text-meta uppercase tracking-wider tabular-nums text-primary @[26rem]/reel:inline">
+            #{String(reelPosition).padStart(2, '0')}
+          </span>
+        ) : null}
+        {/* The Crosshair also anchors the E2E pick-a-clip selector
+            (button:has(.lucide-crosshair)); keep it inside this button. */}
+        <StatusTag tone={badge.tone} icon={Crosshair} className="tabular-nums">
+          {badge.label}
+        </StatusTag>
       </span>
     </button>
   );

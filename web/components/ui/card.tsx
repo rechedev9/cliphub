@@ -1,15 +1,50 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * `.studio-panel` already paints --surface-2 + bevel + --elev-1 and owns the
+ * radius. The old `rounded-xl` override made a Card a different shape (14px)
+ * from every bare `studio-panel` (10px) in the same view, so it is gone; the
+ * elevation is a prop instead of a shadow utility bolted on at the call site.
+ */
+const cardVariants = cva(
+  "studio-panel flex flex-col gap-6 py-6 text-card-foreground",
+  {
+    variants: {
+      elevation: {
+        0: "shadow-[var(--elev-0)]",
+        1: "shadow-[var(--elev-1)]",
+        2: "shadow-[var(--elev-2)]",
+        3: "shadow-[var(--elev-3)]",
+      },
+      tone: {
+        neutral: "",
+        accent: "border-border-accent",
+        danger: "border-destructive/45",
+        stream: "border-stream/45",
+      },
+    },
+    defaultVariants: {
+      elevation: 1,
+      tone: "neutral",
+    },
+  }
+)
+
+function Card({
+  className,
+  elevation = 1,
+  tone = "neutral",
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof cardVariants>) {
   return (
     <div
       data-slot="card"
-      className={cn(
-        "studio-panel flex flex-col gap-6 rounded-xl py-6 text-card-foreground",
-        className
-      )}
+      data-tone={tone}
+      data-elevation={elevation}
+      className={cn(cardVariants({ elevation, tone }), className)}
       {...props}
     />
   )
@@ -32,7 +67,10 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn("leading-none font-semibold", className)}
+      className={cn(
+        "font-display text-title leading-none font-bold text-fg-1",
+        className
+      )}
       {...props}
     />
   )
@@ -42,7 +80,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-body-sm text-fg-2", className)}
       {...props}
     />
   )
@@ -89,4 +127,5 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  cardVariants,
 }

@@ -22,11 +22,39 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const STATUS_META: Record<CaptureStatus, { label: string; text: string; hint: string; icon: LucideIcon }> = {
-  ready: { label: 'Lista', text: 'text-success', hint: 'HLAE + CS2 detectados en este PC', icon: CircleCheck },
-  warning: { label: 'Revisa rutas', text: 'text-warning', hint: 'Una herramienta configurada no está disponible.', icon: TriangleAlert },
-  unconfigured: { label: 'Configurar', text: 'text-destructive', hint: 'No se encontró HLAE + CS2 en este PC.', icon: Settings2 },
-  offline: { label: 'Sin conexión', text: 'text-muted-foreground', hint: 'Arranca el servicio local de FragForge.', icon: WifiOff },
+/** `bar` is the 2px status edge down the rail-native card's left side. */
+const STATUS_META: Record<
+  CaptureStatus,
+  { label: string; text: string; bar: string; hint: string; icon: LucideIcon }
+> = {
+  ready: {
+    label: 'Lista',
+    text: 'text-success',
+    bar: 'bg-success',
+    hint: 'HLAE + CS2 detectados en este PC',
+    icon: CircleCheck,
+  },
+  warning: {
+    label: 'Revisa rutas',
+    text: 'text-warning',
+    bar: 'bg-warning',
+    hint: 'Una herramienta configurada no está disponible.',
+    icon: TriangleAlert,
+  },
+  unconfigured: {
+    label: 'Configurar',
+    text: 'text-destructive',
+    bar: 'bg-destructive',
+    hint: 'No se encontró HLAE + CS2 en este PC.',
+    icon: Settings2,
+  },
+  offline: {
+    label: 'Sin conexión',
+    text: 'text-fg-3',
+    bar: 'bg-fg-4',
+    hint: 'Arranca el servicio local de FragForge.',
+    icon: WifiOff,
+  },
 };
 
 /** The three record tools, with a friendly name and a typical Windows path. */
@@ -69,21 +97,36 @@ export function CaptureReadiness() {
   return (
     <Dialog>
       <DialogTrigger asChild>
+        {/*
+          Rail-native, not a content card. `.studio-panel` carries a 20px
+          ambient drop designed for a large surface, and
+          `.studio-panel-interactive` adds a hover lift — so the sidebar's only
+          status object was a card levitating inside a navigation rail. It is
+          now full-bleed to the wall with a 2px status edge and a surface-only
+          hover, which is what everything else in the rail speaks.
+        */}
         <button
           type="button"
           aria-label={`Captura: ${meta.label}`}
           title={`Captura: ${meta.label}`}
-          className="studio-panel studio-panel-interactive relative w-full px-3.5 py-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar group-data-[collapsible=icon]:grid group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:place-items-center group-data-[collapsible=icon]:p-0"
+          className="relative w-full border-y border-sidebar-border bg-surface-1 py-3 pr-3 pl-4 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:grid group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:place-items-center group-data-[collapsible=icon]:border-y-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
         >
+          <span
+            aria-hidden
+            className={cn(
+              'absolute inset-y-0 left-0 w-[2px] group-data-[collapsible=icon]:hidden',
+              meta.bar,
+            )}
+          />
           <div className="group-data-[collapsible=icon]:hidden">
-            <div className="flex items-center justify-between gap-3 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em]">
-              <span className="text-sidebar-foreground/75">Captura</span>
+            <div className="flex items-center justify-between gap-3 font-mono text-meta uppercase tracking-wider">
+              <span className="text-fg-3">Captura</span>
               <span className={cn('inline-flex items-center gap-1.5', meta.text)}>
                 <StatusIcon className="size-3.5" aria-hidden />
                 {meta.label}
               </span>
             </div>
-            <p className="mt-2 text-xs leading-[1.45] text-sidebar-foreground/75">{meta.hint}</p>
+            <p className="mt-2 text-body-sm text-fg-2">{meta.hint}</p>
           </div>
           <span className={cn('hidden group-data-[collapsible=icon]:block', meta.text)}>
             <StatusIcon className="size-4" aria-hidden />

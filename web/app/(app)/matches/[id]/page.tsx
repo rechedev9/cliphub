@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Music } from 'lucide-react';
+import { Music, SearchX, Unplug } from 'lucide-react';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
@@ -15,6 +15,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScoreBar } from '@/components/brand/score-bar';
 import { StatMono } from '@/components/brand/stat-mono';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { isWin, MatchScore } from '@/components/matches/match-score';
+import { StudioBackLink } from '@/components/studio/back-link';
+import { StudioEmptyState } from '@/components/studio/empty-state';
 import { PlayList } from '@/components/clips/play-list';
 import { PresetCards } from '@/components/clips/preset-cards';
 import { CreateReelBar } from '@/components/clips/create-reel-bar';
@@ -27,18 +30,6 @@ const VOLUME_MIN = 5;
 const VOLUME_MAX = 100;
 const VOLUME_STEP = 5;
 const VOLUME_DEFAULT = 100;
-
-/** Parse "13-2" into [13, 2]; returns null if it isn't a clean rounds score. */
-function parseScore(score: string): [number, number] | null {
-  const m = /^(\d+)\s*-\s*(\d+)$/.exec(score.trim());
-  if (!m) return null;
-  return [Number(m[1]), Number(m[2])];
-}
-
-function isWin(score: string): boolean {
-  const parsed = parseScore(score);
-  return parsed ? parsed[0] > parsed[1] : false;
-}
 
 export default function FindHighlightsPage({
   params,
@@ -58,6 +49,7 @@ export default function FindHighlightsPage({
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[] | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -82,11 +74,14 @@ export default function FindHighlightsPage({
         if (!active) return;
         setMatch(m);
         setPlays(p);
+        setLoadFailed(false);
       } catch {
-        // A failed fetch falls through to the "Partida no encontrada" branch below.
+        // A thrown fetch is an unreachable service, not a missing match; the two
+        // read very differently to a user and now get different screens.
         if (!active) return;
         setMatch(null);
         setPlays([]);
+        setLoadFailed(true);
       } finally {
         if (active) setLoaded(true);
       }
@@ -176,18 +171,26 @@ export default function FindHighlightsPage({
 
   if (!match) {
     return (
-      <div className="py-24 text-center">
-        <p className="text-muted-foreground">Partida no encontrada.</p>
-        <Button variant="secondary" className="mt-4" onClick={() => router.push('/matches')}>
-          VOLVER A PARTIDAS
-        </Button>
+      <div className="flex flex-col gap-8">
+        <StudioBackLink href="/matches">PARTIDAS</StudioBackLink>
+        <StudioEmptyState
+          icon={loadFailed ? Unplug : SearchX}
+          title={loadFailed ? 'No se pudo cargar la partida' : 'Partida no encontrada'}
+          description={
+            loadFailed
+              ? 'El servicio local de FragForge no respondió. Arráncalo y vuelve a intentarlo.'
+              : 'Esta partida ya no está en tu biblioteca local. Puede que se haya borrado con sus artefactos.'
+          }
+          actions={
+            <Button onClick={() => router.push('/matches')}>VOLVER A PARTIDAS</Button>
+          }
+        />
       </div>
     );
   }
 
   const playList = plays ?? [];
   const n = playList.length;
-  const score = parseScore(match.score);
   const win = isWin(match.score);
   // Uploaded demos have no round score (the parser computes none): hide the
   // score block and let the mono meta line carry the play count instead.
@@ -205,15 +208,14 @@ export default function FindHighlightsPage({
   ].join(' · ');
 
   // Scoreboard extras exist only on enriched (uploaded) matches; mock/seed
-  // matches show the classic K/D/A line. `hasRich` gates the ADR/KAST/HS row.
+  // matches show the classic K/D/A line.
   const { rating = 0, adr, kast, hsPct } = match.stats;
-  const hasRich = adr !== undefined;
   const hasRating = rating > 0;
 
   let presetContent: ReactNode;
   if (presets === null) {
     presetContent = (
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 @[30rem]/build:grid-cols-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-40" />
         ))}
@@ -221,7 +223,7 @@ export default function FindHighlightsPage({
     );
   } else if (presets.length === 0) {
     presetContent = (
-      <p className="border border-dashed border-border bg-card/50 px-5 py-6 text-center text-sm text-muted-foreground">
+      <p role="alert" className="studio-panel px-5 py-6 text-center text-body-sm text-fg-2">
         No se pudieron cargar los presets. Recarga la página para reintentar.
       </p>
     );
@@ -237,175 +239,158 @@ export default function FindHighlightsPage({
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col gap-8 pb-2">
-      <button
-        type="button"
-        onClick={() => router.push(backHref)}
-        className="w-fit cursor-pointer font-[family-name:var(--font-mono)] text-[11px] tracking-[0.22em] text-muted-foreground/70 transition-colors hover:text-primary"
-      >
-        ◂ {backLabel}
-      </button>
+    <div className="flex min-h-[calc(100vh-9rem)] flex-col gap-7">
+      <StudioBackLink onClick={() => router.push(backHref)}>{backLabel}</StudioBackLink>
 
       {/* Match summary — accent bar + map title + mono meta, score, stat strip. */}
-      <section className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <section className="flex flex-col gap-5 @[52rem]/content:flex-row @[52rem]/content:items-center @[52rem]/content:justify-between @[52rem]/content:gap-8">
         <div className="flex items-center gap-5">
-          <ScoreBar win={win} className="h-[52px] w-[3px]" />
-          <div className="flex flex-col gap-1">
-            <h1 className="font-[family-name:var(--font-display)] text-[28px] font-bold uppercase leading-none tracking-tight text-foreground sm:text-[32px]">
+          <ScoreBar win={win} className="h-14 w-[3px]" />
+          <div className="flex flex-col gap-1.5">
+            <h1 className="font-display text-section font-bold uppercase text-fg-1 @[40rem]/content:text-display-sm">
               {match.map}
             </h1>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                {meta}
-              </span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</span>
               {hasRating ? (
-                <span className="inline-flex items-baseline gap-1.5 border border-border bg-muted/40 px-2 py-0.5">
-                  <span
-                    className={cn(
-                      'font-[family-name:var(--font-mono)] text-sm font-semibold tabular-nums',
-                      ratingClass(rating),
-                    )}
-                  >
+                <span className="inline-flex items-baseline gap-1.5 border border-border-strong bg-surface-3 px-2 py-0.5">
+                  <span className={cn('font-mono text-body-sm font-semibold tabular-nums', ratingClass(rating))}>
                     {rating.toFixed(2)}
                   </span>
-                  <span className="font-[family-name:var(--font-mono)] text-[0.6rem] uppercase tracking-wider text-muted-foreground">
-                    rating
-                  </span>
+                  <span className="font-mono text-meta uppercase tracking-wider text-fg-3">rating</span>
                 </span>
               ) : null}
             </div>
           </div>
-          {hasScore && score ? (
-            <div className="ml-2 font-[family-name:var(--font-mono)] text-[26px] tabular-nums">
-              <span className={win ? 'text-primary' : 'text-muted-foreground'}>{score[0]}</span>
-              <span className="text-muted-foreground/70"> : </span>
-              <span className="text-muted-foreground">{score[1]}</span>
-            </div>
-          ) : null}
+          {hasScore ? <MatchScore score={match.score} className="ml-2" /> : null}
         </div>
 
-        <div className="grid grid-cols-4 gap-x-5 gap-y-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-7">
+        <div className="grid grid-cols-4 gap-x-5 gap-y-3 @[40rem]/content:flex @[40rem]/content:flex-wrap @[40rem]/content:items-center @[40rem]/content:gap-x-7">
           <StatMono label="K" value={match.stats.kills} />
           <StatMono label="D" value={match.stats.deaths} />
           <StatMono label="A" value={match.stats.assists} />
-          {hasRich ? <StatMono label="ADR" value={Math.round(adr!)} /> : null}
-          {hasRich ? <StatMono label="KAST" value={`${Math.round(kast!)}%`} /> : null}
-          {hasRich ? <StatMono label="HS" value={`${Math.round(hsPct!)}%`} /> : null}
+          {adr !== undefined ? <StatMono label="ADR" value={Math.round(adr)} /> : null}
+          {kast !== undefined ? <StatMono label="KAST" value={`${Math.round(kast)}%`} /> : null}
+          {hsPct !== undefined ? <StatMono label="HS" value={`${Math.round(hsPct)}%`} /> : null}
           {match.stats.mvps > 0 ? <StatMono label="MVP" value={match.stats.mvps} /> : null}
           <StatMono label="K/D" value={formatKd(match.stats.kd)} accent />
         </div>
       </section>
 
-      {/* Detected plays */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.24em] text-primary">
-            JUGADAS DETECTADAS{' '}
-            <span className="tracking-[0.14em] text-muted-foreground/70">
-              · <span className="tabular-nums">{n}</span>
-            </span>
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Elige las jugadas que quieras forjar en un reel; 2 o más se concatenan en uno.
-          </p>
-        </div>
+      {n === 0 ? (
+        <StudioEmptyState
+          icon={SearchX}
+          title="Sin jugadas destacables"
+          description="El análisis no encontró ninguna jugada digna de highlight en esta partida. Prueba con otra demo."
+          compact
+          actions={<Button onClick={() => router.push(backHref)}>VOLVER A {backLabel}</Button>}
+        />
+      ) : (
+        /*
+          Two panes keyed to the content container: the vertical selector on the
+          left and the reel build column sticky on the right, so the choices that
+          define the output stay visible while the list scrolls. Below the
+          threshold the build column simply stacks under the list.
+        */
+        <div className="grid items-start gap-7 @[64rem]/content:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.85fr)]">
+          <section className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h2 className="font-mono text-label uppercase tracking-ultra text-primary">
+                JUGADAS DETECTADAS{' '}
+                <span className="tracking-wider text-fg-3">
+                  · <span className="tabular-nums">{n}</span>
+                </span>
+              </h2>
+              <p className="text-body-sm text-fg-2">
+                Elige las jugadas que quieras forjar en un reel; 2 o más se concatenan en uno.
+              </p>
+            </div>
 
-        {n === 0 ? (
-          <p className="border border-dashed border-border bg-card/50 px-5 py-10 text-center text-sm text-muted-foreground">
-            No hay jugadas dignas de highlight en esta partida.
-          </p>
-        ) : (
-          <PlayList
-            plays={playList}
-            selectedIds={selectedIds}
-            onToggle={toggleSelect}
-            onSelectAll={selectAll}
-            onClear={clearSelection}
-          />
-        )}
-      </section>
+            <PlayList
+              plays={playList}
+              selectedIds={selectedIds}
+              onToggle={toggleSelect}
+              onSelectAll={selectAll}
+              onClear={clearSelection}
+            />
+          </section>
 
-      {/* Preset picker */}
-      {n > 0 ? (
-        <section className="flex flex-col gap-4">
-          <SectionEyebrow label="PRESET DEL REEL" />
-          {presetContent}
-        </section>
-      ) : null}
+          <div className="@container/build flex flex-col gap-6 @[64rem]/content:sticky @[64rem]/content:top-20">
+            <section className="flex flex-col gap-3">
+              <SectionEyebrow label="PRESET DEL REEL" />
+              {presetContent}
+            </section>
 
-      {/* Edit options */}
-      {n > 0 ? (
-        <section className="flex flex-col gap-4">
-          <SectionEyebrow label="OPCIONES DE EDICIÓN" />
-          <EditOptions value={editConfig} onChange={setEditConfig} disabled={selectedIds.size === 0 || busy} />
-        </section>
-      ) : null}
+            <section className="flex flex-col gap-3">
+              <SectionEyebrow label="OPCIONES DE EDICIÓN" />
+              <EditOptions value={editConfig} onChange={setEditConfig} disabled={selectedIds.size === 0 || busy} />
+            </section>
 
-      {/* Music (optional) */}
-      {n > 0 ? (
-        <section className="flex flex-col gap-4">
-          <SectionEyebrow label="MÚSICA (OPCIONAL)" />
-          {songTitle ? (
-            <div className="flex flex-col gap-px border border-stream/30 bg-card">
-              <div className="flex items-center justify-between gap-3 px-5 py-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Music className="size-5 shrink-0 text-stream" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{songTitle}</p>
-                    <p className="text-xs text-muted-foreground">Música añadida</p>
+            <section className="flex flex-col gap-3">
+              <SectionEyebrow label="MÚSICA (OPCIONAL)" />
+              {songTitle ? (
+                <div className="studio-panel flex flex-col">
+                  <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Music className="size-5 shrink-0 text-stream" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="truncate text-body-sm font-medium text-fg-1">{songTitle}</p>
+                        <p className="text-meta text-fg-3">Música añadida</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant="secondary" size="sm" disabled={busy} onClick={() => setSongOpen(true)}>
+                        Cambiar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => {
+                          setSongId(null);
+                          setSongTitle(null);
+                          setMusicVolume(VOLUME_DEFAULT);
+                        }}
+                      >
+                        Quitar
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 border-t border-border-subtle px-4 py-3">
+                    <label
+                      htmlFor="music-volume"
+                      className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+                    >
+                      VOLUMEN <span className="text-stream-text">· {musicVolume}%</span>
+                    </label>
+                    <input
+                      id="music-volume"
+                      type="range"
+                      min={VOLUME_MIN}
+                      max={VOLUME_MAX}
+                      step={VOLUME_STEP}
+                      value={musicVolume}
+                      disabled={busy}
+                      onChange={(e) => setMusicVolume(Number(e.target.value))}
+                      className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+                    />
                   </div>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button variant="secondary" size="sm" disabled={busy} onClick={() => setSongOpen(true)}>
-                    Cambiar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      setSongId(null);
-                      setSongTitle(null);
-                      setMusicVolume(VOLUME_DEFAULT);
-                    }}
-                  >
-                    Quitar
-                  </Button>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 border-t border-border/60 px-5 py-3.5">
-                <label
-                  htmlFor="music-volume"
-                  className="shrink-0 font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground/80"
-                >
-                  VOLUMEN <span className="text-stream">· {musicVolume}%</span>
-                </label>
-                <input
-                  id="music-volume"
-                  type="range"
-                  min={VOLUME_MIN}
-                  max={VOLUME_MAX}
-                  step={VOLUME_STEP}
-                  value={musicVolume}
+              ) : (
+                <button
+                  type="button"
                   disabled={busy}
-                  onChange={(e) => setMusicVolume(Number(e.target.value))}
-                  className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-stream disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setSongOpen(true)}
-              className="flex items-center gap-3 border border-dashed border-border bg-card/50 px-5 py-4 text-left text-sm text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Music className="size-5" />
-              Añade música: sincroniza la acción con un tema.
-            </button>
-          )}
-        </section>
-      ) : null}
+                  onClick={() => setSongOpen(true)}
+                  className="flex min-h-11 items-center gap-3 border border-dashed border-border-strong bg-surface-2 px-4 py-3.5 text-left text-body-sm text-fg-2 transition-colors duration-(--dur-fast) ease-standard hover:border-stream/55 hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Music className="size-5 shrink-0" aria-hidden />
+                  Añade música: sincroniza la acción con un tema.
+                </button>
+              )}
+            </section>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1" />
 
@@ -437,21 +422,22 @@ export default function FindHighlightsPage({
 
 function LoadingState() {
   return (
-    <div className="flex flex-col gap-8">
-      <Skeleton className="h-8 w-24" />
-      <Skeleton className="h-20 w-full" />
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-6 w-48" />
-        <div className="flex flex-col gap-px overflow-hidden border border-border">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-[76px] w-full" />
-          ))}
+    <div className="flex flex-col gap-7" role="status" aria-label="Cargando la partida">
+      <Skeleton className="h-5 w-28" />
+      <Skeleton className="h-16 w-full" />
+      <div className="grid items-start gap-7 @[64rem]/content:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.85fr)]">
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-6 w-52" />
+          <div className="flex flex-col gap-px overflow-hidden border border-border">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[86px] w-full" />
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Skeleton className="h-40" />
-        <Skeleton className="h-40" />
-        <Skeleton className="h-40" />
+        <div className="flex flex-col gap-6">
+          <Skeleton className="h-40" />
+          <Skeleton className="h-32" />
+        </div>
       </div>
     </div>
   );
