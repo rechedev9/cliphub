@@ -36,8 +36,8 @@ func validateSkillCommand(command []string) string {
 			return issue
 		}
 	case "demo":
-		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select") {
-			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", or "demo select"`
+		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "anticheat") {
+			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", or "demo anticheat"`
 		}
 		switch command[1] {
 		case "parse":
