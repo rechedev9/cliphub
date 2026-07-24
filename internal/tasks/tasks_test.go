@@ -132,6 +132,38 @@ func TestNewScanRosterTaskRoundtrip(t *testing.T) {
 	}
 }
 
+func TestNewAnalyzeTacticalTaskRoundtrip(t *testing.T) {
+	id := uuid.New()
+	tk, err := NewAnalyzeTacticalTask(id, 16)
+	if err != nil {
+		t.Fatalf("NewAnalyzeTacticalTask error = %v", err)
+	}
+	if tk.Type() != TypeAnalyzeTactical {
+		t.Errorf("Type() = %q, want %q", tk.Type(), TypeAnalyzeTactical)
+	}
+
+	var payload AnalyzeTacticalPayload
+	if err := json.Unmarshal(tk.Payload(), &payload); err != nil {
+		t.Fatalf("Unmarshal payload error = %v", err)
+	}
+	if payload.JobID != id {
+		t.Errorf("JobID = %v, want %v", payload.JobID, id)
+	}
+	if payload.SampleHZ != 16 {
+		t.Errorf("SampleHZ = %v, want 16", payload.SampleHZ)
+	}
+
+	// The sampling rate is part of the payload, so two rates are distinct tasks
+	// rather than duplicates of one another.
+	other, err := NewAnalyzeTacticalTask(id, 0)
+	if err != nil {
+		t.Fatalf("NewAnalyzeTacticalTask error = %v", err)
+	}
+	if string(other.Payload()) == string(tk.Payload()) {
+		t.Errorf("payload for a different sample rate = %s, want a distinct payload", other.Payload())
+	}
+}
+
 func TestNewRecordDemoTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
 	tk, err := NewRecordDemoTask(id, "", nil, false)

@@ -64,6 +64,24 @@ func AnticheatKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "anticheat.json")
 }
 
+// TacticalIndexKey is the storage key for a job's tactical document: the round
+// index, its classification, and the descriptor of the position blob.
+func TacticalIndexKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "tactical", "tactical.json")
+}
+
+// TacticalPositionsKey is the storage key for the sidecar position blob the
+// tactical document indexes. It is binary and seekable per round, so readers
+// fetch one round instead of the whole match.
+func TacticalPositionsKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "tactical", "positions.zvpos")
+}
+
+// TacticalStatusKey is the storage key for the tactical readiness document.
+func TacticalStatusKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "tactical", "status.json")
+}
+
 // GenerateIntentKey is the storage key for a job's one-click generate intent:
 // the latest accepted preset, music, and edit shown by the workbench. Record
 // tasks carry their own immutable intent rather than reading this mutable view.

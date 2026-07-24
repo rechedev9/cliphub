@@ -39,6 +39,9 @@ const (
 	StageHTTP    = "http"
 	StageWorker  = "worker"
 
+	// StageTactical labels failures of the demo tactical analysis scan.
+	StageTactical = "tactical"
+
 	// StageStreamAcquire labels failures downloading a stream job's source
 	// video by URL (the AcquireWorker), so they are distinguishable from the
 	// rest of the "worker" stage in the journal and metrics.
