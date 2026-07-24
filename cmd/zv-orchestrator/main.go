@@ -134,6 +134,7 @@ func run() error {
 	parserWorker := workers.NewParserWorker(repo, store)
 	taskHandlers[tasks.TypeParseDemo] = parserWorker.HandleParseDemo
 	taskHandlers[tasks.TypeScanRoster] = parserWorker.HandleScanRoster
+	taskHandlers[tasks.TypeAnalyzeAnticheat] = parserWorker.HandleAnalyzeAnticheat
 	var recordWorker *workers.RecordWorker
 	if cfg.recordWorkerEnabled() {
 		recordWorker = workers.NewRecordWorker(repo, store, workers.RecordWorkerConfig{
