@@ -2,35 +2,41 @@ package streamclips
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
-// TestLegacyPlanDropsKillfeedAndCaptions pins the compatibility promise of the
-// removal: an edit plan persisted while killfeed and burned captions still
-// existed keeps loading and validating, and simply renders without them.
-func TestLegacyPlanDropsKillfeedAndCaptions(t *testing.T) {
-	const legacy = `{
+// legacyPlanJSON is an edit plan persisted while killfeed and burned captions
+// still existed. It carries every key retired by their removal, at both the
+// plan and the clip level.
+const legacyPlanJSON = `{
 	  "schema_version": "1.0",
-	  "source": {"path": "stream.mp4"},
 	  "variant": "streamer-vertical-stack-40-60",
 	  "face_crop": {"x": 0, "y": 0, "width": 0.25, "height": 0.3},
 	  "gameplay_crop": {"x": 0, "y": 0, "width": 1, "height": 1},
 	  "killfeed_crop": {"x": 0.7, "y": 0.05, "width": 0.28, "height": 0.2},
-	  "killfeed_analysis": {"generation_id": "0f1c9a24-2f21-4a7b-9a52-2ab3f1e0c111", "fingerprint": "b1946ac92492d2347c6235b4d2611184"},
+	  "killfeed_analysis": {"generation_id": "0f1c9a24-2f21-4a7b-9a52-2ab3f1e0c111", "status": "applied"},
 	  "captions": {"enabled": true, "language": "es"},
 	  "clips": [{
 	    "id": "clip-001",
 	    "start_seconds": 10,
 	    "end_seconds": 25,
 	    "killfeed_seconds": [12.5, 18.25],
-	    "killfeed_kills": [[{"attacker": "a", "victim": "b", "weapon": "ak47", "attacker_side": "CT"}], []],
-	    "caption_words": [{"word": "hola", "start_seconds": 11, "end_seconds": 11.4}],
+	    "killfeed_kills": [[{"attacker_name": "a", "victim_name": "b", "weapon": "ak47", "attacker_side": "CT", "victim_side": "T"}], []],
+	    "killfeed_cue_provenance": [{"cue_seconds": 12.5, "origin": "automatic"}],
+	    "caption_words": [{"word": "hola", "start_seconds": 1, "end_seconds": 1.4}],
 	    "caption_reviewed": true
 	  }]
 	}`
 
-	var plan EditPlan
-	if err := json.Unmarshal([]byte(legacy), &plan); err != nil {
+// TestDecodeEditPlanDropsKillfeedAndCaptions pins the compatibility promise of
+// the removal on the strict decode the CLI actually uses: an edit plan
+// persisted while killfeed and burned captions still existed keeps loading and
+// validating, and simply renders without them. The end-to-end promise is
+// covered by TestRunStreamRenderAcceptsPlanWithRetiredKillfeedAndCaptionKeys.
+func TestDecodeEditPlanDropsKillfeedAndCaptions(t *testing.T) {
+	plan, err := DecodeEditPlan([]byte(legacyPlanJSON))
+	if err != nil {
 		t.Fatalf("decode legacy plan: %v", err)
 	}
 	if err := plan.Validate(); err != nil {
@@ -53,5 +59,28 @@ func TestLegacyPlanDropsKillfeedAndCaptions(t *testing.T) {
 		if _, present := round[key]; present {
 			t.Errorf("re-encoded plan still carries %q", key)
 		}
+	}
+}
+
+// TestDecodeEditPlanRejectsUnknownFields keeps the retired-key handling from
+// turning into blanket leniency: only the retired keys are dropped.
+func TestDecodeEditPlanRejectsUnknownFields(t *testing.T) {
+	for name, body := range map[string]string{
+		"invented plan key": strings.Replace(legacyPlanJSON, `"captions"`, `"captionz"`, 1),
+		"invented clip key": strings.Replace(legacyPlanJSON, `"caption_words"`, `"caption_word"`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := DecodeEditPlan([]byte(body))
+			if err == nil || !strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("DecodeEditPlan error = %v, want an unknown field rejection", err)
+			}
+		})
+	}
+}
+
+func TestDecodeEditPlanRejectsAdditionalJSONValues(t *testing.T) {
+	_, err := DecodeEditPlan([]byte(legacyPlanJSON + "\n{}\n"))
+	if err == nil || !strings.Contains(err.Error(), "multiple JSON values") {
+		t.Fatalf("DecodeEditPlan error = %v, want a multiple JSON values rejection", err)
 	}
 }

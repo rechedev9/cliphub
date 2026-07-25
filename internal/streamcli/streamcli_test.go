@@ -322,6 +322,71 @@ func TestRunStreamRenderRejectsSourceInsideReplacedPublishDirectory(t *testing.T
 	}
 }
 
+// TestRunStreamRenderAcceptsPlanWithRetiredKillfeedAndCaptionKeys pins the
+// compatibility promise of the killfeed and burned-caption removal on the
+// surface that actually decodes persisted plans strictly: a plan written
+// before the removal keeps rendering, without killfeed and without subtitles.
+func TestRunStreamRenderAcceptsPlanWithRetiredKillfeedAndCaptionKeys(t *testing.T) {
+	dir := t.TempDir()
+	planPath := writeStreamPlanJSON(t, dir, legacyStreamPlanJSON)
+	service := &fakeStreamService{probe: streamclips.SourceProbe{DurationSeconds: 20}}
+	var stdout, stderr bytes.Buffer
+	code := runStreamWithService([]string{
+		"render", "--input", "stream.mp4", "--plan", planPath, "--out", filepath.Join(dir, "run"),
+		"--dry-run", "--format", "json",
+	}, &stdout, &stderr, service)
+	if code != exitSuccess || stderr.Len() != 0 {
+		t.Fatalf(
+			"code = %d, stdout = %s, stderr = %q, want a legacy plan to keep loading",
+			code, stdout.String(), stderr.String(),
+		)
+	}
+	var result streamRenderResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || !result.DryRun {
+		t.Fatalf("result = %#v, want an accepted dry run", result)
+	}
+}
+
+func TestRunStreamRenderRejectsUnknownPlanKeys(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		body string
+	}{
+		{
+			name: "misspelled plan key",
+			body: strings.Replace(legacyStreamPlanJSON, `"killfeed_crop"`, `"killfeed_crops"`, 1),
+		},
+		{
+			name: "misspelled captions key",
+			body: strings.Replace(legacyStreamPlanJSON, `"captions"`, `"captionz"`, 1),
+		},
+		{
+			name: "misspelled clip key",
+			body: strings.Replace(legacyStreamPlanJSON, `"killfeed_seconds"`, `"killfeed_second"`, 1),
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planPath := writeStreamPlanJSON(t, dir, testCase.body)
+			service := &fakeStreamService{probe: streamclips.SourceProbe{DurationSeconds: 20}}
+			var stdout, stderr bytes.Buffer
+			code := runStreamWithService([]string{
+				"render", "--input", "stream.mp4", "--plan", planPath, "--out", filepath.Join(dir, "run"),
+				"--dry-run",
+			}, &stdout, &stderr, service)
+			if code != exitInvalidArgs || !strings.Contains(stderr.String(), "unknown field") {
+				t.Fatalf("code = %d, stderr = %q, want a rejected unknown field", code, stderr.String())
+			}
+			if service.probeCalls != 0 || service.renderCalls != 0 {
+				t.Fatalf("probe calls = %d, render calls = %d, want 0, 0", service.probeCalls, service.renderCalls)
+			}
+		})
+	}
+}
+
 func TestRunStreamRenderRejectsAdditionalJSONValues(t *testing.T) {
 	dir := t.TempDir()
 	planPath := writeValidStreamPlan(t, dir, 10)
@@ -555,6 +620,45 @@ func TestRunStreamJSONErrorStaysOnStdout(t *testing.T) {
 	if result.OK || result.Executed || !strings.Contains(result.Error, "required") {
 		t.Fatalf("result = %#v", result)
 	}
+}
+
+// legacyStreamPlanJSON mirrors a plan persisted before the killfeed and
+// burned-caption removal, carrying every retired key at both the plan and the
+// clip level.
+const legacyStreamPlanJSON = `{
+  "schema_version": "1.1",
+  "variant": "streamer-vertical-stack-40-60",
+  "face_crop": {"x": 0.006, "y": 0.21, "width": 0.25, "height": 0.3},
+  "gameplay_crop": {"x": 0, "y": 0, "width": 1, "height": 1},
+  "killfeed_crop": {"x": 0.8, "y": 0.05, "width": 0.2, "height": 0.16},
+  "killfeed_analysis": {
+    "generation_id": "0f1c9a24-2f21-4a7b-9a52-2ab3f1e0c111",
+    "status": "applied"
+  },
+  "captions": {"enabled": true, "language": "es"},
+  "clips": [
+    {
+      "id": "clip-001",
+      "start_seconds": 0,
+      "end_seconds": 15.15,
+      "title": "ZaCkk AWP doble en Inferno",
+      "killfeed_seconds": [2.75, 8.625],
+      "killfeed_kills": [[{"attacker_side": "CT", "attacker_name": "ZaCkk", "victim_side": "T", "victim_name": "bot", "weapon": "awp"}], []],
+      "killfeed_cue_provenance": [{"cue_seconds": 2.75, "origin": "automatic"}],
+      "caption_words": [{"word": "hola", "start_seconds": 1, "end_seconds": 1.4}],
+      "caption_reviewed": true
+    }
+  ],
+  "updated_at": "2026-07-17T15:47:12.7055431Z"
+}`
+
+func writeStreamPlanJSON(t *testing.T, dir string, body string) string {
+	t.Helper()
+	path := filepath.Join(dir, "edit-plan.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func writeValidStreamPlan(t *testing.T, dir string, duration float64) string {

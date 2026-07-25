@@ -333,17 +333,8 @@ func runStreamRender(args []string, stdout, stderr io.Writer, service streamServ
 	if err != nil {
 		return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("read stream edit plan: %w", err))
 	}
-	var plan streamclips.EditPlan
-	dec := json.NewDecoder(bytes.NewReader(planBody))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&plan); err != nil {
-		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("decode stream edit plan: %w", err), streamRenderUsage)
-	}
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
-		if err == nil {
-			err = fmt.Errorf("multiple JSON values")
-		}
+	plan, err := streamclips.DecodeEditPlan(planBody)
+	if err != nil {
 		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("decode stream edit plan: %w", err), streamRenderUsage)
 	}
 	probePath := *ffprobe
