@@ -1355,6 +1355,36 @@ async function updateStreamEditPlan(
   return client.request({ body: updated, method: 'PUT', path: editPlanPath, signal });
 }
 
+/** Structural equality for two plan values; key order and identity do not matter. */
+function jsonEquals(left: JsonValue | undefined, right: JsonValue | undefined): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((item, index) => jsonEquals(item, right[index]));
+  }
+  if (isJsonObject(left) && isJsonObject(right)) {
+    const keys = Object.keys(left);
+    if (keys.length !== Object.keys(right).length) return false;
+    return keys.every((key) => key in right && jsonEquals(left[key], right[key]));
+  }
+  return false;
+}
+
+/**
+ * True when the submitted plan frames the facecam exactly as the saved plan
+ * does, so a human's confirmation of the saved crop still describes what will
+ * be rendered.
+ *
+ * Two fields decide that: face_crop, the rectangle the human looked at, and
+ * variant, because the layout decides whether and how the facecam is framed at
+ * all (a full-frame variant drops it entirely). Nothing else in the plan moves
+ * the facecam: gameplay_crop, clips, music, effects, text overlays and the
+ * streamer banner all leave the confirmed rectangle exactly where it was.
+ */
+function faceCropFramingUnchanged(stored: JsonObject, submitted: JsonObject): boolean {
+  return jsonEquals(stored.face_crop, submitted.face_crop) && jsonEquals(stored.variant, submitted.variant);
+}
+
 /**
  * Replaces the whole stream edit plan on behalf of an agent, reconciling
  * face_crop_reviewed against the saved plan first.
@@ -1364,8 +1394,17 @@ async function updateStreamEditPlan(
  * until it is set, so an agent that could write it would walk through the gate
  * on its own word, and an agent that omitted it would silently revoke a real
  * confirmation (the lenient server-side PUT decodes the missing key as false).
- * Neither is the agent's decision to make, so the saved value always wins and
- * an attempt to raise it is refused outright.
+ * Neither is the agent's decision to make, so the saved value always wins over
+ * the submitted one and an attempt to raise it is refused outright.
+ *
+ * Carrying the saved value forward is only safe while the framing it approved
+ * still holds. web/components/streams/stream-editor.tsx clears the flag on
+ * every crop move and nothing on the server re-establishes it, so a plan that
+ * moves the facecam must arrive here unreviewed too — otherwise the agent would
+ * inherit a human's confirmation of a different crop. That case writes the new
+ * framing with the review off and says so in the result, rather than refusing:
+ * changing the crop is a legitimate agent edit; only asserting the review is
+ * not.
  */
 async function replaceStreamEditPlan(
   client: OrchestratorClient,
@@ -1382,9 +1421,18 @@ async function replaceStreamEditPlan(
       'arguments.plan.face_crop_reviewed cannot be set by an operation: confirming the facecam crop is a human action taken in Studio. Omit the field and let the saved plan carry it.',
     );
   }
+  const framingUnchanged = storedReviewed && isJsonObject(stored) && faceCropFramingUnchanged(stored, submitted);
   const body = without(submitted, 'face_crop_reviewed');
-  if (storedReviewed) body.face_crop_reviewed = true;
-  return client.request({ body, method: 'PUT', path: editPlanPath, signal });
+  if (framingUnchanged) body.face_crop_reviewed = true;
+  const saved = await client.request({ body, method: 'PUT', path: editPlanPath, signal });
+  if (storedReviewed && !framingUnchanged) {
+    return {
+      edit_plan: saved,
+      face_crop_review_cleared: true,
+      note: 'The facecam review was cleared because this plan changes the facecam framing (face_crop or variant). Confirm the new crop in Studio before rendering; a non-full-frame render is refused until then.',
+    };
+  }
+  return saved;
 }
 
 async function editStreamClip(client: OrchestratorClient, input: JsonObject, signal?: AbortSignal): Promise<JsonValue> {

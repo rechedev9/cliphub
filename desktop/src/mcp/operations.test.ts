@@ -786,6 +786,46 @@ test('streams.update_edit_plan preserves a stored facecam review the agent omitt
   assert.deepEqual(written.music, { key: 'track-a', volume: 0.4 });
 });
 
+test('streams.update_edit_plan clears the stored facecam review when the crop moves', async () => {
+  const double = clientDouble((request, index) => {
+    if (index === 0) return planForFaceReview({ face_crop_reviewed: true });
+    if (index === 1) return request.body ?? null;
+    throw new Error('unexpected request');
+  });
+
+  const movedCrop = { height: 0.3, width: 0.25, x: 0.4, y: 0.1 };
+  const result = objectResult(await operation('streams.update_edit_plan').run(double.client, {
+    plan: planForFaceReview({ face_crop: movedCrop }),
+    stream_job_id: 'stream-123',
+  }));
+
+  const written = double.state.requests.find((request) => request.method === 'PUT')?.body;
+  assert.ok(isJsonObject(written));
+  assert.deepEqual(written.face_crop, movedCrop);
+  assert.notEqual(written.face_crop_reviewed, true);
+  assert.equal(result.face_crop_review_cleared, true);
+  assert.match(String(result.note), /Studio/);
+});
+
+test('streams.update_edit_plan clears the stored facecam review when the variant changes', async () => {
+  const double = clientDouble((request, index) => {
+    if (index === 0) return planForFaceReview({ face_crop_reviewed: true });
+    if (index === 1) return request.body ?? null;
+    throw new Error('unexpected request');
+  });
+
+  const result = objectResult(await operation('streams.update_edit_plan').run(double.client, {
+    plan: planForFaceReview({ variant: 'streamer-vertical-stack-50-50' }),
+    stream_job_id: 'stream-123',
+  }));
+
+  const written = double.state.requests.find((request) => request.method === 'PUT')?.body;
+  assert.ok(isJsonObject(written));
+  assert.equal(written.variant, 'streamer-vertical-stack-50-50');
+  assert.notEqual(written.face_crop_reviewed, true);
+  assert.equal(result.face_crop_review_cleared, true);
+});
+
 test('streams.update_edit_plan keeps an unreviewed plan unreviewed', async () => {
   const double = clientDouble((request, index) => {
     if (index === 0) return planForFaceReview();
