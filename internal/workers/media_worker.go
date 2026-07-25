@@ -30,6 +30,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/job"
 	"github.com/rechedev9/fragforge/internal/killplan"
 	"github.com/rechedev9/fragforge/internal/mediafont"
+	"github.com/rechedev9/fragforge/internal/obs"
 	"github.com/rechedev9/fragforge/internal/recording"
 	"github.com/rechedev9/fragforge/internal/renderplan"
 	"github.com/rechedev9/fragforge/internal/storage"
@@ -115,6 +116,13 @@ func markFailed(repo statusUpdater, id uuid.UUID, reason string) error {
 // progress across retries; the terminal failure is recorded once retries are
 // exhausted.
 func recordTaskFailure(ctx context.Context, repo statusUpdater, id uuid.UUID, taskType string, err error) error {
+	return recordTaskFailureAs(ctx, repo, id, taskType, obs.StageWorker, taskType, err)
+}
+
+// recordTaskFailureAs is recordTaskFailure with an explicit obs stage and class,
+// so a stage with its own label vocabulary still records exactly once, on the
+// same terminal-attempt rule as every other worker failure.
+func recordTaskFailureAs(ctx context.Context, repo statusUpdater, id uuid.UUID, taskType, stage, class string, err error) error {
 	if !taskIsTerminal(ctx) {
 		logWorkerError(id, taskType+" will retry", err)
 		return nil
@@ -122,7 +130,7 @@ func recordTaskFailure(ctx context.Context, repo statusUpdater, id uuid.UUID, ta
 	if markErr := markFailed(repo, id, err.Error()); markErr != nil {
 		return markErr
 	}
-	recordWorkerFailure(id, taskType, err)
+	recordStageFailure(id, stage, class, err)
 	logWorkerTransition(id, taskType, job.StatusFailed)
 	return nil
 }

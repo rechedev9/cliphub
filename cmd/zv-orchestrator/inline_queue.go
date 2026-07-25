@@ -50,7 +50,9 @@ type inlineTaskPolicy struct {
 
 func defaultInlineTaskPolicy(taskType string) inlineTaskPolicy {
 	switch taskType {
-	case tasks.TypeParseDemo, tasks.TypeScanRoster, tasks.TypeAnalyzeAnticheat:
+	// A tactical analysis is one idempotent parse pass, so it retries like the
+	// other demo scans rather than like a capture.
+	case tasks.TypeParseDemo, tasks.TypeScanRoster, tasks.TypeAnalyzeAnticheat, tasks.TypeAnalyzeTactical:
 		return inlineTaskPolicy{
 			attemptTimeout: inlineParseAttemptTimeout,
 			maxRetries:     1,

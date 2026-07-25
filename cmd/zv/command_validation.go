@@ -103,15 +103,13 @@ func validateSkillCommand(command []string) string {
 		}
 		return validateRequiredFlags(`"music analyze"`, command[2:], requiredFlagsForRunArgs("music", "analyze")...)
 	case "analysis":
-		if len(command) < 2 || (command[1] != "tactical-data" && command[1] != "view") {
-			return `uses non-standard zv command "analysis"; expected "analysis tactical-data" or "analysis view"`
+		if len(command) < 2 || !containsString(analysisSubcommands(), command[1]) {
+			return `uses non-standard zv command "analysis"; expected "analysis tactical", "analysis rounds", "analysis tendencies", "analysis tactical-data", or "analysis view"`
 		}
-		switch command[1] {
-		case "tactical-data":
-			return validateRequiredFlags(`"analysis tactical-data"`, command[2:], requiredFlagsForRunArgs("analysis", "tactical-data")...)
-		case "view":
-			return validateRequiredFlags(`"analysis view"`, command[2:], requiredFlagsForRunArgs("analysis", "view")...)
-		}
+		return validateRequiredFlags(
+			fmt.Sprintf("%q", "analysis "+command[1]),
+			command[2:],
+			requiredFlagsForRunArgs("analysis", command[1])...)
 	case "gallery":
 		if len(command) < 2 || command[1] != "open" {
 			return `uses non-standard zv command "gallery"; expected "gallery open"`
@@ -265,6 +263,23 @@ func validateShortCommand(args []string) string {
 		}
 	}
 	return ""
+}
+
+// analysisSubcommands lists the analysis group members in the order the usage
+// text presents them.
+func analysisSubcommands() []string {
+	return []string{"tactical", "rounds", "tendencies", "tactical-data", "view"}
+}
+
+// tacticalFilterFlagNames lists the round-filter flags "analysis rounds" and
+// "analysis tendencies" accept. They map onto tacticalplan.FilterFromValues, so
+// this list must stay in step with tacticalFilterFlags.
+func tacticalFilterFlagNames() []string {
+	names := make([]string, 0, len(tacticalFilterFlags()))
+	for _, mapping := range tacticalFilterFlags() {
+		names = append(names, "--"+mapping.Name)
+	}
+	return names
 }
 
 func requiredFlagsForRunArgs(args ...string) []string {
@@ -574,6 +589,11 @@ func commandValueFlags(commandName string, required []string) []string {
 		flags = append(flags, "--sample")
 	case `"analysis view"`:
 		flags = append(flags, "--addr")
+	case `"analysis tactical"`:
+		flags = append(flags, "--positions", "--hz", "--cell-size", "--format")
+	case `"analysis rounds"`, `"analysis tendencies"`:
+		flags = append(flags, "--format")
+		flags = append(flags, tacticalFilterFlagNames()...)
 	case `"flows run"`:
 		flags = append(flags, "--demo", "--steamid", "--killplan", "--input", "--events", "--words", "--killfeed-crop", "--format")
 	}
@@ -628,16 +648,24 @@ func commandBoolFlags(commandName string) []string {
 		return []string{"--dry-run"}
 	case `"flows run"`:
 		return []string{"--dry-run"}
+	case `"analysis tactical"`:
+		return []string{"--dry-run"}
 	default:
 		return nil
 	}
 }
 
 func commandRepeatableFlags(commandName string) []string {
-	if commandName == `"stream transcribe"` {
+	switch commandName {
+	case `"stream transcribe"`:
 		return []string{"--model"}
+	case `"analysis rounds"`, `"analysis tendencies"`:
+		// Repeating a filter flag ORs its values, exactly as repeating a query
+		// parameter does on the HTTP API.
+		return []string{"--buy", "--opponent-buy", "--site", "--t-pattern", "--ct-pattern", "--tag", "--slot"}
+	default:
+		return nil
 	}
-	return nil
 }
 
 func duplicateFlag(args []string, repeatable ...string) string {

@@ -241,6 +241,12 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows show stream-captions --format json
 ./bin/zv workflows show stream-render
 ./bin/zv workflows show stream-render --format json
+./bin/zv workflows show analysis-tactical
+./bin/zv workflows show analysis-tactical --format json
+./bin/zv workflows show analysis-rounds
+./bin/zv workflows show analysis-rounds --format json
+./bin/zv workflows show analysis-tendencies
+./bin/zv workflows show analysis-tendencies --format json
 ./bin/zv workflows show analysis-tactical-data
 ./bin/zv workflows show analysis-tactical-data --format json
 ./bin/zv workflows show analysis-viewer
@@ -291,6 +297,9 @@ The unified CLI can discover the same repo-local skills:
 # Compare every pass, then save only verified Spanish word timings.
 ./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json
 ./bin/zv stream render --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream
+./bin/zv analysis tactical --demo match.dem --out data/analysis/match-tactical.json --positions data/analysis/match-positions.zvpos --dry-run --format json
+./bin/zv analysis rounds --tactical testdata/agent-tactical.json --side T --format json
+./bin/zv analysis tendencies --tactical testdata/agent-tactical.json --team t-start --format json
 ./bin/zv analysis tactical-data --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000
 ./bin/zv analysis view --json data/analysis/MarcusN1-deaths.json
 ./bin/zv gallery open --path data/runs/run-004/shortslistosparasubir/index.html
@@ -320,6 +329,9 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --dry-run
 ./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words testdata/stream-caption-words.json --out data/runs/stream/final-plan.json --dry-run
 ./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream --dry-run
+./bin/zv workflows run analysis-tactical -- --demo match.dem --out data/analysis/match-tactical.json --positions data/analysis/match-positions.zvpos --dry-run --format json
+./bin/zv workflows run analysis-rounds -- --tactical testdata/agent-tactical.json --side T --format json
+./bin/zv workflows run analysis-tendencies -- --tactical testdata/agent-tactical.json --team t-start --format json
 ./bin/zv workflows run analysis-tactical-data -- --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000
 ./bin/zv workflows run analysis-viewer -- --json data/analysis/MarcusN1-deaths.json
 ./bin/zv workflows run gallery-open -- --path data/runs/run-004/shortslistosparasubir/index.html

@@ -14,6 +14,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/anticheat"
 	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/job"
+	"github.com/rechedev9/fragforge/internal/obs"
 	"github.com/rechedev9/fragforge/internal/tasks"
 )
 
@@ -67,7 +68,7 @@ func (w *ParserWorker) failAnticheat(ctx context.Context, jobID uuid.UUID, doc a
 	if ctx.Err() != nil {
 		return cause
 	}
-	recordWorkerFailure(jobID, tasks.TypeAnalyzeAnticheat, cause)
+	recordStageFailure(jobID, obs.StageWorker, tasks.TypeAnalyzeAnticheat, cause)
 	logWorkerError(jobID, "anticheat", cause)
 	return w.putAnticheatDocument(jobID, doc.Fail(cause.Error(), time.Now()))
 }

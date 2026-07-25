@@ -27,6 +27,10 @@ const (
 	// lane and never advances the job's own status.
 	TypeAnalyzeAnticheat = "analyze:anticheat"
 
+	// TypeAnalyzeTactical is the Asynq task type for scanning a demo into the
+	// durable tactical document and its position blob.
+	TypeAnalyzeTactical = "analyze:tactical"
+
 	// TypeRecordDemo is the Asynq task type for running the Windows recorder.
 	TypeRecordDemo = "record:demo"
 
@@ -80,6 +84,15 @@ type ScanRosterPayload struct {
 // AnalyzeAnticheatPayload carries the job id for a CheaterDetect analysis.
 type AnalyzeAnticheatPayload struct {
 	JobID uuid.UUID `json:"job_id"`
+}
+
+// AnalyzeTacticalPayload carries the job id for a tactical analysis worker.
+// SampleHZ is the position sampling rate; zero selects the scan default. It is
+// part of the payload so a scan at a different rate is a distinct task rather
+// than a duplicate of the one already queued.
+type AnalyzeTacticalPayload struct {
+	JobID    uuid.UUID `json:"job_id"`
+	SampleHZ float64   `json:"sample_hz,omitempty"`
 }
 
 // RecordDemoPayload carries the job id for a Windows recording worker.
@@ -194,6 +207,17 @@ func NewAnalyzeAnticheatTask(id uuid.UUID) (*asynq.Task, error) {
 		return nil, err
 	}
 	return asynq.NewTask(TypeAnalyzeAnticheat, payload), nil
+}
+
+// NewAnalyzeTacticalTask returns a task for the deterministic tactical scan.
+// The scan is pure CPU over an immutable demo, so callers enqueue it with the
+// default retry policy: re-running it is safe and produces the same artifacts.
+func NewAnalyzeTacticalTask(id uuid.UUID, sampleHZ float64) (*asynq.Task, error) {
+	payload, err := json.Marshal(AnalyzeTacticalPayload{JobID: id, SampleHZ: sampleHZ})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeAnalyzeTactical, payload), nil
 }
 
 // NewRecordDemoTask returns an Asynq task for recording a job. hudMode is

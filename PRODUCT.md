@@ -450,6 +450,9 @@ scripted use:
 ./bin/zv music analyze --input track.mp3 --killplan plan.json --out run/rhythm.json
 ./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events testdata/stream-killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run --format json
 ./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words testdata/stream-caption-words.json --out data/runs/stream/final-plan.json --dry-run --format json
+./bin/zv analysis tactical --demo match.dem --out data/analysis/match-tactical.json --positions data/analysis/match-positions.zvpos --hz 8 --cell-size 64 --dry-run --format json
+./bin/zv analysis rounds --tactical testdata/agent-tactical.json --side T --buy full --format json
+./bin/zv analysis tendencies --tactical testdata/agent-tactical.json --team t-start --phase regulation --format json
 ./bin/zv flows list --format json
 ./bin/zv flows show demo --format json
 ./bin/zv flows show stream --format json
@@ -459,8 +462,22 @@ scripted use:
 ./bin/zv serve
 ```
 
-Other command groups: `zv utility audit` (lineup catalogs), `zv analysis`
-(tactical data and viewers), `zv gallery open`, `zv skills` and `zv workflows`
+`zv analysis tactical` scans a demo once into a durable tactical document: the
+round index with its economy and deterministic classification, the per-round
+event list, the map geometry derived from observed play, and the descriptor of
+an optional sidecar position blob.
+`zv analysis rounds` and `zv analysis tendencies` then read that document
+without touching the demo again.
+Both accept the same round filters (`--side`, `--team`, `--buy`,
+`--opponent-buy`, `--site`, `--outcome`, `--t-pattern`, `--ct-pattern`, `--tag`,
+`--slot`, `--round-from`, `--round-to`, `--phase`), which map onto the one
+filter vocabulary the local HTTP API also parses.
+Every aggregated rate prints its denominator, and any rate computed from fewer
+rounds than the reliable sample size is marked `low-sample`.
+
+Other command groups: `zv utility audit` (lineup catalogs), `zv analysis view`
+and `zv analysis tactical-data` (legacy replay viewers and exports),
+`zv gallery open`, `zv skills` and `zv workflows`
 (repo-local agent skills and the cataloged workflow contract; both support
 `--format json`). Legacy binaries stay reachable through pass-throughs such as
 `zv parser`, `zv editor`, `zv recorder`, `zv composer`, and `zv orchestrator`.

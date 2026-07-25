@@ -258,7 +258,7 @@ func friendlyAcquireReason(err error) string {
 }
 
 // recordStreamAcquireFailure appends a terminal acquire failure to the local
-// obs journal, mirroring recordWorkerFailure but under the stream_acquire
+// obs journal, mirroring recordStageFailure but under the stream_acquire
 // stage with a class derived from the vodfetch sentinel error so acquire
 // failures are distinguishable from the rest of the "worker" stage.
 func recordStreamAcquireFailure(id uuid.UUID, err error) {

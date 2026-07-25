@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { prepareLocalUploadBody } from '@/lib/api/bounded-request-body';
+import { prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
+import {
+  TACTICAL_DOCUMENT_KEYS,
+  TACTICAL_FILTER_PARAM_NAMES,
+  TACTICAL_MAX_SAMPLE_HZ,
+  TACTICAL_ROUND_KEYS,
+  TACTICAL_SAMPLE_HZ_FIELD,
+  TACTICAL_STATUS_KEYS,
+  TACTICAL_TENDENCIES_KEYS,
+} from '@/lib/api/tactical';
 import {
   orchestratorUrl,
   forwardError,
   callOrchestrator,
   callOrchestratorStreamingUpload,
+  proxyStream,
   serviceUnavailable,
   jobUrl,
   jobsListUrl,
@@ -194,4 +204,122 @@ export async function localJobs(): Promise<Response> {
     return out;
   });
   return NextResponse.json({ jobs });
+}
+
+/**
+ * Forwards only the listed top-level keys of an upstream JSON object, so an
+ * orchestrator shape change cannot leak new fields through the proxy. Nested
+ * values pass through as-is, exactly like the roster and plan proxies.
+ */
+function forwardKeys(body: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (body[key] !== undefined) out[key] = body[key];
+  }
+  return out;
+}
+
+/** Reads a whitelisted upstream JSON object, or the error/503 that replaces it. */
+async function forwardJson(url: string | null, keys: readonly string[], init?: RequestInit): Promise<Response> {
+  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
+
+  const res = await callOrchestrator(url, init);
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+
+  const body = (await res.json()) as Record<string, unknown>;
+  return NextResponse.json(forwardKeys(body, keys), { status: res.status });
+}
+
+/** Rounds are 1-based and a match never reaches four digits. */
+const TACTICAL_ROUND_RE = /^[1-9][0-9]{0,2}$/;
+
+/**
+ * GET /api/demos/{jobId}/tactical (local) - proxy the tactical analysis
+ * document: the round index, its deterministic classification, the map geometry
+ * derived from observed play, and the descriptor of the position sidecar.
+ */
+export async function localTacticalDocument(jobId: string): Promise<Response> {
+  return forwardJson(jobUrl(jobId, '/tactical'), TACTICAL_DOCUMENT_KEYS);
+}
+
+/**
+ * POST /api/demos/{jobId}/tactical (local) - start the tactical analysis of a
+ * parsed demo. The orchestrator answers 202 with the lifecycle state, and that
+ * status code is preserved. The only accepted body field is the sampling rate,
+ * validated here so an arbitrary JSON object never reaches the orchestrator.
+ */
+export async function localStartTactical(request: Request, jobId: string): Promise<Response> {
+  const incoming = await readBoundedText(request);
+  if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
+
+  let init: RequestInit = { method: 'POST' };
+  if (incoming.text.trim() !== '') {
+    let body: { [TACTICAL_SAMPLE_HZ_FIELD]?: unknown };
+    try {
+      body = JSON.parse(incoming.text) as { [TACTICAL_SAMPLE_HZ_FIELD]?: unknown };
+    } catch {
+      return NextResponse.json({ error: 'invalid json body' }, { status: 400 });
+    }
+    const sampleHz = body[TACTICAL_SAMPLE_HZ_FIELD];
+    if (sampleHz !== undefined) {
+      if (typeof sampleHz !== 'number' || !Number.isFinite(sampleHz) || sampleHz < 0 || sampleHz > TACTICAL_MAX_SAMPLE_HZ) {
+        return NextResponse.json(
+          { error: `${TACTICAL_SAMPLE_HZ_FIELD} must be a number between 0 and ${TACTICAL_MAX_SAMPLE_HZ}` },
+          { status: 400 },
+        );
+      }
+      init = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [TACTICAL_SAMPLE_HZ_FIELD]: sampleHz }),
+      };
+    }
+  }
+  return forwardJson(jobUrl(jobId, '/tactical'), TACTICAL_STATUS_KEYS, init);
+}
+
+/** GET /api/demos/{jobId}/tactical/status (local) - proxy the analysis lifecycle state. */
+export async function localTacticalStatus(jobId: string): Promise<Response> {
+  return forwardJson(jobUrl(jobId, '/tactical/status'), TACTICAL_STATUS_KEYS);
+}
+
+/**
+ * GET /api/demos/{jobId}/tactical/rounds/{round} (local) - proxy one round's
+ * index entry and its decoded position frames. The round segment is validated
+ * before it can reach the upstream URL.
+ */
+export async function localTacticalRound(jobId: string, round: string): Promise<Response> {
+  if (!TACTICAL_ROUND_RE.test(round)) {
+    return NextResponse.json({ error: 'invalid round' }, { status: 400 });
+  }
+  return forwardJson(jobUrl(jobId, `/tactical/rounds/${round}`), TACTICAL_ROUND_KEYS);
+}
+
+/**
+ * GET /api/demos/{jobId}/tactical/aggregate (local) - proxy the tendencies
+ * computed over the rounds a filter selects. Only the known filter parameters
+ * are forwarded, so an arbitrary client query can never reach the orchestrator.
+ */
+export async function localTacticalAggregate(jobId: string, search: URLSearchParams): Promise<Response> {
+  const filter = new URLSearchParams();
+  for (const name of TACTICAL_FILTER_PARAM_NAMES) {
+    for (const value of search.getAll(name)) {
+      if (value !== '') filter.append(name, value);
+    }
+  }
+  const query = filter.toString();
+  const url = jobUrl(jobId, query ? `/tactical/aggregate?${query}` : '/tactical/aggregate');
+  return forwardJson(url, TACTICAL_TENDENCIES_KEYS);
+}
+
+/**
+ * GET /api/demos/{jobId}/tactical/positions (local) - stream the zvpos1 blob.
+ * It is the largest artifact the feature produces, so it is streamed and its
+ * Range support is preserved: a viewer fetches one round's bytes, not megabytes.
+ */
+export async function localTacticalPositions(jobId: string, request: Request): Promise<Response> {
+  const url = jobUrl(jobId, '/tactical/positions');
+  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
+  return proxyStream(url, 'application/octet-stream', request);
 }

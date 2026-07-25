@@ -17,7 +17,6 @@ import (
 	"github.com/rechedev9/fragforge/internal/killplan"
 	"github.com/rechedev9/fragforge/internal/moments"
 	"github.com/rechedev9/fragforge/internal/pathguard"
-	"github.com/rechedev9/fragforge/internal/storage"
 )
 
 type demoMomentsResult struct {
@@ -53,29 +52,29 @@ func runDemoMoments(args []string, stdout, stderr io.Writer) int {
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "validate and score without writing")
 	if err := fs.Parse(args); err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoMomentsUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoMomentsUsage, exitInvalidArgs)
 	}
 	if fs.NArg() != 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoMomentsUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoMomentsUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*killPlanPath) == "" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("--killplan is required"), demoMomentsUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--killplan is required"), demoMomentsUsage, exitInvalidArgs)
 	}
 	if *top < 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("--top must be >= 0"), demoMomentsUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--top must be >= 0"), demoMomentsUsage, exitInvalidArgs)
 	}
 	if *format != "text" && *format != "json" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoMomentsUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoMomentsUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*outPath) != "" {
 		if err := pathguard.RejectOutputAliases(*outPath, pathguard.Input{Flag: "--killplan", Path: *killPlanPath}); err != nil {
-			return writeDemoReviewError(args, stdout, stderr, err, demoMomentsUsage, exitInvalidArgs)
+			return writeCommandError(args, stdout, stderr, err, demoMomentsUsage, exitInvalidArgs)
 		}
 	}
 
 	plan, err := loadDemoKillPlan(*killPlanPath)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("read kill plan: %w", err), "", exitUnexpected)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("read kill plan: %w", err), "", exitUnexpected)
 	}
 	doc := moments.Build(demoMomentsJobID(plan), plan)
 	sort.SliceStable(doc.Moments, func(i, j int) bool {
@@ -93,8 +92,8 @@ func runDemoMoments(args []string, stdout, stderr io.Writer) int {
 		absOut, _ := filepath.Abs(*outPath)
 		result.Output = absOut
 		if !*dryRun {
-			if err := writeDemoReviewJSON(absOut, doc); err != nil {
-				return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("write moments: %w", err), "", exitUnexpected)
+			if err := writeJSONArtifact(absOut, doc); err != nil {
+				return writeCommandError(args, stdout, stderr, fmt.Errorf("write moments: %w", err), "", exitUnexpected)
 			}
 		}
 	}
@@ -135,31 +134,31 @@ func runDemoSelect(args []string, stdout, stderr io.Writer) int {
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "validate selection without writing")
 	if err := fs.Parse(args); err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 	}
 	if fs.NArg() != 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoSelectUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*killPlanPath) == "" || strings.TrimSpace(*segmentsValue) == "" || strings.TrimSpace(*outPath) == "" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("--killplan, --segments, and --out are required"), demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--killplan, --segments, and --out are required"), demoSelectUsage, exitInvalidArgs)
 	}
 	if *format != "text" && *format != "json" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoSelectUsage, exitInvalidArgs)
 	}
 	if err := pathguard.RejectOutputAliases(*outPath, pathguard.Input{Flag: "--killplan", Path: *killPlanPath}); err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 	}
 	segmentIDs, err := parseOrderedSegmentIDs(*segmentsValue)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 	}
 	plan, err := loadDemoKillPlan(*killPlanPath)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("read kill plan: %w", err), "", exitUnexpected)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("read kill plan: %w", err), "", exitUnexpected)
 	}
 	selected, err := selectDemoSegments(plan, segmentIDs)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 	}
 	absInput, _ := filepath.Abs(*killPlanPath)
 	absOut, _ := filepath.Abs(*outPath)
@@ -173,8 +172,8 @@ func runDemoSelect(args []string, stdout, stderr io.Writer) int {
 		Plan:             selected,
 	}
 	if !*dryRun {
-		if err := writeDemoReviewJSON(absOut, selected); err != nil {
-			return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("write selected kill plan: %w", err), "", exitUnexpected)
+		if err := writeJSONArtifact(absOut, selected); err != nil {
+			return writeCommandError(args, stdout, stderr, fmt.Errorf("write selected kill plan: %w", err), "", exitUnexpected)
 		}
 	}
 	if *format == "json" {
@@ -291,32 +290,4 @@ func selectDemoSegments(plan killplan.Plan, ids []string) (killplan.Plan, error)
 		}
 	}
 	return selected, nil
-}
-
-func writeDemoReviewJSON(path string, value any) error {
-	body, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return err
-	}
-	body = append(body, '\n')
-	store, err := storage.NewLocal(filepath.Dir(path))
-	if err != nil {
-		return err
-	}
-	return store.Put(filepath.Base(path), bytes.NewReader(body))
-}
-
-func writeDemoReviewError(args []string, stdout, stderr io.Writer, err error, commandUsage string, code int) int {
-	if shortJSONRequested(args) {
-		if writeErr := writeJSON(stdout, map[string]any{"ok": false, "executed": false, "error": err.Error()}); writeErr != nil {
-			fmt.Fprintf(stderr, "error: write demo json error: %v\n", writeErr)
-			return exitUnexpected
-		}
-		return code
-	}
-	fmt.Fprintf(stderr, "error: %v\n", err)
-	if commandUsage != "" {
-		fmt.Fprint(stderr, commandUsage)
-	}
-	return code
 }
