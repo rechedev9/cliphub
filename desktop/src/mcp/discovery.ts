@@ -158,7 +158,6 @@ const SEARCH_ALIASES: Readonly<Record<string, readonly string[]>> = {
   'jobs.record': ['grabar kills', 'grabar bajas', 'capturar kills', 'record kills', 'capture kills'],
   'studio.metrics': ['ver errores', 'errores', 'fallos', 'metricas', 'studio errors', 'errors', 'metrics'],
   'studio.status': ['estado del estudio', 'estado estudio', 'salud del estudio', 'studio status', 'studio health'],
-  'streams.configure_captions': ['subtitulos con grok', 'configurar subtitulos', 'activar subtitulos', 'configure captions', 'enable subtitles'],
   'streams.edit_clip': ['editar clip', 'velocidad del clip', 'camara lenta', 'silenciar clip', 'quitar audio', 'texto en pantalla', 'fundido', 'edit clip', 'clip speed', 'slow motion', 'mute clip', 'add text overlay', 'fade'],
   'voices.delete_profile': ['borrar perfil de voz', 'eliminar perfil de voz', 'delete voice profile'],
   'voices.get_profile': ['perfil de voz', 'ver perfil de voz', 'voice profile'],

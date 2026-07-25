@@ -117,7 +117,7 @@ func TestDemoFlowRequiresCreativeAndThumbnailGates(t *testing.T) {
 	}
 }
 
-func TestRunFlowsShowStreamIncludesLandscapeAndCaptionDecision(t *testing.T) {
+func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"zv", "flows", "show", "stream", "--format=json"}, &stdout, &stderr, nil, &fakeRunner{})
 	if code != exitSuccess || stderr.Len() != 0 {
@@ -133,12 +133,12 @@ func TestRunFlowsShowStreamIncludesLandscapeAndCaptionDecision(t *testing.T) {
 	for _, phase := range result.Flow.Phases {
 		commands[phase.ID] = phase.Command
 	}
-	for _, id := range []string{"plan", "enrich", "captions", "render"} {
+	for _, id := range []string{"plan", "render"} {
 		if commands[id] == "" || strings.Contains(commands[id], "--dry-run") {
 			t.Fatalf("persistent phase %q = %q, want a real artifact-producing command", id, commands[id])
 		}
 	}
-	for _, id := range []string{"plan-preflight", "killfeed-preflight", "captions-preflight", "render-preflight"} {
+	for _, id := range []string{"plan-preflight", "render-preflight"} {
 		if !strings.Contains(commands[id], "--dry-run") {
 			t.Fatalf("preflight phase %q = %q, want --dry-run", id, commands[id])
 		}
@@ -151,9 +151,6 @@ func TestRunFlowsShowStreamIncludesLandscapeAndCaptionDecision(t *testing.T) {
 	body := stdout.String()
 	for _, want := range []string{
 		streamclips.VariantStreamerLandscape16x9,
-		"--detect-killfeed",
-		"--captions",
-		"killfeed source",
 		"creative-brief",
 	} {
 		if !strings.Contains(body, want) {

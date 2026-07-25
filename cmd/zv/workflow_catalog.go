@@ -125,26 +125,8 @@ func buildWorkflowCatalog() []workflowInfo {
 			RunArgs:     []string{"stream", "plan"},
 		},
 		{
-			Name:        "stream-killfeed",
-			Description: "Import reviewed factual killfeed notices into a detected stream plan.",
-			Command:     "zv stream killfeed --plan <edit-plan.json> --events <killfeed-events.json> --out <reviewed-plan.json>",
-			RunArgs:     []string{"stream", "killfeed"},
-		},
-		{
-			Name:        "stream-transcribe",
-			Description: "Generate local multi-pass Whisper candidates that remain explicitly unreviewed.",
-			Command:     "zv stream transcribe --input <stream.mp4> --plan <edit-plan.json> --model <ggml-model.bin> --vad-model <ggml-vad.bin> --out <transcript-review.json>",
-			RunArgs:     []string{"stream", "transcribe"},
-		},
-		{
-			Name:        "stream-captions",
-			Description: "Import reviewed Spanish word timings without requiring a cloud transcription key.",
-			Command:     "zv stream captions --plan <edit-plan.json> --words <caption-words.json> --out <captioned-plan.json>",
-			RunArgs:     []string{"stream", "captions"},
-		},
-		{
 			Name:        "stream-render",
-			Description: "Render stream clips, killfeed, and Spanish captions into an upload-ready local pack.",
+			Description: "Render stream clips into an upload-ready local pack.",
 			Command:     "zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir>",
 			RunArgs:     []string{"stream", "render"},
 		},
@@ -341,7 +323,7 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 			constraint("--variant", streamclips.DefaultVariant().Name, "zv stream variants --format json", streamclips.VariantNames()...),
 			constraint("--format", "text", "", "text", "json"),
 		}
-	case "faceit-index", "stream-render", "stream-killfeed", "stream-transcribe", "stream-captions", "stream-variants", "demo-players", "demo-moments", "demo-select", "flows-run",
+	case "faceit-index", "stream-render", "stream-variants", "demo-players", "demo-moments", "demo-select", "flows-run",
 		"analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		return []workflowValueConstraint{
 			constraint("--format", "text", "", "text", "json"),
@@ -376,7 +358,7 @@ func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) 
 
 	longRunning := false
 	switch workflow.Name {
-	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-plan", "stream-transcribe", "stream-render", "analysis-viewer", "serve", "flows-run",
+	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-plan", "stream-render", "analysis-viewer", "serve", "flows-run",
 		"analysis-tactical":
 		// flows-run really parses demos and probes media across a whole journey,
 		// and analysis-tactical parses a whole demo before it writes anything.

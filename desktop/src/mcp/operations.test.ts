@@ -358,105 +358,6 @@ test('operation schemas enforce API route and cross-field contracts', () => {
     variant: 'streamer-fullframe-nocam',
   });
 
-  const killfeedClip: JsonObject = {
-    end_seconds: 18,
-    id: 'ace',
-    killfeed_seconds: [12, 14.5, 17.999],
-    start_seconds: 12,
-    title: 'Ace',
-  };
-  const validKillfeedPlan: JsonObject = {
-    clips: [killfeedClip],
-    gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
-    killfeed_crop: { height: 0.14, width: 0.25, x: 0.72, y: 0.04 },
-    schema_version: '1.1',
-    variant: 'streamer-vertical-stack-40-60',
-  };
-  validateStreamEditPlan(validKillfeedPlan);
-
-  const killJson: JsonObject = {
-    attacker_name: 'hero',
-    attacker_side: 'CT',
-    victim_name: 'villain',
-    victim_side: 'T',
-    weapon: 'ak47',
-  };
-  validateStreamEditPlan({
-    ...validKillfeedPlan,
-    clips: [{ ...killfeedClip, killfeed_kills: [[killJson], [], [{ ...killJson, headshot: true }]] }],
-  });
-
-  const invalidKillfeedPlans: Array<{ error: string; name: string; plan: JsonObject }> = [
-    {
-      error: 'arguments.plan.clips[0].killfeed_kills must have one entry per killfeed_seconds cue',
-      name: 'killfeed_kills length mismatch',
-      plan: {
-        ...validKillfeedPlan,
-        clips: [{ ...killfeedClip, killfeed_kills: [[killJson]] }],
-      },
-    },
-    {
-      error: 'arguments.plan.clips[0].killfeed_kills[0][0].attacker_side must be one of: CT, T',
-      name: 'killfeed kill invalid side',
-      plan: {
-        ...validKillfeedPlan,
-        clips: [{
-          ...killfeedClip,
-          killfeed_seconds: [12],
-          killfeed_kills: [[{ ...killJson, attacker_side: 'X' }]],
-        }],
-      },
-    },
-    {
-      error: 'arguments.plan.killfeed_crop is required when arguments.plan.clips[0].killfeed_seconds contains cues',
-      name: 'cues without killfeed_crop',
-      plan: {
-        clips: [killfeedClip],
-        gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
-        schema_version: '1.0',
-        variant: 'streamer-vertical-stack-40-60',
-      },
-    },
-    {
-      error: 'arguments.plan.killfeed_crop must stay within the source frame',
-      name: 'killfeed_crop outside the source frame',
-      plan: {
-        ...validKillfeedPlan,
-        killfeed_crop: { height: 0.14, width: 0.25, x: 0.8, y: 0.04 },
-      },
-    },
-    {
-      error: 'arguments.plan.clips[0].killfeed_seconds[1] must not duplicate an earlier cue',
-      name: 'duplicate killfeed cue',
-      plan: {
-        ...validKillfeedPlan,
-        clips: [{ ...killfeedClip, killfeed_seconds: [12, 12] }],
-      },
-    },
-    {
-      error: 'arguments.plan.clips[0].killfeed_seconds[0] must be greater than or equal to start_seconds and less than end_seconds',
-      name: 'killfeed cue before clip start',
-      plan: {
-        ...validKillfeedPlan,
-        clips: [{ ...killfeedClip, killfeed_seconds: [11.999] }],
-      },
-    },
-    {
-      error: 'arguments.plan.clips[0].killfeed_seconds[0] must be greater than or equal to start_seconds and less than end_seconds',
-      name: 'killfeed cue exactly at clip end',
-      plan: {
-        ...validKillfeedPlan,
-        clips: [{ ...killfeedClip, killfeed_seconds: [18] }],
-      },
-    },
-  ];
-  for (const invalid of invalidKillfeedPlans) {
-    assert.throws(
-      () => validateStreamEditPlan(invalid.plan),
-      (error: unknown) => error instanceof Error && error.message === invalid.error,
-      invalid.name,
-    );
-  }
   assert.throws(
     () => validateOperationInput(operation('streams.update_edit_plan'), {
       plan: {
@@ -468,84 +369,6 @@ test('operation schemas enforce API route and cross-field contracts', () => {
     }),
     /arguments.plan.variant has an invalid format/,
   );
-});
-
-test('stream caption and killfeed analysis operations validate and dispatch exact requests', async () => {
-  const generationID = '33333333-3333-4333-8333-333333333333';
-  const reviewInput: JsonObject = {
-    clips: [{
-      clip_id: 'clip-1',
-      words: [{ end_seconds: 0.5, start_seconds: 0, word: 'hola' }],
-    }],
-    generation_id: generationID,
-    stream_job_id: STREAM_JOB_ID,
-  };
-  const applyInput: JsonObject = { generation_id: generationID, stream_job_id: STREAM_JOB_ID };
-
-  validateOperationInput(operation('streams.review_caption_candidates'), reviewInput);
-  validateOperationInput(operation('streams.apply_killfeed_analysis'), applyInput);
-  assert.throws(
-    () => validateOperationInput(operation('streams.review_caption_candidates'), {
-      ...reviewInput,
-      clips: [{
-        clip_id: 'clip-1',
-        no_speech: true,
-        words: [{ end_seconds: 0.5, start_seconds: 0, word: 'hola' }],
-      }],
-    }),
-    /cannot include words when no_speech is true/,
-  );
-  assert.throws(
-    () => validateOperationInput(operation('streams.review_caption_candidates'), {
-      ...reviewInput,
-      clips: [{ clip_id: 'clip-1' }],
-    }),
-    /requires reviewed words or no_speech=true/,
-  );
-  assert.throws(
-    () => validateOperationInput(operation('streams.review_caption_candidates'), {
-      ...reviewInput,
-      clips: [
-        { clip_id: 'clip-1', no_speech: true },
-        { clip_id: 'clip-1', no_speech: true },
-      ],
-    }),
-    /duplicates an earlier review/,
-  );
-  assert.throws(
-    () => validateOperationInput(operation('streams.review_caption_candidates'), {
-      ...reviewInput,
-      clips: [{
-        clip_id: 'clip-1',
-        words: [{ end_seconds: 3, start_seconds: 0, word: 'hola' }],
-      }],
-    }),
-    /must last no more than 2.5 seconds/,
-  );
-
-  const double = clientDouble((request) => request.body ?? { status: 'ok' });
-  await operation('streams.start_caption_candidates').run(double.client, { stream_job_id: STREAM_JOB_ID });
-  await operation('streams.get_caption_candidates').run(double.client, { stream_job_id: STREAM_JOB_ID });
-  await operation('streams.review_caption_candidates').run(double.client, reviewInput);
-  await operation('streams.start_killfeed_analysis').run(double.client, { stream_job_id: STREAM_JOB_ID });
-  await operation('streams.get_killfeed_analysis').run(double.client, { stream_job_id: STREAM_JOB_ID });
-  await operation('streams.apply_killfeed_analysis').run(double.client, applyInput);
-
-  assert.deepEqual(double.state.requests.map((request) => [request.method ?? 'GET', request.path, request.body]), [
-    ['POST', `/api/stream-jobs/${STREAM_JOB_ID}/captions`, undefined],
-    ['GET', `/api/stream-jobs/${STREAM_JOB_ID}/captions`, undefined],
-    ['POST', `/api/stream-jobs/${STREAM_JOB_ID}/captions/review`, {
-      clips: reviewInput.clips,
-      generation_id: generationID,
-    }],
-    ['POST', `/api/stream-jobs/${STREAM_JOB_ID}/killfeed`, undefined],
-    ['GET', `/api/stream-jobs/${STREAM_JOB_ID}/killfeed`, undefined],
-    ['POST', `/api/stream-jobs/${STREAM_JOB_ID}/killfeed/apply`, { generation_id: generationID }],
-  ]);
-  assert.equal(operation('streams.start_caption_candidates').risk, 'costly');
-  assert.equal(operation('streams.review_caption_candidates').risk, 'write');
-  assert.equal(operation('streams.start_killfeed_analysis').risk, 'costly');
-  assert.equal(operation('streams.apply_killfeed_analysis').risk, 'write');
 });
 
 test('voice profile operations validate IDs and keep reference audio out of MCP results', async () => {
@@ -818,21 +641,10 @@ test('dynamic job candidates expose operation-specific state eligibility', async
   const streamCandidates = streamFields[0]?.candidates;
   if (!Array.isArray(streamCandidates)) throw new Error('expected stream candidates');
   assert.deepEqual(streamCandidates.filter(isJsonObject).map((candidate) => candidate.eligible), [false, true]);
-
-  const captionFields = await discoverDynamicInputs(double.client, operation('streams.start_caption_candidates'), {});
-  const captionCandidates = captionFields[0]?.candidates;
-  if (!Array.isArray(captionCandidates)) throw new Error('expected stream caption candidates');
-  assert.deepEqual(captionCandidates.filter(isJsonObject).map((candidate) => candidate.eligible), [false, true]);
-
-  const applyFields = await discoverDynamicInputs(double.client, operation('streams.apply_killfeed_analysis'), {});
-  const applyCandidates = applyFields[0]?.candidates;
-  if (!Array.isArray(applyCandidates)) throw new Error('expected stream killfeed candidates');
-  assert.deepEqual(applyCandidates.filter(isJsonObject).map((candidate) => candidate.eligible), [false, true]);
 });
 
-test('streams.configure_captions preserves a valid disabled face crop for full-frame renders', async () => {
+test('a stream plan edit preserves a valid disabled face crop for full-frame renders', async () => {
   const currentPlan: JsonObject = {
-    captions: { enabled: false },
     clips: [{ end_seconds: 8, id: 'clip-1', start_seconds: 2 }],
     face_crop: { height: 0, width: 0, x: 0, y: 0 },
     gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
@@ -846,15 +658,14 @@ test('streams.configure_captions preserves a valid disabled face crop for full-f
     throw new Error('unexpected request');
   });
 
-  const result = await operation('streams.configure_captions').run(double.client, {
-    enabled: true,
-    language: 'es',
+  const result = await operation('streams.edit_clip').run(double.client, {
+    clip_id: 'clip-1',
+    source_volume: 0,
     stream_job_id: 'stream-123',
   });
 
   assert.ok(isJsonObject(result));
   assert.deepEqual(result.face_crop, currentPlan.face_crop);
-  assert.deepEqual(result.captions, { enabled: true, language: 'es' });
   assert.deepEqual(double.state.requests.map((request) => [request.method ?? 'GET', request.path]), [
     ['GET', '/api/stream-jobs/stream-123/edit-plan'],
     ['GET', '/api/stream-variants'],
@@ -929,13 +740,13 @@ test('stream edit plan accepts and validates per-clip edit options', () => {
 
 test('streams.edit_clip merges the edit into the saved plan and preserves everything else', async () => {
   const currentPlan: JsonObject = {
-    captions: { enabled: true, language: 'es' },
     clips: [
       { end_seconds: 8, id: 'clip-1', start_seconds: 2 },
       { edit: { speed: 0.5 }, end_seconds: 30, id: 'clip-2', start_seconds: 20 },
     ],
     face_crop: { height: 0.3, width: 0.25, x: 0, y: 0 },
     gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
+    music: { key: 'track-a', volume: 0.4 },
     schema_version: '1.0',
     variant: 'streamer-vertical-stack-40-60',
   };
@@ -963,7 +774,7 @@ test('streams.edit_clip merges the edit into the saved plan and preserves everyt
     id: 'clip-2',
     start_seconds: 20,
   });
-  assert.deepEqual(result.captions, currentPlan.captions);
+  assert.deepEqual(result.music, currentPlan.music);
   assert.deepEqual(double.state.requests.map((request) => [request.method ?? 'GET', request.path]), [
     ['GET', '/api/stream-jobs/stream-123/edit-plan'],
     ['GET', '/api/stream-variants'],

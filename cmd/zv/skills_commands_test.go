@@ -824,10 +824,7 @@ func TestRunSkillsCheckCreativeBriefGate(t *testing.T) {
 		"```powershell",
 		`.\bin\zv.exe workflows run stream-variants -- --format json`,
 		`.\bin\zv.exe workflows run stream-plan -- --input stream.mp4 --out edit-plan.json`,
-		`.\bin\zv.exe workflows run stream-killfeed -- --plan edit-plan.json --events killfeed-events.json --out reviewed-plan.json`,
-		`.\bin\zv.exe workflows run stream-transcribe -- --input stream.mp4 --plan reviewed-plan.json --model ggml-large-v3.bin --vad-model ggml-vad.bin --out transcript-review.json`,
-		`.\bin\zv.exe workflows run stream-captions -- --plan edit-plan.json --words caption-words.json --out captioned-plan.json`,
-		`.\bin\zv.exe workflows run stream-render -- --input stream.mp4 --plan captioned-plan.json --out run --dry-run`,
+		`.\bin\zv.exe workflows run stream-render -- --input stream.mp4 --plan edit-plan.json --out run --dry-run`,
 		"```",
 	}
 	auditRuns := []string{

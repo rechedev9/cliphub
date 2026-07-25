@@ -243,12 +243,10 @@ function creativeBriefArguments(operation = 'jobs.generate', jobID = 'job-123') 
 
 function streamCreativeBriefArguments(streamJobID = 'stream-123') {
   return {
-    captions: 'spanish-reviewed',
     clip_selection: 'saved-edit-plan',
     cover: 'generated-gameplay-candidates',
     format: 'short-9x16',
     framing: 'clean-crop',
-    killfeed: 'preserve',
     layout: 'streamer-vertical-stack-40-60',
     music: 'none',
     operation: 'streams.start_render',
@@ -259,12 +257,9 @@ function streamCreativeBriefArguments(streamJobID = 'stream-123') {
 
 function streamEditPlan(updatedAt = '2026-07-20T20:00:00Z') {
   return {
-    captions: { enabled: true, language: 'es' },
     clips: [{
-      caption_reviewed: true,
       end_seconds: 20,
       id: 'clip-1',
-      killfeed_seconds: [15],
       start_seconds: 10,
       title: 'La ronda imposible',
     }],
@@ -707,14 +702,14 @@ test('uses a stream-specific creative brief and binds approval to its exact layo
   assert.equal(card?.preview?.fields?.some((field) => field.label === 'Revisión del plan' && field.value.length === 16), true);
   assert.equal(card?.preview?.fields?.some((field) => field.label === 'Corte 1 de 1'
     && field.value === 'clip-1 · 10-20s · La ronda imposible'), true);
-  assert.equal(card?.preview?.fields?.some((field) => field.label === 'Subtítulos' && field.value === 'spanish-reviewed'), true);
+  assert.equal(card?.preview?.fields?.some((field) => field.label === 'Encuadre' && field.value === 'clean-crop'), true);
   assert.equal(card?.preview?.fields?.some((field) => field.label === 'HUD'), false);
   completeTurn(options, 'Confirma el brief de stream.', 'turn-1');
 
   await fixture.controller.approve(card?.id as string);
 
   assert.match(fixture.appServer.turnText ?? '', /layout=streamer-vertical-stack-40-60/);
-  assert.match(fixture.appServer.turnText ?? '', /captions=spanish-reviewed/);
+  assert.match(fixture.appServer.turnText ?? '', /framing=clean-crop/);
   const wrongLayout = await options.onDynamicToolCall?.(dynamicCall('preview', {
     arguments: { stream_job_id: 'stream-123', variant: 'streamer-fullframe-nocam' },
     operation: 'streams.start_render',
@@ -736,7 +731,7 @@ test('uses a stream-specific creative brief and binds approval to its exact layo
   completeTurn(options, 'Render de stream preparado.', 'turn-2');
 });
 
-test('rejects stream briefs whose format or subtitle language contradicts the saved plan', async (t) => {
+test('rejects stream briefs whose format or framing contradicts the saved plan', async (t) => {
   for (const testCase of [
     {
       name: 'format',
@@ -744,9 +739,9 @@ test('rejects stream briefs whose format or subtitle language contradicts the sa
       brief: { ...streamCreativeBriefArguments(), format: 'landscape-16x9' },
     },
     {
-      name: 'caption language',
-      plan: { ...streamEditPlan(), captions: { enabled: true, language: 'en' } },
-      brief: streamCreativeBriefArguments(),
+      name: 'framing',
+      plan: streamEditPlan(),
+      brief: { ...streamCreativeBriefArguments(), framing: 'full-frame' },
     },
   ]) {
     await t.test(testCase.name, async (t) => {
@@ -805,12 +800,11 @@ test('derives landscape delivery and full-frame framing from the saved stream la
 test('rejects stream plans that cannot be shown completely in one approval card', async (t) => {
   for (const testCase of [
     {
-      brief: { ...streamCreativeBriefArguments(), killfeed: 'none', title: 'Sin título' },
+      brief: { ...streamCreativeBriefArguments(), title: 'Sin título' },
       name: 'too many clips',
       plan: {
         ...streamEditPlan(),
         clips: Array.from({ length: 39 }, (_value, index) => ({
-          caption_reviewed: true,
           end_seconds: index + 1,
           id: `clip-${index + 1}`,
           start_seconds: index,
@@ -849,39 +843,6 @@ test('rejects stream plans that cannot be shown completely in one approval card'
       assert.equal(fixture.controller.snapshot().pendingActions.some((item) => item.operation === 'studio.confirm_creative_brief'), false);
     });
   }
-});
-
-test('keeps explicitly unreviewed caption words in the auto-review brief state', async (t) => {
-  const fixture = await controllerFixture(t);
-  const currentPlan = streamEditPlan();
-  const plan = {
-    ...currentPlan,
-    clips: [{
-      ...currentPlan.clips[0],
-      caption_reviewed: false,
-      caption_words: [{ end_seconds: 0.5, start_seconds: 0, word: 'hola' }],
-    }],
-  };
-  fixture.setExecuteImplementation(async (request) => ({
-    arguments: request.arguments ?? {},
-    kind: 'executed' as const,
-    operation: request.operation ?? 'streams.get_edit_plan',
-    partialFailure: false,
-    result: plan,
-    status: 'completed' as const,
-  }));
-  await fixture.controller.status();
-  await fixture.controller.send('Prepara el stream.', {
-    kind: 'stream', label: 'Stream actual', pathname: '/streams', streamJobId: 'stream-123',
-  });
-  const result = await fixture.options().onDynamicToolCall?.(dynamicCall('creative_brief', {
-    ...streamCreativeBriefArguments(),
-    captions: 'spanish-auto-review',
-  }), new AbortController().signal);
-
-  assert.equal(result?.success, true);
-  const card = fixture.controller.snapshot().pendingActions.find((item) => item.operation === 'studio.confirm_creative_brief');
-  assert.equal(card?.preview?.fields?.some((field) => field.label === 'Subtítulos' && field.value === 'spanish-auto-review'), true);
 });
 
 test('invalidates an approved stream brief when its saved edit plan changes', async (t) => {
@@ -1208,10 +1169,8 @@ test('exposes every operation needed for complete demo and stream journeys', asy
     'jobs.list', 'jobs.get', 'jobs.roster', 'jobs.parse', 'jobs.plan', 'jobs.moments', 'jobs.record', 'jobs.generate',
     'renders.get', 'renders.quality', 'renders.publish', 'artifacts.get_url',
     'streams.list', 'streams.create_from_url', 'streams.get', 'streams.get_edit_plan', 'streams.resume_initialization',
-    'streams.update_edit_plan', 'streams.configure_captions', 'streams.start_caption_candidates',
-    'streams.get_caption_candidates', 'streams.review_caption_candidates', 'streams.edit_clip',
-    'streams.start_killfeed_analysis', 'streams.get_killfeed_analysis', 'streams.apply_killfeed_analysis',
-    'streams.read_killfeed', 'streams.start_render', 'streams.get_render', 'artifacts.get_stream_url',
+    'streams.update_edit_plan', 'streams.edit_clip',
+    'streams.start_render', 'streams.get_render', 'artifacts.get_stream_url',
   ];
   for (const operation of requiredOperations) {
     const result = await options.onDynamicToolCall?.(dynamicCall('search', {

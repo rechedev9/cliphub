@@ -39,9 +39,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
-	if err := clearXAIAPIKeyEnvironment(); err != nil {
-		return fmt.Errorf("config: clear xai credential from process environment: %w", err)
-	}
 	if err := clearLegacyCaptionCredentialsEnvironment(); err != nil {
 		return fmt.Errorf("config: clear legacy caption credential from process environment: %w", err)
 	}
@@ -174,17 +171,16 @@ func run() error {
 	}
 	if cfg.streamRenderWorkerEnabled() && streamRepo != nil {
 		streamWorker := workers.NewStreamRenderWorker(streamRepo, store, workers.StreamRenderWorkerConfig{
-			WorkDir:                        cfg.MediaWorkDir,
-			FFmpegPath:                     cfg.FFmpegPath,
-			Timeout:                        cfg.RenderTimeout,
-			JobLocks:                       streamJobLocks,
-			MusicDir:                       cfg.MusicDir,
-			XAIAPIKey:                      cfg.XAIAPIKey,
-			RequireAppliedKillfeedAnalysis: true,
+			WorkDir:    cfg.MediaWorkDir,
+			FFmpegPath: cfg.FFmpegPath,
+			Timeout:    cfg.RenderTimeout,
+			JobLocks:   streamJobLocks,
+			MusicDir:   cfg.MusicDir,
+			// Studio only ever enqueues bound tasks, so an unbound one is a
+			// stale or forged render and must never commit the canonical pointer.
+			RequireImmutableEditPlanIntent: true,
 		})
 		taskHandlers[tasks.TypeRenderStreamClip] = streamWorker.HandleRenderStreamClip
-		taskHandlers[tasks.TypeGenerateStreamCaptions] = streamWorker.HandleGenerateStreamCaptions
-		taskHandlers[tasks.TypeGenerateStreamKillfeed] = streamWorker.HandleGenerateStreamKillfeed
 		log.Printf("worker: stream render enabled")
 	}
 	if cfg.streamAcquireWorkerEnabled() && streamRepo != nil {
@@ -229,8 +225,6 @@ func run() error {
 		httpapi.WithStreamRepository(streamRepo),
 		httpapi.WithStreamJobLocks(streamJobLocks),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
-		httpapi.WithFFmpegPath(cfg.FFmpegPath),
-		httpapi.WithXAIKey(cfg.XAIAPIKey),
 		httpapi.WithMusicDir(cfg.MusicDir),
 		httpapi.WithCapabilities(cfg.captureCapabilities(captureSource)),
 		httpapi.WithGenerateIntentStore(generateIntents),

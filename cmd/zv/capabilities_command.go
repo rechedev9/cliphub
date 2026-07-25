@@ -32,12 +32,8 @@ type localFaceitCapability struct {
 }
 
 type localStreamCapability struct {
-	Ready                  bool                `json:"ready"`
-	KillfeedDetectionReady bool                `json:"killfeed_detection_ready"`
-	SpanishCaptionsReady   bool                `json:"spanish_captions_ready"`
-	CaptionsProvider       string              `json:"captions_provider"`
-	CaptionsConfiguration  string              `json:"captions_configuration"`
-	Tools                  []capturetools.Tool `json:"tools"`
+	Ready bool                `json:"ready"`
+	Tools []capturetools.Tool `json:"tools"`
 }
 
 func runCapabilities(args []string, stdout, stderr io.Writer) int {
@@ -100,8 +96,6 @@ func buildLocalCapabilities(paths capturetools.Paths, sources capturetools.Sourc
 		capturetools.ResolveTool("ZV_FFPROBE_PATH", paths.FFprobe, sources),
 	}}
 	stream := localStreamCapability{
-		CaptionsProvider:      "xai",
-		CaptionsConfiguration: "set XAI_API_KEY",
 		Tools: []capturetools.Tool{
 			capturetools.ResolveTool("ZV_FFMPEG_PATH", paths.FFmpeg, sources),
 			capturetools.ResolveTool("ZV_FFPROBE_PATH", paths.FFprobe, sources),
@@ -111,8 +105,6 @@ func buildLocalCapabilities(paths capturetools.Paths, sources capturetools.Sourc
 	compose.Ready = allToolsAccessible(compose.Tools)
 	render.Ready = allToolsAccessible(render.Tools)
 	stream.Ready = allToolsAccessible(stream.Tools)
-	stream.KillfeedDetectionReady = stream.Ready
-	stream.SpanishCaptionsReady = stream.Ready && strings.TrimSpace(os.Getenv("XAI_API_KEY")) != ""
 	return localCapabilities{
 		LocalStudioReady: record.Ready && compose.Ready && render.Ready,
 		Faceit:           faceitCapability,
@@ -131,8 +123,6 @@ func writeLocalFaceitCapability(w io.Writer, capability localFaceitCapability) {
 
 func writeLocalStreamCapability(w io.Writer, stream localStreamCapability) {
 	fmt.Fprintf(w, "stream_ready: %t\n", stream.Ready)
-	fmt.Fprintf(w, "  killfeed_detection_ready: %t\n", stream.KillfeedDetectionReady)
-	fmt.Fprintf(w, "  spanish_captions_ready: %t provider=%s configuration=%s\n", stream.SpanishCaptionsReady, stream.CaptionsProvider, stream.CaptionsConfiguration)
 	for _, tool := range stream.Tools {
 		path := tool.Path
 		if path == "" {

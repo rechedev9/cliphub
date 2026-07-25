@@ -128,7 +128,7 @@ export function StreamRenderResults({
               Paquete shortslistosparasubir
             </h3>
             <p className="text-body-sm text-fg-3">
-              Incluye MP4, portada, plan, manifest, subtítulos revisados y metadata.
+              Incluye MP4, portada, plan, manifest y metadata.
             </p>
             <div className="flex flex-wrap gap-2">
               {renderState.delivery.map((artifact) =>

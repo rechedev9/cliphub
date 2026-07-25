@@ -49,10 +49,9 @@ granular workflows and QA.
 safe/dry-run command, expensive stage, artifact, and both delivery profiles.
 For demos where the user chooses plays, use `demo players -> demo parse -> demo
 moments -> demo select -> record -> shorts render`. For streams use `stream
-variants -> stream plan -> stream killfeed -> stream transcribe -> review -> stream captions -> stream render`.
-Do not skip the selection/review boundary before HLAE or a paid caption/render
-pass. Reviewed Spanish word timings make the caption stage credential-free;
-xAI is only the automatic transcription and translation fallback.
+variants -> stream plan -> review -> stream render`.
+Do not skip the selection/review boundary before HLAE or an expensive render
+pass.
 
 The demo journey also exposes two agent gates. `creative-brief` asks only for
 unanswered format, HUD/killfeed, effect, transition, kill-numbering,
@@ -176,7 +175,7 @@ Repo-local skills live under `.codex/skills/`:
 - `zackvideo-lineup-audit`: correct utility destinations through manual lineup catalogs.
 - `zackvideo-music-scripted-shorts`: create 24fps Lua-scripted Shorts with CC0 music and rhythm sync.
 - `zackvideo-shorts-production`: generate, polish, and QA professional CS2 Shorts packs.
-- `zackvideo-stream-clips`: plan, caption, and render stream VOD clips after the creative brief gate.
+- `zackvideo-stream-clips`: plan and render stream VOD clips after the creative brief gate.
 - `zackvideo-youtube-shorts-publish`: review publish packs, prepare YouTube Shorts metadata, and guide manual publication in YouTube Studio.
 
 The unified CLI can discover the same repo-local skills:
@@ -233,12 +232,6 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows show stream-variants --format json
 ./bin/zv workflows show stream-plan
 ./bin/zv workflows show stream-plan --format json
-./bin/zv workflows show stream-killfeed
-./bin/zv workflows show stream-killfeed --format json
-./bin/zv workflows show stream-transcribe
-./bin/zv workflows show stream-transcribe --format json
-./bin/zv workflows show stream-captions
-./bin/zv workflows show stream-captions --format json
 ./bin/zv workflows show stream-render
 ./bin/zv workflows show stream-render --format json
 ./bin/zv workflows show analysis-tactical
@@ -266,9 +259,7 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows validate short --format json -- testdata/foo.dem --prompt "all kills 76561198000000000" --dry-run
 ./bin/zv workflows validate demo-parse --format json -- --demo testdata/foo.dem --steamid 76561198000000000 --segment-mode utility --out plan.json
 ./bin/zv workflows validate record --format json -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording --dry-run --hud deathnotices
-./bin/zv workflows validate stream-plan --format json -- --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run
-./bin/zv workflows validate stream-transcribe --format json -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --dry-run
-./bin/zv workflows validate stream-captions --format json -- --plan data/runs/stream/reviewed-plan.json --words testdata/stream-caption-words.json --out data/runs/stream/final-plan.json --dry-run
+./bin/zv workflows validate stream-plan --format json -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run
 ./bin/zv workflows validate stream-render --format json -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run
 ./bin/zv short testdata/foo.dem --prompt "all kills 76561198000000000" --dry-run
 ./bin/zv capabilities --format json
@@ -283,20 +274,11 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv shorts render --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir
 ./bin/zv stream variants
 # Independent preflight examples; these do not create their --out artifacts.
-./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run
-./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events testdata/stream-killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run --format json
-./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --model data/models/whisper/ggml-large-v3-turbo-q5_0.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --dry-run --format json
-./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words testdata/stream-caption-words.json --out data/runs/stream/final-plan.json --dry-run --format json
-./bin/zv stream render --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream --dry-run
+./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run
+./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run
 # Persist the approved stream chain in order before the real render.
-./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --killfeed-crop 0.82,0.05,0.17,0.18 --detect-killfeed
-# Review the detected cue frames and save matching factual events here first.
-./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json
-# Generate local multi-model candidates; the output remains requires_review.
-./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --model data/models/whisper/ggml-large-v3-turbo-q5_0.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json
-# Compare every pass, then save only verified Spanish word timings.
-./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json
-./bin/zv stream render --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream
+./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json
+./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream
 ./bin/zv analysis tactical --demo match.dem --out data/analysis/match-tactical.json --positions data/analysis/match-positions.zvpos --dry-run --format json
 ./bin/zv analysis rounds --tactical testdata/agent-tactical.json --side T --format json
 ./bin/zv analysis tendencies --tactical testdata/agent-tactical.json --team t-start --format json
@@ -306,11 +288,8 @@ The unified CLI can discover the same repo-local skills:
 # Chain the whole demo journey safely; supply --killplan to skip parse and omit --demo to skip capture.
 ./bin/zv flows run demo --killplan testdata/agent-killplan.json --run-dir data/runs/agent-doc --dry-run --format json
 # The stream journey form needs real media, so it is documented here in prose only:
-# "zv flows run stream --input <stream.mp4> --run-dir <dir> --dry-run" chains plan,
-# killfeed, captions, and render. Reviewed --events require --killfeed-crop x,y,w,h
-# (normalized) so the plan can detect the cues the factual import matches against;
-# --words imports reviewed Spanish caption timings. Either import is skipped with a
-# reason when its flag is absent.
+# "zv flows run stream --input <stream.mp4> --run-dir <dir> --dry-run" chains the
+# creative gate, plan, and render phases over the persisted edit plan.
 ./bin/zv serve
 ./bin/zv workflows run short -- testdata/foo.dem --prompt "all kills 76561198000000000" --dry-run
 ./bin/zv workflows run capabilities -- --format json
@@ -324,11 +303,8 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows run music-analyze -- --input data/music/track.mp4 --out data/runs/run-004/rhythm.json
 ./bin/zv workflows run shorts-render -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir
 ./bin/zv workflows run stream-variants
-./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run
-./bin/zv workflows run stream-killfeed -- --plan data/runs/stream/edit-plan.json --events testdata/stream-killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run --format json
-./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --dry-run
-./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words testdata/stream-caption-words.json --out data/runs/stream/final-plan.json --dry-run
-./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream --dry-run
+./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run
+./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run
 ./bin/zv workflows run analysis-tactical -- --demo match.dem --out data/analysis/match-tactical.json --positions data/analysis/match-positions.zvpos --dry-run --format json
 ./bin/zv workflows run analysis-rounds -- --tactical testdata/agent-tactical.json --side T --format json
 ./bin/zv workflows run analysis-tendencies -- --tactical testdata/agent-tactical.json --team t-start --format json

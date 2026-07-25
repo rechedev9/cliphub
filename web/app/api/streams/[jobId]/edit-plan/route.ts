@@ -19,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ job
 
 /**
  * PUT /api/streams/{jobId}/edit-plan — save the facecam/gameplay crops, clip
- * ranges, and caption settings the user picked in the editor.
+ * ranges, and render options the user picked in the editor.
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ jobId: string }> }): Promise<Response> {
   const { jobId } = await params;

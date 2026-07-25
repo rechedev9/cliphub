@@ -333,7 +333,6 @@ test('stream editor validates, recovers, previews, reports progress, switches la
     face_crop_reviewed: false,
     gameplay_crop: { x: 0, y: 0, width: 1, height: 1 },
     clips: [{ id: 'clip-1', start_seconds: 0, end_seconds: 15.112, title: '' }],
-    captions: { enabled: false, language: 'es' },
     music: {},
     effects: { grade: true },
   };
@@ -348,14 +347,6 @@ test('stream editor validates, recovers, previews, reports progress, switches la
     updated_at: '2026-07-20T10:05:00Z',
   };
   let autosaveFails = false;
-  let killfeedPending = false;
-  const killfeedState = (status) => ({
-    job_id: jobId,
-    generation_id: 'generation-1',
-    status,
-    clips: [],
-    updated_at: '2026-07-20T10:10:00Z',
-  });
   const rendered = {
     status: 'rendered',
     published: true,
@@ -382,14 +373,6 @@ test('stream editor validates, recovers, previews, reports progress, switches la
       if (autosaveFails) return route.fulfill({ status: 503, json: { code: 'service_unavailable', error: 'eval autosave offline' } });
       return route.fulfill({ json: JSON.parse(request.postData() || '{}') });
     }
-    if (path === `/api/streams/${jobId}/killfeed` && method === 'POST') {
-      killfeedPending = true;
-      return route.fulfill({ json: killfeedState('analyzing') });
-    }
-    if (path === `/api/streams/${jobId}/killfeed` && method === 'GET') {
-      return route.fulfill({ json: killfeedState(killfeedPending ? 'analyzing' : 'none') });
-    }
-    if (path === '/api/streams/killfeed/weapons') return route.fulfill({ json: { weapons: ['ak47', 'awp'] } });
     if (path === `/api/streams/${jobId}/renders/streamer-fullframe-nocam` && method === 'POST') {
       return route.fulfill({ json: { status: 'queued', videos: [] } });
     }
@@ -427,18 +410,6 @@ test('stream editor validates, recovers, previews, reports progress, switches la
   const previewAlert = page.getByText(/No se pudo decodificar o leer el MP4|No se pudo decodificar la pista de audio/).first();
   await previewAlert.waitFor({ timeout: 10_000 });
   assert.equal(await page.getByRole('button', { name: 'REINTENTAR VISTA PREVIA' }).isVisible(), true);
-
-  await page.getByRole('button', { name: 'Activar killfeed limpia' }).click();
-  const analyze = page.getByRole('button', { name: 'ANALIZAR KILLFEED' });
-  await analyze.waitFor();
-  await analyze.click();
-  const progress = page.getByRole('status').filter({ hasText: 'Analizando clips por fotograma' });
-  await progress.waitFor();
-  assert.match(await progress.innerText(), /transcurridos · tiempo restante ajustándose/);
-  assert.equal(await progress.getByRole('button', { name: 'CANCELAR ESPERA' }).isVisible(), true);
-  await progress.getByRole('button', { name: 'CANCELAR ESPERA' }).click();
-  killfeedPending = false;
-  await page.getByRole('button', { name: 'Killfeed: activada' }).click();
 
   autosaveFails = true;
   await titleInput.fill('Borrador QA recuperado');

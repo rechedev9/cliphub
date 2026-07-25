@@ -14,8 +14,8 @@ import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
  * What a multi-minute FFmpeg render looks like while it runs.
  *
  * Before this existed the render stage relabelled the CTA and spun a 16px
- * loader — less feedback than the killfeed analysis it had just finished. It
- * now uses the same `LongOperation` surface as the demo pipeline and the same
+ * loader — no real feedback for a multi-minute job. It now uses the same
+ * `LongOperation` surface as the demo pipeline and the same
  * 9:16 `MediaFrame` the Library and the results grid use, so both pipelines
  * speak one visual language.
  *

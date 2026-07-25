@@ -149,7 +149,7 @@ func workflowDelegatedCommand(args []string) string {
 			return "zv-editor"
 		}
 	case "stream":
-		if len(args) >= 2 && (args[1] == "variants" || args[1] == "plan" || args[1] == "killfeed" || args[1] == "transcribe" || args[1] == "captions" || args[1] == "render") {
+		if len(args) >= 2 && (args[1] == "variants" || args[1] == "plan" || args[1] == "render") {
 			return "zv-stream"
 		}
 	case "music":

@@ -1,11 +1,6 @@
 import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
 import {
-  CAPTION_GENERATION_STATUS,
-  KILLFEED_ANALYSIS_STATUS,
-  type CaptionGenerationState,
-  type KillfeedAnalysisState,
   type NormalizedRect,
-  type StreamCaptionWord,
   type StreamClipEdit,
   type StreamClipRange,
   type StreamEditPlan,
@@ -13,14 +8,12 @@ import {
   type StreamVariant,
 } from '../api/streams.ts';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '../clip-edit.ts';
-import { initialStreamClipEnd } from '../killfeed-plan.ts';
 
 /**
  * Pure helpers behind the Clips de stream editor: source validation, plan
- * construction, the render fingerprint, and the geometry the timeline and the
- * caption reviewer draw from. Everything here is deterministic and free of
- * React, the DOM and `streamsApi`, so `plan.test.ts` can pin the behaviour the
- * screen depends on.
+ * construction, the render fingerprint, and the geometry the timeline draws
+ * from. Everything here is deterministic and free of React, the DOM and
+ * `streamsApi`, so `plan.test.ts` can pin the behaviour the screen depends on.
  */
 
 /** Schema the editor writes; mirrors streamclips.EditPlan. */
@@ -28,17 +21,12 @@ export const EDIT_PLAN_SCHEMA_VERSION = '1.1';
 
 export const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 export const DEFAULT_FACE_CROP: NormalizedRect = { x: 0.62, y: 0.03, width: 0.34, height: 0.3 };
-export const DEFAULT_KILLFEED_CROP: NormalizedRect = { x: 0.68, y: 0.04, width: 0.31, height: 0.14 };
-export const KILLFEED_MIN_CROP_SIZE = 0.02;
 
 /** Nicks the streamer banner accepts, matching the Go validator. */
 export const STREAMER_NICK_RE = /^[A-Za-z0-9_]{0,25}$/;
 
 /** Sentinel for the "no music" row: Radix Select forbids an empty value. */
 export const NO_MUSIC_VALUE = '__none__';
-
-/** Upstream code for a killfeed-read blocked by a missing xAI key. */
-export const XAI_KEY_MISSING_CODE = 'xai_key_missing';
 
 /** Preset music gains: quiet bed, balanced, or music-forward. */
 export const MUSIC_VOLUMES: readonly { value: number; label: string }[] = [
@@ -58,11 +46,6 @@ export function sleep(ms: number): Promise<void> {
 /** True when an API error means the local analysis service is unreachable. */
 export function isServiceUnavailable(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
-}
-
-/** True when an API error is the xAI key gate rather than a real failure. */
-export function isMissingXaiKey(err: unknown): boolean {
-  return (err as { code?: string } | null)?.code === XAI_KEY_MISSING_CODE;
 }
 
 /** Localized message for a failed API call, preferring the offline hint. */
@@ -120,6 +103,16 @@ export function streamSourceLabel(sourceUrl?: string): string | null {
   }
 }
 
+/**
+ * The endpoint a fresh range gets: the historical fixed 20 seconds, shortened
+ * when the probed source is itself shorter.
+ */
+export function initialStreamClipEnd(durationSeconds: number): number {
+  return Number.isFinite(durationSeconds) && durationSeconds > 0
+    ? Math.min(durationSeconds, 20)
+    : 20;
+}
+
 let clipSeq = 0;
 
 export function nextClipId(): string {
@@ -143,8 +136,34 @@ export function blankPlan(
     face_crop_reviewed: false,
     gameplay_crop: FULL_FRAME,
     clips: [blankClip(durationSeconds)],
-    captions: { enabled: false, language: 'es' },
   };
+}
+
+/**
+ * Upgrades the plan's schema version and fits only the historical fixed
+ * 20-second endpoint to a shorter probed source. Custom overruns stay unchanged
+ * so the backend can report them instead of the editor silently rewriting
+ * user-authored ranges, and a legacy clip wholly beyond EOF is dropped.
+ */
+export function fitPlanToSourceDuration(
+  plan: StreamEditPlan,
+  durationSeconds: number,
+): StreamEditPlan {
+  const schemaVersion =
+    plan.schema_version === '' || plan.schema_version === '1.0'
+      ? EDIT_PLAN_SCHEMA_VERSION
+      : plan.schema_version;
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return { ...plan, schema_version: schemaVersion };
+  }
+  const clips = plan.clips.flatMap((clip) => {
+    const isLegacyEndpoint =
+      Math.abs(clip.end_seconds - 20) <= 0.001 && clip.end_seconds > durationSeconds + 0.001;
+    if (!isLegacyEndpoint || !Number.isFinite(clip.start_seconds)) return [clip];
+    if (clip.start_seconds >= durationSeconds) return [];
+    return [{ ...clip, end_seconds: durationSeconds }];
+  });
+  return { ...plan, schema_version: schemaVersion, clips };
 }
 
 /** True once every clip range in the plan is well-formed (end strictly after start). */
@@ -192,58 +211,14 @@ export function planFingerprint(plan: StreamEditPlan): string {
     variant: plan.variant,
     face: rect(plan.face_crop),
     faceReviewed: plan.face_crop_reviewed ?? false,
-    killfeed: rect(plan.killfeed_crop),
-    killfeedAnalysis: [
-      plan.killfeed_analysis?.generation_id ?? '',
-      plan.killfeed_analysis?.fingerprint ?? '',
-    ],
     game: rect(plan.gameplay_crop),
-    clips: plan.clips.map((c) => [
-      c.id,
-      c.start_seconds,
-      c.end_seconds,
-      c.title ?? '',
-      c.killfeed_seconds ?? [],
-      c.killfeed_kills ?? [],
-      (c.caption_words ?? []).map((word) => [word.word, word.start_seconds, word.end_seconds]),
-      c.caption_reviewed ?? false,
-      edit(c.edit),
-    ]),
+    clips: plan.clips.map((c) => [c.id, c.start_seconds, c.end_seconds, c.title ?? '', edit(c.edit)]),
     streamerNick: plan.streamer_banner?.nick?.trim() ?? '',
     streamerPosition: plan.streamer_banner?.position_y ?? null,
     streamerSlide: plan.streamer_banner?.slide_enabled ?? false,
-    captions: [plan.captions?.enabled ?? false, 'es'],
     music: [plan.music?.key ?? '', plan.music?.volume ?? 0],
     grade: plan.effects?.grade ?? false,
   });
-}
-
-export function captionGenerationIsPending(state: CaptionGenerationState | null): boolean {
-  return (
-    state?.status === CAPTION_GENERATION_STATUS.queued ||
-    state?.status === CAPTION_GENERATION_STATUS.generating
-  );
-}
-
-export function killfeedAnalysisIsPending(state: KillfeedAnalysisState | null): boolean {
-  return (
-    state?.status === KILLFEED_ANALYSIS_STATUS.queued ||
-    state?.status === KILLFEED_ANALYSIS_STATUS.analyzing
-  );
-}
-
-export function captionDraftsFromState(state: CaptionGenerationState): Record<string, StreamCaptionWord[]> {
-  return Object.fromEntries(
-    (state.clips ?? []).map((clip) => [
-      clip.clip_id,
-      (clip.candidate_words ?? []).map((word) => ({ ...word })),
-    ]),
-  );
-}
-
-/** Total number of aligned events across every analysed clip. */
-export function detectedKillfeedEventCount(state: KillfeedAnalysisState | null): number {
-  return (state?.clips ?? []).reduce((total, clip) => total + clip.events.length, 0);
 }
 
 /**
@@ -329,65 +304,4 @@ export function overlayMarkerGeometry(
     startPercent: (start / clipDuration) * 100,
     widthPercent: Math.max(1, ((end - start) / clipDuration) * 100),
   };
-}
-
-/** Pause (in seconds) that starts a new caption line in the review card. */
-export const CAPTION_SEGMENT_GAP_SECONDS = 0.6;
-
-export type CaptionWordEntry = {
-  /** Index into the flat word list the reviewer edits. */
-  index: number;
-  word: StreamCaptionWord;
-};
-
-export type CaptionSegment = {
-  entries: CaptionWordEntry[];
-  startSeconds: number;
-  endSeconds: number;
-  /** The line as it will be read on screen. */
-  text: string;
-};
-
-/**
- * Groups a flat word list into readable lines so a 90-word clip stops rendering
- * as 90 anonymous three-field rows. Purely presentational: the flat indices are
- * carried through, so every edit still targets the same word in the same order,
- * and the grouping never changes what is written to the plan.
- *
- * A new line starts on a pause longer than `gapSeconds` or after sentence-final
- * punctuation, which is how the transcript reads out loud.
- */
-export function groupCaptionWords(
-  words: StreamCaptionWord[],
-  gapSeconds = CAPTION_SEGMENT_GAP_SECONDS,
-): CaptionSegment[] {
-  const segments: CaptionSegment[] = [];
-  let current: CaptionWordEntry[] = [];
-
-  const flush = (): void => {
-    if (current.length === 0) return;
-    const first = current[0].word;
-    const last = current[current.length - 1].word;
-    segments.push({
-      entries: current,
-      startSeconds: first.start_seconds,
-      endSeconds: last.end_seconds,
-      text: current
-        .map((entry) => entry.word.word.trim())
-        .filter((word) => word !== '')
-        .join(' '),
-    });
-    current = [];
-  };
-
-  for (const [index, word] of words.entries()) {
-    const previous = current[current.length - 1]?.word;
-    const gap = previous ? word.start_seconds - previous.end_seconds : 0;
-    const endsSentence = previous ? /[.!?…]$/.test(previous.word.trim()) : false;
-    if (previous && (gap > gapSeconds || endsSentence)) flush();
-    current.push({ index, word });
-  }
-  flush();
-
-  return segments;
 }

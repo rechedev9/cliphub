@@ -89,9 +89,9 @@ const FEATURES: {
   },
   {
     icon: Sparkles,
-    title: "Stream clips speak clearly",
-    body: "Cut Twitch or YouTube moments and optionally turn their speech into word-timed, burned-in subtitles through xAI — ready for vertical viewing.",
-    signal: "XAI WORD TIMESTAMPS",
+    title: "Stream clips land vertical",
+    body: "Cut Twitch or YouTube moments and reframe facecam over gameplay into a clean 1080x1920 edit — or keep the full frame in landscape.",
+    signal: "VERTICAL OR 16:9",
     className: "md:col-span-5",
   },
 ];
@@ -99,7 +99,7 @@ const FEATURES: {
 const STEPS = [
   { title: "Add the source", body: "Drop a .dem or paste a stream URL. Demo parsing and capture stay on your PC." },
   { title: "Choose the story", body: "Pick the player, round and exact kills worth turning into a Short." },
-  { title: "Let the forge run", body: "FragForge records the real POV or cuts the stream, then composes the vertical edit and optional xAI captions." },
+  { title: "Let the forge run", body: "FragForge records the real POV or cuts the stream, then composes the vertical edit on your machine." },
   { title: "Post the result", body: "Prepare the metadata, download the MP4 and open YouTube Studio to finish the official upload flow." },
 ];
 
@@ -152,7 +152,7 @@ export default function Home() {
             </h1>
 
             <p className="mt-7 max-w-2xl text-pretty text-lg leading-relaxed text-slate-300 sm:text-xl">
-              Turn raw CS2 demos and stream moments into upload-ready vertical Shorts with real HLAE capture, native killfeed and optional xAI subtitles. Capture and rendering stay on your PC.
+              Turn raw CS2 demos and stream moments into upload-ready vertical Shorts with real HLAE capture and the native killfeed. Capture and rendering stay on your PC.
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -400,7 +400,7 @@ export default function Home() {
 
       <footer className="bg-[#040711] px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-[1320px] flex-col items-center justify-between gap-7 text-center sm:flex-row sm:text-left">
-          <div><Wordmark compact /><p className="mt-3 text-sm text-slate-500">Free core and local capture. Optional stream-caption audio goes only to xAI when enabled.</p></div>
+          <div><Wordmark compact /><p className="mt-3 text-sm text-slate-500">Free core and local capture. FragForge never uploads your demos, clips or renders.</p></div>
           <div className="flex flex-col items-center gap-3 sm:items-end">
             <a href={REPO_URL} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300 transition hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"><Github className="size-4" />GitHub repository</a>
             <p className="font-mono text-xs text-slate-600">© 2026 FragForge</p>

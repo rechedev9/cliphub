@@ -250,68 +250,16 @@ func TestLoadConfigRejectsInvalidDuration(t *testing.T) {
 	}
 }
 
-func TestLoadConfigXAIAPIKey(t *testing.T) {
-	tests := []struct {
-		name    string
-		key     string
-		wantKey string
-	}{
-		{name: "configured", key: "xai-abc", wantKey: "xai-abc"},
-		{name: "unset leaves xai disabled", wantKey: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			clearConfigEnv(t)
-			t.Setenv("ZV_DATABASE_URL", "memory")
-			if tt.key != "" {
-				t.Setenv("XAI_API_KEY", tt.key)
-			}
-			cfg, err := loadConfig()
-			if err != nil {
-				t.Fatalf("loadConfig error = %v", err)
-			}
-			if cfg.XAIAPIKey != tt.wantKey {
-				t.Fatalf("XAIAPIKey = %q, want %q", cfg.XAIAPIKey, tt.wantKey)
-			}
-			if got, want := cfg.xaiEnabled(), tt.wantKey != ""; got != want {
-				t.Fatalf("xaiEnabled() = %v, want %v", got, want)
-			}
-		})
-	}
-}
-
-func TestClearXAIAPIKeyEnvironmentKeepsLoadedConfigOnlyInMemory(t *testing.T) {
-	clearConfigEnv(t)
-	t.Setenv("ZV_DATABASE_URL", "memory")
-	t.Setenv("XAI_API_KEY", "xai-team-secret")
-	// On Unix this is a separate variable; on Windows it exercises the native
-	// case-insensitive environment. Either way, no casing variant may survive.
-	t.Setenv("xai_api_key", "lowercase-team-secret")
-
-	cfg, err := loadConfig()
-	if err != nil {
-		t.Fatalf("loadConfig error = %v", err)
-	}
-	if err := clearXAIAPIKeyEnvironment(); err != nil {
-		t.Fatalf("clearXAIAPIKeyEnvironment error = %v", err)
-	}
-	if cfg.XAIAPIKey == "" {
-		t.Fatal("XAIAPIKey is empty after load, want the credential retained in config memory")
-	}
-	for _, entry := range os.Environ() {
-		name, _, _ := strings.Cut(entry, "=")
-		if strings.EqualFold(name, xaiAPIKeyEnvironmentVariable) {
-			t.Fatalf("environment still contains %q after credential cleanup", name)
-		}
-	}
-}
-
 func TestClearLegacyCaptionCredentialsEnvironment(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("ZV_DATABASE_URL", "memory")
 	t.Setenv(legacyGroqAPIKeyVariable, "legacy-team-secret")
 	t.Setenv(legacyGroqAPIKeyOverrideVariable, "legacy-override-secret")
+	t.Setenv(legacyXAIAPIKeyVariable, "xai-team-secret")
+	// On Unix this is a separate variable; on Windows it exercises the native
+	// case-insensitive environment. Either way, no casing variant may survive
+	// into ffmpeg, HLAE, CS2, yt-dlp, or Codex.
+	t.Setenv("xai_api_key", "lowercase-team-secret")
 
 	if _, err := loadConfig(); err != nil {
 		t.Fatalf("loadConfig error = %v", err)
@@ -321,8 +269,14 @@ func TestClearLegacyCaptionCredentialsEnvironment(t *testing.T) {
 	}
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
-		if strings.EqualFold(name, legacyGroqAPIKeyVariable) || strings.EqualFold(name, legacyGroqAPIKeyOverrideVariable) {
-			t.Fatalf("environment still contains legacy caption credential %q", name)
+		for _, variable := range []string{
+			legacyGroqAPIKeyVariable,
+			legacyGroqAPIKeyOverrideVariable,
+			legacyXAIAPIKeyVariable,
+		} {
+			if strings.EqualFold(name, variable) {
+				t.Fatalf("environment still contains legacy caption credential %q", name)
+			}
 		}
 	}
 }

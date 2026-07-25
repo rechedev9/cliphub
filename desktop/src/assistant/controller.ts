@@ -136,9 +136,9 @@ const DEVELOPER_INSTRUCTIONS = `You are the integrated FragForge Studio agent. Y
 
 Always search the catalog before choosing an exact operation and use only IDs/options returned by the tool. Use read only for read-only operations. Preview only prepares a change for an exact Studio approval card; it never executes it. Never claim that a change ran unless Studio later reports completion. Never attempt a tool or workaround outside fragforge.
 
-Before previewing demo capture or render (jobs.record, jobs.generate, or renders.start), collect every unanswered demo brief choice: format/aspect, HUD and killfeed treatment, effect and transition, numbering/counter, intro/outro, music, and cover strategy. Before streams.start_render, first read and prepare the saved edit plan, then collect the stream brief: delivery format, exact live layout variant, saved clip selection and title, crop/framing, killfeed treatment, Spanish subtitle/review policy, music, and cover strategy. Call creative_brief with the matching complete shape. The user must explicitly approve its Studio card before you can preview the costly operation. Generic words such as “go”, “dale”, “ok”, or “hazlo” are not creative approval unless that approved brief is already visible in the conversation. The later Studio approval card is the separate final approval for the exact operation.
+Before previewing demo capture or render (jobs.record, jobs.generate, or renders.start), collect every unanswered demo brief choice: format/aspect, HUD and killfeed treatment, effect and transition, numbering/counter, intro/outro, music, and cover strategy. Before streams.start_render, first read and prepare the saved edit plan, then collect the stream brief: delivery format, exact live layout variant, saved clip selection and title, crop/framing, music, and cover strategy. Call creative_brief with the matching complete shape. The user must explicitly approve its Studio card before you can preview the costly operation. Generic words such as “go”, “dale”, “ok”, or “hazlo” are not creative approval unless that approved brief is already visible in the conversation. The later Studio approval card is the separate final approval for the exact operation.
 
-Own the complete workflow instead of stopping after one step. After Studio reports an approved operation as started or completed, inspect the returned IDs and current state, continue all safe reads yourself, and prepare the next required mutation for approval. For demos this includes intake, roster/target selection, parsing, moment selection, creative brief, generation, render QA, and publish readiness. For streams this includes intake, edit planning, optional caption and killfeed review, creative brief, rendering, and artifact QA. Never repeat an accepted upload or costly action merely because its background job is still running.
+Own the complete workflow instead of stopping after one step. After Studio reports an approved operation as started or completed, inspect the returned IDs and current state, continue all safe reads yourself, and prepare the next required mutation for approval. For demos this includes intake, roster/target selection, parsing, moment selection, creative brief, generation, render QA, and publish readiness. For streams this includes intake, edit planning, creative brief, rendering, and artifact QA. Never repeat an accepted upload or costly action merely because its background job is still running.
 
 When a demo, stream analysis, capture, or render is still running and no next action is possible yet, call watch_state for its exact status-read operation. Studio will wake you with the changed state; do not ask the user to poll or send another message.
 
@@ -185,10 +185,8 @@ interface DemoCreativeBrief extends CreativeBriefBase {
 }
 
 interface StreamCreativeBriefInput extends CreativeBriefBase {
-  captions: StreamCreativeBriefCaptions;
   clipSelection: 'saved-edit-plan';
   framing: StreamCreativeBriefFraming;
-  killfeed: StreamCreativeBriefKillfeed;
   layout: string;
   operation: 'streams.start_render';
   targetKind: 'stream-job';
@@ -242,9 +240,7 @@ type CreativeBriefOutro = 'loop' | 'none';
 type CreativeBriefMusic = 'none' | 'selected';
 type CreativeBriefCover = 'generated-gameplay-candidates' | 'no-cover';
 type LocalMediaKind = 'demo' | 'stream';
-type StreamCreativeBriefCaptions = 'disabled' | 'spanish-auto-review' | 'spanish-reviewed';
 type StreamCreativeBriefFraming = 'clean-crop' | 'full-frame';
-type StreamCreativeBriefKillfeed = 'none' | 'preserve' | 'synthetic';
 type StateWatchOperation = 'jobs.get' | 'renders.get' | 'streams.get' | 'streams.get_render';
 
 export interface AssistantControllerOptions {
@@ -1624,19 +1620,17 @@ function creativeBriefSchema(): JsonObject {
       {
         additionalProperties: false,
         properties: {
-          captions: { description: 'Must match the current saved plan: disabled, reviewed Spanish words, or enabled automatic review.', enum: ['disabled', 'spanish-reviewed', 'spanish-auto-review'], type: 'string' },
           clip_selection: { enum: ['saved-edit-plan'], type: 'string' },
           cover: { enum: ['generated-gameplay-candidates', 'no-cover'], type: 'string' },
           format: { enum: ['short-9x16', 'landscape-16x9'], type: 'string' },
           framing: { description: 'Must match the current saved face crop.', enum: ['clean-crop', 'full-frame'], type: 'string' },
-          killfeed: { description: 'Must match the current saved killfeed cues.', enum: ['none', 'preserve', 'synthetic'], type: 'string' },
           layout: { description: 'Exact stream variant returned by catalog.stream_variants.', type: 'string' },
           music: { description: 'Must match whether the current saved plan selects a music track.', enum: ['none', 'selected'], type: 'string' },
           operation: { enum: ['streams.start_render'], type: 'string' },
           stream_job_id: { type: 'string' },
           title: { description: 'Exact current saved clip-title summary, joined with " · "; use "Sin título" when no clip has a title.', maxLength: MAX_STREAM_BRIEF_TITLE_SUMMARY_LENGTH, minLength: 1, type: 'string' },
         },
-        required: ['operation', 'stream_job_id', 'format', 'layout', 'clip_selection', 'title', 'framing', 'killfeed', 'captions', 'music', 'cover'],
+        required: ['operation', 'stream_job_id', 'format', 'layout', 'clip_selection', 'title', 'framing', 'music', 'cover'],
         type: 'object',
       },
     ],
@@ -1712,7 +1706,7 @@ function parseCreativeBrief(value: unknown): ParsedCreativeBrief {
   const cover = enumValue(value.cover, ['generated-gameplay-candidates', 'no-cover'] as const, 'cover');
   if (operation === 'streams.start_render') {
     const allowed = new Set([
-      'captions', 'clip_selection', 'cover', 'format', 'framing', 'killfeed', 'layout', 'music', 'operation', 'stream_job_id', 'title',
+      'clip_selection', 'cover', 'format', 'framing', 'layout', 'music', 'operation', 'stream_job_id', 'title',
     ]);
     if (Object.keys(value).some((key) => !allowed.has(key))) throw new Error('stream creative brief contains an unknown field');
     if (!isSafeReference(value.stream_job_id) || !isSafeReference(value.layout)) throw new Error('stream creative brief target or layout is invalid');
@@ -1720,12 +1714,10 @@ function parseCreativeBrief(value: unknown): ParsedCreativeBrief {
       || value.title.trim() === ''
       || value.title.length > MAX_STREAM_BRIEF_TITLE_SUMMARY_LENGTH) throw new Error('stream creative brief title is invalid');
     return {
-      captions: enumValue(value.captions, ['disabled', 'spanish-reviewed', 'spanish-auto-review'] as const, 'captions'),
       clipSelection: enumValue(value.clip_selection, ['saved-edit-plan'] as const, 'clip_selection'),
       cover,
       format,
       framing: enumValue(value.framing, ['clean-crop', 'full-frame'] as const, 'framing'),
-      killfeed: enumValue(value.killfeed, ['none', 'preserve', 'synthetic'] as const, 'killfeed'),
       layout: value.layout,
       music,
       operation,
@@ -1784,8 +1776,6 @@ function bindStreamCreativeBrief(input: StreamCreativeBriefInput, plan: JsonObje
   const format = streamPlanFormat(layout);
   const title = streamPlanTitle(plan);
   const framing = streamPlanFraming(plan, layout);
-  const captions = streamPlanCaptions(plan);
-  const killfeed = streamPlanKillfeed(plan);
   const music = streamPlanMusic(plan);
   const planUpdatedAt = typeof plan.updated_at === 'string' ? plan.updated_at : '';
   if (layout === ''
@@ -1794,9 +1784,6 @@ function bindStreamCreativeBrief(input: StreamCreativeBriefInput, plan: JsonObje
     || input.layout !== layout
     || input.title !== title
     || input.framing !== framing
-    || captions === undefined
-    || input.captions !== captions
-    || input.killfeed !== killfeed
     || input.music !== music
     || planUpdatedAt === '') {
     throw new Error('stream creative brief does not match the current saved edit plan');
@@ -1805,7 +1792,7 @@ function bindStreamCreativeBrief(input: StreamCreativeBriefInput, plan: JsonObje
   return {
     ...input,
     planFingerprint: fingerprint,
-    planPreviewFields: streamPlanPreviewFields(plan, fingerprint, framing, captions, killfeed, music),
+    planPreviewFields: streamPlanPreviewFields(plan, fingerprint, framing, music),
     planUpdatedAt,
   };
 }
@@ -1852,28 +1839,6 @@ function streamPlanFormat(layout: string): CreativeBriefFormat | undefined {
   return undefined;
 }
 
-function streamPlanCaptions(plan: JsonObject): StreamCreativeBriefCaptions | undefined {
-  const captions = isJsonObject(plan.captions) ? plan.captions : undefined;
-  if (captions?.enabled !== true) return 'disabled';
-  if (captions.language !== undefined && captions.language !== 'es') return undefined;
-  const clips = streamPlanClips(plan);
-  const reviewed = clips.length > 0 && clips.every((clip) => {
-    if (clip.caption_reviewed === true) return true;
-    if (Object.hasOwn(clip, 'caption_reviewed')) return false;
-    return Array.isArray(clip.caption_words) && clip.caption_words.length > 0;
-  });
-  return reviewed ? 'spanish-reviewed' : 'spanish-auto-review';
-}
-
-function streamPlanKillfeed(plan: JsonObject): StreamCreativeBriefKillfeed {
-  const clips = streamPlanClips(plan);
-  const hasSynthetic = clips.some((clip) => Array.isArray(clip.killfeed_kills)
-    && clip.killfeed_kills.some((kills) => Array.isArray(kills) && kills.length > 0));
-  if (hasSynthetic) return 'synthetic';
-  const hasPreserved = clips.some((clip) => Array.isArray(clip.killfeed_seconds) && clip.killfeed_seconds.length > 0);
-  return hasPreserved ? 'preserve' : 'none';
-}
-
 function streamPlanMusic(plan: JsonObject): CreativeBriefMusic {
   const music = isJsonObject(plan.music) ? plan.music : undefined;
   return typeof music?.key === 'string' && music.key !== '' ? 'selected' : 'none';
@@ -1883,8 +1848,6 @@ function streamPlanPreviewFields(
   plan: JsonObject,
   fingerprint: string,
   framing: StreamCreativeBriefFraming,
-  captions: StreamCreativeBriefCaptions,
-  killfeed: StreamCreativeBriefKillfeed,
   music: CreativeBriefMusic,
 ): AssistantActionPreviewField[] {
   const clips = streamPlanClips(plan);
@@ -1913,8 +1876,6 @@ function streamPlanPreviewFields(
     { label: 'Layout', value: String(plan.variant) },
     ...clipFields,
     { label: 'Encuadre', value: framing },
-    { label: 'Killfeed', value: killfeed },
-    { label: 'Subtítulos', value: captions },
     { label: 'Música', value: musicValue },
   ];
   if (fields.length > MAX_REVIEWABLE_ACTION_FIELDS - 4
@@ -1958,11 +1919,7 @@ function isCreativeOperation(value: string): value is CreativeOperation {
 }
 
 function invalidatesStreamCreativeBrief(operation: string): boolean {
-  return operation === 'streams.update_edit_plan'
-    || operation === 'streams.configure_captions'
-    || operation === 'streams.review_caption_candidates'
-    || operation === 'streams.edit_clip'
-    || operation === 'streams.apply_killfeed_analysis';
+  return operation === 'streams.update_edit_plan' || operation === 'streams.edit_clip';
 }
 
 function asCreativeFormat(value: JsonValue | undefined): CreativeBriefFormat | undefined {
@@ -2185,7 +2142,7 @@ function creativeBriefContext(brief: CreativeBrief): AssistantContext {
 
 function creativeBriefContinuationPrompt(brief: CreativeBrief): string {
   const approvedValues = brief.targetKind === 'stream-job'
-    ? `format=${brief.format}; layout=${brief.layout}; clip_selection=${brief.clipSelection}; title=${brief.title}; framing=${brief.framing}; killfeed=${brief.killfeed}; captions=${brief.captions}; music=${brief.music}; cover=${brief.cover}`
+    ? `format=${brief.format}; layout=${brief.layout}; clip_selection=${brief.clipSelection}; title=${brief.title}; framing=${brief.framing}; music=${brief.music}; cover=${brief.cover}`
     : `format=${brief.format}; hud=${brief.hud}; killfeed=${brief.killfeed}; effect=${brief.effect}; transition=${brief.transition}; counter=${brief.counter}; intro=${brief.intro}; outro=${brief.outro}; music=${brief.music}; cover=${brief.cover}`;
   return [
     `Studio event: The user approved the creative brief for ${brief.operation} on ${brief.targetKind} ${brief.targetID}.`,

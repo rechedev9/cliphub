@@ -78,7 +78,7 @@ func (r *lockedStreamRenderRepo) status() streamclips.Status {
 
 func TestBoundStreamRenderRejectsPlanChangedBeforeWorkerStarts(t *testing.T) {
 	store := newFakeStorage()
-	id, planA := newReadyStreamJobWithCaptions(t, store, false)
+	id, planA := newReadyStreamJob(t, store)
 	planA.UpdatedAt = planA.UpdatedAt.UTC()
 	planB := planA
 	planB.Clips = append([]streamclips.ClipRange(nil), planA.Clips...)
@@ -92,7 +92,7 @@ func TestBoundStreamRenderRejectsPlanChangedBeforeWorkerStarts(t *testing.T) {
 		Probe: streamclips.SourceProbe{DurationSeconds: 2}, EditPlan: planJSON,
 	})
 	w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{
-		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireAppliedKillfeedAnalysis: true,
+		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg",
 	})
 	w.runner = &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
 		t.Fatal("superseded plan reached FFmpeg")
@@ -111,7 +111,7 @@ func TestBoundStreamRenderRejectsPlanChangedBeforeWorkerStarts(t *testing.T) {
 
 func TestSupersededQueuedRenderCannotOverwriteNewerRenderedState(t *testing.T) {
 	store := newFakeStorage()
-	id, planA := newReadyStreamJobWithCaptions(t, store, false)
+	id, planA := newReadyStreamJob(t, store)
 	planB := planA
 	planB.Clips = append([]streamclips.ClipRange(nil), planA.Clips...)
 	planB.Clips[0].Title = "newer-render"
@@ -130,7 +130,7 @@ func TestSupersededQueuedRenderCannotOverwriteNewerRenderedState(t *testing.T) {
 	stateKey, _ := streamclips.RenderStateKey(id, planB.Variant)
 	putJSON(t, store, stateKey, state)
 	before := append([]byte(nil), store.files[stateKey]...)
-	w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireAppliedKillfeedAnalysis: true})
+	w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{WorkDir: t.TempDir(), FFmpegPath: "ffmpeg"})
 	w.runner = &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
 		t.Fatal("superseded queued render reached FFmpeg")
 		return nil, nil
@@ -146,9 +146,71 @@ func TestSupersededQueuedRenderCannotOverwriteNewerRenderedState(t *testing.T) {
 	}
 }
 
+// TestRequireImmutableEditPlanIntentRejectsUnboundRenderTask pins Studio's
+// admission gate. Every supersede check downstream short-circuits to "allow"
+// when a task carries no intent, so without this guard an intent-less
+// render:stream-clip task would render whatever the edit plan happens to be at
+// execution time and commit the canonical pointer. Studio enables the flag; the
+// CLI leaves it off so a plain unbound task still renders.
+func TestRequireImmutableEditPlanIntentRejectsUnboundRenderTask(t *testing.T) {
+	newWorker := func(t *testing.T, reachedFFmpeg *bool) (*StreamRenderWorker, uuid.UUID, streamclips.EditPlan, *fakeStreamRepo, *fakeStorage) {
+		t.Helper()
+		store := newFakeStorage()
+		id, plan := newReadyStreamJob(t, store)
+		planJSON, err := json.Marshal(plan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		repo := newFakeStreamRepo(streamclips.Job{
+			ID: id, Status: streamclips.StatusReady, SourcePath: streamclips.SourceKey(id),
+			Probe: streamclips.SourceProbe{DurationSeconds: 2}, EditPlan: planJSON,
+		})
+		w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{
+			WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireImmutableEditPlanIntent: true,
+		})
+		w.runner = &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+			*reachedFFmpeg = true
+			return nil, errors.New("stop before publishing")
+		}}
+		return w, id, plan, repo, store
+	}
+
+	t.Run("intent-less task is refused before rendering", func(t *testing.T) {
+		reachedFFmpeg := false
+		w, id, plan, repo, store := newWorker(t, &reachedFFmpeg)
+		task, err := tasks.NewRenderStreamClipTask(id, plan.Variant)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.HandleRenderStreamClip(context.Background(), task); err != nil {
+			t.Fatalf("unbound render error = %v, want recoverable nil", err)
+		}
+		if reachedFFmpeg {
+			t.Fatal("unbound render reached FFmpeg, want refusal at admission")
+		}
+		if got := repo.jobs[id].Status; got != streamclips.StatusReady {
+			t.Fatalf("parent status = %s, want ready", got)
+		}
+		assertNoPublishedStreamRender(t, store, id, plan.Variant, plan.Clips[0].ID)
+	})
+
+	t.Run("task carrying the current intent proceeds", func(t *testing.T) {
+		reachedFFmpeg := false
+		w, id, plan, _, _ := newWorker(t, &reachedFFmpeg)
+		task := newBoundStreamRenderTaskForTest(t, id, plan)
+		seedBoundStreamRenderAttemptForTest(t, w, id, plan.Variant, task)
+		if err := w.HandleRenderStreamClip(context.Background(), task); err == nil {
+			t.Fatal("bound render error = nil, want the injected FFmpeg failure")
+		}
+		if !reachedFFmpeg {
+			t.Fatal("bound render never reached FFmpeg, want admission to pass")
+		}
+	})
+}
+
 func TestBoundStreamRenderRejectsTaskVariantDifferentFromPlan(t *testing.T) {
 	store := newFakeStorage()
-	id, plan := newReadyStreamJobWithCaptions(t, store, false)
+	id, plan := newReadyStreamJob(t, store)
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +220,7 @@ func TestBoundStreamRenderRejectsTaskVariantDifferentFromPlan(t *testing.T) {
 		Probe: streamclips.SourceProbe{DurationSeconds: 2}, EditPlan: planJSON,
 	})
 	w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{
-		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireAppliedKillfeedAnalysis: true,
+		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg",
 	})
 	w.runner = &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
 		t.Fatal("mismatched render variant reached FFmpeg")
@@ -190,7 +252,7 @@ func TestBoundStreamRenderRejectsTaskVariantDifferentFromPlan(t *testing.T) {
 
 func TestBoundStreamRenderRevalidatesAfterFFmpegBeforePublishing(t *testing.T) {
 	store := newFakeStorage()
-	id, planA := newReadyStreamJobWithCaptions(t, store, false)
+	id, planA := newReadyStreamJob(t, store)
 	planJSON, err := json.Marshal(planA)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +264,7 @@ func TestBoundStreamRenderRevalidatesAfterFFmpegBeforePublishing(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{
-		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireAppliedKillfeedAnalysis: true,
+		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg",
 	})
 	w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		close(started)
@@ -237,7 +299,7 @@ func TestBoundStreamRenderRevalidatesAfterFFmpegBeforePublishing(t *testing.T) {
 func TestStreamRenderPartialRevisionUploadNeverCommitsCanonicalPointer(t *testing.T) {
 	base := newFakeStorage()
 	store := &failRevisionResultStorage{fakeStorage: base, err: errors.New("result storage unavailable")}
-	id, plan := newReadyStreamJobWithCaptions(t, base, false)
+	id, plan := newReadyStreamJob(t, base)
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)
@@ -278,78 +340,6 @@ func TestStreamRenderPartialRevisionUploadNeverCommitsCanonicalPointer(t *testin
 		if strings.Contains(key, "/revisions/") && strings.Contains(key, "/videos/") {
 			t.Fatalf("uncommitted revision artifact was not cleaned up: %s", key)
 		}
-	}
-}
-
-func TestExactKillfeedArtifactFailureIsRecoverable(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		artifact func(*testing.T) []byte
-	}{
-		{name: "missing"},
-		{name: "invalid png", artifact: func(*testing.T) []byte { return []byte("not-a-png") }},
-		{name: "truncated png data", artifact: func(t *testing.T) []byte {
-			return truncatePNGAfterValidConfigForTest(t, solidPNGForTest(t, 0xff, 0, 0))
-		}},
-		{name: "wrong png width", artifact: func(t *testing.T) []byte {
-			return solidSizedPNGForTest(t, 8, streamclips.KillfeedNoticeHeight, 0xff, 0, 0)
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			store := newFakeStorage()
-			id, plan := newReadyStreamJobWithCaptions(t, store, false)
-			plan.KillfeedCrop = &streamclips.CropRect{X: 0.68, Y: 0.04, Width: 0.31, Height: 0.14}
-			event := durableKillfeedEvent(exactKillfeedEvent())
-			plan.Clips[0].KillfeedSeconds = []float64{event.CueSeconds}
-			plan.Clips[0].KillfeedKills = [][]streamclips.KillfeedKill{{}}
-			const sourceSHA = "recoverable-exact-artifact-source"
-			analysis := appliedKillfeedStateForEvents(t, store, id, sourceSHA, &plan, []streamclips.KillfeedAnalysisEvent{event})
-			if tc.artifact != nil {
-				key, err := streamclips.KillfeedEventRowKey(id, analysis.GenerationID, plan.Clips[0].ID, event.EventID, 0)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := store.Put(key, bytes.NewReader(tc.artifact(t))); err != nil {
-					t.Fatal(err)
-				}
-			}
-			planJSON, err := json.Marshal(plan)
-			if err != nil {
-				t.Fatal(err)
-			}
-			repo := newFakeStreamRepo(streamclips.Job{
-				ID: id, Status: streamclips.StatusReady, SourcePath: streamclips.SourceKey(id),
-				SourceSHA256: sourceSHA, Probe: streamclips.SourceProbe{DurationSeconds: 2}, EditPlan: planJSON,
-			})
-			w := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{
-				WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireAppliedKillfeedAnalysis: true,
-			})
-			w.runner = &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
-				t.Fatal("invalid exact artifact reached FFmpeg")
-				return nil, nil
-			}}
-			planFingerprint, err := streamclips.EditPlanFingerprint(plan)
-			if err != nil {
-				t.Fatal(err)
-			}
-			task, err := tasks.NewBoundRenderStreamClipTask(id, plan.Variant, tasks.StreamRenderIntent{
-				AttemptID:           uuid.New(),
-				EditPlanFingerprint: planFingerprint,
-				KillfeedGeneration:  analysis.GenerationID,
-				KillfeedFingerprint: analysis.Fingerprint,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			seedBoundStreamRenderAttemptForTest(t, w, id, plan.Variant, task)
-			if err := w.HandleRenderStreamClip(context.Background(), task); err != nil {
-				t.Fatalf("recoverable artifact render error = %v", err)
-			}
-			if got := repo.jobs[id].Status; got != streamclips.StatusReady {
-				t.Fatalf("parent status = %s, want ready for reanalysis", got)
-			}
-			assertNoPublishedStreamRender(t, store, id, plan.Variant, plan.Clips[0].ID)
-		})
 	}
 }
 

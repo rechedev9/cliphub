@@ -34,11 +34,6 @@ const UUID_PROPERTY: JsonObject = {
   pattern: UUID_PATTERN,
   type: 'string',
 };
-const GENERATION_ID_PROPERTY: JsonObject = {
-  description: 'Caption or killfeed generation UUID returned by the corresponding read operation.',
-  pattern: UUID_PATTERN,
-  type: 'string',
-};
 const SAFE_TOKEN_PROPERTY: JsonObject = {
   pattern: SAFE_TOKEN_PATTERN,
   type: 'string',
@@ -94,50 +89,6 @@ const FACE_CROP_RECT_PROPERTY: JsonObject = {
   required: ['x', 'y', 'width', 'height'],
   type: 'object',
 };
-const KILLFEED_KILL_PROPERTY: JsonObject = {
-  additionalProperties: false,
-  description: 'One confirmed kill notice rendered as a synthetic killfeed entry.',
-  properties: {
-    assister_name: { type: 'string' },
-    assister_side: { enum: ['CT', 'T'], type: 'string' },
-    attacker_name: { minLength: 1, type: 'string' },
-    attacker_side: { enum: ['CT', 'T'], type: 'string' },
-    blind: { type: 'boolean' },
-    flash_assist: { type: 'boolean' },
-    headshot: { type: 'boolean' },
-    in_air: { type: 'boolean' },
-    noscope: { type: 'boolean' },
-    smoke: { type: 'boolean' },
-    victim_name: { minLength: 1, type: 'string' },
-    victim_side: { enum: ['CT', 'T'], type: 'string' },
-    wallbang: { type: 'boolean' },
-    weapon: { description: 'Weapon icon catalog key such as ak47.', minLength: 1, type: 'string' },
-  },
-  required: ['attacker_side', 'attacker_name', 'victim_side', 'victim_name', 'weapon'],
-  type: 'object',
-};
-const CAPTION_WORD_PROPERTY: JsonObject = {
-  additionalProperties: false,
-  description: 'One reviewed word timed relative to the start of its stream clip.',
-  properties: {
-    end_seconds: { exclusiveMinimum: 0, type: 'number' },
-    start_seconds: { minimum: 0, type: 'number' },
-    word: { maxLength: 80, minLength: 1, type: 'string' },
-  },
-  required: ['word', 'start_seconds', 'end_seconds'],
-  type: 'object',
-};
-const STREAM_CAPTION_REVIEW_CLIP_PROPERTY: JsonObject = {
-  additionalProperties: false,
-  description: 'One explicit review decision: provide reviewed words or set no_speech=true.',
-  properties: {
-    clip_id: SAFE_TOKEN_PROPERTY,
-    no_speech: { type: 'boolean' },
-    words: { items: CAPTION_WORD_PROPERTY, type: 'array' },
-  },
-  required: ['clip_id'],
-  type: 'object',
-};
 // Vertical-center bounds shared by the streamer banner and text overlays,
 // mirroring min/maxVerticalPositionY in internal/streamclips/types.go.
 const POSITION_Y_PROPERTY: JsonObject = { maximum: 0.975, minimum: 0.025, type: 'number' };
@@ -174,16 +125,6 @@ const STREAM_EDIT_PLAN_PROPERTY: JsonObject = {
   additionalProperties: false,
   description: 'Complete stream edit plan. Search with stream_job_id to retrieve the current plan before replacing it.',
   properties: {
-    captions: {
-      additionalProperties: false,
-      description: 'Burned-in subtitles generated through the configured xAI speech-to-text capability.',
-      properties: {
-        enabled: { type: 'boolean' },
-        language: { description: 'Subtitle output language. FragForge currently supports Spanish only.', enum: ['es'], type: 'string' },
-      },
-      required: ['enabled'],
-      type: 'object',
-    },
     clips: {
       items: {
         additionalProperties: false,
@@ -191,16 +132,6 @@ const STREAM_EDIT_PLAN_PROPERTY: JsonObject = {
           edit: CLIP_EDIT_PROPERTY,
           end_seconds: { exclusiveMinimum: 0, type: 'number' },
           id: SAFE_TOKEN_PROPERTY,
-          killfeed_kills: {
-            description: 'Per-cue confirmed kills, index-aligned with killfeed_seconds. A cue with an empty entry keeps the frozen-crop behavior; a cue with kills renders synthetic notices.',
-            items: { items: KILLFEED_KILL_PROPERTY, type: 'array' },
-            type: 'array',
-          },
-          killfeed_seconds: {
-            description: 'Absolute source timestamps whose selected killfeed notice should be frozen for this clip.',
-            items: { type: 'number' },
-            type: 'array',
-          },
           start_seconds: { minimum: 0, type: 'number' },
           title: { type: 'string' },
         },
@@ -216,10 +147,6 @@ const STREAM_EDIT_PLAN_PROPERTY: JsonObject = {
     },
     face_crop: FACE_CROP_RECT_PROPERTY,
     gameplay_crop: CROP_RECT_PROPERTY,
-    killfeed_crop: {
-      ...CROP_RECT_PROPERTY,
-      description: 'Normalized source crop for frozen killfeed notices. Required when a clip contains killfeed_seconds cues.',
-    },
     music: {
       additionalProperties: false,
       properties: {
@@ -404,15 +331,6 @@ const JOB_VARIANT_SCHEMA = objectSchema(
   ['job_id', 'variant'],
 );
 const STREAM_JOB_SCHEMA = objectSchema({ stream_job_id: UUID_PROPERTY }, ['stream_job_id']);
-const STREAM_CAPTION_REVIEW_SCHEMA = objectSchema({
-  clips: { items: STREAM_CAPTION_REVIEW_CLIP_PROPERTY, minItems: 1, type: 'array' },
-  generation_id: GENERATION_ID_PROPERTY,
-  stream_job_id: UUID_PROPERTY,
-}, ['stream_job_id', 'generation_id', 'clips']);
-const STREAM_GENERATION_SCHEMA = objectSchema({
-  generation_id: GENERATION_ID_PROPERTY,
-  stream_job_id: UUID_PROPERTY,
-}, ['stream_job_id', 'generation_id']);
 const STREAM_VARIANT_SCHEMA = objectSchema(
   {
     stream_job_id: UUID_PROPERTY,
@@ -446,7 +364,7 @@ const operations: readonly OperationDefinition[] = [
     category: 'studio',
     description: 'Check whether FragForge Studio is online and inspect capture/render readiness without exposing local tool paths.',
     inputSchema: objectSchema({}),
-    keywords: ['health', 'capabilities', 'ready', 'offline', 'hlae', 'ffmpeg', 'captions', 'subtitles', 'subtitulos', 'xai', 'grok'],
+    keywords: ['health', 'capabilities', 'ready', 'offline', 'hlae', 'ffmpeg'],
     name: 'studio.status',
     preview: () => ({ method: 'GET', paths: ['/healthz', '/api/capabilities'] }),
     risk: 'read',
@@ -913,7 +831,7 @@ const operations: readonly OperationDefinition[] = [
     title: 'Create stream job from URL',
   }),
   readOperation({ category: 'streams', description: 'Get one stream clip job.', inputSchema: STREAM_JOB_SCHEMA, name: 'streams.get', path: (input) => streamPath(input), title: 'Get stream job' }),
-  readOperation({ category: 'streams', description: 'Read the current stream crop, clip, subtitle, music, and effects edit plan.', inputSchema: STREAM_JOB_SCHEMA, keywords: ['crop', 'clips', 'captions', 'subtitles', 'subtitulos', 'transcription', 'xai', 'grok', 'music'], name: 'streams.get_edit_plan', path: (input) => streamPath(input, '/edit-plan'), title: 'Get stream edit plan' }),
+  readOperation({ category: 'streams', description: 'Read the current stream crop, clip, music, and effects edit plan.', inputSchema: STREAM_JOB_SCHEMA, keywords: ['crop', 'clips', 'music'], name: 'streams.get_edit_plan', path: (input) => streamPath(input, '/edit-plan'), title: 'Get stream edit plan' }),
   {
     category: 'streams',
     description: 'Finish initializing an already uploaded stream job without uploading the source video again.',
@@ -940,61 +858,11 @@ const operations: readonly OperationDefinition[] = [
     category: 'streams',
     description: 'Replace and validate the complete stream edit plan. Search with stream_job_id first to retrieve and preserve its current fields.',
     inputSchema: objectSchema({ plan: STREAM_EDIT_PLAN_PROPERTY, stream_job_id: UUID_PROPERTY }, ['stream_job_id', 'plan']),
-    keywords: ['crop', 'clips', 'captions', 'subtitles', 'subtitulos', 'transcription', 'xai', 'grok', 'music', 'edit'],
+    keywords: ['crop', 'clips', 'music', 'edit'],
     method: 'PUT',
     name: 'streams.update_edit_plan',
     path: (input) => streamPath(input, '/edit-plan'),
     title: 'Update stream edit plan',
-  }),
-  {
-    category: 'streams',
-    description: 'Enable or disable Spanish burned-in subtitles while preserving the rest of the current stream edit plan.',
-    inputSchema: objectSchema({
-      enabled: { type: 'boolean' },
-      language: { description: 'Subtitle output language. Spanish is the only supported value.', enum: ['es'], type: 'string' },
-      stream_job_id: UUID_PROPERTY,
-    }, ['stream_job_id', 'enabled']),
-    keywords: ['captions', 'caption', 'subtitles', 'subtitle', 'subtitulos', 'subtitulo', 'transcription', 'speech to text', 'stt', 'xai', 'grok'],
-    name: 'streams.configure_captions',
-    preview: (input) => ({
-      captions: { enabled: input.enabled, language: 'es' },
-      steps: [
-        { method: 'GET', path: streamPath(input, '/edit-plan'), purpose: 'preserve the current edit plan' },
-        { method: 'PUT', path: streamPath(input, '/edit-plan'), purpose: 'replace only caption settings inside that plan' },
-      ],
-    }),
-    risk: 'write',
-    run: configureStreamCaptions,
-    title: 'Configure stream subtitles',
-  },
-  mutationOperation({
-    category: 'streams',
-    description: 'Generate Spanish caption candidates for the enabled stream edit plan. This can use the configured xAI speech-to-text service.',
-    inputSchema: STREAM_JOB_SCHEMA,
-    keywords: ['captions', 'caption', 'subtitles', 'subtitulos', 'generate', 'transcription', 'speech to text', 'stt', 'xai', 'grok'],
-    name: 'streams.start_caption_candidates',
-    path: (input) => streamPath(input, '/captions'),
-    risk: 'costly',
-    title: 'Generate stream caption candidates',
-  }),
-  readOperation({
-    category: 'streams',
-    description: 'Read the current stream caption candidates and the generation ID required to review them.',
-    inputSchema: STREAM_JOB_SCHEMA,
-    keywords: ['captions', 'caption', 'subtitles', 'subtitulos', 'review', 'transcription'],
-    name: 'streams.get_caption_candidates',
-    path: (input) => streamPath(input, '/captions'),
-    title: 'Get stream caption candidates',
-  }),
-  mutationOperation({
-    body: (input) => without(input, 'stream_job_id'),
-    category: 'streams',
-    description: 'Persist reviewed caption words or explicit no-speech decisions for the current caption generation. This updates the stream edit plan.',
-    inputSchema: STREAM_CAPTION_REVIEW_SCHEMA,
-    keywords: ['captions', 'caption', 'subtitles', 'subtitulos', 'review', 'approve', 'words', 'no speech'],
-    name: 'streams.review_caption_candidates',
-    path: (input) => streamPath(input, '/captions/review'),
-    title: 'Review stream caption candidates',
   }),
   {
     category: 'streams',
@@ -1022,84 +890,15 @@ const operations: readonly OperationDefinition[] = [
       ? undefined
       : { expected_edit_plan_updated_at: input.expected_edit_plan_updated_at },
     category: 'streams',
-    description: 'Start a costly stream clip render from the saved edit plan, including xAI subtitles when enabled.',
+    description: 'Start a costly stream clip render from the saved edit plan.',
     inputSchema: STREAM_RENDER_START_SCHEMA,
-    keywords: ['twitch', 'vertical', 'render', 'captions', 'subtitles', 'subtitulos', 'xai', 'grok'],
+    keywords: ['twitch', 'vertical', 'render'],
     name: 'streams.start_render',
     path: (input) => streamRenderPath(input),
     risk: 'costly',
     title: 'Start stream render',
   }),
   readOperation({ category: 'streams', description: 'Read stream render progress and real video entries.', inputSchema: STREAM_VARIANT_SCHEMA, keywords: ['twitch', 'render', 'videos'], name: 'streams.get_render', path: (input) => streamRenderPath(input), title: 'Get stream render state' }),
-  readOperation({
-    category: 'streams',
-    description: 'List the weapon icon catalog keys a synthetic killfeed notice may use.',
-    keywords: ['killfeed', 'weapon', 'notice', 'icon', 'synthetic'],
-    name: 'streams.list_killfeed_weapons',
-    path: () => '/api/stream-killfeed/weapons',
-    title: 'List killfeed weapons',
-  }),
-  mutationOperation({
-    category: 'streams',
-    description: 'Analyze the current stream killfeed crop and clips. This queues local FFmpeg work and can use configured xAI vision for structured kills.',
-    inputSchema: STREAM_JOB_SCHEMA,
-    keywords: ['killfeed', 'analyze', 'analysis', 'ocr', 'vision', 'ffmpeg', 'xai', 'grok'],
-    name: 'streams.start_killfeed_analysis',
-    path: (input) => streamPath(input, '/killfeed'),
-    risk: 'costly',
-    title: 'Analyze stream killfeed',
-  }),
-  readOperation({
-    category: 'streams',
-    description: 'Read the current stream killfeed analysis and the generation ID required to apply it.',
-    inputSchema: STREAM_JOB_SCHEMA,
-    keywords: ['killfeed', 'analysis', 'ocr', 'vision', 'review'],
-    name: 'streams.get_killfeed_analysis',
-    path: (input) => streamPath(input, '/killfeed'),
-    title: 'Get stream killfeed analysis',
-  }),
-  mutationOperation({
-    body: (input) => without(input, 'stream_job_id'),
-    category: 'streams',
-    description: 'Apply one current killfeed analysis generation to the stream edit plan. This changes its rendered killfeed cues.',
-    inputSchema: STREAM_GENERATION_SCHEMA,
-    keywords: ['killfeed', 'analysis', 'apply', 'cues', 'ocr', 'vision'],
-    name: 'streams.apply_killfeed_analysis',
-    path: (input) => streamPath(input, '/killfeed/apply'),
-    title: 'Apply stream killfeed analysis',
-  }),
-  mutationOperation({
-    body: (input) => ({ clip_id: stringInput(input, 'clip_id'), cue_seconds: input.cue_seconds }),
-    category: 'streams',
-    description: 'Read the confirmed kills visible at a killfeed cue with the configured xAI vision reader. Requires local ffmpeg and an xAI key; returns {kills} for the cue.',
-    inputSchema: objectSchema(
-      {
-        clip_id: SAFE_TOKEN_PROPERTY,
-        cue_seconds: { description: 'Absolute source timestamp of the cue, inside the clip range.', minimum: 0, type: 'number' },
-        stream_job_id: UUID_PROPERTY,
-      },
-      ['stream_job_id', 'clip_id', 'cue_seconds'],
-    ),
-    keywords: ['killfeed', 'kills', 'read', 'xai', 'grok', 'vision'],
-    name: 'streams.read_killfeed',
-    path: (input) => streamPath(input, '/killfeed-read'),
-    risk: 'costly',
-    title: 'Read killfeed kills',
-  }),
-  {
-    category: 'streams',
-    description: 'Render one kill notice to the exact synthetic PNG the render uses. The endpoint returns image bytes, so this reports the request rather than embedding the image; view notices in the web editor.',
-    inputSchema: KILLFEED_KILL_PROPERTY,
-    keywords: ['killfeed', 'notice', 'preview', 'png', 'synthetic'],
-    name: 'streams.preview_killfeed_notice',
-    preview: (input) => requestPreview('POST', '/api/stream-killfeed/notice-preview', input),
-    risk: 'read',
-    run: async (_client, input) => ({
-      note: 'The kill notice is returned as image bytes and is not embedded in agent context; open the FragForge web editor to view the synthetic notice.',
-      request: requestPreview('POST', '/api/stream-killfeed/notice-preview', input),
-    }),
-    title: 'Preview killfeed notice',
-  },
   {
     category: 'artifacts',
     description: 'Return a loopback URL for a stream source, gallery, MP4, or upload-ready delivery asset.',
@@ -1197,7 +996,6 @@ export function validateOperationInput(operation: OperationDefinition, input: Js
     if (!isJsonObject(plan)) throw new Error('arguments.plan must be an object');
     validateStreamEditPlan(plan);
   }
-  if (operation.name === 'streams.review_caption_candidates') validateStreamCaptionReview(input);
 }
 
 type LiveVariantRegistry = 'render' | 'stream';
@@ -1328,7 +1126,7 @@ export async function discoverDynamicInputs(client: OrchestratorClient, operatio
     if (variant !== undefined) fields.push(renderArtifactCandidates(client, jobID, variant, renderArtifactKind(operation, input), signal));
   }
   const streamJobID = optionalStringInput(input, 'stream_job_id');
-  if (streamJobID !== undefined && (operation.name === 'streams.update_edit_plan' || operation.name === 'streams.configure_captions' || operation.name === 'streams.edit_clip')) {
+  if (streamJobID !== undefined && (operation.name === 'streams.update_edit_plan' || operation.name === 'streams.edit_clip')) {
     fields.push(streamEditPlanCurrentValue(client, streamJobID, signal));
   }
   if (streamJobID !== undefined && operation.name === 'artifacts.get_stream_url' && input.kind === 'video') {
@@ -1541,13 +1339,8 @@ async function editStreamClip(client: OrchestratorClient, input: JsonObject, sig
   }, signal);
 }
 
-async function configureStreamCaptions(client: OrchestratorClient, input: JsonObject, signal?: AbortSignal): Promise<JsonValue> {
-  const captions: JsonObject = { enabled: input.enabled === true, language: 'es' };
-  return updateStreamEditPlan(client, input, (current) => ({ ...current, captions }), signal);
-}
-
 function validateStreamEditPlan(plan: JsonObject): void {
-  for (const key of ['face_crop', 'gameplay_crop', 'killfeed_crop']) {
+  for (const key of ['face_crop', 'gameplay_crop']) {
     const crop = plan[key];
     if (!isJsonObject(crop)) continue;
     const x = crop.x;
@@ -1563,7 +1356,6 @@ function validateStreamEditPlan(plan: JsonObject): void {
   }
   const clips = plan.clips;
   if (!Array.isArray(clips)) return;
-  const hasKillfeedCrop = isJsonObject(plan.killfeed_crop);
   const seen = new Set<string>();
   for (const [index, value] of clips.entries()) {
     if (!isJsonObject(value)) continue;
@@ -1571,84 +1363,11 @@ function validateStreamEditPlan(plan: JsonObject): void {
       && value.end_seconds <= value.start_seconds) {
       throw new Error(`arguments.plan.clips[${index}].end_seconds must be greater than start_seconds`);
     }
-    const killfeedSeconds = value.killfeed_seconds;
-    if (Array.isArray(killfeedSeconds)) {
-      if (killfeedSeconds.length > 0 && !hasKillfeedCrop) {
-        throw new Error(`arguments.plan.killfeed_crop is required when arguments.plan.clips[${index}].killfeed_seconds contains cues`);
-      }
-      const seenKillfeedSeconds = new Set<number>();
-      for (const [cueIndex, cue] of killfeedSeconds.entries()) {
-        const field = `arguments.plan.clips[${index}].killfeed_seconds[${cueIndex}]`;
-        if (typeof cue !== 'number' || !Number.isFinite(cue)) {
-          throw new Error(`${field} must be a finite number`);
-        }
-        if (seenKillfeedSeconds.has(cue)) {
-          throw new Error(`${field} must not duplicate an earlier cue`);
-        }
-        seenKillfeedSeconds.add(cue);
-        if (typeof value.start_seconds === 'number' && typeof value.end_seconds === 'number'
-          && (cue < value.start_seconds || cue >= value.end_seconds)) {
-          throw new Error(`${field} must be greater than or equal to start_seconds and less than end_seconds`);
-        }
-      }
-    }
-    const killfeedKills = value.killfeed_kills;
-    if (Array.isArray(killfeedKills)) {
-      const cueCount = Array.isArray(killfeedSeconds) ? killfeedSeconds.length : 0;
-      if (killfeedKills.length !== cueCount) {
-        throw new Error(`arguments.plan.clips[${index}].killfeed_kills must have one entry per killfeed_seconds cue`);
-      }
-    }
     if (typeof value.id === 'string') {
       if (seen.has(value.id)) throw new Error(`arguments.plan.clips contains duplicate id ${value.id}`);
       seen.add(value.id);
     }
     if (isJsonObject(value.edit)) validateClipEdit(value.edit, value, index);
-  }
-}
-
-function validateStreamCaptionReview(input: JsonObject): void {
-  const clips = input.clips;
-  if (!Array.isArray(clips)) return;
-
-  const seenClipIDs = new Set<string>();
-  for (const [clipIndex, review] of clips.entries()) {
-    if (!isJsonObject(review)) continue;
-    const clipID = review.clip_id;
-    if (typeof clipID !== 'string') continue;
-    if (seenClipIDs.has(clipID)) {
-      throw new Error(`arguments.clips[${clipIndex}].clip_id duplicates an earlier review`);
-    }
-    seenClipIDs.add(clipID);
-
-    const noSpeech = review.no_speech === true;
-    const words = review.words;
-    if (noSpeech && Array.isArray(words) && words.length > 0) {
-      throw new Error(`arguments.clips[${clipIndex}] cannot include words when no_speech is true`);
-    }
-    if (!noSpeech && (!Array.isArray(words) || words.length === 0)) {
-      throw new Error(`arguments.clips[${clipIndex}] requires reviewed words or no_speech=true`);
-    }
-    if (!Array.isArray(words)) continue;
-
-    let previousEnd = 0;
-    for (const [wordIndex, wordCue] of words.entries()) {
-      if (!isJsonObject(wordCue)) continue;
-      const word = wordCue.word;
-      const start = wordCue.start_seconds;
-      const end = wordCue.end_seconds;
-      const wordPath = `arguments.clips[${clipIndex}].words[${wordIndex}]`;
-      if (typeof word !== 'string') continue;
-      if (word.trim() === '') throw new Error(`${wordPath}.word must not be blank`);
-      if (/\r|\n/.test(word)) throw new Error(`${wordPath}.word must not contain a line break`);
-      if (typeof start !== 'number' || typeof end !== 'number') continue;
-      if (end <= start) throw new Error(`${wordPath}.end_seconds must be greater than start_seconds`);
-      if (end - start > 2.5) throw new Error(`${wordPath} must last no more than 2.5 seconds`);
-      if (wordIndex > 0 && start < previousEnd) {
-        throw new Error(`${wordPath}.start_seconds must not overlap the previous word`);
-      }
-      previousEnd = end;
-    }
   }
 }
 
@@ -1803,7 +1522,7 @@ async function streamEditPlanCurrentValue(client: OrchestratorClient, streamJobI
     current_value: response,
     depends_on: 'stream_job_id',
     field: 'plan',
-    instructions: 'Preserve every unrelated field when updating the plan. Use streams.configure_captions when only subtitle settings need to change.',
+    instructions: 'Preserve every unrelated field when updating the plan. Use streams.edit_clip when only one clip\'s edit options need to change.',
     source: 'stream edit plan',
   };
 }
@@ -1865,10 +1584,6 @@ const JOB_ELIGIBLE_STATUSES: Readonly<Record<string, readonly string[]>> = {
 };
 
 const STREAM_ELIGIBLE_STATUSES: Readonly<Record<string, readonly string[]>> = {
-  'streams.apply_killfeed_analysis': ['ready', 'rendered'],
-  'streams.review_caption_candidates': ['ready', 'rendered'],
-  'streams.start_caption_candidates': ['ready', 'rendered'],
-  'streams.start_killfeed_analysis': ['ready', 'rendered'],
   'streams.start_render': ['ready', 'rendered'],
 };
 

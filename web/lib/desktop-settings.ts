@@ -1,46 +1,10 @@
 /**
  * Narrow bridge exposed only by the FragForge Studio Electron preload.
  *
- * The browser UI deliberately has no HTTP fallback for these operations: the
- * xAI credential must go straight to the desktop main process so it never
- * reaches Next.js, the orchestrator API, localStorage, or a URL.
+ * The browser UI deliberately has no HTTP fallback for these operations: they
+ * are answered by the desktop main process, so a plain browser must render the
+ * desktop-only state instead of reaching for the orchestrator.
  */
-
-export const XAI_KEY_SOURCES = {
-  environment: 'environment',
-  stored: 'stored',
-  team: 'team',
-  none: 'none',
-} as const;
-
-export type XAIKeySource = typeof XAI_KEY_SOURCES[keyof typeof XAI_KEY_SOURCES];
-
-export type XAISettingsStatus = {
-  storageAvailable: boolean;
-  stored: boolean;
-  active: boolean;
-  activeSource: XAIKeySource;
-  pendingSource: XAIKeySource;
-  restartRequired: boolean;
-  storageError?: string;
-};
-
-export type XAISettingsMutationResult = {
-  ok: boolean;
-  status?: XAISettingsStatus;
-  error?: string;
-};
-
-export type XAIConnectionTestResult = {
-  ok: boolean;
-  code: string;
-  message: string;
-};
-
-export type StudioRestartResult = {
-  ok: boolean;
-  error?: string;
-};
 
 export type StudioAppInfo = {
   version: string;
@@ -51,11 +15,6 @@ export type StudioAppInfo = {
 
 export interface DesktopSettingsBridge {
   getAppInfo(): Promise<StudioAppInfo>;
-  getXAIStatus(): Promise<XAISettingsStatus>;
-  saveXAIKey(apiKey: string): Promise<XAISettingsMutationResult>;
-  removeXAIKey(): Promise<XAISettingsMutationResult>;
-  testXAIKey(apiKey: string): Promise<XAIConnectionTestResult>;
-  restartStudio(): Promise<StudioRestartResult>;
 }
 
 /**
@@ -71,12 +30,7 @@ export function getDesktopSettingsBridge(scope: unknown = globalThis): DesktopSe
 
 function isDesktopSettingsBridge(value: unknown): value is DesktopSettingsBridge {
   if (!isRecord(value)) return false;
-  return typeof value.getAppInfo === 'function'
-    && typeof value.getXAIStatus === 'function'
-    && typeof value.saveXAIKey === 'function'
-    && typeof value.removeXAIKey === 'function'
-    && typeof value.testXAIKey === 'function'
-    && typeof value.restartStudio === 'function';
+  return typeof value.getAppInfo === 'function';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

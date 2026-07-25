@@ -5,10 +5,10 @@ import {
   clipOutputDuration,
   clipTimelineGeometry,
   clipsAreValid,
-  detectedKillfeedEventCount,
   errorMessage,
+  fitPlanToSourceDuration,
   formatStreamTimestamp,
-  groupCaptionWords,
+  initialStreamClipEnd,
   isServiceUnavailable,
   nextClipId,
   nonVideoExtension,
@@ -18,7 +18,7 @@ import {
   streamSourceLabel,
   STREAM_OFFLINE_MESSAGE,
 } from './plan.ts';
-import type { StreamCaptionWord, StreamClipRange, StreamEditPlan } from '../api/streams.ts';
+import type { StreamClipRange, StreamEditPlan } from '../api/streams.ts';
 
 function clip(overrides: Partial<StreamClipRange> = {}): StreamClipRange {
   return { id: 'clip-1', start_seconds: 10, end_seconds: 20, ...overrides };
@@ -51,14 +51,44 @@ test('clip ids are unique so a new range never collides with an existing one', (
   assert.notEqual(nextClipId(), nextClipId());
 });
 
-test('a blank plan starts with one valid range and captions off', () => {
+test('a blank plan starts with one valid range awaiting facecam review', () => {
   const plan = blankPlan(120);
   assert.equal(plan.clips.length, 1);
-  assert.equal(plan.captions?.enabled, false);
   assert.equal(plan.face_crop_reviewed, false);
   assert.equal(clipsAreValid(plan.clips), true);
   assert.equal(clipsAreValid([clip({ end_seconds: 10 })]), false);
   assert.equal(clipsAreValid([]), false);
+});
+
+test('a fresh range keeps the 20-second default while respecting short sources', () => {
+  assert.equal(initialStreamClipEnd(15.15), 15.15);
+  assert.equal(initialStreamClipEnd(120), 20);
+  assert.equal(initialStreamClipEnd(0), 20);
+  assert.equal(initialStreamClipEnd(Number.NaN), 20);
+});
+
+test('fitting to the source clamps legacy endpoints and upgrades the schema version', () => {
+  const plan: StreamEditPlan = {
+    schema_version: '1.0',
+    variant: 'streamer-vertical-stack-40-60',
+    clips: [
+      { id: 'legacy', start_seconds: 0, end_seconds: 20 },
+      { id: 'beyond-eof', start_seconds: 30, end_seconds: 20 },
+    ],
+  };
+  const fitted = fitPlanToSourceDuration(plan, 15.15);
+  assert.equal(fitted.schema_version, '1.1');
+  assert.deepEqual(fitted.clips.map((c) => [c.id, c.end_seconds]), [['legacy', 15.15]]);
+});
+
+test('fitting preserves custom overruns for strict backend validation', () => {
+  const plan: StreamEditPlan = {
+    schema_version: '1.1',
+    variant: 'streamer-vertical-stack-40-60',
+    clips: [{ id: 'custom', start_seconds: 0, end_seconds: 42 }],
+  };
+  assert.equal(fitPlanToSourceDuration(plan, 15.15).clips[0].end_seconds, 42);
+  assert.equal(fitPlanToSourceDuration(plan, 0).clips[0].end_seconds, 42);
 });
 
 test('timestamps render as m:ss.hh with a padded seconds field', () => {
@@ -86,7 +116,7 @@ test('the fingerprint moves when a rendered field changes and not when updated_a
   assert.notEqual(planFingerprint(base), planFingerprint({ ...base, music: { key: 'a', volume: 0.25 } }));
   assert.notEqual(
     planFingerprint(base),
-    planFingerprint({ ...base, clips: [clip({ caption_reviewed: true })] }),
+    planFingerprint({ ...base, clips: [clip({ title: 'clutch' })] }),
   );
 });
 
@@ -120,64 +150,4 @@ test('an overlay without bounds spans its whole clip', () => {
     { startPercent: 20, widthPercent: 20 },
   );
   assert.equal(overlayMarkerGeometry({ text: 'GG', position_y: 0.5 }, 0), null);
-});
-
-function word(text: string, start: number, end: number): StreamCaptionWord {
-  return { word: text, start_seconds: start, end_seconds: end };
-}
-
-test('caption words group into lines on a pause, keeping their flat indices', () => {
-  const segments = groupCaptionWords([
-    word('menudo', 0, 0.3),
-    word('clutch', 0.3, 0.7),
-    word('tio', 2, 2.4),
-  ]);
-  assert.equal(segments.length, 2);
-  assert.equal(segments[0].text, 'menudo clutch');
-  assert.deepEqual(segments[0].entries.map((entry) => entry.index), [0, 1]);
-  assert.deepEqual(segments[1].entries.map((entry) => entry.index), [2]);
-  assert.equal(segments[1].startSeconds, 2);
-  assert.equal(segments[1].endSeconds, 2.4);
-});
-
-test('a sentence-final word also closes the line, and no words means no lines', () => {
-  const segments = groupCaptionWords([word('vamos.', 0, 0.4), word('otra', 0.4, 0.8)]);
-  assert.deepEqual(segments.map((segment) => segment.text), ['vamos.', 'otra']);
-  assert.deepEqual(groupCaptionWords([]), []);
-});
-
-test('detected killfeed events are counted across every analysed clip', () => {
-  assert.equal(detectedKillfeedEventCount(null), 0);
-  assert.equal(
-    detectedKillfeedEventCount({
-      job_id: 'j',
-      generation_id: 'g',
-      status: 'applied',
-      updated_at: '',
-      clips: [
-        { clip_id: 'a', start_seconds: 0, end_seconds: 1, events: [] },
-        {
-          clip_id: 'b',
-          start_seconds: 0,
-          end_seconds: 1,
-          events: [
-            {
-              event_id: 'e1',
-              source_pts: 0,
-              time_base: { num: 1, den: 30 },
-              cue_seconds: 1,
-              onset_start_pts: 0,
-              onset_end_pts: 1,
-              sample_pts: 1,
-              sample_seconds: 1,
-              mode: 'aligned_frame',
-              rows: [],
-              kills: [],
-            },
-          ],
-        },
-      ],
-    }),
-    1,
-  );
 });

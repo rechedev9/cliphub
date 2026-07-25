@@ -27,10 +27,6 @@ var flowPlaceholderSubstitutions = map[string]string{
 	"approved-format":     editor.OutputFormatShort9x16,
 	"approved-effect":     editor.KillEffectPunchIn,
 	"approved-transition": editor.TransitionCut,
-	"x,y,w,h":             "0,0,100,100",
-	"large-v3.bin":        "large-v3.bin",
-	"large-v3-turbo.bin":  "large-v3-turbo.bin",
-	"silero-vad.bin":      "silero-vad.bin",
 }
 
 var flowPlaceholderPattern = regexp.MustCompile(`<[^<>]*>`)

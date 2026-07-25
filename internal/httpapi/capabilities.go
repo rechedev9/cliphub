@@ -28,18 +28,9 @@ type Capabilities struct {
 	// YtdlpEnabled reports whether acquisition-by-URL (POST /api/stream-jobs
 	// with a source_url) can run: a yt-dlp binary is configured.
 	YtdlpEnabled bool
-	// XAIEnabled reports whether a stream render can burn in captions using the
-	// xAI cloud backend: an xAI API key is configured. The key itself is never
-	// reported, only this boolean.
-	XAIEnabled  bool
-	RecordTools []CaptureTool // recorder, HLAE, CS2
-	RenderTools []CaptureTool // editor, ffmpeg
-	StreamTools []CaptureTool // yt-dlp
-}
-
-// captionsEnabled reports whether the sole stream-caption backend is configured.
-func (c Capabilities) captionsEnabled() bool {
-	return c.XAIEnabled
+	RecordTools  []CaptureTool // recorder, HLAE, CS2
+	RenderTools  []CaptureTool // editor, ffmpeg
+	StreamTools  []CaptureTool // yt-dlp
 }
 
 // GetCapabilities handles GET /api/capabilities. It is read-only: the web UI
@@ -56,7 +47,6 @@ func (h *Handlers) GetCapabilities(w http.ResponseWriter, _ *http.Request) {
 		"compose": map[string]any{"enabled": c.ComposeEnabled},
 		"stream": map[string]any{
 			"ytdlp_enabled": c.YtdlpEnabled,
-			"xai_enabled":   c.XAIEnabled,
 			"tools":         resolveTools(c.StreamTools),
 		},
 	})
@@ -101,15 +91,5 @@ func (h *Handlers) requireYtdlpEnabled(w http.ResponseWriter) bool {
 		return true
 	}
 	writeError(w, http.StatusConflict, "acquiring a stream job by URL is not configured on this machine; install yt-dlp on PATH (or set ZV_YTDLP_PATH) and restart the orchestrator")
-	return false
-}
-
-// requireCaptionsEnabled reports whether xAI candidate generation is
-// configured. Rendering reviewed captions is local and does not use this gate.
-func (h *Handlers) requireCaptionsEnabled(w http.ResponseWriter) bool {
-	if h.capabilities.captionsEnabled() {
-		return true
-	}
-	writeError(w, http.StatusConflict, "generating caption candidates needs xAI, but it is not configured on this machine; configure an xAI key in FragForge Studio Settings (or set XAI_API_KEY), then restart")
 	return false
 }

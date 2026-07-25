@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -31,9 +30,7 @@ import (
 
 type streamService interface {
 	Probe(ctx context.Context, input, ffprobe string) (streamclips.SourceProbe, error)
-	ValidateFFmpeg(ctx context.Context, ffmpeg string, requireWhisper bool) error
-	DetectKillfeed(ctx context.Context, input, ffmpeg string, probe streamclips.SourceProbe, crop streamclips.CropRect, clip streamclips.ClipRange) ([]float64, error)
-	Transcribe(ctx context.Context, request streamTranscribeRequest) (streamTranscriptReview, error)
+	ValidateFFmpeg(ctx context.Context, ffmpeg string) error
 	Render(ctx context.Context, request streamRenderRequest) (streamRenderResult, error)
 }
 
@@ -59,7 +56,6 @@ type streamLocalVideo struct {
 	Title           string  `json:"title,omitempty"`
 	Path            string  `json:"path"`
 	CoverPath       string  `json:"cover_path,omitempty"`
-	CaptionsPath    string  `json:"captions_path,omitempty"`
 	DurationSeconds float64 `json:"duration_seconds,omitempty"`
 }
 
@@ -127,12 +123,6 @@ func runStreamWithService(args []string, stdout, stderr io.Writer, service strea
 		return runStreamVariants(args[1:], stdout, stderr)
 	case "plan":
 		return runStreamPlan(args[1:], stdout, stderr, service)
-	case "killfeed":
-		return runStreamKillfeed(args[1:], stdout, stderr)
-	case "transcribe":
-		return runStreamTranscribe(args[1:], stdout, stderr, service)
-	case "captions":
-		return runStreamCaptions(args[1:], stdout, stderr)
 	case "render":
 		return runStreamRender(args[1:], stdout, stderr, service)
 	default:
@@ -202,10 +192,6 @@ func runStreamPlan(args []string, stdout, stderr io.Writer, service streamServic
 	nick := fs.String("streamer", "", "streamer nick banner")
 	faceCrop := fs.String("face-crop", "", "normalized x,y,width,height")
 	gameplayCrop := fs.String("gameplay-crop", "", "normalized x,y,width,height")
-	killfeedCrop := fs.String("killfeed-crop", "", "normalized x,y,width,height")
-	detectKillfeed := fs.Bool("detect-killfeed", false, "detect highlighted killfeed notice cues")
-	captionsEnabled := fs.Bool("captions", false, "enable Spanish burned captions")
-	ffmpeg := fs.String("ffmpeg", "", "ffmpeg executable for killfeed detection")
 	ffprobe := fs.String("ffprobe", "", "ffprobe executable")
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "validate and print without writing the plan")
@@ -256,16 +242,6 @@ func runStreamPlan(args []string, stdout, stderr io.Writer, service streamServic
 			return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--gameplay-crop: %w", err), streamPlanUsage)
 		}
 	}
-	if *killfeedCrop != "" {
-		crop, cropErr := parseStreamCrop(*killfeedCrop)
-		if cropErr != nil {
-			return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--killfeed-crop: %w", cropErr), streamPlanUsage)
-		}
-		plan.KillfeedCrop = &crop
-	}
-	if *detectKillfeed && plan.KillfeedCrop == nil {
-		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("--detect-killfeed requires --killfeed-crop"), streamPlanUsage)
-	}
 	plan.Clips = []streamclips.ClipRange{{
 		ID:           *clipID,
 		StartSeconds: *clipStart,
@@ -273,25 +249,6 @@ func runStreamPlan(args []string, stdout, stderr io.Writer, service streamServic
 		Title:        *title,
 	}}
 	plan.StreamerBanner.Nick = *nick
-	plan.Captions = streamclips.CaptionsPlan{Enabled: *captionsEnabled, Language: "es"}
-	if *detectKillfeed {
-		ffmpegPath := *ffmpeg
-		if ffmpegPath == "" {
-			ffmpegPath = recording.FindFFmpeg()
-		}
-		cues, detectErr := service.DetectKillfeed(context.Background(), *input, ffmpegPath, probe, *plan.KillfeedCrop, plan.Clips[0])
-		if detectErr != nil {
-			return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("detect stream killfeed: %w", detectErr))
-		}
-		plan.Clips[0].KillfeedSeconds = cues
-		plan.Clips[0].KillfeedCueProvenance = make([]streamclips.KillfeedCueProvenance, len(cues))
-		for i, cue := range cues {
-			plan.Clips[0].KillfeedCueProvenance[i] = streamclips.KillfeedCueProvenance{
-				CueSeconds: cue,
-				Origin:     streamclips.KillfeedCueAutomatic,
-			}
-		}
-	}
 	plan.UpdatedAt = time.Now().UTC()
 	plan = streamclips.NormalizeEditPlan(plan)
 	if err := plan.ValidateForSourceDuration(probe.DurationSeconds); err != nil {
@@ -401,9 +358,6 @@ func runStreamRender(args []string, stdout, stderr io.Writer, service streamServ
 	if err := plan.ValidateForSourceDuration(probe.DurationSeconds); err != nil {
 		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("invalid stream edit plan: %w", err), streamRenderUsage)
 	}
-	if probe.AudioCodec != "" && plan.CaptionsNeedBackend() {
-		return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("validate stream caption readiness: edit plan has an audible clip without reviewed Spanish caption words or a reviewed no-speech decision (run zv stream transcribe to create candidates, review every word and timing, then import them with zv stream captions)"))
-	}
 	absInput, _ := filepath.Abs(*input)
 	absPlan, _ := filepath.Abs(*planPath)
 	absOut, _ := filepath.Abs(*out)
@@ -422,7 +376,7 @@ func runStreamRender(args []string, stdout, stderr io.Writer, service streamServ
 	if ffmpegPath == "" {
 		ffmpegPath = recording.FindFFmpeg()
 	}
-	if err := service.ValidateFFmpeg(ctx, ffmpegPath, false); err != nil {
+	if err := service.ValidateFFmpeg(ctx, ffmpegPath); err != nil {
 		return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("validate stream render ffmpeg: %w", err))
 	}
 	if *dryRun {
@@ -494,13 +448,6 @@ func (localStreamService) Probe(ctx context.Context, input, ffprobe string) (str
 	return (streamclips.FFprobeProber{Path: ffprobe}).Probe(ctx, input)
 }
 
-func (localStreamService) DetectKillfeed(ctx context.Context, input, ffmpeg string, probe streamclips.SourceProbe, crop streamclips.CropRect, clip streamclips.ClipRange) ([]float64, error) {
-	if ffmpeg == "" {
-		return nil, fmt.Errorf("ffmpeg is not configured")
-	}
-	return detectKillfeedCues(ctx, ffmpeg, input, probe, crop, clip)
-}
-
 func (localStreamService) Render(ctx context.Context, request streamRenderRequest) (streamRenderResult, error) {
 	if request.FFmpeg == "" {
 		return streamRenderResult{}, fmt.Errorf("ffmpeg is not configured")
@@ -515,13 +462,6 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 	planHash := sha256.Sum256(request.PlanJSON)
 	jobID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(sourceHash+hex.EncodeToString(planHash[:])))
 	plan := streamclips.NormalizeEditPlan(request.Plan)
-	requireExactKillfeed := streamPlanNeedsExactKillfeedArtifacts(plan)
-	if !requireExactKillfeed {
-		// Analysis metadata names job-scoped row artifacts. A portable plan whose
-		// cues are all reviewed structured notices needs no source artifacts and
-		// must not retain a Studio generation that is absent from this local run.
-		plan.KillfeedAnalysis = nil
-	}
 	planJSON, err := marshalLocalEditPlan(plan)
 	if err != nil {
 		return streamRenderResult{}, fmt.Errorf("encode stream plan: %w", err)
@@ -563,24 +503,7 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 		FFmpegPath: request.FFmpeg,
 		Timeout:    request.Timeout,
 		MusicDir:   request.MusicDir,
-		XAIAPIKey:  os.Getenv("XAI_API_KEY"),
-		// CLI tasks are synchronous and carry no Studio admission header. Exact
-		// automatic plans are still gated by the metadata attached immediately
-		// below; appliedKillfeedAnalysis validates that durable generation.
-		RequireAppliedKillfeedAnalysis: false,
 	})
-	if requireExactKillfeed {
-		plan, err = worker.PrepareLocalKillfeedAnalysis(ctx, job, plan)
-		if err != nil {
-			return streamRenderResult{}, fmt.Errorf("prepare exact stream killfeed: %w", err)
-		}
-		planJSON, err = marshalLocalEditPlan(plan)
-		if err != nil {
-			return streamRenderResult{}, fmt.Errorf("encode analyzed stream plan: %w", err)
-		}
-		job.EditPlan = append(json.RawMessage(nil), planJSON...)
-		repo.job = job
-	}
 	request.Plan = plan
 	request.PlanJSON = planJSON
 	if err := store.Put(streamclips.EditPlanKey(jobID), bytes.NewReader(planJSON)); err != nil {
@@ -631,49 +554,7 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 	if request.CoverGenerator == nil {
 		request.CoverGenerator = ffmpegStreamCoverGenerator{}
 	}
-	return publishLocalStreamResult(ctx, store, job, request, workerResult, renderState.ArtifactDir)
-}
-
-func streamPlanNeedsExactKillfeedArtifacts(plan streamclips.EditPlan) bool {
-	if plan.Variant == streamclips.VariantStreamerLandscape16x9 {
-		// Landscape preserves the source frame (including its native killfeed)
-		// and does not compose isolated notice inputs.
-		return false
-	}
-	if plan.KillfeedAnalysis != nil {
-		for _, clip := range plan.Clips {
-			if len(clip.KillfeedSeconds) > 0 {
-				// Older Studio plans already carry authoritative automatic
-				// analysis metadata even if their per-cue provenance predates
-				// this field. Never downgrade those cues to synthetic notices.
-				return true
-			}
-		}
-	}
-	for _, clip := range plan.Clips {
-		for cueIndex := range clip.KillfeedSeconds {
-			cue := clip.KillfeedSeconds[cueIndex]
-			if provenance, explicit := clip.KillfeedProvenanceAt(cue); explicit {
-				if provenance.Origin == streamclips.KillfeedCueAutomatic {
-					return true
-				}
-				if cueIndex >= len(clip.KillfeedKills) || len(clip.KillfeedKills[cueIndex]) == 0 {
-					// Manual cues need reviewed structured kills; running exact
-					// preparation makes the failure actionable instead of allowing
-					// the legacy whole-column fallback.
-					return true
-				}
-				continue
-			}
-			// Compatibility for plans written before provenance existed:
-			// reviewed structured cues are manual, while an unresolved cue
-			// still has to prove a source-backed event before render.
-			if cueIndex >= len(clip.KillfeedKills) || len(clip.KillfeedKills[cueIndex]) == 0 {
-				return true
-			}
-		}
-	}
-	return false
+	return publishLocalStreamResult(ctx, store, job, request, workerResult)
 }
 
 func marshalLocalEditPlan(plan streamclips.EditPlan) ([]byte, error) {
@@ -711,7 +592,6 @@ func publishLocalStreamResult(
 	job streamclips.Job,
 	request streamRenderRequest,
 	workerResult streamclips.RenderResult,
-	artifactDirs ...string,
 ) (streamRenderResult, error) {
 	const publishKey = "shortslistosparasubir"
 	publishDir, err := store.ResolvePath(publishKey)
@@ -733,10 +613,6 @@ func publishLocalStreamResult(
 		return streamRenderResult{}, err
 	}
 	videos := make([]streamLocalVideo, 0, len(workerResult.Clips))
-	artifactDir := ""
-	if len(artifactDirs) > 0 {
-		artifactDir = artifactDirs[0]
-	}
 	for _, entry := range workerResult.Clips {
 		source, err := store.Open(entry.Key)
 		if err != nil {
@@ -759,7 +635,7 @@ func publishLocalStreamResult(
 		if request.FFmpeg != "" && request.CoverGenerator != nil {
 			coverFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + ".cover.jpg"
 			coverPath := filepath.Join(stagingDir, coverFilename)
-			coverAt := streamCoverTimestamp(request.Plan, entry.ClipID, entry.DurationSeconds)
+			coverAt := streamCoverTimestamp(entry.DurationSeconds)
 			coverCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			err := request.CoverGenerator.Generate(coverCtx, request.FFmpeg, filepath.Join(stagingDir, filename), coverPath, coverAt)
 			cancel()
@@ -767,37 +643,6 @@ func publishLocalStreamResult(
 				return streamRenderResult{}, fmt.Errorf("generate cover for clip %s: %w", entry.ClipID, err)
 			}
 			video.CoverPath = filepath.Join(publishDir, coverFilename)
-		}
-		// Video keys gain a _captioned suffix after the burn pass, but
-		// NewVideoEntry deliberately keeps ClipID equal to the original plan
-		// clip. Caption artifacts are keyed by that stable source clip ID.
-		captionKey := ""
-		if artifactDir != "" {
-			captionKey = path.Join(artifactDir, "captions", entry.ClipID+".ass")
-		} else {
-			captionKey, err = streamclips.RenderCaptionKey(job.ID, request.Plan.Variant, entry.ClipID)
-			if err != nil {
-				return streamRenderResult{}, err
-			}
-		}
-		exists, err := store.Exists(captionKey)
-		if err != nil {
-			return streamRenderResult{}, err
-		}
-		if exists {
-			caption, err := store.Open(captionKey)
-			if err != nil {
-				return streamRenderResult{}, err
-			}
-			captionDestinationKey := filepath.ToSlash(filepath.Join("captions", entry.ClipID+".ass"))
-			if err := publishStore.Put(captionDestinationKey, caption); err != nil {
-				_ = caption.Close()
-				return streamRenderResult{}, err
-			}
-			if err := caption.Close(); err != nil {
-				return streamRenderResult{}, err
-			}
-			video.CaptionsPath = filepath.Join(publishDir, "captions", entry.ClipID+".ass")
 		}
 		videos = append(videos, video)
 	}

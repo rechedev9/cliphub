@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -28,16 +27,10 @@ const (
 	StatusFailed    Status = "failed"
 )
 
-const (
-	// RenderErrorCodeKillfeedArtifactsStale marks a recoverable render failure:
-	// the exact source-backed row captures are missing or corrupt, so the user
-	// can remain in the editor and regenerate killfeed analysis.
-	RenderErrorCodeKillfeedArtifactsStale = "killfeed_artifacts_stale"
-	// RenderErrorCodeSuperseded marks an admitted render whose immutable plan
-	// or analysis generation changed before it could commit. The job remains
-	// editable and can be rendered again.
-	RenderErrorCodeSuperseded = "render_superseded"
-)
+// RenderErrorCodeSuperseded marks an admitted render whose immutable plan
+// changed before it could commit. The job remains editable and can be
+// rendered again.
+const RenderErrorCodeSuperseded = "render_superseded"
 
 var clipIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
@@ -106,46 +99,12 @@ type CropRect struct {
 	Height float64 `json:"height"`
 }
 
-// KillfeedCueOrigin records whether a cue came from source-frame analysis or
-// was authored manually. Rendering uses this durable provenance instead of
-// inferring origin from whether OCR/reviewed kills happen to be present.
-type KillfeedCueOrigin string
-
-const (
-	KillfeedCueAutomatic KillfeedCueOrigin = "automatic"
-	KillfeedCueManual    KillfeedCueOrigin = "manual"
-)
-
-// KillfeedCueProvenance is keyed by CueSeconds rather than slice position so
-// clients can sort, add, or remove cues without silently reassigning origin.
-// EventID is filled once an automatic cue is bound to exact captured evidence;
-// CLI detection may leave it empty until synchronous render analysis runs.
-type KillfeedCueProvenance struct {
-	CueSeconds float64           `json:"cue_seconds"`
-	Origin     KillfeedCueOrigin `json:"origin"`
-	EventID    string            `json:"event_id,omitempty"`
-}
-
 type ClipRange struct {
-	ID              string    `json:"id"`
-	StartSeconds    float64   `json:"start_seconds"`
-	EndSeconds      float64   `json:"end_seconds"`
-	KillfeedSeconds []float64 `json:"killfeed_seconds,omitempty"`
-	// KillfeedKills is index-aligned with KillfeedSeconds. Each inner slice
-	// contains only the notices born at that cue, not a cumulative snapshot.
-	KillfeedKills [][]KillfeedKill `json:"killfeed_kills,omitempty"`
-	// KillfeedCueProvenance independently identifies automatic versus manual
-	// cues. It is intentionally not index-aligned: CueSeconds is the key.
-	KillfeedCueProvenance []KillfeedCueProvenance `json:"killfeed_cue_provenance,omitempty"`
-	// CaptionWords are reviewed Spanish word cues relative to this clip's
-	// source range. When present they are burned directly and no cloud
-	// transcription key is required.
-	CaptionWords []CaptionWord `json:"caption_words,omitempty"`
-	// CaptionReviewed distinguishes an intentionally empty, human-reviewed
-	// no-speech clip from one that still needs transcription.
-	CaptionReviewed bool      `json:"caption_reviewed,omitempty"`
-	Title           string    `json:"title,omitempty"`
-	Edit            *ClipEdit `json:"edit,omitempty"`
+	ID           string    `json:"id"`
+	StartSeconds float64   `json:"start_seconds"`
+	EndSeconds   float64   `json:"end_seconds"`
+	Title        string    `json:"title,omitempty"`
+	Edit         *ClipEdit `json:"edit,omitempty"`
 }
 
 // Clip edit limits. Speed stays within what chained atempo filters reproduce
@@ -196,50 +155,17 @@ type TextOverlay struct {
 	FontSize int `json:"font_size,omitempty"`
 }
 
-// KillfeedKill is one confirmed CS2 kill notice, either read from the cue
-// frame by the xAI vision reader or entered by the user in the web editor.
-// It mirrors the community killfeed CSV schema so imports stay trivial.
-// Weapon is a key from WeaponKeys (the embedded notice icon catalog).
-type KillfeedKill struct {
-	AttackerSide string `json:"attacker_side"` // "CT" or "T"
-	AttackerName string `json:"attacker_name"`
-	VictimSide   string `json:"victim_side"` // "CT" or "T"
-	VictimName   string `json:"victim_name"`
-	AssisterSide string `json:"assister_side,omitempty"`
-	AssisterName string `json:"assister_name,omitempty"`
-	Weapon       string `json:"weapon"`
-	Headshot     bool   `json:"headshot,omitempty"`
-	Wallbang     bool   `json:"wallbang,omitempty"`
-	Noscope      bool   `json:"noscope,omitempty"`
-	Smoke        bool   `json:"smoke,omitempty"`
-	Blind        bool   `json:"blind,omitempty"`
-	InAir        bool   `json:"in_air,omitempty"`
-	FlashAssist  bool   `json:"flash_assist,omitempty"`
-}
-
-// CaptionWord is one reviewed Spanish word on the clip-relative source
-// timeline. It mirrors captions.WordCue without coupling saved edit plans to a
-// renderer package.
-type CaptionWord struct {
-	Word         string  `json:"word"`
-	StartSeconds float64 `json:"start_seconds"`
-	EndSeconds   float64 `json:"end_seconds"`
-}
-
 type EditPlan struct {
-	SchemaVersion    string                    `json:"schema_version"`
-	Variant          string                    `json:"variant"`
-	FaceCrop         CropRect                  `json:"face_crop"`
-	FaceCropReviewed bool                      `json:"face_crop_reviewed,omitempty"`
-	GameplayCrop     CropRect                  `json:"gameplay_crop"`
-	KillfeedCrop     *CropRect                 `json:"killfeed_crop,omitempty"`
-	KillfeedAnalysis *KillfeedAnalysisMetadata `json:"killfeed_analysis,omitempty"`
-	Clips            []ClipRange               `json:"clips"`
-	StreamerBanner   StreamerBannerPlan        `json:"streamer_banner,omitzero"`
-	Captions         CaptionsPlan              `json:"captions,omitzero"`
-	Music            MusicPlan                 `json:"music,omitzero"`
-	Effects          EffectsPlan               `json:"effects,omitzero"`
-	UpdatedAt        time.Time                 `json:"updated_at"`
+	SchemaVersion    string             `json:"schema_version"`
+	Variant          string             `json:"variant"`
+	FaceCrop         CropRect           `json:"face_crop"`
+	FaceCropReviewed bool               `json:"face_crop_reviewed,omitempty"`
+	GameplayCrop     CropRect           `json:"gameplay_crop"`
+	Clips            []ClipRange        `json:"clips"`
+	StreamerBanner   StreamerBannerPlan `json:"streamer_banner,omitzero"`
+	Music            MusicPlan          `json:"music,omitzero"`
+	Effects          EffectsPlan        `json:"effects,omitzero"`
+	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
 const EditPlanSchemaVersion = "1.1"
@@ -250,16 +176,6 @@ type StreamerBannerPlan struct {
 	Nick         string   `json:"nick,omitempty"`
 	PositionY    *float64 `json:"position_y,omitempty"`
 	SlideEnabled bool     `json:"slide_enabled,omitempty"`
-}
-
-// CaptionsPlan opts a stream render into a burned-in karaoke caption pass.
-// Subtitle output is always Spanish: Spanish speech is preserved and other
-// recognized speech is translated. Language remains in the wire shape for
-// saved-plan compatibility; new plans write "es" and rendering ignores older
-// source-language values. Nothing is required when Enabled is false.
-type CaptionsPlan struct {
-	Enabled  bool   `json:"enabled"`
-	Language string `json:"language,omitempty"`
 }
 
 // defaultMusicVolume is the music gain mixed under the clip's original audio
@@ -433,19 +349,6 @@ func (p EditPlan) Validate() error {
 			return err
 		}
 	}
-	if p.KillfeedCrop != nil {
-		if err := p.KillfeedCrop.Validate("killfeed_crop"); err != nil {
-			return err
-		}
-	}
-	if p.KillfeedAnalysis != nil {
-		if p.KillfeedCrop == nil {
-			return fmt.Errorf("killfeed_analysis requires killfeed_crop")
-		}
-		if err := p.KillfeedAnalysis.Validate(); err != nil {
-			return err
-		}
-	}
 	if err := p.GameplayCrop.Validate("gameplay_crop"); err != nil {
 		return err
 	}
@@ -453,12 +356,6 @@ func (p EditPlan) Validate() error {
 	for _, clip := range p.Clips {
 		if err := clip.Validate(); err != nil {
 			return err
-		}
-		// Kills are index-aligned with killfeed_seconds (enforced in
-		// ClipRange.Validate), so a clip with kills always has cues and this
-		// single check covers both.
-		if p.KillfeedCrop == nil && len(clip.KillfeedSeconds) > 0 {
-			return fmt.Errorf("clip %s has killfeed_seconds but killfeed_crop is not configured", clip.ID)
 		}
 		if seen[clip.ID] {
 			return fmt.Errorf("duplicate clip id %q", clip.ID)
@@ -535,25 +432,6 @@ func MigrateLegacySourceDuration(plan EditPlan, durationSeconds float64) (EditPl
 			continue
 		}
 		clip.EndSeconds = durationSeconds
-		if len(clip.KillfeedSeconds) > 0 {
-			cues := make([]float64, 0, len(clip.KillfeedSeconds))
-			alignedKills := clip.KillfeedKills != nil && len(clip.KillfeedKills) == len(clip.KillfeedSeconds)
-			kills := clip.KillfeedKills
-			if alignedKills {
-				kills = make([][]KillfeedKill, 0, len(clip.KillfeedKills))
-			}
-			for i, cue := range clip.KillfeedSeconds {
-				if cue < clip.StartSeconds || cue >= clip.EndSeconds {
-					continue
-				}
-				cues = append(cues, cue)
-				if alignedKills {
-					kills = append(kills, clip.KillfeedKills[i])
-				}
-			}
-			clip.KillfeedSeconds = cues
-			clip.KillfeedKills = kills
-		}
 		clips = append(clips, clip)
 	}
 	if !changed {
@@ -595,91 +473,6 @@ func (c ClipRange) Validate() error {
 	if c.EndSeconds <= c.StartSeconds {
 		return fmt.Errorf("clip %s end_seconds must be greater than start_seconds", c.ID)
 	}
-	for _, cue := range c.KillfeedSeconds {
-		if math.IsNaN(cue) || math.IsInf(cue, 0) {
-			return fmt.Errorf("clip %s killfeed_seconds must contain only finite values", c.ID)
-		}
-		if cue < c.StartSeconds || cue >= c.EndSeconds {
-			return fmt.Errorf(
-				"clip %s killfeed cue %g must satisfy start_seconds <= cue < end_seconds",
-				c.ID, cue,
-			)
-		}
-	}
-	if c.KillfeedKills != nil && len(c.KillfeedKills) != len(c.KillfeedSeconds) {
-		return fmt.Errorf(
-			"clip %s killfeed_kills length %d must match %d killfeed_seconds",
-			c.ID, len(c.KillfeedKills), len(c.KillfeedSeconds),
-		)
-	}
-	for _, cue := range c.KillfeedKills {
-		for _, kill := range cue {
-			if err := kill.validate(c.ID); err != nil {
-				return err
-			}
-		}
-	}
-	seenProvenance := make(map[float64]struct{}, len(c.KillfeedCueProvenance))
-	for _, provenance := range c.KillfeedCueProvenance {
-		if math.IsNaN(provenance.CueSeconds) || math.IsInf(provenance.CueSeconds, 0) {
-			return fmt.Errorf("clip %s killfeed cue provenance must use a finite cue_seconds", c.ID)
-		}
-		if _, duplicate := seenProvenance[provenance.CueSeconds]; duplicate {
-			return fmt.Errorf("clip %s has duplicate killfeed cue provenance at %g", c.ID, provenance.CueSeconds)
-		}
-		seenProvenance[provenance.CueSeconds] = struct{}{}
-		matchedCue := false
-		for _, cue := range c.KillfeedSeconds {
-			if cue == provenance.CueSeconds {
-				matchedCue = true
-				break
-			}
-		}
-		if !matchedCue {
-			return fmt.Errorf(
-				"clip %s killfeed cue provenance %g has no matching killfeed_seconds entry",
-				c.ID, provenance.CueSeconds,
-			)
-		}
-		switch provenance.Origin {
-		case KillfeedCueAutomatic:
-		case KillfeedCueManual:
-			if provenance.EventID != "" {
-				return fmt.Errorf("clip %s manual killfeed cue %g must not identify an automatic event", c.ID, provenance.CueSeconds)
-			}
-		default:
-			return fmt.Errorf("clip %s killfeed cue %g has unknown origin %q", c.ID, provenance.CueSeconds, provenance.Origin)
-		}
-	}
-	lastEnd := 0.0
-	for i, cue := range c.CaptionWords {
-		word := strings.TrimSpace(cue.Word)
-		if word == "" {
-			return fmt.Errorf("clip %s caption word %d is blank", c.ID, i)
-		}
-		if len([]rune(word)) > 80 {
-			return fmt.Errorf("clip %s caption word %d exceeds 80 characters", c.ID, i)
-		}
-		if strings.ContainsAny(word, "\r\n") {
-			return fmt.Errorf("clip %s caption word %d contains a line break", c.ID, i)
-		}
-		if math.IsNaN(cue.StartSeconds) || math.IsInf(cue.StartSeconds, 0) || cue.StartSeconds < 0 {
-			return fmt.Errorf("clip %s caption word %d start_seconds must be finite and >= 0", c.ID, i)
-		}
-		if math.IsNaN(cue.EndSeconds) || math.IsInf(cue.EndSeconds, 0) || cue.EndSeconds <= cue.StartSeconds {
-			return fmt.Errorf("clip %s caption word %d end_seconds must be finite and greater than start_seconds", c.ID, i)
-		}
-		if cue.EndSeconds-cue.StartSeconds > 2.5 {
-			return fmt.Errorf("clip %s caption word %d lasts more than 2.5 seconds", c.ID, i)
-		}
-		if cue.EndSeconds > c.EndSeconds-c.StartSeconds+0.001 {
-			return fmt.Errorf("clip %s caption word %d exceeds the clip duration", c.ID, i)
-		}
-		if i > 0 && cue.StartSeconds < lastEnd {
-			return fmt.Errorf("clip %s caption words overlap or are unsorted at index %d", c.ID, i)
-		}
-		lastEnd = cue.EndSeconds
-	}
 	if err := c.Edit.validate(c.ID, c.EndSeconds-c.StartSeconds); err != nil {
 		return err
 	}
@@ -706,7 +499,7 @@ func (c ClipRange) EffectiveSpeed() float64 {
 }
 
 // SourceAudioMuted reports whether the clip edit silences the original audio,
-// which also means transcribing the source would caption inaudible speech.
+// so the source speech is not present in the rendered output.
 func (c ClipRange) SourceAudioMuted() bool {
 	return c.Edit != nil && c.Edit.SourceVolume != nil && *c.Edit.SourceVolume == 0
 }
@@ -786,43 +579,8 @@ func (o TextOverlay) validate(clipID string, clipDuration float64) error {
 	return nil
 }
 
-// validate checks that a kill notice carries the names, team sides, and weapon
-// key the synthetic notice renderer needs. It is tolerant of un-normalized case
-// and whitespace so a plan validates the same before and after normalization.
-func (k KillfeedKill) validate(clipID string) error {
-	if strings.TrimSpace(k.AttackerName) == "" {
-		return fmt.Errorf("clip %s killfeed kill attacker_name is required", clipID)
-	}
-	if strings.TrimSpace(k.VictimName) == "" {
-		return fmt.Errorf("clip %s killfeed kill victim_name is required", clipID)
-	}
-	if !validKillSide(k.AttackerSide) {
-		return fmt.Errorf("clip %s killfeed kill attacker_side %q must be CT or T", clipID, k.AttackerSide)
-	}
-	if !validKillSide(k.VictimSide) {
-		return fmt.Errorf("clip %s killfeed kill victim_side %q must be CT or T", clipID, k.VictimSide)
-	}
-	if strings.TrimSpace(k.AssisterName) != "" && !validKillSide(k.AssisterSide) {
-		return fmt.Errorf("clip %s killfeed kill assister_side %q must be CT or T", clipID, k.AssisterSide)
-	}
-	if !ValidWeaponKey(strings.ToLower(strings.TrimSpace(k.Weapon))) {
-		return fmt.Errorf("clip %s killfeed kill weapon %q is not a known weapon", clipID, k.Weapon)
-	}
-	return nil
-}
-
-func validKillSide(side string) bool {
-	switch strings.ToUpper(strings.TrimSpace(side)) {
-	case "CT", "T":
-		return true
-	default:
-		return false
-	}
-}
-
 func NormalizeEditPlan(plan EditPlan) EditPlan {
-	legacyKillfeedSnapshots := plan.SchemaVersion == "" || plan.SchemaVersion == "1.0"
-	if legacyKillfeedSnapshots {
+	if plan.SchemaVersion == "" || plan.SchemaVersion == "1.0" {
 		plan.SchemaVersion = EditPlanSchemaVersion
 	}
 	if plan.Variant == "" {
@@ -834,15 +592,8 @@ func NormalizeEditPlan(plan EditPlan) EditPlan {
 	if len(plan.Clips) > 0 {
 		plan.Clips = append([]ClipRange(nil), plan.Clips...)
 	}
-	if plan.KillfeedAnalysis != nil {
-		metadata := *plan.KillfeedAnalysis
-		plan.KillfeedAnalysis = &metadata
-	}
 	for i := range plan.Clips {
 		plan.Clips[i] = normalizeClipRange(plan.Clips[i])
-		if legacyKillfeedSnapshots {
-			plan.Clips[i].KillfeedKills = killfeedSnapshotsToEvents(plan.Clips[i].KillfeedKills)
-		}
 		plan.Clips[i].ID = strings.TrimSpace(plan.Clips[i].ID)
 	}
 	plan.StreamerBanner.Nick = strings.TrimSpace(plan.StreamerBanner.Nick)
@@ -855,78 +606,9 @@ func NormalizeEditPlan(plan EditPlan) EditPlan {
 	return plan
 }
 
-// killfeedSnapshotsToEvents migrates the cumulative snapshots stored by edit
-// plan schema 1.0 into the birth-only event deltas consumed by schema 1.1. An
-// empty entry means an unresolved frozen-crop cue, not an observed empty
-// snapshot, so it does not reset the previous observed snapshot.
-func killfeedSnapshotsToEvents(snapshots [][]KillfeedKill) [][]KillfeedKill {
-	if len(snapshots) == 0 {
-		return snapshots
-	}
-	events := make([][]KillfeedKill, len(snapshots))
-	var previous map[KillfeedKill]struct{}
-	for i, snapshot := range snapshots {
-		if len(snapshot) == 0 {
-			continue
-		}
-		current := make(map[KillfeedKill]struct{}, len(snapshot))
-		for _, kill := range snapshot {
-			if _, duplicate := current[kill]; duplicate {
-				continue
-			}
-			current[kill] = struct{}{}
-			if _, existed := previous[kill]; !existed {
-				events[i] = append(events[i], kill)
-			}
-		}
-		previous = current
-	}
-	return events
-}
-
 func normalizeClipRange(clip ClipRange) ClipRange {
-	clip.KillfeedSeconds, clip.KillfeedKills = normalizeKillfeedPlanEntries(
-		clip.KillfeedSeconds,
-		clip.KillfeedKills,
-	)
-	clip.KillfeedCueProvenance = normalizeKillfeedCueProvenance(
-		clip.KillfeedCueProvenance,
-		clip.KillfeedSeconds,
-	)
 	clip.Edit = normalizeClipEdit(clip.Edit)
-	if len(clip.CaptionWords) > 0 {
-		clip.CaptionWords = append([]CaptionWord(nil), clip.CaptionWords...)
-		for i := range clip.CaptionWords {
-			clip.CaptionWords[i].Word = strings.TrimSpace(clip.CaptionWords[i].Word)
-		}
-	}
 	return clip
-}
-
-// KillfeedProvenanceAt returns explicit durable provenance for one exact cue.
-func (c ClipRange) KillfeedProvenanceAt(cue float64) (KillfeedCueProvenance, bool) {
-	for _, provenance := range c.KillfeedCueProvenance {
-		if provenance.CueSeconds == cue {
-			return provenance, true
-		}
-	}
-	return KillfeedCueProvenance{}, false
-}
-
-// CaptionsNeedBackend reports whether at least one audible clip still needs
-// transcription because it has neither reviewed Spanish words nor a reviewed
-// no-speech decision. Muted clips do not need captions because their source
-// speech is not present in the output.
-func (p EditPlan) CaptionsNeedBackend() bool {
-	if !p.Captions.Enabled {
-		return false
-	}
-	for _, clip := range p.Clips {
-		if !clip.SourceAudioMuted() && !clip.CaptionReviewed {
-			return true
-		}
-	}
-	return false
 }
 
 // normalizeClipEdit trims overlay text and collapses an all-defaults edit back
@@ -958,136 +640,4 @@ func normalizeClipEdit(edit *ClipEdit) *ClipEdit {
 		return nil
 	}
 	return &normalized
-}
-
-// normalizeKillfeedKills trims and case-folds every kill's names, team sides,
-// and weapon key. It deep-copies so the caller's slices are never mutated, and
-// preserves nil cue entries so the result stays index-aligned with the cues.
-func normalizeKillfeedKills(kills [][]KillfeedKill) [][]KillfeedKill {
-	if len(kills) == 0 {
-		return kills
-	}
-	out := make([][]KillfeedKill, len(kills))
-	for i, cue := range kills {
-		if cue == nil {
-			continue
-		}
-		normalized := make([]KillfeedKill, len(cue))
-		for j, kill := range cue {
-			normalized[j] = normalizeKill(kill)
-		}
-		out[i] = normalized
-	}
-	return out
-}
-
-func normalizeKill(k KillfeedKill) KillfeedKill {
-	k.AttackerSide = strings.ToUpper(strings.TrimSpace(k.AttackerSide))
-	k.VictimSide = strings.ToUpper(strings.TrimSpace(k.VictimSide))
-	k.AssisterSide = strings.ToUpper(strings.TrimSpace(k.AssisterSide))
-	k.AttackerName = strings.TrimSpace(k.AttackerName)
-	k.VictimName = strings.TrimSpace(k.VictimName)
-	k.AssisterName = strings.TrimSpace(k.AssisterName)
-	k.Weapon = strings.ToLower(strings.TrimSpace(k.Weapon))
-	return k
-}
-
-func normalizeKillfeedSeconds(cues []float64) []float64 {
-	if len(cues) == 0 {
-		return cues
-	}
-	normalized := append([]float64(nil), cues...)
-	sort.Float64s(normalized)
-	writeIndex := 1
-	for _, cue := range normalized[1:] {
-		if cue == normalized[writeIndex-1] {
-			continue
-		}
-		normalized[writeIndex] = cue
-		writeIndex++
-	}
-	return normalized[:writeIndex]
-}
-
-// normalizeKillfeedPlanEntries sorts and deduplicates cues without breaking
-// the index alignment of their kill events. When kills are omitted (or the
-// input is already invalid because lengths differ), cue-only normalization is
-// retained and Validate reports any remaining length mismatch.
-func normalizeKillfeedPlanEntries(cues []float64, kills [][]KillfeedKill) ([]float64, [][]KillfeedKill) {
-	normalizedKills := normalizeKillfeedKills(kills)
-	if len(cues) == 0 || len(normalizedKills) == 0 || len(normalizedKills) != len(cues) {
-		return normalizeKillfeedSeconds(cues), normalizedKills
-	}
-
-	type entry struct {
-		cue   float64
-		kills []KillfeedKill
-	}
-	entries := make([]entry, len(cues))
-	for i, cue := range cues {
-		entries[i] = entry{cue: cue, kills: normalizedKills[i]}
-	}
-	sort.SliceStable(entries, func(i, j int) bool {
-		return entries[i].cue < entries[j].cue
-	})
-
-	deduped := entries[:0]
-	for _, current := range entries {
-		if len(deduped) > 0 && deduped[len(deduped)-1].cue == current.cue {
-			deduped[len(deduped)-1].kills = mergeKillfeedKills(deduped[len(deduped)-1].kills, current.kills)
-			continue
-		}
-		deduped = append(deduped, current)
-	}
-
-	normalizedCues := make([]float64, len(deduped))
-	normalizedKills = make([][]KillfeedKill, len(deduped))
-	for i, current := range deduped {
-		normalizedCues[i] = current.cue
-		normalizedKills[i] = current.kills
-	}
-	return normalizedCues, normalizedKills
-}
-
-func normalizeKillfeedCueProvenance(
-	provenance []KillfeedCueProvenance,
-	cues []float64,
-) []KillfeedCueProvenance {
-	if len(provenance) == 0 || len(cues) == 0 {
-		return nil
-	}
-	wanted := make(map[float64]struct{}, len(cues))
-	for _, cue := range cues {
-		wanted[cue] = struct{}{}
-	}
-	normalized := make([]KillfeedCueProvenance, 0, len(provenance))
-	for _, current := range provenance {
-		if _, keep := wanted[current.CueSeconds]; !keep {
-			continue
-		}
-		current.Origin = KillfeedCueOrigin(strings.ToLower(strings.TrimSpace(string(current.Origin))))
-		current.EventID = strings.TrimSpace(current.EventID)
-		normalized = append(normalized, current)
-	}
-	sort.SliceStable(normalized, func(i, j int) bool {
-		return normalized[i].CueSeconds < normalized[j].CueSeconds
-	})
-	// Do not guess when duplicate metadata disagrees about origin or event
-	// identity. ClipRange.Validate reports the ambiguity before render.
-	return normalized
-}
-
-func mergeKillfeedKills(existing, incoming []KillfeedKill) []KillfeedKill {
-	merged := make([]KillfeedKill, 0, len(existing)+len(incoming))
-	seen := make(map[KillfeedKill]struct{}, len(existing)+len(incoming))
-	for _, kills := range [][]KillfeedKill{existing, incoming} {
-		for _, kill := range kills {
-			if _, ok := seen[kill]; ok {
-				continue
-			}
-			seen[kill] = struct{}{}
-			merged = append(merged, kill)
-		}
-	}
-	return merged
 }

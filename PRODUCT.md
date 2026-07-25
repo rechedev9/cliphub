@@ -9,8 +9,8 @@ Download it from the [`landing/`](./landing) site - there is no hosted service t
 
 It parses demos into kill plans, records gameplay with HLAE/CS2, and
 post-processes clips with FFmpeg, Lua effects, overlays, and publishing
-metadata. Capture and rendering run locally on Windows; optional stream-caption
-audio is sent to xAI only when cloud subtitles are enabled.
+metadata. Capture and rendering run locally on Windows, and no media or audio is
+sent to a cloud service.
 
 ```text
 .dem + prompt
@@ -114,8 +114,7 @@ round counts, kills, ADR, date); it does not infer clip ranges. Downloaded
 `.dem` data remains authoritative for POV, weapons, kills, and capture ticks.
 
 `capabilities` reports local record/compose/render/stream readiness without
-starting workers or media processes, including separate booleans for local
-killfeed detection and xAI-backed Spanish captions. Workflow discovery exposes canonical commands,
+starting workers or media processes. Workflow discovery exposes canonical commands,
 positionals, flags, conditional requirements, allowed values, defaults, and
 safety hints. Validation checks the exact argv without executing it; after it
 succeeds, Codex can run the same argv. Remove both `--dry-run --format json`
@@ -163,74 +162,32 @@ that plan locally:
 ./bin/zv stream variants --format json
 
 # Preflight the plan without writing it.
-./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --killfeed-crop 0.82,0.05,0.17,0.18 --detect-killfeed --dry-run --format json
+./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run --format json
 
 # After approval, persist every contract before the next stage consumes it.
-./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --killfeed-crop 0.82,0.05,0.17,0.18 --detect-killfeed --format json
-./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run --format json
-./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --format json
-./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --model data/models/whisper/ggml-large-v3-turbo-q5_0.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --dry-run --format json
-./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --model data/models/whisper/ggml-large-v3-turbo-q5_0.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --format json
-./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run --format json
-./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --format json
-./bin/zv stream render --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream --dry-run --format json
-./bin/zv stream render --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream --format json
+./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --format json
+./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run --format json
+./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --format json
 
 # The same persisted sequence through the workflow registry.
-./bin/zv workflows validate stream-plan --format json -- --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --killfeed-crop 0.82,0.05,0.17,0.18 --detect-killfeed
-./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --killfeed-crop 0.82,0.05,0.17,0.18 --detect-killfeed
-./bin/zv workflows validate stream-killfeed --format json -- --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run
-./bin/zv workflows run stream-killfeed -- --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json
-./bin/zv workflows validate stream-transcribe --format json -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --model data/models/whisper/ggml-large-v3-turbo-q5_0.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json --dry-run
-./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model data/models/whisper/ggml-large-v3.bin --model data/models/whisper/ggml-large-v3-turbo-q5_0.bin --vad-model data/models/whisper/ggml-silero-v6.2.0.bin --out data/runs/stream/transcript-review.json
-./bin/zv workflows validate stream-captions --format json -- --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run
-./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json
-./bin/zv workflows validate stream-render --format json -- --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream --dry-run
-./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/final-plan.json --out data/runs/stream
+./bin/zv workflows validate stream-plan --format json -- --input stream.mp4 --out data/runs/stream/edit-plan.json
+./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json
+./bin/zv workflows validate stream-render --format json -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run
+./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream
 ```
 
 Every `--dry-run` line above is a preflight only: it never creates its `--out`
 artifact. Run the immediately following persistence command after approval
 before continuing to the dependent stage. The final non-dry `stream render` is
-the expensive local media operation. Its upload-ready pack includes a cover JPG
-chosen from the confirmed killfeed cue with the most kills (or a stable fallback
-frame when no kills are confirmed), alongside the video, captions, manifest,
-and gallery. Build `killfeed-events.json` from the
-detected cue frames and `caption-words.json` from factual Spanish text/timings;
-the files under `testdata/` are schema examples, not generic stream content.
-
-`stream transcribe` is the credential-free local evidence stage. It runs every
-supplied Whisper model over both raw mono audio and a dialogue-enhanced pass,
-uses the supplied Silero VAD model, records each model SHA-256, and writes a
-`review_status: "requires_review"` document. It intentionally does not emit
-renderable `caption_words`: gameplay sounds can resemble speech, so an agent or
-person must compare the passes, reject disagreements, and save only verified
-Spanish words and clip-relative timings before `stream captions` accepts them.
-Detected killfeed false positives are represented honestly with an empty
-`kills` array and removed by `stream killfeed`. Likewise, a reviewed audible
-clip with no speech uses `"no_speech": true, "words": []`; the renderer then
-publishes it without captions and without requiring a cloud key.
+the expensive local media operation.
+Its upload-ready pack includes a cover JPG taken at 35% of the rendered clip duration, alongside the video, manifest, and gallery.
 
 Use the default vertical variant for TikTok/Shorts or pass
 `--variant streamer-landscape-16x9` to `stream plan` for a 1920x1080 YouTube
 edit that preserves the complete source frame, HUD, killfeed, and facecam.
 
-The edit plan is the reviewable contract for clip ranges, normalized facecam,
-gameplay and killfeed crops, exact `killfeed_seconds`/`killfeed_kills`, Spanish
-captions, music, effects, and text. `stream captions` imports reviewed Spanish
-word timings and renders them without a cloud credential. If a plan enables
-captions without reviewed `caption_words` for every audible clip,
-`XAI_API_KEY` supplies the automatic transcription and Spanish translation
-fallback. Burned captions retain an ASS sidecar for QA. Final MP4s, captions,
-manifest, and local gallery are written to `<run>/shortslistosparasubir/`.
-
-`--detect-killfeed` is local and deterministic: it scans only the selected clip
-range for highlighted CS2 notice births and writes their source timestamps into
-the plan. When no structured `killfeed_kills` are supplied, rendering preserves
-the exact source notice as a frozen crop rather than inventing player names.
-`stream killfeed` imports reviewed attacker, victim, side, weapon, and modifier
-fields only when every event timestamp matches a detected cue; this gives
-agents a strict factual boundary instead of asking them to hand-edit the plan.
+The edit plan is the reviewable contract for clip ranges, normalized facecam and gameplay crops, music, effects, and text.
+Final MP4s, covers, manifest, and local gallery are written to `<run>/shortslistosparasubir/`.
 
 Ask naturally from the app, for example: “usa la CLI de FragForge para revisar
 las capacidades, valida un Short con todas las kills de este demo y ejecútalo”.
@@ -335,67 +292,7 @@ capability for API reads and mutations. Other environment variables:
 | `ZV_WORKER_CONCURRENCY` | Asynq worker concurrency (default 2). |
 | `ZV_MEDIA_WORK_DIR` | Keep media workdirs for debugging (deleted after each task when unset). |
 | `ZV_CODEX_PATH`, `ZV_CODEX_MODEL`, `ZV_AGENT_TIMEOUT` | Optional local editorial assistant (`codex exec`, read-only sandbox) for caption/title suggestions. |
-| `XAI_API_KEY` | Optional xAI speech-to-text plus Grok Spanish translation for stream captions. |
 | `FIRECRAWL_API_KEY` | Optional public CS2 Shorts trend hints for the publication assistant; never sent to the browser. |
-
-xAI captions use the REST `/v1/stt` endpoint, which returns word-level timestamps
-and accepts the speech-oriented WAV extracted from the selected source range.
-The endpoint does not take a model name, and its `language` field only formats
-numbers, currencies, and units; it does not select or translate the spoken
-language. FragForge therefore transcribes with automatic source-language
-recognition, then uses `grok-4.5` structured output to preserve Spanish speech
-or translate every other recognized phrase into Spanish before burning captions.
-xAI prices batch speech-to-text separately from streaming; check the
-[current Voice API pricing](https://x.ai/api/voice).
-Stream captions use xAI only. A normal captioned clip makes one transcription
-request and one Spanish preservation/translation request. If the whole-range
-result is unusable or is valid but temporally sparse, FragForge makes one
-speech-enhanced locator request and then re-transcribes at most four short,
-padded regions from the original audio that collectively cover the selected
-range; locator timings choose useful boundaries, but locator text is never
-published. A failed recovery does not discard an otherwise valid first pass. If
-no pass produces usable words or timings, the clip is published uncaptioned with
-a warning rather than burning a hallucinated transcript or substituting another
-engine. A transport, authentication, or Spanish-translation failure remains a
-hard render error because publishing non-Spanish text would violate the selected
-subtitle contract.
-
-Source builds and every desktop installer do not contain a credential.
-In the installed desktop app, each Windows user can open `/settings` and save
-their own xAI key. Electron encrypts it for that Windows user with
-`safeStorage` (backed by DPAPI); the stored value is never returned for display,
-sent to the bundled Next.js server, or written to browser `localStorage`. Saving
-or deleting it takes effect only after an explicit Studio restart. Restarting
-stops the local orchestrator and can interrupt active uploads, captures, or
-renders, so finish those tasks first.
-
-xAI credential precedence is: an inherited `XAI_API_KEY`, then the encrypted
-per-user key from `/settings`, then no xAI credential. Every desktop build is
-credential-free: the packaging scripts remove `XAI_API_KEY` from child build
-environments and expose no target or resource capable of embedding a shared
-key. See `desktop/GUIDE.md` for the desktop and build details.
-
-Set a newly generated key in the same PowerShell session that starts Local
-Studio without putting the secret in command history:
-
-```powershell
-$secureKey = Read-Host "xAI API key" -AsSecureString
-$env:XAI_API_KEY = (New-Object System.Net.NetworkCredential("", $secureKey)).Password
-.\scripts\local-studio.ps1
-```
-
-Validate a real clip against xAI without printing the key or transcript:
-
-```powershell
-.\scripts\smoke-xai-stt.ps1 -MediaPath .\data\clip.mp4 -Language es -ASSPath .\data\clip.ass -ExpectedText "texto conocido de la fixture"
-```
-
-Validate the complete automatic-STT plus Grok 4.5 Spanish output path:
-
-```powershell
-.\scripts\smoke-xai-spanish.ps1 -MediaPath .\data\smoke\xai-stt\voice-es.wav -ASSPath .\data\smoke\xai-stt\voice-es-preserved.ass -ExpectedSpanish "FragForge crea subtítulos precisos para cada clip del directo"
-.\scripts\smoke-xai-spanish.ps1 -MediaPath .\data\smoke\xai-stt\voice-en.wav -ASSPath .\data\smoke\xai-stt\voice-en-spanish.ass
-```
 
 ### Smoke tests
 
@@ -448,8 +345,8 @@ scripted use:
 ./bin/zv shorts render --recording-result run/recording/recording-result.json --out run/shorts --publish-dir run/shortslistosparasubir --preset viral-60-clean --output-format short-9x16
 ./bin/zv compose final --recording-result run/recording/recording-result.json --out run/final.mp4
 ./bin/zv music analyze --input track.mp3 --killplan plan.json --out run/rhythm.json
-./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events testdata/stream-killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run --format json
-./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words testdata/stream-caption-words.json --out data/runs/stream/final-plan.json --dry-run --format json
+./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run --format json
+./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run --format json
 ./bin/zv analysis tactical --demo match.dem --out data/analysis/match-tactical.json --positions data/analysis/match-positions.zvpos --hz 8 --cell-size 64 --dry-run --format json
 ./bin/zv analysis rounds --tactical testdata/agent-tactical.json --side T --buy full --format json
 ./bin/zv analysis tendencies --tactical testdata/agent-tactical.json --team t-start --phase regulation --format json

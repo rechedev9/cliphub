@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// EditPlanFingerprint identifies one normalized edit-plan revision. Unlike the
-// killfeed-analysis fingerprint, this includes every render-affecting field,
-// reviewed subtitle/killfeed contents. UpdatedAt is deliberately excluded: it
-// is not render input, and legacy plans may acquire it during normalization.
+// EditPlanFingerprint identifies one normalized edit-plan revision. It covers
+// every render-affecting field: clips, crops, layout, banner, music, and
+// effects. UpdatedAt is deliberately excluded: it is not render input, and
+// legacy plans may acquire it during normalization.
 func EditPlanFingerprint(plan EditPlan) (string, error) {
 	normalized := NormalizeEditPlan(plan)
 	normalized.UpdatedAt = time.Time{}

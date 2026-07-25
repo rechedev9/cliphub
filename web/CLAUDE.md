@@ -78,6 +78,6 @@ React:
 Testing:
 
 - Unit tests are `lib/**/*.test.ts` on `node:test`, run with `pnpm run test:unit` (Node strips types natively; relative imports keep the `.ts` extension, allowed by `allowImportingTsExtensions`).
-- Browser E2E/Playwright was removed by project policy; integration coverage lives in Go HTTP/worker tests and targeted manual smoke commands such as `scripts/smoke-xai-stt.ps1`.
+- Browser E2E/Playwright was removed by project policy; integration coverage lives in Go HTTP/worker tests and targeted manual smoke commands such as `scripts/smoke-real.ps1`.
 - A test double for an external client (e.g. a fake `SupabaseClient`) types only the call surface it fakes and is cast once at creation with `as unknown as <ClientType>` plus a comment; that is the sole sanctioned use of a double cast.
 - Bug fixes need a regression test, same as Go.

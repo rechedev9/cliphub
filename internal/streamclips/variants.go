@@ -16,8 +16,7 @@ const (
 
 	// VariantStreamerLandscape16x9 preserves a full 1920x1080 stream frame
 	// for long-form YouTube delivery. Existing facecam/HUD composition in the
-	// source remains untouched; captions and factual killfeed overlays can
-	// still be added by the same edit plan.
+	// source remains untouched.
 	VariantStreamerLandscape16x9 = "streamer-landscape-16x9"
 )
 

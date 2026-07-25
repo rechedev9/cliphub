@@ -7,11 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-
-	"github.com/rechedev9/fragforge/internal/streamclips"
 )
-
-const streamCoverAfterKillSeconds = 0.25
 
 type streamCoverGenerator interface {
 	Generate(ctx context.Context, ffmpeg, videoPath, coverPath string, atSeconds float64) error
@@ -43,35 +39,10 @@ func (ffmpegStreamCoverGenerator) Generate(ctx context.Context, ffmpeg, videoPat
 	return fmt.Errorf("%w: %s", err, detail)
 }
 
-// streamCoverTimestamp chooses the strongest confirmed killfeed event and
-// maps its source timestamp onto the rendered clip timeline. When there is no
-// confirmed event, the first third of the clip is a stable, non-black default.
-func streamCoverTimestamp(plan streamclips.EditPlan, clipID string, renderedDuration float64) float64 {
-	for _, clip := range plan.Clips {
-		if clip.ID != clipID {
-			continue
-		}
-		speed := clip.EffectiveSpeed()
-		at := renderedDuration * 0.35
-		best := -1
-		for i := range clip.KillfeedSeconds {
-			if killCountAt(clip, i) > 0 && (best < 0 || killCountAt(clip, i) > killCountAt(clip, best)) {
-				best = i
-			}
-		}
-		if best >= 0 {
-			at = (clip.KillfeedSeconds[best] - clip.StartSeconds + streamCoverAfterKillSeconds) / speed
-		}
-		return clampStreamCoverTimestamp(at, renderedDuration)
-	}
+// streamCoverTimestamp picks a stable, non-black frame from the rendered clip.
+// The first third of the clip avoids both the opening fade and the tail.
+func streamCoverTimestamp(renderedDuration float64) float64 {
 	return clampStreamCoverTimestamp(renderedDuration*0.35, renderedDuration)
-}
-
-func killCountAt(clip streamclips.ClipRange, index int) int {
-	if index < 0 || index >= len(clip.KillfeedKills) {
-		return 0
-	}
-	return len(clip.KillfeedKills[index])
 }
 
 func clampStreamCoverTimestamp(at, duration float64) float64 {

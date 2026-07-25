@@ -595,12 +595,6 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 		return nil
 	case "stream-plan":
 		return []string{"--", "--input", "stream.mp4", "--out", "run/stream-edit-plan.json", "--dry-run"}
-	case "stream-killfeed":
-		return []string{"--", "--plan", "run/stream-edit-plan.json", "--events", "run/killfeed-events.json", "--out", "run/reviewed-plan.json", "--dry-run"}
-	case "stream-transcribe":
-		return []string{"--", "--input", "stream.mp4", "--plan", "run/reviewed-plan.json", "--model", "run/whisper.bin", "--vad-model", "run/vad.bin", "--out", "run/transcript-review.json", "--dry-run"}
-	case "stream-captions":
-		return []string{"--", "--plan", "run/reviewed-plan.json", "--words", "run/caption-words.json", "--out", "run/final-plan.json", "--dry-run"}
 	case "stream-render":
 		return []string{"--", "--input", "stream.mp4", "--plan", "run/stream-edit-plan.json", "--out", "run/stream", "--dry-run"}
 	case "music-analyze":
@@ -1099,10 +1093,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv music analyze --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv shorts render --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
 		"./bin/zv stream variants",
-		"./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run",
-		"./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run",
-		"./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
-		"./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
+		"./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
 		"./bin/zv analysis tactical --demo testdata/foo.dem --out data/analysis/foo-tactical.json --positions data/analysis/foo-positions.zvpos --format json",
 		"./bin/zv analysis rounds --tactical data/analysis/foo-tactical.json --side T --format json",
@@ -1141,12 +1132,6 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show stream-variants --format json",
 		"./bin/zv workflows show stream-plan",
 		"./bin/zv workflows show stream-plan --format json",
-		"./bin/zv workflows show stream-killfeed",
-		"./bin/zv workflows show stream-killfeed --format json",
-		"./bin/zv workflows show stream-transcribe",
-		"./bin/zv workflows show stream-transcribe --format json",
-		"./bin/zv workflows show stream-captions",
-		"./bin/zv workflows show stream-captions --format json",
 		"./bin/zv workflows show stream-render",
 		"./bin/zv workflows show stream-render --format json",
 		"./bin/zv workflows show analysis-tactical",
@@ -1178,10 +1163,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run music-analyze -- --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv workflows run shorts-render -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
 		"./bin/zv workflows run stream-variants",
-		"./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run",
-		"./bin/zv workflows run stream-killfeed -- --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run",
-		"./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
-		"./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
+		"./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
 		"./bin/zv workflows run analysis-tactical -- --demo testdata/foo.dem --out data/analysis/foo-tactical.json --dry-run --format json",
 		"./bin/zv workflows run analysis-rounds -- --tactical data/analysis/foo-tactical.json --side T --format json",
@@ -1354,12 +1336,6 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show stream-variants --format json",
 		"./bin/zv workflows show stream-plan",
 		"./bin/zv workflows show stream-plan --format json",
-		"./bin/zv workflows show stream-killfeed",
-		"./bin/zv workflows show stream-killfeed --format json",
-		"./bin/zv workflows show stream-transcribe",
-		"./bin/zv workflows show stream-transcribe --format json",
-		"./bin/zv workflows show stream-captions",
-		"./bin/zv workflows show stream-captions --format json",
 		"./bin/zv workflows show stream-render",
 		"./bin/zv workflows show stream-render --format json",
 		"./bin/zv workflows show analysis-tactical",
@@ -1391,10 +1367,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv music analyze --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv shorts render --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
 		"./bin/zv stream variants",
-		"./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run",
-		"./bin/zv stream killfeed --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run",
-		"./bin/zv stream transcribe --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
-		"./bin/zv stream captions --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
+		"./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
 		"./bin/zv analysis tactical --demo testdata/foo.dem --out data/analysis/foo-tactical.json --dry-run --format json",
 		"./bin/zv analysis rounds --tactical data/analysis/foo-tactical.json --side T --format json",
@@ -1412,10 +1385,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run music-analyze -- --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv workflows run shorts-render -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
 		"./bin/zv workflows run stream-variants",
-		"./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --captions --dry-run",
-		"./bin/zv workflows run stream-killfeed -- --plan data/runs/stream/edit-plan.json --events data/runs/stream/killfeed-events.json --out data/runs/stream/reviewed-plan.json --dry-run",
-		"./bin/zv workflows run stream-transcribe -- --input stream.mp4 --plan data/runs/stream/reviewed-plan.json --model whisper.bin --vad-model vad.bin --out data/runs/stream/transcript-review.json --dry-run",
-		"./bin/zv workflows run stream-captions -- --plan data/runs/stream/reviewed-plan.json --words data/runs/stream/caption-words.json --out data/runs/stream/final-plan.json --dry-run",
+		"./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
 		"./bin/zv workflows run analysis-tactical -- --demo testdata/foo.dem --out data/analysis/foo-tactical.json --dry-run --format json",
 		"./bin/zv workflows run analysis-rounds -- --tactical data/analysis/foo-tactical.json --side T --format json",
@@ -1753,10 +1723,11 @@ func copyExecutable(src, dst string) error {
 	return out.Close()
 }
 
-// generateSyntheticSource builds a small 4s clip with a highlighted killfeed
-// notice so the stream binary-level e2e has real media to probe and render
-// against without committing any media file (repo rule). It is a deliberate
-// ~20-line duplicate of the identical helper in
+// generateSyntheticSource builds a 1280x720, 4s, 30fps clip: a solid blue frame
+// with a solid red rectangle over the exact top-left quarter (x=[0,320)
+// y=[0,180)), plus a sine wave audio track, so the stream binary-level e2e has
+// real media to probe and render against without committing any media file
+// (repo rule). It is a deliberate ~20-line duplicate of the identical helper in
 // cmd/zv-orchestrator/stream_e2e_test.go (keep the two in sync); the packages do
 // not share test helpers, so cross-referencing is the least-surprising option.
 func generateSyntheticSource(t *testing.T, ffmpegPath, outPath string) {
@@ -1765,7 +1736,7 @@ func generateSyntheticSource(t *testing.T, ffmpegPath, outPath string) {
 		"-y",
 		"-f", "lavfi", "-i", "color=c=blue:s=1280x720:d=4:r=30",
 		"-f", "lavfi", "-i", "sine=frequency=440:duration=4",
-		"-filter_complex", "[0:v]drawbox=x=0:y=0:w=320:h=180:color=red:t=fill,drawbox=x=1024:y=36:w=224:h=36:color=lime:t=fill,drawbox=x=1022:y=34:w=228:h=40:color=red:t=2,drawbox=x=984:y=82:w=264:h=32:color=yellow:t=fill,drawbox=x=982:y=80:w=268:h=38:color=red:t=2[v]",
+		"-filter_complex", "[0:v]drawbox=x=0:y=0:w=320:h=180:color=red:t=fill[v]",
 		"-map", "[v]",
 		"-map", "1:a",
 		"-c:v", "libx264",

@@ -1,26 +1,22 @@
 import type { ReactNode } from 'react';
 import { StudioPageHeader } from '@/components/studio/page-header';
-import { XAISettings } from '@/components/settings/xai-settings';
 import { StudioInfo } from '@/components/settings/studio-info';
 
 
-/** Desktop-only application settings. Secret handling remains in Electron. */
+/** Desktop-only application settings. */
 export default function SettingsPage(): ReactNode {
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
         title="CONFIGURACIÓN"
-        description="Consulta la versión instalada y configura las credenciales opcionales de subtítulos. El agente integrado usa tu sesión personal de Codex."
+        description="Consulta la versión instalada de FragForge Studio. El agente integrado usa tu sesión personal de Codex."
       />
       {/*
-        Two columns keyed to the content container, not the viewport: the
-        actionable credential panel on the left, the build spec sheet as a
-        narrow aside. Both panels fill their track, so their right edges align
-        by construction — v3 stacked one `max-w-3xl` panel under an
-        unconstrained one and the mismatch read as a ragged edge.
+        A single spec sheet, bounded like the shared empty state rather than
+        stretched across the full content column: a four-row `<dl>` at 1440px
+        would be a band of whitespace with four labels floating in it.
       */}
-      <div className="grid items-start gap-6 @[58rem]/content:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.85fr)]">
-        <XAISettings />
+      <div className="max-w-2xl">
         <StudioInfo />
       </div>
     </div>

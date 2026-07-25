@@ -23,7 +23,6 @@ export function StreamLayoutPicker({
   faceCrop,
   faceCropReviewed,
   needsFaceCrop,
-  previewSeconds,
   busy,
   onVariantChange,
   onFaceCropChange,
@@ -33,7 +32,6 @@ export function StreamLayoutPicker({
   faceCrop?: NormalizedRect;
   faceCropReviewed: boolean;
   needsFaceCrop: boolean;
-  previewSeconds: number;
   busy: boolean;
   onVariantChange: (variant: StreamVariant) => void;
   onFaceCropChange: (rect: NormalizedRect) => void;
@@ -84,8 +82,6 @@ export function StreamLayoutPicker({
           <CropPicker
             rect={faceCrop ?? DEFAULT_FACE_CROP}
             onChange={onFaceCropChange}
-            kind="facecam"
-            frameSeconds={previewSeconds}
             disabled={busy}
           />
           <div className="flex flex-wrap items-center gap-3">

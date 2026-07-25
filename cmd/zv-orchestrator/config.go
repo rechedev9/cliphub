@@ -36,17 +36,16 @@ type config struct {
 	CodexModel        string
 	AgentTimeout      string
 	YtdlpPath         string
-	XAIAPIKey         string
 	FirecrawlAPIKey   string
 }
 
 const (
 	databaseURLMemory                  = "memory"
-	xaiAPIKeyEnvironmentVariable       = "XAI_API_KEY"
 	mutationTokenEnvironmentVariable   = "ZV_MUTATION_TOKEN"
 	firecrawlAPIKeyEnvironmentVariable = "FIRECRAWL_API_KEY"
 	legacyGroqAPIKeyVariable           = "GROQ_API_KEY"
 	legacyGroqAPIKeyOverrideVariable   = "ZV_GROQ_API_KEY"
+	legacyXAIAPIKeyVariable            = "XAI_API_KEY"
 	discoverySecretEnvironmentVariable = "ZV_DISCOVERY_SECRET"
 	// databaseURLSQLite selects the on-disk SQLite job repository. Accepts the
 	// bare value "sqlite" (stores <DataDir>/jobs.db) or "sqlite:<path>".
@@ -82,9 +81,6 @@ func loadConfig() (config, error) {
 		CodexPath:       os.Getenv("ZV_CODEX_PATH"),
 		CodexModel:      os.Getenv("ZV_CODEX_MODEL"),
 		YtdlpPath:       os.Getenv("ZV_YTDLP_PATH"),
-		// The xAI credential is not auto-detected because an API key cannot be
-		// probed on PATH or disk. It is the only stream-caption backend.
-		XAIAPIKey: os.Getenv(xaiAPIKeyEnvironmentVariable),
 		// Firecrawl enriches strategy suggestions with public CS2 trend
 		// references. It is optional and never sent to the web renderer.
 		FirecrawlAPIKey: os.Getenv(firecrawlAPIKeyEnvironmentVariable),
@@ -146,23 +142,25 @@ func validSessionCapability(secret string) bool {
 	return err == nil && len(decoded) == 32
 }
 
-// clearXAIAPIKeyEnvironment keeps the credential in config memory while
-// preventing editor, recorder, FFmpeg, HLAE, CS2, and other subprocesses from
-// inheriting it. EqualFold also removes casing variants on Windows, where
-// environment variable names are case-insensitive.
-func clearXAIAPIKeyEnvironment() error {
-	return clearEnvironmentVariable(xaiAPIKeyEnvironmentVariable)
-}
-
-// clearLegacyCaptionCredentialsEnvironment keeps credentials from older
-// Groq-enabled installations out of media subprocesses. FragForge no longer
-// reads or uses either variable, but an upgraded process may still inherit
-// them from the user's environment.
+// clearLegacyCaptionCredentialsEnvironment keeps caption credentials from
+// older installations out of media subprocesses: the Groq pair from
+// Groq-enabled builds and the xAI key from builds that burned in stream
+// subtitles. FragForge no longer reads or uses any of the three, but an
+// upgraded process may still inherit them from the user's environment, and
+// ffmpeg, HLAE, CS2, yt-dlp, and Codex must not see them. EqualFold matching
+// also removes casing variants on Windows, where environment variable names
+// are case-insensitive.
 func clearLegacyCaptionCredentialsEnvironment() error {
-	if err := clearEnvironmentVariable(legacyGroqAPIKeyVariable); err != nil {
-		return err
+	for _, variable := range []string{
+		legacyGroqAPIKeyVariable,
+		legacyGroqAPIKeyOverrideVariable,
+		legacyXAIAPIKeyVariable,
+	} {
+		if err := clearEnvironmentVariable(variable); err != nil {
+			return err
+		}
 	}
-	return clearEnvironmentVariable(legacyGroqAPIKeyOverrideVariable)
+	return nil
 }
 
 // clearDiscoverySecretEnvironment prevents media and agent subprocesses from
@@ -222,10 +220,6 @@ func (c config) ytdlpEnabled() bool {
 	return c.YtdlpPath != ""
 }
 
-func (c config) xaiEnabled() bool {
-	return c.XAIAPIKey != ""
-}
-
 func (c config) firecrawlEnabled() bool {
 	return c.FirecrawlAPIKey != ""
 }
@@ -250,7 +244,6 @@ func (c config) captureCapabilities(src captureToolSource) httpapi.Capabilities 
 		ComposeEnabled: c.composeWorkerEnabled(),
 		RenderEnabled:  c.renderWorkerEnabled(),
 		YtdlpEnabled:   c.ytdlpEnabled(),
-		XAIEnabled:     c.xaiEnabled(),
 		RecordTools: []httpapi.CaptureTool{
 			tool("ZV_RECORDER_PATH", c.RecorderPath),
 			tool("ZV_HLAE_PATH", c.HLAEPath),

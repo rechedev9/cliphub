@@ -1,14 +1,13 @@
 ---
 name: zackvideo-stream-clips
-description: "Create upload-ready FragForge stream clips from recorded stream VODs: pick a layout variant, plan the edit, import reviewed killfeed and Spanish captions, and render vertical or landscape packs after the user approves the creative brief."
+description: "Create upload-ready FragForge stream clips from recorded stream VODs: pick a layout variant, plan the edit, and render vertical or landscape packs after the user approves the creative brief."
 ---
 
 # FragForge Stream Clips
 
-Use this skill when the user wants clips from a recorded stream VOD (Twitch/YouTube/local MP4), especially vertical facecam-over-gameplay Shorts or landscape long-form cuts with factual killfeed notices and Spanish captions.
+Use this skill when the user wants clips from a recorded stream VOD (Twitch/YouTube/local MP4), especially vertical facecam-over-gameplay Shorts or landscape long-form cuts.
 
-The journey is `stream variants -> stream plan -> stream killfeed -> stream captions -> stream render`.
-Reviewed word timings keep captions independent of cloud credentials; `zv stream transcribe` can generate local unreviewed candidates when no reviewed timings exist yet.
+The journey is `stream variants -> stream plan -> stream render`.
 
 ## Creative Brief Gate
 
@@ -17,8 +16,6 @@ Before any non-dry-run render, ask the user only for the creative choices they h
 - delivery/layout variant: discover the supported list first and offer the real names (`streamer-vertical-stack-40-60` facecam stack, `streamer-fullframe-nocam`, `streamer-landscape-16x9`, plus any newly listed variant);
 - clip boundaries: which stream moments to cut (start/end timestamps or clip IDs) and one title per clip;
 - framing style: clean crop preference, whether facecam should be prominent, and whether gameplay should preserve HUD/killfeed even if that means less zoom;
-- killfeed treatment: source killfeed only, factual re-overlay on, or off. Default to no re-overlay unless the user explicitly asks for it; never add a large duplicated killfeed block by default;
-- captions: Spanish captions on or off, and whether reviewed word timings exist or local transcription candidates must be generated and reviewed first. If generated candidates contain obvious hallucinations, filler, or wrong words, correct/import reviewed words before final render;
 - music: none, or a track directory the user provides;
 - delivery shape: one clip per moment or one longer compilation;
 - thumbnail/cover: generated frame cover or no cover.
@@ -31,11 +28,10 @@ Use this question shape for a fresh stream URL:
 ```text
 Antes de renderizar dime/confirmame:
 1. Layout: stack vertical facecam+gameplay, full gameplay sin cam, o landscape 16:9.
-2. Recorte: limpio sin duplicar killfeed, o quieres killfeed re-overlay.
-3. Subtitulos: si/no; si si, reviso el texto antes de quemarlo.
-4. Musica: ninguna o carpeta/track.
-5. Salida: un clip unico o compilacion.
-6. Titulo/cover: titulo final y cover generado o sin cover.
+2. Recorte: que parte del frame quieres en cada banda.
+3. Musica: ninguna o carpeta/track.
+4. Salida: un clip unico o compilacion.
+5. Titulo/cover: titulo final y cover generado o sin cover.
 ```
 
 ## Workflow
@@ -56,53 +52,17 @@ Antes de renderizar dime/confirmame:
   --clip-start <hh:mm:ss> `
   --clip-end <hh:mm:ss> `
   --title "<clip title>" `
-  --detect-killfeed `
-  --captions `
   --out <run>\edit-plan.json
 ```
 
 Use `--dry-run` first when iterating on crops or clip boundaries.
 
-3. Import reviewed factual killfeed notices when the user approved a killfeed:
-
-```powershell
-.\bin\zv.exe workflows run stream-killfeed -- `
-  --plan <run>\edit-plan.json `
-  --events <run>\killfeed-events.json `
-  --out <run>\reviewed-plan.json
-```
-
-Killfeed notices must stay factual: only kills that are visible in the clip, never invented events.
-
-4. Generate local transcription candidates when captions are approved but no reviewed word timings exist yet:
-
-```powershell
-.\bin\zv.exe workflows run stream-transcribe -- `
-  --input <stream.mp4> `
-  --plan <run>\reviewed-plan.json `
-  --model <models>\ggml-large-v3.bin `
-  --vad-model <models>\ggml-silero-vad.bin `
-  --out <run>\transcript-review.json
-```
-
-The candidates are explicitly unreviewed; have the user review and correct them before the import step.
-Skip this step when reviewed word timings already exist.
-
-5. Import reviewed Spanish word timings when the user approved captions:
-
-```powershell
-.\bin\zv.exe workflows run stream-captions -- `
-  --plan <run>\reviewed-plan.json `
-  --words <run>\caption-words.json `
-  --out <run>\captioned-plan.json
-```
-
-6. Render the approved plan:
+3. Render the approved plan:
 
 ```powershell
 .\bin\zv.exe workflows run stream-render -- `
   --input <stream.mp4> `
-  --plan <run>\captioned-plan.json `
+  --plan <run>\edit-plan.json `
   --out <run>
 ```
 
@@ -112,6 +72,5 @@ Run with `--dry-run` to show the resolved plan before the real render, and only 
 
 - Verify each output with `ffprobe`: H.264 video, AAC audio, `1080x1920` for vertical variants or `1920x1080` for `streamer-landscape-16x9`, and a nonzero duration.
 - Confirm the facecam and gameplay crops match the plan and nothing important (killfeed, HUD, facecam) is cut off.
-- Confirm captions are readable, correctly timed, and in Spanish, and that killfeed notices match real kills in the clip.
-- Put upload-ready MP4s, captions, manifests, and review assets under `<run>\shortslistosparasubir`.
+- Put upload-ready MP4s, manifests, and review assets under `<run>\shortslistosparasubir`.
 - Point the user to the `shortslistosparasubir` folder when delivering finished media.

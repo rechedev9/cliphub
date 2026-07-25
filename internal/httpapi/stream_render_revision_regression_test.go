@@ -111,7 +111,7 @@ func TestFailedStreamRerenderKeepsServingLastCommittedRevision(t *testing.T) {
 
 	worker := workers.NewStreamRenderWorker(repo, store, workers.StreamRenderWorkerConfig{
 		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg-that-does-not-exist",
-		JobLocks: locks, RequireAppliedKillfeedAnalysis: true,
+		JobLocks: locks, RequireImmutableEditPlanIntent: true,
 	})
 	if err := worker.HandleRenderStreamClip(context.Background(), queue.enqueued[0]); err == nil {
 		t.Fatal("rerender error = nil, want injected FFmpeg launch failure")

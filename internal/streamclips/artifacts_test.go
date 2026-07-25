@@ -25,7 +25,7 @@ func TestRenderRevisionKeysAreIsolatedByRevision(t *testing.T) {
 	if !strings.Contains(firstKey, "/revisions/"+first.String()+"/") {
 		t.Fatalf("revision video key = %q, want revision namespace", firstKey)
 	}
-	if _, err := RenderRevisionCaptionKey(jobID, VariantStreamer4060, uuid.Nil, "clip-1"); err == nil {
+	if _, err := RenderRevisionVideoKey(jobID, VariantStreamer4060, uuid.Nil, "clip-1"); err == nil {
 		t.Fatal("nil revision id error = nil")
 	}
 }

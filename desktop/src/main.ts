@@ -15,7 +15,6 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  safeStorage,
   shell,
   session,
   type IpcMainInvokeEvent,
@@ -39,22 +38,10 @@ import { waitForDesktopServices } from './service-health';
 import { provisionMusicLibrary } from './music-library';
 import { allocateStableServicePorts } from './stable-ports';
 import {
-  resolveXAIAPIKeyDetails,
-  takeXAIAPIKeyFromEnvironment,
-  type ResolvedXAIAPIKey,
-  type XAIAPIKeySource,
-} from './xai-api-key';
-import { XAIAPIKeyStore } from './xai-api-key-store';
-import { testXAIConnection } from './xai-connection';
-import { XAISettingsController } from './xai-settings-controller';
-import {
   isTrustedSettingsSender,
-  parseXAISettingsRequest,
-  XAI_SETTINGS_ACTION,
-  XAI_SETTINGS_CHANNEL,
-  type XAISettingsRequest,
-  type XAISettingsStatus,
-} from './xai-settings-ipc';
+  parseStudioSettingsRequest,
+  STUDIO_SETTINGS_CHANNEL,
+} from './studio-settings-ipc';
 import {
   ASSISTANT_CHANNEL,
   ASSISTANT_EVENT_CHANNEL,
@@ -113,26 +100,6 @@ const nextServer = resourcePath('web', 'server.js');
 const dataDir = path.join(app.getPath('userData'), 'data');
 const musicDir = path.join(dataDir, 'music');
 
-// Capture and remove an inherited key before any provisioner or child process
-// can inherit it. The value remains only in this main process and is passed
-// explicitly to the orchestrator when selected by the precedence rules below.
-const inheritedXAIAPIKey = takeXAIAPIKeyFromEnvironment();
-const storedXAIAPIKeyPath = path.join(app.getPath('userData'), 'credentials', 'xai-api-key.bin');
-const xaiAPIKeyStore = new XAIAPIKeyStore({
-  codec: {
-    isAvailable: () => safeStorage.isAsyncEncryptionAvailable(),
-    encrypt: (value) => safeStorage.encryptStringAsync(value),
-    decrypt: async (encrypted) => {
-      const decrypted = await safeStorage.decryptStringAsync(encrypted);
-      return {
-        shouldReEncrypt: decrypted.shouldReEncrypt,
-        value: decrypted.result,
-      };
-    },
-  },
-  filePath: storedXAIAPIKeyPath,
-});
-
 // All child output is mirrored to this file so a failed boot is diagnosable
 // from a user report: the packaged app has no console, so stdout alone is
 // invisible. The error screen shows its tail.
@@ -173,8 +140,6 @@ function logTail(maxLines = 40): string {
 
 let mainWindow: BrowserWindow | null = null;
 let activeWebOrigin: string | null = null;
-let activeXAIAPIKeySource: XAIAPIKeySource = 'none';
-let xaiRelaunchScheduled = false;
 let assistantController: AssistantController | null = null;
 let activeMutationToken: string | null = null;
 const assistantNativeApproval = new NativeApprovalGate(showAssistantNativeApproval);
@@ -290,9 +255,9 @@ const loadingFileUrl = pathToFileURL(loadingHtmlPath).href;
 const allowedInternalUrls = new Set<string>();
 
 // Fake, unresolvable "URL" the error screen's retry button links to. The
-// sandboxed preload exposes only the xAI settings bridge, so the static error
-// page still uses a plain <a href> intercepted by will-navigate to request a
-// retry; Chromium never actually resolves this host.
+// sandboxed preload exposes only the Studio settings and assistant bridges, so
+// the static error page still uses a plain <a href> intercepted by
+// will-navigate to request a retry; Chromium never actually resolves this host.
 const RETRY_URL = 'https://retry.fragforge.invalid/';
 
 const windowFile = path.join(app.getPath('userData'), 'window.json');
@@ -511,74 +476,6 @@ async function loadMatches(webPort: number, proxyMutationCapability: string): Pr
 // Generous overall deadline for each server to answer its health check.
 const BOOT_HEALTH_TIMEOUT_MS = 60_000;
 
-interface PendingXAIConfiguration {
-  resolved: ResolvedXAIAPIKey;
-  storageAvailable: boolean;
-  storageError?: string;
-  stored: boolean;
-}
-
-async function pendingXAIConfiguration(): Promise<PendingXAIConfiguration> {
-  const stored = fs.existsSync(storedXAIAPIKeyPath);
-  const storageAvailable = await xaiAPIKeyStore.isAvailable();
-  let storageError: string | undefined;
-  let storedValue: string | undefined;
-  if (stored) {
-    if (!storageAvailable) {
-      storageError = 'La protección segura de Windows no está disponible; la clave guardada no se puede usar.';
-    } else {
-      try {
-        storedValue = await xaiAPIKeyStore.load();
-      } catch {
-        storageError = 'La clave guardada no se puede descifrar. Elimínala y guarda una nueva.';
-      }
-    }
-  }
-  return {
-    resolved: resolveXAIAPIKeyDetails({
-      environmentValue: inheritedXAIAPIKey,
-      storedValue,
-    }),
-    storageAvailable,
-    storageError,
-    stored,
-  };
-}
-
-async function currentXAISettingsStatus(restartRequired: boolean): Promise<XAISettingsStatus> {
-  const pending = await pendingXAIConfiguration();
-  return {
-    active: activeXAIAPIKeySource !== 'none',
-    activeSource: activeXAIAPIKeySource,
-    pendingSource: pending.resolved.source,
-    restartRequired,
-    storageAvailable: pending.storageAvailable,
-    storageError: pending.storageError,
-    stored: pending.stored,
-  };
-}
-
-function scheduleXAIRelaunch(): boolean {
-  if (xaiRelaunchScheduled) return true;
-  try {
-    app.relaunch();
-    xaiRelaunchScheduled = true;
-    setTimeout(() => app.quit(), 250);
-    return true;
-  } catch {
-    xaiRelaunchScheduled = false;
-    return false;
-  }
-}
-
-const xaiSettingsController = new XAISettingsController({
-  environmentOverride: typeof inheritedXAIAPIKey === 'string' && inheritedXAIAPIKey.trim() !== '',
-  keyStore: xaiAPIKeyStore,
-  readStatus: currentXAISettingsStatus,
-  scheduleRestart: scheduleXAIRelaunch,
-  testConnection: testXAIConnection,
-});
-
 async function boot(): Promise<void> {
   if (quitting) return;
   if (activeBootAttempt !== null) throw new Error('cannot start a boot while another attempt is active');
@@ -607,12 +504,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   loadingScreenShowing = true;
   allowedOrigins.clear();
   allowedInternalUrls.clear();
-
-  // Explicit environment input wins over the user's DPAPI-protected key. No
-  // desktop build contains a shared credential; only the selected per-machine
-  // value reaches the Go orchestrator.
-  const xaiConfiguration = await pendingXAIConfiguration();
-  const xaiAPIKey = xaiConfiguration.resolved.apiKey;
 
   // Tracks can land in the background; the API rescans the music dir per request.
   provisionMusicLibrary({
@@ -662,7 +553,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     ZV_DATA_DIR: dataDir,
     ZV_HTTP_ADDR: `${LOOPBACK_HOST}:${orchPort}`,
     ZV_MUSIC_DIR: musicDir,
-    XAI_API_KEY: xaiAPIKey,
     ...orchestratorSecurityEnvironment(security),
     ...toolEnv,
   });
@@ -676,8 +566,9 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     ORCHESTRATOR_URL: orchestratorUrl,
     NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
     ...webSecurityEnvironment(security),
-    // ProcessSession normally inherits the desktop environment. Explicitly
-    // remove this server-irrelevant secret from the Next child.
+    // FragForge never reads this key, but the desktop process can inherit an
+    // operator's own. The orchestrator unsets it itself; nothing scrubs the
+    // Next child, so remove it here instead of passing it on by inheritance.
     XAI_API_KEY: undefined,
   });
 
@@ -692,8 +583,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     childExited,
   });
   assertBootAttemptActive(attempt);
-  activeXAIAPIKeySource = xaiConfiguration.resolved.source;
-  xaiSettingsController.markApplied();
 
   const watchPostBoot = (child: LaunchedProcess): void => {
     attempt.processes.watchUnexpectedExit(child, (err: unknown) => {
@@ -772,7 +661,7 @@ function retryBoot(): void {
   runBoot();
 }
 
-function trustedXAISettingsSender(event: IpcMainInvokeEvent): boolean {
+function trustedSettingsSender(event: IpcMainInvokeEvent): boolean {
   const win = aliveWindow();
   const senderFrame = event.senderFrame;
   return isTrustedSettingsSender({
@@ -788,45 +677,26 @@ function settingsFailure(error: string): { error: string; ok: false } {
   return { error, ok: false };
 }
 
-function registerXAISettingsIPC(): void {
-  ipcMain.handle(XAI_SETTINGS_CHANNEL, async (event, value: unknown): Promise<unknown> => {
-    if (!trustedXAISettingsSender(event)) return settingsFailure('Solicitud de Ajustes rechazada.');
-    let request: XAISettingsRequest;
+function registerStudioSettingsIPC(): void {
+  ipcMain.handle(STUDIO_SETTINGS_CHANNEL, (event, value: unknown): unknown => {
+    if (!trustedSettingsSender(event)) return settingsFailure('Solicitud de Ajustes rechazada.');
     try {
-      request = parseXAISettingsRequest(value);
+      parseStudioSettingsRequest(value);
     } catch {
       return settingsFailure('Solicitud de Ajustes no válida.');
     }
-    try {
-      if (request.action === XAI_SETTINGS_ACTION.appInfo) {
-        return {
-          version: app.getVersion(),
-          build: app.isPackaged ? 'production' : 'development',
-          electronVersion: process.versions.electron,
-          chromiumVersion: process.versions.chrome,
-        };
-      }
-      return await xaiSettingsController.handle(request);
-    } catch {
-      if (request.action === XAI_SETTINGS_ACTION.status) {
-        return {
-          active: activeXAIAPIKeySource !== 'none',
-          activeSource: activeXAIAPIKeySource,
-          pendingSource: activeXAIAPIKeySource,
-          restartRequired: xaiSettingsController.restartRequired,
-          storageAvailable: false,
-          storageError: 'No se pudo leer la configuración protegida de xAI.',
-          stored: fs.existsSync(storedXAIAPIKeyPath),
-        } satisfies XAISettingsStatus;
-      }
-      return settingsFailure('No se pudo completar la operación de Ajustes.');
-    }
+    return {
+      version: app.getVersion(),
+      build: app.isPackaged ? 'production' : 'development',
+      electronVersion: process.versions.electron,
+      chromiumVersion: process.versions.chrome,
+    };
   });
 }
 
 function registerAssistantIPC(): void {
   ipcMain.handle(ASSISTANT_CHANNEL, async (event, value: unknown): Promise<AssistantIPCResponse> => {
-    if (!trustedXAISettingsSender(event)) return assistantCommandFailure('Solicitud del asistente rechazada.');
+    if (!trustedSettingsSender(event)) return assistantCommandFailure('Solicitud del asistente rechazada.');
     return dispatchAssistantRequest(
       value,
       getAssistantController,
@@ -855,7 +725,7 @@ app.whenReady().then(() => {
   // Local app needs no browser permissions (camera/mic/geolocation/notifications/etc).
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  registerXAISettingsIPC();
+  registerStudioSettingsIPC();
   registerAssistantIPC();
   runBoot();
 });

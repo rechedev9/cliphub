@@ -12,7 +12,7 @@ The demo is the source of truth for player, camera, tick ranges, kills, and util
 
 ```text
 .dem -> parse/score -> selected kill plan -> HLAE/CS2 capture -> FFmpeg/Lua render -> publish pack
-stream video -> persisted edit plan -> factual killfeed/caption review -> render -> publish pack
+stream video -> persisted edit plan -> render -> publish pack
 ```
 
 - `cmd/` contains thin entrypoints; business logic belongs under `internal/`.
@@ -43,9 +43,9 @@ If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
 - Treat `flows show` and `workflows show` as the executable command contract; do not guess flags from prose.
 - Validate the exact argv first, retain `--dry-run --format json` until real media work is approved, and preserve the approved argv when executing.
 - Use `demo players -> demo parse -> demo moments -> demo select -> record -> shorts render` when the player, plays, or order still need review; use `short` only when target and selection policy are complete.
-- Use `stream variants -> stream plan -> stream killfeed -> stream transcribe -> human review -> stream captions -> stream render` for VODs.
+- Use `stream variants -> stream plan -> human review -> stream render` for VODs.
 - A stream dry-run does not create its `--out` artifact; persist each approved plan before invoking a dependent stage.
-- The persisted stream edit plan is canonical for ranges, order, crop, audio, fades, text, captions, killfeed, and `music.volume`; do not bolt ad hoc FFmpeg flags around it.
+- The persisted stream edit plan is canonical for ranges, order, crop, audio, fades, text, and `music.volume`; do not bolt ad hoc FFmpeg flags around it.
 - Discover task-specific guidance with `.\bin\zv.exe skills list --format json` rather than duplicating skill tutorials here.
 - Do not resurrect the retired external MCP server; use the CLI or the integrated typed operation gateway.
 - FragForge Agent is the only assistant surface shipped in Studio.
@@ -78,13 +78,11 @@ Do not add a feature that files reports on the user's behalf, and do not weaken 
 - Translate every approved brief choice into an explicit final command value, including negative booleans such as `--kill-counter=false`, `--hook=false`, and `--covers=false`; never rely on a preset or flag default to preserve an approved `off` choice. After rendering, inspect the effective result configuration and generated effects/metadata, and reject any output that re-enables a disabled element or contradicts the selected kills, weapons, rounds, or narrative.
 - A successful render is not final while QA has unresolved warnings. Inspect every warning at its exact interval; remove unintended frozen, post-death, or dead-air footage, or document why it is intentional, then rerun QA.
 - Any trim, reorder, or duration change invalidates existing rhythm timing. Regenerate or update the canonical rhythm plan and verify every selected kill against its assigned beat or onset before rerendering.
-- For streams, also settle clip bounds/title, crop/framing, factual killfeed policy, Spanish captions and review policy, and source-audio treatment.
+- For streams, also settle clip bounds/title, crop/framing, and source-audio treatment.
 - Thumbnail approval is a second gate after candidates exist; require a selected candidate or explicit delegation before calling the pack upload-ready.
 - Before marking a pack upload-ready, verify that the canonical MP4, title, caption, hashtags, cover, cover timestamp, gallery, manifest paths, and artifact metadata describe the same facts and files. After thumbnail selection, replace the canonical cover and visually verify the gallery again.
 - `--covers=false` removes the thumbnail gate.
 - Studio adds a separate approval of the exact costly/destructive operation preview; changing a stream plan invalidates its creative brief and prepared render preview.
-- Local Whisper transcription produces `requires_review` evidence, not publishable words; import only verified Spanish text and clip-relative timings, or an explicit reviewed no-speech decision.
-- Match imported killfeed facts to detected cues and leave unresolved events empty instead of inventing attacker, victim, weapon, or timestamps.
 
 The preset registry in `internal/editor/preset.go` is authoritative; discover it with `.\bin\zv.exe presets --format json`.
 The current default `viral-60-clean` records death notices and uses `viral-ultra-clean` effects; `clean-pov-60` removes the HUD, while `full-hud-60` preserves gameplay HUD.

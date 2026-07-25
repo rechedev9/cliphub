@@ -21,10 +21,7 @@ Usage:
   zv compose final [zv-composer flags]
   zv shorts render [zv-editor flags]
   zv stream variants [--format text|json]
-  zv stream plan --input <stream.mp4> --out <edit-plan.json> [--captions] [--dry-run] [--format text|json]
-  zv stream killfeed --plan <edit-plan.json> --events <killfeed-events.json> --out <reviewed-plan.json> [--dry-run] [--format text|json]
-  zv stream transcribe --input <stream.mp4> --plan <edit-plan.json> --model <ggml-model.bin> --vad-model <ggml-vad.bin> --out <transcript-review.json> [--dry-run] [--format text|json]
-  zv stream captions --plan <edit-plan.json> --words <caption-words.json> --out <captioned-plan.json> [--dry-run] [--format text|json]
+  zv stream plan --input <stream.mp4> --out <edit-plan.json> [--dry-run] [--format text|json]
   zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir> [--dry-run] [--format text|json]
   zv music analyze [zv-rhythm analyze flags]
   zv analysis tactical --demo <match.dem> --out <tactical.json> [--positions <positions.zvpos>] [--hz <n>] [--cell-size <n>] [--dry-run] [--format text|json]
@@ -194,10 +191,10 @@ const composeUsage = `usage: zv compose final [zv-composer flags]
 const shortsUsage = `usage: zv shorts render [zv-editor flags]
 `
 
-const streamUsage = `usage: zv stream variants [--format text|json] | zv stream plan [flags] | zv stream killfeed [flags] | zv stream transcribe [flags] | zv stream captions [flags] | zv stream render [flags]
+const streamUsage = `usage: zv stream variants [--format text|json] | zv stream plan [flags] | zv stream render [flags]
 
-Local CLI-first stream workflow. Generate an edit plan, review or enrich its
-clip ranges/killfeed events, then render production artifacts directly under
+Local CLI-first stream workflow. Generate an edit plan, review its clip ranges
+and crops, then render production artifacts directly under
 <out>/shortslistosparasubir without starting Studio or MCP.
 `
 
@@ -328,9 +325,6 @@ Demo flags:
 
 Stream flags:
   --input <mp4>          stream/VOD source (required)
-  --events <json>        reviewed killfeed events; skips import when absent
-  --killfeed-crop <x,y,w,h>  killfeed region for cue detection (required with --events)
-  --words <json>         reviewed Spanish caption words; skips import when absent
   --run-dir <dir>        run output directory (required)
 
 Common flags:

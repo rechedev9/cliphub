@@ -98,7 +98,7 @@ func TestSuccessfulStreamRerenderDeletesPreviousRevisionAndKeepsWinner(t *testin
 	putRevisionCleanupJSON(t, store, stateKey, admitted)
 
 	worker := NewStreamRenderWorker(repo, store, StreamRenderWorkerConfig{
-		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg", RequireAppliedKillfeedAnalysis: true,
+		WorkDir: t.TempDir(), FFmpegPath: "ffmpeg",
 	})
 	worker.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		out := args[len(args)-1]

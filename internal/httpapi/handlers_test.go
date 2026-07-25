@@ -3398,21 +3398,21 @@ func TestStreamVideoRejectsUnsafeClipID(t *testing.T) {
 	}
 }
 
-func TestStreamVideoServesCaptionedKeyFromRenderResult(t *testing.T) {
+func TestStreamVideoServesNonConventionalKeyFromRenderResult(t *testing.T) {
 	streamRepo := newFakeStreamRepo()
 	id := uuid.New()
 	const variant = "streamer-vertical-stack-40-60"
 	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusRendered, SourcePath: streamclips.SourceKey(id)}
 
 	store := newFakeStorage()
-	captionedKey, err := streamclips.RenderVideoKey(id, variant, "clip-1_captioned")
+	publishedKey, err := streamclips.RenderVideoKey(id, variant, "clip-1_v2")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Put(captionedKey, strings.NewReader("captioned-bytes")); err != nil {
+	if err := store.Put(publishedKey, strings.NewReader("published-bytes")); err != nil {
 		t.Fatal(err)
 	}
-	result, err := streamclips.NewRenderResult(id, variant, []streamclips.VideoEntry{{ClipID: "clip-1", Key: captionedKey}}, time.Now())
+	result, err := streamclips.NewRenderResult(id, variant, []streamclips.VideoEntry{{ClipID: "clip-1", Key: publishedKey}}, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3437,8 +3437,8 @@ func TestStreamVideoServesCaptionedKeyFromRenderResult(t *testing.T) {
 	if rw.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
 	}
-	if got, want := rw.Body.String(), "captioned-bytes"; got != want {
-		t.Fatalf("body = %q, want %q (captioned key from render result)", got, want)
+	if got, want := rw.Body.String(), "published-bytes"; got != want {
+		t.Fatalf("body = %q, want %q (published key from render result)", got, want)
 	}
 }
 
@@ -3450,7 +3450,7 @@ func TestStreamRenderArtifactsResolveAuthoritativeRevisionState(t *testing.T) {
 	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusRendered, SourcePath: streamclips.SourceKey(id)}
 
 	store := newFakeStorage()
-	videoKey, err := streamclips.RenderRevisionVideoKey(id, variant, revisionID, "clip-1_captioned")
+	videoKey, err := streamclips.RenderRevisionVideoKey(id, variant, revisionID, "clip-1_v2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4040,33 +4040,6 @@ func TestStartStreamRenderPreservesRenderedStateWhenFinishedTaskIsStillDuplicate
 	}
 	if state.Status != streamclips.StatusRendered {
 		t.Fatalf("render state status = %q, want rendered", state.Status)
-	}
-}
-
-func TestStartStreamRenderRejectsUnreviewedCaptionsEvenWithXAI(t *testing.T) {
-	streamRepo := newFakeStreamRepo()
-	id := uuid.New()
-	plan := streamclips.DefaultEditPlan()
-	plan.Captions = streamclips.CaptionsPlan{Enabled: true}
-	plan.Clips = []streamclips.ClipRange{{ID: "clip-1", StartSeconds: 0, EndSeconds: 2}}
-	planJSON, err := json.Marshal(plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusReady, SourcePath: streamclips.SourceKey(id), EditPlan: planJSON, Probe: streamclips.SourceProbe{AudioCodec: "aac"}}
-	queue := &fakeQueue{}
-	h := NewHandlers(newFakeRepo(), newFakeStorage(), queue, WithStreamRepository(streamRepo), WithCapabilities(Capabilities{XAIEnabled: true}))
-	r := Routes(h)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/stream-jobs/"+id.String()+"/renders/"+streamclips.DefaultVariant().Name, nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued %d tasks, want 0", len(queue.enqueued))
 	}
 }
 

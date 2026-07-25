@@ -60,8 +60,8 @@ OAuth flow for the user's personal Codex account. Codex owns and refreshes the
 session; FragForge never asks for, stores, or bills an OpenAI API key.
 
 After connecting, the agent can inspect and use Studio's typed operations for
-demos, stream clips, renders, captions, killfeed review, QA, publishing assets,
-and cleanup. Reads execute directly. Writes, costly work, and destructive work
+demos, stream clips, renders, publish captions, QA, publishing assets, and
+cleanup. Reads execute directly. Writes, costly work, and destructive work
 become exact approval cards, while capture and render also require an approved
 creative brief. It can open Studio's native picker to start a local demo or
 stream-video import, continue automatically after every approved operation, and
@@ -83,36 +83,17 @@ The embedded agent uses Codex app-server dynamic tools directly through the
 narrow Studio operation gateway. No external assistant transport or launcher
 is shipped.
 
-## xAI subtitle credentials
+## Credentials
 
-Every installer remains credential-free. In the installed app, each
-Windows user opens `/settings` and enters their own xAI key for stream
-subtitles. The page sends the entered value through the narrow Electron preload
-bridge directly to the main process; it never goes through the bundled Next.js
-server or browser `localStorage`. After saving, the stored key is never returned
-to the page or displayed again. The UI exposes only whether a key is configured
-and which configuration source is active.
+Studio ships and runs without a model-provider credential.
+Stream clips have no burned-in subtitle or killfeed pipeline, so no speech-to-text or vision key is ever read or stored.
+`/settings` only reports the installed app, Electron, and Chromium versions through the narrow preload bridge; it stores nothing.
 
-Electron encrypts the saved key with `safeStorage`, backed by Windows DPAPI, so
-the encrypted value is tied to the current Windows user. Saving or deleting the
-key does not hot-reload the orchestrator: the user must explicitly restart
-Studio for the change to take effect. A restart terminates the local child
-processes and may interrupt an active upload, capture, or render, so finish
-current tasks before applying it.
+An operator's own `XAI_API_KEY` can still reach the Electron process by ordinary environment inheritance, and Studio refuses to pass it on: the bundled Next.js server is launched with that name explicitly removed from its environment, and `zv-orchestrator.exe` unsets it for itself and for every media subprocess it spawns.
+Studio never reads the value it removes.
 
-The runtime precedence is:
-
-1. `XAI_API_KEY` inherited by the desktop process.
-2. The current Windows user's encrypted key saved from `/settings`.
-3. No xAI credential (automatic transcription is unavailable, but reviewed
-   Spanish `caption_words` imported with `zv stream captions` still render).
-
-There is no shared-key or team build mode. Packaging strips `XAI_API_KEY` from
-the build, web, and electron-builder environments, and the installer manifest
-contains no credential resource. At runtime the selected environment or
-per-user credential is supplied only to `zv-orchestrator.exe` for transcription
-and removed from the environments of the bundled Next.js server and media
-subprocesses.
+Packaging still strips `XAI_API_KEY` from the build, web, and electron-builder environments, and the installer manifest contains no credential resource.
+That scrub is defence in depth against an operator's unrelated key leaking into a build, not a feature: nothing in FragForge reads the value.
 
 ## Build the installer (on Windows)
 
@@ -148,8 +129,8 @@ installer.
 
 The build has one distribution target, `pnpm run dist`. It rejects unsupported
 arguments, removes `XAI_API_KEY` from every child build environment, and cannot
-stage or declare a credential resource. Users configure credentials after
-installation through `/settings`, where Windows DPAPI protects them per user.
+stage or declare a credential resource. The installed app needs no credential of
+its own.
 
 The distribution command also creates `dist-installer/SHA256SUMS.txt` for the
 installer and its blockmap, then verifies both before returning success.

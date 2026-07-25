@@ -123,11 +123,11 @@ test('returns deterministic default ranking and natural-language ranking', async
   );
   assert.equal(descriptorNames(destructive)[0], 'renders.delete_video');
 
-  const subtitles = await searchOperationCatalog(
+  const captions = await searchOperationCatalog(
     client,
-    parseSearchRequest({ include_dynamic_inputs: false, query: 'subtitulos con grok' }),
+    parseSearchRequest({ include_dynamic_inputs: false, query: 'subtitulos' }),
   );
-  assert.equal(descriptorNames(subtitles)[0], 'streams.configure_captions');
+  assert.equal(descriptorNames(captions)[0], 'renders.start_caption_agent');
 });
 
 test('ranks common Spanish and English intents by whole tokens', async () => {
@@ -350,7 +350,6 @@ test('discovers live jobs, roster, presets, songs, moments, and artifact names',
     }
     if (url === '/api/stream-jobs/stream-a/edit-plan') {
       sendJson(response, {
-        captions: { enabled: false },
         clips: [{ end_seconds: 12, id: 'clip-1', start_seconds: 2 }],
         gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
         schema_version: '1.0',
@@ -436,13 +435,6 @@ test('discovers live jobs, roster, presets, songs, moments, and artifact names',
   const streamFields = dynamicFields(streamDescriptor);
   assert.deepEqual(streamFields.map((field) => field.field), ['stream_job_id', 'variant']);
   assert.deepEqual(candidateValues(streamFields[1] ?? {}), ['streamer-vertical-stack-40-60']);
-
-  const captions = await searchOperationCatalog(
-    client,
-    parseSearchRequest({ arguments: { stream_job_id: 'stream-a' }, operation: 'streams.configure_captions' }),
-  );
-  const captionSettings = dynamicFields(descriptors(captions)[0] ?? {});
-  assert.deepEqual(captionSettings.map((field) => field.field), ['stream_job_id']);
 
   const streamVideo = await searchOperationCatalog(
     client,
@@ -540,10 +532,10 @@ test('validates operation inputs including conditional artifact requirements', (
   );
   validateOperationInput(operation('streams.update_edit_plan'), {
     plan: {
-      captions: { enabled: true, language: 'es' },
       clips: [{ end_seconds: 8, id: 'clip-1', start_seconds: 2 }],
       face_crop: { height: 0, width: 0, x: 0, y: 0 },
       gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
+      music: { key: 'track-1', volume: 0.4 },
       schema_version: '1.0',
       variant: 'streamer-fullframe-nocam',
     },
@@ -552,13 +544,13 @@ test('validates operation inputs including conditional artifact requirements', (
   assert.throws(
     () => validateOperationInput(operation('streams.update_edit_plan'), {
       plan: {
-        captions: { enabled: true, languaje: 'es' },
         gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
+        music: { key: 'track-1', volumen: 0.4 },
         variant: 'streamer-vertical-stack-40-60',
       },
       stream_job_id: streamJobID,
     }),
-    /arguments.plan.captions.languaje is not allowed/,
+    /arguments.plan.music.volumen is not allowed/,
   );
   validateOperationInput(operation('streams.update_edit_plan'), {
     plan: {

@@ -80,20 +80,14 @@ func validateSkillCommand(command []string) string {
 		}
 		return ""
 	case "stream":
-		if len(command) < 2 || (command[1] != "variants" && command[1] != "plan" && command[1] != "killfeed" && command[1] != "transcribe" && command[1] != "captions" && command[1] != "render") {
-			return `uses non-standard zv command "stream"; expected "stream variants", "stream plan", "stream killfeed", "stream transcribe", "stream captions", or "stream render"`
+		if len(command) < 2 || (command[1] != "variants" && command[1] != "plan" && command[1] != "render") {
+			return `uses non-standard zv command "stream"; expected "stream variants", "stream plan", or "stream render"`
 		}
 		switch command[1] {
 		case "variants":
 			return validateFormattedCommand("stream variants", command[2:])
 		case "plan":
 			return validateRequiredFlags(`"stream plan"`, command[2:], requiredFlagsForRunArgs("stream", "plan")...)
-		case "killfeed":
-			return validateRequiredFlags(`"stream killfeed"`, command[2:], requiredFlagsForRunArgs("stream", "killfeed")...)
-		case "transcribe":
-			return validateRequiredFlags(`"stream transcribe"`, command[2:], requiredFlagsForRunArgs("stream", "transcribe")...)
-		case "captions":
-			return validateRequiredFlags(`"stream captions"`, command[2:], requiredFlagsForRunArgs("stream", "captions")...)
 		case "render":
 			return validateRequiredFlags(`"stream render"`, command[2:], requiredFlagsForRunArgs("stream", "render")...)
 		}
@@ -545,8 +539,6 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--streamer",
 			"--face-crop",
 			"--gameplay-crop",
-			"--killfeed-crop",
-			"--ffmpeg",
 			"--ffprobe",
 			"--format",
 		)
@@ -560,20 +552,6 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--music-dir",
 			"--format",
 		)
-	case `"stream transcribe"`:
-		flags = append(flags,
-			"--clip-id",
-			"--language",
-			"--ffmpeg",
-			"--ffprobe",
-			"--work-dir",
-			"--timeout",
-			"--format",
-		)
-	case `"stream killfeed"`:
-		flags = append(flags, "--format")
-	case `"stream captions"`:
-		flags = append(flags, "--format")
 	case `"music analyze"`:
 		flags = append(flags,
 			"--killplan",
@@ -595,7 +573,7 @@ func commandValueFlags(commandName string, required []string) []string {
 		flags = append(flags, "--format")
 		flags = append(flags, tacticalFilterFlagNames()...)
 	case `"flows run"`:
-		flags = append(flags, "--demo", "--steamid", "--killplan", "--input", "--events", "--words", "--killfeed-crop", "--format")
+		flags = append(flags, "--demo", "--steamid", "--killplan", "--input", "--format")
 	}
 	return flags
 }
@@ -636,15 +614,7 @@ func commandBoolFlags(commandName string) []string {
 			"--temporal-smoothing",
 			"--compile-segments",
 		}
-	case `"stream plan"`:
-		return []string{"--captions", "--detect-killfeed", "--dry-run"}
-	case `"stream render"`:
-		return []string{"--dry-run"}
-	case `"stream killfeed"`:
-		return []string{"--dry-run"}
-	case `"stream transcribe"`:
-		return []string{"--dry-run"}
-	case `"stream captions"`:
+	case `"stream plan"`, `"stream render"`:
 		return []string{"--dry-run"}
 	case `"flows run"`:
 		return []string{"--dry-run"}
@@ -657,8 +627,6 @@ func commandBoolFlags(commandName string) []string {
 
 func commandRepeatableFlags(commandName string) []string {
 	switch commandName {
-	case `"stream transcribe"`:
-		return []string{"--model"}
 	case `"analysis rounds"`, `"analysis tendencies"`:
 		// Repeating a filter flag ORs its values, exactly as repeating a query
 		// parameter does on the HTTP API.

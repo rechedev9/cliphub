@@ -12,33 +12,20 @@ import (
 
 // TestStreamJourneyChainsStagesMediaFree drives the stream/VOD journey through
 // the in-process command layer via runStreamWithService + fakeStreamService: a
-// plan preflight, the persisted plan, the reviewed killfeed and Spanish caption
-// imports, and the render dry-run. Each hop asserts the {ok, dry_run, executed}
-// envelope and that the --out document one stage writes is the literal --plan
-// the next stage consumes. It stays media-free (no ffmpeg/ffprobe) because the
-// service seam fakes probe/ffmpeg/render, so it always runs. Reviewed killfeed
-// events and caption words come from the shared testdata fixtures; from this
-// package they live at ../../testdata.
+// plan preflight, the persisted plan, and the render dry-run. Each hop asserts
+// the {ok, dry_run, executed} envelope and that the --out document one stage
+// writes is the literal --plan the next stage consumes. It stays media-free (no
+// ffmpeg/ffprobe) because the service seam fakes probe/ffmpeg/render, so it
+// always runs.
 func TestStreamJourneyChainsStagesMediaFree(t *testing.T) {
-	t.Setenv("XAI_API_KEY", "")
-
 	ws := t.TempDir()
-	events := filepath.Join("..", "..", "testdata", "stream-killfeed-events.json")
-	words := filepath.Join("..", "..", "testdata", "stream-caption-words.json")
-
 	editPlan := filepath.Join(ws, "edit-plan.json")
-	reviewedPlan := filepath.Join(ws, "reviewed-plan.json")
-	finalPlan := filepath.Join(ws, "final-plan.json")
 
-	// The reviewed killfeed fixture confirms cues at 2.75s and 8.625s on
-	// clip-001, so the persisted plan must detect those exact cues or the import
-	// rejects them as drift.
 	planProbe := streamclips.SourceProbe{Width: 1920, Height: 1080, DurationSeconds: 15, VideoCodec: "h264", AudioCodec: "aac"}
 
-	// 1. plan --dry-run validates the clip/crop/caption contract without writing.
+	// 1. plan --dry-run validates the clip/crop contract without writing.
 	stdout := runStream(t, &fakeStreamService{probe: planProbe},
 		"plan", "--input", "stream.mp4", "--out", editPlan,
-		"--killfeed-crop", "0.82,0.05,0.17,0.18", "--detect-killfeed",
 		"--dry-run", "--format", "json")
 	var planDry streamPlanResult
 	decodeStreamJSON(t, "stream plan preflight", stdout, &planDry)
@@ -47,10 +34,9 @@ func TestStreamJourneyChainsStagesMediaFree(t *testing.T) {
 	}
 	assertStreamPathMissing(t, editPlan)
 
-	// 2. plan persist writes the edit plan clip-001 carries the detected cues.
-	stdout = runStream(t, &fakeStreamService{probe: planProbe, detectedCues: []float64{2.75, 8.625}},
-		"plan", "--input", "stream.mp4", "--out", editPlan,
-		"--killfeed-crop", "0.82,0.05,0.17,0.18", "--detect-killfeed", "--format", "json")
+	// 2. plan persist writes the edit plan the render stage consumes.
+	stdout = runStream(t, &fakeStreamService{probe: planProbe},
+		"plan", "--input", "stream.mp4", "--out", editPlan, "--format", "json")
 	var planPersist streamPlanResult
 	decodeStreamJSON(t, "stream plan", stdout, &planPersist)
 	if !planPersist.OK || planPersist.DryRun || !planPersist.Executed {
@@ -58,48 +44,11 @@ func TestStreamJourneyChainsStagesMediaFree(t *testing.T) {
 	}
 	assertStreamFileExists(t, editPlan)
 
-	// 3. killfeed import consumes the persisted plan and persists the reviewed
-	// factual events; its --plan is the plan step's --out.
-	stdout = runStream(t, &fakeStreamService{},
-		"killfeed", "--plan", editPlan, "--events", events, "--out", reviewedPlan, "--format", "json")
-	var killfeed streamKillfeedResult
-	decodeStreamJSON(t, "stream killfeed", stdout, &killfeed)
-	if !killfeed.OK || killfeed.DryRun || !killfeed.Executed {
-		t.Fatalf("killfeed envelope = %#v, want executed", killfeed)
-	}
-	if killfeed.CueCount != 2 || killfeed.KillCount != 3 {
-		t.Fatalf("killfeed counts = %#v, want 2 cues / 3 kills from the fixture", killfeed)
-	}
-	if !streamPlanNeedsExactKillfeedArtifacts(killfeed.Plan) {
-		t.Fatal("reviewed detected cues lost automatic provenance before render")
-	}
-	for _, cue := range killfeed.Plan.Clips[0].KillfeedSeconds {
-		provenance, ok := killfeed.Plan.Clips[0].KillfeedProvenanceAt(cue)
-		if !ok || provenance.Origin != streamclips.KillfeedCueAutomatic {
-			t.Fatalf("cue %.9f provenance = %#v / %v, want automatic", cue, provenance, ok)
-		}
-	}
-	assertStreamFileExists(t, reviewedPlan)
-
-	// 4. captions import consumes the reviewed plan and persists the Spanish
-	// caption timings; its --plan is the killfeed step's --out.
-	stdout = runStream(t, &fakeStreamService{},
-		"captions", "--plan", reviewedPlan, "--words", words, "--out", finalPlan, "--format", "json")
-	var captions streamCaptionsResult
-	decodeStreamJSON(t, "stream captions", stdout, &captions)
-	if !captions.OK || captions.DryRun || !captions.Executed {
-		t.Fatalf("captions envelope = %#v, want executed", captions)
-	}
-	if captions.WordCount != 2 || captions.Language != "es" {
-		t.Fatalf("captions result = %#v, want 2 reviewed Spanish words", captions)
-	}
-	assertStreamFileExists(t, finalPlan)
-
-	// 5. render --dry-run consumes the final plan; its --plan is the captions
-	// step's --out. Reviewed captions make it credential-free.
+	// 3. render --dry-run consumes the persisted plan; its --plan is the plan
+	// step's --out.
 	renderDir := filepath.Join(ws, "render")
 	stdout = runStream(t, &fakeStreamService{probe: planProbe},
-		"render", "--input", "stream.mp4", "--plan", finalPlan, "--out", renderDir, "--dry-run", "--format", "json")
+		"render", "--input", "stream.mp4", "--plan", editPlan, "--out", renderDir, "--dry-run", "--format", "json")
 	var render streamRenderResult
 	decodeStreamJSON(t, "stream render", stdout, &render)
 	if !render.OK || !render.DryRun || render.Executed {

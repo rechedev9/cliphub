@@ -10,10 +10,7 @@ import {
   type StreamRenderState,
   type StreamVariant,
 } from '@/lib/api/streams';
-import { captionsNeedReview, streamHasAudio } from '@/lib/caption-review';
 import { clipEditIssue, streamRangesIssue } from '@/lib/clip-edit';
-import { killfeedAnalysisNeeded } from '@/lib/killfeed-analysis';
-import { fitPlanToSourceDuration, normalizeKillfeedPlan } from '@/lib/killfeed-plan';
 import {
   loadStreamDraft,
   reconcileStreamDraftAfterSave,
@@ -23,13 +20,14 @@ import {
   streamEditPlanFingerprint,
 } from '@/lib/stream-draft';
 import { isCurrentStreamEditorLoad, nextStreamEditorLoad, type StreamEditorLoad } from '@/lib/stream-editor-load';
-import { streamRenderCanRetry, streamRenderNeedsKillfeedReanalysis } from '@/lib/stream-recovery';
+import { streamRenderCanRetry } from '@/lib/stream-recovery';
 import {
   STREAMER_NICK_RE,
   STREAM_OFFLINE_MESSAGE,
   blankClip,
   blankPlan,
   errorMessage,
+  fitPlanToSourceDuration,
   isServiceUnavailable,
   isStreamURLValidationError,
   nonVideoExtension,
@@ -108,7 +106,7 @@ function LocalStreamsPage() {
       if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return;
       serverPlanFingerprint.current = { jobId: j.id, fingerprint: streamEditPlanFingerprint(serverPlan) };
       const loadedPlan = fitPlanToSourceDuration(
-        normalizeKillfeedPlan(selectStreamDraftPlan(browserDraft, serverPlan) ?? serverPlan),
+        selectStreamDraftPlan(browserDraft, serverPlan) ?? serverPlan,
         duration,
       );
       if (j.title?.trim() && loadedPlan.clips[0] && !loadedPlan.clips[0].title?.trim()) {
@@ -237,14 +235,6 @@ function LocalStreamsPage() {
             return;
           }
           if (state.status === 'failed') {
-            if (streamRenderNeedsKillfeedReanalysis(state)) {
-              setStage('editing');
-              setError(
-                state.error ||
-                  'Las capturas exactas de la killfeed ya no están disponibles. Reanaliza la killfeed y vuelve a crear los Shorts.',
-              );
-              return;
-            }
             if (streamRenderCanRetry(state)) {
               setStage('editing');
               setError(
@@ -274,12 +264,6 @@ function LocalStreamsPage() {
     [reset],
   );
 
-  const clearRecoverableKillfeedRender = useCallback(() => {
-    if (!streamRenderNeedsKillfeedReanalysis(renderState)) return;
-    setRenderState((current) => (current?.published ? { ...current, error: undefined, error_code: undefined } : null));
-    setError(null);
-  }, [renderState]);
-
   const createShorts = useCallback(async () => {
     if (!job || !plan) return;
     const fittedPlan = fitPlanToSourceDuration(plan, job.probe?.duration_seconds ?? 0);
@@ -301,15 +285,6 @@ function LocalStreamsPage() {
     const editIssue = clipEditIssue(fittedPlan.clips);
     if (editIssue !== null) {
       setError(editIssue);
-      return;
-    }
-    const sourceHasAudio = streamHasAudio(job.probe);
-    if (captionsNeedReview(fittedPlan, sourceHasAudio)) {
-      setError('Revisa los subtítulos de cada clip con audio antes de crear los Shorts.');
-      return;
-    }
-    if (killfeedAnalysisNeeded(fittedPlan)) {
-      setError('Espera a que termine el análisis automático de la killfeed antes de crear los Shorts.');
       return;
     }
     setError(null);
@@ -460,7 +435,6 @@ function LocalStreamsPage() {
         error={error}
         saving={saving}
         onCreate={() => void createShorts()}
-        onKillfeedAnalysisRecovered={clearRecoverableKillfeedRender}
         onStartOver={() => reset('')}
       />
     );
@@ -474,8 +448,8 @@ function LocalStreamsPage() {
         title="DE STREAM A SHORT"
         description={
           <p>
-            Pega un clip de Twitch o YouTube, o sube un MP4. Córtalo en vertical con tu facecam y
-            conserva la killfeed original cuando la necesites.
+            Pega un clip de Twitch o YouTube, o sube un MP4. Córtalo en vertical con tu facecam,
+            ajusta el encuadre y añade música antes de renderizar.
           </p>
         }
       />

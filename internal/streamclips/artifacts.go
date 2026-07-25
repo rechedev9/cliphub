@@ -26,53 +26,6 @@ func EditPlanKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "edit-plan.json")
 }
 
-func CaptionCandidatesKey(id uuid.UUID) string {
-	return path.Join(JobPrefix(id), "captions", "candidates.json")
-}
-
-func CaptionCandidateGenerationKey(id, generationID uuid.UUID) (string, error) {
-	if generationID == uuid.Nil {
-		return "", fmt.Errorf("caption generation id is required")
-	}
-	return path.Join(JobPrefix(id), "captions", "generations", generationID.String()+".json"), nil
-}
-
-// KillfeedAnalysisKey is the active-generation pointer. Its document also
-// carries the latest state so GET remains useful if a legacy generation file
-// has not been materialized yet.
-func KillfeedAnalysisKey(id uuid.UUID) string {
-	return path.Join(JobPrefix(id), "killfeed", "analysis.json")
-}
-
-func KillfeedAnalysisGenerationKey(id, generationID uuid.UUID) (string, error) {
-	if generationID == uuid.Nil {
-		return "", fmt.Errorf("killfeed analysis generation id is required")
-	}
-	return path.Join(JobPrefix(id), "killfeed", "generations", generationID.String()+".json"), nil
-}
-
-// KillfeedEventRowKey identifies the immutable PNG captured for one row born
-// in one detector event. All path components are validated before joining so
-// detector or persisted-state data cannot escape the job artifact prefix.
-func KillfeedEventRowKey(id, generationID uuid.UUID, clipID, eventID string, rowIndex int) (string, error) {
-	if generationID == uuid.Nil {
-		return "", fmt.Errorf("killfeed analysis generation id is required")
-	}
-	if !clipIDPattern.MatchString(clipID) {
-		return "", fmt.Errorf("invalid clip id %q", clipID)
-	}
-	if !clipIDPattern.MatchString(eventID) {
-		return "", fmt.Errorf("invalid killfeed event id %q", eventID)
-	}
-	if rowIndex < 0 {
-		return "", fmt.Errorf("killfeed row index must be >= 0")
-	}
-	return path.Join(
-		JobPrefix(id), "killfeed", "generations", generationID.String(),
-		"events", clipID, eventID, fmt.Sprintf("row-%03d.png", rowIndex),
-	), nil
-}
-
 func RenderPrefix(id uuid.UUID, variant string) (string, error) {
 	if _, ok := VariantByName(variant); !ok {
 		return "", unknownVariantError(variant)
@@ -115,19 +68,6 @@ func RenderVideoKey(id uuid.UUID, variant, clipID string) (string, error) {
 	return path.Join(prefix, "videos", clipID+".mp4"), nil
 }
 
-// RenderCaptionKey returns the storage key for a clip's burned-caption ASS
-// track, stored next to the rendered videos under the render artifact prefix.
-func RenderCaptionKey(id uuid.UUID, variant, clipID string) (string, error) {
-	prefix, err := RenderPrefix(id, variant)
-	if err != nil {
-		return "", err
-	}
-	if !clipIDPattern.MatchString(clipID) {
-		return "", fmt.Errorf("invalid clip id %q", clipID)
-	}
-	return path.Join(prefix, "captions", clipID+".ass"), nil
-}
-
 // RenderRevisionPrefix is an immutable publication namespace for one render
 // attempt. status.json is the sole mutable pointer to a completed revision, so
 // an interrupted upload cannot overwrite artifacts referenced by an older
@@ -168,17 +108,6 @@ func RenderRevisionVideoKey(id uuid.UUID, variant string, revisionID uuid.UUID, 
 		return "", fmt.Errorf("invalid clip id %q", clipID)
 	}
 	return path.Join(prefix, "videos", clipID+".mp4"), nil
-}
-
-func RenderRevisionCaptionKey(id uuid.UUID, variant string, revisionID uuid.UUID, clipID string) (string, error) {
-	prefix, err := RenderRevisionPrefix(id, variant, revisionID)
-	if err != nil {
-		return "", err
-	}
-	if !clipIDPattern.MatchString(clipID) {
-		return "", fmt.Errorf("invalid clip id %q", clipID)
-	}
-	return path.Join(prefix, "captions", clipID+".ass"), nil
 }
 
 func RenderRevisionDeliveryKey(id uuid.UUID, variant string, revisionID uuid.UUID, name string) (string, error) {

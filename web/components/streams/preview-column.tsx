@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { StreamPreview } from '@/components/streams/stream-preview';
 
 /**
- * The 9:16 monitor: the vertical frame the render will produce, the montage
- * transport, and the one sentence explaining what the killfeed does at a cue.
+ * The 9:16 monitor: the vertical frame the render will produce and the montage
+ * transport that plays the selected ranges in order.
  *
  * It sticks to the top of the viewport on wide layouts because every control in
  * the left column is judged against it — scrolling the editor away from its own
@@ -20,7 +20,6 @@ export function StreamPreviewColumn({
   variant,
   faceCrop,
   gameplayCrop,
-  killfeedCrop,
   clips,
   frameSeconds,
   sourceDuration,
@@ -43,7 +42,6 @@ export function StreamPreviewColumn({
   variant: StreamVariant;
   faceCrop?: NormalizedRect;
   gameplayCrop?: NormalizedRect;
-  killfeedCrop?: NormalizedRect;
   clips: StreamClipRange[];
   frameSeconds: number;
   sourceDuration: number;
@@ -76,7 +74,6 @@ export function StreamPreviewColumn({
         variant={variant}
         faceCrop={faceCrop}
         gameplayCrop={gameplayCrop}
-        killfeedCrop={killfeedCrop}
         clips={clips}
         frameSeconds={frameSeconds}
         streamerNick={streamerNick}
@@ -118,8 +115,8 @@ export function StreamPreviewColumn({
       ) : null}
 
       <p className="text-body-sm text-fg-3">
-        La preview replica el encuadre vertical. En cada marca: con kills confirmadas superpone la
-        killfeed sintética nítida; sin kills congela el recorte del MP4.
+        La preview replica el encuadre vertical del render: las bandas, el recorte de cada fuente y
+        el banner en su posición exacta.
       </p>
     </div>
   );

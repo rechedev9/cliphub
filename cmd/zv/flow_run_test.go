@@ -106,11 +106,11 @@ func TestFlowsRunRejectsTemplateFlowWithoutCreatingRunDir(t *testing.T) {
 // TestFlowRunnerStepsCoverRegistryPhases links the runner (flow_run.go) to the
 // descriptive registry (productionFlows): every runner step must drive a real
 // registry phase, and every registry phase must be either driven by a runner
-// step or explicitly exempt (doctor, players, *-preflight, gates, review,
-// transcribe...). A new registry phase added without runner coverage or an
-// exemption fails here. Runner step ids intentionally differ from a few phase
-// ids (record->capture, shorts-render->edit, killfeed->enrich), so the link is a
-// documented correspondence map rather than raw id equality.
+// step or explicitly exempt (doctor, players, *-preflight, gates, review...).
+// A new registry phase added without runner coverage or an exemption fails
+// here. Runner step ids intentionally differ from a few phase ids
+// (record->capture, shorts-render->edit), so the link is a documented
+// correspondence map rather than raw id equality.
 func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 	setOf := func(ids ...string) map[string]bool {
 		m := make(map[string]bool, len(ids))
@@ -141,15 +141,13 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 		},
 		{
 			flow:  "stream",
-			steps: streamFlowRunSteps("run", "stream.mp4", "", "", ""),
+			steps: streamFlowRunSteps("run", "stream.mp4"),
 			runnerPhase: map[string]string{
 				"creative-brief": "creative-brief",
 				"plan":           "plan",
-				"killfeed":       "enrich",
-				"captions":       "captions",
 				"render":         "render",
 			},
-			exempt: setOf("doctor", "layouts", "plan-preflight", "killfeed-preflight", "transcribe-preflight", "transcribe", "captions-preflight", "render-preflight", "review"),
+			exempt: setOf("doctor", "layouts", "plan-preflight", "render-preflight", "review"),
 		},
 	}
 	for _, tc := range cases {
@@ -180,59 +178,6 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 				t.Fatalf("flow %q phase %q has no runner step and is not exempt; add runner coverage or exempt it", tc.flow, phase.ID)
 			}
 		})
-	}
-}
-
-func TestStreamFlowRunPlanDetectsKillfeedOnlyWhenEventsProvided(t *testing.T) {
-	cases := []struct {
-		name         string
-		events       string
-		killfeedCrop string
-		wantDetect   bool
-	}{
-		{name: "events provided enables detection with crop", events: "events.json", killfeedCrop: "0.66,0.04,0.32,0.25", wantDetect: true},
-		{name: "no events skips detection", events: "", killfeedCrop: "", wantDetect: false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			steps := streamFlowRunSteps("run", "stream.mp4", tc.events, "", tc.killfeedCrop)
-			var planStep flowRunStep
-			for _, step := range steps {
-				if step.id == "plan" {
-					planStep = step
-					break
-				}
-			}
-			if planStep.id == "" {
-				t.Fatalf("stream flow has no plan step: %#v", steps)
-			}
-			action, err := planStep.build()
-			if err != nil {
-				t.Fatalf("build plan step: %v", err)
-			}
-			if got, want := containsString(action.argv, "--detect-killfeed"), tc.wantDetect; got != want {
-				t.Fatalf("plan argv --detect-killfeed = %v, want %v; argv = %v", got, want, action.argv)
-			}
-			if got, want := containsString(action.argv, "--killfeed-crop"), tc.wantDetect; got != want {
-				t.Fatalf("plan argv --killfeed-crop = %v, want %v; argv = %v", got, want, action.argv)
-			}
-		})
-	}
-}
-
-func TestFlowsRunStreamEventsRequireKillfeedCrop(t *testing.T) {
-	ws := t.TempDir()
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"zv", "flows", "run", "stream",
-		"--input", "stream.mp4",
-		"--events", "events.json",
-		"--run-dir", ws,
-		"--dry-run"}, &stdout, &stderr, nil, &fakeRunner{})
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
-	}
-	if want := "--events requires --killfeed-crop"; !strings.Contains(stderr.String(), want) {
-		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
 
@@ -282,9 +227,9 @@ func TestFlowPhaseFailureReason(t *testing.T) {
 	}{
 		{
 			name:   "json error field wins over raw json lines",
-			stdout: "{\n  \"ok\": false,\n  \"error\": \"killfeed events has 2 cues; clip clip-001 has 0 detected cues\"\n}",
+			stdout: "{\n  \"ok\": false,\n  \"error\": \"clip clip-001 is outside the source duration\"\n}",
 			code:   1,
-			want:   "killfeed events has 2 cues; clip clip-001 has 0 detected cues",
+			want:   "clip clip-001 is outside the source duration",
 		},
 		{
 			name:   "stderr line wins when present",

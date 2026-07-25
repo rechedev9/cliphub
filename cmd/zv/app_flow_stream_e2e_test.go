@@ -35,9 +35,7 @@ func requireStreamMediaTools(t *testing.T) string {
 // the stream journey through the REAL zv-stream binary: it probes a synthesized
 // source to persist an edit plan, then renders that exact plan in --dry-run.
 // Each hop asserts the envelope and that the plan step's --out is the literal
-// --plan the render consumes. The reviewed killfeed/caption imports are covered
-// media-free in internal/streamcli; here the synthetic source is only 4s, so its
-// real detected cues cannot match the longer reviewed fixture.
+// --plan the render consumes.
 func TestStreamJourneyBinaryChainsPlanAndRender(t *testing.T) {
 	ffmpeg := requireStreamMediaTools(t)
 	exe := buildDelegatedBinaries(t)
@@ -66,8 +64,7 @@ func TestStreamJourneyBinaryChainsPlanAndRender(t *testing.T) {
 
 // TestFlowsRunStreamDryRunChainsPlanAndRender exercises `zv flows run stream
 // --dry-run` end to end through the real binaries: the plan phase persists a real
-// edit plan (ffprobe), the killfeed and caption imports skip without their
-// reviewed inputs, and the render phase runs as a dry run over the persisted
+// edit plan (ffprobe) and the render phase runs as a dry run over the persisted
 // plan. Gated on ffmpeg/ffprobe like the manual journey.
 func TestFlowsRunStreamDryRunChainsPlanAndRender(t *testing.T) {
 	ffmpeg := requireStreamMediaTools(t)
@@ -92,13 +89,6 @@ func TestFlowsRunStreamDryRunChainsPlanAndRender(t *testing.T) {
 		t.Fatalf("plan phase = %#v, want executed", planPhase)
 	}
 	assertFileExists(t, filepath.Join(runDir, "edit-plan.json"))
-
-	for _, id := range []string{"killfeed", "captions"} {
-		phase, ok := phaseByName(report, id)
-		if !ok || !phase.Skipped {
-			t.Fatalf("%s phase = %#v, want skipped without its reviewed input", id, phase)
-		}
-	}
 
 	renderPhase, ok := phaseByName(report, "render")
 	if !ok || !renderPhase.OK || !renderPhase.DryRun || renderPhase.Executed {

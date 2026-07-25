@@ -2,42 +2,16 @@
 
 import { useCallback, useId, useRef, type ReactNode } from 'react';
 import type { NormalizedRect } from '@/lib/api/streams';
-import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
 
-const DEFAULT_MIN_SIZE = 0.08;
-const MIN_NORMALIZED_SIZE = 0.001;
+const MIN_SIZE = 0.08;
 const KEYBOARD_STEP = 0.005;
 const KEYBOARD_LARGE_STEP = 0.02;
-const SCRUBBER_STEP_SECONDS = 0.01;
 
-type CropPickerKind = 'facecam' | 'killfeed';
 type Drag = { kind: 'move' | 'resize'; startClientX: number; startClientY: number; startRect: NormalizedRect };
 
-const PICKER_LABELS: Record<CropPickerKind, { move: string; resize: string }> = {
-  facecam: {
-    move: 'Mover región de recorte del facecam',
-    resize: 'Redimensionar región de recorte del facecam',
-  },
-  killfeed: {
-    move: 'Mover región de recorte de la killfeed',
-    resize: 'Redimensionar región de recorte de la killfeed',
-  },
-};
-
-const PICKER_ACCENTS: Record<CropPickerKind, { region: string; handle: string; range: string }> = {
-  facecam: {
-    region: 'border-primary bg-primary/10 focus-visible:ring-primary',
-    handle: 'border-background bg-primary focus-visible:ring-primary',
-    range: 'accent-primary',
-  },
-  killfeed: {
-    region: 'border-stream bg-stream/10 focus-visible:ring-stream',
-    handle: 'border-background bg-stream focus-visible:ring-stream',
-    range: 'accent-stream',
-  },
-};
+const MOVE_LABEL = 'Mover región de recorte del facecam';
+const RESIZE_LABEL = 'Redimensionar región de recorte del facecam';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -52,39 +26,17 @@ function clampRect(rect: NormalizedRect, minWidth: number, minHeight: number): N
   return { x, y, width, height };
 }
 
-function formatTimestamp(seconds: number): string {
-  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainder = safeSeconds - minutes * 60;
-  return `${minutes}:${remainder.toFixed(2).padStart(5, '0')}`;
-}
-
 /**
- * Reusable source crop picker. Pointer and keyboard controls both emit a
- * normalized rectangle, while an optional controlled scrubber lets multiple
- * pickers and the 9:16 preview share one absolute source timestamp.
+ * The facecam source crop picker. Pointer and keyboard controls both emit a
+ * normalized rectangle against the shared session frame.
  */
 export function CropPicker({
   rect,
   onChange,
-  kind,
-  frameSeconds,
-  durationSeconds,
-  onFrameSecondsChange,
-  showScrubber = false,
-  minWidth = DEFAULT_MIN_SIZE,
-  minHeight = DEFAULT_MIN_SIZE,
   disabled = false,
 }: {
   rect: NormalizedRect;
   onChange: (rect: NormalizedRect) => void;
-  kind: CropPickerKind;
-  frameSeconds: number;
-  durationSeconds?: number;
-  onFrameSecondsChange?: (seconds: number) => void;
-  showScrubber?: boolean;
-  minWidth?: number;
-  minHeight?: number;
   disabled?: boolean;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -94,26 +46,7 @@ export function CropPicker({
     ? `${frame.sourceWidth} / ${frame.sourceHeight}`
     : null;
   const instructionsId = useId();
-  const scrubberId = useId();
-  const safeMinWidth = Number.isFinite(minWidth)
-    ? clamp(minWidth, MIN_NORMALIZED_SIZE, 1)
-    : DEFAULT_MIN_SIZE;
-  const safeMinHeight = Number.isFinite(minHeight)
-    ? clamp(minHeight, MIN_NORMALIZED_SIZE, 1)
-    : DEFAULT_MIN_SIZE;
-  const safeRect = clampRect(rect, safeMinWidth, safeMinHeight);
-  const labels = PICKER_LABELS[kind];
-  const accents = PICKER_ACCENTS[kind];
-  const providedDuration = durationSeconds ?? 0;
-  const safeDuration =
-    Number.isFinite(providedDuration) && providedDuration > 0
-      ? providedDuration
-      : 0;
-  const scrubberValue = clamp(
-    Number.isFinite(frameSeconds) ? frameSeconds : 0,
-    0,
-    safeDuration,
-  );
+  const safeRect = clampRect(rect, MIN_SIZE, MIN_SIZE);
 
   const normalizedDelta = useCallback((clientX: number, clientY: number, drag: Drag) => {
     const container = containerRef.current;
@@ -149,18 +82,18 @@ export function CropPicker({
       if (drag.kind === 'move') {
         onChange(clampRect(
           { ...drag.startRect, x: drag.startRect.x + dx, y: drag.startRect.y + dy },
-          safeMinWidth,
-          safeMinHeight,
+          MIN_SIZE,
+          MIN_SIZE,
         ));
         return;
       }
       onChange(clampRect(
         { ...drag.startRect, width: drag.startRect.width + dx, height: drag.startRect.height + dy },
-        safeMinWidth,
-        safeMinHeight,
+        MIN_SIZE,
+        MIN_SIZE,
       ));
     },
-    [normalizedDelta, onChange, safeMinHeight, safeMinWidth],
+    [normalizedDelta, onChange],
   );
 
   const endDrag = useCallback(() => {
@@ -177,9 +110,9 @@ export function CropPicker({
       if (event.key === 'ArrowDown') next = { ...safeRect, y: safeRect.y + step };
       if (!next) return;
       event.preventDefault();
-      onChange(clampRect(next, safeMinWidth, safeMinHeight));
+      onChange(clampRect(next, MIN_SIZE, MIN_SIZE));
     },
-    [onChange, safeMinHeight, safeMinWidth, safeRect],
+    [onChange, safeRect],
   );
 
   const resizeWithKeyboard = useCallback(
@@ -192,13 +125,13 @@ export function CropPicker({
       if (event.key === 'ArrowDown') next = { ...safeRect, height: safeRect.height + step };
       if (!next) return;
       event.preventDefault();
-      onChange(clampRect(next, safeMinWidth, safeMinHeight));
+      onChange(clampRect(next, MIN_SIZE, MIN_SIZE));
     },
-    [onChange, safeMinHeight, safeMinWidth, safeRect],
+    [onChange, safeRect],
   );
 
   return (
-    <div className="flex flex-col gap-3" data-stream-crop-picker={kind}>
+    <div className="flex flex-col gap-3" data-stream-crop-picker="facecam">
       <p id={instructionsId} className="sr-only">
         Usa las flechas para ajustar el recorte. Mantén Mayús para mover o redimensionar más rápido.
       </p>
@@ -217,14 +150,11 @@ export function CropPicker({
         <button
           type="button"
           disabled={disabled}
-          aria-label={labels.move}
+          aria-label={MOVE_LABEL}
           aria-describedby={instructionsId}
           onPointerDown={beginDrag('move')}
           onKeyDown={moveWithKeyboard}
-          className={cn(
-            'absolute cursor-move rounded-sm border-2 shadow-[0_0_0_9999px_color-mix(in_oklch,var(--background)_70%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-40',
-            accents.region,
-          )}
+          className={'absolute cursor-move rounded-sm border-2 border-primary bg-primary/10 shadow-[0_0_0_9999px_color-mix(in_oklch,var(--background)_70%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-40'}
           style={{
             left: `${safeRect.x * 100}%`,
             top: `${safeRect.y * 100}%`,
@@ -235,52 +165,17 @@ export function CropPicker({
         <button
           type="button"
           disabled={disabled}
-          aria-label={labels.resize}
+          aria-label={RESIZE_LABEL}
           aria-describedby={instructionsId}
           onPointerDown={beginDrag('resize')}
           onKeyDown={resizeWithKeyboard}
-          className={cn(
-            'absolute size-4 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize rounded-sm border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-40',
-            accents.handle,
-          )}
+          className={'absolute size-4 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize rounded-sm border-2 border-background bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-40'}
           style={{
             left: `${(safeRect.x + safeRect.width) * 100}%`,
             top: `${(safeRect.y + safeRect.height) * 100}%`,
           }}
         />
       </div>
-
-      {showScrubber ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor={scrubberId} className="text-xs text-muted-foreground">
-              Fotograma compartido del vídeo
-            </Label>
-            <output
-              htmlFor={scrubberId}
-              className="font-[family-name:var(--font-mono)] text-[11px] tabular-nums text-stream"
-            >
-              {formatTimestamp(scrubberValue)} / {formatTimestamp(safeDuration)}
-            </output>
-          </div>
-          <input
-            id={scrubberId}
-            type="range"
-            min={0}
-            max={safeDuration}
-            step={SCRUBBER_STEP_SECONDS}
-            value={scrubberValue}
-            disabled={disabled || safeDuration <= 0 || !onFrameSecondsChange}
-            aria-label="Tiempo compartido del vídeo para seleccionar la killfeed"
-            aria-valuetext={`${formatTimestamp(scrubberValue)} de ${formatTimestamp(safeDuration)}`}
-            onChange={(event) => onFrameSecondsChange?.(Number(event.target.value))}
-            className={cn('w-full disabled:cursor-not-allowed disabled:opacity-50', accents.range)}
-          />
-          {safeDuration <= 0 ? (
-            <p className="text-xs text-warning">La duración del vídeo todavía no está disponible.</p>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

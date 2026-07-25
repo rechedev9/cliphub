@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/url"
 	"os"
 	"os/exec"
@@ -23,19 +22,16 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/captions"
 	"github.com/rechedev9/fragforge/internal/composition"
 	"github.com/rechedev9/fragforge/internal/editor"
 	"github.com/rechedev9/fragforge/internal/generateintent"
 	"github.com/rechedev9/fragforge/internal/job"
 	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/mediafont"
 	"github.com/rechedev9/fragforge/internal/obs"
 	"github.com/rechedev9/fragforge/internal/recording"
 	"github.com/rechedev9/fragforge/internal/renderplan"
 	"github.com/rechedev9/fragforge/internal/storage"
 	"github.com/rechedev9/fragforge/internal/streamclips"
-	"github.com/rechedev9/fragforge/internal/streamkillfeed"
 	"github.com/rechedev9/fragforge/internal/tasks"
 )
 
@@ -47,9 +43,10 @@ const defaultMediaWorkerTimeout = "20m"
 // startup reconciliation can finish that promotion after a restart.
 var errStreamRenderParentPromotion = errors.New("stream render completed but parent status promotion failed")
 
-// errStreamKillfeedArtifactsStale marks a recoverable exact-evidence failure.
-// The user must be able to rerun analysis, so it must not fail the parent job.
-var errStreamKillfeedArtifactsStale = errors.New("stream render exact killfeed artifacts are stale")
+// errStreamRenderSuperseded marks a render whose admitted edit plan or variant
+// state was replaced while the task was queued or running. It is recoverable:
+// the parent job keeps its previous status so the user can render again.
+var errStreamRenderSuperseded = errors.New("stream render was superseded")
 
 var errStaleGenerateHandoff = errors.New("generate render handoff no longer owns the active run")
 
@@ -235,22 +232,17 @@ type StreamRenderWorkerConfig struct {
 	// final pointer commits serialize with edit-plan mutations for the same job.
 	// CLI and tests may leave it nil to receive a private coordinator.
 	JobLocks *streamclips.JobLocks
-	// RequireAppliedKillfeedAnalysis enables Studio's durable automatic-analysis
-	// gate. CLI rendering leaves this false so explicitly reviewed legacy/manual
-	// plans continue to work; metadata-bearing plans are always validated.
-	RequireAppliedKillfeedAnalysis bool
+	// RequireImmutableEditPlanIntent refuses a render:stream-clip task that
+	// carries no StreamRenderIntent. Every supersede check below treats a
+	// missing intent as "nothing to compare", so without this gate an unbound
+	// task would render whatever the edit plan happens to be when it executes
+	// and commit the canonical pointer. Studio enables it because it only ever
+	// enqueues bound tasks; the CLI leaves it off so a plain task still renders.
+	RequireImmutableEditPlanIntent bool
 	// MusicDir holds catalog tracks named "<key>.<ext>" that an edit plan's
 	// MusicPlan can mix under the clip audio (same directory the songs API and
 	// the reel render worker use).
 	MusicDir string
-	// XAIAPIKey configures the only supported stream-caption transcription pass
-	// (internal/captions.XAITranscriber):
-	// the worker extracts the selected source-audio range to speech-oriented
-	// WAV, then xAI transcribes it with word-level timestamps (see
-	// NewStreamRenderWorker).
-	XAIAPIKey string
-	// Render never calls xAI: it consumes only CaptionReviewed edit-plan cues.
-	// This key is used by the separate candidate-generation task.
 }
 
 // RecordWorker handles the "record:demo" Asynq task.
@@ -804,100 +796,26 @@ func NewRenderWorker(repo StatusRepository, store storage.Storage, cfg RenderWor
 }
 
 // StreamRenderWorker handles "render:stream-clip" tasks.
-type streamKillfeedScanner interface {
-	Scan(
-		ctx context.Context,
-		sourcePath string,
-		probe streamclips.SourceProbe,
-		crop streamclips.CropRect,
-		clip streamclips.ClipRange,
-	) ([]streamkillfeed.Event, error)
-}
-
 type StreamRenderWorker struct {
 	repo     StreamRenderRepository
 	storage  storage.Storage
 	cfg      StreamRenderWorkerConfig
 	runner   commandRunner
 	jobLocks *streamclips.JobLocks
-	// killfeedScanner is the source-PTS detector used by the durable killfeed
-	// analysis task. Tests replace it with deterministic frame evidence.
-	killfeedScanner streamKillfeedScanner
-	// extractKillfeedRows selects one event's exact SamplePTS and returns only
-	// the rows born in that event as PNGs. It is separate from the scanner seam
-	// so tests can prove event isolation without invoking ffmpeg.
-	extractKillfeedRows func(
-		ctx context.Context,
-		sourcePath string,
-		probe streamclips.SourceProbe,
-		event streamkillfeed.Event,
-	) ([][]byte, error)
-	// transcribe runs the xAI captions pass, with a seam for unit tests.
-	transcribe func(ctx context.Context, mediaPath, workDir, language string) ([]captions.WordCue, error)
-	// translateToSpanish is the sole subtitle-output pass. xAI STT has no
-	// translation target, so Grok preserves Spanish phrases and translates all
-	// other recognized speech before ASS generation.
-	translateToSpanish func(ctx context.Context, cues []captions.WordCue) ([]captions.WordCue, error)
 }
 
 func NewStreamRenderWorker(repo StreamRenderRepository, store storage.Storage, cfg StreamRenderWorkerConfig) *StreamRenderWorker {
-	killfeedAnalyzer := streamkillfeed.Analyzer{FFmpegPath: cfg.FFmpegPath}
 	jobLocks := cfg.JobLocks
 	if jobLocks == nil {
 		jobLocks = streamclips.NewJobLocks()
 	}
-	w := &StreamRenderWorker{
-		repo:            repo,
-		storage:         store,
-		cfg:             cfg,
-		runner:          execCommandRunner{},
-		jobLocks:        jobLocks,
-		killfeedScanner: killfeedAnalyzer,
-		extractKillfeedRows: func(
-			ctx context.Context,
-			sourcePath string,
-			probe streamclips.SourceProbe,
-			event streamkillfeed.Event,
-		) ([][]byte, error) {
-			return killfeedAnalyzer.ExtractEventRowPNGs(ctx, sourcePath, probe, event)
-		},
+	return &StreamRenderWorker{
+		repo:     repo,
+		storage:  store,
+		cfg:      cfg,
+		runner:   execCommandRunner{},
+		jobLocks: jobLocks,
 	}
-	// Candidate generation intentionally uses xAI only. No machine transcript
-	// reaches rendering until the review endpoint persists it in the edit plan.
-	w.transcribe = func(ctx context.Context, mediaPath, workDir, language string) ([]captions.WordCue, error) {
-		x := captions.XAITranscriber{APIKey: w.cfg.XAIAPIKey, Language: language}
-		return transcribeCaptionsWithXAI(ctx, mediaPath, workDir, x.Transcribe)
-	}
-	w.translateToSpanish = captions.SpanishTranslator{APIKey: w.cfg.XAIAPIKey}.Translate
-	return w
-}
-
-// singleLine flattens an error for a one-line render warning.
-func singleLine(err error) string {
-	return strings.Join(strings.Fields(err.Error()), " ")
-}
-
-// transcribeCaptionsWithXAI validates the single supported backend's result.
-// A dead context is always hard, even if xAI happened to return unusable cues
-// while cancellation was propagating.
-func transcribeCaptionsWithXAI(ctx context.Context, mediaPath, workDir string, transcribe func(context.Context, string, string) ([]captions.WordCue, error)) ([]captions.WordCue, error) {
-	cues, err := transcribe(ctx, mediaPath, workDir)
-	if err == nil {
-		// Gameplay audio can make speech-to-text hallucinate; a real bad result
-		// stretched two words across 11.8s of a 15s clip. Nothing reaches the burn
-		// step without passing the shared transcript-quality gate.
-		err = captions.ValidateTranscript(cues)
-	}
-	if err != nil {
-		err = fmt.Errorf("xai: %w", err)
-	}
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		if err == nil {
-			return nil, ctxErr
-		}
-		return nil, fmt.Errorf("%v: %w", err, ctxErr)
-	}
-	return cues, err
 }
 
 func (w *StreamRenderWorker) HandleRenderStreamClip(ctx context.Context, t *asynq.Task) error {
@@ -914,7 +832,7 @@ func (w *StreamRenderWorker) HandleRenderStreamClip(ctx context.Context, t *asyn
 		return fmt.Errorf("load stream job %s: %w", payload.JobID, err)
 	}
 	claim := streamRenderClaim{}
-	if w.cfg.RequireAppliedKillfeedAnalysis && !hasIntent {
+	if w.cfg.RequireImmutableEditPlanIntent && !hasIntent {
 		err = fmt.Errorf("%w: immutable edit-plan intent is missing", errStreamRenderSuperseded)
 	} else {
 		err = w.render(ctx, j, payload.Variant, intent, hasIntent, &claim)
@@ -924,8 +842,8 @@ func (w *StreamRenderWorker) HandleRenderStreamClip(ctx context.Context, t *asyn
 			logWorkerError(j.ID, tasks.TypeRenderStreamClip, err)
 			return err
 		}
-		if errors.Is(err, errStreamRenderSuperseded) || errors.Is(err, errStreamKillfeedArtifactsStale) {
-			message := "render cancelled because its admitted edit plan or exact killfeed artifacts are no longer current; rerun killfeed analysis if requested, then render again"
+		if errors.Is(err, errStreamRenderSuperseded) {
+			message := "render cancelled because its admitted edit plan is no longer current; review the plan, then render again"
 			release := w.jobLocks.Lock(j.ID)
 			defer release()
 			current, getErr := w.repo.Get(ctx, j.ID)
@@ -933,7 +851,7 @@ func (w *StreamRenderWorker) HandleRenderStreamClip(ctx context.Context, t *asyn
 				return errors.Join(err, fmt.Errorf("reload recoverable stream render parent: %w", getErr))
 			}
 			owned, stateErr := w.writeRecoverableStreamRenderState(
-				j.ID, payload.Variant, intent, hasIntent, err, message,
+				j.ID, payload.Variant, intent, hasIntent, message,
 			)
 			if !owned && stateErr == nil {
 				// A newer attempt replaced this variant's mutable state. This old
@@ -1068,13 +986,6 @@ func (w *StreamRenderWorker) render(
 	if err := validateStreamRenderIntent(plan, intent, hasIntent); err != nil {
 		return err
 	}
-	appliedKillfeed, err := w.appliedKillfeedAnalysis(j, plan)
-	if err != nil {
-		return err
-	}
-	if j.Probe.AudioCodec != "" && plan.CaptionsNeedBackend() {
-		return fmt.Errorf("edit plan has an audible clip without reviewed captions or a reviewed no-speech decision")
-	}
 	bannerFontPath := ""
 	if plan.StreamerBanner.Nick != "" || plan.HasTextOverlays() {
 		bannerFontPath = streamclips.FindBannerFont()
@@ -1151,32 +1062,18 @@ func (w *StreamRenderWorker) render(
 		}
 	}
 	for _, clip := range plan.Clips {
-		var noticePaths [][]string
-		if plan.Variant != streamclips.VariantStreamerLandscape16x9 {
-			if plan.KillfeedAnalysis != nil {
-				noticePaths, err = w.materializeAnalyzedKillfeedNotices(
-					workDir, j.ID, appliedKillfeed, clip,
-				)
-			} else {
-				noticePaths, err = renderClipKillfeedNotices(workDir, clip)
-			}
-			if err != nil {
-				return err
-			}
-		}
 		textPaths, err := writeClipOverlayTexts(workDir, clip)
 		if err != nil {
 			return err
 		}
 		outPath := filepath.Join(outDir, clip.ID+".mp4")
 		args, err := streamclips.BuildFFmpegArgs(streamclips.FFmpegInputs{
-			SourcePath:          sourcePath,
-			OutputPath:          outPath,
-			MusicPath:           musicPath,
-			BannerFontPath:      bannerFontPath,
-			SourceHasAudio:      j.Probe.AudioCodec != "",
-			KillfeedNoticePaths: noticePaths,
-			TextOverlayPaths:    textPaths,
+			SourcePath:       sourcePath,
+			OutputPath:       outPath,
+			MusicPath:        musicPath,
+			BannerFontPath:   bannerFontPath,
+			SourceHasAudio:   j.Probe.AudioCodec != "",
+			TextOverlayPaths: textPaths,
 		}, plan, clip)
 		if err != nil {
 			return err
@@ -1185,68 +1082,21 @@ func (w *StreamRenderWorker) render(
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)
 		}
 
-		publishPath := outPath
-		videoArtifactID := clip.ID
-		if plan.Captions.Enabled {
-			switch {
-			case clip.SourceAudioMuted():
-				// Captions must describe what the viewer hears; a muted clip
-				// would otherwise get subtitles narrating inaudible speech.
-				warnings = append(warnings, fmt.Sprintf("clip %s: original audio is muted by the clip edit, publishing without captions", clip.ID))
-			case j.Probe.AudioCodec == "":
-				warnings = append(warnings, fmt.Sprintf("clip %s: source has no audio, publishing without captions", clip.ID))
-			case clip.CaptionReviewed && len(clip.CaptionWords) == 0:
-				warnings = append(warnings, fmt.Sprintf("clip %s: reviewed as containing no speech, publishing without captions", clip.ID))
-			case clip.CaptionReviewed && len(clip.CaptionWords) > 0:
-				cues := make([]captions.WordCue, len(clip.CaptionWords))
-				for i, word := range clip.CaptionWords {
-					cues[i] = captions.WordCue{Word: word.Word, StartSeconds: word.StartSeconds, EndSeconds: word.EndSeconds}
-				}
-				captionedPath, err := w.burnCaptionCues(runCtx, cfg, workDir, outPath, cues, clip.EffectiveSpeed(), variant, clip.ID)
-				if err != nil {
-					return err
-				}
-				publishPath = captionedPath
-				videoArtifactID = clip.ID + "_captioned"
-				captionKey, err := streamclips.RenderRevisionCaptionKey(j.ID, variant, revisionID, clip.ID)
-				if err != nil {
-					return err
-				}
-				publishArtifacts = append(publishArtifacts, publishArtifact{
-					key:  captionKey,
-					path: filepath.Join(workDir, "captions", clip.ID+".ass"),
-				})
-			default:
-				return fmt.Errorf("clip %s captions were not reviewed", clip.ID)
-			}
-		}
-
-		key, err := streamclips.RenderRevisionVideoKey(j.ID, variant, revisionID, videoArtifactID)
+		key, err := streamclips.RenderRevisionVideoKey(j.ID, variant, revisionID, clip.ID)
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: key, path: publishPath})
+		publishArtifacts = append(publishArtifacts, publishArtifact{key: key, path: outPath})
 		deliveryName := clip.ID + ".mp4"
 		deliveryKey, err := streamclips.RenderRevisionDeliveryKey(j.ID, variant, revisionID, deliveryName)
 		if err != nil {
 			return err
 		}
-		publishArtifacts = append(publishArtifacts, publishArtifact{key: deliveryKey, path: publishPath})
+		publishArtifacts = append(publishArtifacts, publishArtifact{key: deliveryKey, path: outPath})
 		if firstRenderedVideo == "" {
-			firstRenderedVideo = publishPath
+			firstRenderedVideo = outPath
 		}
 		delivery = append(delivery, streamclips.DeliveryEntry{Name: deliveryName, Kind: "video", Key: deliveryKey})
-		if plan.Captions.Enabled && clip.CaptionReviewed && len(clip.CaptionWords) > 0 {
-			captionName := clip.ID + ".ass"
-			captionDeliveryKey, err := streamclips.RenderRevisionDeliveryKey(j.ID, variant, revisionID, captionName)
-			if err != nil {
-				return err
-			}
-			publishArtifacts = append(publishArtifacts, publishArtifact{key: captionDeliveryKey, path: filepath.Join(workDir, "captions", clip.ID+".ass")})
-			delivery = append(delivery, streamclips.DeliveryEntry{Name: captionName, Kind: "captions", Key: captionDeliveryKey})
-		}
-		// Only the video artifact filename gains _captioned. NewVideoEntry keeps
-		// the original plan clip ID stable so caption sidecars remain addressable.
 		videos = append(videos, streamclips.NewVideoEntry(clip, key))
 	}
 
@@ -1449,17 +1299,6 @@ func validateStreamRenderIntent(plan streamclips.EditPlan, intent tasks.StreamRe
 	if fingerprint != intent.EditPlanFingerprint {
 		return fmt.Errorf("%w: admitted edit plan revision changed", errStreamRenderSuperseded)
 	}
-	if intent.KillfeedGeneration == uuid.Nil {
-		if plan.KillfeedAnalysis != nil {
-			return fmt.Errorf("%w: killfeed generation was added after admission", errStreamRenderSuperseded)
-		}
-		return nil
-	}
-	if plan.KillfeedAnalysis == nil ||
-		plan.KillfeedAnalysis.GenerationID != intent.KillfeedGeneration ||
-		plan.KillfeedAnalysis.Fingerprint != intent.KillfeedFingerprint {
-		return fmt.Errorf("%w: admitted killfeed generation changed", errStreamRenderSuperseded)
-	}
 	return nil
 }
 
@@ -1513,493 +1352,6 @@ func writeClipOverlayTexts(workDir string, clip streamclips.ClipRange) ([]string
 		paths[i] = textPath
 	}
 	return paths, nil
-}
-
-// renderClipKillfeedNotices renders every kill in clip.KillfeedKills to a
-// synthetic CS2 kill-notice PNG under <workDir>/killfeed/<clipID>/cue<i>_<j>.png
-// and returns the paths index-aligned with clip.KillfeedSeconds (top-first per
-// event cue). A cue with no kills gets a nil entry so BuildFFmpegArgs falls
-// back to a frozen crop of the killfeed region. Names are deterministic and
-// files are overwritten, so a redriven task stays idempotent. It returns nil
-// when the clip carries no kills at all.
-func renderClipKillfeedNotices(workDir string, clip streamclips.ClipRange) ([][]string, error) {
-	if len(clip.KillfeedKills) == 0 {
-		return nil, nil
-	}
-	paths := make([][]string, len(clip.KillfeedSeconds))
-	dir := filepath.Join(workDir, "killfeed", clip.ID)
-	for i := range clip.KillfeedSeconds {
-		if i >= len(clip.KillfeedKills) || len(clip.KillfeedKills[i]) == 0 {
-			continue
-		}
-		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return nil, err
-		}
-		cuePaths := make([]string, len(clip.KillfeedKills[i]))
-		for j, kill := range clip.KillfeedKills[i] {
-			noticePath := filepath.Join(dir, fmt.Sprintf("cue%d_%d.png", i, j))
-			if err := writeKillfeedNoticePNG(noticePath, kill); err != nil {
-				return nil, fmt.Errorf("render killfeed notice for clip %s cue %d kill %d: %w", clip.ID, i, j, err)
-			}
-			cuePaths[j] = noticePath
-		}
-		paths[i] = cuePaths
-	}
-	return paths, nil
-}
-
-func writeKillfeedNoticePNG(path string, kill streamclips.KillfeedKill) error {
-	// #nosec G304 -- path is constructed under the worker stage directory.
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	if err := streamclips.EncodeNoticePNG(kill, f); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
-}
-
-// extractCaptionSourceAudio materializes the selected range from the original
-// stream source as speech-oriented mono PCM WAV for xAI transcription. xAI
-// proved materially more reliable on this input than on the
-// already composed/re-encoded vertical MP4, especially when the speaker
-// switches between Spanish and English.
-func (w *StreamRenderWorker) extractCaptionSourceAudio(ctx context.Context, cfg StreamRenderWorkerConfig, workDir, sourcePath string, clip streamclips.ClipRange) (string, error) {
-	dir := filepath.Join(workDir, "caption-source-audio")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return "", fmt.Errorf("create xai caption audio directory: %w", err)
-	}
-	out := filepath.Join(dir, clip.ID+".wav")
-	duration := clip.EndSeconds - clip.StartSeconds
-	args := []string{
-		"-y",
-		"-ss", strconv.FormatFloat(clip.StartSeconds, 'f', 3, 64),
-		"-t", strconv.FormatFloat(duration, 'f', 3, 64),
-		"-i", sourcePath,
-		"-map", "0:a:0",
-		"-vn", "-sn", "-dn",
-		"-c:a", "pcm_s16le",
-		"-ac", "1",
-		"-ar", "16000",
-		out,
-	}
-	if _, err := w.runner.Run(ctx, cfg.FFmpegPath, args...); err != nil {
-		return "", fmt.Errorf("extract source audio for xai captions on clip %s: %w", clip.ID, err)
-	}
-	return out, nil
-}
-
-// captionSpeechEnhanceFilter is the bounded recovery pass for mixed stream
-// audio where ordinary mono STT returns no usable words. dialoguenhance pulls
-// correlated center speech from stereo game audio; the remaining filters keep
-// the voice band intelligible and normalize speech without the timestamp delay
-// introduced by loudnorm. aformat also makes the pass valid for mono sources.
-const captionSpeechEnhanceFilter = "aformat=channel_layouts=stereo,dialoguenhance=original=0.15:enhance=3:voice=16,pan=mono|c0=FC,highpass=f=120,lowpass=f=7000,speechnorm=e=4:c=2:r=0.0001:f=0.0001"
-
-func (w *StreamRenderWorker) extractSpeechEnhancedCaptionAudio(ctx context.Context, cfg StreamRenderWorkerConfig, workDir, sourcePath string, clip streamclips.ClipRange) (string, error) {
-	dir := filepath.Join(workDir, "caption-source-audio")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return "", fmt.Errorf("create xai caption audio directory: %w", err)
-	}
-	out := filepath.Join(dir, clip.ID+"-speech.wav")
-	duration := clip.EndSeconds - clip.StartSeconds
-	args := []string{
-		"-y",
-		"-ss", strconv.FormatFloat(clip.StartSeconds, 'f', 3, 64),
-		"-t", strconv.FormatFloat(duration, 'f', 3, 64),
-		"-i", sourcePath,
-		"-map", "0:a:0",
-		"-vn", "-sn", "-dn",
-		"-af", captionSpeechEnhanceFilter,
-		"-c:a", "pcm_s16le",
-		"-ac", "1",
-		"-ar", "16000",
-		out,
-	}
-	if _, err := w.runner.Run(ctx, cfg.FFmpegPath, args...); err != nil {
-		return "", fmt.Errorf("extract speech-enhanced audio for xai captions on clip %s: %w", clip.ID, err)
-	}
-	return out, nil
-}
-
-const (
-	// The enhanced whole-range pass is a speech locator, not trusted text.
-	// More lead-in than lead-out preserves clipped consonants without adding
-	// enough trailing gameplay to smear the short independent request.
-	captionRecoveryPadBeforeSeconds = 0.5
-	captionRecoveryPadAfterSeconds  = 0.25
-	captionRecoveryTimeQuantum      = 0.1
-	// Short requests fixed the real 15.15s stream artifact while ten-second and
-	// whole-range requests smeared several utterances into five bogus words.
-	// Seven-second ownership regions keep enough sentence context without
-	// recreating that failure. The cap bounds paid xAI calls and render latency.
-	captionRecoveryCoreSeconds = 7.0
-	captionRecoveryMaxWindows  = 4
-	// When the call budget permits, keep the final ownership range short. Batch
-	// STT otherwise dropped a quiet closing laugh behind preceding gameplay.
-	captionRecoveryTailCoreSeconds = 1.5
-)
-
-type captionRecoveryWindow struct {
-	ExtractStart     float64
-	ExtractEnd       float64
-	KeepStart        float64
-	KeepEnd          float64
-	KeepEndInclusive bool
-}
-
-// captionRecoveryWindows turns the enhanced pass's outer word timings into a
-// small, bounded set of padded regions that cover the complete selected clip.
-// Text from that pass is deliberately ignored: its first and last timings only
-// choose useful ownership boundaries around the likely speech envelope. Full
-// coverage matters because the locator can miss a quiet reply or laugh. Long
-// ownership regions are split into overlapping extraction windows, while the
-// disjoint Keep ranges prevent duplicate words at a boundary. If complete
-// coverage needs more than the paid-call cap, recovery fails soft instead of
-// publishing a transcript known to be partial.
-func captionRecoveryWindows(proposal []captions.WordCue, duration float64) ([]captionRecoveryWindow, error) {
-	if duration <= 0 || math.IsNaN(duration) || math.IsInf(duration, 0) {
-		return nil, fmt.Errorf("caption recovery needs a finite positive duration: %w", captions.ErrUnusableTranscript)
-	}
-	valid := make([]captions.WordCue, 0, len(proposal))
-	for _, cue := range proposal {
-		if math.IsNaN(cue.StartSeconds) || math.IsInf(cue.StartSeconds, 0) ||
-			math.IsNaN(cue.EndSeconds) || math.IsInf(cue.EndSeconds, 0) ||
-			cue.EndSeconds <= cue.StartSeconds || cue.EndSeconds <= 0 || cue.StartSeconds >= duration {
-			continue
-		}
-		cue.StartSeconds = max(cue.StartSeconds, 0)
-		cue.EndSeconds = min(cue.EndSeconds, duration)
-		valid = append(valid, cue)
-	}
-	if len(valid) == 0 {
-		return nil, fmt.Errorf("speech locator returned no timed words: %w", captions.ErrUnusableTranscript)
-	}
-	sort.SliceStable(valid, func(i, j int) bool { return valid[i].StartSeconds < valid[j].StartSeconds })
-
-	type ownershipRegion struct{ start, end float64 }
-	speechStart := valid[0].StartSeconds
-	speechEnd := valid[0].EndSeconds
-	for _, cue := range valid[1:] {
-		speechEnd = max(speechEnd, cue.EndSeconds)
-	}
-	// Do not spend a separate request on a sub-padding sliver at either edge.
-	if speechStart <= captionRecoveryPadBeforeSeconds {
-		speechStart = 0
-	}
-	if duration-speechEnd <= captionRecoveryPadAfterSeconds {
-		speechEnd = duration
-	}
-	minimumParts := max(1, int(math.Ceil(duration/captionRecoveryCoreSeconds)))
-	if minimumParts > captionRecoveryMaxWindows {
-		return nil, fmt.Errorf("complete caption recovery needs more than %d windows: %w", captionRecoveryMaxWindows, captions.ErrUnusableTranscript)
-	}
-	anchoredRegions := make([]ownershipRegion, 0, 3)
-	anchoredParts := 0
-	for _, region := range []ownershipRegion{
-		{start: 0, end: speechStart},
-		{start: speechStart, end: speechEnd},
-		{start: speechEnd, end: duration},
-	} {
-		if region.end-region.start > 1e-6 {
-			anchoredRegions = append(anchoredRegions, region)
-			anchoredParts += max(1, int(math.Ceil((region.end-region.start)/captionRecoveryCoreSeconds)))
-		}
-	}
-	regions := anchoredRegions
-	if anchoredParts != minimumParts {
-		// A very narrow centered envelope can fragment otherwise adjacent audio
-		// into extra requests. Fall back to the minimum globally even partitioned
-		// coverage instead of treating each locator boundary as mandatory.
-		regions = []ownershipRegion{{start: 0, end: duration}}
-	}
-
-	var cores []ownershipRegion
-	for _, region := range regions {
-		parts := max(1, int(math.Ceil((region.end-region.start)/captionRecoveryCoreSeconds)))
-		coreSeconds := (region.end - region.start) / float64(parts)
-		for part := range parts {
-			coreStart := region.start + float64(part)*coreSeconds
-			coreEnd := region.start + float64(part+1)*coreSeconds
-			cores = append(cores, ownershipRegion{start: coreStart, end: coreEnd})
-		}
-	}
-	if len(cores) < captionRecoveryMaxWindows {
-		last := &cores[len(cores)-1]
-		if last.end-last.start > captionRecoveryTailCoreSeconds+1e-6 {
-			end := last.end
-			last.end = end - captionRecoveryTailCoreSeconds
-			cores = append(cores, ownershipRegion{start: last.end, end: end})
-		}
-	}
-
-	windows := make([]captionRecoveryWindow, 0, len(cores))
-	for _, core := range cores {
-		extractStart := math.Floor((core.start-captionRecoveryPadBeforeSeconds)/captionRecoveryTimeQuantum) * captionRecoveryTimeQuantum
-		extractEnd := math.Ceil((core.end+captionRecoveryPadAfterSeconds)/captionRecoveryTimeQuantum) * captionRecoveryTimeQuantum
-		windows = append(windows, captionRecoveryWindow{
-			ExtractStart: extractStart,
-			ExtractEnd:   extractEnd,
-			KeepStart:    core.start,
-			KeepEnd:      core.end,
-		})
-	}
-	windows[0].ExtractStart = max(0, windows[0].ExtractStart)
-	windows[len(windows)-1].ExtractEnd = min(duration, windows[len(windows)-1].ExtractEnd)
-	// Only the final ownership range includes its upper boundary. At every
-	// internal boundary the following range owns a word centered exactly there.
-	windows[len(windows)-1].KeepEndInclusive = true
-	return windows, nil
-}
-
-func (w *StreamRenderWorker) extractCaptionRecoveryWindow(
-	ctx context.Context,
-	cfg StreamRenderWorkerConfig,
-	ordinaryPath string,
-	index int,
-	window captionRecoveryWindow,
-) (string, error) {
-	ext := filepath.Ext(ordinaryPath)
-	out := strings.TrimSuffix(ordinaryPath, ext) + fmt.Sprintf("-region-%02d.wav", index)
-	args := []string{
-		"-y",
-		"-ss", strconv.FormatFloat(window.ExtractStart, 'f', 3, 64),
-		"-t", strconv.FormatFloat(window.ExtractEnd-window.ExtractStart, 'f', 3, 64),
-		"-i", ordinaryPath,
-		"-map", "0:a:0",
-		"-vn", "-sn", "-dn",
-		"-c:a", "pcm_s16le",
-		"-ac", "1",
-		"-ar", "16000",
-		out,
-	}
-	if _, err := w.runner.Run(ctx, cfg.FFmpegPath, args...); err != nil {
-		return "", fmt.Errorf("extract caption recovery window %d: %w", index+1, err)
-	}
-	return out, nil
-}
-
-// recoverCaptionTranscript uses the enhanced whole-range transcript only as a
-// coarse speech locator, then transcribes short windows cut from ordinary
-// source audio. This is intentionally an independent evidence pass: the words
-// produced by dialoguenhance are never burned into the video.
-func (w *StreamRenderWorker) recoverCaptionTranscript(
-	ctx context.Context,
-	cfg StreamRenderWorkerConfig,
-	workDir, sourcePath, ordinaryPath string,
-	clip streamclips.ClipRange,
-	language string,
-) ([]captions.WordCue, error) {
-	enhancedPath, err := w.extractSpeechEnhancedCaptionAudio(ctx, cfg, workDir, sourcePath, clip)
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, ctxErr
-		}
-		return nil, fmt.Errorf("speech locator unavailable (%v): %w", err, captions.ErrUnusableTranscript)
-	}
-	proposal, proposalErr := w.transcribe(ctx, enhancedPath, workDir, language)
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return nil, ctxErr
-	}
-	if proposalErr != nil && !errors.Is(proposalErr, captions.ErrUnusableTranscript) {
-		return nil, fmt.Errorf("speech locator transcription: %w", proposalErr)
-	}
-	windows, err := captionRecoveryWindows(proposal, clip.EndSeconds-clip.StartSeconds)
-	if err != nil {
-		if proposalErr != nil {
-			return nil, fmt.Errorf("%v; %w", proposalErr, err)
-		}
-		return nil, err
-	}
-
-	var recovered []captions.WordCue
-	var unusable []error
-	for i, window := range windows {
-		windowPath, err := w.extractCaptionRecoveryWindow(ctx, cfg, ordinaryPath, i, window)
-		if err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return nil, ctxErr
-			}
-			return nil, fmt.Errorf("%v: %w", err, captions.ErrUnusableTranscript)
-		}
-		windowCues, err := w.transcribe(ctx, windowPath, workDir, language)
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, ctxErr
-		}
-		if err != nil {
-			if errors.Is(err, captions.ErrUnusableTranscript) {
-				unusable = append(unusable, fmt.Errorf("window %d: %w", i+1, err))
-				continue
-			}
-			return nil, fmt.Errorf("transcribe recovery window %d: %w", i+1, err)
-		}
-		for _, cue := range windowCues {
-			cue.StartSeconds += window.ExtractStart
-			cue.EndSeconds += window.ExtractStart
-			center := (cue.StartSeconds + cue.EndSeconds) / 2
-			if center < window.KeepStart || center > window.KeepEnd ||
-				(center == window.KeepEnd && !window.KeepEndInclusive) {
-				continue
-			}
-			recovered = append(recovered, cue)
-		}
-	}
-	if len(recovered) == 0 {
-		return nil, fmt.Errorf("caption recovery windows produced no usable words (%v): %w", errors.Join(unusable...), captions.ErrUnusableTranscript)
-	}
-	sort.SliceStable(recovered, func(i, j int) bool { return recovered[i].StartSeconds < recovered[j].StartSeconds })
-	recovered = normalizeRecoveredCaptionCues(recovered)
-	if err := captions.ValidateTranscript(recovered); err != nil {
-		return recovered, fmt.Errorf("recovered transcript: %w", err)
-	}
-	return recovered, nil
-}
-
-func normalizeRecoveredCaptionCues(cues []captions.WordCue) []captions.WordCue {
-	normalized := cues[:0]
-	for _, cue := range cues {
-		if n := len(normalized); n > 0 && cue.StartSeconds < normalized[n-1].EndSeconds {
-			cue.StartSeconds = normalized[n-1].EndSeconds
-			if cue.EndSeconds <= cue.StartSeconds {
-				continue
-			}
-		}
-		normalized = append(normalized, cue)
-	}
-	return normalized
-}
-
-const (
-	// xAI's batch STT language field only enables number/currency formatting;
-	// it does not select the spoken language or translate the result. Leave the
-	// source language automatic and make Spanish the explicit second pass.
-	captionSourceLanguage = "auto"
-
-	// A valid transcript concentrated in less than half of the selected clip is
-	// suspicious enough to run the existing speech-region recovery. This
-	// restores coverage for partial bilingual results without replacing a valid
-	// first pass when recovery is worse or unavailable.
-	captionPartialSpanThreshold = 0.5
-)
-
-func captionTranscriptLooksPartial(cues []captions.WordCue, duration float64) bool {
-	if len(cues) == 0 || duration <= 0 {
-		return false
-	}
-	span := cues[len(cues)-1].EndSeconds - cues[0].StartSeconds
-	return span/duration < captionPartialSpanThreshold
-}
-
-func betterCaptionTranscript(primary, recovered []captions.WordCue, duration float64) []captions.WordCue {
-	if len(primary) == 0 {
-		return recovered
-	}
-	if len(recovered) == 0 {
-		return primary
-	}
-	primarySpan := primary[len(primary)-1].EndSeconds - primary[0].StartSeconds
-	recoveredSpan := recovered[len(recovered)-1].EndSeconds - recovered[0].StartSeconds
-	if duration > 0 {
-		primarySpan /= duration
-		recoveredSpan /= duration
-	}
-	if recoveredSpan > primarySpan || recoveredSpan == primarySpan && len(recovered) > len(primary) {
-		return recovered
-	}
-	return primary
-}
-
-func (w *StreamRenderWorker) transcribeCaptionCues(
-	ctx context.Context,
-	transcriptionPath, workDir, language string,
-	duration float64,
-	recoverTranscription func() ([]captions.WordCue, error),
-) ([]captions.WordCue, error) {
-	cues, err := w.transcribe(ctx, transcriptionPath, workDir, language)
-	initialUsable := err == nil
-	shouldRecover := errors.Is(err, captions.ErrUnusableTranscript) || initialUsable && captionTranscriptLooksPartial(cues, duration)
-	if !shouldRecover || recoverTranscription == nil {
-		return cues, err
-	}
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return nil, ctxErr
-	}
-
-	recovered, recoveryErr := recoverTranscription()
-	if recoveryErr != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, ctxErr
-		}
-		// Recovery is an opportunistic completeness pass. Once the ordinary
-		// transcript has passed validation, a later locator/window failure must
-		// not turn that valid result into a hard render failure.
-		if initialUsable {
-			return cues, nil
-		}
-		if errors.Is(recoveryErr, captions.ErrUnusableTranscript) {
-			return nil, fmt.Errorf("%v; speech-region recovery: %w", err, recoveryErr)
-		}
-		return nil, fmt.Errorf("speech-region recovery: %w", recoveryErr)
-	}
-	if initialUsable {
-		return betterCaptionTranscript(cues, recovered, duration), nil
-	}
-	return recovered, nil
-}
-
-// burnCaptionCues burns already-reviewed Spanish cues. It is shared by cloud
-// candidate review and the agent-first caption import path; it deliberately
-// needs no cloud credentials.
-func (w *StreamRenderWorker) burnCaptionCues(ctx context.Context, cfg StreamRenderWorkerConfig, workDir, clipPath string, cues []captions.WordCue, cueSpeed float64, variant, clipID string) (string, error) {
-	if cueSpeed != 1 {
-		for i := range cues {
-			cues[i].StartSeconds /= cueSpeed
-			cues[i].EndSeconds /= cueSpeed
-		}
-	}
-	sort.SliceStable(cues, func(i, j int) bool {
-		return cues[i].StartSeconds < cues[j].StartSeconds
-	})
-	fontPath, err := mediafont.Materialize()
-	if err != nil {
-		return "", fmt.Errorf("materialize caption font for clip %s: %w", clipID, err)
-	}
-
-	// Place the caption relative to the variant's facecam/gameplay split so it
-	// sits in the gameplay band; fall back to the layout-free default when the
-	// variant is unknown.
-	style := captions.DefaultStyle()
-	if lv, ok := streamclips.VariantByName(variant); ok {
-		style = captions.LayoutStyleForOutput(lv.FaceOutputHeight, lv.OutputWidth, lv.FaceOutputHeight+lv.GameOutputHeight)
-	}
-	assContent, err := captions.BuildASS(cues, style)
-	if err != nil {
-		return "", fmt.Errorf("build captions for clip %s: %w", clipID, err)
-	}
-	assPath := filepath.Join(workDir, "captions", clipID+".ass")
-	if err := os.MkdirAll(filepath.Dir(assPath), 0o750); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(assPath, []byte(assContent), 0o600); err != nil {
-		return "", fmt.Errorf("write captions for clip %s: %w", clipID, err)
-	}
-	out := filepath.Join(filepath.Dir(clipPath), clipID+"_captioned.mp4")
-	args := []string{
-		"-y",
-		"-i", clipPath,
-		"-vf", captions.BurnFilter(assPath, filepath.Dir(fontPath)),
-		"-c:v", "libx264",
-		"-preset", defaultStreamCaptionPreset,
-		"-crf", strconv.Itoa(defaultStreamCaptionCRF),
-		"-c:a", "copy",
-		out,
-	}
-	if _, err := w.runner.Run(ctx, cfg.FFmpegPath, args...); err != nil {
-		return "", fmt.Errorf("burn captions for clip %s: %w", clipID, err)
-	}
-	return out, nil
 }
 
 func (w *StreamRenderWorker) writeStreamRenderState(state streamclips.RenderState) error {
@@ -2065,26 +1417,6 @@ func (c StreamRenderWorkerConfig) timeoutDuration() time.Duration {
 	}
 	return d
 }
-
-// xaiConfigured reports whether an xAI API key is set, the minimum needed to
-// run the xAI cloud captions transcription pass.
-func (c StreamRenderWorkerConfig) xaiConfigured() bool {
-	return c.XAIAPIKey != ""
-}
-
-// captionsConfigured reports whether the only supported stream-caption
-// backend is configured.
-func (c StreamRenderWorkerConfig) captionsConfigured() bool {
-	return c.xaiConfigured()
-}
-
-// Encoder settings for the captions burn-in pass, matching the first render
-// pass (streamclips.BuildFFmpegArgs) so a captioned clip's video quality is
-// consistent with its uncaptioned counterpart.
-const (
-	defaultStreamCaptionPreset = "slow"
-	defaultStreamCaptionCRF    = 18
-)
 
 // streamStatusUpdater is the single method markStreamFailed needs; every
 // stream repository the workers use (render, acquire) satisfies it.

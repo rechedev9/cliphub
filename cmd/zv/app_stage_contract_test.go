@@ -16,7 +16,7 @@ import (
 // added the envelope to demo parse/moments/select; Fase 2 normalized record,
 // compose final, and shorts render. This drives the real delegated binaries so
 // the contract holds end to end, not just in the wrapper. The stream stages
-// (plan/killfeed/captions/render) are covered media-free in
+// (plan/render) are covered media-free in
 // internal/streamcli and at the binary level in the ffmpeg-gated
 // TestStreamJourneyBinaryChainsPlanAndRender, so they are not re-driven here.
 func TestStageCommandsEmitDryRunEnvelope(t *testing.T) {

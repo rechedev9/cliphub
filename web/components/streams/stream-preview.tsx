@@ -1,19 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 import { Twitch } from 'lucide-react';
-import { streamsApi, type KillfeedKill, type NormalizedRect, type StreamClipRange, type StreamVariant } from '@/lib/api/streams';
+import type { NormalizedRect, StreamClipRange, StreamVariant } from '@/lib/api/streams';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '@/lib/clip-edit';
-import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
+import { StreamFrameCanvas } from '@/components/streams/stream-frame-session';
 import {
   activeTextOverlays,
   clampStreamerBannerPosition,
-  killfeedBaseTopPixels,
-  killfeedKillsForCue,
-  killfeedNoticePlacement,
-  killfeedSampleFrameSeconds,
-  proportionalEvenKillfeedHeight,
-  resolveActiveKillfeedCue,
   resolveStreamerBannerPosition,
   STREAMER_BANNER_MAX_POSITION,
   STREAMER_BANNER_MIN_POSITION,
@@ -22,9 +16,7 @@ import {
 
 const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 const EMPTY_CLIPS: StreamClipRange[] = [];
-const PREVIEW_WIDTH = 1080;
 const PREVIEW_HEIGHT = 1920;
-const KILLFEED_WIDTH = 930;
 
 const PREVIEW_LAYOUTS: Record<
   StreamVariant,
@@ -73,187 +65,6 @@ function CroppedFrame({
 }
 
 /**
- * Shows the exact selected source crop. Unlike the gameplay and facecam bands,
- * this does not use cover geometry: the whole normalized notice rectangle is
- * scaled to the backend's fixed 930-pixel width and proportional even height.
- */
-function KillfeedOverlayFrame({
-  rect,
-  sampleSeconds,
-  topPixels,
-  visible,
-}: {
-  rect: NormalizedRect;
-  sampleSeconds: number;
-  topPixels: number;
-  visible: boolean;
-}) {
-  const frame = useStreamFrame();
-  const requestSnapshot = frame.requestSnapshot;
-  const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
-  const bitmapRef = useRef<ImageBitmap | null>(null);
-  const source = frame.sourceWidth > 0 && frame.sourceHeight > 0
-    ? { width: frame.sourceWidth, height: frame.sourceHeight }
-    : null;
-  const outputHeight = source ? proportionalEvenKillfeedHeight(rect, source) : null;
-
-  useEffect(() => {
-    if (!visible || outputHeight === null) {
-      setBitmap((current) => {
-        current?.close();
-        bitmapRef.current = null;
-        return null;
-      });
-      return;
-    }
-    let cancelled = false;
-    void requestSnapshot(sampleSeconds, rect, KILLFEED_WIDTH, outputHeight).then((next) => {
-      if (cancelled) {
-        next?.close();
-        return;
-      }
-      setBitmap((current) => {
-        current?.close();
-        bitmapRef.current = next;
-        return next;
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [outputHeight, rect, requestSnapshot, sampleSeconds, visible]);
-
-  useEffect(() => () => bitmapRef.current?.close(), []);
-
-  return (
-    <div
-      aria-hidden="true"
-      data-preview-killfeed
-      data-killfeed-visible={visible}
-      className={`pointer-events-none absolute overflow-hidden ${visible && outputHeight !== null ? '' : 'invisible'}`}
-      style={{
-        width: `${(KILLFEED_WIDTH * 100) / PREVIEW_WIDTH}%`,
-        height: outputHeight === null ? '0' : `${(outputHeight * 100) / PREVIEW_HEIGHT}%`,
-        left: `${(((PREVIEW_WIDTH - KILLFEED_WIDTH) / 2) * 100) / PREVIEW_WIDTH}%`,
-        top: `${(topPixels * 100) / PREVIEW_HEIGHT}%`,
-      }}
-    >
-      {bitmap ? <FrozenFrameCanvas bitmap={bitmap} /> : null}
-    </div>
-  );
-}
-
-function FrozenFrameCanvas({ bitmap }: { bitmap: ImageBitmap }): ReactNode {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext('2d', { alpha: false })?.drawImage(bitmap, 0, 0);
-  }, [bitmap]);
-  return <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />;
-}
-
-/**
- * Loads the synthetic notice PNG for each kill through the notice-preview proxy
- * and returns a ready object URL per kill (null until its image is ready).
- * Images are cached and deduped by JSON.stringify(kill); every object URL is
- * revoked when the preview unmounts.
- */
-function useKillfeedNoticeUrls(kills: KillfeedKill[]): (string | null)[] {
-  const cacheRef = useRef<Map<string, string>>(new Map());
-  const pendingRef = useRef<Set<string>>(new Set());
-  const [ready, setReady] = useState<Record<string, string>>({});
-  const killsKey = JSON.stringify(kills);
-
-  useEffect(() => {
-    let cancelled = false;
-    const cache = cacheRef.current;
-    const pending = pendingRef.current;
-    for (const kill of kills) {
-      const key = JSON.stringify(kill);
-      if (cache.has(key) || pending.has(key)) continue;
-      pending.add(key);
-      streamsApi
-        .previewKillfeedNotice(kill)
-        .then((blob) => {
-          if (cancelled) return;
-          const url = URL.createObjectURL(blob);
-          cache.set(key, url);
-          setReady((prev) => ({ ...prev, [key]: url }));
-        })
-        .catch(() => {
-          // Leave the notice hidden until a later attempt succeeds.
-        })
-        .finally(() => {
-          pending.delete(key);
-        });
-    }
-    return () => {
-      cancelled = true;
-    };
-    // killsKey captures the kill payloads; `ready` is intentionally not a dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [killsKey]);
-
-  useEffect(() => {
-    const cache = cacheRef.current;
-    return () => {
-      for (const url of cache.values()) URL.revokeObjectURL(url);
-      cache.clear();
-    };
-  }, []);
-
-  return kills.map((kill) => ready[JSON.stringify(kill)] ?? null);
-}
-
-/**
- * Horizontally centered, upward-growing stack of synthetic kill notices for a
- * cue that has confirmed kills. Geometry mirrors the render (72px notices, 8px
- * gap) scaled to the preview box; a notice is shown only once its image is
- * ready. This is static placement parity only: the render also adds a slide-in
- * and fade entrance/exit the preview intentionally omits.
- */
-function SyntheticKillfeedNotices({
-  kills,
-  baseTopPixels,
-}: {
-  kills: KillfeedKill[];
-  baseTopPixels: number;
-}) {
-  const urls = useKillfeedNoticeUrls(kills);
-
-  return (
-    <div aria-hidden="true" data-preview-killfeed-notices className="pointer-events-none absolute inset-0">
-      {kills.map((kill, index) => {
-        const url = urls[index];
-        if (!url) return null;
-        const placement = killfeedNoticePlacement(index, baseTopPixels);
-        return (
-          <img
-            // eslint-disable-next-line @next/next/no-img-element
-            key={`${index}-${JSON.stringify(kill)}`}
-            src={url}
-            alt=""
-            data-preview-killfeed-notice
-            className="absolute"
-            style={{
-              top: `${placement.topPercent}%`,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              height: `${placement.heightPercent}%`,
-              width: 'auto',
-              maxWidth: 'none',
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-/**
  * Live 9:16 preview: facecam over gameplay for stack variants, or gameplay
  * only for the no-facecam variant. Band sizes and crop geometry mirror the
  * render variant registry in internal/streamclips.
@@ -262,7 +73,6 @@ export function StreamPreview({
   variant,
   faceCrop,
   gameplayCrop,
-  killfeedCrop,
   clips = EMPTY_CLIPS,
   frameSeconds,
   streamerNick,
@@ -274,7 +84,6 @@ export function StreamPreview({
   variant: StreamVariant;
   faceCrop?: NormalizedRect;
   gameplayCrop?: NormalizedRect;
-  killfeedCrop?: NormalizedRect;
   clips?: StreamClipRange[];
   frameSeconds: number;
   streamerNick?: string;
@@ -292,11 +101,6 @@ export function StreamPreview({
     ? (faceLayout.height * 100) / (faceLayout.height + layout.gameplay.height)
     : 0;
   const bannerPosition = resolveStreamerBannerPosition(variant, streamerPositionY);
-  const killfeedTop = killfeedBaseTopPixels(faceLayout ? faceLayout.height : 0, layout.gameplay.height);
-  const activeKillfeedCue = killfeedCrop
-    ? resolveActiveKillfeedCue(clips, frameSeconds)
-    : null;
-  const activeKills = activeKillfeedCue !== null ? killfeedKillsForCue(clips, activeKillfeedCue) : [];
   const activeOverlays = activeTextOverlays(clips, frameSeconds);
 
   const beginBannerDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -357,17 +161,6 @@ export function StreamPreview({
           />
         </div>
       </div>
-      {killfeedCrop && activeKills.length > 0 ? (
-        <SyntheticKillfeedNotices kills={activeKills} baseTopPixels={killfeedTop} />
-      ) : null}
-      {killfeedCrop && activeKills.length === 0 ? (
-        <KillfeedOverlayFrame
-          rect={killfeedCrop}
-          sampleSeconds={activeKillfeedCue === null ? frameSeconds : killfeedSampleFrameSeconds(clips, activeKillfeedCue)}
-          topPixels={killfeedTop}
-          visible={activeKillfeedCue !== null}
-        />
-      ) : null}
       {activeOverlays.map((overlay, i) => (
         <span
           key={i}
