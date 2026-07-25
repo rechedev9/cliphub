@@ -34,10 +34,11 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
           @container/content is the contract the domain layer keys its
           breakpoints to. The shell is two columns — a 240px sidebar and this
           stage — so the content box is wider than it was, but it is still not
-          the viewport: subtract the sidebar and two --shell-gutter columns.
-          Every `xl:` rule in a card or row evaluated against the viewport
-          instead is what produced horizontal overflow at the 1440px width
-          design.md names as a validation target.
+          the viewport: subtract the sidebar, then the 1440px cap once it
+          binds, then two --shell-gutter columns. At 1920 that is 1440 − 2×61.44
+          = 1317px, not 1920. Every `xl:` rule in a card or row evaluated
+          against the viewport instead is what produced horizontal overflow at
+          the 1440px width design.md names as a validation target.
 
           mr-auto, not mx-auto: SidebarInset is a flex column, so the auto
           margin decides the cross-axis position. With `mx-auto` the column
@@ -45,7 +46,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
           edge drifts rightward as the window grows. Pinning it to the sidebar
           edge gives the app one optical spine that survives a resize.
         */}
-        <main className="@container/content mr-auto w-full min-w-0 max-w-[1440px] flex-1 px-(--shell-gutter) py-10">
+        <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10">
           {children}
         </main>
       </SidebarInset>

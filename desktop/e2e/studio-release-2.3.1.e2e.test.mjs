@@ -53,10 +53,10 @@ async function screenshot(name) {
   await page.screenshot({ path: join(artifactsDir, name), fullPage: true });
 }
 
-test('installed release exposes Agent-only desktop settings and consistent navigation', async () => {
+test('installed release exposes version-only desktop settings with no MCP surface', async () => {
   await goto('/settings');
   await page.getByText('Versión instalada', { exact: true }).waitFor();
-  assert.equal(await page.getByText(/El agente integrado usa tu sesión personal de Codex/).isVisible(), true);
+  assert.equal(await page.getByText(/Consulta la versión instalada de FragForge Studio\./).isVisible(), true);
   const bridgeShape = await page.evaluate(() => ({
     hasRetiredMCPConfig: typeof window.fragforgeSettings?.getMCPConfig === 'function',
   }));
@@ -64,7 +64,7 @@ test('installed release exposes Agent-only desktop settings and consistent navig
   const body = await page.locator('body').innerText();
   assert.match(body, /07\s+AJUSTES/);
   assert.doesNotMatch(body, /servidor MCP|configuraci[oó]n MCP/i);
-  await screenshot('settings-version-agent-only.png');
+  await screenshot('settings-version-only.png');
 
   const installedExecutable = join(process.env.LOCALAPPDATA, 'Programs', 'FragForge Studio', 'FragForge Studio.exe');
   assert.equal(existsSync(installedExecutable), true, `installed executable missing: ${installedExecutable}`);
@@ -81,7 +81,7 @@ test('installed release exposes Agent-only desktop settings and consistent navig
     await installedPage.waitForLoadState('domcontentloaded');
     const installedInfo = installedPage.locator('[aria-labelledby="studio-info-title"]');
     await installedInfo.getByText('Versión instalada', { exact: true }).waitFor();
-    assert.equal(await installedPage.getByText(/El agente integrado usa tu sesión personal de Codex/).isVisible(), true);
+    assert.equal(await installedPage.getByText(/Consulta la versión instalada de FragForge Studio\./).isVisible(), true);
     const installedBridgeShape = await installedPage.evaluate(() => ({
       hasRetiredMCPConfig: typeof window.fragforgeSettings?.getMCPConfig === 'function',
     }));
@@ -120,16 +120,8 @@ test('demo reel requires the exact creative brief and keeps publication metadata
   assert.equal(await forge.isEnabled(), true);
 
   await page.setViewportSize({ width: 960, height: 900 });
-  const assistantBox = await page.getByRole('button', { name: 'Abrir asistente' }).boundingBox();
   const forgeBox = await forge.boundingBox();
-  assert.ok(assistantBox && forgeBox, 'responsive controls have no layout box');
-  const overlaps = !(
-    assistantBox.x + assistantBox.width <= forgeBox.x ||
-    forgeBox.x + forgeBox.width <= assistantBox.x ||
-    assistantBox.y + assistantBox.height <= forgeBox.y ||
-    forgeBox.y + forgeBox.height <= assistantBox.y
-  );
-  assert.equal(overlaps, false, `Agent button overlaps forge CTA: ${JSON.stringify({ assistantBox, forgeBox })}`);
+  assert.ok(forgeBox, 'the forge CTA has no layout box at 960px');
   await screenshot('demo-brief-responsive-960.png');
   await page.setViewportSize({ width: 1280, height: 900 });
 

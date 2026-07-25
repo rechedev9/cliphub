@@ -12,8 +12,10 @@ import {
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
 
 /**
- * The ceiling of the room: one 56px band across the content column, at every
- * width.
+ * The ceiling of the room: one 56px band across the full inset, above the
+ * content column, at every width. It deliberately has no `max-w` and its own
+ * `px-2 sm:px-3` rather than `--shell-gutter`, so it aligns with the content
+ * column on neither edge — a ceiling spans the room, not the rug.
  *
  * It replaces the `md:hidden` header, which was the only chrome above 768px —
  * i.e. on desktop the app had a sidebar, a page, and nothing else: no location
