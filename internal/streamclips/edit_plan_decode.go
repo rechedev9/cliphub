@@ -43,6 +43,13 @@ func DecodeEditPlan(body []byte) (EditPlan, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	var document map[string]json.RawMessage
 	if err := decoder.Decode(&document); err != nil {
+		// A plan that is not a JSON object at all fails against the internal
+		// document type, whose name means nothing to the operator holding the
+		// file. Say what the file must be instead.
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) {
+			return EditPlan{}, fmt.Errorf("decode stream edit plan: the plan must be a JSON object, found %s", typeErr.Value)
+		}
 		return EditPlan{}, fmt.Errorf("decode stream edit plan: %w", err)
 	}
 	var extra any

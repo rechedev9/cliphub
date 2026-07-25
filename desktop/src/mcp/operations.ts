@@ -850,21 +850,23 @@ const operations: readonly OperationDefinition[] = [
     run: resumeStreamInitialization,
     title: 'Resume stream initialization',
   },
-  mutationOperation({
-    body: (input) => {
-      const plan = input.plan;
-      if (!isJsonObject(plan)) throw new Error('plan must be an object');
-      return plan;
-    },
+  {
     category: 'streams',
-    description: 'Replace and validate the complete stream edit plan. Search with stream_job_id first to retrieve and preserve its current fields.',
+    description: 'Replace and validate the complete stream edit plan. Search with stream_job_id first to retrieve and preserve its current fields. The facecam review flag is carried over from the saved plan and cannot be set here.',
     inputSchema: objectSchema({ plan: STREAM_EDIT_PLAN_PROPERTY, stream_job_id: UUID_PROPERTY }, ['stream_job_id', 'plan']),
     keywords: ['crop', 'clips', 'music', 'edit'],
-    method: 'PUT',
     name: 'streams.update_edit_plan',
-    path: (input) => streamPath(input, '/edit-plan'),
+    preview: (input) => ({
+      plan: input.plan,
+      steps: [
+        { method: 'GET', path: streamPath(input, '/edit-plan'), purpose: 'read the saved facecam review state' },
+        { method: 'PUT', path: streamPath(input, '/edit-plan'), purpose: 'replace the stream edit plan' },
+      ],
+    }),
+    risk: 'write',
+    run: replaceStreamEditPlan,
     title: 'Update stream edit plan',
-  }),
+  },
   {
     category: 'streams',
     description: 'Set one clip\'s edit options — playback speed, original-audio volume (0 mutes), boundary fades, and burned-in text overlays — while preserving the rest of the current stream edit plan. Sending a default value (speed 1, source_volume 1, fades 0, empty text_overlays) resets that option.',
@@ -1351,6 +1353,38 @@ async function updateStreamEditPlan(
   validateStreamEditPlan(updated);
   await validateLiveStreamEditPlan(client, updated, signal);
   return client.request({ body: updated, method: 'PUT', path: editPlanPath, signal });
+}
+
+/**
+ * Replaces the whole stream edit plan on behalf of an agent, reconciling
+ * face_crop_reviewed against the saved plan first.
+ *
+ * That flag records a human act: someone confirmed the facecam crop in Studio.
+ * internal/httpapi/stream_handlers.go refuses to render a non-full-frame layout
+ * until it is set, so an agent that could write it would walk through the gate
+ * on its own word, and an agent that omitted it would silently revoke a real
+ * confirmation (the lenient server-side PUT decodes the missing key as false).
+ * Neither is the agent's decision to make, so the saved value always wins and
+ * an attempt to raise it is refused outright.
+ */
+async function replaceStreamEditPlan(
+  client: OrchestratorClient,
+  input: JsonObject,
+  signal?: AbortSignal,
+): Promise<JsonValue> {
+  const submitted = input.plan;
+  if (!isJsonObject(submitted)) throw new Error('arguments.plan must be an object');
+  const editPlanPath = streamPath(input, '/edit-plan');
+  const stored = await client.request({ path: editPlanPath, signal });
+  const storedReviewed = isJsonObject(stored) && stored.face_crop_reviewed === true;
+  if (!storedReviewed && submitted.face_crop_reviewed === true) {
+    throw new Error(
+      'arguments.plan.face_crop_reviewed cannot be set by an operation: confirming the facecam crop is a human action taken in Studio. Omit the field and let the saved plan carry it.',
+    );
+  }
+  const body = without(submitted, 'face_crop_reviewed');
+  if (storedReviewed) body.face_crop_reviewed = true;
+  return client.request({ body, method: 'PUT', path: editPlanPath, signal });
 }
 
 async function editStreamClip(client: OrchestratorClient, input: JsonObject, signal?: AbortSignal): Promise<JsonValue> {

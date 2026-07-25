@@ -738,6 +738,71 @@ test('stream edit plan accepts and validates per-clip edit options', () => {
   );
 });
 
+function planForFaceReview(overrides: JsonObject = {}): JsonObject {
+  return {
+    clips: [{ end_seconds: 10, id: 'clip-1', start_seconds: 0 }],
+    face_crop: { height: 0.3, width: 0.25, x: 0, y: 0 },
+    gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
+    schema_version: '1.1',
+    variant: 'streamer-vertical-stack-40-60',
+    ...overrides,
+  };
+}
+
+test('streams.update_edit_plan refuses to let an agent assert the human facecam review', async () => {
+  const double = clientDouble((_request, index) => {
+    if (index === 0) return planForFaceReview();
+    throw new Error('unexpected request');
+  });
+
+  await assert.rejects(
+    operation('streams.update_edit_plan').run(double.client, {
+      plan: planForFaceReview({ face_crop_reviewed: true }),
+      stream_job_id: 'stream-123',
+    }),
+    /face_crop_reviewed.*Studio/s,
+  );
+
+  assert.deepEqual(double.state.requests.map((request) => [request.method ?? 'GET', request.path]), [
+    ['GET', '/api/stream-jobs/stream-123/edit-plan'],
+  ]);
+});
+
+test('streams.update_edit_plan preserves a stored facecam review the agent omitted', async () => {
+  const double = clientDouble((request, index) => {
+    if (index === 0) return planForFaceReview({ face_crop_reviewed: true });
+    if (index === 1) return request.body ?? null;
+    throw new Error('unexpected request');
+  });
+
+  await operation('streams.update_edit_plan').run(double.client, {
+    plan: planForFaceReview({ music: { key: 'track-a', volume: 0.4 } }),
+    stream_job_id: 'stream-123',
+  });
+
+  const written = double.state.requests.find((request) => request.method === 'PUT')?.body;
+  assert.ok(isJsonObject(written));
+  assert.equal(written.face_crop_reviewed, true);
+  assert.deepEqual(written.music, { key: 'track-a', volume: 0.4 });
+});
+
+test('streams.update_edit_plan keeps an unreviewed plan unreviewed', async () => {
+  const double = clientDouble((request, index) => {
+    if (index === 0) return planForFaceReview();
+    if (index === 1) return request.body ?? null;
+    throw new Error('unexpected request');
+  });
+
+  await operation('streams.update_edit_plan').run(double.client, {
+    plan: planForFaceReview(),
+    stream_job_id: 'stream-123',
+  });
+
+  const written = double.state.requests.find((request) => request.method === 'PUT')?.body;
+  assert.ok(isJsonObject(written));
+  assert.equal('face_crop_reviewed' in written, false);
+});
+
 test('streams.edit_clip merges the edit into the saved plan and preserves everything else', async () => {
   const currentPlan: JsonObject = {
     clips: [

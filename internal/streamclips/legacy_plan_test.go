@@ -78,6 +78,30 @@ func TestDecodeEditPlanRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+// TestDecodeEditPlanRejectsNonObjectPlan keeps the decoder's internal document
+// type out of the message an operator reads: a plan file that is not a JSON
+// object must be reported as such.
+func TestDecodeEditPlanRejectsNonObjectPlan(t *testing.T) {
+	for name, body := range map[string]string{
+		"array":  `[{"variant":"streamer-vertical-stack-40-60"}]`,
+		"string": `"not a plan"`,
+		"number": `42`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := DecodeEditPlan([]byte(body))
+			if err == nil {
+				t.Fatal("DecodeEditPlan error = nil, want a non-object rejection")
+			}
+			if !strings.Contains(err.Error(), "must be a JSON object") {
+				t.Fatalf("DecodeEditPlan error = %v, want a non-object rejection", err)
+			}
+			if strings.Contains(err.Error(), "json.RawMessage") {
+				t.Fatalf("DecodeEditPlan error = %v, must not expose the internal document type", err)
+			}
+		})
+	}
+}
+
 func TestDecodeEditPlanRejectsAdditionalJSONValues(t *testing.T) {
 	_, err := DecodeEditPlan([]byte(legacyPlanJSON + "\n{}\n"))
 	if err == nil || !strings.Contains(err.Error(), "multiple JSON values") {
