@@ -47,8 +47,13 @@ export interface AmbientBufferSize {
 }
 
 export interface AmbientScene {
-  /** Draws one frame. `timeSeconds` is 0 in static mode. No-op while released. */
-  draw(timeSeconds: number, mode: AmbientMode): void;
+  /**
+   * Draws one frame and reports whether it reached the GPU. `timeSeconds` is 0
+   * in static mode. Returns false while the context is released or lost, which
+   * is what stops the caller from cross-fading an empty canvas over the CSS
+   * fallback before any frame exists.
+   */
+  draw(timeSeconds: number, mode: AmbientMode): boolean;
   /** Resizes the drawing buffer to the current CSS box. Returns false if unchanged. */
   resize(cssWidth: number, cssHeight: number, pixelRatio: number): boolean;
   /**
@@ -255,11 +260,12 @@ export function createAmbientScene(canvas: HTMLCanvasElement): AmbientScene | nu
       gl.uniform2f(resources.resolution, size.width, size.height);
       return true;
     },
-    draw(timeSeconds: number, mode: AmbientMode): void {
-      if (resources === null) return;
+    draw(timeSeconds: number, mode: AmbientMode): boolean {
+      if (resources === null) return false;
       gl.uniform1f(resources.time, mode === 'animated' ? timeSeconds : 0);
       gl.uniform1f(resources.energy, mode === 'animated' ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      return true;
     },
     release(): void {
       if (lose !== null && !gl.isContextLost()) lose.loseContext();

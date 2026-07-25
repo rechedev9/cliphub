@@ -58,10 +58,12 @@ export function StudioAmbient(): ReactElement {
       });
 
     const paint = (timeSeconds: number): void => {
-      scene.draw(timeSeconds, mode);
-      // Cross-fade in only once the first real frame exists, so the gradients
-      // are never replaced by a flash of empty canvas.
-      canvas.dataset.ready = 'true';
+      // Cross-fade in only once a real frame exists, so the gradients are never
+      // replaced by a flash of empty canvas. `restore()` is asynchronous — the
+      // context comes back on `webglcontextrestored`, not on the call — so the
+      // first paint after a refocus draws nothing and must not fade the canvas
+      // in over the fallback; the restore event repaints and does it then.
+      if (scene.draw(timeSeconds, mode)) canvas.dataset.ready = 'true';
     };
 
     const frame = (now: number): void => {
