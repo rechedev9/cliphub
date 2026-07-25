@@ -21,6 +21,12 @@ const (
 	// the user picks a target to clip.
 	TypeScanRoster = "scan:roster"
 
+	// TypeAnalyzeAnticheat is the Asynq task type for the CheaterDetect pass:
+	// a second deterministic read of the same demo that scores every player's
+	// aim and information usage against a professional baseline. It is a side
+	// lane and never advances the job's own status.
+	TypeAnalyzeAnticheat = "analyze:anticheat"
+
 	// TypeRecordDemo is the Asynq task type for running the Windows recorder.
 	TypeRecordDemo = "record:demo"
 
@@ -68,6 +74,11 @@ type ParseDemoPayload struct {
 
 // ScanRosterPayload carries the job id for a roster scan worker.
 type ScanRosterPayload struct {
+	JobID uuid.UUID `json:"job_id"`
+}
+
+// AnalyzeAnticheatPayload carries the job id for a CheaterDetect analysis.
+type AnalyzeAnticheatPayload struct {
 	JobID uuid.UUID `json:"job_id"`
 }
 
@@ -174,6 +185,15 @@ func NewScanRosterTask(id uuid.UUID) (*asynq.Task, error) {
 		return nil, err
 	}
 	return asynq.NewTask(TypeScanRoster, payload), nil
+}
+
+// NewAnalyzeAnticheatTask returns a task for the CheaterDetect analysis pass.
+func NewAnalyzeAnticheatTask(id uuid.UUID) (*asynq.Task, error) {
+	payload, err := json.Marshal(AnalyzeAnticheatPayload{JobID: id})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeAnalyzeAnticheat, payload), nil
 }
 
 // NewRecordDemoTask returns an Asynq task for recording a job. hudMode is

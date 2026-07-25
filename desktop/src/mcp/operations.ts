@@ -379,6 +379,7 @@ function without(input: JsonObject, ...keys: readonly string[]): JsonObject {
   return Object.fromEntries(Object.entries(input).filter(([key]) => !excluded.has(key)));
 }
 
+const STEAM_ID_PROPERTY: JsonObject = { pattern: '^[0-9]{1,20}$', type: 'string' };
 const JOB_ID_SCHEMA = objectSchema({ job_id: UUID_PROPERTY }, ['job_id']);
 const VOICE_PROFILE_SCHEMA = objectSchema({ voice_profile_id: VOICE_PROFILE_ID_PROPERTY }, ['voice_profile_id']);
 const JOB_VARIANT_SCHEMA = objectSchema(
@@ -579,6 +580,33 @@ const operations: readonly OperationDefinition[] = [
   }),
   readOperation({ category: 'jobs', description: 'Read the kill plan generated from the demo.', inputSchema: JOB_ID_SCHEMA, keywords: ['segments', 'ticks', 'kills'], name: 'jobs.plan', path: (input) => jobPath(input, '/plan'), title: 'Get kill plan' }),
   readOperation({ category: 'jobs', description: 'Read scored and reviewable moments derived from the kill plan.', inputSchema: JOB_ID_SCHEMA, keywords: ['highlights', 'segments', 'best kills'], name: 'jobs.moments', path: (input) => jobPath(input, '/moments'), title: 'Get scored moments' }),
+  mutationOperation({
+    category: 'jobs',
+    description: 'Screen every player in the demo for cheat-suspicion signals. Reads the demo once; never launches CS2 or HLAE.',
+    inputSchema: JOB_ID_SCHEMA,
+    keywords: ['cheater', 'anticheat', 'wallhack', 'aimbot', 'suspicion'],
+    name: 'jobs.start_anticheat',
+    path: (input) => jobPath(input, '/anticheat'),
+    title: 'Screen a demo for cheat suspicion',
+  }),
+  readOperation({
+    category: 'jobs',
+    description: 'Read the CheaterDetect analysis: a per-player anomaly score against a professional baseline, never a verdict of guilt.',
+    inputSchema: JOB_ID_SCHEMA,
+    keywords: ['cheater', 'anticheat', 'suspicion', 'score'],
+    name: 'jobs.anticheat',
+    path: (input) => jobPath(input, '/anticheat'),
+    title: 'Get cheat-suspicion analysis',
+  }),
+  readOperation({
+    category: 'jobs',
+    description: 'Read the evidence dossier for one screened player, and the official channels through which a user can file their own report. Submits nothing.',
+    inputSchema: objectSchema({ job_id: UUID_PROPERTY, steamid64: STEAM_ID_PROPERTY }, ['job_id', 'steamid64']),
+    keywords: ['dossier', 'report', 'evidence', 'cheater'],
+    name: 'jobs.anticheat_dossier',
+    path: (input) => jobPath(input, `/anticheat/dossier/${encodeURIComponent(stringInput(input, 'steamid64'))}`),
+    title: 'Get a cheat-suspicion dossier',
+  }),
   mutationOperation({
     body: (input) => without(input, 'job_id'),
     category: 'jobs',

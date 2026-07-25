@@ -57,6 +57,13 @@ func RosterKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "roster.json")
 }
 
+// AnticheatKey is the storage key for a job's CheaterDetect analysis. The
+// analysis is a side lane on the same demo: it never advances the job status,
+// so its progress lives entirely inside this document.
+func AnticheatKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "anticheat.json")
+}
+
 // GenerateIntentKey is the storage key for a job's one-click generate intent:
 // the latest accepted preset, music, and edit shown by the workbench. Record
 // tasks carry their own immutable intent rather than reading this mutable view.

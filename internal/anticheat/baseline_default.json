@@ -1,0 +1,52 @@
+{
+  "id": "pro-elite-2026",
+  "source": "measured-professional-play",
+  "description": "Distribución medida con `zv demo anticheat calibrate` sobre 15 mapas de máximo nivel de 2026 (BLAST Bounty, StarLadder StarSeries y Stake Ranked: Vitality, Liquid, Spirit, OG, Heroic, The MongolZ, Astralis, 3DMAX y k27), las 15 parseadas sin fallos. Mediana y MAD, y cada demo cuenta una vez por SHA-256. Las demos son datos locales y no se pueden versionar aquí, así que la prueba está en el recuento de muestras de cada métrica: son jugadores-partida reales, no una estimación.",
+  "metrics": {
+    "wall_tracking_pct": {
+      "mean": 5.73,
+      "stddev": 1.44,
+      "samples": 150
+    },
+    "unspotted_preaim_kill_pct": {
+      "mean": 25,
+      "stddev": 15.26,
+      "samples": 140
+    },
+    "preshot_settle_ms": {
+      "mean": 257.81,
+      "stddev": 81.08,
+      "samples": 135
+    },
+    "flick_speed_p90": {
+      "mean": 161.79,
+      "stddev": 73.15,
+      "samples": 140
+    },
+    "reaction_ms": {
+      "mean": 292.97,
+      "stddev": 110.04,
+      "samples": 118
+    },
+    "aim_jitter": {
+      "mean": 0.06,
+      "stddev": 0.04,
+      "samples": 140
+    },
+    "unspotted_kill_pct": {
+      "mean": 30.6,
+      "stddev": 15.72,
+      "samples": 132
+    },
+    "headshot_pct": {
+      "mean": 53.59,
+      "stddev": 19.39,
+      "samples": 140
+    },
+    "kills_per_round": {
+      "mean": 0.66,
+      "stddev": 0.18,
+      "samples": 140
+    }
+  }
+}

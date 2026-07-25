@@ -14,6 +14,8 @@ Usage:
   zv demo players [zv-demo-players flags]
   zv demo moments --killplan <plan.json> [--top <n>] [--out <moments.json>] [--dry-run] [--format text|json]
   zv demo select --killplan <plan.json> --segments <ids> --out <selected-plan.json> [--dry-run] [--format text|json]
+  zv demo anticheat --demo <match.dem> [--baseline <baseline.json>] [--out <anticheat.json>] [--dossier <SteamID64>] [--dry-run] [--format text|json]
+  zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]
   zv utility audit [zv-parser utility-audit flags]
   zv record [zv-recorder flags]
   zv compose final [zv-composer flags]
@@ -143,7 +145,26 @@ const errorsUsage = `usage: zv errors [--obs-dir <dir>] [--tail <n>] [--json] [-
 Summarize the local error journal. --clear truncates it (use between fix-loop runs).
 `
 
-const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags]
+const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags] | zv demo anticheat [flags]
+`
+
+const demoAnticheatUsage = `usage: zv demo anticheat --demo <match.dem> [--baseline <baseline.json>] [--out <anticheat.json>] [--dossier <SteamID64>] [--dry-run] [--format text|json]
+       zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]
+
+Screen every player in a demo for cheat-suspicion signals and score them
+against a professional-play baseline. The pass is demo-only: it never launches
+CS2 or HLAE and never contacts a network service.
+
+The result is an anomaly report, not a verdict of guilt. --dossier renders the
+evidence pack for one player, including the legitimate channels through which
+the user can file their own report; FragForge never submits one.
+`
+
+const demoAnticheatCalibrateUsage = `usage: zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]
+
+Measure a baseline from a directory of demos that are known to contain
+professional play, replacing the shipped distribution. Metrics without
+enough samples keep the estimate and are named in the baseline description.
 `
 
 const demoMomentsUsage = `usage: zv demo moments --killplan <plan.json> [--top <n>] [--out <moments.json>] [--dry-run] [--format text|json]

@@ -50,7 +50,7 @@ type inlineTaskPolicy struct {
 
 func defaultInlineTaskPolicy(taskType string) inlineTaskPolicy {
 	switch taskType {
-	case tasks.TypeParseDemo, tasks.TypeScanRoster:
+	case tasks.TypeParseDemo, tasks.TypeScanRoster, tasks.TypeAnalyzeAnticheat:
 		return inlineTaskPolicy{
 			attemptTimeout: inlineParseAttemptTimeout,
 			maxRetries:     1,

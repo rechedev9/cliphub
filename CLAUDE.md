@@ -52,6 +52,25 @@ If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
 - This project has approved FACEIT Data API access for player, match, and statistics indexing. The FACEIT Download API is not approved; obtain demo files through FACEIT's authenticated room/Watch download flow or another user-authorized manual source. Keep every FACEIT credential in environment or server-side secret storage, and never commit, print, or persist the key in indexes or logs.
 - For "current" or "best performance" requests, persist the query cutoff, sample size, match IDs, filters, and ranking formula. Normalize rate statistics per round when match lengths differ. Use external statistics to shortlist demos, but use parsed demo evidence to select moments.
 
+## CheaterDetect
+
+`internal/anticheat` screens a demo for cheat-suspicion signals in one deterministic parser pass; it never launches CS2 or HLAE and never calls a network service.
+The CLI entry points are `demo anticheat` (screen one demo, optionally rendering one player's dossier with `--dossier`) and `demo anticheat calibrate` (measure a new reference distribution); read their exact flags from `demo anticheat --help`, not from prose.
+It is exposed over `POST|GET /api/jobs/{id}/anticheat`, backed by the `analyze:anticheat` task and the `jobs/<id>/anticheat.json` artifact.
+The screening is a side lane: it never changes a demo job's status, so a demo can be screened and clipped independently and a failed screening never makes a healthy job look broken.
+
+Metric definitions, weights, and verdict bands live in `internal/anticheat/score.go`; the shipped reference distribution is data in `internal/anticheat/baseline_default.json`.
+The shipped baseline was measured over 15 top-level professional maps; the demos are local files that cannot be versioned, so the per-metric sample count is the evidence that travels with the numbers.
+Do not reconcile a mismatch between the baseline and some other text by zeroing those counts: that turns a measurement into a claim it never made. Fix the other text, or recalibrate.
+Never raise a metric's `samples` without a calibration run that actually produced it, and recalibrate with `demo anticheat calibrate` rather than editing numbers by hand; provenance and per-metric sample counts travel inside every report.
+Calibration uses a median and a MAD-derived spread and counts each demo once by SHA-256, so neither an atypical match nor a re-uploaded one can bend the reference.
+The composite blends the strongest of the information and aim clusters with the overall mean, because a plain mean across every metric cannot flag a single-kind cheat: a wall-only user maxes the information metrics and sits at the median on aim.
+
+The output is an anomaly report, never a verdict of guilt, and every surface must keep saying so: the report carries its own `limitations`, and the score is a prompt to review the listed ticks by hand.
+FragForge prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
+Valve decides cheating bans from its own detection, not from report volume, and coordinated mass reporting is both ineffective and against the Steam Subscriber Agreement.
+Do not add a feature that files reports on the user's behalf, and do not weaken the `insufficient_data` and confidence gates that stop a thin sample from producing a verdict.
+
 ## Approval And Media
 
 - Before any non-dry-run capture or render, stop at the creative brief gate and ask only unanswered choices: format, HUD/killfeed, kill effect, transition, counter, intro/outro, music, and cover strategy.
