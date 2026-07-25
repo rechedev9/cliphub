@@ -76,12 +76,16 @@ export function TacticalEventList({
 
   return (
     <ol className="flex flex-col">
-      {events.map((entry) => {
+      {events.map((entry, index) => {
         const { event } = entry;
         const notes = event.kind === TACTICAL_EVENT_KINDS.kill ? killNotes(event) : [];
         return (
           <li
-            key={`${event.kind}-${event.tick}-${event.actor_slot ?? 'x'}-${event.target_slot ?? 'x'}`}
+            // The index is part of the key because kind/tick/slots do not
+            // identify an event: one player can throw two utilities on the same
+            // tick, and neither carries a target. The list is a fixed ordered
+            // slice of one round, so the index is stable for its lifetime.
+            key={`${event.kind}-${event.tick}-${event.actor_slot ?? 'x'}-${event.target_slot ?? 'x'}-${index}`}
             className="border-b border-border/50 last:border-b-0"
           >
             <button

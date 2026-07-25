@@ -74,9 +74,11 @@ export function TacticalTimelineBar({
             style={{ width: `${freezeFraction * 100}%` }}
             aria-hidden
           />
-          {events.map((entry) => (
+          {events.map((entry, index) => (
             <span
-              key={`${entry.event.kind}-${entry.event.tick}-${entry.event.actor_slot ?? 'x'}-${entry.event.target_slot ?? 'x'}`}
+              // See tactical-event-list.tsx: kind/tick/slots are not unique,
+              // so the index completes the key for the same ordered slice.
+              key={`${entry.event.kind}-${entry.event.tick}-${entry.event.actor_slot ?? 'x'}-${entry.event.target_slot ?? 'x'}-${index}`}
               title={eventKindLabel(entry.event.kind)}
               className={cn(
                 'absolute top-1/2 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full',

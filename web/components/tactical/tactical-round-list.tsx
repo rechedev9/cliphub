@@ -55,7 +55,10 @@ function RoundRow({
   return (
     <li
       className={cn(
-        'studio-panel overflow-hidden rounded-lg transition-colors',
+        // shrink-0 is load-bearing: the list is a flex column with a bounded
+        // height, so without it 35 rounds compress to fit instead of
+        // scrolling, and overflow-hidden then slices the text of every row.
+        'studio-panel shrink-0 overflow-hidden rounded-lg transition-colors',
         selected ? 'studio-panel-raised border-primary/70' : 'studio-panel-interactive',
       )}
     >
