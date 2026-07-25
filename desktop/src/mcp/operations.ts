@@ -146,7 +146,7 @@ const STREAM_EDIT_PLAN_PROPERTY: JsonObject = {
       type: 'object',
     },
     face_crop: FACE_CROP_RECT_PROPERTY,
-    face_crop_reviewed: { description: 'Set by the Studio editor once the facecam crop was confirmed; preserve it.', type: 'boolean' },
+    face_crop_reviewed: { description: 'Set in Studio once a human confirmed the facecam crop. Carried over from the saved plan, and cleared when face_crop or variant changes.', type: 'boolean' },
     gameplay_crop: CROP_RECT_PROPERTY,
     music: {
       additionalProperties: false,
@@ -852,7 +852,7 @@ const operations: readonly OperationDefinition[] = [
   },
   {
     category: 'streams',
-    description: 'Replace and validate the complete stream edit plan. Search with stream_job_id first to retrieve and preserve its current fields. The facecam review flag is carried over from the saved plan and cannot be set here.',
+    description: 'Replace and validate the complete stream edit plan. Search with stream_job_id first to retrieve and preserve its current fields. The facecam review flag cannot be set here: it is carried over from the saved plan, and cleared whenever the submitted face_crop or variant differs from the saved one, because a human confirmed one specific framing.',
     inputSchema: objectSchema({ plan: STREAM_EDIT_PLAN_PROPERTY, stream_job_id: UUID_PROPERTY }, ['stream_job_id', 'plan']),
     keywords: ['crop', 'clips', 'music', 'edit'],
     name: 'streams.update_edit_plan',
