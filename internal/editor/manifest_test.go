@@ -633,6 +633,9 @@ func TestBuildManifestAppliesRhythmSyncToCompiledParts(t *testing.T) {
 	if got := short.Parts[1].TimelineStartSeconds; got != 9.0 {
 		t.Fatalf("part[1] timeline start = %.3f, want 9.000", got)
 	}
+	if got := short.Parts[1].GapBeforeSeconds; got != 0.5 {
+		t.Fatalf("part[1] gap = %.3f, want timeline-derived 0.500", got)
+	}
 	if got := short.Kills[2].TimeSeconds; got <= 9.0 {
 		t.Fatalf("third kill time = %.3f, want shifted onto compiled timeline", got)
 	}
@@ -668,8 +671,10 @@ func TestBuildFFmpegCommandForCompilationShort(t *testing.T) {
 	for _, want := range []string{
 		"[0:v]",
 		"[1:v]",
-		"color=c=black:s=1080x1920:r=24:d=0.500",
-		"anullsrc=channel_layout=stereo:sample_rate=48000:d=0.500",
+		"trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/24/TB,trim=end_frame=12[gapv0]",
+		"anullsrc=channel_layout=stereo:sample_rate=48000:d=0.500000",
+		"trim=end_frame=96,setpts=PTS-STARTPTS[pv0]",
+		"atrim=duration=4.000000,asetpts=PTS-STARTPTS[pa0]",
 		"concat=n=3:v=1:a=1",
 		"fps=24",
 		"[2:a]volume=1.00[music]",
@@ -682,6 +687,9 @@ func TestBuildFFmpegCommandForCompilationShort(t *testing.T) {
 		if !strings.Contains(filter, want) {
 			t.Fatalf("compilation filter missing %q:\n%s", want, filter)
 		}
+	}
+	if strings.Contains(filter, "color=c=black") {
+		t.Fatalf("compilation filter inserts a black rhythm gap:\n%s", filter)
 	}
 	for _, want := range []string{"seg-001.mp4", "seg-002.mp4", "music/brightmelodicskippyedm.wav", "assets/donk.png"} {
 		if !containsArg(command, want) {

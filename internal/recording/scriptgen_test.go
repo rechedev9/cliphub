@@ -232,6 +232,21 @@ func TestCameraCommandsPreferAccountID(t *testing.T) {
 	}
 }
 
+func TestCameraCommandsFallBackToValidatedNameAfterAccountID(t *testing.T) {
+	got := cameraCommands("ma1wel", 18406923)
+	want := []string{
+		"spec_autodirector 0",
+		"spec_mode 2",
+		"spec_player_by_accountid 18406923",
+		"spec_player_by_accountid 18406923",
+		`spec_player "ma1wel"`,
+		`spec_player "ma1wel"`,
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("cameraCommands() = %#v, want %#v", got, want)
+	}
+}
+
 func TestCameraCommandsRejectUnsafeFallbackNames(t *testing.T) {
 	for _, name := range []string{"victim;quit", "victim\nquit", "victim\x00quit", "victim\u0085quit"} {
 		got := cameraCommands(name, 0)

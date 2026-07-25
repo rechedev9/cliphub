@@ -3,6 +3,7 @@ package editor
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"strings"
@@ -247,29 +248,43 @@ func CompilationFilter(short ShortEdit) string {
 	partShort := short
 	partShort.Effects = nil
 	partShort.Parts = nil
-	width, height := outputDimensions(short)
 	clauses := []string{}
 	concatLabels := []string{}
 	concatCount := 0
+	fps := outputFPS(short)
+	cursorFrame := 0
 	for i, part := range short.Parts {
-		if part.GapBeforeSeconds > 0 {
+		partFrames := max(1, int(math.Round(part.DurationSeconds*float64(fps))))
+		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))
+		partStartFrame := cursorFrame + gapFrames
+		if part.TimelineStartSeconds > 0 {
+			partStartFrame = int(math.Round(part.TimelineStartSeconds * float64(fps)))
+			gapFrames = max(0, partStartFrame-cursorFrame)
+		}
+		if gapFrames > 0 {
 			gapV := fmt.Sprintf("gapv%d", i)
 			gapA := fmt.Sprintf("gapa%d", i)
+			gapDuration := float64(gapFrames) / float64(fps)
 			clauses = append(clauses,
-				fmt.Sprintf("color=c=black:s=%dx%d:r=%d:d=%.3f[%s]", width, height, outputFPS(short), part.GapBeforeSeconds, gapV),
-				fmt.Sprintf("anullsrc=channel_layout=stereo:sample_rate=48000:d=%.3f[%s]", part.GapBeforeSeconds, gapA),
+				fmt.Sprintf(
+					"[%d:v]%s,trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
+					i, VideoFilter(partShort), fps, gapFrames, gapV,
+				),
+				fmt.Sprintf("anullsrc=channel_layout=stereo:sample_rate=48000:d=%.6f[%s]", gapDuration, gapA),
 			)
 			concatLabels = append(concatLabels, "["+gapV+"]["+gapA+"]")
 			concatCount++
 		}
 		videoLabel := fmt.Sprintf("pv%d", i)
 		audioLabel := fmt.Sprintf("pa%d", i)
+		partDuration := float64(partFrames) / float64(fps)
 		clauses = append(clauses,
-			fmt.Sprintf("[%d:v]%s[%s]", i, VideoFilter(partShort), videoLabel),
-			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000,asetpts=PTS-STARTPTS[%s]", i, audioLabel),
+			fmt.Sprintf("[%d:v]%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, VideoFilter(partShort), partFrames, videoLabel),
+			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, partDuration, audioLabel),
 		)
 		concatLabels = append(concatLabels, "["+videoLabel+"]["+audioLabel+"]")
 		concatCount++
+		cursorFrame = partStartFrame + partFrames
 	}
 	clauses = append(clauses, fmt.Sprintf("%sconcat=n=%d:v=1:a=1[catv][gamea]", strings.Join(concatLabels, ""), concatCount))
 	images := imageEffects(short.Effects)

@@ -217,7 +217,17 @@ func cameraCommands(targetName string, accountID uint32) []string {
 	}
 	if accountID != 0 {
 		player := fmt.Sprintf("spec_player_by_accountid %d", accountID)
-		return []string{"spec_autodirector 0", "spec_mode 2", player, player}
+		commands := []string{"spec_autodirector 0", "spec_mode 2", player, player}
+		// Some non-HLTV demos expose the parsed Steam account ID but do not
+		// resolve spec_player_by_accountid during playback. Re-issue the
+		// selection by the validated in-demo name so those demos still lock the
+		// intended POV. Keep the name last because the account-ID command can
+		// fail silently without changing the current spectator target.
+		if safeConsolePlayerName(targetName) {
+			target := "spec_player " + quoteConsoleArg(targetName)
+			commands = append(commands, target, target)
+		}
+		return commands
 	}
 	if safeConsolePlayerName(targetName) {
 		target := quoteConsoleArg(targetName)

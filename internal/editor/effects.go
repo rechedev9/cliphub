@@ -196,8 +196,10 @@ func generatedKillCounterEffects(short ShortEdit) []Effect {
 		value := fmt.Sprintf("%d", i+1)
 		size := 60
 		if i == len(short.Kills)-1 && len(short.Kills) >= 2 {
-			value = killMilestoneLabel(len(short.Kills))
-			size = 72
+			if milestone := killMilestoneLabel(len(short.Kills)); milestone != "" {
+				value = milestone
+				size = 72
+			}
 		}
 		start := clampSeconds(kill.TimeSeconds+0.05, 0, short.DurationSeconds)
 		end := kill.TimeSeconds + 0.95
@@ -235,7 +237,7 @@ func generatedKillCounterEffects(short ShortEdit) []Effect {
 // killMilestoneLabel names the multi-kill milestone for the final kill pop.
 func killMilestoneLabel(kills int) string {
 	switch {
-	case kills >= 5:
+	case kills == 5:
 		return "ACE"
 	case kills == 4:
 		return "4K"

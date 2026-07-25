@@ -411,12 +411,15 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 				return ShortEdit{}, fmt.Errorf("rhythm json has no segment_sync entry for %s", segment.ID)
 			}
 			partStart = entry.TimelineStartSeconds
-			gapBefore = entry.GapBeforeSeconds
-			if gapBefore == 0 && partStart > cursor {
-				gapBefore = partStart - cursor
-			}
 			if partStart < cursor-0.001 {
 				return ShortEdit{}, fmt.Errorf("rhythm sync for %s starts before previous segment", segment.ID)
+			}
+			// TimelineStartSeconds is the canonical beat assignment. Derive the
+			// rendered gap from it so rounded or stale GapBeforeSeconds metadata
+			// cannot accumulate timing drift across a compilation.
+			gapBefore = partStart - cursor
+			if gapBefore < 0 {
+				gapBefore = 0
 			}
 		}
 		for _, kill := range partKills {
