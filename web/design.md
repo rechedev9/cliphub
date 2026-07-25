@@ -129,7 +129,7 @@ Fields use `Field` so labels, hints, errors and `aria-describedby` are wired onc
 ## Shell
 
 - Desktop sidebar: 240px, grouped by purpose, with an extruded active key and a real collapsible icon rail whose state persists server-side.
-- Command strip: 56px across the content column, carrying the sidebar toggle, the breadcrumb and the live job transport. The mobile bar is its narrow variant, not a separate header.
+- Command strip: 56px across the full content inset, carrying the sidebar toggle, the breadcrumb, the live job transport and, while CS2 is recording, the magenta capture pip. The mobile bar is its narrow variant, not a separate header.
 - Main content: `@container/content`, max 1440px, pinned to the sidebar edge with a fluid `--shell-gutter`.
 - The shell is two columns, sidebar and content. There is no third rail: capture readiness lives at the foot of the sidebar.
 - Global states are designed, not defaults: `loading.tsx`, `error.tsx`, `global-error.tsx` and an in-shell `not-found.tsx`.

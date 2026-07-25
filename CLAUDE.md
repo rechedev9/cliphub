@@ -48,7 +48,7 @@ If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
 - The persisted stream edit plan is canonical for ranges, order, crop, audio, fades, text, and `music.volume`; do not bolt ad hoc FFmpeg flags around it.
 - Discover task-specific guidance with `.\bin\zv.exe skills list --format json` rather than duplicating skill tutorials here.
 - Do not resurrect the retired external MCP server; drive the product through the Studio interface or the `zv` CLI.
-- Studio ships no assistant surface: it is a GUI over the same pipeline, and publish text such as title, caption, and hashtags is written by hand.
+- Studio ships no assistant surface: it is a GUI over the same pipeline, and no publish text is model-generated — the render writes each pack's title, caption, and hashtags deterministically from demo facts, and the Library's publication assistant offers factual, reel-derived metadata alternatives.
 - This project has approved FACEIT Data API access for player, match, and statistics indexing. The FACEIT Download API is not approved; obtain demo files through FACEIT's authenticated room/Watch download flow or another user-authorized manual source. Keep every FACEIT credential in environment or server-side secret storage, and never commit, print, or persist the key in indexes or logs.
 - For "current" or "best performance" requests, persist the query cutoff, sample size, match IDs, filters, and ranking formula. Normalize rate statistics per round when match lengths differ. Use external statistics to shortlist demos, but use parsed demo evidence to select moments.
 

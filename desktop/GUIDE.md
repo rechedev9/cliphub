@@ -56,7 +56,7 @@ installer. Optional public trend hints remain available when
 Studio ships no assistant surface.
 There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes only `fragforgeSettings.getAppInfo`.
 The pipeline is driven through the interface itself and, for scripted work, the `zv` CLI in the repository build.
-Publish text - title, caption, hashtags - is written by hand.
+No publish text is model-generated: the render writes each pack's title, caption, and hashtags deterministically from demo facts, and the publication assistant above offers factual, reel-derived metadata alternatives.
 
 ## Credentials
 

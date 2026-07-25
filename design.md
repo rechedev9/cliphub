@@ -1,6 +1,6 @@
 # FragForge Codex Workbench Design
 
-Status: proposed
+Status: superseded 2026-07-26 — FragForge Studio shipped without the Codex assistant this document proposes; the embedded agent, its typed operation gateway, and the `agent:codex` publish-text worker were removed. Retained as a record of what was proposed. See `PRODUCT.md` and `desktop/GUIDE.md` for the shipped product.
 Date: 2026-06-07
 Owner: FragForge
 Document type: product design + UX/UI specification
