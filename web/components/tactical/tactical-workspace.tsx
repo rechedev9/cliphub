@@ -17,12 +17,9 @@ import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
 import { TacticalStateBadge } from '@/components/tactical/tactical-state-badge';
 import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-workspace-skeleton';
 import { Button } from '@/components/ui/button';
-import { navSection } from '@/lib/nav';
 import { startPollLoop } from '@/lib/poll-loop';
 import { browserWindowActivity } from '@/lib/window-activity';
 import { stateLabel } from '@/lib/tactical-labels';
-
-const NAV = navSection('/tactical');
 
 // The scan is a few seconds of work on a queue, so poll it briskly while it runs
 // and let the loop idle once nothing is in flight.
@@ -128,8 +125,6 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
   return (
     <div className="flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
-        number={Number(NAV.number)}
-        label={NAV.label.toUpperCase()}
         title="ANÁLISIS TÁCTICO"
         description="Clasificación determinista de rondas, repetición 2D y tendencias. Todo sale de la demo; nada se infiere del vídeo."
         actions={
