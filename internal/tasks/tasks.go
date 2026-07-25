@@ -41,10 +41,6 @@ const (
 	// variant from an existing recording result.
 	TypeRenderVariant = "render:variant"
 
-	// TypeCodexAgent is the Asynq task type for local Codex CLI editorial
-	// assistance over already materialized render artifacts.
-	TypeCodexAgent = "agent:codex"
-
 	// TypeRenderStreamClip is the Asynq task type for rendering manually
 	// selected clips from a streamer MP4 upload.
 	TypeRenderStreamClip = "render:stream-clip"
@@ -113,12 +109,6 @@ type RenderVariantPayload struct {
 	MusicKey    string                 `json:"music_key,omitempty"`
 	MusicVolume float64                `json:"music_volume,omitempty"`
 	Edit        renderplan.EditRequest `json:"edit,omitempty"`
-}
-
-type CodexAgentPayload struct {
-	JobID   uuid.UUID `json:"job_id"`
-	Variant string    `json:"variant"`
-	Kind    string    `json:"kind"`
 }
 
 type RenderStreamClipPayload struct {
@@ -290,20 +280,6 @@ func NewRenderVariantTask(id uuid.UUID, variant, musicKey string, musicVolume fl
 		return nil, err
 	}
 	return asynq.NewTask(TypeRenderVariant, payload), nil
-}
-
-func NewCodexAgentTask(id uuid.UUID, variant, kind string) (*asynq.Task, error) {
-	if !renderVariantPattern.MatchString(variant) {
-		return nil, fmt.Errorf("invalid render variant %q", variant)
-	}
-	if !renderVariantPattern.MatchString(kind) {
-		return nil, fmt.Errorf("invalid agent kind %q", kind)
-	}
-	payload, err := json.Marshal(CodexAgentPayload{JobID: id, Variant: variant, Kind: kind})
-	if err != nil {
-		return nil, err
-	}
-	return asynq.NewTask(TypeCodexAgent, payload), nil
 }
 
 func NewRenderStreamClipTask(id uuid.UUID, variant string) (*asynq.Task, error) {

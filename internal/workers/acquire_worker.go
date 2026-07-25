@@ -272,3 +272,13 @@ func recordStreamAcquireFailure(id uuid.UUID, err error) {
 		Message: id.String() + ": " + err.Error(),
 	})
 }
+
+// readStoredJSON decodes one stored JSON artifact into out.
+func readStoredJSON(store storage.Storage, key string, out any) error {
+	rc, err := store.Open(key)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	return json.NewDecoder(rc).Decode(out)
+}

@@ -219,28 +219,6 @@ func RenderVariantLogKey(id uuid.UUID, variant, name string) (string, error) {
 	return path.Join(prefix, "logs", name+".log"), nil
 }
 
-func RenderVariantAgentContextKey(id uuid.UUID, variant, name string) (string, error) {
-	prefix, err := RenderVariantPrefix(id, variant)
-	if err != nil {
-		return "", err
-	}
-	if err := validateArtifactToken("agent name", name); err != nil {
-		return "", err
-	}
-	return path.Join(prefix, "agents", name, "context.json"), nil
-}
-
-func RenderVariantAgentResultKey(id uuid.UUID, variant, name string) (string, error) {
-	prefix, err := RenderVariantPrefix(id, variant)
-	if err != nil {
-		return "", err
-	}
-	if err := validateArtifactToken("agent name", name); err != nil {
-		return "", err
-	}
-	return path.Join(prefix, "agents", name, "result.json"), nil
-}
-
 func validateArtifactToken(label, value string) error {
 	if !artifactTokenPattern.MatchString(value) {
 		return fmt.Errorf("invalid %s %q", label, value)

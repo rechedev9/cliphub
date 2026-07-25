@@ -193,16 +193,6 @@ func run() error {
 		taskHandlers[tasks.TypeStreamAcquire] = acquireWorker.HandleStreamAcquire
 		log.Printf("worker: stream acquire enabled")
 	}
-	if cfg.agentWorkerEnabled() {
-		agentWorker := workers.NewAgentWorker(store, workers.AgentWorkerConfig{
-			WorkDir:   cfg.MediaWorkDir,
-			CodexPath: cfg.CodexPath,
-			Model:     cfg.CodexModel,
-			Timeout:   cfg.AgentTimeout,
-		})
-		taskHandlers[tasks.TypeCodexAgent] = agentWorker.HandleCodexAgent
-		log.Printf("worker: codex agent enabled")
-	}
 
 	var queue httpapi.Enqueuer
 	inline := newInlineQueue(taskHandlers, cfg.WorkerConcurrency)

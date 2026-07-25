@@ -32,9 +32,6 @@ type config struct {
 	RenderTimeout     string
 	MutationToken     string
 	DiscoverySecret   string
-	CodexPath         string
-	CodexModel        string
-	AgentTimeout      string
 	YtdlpPath         string
 	FirecrawlAPIKey   string
 }
@@ -78,8 +75,6 @@ func loadConfig() (config, error) {
 		FFprobePath:     os.Getenv("ZV_FFPROBE_PATH"),
 		MutationToken:   os.Getenv(mutationTokenEnvironmentVariable),
 		DiscoverySecret: os.Getenv(discoverySecretEnvironmentVariable),
-		CodexPath:       os.Getenv("ZV_CODEX_PATH"),
-		CodexModel:      os.Getenv("ZV_CODEX_MODEL"),
 		YtdlpPath:       os.Getenv("ZV_YTDLP_PATH"),
 		// Firecrawl enriches strategy suggestions with public CS2 trend
 		// references. It is optional and never sent to the web renderer.
@@ -123,10 +118,6 @@ func loadConfig() (config, error) {
 	if err != nil {
 		return c, err
 	}
-	c.AgentTimeout, err = durationEnv("ZV_AGENT_TIMEOUT", "5m")
-	if err != nil {
-		return c, err
-	}
 	return c, nil
 }
 
@@ -147,7 +138,7 @@ func validSessionCapability(secret string) bool {
 // Groq-enabled builds and the xAI key from builds that burned in stream
 // subtitles. FragForge no longer reads or uses any of the three, but an
 // upgraded process may still inherit them from the user's environment, and
-// ffmpeg, HLAE, CS2, yt-dlp, and Codex must not see them. EqualFold matching
+// ffmpeg, HLAE, CS2, and yt-dlp must not see them. EqualFold matching
 // also removes casing variants on Windows, where environment variable names
 // are case-insensitive.
 func clearLegacyCaptionCredentialsEnvironment() error {
@@ -210,10 +201,6 @@ func (c config) renderWorkerEnabled() bool {
 
 func (c config) streamRenderWorkerEnabled() bool {
 	return c.FFmpegPath != ""
-}
-
-func (c config) agentWorkerEnabled() bool {
-	return c.CodexPath != ""
 }
 
 func (c config) ytdlpEnabled() bool {

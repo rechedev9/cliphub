@@ -61,7 +61,6 @@ type workbenchJobView struct {
 	Generating      bool
 	Ready           bool
 	Failed          bool
-	CanCaptionAgent bool
 	Progress        int
 	PhaseLabel      string
 	ArtifactLinks   []workbenchArtifactLink
@@ -341,26 +340,6 @@ func (h *Handlers) WorkbenchStartGenerate(w http.ResponseWriter, r *http.Request
 	h.WorkbenchJob(w, r)
 }
 
-// WorkbenchStartCaptionAgent adapts the publish metadata button to the existing
-// caption-agent endpoint.
-func (h *Handlers) WorkbenchStartCaptionAgent(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		h.renderWorkbenchError(w, "parse form", err)
-		return
-	}
-	variant := strings.TrimSpace(r.FormValue("variant"))
-	if variant == "" {
-		variant = editor.DefaultPreset().Name
-	}
-	chi.RouteContext(r.Context()).URLParams.Add("variant", variant)
-	resp := h.capture(r, h.StartCaptionAgent)
-	if resp.statusCode() >= 400 {
-		h.renderWorkbenchActionError(w, "start caption agent", resp)
-		return
-	}
-	h.WorkbenchJob(w, r)
-}
-
 func (h *Handlers) capture(r *http.Request, handler func(http.ResponseWriter, *http.Request)) *bufferedResponse {
 	resp := newBufferedResponse()
 	handler(resp, r)
@@ -471,7 +450,6 @@ func (h *Handlers) workbenchJobView(r *http.Request, id uuid.UUID) (workbenchJob
 		Generating:      generating,
 		Ready:           ready,
 		Failed:          failed,
-		CanCaptionAgent: ready,
 		Progress:        workbenchProgress(j.Status, renderState, intentPending),
 		PhaseLabel:      workbenchPhaseLabel(j.Status, renderState, intentPending, ready, failed),
 		RenderState:     renderState,
@@ -1081,12 +1059,6 @@ const workbenchJobTemplate = `
         <span class="generate-hint">Launches CS2 via HLAE on this PC to capture, then renders the upload pack.</span>
       </div>
     </form>
-    {{ if .CanCaptionAgent }}
-      <form class="inline-form" hx-post="/ui/jobs/{{ .Job.ID }}/agent/captions" hx-target="#workspace" hx-swap="innerHTML">
-        <input type="hidden" name="variant" value="{{ .Variant }}">
-        <button class="button secondary" type="submit">Generate Captions &amp; Titles</button>
-      </form>
-    {{ end }}
   {{ else }}
     <div class="next-action">
       <span class="meta-label">Next action</span>

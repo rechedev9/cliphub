@@ -2400,56 +2400,6 @@ func TestGetRenderPublishBoardReturnsReadyStatus(t *testing.T) {
 	}
 }
 
-func TestStartCaptionAgentEnqueuesCodexTask(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/renders/{variant}/agent/captions", h.StartCaptionAgent)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean/agent/captions", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 1 || queue.enqueued[0].Type() != tasks.TypeCodexAgent {
-		t.Fatalf("queue = %#v", queue.enqueued)
-	}
-	if !strings.Contains(rw.Body.String(), "caption-candidates") {
-		t.Fatalf("body missing agent kind: %s", rw.Body.String())
-	}
-}
-
-func TestGetCaptionAgentStreamsStoredResult(t *testing.T) {
-	repo := newFakeRepo()
-	store := newFakeStorage()
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	key, err := artifacts.RenderVariantAgentResultKey(j.ID, editor.PresetViral60Clean, renderplan.AgentKindCaptionCandidates)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = store.Put(key, bytes.NewReader([]byte(`{"status":"ready","titles":["t1"]}`)))
-	h := NewHandlers(repo, store, &fakeQueue{})
-
-	r := chi.NewRouter()
-	r.Get("/api/jobs/{id}/renders/{variant}/agent/captions", h.GetCaptionAgent)
-	req := httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean/agent/captions", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
-	}
-	if !strings.Contains(rw.Body.String(), `"titles":["t1"]`) {
-		t.Fatalf("body = %s", rw.Body.String())
-	}
-}
-
 func TestGetRenderQualityReturnsReadyReport(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
@@ -2969,20 +2919,6 @@ func TestWorkbenchLocalProductFlowEndToEnd(t *testing.T) {
 	}
 	if body := get(renderPath + "/quality"); !strings.Contains(body, `"status":"ready"`) || !strings.Contains(body, `"video_codec":"h264"`) {
 		t.Fatalf("quality body missing ready codec: %s", body)
-	}
-
-	agentPath := renderPath + "/agent/captions"
-	post(agentPath, "", true, http.StatusAccepted)
-	if len(queue.enqueued) != 2 || queue.enqueued[1].Type() != tasks.TypeCodexAgent {
-		t.Fatalf("queue after agent = %#v", queue.enqueued)
-	}
-	agentKey, err := artifacts.RenderVariantAgentResultKey(j.ID, editor.PresetViral60Clean, renderplan.AgentKindCaptionCandidates)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = store.Put(agentKey, bytes.NewReader([]byte(`{"status":"ready","titles":["t1"],"captions":["c1"]}`)))
-	if body := get(agentPath); !strings.Contains(body, `"titles":["t1"]`) {
-		t.Fatalf("agent result missing title: %s", body)
 	}
 }
 

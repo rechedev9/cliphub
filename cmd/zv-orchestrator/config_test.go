@@ -24,9 +24,6 @@ func TestLoadConfigAllowsParserOnlyMode(t *testing.T) {
 	if cfg.renderWorkerEnabled() {
 		t.Fatal("render worker enabled, want disabled")
 	}
-	if cfg.agentWorkerEnabled() {
-		t.Fatal("agent worker enabled, want disabled")
-	}
 	if cfg.MediaWorkDir != "" {
 		t.Fatalf("MediaWorkDir = %q, want empty default for temp cleanup", cfg.MediaWorkDir)
 	}
@@ -201,9 +198,6 @@ func TestLoadConfigEnablesMediaWorkers(t *testing.T) {
 	t.Setenv("ZV_RECORD_TIMEOUT", "30m")
 	t.Setenv("ZV_COMPOSE_TIMEOUT", "10m")
 	t.Setenv("ZV_RENDER_TIMEOUT", "12m")
-	t.Setenv("ZV_CODEX_PATH", "codex.exe")
-	t.Setenv("ZV_CODEX_MODEL", "gpt-5.4")
-	t.Setenv("ZV_AGENT_TIMEOUT", "3m")
 	t.Setenv("ZV_MEDIA_WORK_DIR", "C:\\zv-work")
 
 	cfg, err := loadConfig()
@@ -231,12 +225,6 @@ func TestLoadConfigEnablesMediaWorkers(t *testing.T) {
 	if cfg.MediaWorkDir != "C:\\zv-work" {
 		t.Fatalf("MediaWorkDir = %q, want C:\\zv-work", cfg.MediaWorkDir)
 	}
-	if !cfg.agentWorkerEnabled() {
-		t.Fatal("agent worker disabled, want enabled")
-	}
-	if cfg.AgentTimeout != "3m0s" || cfg.CodexModel != "gpt-5.4" {
-		t.Fatalf("agent config = timeout %q model %q", cfg.AgentTimeout, cfg.CodexModel)
-	}
 }
 
 func TestLoadConfigRejectsInvalidDuration(t *testing.T) {
@@ -258,7 +246,7 @@ func TestClearLegacyCaptionCredentialsEnvironment(t *testing.T) {
 	t.Setenv(legacyXAIAPIKeyVariable, "xai-team-secret")
 	// On Unix this is a separate variable; on Windows it exercises the native
 	// case-insensitive environment. Either way, no casing variant may survive
-	// into ffmpeg, HLAE, CS2, yt-dlp, or Codex.
+	// into ffmpeg, HLAE, CS2, or yt-dlp.
 	t.Setenv("xai_api_key", "lowercase-team-secret")
 
 	if _, err := loadConfig(); err != nil {
@@ -365,9 +353,6 @@ func clearConfigEnv(t *testing.T) {
 		"ZV_RENDER_TIMEOUT",
 		"ZV_MUTATION_TOKEN",
 		"ZV_DISCOVERY_SECRET",
-		"ZV_CODEX_PATH",
-		"ZV_CODEX_MODEL",
-		"ZV_AGENT_TIMEOUT",
 		"XAI_API_KEY",
 		"GROQ_API_KEY",
 		"ZV_GROQ_API_KEY",

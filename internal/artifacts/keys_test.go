@@ -88,14 +88,6 @@ func TestRenderVariantKeysUseStableLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	agentContextKey, err := RenderVariantAgentContextKey(id, testRenderVariant, "caption-candidates")
-	if err != nil {
-		t.Fatal(err)
-	}
-	agentResultKey, err := RenderVariantAgentResultKey(id, testRenderVariant, "caption-candidates")
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	cases := map[string]string{
 		prefix:          "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean",
@@ -110,8 +102,6 @@ func TestRenderVariantKeysUseStableLayout(t *testing.T) {
 		captionKey:      "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/captions/seg-001.caption.txt",
 		galleryKey:      "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/index.html",
 		logKey:          "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/logs/seg-001-render.log",
-		agentContextKey: "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/agents/caption-candidates/context.json",
-		agentResultKey:  "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/agents/caption-candidates/result.json",
 	}
 	for got, want := range cases {
 		if got != want {

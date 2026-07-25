@@ -42,7 +42,6 @@ func TestDefaultInlineTaskPolicy(t *testing.T) {
 		{name: "record demo", taskType: tasktypes.TypeRecordDemo},
 		{name: "compose final", taskType: tasktypes.TypeComposeFinal},
 		{name: "render variant", taskType: tasktypes.TypeRenderVariant},
-		{name: "codex agent", taskType: tasktypes.TypeCodexAgent},
 		{name: "render stream clip", taskType: tasktypes.TypeRenderStreamClip},
 		{name: "stream acquire", taskType: tasktypes.TypeStreamAcquire},
 		{name: "unknown", taskType: "unknown"},

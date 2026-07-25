@@ -275,21 +275,3 @@ func TestNewRenderVariantTaskRejectsOutOfRangeMusicVolume(t *testing.T) {
 		}
 	}
 }
-
-func TestNewCodexAgentTaskRoundtrip(t *testing.T) {
-	id := uuid.New()
-	tk, err := NewCodexAgentTask(id, testRenderVariant, "caption-candidates")
-	if err != nil {
-		t.Fatalf("NewCodexAgentTask error = %v", err)
-	}
-	if tk.Type() != TypeCodexAgent {
-		t.Errorf("Type() = %q, want %q", tk.Type(), TypeCodexAgent)
-	}
-	var payload CodexAgentPayload
-	if err := json.Unmarshal(tk.Payload(), &payload); err != nil {
-		t.Fatalf("Unmarshal payload error = %v", err)
-	}
-	if payload.JobID != id || payload.Variant != testRenderVariant || payload.Kind != "caption-candidates" {
-		t.Fatalf("payload = %#v", payload)
-	}
-}
