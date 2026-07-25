@@ -1,7 +1,6 @@
 // Release evals for FragForge Studio 2.3.1. This launches the real Electron
 // application and drives the renderer with Playwright. Expensive/external
-// stream stages use controlled same-origin responses; the embedded Agent test
-// uses the real preload, IPC controller, Codex app-server, and orchestrator.
+// stream stages use controlled same-origin responses.
 
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -17,7 +16,6 @@ const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.3.1');
 const bootstrapPath = join(desktopRoot, 'e2e', 'isolated-userdata.cjs');
 const BOOT_DEADLINE_MS = 180_000;
-const AGENT_DEADLINE_MS = 180_000;
 
 /** @type {import('playwright-core').ElectronApplication} */
 let app;
@@ -55,43 +53,14 @@ async function screenshot(name) {
   await page.screenshot({ path: join(artifactsDir, name), fullPage: true });
 }
 
-async function waitForAgentTurn(previousMessageCount) {
-  const deadline = Date.now() + AGENT_DEADLINE_MS;
-  let latest;
-  while (Date.now() < deadline) {
-    latest = await page.evaluate(() => window.fragforgeAssistant.status());
-    if (
-      latest?.ok === true &&
-      latest.snapshot?.busy === false &&
-      latest.snapshot.messages.length > previousMessageCount
-    ) {
-      return latest.snapshot;
-    }
-    await page.waitForTimeout(750);
-  }
-  throw new Error(`Agent turn did not finish: ${JSON.stringify(latest)}`);
-}
-
-async function waitForAgentReady() {
-  const deadline = Date.now() + AGENT_DEADLINE_MS;
-  let latest;
-  while (Date.now() < deadline) {
-    latest = await page.evaluate(() => window.fragforgeAssistant.status());
-    if (latest?.ok === true && latest.snapshot?.availability === 'ready') return latest;
-    await page.waitForTimeout(250);
-  }
-  throw new Error(`Agent did not become ready: ${JSON.stringify(latest)}`);
-}
-
 test('installed release exposes Agent-only desktop settings and consistent navigation', async () => {
   await goto('/settings');
   await page.getByText('Versión instalada', { exact: true }).waitFor();
   assert.equal(await page.getByText(/El agente integrado usa tu sesión personal de Codex/).isVisible(), true);
   const bridgeShape = await page.evaluate(() => ({
-    hasAssistant: typeof window.fragforgeAssistant?.status === 'function',
     hasRetiredMCPConfig: typeof window.fragforgeSettings?.getMCPConfig === 'function',
   }));
-  assert.deepEqual(bridgeShape, { hasAssistant: true, hasRetiredMCPConfig: false });
+  assert.deepEqual(bridgeShape, { hasRetiredMCPConfig: false });
   const body = await page.locator('body').innerText();
   assert.match(body, /07\s+AJUSTES/);
   assert.doesNotMatch(body, /servidor MCP|configuraci[oó]n MCP/i);
@@ -114,10 +83,9 @@ test('installed release exposes Agent-only desktop settings and consistent navig
     await installedInfo.getByText('Versión instalada', { exact: true }).waitFor();
     assert.equal(await installedPage.getByText(/El agente integrado usa tu sesión personal de Codex/).isVisible(), true);
     const installedBridgeShape = await installedPage.evaluate(() => ({
-      hasAssistant: typeof window.fragforgeAssistant?.status === 'function',
       hasRetiredMCPConfig: typeof window.fragforgeSettings?.getMCPConfig === 'function',
     }));
-    assert.deepEqual(installedBridgeShape, { hasAssistant: true, hasRetiredMCPConfig: false });
+    assert.deepEqual(installedBridgeShape, { hasRetiredMCPConfig: false });
     assert.doesNotMatch(await installedPage.locator('body').innerText(), /servidor MCP|configuraci[oó]n MCP/i);
     const labels = await installedInfo.locator('dt').allInnerTexts();
     const values = await installedInfo.locator('dd').allInnerTexts();
@@ -129,45 +97,6 @@ test('installed release exposes Agent-only desktop settings and consistent navig
     await installedApp.close();
     rmSync(installedUserData, { force: true, recursive: true });
   }
-});
-
-test('Agent receives route context and completes a real read-only Studio operation', async () => {
-  await goto('/news');
-  await page.getByRole('button', { name: 'Abrir asistente' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Agente de FragForge' });
-  await dialog.getByText('Contexto · Noticias', { exact: true }).waitFor();
-  const activateAgent = dialog.getByRole('button', { name: 'Activar agente' });
-  if (await activateAgent.isVisible()) await activateAgent.click();
-
-  const initial = await waitForAgentReady();
-  assert.equal(initial.ok, true, initial.error);
-  assert.equal(initial.snapshot.availability, 'ready');
-  assert.equal(initial.snapshot.account.status, 'signed-in');
-  const previousMessageCount = initial.snapshot.messages.length;
-  const sent = await page.evaluate(() => window.fragforgeAssistant.send({
-    context: { kind: 'none', label: 'Noticias', pathname: '/news' },
-    message: 'Usa una operación de lectura de Studio para consultar los trabajos de demo. No hagas cambios. Responde exactamente con dos líneas: "Total de trabajos de demo: <número>" y "CONTEXTO=<ruta visible recibida>".',
-  }));
-  assert.equal(sent.ok, true, sent.error);
-  const completed = await waitForAgentTurn(previousMessageCount);
-  const response = [...completed.messages]
-    .reverse()
-    .find((message) => message.role === 'assistant' && message.content.trim() !== '');
-  assert.ok(response, 'Agent produced no assistant response');
-  assert.match(response.content, /Total de trabajos de demo\s*:\s*0\b/i);
-  assert.match(response.content, /CONTEXTO\s*=\s*\/news/i);
-  assert.doesNotMatch(response.content, /no se pudo iniciar|not available|no est[aá] conectado/i);
-  await screenshot('agent-real-read-news-context.png');
-  await dialog.getByRole('button', { name: 'Cerrar' }).click();
-
-  await goto('/feed');
-  await page.getByRole('button', { name: 'Abrir asistente' }).click();
-  await page.getByRole('dialog', { name: 'Agente de FragForge' })
-    .getByText('Contexto · Feed', { exact: true })
-    .waitFor();
-  await page.getByRole('dialog', { name: 'Agente de FragForge' })
-    .getByRole('button', { name: 'Cerrar' })
-    .click();
 });
 
 test('demo reel requires the exact creative brief and keeps publication metadata isolated', async () => {

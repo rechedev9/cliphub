@@ -10,7 +10,7 @@ import {
 } from './boot-security.ts';
 
 test('creates distinct per-boot capabilities and keeps each child environment minimal', () => {
-  const values = ['1'.repeat(64), '2'.repeat(64), '3'.repeat(64)];
+  const values = ['1'.repeat(64), '2'.repeat(64)];
   const capabilities = createBootSecurityCapabilities(() => {
     const value = values.shift();
     if (value === undefined) throw new Error('unexpected capability request');
@@ -21,14 +21,12 @@ test('creates distinct per-boot capabilities and keeps each child environment mi
     FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     FRAGFORGE_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
-    ZV_DISCOVERY_SECRET: '1'.repeat(64),
-    ZV_MUTATION_TOKEN: '2'.repeat(64),
+    ZV_MUTATION_TOKEN: '1'.repeat(64),
   });
   assert.deepEqual(webSecurityEnvironment(capabilities), {
     FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    FRAGFORGE_PROXY_MUTATION_CAPABILITY: '3'.repeat(64),
-    ORCHESTRATOR_TOKEN: '2'.repeat(64),
-    ZV_DISCOVERY_SECRET: undefined,
+    FRAGFORGE_PROXY_MUTATION_CAPABILITY: '2'.repeat(64),
+    ORCHESTRATOR_TOKEN: '1'.repeat(64),
     ZV_MUTATION_TOKEN: undefined,
   });
 });

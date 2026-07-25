@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
 
@@ -11,7 +10,6 @@ export interface StablePortOptions {
   host: string;
   portsFile: string;
   logLine: (line: string) => void;
-  discoverySecret?: string;
   signal?: AbortSignal;
   isPortFree?: (port: number, host: string) => Promise<boolean>;
   allocateFreePort?: (host: string) => Promise<number>;
@@ -26,13 +24,6 @@ interface SavedPortOptions {
 }
 
 const MAX_ALLOCATION_ATTEMPTS = 32;
-const DISCOVERY_SECRET_BYTES = 32;
-const DISCOVERY_SECRET_PATTERN = /^[a-f0-9]{64}$/;
-
-/** Creates a fresh per-boot secret used only to authenticate local discovery. */
-export function createDiscoverySecret(): string {
-  return randomBytes(DISCOVERY_SECRET_BYTES).toString('hex');
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -154,15 +145,11 @@ export async function allocateStableServicePorts({
   host,
   portsFile,
   logLine,
-  discoverySecret,
   signal,
   isPortFree = loopbackPortFree,
   allocateFreePort = allocateLoopbackPort,
 }: StablePortOptions): Promise<StableServicePorts> {
   throwIfAborted(signal);
-  if (discoverySecret !== undefined && !DISCOVERY_SECRET_PATTERN.test(discoverySecret)) {
-    throw new Error('discovery secret must be 32 random bytes encoded as lowercase hex');
-  }
   const saved = readSavedPorts(portsFile);
   const selected = new Set<number>();
   let orchestrator = await reusableSavedPort(
@@ -186,14 +173,6 @@ export async function allocateStableServicePorts({
     web = await allocateDistinctPort(selected, host, allocateFreePort, signal);
     throwIfAborted(signal);
     saved.web = web;
-    changed = true;
-  }
-
-  // The secret deliberately rotates on every desktop boot, even when both
-  // stable ports are reusable. Persist it atomically in the same discovery
-  // document before the orchestrator starts, without ever writing it to logs.
-  if (discoverySecret !== undefined) {
-    saved.discovery_secret = discoverySecret;
     changed = true;
   }
 

@@ -453,7 +453,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     host: LOOPBACK_HOST,
     portsFile,
     logLine,
-    discoverySecret: security.discoverySecret,
     signal: attempt.controller.signal,
   });
   assertBootAttemptActive(attempt);

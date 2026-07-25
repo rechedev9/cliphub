@@ -6,7 +6,6 @@ const CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
 export const PROXY_CAPABILITY_COOKIE = 'fragforge_proxy_capability';
 
 export interface BootSecurityCapabilities {
-  discoverySecret: string;
   mutationToken: string;
   proxyMutationCapability: string;
 }
@@ -25,12 +24,11 @@ export interface CookieStore {
 
 type CapabilityGenerator = () => string;
 
-/** Creates independent, ephemeral capabilities for discovery, API auth, and the renderer proxy. */
+/** Creates independent, ephemeral capabilities for API auth and the renderer proxy. */
 export function createBootSecurityCapabilities(
   generate: CapabilityGenerator = generateCapability,
 ): BootSecurityCapabilities {
   const capabilities = {
-    discoverySecret: generate(),
     mutationToken: generate(),
     proxyMutationCapability: generate(),
   };
@@ -51,7 +49,6 @@ export function orchestratorSecurityEnvironment(
     FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     FRAGFORGE_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
-    ZV_DISCOVERY_SECRET: capabilities.discoverySecret,
     ZV_MUTATION_TOKEN: capabilities.mutationToken,
   };
 }
@@ -63,7 +60,6 @@ export function webSecurityEnvironment(
     FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     FRAGFORGE_PROXY_MUTATION_CAPABILITY: capabilities.proxyMutationCapability,
     ORCHESTRATOR_TOKEN: capabilities.mutationToken,
-    ZV_DISCOVERY_SECRET: undefined,
     ZV_MUTATION_TOKEN: undefined,
   };
 }

@@ -90,7 +90,6 @@ type Handlers struct {
 	voiceProfiles    *voiceprofile.Store
 	queue            Enqueuer
 	mutationToken    string
-	discoverySecret  string
 	requireReadAuth  bool
 	rateLimiter      *rateLimiter
 	uploadLimiter    *uploadLimiter
@@ -108,14 +107,6 @@ type Option func(*Handlers)
 func WithMutationToken(token string) Option {
 	return func(h *Handlers) {
 		h.mutationToken = token
-	}
-}
-
-// WithDiscoverySecret authenticates loopback service discovery without
-// reusing the mutation credential. Desktop supplies a fresh value per boot.
-func WithDiscoverySecret(secret string) Option {
-	return func(h *Handlers) {
-		h.discoverySecret = secret
 	}
 }
 
