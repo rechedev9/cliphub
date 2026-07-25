@@ -42,9 +42,6 @@ func run() error {
 	if err := clearLegacyCaptionCredentialsEnvironment(); err != nil {
 		return fmt.Errorf("config: clear legacy caption credential from process environment: %w", err)
 	}
-	if err := clearDiscoverySecretEnvironment(); err != nil {
-		return fmt.Errorf("config: clear discovery credential from process environment: %w", err)
-	}
 	if err := clearSubprocessCredentialEnvironment(); err != nil {
 		return fmt.Errorf("config: clear subprocess credentials from process environment: %w", err)
 	}
@@ -205,7 +202,6 @@ func run() error {
 	}
 	handlers := httpapi.NewHandlers(repo, store, queue,
 		httpapi.WithMutationToken(cfg.MutationToken),
-		httpapi.WithDiscoverySecret(cfg.DiscoverySecret),
 		httpapi.WithRequireReadAuth(true),
 		// Remote binds are rejected. A per-IP limiter on loopback would give
 		// every local process the same 127.0.0.1 bucket and let unauthenticated

@@ -13,7 +13,6 @@
 import {
   app,
   BrowserWindow,
-  dialog,
   ipcMain,
   shell,
   session,
@@ -42,23 +41,6 @@ import {
   parseStudioSettingsRequest,
   STUDIO_SETTINGS_CHANNEL,
 } from './studio-settings-ipc';
-import {
-  ASSISTANT_CHANNEL,
-  ASSISTANT_EVENT_CHANNEL,
-  type AssistantEvent,
-  type AssistantIPCResponse,
-} from './assistant-ipc';
-import { assistantCommandFailure, dispatchAssistantRequest } from './assistant-command';
-import { AssistantController } from './assistant/controller';
-import { AssistantHistoryStore } from './assistant/history';
-import {
-  NativeApprovalGate,
-  nativeApprovalDetail,
-  type NativeApprovalDecision,
-  type NativeApprovalPrompt,
-} from './assistant/native-approval';
-import { OperationGateway } from './studio-operations/operation-gateway';
-import { OrchestratorClient } from './mcp/orchestrator-client';
 
 // FragForge reads XAI_API_KEY nowhere: no model provider is part of the
 // product. An operator's own key can still reach this process by ordinary
@@ -148,14 +130,6 @@ function logTail(maxLines = 40): string {
 
 let mainWindow: BrowserWindow | null = null;
 let activeWebOrigin: string | null = null;
-let assistantController: AssistantController | null = null;
-let activeMutationToken: string | null = null;
-const assistantNativeApproval = new NativeApprovalGate(showAssistantNativeApproval);
-
-const assistantHistoryFile = path.join(app.getPath('userData'), 'assistant', 'history.json');
-// Codex gets an intentionally empty, dedicated cwd. It is never pointed at
-// the Studio repository, media directories, credentials, or orchestrator data.
-const assistantWorkspace = path.join(app.getPath('userData'), 'assistant-workspace');
 
 /**
  * Returns the main window only if it exists and Electron hasn't torn it down
@@ -168,68 +142,6 @@ const assistantWorkspace = path.join(app.getPath('userData'), 'assistant-workspa
  */
 function aliveWindow(): BrowserWindow | null {
   return mainWindow !== null && !mainWindow.isDestroyed() ? mainWindow : null;
-}
-
-function sendAssistantEvent(event: AssistantEvent): void {
-  const win = aliveWindow();
-  if (win === null || activeWebOrigin === null) return;
-  try {
-    if (new URL(win.webContents.mainFrame.url).origin !== activeWebOrigin) return;
-  } catch {
-    return;
-  }
-  win.webContents.send(ASSISTANT_EVENT_CHANNEL, event);
-}
-
-function getAssistantController(): AssistantController {
-  if (assistantController !== null) return assistantController;
-  if (activeMutationToken === null) throw new Error('orchestrator authentication is not ready');
-  fs.mkdirSync(assistantWorkspace, { recursive: true });
-  const client = new OrchestratorClient({ mutationToken: activeMutationToken, portsFile });
-  assistantController = new AssistantController({
-    cwd: assistantWorkspace,
-    gateway: new OperationGateway({ client }),
-    history: new AssistantHistoryStore(assistantHistoryFile),
-    log: logLine,
-    onEvent: sendAssistantEvent,
-    openAuthURL: async (url) => shell.openExternal(url),
-    orchestratorClient: client,
-    selectLocalMedia: selectAssistantLocalMedia,
-    version: app.getVersion(),
-  });
-  return assistantController;
-}
-
-async function selectAssistantLocalMedia(kind: 'demo' | 'stream'): Promise<string | null> {
-  const win = aliveWindow();
-  if (win === null) return null;
-  const result = await dialog.showOpenDialog(win, {
-    filters: kind === 'demo'
-      ? [{ extensions: ['dem'], name: 'Demo de Counter-Strike 2' }]
-      : [{ extensions: ['avi', 'flv', 'm2ts', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ts', 'webm'], name: 'Grabación de stream' }],
-    properties: ['openFile'],
-    title: kind === 'demo' ? 'Selecciona una demo de CS2' : 'Selecciona una grabación de stream',
-  });
-  if (result.canceled) return null;
-  return result.filePaths[0] ?? null;
-}
-
-async function showAssistantNativeApproval(
-  prompt: NativeApprovalPrompt,
-): Promise<NativeApprovalDecision> {
-  const win = aliveWindow();
-  if (win === null) return 'cancel';
-  const result = await dialog.showMessageBox(win, {
-    buttons: ['Cancelar', 'Aprobar en Studio'],
-    cancelId: 0,
-    defaultId: 0,
-    detail: nativeApprovalDetail(prompt),
-    message: prompt.title,
-    noLink: true,
-    title: 'Confirmación privilegiada de FragForge Studio',
-    type: prompt.risk === 'destructive' ? 'warning' : 'question',
-  });
-  return result.response === 1 ? 'approve' : 'cancel';
 }
 
 // Origins the window is allowed to navigate to on its own, populated once the
@@ -263,7 +175,7 @@ const loadingFileUrl = pathToFileURL(loadingHtmlPath).href;
 const allowedInternalUrls = new Set<string>();
 
 // Fake, unresolvable "URL" the error screen's retry button links to. The
-// sandboxed preload exposes only the Studio settings and assistant bridges, so
+// sandboxed preload exposes only the Studio settings bridge, so
 // the static error page still uses a plain <a href> intercepted by
 // will-navigate to request a retry; Chromium never actually resolves this host.
 const RETRY_URL = 'https://retry.fragforge.invalid/';
@@ -335,10 +247,6 @@ function createWindow(): BrowserWindow {
   win.removeMenu();
   if (isMaximized) win.maximize();
   win.on('close', saveWindowBounds);
-  win.on('focus', () => assistantController?.setWindowActive(true));
-  win.on('restore', () => assistantController?.setWindowActive(true));
-  win.on('blur', () => assistantController?.setWindowActive(false));
-  win.on('minimize', () => assistantController?.setWindowActive(false));
   // The window can be destroyed (user closes it, or Chromium tears it down
   // after a fatal render-process crash) while boot() or a post-boot watcher
   // is mid-await; clearing the reference lets aliveWindow() catch every one
@@ -551,7 +459,6 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   assertBootAttemptActive(attempt);
   const orchestratorUrl = `http://${LOOPBACK_HOST}:${orchPort}`;
   activeWebOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
-  activeMutationToken = security.mutationToken;
   allowedOrigins.add(`http://${LOOPBACK_HOST}:${orchPort}`);
   allowedOrigins.add(activeWebOrigin);
 
@@ -619,9 +526,6 @@ function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailur
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
-  activeMutationToken = null;
-  assistantController?.close();
-  assistantController = null;
   logLine(`[boot] ${details.logLabel ?? 'failed'}: ${String(err)}\n`);
   if (!quitting) showErrorScreen(err, details.title, details.hint);
 }
@@ -637,9 +541,6 @@ function stopActiveBootAttempt(): boolean {
   allowedOrigins.clear();
   allowedInternalUrls.clear();
   activeWebOrigin = null;
-  activeMutationToken = null;
-  assistantController?.close();
-  assistantController = null;
   if (attempt === null) return true;
   attempt.controller.abort();
   const stopped = attempt.processes.stop();
@@ -702,23 +603,10 @@ function registerStudioSettingsIPC(): void {
   });
 }
 
-function registerAssistantIPC(): void {
-  ipcMain.handle(ASSISTANT_CHANNEL, async (event, value: unknown): Promise<AssistantIPCResponse> => {
-    if (!trustedSettingsSender(event)) return assistantCommandFailure('Solicitud del asistente rechazada.');
-    return dispatchAssistantRequest(
-      value,
-      getAssistantController,
-      (actionId, controller) => assistantNativeApproval.request(actionId, controller),
-    );
-  });
-}
-
 // Prevent crash watchers and retries from fighting an intentional shutdown.
 let quitting = false;
 
 function shutdown(): void {
-  assistantController?.close();
-  assistantController = null;
   stopActiveBootAttempt();
 }
 
@@ -734,7 +622,6 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
   registerStudioSettingsIPC();
-  registerAssistantIPC();
   runBoot();
 });
 

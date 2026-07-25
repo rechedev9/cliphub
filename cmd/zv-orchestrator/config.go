@@ -31,7 +31,6 @@ type config struct {
 	ComposeTimeout    string
 	RenderTimeout     string
 	MutationToken     string
-	DiscoverySecret   string
 	YtdlpPath         string
 	FirecrawlAPIKey   string
 }
@@ -43,7 +42,6 @@ const (
 	legacyGroqAPIKeyVariable           = "GROQ_API_KEY"
 	legacyGroqAPIKeyOverrideVariable   = "ZV_GROQ_API_KEY"
 	legacyXAIAPIKeyVariable            = "XAI_API_KEY"
-	discoverySecretEnvironmentVariable = "ZV_DISCOVERY_SECRET"
 	// databaseURLSQLite selects the on-disk SQLite job repository. Accepts the
 	// bare value "sqlite" (stores <DataDir>/jobs.db) or "sqlite:<path>".
 	databaseURLSQLite = "sqlite"
@@ -61,21 +59,20 @@ func sqlitePath(url, dataDir string) string {
 
 func loadConfig() (config, error) {
 	c := config{
-		HTTPAddr:        envOr("ZV_HTTP_ADDR", "127.0.0.1:8080"),
-		DatabaseURL:     os.Getenv("ZV_DATABASE_URL"),
-		DataDir:         envOr("ZV_DATA_DIR", "./data"),
-		MediaWorkDir:    os.Getenv("ZV_MEDIA_WORK_DIR"),
-		RecorderPath:    os.Getenv("ZV_RECORDER_PATH"),
-		ComposerPath:    os.Getenv("ZV_COMPOSER_PATH"),
-		EditorPath:      os.Getenv("ZV_EDITOR_PATH"),
-		HLAEPath:        os.Getenv("ZV_HLAE_PATH"),
-		CS2Path:         os.Getenv("ZV_CS2_PATH"),
-		RecordHUD:       os.Getenv("ZV_RECORD_HUD"),
-		FFmpegPath:      os.Getenv("ZV_FFMPEG_PATH"),
-		FFprobePath:     os.Getenv("ZV_FFPROBE_PATH"),
-		MutationToken:   os.Getenv(mutationTokenEnvironmentVariable),
-		DiscoverySecret: os.Getenv(discoverySecretEnvironmentVariable),
-		YtdlpPath:       os.Getenv("ZV_YTDLP_PATH"),
+		HTTPAddr:      envOr("ZV_HTTP_ADDR", "127.0.0.1:8080"),
+		DatabaseURL:   os.Getenv("ZV_DATABASE_URL"),
+		DataDir:       envOr("ZV_DATA_DIR", "./data"),
+		MediaWorkDir:  os.Getenv("ZV_MEDIA_WORK_DIR"),
+		RecorderPath:  os.Getenv("ZV_RECORDER_PATH"),
+		ComposerPath:  os.Getenv("ZV_COMPOSER_PATH"),
+		EditorPath:    os.Getenv("ZV_EDITOR_PATH"),
+		HLAEPath:      os.Getenv("ZV_HLAE_PATH"),
+		CS2Path:       os.Getenv("ZV_CS2_PATH"),
+		RecordHUD:     os.Getenv("ZV_RECORD_HUD"),
+		FFmpegPath:    os.Getenv("ZV_FFMPEG_PATH"),
+		FFprobePath:   os.Getenv("ZV_FFPROBE_PATH"),
+		MutationToken: os.Getenv(mutationTokenEnvironmentVariable),
+		YtdlpPath:     os.Getenv("ZV_YTDLP_PATH"),
 		// Firecrawl enriches strategy suggestions with public CS2 trend
 		// references. It is optional and never sent to the web renderer.
 		FirecrawlAPIKey: os.Getenv(firecrawlAPIKeyEnvironmentVariable),
@@ -94,9 +91,6 @@ func loadConfig() (config, error) {
 	}
 	if !validSessionCapability(c.MutationToken) {
 		return c, fmt.Errorf("ZV_MUTATION_TOKEN must be a per-session capability of 32 random bytes encoded as lowercase hex")
-	}
-	if c.DiscoverySecret != "" && !validDiscoverySecret(c.DiscoverySecret) {
-		return c, fmt.Errorf("ZV_DISCOVERY_SECRET must be 32 random bytes encoded as lowercase hex")
 	}
 
 	concRaw := envOr("ZV_WORKER_CONCURRENCY", "2")
@@ -119,10 +113,6 @@ func loadConfig() (config, error) {
 		return c, err
 	}
 	return c, nil
-}
-
-func validDiscoverySecret(secret string) bool {
-	return validSessionCapability(secret)
 }
 
 func validSessionCapability(secret string) bool {
@@ -152,12 +142,6 @@ func clearLegacyCaptionCredentialsEnvironment() error {
 		}
 	}
 	return nil
-}
-
-// clearDiscoverySecretEnvironment prevents media and agent subprocesses from
-// inheriting the desktop-only discovery credential after config has loaded it.
-func clearDiscoverySecretEnvironment() error {
-	return clearEnvironmentVariable(discoverySecretEnvironmentVariable)
 }
 
 // clearSubprocessCredentialEnvironment removes credentials that the
