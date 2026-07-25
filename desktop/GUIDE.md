@@ -21,9 +21,8 @@ It bundles the same pieces `scripts/local-studio.ps1` runs:
 Both processes bind loopback (`ZV_HTTP_ADDR=127.0.0.1:<port>`) on ports chosen
 once per install and persisted in `<userData>/ports.json`; the web port in
 particular must stay stable across launches because the reel library lives in
-the browser's `localStorage`, which is keyed by origin (`host:port`). Electron
-also rotates a random `discovery_secret` in that file on every boot; it is used
-only to authenticate the matching local orchestrator and integrated agent.
+the browser's `localStorage`, which is keyed by origin (`host:port`).
+That file holds ports only; no secret is ever written to disk.
 
 The installer bundles the official HLAE archive pinned by `src/hlae-tool.json`.
 On first boot the app installs it alongside FFmpeg and yt-dlp into `<userData>/tools`, verifies every pinned SHA-256 digest, and provisions the music catalog.
@@ -52,36 +51,12 @@ visibility, and scheduling choices. No Google credentials are required by the
 installer. Optional public trend hints remain available when
 `FIRECRAWL_API_KEY` is inherited by the desktop process.
 
-## FragForge Agent
+## No embedded assistant
 
-Studio includes a global FragForge Agent rail backed only by the locally
-installed `codex app-server`. The connection card opens the official ChatGPT
-OAuth flow for the user's personal Codex account. Codex owns and refreshes the
-session; FragForge never asks for, stores, or bills an OpenAI API key.
-
-After connecting, the agent can inspect and use Studio's typed operations for
-demos, stream clips, renders, publish captions, QA, publishing assets, and
-cleanup. Reads execute directly. Writes, costly work, and destructive work
-become exact approval cards, while capture and render also require an approved
-creative brief. It can open Studio's native picker to start a local demo or
-stream-video import, continue automatically after every approved operation, and
-watch queued parsing, capture, analysis, and render states so the next agent
-turn starts without another user message. A stream brief snapshots the canonical
-saved edit plan and is invalidated, together with prepared render cards, whenever
-that plan changes. The approved plan timestamp is also sent as an atomic backend
-precondition, so a last-moment edit cannot race past render admission. Public Twitch clip/VOD URLs can also
-be supplied in chat. Local demo, video, and voice files stay behind Studio's
-file pickers so their paths and raw media never enter model context.
-
-The content renderer can only request a privileged confirmation. Main reads the
-pending executable state it owns and opens a parented native Electron dialog
-with the exact risk, operation, and preview fields. Only the affirmative result
-from that native dialog can execute or approve the pending action; renderer
-code cannot provide the decision even when it knows the action ID.
-
-The embedded agent uses Codex app-server dynamic tools directly through the
-narrow Studio operation gateway. No external assistant transport or launcher
-is shipped.
+Studio ships no assistant surface.
+There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes only `fragforgeSettings.getAppInfo`.
+The pipeline is driven through the interface itself and, for scripted work, the `zv` CLI in the repository build.
+Publish text - title, caption, hashtags - is written by hand.
 
 ## Credentials
 
@@ -180,18 +155,19 @@ when comparing builds.
 `src/main.ts` (Electron main process, compiled to `dist/main.js`):
 
 1. Reads or picks two per-install-stable loopback ports (`orchestrator`,
-   `web`) and creates three distinct 32-byte per-boot secrets. Only the
-   discovery secret is persisted in `<userData>/ports.json`; the mutation token
-   is shared directly between the orchestrator, Next server, and trusted main
-   process, while the proxy capability reaches only Next and an HttpOnly,
-   SameSite=Strict loopback cookie seeded before the first app navigation.
+   `web`) and creates two distinct 32-byte per-boot secrets.
+   Neither is persisted: `<userData>/ports.json` holds ports only.
+   The mutation token is shared directly between the orchestrator, Next server,
+   and trusted main process, while the proxy capability reaches only Next and an
+   HttpOnly, SameSite=Strict loopback cookie seeded before the first app
+   navigation.
 2. Kicks off music catalog provisioning in the background, and awaits
    provisioning of bundled HLAE plus FFmpeg/yt-dlp into `<userData>/tools`
    (first boot only; later boots return the cached installs instantly).
 3. Spawns `zv-orchestrator.exe` directly - without a `zv.exe serve`
    intermediary - so quitting the app reliably kills the real server (`ZV_DATABASE_URL=sqlite`,
    `ZV_DATA_DIR=<userData>/data`, `ZV_HTTP_ADDR=127.0.0.1:<orchPort>`, the
-   ephemeral `ZV_DISCOVERY_SECRET`, plus any provisioned tool paths).
+   ephemeral `ZV_MUTATION_TOKEN`, plus any provisioned tool paths).
 4. Spawns the Next standalone `server.js` via `ELECTRON_RUN_AS_NODE`
    (`ORCHESTRATOR_URL` pointing at the orchestrator, `PORT=<webPort>`).
 5. Waits for `/healthz` and the web root.

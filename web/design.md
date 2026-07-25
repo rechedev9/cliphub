@@ -129,9 +129,9 @@ Fields use `Field` so labels, hints, errors and `aria-describedby` are wired onc
 ## Shell
 
 - Desktop sidebar: 240px, grouped by purpose, with an extruded active key and a real collapsible icon rail whose state persists server-side.
-- Command strip: 56px, spanning content and assistant, carrying the breadcrumb, the live job transport, capture readiness and the assistant toggle. The mobile bar is its narrow variant, not a separate header.
+- Command strip: 56px across the content column, carrying the sidebar toggle, the breadcrumb and the live job transport. The mobile bar is its narrow variant, not a separate header.
 - Main content: `@container/content`, max 1440px, pinned to the sidebar edge with a fluid `--shell-gutter`.
-- Assistant rail: expands only from 1600px and defaults to collapsed below it. Its previous 1280px threshold amputated 400px from the workspace and pushed `/matches` 188px past the viewport at 1280 and 28px at 1440.
+- The shell is two columns, sidebar and content. There is no third rail: capture readiness lives at the foot of the sidebar.
 - Global states are designed, not defaults: `loading.tsx`, `error.tsx`, `global-error.tsx` and an in-shell `not-found.tsx`.
 
 `/upload` remains outside the authenticated route group because it supports the no-login flow.
@@ -140,7 +140,7 @@ It uses a compact standalone top bar and the same content tokens, widths, typogr
 ## Responsive
 
 **Domain components key their breakpoints to `@container/content`, not to the viewport.**
-The content column is much narrower than the window — a 1280px viewport leaves ~544px — so viewport variants fired at widths the layout never actually had.
+The content column is narrower than the window — a 1280px viewport leaves ~960px once the 240px sidebar and the `--shell-gutter` insets are taken out — so viewport variants fired at widths the layout never actually had.
 
 Validate at 390, 768, 1024, 1280, 1440, and 1920px and at 200% zoom.
 

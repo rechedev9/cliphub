@@ -47,8 +47,8 @@ If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
 - A stream dry-run does not create its `--out` artifact; persist each approved plan before invoking a dependent stage.
 - The persisted stream edit plan is canonical for ranges, order, crop, audio, fades, text, and `music.volume`; do not bolt ad hoc FFmpeg flags around it.
 - Discover task-specific guidance with `.\bin\zv.exe skills list --format json` rather than duplicating skill tutorials here.
-- Do not resurrect the retired external MCP server; use the CLI or the integrated typed operation gateway.
-- FragForge Agent is the only assistant surface shipped in Studio.
+- Do not resurrect the retired external MCP server; drive the product through the Studio interface or the `zv` CLI.
+- Studio ships no assistant surface: it is a GUI over the same pipeline, and publish text such as title, caption, and hashtags is written by hand.
 - This project has approved FACEIT Data API access for player, match, and statistics indexing. The FACEIT Download API is not approved; obtain demo files through FACEIT's authenticated room/Watch download flow or another user-authorized manual source. Keep every FACEIT credential in environment or server-side secret storage, and never commit, print, or persist the key in indexes or logs.
 - For "current" or "best performance" requests, persist the query cutoff, sample size, match IDs, filters, and ranking formula. Normalize rate statistics per round when match lengths differ. Use external statistics to shortlist demos, but use parsed demo evidence to select moments.
 
@@ -82,7 +82,7 @@ Do not add a feature that files reports on the user's behalf, and do not weaken 
 - Thumbnail approval is a second gate after candidates exist; require a selected candidate or explicit delegation before calling the pack upload-ready.
 - Before marking a pack upload-ready, verify that the canonical MP4, title, caption, hashtags, cover, cover timestamp, gallery, manifest paths, and artifact metadata describe the same facts and files. After thumbnail selection, replace the canonical cover and visually verify the gallery again.
 - `--covers=false` removes the thumbnail gate.
-- Studio adds a separate approval of the exact costly/destructive operation preview; changing a stream plan invalidates its creative brief and prepared render preview.
+- Changing a stream plan invalidates its creative brief; settle the brief again before the next non-dry-run render.
 
 The preset registry in `internal/editor/preset.go` is authoritative; discover it with `.\bin\zv.exe presets --format json`.
 The current default `viral-60-clean` records death notices and uses `viral-ultra-clean` effects; `clean-pov-60` removes the HUD, while `full-hud-60` preserves gameplay HUD.
@@ -138,7 +138,7 @@ pnpm --dir landing run build
 The Electron UI E2E is manual and expensive: build, run `pnpm --dir desktop run assemble`, then `pnpm --dir desktop run test:e2e:ui` only when that product flow needs end-to-end verification.
 Before frontend work, read `web/CLAUDE.md`; before visual work, also read `web/design.md`.
 All browser API access must remain same-origin through server proxy routes, keep orchestrator URLs/tokens server-side, validate IDs before upstream URL construction, and preserve `503 {code: "service_unavailable"}`.
-Before Electron lifecycle, embedded-agent, packaging, or release work, read `desktop/GUIDE.md` and keep renderer access behind preload/IPC plus the typed operation gateway.
+Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` and keep renderer access behind preload/IPC.
 
 ## Code Contracts
 

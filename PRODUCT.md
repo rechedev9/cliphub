@@ -291,7 +291,6 @@ capability for API reads and mutations. Other environment variables:
 | `ZV_RECORDER_PATH`, `ZV_COMPOSER_PATH`, `ZV_FFMPEG_PATH` | Stage binary overrides. |
 | `ZV_WORKER_CONCURRENCY` | Asynq worker concurrency (default 2). |
 | `ZV_MEDIA_WORK_DIR` | Keep media workdirs for debugging (deleted after each task when unset). |
-| `ZV_CODEX_PATH`, `ZV_CODEX_MODEL`, `ZV_AGENT_TIMEOUT` | Optional local editorial assistant (`codex exec`, read-only sandbox) for caption/title suggestions. |
 | `FIRECRAWL_API_KEY` | Optional public CS2 Shorts trend hints for the publication assistant; never sent to the browser. |
 
 ### Smoke tests
@@ -322,7 +321,7 @@ available.
 | POST | `/api/jobs/{id}/compose` | Enqueue final composition after recording. |
 | GET | `/api/jobs/{id}/final` | Stream the composed MP4 when ready. |
 | GET | `/api/presets` | Render preset registry as JSON (name, geometry, behavior flags, default). |
-| GET | `/api/stream-variants` | Stream/VOD render variant registry, including the default; the integrated agent derives live choices from this endpoint. |
+| GET | `/api/stream-variants` | Stream/VOD render variant registry, including the default. |
 | GET | `/api/jobs/{id}/renders/{variant}/videos/{name}/publish-assistant?days=7` | Reel metadata, factual suggestions, Madrid schedule, optional trend hints, and the stable YouTube Studio URL. |
 
 `POST /record` is accepted for `parsed` and `recorded` jobs; `POST /compose`
@@ -439,7 +438,7 @@ run. Never commit generated video/audio/image artifacts to git.
 - `internal/composition` — concat/composition planning and FFmpeg boundaries.
 - `internal/httpapi` — orchestrator HTTP routes, handlers, and the embedded
   workbench UI.
-- `internal/workers` — Asynq parser/media/agent workers.
+- `internal/workers` — Asynq parser and media workers.
 - `internal/youtubeinsights`, `internal/youtubetrends` — explainable Madrid
   scheduling, factual metadata recommendations, and optional bounded Firecrawl
   discovery for the manual publication assistant.

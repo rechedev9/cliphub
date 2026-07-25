@@ -70,8 +70,8 @@ The `output.publish_dir` field points to the required upload-ready
 `<run>\shortslistosparasubir` folder; `output.shorts_dir` contains intermediates.
 
 The former external FragForge MCP registration has been removed. Use the
-unified `zv` CLI for repository workflows or FragForge Agent inside Studio;
-`.codex/config.toml` must not register a FragForge MCP server.
+unified `zv` CLI for repository workflows, or drive Studio through its own
+interface; `.codex/config.toml` must not register a FragForge MCP server.
 
 ## Common commands
 

@@ -6,8 +6,8 @@ Claude Code automatically loads `CLAUDE.md` from the repo root.
 That file holds project boundaries, Go and TypeScript style, safety rules, and verification expectations.
 All style and operational rules live directly in `CLAUDE.md`.
 
-Studio ships its own integrated FragForge Agent.
-Claude Code is a repository-development tool and is not an assistant surface in Studio.
+Studio ships no assistant surface of its own; it is a GUI over the same pipeline.
+Claude Code is a repository-development tool and is not part of the shipped product.
 The former external MCP registration is no longer part of the product.
 
 ## Use
