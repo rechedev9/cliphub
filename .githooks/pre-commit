@@ -25,10 +25,6 @@ changed="$(mktemp)"
 trap 'rm -f "$changed"' EXIT
 git diff --cached --name-only --diff-filter=ACMR >"$changed"
 
-if grep -Eq '^\.github/workflows/|^scripts/ci-check\.sh$' "$changed"; then
-  bash scripts/ci-check.sh
-fi
-
 if grep -Eq '(^|/)(cmd|internal)/|\.go$|^go\.(mod|sum)$|^effects/|^overlays/|^scripts/go-|^Makefile$' "$changed"; then
   bash scripts/go-gate.sh --no-format --no-staticcheck --build
 else

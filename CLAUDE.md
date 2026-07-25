@@ -102,7 +102,9 @@ After final media is validated and no recapture/reparse is needed, send used ext
 
 ## Development
 
-Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageManager` field (pnpm 11.9.0), and CI (Node 24).
+Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageManager` field (pnpm 11.9.0), and Node 24.
+There is no hosted CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
+Nothing re-checks the work on GitHub, so a gate skipped locally is a gate that never runs.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
 
 ```powershell
@@ -113,16 +115,15 @@ go test ./... -count=1 -timeout 3m
 & "C:\Program Files\Git\bin\bash.exe" scripts/go-gate.sh --no-format
 & "C:\Program Files\Git\bin\bash.exe" scripts/go-gate.sh --race
 & "C:\Program Files\Git\bin\bash.exe" scripts/go-gate.sh --security
-& "C:\Program Files\Git\bin\bash.exe" scripts/ci-check.sh
 ```
 
 - Bare `bash` is a broken WSL shim on this machine; invoke shell gates through `C:\Program Files\Git\bin\bash.exe`.
-- `scripts/go-gate.sh` formats changed Go files by default, then runs tests, vet, `zv check`, and optional `staticcheck`; use `--no-format` in a dirty worktree and add `--build` for the CI-equivalent Go gate.
+- `scripts/go-gate.sh` formats changed Go files by default, then runs tests, vet, `zv check`, and optional `staticcheck`; use `--no-format` in a dirty worktree and add `--build` for the full Go gate.
 - Add `--race` for shared-state/concurrency changes and `--security` for filesystem, subprocess, auth, or dependency-sensitive changes.
 - Real-demo worker tests skip without `TEST_DEMO_PATH`; parser-only and pure unit tests must not launch HLAE/CS2 or long renders.
 - Real `.dem` and generated `*.expected.json` golden files stay local; `testdata/*.rules.json` may be committed when they are reference inputs.
 
-Run package gates in the pre-commit/CI order:
+Run package gates in the pre-commit order:
 
 ```powershell
 pnpm --dir web run lint
@@ -155,7 +156,9 @@ Before Electron lifecycle, embedded-agent, packaging, or release work, read `des
 ## Git And Release
 
 Work directly on `main`; committing or pushing still requires an explicit user request.
-The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths.
+`main` is unprotected and there are no required status checks, so a push lands immediately: never open a pull request for work that belongs on `main`.
+The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths, and it is now the only automated gate the repository has.
+Never bypass it with `--no-verify` or `core.hooksPath`: with no CI behind it, a skipped hook means the change was never checked at all.
 FragForge has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
 Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/fragforge`, update the landing download URL, then deploy Vercel project `fragforge-landing` with root `landing/` to `https://fragforge.gravityroom.app/`.
 Do not use the retired VPS landing path.
