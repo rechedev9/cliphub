@@ -483,10 +483,3 @@ func dashIfEmpty(value string) string {
 	}
 	return value
 }
-
-func truncate(value string, width int) string {
-	if len(value) <= width {
-		return value
-	}
-	return value[:width]
-}

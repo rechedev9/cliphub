@@ -61,20 +61,20 @@ func runDemoAnticheat(args []string, stdout, stderr io.Writer) int {
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "analyse without writing the artifact")
 	if err := fs.Parse(args); err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoAnticheatUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoAnticheatUsage, exitInvalidArgs)
 	}
 	if fs.NArg() != 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoAnticheatUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoAnticheatUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*demoPath) == "" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("--demo is required"), demoAnticheatUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--demo is required"), demoAnticheatUsage, exitInvalidArgs)
 	}
 	if *format != "text" && *format != "json" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoAnticheatUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoAnticheatUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*outPath) != "" {
 		if err := pathguard.RejectOutputAliases(*outPath, pathguard.Input{Flag: "--demo", Path: *demoPath}); err != nil {
-			return writeDemoReviewError(args, stdout, stderr, err, demoAnticheatUsage, exitInvalidArgs)
+			return writeCommandError(args, stdout, stderr, err, demoAnticheatUsage, exitInvalidArgs)
 		}
 	}
 
@@ -82,14 +82,14 @@ func runDemoAnticheat(args []string, stdout, stderr io.Writer) int {
 	if strings.TrimSpace(*baselinePath) != "" {
 		loaded, err := loadAnticheatBaseline(*baselinePath)
 		if err != nil {
-			return writeDemoReviewError(args, stdout, stderr, err, "", exitUnexpected)
+			return writeCommandError(args, stdout, stderr, err, "", exitUnexpected)
 		}
 		baseline = loaded
 	}
 
 	report, err := analyzeDemoFile(*demoPath, baseline)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, "", exitUnexpected)
+		return writeCommandError(args, stdout, stderr, err, "", exitUnexpected)
 	}
 
 	absInput, _ := filepath.Abs(*demoPath)
@@ -103,7 +103,7 @@ func runDemoAnticheat(args []string, stdout, stderr io.Writer) int {
 	if id := strings.TrimSpace(*dossierID); id != "" {
 		player, found := report.Player(id)
 		if !found {
-			return writeDemoReviewError(args, stdout, stderr,
+			return writeCommandError(args, stdout, stderr,
 				fmt.Errorf("steamid %s is not in this demo's analysis", id), "", exitInvalidArgs)
 		}
 		dossier := anticheat.BuildDossier(report, player)
@@ -140,27 +140,27 @@ func runDemoAnticheatCalibrate(args []string, stdout, stderr io.Writer) int {
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "measure without writing the baseline")
 	if err := fs.Parse(args); err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, demoAnticheatCalibrateUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, err, demoAnticheatCalibrateUsage, exitInvalidArgs)
 	}
 	if fs.NArg() != 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoAnticheatCalibrateUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoAnticheatCalibrateUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*demosDir) == "" || strings.TrimSpace(*id) == "" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("--demos and --id are required"), demoAnticheatCalibrateUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--demos and --id are required"), demoAnticheatCalibrateUsage, exitInvalidArgs)
 	}
 	if !*dryRun && strings.TrimSpace(*outPath) == "" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("--out is required unless --dry-run"), demoAnticheatCalibrateUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--out is required unless --dry-run"), demoAnticheatCalibrateUsage, exitInvalidArgs)
 	}
 	if *format != "text" && *format != "json" {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoAnticheatCalibrateUsage, exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoAnticheatCalibrateUsage, exitInvalidArgs)
 	}
 
 	demos, err := listDemoFiles(*demosDir)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, "", exitUnexpected)
+		return writeCommandError(args, stdout, stderr, err, "", exitUnexpected)
 	}
 	if len(demos) == 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("no .dem files under %s", *demosDir), "", exitInvalidArgs)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("no .dem files under %s", *demosDir), "", exitInvalidArgs)
 	}
 
 	// A calibration run is long and unattended, so one unreadable demo must
@@ -179,12 +179,12 @@ func runDemoAnticheatCalibrate(args []string, stdout, stderr io.Writer) int {
 		measured = append(measured, demo)
 	}
 	if len(reports) == 0 {
-		return writeDemoReviewError(args, stdout, stderr, fmt.Errorf("every demo under %s failed to parse", *demosDir), "", exitUnexpected)
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("every demo under %s failed to parse", *demosDir), "", exitUnexpected)
 	}
 
 	baseline, distinct, err := anticheat.Calibrate(*id, fmt.Sprintf("medida sobre demos locales de %s", filepath.Base(strings.TrimRight(*demosDir, `/\`))), reports)
 	if err != nil {
-		return writeDemoReviewError(args, stdout, stderr, err, "", exitUnexpected)
+		return writeCommandError(args, stdout, stderr, err, "", exitUnexpected)
 	}
 
 	result := demoAnticheatCalibrateResult{
@@ -279,15 +279,6 @@ func listDemoFiles(dir string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
-}
-
-// writeJSONArtifact writes v as indented JSON to path.
-func writeJSONArtifact(path string, v any) error {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(b, '\n'), 0o600)
 }
 
 func loadAnticheatBaseline(path string) (anticheat.Baseline, error) {

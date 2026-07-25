@@ -4,7 +4,7 @@ import { OrchestratorClient } from './orchestrator-client.ts';
 export type OperationRisk = 'costly' | 'destructive' | 'read' | 'write';
 
 export interface OperationDefinition {
-  category: 'artifacts' | 'catalog' | 'jobs' | 'renders' | 'streams' | 'studio' | 'voices';
+  category: 'artifacts' | 'catalog' | 'jobs' | 'renders' | 'streams' | 'studio' | 'tactical' | 'voices';
   description: string;
   inputSchema: JsonObject;
   keywords: readonly string[];
@@ -347,6 +347,12 @@ function stringInput(input: JsonObject, key: string): string {
   return value;
 }
 
+function integerInput(input: JsonObject, key: string): number {
+  const value = input[key];
+  if (typeof value !== 'number' || !Number.isInteger(value)) throw new Error(`${key} must be an integer`);
+  return value;
+}
+
 function optionalStringInput(input: JsonObject, key: string): string | undefined {
   const value = input[key];
   return typeof value === 'string' ? value : undefined;
@@ -381,6 +387,14 @@ function without(input: JsonObject, ...keys: readonly string[]): JsonObject {
 
 const STEAM_ID_PROPERTY: JsonObject = { pattern: '^[0-9]{1,20}$', type: 'string' };
 const JOB_ID_SCHEMA = objectSchema({ job_id: UUID_PROPERTY }, ['job_id']);
+const TACTICAL_ROUND_SCHEMA = objectSchema(
+  { job_id: UUID_PROPERTY, round: { minimum: 1, type: 'integer' } },
+  ['job_id', 'round'],
+);
+const TACTICAL_MAP_SCHEMA = objectSchema(
+  { map: { description: 'CS2 map name such as de_mirage.', pattern: SAFE_TOKEN_PATTERN, type: 'string' } },
+  ['map'],
+);
 const VOICE_PROFILE_SCHEMA = objectSchema({ voice_profile_id: VOICE_PROFILE_ID_PROPERTY }, ['voice_profile_id']);
 const JOB_VARIANT_SCHEMA = objectSchema(
   {
@@ -607,6 +621,79 @@ const operations: readonly OperationDefinition[] = [
     path: (input) => jobPath(input, `/anticheat/dossier/${encodeURIComponent(stringInput(input, 'steamid64'))}`),
     title: 'Get a cheat-suspicion dossier',
   }),
+  readOperation({
+    category: 'tactical',
+    description: 'Read the durable tactical document for one analyzed demo.',
+    inputSchema: JOB_ID_SCHEMA,
+    keywords: ['tactical', 'analysis', 'rounds', 'economy', 'strategy'],
+    name: 'tactical.get_document',
+    path: (input) => jobPath(input, '/tactical'),
+    title: 'Get tactical analysis',
+  }),
+  mutationOperation({
+    body: (input) => without(input, 'job_id'),
+    category: 'tactical',
+    description: 'Queue a deterministic local tactical scan of the demo.',
+    inputSchema: objectSchema(
+      { job_id: UUID_PROPERTY, sample_hz: { maximum: 64, minimum: 0, type: 'number' } },
+      ['job_id'],
+    ),
+    keywords: ['tactical', 'analyze', 'scan', 'radar'],
+    name: 'tactical.start',
+    path: (input) => jobPath(input, '/tactical'),
+    title: 'Start tactical analysis',
+  }),
+  readOperation({
+    category: 'tactical',
+    description: 'Read the tactical analysis lifecycle state.',
+    inputSchema: JOB_ID_SCHEMA,
+    keywords: ['tactical', 'status', 'queued', 'ready'],
+    name: 'tactical.get_status',
+    path: (input) => jobPath(input, '/tactical/status'),
+    title: 'Get tactical status',
+  }),
+  readOperation({
+    category: 'tactical',
+    description: 'Read one tactical round together with its decoded position frames.',
+    inputSchema: TACTICAL_ROUND_SCHEMA,
+    keywords: ['tactical', 'round', 'events', 'positions'],
+    name: 'tactical.get_round',
+    path: (input) => jobPath(input, `/tactical/rounds/${integerInput(input, 'round')}`),
+    title: 'Get tactical round',
+  }),
+  readOperation({
+    category: 'tactical',
+    description: 'Aggregate tactical tendencies over the analyzed demo.',
+    inputSchema: JOB_ID_SCHEMA,
+    keywords: ['tactical', 'tendencies', 'aggregate', 'win rate', 'patterns'],
+    name: 'tactical.aggregate',
+    path: (input) => jobPath(input, '/tactical/aggregate'),
+    title: 'Aggregate tactical tendencies',
+  }),
+  {
+    category: 'tactical',
+    description: 'Return a checked loopback URL for the tactical position sidecar without loading binary data into model context.',
+    inputSchema: JOB_ID_SCHEMA,
+    keywords: ['tactical', 'positions', 'sidecar', 'radar', 'binary'],
+    name: 'tactical.get_positions_url',
+    preview: (input) => requestPreview('GET', jobPath(input, '/tactical/positions')),
+    risk: 'read',
+    run: async (client, input, signal) => ({ url: await client.artifactUrl(jobPath(input, '/tactical/positions'), signal) }),
+    title: 'Get tactical positions URL',
+  },
+  {
+    category: 'tactical',
+    description: 'Return a checked loopback URL for a map radar image.',
+    inputSchema: TACTICAL_MAP_SCHEMA,
+    keywords: ['tactical', 'map', 'radar', 'image'],
+    name: 'tactical.get_map_radar_url',
+    preview: (input) => requestPreview('GET', `/api/maps/${encodeURIComponent(stringInput(input, 'map'))}/radar`),
+    risk: 'read',
+    run: async (client, input, signal) => ({
+      url: await client.artifactUrl(`/api/maps/${encodeURIComponent(stringInput(input, 'map'))}/radar`, signal),
+    }),
+    title: 'Get map radar URL',
+  },
   mutationOperation({
     body: (input) => without(input, 'job_id'),
     category: 'jobs',
