@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import type { Video } from '@/lib/api/types';
 import { formatCountdown } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
-import { PipelineSteps } from '@/components/brand/pipeline-steps';
 import {
   Dialog,
   DialogContent,
@@ -14,19 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ReelCover } from '@/components/brand/reel-cover';
+import { Button } from '@/components/ui/button';
+import { StatusTag } from '@/components/studio/status-tag';
 import { DeleteVideoButton } from '@/components/videos/delete-video-button';
 import { PublishAssistantDialog } from '@/components/videos/publish-assistant-dialog';
-
-const FORMAT_LABEL: Record<string, string> = { 'short-9x16': '9:16', 'landscape-16x9': '16:9' };
+import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
 
 /**
- * A finished, downloadable video — the mockup's LISTO card: a cyan corner
- * bracket, a "● LISTO" status tag, and a publication assistant next to an outlined
- * MP4 download. Hovering the thumbnail still surfaces View/Share
- * (there is no thumbnail-duration data to show a real running time, so the
- * corner badge shows only the render format). View plays the reel inline in a
- * dialog; the 9:16 short fits the portrait frame.
+ * A finished, downloadable reel. The card is the shared `ReelCard` in its payoff
+ * state: raised off the grid, cyan-edged, its cover finally rendered at the
+ * format it was actually made in, and its stage track filled to LISTO.
+ *
+ * Hovering (or focusing, or touching) the frame surfaces Ver/Compartir. There is
+ * no thumbnail-duration data, so the corner tag shows the render format and
+ * nothing else — the shape of the frame now carries most of that information
+ * anyway. Ver plays the reel inline in a dialog.
  */
 export function ReadyCard({
   video,
@@ -69,105 +70,79 @@ export function ReadyCard({
   };
 
   const meta = video.score ? `${video.map} · ${video.score}` : video.map;
-  const formatBadge = video.editConfig ? FORMAT_LABEL[video.editConfig.format] : undefined;
+  const formatBadge = reelFormatLabel(video.editConfig);
 
   return (
     <>
-      <article
-        data-slot="card"
-        className="studio-panel studio-panel-raised studio-panel-interactive studio-defer-render flex h-full flex-col"
-      >
-        <div className="group relative aspect-video w-full overflow-hidden border-b border-border bg-muted">
-          {video.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- proxied reel cover, dynamic same-origin URL
-            <img src={video.thumbnailUrl} alt="" className="size-full object-cover" />
-          ) : (
-            <ReelCover seed={video.id} label={video.map} className="size-full" />
-          )}
-
-          {formatBadge ? (
-            <span className="absolute top-2.5 right-2.5 border border-primary/30 bg-background/90 px-2 py-1 font-[family-name:var(--font-mono)] text-[10px] tracking-[0.12em] text-primary">
-              {formatBadge}
-            </span>
-          ) : null}
-
-          {/* Hover on precise pointers; always visible and actionable on touch. */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 bg-background/78 opacity-0 backdrop-blur-[1px] transition-opacity duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
-            <button
+      <ReelCard
+        video={video}
+        tone="primary"
+        raised
+        scrim
+        badge={formatBadge ? <StatusTag tone="primary">{formatBadge}</StatusTag> : undefined}
+        frameActions={
+          <>
+            <Button
               type="button"
+              variant="outline-primary"
+              size="sm"
               onClick={() => video.downloadUrl && setPlayerOpen(true)}
               disabled={!video.downloadUrl}
-              className="inline-flex min-h-10 items-center gap-1.5 border border-primary/45 bg-background/85 px-4 text-xs font-semibold text-foreground outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40"
             >
-              <Eye className="size-3.5" /> Ver
-            </button>
+              <Eye className="size-4" aria-hidden /> Ver
+            </Button>
             {canShare ? (
-              <button
-                type="button"
-                onClick={handleShare}
-                className="inline-flex min-h-10 items-center gap-1.5 border border-primary/45 bg-background/85 px-4 text-xs font-semibold text-foreground outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
-                <Share2 className="size-3.5" /> Compartir
-              </button>
+              <Button type="button" variant="outline" size="sm" onClick={handleShare}>
+                <Share2 className="size-4" aria-hidden /> Compartir
+              </Button>
             ) : null}
-          </div>
-        </div>
-
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="min-w-0">
-            <p className="truncate font-[family-name:var(--font-display)] text-base font-bold text-foreground">
-              {video.title}
-            </p>
-            <p className="mt-1.5 truncate font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.1em] text-muted-foreground">
-              {meta}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="inline-flex min-h-7 items-center gap-1.5 border border-success/35 bg-success/10 px-2.5 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.16em] text-success">
-              <span className="size-1.5 rounded-full bg-success shadow-[0_0_7px_var(--success)]" />
-              LISTO
-            </span>
-            {video.availableForSec !== undefined ? (
-              <span className="inline-flex min-h-7 items-center gap-1.5 border border-warning/25 bg-warning/[0.06] px-2 font-[family-name:var(--font-mono)] text-[10px] text-warning">
-                <Clock className="size-3.5" />
-                caduca en {formatCountdown(video.availableForSec)}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="border-y border-border/70 py-3">
-            <PipelineSteps status={video.status} className="gap-x-2 text-[10px]" />
-          </div>
-
-          <div className="mt-auto grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.6fr)_auto] items-center gap-2 border-t border-border/70 pt-4">
-            <button
+          </>
+        }
+        footer={
+          <div className="flex flex-col gap-2 p-4">
+            {/* Full width, and allowed to wrap rather than being starved into a
+                112px column by a three-track footer grid. */}
+            <Button
               type="button"
+              variant="hero"
+              className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
               onClick={() => setPublishOpen(true)}
-              className="flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-primary px-3 font-[family-name:var(--font-display)] text-xs font-bold tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              <Youtube className="size-3.5" /> PREPARAR PUBLICACIÓN
-            </button>
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={!video.downloadUrl}
-              className="flex min-h-10 items-center justify-center gap-1.5 border border-primary/40 px-3 font-[family-name:var(--font-display)] text-xs font-bold tracking-[0.05em] text-primary transition-colors hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Download className="size-3.5" /> MP4
-            </button>
-            <DeleteVideoButton video={video} onDeleted={() => onDeleted?.()} />
+              <Youtube className="size-4" aria-hidden /> PREPARAR PUBLICACIÓN
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline-primary"
+                size="sm"
+                className="flex-1"
+                onClick={handleDownload}
+                disabled={!video.downloadUrl}
+              >
+                <Download className="size-4" aria-hidden /> MP4
+              </Button>
+              <DeleteVideoButton video={video} onDeleted={() => onDeleted?.()} />
+            </div>
           </div>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusTag tone="success" dot>
+            Listo
+          </StatusTag>
+          {video.availableForSec !== undefined ? (
+            <StatusTag tone="warning" icon={Clock}>
+              caduca en <span className="tabular-nums">{formatCountdown(video.availableForSec)}</span>
+            </StatusTag>
+          ) : null}
         </div>
-      </article>
+      </ReelCard>
 
       <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="truncate">{video.title}</DialogTitle>
-            <DialogDescription className="font-[family-name:var(--font-mono)] tabular-nums">
-              {meta}
-            </DialogDescription>
+            <DialogDescription className="font-mono tabular-nums">{meta}</DialogDescription>
           </DialogHeader>
           {video.downloadUrl ? (
             <video
@@ -176,17 +151,13 @@ export function ReadyCard({
               autoPlay
               playsInline
               preload="metadata"
-              className="mx-auto max-h-[72vh] w-auto rounded-lg bg-black"
+              className="mx-auto max-h-[72vh] w-auto rounded-lg bg-surface-0"
             />
           ) : null}
         </DialogContent>
       </Dialog>
 
-      <PublishAssistantDialog
-        open={publishOpen}
-        video={video}
-        onOpenChange={setPublishOpen}
-      />
+      <PublishAssistantDialog open={publishOpen} video={video} onOpenChange={setPublishOpen} />
     </>
   );
 }

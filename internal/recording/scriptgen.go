@@ -122,6 +122,7 @@ func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
 func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
 	commands := []scheduledCommand{}
 	seeks := []seekStep{}
+	camera := cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID, targetNameIsUnique(plan))
 	setupTick := 25
 	for i, cmd := range streamSetupCommands(plan) {
 		commands = append(commands, scheduledCommand{
@@ -157,12 +158,12 @@ func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
 		}
 
 		commands = append(commands,
-			scheduledCommand{Tick: max(seekTarget+1, cameraWarmupTick), Key: "camera-warmup-" + s.ID, Commands: cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID)},
-			scheduledCommand{Tick: max(seekTarget+2, cameraLead3Tick), Key: "camera-lead-3s-" + s.ID, Commands: cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID)},
-			scheduledCommand{Tick: max(seekTarget+3, cameraLead2Tick), Key: "camera-lead-2s-" + s.ID, Commands: cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID)},
-			scheduledCommand{Tick: max(seekTarget+4, cameraLead1Tick), Key: "camera-lead-1s-" + s.ID, Commands: cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID)},
-			scheduledCommand{Tick: max(seekTarget+5, cameraLockTick), Key: "camera-lock-" + s.ID, Commands: cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID)},
-			scheduledCommand{Tick: recordStart + max(1, plan.Tickrate/2), Key: "camera-relock-" + s.ID, Commands: cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID)},
+			scheduledCommand{Tick: max(seekTarget+1, cameraWarmupTick), Key: "camera-warmup-" + s.ID, Commands: camera},
+			scheduledCommand{Tick: max(seekTarget+2, cameraLead3Tick), Key: "camera-lead-3s-" + s.ID, Commands: camera},
+			scheduledCommand{Tick: max(seekTarget+3, cameraLead2Tick), Key: "camera-lead-2s-" + s.ID, Commands: camera},
+			scheduledCommand{Tick: max(seekTarget+4, cameraLead1Tick), Key: "camera-lead-1s-" + s.ID, Commands: camera},
+			scheduledCommand{Tick: max(seekTarget+5, cameraLockTick), Key: "camera-lock-" + s.ID, Commands: camera},
+			scheduledCommand{Tick: recordStart + max(1, plan.Tickrate/2), Key: "camera-relock-" + s.ID, Commands: camera},
 		)
 		if i == 0 {
 			commands = append(commands,
@@ -211,13 +212,55 @@ func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
 	return commands, seeks
 }
 
-func cameraCommands(targetName string, accountID uint32) []string {
+// targetNameIsUnique reports whether the target's in-demo name identifies the
+// target and nobody else, judged on the evidence the plan itself carries: every
+// victim the target killed. A name shared with another player is not a usable
+// selector, and CS2 has no way to say "the one with this account id" once the
+// command is issued by name.
+//
+// This is one-sided on purpose. It sees the players the target killed, not the
+// whole server, so it proves ambiguity but never uniqueness; a duplicate that
+// never died to the target still reads as unique. That is the right side to err
+// on: the fallback exists for demos where the account-ID selection silently does
+// nothing, and refusing it wholesale would give those demos no camera at all.
+func targetNameIsUnique(plan RecordingPlan) bool {
+	name := strings.TrimSpace(plan.TargetNameInDemo)
+	if name == "" {
+		return false
+	}
+	for _, segment := range plan.Segments {
+		for _, kill := range segment.Kills {
+			victim := kill.Victim
+			if strings.TrimSpace(victim.NameInDemo) == name && victim.SteamID64 != plan.TargetSteamID64 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func cameraCommands(targetName string, accountID uint32, nameIsUnique bool) []string {
 	if slot := strings.TrimSpace(os.Getenv("ZV_SPEC_PLAYER_SLOT")); slot != "" {
 		return []string{"spec_autodirector 0", "spec_mode 2", "spec_player " + slot, "spec_player " + slot}
 	}
 	if accountID != 0 {
 		player := fmt.Sprintf("spec_player_by_accountid %d", accountID)
-		return []string{"spec_autodirector 0", "spec_mode 2", player, player}
+		commands := []string{"spec_autodirector 0", "spec_mode 2", player, player}
+		// Some non-HLTV demos expose the parsed Steam account ID but do not
+		// resolve spec_player_by_accountid during playback. Re-issue the
+		// selection by the validated in-demo name so those demos still lock the
+		// intended POV. Keep the name last because the account-ID command can
+		// fail silently without changing the current spectator target.
+		//
+		// Only when the name is unambiguous: it is issued after the account id
+		// and would therefore win, so a name two players share would replace a
+		// correct selection with a coin flip. The account id is the exact key
+		// and stays on its own in that case.
+		if nameIsUnique && safeConsolePlayerName(targetName) {
+			target := "spec_player " + quoteConsoleArg(targetName)
+			commands = append(commands, target, target)
+		}
+		return commands
 	}
 	if safeConsolePlayerName(targetName) {
 		target := quoteConsoleArg(targetName)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import {
   CheckCircle2,
   FileAudio,
@@ -8,16 +8,22 @@ import {
   ImagePlus,
   Link2,
   LoaderCircle,
+  type LucideIcon,
   Mic2,
   Save,
   ShieldCheck,
   Trash2,
   Upload,
 } from 'lucide-react';
+import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { IconTile } from '@/components/studio/icon-tile';
+import { StatusTag } from '@/components/studio/status-tag';
+import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import {
   deleteNewsVoiceProfile,
   loadNewsDraft,
@@ -46,6 +52,19 @@ Esto no demuestra que Valve no esté trabajando en él, pero otra vez no hay res
 
 ¿Qué necesita Counter-Strike 2 ahora mismo: más skins o un anticheat que funcione?`;
 
+/** Server-side cap on the stored script; the editor counts against the same number. */
+const SCRIPT_MAX_LENGTH = 20000;
+
+/** The DOM ids the label-activated file pickers bind to. */
+const IMAGES_INPUT_ID = 'news-images';
+const VOICE_INPUT_ID = 'voice-reference';
+
+/** Words in the script, for the editor's counter. Empty script counts as zero. */
+function wordCount(script: string): number {
+  const trimmed = script.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
+
 export function NewsShortWorkspace(): ReactNode {
   const [profile, setProfile] = useState<NewsVoiceProfile | null>();
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
@@ -57,8 +76,6 @@ export function NewsShortWorkspace(): ReactNode {
   const [hook, setHook] = useState(DEFAULT_HOOK);
   const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [images, setImages] = useState<File[]>([]);
-  const imagesInputRef = useRef<HTMLInputElement>(null);
-  const voiceInputRef = useRef<HTMLInputElement>(null);
   const [draftSavedAt, setDraftSavedAt] = useState('');
   const [draftError, setDraftError] = useState('');
 
@@ -142,118 +159,177 @@ export function NewsShortWorkspace(): ReactNode {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.85fr)]">
-      <Card>
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <FileText className="mt-0.5 size-5 text-primary" aria-hidden />
-            <div>
-              <CardTitle>Nuevo Short de noticias</CardTitle>
-              <CardDescription className="mt-2">
-                Guarda la fuente, el enfoque y el guion. El caso de CS2 ya está precargado como plantilla editable.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={saveDraft}>
-            <div className="grid gap-2">
-              <Label htmlFor="news-source"><Link2 className="size-4" aria-hidden />Fuente</Label>
-              <Input id="news-source" type="url" required value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="news-channel">Canal</Label>
-                <Input id="news-channel" required value={channel} onChange={(event) => setChannel(event.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="news-title">Título de YouTube</Label>
-                <Input id="news-title" required value={title} onChange={(event) => setTitle(event.target.value)} />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="news-hook">Gancho en pantalla</Label>
-              <Input id="news-hook" required value={hook} onChange={(event) => setHook(event.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="news-script">Guion</Label>
-              <textarea
-                id="news-script"
+    <div className="grid items-start gap-6 @[62rem]/content:grid-cols-[minmax(0,1.6fr)_minmax(19rem,0.85fr)]">
+      <NewsPanel
+        className="@container/form"
+        icon={FileText}
+        eyebrow="GUION"
+        title="Nuevo short de noticias"
+        description="Guarda la fuente, el enfoque y el guion. El caso de CS2 ya está precargado como plantilla editable."
+      >
+        <form className="flex flex-col gap-5" onSubmit={saveDraft}>
+          <Field
+            label={
+              <>
+                <Link2 aria-hidden className="size-4" />
+                Fuente
+              </>
+            }
+            required
+            hint="El enlace que el short cita en pantalla."
+          >
+            {(control) => (
+              <Input
+                {...control}
+                type="url"
                 required
-                rows={15}
-                maxLength={20000}
-                value={script}
-                onChange={(event) => setScript(event.target.value)}
-                className="min-h-72 w-full resize-y rounded-md border border-input bg-surface/80 px-3.5 py-3 text-[15px] leading-6 outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                value={sourceUrl}
+                onChange={(event) => setSourceUrl(event.target.value)}
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="news-images"><ImagePlus className="size-4" aria-hidden />Capturas y recursos</Label>
-              <input
-                ref={imagesInputRef}
-                id="news-images"
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                multiple
-                className="sr-only"
-                // Reset so picking the same files again still fires onChange.
-                onClick={(event) => {
-                  event.currentTarget.value = '';
-                }}
-                onChange={selectImages}
-              />
-              <div>
-                <Button type="button" variant="outline" onClick={() => imagesInputRef.current?.click()}>
-                  <ImagePlus aria-hidden />Elegir imágenes
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {images.length === 0 ? 'Añade el post, la noticia oficial y reacciones.' : `${images.length} recurso(s) seleccionado(s) para esta sesión.`}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button type="submit"><Save aria-hidden />Guardar borrador local</Button>
-              {draftSavedAt !== '' ? (
-                <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">
-                  <CheckCircle2 className="size-4" aria-hidden />Guardado {new Date(draftSavedAt).toLocaleString('es-ES')}
-                </span>
-              ) : null}
-              {draftError !== '' ? <span role="alert" className="text-sm text-destructive">{draftError}</span> : null}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            )}
+          </Field>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start gap-3">
-              <Mic2 className="mt-0.5 size-5 text-primary" aria-hidden />
-              <div>
-                <CardTitle>Tu voz</CardTitle>
-                <CardDescription className="mt-2">Perfil privado para las narraciones de RaizerinhoCS2.</CardDescription>
+          <div className="grid gap-5 @[28rem]/form:grid-cols-2">
+            <Field label="Canal" required>
+              {(control) => (
+                <Input {...control} required value={channel} onChange={(event) => setChannel(event.target.value)} />
+              )}
+            </Field>
+            <Field label="Título de YouTube" required>
+              {(control) => (
+                <Input {...control} required value={title} onChange={(event) => setTitle(event.target.value)} />
+              )}
+            </Field>
+          </div>
+
+          <Field label="Gancho en pantalla" required hint="Los primeros segundos: lo que aparece sobreimpreso.">
+            {(control) => (
+              <Input {...control} required value={hook} onChange={(event) => setHook(event.target.value)} />
+            )}
+          </Field>
+
+          <Field label="Guion">
+            {(control) => (
+              // An editor well, not an input: recessed surface, its own status
+              // rail with live counts, and one focus indicator for the whole
+              // frame so the toolbar reads as part of the control.
+              <div
+                className={cn(
+                  'flex flex-col overflow-hidden rounded-md border border-border-strong bg-surface-0 shadow-[var(--elev-0)]',
+                  'transition-[border-color] duration-(--dur-instant) ease-standard',
+                  'has-[:focus-visible]:border-primary has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring',
+                )}
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-surface-2 px-3 py-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+                  <span>Narración</span>
+                  <span className="tabular-nums">
+                    {wordCount(script)} palabras · {script.length}/{SCRIPT_MAX_LENGTH}
+                  </span>
+                </div>
+                <textarea
+                  {...control}
+                  required
+                  rows={15}
+                  maxLength={SCRIPT_MAX_LENGTH}
+                  spellCheck
+                  value={script}
+                  onChange={(event) => setScript(event.target.value)}
+                  className="min-h-72 w-full resize-y bg-transparent px-3.5 py-3 text-body leading-7 text-fg-1 outline-none placeholder:text-fg-3"
+                />
               </div>
+            )}
+          </Field>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor={IMAGES_INPUT_ID} className="w-fit text-label uppercase tracking-wide text-fg-2">
+              Capturas y recursos
+            </label>
+            <input
+              id={IMAGES_INPUT_ID}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              className="peer sr-only"
+              // Reset so picking the same files again still fires onChange.
+              onClick={(event) => {
+                event.currentTarget.value = '';
+              }}
+              onChange={selectImages}
+            />
+            <div>
+              {/* A <label> rather than a button with a scripted .click(): the
+                  native association keeps the picker keyboard-operable, and the
+                  peer ring puts the focus indicator on the visible 44px target
+                  instead of on the 1px sr-only input. */}
+              <Button
+                asChild
+                variant="outline"
+                className="peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring"
+              >
+                <label htmlFor={IMAGES_INPUT_ID}>
+                  <ImagePlus aria-hidden />
+                  Elegir imágenes
+                </label>
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
+            <p className="text-body-sm text-fg-3">
+              {images.length === 0
+                ? 'Añade el post, la noticia oficial y reacciones.'
+                : `${images.length} recurso(s) seleccionado(s) para esta sesión.`}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-5">
+            <Button type="submit" variant="hero">
+              <Save aria-hidden />
+              Guardar borrador local
+            </Button>
+            {draftSavedAt !== '' ? (
+              <StatusTag size="md" tone="success" icon={CheckCircle2}>
+                Guardado {new Date(draftSavedAt).toLocaleString('es-ES')}
+              </StatusTag>
+            ) : null}
+            {draftError !== '' ? (
+              <p role="alert" className="text-body-sm text-destructive">
+                {draftError}
+              </p>
+            ) : null}
+          </div>
+        </form>
+      </NewsPanel>
+
+      <div className="flex flex-col gap-6">
+        <NewsPanel
+          icon={Mic2}
+          eyebrow="VOZ"
+          title="Tu voz"
+          description="Perfil privado para las narraciones de RaizerinhoCS2."
+          aside={<VoiceStateTag profile={profile} error={voiceError} />}
+        >
+          <div className="flex flex-col gap-5">
             {profile === undefined ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <LoaderCircle className="size-4 animate-spin" aria-hidden />Cargando perfil local…
+              <div role="status" aria-label="Cargando el perfil de voz local" className="flex flex-col gap-2">
+                <Skeleton className="h-11 w-full rounded-none" />
+                <Skeleton className="h-11 w-full rounded-none" />
               </div>
             ) : null}
+
             {profile === null ? (
-              <p className="text-sm leading-6 text-muted-foreground">Todavía no hay una referencia guardada.</p>
+              <p className="border border-dashed border-border-strong bg-surface-1 px-4 py-3 text-body-sm text-fg-2">
+                Todavía no hay una referencia guardada en este equipo.
+              </p>
             ) : null}
+
             {profile !== undefined && profile !== null ? (
-              <div className="space-y-4 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
+              <div className="flex flex-col gap-3 border border-success/45 bg-success/8 p-4">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-foreground">{profile.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="truncate font-display text-body-lg font-bold text-fg-1">{profile.name}</p>
+                    <p className="font-mono text-meta uppercase tracking-wider text-fg-2">
                       {profile.channel} · {profile.locale} · {formatBytes(profile.size_bytes)}
                     </p>
                   </div>
-                  <ShieldCheck className="size-5 shrink-0 text-emerald-400" aria-label="Guardada localmente" />
+                  <ShieldCheck aria-label="Guardada localmente" className="size-5 shrink-0 text-success" />
                 </div>
                 <audio
                   key={profile.updated_at}
@@ -262,23 +338,33 @@ export function NewsShortWorkspace(): ReactNode {
                   src={`${profile.audio_url}?v=${encodeURIComponent(profile.updated_at)}`}
                   className="w-full"
                 />
-                <p className="break-all font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground">
+                <p className="break-all border-t border-success/25 pt-3 font-mono text-meta text-fg-2">
                   SHA-256 {profile.sha256}
                 </p>
-                <Button type="button" variant="destructive" size="sm" disabled={voiceBusy} onClick={() => void removeVoice()}>
-                  <Trash2 aria-hidden />Eliminar voz local
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="self-start"
+                  loading={voiceBusy}
+                  onClick={() => void removeVoice()}
+                >
+                  {voiceBusy ? null : <Trash2 aria-hidden />}
+                  Eliminar voz local
                 </Button>
               </div>
             ) : null}
 
-            <form className="space-y-3" onSubmit={(event) => void uploadVoice(event)}>
-              <Label htmlFor="voice-reference">{profile === null ? 'Guardar referencia' : 'Reemplazar referencia'}</Label>
+            <form className="flex flex-col gap-3" onSubmit={(event) => void uploadVoice(event)}>
+              <label htmlFor={VOICE_INPUT_ID} className="w-fit text-label uppercase tracking-wide text-fg-2">
+                {profile === null ? 'Guardar referencia' : 'Reemplazar referencia'}
+              </label>
               <input
-                ref={voiceInputRef}
-                id="voice-reference"
+                id={VOICE_INPUT_ID}
                 type="file"
                 accept="audio/ogg,audio/wav,.ogg,.wav"
-                className="sr-only"
+                disabled={voiceBusy}
+                className="peer sr-only"
                 // Reset so picking the same file again still fires onChange.
                 onClick={(event) => {
                   event.currentTarget.value = '';
@@ -286,38 +372,120 @@ export function NewsShortWorkspace(): ReactNode {
                 onChange={selectVoice}
               />
               <div className="flex flex-wrap items-center gap-3">
-                <Button type="button" variant="outline" disabled={voiceBusy} onClick={() => voiceInputRef.current?.click()}>
-                  <FileAudio aria-hidden />Elegir audio
+                <Button
+                  asChild
+                  variant="outline"
+                  className="peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring peer-disabled:pointer-events-none peer-disabled:opacity-50"
+                >
+                  <label htmlFor={VOICE_INPUT_ID}>
+                    <FileAudio aria-hidden />
+                    Elegir audio
+                  </label>
                 </Button>
                 {voiceFile !== null ? (
-                  <span className="max-w-52 truncate text-sm text-muted-foreground" title={voiceFile.name}>
+                  <span className="max-w-52 truncate font-mono text-body-sm text-fg-2" title={voiceFile.name}>
                     {voiceFile.name}
                   </span>
                 ) : (
-                  <span className="text-sm text-muted-foreground">Ningún audio seleccionado.</span>
+                  <span className="text-body-sm text-fg-3">Ningún audio seleccionado.</span>
                 )}
               </div>
-              <p className="text-xs leading-5 text-muted-foreground">OGG Opus o WAV clásico PCM. Recomendado: entre 10 y 30 segundos, sin música ni ruido. Máximo 25 MB.</p>
-              <Button type="submit" variant="secondary" disabled={voiceFile === null || voiceBusy}>
-                {voiceBusy ? <LoaderCircle className="animate-spin" aria-hidden /> : <Upload aria-hidden />}
+              <p className="text-body-sm text-fg-3">
+                OGG Opus o WAV clásico PCM. Recomendado: entre 10 y 30 segundos, sin música ni ruido. Máximo 25 MB.
+              </p>
+              <Button type="submit" variant="secondary" className="self-start" loading={voiceBusy} disabled={voiceFile === null}>
+                {voiceBusy ? null : <Upload aria-hidden />}
                 {profile === null ? 'Guardar voz' : 'Reemplazar voz'}
               </Button>
             </form>
-            {voiceError !== '' ? <p role="alert" className="text-sm text-destructive">{voiceError}</p> : null}
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Privacidad</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
-            <p>La muestra se guarda dentro de los datos locales de FragForge. No forma parte del repositorio ni del instalador.</p>
-            <p>FragForge no la envía a xAI, YouTube ni a ningún proveedor de voz. Puedes escucharla, reemplazarla o eliminarla aquí.</p>
-          </CardContent>
-        </Card>
+            {voiceError !== '' ? (
+              <p role="alert" className="border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive">
+                {voiceError}
+              </p>
+            ) : null}
+          </div>
+        </NewsPanel>
+
+        <NewsPanel icon={ShieldCheck} eyebrow="PRIVACIDAD" title="Dónde vive la muestra">
+          <div className="flex flex-col gap-2">
+            <StudioDataRow label="Ubicación" value="Datos locales de FragForge" />
+            <StudioDataRow label="Repositorio / instalador" value="No incluida" />
+            <StudioDataRow label="Envío a terceros" value="Ninguno" />
+          </div>
+          <p className="mt-4 text-body-sm text-fg-2">
+            FragForge no la envía a xAI, YouTube ni a ningún proveedor de voz. Puedes escucharla, reemplazarla o
+            eliminarla aquí.
+          </p>
+        </NewsPanel>
       </div>
     </div>
+  );
+}
+
+/** The voice profile's state as one tag: loading, saved, absent or failed. */
+function VoiceStateTag({ profile, error }: { profile: NewsVoiceProfile | null | undefined; error: string }): ReactNode {
+  if (error !== '') {
+    return (
+      <StatusTag tone="danger" dot>
+        Error
+      </StatusTag>
+    );
+  }
+  if (profile === undefined) {
+    return (
+      <StatusTag icon={LoaderCircle} className="[&_svg]:animate-spin">
+        Cargando
+      </StatusTag>
+    );
+  }
+  if (profile === null) {
+    return <StatusTag dot>Sin referencia</StatusTag>;
+  }
+  return (
+    <StatusTag tone="success" dot>
+      Guardada
+    </StatusTag>
+  );
+}
+
+/**
+ * The one panel shape /news uses. It replaces the `Card`/`CardHeader`/`CardTitle`
+ * stack this screen was the last user of, so a news panel and a Studio panel are
+ * now the same object: mono eyebrow, uppercase display title, icon plate.
+ */
+function NewsPanel({
+  icon,
+  eyebrow,
+  title,
+  description,
+  aside,
+  className,
+  children,
+}: {
+  icon: LucideIcon;
+  eyebrow: string;
+  title: string;
+  description?: string;
+  aside?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}): ReactNode {
+  return (
+    <section className={cn('studio-panel flex flex-col gap-5 p-5 sm:p-6', className)}>
+      <div className="flex items-start gap-4">
+        <IconTile icon={icon} size="md" depth="inset" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SectionEyebrow label={eyebrow} />
+            {aside}
+          </div>
+          <h2 className="font-display text-title font-bold uppercase text-fg-1">{title}</h2>
+          {description ? <p className="text-body-sm text-fg-2">{description}</p> : null}
+        </div>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
   );
 }
 

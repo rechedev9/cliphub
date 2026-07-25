@@ -987,12 +987,21 @@ func TestKillMilestoneLabel(t *testing.T) {
 		{kills: 3, want: "3K"},
 		{kills: 4, want: "4K"},
 		{kills: 5, want: "ACE"},
-		{kills: 7, want: "ACE"},
+		{kills: 7, want: ""},
 	}
 	for _, tt := range tests {
 		if got := killMilestoneLabel(tt.kills); got != tt.want {
 			t.Errorf("killMilestoneLabel(%d) = %q, want %q", tt.kills, got, tt.want)
 		}
+	}
+
+	long := ShortEdit{KillCounter: true, DurationSeconds: 10}
+	for i := 0; i < 7; i++ {
+		long.Kills = append(long.Kills, KillCue{TimeSeconds: float64(i + 1)})
+	}
+	longEffects := generatedKillCounterEffects(long)
+	if got := longEffects[len(longEffects)-1].Value; got != "7" {
+		t.Fatalf("long compilation final counter = %q, want 7", got)
 	}
 }
 

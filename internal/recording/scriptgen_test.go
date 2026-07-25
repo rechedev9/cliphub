@@ -223,7 +223,7 @@ func TestEffectiveRecordStartTickAllowsCameraToSettleBeforeFirstKill(t *testing.
 }
 
 func TestCameraCommandsPreferAccountID(t *testing.T) {
-	got := strings.Join(cameraCommands("name;quit", 188721128), "\n")
+	got := strings.Join(cameraCommands("name;quit", 188721128, true), "\n")
 	if !strings.Contains(got, `spec_player_by_accountid 188721128`) {
 		t.Fatalf("cameraCommands() = %q, want account id", got)
 	}
@@ -232,9 +232,76 @@ func TestCameraCommandsPreferAccountID(t *testing.T) {
 	}
 }
 
+func TestCameraCommandsFallBackToValidatedNameAfterAccountID(t *testing.T) {
+	got := cameraCommands("ma1wel", 18406923, true)
+	want := []string{
+		"spec_autodirector 0",
+		"spec_mode 2",
+		"spec_player_by_accountid 18406923",
+		"spec_player_by_accountid 18406923",
+		`spec_player "ma1wel"`,
+		`spec_player "ma1wel"`,
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("cameraCommands() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCameraCommandsDropTheNameFallbackWhenItIsAmbiguous(t *testing.T) {
+	got := cameraCommands("ma1wel", 18406923, false)
+	want := []string{
+		"spec_autodirector 0",
+		"spec_mode 2",
+		"spec_player_by_accountid 18406923",
+		"spec_player_by_accountid 18406923",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("cameraCommands() = %#v, want %#v", got, want)
+	}
+}
+
+func TestTargetNameIsUniqueRejectsANameAnotherPlayerShares(t *testing.T) {
+	plan := testPlan()
+	if !targetNameIsUnique(plan) {
+		t.Fatalf("targetNameIsUnique() = false for a plan with no duplicate name")
+	}
+
+	// A victim carrying the target's name but a different SteamID64 is proof
+	// that `spec_player "maaryy"` cannot pick out the target.
+	plan.Segments[0].Kills = []killplan.Kill{
+		{Tick: 22100, Victim: killplan.Player{SteamID64: "76561198000000001", NameInDemo: plan.TargetNameInDemo}},
+	}
+	if targetNameIsUnique(plan) {
+		t.Fatalf("targetNameIsUnique() = true with a duplicate in-demo name")
+	}
+
+	// The target killing someone under their own SteamID64 is not a duplicate.
+	plan.Segments[0].Kills[0].Victim.SteamID64 = plan.TargetSteamID64
+	if !targetNameIsUnique(plan) {
+		t.Fatalf("targetNameIsUnique() = false for the target's own SteamID64")
+	}
+}
+
+func TestGenerateHLAEJavaScriptOmitsTheNameFallbackForADuplicateName(t *testing.T) {
+	plan := testPlan()
+	plan.Segments[0].Kills = []killplan.Kill{
+		{Tick: 22100, Victim: killplan.Player{SteamID64: "76561198000000001", NameInDemo: plan.TargetNameInDemo}},
+	}
+	js, err := GenerateHLAEJavaScript(plan)
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	if !strings.Contains(js, "spec_player_by_accountid 188721128") {
+		t.Fatalf("script lost the account-id selection:\n%s", js)
+	}
+	if strings.Contains(js, `spec_player \"maaryy\"`) || strings.Contains(js, `spec_player "maaryy"`) {
+		t.Fatalf("script kept a name fallback another player answers to:\n%s", js)
+	}
+}
+
 func TestCameraCommandsRejectUnsafeFallbackNames(t *testing.T) {
 	for _, name := range []string{"victim;quit", "victim\nquit", "victim\x00quit", "victim\u0085quit"} {
-		got := cameraCommands(name, 0)
+		got := cameraCommands(name, 0, true)
 		if len(got) != 2 || got[0] != "spec_autodirector 0" || got[1] != "spec_mode 2" {
 			t.Fatalf("cameraCommands(%q) = %#v, want safe fallback", name, got)
 		}

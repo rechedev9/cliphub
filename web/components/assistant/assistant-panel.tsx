@@ -202,7 +202,11 @@ export function AssistantPanel({ className }: AssistantPanelProps): ReactElement
     <aside
       aria-label="Agente de FragForge"
       className={cn(
-        'studio-panel neon-brackets flex min-h-[34rem] w-full min-w-0 flex-col overflow-hidden bg-surface/95',
+        // No `neon-brackets`: the pseudo-elements sit at top/left -1px with a
+        // 2px stroke and this element is `overflow-hidden`, so the outer half of
+        // every corner was clipped away. Beyond the clipping, brackets are the
+        // content plane's vocabulary — chrome should not wear them.
+        'studio-panel flex min-h-[34rem] w-full min-w-0 flex-col overflow-hidden bg-surface-2',
         className,
       )}
       data-assistant-panel
@@ -227,7 +231,7 @@ export function AssistantPanel({ className }: AssistantPanelProps): ReactElement
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               onClick={() => void startNewConversation()}
               disabled={bridge === null || isBusy}
               aria-label="Nueva conversación"
@@ -238,7 +242,7 @@ export function AssistantPanel({ className }: AssistantPanelProps): ReactElement
             <Button
               type="button"
               variant={clearConfirmationVisible ? 'destructive' : 'ghost'}
-              size="icon-xs"
+              size="icon-sm"
               onClick={() => setClearConfirmationVisible((visible) => !visible)}
               disabled={bridge === null || isBusy}
               aria-label="Borrar historial de Studio"
@@ -284,10 +288,10 @@ export function AssistantPanel({ className }: AssistantPanelProps): ReactElement
           <div className="mt-3 flex items-center justify-between gap-2 border border-destructive/35 bg-destructive/[0.06] p-2.5">
             <p className="min-w-0 text-xs leading-4 text-muted-foreground">¿Borrar solo el historial guardado en Studio?</p>
             <div className="flex shrink-0 gap-1">
-              <Button type="button" variant="ghost" size="xs" onClick={() => setClearConfirmationVisible(false)}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setClearConfirmationVisible(false)}>
                 Cancelar
               </Button>
-              <Button type="button" variant="destructive" size="xs" onClick={() => void clearHistory()} disabled={isBusy}>
+              <Button type="button" variant="destructive" size="sm" onClick={() => void clearHistory()} disabled={isBusy}>
                 Borrar
               </Button>
             </div>
@@ -343,7 +347,7 @@ export function AssistantPanel({ className }: AssistantPanelProps): ReactElement
               <Button
                 type="button"
                 variant="outline"
-                size="icon-xs"
+                size="icon-sm"
                 className="absolute right-2 bottom-2"
                 onClick={() => void cancelTurn()}
                 disabled={cancelPending}
@@ -355,7 +359,7 @@ export function AssistantPanel({ className }: AssistantPanelProps): ReactElement
             ) : (
               <Button
                 type="submit"
-                size="icon-xs"
+                size="icon-sm"
                 className="absolute right-2 bottom-2"
                 disabled={!canSend}
                 aria-label="Enviar mensaje"
@@ -484,10 +488,10 @@ function AssistantActionCard({
         <ActionMeta action={action} status={status} />
         {needsApproval ? (
           <div className="flex gap-1.5">
-            <Button type="button" variant="ghost" size="xs" onClick={onReject} disabled={disabled || busy}>
+            <Button type="button" variant="ghost" size="sm" onClick={onReject} disabled={disabled || busy}>
               <X aria-hidden /> Rechazar
             </Button>
-            <Button type="button" size="xs" onClick={onApprove} disabled={disabled || busy}>
+            <Button type="button" size="sm" onClick={onApprove} disabled={disabled || busy}>
               {busy ? <LoaderCircle className="animate-spin" aria-hidden /> : <Check aria-hidden />}
               Aprobar
             </Button>
@@ -529,7 +533,7 @@ function AccountConnection({
         <p className="min-w-0 text-xs leading-4 text-foreground">
           Cuenta personal de Codex conectada{account.planType ? ` · ${planLabel(account.planType)}` : ''}
         </p>
-        <Button type="button" variant="ghost" size="xs" onClick={onLogout} disabled={disabled}>
+        <Button type="button" variant="ghost" size="sm" onClick={onLogout} disabled={disabled}>
           <LogOut aria-hidden /> Desconectar
         </Button>
       </div>
@@ -544,7 +548,7 @@ function AccountConnection({
       <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
         Studio utiliza el OAuth gestionado por Codex. No solicita ni almacena claves API de OpenAI.
       </p>
-      <Button type="button" size="xs" className="mt-2" onClick={signingIn ? onLogout : onLogin} disabled={disabled}>
+      <Button type="button" size="sm" className="mt-2" onClick={signingIn ? onLogout : onLogin} disabled={disabled}>
         {signingIn ? <LogOut aria-hidden /> : <LogIn aria-hidden />}
         {signingIn ? 'Cancelar autenticación' : 'Conectar con Codex'}
       </Button>

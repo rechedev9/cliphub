@@ -43,12 +43,12 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
     <>
       <Button
         variant="ghost"
-        size="sm"
+        size="icon-sm"
         aria-label={`Borrar ${video.title}`}
-        className="text-muted-foreground hover:text-destructive"
+        className="text-fg-3 hover:bg-destructive/12 hover:text-destructive"
         onClick={() => setOpen(true)}
       >
-        <Trash2 className="size-4" />
+        <Trash2 className="size-4" aria-hidden />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -56,29 +56,32 @@ export function DeleteVideoButton({ video, onDeleted }: { video: Video; onDelete
           <DialogHeader>
             <DialogTitle className="uppercase">¿Borrar este reel?</DialogTitle>
             <DialogDescription className="break-words">
-              <span className="font-medium text-foreground">{video.title}</span> y su archivo
-              renderizado se eliminarán. Esta acción no se puede deshacer.
+              <span className="font-medium text-fg-1">{video.title}</span> y su archivo renderizado se
+              eliminarán. Esta acción no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
               onClick={() => setOpen(false)}
               disabled={deleting}
-              className="border border-primary/40 font-[family-name:var(--font-display)] font-bold tracking-[0.05em] uppercase hover:bg-primary/10"
+              className="font-display font-bold tracking-wide uppercase"
             >
               Cancelar
             </Button>
             <Button
               variant="destructive"
-              size="sm"
               onClick={onConfirm}
-              disabled={deleting}
-              className="font-[family-name:var(--font-display)] font-bold tracking-[0.05em] uppercase"
+              loading={deleting}
+              className="font-display font-bold tracking-wide uppercase"
             >
-              <Trash2 className="size-4" />
-              {deleting ? 'Borrando…' : 'Borrar'}
+              {deleting ? (
+                'Borrando…'
+              ) : (
+                <>
+                  <Trash2 className="size-4" aria-hidden /> Borrar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,30 +1,105 @@
-export default function BootstrapPage(): React.ReactNode {
+import type { ReactElement } from 'react';
+import type { Metadata } from 'next';
+import { ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { Wordmark } from '@/components/brand/wordmark';
+
+export const metadata: Metadata = { title: 'Autoriza este navegador' };
+
+/**
+ * Copy for the failures `app/api/session/bootstrap/route.ts` can produce. The
+ * route answers `403 {error}` today, so a wrong capability navigates the
+ * browser to a page showing raw JSON — the product's worst first impression.
+ * Redirecting to `/bootstrap?error=<code>` instead makes this panel the answer;
+ * the codes are named here so neither side has to repeat a string literal.
+ */
+const BOOTSTRAP_ERRORS = {
+  capability: 'La capacidad no coincide con la que muestra Local Studio. Cópiala otra vez tal cual.',
+  unavailable: 'El servicio local no está respondiendo. Arranca Local Studio y vuelve a intentarlo.',
+} as const;
+
+type BootstrapErrorCode = keyof typeof BOOTSTRAP_ERRORS;
+
+function errorMessage(code: string | undefined): string | null {
+  if (code === undefined) return null;
+  return isBootstrapErrorCode(code) ? BOOTSTRAP_ERRORS[code] : BOOTSTRAP_ERRORS.capability;
+}
+
+function isBootstrapErrorCode(code: string): code is BootstrapErrorCode {
+  return Object.hasOwn(BOOTSTRAP_ERRORS, code);
+}
+
+/**
+ * The airlock: the first screen a standalone browser user sees. It used to be
+ * the one screen with no brand at all, a hand-rolled 40px field in Tailwind's
+ * default `font-mono` (so the capability rendered in Consolas rather than Share
+ * Tech Mono) and no error state whatsoever.
+ */
+export default async function BootstrapPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<ReactElement> {
+  const params = await searchParams;
+  const raw = params.error;
+  const message = errorMessage(Array.isArray(raw) ? raw[0] : raw);
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg items-center px-6 py-12">
-      <form action="/api/session/bootstrap" method="post" className="studio-panel w-full space-y-5 p-6">
-        <div className="space-y-2">
-          <p className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.16em] text-primary">
-            FragForge local session
-          </p>
-          <h1 className="text-xl font-semibold">Autoriza este navegador</h1>
-          <p className="text-sm text-muted-foreground">
-            Introduce la capacidad mostrada por Local Studio. Se guarda solo como una cookie HttpOnly de esta sesión.
+    <main className="flex min-h-svh flex-col items-center justify-center gap-8 px-6 py-12">
+      <Wordmark />
+
+      <form
+        action="/api/session/bootstrap"
+        method="post"
+        className="studio-panel studio-panel-raised flex w-full max-w-[30rem] flex-col gap-5 p-7"
+      >
+        <div className="flex flex-col gap-3">
+          <SectionEyebrow label="Sesión local" />
+          <h1 className="font-display text-title font-bold text-fg-1">Autoriza este navegador</h1>
+          <p className="text-body text-fg-2">
+            Introduce la capacidad que muestra Local Studio. Se guarda solo como una cookie HttpOnly de esta
+            sesión, nunca sale de tu equipo.
           </p>
         </div>
-        <label className="block space-y-2" htmlFor="capability">
-          <span className="text-sm font-medium">Capacidad local</span>
-          <input
+
+        {message === null ? null : (
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
+          >
+            {message}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="capability"
+            className="font-display text-label font-semibold tracking-wide text-fg-1 uppercase"
+          >
+            Capacidad local
+          </label>
+          <Input
             id="capability"
             name="capability"
             type="password"
             autoComplete="off"
             required
-            className="h-10 w-full rounded-md border border-input bg-background px-3 font-mono text-sm"
+            aria-invalid={message === null ? undefined : true}
+            className="font-mono tracking-wider"
           />
-        </label>
-        <button type="submit" className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
+        </div>
+
+        <Button type="submit" size="lg">
           Abrir FragForge
-        </button>
+        </Button>
+
+        <p className="flex items-start gap-2 text-body-sm text-fg-3">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+          FragForge no tiene backend alojado: esta pantalla solo autoriza al navegador a hablar con el
+          orquestador que ya corre en este PC.
+        </p>
       </form>
     </main>
   );

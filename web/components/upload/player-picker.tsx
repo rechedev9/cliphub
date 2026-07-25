@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Users } from 'lucide-react';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
-import { ratingBarClass, ratingBarPct, ratingClass, prettyMapName } from '@/lib/format';
+import { ratingBarPct, prettyMapName } from '@/lib/format';
+import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
+import { StudioDataRow } from '@/components/studio/data-row';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 
 /**
  * A picker row is a scan's DemoPlayer, optionally carrying `mapsPresent` in
@@ -37,6 +40,23 @@ const STAT_TOOLTIPS: Record<string, string> = {
   hs: '% de kills por headshot',
 };
 
+/**
+ * The HLTV-1.0 performance ramp, in tokens. `lib/format.ts` still maps the same
+ * bands onto raw `emerald-400`/`amber-400`/`rose-400`, which neither track the
+ * theme nor sit on the navy canvas' hue; the scoreboard keeps a token-mapped
+ * copy of the bands until that shared helper is migrated.
+ */
+const RATING_BANDS = [
+  { min: 1.15, text: 'text-success', bar: 'bg-success' },
+  { min: 0.95, text: 'text-fg-1', bar: 'bg-fg-2' },
+  { min: 0.8, text: 'text-warning', bar: 'bg-warning' },
+  { min: Number.NEGATIVE_INFINITY, text: 'text-destructive', bar: 'bg-destructive' },
+] as const;
+
+function ratingBand(rating: number): (typeof RATING_BANDS)[number] {
+  return RATING_BANDS.find((band) => rating >= band.min) ?? RATING_BANDS[RATING_BANDS.length - 1];
+}
+
 /** First one or two glyphs of a name, uppercased, for the row's monogram avatar. */
 function initials(name: string): string {
   return Array.from(name.trim()).slice(0, 2).join('').toUpperCase();
@@ -60,14 +80,14 @@ function pickRecommended(players: DemoPlayer[]): DemoPlayer | undefined {
   }, undefined);
 }
 
-type HighlightChip = { key: string; label: string; className: string };
+type HighlightChip = { key: string; label: string; tone: StatusTagTone };
 
 /** Nonzero multi-kill chips in ACE -> 4K -> 3K order; ACE gets the strongest (cyan) treatment. */
 function highlightChips(p: DemoPlayer): HighlightChip[] {
   const chips: HighlightChip[] = [];
-  if (p.rounds5k) chips.push({ key: 'ace', label: `ACE ×${p.rounds5k}`, className: 'border-primary/40 bg-primary/15 text-primary' });
-  if (p.rounds4k) chips.push({ key: '4k', label: `4K ×${p.rounds4k}`, className: 'border-amber-400/30 bg-amber-400/10 text-amber-400' });
-  if (p.rounds3k) chips.push({ key: '3k', label: `3K ×${p.rounds3k}`, className: 'border-border bg-muted/60 text-muted-foreground' });
+  if (p.rounds5k) chips.push({ key: 'ace', label: `ACE ×${p.rounds5k}`, tone: 'primary' });
+  if (p.rounds4k) chips.push({ key: '4k', label: `4K ×${p.rounds4k}`, tone: 'warning' });
+  if (p.rounds3k) chips.push({ key: '3k', label: `3K ×${p.rounds3k}`, tone: 'neutral' });
   return chips;
 }
 
@@ -77,7 +97,7 @@ type Column = {
   label: string;
   value: (p: DemoPlayer) => string;
   tone?: (p: DemoPlayer) => string;
-  /** Secondary columns hide below the sm breakpoint so the player name never collapses. */
+  /** Secondary columns hide on a narrow column so the player name never collapses. */
   secondary?: boolean;
   /** Overrides the default text cell, e.g. the rating column's value-plus-bar. */
   render?: (p: DemoPlayer) => ReactNode;
@@ -85,14 +105,12 @@ type Column = {
 
 /** Rating cell: the number plus a bar showing it against a 2.0 (elite-pace) ceiling. */
 function RatingCell({ rating }: { rating: number }) {
+  const band = ratingBand(rating);
   return (
     <span className="flex flex-col items-end gap-1">
-      <span className={ratingClass(rating)}>{rating.toFixed(2)}</span>
-      <span className="h-[3px] w-10 bg-muted">
-        <span
-          className={cn('block h-full', ratingBarClass(rating))}
-          style={{ width: `${ratingBarPct(rating)}%` }}
-        />
+      <span className={band.text}>{rating.toFixed(2)}</span>
+      <span aria-hidden className="h-[3px] w-10 bg-surface-0">
+        <span className={cn('block h-full', band.bar)} style={{ width: `${ratingBarPct(rating)}%` }} />
       </span>
     </span>
   );
@@ -103,9 +121,9 @@ function signed(n: number): string {
 }
 
 const TEAM_META = {
-  T: { label: 'Terroristas', text: 'text-amber-400', chip: 'border-amber-400/30 bg-amber-400/10 text-amber-400' },
-  CT: { label: 'Antiterroristas', text: 'text-primary', chip: 'border-primary/30 bg-primary/10 text-primary' },
-  '': { label: 'Otros', text: 'text-muted-foreground', chip: 'border-border bg-muted text-muted-foreground' },
+  T: { label: 'Terroristas', text: 'text-warning', chip: 'border-warning/45 bg-warning/10 text-warning' },
+  CT: { label: 'Antiterroristas', text: 'text-primary', chip: 'border-primary/45 bg-primary/10 text-primary' },
+  '': { label: 'Otros', text: 'text-fg-2', chip: 'border-border-strong bg-surface-3 text-fg-2' },
 } as const;
 
 /** Compact match summary (map, final score, rounds) shown above the roster tables. */
@@ -113,19 +131,22 @@ function MatchHeader({ match }: { match: RosterMatch }) {
   const tWon = match.scoreT > match.scoreCt;
   const ctWon = match.scoreCt > match.scoreT;
   return (
-    <div className="flex items-center justify-between gap-3 border border-primary/15 bg-muted/20 px-3.5 py-2.5">
-      <span className="truncate font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-wide text-foreground">
-        {prettyMapName(match.map)}
-      </span>
-      <span className="flex items-center gap-1.5 font-[family-name:var(--font-mono)] text-sm tabular-nums">
-        <span className={cn(tWon ? 'font-bold text-amber-400' : 'text-muted-foreground')}>{match.scoreT}</span>
-        <span className="text-muted-foreground/50">-</span>
-        <span className={cn(ctWon ? 'font-bold text-primary' : 'text-muted-foreground')}>{match.scoreCt}</span>
-      </span>
-      <span className="shrink-0 font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
-        {match.rounds} rondas
-      </span>
-    </div>
+    <StudioDataRow
+      label={prettyMapName(match.map)}
+      value={
+        <span
+          className="inline-flex items-baseline gap-1.5 text-body-lg"
+          aria-label={`Marcador ${match.scoreT} a ${match.scoreCt}`}
+        >
+          <span className={tWon ? 'font-bold text-warning' : 'text-fg-3'}>{match.scoreT}</span>
+          {/* A rule, not a hyphen: a literal separator inside a tabular-nums run
+              renders at digit width and jitters against the figures. */}
+          <span aria-hidden className="h-4 w-px self-center bg-border-strong" />
+          <span className={ctWon ? 'font-bold text-primary' : 'text-fg-3'}>{match.scoreCt}</span>
+        </span>
+      }
+      status={<StatusTag>{match.rounds} rondas</StatusTag>}
+    />
   );
 }
 
@@ -136,15 +157,12 @@ function MatchHeader({ match }: { match: RosterMatch }) {
  */
 function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCount: number }) {
   return (
-    <div className="flex items-center justify-between gap-3 border border-primary/15 bg-muted/20 px-3.5 py-2.5">
-      <span className="flex items-center gap-2 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-wide text-foreground">
-        <span className="size-1.5 bg-primary shadow-[0_0_8px_currentColor]" />
-        Serie · {mapCount} mapas
-      </span>
-      <span className="shrink-0 font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
-        estadísticas combinadas · {playerCount} jugadores
-      </span>
-    </div>
+    <StudioDataRow
+      icon={Users}
+      active
+      label={`Serie · ${mapCount} mapas`}
+      status={<StatusTag tone="primary">estadísticas combinadas · {playerCount} jugadores</StatusTag>}
+    />
   );
 }
 
@@ -171,6 +189,7 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
     );
   }, [players, recommended?.steamId]);
   const isSeries = (seriesMapCount ?? 0) >= 2;
+  const selectedPlayer = players.find((p) => p.steamId === selected);
 
   const showMvp = players.some((p) => p.mvps > 0);
   const columns: Column[] = [
@@ -178,7 +197,7 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
     { key: 'k', label: 'K', value: (p) => `${p.kills}` },
     { key: 'd', label: 'D', value: (p) => `${p.deaths}` },
     { key: 'a', label: 'A', value: (p) => `${p.assists}` },
-    { key: 'pm', label: '+/-', secondary: true, value: (p) => signed(p.kills - p.deaths), tone: (p) => (p.kills - p.deaths >= 0 ? 'text-foreground' : 'text-muted-foreground') },
+    { key: 'pm', label: '+/-', secondary: true, value: (p) => signed(p.kills - p.deaths), tone: (p) => (p.kills - p.deaths >= 0 ? 'text-fg-1' : 'text-fg-3') },
     { key: 'adr', label: 'ADR', secondary: true, value: (p) => `${Math.round(p.adr)}` },
     { key: 'kast', label: 'KAST', secondary: true, value: (p) => `${Math.round(p.kast)}%` },
     { key: 'hs', label: 'HS', secondary: true, value: (p) => `${Math.round(p.hsPct)}%` },
@@ -186,16 +205,18 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
   ];
 
   // A fixed flexible player column plus one compact, tabular column per stat.
-  // Narrow windows (a snapped or resized desktop window) drop the secondary
-  // columns instead of letting the grid crush the player name to zero width,
-  // so the template switches with the same sm breakpoint that hides the cells.
+  // A narrow content column (a snapped window, or the picker at mobile width)
+  // drops the secondary columns instead of letting the grid crush the player
+  // name to zero width, so the template switches on the same container step
+  // that hides the cells. Typed rather than cast: CSSProperties has no index
+  // signature for custom properties.
   const coreCount = columns.filter((c) => !c.secondary).length;
-  const gridStyle = {
+  const gridStyle: CSSProperties & { '--pp-cols': string; '--pp-cols-wide': string } = {
     '--pp-cols': `minmax(0,1fr) repeat(${coreCount}, minmax(2.5rem,2.75rem))`,
-    '--pp-cols-sm': `minmax(0,1fr) repeat(${columns.length}, minmax(2.5rem,2.75rem))`,
-  } as React.CSSProperties;
-  const gridClass = '[grid-template-columns:var(--pp-cols)] sm:[grid-template-columns:var(--pp-cols-sm)]';
-  const cellClass = (c: Column) => (c.secondary ? 'hidden sm:block' : undefined);
+    '--pp-cols-wide': `minmax(0,1fr) repeat(${columns.length}, minmax(2.5rem,2.75rem))`,
+  };
+  const gridClass = '[grid-template-columns:var(--pp-cols)] @[44rem]/upload:[grid-template-columns:var(--pp-cols-wide)]';
+  const cellClass = (c: Column) => (c.secondary ? 'hidden @[44rem]/upload:block' : undefined);
 
   const sides: Array<DemoPlayer['team']> = ['T', 'CT', ''];
   const groups = sides
@@ -217,19 +238,19 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
         const avg = roster.reduce((s, p) => s + p.rating, 0) / roster.length;
         return (
           <section key={side || 'other'}>
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className={cn('font-[family-name:var(--font-display)] text-xs font-bold uppercase tracking-widest', meta.text)}>
+            <div className="mb-2 flex items-center justify-between gap-3 px-1">
+              <span className={cn('font-display text-label font-bold uppercase tracking-widest', meta.text)}>
                 {meta.label}
               </span>
-              <span className="font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
+              <span className="font-mono text-meta uppercase tracking-wider tabular-nums text-fg-3">
                 media {avg.toFixed(2)}
               </span>
             </div>
 
-            <div className="overflow-hidden border border-primary/15">
+            <div className="overflow-hidden border border-border">
               <div
                 className={cn(
-                  'grid items-center gap-x-1 border-b border-border/70 bg-muted/30 px-3 py-2 font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-wider text-muted-foreground',
+                  'grid items-center gap-x-1 border-b border-border bg-surface-3 px-3 py-2 font-mono text-meta uppercase tracking-wider text-fg-3',
                   gridClass,
                 )}
                 style={gridStyle}
@@ -252,25 +273,19 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                 const showMapsChip =
                   isSeries && typeof p.mapsPresent === 'number' && p.mapsPresent < (seriesMapCount ?? 0);
                 const mapsChip = showMapsChip ? (
-                  <span className="inline-flex items-center rounded-full border border-border bg-muted/60 px-1.5 py-0.5 font-[family-name:var(--font-mono)] text-[0.6rem] font-semibold tabular-nums text-muted-foreground">
+                  <StatusTag className="tabular-nums">
                     {p.mapsPresent}/{seriesMapCount} mapas
-                  </span>
+                  </StatusTag>
                 ) : null;
                 let chipRow: ReactNode;
                 if (chips.length > 0) {
                   chipRow = chips.map((c) => (
-                    <span
-                      key={c.key}
-                      className={cn(
-                        'inline-flex items-center rounded-full border px-1.5 py-0.5 font-[family-name:var(--font-mono)] text-[0.6rem] font-semibold tabular-nums',
-                        c.className,
-                      )}
-                    >
+                    <StatusTag key={c.key} tone={c.tone} className="tabular-nums">
                       {c.label}
-                    </span>
+                    </StatusTag>
                   ));
                 } else if (!isRecommended && !showMapsChip) {
-                  chipRow = <span className="text-[0.65rem] text-muted-foreground/60">-</span>;
+                  chipRow = <span className="font-mono text-meta text-fg-3">—</span>;
                 } else {
                   chipRow = null;
                 }
@@ -282,8 +297,16 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                     onClick={() => setSelected(p.steamId)}
                     style={gridStyle}
                     className={cn(
-                      'grid w-full cursor-pointer items-center gap-x-1 border-b border-border/40 px-3 py-2.5 text-left transition-colors last:border-b-0',
-                      'focus:outline-none focus-visible:bg-primary/10',
+                      'grid w-full cursor-pointer items-center gap-x-1 border-b border-border-subtle px-3 py-2.5 text-left last:border-b-0',
+                      'transition-[background-color,box-shadow] duration-(--dur-fast) ease-standard',
+                      // The row lives inside an `overflow-hidden` table, so the
+                      // ring is drawn INSIDE the row's own box: a positive
+                      // outline offset would be clipped away on the first and
+                      // last rows. v3 shipped `focus-visible:bg-primary/10`,
+                      // which measured ~1.3:1 against the row — no indicator at
+                      // all on the most keyboard-driven surface in the product.
+                      FOCUS_RING,
+                      'focus-visible:-outline-offset-2',
                       gridClass,
                       // The recommended row keeps a permanent left accent + tint so it reads at a
                       // glance even when the user's mouse is elsewhere; the ring below layers on
@@ -291,16 +314,16 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                       isRecommended && 'bg-primary/10 shadow-[inset_3px_0_0_0_var(--primary)]',
                       active
                         ? 'bg-primary/10 ring-1 ring-inset ring-primary/60'
-                        : !isRecommended && 'hover:bg-muted/40 hover:ring-1 hover:ring-inset hover:ring-border',
+                        : !isRecommended && 'hover:bg-surface-3',
                     )}
                   >
-                    <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="flex min-w-0 flex-col gap-1">
                       <span className="flex min-w-0 items-center gap-2.5">
                         <span
                           data-testid="player-avatar"
                           className={cn(
-                            'inline-flex size-7 shrink-0 items-center justify-center rounded-md border font-[family-name:var(--font-display)] text-[0.65rem] font-bold leading-none',
-                            active ? 'border-primary/50 bg-primary/15 text-primary' : meta.chip,
+                            'inline-flex size-7 shrink-0 items-center justify-center border font-display text-meta font-bold leading-none tracking-normal',
+                            active ? 'border-primary/55 bg-primary/15 text-primary' : meta.chip,
                           )}
                         >
                           {initials(p.name)}
@@ -308,14 +331,16 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                         {/* min-w-0 lets this shrink inside the flex row without evicting the name;
                             the name never has to share a row with the Recommended badge, which
                             keeps this row narrow-window-safe like the rest of the scoreboard. */}
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{p.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-fg-1">{p.name}</span>
                       </span>
                       {/* Second line, indented under the name: the Recommended tag and the
                           Highlights chips. Always rendered (never just for narrow windows) so
                           it never competes with the player name for horizontal space. */}
-                      <span className="flex flex-wrap items-center gap-1 pl-[2.375rem]">
+                      <span className="flex flex-wrap items-center gap-1.5 pl-[2.375rem]">
                         {isRecommended ? (
-                          <Badge className="shrink-0 px-1.5 py-0 text-[0.6rem] leading-4">Recomendado</Badge>
+                          <Badge shape="square" className="min-h-7 px-2">
+                            Recomendado
+                          </Badge>
                         ) : null}
                         {mapsChip}
                         {chipRow}
@@ -325,9 +350,9 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                       <span
                         key={c.key}
                         className={cn(
-                          'text-right font-[family-name:var(--font-mono)] text-sm tabular-nums',
+                          'text-right font-mono text-body-sm tabular-nums',
                           cellClass(c),
-                          c.tone?.(p) ?? 'text-foreground',
+                          c.tone?.(p) ?? 'text-fg-1',
                         )}
                       >
                         {c.render ? c.render(p) : c.value(p)}
@@ -340,9 +365,30 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
           </section>
         );
       })}
-      <div className="sticky bottom-0 z-10 flex items-center justify-between gap-4 border border-primary/25 bg-background/95 p-4 shadow-lg backdrop-blur">
-        <p className="text-sm text-muted-foreground">Selecciona un jugador y continúa cuando estés listo.</p>
-        <Button type="button" disabled={selected === null} onClick={() => selected && onPick(selected)}>
+
+      {/*
+        The confirm bar. It bleeds to the card's inner edge (the card pads
+        `p-4` / `p-6`), so nothing scrolls past it through an unbled gutter, and
+        it is opaque rather than `backdrop-blur`: a blurred sticky band re-reads
+        and two-pass blurs its whole strip on every scroll frame, and on an
+        opaque navy card the two are indistinguishable.
+      */}
+      <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center justify-between gap-4 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-0 px-4 py-3 shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)] @[40rem]/upload:-mx-6 @[40rem]/upload:-mb-6 @[40rem]/upload:px-6">
+        <p className="min-w-0 text-body-sm text-fg-2">
+          {selectedPlayer ? (
+            <>
+              Vas a clipear a <strong className="font-semibold text-fg-1">{selectedPlayer.name}</strong>.
+            </>
+          ) : (
+            'Selecciona un jugador y continúa cuando estés listo.'
+          )}
+        </p>
+        <Button
+          type="button"
+          variant="hero"
+          disabled={selected === null}
+          onClick={() => selected && onPick(selected)}
+        >
           CONTINUAR
         </Button>
       </div>

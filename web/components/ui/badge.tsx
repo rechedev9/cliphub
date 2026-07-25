@@ -3,25 +3,42 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { FOCUS_RING } from "@/components/ui/button"
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  [
+    "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden border px-2 py-0.5 text-meta font-medium whitespace-nowrap",
+    "transition-[color,background-color,border-color] duration-(--dur-instant) ease-standard",
+    "[&>svg]:pointer-events-none [&>svg]:size-3",
+    FOCUS_RING,
+  ],
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        default: "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
         secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-surface-5",
+        // White on --destructive is 3.17:1. --destructive-solid is 7.11:1.
         destructive:
-          "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
-        outline:
-          "border-border/80 text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
+          "border-transparent bg-destructive-solid text-white focus-visible:outline-destructive [a&]:hover:bg-destructive-solid/90",
+        success: "border-success/40 bg-success/10 text-success",
+        warning: "border-warning/40 bg-warning/10 text-warning",
+        stream: "border-stream/40 bg-stream/10 text-stream-text",
+        danger: "border-destructive/40 bg-destructive/10 text-destructive",
+        outline: "border-border-strong text-fg-1 [a&]:hover:bg-surface-3",
+        ghost: "border-transparent text-fg-2 [a&]:hover:bg-surface-3 [a&]:hover:text-fg-1",
+        link: "border-transparent text-primary underline-offset-4 [a&]:hover:underline",
+      },
+      // The HUD language is square; `pill` stays the default so no existing
+      // call site changes shape without asking for it.
+      shape: {
+        pill: "rounded-full",
+        square: "rounded-none",
       },
     },
     defaultVariants: {
       variant: "default",
+      shape: "pill",
     },
   }
 )
@@ -29,6 +46,7 @@ const badgeVariants = cva(
 function Badge({
   className,
   variant = "default",
+  shape = "pill",
   asChild = false,
   ...props
 }: React.ComponentProps<"span"> &
@@ -39,7 +57,8 @@ function Badge({
     <Comp
       data-slot="badge"
       data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
+      data-shape={shape}
+      className={cn(badgeVariants({ variant, shape }), className)}
       {...props}
     />
   )

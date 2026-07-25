@@ -11,10 +11,14 @@ import {
   type XAIKeySource,
   type XAISettingsStatus,
 } from '@/lib/desktop-settings';
+import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { IconTile } from '@/components/studio/icon-tile';
+import { StatusTag } from '@/components/studio/status-tag';
+import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
 import { DesktopOnlyCard } from '@/components/settings/desktop-only-card';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 const MAX_XAI_API_KEY_LENGTH = 4096;
@@ -35,6 +39,13 @@ const SOURCE_LABELS: Record<XAIKeySource, string> = {
   [XAI_KEY_SOURCES.team]: 'Edición interna',
   [XAI_KEY_SOURCES.none]: 'Sin configurar',
 };
+
+/** What the desktop build does with the key, shown when the browser cannot. */
+const DESKTOP_CAPABILITIES = [
+  'La clave se cifra para tu usuario de Windows',
+  'Nunca pasa por Next.js, el navegador ni la API local',
+  'El cambio se aplica al reiniciar Studio',
+] as const;
 
 /** xAI credential settings backed exclusively by the Electron preload bridge. */
 export function XAISettings(): ReactNode {
@@ -178,107 +189,119 @@ export function XAISettings(): ReactNode {
 
   const busy = action !== null;
   const candidateAvailable = apiKey.trim() !== '';
+  const restartPending = status?.restartRequired === true;
 
   return (
-    <section className="studio-panel max-w-3xl p-5 sm:p-6" aria-labelledby="xai-settings-title">
-      <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <KeyRound className="size-5 text-primary" aria-hidden />
-            <h2 id="xai-settings-title" className="font-[family-name:var(--font-display)] text-xl font-semibold text-foreground">
+    <section className="studio-panel flex flex-col gap-6 p-5 sm:p-6" aria-labelledby="xai-settings-title">
+      <div className="flex flex-col gap-4 border-b border-border pb-6 @[40rem]/content:flex-row @[40rem]/content:items-start @[40rem]/content:justify-between @[40rem]/content:gap-6">
+        <div className="flex min-w-0 items-start gap-4">
+          <IconTile icon={KeyRound} size="lg" depth="inset" />
+          <div className="flex min-w-0 flex-col gap-2">
+            <SectionEyebrow label="CREDENCIALES" />
+            <h2 id="xai-settings-title" className="font-display text-title font-bold uppercase text-fg-1">
               Subtítulos con Grok
             </h2>
+            <p className="max-w-xl text-body text-fg-2">
+              Usa tu propia clave de xAI para generar subtítulos. Se cifra con la protección de Windows y nunca se
+              guarda en el navegador ni pasa por Next.js.
+            </p>
           </div>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Usa tu propia clave de xAI para generar subtítulos. Se cifra con la protección de Windows y nunca se guarda en el navegador ni pasa por Next.js.
-          </p>
         </div>
-        <StatusBadge status={status} />
+        <ConnectionTag status={status} />
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <StatusRow label="Activa ahora" value={status ? SOURCE_LABELS[status.activeSource] : 'Comprobando…'} />
-        <StatusRow label="Tras reiniciar" value={status ? SOURCE_LABELS[status.pendingSource] : 'Comprobando…'} />
-      </div>
-
-      {status?.storageError ? (
-        <Message tone="error">{status.storageError}</Message>
-      ) : null}
-
-      <div className="mt-6 space-y-2">
-        <Label htmlFor="xai-api-key">Clave API de xAI</Label>
-        <Input
-          id="xai-api-key"
-          name="xai-api-key-new"
-          type="password"
-          autoComplete="new-password"
-          spellCheck={false}
-          maxLength={MAX_XAI_API_KEY_LENGTH}
-          value={apiKey}
-          onChange={(event) => setAPIKey(event.target.value)}
-          placeholder={status?.stored ? 'Introduce una clave nueva para sustituir la guardada' : 'xai-…'}
-          disabled={busy || status?.storageAvailable === false}
-          aria-describedby="xai-key-help"
+      <div className="grid gap-2 @[34rem]/content:grid-cols-2 @[34rem]/content:gap-3">
+        <StudioDataRow label="Activa ahora" value={status ? SOURCE_LABELS[status.activeSource] : 'Comprobando…'} />
+        <StudioDataRow
+          label="Tras reiniciar"
+          active={restartPending}
+          value={status ? SOURCE_LABELS[status.pendingSource] : 'Comprobando…'}
         />
-        <p id="xai-key-help" className="text-xs leading-5 text-muted-foreground">
-          FragForge nunca vuelve a mostrar una clave guardada. Probar comprueba la clave escrita; Guardar la cifra para este usuario de Windows.
-        </p>
       </div>
 
-      {testResult ? (
-        <Message tone={testResult.ok ? 'success' : 'error'}>
-          {testResult.message}
-        </Message>
-      ) : null}
+      {status?.storageError ? <Message tone="error">{status.storageError}</Message> : null}
+
+      <Field
+        label="Clave API de xAI"
+        hint="FragForge nunca vuelve a mostrar una clave guardada. Probar comprueba la clave escrita; Guardar la cifra para este usuario de Windows."
+      >
+        {(control) => (
+          <Input
+            {...control}
+            name="xai-api-key-new"
+            type="password"
+            autoComplete="new-password"
+            spellCheck={false}
+            maxLength={MAX_XAI_API_KEY_LENGTH}
+            value={apiKey}
+            onChange={(event) => setAPIKey(event.target.value)}
+            placeholder={status?.stored ? 'Introduce una clave nueva para sustituir la guardada' : 'xai-…'}
+            disabled={busy || status?.storageAvailable === false}
+          />
+        )}
+      </Field>
+
+      {testResult ? <Message tone={testResult.ok ? 'success' : 'error'}>{testResult.message}</Message> : null}
       {error ? <Message tone="error">{error}</Message> : null}
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Button type="button" variant="outline" onClick={() => void runTest()} disabled={busy || !candidateAvailable}>
-          {action === ACTIONS.test ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <RefreshCw className="size-4" aria-hidden />}
+      <div className="flex flex-col gap-3 @[34rem]/content:flex-row @[34rem]/content:flex-wrap">
+        <Button
+          type="button"
+          variant="outline"
+          loading={action === ACTIONS.test}
+          onClick={() => void runTest()}
+          disabled={busy || !candidateAvailable}
+        >
+          {action === ACTIONS.test ? null : <RefreshCw aria-hidden />}
           Probar conexión
         </Button>
         <Button
           type="button"
+          loading={action === ACTIONS.save}
           onClick={() => void save()}
           disabled={busy || !candidateAvailable || status?.storageAvailable === false}
         >
-          {action === ACTIONS.save ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <KeyRound className="size-4" aria-hidden />}
+          {action === ACTIONS.save ? null : <KeyRound aria-hidden />}
           Guardar clave
         </Button>
         <Button
           type="button"
           variant="destructive"
+          loading={action === ACTIONS.remove}
           onClick={() => void remove()}
           disabled={busy || !status?.stored}
         >
-          {action === ACTIONS.remove ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
+          {action === ACTIONS.remove ? null : <Trash2 aria-hidden />}
           Eliminar clave
         </Button>
       </div>
 
-      <div className={cn(
-        'mt-6 flex flex-col gap-4 border p-4 sm:flex-row sm:items-center sm:justify-between',
-        status?.restartRequired ? 'border-warning/45 bg-warning/5' : 'border-border bg-muted/20',
-      )}>
-        <div className="flex gap-3">
-          <TriangleAlert className={cn('mt-0.5 size-5 shrink-0', status?.restartRequired ? 'text-warning' : 'text-muted-foreground')} aria-hidden />
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              {status?.restartRequired ? 'Reinicio pendiente' : 'No hay cambios pendientes'}
+      <div
+        className={cn(
+          'flex flex-col gap-4 border p-4 @[40rem]/content:flex-row @[40rem]/content:items-center @[40rem]/content:justify-between',
+          restartPending ? 'border-warning/45 bg-warning/5 shadow-[var(--elev-1)]' : 'border-border bg-surface-1',
+        )}
+      >
+        <div className="flex min-w-0 gap-4">
+          <IconTile icon={TriangleAlert} size="md" depth="inset" tone={restartPending ? 'warning' : 'neutral'} />
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="font-display text-body-sm font-bold uppercase tracking-wide text-fg-1">
+              {restartPending ? 'Reinicio pendiente' : 'No hay cambios pendientes'}
             </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            <p className="text-body-sm text-fg-2">
               La clave solo se aplica al reiniciar. Reiniciar corta cualquier grabación o render que esté en curso.
             </p>
           </div>
         </div>
         <Button
           type="button"
-          variant="secondary"
+          variant={restartPending ? 'warning' : 'secondary'}
           className="shrink-0"
+          loading={action === ACTIONS.restart}
           onClick={() => void restart()}
-          disabled={busy || !status?.restartRequired}
+          disabled={busy || !restartPending}
         >
-          {action === ACTIONS.restart ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <RefreshCw className="size-4" aria-hidden />}
+          {action === ACTIONS.restart ? null : <RefreshCw aria-hidden />}
           Reiniciar ahora
         </Button>
       </div>
@@ -286,37 +309,33 @@ export function XAISettings(): ReactNode {
   );
 }
 
-function StatusBadge({ status }: { status: XAISettingsStatus | null }): ReactNode {
+/** The credential's live state: checking, pending restart, active, or unset. */
+function ConnectionTag({ status }: { status: XAISettingsStatus | null }): ReactNode {
   if (status === null) {
-    return <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-wider text-muted-foreground">Comprobando</span>;
+    return (
+      <StatusTag size="md" icon={LoaderCircle} className="shrink-0 [&_svg]:animate-spin">
+        Comprobando
+      </StatusTag>
+    );
   }
   if (status.restartRequired) {
     return (
-      <span className="inline-flex items-center gap-1.5 bg-warning/10 px-2 py-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-wider text-warning">
-        <TriangleAlert className="size-3.5" aria-hidden /> Pendiente
-      </span>
+      <StatusTag size="md" tone="warning" icon={TriangleAlert} className="shrink-0">
+        Pendiente
+      </StatusTag>
     );
   }
   if (status.active) {
     return (
-      <span className="inline-flex items-center gap-1.5 bg-success/10 px-2 py-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-wider text-success">
-        <CircleCheck className="size-3.5" aria-hidden /> Activa
-      </span>
+      <StatusTag size="md" tone="success" icon={CircleCheck} className="shrink-0">
+        Activa
+      </StatusTag>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 bg-muted px-2 py-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-wider text-muted-foreground">
-      <WifiOff className="size-3.5" aria-hidden /> Sin configurar
-    </span>
-  );
-}
-
-function StatusRow({ label, value }: { label: string; value: string }): ReactNode {
-  return (
-    <div className="border border-border bg-muted/20 px-4 py-3">
-      <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-    </div>
+    <StatusTag size="md" icon={WifiOff} className="shrink-0">
+      Sin configurar
+    </StatusTag>
   );
 }
 
@@ -325,8 +344,10 @@ function Message({ tone, children }: { tone: 'success' | 'error'; children: Reac
     <p
       role={tone === 'error' ? 'alert' : 'status'}
       className={cn(
-        'mt-4 border px-4 py-3 text-sm leading-5',
-        tone === 'success' ? 'border-success/40 bg-success/5 text-success' : 'border-destructive/40 bg-destructive/5 text-destructive',
+        'border px-4 py-3 text-body-sm',
+        tone === 'success'
+          ? 'border-success/45 bg-success/8 text-success'
+          : 'border-destructive/45 bg-destructive/8 text-destructive',
       )}
     >
       {children}
@@ -336,18 +357,31 @@ function Message({ tone, children }: { tone: 'success' | 'error'; children: Reac
 
 function DesktopOnlyState(): ReactNode {
   return (
-    <DesktopOnlyCard titleId="desktop-only-title" title="Credenciales de subtítulos con Grok">
-      Abre esta pantalla desde la aplicación de escritorio para guardar la clave con la protección de Windows. Por seguridad no existe una alternativa HTTP en el navegador.
+    <DesktopOnlyCard
+      titleId="desktop-only-title"
+      title="Credenciales de subtítulos con Grok"
+      capabilities={DESKTOP_CAPABILITIES}
+    >
+      Abre esta pantalla desde la aplicación de escritorio para guardar la clave con la protección de Windows. Por
+      seguridad no existe una alternativa HTTP en el navegador.
     </DesktopOnlyCard>
   );
 }
 
 function SettingsSkeleton(): ReactNode {
   return (
-    <section className="studio-panel max-w-3xl p-6" aria-label="Cargando ajustes de xAI">
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
-        Leyendo la configuración protegida…
+    <section
+      role="status"
+      aria-label="Leyendo la configuración protegida de xAI"
+      className="studio-panel flex items-center gap-4 p-5 sm:p-6"
+    >
+      <IconTile icon={KeyRound} size="lg" depth="inset" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <SectionEyebrow label="CREDENCIALES" />
+        <p className="inline-flex items-center gap-2.5 text-body text-fg-2">
+          <LoaderCircle aria-hidden className="size-4 animate-spin text-primary" />
+          Leyendo la configuración protegida…
+        </p>
       </div>
     </section>
   );

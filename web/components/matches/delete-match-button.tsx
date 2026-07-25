@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { deleteErrorMessage } from '@/lib/delete-error';
 
 /** How long the armed "¿BORRAR?" state waits before reverting on its own. */
@@ -14,6 +15,10 @@ const REVERT_MS = 8000;
  * deleting the button shows a spinner and is disabled; on success `onDeleted`
  * lets the page re-fetch, and on failure the row shows an inline Spanish message
  * (offline hint or the orchestrator's 409 explanation) instead of crashing.
+ *
+ * Both states are `Button` now: the hand-rolled versions re-typed the geometry
+ * and the whole `focus-visible:ring-*` recipe that `buttonVariants` already
+ * ships — the single most duplicated string in the domain layer.
  */
 export function DeleteMatchButton({
   label,
@@ -70,33 +75,33 @@ export function DeleteMatchButton({
   return (
     <div className="flex shrink-0 flex-col items-end gap-1">
       {armed || deleting ? (
-        <button
+        <Button
           type="button"
+          variant="destructive"
           autoFocus
-          onClick={confirm}
+          loading={deleting}
+          onClick={() => void confirm()}
           onBlur={disarm}
-          disabled={deleting}
           aria-label={`Confirmar borrar ${label}`}
-          className="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-destructive/60 bg-destructive/15 px-3 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.14em] text-destructive transition-colors hover:bg-destructive/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
+          className="font-mono text-meta uppercase tracking-wider"
         >
-          {deleting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+          {deleting ? null : <Trash2 aria-hidden />}
           {deleting ? 'BORRANDO…' : '¿BORRAR?'}
-        </button>
+        </Button>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon"
           onClick={arm}
           aria-label={`Borrar ${label}`}
-          className="inline-flex size-11 items-center justify-center rounded-md border border-border-strong bg-background/45 text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="text-fg-3 hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
         >
-          <Trash2 className="size-4" aria-hidden />
-        </button>
+          <Trash2 aria-hidden />
+        </Button>
       )}
       {error ? (
-        <p
-          role="status"
-          className="max-w-[13rem] text-right font-[family-name:var(--font-mono)] text-[10px] leading-tight text-destructive"
-        >
+        <p role="status" className="max-w-[13rem] text-right font-mono text-meta leading-tight text-destructive">
           {error}
         </p>
       ) : null}

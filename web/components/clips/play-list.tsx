@@ -18,14 +18,24 @@ export type PlayListProps = {
  * Filmstrip of PlayTiles. One bordered row per highlight (PlayRow), a compact
  * mono header with the selection count plus Seleccionar todo / Limpiar, and no
  * horizontal scroll at any width.
+ *
+ * The list owns `@container/reel` because PlayRow keys its own breakpoints to
+ * the list's width, not the viewport's: the same row renders inside the wide
+ * one-column layout and inside the narrow two-pane one.
  */
 export function PlayList({ plays, selectedIds, onToggle, onSelectAll, onClear }: PlayListProps) {
   const allSelected = plays.length > 0 && selectedIds.size === plays.length;
+  // Reel order is plan order filtered by membership — the same rule the page
+  // uses to build the render payload — so the badge always matches the output.
+  const reelPositions = new Map<string, number>();
+  for (const play of plays) {
+    if (selectedIds.has(play.id)) reelPositions.set(play.id, reelPositions.size + 1);
+  }
 
   return (
-    <div className="flex flex-col overflow-hidden border border-primary/15">
-      <div className="flex items-center justify-between gap-3 border-b border-primary/15 bg-muted/30 px-3 py-2">
-        <span className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.14em] text-muted-foreground/70">
+    <div className="studio-panel @container/reel flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-surface-3 px-3 py-2">
+        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
           {selectedIds.size > 0
             ? `${selectedIds.size} ${selectedIds.size === 1 ? 'SELECCIONADA' : 'SELECCIONADAS'}`
             : 'TOCA PARA SELECCIONAR'}
@@ -34,20 +44,20 @@ export function PlayList({ plays, selectedIds, onToggle, onSelectAll, onClear }:
           <Button
             type="button"
             variant="ghost"
-            size="xs"
+            size="sm"
             disabled={allSelected}
             onClick={onSelectAll}
-            className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.14em]"
+            className="font-mono text-meta tracking-wider"
           >
             SELECCIONAR TODO
           </Button>
           <Button
             type="button"
             variant="ghost"
-            size="xs"
+            size="sm"
             disabled={selectedIds.size === 0}
             onClick={onClear}
-            className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.14em]"
+            className="font-mono text-meta tracking-wider"
           >
             LIMPIAR
           </Button>
@@ -55,7 +65,13 @@ export function PlayList({ plays, selectedIds, onToggle, onSelectAll, onClear }:
       </div>
 
       {plays.map((play) => (
-        <PlayRow key={play.id} play={play} selected={selectedIds.has(play.id)} onToggle={() => onToggle(play.id)} />
+        <PlayRow
+          key={play.id}
+          play={play}
+          selected={selectedIds.has(play.id)}
+          reelPosition={reelPositions.get(play.id) ?? null}
+          onToggle={() => onToggle(play.id)}
+        />
       ))}
     </div>
   );

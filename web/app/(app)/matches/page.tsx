@@ -12,14 +12,15 @@ import { MatchList } from '@/components/matches/match-list';
 import { MatchListSkeleton } from '@/components/matches/match-list-skeleton';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { isWin } from '@/components/matches/match-score';
+import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
+import { StatusTag } from '@/components/studio/status-tag';
+import { IconTile } from '@/components/studio/icon-tile';
 import { Button } from '@/components/ui/button';
 import { seriesTitle } from '@/lib/series-status';
-import { navSection } from '@/lib/nav';
 import { timeAgo } from '@/lib/format';
 
-const NAV = navSection('/matches');
 
 /** True when an API error means the local analysis service is unreachable. */
 function isServiceUnavailable(err: unknown): boolean {
@@ -30,8 +31,8 @@ function isServiceUnavailable(err: unknown): boolean {
  * Landing state when there are no matches and no series at all (not merely
  * filtered out): the dashboard is the first screen, so it must route into both
  * content flows instead of showing the filter-oriented empty state. When the
- * local analysis service is offline it says so, since that (not "nothing
- * uploaded") is why the list came back empty.
+ * local analysis service is offline it says so — and carries a status tag, so
+ * "the service is down" is not communicated by a sentence alone.
  */
 function NoMatchesYet({ offline }: { offline: boolean }) {
   return (
@@ -44,19 +45,16 @@ function NoMatchesYet({ offline }: { offline: boolean }) {
           : 'Analiza una demo de CS2 o corta clips de un stream para empezar.'
       }
       compact
+      note={offline ? <StatusTag tone="danger" dot>Servicio local sin conexión</StatusTag> : undefined}
       actions={
         <>
-          <Button asChild className="font-[family-name:var(--font-display)] tracking-[0.06em]">
+          <Button asChild variant="hero">
             <Link href="/upload">
               <UploadCloud aria-hidden />
               ANALIZAR UNA DEMO
             </Link>
           </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="border-stream/45 font-[family-name:var(--font-display)] tracking-[0.06em] hover:border-stream/70 hover:bg-stream/10"
-          >
+          <Button asChild variant="outline" className="font-display uppercase tracking-wide">
             <Link href="/streams">
               <Clapperboard aria-hidden />
               CLIPS DE STREAM
@@ -73,6 +71,10 @@ function NoMatchesYet({ offline }: { offline: boolean }) {
  * bo3/bo5 series, linking into its /series/{id} view. The maps of a series still
  * list individually below (that is the Partidas model); this row is the way to
  * reach the series as a whole after a restart.
+ *
+ * It uses `studio-panel`'s own radius rather than the `rounded-xl` it used to
+ * override it with, so a series row and the match rows directly beneath it stop
+ * being two different card languages on one page.
  */
 function SeriesSection({
   series,
@@ -85,31 +87,25 @@ function SeriesSection({
 }) {
   return (
     <section className="flex flex-col gap-3" aria-label="Series">
-      <h2 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.2em] text-muted-foreground">
-        SERIES
-      </h2>
+      <SectionEyebrow label="SERIES" count={series.length} />
       {series.map((s) => (
         // The trash button can't live inside the row's <Link>, so the row is a
         // flex container with the link and the delete control as siblings.
         <div key={s.seriesId} className="flex items-center gap-3">
           <Link
             href={`/series/${s.seriesId}`}
-            className="studio-panel studio-panel-interactive flex flex-1 items-center justify-between gap-4 rounded-xl px-4 py-4 transition-colors sm:px-5"
+            className="studio-panel studio-panel-interactive flex flex-1 items-center justify-between gap-4 px-4 py-4 @[34rem]/content:px-5"
           >
-            <div className="flex min-w-0 items-center gap-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-                <Layers className="size-5" aria-hidden />
-              </span>
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="truncate font-[family-name:var(--font-display)] text-lg font-bold uppercase leading-tight tracking-tight text-foreground">
+            <span className="flex min-w-0 items-center gap-4">
+              <IconTile icon={Layers} />
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="truncate font-display text-title font-bold uppercase text-fg-1">
                   {seriesTitle(s.mapCount)}
                 </span>
-                <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.1em] text-muted-foreground">
-                  {timeAgo(s.createdAt)}
-                </span>
-              </div>
-            </div>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{timeAgo(s.createdAt)}</span>
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-fg-3" aria-hidden />
           </Link>
           <DeleteMatchButton
             label={seriesTitle(s.mapCount)}
@@ -184,12 +180,15 @@ export default function MatchesPage() {
     content = <NoMatchesYet offline={offline} />;
   } else {
     content = (
-      <div className="flex flex-col gap-8 sm:gap-10">
+      <div className="flex flex-col gap-8 @[34rem]/content:gap-10">
         {series.length > 0 ? (
           <SeriesSection series={series} onDelete={deleteSeries} onDeleted={refresh} />
         ) : null}
         {matches.length > 0 ? (
-          <MatchList matches={visible} onDelete={deleteMatch} onDeleted={refresh} />
+          <section className="flex flex-col gap-3">
+            <SectionEyebrow label="PARTIDAS" count={visible.length} />
+            <MatchList matches={visible} onDelete={deleteMatch} onDeleted={refresh} />
+          </section>
         ) : null}
       </div>
     );
@@ -199,10 +198,8 @@ export default function MatchesPage() {
   const showFilters = matches !== null && matches.length > 0;
 
   return (
-    <div className="flex flex-col gap-8 sm:gap-10">
+    <div className="flex flex-col gap-8 @[34rem]/content:gap-10">
       <StudioPageHeader
-        number={Number(NAV.number)}
-        label={NAV.label.toUpperCase()}
         title="TUS PARTIDAS"
         description="Tus últimas partidas de CS2. Elige una y forja sus highlights en un reel."
         actions={

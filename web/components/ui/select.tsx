@@ -5,6 +5,7 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { Select as SelectPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { FOCUS_RING } from "@/components/ui/button"
 
 function Select({
   ...props
@@ -26,15 +27,23 @@ function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
+      // Geometry and focus are deliberately identical to Input: the trigger used
+      // to render at 0px radius with a half-transparent ring next to an 8px
+      // field in the same form.
       className={cn(
-        "flex h-11 min-w-0 items-center justify-between gap-2 border border-input bg-surface/80 px-3.5 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow,background-color] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 data-[placeholder]:text-muted-foreground [&>span]:truncate",
+        "flex h-11 min-w-0 items-center justify-between gap-2 rounded-md border border-border-strong bg-surface-3 px-3.5 text-body-sm text-fg-1 shadow-[var(--elev-0)]",
+        "transition-[border-color,box-shadow,background-color] duration-(--dur-instant) ease-standard",
+        "disabled:pointer-events-none disabled:opacity-50 data-[placeholder]:text-fg-3 [&>span]:truncate",
+        FOCUS_RING,
+        "focus-visible:border-primary focus-visible:bg-surface-4",
+        "aria-invalid:border-destructive aria-invalid:focus-visible:outline-destructive",
         className,
       )}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+        <ChevronDownIcon className="size-4 shrink-0 text-fg-3" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -53,8 +62,11 @@ function SelectContent({
         data-slot="select-content"
         position={position}
         sideOffset={sideOffset}
+        // --elev-4, not `shadow-xl`: before v4 mapped it, shadow-xl still held
+        // Tailwind's light-mode default (black at 10%), which paints nothing on
+        // navy — the floating menu had zero depth cues.
         className={cn(
-          "relative z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden border border-border bg-popover text-popover-foreground shadow-xl data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "relative z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-[var(--elev-4)] duration-(--dur-fast) ease-standard data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}
@@ -77,8 +89,12 @@ function SelectItem({
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
+      // Highlight is --surface-5: a control sitting on a popover is one step
+      // above it, and --accent (a navy tint) was invisible against --surface-4.
       className={cn(
-        "relative flex w-full cursor-default items-center py-2 pr-8 pl-3 text-sm text-popover-foreground outline-none select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex min-h-9 w-full cursor-default items-center rounded-sm py-2 pr-8 pl-3 text-body-sm text-popover-foreground outline-none select-none",
+        "transition-colors duration-(--dur-instant) ease-standard",
+        "focus:bg-surface-5 focus:text-fg-1 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
       {...props}
@@ -101,7 +117,7 @@ function SelectScrollUpButton({
     <SelectPrimitive.ScrollUpButton
       data-slot="select-scroll-up-button"
       className={cn(
-        "flex h-7 cursor-default items-center justify-center border-b border-border bg-popover text-muted-foreground",
+        "flex h-7 cursor-default items-center justify-center border-b border-border bg-popover text-fg-3",
         className,
       )}
       {...props}
@@ -119,7 +135,7 @@ function SelectScrollDownButton({
     <SelectPrimitive.ScrollDownButton
       data-slot="select-scroll-down-button"
       className={cn(
-        "flex h-7 cursor-default items-center justify-center border-t border-border bg-popover text-muted-foreground",
+        "flex h-7 cursor-default items-center justify-center border-t border-border bg-popover text-fg-3",
         className,
       )}
       {...props}

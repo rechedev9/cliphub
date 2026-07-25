@@ -32,6 +32,13 @@ export interface PollLoopOptions {
 // pending timer and prevents any further scheduling, including across a tick's
 // in-flight await. Ticks never overlap: the next one is scheduled only after the
 // current one settles.
+//
+// The first tick runs even when the window is inactive. Suspending the *loop* on
+// an unfocused window is the point of this module, but suspending the initial
+// load is not: a screen mounted while Studio sits behind another window would
+// otherwise hold its skeleton until the user focused it, which reads as a hung
+// app. That one tick costs a single request; the loop still refuses to schedule
+// a second one until the window comes back.
 export function startPollLoop(opts: PollLoopOptions): () => void {
   let stopped = false;
   let running = false;
@@ -44,8 +51,8 @@ export function startPollLoop(opts: PollLoopOptions): () => void {
     timer = setTimeout(() => void run(), delayMs);
   }
 
-  async function run(): Promise<void> {
-    if (stopped || !activity.isActive()) return;
+  async function run(force = false): Promise<void> {
+    if (stopped || (!force && !activity.isActive())) return;
     if (running) {
       refreshPending = true;
       return;
@@ -93,7 +100,9 @@ export function startPollLoop(opts: PollLoopOptions): () => void {
     }
   });
 
-  if (activity.isActive()) void run();
+  // `schedule()` still gates on isActive(), so an inactive window gets exactly
+  // one tick and no follow-up until its focus/visibility listener fires.
+  void run(true);
 
   return function stop(): void {
     stopped = true;

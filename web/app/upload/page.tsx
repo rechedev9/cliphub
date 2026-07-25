@@ -7,14 +7,15 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronRight,
   CloudUpload,
   Cog,
   FileVideo,
   Info,
+  ListChecks,
   Loader2,
   LockKeyhole,
   Monitor,
-  Play,
   X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -25,6 +26,9 @@ import { prettyMapName } from '@/lib/format';
 import { navSection } from '@/lib/nav';
 import { seriesTitle } from '@/lib/series-status';
 import { Wordmark } from '@/components/brand/wordmark';
+import { IconTile } from '@/components/studio/icon-tile';
+import { StatusTag } from '@/components/studio/status-tag';
+import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -71,33 +75,37 @@ function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
   return row.match ? prettyMapName(row.match.map) : row.fileName;
 }
 
-/** The three pipeline steps under the dropzone (mockup 2b): static copy. */
+/**
+ * The three pipeline steps under the dropzone: static copy, no per-item colour.
+ * v3 gave every entry the same `accent`/`badge` strings and injected them through
+ * a template literal, i.e. two constants pretending to be data. The receding rail
+ * above each card is the only thing that differs, and it is positional.
+ */
 const PIPELINE_STEPS = [
   {
     n: '01',
     icon: Cog,
-    accent: 'text-primary',
-    badge: 'border-primary/35 bg-primary/10',
     title: 'ANÁLISIS AUTOMÁTICO',
     copy: 'Parseamos la demo y puntuamos cada ronda: clutches, aces, multi-kills.',
   },
   {
     n: '02',
-    icon: Play,
-    accent: 'text-primary',
-    badge: 'border-primary/35 bg-primary/10',
+    icon: ListChecks,
     title: 'ELIGES LAS JUGADAS',
-    copy: 'Filmstrip con las mejores jugadas detectadas. Marca las que quieres en el reel.',
+    // The selector is a vertical list of plays (design.md: the horizontal
+    // filmstrip contract is retired); the copy has to describe what ships.
+    copy: 'Repasas la lista de jugadas detectadas y marcas las que entran en el reel.',
   },
   {
     n: '03',
     icon: Monitor,
-    accent: 'text-primary',
-    badge: 'border-primary/35 bg-primary/10',
     title: 'RENDER EN TU RIG',
     copy: 'Captura y edición en tu propio PC. 9:16 para Shorts o 16:9 para largo.',
   },
 ] as const;
+
+/** The pipeline rail recedes step by step, so the row reads left-to-right. */
+const STEP_RAIL_CLASS = ['bg-primary', 'bg-primary/55', 'bg-primary/25'] as const;
 
 /**
  * Upload flow (/upload) — the no-login entry. Drop one .dem (yours or someone
@@ -312,13 +320,11 @@ export default function UploadPage() {
 
   // Reachable singular: 2+ demos dropped but only one scan survived.
   const mapCount = scannedRows.length;
-  let headerLabel = NAV.label.toUpperCase();
   let headerTitle = 'ANALIZA CUALQUIER DEMO';
   let headerDescription: ReactNode = (
     <>Suelta un .dem — o varios, una serie bo3/bo5 completa — y forja las mejores jugadas en un reel. Sin login.</>
   );
   if (seriesMode) {
-    headerLabel = 'SERIE';
     if (stage === 'scanning') {
       headerTitle = 'ANALIZANDO LA SERIE';
       headerDescription = <>Escaneando {scanRows.length} demos de la serie…</>;
@@ -351,24 +357,7 @@ export default function UploadPage() {
   } else if (seriesMode && stage === 'picking') {
     cardContent = <PlayerPicker players={aggregated} onPick={onPickSeries} seriesMapCount={mapCount} />;
   } else if (stage === 'scanning' || stage === 'parsing') {
-    cardContent = (
-      <div role="status" aria-live="polite" className="flex min-h-[260px] flex-col items-center justify-center gap-5 px-4 py-12 text-center">
-        <span className="grid size-14 place-items-center border border-primary/35 bg-primary/10 text-primary shadow-[0_0_24px_color-mix(in_oklch,var(--primary)_14%,transparent)]">
-          <Loader2 className="size-6 animate-spin" />
-        </span>
-        <div className="flex flex-col gap-2">
-          <p className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight text-foreground">
-            {stage === 'scanning' ? 'Escaneando el roster…' : 'Forjando highlights…'}
-          </p>
-          {fileName ? (
-            <p className="inline-flex items-center justify-center gap-2 font-[family-name:var(--font-mono)] text-sm text-muted-foreground">
-              <FileVideo className="size-4" />
-              {fileName}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    );
+    cardContent = <SingleDemoProgress stage={stage} fileName={fileName} />;
   } else if (stage === 'picking') {
     cardContent = <PlayerPicker players={players} onPick={onPickSingle} match={match ?? undefined} />;
   } else {
@@ -378,39 +367,48 @@ export default function UploadPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden">
+    <main className="relative min-h-screen">
       {/* Ambient light keeps the standalone upload entry visually connected to
-          the Studio shell without competing with the working surface. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-52 left-1/2 h-[40rem] w-[48rem] -translate-x-1/2"
-        style={{
-          background:
-            'radial-gradient(ellipse at center, color-mix(in oklch, var(--primary) 9%, transparent), transparent 70%)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[38rem] -right-40 size-[28rem]"
-        style={{
-          background:
-            'radial-gradient(circle at center, color-mix(in oklch, var(--stream) 3.5%, transparent), transparent 70%)',
-        }}
-      />
+          the Studio shell without competing with the working surface. The washes
+          are clipped by their own layer rather than by `overflow-x-hidden` on
+          <main>: an overflow value on the page root turns it into a scroll
+          container, which silently disables `position: sticky` on the player
+          picker's confirm bar. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute -top-52 left-1/2 h-[40rem] w-[48rem] -translate-x-1/2"
+          style={{
+            background:
+              'radial-gradient(ellipse at center, color-mix(in oklch, var(--primary) 9%, transparent), transparent 70%)',
+          }}
+        />
+        <div
+          className="absolute top-[38rem] -right-40 size-[28rem]"
+          style={{
+            background:
+              'radial-gradient(circle at center, color-mix(in oklch, var(--stream) 3.5%, transparent), transparent 70%)',
+          }}
+        />
+      </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1536px] flex-col px-4 sm:px-6 lg:px-12">
-        <header className="relative flex min-h-[68px] items-center justify-between border-b border-border/60 py-3">
-          <Link href={homeHref} aria-label="Inicio de FragForge">
+      {/*
+        /upload lives outside the app group, so it has no shell container to key
+        breakpoints to. It declares its own: every step below is measured against
+        this column, not against the viewport.
+      */}
+      <div className="@container/upload relative mx-auto flex min-h-screen w-full max-w-[1536px] flex-col px-4 sm:px-6 lg:px-12">
+        <header className="relative flex min-h-[68px] items-center justify-between border-b border-border py-3">
+          <Link href={homeHref} aria-label="Inicio de FragForge" className="inline-flex min-h-11 items-center">
             <Wordmark />
           </Link>
           <div
             aria-hidden
-            className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 items-center border-b-2 border-primary px-5 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.18em] text-primary md:flex"
+            className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 items-center border-b-2 border-primary px-5 font-mono text-meta uppercase tracking-wider text-primary @[46rem]/upload:flex"
           >
             <CloudUpload className="mr-3 size-4" />
             {NAV.number} — {NAV.label}
           </div>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="sm" asChild>
             <Link href={homeHref}>
               <ArrowLeft className="size-4" />
               Volver
@@ -418,86 +416,64 @@ export default function UploadPage() {
           </Button>
         </header>
 
-        <div className="flex flex-1 flex-col py-8 sm:py-10 lg:py-9">
-          <StudioPageHeader number={Number(NAV.number)} label={headerLabel} title={headerTitle} description={headerDescription} />
+        <div className="flex flex-1 flex-col py-8 sm:py-10">
+          <StudioPageHeader title={headerTitle} description={headerDescription} />
 
           <div className="mt-7 sm:mt-8">
             {stage === 'idle' ? (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 <DemoDropzone onFiles={onFiles} />
                 {error ? (
-                  <p role="alert" className="border border-destructive/30 bg-destructive/[0.08] px-4 py-3 text-sm text-destructive">
+                  <p
+                    role="alert"
+                    className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive"
+                  >
+                    <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
                     {error}
                   </p>
                 ) : null}
-                <ol aria-label="Cómo funciona" className="mt-2 grid gap-4 lg:grid-cols-3">
-                  {PIPELINE_STEPS.map((step, index) => {
-                    const StepIcon = step.icon;
-                    return (
-                      <li
-                        key={step.n}
-                        className="studio-panel relative flex min-h-[150px] items-start gap-4 p-5 sm:p-6"
-                      >
-                        <span
-                          className={`grid size-12 shrink-0 place-items-center border font-[family-name:var(--font-mono)] text-base ${step.accent} ${step.badge}`}
-                        >
-                          {step.n}
-                        </span>
-                        <div className="min-w-0">
-                          <h2 className="flex items-center gap-2.5 font-[family-name:var(--font-display)] text-base font-bold leading-6 text-foreground">
-                            <StepIcon className="size-5 text-primary" strokeWidth={1.7} />
-                            {step.title}
-                          </h2>
-                          <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.copy}</p>
-                        </div>
-                        {index < PIPELINE_STEPS.length - 1 ? (
-                          <span
-                            aria-hidden
-                            className="absolute -right-[17px] top-1/2 z-10 hidden -translate-y-1/2 bg-background px-1 font-[family-name:var(--font-mono)] text-primary xl:block"
-                          >
-                            →
-                          </span>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ol>
+                <PipelineSteps />
               </div>
             ) : (
               <div className="flex flex-col gap-3">
                 {warning ? (
                   <div
                     role="alert"
-                    className="flex items-start justify-between gap-3 border border-amber-400/30 bg-amber-400/[0.08] px-4 py-3 text-sm text-amber-400"
+                    className="flex items-start justify-between gap-3 border border-warning/45 bg-warning/10 py-2 pr-2 pl-4 text-body-sm text-warning"
                   >
-                    <span className="min-w-0">{warning}</span>
+                    <span className="min-w-0 self-center">{warning}</span>
                     <button
                       type="button"
                       aria-label="Descartar aviso"
                       onClick={() => setWarning(null)}
-                      className="shrink-0 text-amber-400/70 transition-colors hover:text-amber-400"
+                      className="grid size-10 shrink-0 place-items-center text-warning/80 transition-colors duration-(--dur-instant) hover:text-warning focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning"
                     >
                       <X className="size-4" />
                     </button>
                   </div>
                 ) : null}
-                <Card className="studio-panel-raised overflow-hidden p-4 sm:p-6">{cardContent}</Card>
+                {/* The padding step is the one PlayerPicker's sticky confirm bar
+                    bleeds against, so the two are keyed to the same container
+                    step rather than to a viewport breakpoint. */}
+                <Card className="studio-panel-raised p-4 @[40rem]/upload:p-6">{cardContent}</Card>
               </div>
             )}
           </div>
         </div>
 
-        <footer className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-t border-border/60 py-4 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.14em] text-muted-foreground">
+        <footer className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-t border-border py-4 font-mono text-meta uppercase tracking-wider text-fg-3">
           <span className="inline-flex items-center gap-3">
             <LockKeyhole className="size-4 text-primary" />
             <strong className="font-normal text-primary">Procesamiento local y privado</strong>
-            <span className="hidden text-border sm:inline">|</span>
-            <span className="hidden sm:inline">Tus archivos, tu equipo, tu control.</span>
+            {/* A 1px rule, not a `|` glyph: --fg-4 is a hairline colour and may
+                never carry text, and a real rule keeps the mono run even. */}
+            <span aria-hidden className="hidden h-3 w-px bg-border-strong @[34rem]/upload:inline-block" />
+            <span className="hidden @[34rem]/upload:inline">Tus archivos, tu equipo, tu control.</span>
           </span>
           <span className="inline-flex items-center gap-3">
             <Info className="size-4" />
             Formato: .dem
-            <span className="text-border">|</span>
+            <span aria-hidden className="h-3 w-px bg-border-strong" />
             Máx. 10 demos
           </span>
         </footer>
@@ -506,59 +482,103 @@ export default function UploadPage() {
   );
 }
 
+/**
+ * "Cómo funciona" — three panels sharing a receding cyan rail, with a chevron in
+ * the gutter once the column is wide enough to read as one left-to-right run.
+ */
+function PipelineSteps(): ReactNode {
+  return (
+    <ol aria-label="Cómo funciona" className="mt-2 grid gap-4 @[52rem]/upload:grid-cols-3">
+      {PIPELINE_STEPS.map((step, index) => (
+        <li key={step.n} className="studio-panel relative flex flex-col gap-4 p-5 sm:p-6">
+          <span aria-hidden className={`absolute inset-x-0 top-0 h-0.5 ${STEP_RAIL_CLASS[index]}`} />
+          <div className="flex items-center justify-between gap-3">
+            <IconTile icon={step.icon} size="md" depth="inset" />
+            <span className="font-mono text-title tabular-nums text-fg-3">{step.n}</span>
+          </div>
+          <div className="flex min-w-0 flex-col gap-2">
+            <h2 className="font-display text-body-lg font-bold uppercase text-fg-1">{step.title}</h2>
+            <p className="text-body-sm text-fg-2">{step.copy}</p>
+          </div>
+          {index < PIPELINE_STEPS.length - 1 ? (
+            <ChevronRight
+              aria-hidden
+              className="absolute top-1/2 -right-4 hidden size-4 -translate-y-1/2 text-primary/70 @[52rem]/upload:block"
+            />
+          ) : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The single-demo scan/parse moment: one centered, announced status object. */
+function SingleDemoProgress({ stage, fileName }: { stage: 'scanning' | 'parsing'; fileName: string | null }): ReactNode {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-[16rem] flex-col items-center justify-center gap-5 px-4 py-12 text-center"
+    >
+      <span className="grid size-14 place-items-center border border-primary/45 bg-surface-0 text-primary shadow-[var(--elev-1),var(--glow-primary-md)]">
+        <Loader2 className="size-6 animate-spin" />
+      </span>
+      <div className="flex flex-col items-center gap-2">
+        <p className="font-display text-title font-bold uppercase text-fg-1">
+          {stage === 'scanning' ? 'Escaneando el roster…' : 'Forjando highlights…'}
+        </p>
+        {fileName ? (
+          <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
+            <FileVideo aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{fileName}</span>
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /** The per-demo roster-scan progress list shown while a series is scanning. */
 function ScanRowList({ rows }: { rows: ScanRow[] }) {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2">
-      <p className="mb-1 font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
-        Escaneando {rows.length} demos
-      </p>
+      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">Escaneando {rows.length} demos</p>
       {rows.map((row, i) => (
-        <div
+        <StudioDataRow
           key={`${row.fileName}-${i}`}
-          className="flex items-center justify-between gap-3 border border-primary/15 bg-muted/20 px-3.5 py-2.5"
-        >
-          <span className="flex min-w-0 items-center gap-2 font-[family-name:var(--font-mono)] text-sm text-foreground">
-            <FileVideo className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">{row.fileName}</span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2 text-sm">
-            {row.status === 'scanning' ? (
-              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Escaneando…
-              </span>
-            ) : null}
-            {row.status === 'scanned' ? (
-              <span className="inline-flex items-center gap-2">
-                {row.match ? (
-                  <span className="inline-flex items-center gap-1.5 font-[family-name:var(--font-mono)] text-xs">
-                    <span className="font-[family-name:var(--font-display)] font-bold uppercase tracking-wide text-foreground">
-                      {prettyMapName(row.match.map)}
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">
-                      {row.match.scoreT}-{row.match.scoreCt}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">Escaneada</span>
-                )}
-                <CheckCircle2 className="size-4 text-primary" />
-              </span>
-            ) : null}
-            {row.status === 'error' ? (
-              <span
-                className="inline-flex max-w-[13rem] items-center gap-1.5 text-destructive sm:max-w-xs"
-                title={row.reason}
-              >
-                <AlertTriangle className="size-4 shrink-0" />
-                <span className="truncate">{row.reason ?? 'Error'}</span>
-              </span>
-            ) : null}
-          </span>
-        </div>
+          icon={FileVideo}
+          active={row.status === 'scanning'}
+          label={row.fileName}
+          value={row.status === 'scanned' && row.match ? `${row.match.scoreT}-${row.match.scoreCt}` : undefined}
+          status={<ScanRowStatus row={row} />}
+        />
       ))}
     </div>
+  );
+}
+
+/** The right-hand state of one scan row: working, scanned (with map), or failed. */
+function ScanRowStatus({ row }: { row: ScanRow }): ReactNode {
+  if (row.status === 'scanning') {
+    return (
+      <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
+        Escaneando
+      </StatusTag>
+    );
+  }
+  if (row.status === 'scanned') {
+    return (
+      <StatusTag tone="primary" icon={CheckCircle2}>
+        {row.match ? prettyMapName(row.match.map) : 'Escaneada'}
+      </StatusTag>
+    );
+  }
+  return (
+    <StatusTag tone="danger" icon={AlertTriangle} className="max-w-[11rem] @[40rem]/upload:max-w-xs">
+      <span className="min-w-0 truncate" title={row.reason}>
+        {row.reason ?? 'Error'}
+      </span>
+    </StatusTag>
   );
 }
 
@@ -566,44 +586,41 @@ function ScanRowList({ rows }: { rows: ScanRow[] }) {
 function ParseRowList({ rows }: { rows: ParseRow[] }) {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2">
-      <p className="mb-1 font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-wider text-muted-foreground">
-        Forjando highlights en cada mapa
-      </p>
+      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">Forjando highlights en cada mapa</p>
       {rows.map((row, i) => (
-        <div
+        <StudioDataRow
           key={`${row.jobId}-${i}`}
-          className="flex items-center justify-between gap-3 border border-primary/15 bg-muted/20 px-3.5 py-2.5"
-        >
-          <span className="min-w-0 truncate font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-wide text-foreground">
-            {row.label}
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-sm">
-            {row.status === 'parsing' ? (
-              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Analizando…
-              </span>
-            ) : null}
-            {row.status === 'done' ? (
-              <span className="inline-flex items-center gap-1.5 text-primary">
-                <CheckCircle2 className="size-4" />
-                Lista
-              </span>
-            ) : null}
-            {row.status === 'skipped' ? (
-              <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-wider text-muted-foreground/70">
-                sin este jugador
-              </span>
-            ) : null}
-            {row.status === 'error' ? (
-              <span className="inline-flex items-center gap-1.5 text-destructive">
-                <AlertTriangle className="size-4" />
-                Error
-              </span>
-            ) : null}
-          </span>
-        </div>
+          active={row.status === 'parsing'}
+          label={row.label}
+          status={<ParseRowStatus status={row.status} />}
+        />
       ))}
     </div>
   );
+}
+
+/** The right-hand state of one parse row. */
+function ParseRowStatus({ status }: { status: ParseRow['status'] }): ReactNode {
+  switch (status) {
+    case 'parsing':
+      return (
+        <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
+          Analizando
+        </StatusTag>
+      );
+    case 'done':
+      return (
+        <StatusTag tone="success" icon={CheckCircle2}>
+          Lista
+        </StatusTag>
+      );
+    case 'skipped':
+      return <StatusTag>Sin este jugador</StatusTag>;
+    case 'error':
+      return (
+        <StatusTag tone="danger" icon={AlertTriangle}>
+          Error
+        </StatusTag>
+      );
+  }
 }

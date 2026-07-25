@@ -1,36 +1,36 @@
 import type { ReactNode } from 'react';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { cn } from '@/lib/utils';
 
 export type StudioPageHeaderProps = {
-  number: number;
-  label: string;
   title: string;
   description: ReactNode;
-  accent?: 'cyan' | 'magenta';
   actions?: ReactNode;
   className?: string;
 };
 
-/** Consistent title block for every Studio destination. */
+/**
+ * Consistent title block for every Studio destination. The H1 rides the type
+ * scale — `text-display-sm` at 30px on mobile and `text-display` at 40px from
+ * `sm` up, both inside the design.md ranges — instead of the two arbitrary sizes
+ * this header used to carry.
+ *
+ * It deliberately does NOT render a section eyebrow. The command strip states
+ * the current section persistently a few pixels above, so a second `// 05 —
+ * BIBLIOTECA` under it was a literal repetition. Screens outside the app shell
+ * (`/upload`, which has no strip) render `SectionEyebrow` themselves.
+ */
 export function StudioPageHeader({
-  number,
-  label,
   title,
   description,
-  accent = 'cyan',
   actions,
   className,
 }: StudioPageHeaderProps): ReactNode {
   return (
-    <header className={cn('flex flex-col gap-3', className)}>
-      <SectionEyebrow number={number} label={label} accent={accent} />
+    <header className={cn('flex flex-col', className)}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0">
-          <h1 className="font-[family-name:var(--font-display)] text-[2rem] font-bold leading-[1.05] tracking-[-0.025em] text-foreground sm:text-[2.5rem]">
-            {title}
-          </h1>
-          <div className="mt-3 max-w-2xl text-[15px] leading-6 text-muted-foreground">{description}</div>
+          <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">{title}</h1>
+          <div className="mt-3 max-w-2xl text-body text-fg-2">{description}</div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>

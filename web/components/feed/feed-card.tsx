@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Heart, Play } from 'lucide-react';
 import type { FeedItem } from '@/lib/api/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -11,85 +12,126 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ReelCover } from '@/components/brand/reel-cover';
+import { CoverImage } from '@/components/studio/cover-image';
+import { MediaFrame } from '@/components/studio/media-frame';
+import { TiltSurface } from '@/components/studio/tilt-surface';
 import { timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export type FeedCardProps = {
   item: FeedItem;
+  /**
+   * 1-based position, set only while a ranked sort is active. It exists so the
+   * sort visibly does something: reordering identical cards was previously the
+   * only feedback that TOP SEMANA had been pressed.
+   */
+  rank?: number;
 };
 
 /**
- * One community reel in the feed, NEON HUD style: a thumbnail with a
- * click-to-play affordance, a Chakra Petch title, a dim mono handle, and a
- * magenta heart — magenta is reserved for likes per the skin's color rule, so
- * it never turns cyan even once liked. The mockup also shows a mono
- * duration/aspect-ratio badge on the thumbnail; `FeedItem` carries neither
- * field, so it is left out here rather than displaying a fabricated number.
+ * One community reel. The play control is the card's dominant object — a raised,
+ * cyan-rimmed disc with a real cast shadow, sitting over a portrait-biased frame
+ * whose cover parallaxes under the pointer — and the like control drops to a
+ * quiet ghost with a mono count. Magenta stays reserved for likes per the skin's
+ * colour rule, so it never turns cyan even once liked.
+ *
+ * `FeedItem` carries neither a duration nor a render format, so the card shows
+ * neither rather than a fabricated number; the 4:5 frame is a deliberate
+ * portrait bias (community reels are shorts) and not a claim about the source.
  */
-export function FeedCard({ item }: FeedCardProps) {
+export function FeedCard({ item, rank }: FeedCardProps) {
   const [liked, setLiked] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const likeCount = item.likes + (liked ? 1 : 0);
   const initials = item.author.slice(0, 2).toUpperCase();
 
   return (
-    <figure className="studio-panel studio-panel-interactive studio-defer-render group overflow-hidden">
-      <div className="relative aspect-video overflow-hidden bg-muted">
-        {/* eslint-disable-next-line @next/next/no-img-element -- remote seed thumbnail */}
-        <img
-          src={item.thumbnailUrl}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="size-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.035]"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/75 via-transparent to-background/10" />
-        <span className="pointer-events-none absolute left-3 top-3 border border-primary/35 bg-background/80 px-2.5 py-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-foreground backdrop-blur-sm">
-          {item.map}
-        </span>
-
-        <button
-          type="button"
-          onClick={() => setPlayerOpen(true)}
-          aria-label={`Reproducir ${item.title}`}
-          className="absolute inset-0 flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        >
-          <span className="flex size-12 items-center justify-center rounded-full border border-white/45 bg-background/65 text-foreground shadow-lg backdrop-blur-sm transition-all group-hover:scale-105 group-hover:border-primary group-hover:text-primary">
-            <Play className="ml-0.5 size-5 fill-current" aria-hidden />
+    <figure className="studio-panel studio-panel-interactive studio-defer-render flex flex-col overflow-hidden">
+      <MediaFrame
+        // `aspect-[4/5]` wins the cn() merge over MediaFrame's own aspect class.
+        className="studio-rim aspect-[4/5] border-b border-border"
+        badge={
+          rank !== undefined ? (
+            <span className="inline-flex min-h-7 items-center gap-1 border border-primary/55 bg-surface-0/90 px-2 font-mono text-meta tabular-nums text-primary shadow-[var(--glow-primary-sm)]">
+              <span aria-hidden>#</span>
+              <span className="sr-only">Puesto </span>
+              {rank}
+            </span>
+          ) : undefined
+        }
+        footer={
+          <span className="inline-flex min-h-7 items-center border border-border-strong bg-surface-0/85 px-2.5 font-mono text-meta uppercase text-fg-1">
+            {item.map}
           </span>
-        </button>
-      </div>
+        }
+        media={
+          <TiltSurface className="size-full" planeClassName="size-full">
+            {/* The generated plate sits underneath so a cover the CSP blocks —
+                `img-src 'self' data: blob:` rules out any off-origin thumbnail —
+                degrades to brand art instead of a stretched broken-image glyph. */}
+            <div className="absolute inset-0 scale-[1.06] transition-transform duration-(--dur-base) ease-standard group-hover/frame:scale-[1.1]">
+              <ReelCover seed={item.id} plain className="absolute inset-0" />
+              <CoverImage src={item.thumbnailUrl} className="absolute inset-0" />
+            </div>
 
-      <figcaption className="flex flex-col gap-4 p-4">
+            {/*
+              The play control rides the tilt plane rather than floating over it,
+              so it parallaxes against the cover instead of sliding with it: at
+              `translateZ(22px)` inside the plane's `preserve-3d` space it is a
+              real object resting on the picture, casting `--elev-4` onto it. It
+              also has to live inside the plane for pointermove to reach the tilt
+              listener at all — a sibling overlay would swallow every event and
+              kill both the tilt and the cover's hover scale.
+            */}
+            <button
+              type="button"
+              onClick={() => setPlayerOpen(true)}
+              aria-label={`Reproducir ${item.title}`}
+              className="group/play absolute inset-0 flex items-center justify-center outline-none [transform:translateZ(22px)] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ring"
+            >
+              <span className="relative grid size-16 place-items-center rounded-full border-2 border-primary/60 bg-surface-2/90 text-primary shadow-[var(--elev-4)] transition-transform duration-(--dur-base) ease-pop group-hover/play:scale-110">
+                {/* The bloom is its own layer so the disc keeps its cast shadow;
+                    a token glow used alone degrades to `none` cleanly. */}
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-full opacity-0 transition-opacity duration-(--dur-base) ease-standard [box-shadow:var(--glow-primary-lg)] group-hover/play:opacity-100"
+                />
+                <Play className="relative ml-1 size-7 fill-current" aria-hidden />
+              </span>
+            </button>
+          </TiltSurface>
+        }
+      />
+
+      <figcaption className="flex flex-1 flex-col gap-3.5 p-4">
         <div className="min-w-0">
-          <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-lg font-bold leading-snug text-foreground">
+          <h3 className="line-clamp-2 font-display text-body-lg font-bold leading-snug text-fg-1">
             {item.title}
           </h3>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.1em] text-muted-foreground">
-            {timeAgo(item.createdAt)}
-          </p>
+          <p className="mt-1.5 font-mono text-meta uppercase text-fg-3">{timeAgo(item.createdAt)}</p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border/65 pt-3">
+        <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <Avatar className="size-8 rounded-md border border-border-strong">
               <AvatarImage src={item.authorAvatarUrl} alt={item.author} />
-              <AvatarFallback className="rounded-md text-xs">{initials}</AvatarFallback>
+              <AvatarFallback className="rounded-md text-meta">{initials}</AvatarFallback>
             </Avatar>
-            <span className="min-w-0 truncate font-[family-name:var(--font-mono)] text-xs tracking-[0.08em] text-muted-foreground">
-              @{item.author}
-            </span>
+            <span className="min-w-0 truncate font-mono text-meta text-fg-2">@{item.author}</span>
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setLiked((v) => !v)}
             aria-pressed={liked}
             aria-label={liked ? 'Quitar me gusta' : 'Me gusta'}
-            className="inline-flex h-11 shrink-0 items-center gap-2 border border-stream/35 bg-stream/[0.06] px-3 font-[family-name:var(--font-mono)] text-xs tabular-nums text-stream outline-none transition-colors hover:border-stream/65 hover:bg-stream/10 focus-visible:ring-2 focus-visible:ring-stream focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="shrink-0 font-mono tabular-nums text-stream-text hover:bg-stream/12 hover:text-stream-text focus-visible:outline-stream"
           >
             <Heart className={cn('size-4', liked && 'fill-current')} aria-hidden />
             {likeCount.toLocaleString()}
-          </button>
+          </Button>
         </div>
       </figcaption>
 
@@ -107,7 +149,7 @@ export function FeedCard({ item }: FeedCardProps) {
             autoPlay
             playsInline
             preload="metadata"
-            className="mx-auto max-h-[72vh] w-auto rounded-lg bg-black"
+            className="mx-auto max-h-[72vh] w-auto rounded-lg bg-surface-0"
           />
         </DialogContent>
       </Dialog>

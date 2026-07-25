@@ -142,7 +142,7 @@ test('cadence selects fast vs idle delay', async (t) => {
   assert.equal(calls, 3);
 });
 
-test('inactive windows do not poll and resume immediately when activated', async (t) => {
+test('inactive windows load once, do not keep polling, and resume when activated', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
 
   const activity = activityHarness(false);
@@ -158,22 +158,25 @@ test('inactive windows do not poll and resume immediately when activated', async
   });
   t.after(stop);
 
+  await flushMicrotasks();
+  assert.equal(calls, 1, 'the initial load must run even on an unfocused window');
+
   t.mock.timers.tick(10_000);
   await flushMicrotasks();
-  assert.equal(calls, 0, 'an initially inactive window must not start polling');
+  assert.equal(calls, 1, 'an inactive window must not schedule a second tick');
 
   activity.setActive(true);
   await flushMicrotasks();
-  assert.equal(calls, 1, 'reactivation must refresh immediately');
+  assert.equal(calls, 2, 'reactivation must refresh immediately');
 
   activity.setActive(false);
   t.mock.timers.tick(10_000);
   await flushMicrotasks();
-  assert.equal(calls, 1, 'pending polls must be cancelled while inactive');
+  assert.equal(calls, 2, 'pending polls must be cancelled while inactive');
 
   activity.setActive(true);
   await flushMicrotasks();
-  assert.equal(calls, 2, 'each reactivation gets one immediate refresh');
+  assert.equal(calls, 3, 'each reactivation gets one immediate refresh');
 });
 
 test('reactivation during a running tick queues one immediate non-overlapping refresh', async (t) => {
