@@ -8,7 +8,7 @@ const RANKED_POSITIONS = 3;
 /**
  * Auto-fill, keyed to the content container rather than the viewport. The old
  * `sm:grid-cols-2 xl:grid-cols-3` counted viewport pixels while the real column
- * is the viewport minus a 240px sidebar minus the assistant rail, so `xl:` fired
+ * is the viewport minus a 240px sidebar and the shell gutters, so `xl:` fired
  * at 1280 and produced three ~168px cards holding a thumbnail, a two-line title,
  * an avatar and a 44px control. Auto-fill has no such opinion: it fits whatever
  * the container can actually hold.

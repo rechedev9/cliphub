@@ -2,11 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
-import { MessageSquare } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { JobTransport } from '@/components/shell/job-transport';
-import { toggleAssistant } from '@/components/shell/assistant-rail-state';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -15,8 +12,8 @@ import {
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
 
 /**
- * The ceiling of the room: one 56px band across the content and assistant
- * columns, at every width.
+ * The ceiling of the room: one 56px band across the content column, at every
+ * width.
  *
  * It replaces the `md:hidden` header, which was the only chrome above 768px —
  * i.e. on desktop the app had a sidebar, a page, and nothing else: no location
@@ -72,17 +69,6 @@ export function CommandStrip(): ReactElement {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <JobTransport />
         {activity.capturing ? <CapturePip /> : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={toggleAssistant}
-          aria-label="Mostrar u ocultar el asistente"
-          title="Asistente"
-          className="text-fg-2 hover:text-fg-1"
-        >
-          <MessageSquare aria-hidden />
-        </Button>
       </div>
     </header>
   );

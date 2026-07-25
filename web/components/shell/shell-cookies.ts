@@ -1,5 +1,5 @@
 /**
- * The shell's chrome-state cookies: written on the client, read on the server.
+ * The shell's chrome-state cookie: written on the client, read on the server.
  *
  * They live in a module with no `'use client'` directive on purpose. A value
  * exported from a client module and imported by a server component does not
@@ -12,6 +12,3 @@
 
 export const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-
-export const ASSISTANT_RAIL_COOKIE_NAME = 'ff_assistant_rail';
-export const ASSISTANT_RAIL_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;

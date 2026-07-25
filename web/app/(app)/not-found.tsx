@@ -7,8 +7,8 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 /**
  * 404 *inside* the shell. The root `not-found.tsx` renders under
  * `app/layout.tsx` only, so an unmatched route inside the app group used to
- * drop the sidebar, the command strip and the assistant — a mistyped URL
- * ejected you from the product.
+ * drop the sidebar and the command strip — a mistyped URL ejected you from the
+ * product.
  */
 export default function AppNotFound(): ReactElement {
   return (

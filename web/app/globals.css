@@ -183,17 +183,13 @@
   --lattice-floor: color-mix(in oklch, var(--primary) 4.4%, transparent);
 
   /* ── Shell geometry ──────────────────────────────────────────────────────
-   * The command strip, the page frame and the assistant rail all have to agree
-   * on these three numbers without importing each other, so they are tokens
-   * rather than literals inside a className. --shell-gutter replaces the old
+   * The command strip and the page frame have to agree on these two numbers
+   * without importing each other, so they are tokens rather than literals
+   * inside a className. --shell-gutter replaces the old
    * `px-4 sm:px-6 md:px-10 lg:px-12` ladder, whose last step was `lg`, so 1024,
    * 1440 and 1920 all got the same 48px. */
   --shell-strip-height: 3.5rem;
   --shell-gutter: clamp(1.5rem, 3.2vw, 4rem);
-  /* Sized so the content column still clears the widest domain grid at the
-   * 1600px expansion threshold: 1600 − 240 sidebar − 320 rail = 1040. */
-  --assistant-width: clamp(20rem, 20vw, 25rem);
-  --assistant-width-collapsed: 3rem;
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"],
@@ -246,12 +242,6 @@ html[data-capture-active="true"] {
   --tracking-wider: 0.12em; /* mono metadata, status tags      */
   --tracking-widest: 0.2em; /* stat labels                     */
   --tracking-ultra: 0.3em; /* section eyebrow only            */
-
-  /* The assistant rail's expansion threshold, as a real breakpoint so the class
-   * reads `rail:flex` instead of `min-[1600px]:flex`. Tailwind cannot see the
-   * matching ASSISTANT_WIDE_QUERY in components/shell/assistant-rail-state.ts,
-   * so the two are changed together or not at all. */
-  --breakpoint-rail: 1600px;
 
   /* Easings. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -655,8 +645,8 @@ html[data-capture-active="true"] {
   }
 
   /* ── Chrome walls & ceiling ──────────────────────────────────────────────
-   * The sidebar, the assistant rail and the command strip are the *near* plane:
-   * opaque --surface-0 with one shared top light, and an outward falloff cast
+   * The sidebar and the command strip are the *near* plane: opaque
+   * --surface-0 with one shared top light, and an outward falloff cast
    * onto the content plane so a wall physically occludes the canvas instead of
    * being a differently-tinted region of it. */
   .shell-wall {
@@ -668,12 +658,6 @@ html[data-capture-active="true"] {
     box-shadow:
       inset -1px 0 0 0 var(--border-subtle),
       calc(24px * var(--shell-depth)) 0 40px -24px oklch(0.02 0.02 264 / 0.85);
-  }
-
-  .shell-wall-right {
-    box-shadow:
-      inset 1px 0 0 0 var(--border-subtle),
-      calc(-24px * var(--shell-depth)) 0 40px -24px oklch(0.02 0.02 264 / 0.85);
   }
 
   /* The ceiling. Deliberately opaque rather than `backdrop-blur-md`: this is a
@@ -1081,7 +1065,6 @@ html[data-runtime="desktop"][data-performance-profile="efficiency"] .pipeline-ra
 
   .shell-wall,
   .shell-wall-left,
-  .shell-wall-right,
   .shell-strip {
     background-image: none;
     box-shadow: none;
