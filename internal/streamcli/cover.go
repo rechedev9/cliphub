@@ -40,7 +40,7 @@ func (ffmpegStreamCoverGenerator) Generate(ctx context.Context, ffmpeg, videoPat
 }
 
 // streamCoverTimestamp picks a stable, non-black frame from the rendered clip.
-// The first third of the clip avoids both the opening fade and the tail.
+// 35% of the rendered duration avoids both the opening fade and the tail.
 func streamCoverTimestamp(renderedDuration float64) float64 {
 	return clampStreamCoverTimestamp(renderedDuration*0.35, renderedDuration)
 }

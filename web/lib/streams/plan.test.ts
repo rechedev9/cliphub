@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  blankClip,
   blankPlan,
   clipOutputDuration,
   clipTimelineGeometry,
-  clipsAreValid,
   errorMessage,
   fitPlanToSourceDuration,
   formatStreamTimestamp,
-  initialStreamClipEnd,
   isServiceUnavailable,
   nextClipId,
   nonVideoExtension,
@@ -55,16 +54,15 @@ test('a blank plan starts with one valid range awaiting facecam review', () => {
   const plan = blankPlan(120);
   assert.equal(plan.clips.length, 1);
   assert.equal(plan.face_crop_reviewed, false);
-  assert.equal(clipsAreValid(plan.clips), true);
-  assert.equal(clipsAreValid([clip({ end_seconds: 10 })]), false);
-  assert.equal(clipsAreValid([]), false);
+  assert.equal(plan.clips[0].start_seconds, 0);
+  assert.ok(plan.clips[0].end_seconds > plan.clips[0].start_seconds);
 });
 
 test('a fresh range keeps the 20-second default while respecting short sources', () => {
-  assert.equal(initialStreamClipEnd(15.15), 15.15);
-  assert.equal(initialStreamClipEnd(120), 20);
-  assert.equal(initialStreamClipEnd(0), 20);
-  assert.equal(initialStreamClipEnd(Number.NaN), 20);
+  assert.equal(blankClip(15.15).end_seconds, 15.15);
+  assert.equal(blankClip(120).end_seconds, 20);
+  assert.equal(blankClip(0).end_seconds, 20);
+  assert.equal(blankClip(Number.NaN).end_seconds, 20);
 });
 
 test('fitting to the source clamps legacy endpoints and upgrades the schema version', () => {

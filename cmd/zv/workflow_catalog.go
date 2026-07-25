@@ -358,7 +358,7 @@ func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) 
 
 	longRunning := false
 	switch workflow.Name {
-	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-plan", "stream-render", "analysis-viewer", "serve", "flows-run",
+	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-render", "analysis-viewer", "serve", "flows-run",
 		"analysis-tactical":
 		// flows-run really parses demos and probes media across a whole journey,
 		// and analysis-tactical parses a whole demo before it writes anything.

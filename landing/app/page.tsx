@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Clapperboard,
   Cpu,
+  Crop,
   Crosshair,
   Download,
   Film,
@@ -88,8 +89,8 @@ const FEATURES: {
     className: "md:col-span-7",
   },
   {
-    icon: Sparkles,
-    title: "Stream clips land vertical",
+    icon: Crop,
+    title: "Stream moments get reframed",
     body: "Cut Twitch or YouTube moments and reframe facecam over gameplay into a clean 1080x1920 edit — or keep the full frame in landscape.",
     signal: "VERTICAL OR 16:9",
     className: "md:col-span-5",

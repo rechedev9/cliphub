@@ -89,7 +89,9 @@ Studio ships and runs without a model-provider credential.
 Stream clips have no burned-in subtitle or killfeed pipeline, so no speech-to-text or vision key is ever read or stored.
 `/settings` only reports the installed app, Electron, and Chromium versions through the narrow preload bridge; it stores nothing.
 
-An operator's own `XAI_API_KEY` can still reach the Electron process by ordinary environment inheritance, and Studio refuses to pass it on: the bundled Next.js server is launched with that name explicitly removed from its environment, and `zv-orchestrator.exe` unsets it for itself and for every media subprocess it spawns.
+An operator's own `XAI_API_KEY` can still reach the Electron process by ordinary environment inheritance, and Studio refuses to pass it on.
+The main process deletes the name from `process.env` at startup, before it spawns anything, so no child inherits it: not the bundled Next.js server, not `zv-orchestrator.exe`, and not the PowerShell that expands a runtime-tool archive.
+The Next.js server is additionally launched with that name explicitly removed from its environment, and `zv-orchestrator.exe` additionally unsets it for itself and for every media subprocess it spawns.
 Studio never reads the value it removes.
 
 Packaging still strips `XAI_API_KEY` from the build, web, and electron-builder environments, and the installer manifest contains no credential resource.

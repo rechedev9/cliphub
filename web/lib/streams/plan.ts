@@ -107,7 +107,7 @@ export function streamSourceLabel(sourceUrl?: string): string | null {
  * The endpoint a fresh range gets: the historical fixed 20 seconds, shortened
  * when the probed source is itself shorter.
  */
-export function initialStreamClipEnd(durationSeconds: number): number {
+function initialStreamClipEnd(durationSeconds: number): number {
   return Number.isFinite(durationSeconds) && durationSeconds > 0
     ? Math.min(durationSeconds, 20)
     : 20;
@@ -164,17 +164,6 @@ export function fitPlanToSourceDuration(
     return [{ ...clip, end_seconds: durationSeconds }];
   });
   return { ...plan, schema_version: schemaVersion, clips };
-}
-
-/** True once every clip range in the plan is well-formed (end strictly after start). */
-export function clipsAreValid(clips: StreamClipRange[]): boolean {
-  return (
-    clips.length > 0 &&
-    clips.every(
-      (c) =>
-        Number.isFinite(c.start_seconds) && Number.isFinite(c.end_seconds) && c.end_seconds > c.start_seconds,
-    )
-  );
 }
 
 export function formatStreamTimestamp(seconds: number): string {

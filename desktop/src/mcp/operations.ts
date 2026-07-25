@@ -146,6 +146,7 @@ const STREAM_EDIT_PLAN_PROPERTY: JsonObject = {
       type: 'object',
     },
     face_crop: FACE_CROP_RECT_PROPERTY,
+    face_crop_reviewed: { description: 'Set by the Studio editor once the facecam crop was confirmed; preserve it.', type: 'boolean' },
     gameplay_crop: CROP_RECT_PROPERTY,
     music: {
       additionalProperties: false,
@@ -1295,9 +1296,46 @@ function pruneClipEditObject(edit: JsonObject): JsonObject | undefined {
 }
 
 /**
+ * JSON keys that the removal of the stream killfeed and burned-caption
+ * pipelines (commit 77a9534) deleted from the edit plan, mirroring
+ * retiredPlanFields and retiredClipFields in
+ * internal/streamclips/edit_plan_decode.go — that file is the authority and
+ * these two lists must stay identical to it.
+ *
+ * GET /edit-plan returns the raw stored bytes rather than a re-encoded struct,
+ * so a plan persisted before the removal still hands these keys back. Because
+ * STREAM_EDIT_PLAN_PROPERTY sets additionalProperties: false, validating such a
+ * plan verbatim would reject the very operations that could heal the stored
+ * row. Dropping the keys before validating writes a clean plan, which the
+ * server's lenient PUT then persists.
+ *
+ * Once no persisted plan predates the removal, delete these lists together with
+ * their Go counterparts and let a legacy key fail validation again.
+ */
+const RETIRED_STREAM_PLAN_FIELDS = ['killfeed_crop', 'killfeed_analysis', 'captions'] as const;
+const RETIRED_STREAM_CLIP_FIELDS = [
+  'killfeed_seconds',
+  'killfeed_kills',
+  'killfeed_cue_provenance',
+  'caption_words',
+  'caption_reviewed',
+] as const;
+
+/** One plan with the retired keys removed; every other field is preserved. */
+function withoutRetiredStreamPlanFields(plan: JsonObject): JsonObject {
+  const cleaned = without(plan, ...RETIRED_STREAM_PLAN_FIELDS);
+  if (Array.isArray(cleaned.clips)) {
+    cleaned.clips = cleaned.clips.map((clip): JsonValue =>
+      isJsonObject(clip) ? without(clip, ...RETIRED_STREAM_CLIP_FIELDS) : clip);
+  }
+  return cleaned;
+}
+
+/**
  * Shared read-modify-write pipeline for every plan-mutating operation: fetch
- * the current plan, apply the mutation, re-validate the whole plan (schema,
- * cross-field, live variant), then persist it.
+ * the current plan, drop the keys retired by the killfeed/caption removal,
+ * apply the mutation, re-validate the whole plan (schema, cross-field, live
+ * variant), then persist it.
  */
 async function updateStreamEditPlan(
   client: OrchestratorClient,
@@ -1308,7 +1346,7 @@ async function updateStreamEditPlan(
   const editPlanPath = streamPath(input, '/edit-plan');
   const current = await client.request({ path: editPlanPath, signal });
   if (!isJsonObject(current)) throw new Error('stream edit plan response must be an object');
-  const updated = mutate(current);
+  const updated = mutate(withoutRetiredStreamPlanFields(current));
   validateJsonSchema(STREAM_EDIT_PLAN_PROPERTY, updated, 'stream edit plan');
   validateStreamEditPlan(updated);
   await validateLiveStreamEditPlan(client, updated, signal);
@@ -1518,8 +1556,10 @@ async function renderCaptionCandidates(client: OrchestratorClient, jobID: string
 
 async function streamEditPlanCurrentValue(client: OrchestratorClient, streamJobID: string, signal?: AbortSignal): Promise<JsonObject> {
   const response = await client.request({ path: `/api/stream-jobs/${encodeURIComponent(streamJobID)}/edit-plan`, signal });
+  // Offered as the value to resend through streams.update_edit_plan, whose
+  // input schema forbids the retired keys a pre-removal plan still carries.
   return {
-    current_value: response,
+    current_value: isJsonObject(response) ? withoutRetiredStreamPlanFields(response) : response,
     depends_on: 'stream_job_id',
     field: 'plan',
     instructions: 'Preserve every unrelated field when updating the plan. Use streams.edit_clip when only one clip\'s edit options need to change.',

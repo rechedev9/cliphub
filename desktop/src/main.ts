@@ -60,6 +60,14 @@ import {
 import { OperationGateway } from './studio-operations/operation-gateway';
 import { OrchestratorClient } from './mcp/orchestrator-client';
 
+// FragForge reads XAI_API_KEY nowhere: no model provider is part of the
+// product. An operator's own key can still reach this process by ordinary
+// environment inheritance, so delete the name before anything is spawned —
+// every child (the Next.js server, zv-orchestrator, and the PowerShell that
+// expands runtime-tool archives) inherits process.env, and none of them has any
+// business receiving it.
+delete process.env.XAI_API_KEY;
+
 // Every loopback server and health check binds/targets this host; named once so
 // the value that couples all the URLs below is not a scattered magic string.
 const LOOPBACK_HOST = '127.0.0.1';

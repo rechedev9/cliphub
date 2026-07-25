@@ -782,6 +782,51 @@ test('streams.edit_clip merges the edit into the saved plan and preserves everyt
   ]);
 });
 
+test('streams.edit_clip heals a legacy plan that still carries retired killfeed and caption keys', async () => {
+  const legacyPlan: JsonObject = {
+    captions: { language: 'es', words: [] },
+    clips: [{
+      caption_reviewed: true,
+      caption_words: [{ end_seconds: 1, start_seconds: 0, text: 'hola' }],
+      end_seconds: 10,
+      id: 'clip-1',
+      killfeed_cue_provenance: 'imported',
+      killfeed_kills: [{ attacker: 'a', victim: 'b', weapon: 'ak47' }],
+      killfeed_seconds: [1.5],
+      start_seconds: 0,
+    }],
+    face_crop: { height: 0.3, width: 0.25, x: 0, y: 0 },
+    face_crop_reviewed: true,
+    gameplay_crop: { height: 1, width: 1, x: 0, y: 0 },
+    killfeed_analysis: { detected: true },
+    killfeed_crop: { height: 0.18, width: 0.17, x: 0.82, y: 0.05 },
+    schema_version: '1.1',
+    variant: 'streamer-vertical-stack-40-60',
+  };
+  const double = clientDouble((request, index) => {
+    if (index === 0) return legacyPlan;
+    if (index === 1) return { variants: [{ full_frame: false, name: 'streamer-vertical-stack-40-60' }] };
+    if (index === 2) return request.body ?? null;
+    throw new Error('unexpected request');
+  });
+
+  await operation('streams.edit_clip').run(double.client, { clip_id: 'clip-1', speed: 2, stream_job_id: 'stream-123' });
+
+  const written = double.state.requests.find((request) => request.method === 'PUT')?.body;
+  assert.ok(isJsonObject(written));
+  for (const key of ['captions', 'killfeed_analysis', 'killfeed_crop']) {
+    assert.equal(key in written, false, `${key} must not be written back`);
+  }
+  const clips = written.clips;
+  if (!Array.isArray(clips) || !isJsonObject(clips[0])) throw new Error('expected a clips array');
+  for (const key of ['caption_reviewed', 'caption_words', 'killfeed_cue_provenance', 'killfeed_kills', 'killfeed_seconds']) {
+    assert.equal(key in clips[0], false, `clips[0].${key} must not be written back`);
+  }
+  assert.deepEqual(clips[0].edit, { speed: 2 });
+  assert.equal(written.face_crop_reviewed, true);
+  assert.equal(written.variant, 'streamer-vertical-stack-40-60');
+});
+
 test('streams.edit_clip resetting every option to its default drops the edit object', async () => {
   const currentPlan: JsonObject = {
     clips: [{ edit: { speed: 2 }, end_seconds: 10, id: 'clip-1', start_seconds: 0 }],

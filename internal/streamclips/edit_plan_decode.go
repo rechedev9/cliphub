@@ -43,7 +43,7 @@ func DecodeEditPlan(body []byte) (EditPlan, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	var document map[string]json.RawMessage
 	if err := decoder.Decode(&document); err != nil {
-		return EditPlan{}, err
+		return EditPlan{}, fmt.Errorf("decode stream edit plan: %w", err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
