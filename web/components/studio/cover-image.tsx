@@ -25,7 +25,10 @@ export type CoverImageProps = {
  * is guaranteed to fail, not merely likely to.
  */
 export function CoverImage({ src, className, loading = 'lazy' }: CoverImageProps): ReactNode {
-  const [failed, setFailed] = useState(false);
+  // The URL that failed, not a boolean: a card keeps its component instance
+  // across the Library's 1.5s poll, so a reel whose cover only exists once the
+  // render finishes would stay blank forever if one earlier URL had failed.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
   /*
    * `onError` alone is not enough. The browser starts fetching as soon as it
@@ -37,20 +40,23 @@ export function CoverImage({ src, className, loading = 'lazy' }: CoverImageProps
    * broken-image ring across every Library card.
    */
   const check = (node: HTMLImageElement | null): void => {
-    if (node !== null && node.complete && node.naturalWidth === 0) setFailed(true);
+    // Record the prop, not `node.src`: the DOM resolves it to an absolute URL
+    // and the comparison below is against the relative path the API returns.
+    if (node !== null && node.complete && node.naturalWidth === 0) setFailedSrc(src ?? null);
   };
 
-  if (src === undefined || failed) return null;
+  if (src === undefined || failedSrc === src) return null;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- dynamic same-origin media proxied by the orchestrator
     <img
+      key={src}
       ref={check}
       src={src}
       alt=""
       loading={loading}
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
       className={cn('size-full object-cover', className)}
     />
   );
