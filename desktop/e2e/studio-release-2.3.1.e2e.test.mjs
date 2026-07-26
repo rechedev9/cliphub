@@ -170,7 +170,7 @@ test('demo reel requires the exact creative brief and keeps publication metadata
   await page.route('**/api/demos/**', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    const jobId = path.includes(alphaJob) ? alphaJob : path.includes(betaJob) ? betaJob : null;
+    const jobId = [alphaJob, betaJob].find((id) => path.includes(id)) ?? null;
     if (jobId && path.endsWith('/status')) return route.fulfill({ json: { status: 'done' } });
     if (jobId && path.endsWith('/renders/viral-60-clean')) {
       const stem = jobId === alphaJob ? 'alpha' : 'beta';
