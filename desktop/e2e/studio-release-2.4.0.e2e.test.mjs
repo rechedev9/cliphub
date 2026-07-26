@@ -1,4 +1,4 @@
-// Release evals for FragForge Studio 2.3.1. This launches the real Electron
+// Release evals for FragForge Studio 2.4.0. This launches the real Electron
 // application and drives the renderer with Playwright. Expensive/external
 // stream stages use controlled same-origin responses.
 
@@ -13,7 +13,7 @@ import { after, before, test } from 'node:test';
 const require = createRequire(import.meta.url);
 const { _electron } = require('playwright-core');
 const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.3.1');
+const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.4.0');
 const bootstrapPath = join(desktopRoot, 'e2e', 'isolated-userdata.cjs');
 const BOOT_DEADLINE_MS = 180_000;
 
@@ -91,8 +91,8 @@ test('installed release exposes version-only desktop settings with no MCP surfac
     const values = await installedInfo.locator('dd').allInnerTexts();
     const versionIndex = labels.indexOf('Versión instalada');
     assert.notEqual(versionIndex, -1);
-    assert.equal(values[versionIndex], '2.3.1');
-    await installedPage.screenshot({ path: join(artifactsDir, 'installed-settings-2.3.1.png'), fullPage: true });
+    assert.equal(values[versionIndex], '2.4.0');
+    await installedPage.screenshot({ path: join(artifactsDir, 'installed-settings-2.4.0.png'), fullPage: true });
   } finally {
     await installedApp.close();
     rmSync(installedUserData, { force: true, recursive: true });
