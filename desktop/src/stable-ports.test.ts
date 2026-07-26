@@ -48,6 +48,40 @@ test('reuses two valid saved ports without rewriting the file', async (t) => {
   assert.equal(fs.readFileSync(portsFile, 'utf8'), original);
 });
 
+test('drops a retired discovery secret from an upgraded install while keeping its ports', async (t) => {
+  const portsFile = temporaryPortsFile(t);
+  fs.writeFileSync(portsFile, JSON.stringify({
+    orchestrator: 41001,
+    web: 42002,
+    discovery_secret: 'a'.repeat(64),
+    keep: true,
+  }));
+  const probes: number[] = [];
+
+  const ports = await allocateStableServicePorts({
+    host: TEST_HOST,
+    portsFile,
+    logLine: () => {},
+    isPortFree: async (port) => {
+      probes.push(port);
+      return true;
+    },
+    allocateFreePort: async () => {
+      throw new Error('unexpected allocation');
+    },
+  });
+
+  // Retiring the credential must not cost the user their stable origins: both
+  // saved ports are probed and reused rather than reallocated.
+  assert.deepEqual(ports, { orchestrator: 41001, web: 42002 });
+  assert.deepEqual(probes, [41001, 42002]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(portsFile, 'utf8')), {
+    orchestrator: 41001,
+    web: 42002,
+    keep: true,
+  });
+});
+
 test('allocates and persists a distinct pair when no file exists', async (t) => {
   const portsFile = temporaryPortsFile(t);
   let probes = 0;

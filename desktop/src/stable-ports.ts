@@ -151,6 +151,17 @@ export async function allocateStableServicePorts({
 }: StablePortOptions): Promise<StableServicePorts> {
   throwIfAborted(signal);
   const saved = readSavedPorts(portsFile);
+  let changed = false;
+
+  // Retired along with the discovery handshake. Every boot before this release
+  // wrote a fresh secret here, so drop it from upgraded installs and republish
+  // the document; otherwise the last one ever written would sit on disk
+  // forever instead of rotating away.
+  if ('discovery_secret' in saved) {
+    delete saved.discovery_secret;
+    changed = true;
+  }
+
   const selected = new Set<number>();
   let orchestrator = await reusableSavedPort(
     'orchestrator',
@@ -161,7 +172,6 @@ export async function allocateStableServicePorts({
   throwIfAborted(signal);
   let web = await reusableSavedPort('web', saved, selected, { host, logLine, isPortFree });
   throwIfAborted(signal);
-  let changed = false;
 
   if (orchestrator === undefined) {
     orchestrator = await allocateDistinctPort(selected, host, allocateFreePort, signal);
