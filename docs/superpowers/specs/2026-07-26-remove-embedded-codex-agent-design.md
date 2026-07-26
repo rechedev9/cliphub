@@ -54,7 +54,13 @@ The strongest argument the other way, which is real: the gateway predates the as
 
 The fact that would flip the decision is a *named* next consumer — a decided-on replacement assistant, or a plan to expose Studio operations to an external caller. Not a vague possibility. Absent one, `surface-coverage.test.ts` turns from a safety net into a tax: it forces every future HTTP route change to drag the catalog along, at roughly a hundred lines per feature, to keep a catalog honest that nothing reads.
 
-**Therefore the removal commit must be recorded here once it lands, so a future rebuild starts from `git show <sha> -- desktop/src/mcp desktop/src/studio-operations` rather than from scratch.** Add the SHA to this section as the last step of the work.
+**Therefore the removal commit is recorded here, so a future rebuild starts from `git show` rather than from scratch.**
+
+The gateway was removed in `7e742c3`.
+To recover it: `git show 7e742c3 -- desktop/src/mcp desktop/src/studio-operations`.
+
+That commit also removed the embedded assistant, so a rebuild against a different assistant wants only the two paths above, not the whole diff.
+`f20500d` then removed the discovery secret the gateway used to authenticate its loopback handshake, and reduced `/healthz` to a plain liveness probe; a rebuilt gateway needs a new answer for both.
 
 ## Data And Compatibility
 
