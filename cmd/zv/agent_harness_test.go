@@ -79,7 +79,8 @@ func TestCodexAppUsesCLIAndNoExternalMCP(t *testing.T) {
 		`.\bin\zv.exe workflows validate short --format json -- match.dem --prompt "all kills 76561198000000000" --dry-run --format json`,
 		`.\bin\zv.exe workflows run short -- match.dem --prompt "all kills 76561198000000000" --dry-run --format json`,
 		"retired external MCP server",
-		"FragForge Agent is the only assistant surface shipped in Studio",
+		"drive the product through the Studio interface or the `zv` CLI",
+		"Studio ships no assistant surface",
 	} {
 		if !strings.Contains(agentBody, want) {
 			t.Fatalf("%s does not contain %q", agentPath, want)
