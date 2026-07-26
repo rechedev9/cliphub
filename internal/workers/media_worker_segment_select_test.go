@@ -62,8 +62,9 @@ func planRecorderRunner(t *testing.T, seen *[]string) *fakeRunner {
 			t.Fatalf("build recording plan: %v", err)
 		}
 		result := recording.RecordingResult{
-			Plan:   recordingPlan,
-			Script: scriptPath,
+			Plan:            recordingPlan,
+			Script:          scriptPath,
+			CaptureVerified: true,
 		}
 		for _, s := range plan.Segments {
 			if seen != nil {
@@ -337,6 +338,71 @@ func TestRenderCoversToleratesPlanSegmentWithoutClip(t *testing.T) {
 	}
 	if !covered {
 		t.Fatal("a plan segment without a clip must not make render coverage unsatisfiable")
+	}
+}
+
+func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testing.T) {
+	store := newFakeStorage()
+	id := uuid.New()
+	stream := recording.DefaultStreamConfig()
+	result := recording.RecordingResult{
+		Plan: recording.RecordingPlan{
+			Stream: stream,
+		},
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID: "seg-001",
+			Role:      "segment",
+			Type:      "video",
+		}},
+	}
+	if err := putRecordingResult(store, id, result); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(recording.ScriptArtifactKey(id), bytes.NewReader([]byte("legacy script"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("legacy clip"))); err != nil {
+		t.Fatal(err)
+	}
+
+	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready {
+		t.Fatal("capture without observer-SteamID verification was reused")
+	}
+
+	result.Plan.CaptureContract = recording.CaptureContractVersion
+	result.CaptureVerified = true
+	if err := putRecordingResult(store, id, result); err != nil {
+		t.Fatal(err)
+	}
+	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ready {
+		t.Fatal("capture with current observer-SteamID contract was not reusable")
+	}
+}
+
+func TestRecordingProfilesCompatibleRejectsLegacyPOVContract(t *testing.T) {
+	current := recording.RecordingResult{
+		Plan: recording.RecordingPlan{
+			Stream:          recording.DefaultStreamConfig(),
+			CaptureContract: recording.CaptureContractVersion,
+		},
+		CaptureVerified: true,
+	}
+	legacy := current
+	legacy.Plan.CaptureContract = ""
+
+	if recordingProfilesCompatible(legacy, current) {
+		t.Fatal("legacy capture could be merged into a verified POV recording")
+	}
+	if !recordingProfilesCompatible(current, current) {
+		t.Fatal("matching current capture profiles should remain compatible")
 	}
 }
 

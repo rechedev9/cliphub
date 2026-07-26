@@ -1,4 +1,4 @@
-// Release evals for FragForge Studio 2.4.2. This launches the real Electron
+// Release evals for FragForge Studio 2.4.3. This launches the real Electron
 // application and drives the renderer with Playwright. Expensive/external
 // stream stages use controlled same-origin responses.
 
@@ -13,7 +13,7 @@ import { after, before, test } from 'node:test';
 const require = createRequire(import.meta.url);
 const { _electron } = require('playwright-core');
 const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.4.2');
+const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.4.3');
 const bootstrapPath = join(desktopRoot, 'e2e', 'isolated-userdata.cjs');
 const BOOT_DEADLINE_MS = 180_000;
 
@@ -55,14 +55,15 @@ async function screenshot(name) {
 
 test('installed release exposes version-only desktop settings with no MCP surface', async () => {
   await goto('/settings');
-  await page.getByText('Versión instalada', { exact: true }).waitFor();
+  await screenshot('settings-before-version-check.png');
+  await page.getByText('Versión', { exact: true }).waitFor();
   assert.equal(await page.getByText(/Consulta la versión instalada de FragForge Studio\./).isVisible(), true);
   const bridgeShape = await page.evaluate(() => ({
     hasRetiredMCPConfig: typeof window.fragforgeSettings?.getMCPConfig === 'function',
   }));
   assert.deepEqual(bridgeShape, { hasRetiredMCPConfig: false });
   const body = await page.locator('body').innerText();
-  assert.match(body, /07\s+AJUSTES/);
+  assert.match(body, /09\s+AJUSTES/);
   assert.doesNotMatch(body, /servidor MCP|configuraci[oó]n MCP/i);
   await screenshot('settings-version-only.png');
 
@@ -77,22 +78,18 @@ test('installed release exposes version-only desktop settings with no MCP surfac
     const installedPage = await installedApp.firstWindow();
     await installedPage.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, { timeout: BOOT_DEADLINE_MS });
     const installedOrigin = new URL(installedPage.url()).origin;
-    await installedPage.goto(`${installedOrigin}/settings`);
-    await installedPage.waitForLoadState('domcontentloaded');
+    await installedPage.getByRole('link', { name: 'Ajustes' }).click();
+    await installedPage.waitForURL(`${installedOrigin}/settings`);
     const installedInfo = installedPage.locator('[aria-labelledby="studio-info-title"]');
-    await installedInfo.getByText('Versión instalada', { exact: true }).waitFor();
+    await installedInfo.getByText('Versión', { exact: true }).waitFor();
     assert.equal(await installedPage.getByText(/Consulta la versión instalada de FragForge Studio\./).isVisible(), true);
     const installedBridgeShape = await installedPage.evaluate(() => ({
       hasRetiredMCPConfig: typeof window.fragforgeSettings?.getMCPConfig === 'function',
     }));
     assert.deepEqual(installedBridgeShape, { hasRetiredMCPConfig: false });
     assert.doesNotMatch(await installedPage.locator('body').innerText(), /servidor MCP|configuraci[oó]n MCP/i);
-    const labels = await installedInfo.locator('dt').allInnerTexts();
-    const values = await installedInfo.locator('dd').allInnerTexts();
-    const versionIndex = labels.indexOf('Versión instalada');
-    assert.notEqual(versionIndex, -1);
-    assert.equal(values[versionIndex], '2.4.2');
-    await installedPage.screenshot({ path: join(artifactsDir, 'installed-settings-2.4.2.png'), fullPage: true });
+    assert.equal(await installedInfo.getByText('2.4.3', { exact: true }).isVisible(), true);
+    await installedPage.screenshot({ path: join(artifactsDir, 'installed-settings-2.4.3.png'), fullPage: true });
   } finally {
     await installedApp.close();
     rmSync(installedUserData, { force: true, recursive: true });

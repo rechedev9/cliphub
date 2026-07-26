@@ -12,6 +12,27 @@ import (
 
 const steamID64AccountIDBase uint64 = 76561197960265728
 
+// CaptureContractVersion identifies the recorder behavior required before a
+// persisted capture may be reused. Bump it whenever a successful run proves a
+// materially stronger capture invariant.
+const CaptureContractVersion = "observer-steamid-v1"
+
+// Capture console markers are written by the HLAE runtime and consumed by the
+// recorder. A plan names the requested behavior; only the verified marker
+// attests that the runtime completed every protected capture window.
+const (
+	CaptureFailedMarker   = "ZACKVIDEO_CAPTURE_FAILED_OBSERVER_STEAMID_V1"
+	CaptureVerifiedMarker = "ZACKVIDEO_CAPTURE_VERIFIED_OBSERVER_STEAMID_V1"
+)
+
+func CaptureFailedAttestation(token string) string {
+	return CaptureFailedMarker + ":" + token
+}
+
+func CaptureVerifiedAttestation(token string) string {
+	return CaptureVerifiedMarker + ":" + token
+}
+
 const (
 	defaultDeathnoticeSafeZoneX       = 0.28
 	defaultDeathnoticeSafeZoneY       = 0.82
@@ -67,6 +88,7 @@ type RuntimeConfig struct {
 
 // RecordingPlan is the lowest-level input to script generation.
 type RecordingPlan struct {
+	CaptureContract  string             `json:"capture_contract"`
 	DemoPath         string             `json:"demo_path"`
 	DemoMap          string             `json:"demo_map,omitempty"`
 	OutputDir        string             `json:"output_dir"`
@@ -113,6 +135,7 @@ type RecordingResult struct {
 	Plan            RecordingPlan       `json:"plan"`
 	Script          string              `json:"script"`
 	Artifacts       []RecordingArtifact `json:"artifacts"`
+	CaptureVerified bool                `json:"capture_verified,omitempty"`
 	CaptureRevision string              `json:"capture_revision,omitempty"`
 	Warnings        []string            `json:"warnings,omitempty"`
 	Error           string              `json:"error,omitempty"`
@@ -138,6 +161,7 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 	}
 	stream = normalizeStreamConfig(stream)
 	out := RecordingPlan{
+		CaptureContract:  CaptureContractVersion,
 		DemoPath:         demoPath,
 		DemoMap:          plan.Demo.Map,
 		OutputDir:        outputDir,
@@ -181,6 +205,9 @@ func AccountIDFromSteamID64(raw string) (uint32, error) {
 
 // Validate rejects plans that would generate ambiguous or unsafe scripts.
 func (p RecordingPlan) Validate() error {
+	if p.CaptureContract != CaptureContractVersion {
+		return fmt.Errorf("capture_contract must be %q", CaptureContractVersion)
+	}
 	if p.DemoPath == "" {
 		return fmt.Errorf("demo_path is required")
 	}
@@ -189,6 +216,18 @@ func (p RecordingPlan) Validate() error {
 	}
 	if p.TargetAccountID == 0 {
 		return fmt.Errorf("target_account_id is required")
+	}
+	accountID, err := AccountIDFromSteamID64(p.TargetSteamID64)
+	if err != nil {
+		return fmt.Errorf("target_steamid64: %w", err)
+	}
+	if p.TargetAccountID != accountID {
+		return fmt.Errorf(
+			"target_account_id %d does not match target_steamid64 %q (want %d)",
+			p.TargetAccountID,
+			p.TargetSteamID64,
+			accountID,
+		)
 	}
 	if p.Tickrate <= 0 {
 		return fmt.Errorf("tickrate must be positive")
@@ -219,11 +258,6 @@ func (p RecordingPlan) Validate() error {
 	}
 	if p.Stream.DeathnoticeLifetime < 0 || p.Stream.DeathnoticeLifetime > 10 {
 		return fmt.Errorf("stream deathnotice_lifetime_seconds must be between 0 and 10")
-	}
-	if p.Stream.HUDMode == HUDModeDeathnotices || p.Stream.PortraitSafeKillfeed {
-		if _, err := AccountIDFromSteamID64(p.TargetSteamID64); err != nil {
-			return fmt.Errorf("filtered deathnotices target_steamid64: %w", err)
-		}
 	}
 	seen := map[string]bool{}
 	for i, s := range p.Segments {

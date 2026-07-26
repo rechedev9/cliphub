@@ -50,6 +50,9 @@ func NewCollector(target string, r rules.Rules) *Collector {
 // of the target player. Called once at the start of the demo (or whenever
 // the target is first observed).
 func (c *Collector) RecordTargetIdentity(name, teamAtStart string) {
+	if c.targetSeen {
+		return
+	}
 	c.targetName = name
 	c.targetTeamAtStart = teamAtStart
 	c.targetSeen = true

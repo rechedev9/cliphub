@@ -2060,7 +2060,11 @@ func normalizedRecordingStream(plan *killplan.Plan, hudMode string, portraitSafe
 }
 
 func recordingProfilesCompatible(a, b recording.RecordingResult) bool {
-	return a.Plan.Stream == b.Plan.Stream
+	return a.Plan.Stream == b.Plan.Stream &&
+		a.Plan.CaptureContract == recording.CaptureContractVersion &&
+		b.Plan.CaptureContract == recording.CaptureContractVersion &&
+		a.CaptureVerified &&
+		b.CaptureVerified
 }
 
 // mergeRecordingResults unions a freshly recorded result over a previously
@@ -2129,6 +2133,12 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 		return false, nil, err
 	}
 	if result.Plan.Stream != expectedStream {
+		return false, nil, nil
+	}
+	if result.Plan.CaptureContract != recording.CaptureContractVersion {
+		return false, nil, nil
+	}
+	if !result.CaptureVerified {
 		return false, nil, nil
 	}
 

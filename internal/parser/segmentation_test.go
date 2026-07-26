@@ -3,6 +3,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/rechedev9/fragforge/internal/killplan"
 	"github.com/rechedev9/fragforge/internal/rules"
 )
 
@@ -56,6 +57,26 @@ func TestSegmentSingleKillProducesOneSegment(t *testing.T) {
 	}
 	if s.ID != "seg-001" {
 		t.Errorf("ID = %q, want seg-001", s.ID)
+	}
+}
+
+func TestSegmentPreservesTheTargetIdentityAtTheKillTick(t *testing.T) {
+	killer := killplan.Player{
+		SteamID64:  "76561197997743909",
+		NameInDemo: "ZaCkETiZOR",
+		TeamAtKill: "T",
+	}
+	got := Segment([]RawKill{{
+		Tick:   4396,
+		Round:  1,
+		Weapon: "deagle",
+		Killer: killer,
+	}}, nil, defaultTestRules(), testTickrate)
+	if len(got) != 1 || len(got[0].Kills) != 1 {
+		t.Fatalf("Segment() = %+v, want one kill", got)
+	}
+	if got[0].Kills[0].Killer != killer {
+		t.Fatalf("Killer = %+v, want tick identity %+v", got[0].Kills[0].Killer, killer)
 	}
 }
 

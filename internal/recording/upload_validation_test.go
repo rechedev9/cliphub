@@ -22,6 +22,21 @@ func TestValidateRunResultRejectsFailedResult(t *testing.T) {
 	}
 }
 
+func TestValidateRunResultRequiresCompletedPOVVerification(t *testing.T) {
+	result := RecordingResult{
+		Plan: RecordingPlan{CaptureContract: CaptureContractVersion},
+	}
+	err := ValidateRunResult(result)
+	if err == nil || !strings.Contains(err.Error(), "lacks completed POV verification") {
+		t.Fatalf("ValidateRunResult error = %v, want missing POV verification", err)
+	}
+
+	result.CaptureVerified = true
+	if err := ValidateRunResult(result); err != nil {
+		t.Fatalf("ValidateRunResult verified result error = %v", err)
+	}
+}
+
 func TestValidateUploadResultAcceptsSegmentClip(t *testing.T) {
 	err := ValidateUploadResult(RecordingResult{
 		Artifacts: []RecordingArtifact{{

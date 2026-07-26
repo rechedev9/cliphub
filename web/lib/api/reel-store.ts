@@ -30,6 +30,8 @@ export type ReelIntent = {
   title: string;
   map: string;
   score: string;
+  /** Display name for the selected SteamID; optional for migrated intents. */
+  targetName?: string;
   createdAt: number;
 };
 
@@ -102,6 +104,7 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
       title: typeof r.title === 'string' ? r.title : 'Highlight',
       map: typeof r.map === 'string' ? r.map : 'Unknown',
       score: typeof r.score === 'string' ? r.score : '',
+      targetName: typeof r.targetName === 'string' && r.targetName.trim() !== '' ? r.targetName.trim() : undefined,
       createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
     });
   }

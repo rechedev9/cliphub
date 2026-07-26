@@ -114,7 +114,8 @@ export function ReelCard({
   footer,
 }: ReelCardProps): ReactNode {
   const map = prettyMapName(video.map);
-  const meta = video.score ? `${map} · ${video.score}` : map;
+  const matchMeta = video.score ? `${map} · ${video.score}` : map;
+  const meta = video.targetName ? `POV ${video.targetName} · ${matchMeta}` : matchMeta;
 
   /*
    * The generated plate is painted underneath rather than chosen instead of the

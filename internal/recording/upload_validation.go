@@ -11,6 +11,9 @@ func ValidateRunResult(result RecordingResult) error {
 	if result.Error != "" {
 		return fmt.Errorf("recording result error: %s", result.Error)
 	}
+	if result.Plan.CaptureContract == CaptureContractVersion && !result.CaptureVerified {
+		return fmt.Errorf("recording result lacks completed POV verification")
+	}
 	return nil
 }
 
@@ -19,6 +22,9 @@ func ValidateRunResult(result RecordingResult) error {
 func ValidateUploadResult(result RecordingResult) error {
 	if result.Error != "" {
 		return nil
+	}
+	if err := ValidateRunResult(result); err != nil {
+		return err
 	}
 	clips := map[string]bool{}
 	for _, artifact := range result.Artifacts {

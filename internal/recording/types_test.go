@@ -34,6 +34,9 @@ func TestNewPlanFromKillPlan(t *testing.T) {
 	if plan.TargetAccountID != 188721128 {
 		t.Errorf("TargetAccountID = %d, want 188721128", plan.TargetAccountID)
 	}
+	if plan.CaptureContract != CaptureContractVersion {
+		t.Errorf("CaptureContract = %q, want %q", plan.CaptureContract, CaptureContractVersion)
+	}
 	if plan.DemoMap != "de_ancient" {
 		t.Errorf("DemoMap = %q, want de_ancient", plan.DemoMap)
 	}
@@ -61,6 +64,14 @@ func TestValidateRejectsBadSegment(t *testing.T) {
 	}
 	if err := p.Validate(); err == nil {
 		t.Fatal("Validate error = nil, want error")
+	}
+}
+
+func TestValidateRejectsContradictorySteamAndAccountIDs(t *testing.T) {
+	p := testPlan()
+	p.TargetAccountID++
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "target_account_id") {
+		t.Fatalf("Validate error = %v, want contradictory target_account_id error", err)
 	}
 }
 

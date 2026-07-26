@@ -69,7 +69,8 @@ export function ReadyCard({
     }
   };
 
-  const meta = video.score ? `${video.map} · ${video.score}` : video.map;
+  const matchMeta = video.score ? `${video.map} · ${video.score}` : video.map;
+  const meta = video.targetName ? `POV ${video.targetName} · ${matchMeta}` : matchMeta;
   const formatBadge = reelFormatLabel(video.editConfig);
 
   return (

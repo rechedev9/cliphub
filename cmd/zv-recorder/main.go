@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -128,7 +130,17 @@ func run() error {
 	if err := os.MkdirAll(plan.OutputDir, 0o750); err != nil {
 		return err
 	}
-	script, err := recording.GenerateHLAEJavaScript(plan)
+	attestationToken := ""
+	var script string
+	if !*dryRun && !fakeMode {
+		attestationToken, err = newCaptureAttestationToken()
+		if err != nil {
+			return err
+		}
+		script, err = recording.GenerateHLAEJavaScriptWithAttestation(plan, attestationToken)
+	} else {
+		script, err = recording.GenerateHLAEJavaScript(plan)
+	}
 	if err != nil {
 		return err
 	}
@@ -156,6 +168,9 @@ func run() error {
 			return err
 		}
 		result.Artifacts = artifacts
+		// Fake clips exercise downstream E2E without HLAE. Do not stamp them with
+		// the real runtime contract or let workers reuse them as verified POV.
+		result.Plan.CaptureContract = ""
 		result.Warnings = recording.ValidateArtifacts(plan, result.Artifacts)
 		return writeResultAndReport(plan.OutputDir, result, false, *format, os.Stdout)
 	}
@@ -219,7 +234,7 @@ func run() error {
 		<-muxDone
 	}
 
-	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath); err != nil {
+	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath, attestationToken); err != nil {
 		stopIncrementalMux()
 		result.Error = err.Error()
 		// Preserve completed takes before returning the capture failure. Avoid
@@ -233,6 +248,7 @@ func run() error {
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
+	result.CaptureVerified = true
 	stopIncrementalMux()
 
 	// Post-processing (ffprobe/ffmpeg) runs after recording, so give it its own
@@ -378,7 +394,21 @@ func ensureDefaultAvatar(cs2Exe string) error {
 	return nil
 }
 
-func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.RecordingPlan, scriptPath string) error {
+func newCaptureAttestationToken() (string, error) {
+	var token [32]byte
+	if _, err := rand.Read(token[:]); err != nil {
+		return "", fmt.Errorf("generate capture attestation token: %w", err)
+	}
+	return hex.EncodeToString(token[:]), nil
+}
+
+func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.RecordingPlan, scriptPath, attestationToken string) error {
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("HLAE/CS2 capture is supported only on Windows")
+	}
+	if attestationToken == "" {
+		return fmt.Errorf("capture attestation token is required")
+	}
 	hook, err := locateHookDLL(hlaeExe)
 	if err != nil {
 		return err
@@ -387,7 +417,7 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if err := prepareCS2ConsoleLog(consoleLogPath); err != nil {
 		return err
 	}
-	consoleLog := newCS2ConsoleLogMonitor(consoleLogPath)
+	consoleLog := newCS2ConsoleLogMonitor(consoleLogPath, attestationToken)
 	cs2CmdLine := cs2LaunchCommandLine(plan, scriptPath)
 	// #nosec G204 -- HLAE/CS2 paths are explicit local tool paths and args are not shell-interpolated.
 	cmd := exec.CommandContext(ctx, hlaeExe,
@@ -404,10 +434,10 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("HLAE launcher failed: %w", err)
 	}
-	if runtime.GOOS != "windows" {
-		return nil
+	if err := waitForWindowsProcessRunAndExit(ctx, "cs2.exe", consoleLog); err != nil {
+		return err
 	}
-	return waitForWindowsProcessRunAndExit(ctx, "cs2.exe", consoleLog)
+	return consoleLog.requireCaptureVerified()
 }
 
 func cs2LaunchCommandLine(plan recording.RecordingPlan, scriptPath string) string {
@@ -531,9 +561,12 @@ func cs2ConsoleLogPath(cs2Exe string) string {
 const demoParseFailureMarker = "NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR"
 
 type cs2ConsoleLogMonitor struct {
-	path   string
-	offset int64
-	tail   string
+	path            string
+	offset          int64
+	tail            string
+	captureVerified bool
+	failedMarker    string
+	verifiedMarker  string
 }
 
 func prepareCS2ConsoleLog(path string) error {
@@ -543,8 +576,12 @@ func prepareCS2ConsoleLog(path string) error {
 	return nil
 }
 
-func newCS2ConsoleLogMonitor(path string) *cs2ConsoleLogMonitor {
-	monitor := &cs2ConsoleLogMonitor{path: path}
+func newCS2ConsoleLogMonitor(path, attestationToken string) *cs2ConsoleLogMonitor {
+	monitor := &cs2ConsoleLogMonitor{
+		path:           path,
+		failedMarker:   recording.CaptureFailedAttestation(attestationToken),
+		verifiedMarker: recording.CaptureVerifiedAttestation(attestationToken),
+	}
 	if info, err := os.Stat(path); err == nil {
 		monitor.offset = info.Size()
 	}
@@ -581,16 +618,45 @@ func (m *cs2ConsoleLogMonitor) failure() error {
 	}
 
 	content := m.tail + string(data)
+	if strings.Contains(content, m.failedMarker) {
+		return &captureVerificationError{path: m.path, reason: "HLAE runtime rejected the observer POV"}
+	}
+	if strings.Contains(content, m.verifiedMarker) {
+		m.captureVerified = true
+	}
 	if strings.Contains(content, demoParseFailureMarker) {
 		return &demoParseError{path: m.path}
 	}
-	keep := len(demoParseFailureMarker) - 1
+	keep := max(
+		len(demoParseFailureMarker),
+		len(m.failedMarker),
+		len(m.verifiedMarker),
+	) - 1
 	if len(content) > keep {
 		m.tail = content[len(content)-keep:]
 	} else {
 		m.tail = content
 	}
 	return nil
+}
+
+func (m *cs2ConsoleLogMonitor) requireCaptureVerified() error {
+	if m.captureVerified {
+		return nil
+	}
+	return &captureVerificationError{
+		path:   m.path,
+		reason: "CS2 exited without the completed POV verification marker",
+	}
+}
+
+type captureVerificationError struct {
+	path   string
+	reason string
+}
+
+func (e *captureVerificationError) Error() string {
+	return fmt.Sprintf("capture POV verification failed: %s; check CS2 console log %q", e.reason, e.path)
 }
 
 type demoParseError struct {

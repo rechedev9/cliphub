@@ -17,6 +17,7 @@ const valid: ReelIntent = {
   title: 'Ace',
   map: 'de_dust2',
   score: '13-7',
+  targetName: 'zack',
   createdAt: 123,
 };
 
@@ -40,13 +41,13 @@ test('drops entries with no segment ids at all', () => {
 
 test('defaults soft fields, normalizes mode, migrates missing variant', () => {
   assert.deepEqual(coerceIntents([{ videoId: 'v', jobId: 'j', segmentIds: ['s'], mode: 'weird' }]), [
-    { videoId: 'v', jobId: 'j', segmentIds: ['s'], mode: 'clean', variant: 'viral-60-clean', editConfig: DEFAULT_EDIT_CONFIG, songId: undefined, musicVolume: undefined, title: 'Highlight', map: 'Unknown', score: '', createdAt: 0 },
+    { videoId: 'v', jobId: 'j', segmentIds: ['s'], mode: 'clean', variant: 'viral-60-clean', editConfig: DEFAULT_EDIT_CONFIG, songId: undefined, musicVolume: undefined, title: 'Highlight', map: 'Unknown', score: '', targetName: undefined, createdAt: 0 },
   ]);
 });
 
 test('migrates a legacy singular segmentId into a one-element segmentIds array', () => {
   assert.deepEqual(coerceIntents([{ videoId: 'v', jobId: 'j', segmentId: 'seg-001', mode: 'clean' }]), [
-    { videoId: 'v', jobId: 'j', segmentIds: ['seg-001'], mode: 'clean', variant: 'viral-60-clean', editConfig: DEFAULT_EDIT_CONFIG, songId: undefined, musicVolume: undefined, title: 'Highlight', map: 'Unknown', score: '', createdAt: 0 },
+    { videoId: 'v', jobId: 'j', segmentIds: ['seg-001'], mode: 'clean', variant: 'viral-60-clean', editConfig: DEFAULT_EDIT_CONFIG, songId: undefined, musicVolume: undefined, title: 'Highlight', map: 'Unknown', score: '', targetName: undefined, createdAt: 0 },
   ]);
 });
 

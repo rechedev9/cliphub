@@ -129,6 +129,7 @@ func buildKillPlanKills(in []RawKill) []killplan.Kill {
 			Weapon:    k.Weapon,
 			Headshot:  k.Headshot,
 			Wallbang:  k.Wallbang,
+			Killer:    k.Killer,
 			Victim:    k.Victim,
 			KillerPos: k.KillerPos,
 			VictimPos: k.VictimPos,

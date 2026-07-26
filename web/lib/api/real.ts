@@ -160,6 +160,7 @@ function videoFromIntent(intent: ReelIntent): Video {
     title: intent.title,
     map: intent.map,
     score: intent.score,
+    targetName: intent.targetName,
     mode: intent.mode,
     variant: intent.variant,
     songId: intent.songId,
@@ -405,6 +406,7 @@ export class RealApiClient implements ApiClient {
       title: `${playsSelectionLabel(pickedPlays) ?? 'Highlight'} - ${suffix}`,
       map: match?.map ?? 'Unknown',
       score: match?.score ?? '',
+      targetName: match?.player,
       createdAt: Date.now(),
     };
     this.intents.set(videoId, intent);
@@ -567,7 +569,10 @@ export class RealApiClient implements ApiClient {
   }
 
   private async reconcileOne(intent: ReelIntent): Promise<void> {
-    const job = await this.fetchStatusFull(intent.jobId);
+    const [job] = await Promise.all([
+      this.fetchStatusFull(intent.jobId),
+      this.hydrateIntentTarget(intent),
+    ]);
     if (job === null) {
       // Memory-mode orchestrator restart drops jobs; the reel is unrecoverable
       // (retry can never re-drive a job that no longer exists). A single 404
@@ -613,6 +618,7 @@ export class RealApiClient implements ApiClient {
     // captureProgress is present only while recording (view carries it through);
     // any other status clears it so a stale percent never lingers on the card.
     const next: Video = { ...base, status: view.status, failureReason: view.failureReason, captureProgress: view.captureProgress };
+    if (intent.targetName) next.targetName = intent.targetName;
     // The unrecoverable flag is a latch: once the job is authoritatively gone it
     // stays gone, so a racing plain-failed view (e.g. an in-flight drive() error
     // landing after the latch) must not clear it. Written by presence, never as
@@ -632,6 +638,26 @@ export class RealApiClient implements ApiClient {
       if (names.cover) next.thumbnailUrl = dp.coverUrl(intent.jobId, variant, names.cover);
     }
     this.reels.set(intent.videoId, next);
+  }
+
+  /**
+   * Migrates a persisted reel intent that predates target display by reading the
+   * immutable target from its kill plan. Failure is best-effort: the next poll
+   * retries, while normal reconciliation continues from server truth.
+   */
+  private async hydrateIntentTarget(intent: ReelIntent): Promise<void> {
+    if (intent.targetName) return;
+    try {
+      const plan = await readJson<KillPlan>(
+        await this.send((dp) => ({ url: dp.planUrl(intent.jobId) })),
+      );
+      const targetName = plan.target?.name_in_demo?.trim();
+      if (!targetName) return;
+      intent.targetName = targetName;
+      saveReelIntents(Array.from(this.intents.values()));
+    } catch {
+      // Plan can be temporarily unavailable while parsing or the service is offline.
+    }
   }
 
   /** Issues the single pipeline POST for `action`, guarded so it fires at most once. */

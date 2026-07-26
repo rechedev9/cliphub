@@ -1165,8 +1165,9 @@ func recordingResultWithSegment(scriptPath, segmentPath string) recording.Record
 		panic(fmt.Sprintf("build test recording plan: %v", err))
 	}
 	return recording.RecordingResult{
-		Plan:   recordingPlan,
-		Script: scriptPath,
+		Plan:            recordingPlan,
+		Script:          scriptPath,
+		CaptureVerified: true,
 		Artifacts: []recording.RecordingArtifact{{
 			SegmentID: "seg-001",
 			Role:      "segment",

@@ -11,7 +11,7 @@ import (
 
 // SchemaVersion identifies the kill plan document format. Downstream
 // consumers should reject versions they do not understand.
-const SchemaVersion = "1.1"
+const SchemaVersion = "1.2"
 
 // Plan is the top-level kill plan document.
 type Plan struct {
@@ -57,6 +57,7 @@ type Kill struct {
 	Weapon    string     `json:"weapon"`
 	Headshot  bool       `json:"headshot"`
 	Wallbang  bool       `json:"wallbang"`
+	Killer    Player     `json:"killer"`
 	Victim    Player     `json:"victim"`
 	KillerPos [3]float64 `json:"killer_pos"`
 	VictimPos [3]float64 `json:"victim_pos"`

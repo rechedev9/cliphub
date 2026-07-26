@@ -3,10 +3,8 @@ package recording
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 type scheduledCommand struct {
@@ -24,16 +22,41 @@ type seekStep struct {
 	Target int `json:"target"`
 }
 
+// captureWindow is the interval where the generated runtime must prove that
+// the local spectator observes the selected SteamID. Recording never starts
+// without that proof, and any drift before the final selected event fails the
+// run instead of publishing a structurally valid clip from another POV.
+type captureWindow struct {
+	SegmentID   string `json:"segmentId"`
+	LockFrom    int    `json:"lockFrom"`
+	RecordStart int    `json:"recordStart"`
+	VerifyUntil int    `json:"verifyUntil"`
+	RecordEnd   int    `json:"recordEnd"`
+}
+
 const minimumDemoSeekGapSeconds = 30
 
 // GenerateHLAEJavaScript renders a self-contained HLAE 2.x mirv-script file.
 func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
+	return generateHLAEJavaScript(plan, "dry-run-no-runtime-attestation")
+}
+
+// GenerateHLAEJavaScriptWithAttestation binds runtime completion markers to
+// one recorder invocation so demo-controlled console text cannot spoof success.
+func GenerateHLAEJavaScriptWithAttestation(plan RecordingPlan, token string) (string, error) {
+	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") {
+		return "", fmt.Errorf("capture attestation token must be non-empty and single-line")
+	}
+	return generateHLAEJavaScript(plan, token)
+}
+
+func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string, error) {
 	plan.Stream = normalizeStreamConfig(plan.Stream)
 	if err := plan.Validate(); err != nil {
 		return "", err
 	}
 
-	schedule, seeks := buildSchedule(plan)
+	schedule, seeks, windows := buildRuntimeSchedule(plan)
 	sort.SliceStable(schedule, func(i, j int) bool {
 		if schedule[i].Tick == schedule[j].Tick {
 			return schedule[i].Key < schedule[j].Key
@@ -46,6 +69,14 @@ func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
 		return "", err
 	}
 	seeksJSON, err := json.MarshalIndent(seeks, "    ", "  ")
+	if err != nil {
+		return "", err
+	}
+	windowsJSON, err := json.MarshalIndent(windows, "    ", "  ")
+	if err != nil {
+		return "", err
+	}
+	targetSteamIDJSON, err := json.Marshal(plan.TargetSteamID64)
 	if err != nil {
 		return "", err
 	}
@@ -63,12 +94,80 @@ func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
 	sb.WriteString(";\n")
 	sb.WriteString("    const seeks = ")
 	sb.Write(seeksJSON)
+	sb.WriteString(";\n")
+	sb.WriteString("    const captureWindows = ")
+	sb.Write(windowsJSON)
+	sb.WriteString(";\n")
+	sb.WriteString("    const targetSteamId = ")
+	sb.Write(targetSteamIDJSON)
 	sb.WriteString(";\n\n")
 	sb.WriteString("    const fired = {};\n")
 	sb.WriteString("    let armed = false;\n")
 	sb.WriteString("    let seekIdx = 0;\n")
 	sb.WriteString("    let frame = 0;\n")
 	sb.WriteString("    let lastSeekFrame = -999;\n")
+	sb.WriteString("    let seekAttempts = 0;\n")
+	sb.WriteString("    const maxSeekAttempts = 6000;\n")
+	sb.WriteString("    let lastLockFrame = -999;\n")
+	sb.WriteString("    let activeSegment = null;\n")
+	sb.WriteString("    let fatal = false;\n")
+	sb.WriteString("    const lockAttempts = {};\n")
+	sb.WriteString("    const entityFromHandle = (handle) => {\n")
+	sb.WriteString("        if (!mirv.isHandleValid(handle)) return null;\n")
+	sb.WriteString("        return mirv.getEntityFromIndex(mirv.getHandleEntryIndex(handle));\n")
+	sb.WriteString("    };\n")
+	sb.WriteString("    const targetControllerIndex = () => {\n")
+	sb.WriteString("        const highest = mirv.getHighestEntityIndex();\n")
+	sb.WriteString("        for (let index = 1; index <= highest; index++) {\n")
+	sb.WriteString("            const entity = mirv.getEntityFromIndex(index);\n")
+	sb.WriteString("            if (entity === null || !entity.isPlayerController()) continue;\n")
+	sb.WriteString("            try {\n")
+	sb.WriteString("                if (entity.getSteamId().toString() === targetSteamId) return index;\n")
+	sb.WriteString("            } catch (_) {\n")
+	sb.WriteString("                // Entity handles can be replaced while a seek settles.\n")
+	sb.WriteString("            }\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("        return null;\n")
+	sb.WriteString("    };\n")
+	sb.WriteString("    const observedSteamId = () => {\n")
+	sb.WriteString("        try {\n")
+	sb.WriteString("            const localController = mirv.getEntityFromSplitScreenPlayer(0);\n")
+	sb.WriteString("            if (localController === null) return null;\n")
+	sb.WriteString("            const localPawn = entityFromHandle(localController.getPlayerPawnHandle());\n")
+	sb.WriteString("            if (localPawn === null || !localPawn.isPlayerPawn()) return null;\n")
+	sb.WriteString("            const observedPawn = entityFromHandle(localPawn.getObserverTargetHandle());\n")
+	sb.WriteString("            if (observedPawn === null || !observedPawn.isPlayerPawn()) return null;\n")
+	sb.WriteString("            const observedController = entityFromHandle(observedPawn.getPlayerControllerHandle());\n")
+	sb.WriteString("            if (observedController === null || !observedController.isPlayerController()) return null;\n")
+	sb.WriteString("            return observedController.getSteamId().toString();\n")
+	sb.WriteString("        } catch (_) {\n")
+	sb.WriteString("            return null;\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("    };\n")
+	sb.WriteString("    const lockTarget = (segmentId) => {\n")
+	sb.WriteString("        const targetIndex = targetControllerIndex();\n")
+	sb.WriteString("        const attempt = (lockAttempts[segmentId] ?? 0) + 1;\n")
+	sb.WriteString("        lockAttempts[segmentId] = attempt;\n")
+	sb.WriteString("        if (attempt === 1 || attempt % 60 === 0) {\n")
+	sb.WriteString("            mirv.message(`[zackvideo] pov-lock ${segmentId} attempt ${attempt} controller ${targetIndex ?? \"missing\"}\\n`);\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("        if (targetIndex === null) return;\n")
+	sb.WriteString("        mirv.exec(\"spec_autodirector 0\");\n")
+	sb.WriteString("        mirv.exec(\"spec_mode 2\");\n")
+	sb.WriteString("        mirv.exec(`spec_player ${targetIndex}`);\n")
+	sb.WriteString("    };\n")
+	sb.WriteString("    const failCapture = (reason) => {\n")
+	sb.WriteString("        if (fatal) return;\n")
+	sb.WriteString("        fatal = true;\n")
+	sb.WriteString("        mirv.warning(`[zackvideo] capture_failed: ${reason}\\n`);\n")
+	failedAttestation := CaptureFailedAttestation(attestationToken)
+	verifiedAttestation := CaptureVerifiedAttestation(attestationToken)
+	sb.WriteString(fmt.Sprintf("        mirv.warning(%q);\n", failedAttestation+"\\n"))
+	sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", "echo "+failedAttestation))
+	sb.WriteString("        if (activeSegment !== null) mirv.exec(\"mirv_streams record end\");\n")
+	sb.WriteString("        mirv.exec(\"disconnect\");\n")
+	sb.WriteString("        mirv.exec(\"quit\");\n")
+	sb.WriteString("    };\n")
 	sb.WriteString("    const run = (item) => {\n")
 	sb.WriteString("        if (fired[item.key]) return;\n")
 	sb.WriteString("        fired[item.key] = true;\n")
@@ -79,7 +178,7 @@ func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
 	sb.WriteString("        }\n")
 	sb.WriteString("    };\n\n")
 	sb.WriteString("    mirv.events.clientFrameStageNotify.on(id, (e) => {\n")
-	sb.WriteString("        if (e.isBefore) return;\n")
+	sb.WriteString("        if (e.isBefore || fatal) return;\n")
 	sb.WriteString("        // A local empty server can advance its tick before the delayed +playdemo\n")
 	sb.WriteString("        // command starts playback. getDemoTick alone therefore cannot prove that a\n")
 	sb.WriteString("        // demo is active. Wait for HLAE's engine-backed playback check first.\n")
@@ -99,17 +198,59 @@ func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
 	sb.WriteString("            if (tick >= s.after) {\n")
 	sb.WriteString("                if (tick + 8 < s.target) {\n")
 	sb.WriteString("                    if (frame - lastSeekFrame >= 8) {\n")
-	sb.WriteString("                        mirv.message(`[zackvideo] seek -> ${s.target} (at ${tick})\\n`);\n")
+	sb.WriteString("                        seekAttempts++;\n")
+	sb.WriteString("                        if (seekAttempts > maxSeekAttempts) {\n")
+	sb.WriteString("                            failCapture(`seek ${seekIdx + 1} did not reach tick ${s.target} after ${maxSeekAttempts} attempts`);\n")
+	sb.WriteString("                            return;\n")
+	sb.WriteString("                        }\n")
+	sb.WriteString("                        if (seekAttempts === 1 || seekAttempts % 60 === 0) {\n")
+	sb.WriteString("                            mirv.message(`[zackvideo] seek ${seekIdx + 1} -> ${s.target} attempt ${seekAttempts} (at ${tick})\\n`);\n")
+	sb.WriteString("                        }\n")
 	sb.WriteString("                        mirv.exec(`demo_gototick ${s.target}`);\n")
 	sb.WriteString("                        lastSeekFrame = frame;\n")
 	sb.WriteString("                    }\n")
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
 	sb.WriteString("                seekIdx++;\n")
+	sb.WriteString("                seekAttempts = 0;\n")
+	sb.WriteString("            }\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("        const captureWindow = captureWindows.find((window) => tick >= window.lockFrom && tick <= window.verifyUntil);\n")
+	sb.WriteString("        if (captureWindow !== undefined) {\n")
+	sb.WriteString("            const observed = observedSteamId();\n")
+	sb.WriteString("            if (activeSegment === captureWindow.segmentId && observed !== targetSteamId) {\n")
+	sb.WriteString("                failCapture(`observer target ${observed ?? \"unknown\"} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+	sb.WriteString("                return;\n")
+	sb.WriteString("            }\n")
+	sb.WriteString("            if (activeSegment === null && observed !== targetSteamId && frame - lastLockFrame >= 8) {\n")
+	sb.WriteString("                lockTarget(captureWindow.segmentId);\n")
+	sb.WriteString("                lastLockFrame = frame;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("        for (const item of schedule) {\n")
-	sb.WriteString("            if (!fired[item.key] && tick >= item.tick) run(item);\n")
+	sb.WriteString("            if (fired[item.key] || tick < item.tick) continue;\n")
+	sb.WriteString("            if (item.key.startsWith(\"record-start-\")) {\n")
+	sb.WriteString("                const window = captureWindows.find((candidate) => `record-start-${candidate.segmentId}` === item.key);\n")
+	sb.WriteString("                const observed = observedSteamId();\n")
+	sb.WriteString("                if (window === undefined || observed !== targetSteamId) {\n")
+	sb.WriteString("                    failCapture(`observer target ${observed ?? \"unknown\"} does not match ${targetSteamId} before ${item.key}`);\n")
+	sb.WriteString("                    return;\n")
+	sb.WriteString("                }\n")
+	sb.WriteString("                run(item);\n")
+	sb.WriteString("                activeSegment = window.segmentId;\n")
+	sb.WriteString("                continue;\n")
+	sb.WriteString("            }\n")
+	sb.WriteString("            if (item.key === \"shutdown\") {\n")
+	sb.WriteString("                const complete = activeSegment === null && captureWindows.every((window) => fired[`record-end-${window.segmentId}`]);\n")
+	sb.WriteString("                if (!complete) {\n")
+	sb.WriteString("                    failCapture(\"capture reached shutdown before every protected segment completed\");\n")
+	sb.WriteString("                    return;\n")
+	sb.WriteString("                }\n")
+	sb.WriteString(fmt.Sprintf("                mirv.message(%q);\n", verifiedAttestation+"\\n"))
+	sb.WriteString(fmt.Sprintf("                mirv.exec(%q);\n", "echo "+verifiedAttestation))
+	sb.WriteString("            }\n")
+	sb.WriteString("            run(item);\n")
+	sb.WriteString("            if (item.key.startsWith(\"record-end-\")) activeSegment = null;\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("    });\n\n")
 	sb.WriteString("    globalThis[id] = {\n")
@@ -120,9 +261,15 @@ func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
 }
 
 func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
+	commands, seeks, _ := buildRuntimeSchedule(plan)
+	return commands, seeks
+}
+
+func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, []captureWindow) {
 	commands := []scheduledCommand{}
 	seeks := []seekStep{}
-	camera := cameraCommands(plan.TargetNameInDemo, plan.TargetAccountID, targetNameIsUnique(plan))
+	windows := []captureWindow{}
+	camera := []string{"spec_autodirector 0", "spec_mode 2"}
 	setupTick := 25
 	for i, cmd := range streamSetupCommands(plan) {
 		commands = append(commands, scheduledCommand{
@@ -148,6 +295,13 @@ func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
 		if cameraWarmupTick >= recordStart {
 			cameraWarmupTick = recordStart - max(2, plan.Tickrate/2)
 		}
+		windows = append(windows, captureWindow{
+			SegmentID:   s.ID,
+			LockFrom:    max(seekTarget+1, cameraWarmupTick),
+			RecordStart: recordStart,
+			VerifyUntil: s.TickEnd,
+			RecordEnd:   s.TickEnd,
+		})
 
 		// Short demo_gototick jumps can corrupt CS2's demo netchannel. Let nearby
 		// segments advance naturally and reserve seeking for gaps worth skipping.
@@ -209,76 +363,7 @@ func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
 	commands = append(commands,
 		scheduledCommand{Tick: shutdownTick, Key: "shutdown", Commands: []string{"disconnect", "quit"}},
 	)
-	return commands, seeks
-}
-
-// targetNameIsUnique reports whether the target's in-demo name identifies the
-// target and nobody else, judged on the evidence the plan itself carries: every
-// victim the target killed. A name shared with another player is not a usable
-// selector, and CS2 has no way to say "the one with this account id" once the
-// command is issued by name.
-//
-// This is one-sided on purpose. It sees the players the target killed, not the
-// whole server, so it proves ambiguity but never uniqueness; a duplicate that
-// never died to the target still reads as unique. That is the right side to err
-// on: the fallback exists for demos where the account-ID selection silently does
-// nothing, and refusing it wholesale would give those demos no camera at all.
-func targetNameIsUnique(plan RecordingPlan) bool {
-	name := strings.TrimSpace(plan.TargetNameInDemo)
-	if name == "" {
-		return false
-	}
-	for _, segment := range plan.Segments {
-		for _, kill := range segment.Kills {
-			victim := kill.Victim
-			if strings.TrimSpace(victim.NameInDemo) == name && victim.SteamID64 != plan.TargetSteamID64 {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func cameraCommands(targetName string, accountID uint32, nameIsUnique bool) []string {
-	if slot := strings.TrimSpace(os.Getenv("ZV_SPEC_PLAYER_SLOT")); slot != "" {
-		return []string{"spec_autodirector 0", "spec_mode 2", "spec_player " + slot, "spec_player " + slot}
-	}
-	if accountID != 0 {
-		player := fmt.Sprintf("spec_player_by_accountid %d", accountID)
-		commands := []string{"spec_autodirector 0", "spec_mode 2", player, player}
-		// Some non-HLTV demos expose the parsed Steam account ID but do not
-		// resolve spec_player_by_accountid during playback. Re-issue the
-		// selection by the validated in-demo name so those demos still lock the
-		// intended POV. Keep the name last because the account-ID command can
-		// fail silently without changing the current spectator target.
-		//
-		// Only when the name is unambiguous: it is issued after the account id
-		// and would therefore win, so a name two players share would replace a
-		// correct selection with a coin flip. The account id is the exact key
-		// and stays on its own in that case.
-		if nameIsUnique && safeConsolePlayerName(targetName) {
-			target := "spec_player " + quoteConsoleArg(targetName)
-			commands = append(commands, target, target)
-		}
-		return commands
-	}
-	if safeConsolePlayerName(targetName) {
-		target := quoteConsoleArg(targetName)
-		return []string{"spec_autodirector 0", "spec_mode 2", "spec_player " + target, "spec_mode 2", "spec_player " + target}
-	}
-	return []string{"spec_autodirector 0", "spec_mode 2"}
-}
-
-func safeConsolePlayerName(name string) bool {
-	if name == "" || strings.ContainsRune(name, ';') {
-		return false
-	}
-	for _, r := range name {
-		if unicode.IsControl(r) {
-			return false
-		}
-	}
-	return true
+	return commands, seeks, windows
 }
 
 func quoteConsoleArg(value string) string {

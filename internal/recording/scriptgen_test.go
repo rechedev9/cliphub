@@ -31,6 +31,7 @@ func TestStreamSetupCommandsQuotesRecordName(t *testing.T) {
 
 func testPlan() RecordingPlan {
 	return RecordingPlan{
+		CaptureContract:  CaptureContractVersion,
 		DemoPath:         `C:\demos\x.dem`,
 		OutputDir:        `C:\out`,
 		TargetSteamID64:  "76561198148986856",
@@ -56,12 +57,11 @@ func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 		`if (!mirv.isPlayingDemo()) return;`,
 		`mirv.getDemoTick()`,
 		`if (tick === undefined || tick < 0) return;`,
-		`tick >= item.tick`,
+		`tick < item.tick`,
 		`fired[item.key] = true`,
 		`cl_demo_predict 0`,
 		`cl_trueview_show_status 0`,
 		`mirv_panorama panelstyle panelId=trueview_row opacity=0`,
-		`spec_player_by_accountid 188721128`,
 		`"commands": [`,
 		`camera-warmup-seg-001`,
 		`camera-lead-3s-seg-001`,
@@ -74,6 +74,9 @@ func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 		`const seeks = `,
 		"\"target\": 21766",
 		"\"target\": 31426",
+		`const maxSeekAttempts = 6000`,
+		`seekAttempts % 60 === 0`,
+		`did not reach tick`,
 		"mirv.exec(`demo_gototick ${s.target}`)",
 		`demoui`,
 		`mirv_streams record fps 60`,
@@ -94,6 +97,57 @@ func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("generated JS missing %q\n%s", want, js)
+		}
+	}
+}
+
+func TestGenerateHLAEJavaScriptLocksAndVerifiesTheObservedSteamID(t *testing.T) {
+	token := strings.Repeat("unit-test-", 4)
+	js, err := GenerateHLAEJavaScriptWithAttestation(testPlan(), token)
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	for _, want := range []string{
+		`const targetSteamId = "76561198148986856"`,
+		`mirv.getHighestEntityIndex()`,
+		`entity.isPlayerController()`,
+		`entity.getSteamId().toString() === targetSteamId`,
+		`mirv.getEntityFromSplitScreenPlayer(0)`,
+		`getObserverTargetHandle()`,
+		`spec_player ${targetIndex}`,
+		`[zackvideo] capture_failed:`,
+		CaptureFailedMarker,
+		CaptureVerifiedMarker,
+		CaptureFailedAttestation(token),
+		CaptureVerifiedAttestation(token),
+		`observer target`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("generated JS missing verified POV contract %q\n%s", want, js)
+		}
+	}
+	if strings.Contains(js, `spec_player_by_accountid`) || strings.Contains(js, `spec_player "maaryy"`) {
+		t.Fatalf("generated JS still depends on an unverified account/name selector:\n%s", js)
+	}
+}
+
+func TestGenerateHLAEJavaScriptRejectsInvalidAttestationToken(t *testing.T) {
+	for _, token := range []string{"", "line1\nline2"} {
+		if _, err := GenerateHLAEJavaScriptWithAttestation(testPlan(), token); err == nil {
+			t.Fatalf("token %q was accepted", token)
+		}
+	}
+}
+
+func TestBuildRuntimeScheduleVerifiesPOVThroughRecordEnd(t *testing.T) {
+	plan := testPlan()
+	_, _, windows := buildRuntimeSchedule(plan)
+	if got, want := len(windows), len(plan.Segments); got != want {
+		t.Fatalf("capture window count = %d, want %d", got, want)
+	}
+	for i, window := range windows {
+		if got, want := window.VerifyUntil, plan.Segments[i].TickEnd; got != want {
+			t.Errorf("window %s verifyUntil = %d, want record end %d", window.SegmentID, got, want)
 		}
 	}
 }
@@ -219,92 +273,6 @@ func TestEffectiveRecordStartTickAllowsCameraToSettleBeforeFirstKill(t *testing.
 	segment.Kills = nil
 	if got, want := effectiveRecordStartTick(segment, 64), segment.TickStart; got != want {
 		t.Fatalf("effectiveRecordStartTick() without kills = %d, want %d", got, want)
-	}
-}
-
-func TestCameraCommandsPreferAccountID(t *testing.T) {
-	got := strings.Join(cameraCommands("name;quit", 188721128, true), "\n")
-	if !strings.Contains(got, `spec_player_by_accountid 188721128`) {
-		t.Fatalf("cameraCommands() = %q, want account id", got)
-	}
-	if strings.Contains(got, "quit") {
-		t.Fatalf("cameraCommands() reflected demo-controlled command separator: %q", got)
-	}
-}
-
-func TestCameraCommandsFallBackToValidatedNameAfterAccountID(t *testing.T) {
-	got := cameraCommands("ma1wel", 18406923, true)
-	want := []string{
-		"spec_autodirector 0",
-		"spec_mode 2",
-		"spec_player_by_accountid 18406923",
-		"spec_player_by_accountid 18406923",
-		`spec_player "ma1wel"`,
-		`spec_player "ma1wel"`,
-	}
-	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("cameraCommands() = %#v, want %#v", got, want)
-	}
-}
-
-func TestCameraCommandsDropTheNameFallbackWhenItIsAmbiguous(t *testing.T) {
-	got := cameraCommands("ma1wel", 18406923, false)
-	want := []string{
-		"spec_autodirector 0",
-		"spec_mode 2",
-		"spec_player_by_accountid 18406923",
-		"spec_player_by_accountid 18406923",
-	}
-	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("cameraCommands() = %#v, want %#v", got, want)
-	}
-}
-
-func TestTargetNameIsUniqueRejectsANameAnotherPlayerShares(t *testing.T) {
-	plan := testPlan()
-	if !targetNameIsUnique(plan) {
-		t.Fatalf("targetNameIsUnique() = false for a plan with no duplicate name")
-	}
-
-	// A victim carrying the target's name but a different SteamID64 is proof
-	// that `spec_player "maaryy"` cannot pick out the target.
-	plan.Segments[0].Kills = []killplan.Kill{
-		{Tick: 22100, Victim: killplan.Player{SteamID64: "76561198000000001", NameInDemo: plan.TargetNameInDemo}},
-	}
-	if targetNameIsUnique(plan) {
-		t.Fatalf("targetNameIsUnique() = true with a duplicate in-demo name")
-	}
-
-	// The target killing someone under their own SteamID64 is not a duplicate.
-	plan.Segments[0].Kills[0].Victim.SteamID64 = plan.TargetSteamID64
-	if !targetNameIsUnique(plan) {
-		t.Fatalf("targetNameIsUnique() = false for the target's own SteamID64")
-	}
-}
-
-func TestGenerateHLAEJavaScriptOmitsTheNameFallbackForADuplicateName(t *testing.T) {
-	plan := testPlan()
-	plan.Segments[0].Kills = []killplan.Kill{
-		{Tick: 22100, Victim: killplan.Player{SteamID64: "76561198000000001", NameInDemo: plan.TargetNameInDemo}},
-	}
-	js, err := GenerateHLAEJavaScript(plan)
-	if err != nil {
-		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
-	}
-	if !strings.Contains(js, "spec_player_by_accountid 188721128") {
-		t.Fatalf("script lost the account-id selection:\n%s", js)
-	}
-	if strings.Contains(js, `spec_player \"maaryy\"`) || strings.Contains(js, `spec_player "maaryy"`) {
-		t.Fatalf("script kept a name fallback another player answers to:\n%s", js)
-	}
-}
-
-func TestCameraCommandsRejectUnsafeFallbackNames(t *testing.T) {
-	for _, name := range []string{"victim;quit", "victim\nquit", "victim\x00quit", "victim\u0085quit"} {
-		got := cameraCommands(name, 0, true)
-		if len(got) != 2 || got[0] != "spec_autodirector 0" || got[1] != "spec_mode 2" {
-			t.Fatalf("cameraCommands(%q) = %#v, want safe fallback", name, got)
-		}
 	}
 }
 

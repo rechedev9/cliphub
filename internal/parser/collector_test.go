@@ -109,6 +109,23 @@ func TestBuildPlanWithNoKillsReturnsEmptySegments(t *testing.T) {
 	}
 }
 
+func TestRecordTargetIdentityKeepsTheFirstObservedAliasAndTeam(t *testing.T) {
+	c := NewCollector(targetID, defaultTestRules())
+	c.RecordTargetIdentity("ZaCkETiZOR", "T")
+	c.RecordTargetIdentity("zack", "CT")
+
+	plan, err := c.Build(meta())
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if got, want := plan.Target.NameInDemo, "ZaCkETiZOR"; got != want {
+		t.Fatalf("Target.NameInDemo = %q, want first observed alias %q", got, want)
+	}
+	if got, want := plan.Target.TeamAtStart, "T"; got != want {
+		t.Fatalf("Target.TeamAtStart = %q, want starting team %q", got, want)
+	}
+}
+
 func TestBuildPlanAssemblesSegments(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	c.RecordTargetIdentity("MARTINEZSA", "CT")

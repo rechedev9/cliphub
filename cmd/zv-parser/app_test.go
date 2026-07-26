@@ -117,7 +117,7 @@ func TestRunUnknownSubcommandExits2(t *testing.T) {
 func TestWriteBytesCreatesNestedOutputDir(t *testing.T) {
 	dir := t.TempDir()
 	planPath := filepath.Join(dir, "plan.json")
-	if err := os.WriteFile(planPath, []byte(`{"schema_version":"1.1","segments":[]}`), 0o644); err != nil {
+	if err := os.WriteFile(planPath, []byte(`{"schema_version":"1.2","segments":[]}`), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
 
@@ -247,7 +247,7 @@ func TestRunUtilityAuditMissingPlanExits2(t *testing.T) {
 func TestRunUtilityAuditInvalidFormatExits2(t *testing.T) {
 	dir := t.TempDir()
 	planPath := filepath.Join(dir, "plan.json")
-	if err := os.WriteFile(planPath, []byte(`{"schema_version":"1.1","segments":[]}`), 0o644); err != nil {
+	if err := os.WriteFile(planPath, []byte(`{"schema_version":"1.2","segments":[]}`), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
 	code, _, stderr := runApp(t, "utility-audit", "--plan", planPath, "--format", "xml")

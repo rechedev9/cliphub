@@ -24,8 +24,8 @@ import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/fragforge/releases/download/v2.4.2/FragForge.Studio.Setup.2.4.2.exe";
-const RELEASE_VERSION = "v2.4.2";
+  "https://github.com/rechedev9/fragforge/releases/download/v2.4.3/FragForge.Studio.Setup.2.4.3.exe";
+const RELEASE_VERSION = "v2.4.3";
 const REPO_URL = "https://github.com/rechedev9/fragforge";
 
 function Corners() {

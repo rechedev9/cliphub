@@ -16,6 +16,10 @@ import (
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
+func testCaptureAttestation() string {
+	return strings.Repeat("unit-test-", 4)
+}
+
 func TestCS2LaunchCommandLineUsesWindowedMode(t *testing.T) {
 	plan := recording.RecordingPlan{
 		DemoPath: `C:\demos\match.dem`,
@@ -411,13 +415,92 @@ func TestCS2ConsoleLogMonitorReturnsDemoParseError(t *testing.T) {
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	monitor := newCS2ConsoleLogMonitor(path)
+	monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
 	appendConsoleLog(t, path, "disconnect: "+demoParseFailureMarker+"\n")
 
 	err := monitor.failure()
 	var parseErr *demoParseError
 	if !errors.As(err, &parseErr) {
 		t.Fatalf("failure() error = %v, want *demoParseError", err)
+	}
+}
+
+func TestCS2ConsoleLogMonitorAttestsCompletedPOVVerification(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "console.log")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
+	appendConsoleLog(t, path, "echo "+recording.CaptureVerifiedAttestation(testCaptureAttestation())+"\n")
+	if err := monitor.failure(); err != nil {
+		t.Fatalf("failure() error = %v", err)
+	}
+	if err := monitor.requireCaptureVerified(); err != nil {
+		t.Fatalf("requireCaptureVerified() error = %v", err)
+	}
+}
+
+func TestCS2ConsoleLogMonitorRejectsMarkerFromAnotherRun(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "console.log")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
+	appendConsoleLog(t, path, recording.CaptureVerifiedAttestation(strings.Repeat("other-run-", 4))+"\n")
+	if err := monitor.failure(); err != nil {
+		t.Fatalf("unrelated marker caused failure: %v", err)
+	}
+	if err := monitor.requireCaptureVerified(); err == nil {
+		t.Fatal("marker from another run attested this capture")
+	}
+}
+
+func TestNewCaptureAttestationTokenIsRandomAndStrong(t *testing.T) {
+	first, err := newCaptureAttestationToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := newCaptureAttestationToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 64 || len(second) != 64 {
+		t.Fatalf("token lengths = %d, %d, want 64 hex characters", len(first), len(second))
+	}
+	if first == second {
+		t.Fatal("two capture attestation tokens were identical")
+	}
+}
+
+func TestCS2ConsoleLogMonitorRejectsFailedOrMissingPOVVerification(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		content string
+		poll    bool
+	}{
+		{name: "runtime failure marker", content: recording.CaptureFailedMarker, poll: true},
+		{name: "missing completion marker"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "console.log")
+			if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
+			if tt.content != "" {
+				appendConsoleLog(t, path, recording.CaptureFailedAttestation(testCaptureAttestation())+"\n")
+			}
+			var err error
+			if tt.poll {
+				err = monitor.failure()
+			} else {
+				err = monitor.requireCaptureVerified()
+			}
+			var verificationErr *captureVerificationError
+			if !errors.As(err, &verificationErr) {
+				t.Fatalf("error = %v, want *captureVerificationError", err)
+			}
+		})
 	}
 }
 
@@ -443,7 +526,7 @@ func TestCS2ConsoleLogMonitorDetectsNewSplitDemoParseFailure(t *testing.T) {
 	if err := os.WriteFile(path, []byte("old "+demoParseFailureMarker+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	monitor := newCS2ConsoleLogMonitor(path)
+	monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
 	if err := monitor.failure(); err != nil {
 		t.Fatalf("failure() detected historical log content: %v", err)
 	}
@@ -471,7 +554,7 @@ func TestCS2ConsoleLogMonitorHandlesStartupTruncation(t *testing.T) {
 	if err := os.WriteFile(path, []byte(oldContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	monitor := newCS2ConsoleLogMonitor(path)
+	monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
 	if err := os.WriteFile(path, []byte("startup\n"+demoParseFailureMarker+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
