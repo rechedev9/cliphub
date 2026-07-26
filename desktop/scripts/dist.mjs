@@ -7,11 +7,13 @@ import {
   environmentWithoutCodeSigningCredentials,
   environmentWithoutXAIAPIKey,
 } from './build-environment.mjs';
+import { runDistributionBuildSteps } from './distribution-build.mjs';
 import { readPinnedHLAETool, verifyBundledHLAE } from './hlae-bundle.mjs';
 import { releasePaths, verifyReleaseChecksums, writeReleaseChecksums } from './release-integrity.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, '..');
+const repo = join(desktop, '..');
 const { artifacts: installerPaths, checksum: checksumPath } = releasePaths(desktop);
 
 if (process.argv.length > 2) {
@@ -30,12 +32,7 @@ rmSync(join(desktop, 'dist-installer', 'win-unpacked'), { recursive: true, force
 
 let failed = false;
 try {
-  execSync('pnpm run build', { cwd: desktop, env: sanitizedEnvironment, stdio: 'inherit' });
-  execSync('node scripts/assemble.mjs', {
-    cwd: desktop,
-    env: sanitizedEnvironment,
-    stdio: 'inherit',
-  });
+  runDistributionBuildSteps({ repo, desktop, environment: sanitizedEnvironment });
   execSync('electron-builder --win nsis', {
     cwd: desktop,
     env: sanitizedEnvironment,

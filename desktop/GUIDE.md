@@ -77,19 +77,15 @@ That scrub is defence in depth against an operator's unrelated key leaking into 
 Prerequisites: Go 1.26+, Node.js + pnpm, and the web deps installed.
 
 ```powershell
-# 1. From the repo root: build the Go binaries.
-.\scripts\build.ps1
-
-# 2. Install web deps (the assemble step runs the Next.js production build).
-cd web; pnpm install; cd ..
-
-# 3. Build the desktop app.
-cd desktop
-pnpm install
-pnpm run dist
+# From the repo root:
+pnpm --dir web install
+pnpm --dir desktop install
+pnpm --dir desktop run dist
 ```
 
-`pnpm run dist` runs `scripts/assemble.mjs` (builds the web in local mode and
+`pnpm run dist` first runs the root `scripts/build.ps1` so every Go runtime is
+rebuilt from the current source in the same distribution invocation. It then
+runs `scripts/assemble.mjs` (builds the web in local mode and
 stages `zv-orchestrator.exe`, `zv-editor.exe`, `zv-recorder.exe`, and the
 standalone server into `build-resources/`), then `electron-builder` produces the
 installer under `dist-installer/` (`FragForge Studio Setup <version>.exe`,
@@ -105,9 +101,10 @@ stays available in the repository build but is not shipped in the desktop
 installer.
 
 The build has one distribution target, `pnpm run dist`. It rejects unsupported
-arguments, removes `XAI_API_KEY` from every child build environment, and cannot
-stage or declare a credential resource. The installed app needs no credential of
-its own.
+arguments, rebuilds the Go runtime binaries before staging, removes
+`XAI_API_KEY` from every child build environment, and cannot stage or declare a
+credential resource. Never publish from an existing `bin/` or from a manually
+assembled resource tree. The installed app needs no credential of its own.
 
 The distribution command also creates `dist-installer/SHA256SUMS.txt` for the
 installer and its blockmap, then verifies both before returning success.
