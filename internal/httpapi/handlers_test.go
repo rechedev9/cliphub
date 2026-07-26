@@ -329,6 +329,15 @@ func (q *fakeQueue) enqueue(t *asynq.Task, transition func(error) error, opts ..
 // demoMagic is the CS2 (Source 2) demo header CreateJob validates against.
 var demoMagic = []byte("PBDEMS2\x00")
 
+func TestDemoUploadSizeLimits(t *testing.T) {
+	if got, want := maxDemoBytes, 700<<20; got != want {
+		t.Fatalf("maxDemoBytes = %d, want %d", got, want)
+	}
+	if got, want := maxMultipartBytes, maxDemoBytes+1<<20; got != want {
+		t.Fatalf("maxMultipartBytes = %d, want %d", got, want)
+	}
+}
+
 // multipartBody builds a CreateJob upload whose demo bytes start with a valid
 // CS2 demo header, so it exercises the happy path. Tests that need an invalid
 // header build their own body.

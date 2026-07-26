@@ -30,9 +30,9 @@ import {
  * capture, render), while its URL and optional token stay out of the browser.
  */
 
-// Matches the orchestrator's 600 MiB demo cap plus its 1 MiB allowance for
+// Matches the orchestrator's 700 MiB demo cap plus its 1 MiB allowance for
 // multipart boundaries and headers.
-const MAX_DEMO_REQUEST_BYTES = 601 * 1024 * 1024;
+const MAX_DEMO_REQUEST_BYTES = 701 * 1024 * 1024;
 
 /**
  * POST /api/demos/scan (local) - accept a .dem upload and start a roster scan.
