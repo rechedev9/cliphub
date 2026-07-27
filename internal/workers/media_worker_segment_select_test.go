@@ -387,6 +387,47 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	}
 }
 
+func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
+	store := newFakeStorage()
+	id := uuid.New()
+	expected := recording.DefaultStreamConfig()
+	expected.HUDMode = recording.HUDModeGameplay
+	expected.PortraitSafeKillfeed = true
+
+	centered := expected
+	centered.DeathnoticeSafeZoneX = 0.28
+	centered.DeathnoticeSafeZoneY = 0.82
+	result := recording.RecordingResult{
+		Plan: recording.RecordingPlan{
+			CaptureContract: recording.CaptureContractVersion,
+			Stream:          centered,
+		},
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID: "seg-001",
+			Role:      "segment",
+			Type:      "video",
+		}},
+		CaptureVerified: true,
+	}
+	if err := putRecordingResult(store, id, result); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(recording.ScriptArtifactKey(id), bytes.NewReader([]byte("centered HUD script"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("centered HUD clip"))); err != nil {
+		t.Fatal(err)
+	}
+
+	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready {
+		t.Fatal("Full HUD capture with global safe-zone compression was reused")
+	}
+}
+
 func TestRecordingProfilesCompatibleRejectsLegacyPOVContract(t *testing.T) {
 	current := recording.RecordingResult{
 		Plan: recording.RecordingPlan{

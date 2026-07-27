@@ -483,7 +483,7 @@ func hudSetupCommands(plan RecordingPlan) []string {
 		"mirv_deathmsg localPlayer -1",
 		fmt.Sprintf("mirv_deathmsg lifetime %s", formatFloat(plan.Stream.DeathnoticeLifetime)),
 	)
-	if plan.Stream.PortraitSafeKillfeed {
+	if plan.Stream.PortraitSafeKillfeed && plan.Stream.HUDMode == HUDModeDeathnotices {
 		commands = append(commands,
 			fmt.Sprintf("safezonex %s", formatFloat(plan.Stream.DeathnoticeSafeZoneX)),
 			fmt.Sprintf("safezoney %s", formatFloat(plan.Stream.DeathnoticeSafeZoneY)),
@@ -496,14 +496,19 @@ func hudCleanupCommands(stream StreamConfig) []string {
 	if stream.HUDMode != HUDModeDeathnotices && !stream.PortraitSafeKillfeed {
 		return nil
 	}
-	return []string{
+	commands := []string{
 		"mirv_deathmsg clear",
 		"mirv_deathmsg filter clear",
 		"mirv_deathmsg localPlayer default",
 		"mirv_deathmsg lifetime default",
-		"safezonex 1",
-		"safezoney 1",
 	}
+	if stream.PortraitSafeKillfeed && stream.HUDMode == HUDModeDeathnotices {
+		commands = append(commands,
+			"safezonex 1",
+			"safezoney 1",
+		)
+	}
+	return commands
 }
 
 func slashPath(path string) string {

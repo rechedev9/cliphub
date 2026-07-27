@@ -74,13 +74,15 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 	if err != nil {
 		return Manifest{Warnings: warnings}, err
 	}
-	// Legacy vertical killfeed captures leave the notices outside the
-	// center crop, so they still need the historical crop-and-overlay path.
-	// New portrait-safe captures move the native CS2 notices into the 9:16
-	// frame during recording, where keeping them live is sharper and avoids
-	// stacked frozen badges. Landscape output already retains the native
-	// top-right HUD and must never duplicate it.
-	nativePortraitKillfeed := result.Plan.Stream.PortraitSafeKillfeed
+	// Deathnotice-only captures can move the native notices into the 9:16
+	// frame without disturbing any other HUD. Gameplay captures deliberately
+	// keep CS2's native 16:9 HUD layout so the center crop retains round and
+	// overtime context without pulling the radar and weapon panels inward;
+	// their filtered notices still use the crop-and-overlay path.
+	// Landscape output already retains the native top-right HUD and must never
+	// duplicate it.
+	nativePortraitKillfeed := result.Plan.Stream.PortraitSafeKillfeed &&
+		result.Plan.Stream.HUDMode == recording.HUDModeDeathnotices
 	killfeedOverlay := opts.KillfeedOverlay && renderPreset.KillfeedSource && outputFormat == OutputFormatShort9x16 && !nativePortraitKillfeed
 	hqFilters := opts.HQFilters || renderPreset.HQFilters
 	audioNormalize := opts.AudioNormalize || renderPreset.AudioNormalize

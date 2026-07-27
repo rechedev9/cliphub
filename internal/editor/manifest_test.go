@@ -937,32 +937,59 @@ func TestBuildManifestKillfeedOverlayRequiresKillfeedSourcePreset(t *testing.T) 
 }
 
 func TestBuildManifestKeepsPortraitSafeKillfeedNative(t *testing.T) {
-	for _, hudMode := range []recording.HUDMode{recording.HUDModeDeathnotices, recording.HUDModeGameplay} {
-		t.Run(string(hudMode), func(t *testing.T) {
-			dir := t.TempDir()
-			result := testRecordingResult(dir)
-			result.Plan.Stream.HUDMode = hudMode
-			result.Plan.Stream.PortraitSafeKillfeed = true
-			opts := testManifestOptions(dir, nil)
-			opts.KillfeedOverlay = true
+	dir := t.TempDir()
+	result := testRecordingResult(dir)
+	result.Plan.Stream.HUDMode = recording.HUDModeDeathnotices
+	result.Plan.Stream.PortraitSafeKillfeed = true
+	opts := testManifestOptions(dir, nil)
+	opts.KillfeedOverlay = true
 
-			manifest := mustBuildManifest(t, result, opts)
-			if len(manifest.Warnings) != 0 {
-				t.Fatalf("warnings = %v", manifest.Warnings)
-			}
-			short := manifest.Shorts[0]
-			if short.KillfeedOverlay {
-				t.Fatal("KillfeedOverlay = true, want native portrait-safe notices")
-			}
-			for _, effect := range short.Effects {
-				if effect.Type == EffectKillfeed {
-					t.Fatalf("unexpected frozen killfeed effect %#v", effect)
-				}
-			}
-			if command := strings.Join(short.FFmpegCommand, " "); strings.Contains(command, "kfsrc") {
-				t.Fatalf("command contains legacy killfeed crop branch: %s", command)
-			}
-		})
+	manifest := mustBuildManifest(t, result, opts)
+	if len(manifest.Warnings) != 0 {
+		t.Fatalf("warnings = %v", manifest.Warnings)
+	}
+	short := manifest.Shorts[0]
+	if short.KillfeedOverlay {
+		t.Fatal("KillfeedOverlay = true, want native portrait-safe notices")
+	}
+	for _, effect := range short.Effects {
+		if effect.Type == EffectKillfeed {
+			t.Fatalf("unexpected frozen killfeed effect %#v", effect)
+		}
+	}
+	if command := strings.Join(short.FFmpegCommand, " "); strings.Contains(command, "kfsrc") {
+		t.Fatalf("command contains legacy killfeed crop branch: %s", command)
+	}
+}
+
+func TestBuildManifestOverlaysFilteredFullHUDKillfeed(t *testing.T) {
+	dir := t.TempDir()
+	result := testRecordingResult(dir)
+	result.Plan.Stream.HUDMode = recording.HUDModeGameplay
+	result.Plan.Stream.PortraitSafeKillfeed = true
+	opts := testManifestOptions(dir, nil)
+	opts.Preset = PresetFullHUD60
+	opts.KillfeedOverlay = true
+
+	manifest := mustBuildManifest(t, result, opts)
+	if len(manifest.Warnings) != 0 {
+		t.Fatalf("warnings = %v", manifest.Warnings)
+	}
+	short := manifest.Shorts[0]
+	if !short.KillfeedOverlay {
+		t.Fatal("KillfeedOverlay = false, want filtered Full HUD notices overlaid into portrait")
+	}
+	var killfeedEffects int
+	for _, effect := range short.Effects {
+		if effect.Type == EffectKillfeed {
+			killfeedEffects++
+		}
+	}
+	if killfeedEffects != len(short.Kills) {
+		t.Fatalf("killfeed effects = %d, want %d", killfeedEffects, len(short.Kills))
+	}
+	if command := strings.Join(short.FFmpegCommand, " "); !strings.Contains(command, "kfsrc") {
+		t.Fatalf("command missing killfeed crop branch: %s", command)
 	}
 }
 

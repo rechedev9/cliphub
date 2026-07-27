@@ -67,6 +67,9 @@ const (
 )
 
 // StreamConfig describes how HLAE should emit raw recordings.
+// PortraitSafeKillfeed requests target-filtered notices for portrait delivery:
+// deathnotice-only capture moves them into the safe area, while gameplay
+// capture preserves the native HUD layout for editor overlay.
 type StreamConfig struct {
 	Mode                 StreamMode `json:"mode"`
 	HUDMode              HUDMode    `json:"hud_mode,omitempty"`
@@ -298,7 +301,7 @@ func normalizeStreamConfig(stream StreamConfig) StreamConfig {
 	if stream.CRF == 0 {
 		stream.CRF = defaults.CRF
 	}
-	if stream.PortraitSafeKillfeed {
+	if stream.PortraitSafeKillfeed && stream.HUDMode == HUDModeDeathnotices {
 		if stream.DeathnoticeSafeZoneX == 0 {
 			stream.DeathnoticeSafeZoneX = defaultDeathnoticeSafeZoneX
 		}

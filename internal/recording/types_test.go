@@ -92,25 +92,37 @@ func TestValidateRejectsInvalidCRF(t *testing.T) {
 }
 
 func TestNewPlanPortraitSafeKillfeedDefaults(t *testing.T) {
-	for _, hudMode := range []HUDMode{HUDModeDeathnotices, HUDModeGameplay} {
-		t.Run(string(hudMode), func(t *testing.T) {
+	tests := []struct {
+		hudMode      HUDMode
+		wantSafeZone bool
+	}{
+		{hudMode: HUDModeDeathnotices, wantSafeZone: true},
+		{hudMode: HUDModeGameplay},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.hudMode), func(t *testing.T) {
 			kp := killplan.NewPlan()
 			kp.Demo.Tickrate = 64
 			kp.Target.SteamID64 = "76561198148986856"
 			kp.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
 			stream := DefaultStreamConfig()
-			stream.HUDMode = hudMode
+			stream.HUDMode = tc.hudMode
 			stream.PortraitSafeKillfeed = true
 
 			plan, err := NewPlanFromKillPlan(kp, "x.dem", "out", stream)
 			if err != nil {
 				t.Fatalf("NewPlanFromKillPlan error = %v", err)
 			}
-			if got, want := plan.Stream.DeathnoticeSafeZoneX, defaultDeathnoticeSafeZoneX; got != want {
-				t.Fatalf("DeathnoticeSafeZoneX = %.2f, want %.2f", got, want)
+			wantX, wantY := 0.0, 0.0
+			if tc.wantSafeZone {
+				wantX = defaultDeathnoticeSafeZoneX
+				wantY = defaultDeathnoticeSafeZoneY
 			}
-			if got, want := plan.Stream.DeathnoticeSafeZoneY, defaultDeathnoticeSafeZoneY; got != want {
-				t.Fatalf("DeathnoticeSafeZoneY = %.2f, want %.2f", got, want)
+			if got := plan.Stream.DeathnoticeSafeZoneX; got != wantX {
+				t.Fatalf("DeathnoticeSafeZoneX = %.2f, want %.2f", got, wantX)
+			}
+			if got := plan.Stream.DeathnoticeSafeZoneY; got != wantY {
+				t.Fatalf("DeathnoticeSafeZoneY = %.2f, want %.2f", got, wantY)
 			}
 			if got, want := plan.Stream.DeathnoticeLifetime, defaultDeathnoticeLifetimeSeconds; got != want {
 				t.Fatalf("DeathnoticeLifetime = %.2f, want %.2f", got, want)

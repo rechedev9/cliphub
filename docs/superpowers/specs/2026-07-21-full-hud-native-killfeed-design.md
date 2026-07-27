@@ -2,7 +2,9 @@
 
 ## Status
 
-Approved in conversation on 2026-07-21.
+Approved in conversation on 2026-07-21 and corrected on 2026-07-27 after
+vertical Full HUD review showed that CS2 safe-zone commands compress the entire
+HUD, not only death notices.
 
 ## Problem
 
@@ -21,9 +23,14 @@ The working `viral-60-clean` path persists `portrait_safe_killfeed: true`, filte
 
 ## Decision
 
-Vertical `Full HUD` capture will use the existing portrait-safe native killfeed contract.
-It will retain the complete gameplay HUD while HLAE filters death notices to kills made by the selected target player and moves those notices into the 9:16 safe area.
-The editor will keep the resulting live native notices and will not synthesize a second killfeed.
+Vertical `Full HUD` capture will preserve CS2's native 16:9 HUD layout.
+The 9:16 center crop will retain central context such as the round score,
+timer, and overtime state while naturally cropping lateral elements such as the
+radar, health, and ammunition instead of moving them into the gameplay.
+HLAE will still filter death notices to kills made by the selected target
+player, but it will not apply `safezonex` or `safezoney` in gameplay HUD mode.
+The editor will crop those filtered notices from their native source position
+and overlay them inside the portrait frame.
 
 ## Data Flow
 
@@ -39,7 +46,8 @@ It will include the effective flag in the normalized recording profile used by d
 
 ## Recording Behavior
 
-The recording contract will normalize safe-zone defaults whenever `portrait_safe_killfeed` is enabled.
+The recording contract will normalize safe-zone defaults only when
+`portrait_safe_killfeed` is enabled for deathnotice-only HUD.
 It will normalize the death-notice lifetime for `deathnotices` captures and portrait-safe `gameplay` captures.
 Validation will accept portrait-safe killfeed only for `deathnotices` or `gameplay` HUD modes and will require a valid target SteamID64 whenever HLAE filtering is needed.
 
@@ -47,14 +55,18 @@ The HLAE script will keep HUD visibility independent from killfeed filtering.
 `deathnotices` mode will continue to use `cl_draw_only_deathnotices 1`.
 Portrait-safe `gameplay` mode will continue to use `cl_draw_only_deathnotices 0`, preserving radar, health, ammunition, weapon, team panels, and the rest of the gameplay HUD.
 
-Both paths that configure a filtered native killfeed will run `mirv_deathmsg clear`, clear prior filters, block notices whose attacker is not the selected target, set the local-player and lifetime behavior, and apply the configured safe zone when requested.
-The script will restore death-message state and safe-zone values before shutdown whenever it configured those values.
+Both paths that configure a filtered killfeed will run `mirv_deathmsg clear`, clear prior filters, block notices whose attacker is not the selected target, and set the local-player and lifetime behavior.
+Only deathnotice-only portrait capture will apply and later restore the configured safe zone.
+Gameplay HUD capture will never write `safezonex` or `safezoney`.
 Plain gameplay capture, including existing landscape behavior, will not gain HLAE filtering unless portrait-safe killfeed is requested.
 
 ## Render Behavior
 
-The editor will treat a validated `portrait_safe_killfeed` recording as containing a native killfeed that is already visible in the vertical frame.
-It will disable `KillfeedOverlay` for that recording and emit no `EffectKillfeed` entries.
+The editor will treat a validated portrait-safe deathnotice-only recording as
+containing a native killfeed that is already visible in the vertical frame.
+For gameplay HUD, it will enable `KillfeedOverlay` and emit one
+`EffectKillfeed` per selected kill so the filtered native notices remain
+readable without changing the rest of the HUD layout.
 
 Legacy recordings without the flag will retain the existing crop-and-overlay fallback.
 This preserves render-only compatibility for persisted captures whose native notices remain outside the center crop.
@@ -62,7 +74,8 @@ This preserves render-only compatibility for persisted captures whose native not
 ## Artifact Reuse
 
 The normalized stream profile includes `PortraitSafeKillfeed`, safe-zone geometry, and death-notice lifetime.
-An old `full-hud-60` gameplay recording therefore will not satisfy the new vertical capture profile.
+An old `full-hud-60` gameplay recording carrying non-zero deathnotice safe-zone
+geometry therefore will not satisfy the new vertical capture profile.
 A new generation will recapture rather than silently reuse the broken source material.
 The already-rendered Nuke reel remains unchanged until an explicitly approved recapture is run with updated binaries.
 
@@ -76,10 +89,14 @@ No new runtime retry behavior or pipeline failure class is introduced.
 
 HTTP handler tests will assert that vertical `full-hud-60` and `viral-60-clean` requests set the portrait-safe flag while `clean-pov-60` and landscape requests do not.
 Recording type tests will cover gameplay safe-zone and lifetime defaults plus rejection of invalid clean-HUD combinations.
-Script-generation tests will assert that portrait-safe gameplay keeps `cl_draw_only_deathnotices 0`, emits the target-only HLAE filter and safe-zone commands, and restores state during cleanup.
+Script-generation tests will assert that portrait-safe gameplay keeps
+`cl_draw_only_deathnotices 0`, emits the target-only HLAE filter, and never
+emits safe-zone commands.
 Script-generation tests will also assert that plain gameplay capture remains unchanged.
 Worker tests will assert that portrait-safe gameplay reaches both the recorder CLI and the expected durable recording profile.
-Editor manifest tests will assert that new portrait-safe gameplay recordings emit no killfeed overlay while legacy gameplay recordings retain the fallback.
+Editor manifest tests will assert that portrait-safe gameplay recordings retain
+the crop-and-overlay killfeed path while deathnotice-only recordings keep their
+native portrait notices.
 
 Focused Go tests will run first for `internal/recording`, `internal/httpapi`, `internal/workers`, and `internal/editor`.
 The final verification will run the repository Go gate without formatting unrelated worktree changes.
@@ -87,7 +104,8 @@ No real HLAE/CS2 capture or long FFmpeg render will run without separate explici
 
 ## Out Of Scope
 
-This change does not redesign vertical framing for the other Full HUD elements.
+This change intentionally keeps the other Full HUD elements in their native
+16:9 positions and accepts lateral cropping in portrait output.
 It does not synthesize a custom killfeed from kill-plan data.
 It does not include assists or kills by other players.
 It does not modify existing generated media in place.

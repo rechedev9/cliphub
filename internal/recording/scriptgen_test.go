@@ -327,12 +327,8 @@ func TestGenerateHLAEJavaScriptPortraitSafeGameplayHUD(t *testing.T) {
 		`mirv_deathmsg filter add attackerMatch=!x76561198148986856 block=1 lastRule=1`,
 		`mirv_deathmsg localPlayer -1`,
 		`mirv_deathmsg lifetime 1.6`,
-		`safezonex 0.28`,
-		`safezoney 0.82`,
 		`mirv_deathmsg localPlayer default`,
 		`mirv_deathmsg lifetime default`,
-		`safezonex 1`,
-		`safezoney 1`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Fatalf("generated JS missing %q\n%s", want, js)
@@ -340,6 +336,9 @@ func TestGenerateHLAEJavaScriptPortraitSafeGameplayHUD(t *testing.T) {
 	}
 	if strings.Contains(js, `cl_draw_only_deathnotices 1`) {
 		t.Fatalf("portrait-safe gameplay hid the full HUD:\n%s", js)
+	}
+	if strings.Contains(js, `safezonex`) || strings.Contains(js, `safezoney`) {
+		t.Fatalf("portrait-safe gameplay moved the full HUD into the center crop:\n%s", js)
 	}
 }
 

@@ -1,5 +1,12 @@
 # Full HUD Native Killfeed Implementation Plan
 
+> Corrected 2026-07-27: the original plan moved gameplay HUD with global
+> `safezonex`/`safezoney` commands. That compressed the radar and lateral HUD
+> into the center of 9:16 video. The current contract preserves the native Full
+> HUD layout, uses HLAE only to filter notices, and restores the editor
+> crop-and-overlay path for those filtered notices. The corresponding design
+> spec is authoritative where this historical plan differs.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 > Steps use checkbox (`- [ ]`) syntax for tracking.
 
