@@ -54,7 +54,7 @@ func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 	}
 	for _, want := range []string{
 		`mirv.events.clientFrameStageNotify.on`,
-		`if (!mirv.isPlayingDemo()) return;`,
+		`if (!mirv.isPlayingDemo()) {`,
 		`mirv.getDemoTick()`,
 		`if (tick === undefined || tick < 0) return;`,
 		`tick < item.tick`,
@@ -142,6 +142,30 @@ func TestGenerateHLAEJavaScriptRejectsInvalidAttestationToken(t *testing.T) {
 		if _, err := GenerateHLAEJavaScriptWithAttestation(testPlan(), token); err == nil {
 			t.Fatalf("token %q was accepted", token)
 		}
+	}
+}
+
+func TestGenerateHLAEJavaScriptAttestsWhenDemoPlaybackEndsEarly(t *testing.T) {
+	token := strings.Repeat("unit-test-", 4)
+	js, err := GenerateHLAEJavaScriptWithAttestation(testPlan(), token)
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	for _, want := range []string{
+		`const demoEndedGraceFrames = 30`,
+		`if (!armed || fired["shutdown"]) return;`,
+		`demoEndedFrames++`,
+		`demoEndedFrames < demoEndedGraceFrames`,
+		`demo playback ended before every protected segment completed`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("generated JS missing demo-end attestation contract %q\n%s", want, js)
+		}
+	}
+	// The verified attestation must be emitted by both completion paths (message
+	// plus echo each): the scheduled shutdown item and the demo-end fallback.
+	if got, want := strings.Count(js, CaptureVerifiedAttestation(token)), 4; got != want {
+		t.Errorf("verified attestation occurrences = %d, want %d\n%s", got, want, js)
 	}
 }
 

@@ -267,8 +267,7 @@ func BenchmarkProbeArtifacts(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		files := append([]RecordingArtifact(nil), base...)
 		probeArtifacts(context.Background(), "ffprobe", files, probe)
 		benchmarkArtifacts = files

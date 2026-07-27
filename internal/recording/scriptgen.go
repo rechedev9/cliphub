@@ -37,6 +37,7 @@ type captureWindow struct {
 const (
 	minimumDemoSeekGapSeconds = 30
 	maxUnknownObserverFrames  = 3
+	demoEndedGraceFrames      = 30
 )
 
 // GenerateHLAEJavaScript renders a self-contained HLAE 2.x mirv-script file.
@@ -115,6 +116,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    let activeSegment = null;\n")
 	sb.WriteString("    let unknownObserverFrames = 0;\n")
 	sb.WriteString(fmt.Sprintf("    const maxUnknownObserverFrames = %d;\n", maxUnknownObserverFrames))
+	sb.WriteString("    let demoEndedFrames = 0;\n")
+	sb.WriteString(fmt.Sprintf("    const demoEndedGraceFrames = %d;\n", demoEndedGraceFrames))
 	sb.WriteString("    let fatal = false;\n")
 	sb.WriteString("    const lockAttempts = {};\n")
 	sb.WriteString("    const entityFromHandle = (handle) => {\n")
@@ -187,7 +190,26 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        // A local empty server can advance its tick before the delayed +playdemo\n")
 	sb.WriteString("        // command starts playback. getDemoTick alone therefore cannot prove that a\n")
 	sb.WriteString("        // demo is active. Wait for HLAE's engine-backed playback check first.\n")
-	sb.WriteString("        if (!mirv.isPlayingDemo()) return;\n")
+	sb.WriteString("        if (!mirv.isPlayingDemo()) {\n")
+	sb.WriteString("            // A final segment can reach the demo's last tick, ending playback\n")
+	sb.WriteString("            // before the scheduled shutdown tick. Ticks stop advancing then, so\n")
+	sb.WriteString("            // the schedule can never fire: attest completion (or fail) from here.\n")
+	sb.WriteString("            if (!armed || fired[\"shutdown\"]) return;\n")
+	sb.WriteString("            demoEndedFrames++;\n")
+	sb.WriteString("            if (demoEndedFrames < demoEndedGraceFrames) return;\n")
+	sb.WriteString("            const complete = activeSegment === null && captureWindows.every((window) => fired[`record-end-${window.segmentId}`]);\n")
+	sb.WriteString("            if (!complete) {\n")
+	sb.WriteString("                failCapture(\"demo playback ended before every protected segment completed\");\n")
+	sb.WriteString("                return;\n")
+	sb.WriteString("            }\n")
+	sb.WriteString("            fired[\"shutdown\"] = true;\n")
+	sb.WriteString(fmt.Sprintf("            mirv.message(%q);\n", verifiedAttestation+"\\n"))
+	sb.WriteString(fmt.Sprintf("            mirv.exec(%q);\n", "echo "+verifiedAttestation))
+	sb.WriteString("            mirv.exec(\"disconnect\");\n")
+	sb.WriteString("            mirv.exec(\"quit\");\n")
+	sb.WriteString("            return;\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("        demoEndedFrames = 0;\n")
 	sb.WriteString("        const tick = mirv.getDemoTick();\n")
 	sb.WriteString("        if (tick === undefined || tick < 0) return;\n")
 	sb.WriteString("        if (!armed) {\n")
