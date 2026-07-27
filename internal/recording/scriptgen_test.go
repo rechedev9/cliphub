@@ -121,6 +121,12 @@ func TestGenerateHLAEJavaScriptLocksAndVerifiesTheObservedSteamID(t *testing.T) 
 		CaptureFailedAttestation(token),
 		CaptureVerifiedAttestation(token),
 		`observer target`,
+		`const maxUnknownObserverFrames = 3`,
+		`if (observed === null)`,
+		`unknownObserverFrames++`,
+		`unknownObserverFrames >= maxUnknownObserverFrames`,
+		`unknownObserverFrames = 0`,
+		`} else if (observed !== targetSteamId) {`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("generated JS missing verified POV contract %q\n%s", want, js)
@@ -139,7 +145,38 @@ func TestGenerateHLAEJavaScriptRejectsInvalidAttestationToken(t *testing.T) {
 	}
 }
 
-func TestBuildRuntimeScheduleVerifiesPOVThroughRecordEnd(t *testing.T) {
+func TestBuildRuntimeScheduleAllowsPOVDriftDuringKillPostRoll(t *testing.T) {
+	plan := testPlan()
+	plan.Segments = []RecordingSegment{{
+		ID:        "seg-021",
+		TickStart: 178844,
+		TickEnd:   179484,
+		Kills: []killplan.Kill{
+			{Tick: 179164},
+			{Tick: 179100},
+		},
+	}}
+
+	_, _, windows := buildRuntimeSchedule(plan)
+	if got, want := len(windows), 1; got != want {
+		t.Fatalf("capture window count = %d, want %d", got, want)
+	}
+	window := windows[0]
+	if got, want := window.VerifyUntil, 179164; got != want {
+		t.Errorf("window %s verifyUntil = %d, want last kill %d", window.SegmentID, got, want)
+	}
+	if got, want := window.RecordEnd, 179484; got != want {
+		t.Errorf("window %s recordEnd = %d, want post-roll end %d", window.SegmentID, got, want)
+	}
+	if preKillTick := 179150; preKillTick < window.LockFrom || preKillTick > window.VerifyUntil {
+		t.Fatalf("pre-kill tick %d should remain inside the protected POV window: %+v", preKillTick, window)
+	}
+	if deathTick := 179242; deathTick <= window.VerifyUntil || deathTick > window.RecordEnd {
+		t.Fatalf("death tick %d should be recorded after POV verification ends: %+v", deathTick, window)
+	}
+}
+
+func TestBuildRuntimeScheduleVerifiesPOVThroughRecordEndWithoutKills(t *testing.T) {
 	plan := testPlan()
 	_, _, windows := buildRuntimeSchedule(plan)
 	if got, want := len(windows), len(plan.Segments); got != want {

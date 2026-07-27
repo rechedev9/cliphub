@@ -34,7 +34,10 @@ type captureWindow struct {
 	RecordEnd   int    `json:"recordEnd"`
 }
 
-const minimumDemoSeekGapSeconds = 30
+const (
+	minimumDemoSeekGapSeconds = 30
+	maxUnknownObserverFrames  = 3
+)
 
 // GenerateHLAEJavaScript renders a self-contained HLAE 2.x mirv-script file.
 func GenerateHLAEJavaScript(plan RecordingPlan) (string, error) {
@@ -110,6 +113,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    const maxSeekAttempts = 6000;\n")
 	sb.WriteString("    let lastLockFrame = -999;\n")
 	sb.WriteString("    let activeSegment = null;\n")
+	sb.WriteString("    let unknownObserverFrames = 0;\n")
+	sb.WriteString(fmt.Sprintf("    const maxUnknownObserverFrames = %d;\n", maxUnknownObserverFrames))
 	sb.WriteString("    let fatal = false;\n")
 	sb.WriteString("    const lockAttempts = {};\n")
 	sb.WriteString("    const entityFromHandle = (handle) => {\n")
@@ -218,14 +223,29 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        const captureWindow = captureWindows.find((window) => tick >= window.lockFrom && tick <= window.verifyUntil);\n")
 	sb.WriteString("        if (captureWindow !== undefined) {\n")
 	sb.WriteString("            const observed = observedSteamId();\n")
-	sb.WriteString("            if (activeSegment === captureWindow.segmentId && observed !== targetSteamId) {\n")
-	sb.WriteString("                failCapture(`observer target ${observed ?? \"unknown\"} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
-	sb.WriteString("                return;\n")
+	sb.WriteString("            if (activeSegment === captureWindow.segmentId) {\n")
+	sb.WriteString("                if (observed === null) {\n")
+	sb.WriteString("                    unknownObserverFrames++;\n")
+	sb.WriteString("                    if (unknownObserverFrames >= maxUnknownObserverFrames) {\n")
+	sb.WriteString("                        failCapture(`observer target remained unknown during ${captureWindow.segmentId}`);\n")
+	sb.WriteString("                        return;\n")
+	sb.WriteString("                    }\n")
+	sb.WriteString("                } else if (observed !== targetSteamId) {\n")
+	sb.WriteString("                    unknownObserverFrames = 0;\n")
+	sb.WriteString("                    failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+	sb.WriteString("                    return;\n")
+	sb.WriteString("                } else {\n")
+	sb.WriteString("                    unknownObserverFrames = 0;\n")
+	sb.WriteString("                }\n")
+	sb.WriteString("            } else {\n")
+	sb.WriteString("                unknownObserverFrames = 0;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("            if (activeSegment === null && observed !== targetSteamId && frame - lastLockFrame >= 8) {\n")
 	sb.WriteString("                lockTarget(captureWindow.segmentId);\n")
 	sb.WriteString("                lastLockFrame = frame;\n")
 	sb.WriteString("            }\n")
+	sb.WriteString("        } else {\n")
+	sb.WriteString("            unknownObserverFrames = 0;\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("        for (const item of schedule) {\n")
 	sb.WriteString("            if (fired[item.key] || tick < item.tick) continue;\n")
@@ -295,11 +315,18 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		if cameraWarmupTick >= recordStart {
 			cameraWarmupTick = recordStart - max(2, plan.Tickrate/2)
 		}
+		verifyUntil := s.TickEnd
+		if lastKill := lastKillTick(s); lastKill > 0 {
+			// Once the final selected kill has happened, a spectator change can
+			// be CS2's legitimate death cam during post-roll. Keep recording the
+			// full segment, but stop treating that camera change as POV drift.
+			verifyUntil = min(s.TickEnd, max(recordStart, lastKill))
+		}
 		windows = append(windows, captureWindow{
 			SegmentID:   s.ID,
 			LockFrom:    max(seekTarget+1, cameraWarmupTick),
 			RecordStart: recordStart,
-			VerifyUntil: s.TickEnd,
+			VerifyUntil: verifyUntil,
 			RecordEnd:   s.TickEnd,
 		})
 
@@ -404,6 +431,16 @@ func firstKillTick(segment RecordingSegment) int {
 			continue
 		}
 		if out == 0 || kill.Tick < out {
+			out = kill.Tick
+		}
+	}
+	return out
+}
+
+func lastKillTick(segment RecordingSegment) int {
+	out := 0
+	for _, kill := range segment.Kills {
+		if kill.Tick > out {
 			out = kill.Tick
 		}
 	}
