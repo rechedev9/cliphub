@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -117,7 +119,17 @@ func boolField(t *testing.T, source string, row map[string]json.RawMessage, key 
 func writeStageContractPlan(t *testing.T, dir string) string {
 	t.Helper()
 	plan := killplan.NewPlan()
-	plan.Demo = killplan.Demo{SHA256: strings.Repeat("a", 64), Tickrate: 128, Map: "de_nuke"}
+	// Every end-to-end stage-contract fixture writes these exact bytes as its
+	// synthetic demo. Keep the durable plan bound to that source just like a
+	// real parser result; using a placeholder digest hides source/plan
+	// regressions once recording validates the binding.
+	demoDigest := sha256.Sum256([]byte("dummy demo"))
+	plan.Demo = killplan.Demo{
+		SHA256:        fmt.Sprintf("%x", demoDigest),
+		Tickrate:      128,
+		Map:           "de_nuke",
+		DurationTicks: 1024,
+	}
 	plan.Target = killplan.Target{SteamID64: "76561198377256168", NameInDemo: "Joey-"}
 	plan.Segments = []killplan.Segment{
 		{ID: "seg-001", Round: 1, TickStart: 128, TickEnd: 256, Kills: []killplan.Kill{{Tick: 192, Weapon: "ak47"}}},

@@ -77,8 +77,8 @@ func runSkills(args []string, stdout, stderr io.Writer) int {
 			return exitUnexpected
 		}
 		if !ok {
-			fmt.Fprintf(stderr, "error: skill not found: %s\n", rest[0])
-			return exitInvalidArgs
+			return writeCommandError(args[1:], stdout, stderr,
+				fmt.Errorf("skill not found: %s", rest[0]), "", exitInvalidArgs)
 		}
 		// #nosec G304 -- skill path is resolved from the repo-local skills directory.
 		b, err := os.ReadFile(skill.Path)

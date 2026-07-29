@@ -472,11 +472,6 @@ func BuildQualityCheckFFmpegCommand(ffmpegPath string, short ShortEdit) []string
 	}
 }
 
-func runFFmpeg(ctx context.Context, command []string, label string) error {
-	_, err := runFFmpegOutput(ctx, command, label)
-	return err
-}
-
 func runFFmpegOutput(ctx context.Context, command []string, label string) (string, error) {
 	if len(command) == 0 || command[0] == "" {
 		return "", fmt.Errorf("ffmpeg command is empty")

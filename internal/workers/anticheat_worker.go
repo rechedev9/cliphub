@@ -60,12 +60,12 @@ func (w *ParserWorker) ProcessAnalyzeAnticheat(ctx context.Context, jobID uuid.U
 	return nil
 }
 
-// failAnticheat records cause in the job's analysis document. A cancelled
-// context means the process or the attempt is going away rather than the demo
-// being unscreenable, so the document is left running for the retry and the
-// error is returned to the queue instead.
+// failAnticheat records cause in the job's analysis document. An intermediate
+// cancellation remains running for the queue's retry, but the final attempt
+// must become failed: otherwise the UI polls an abandoned running document
+// until the claim TTL expires.
 func (w *ParserWorker) failAnticheat(ctx context.Context, jobID uuid.UUID, doc anticheat.Document, cause error) error {
-	if ctx.Err() != nil {
+	if ctx.Err() != nil && !taskIsTerminal(ctx) {
 		return cause
 	}
 	recordStageFailure(jobID, obs.StageWorker, tasks.TypeAnalyzeAnticheat, cause)

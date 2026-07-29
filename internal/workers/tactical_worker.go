@@ -77,22 +77,29 @@ func (w *TacticalWorker) HandleAnalyzeTactical(ctx context.Context, t *asynq.Tas
 // queue. Readiness is modelled by artifact presence plus the status document,
 // so the job's own status is only touched when the scan fails.
 func (w *TacticalWorker) ProcessAnalyzeTactical(ctx context.Context, jobID uuid.UUID, sampleHZ float64) error {
+	if sampleHZ == 0 {
+		sampleHZ = tactical.DefaultSampleHZ
+	}
+	if sampleHZ != tactical.DefaultSampleHZ {
+		return fmt.Errorf("job tactical sample_hz %.3f is not canonical %.3f", sampleHZ, float64(tactical.DefaultSampleHZ))
+	}
 	j, err := w.repo.GetMeta(ctx, jobID)
 	if err != nil {
 		return fmt.Errorf("load job %s: %w", jobID, err)
 	}
 	indexKey := artifacts.TacticalIndexKey(j.ID)
 	positionsKey := artifacts.TacticalPositionsKey(j.ID)
+	statusKey := artifacts.TacticalStatusKey(j.ID)
 
-	ready, err := w.artifactsReady(indexKey, positionsKey)
+	ready, err := w.artifactsReady(statusKey, sampleHZ, indexKey, positionsKey)
 	if err != nil {
 		return fmt.Errorf("check tactical artifacts: %w", err)
 	}
 	if ready {
-		logWorkerSkip(j.ID, tasks.TypeAnalyzeTactical, []string{indexKey, positionsKey})
+		logWorkerSkip(j.ID, tasks.TypeAnalyzeTactical, []string{indexKey, positionsKey, statusKey})
 		return nil
 	}
-	if err := w.writeStatus(j.ID, artifacts.TacticalStateRunning, ""); err != nil {
+	if err := w.writeStatus(j.ID, sampleHZ, artifacts.TacticalStateRunning, ""); err != nil {
 		return fmt.Errorf("write tactical status: %w", err)
 	}
 
@@ -101,7 +108,7 @@ func (w *TacticalWorker) ProcessAnalyzeTactical(ctx context.Context, jobID uuid.
 		// analysis is missing. The job's own status is deliberately left alone:
 		// a tactical scan is an optional artifact, and failing one must not
 		// flip a job whose video already shipped to failed.
-		if err := w.writeStatus(j.ID, artifacts.TacticalStateFailed, scanErr.Error()); err != nil {
+		if err := w.writeStatus(j.ID, sampleHZ, artifacts.TacticalStateFailed, scanErr.Error()); err != nil {
 			logWorkerError(j.ID, "write tactical status", err)
 		}
 		if !taskIsTerminal(ctx) {
@@ -114,7 +121,7 @@ func (w *TacticalWorker) ProcessAnalyzeTactical(ctx context.Context, jobID uuid.
 	}
 
 	logWorkerArtifacts(j.ID, tasks.TypeAnalyzeTactical, []string{indexKey, positionsKey})
-	if err := w.writeStatus(j.ID, artifacts.TacticalStateReady, ""); err != nil {
+	if err := w.writeStatus(j.ID, sampleHZ, artifacts.TacticalStateReady, ""); err != nil {
 		return fmt.Errorf("write tactical status: %w", err)
 	}
 	return nil
@@ -157,9 +164,15 @@ func (w *TacticalWorker) analyze(ctx context.Context, j job.Job, sampleHZ float6
 	return nil
 }
 
-// artifactsReady reports whether a previous run already published both durable
-// artifacts, which is what makes a retry a no-op.
-func (w *TacticalWorker) artifactsReady(keys ...string) (bool, error) {
+// artifactsReady reports whether a previous run published the two durable
+// artifacts under a ready status for the current schema and canonical sampling
+// rate. Presence alone is insufficient: older output at another rate cannot be
+// reused as if it satisfied today's contract.
+func (w *TacticalWorker) artifactsReady(
+	statusKey string,
+	sampleHZ float64,
+	keys ...string,
+) (bool, error) {
 	for _, key := range keys {
 		exists, err := w.storage.Exists(key)
 		if err != nil {
@@ -169,14 +182,33 @@ func (w *TacticalWorker) artifactsReady(keys ...string) (bool, error) {
 			return false, nil
 		}
 	}
-	return true, nil
+	exists, err := w.storage.Exists(statusKey)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+	r, err := w.storage.Open(statusKey)
+	if err != nil {
+		return false, err
+	}
+	defer r.Close()
+	var status artifacts.TacticalStatus
+	if err := json.NewDecoder(r).Decode(&status); err != nil {
+		return false, fmt.Errorf("decode %s: %w", statusKey, err)
+	}
+	return status.State == artifacts.TacticalStateReady &&
+		status.SchemaVersion == tacticalplan.SchemaVersion &&
+		status.SampleHZ == sampleHZ, nil
 }
 
-func (w *TacticalWorker) writeStatus(id uuid.UUID, state, failure string) error {
+func (w *TacticalWorker) writeStatus(id uuid.UUID, sampleHZ float64, state, failure string) error {
 	return putJSONToStorage(w.storage, artifacts.TacticalStatusKey(id), artifacts.TacticalStatus{
 		State:         state,
 		GeneratedAt:   time.Now().UTC(),
 		SchemaVersion: tacticalplan.SchemaVersion,
+		SampleHZ:      sampleHZ,
 		Error:         failure,
 	})
 }

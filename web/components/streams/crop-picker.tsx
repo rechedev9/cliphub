@@ -165,16 +165,18 @@ export function CropPicker({
         <button
           type="button"
           disabled={disabled}
-          aria-label={RESIZE_LABEL}
+          aria-label={`${RESIZE_LABEL}. X ${Math.round(safeRect.x * 100)} %, Y ${Math.round(safeRect.y * 100)} %, ancho ${Math.round(safeRect.width * 100)} %, alto ${Math.round(safeRect.height * 100)} %.`}
           aria-describedby={instructionsId}
           onPointerDown={beginDrag('resize')}
           onKeyDown={resizeWithKeyboard}
-          className={'absolute size-4 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize rounded-sm border-2 border-background bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-40'}
+          className={'absolute flex size-10 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize items-center justify-center rounded-sm bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-40'}
           style={{
             left: `${(safeRect.x + safeRect.width) * 100}%`,
             top: `${(safeRect.y + safeRect.height) * 100}%`,
           }}
-        />
+        >
+          <span className="pointer-events-none size-4 rounded-sm border-2 border-background bg-primary" aria-hidden />
+        </button>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import (
 
 func readWorkflowDocBody(root, relPath string) (string, error) {
 	path := filepath.Join(root, filepath.FromSlash(relPath))
+	// #nosec G304 -- root is the checked repository and relPath comes from the fixed workflow catalog.
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", relPath, err)
@@ -99,6 +100,7 @@ func checkClaudeSettings() ([]skillIssue, error) {
 	}
 	const relPath = ".claude/settings.json"
 	path := filepath.Join(root, filepath.FromSlash(relPath))
+	// #nosec G304 -- both root and relPath are repository-owned validation inputs.
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

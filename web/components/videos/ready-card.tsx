@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock, Download, Eye, Share2, Youtube } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Clock, Download, Eye, Settings2, Share2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Video } from '@/lib/api/types';
+import { api } from '@/lib/api';
+import type { EditConfig, Video } from '@/lib/api/types';
+import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
+import { writeClipboardText } from '@/lib/clipboard-write';
 import { formatCountdown } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
 import {
@@ -18,6 +21,8 @@ import { StatusTag } from '@/components/studio/status-tag';
 import { DeleteVideoButton } from '@/components/videos/delete-video-button';
 import { PublishAssistantDialog } from '@/components/videos/publish-assistant-dialog';
 import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
+import { EditOptions } from '@/components/clips/edit-options';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 /**
  * A finished, downloadable reel. The card is the shared `ReelCard` in its payoff
@@ -31,13 +36,15 @@ import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
  */
 export function ReadyCard({
   video,
-  onDeleted,
+  onChange,
 }: {
   video: Video;
-  onDeleted?: () => void;
+  onChange?: () => void;
 }) {
   const [publishOpen, setPublishOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const reviewRequired = video.status === 'review_required';
 
   const handleDownload = () => {
     if (!video.downloadUrl) return;
@@ -62,7 +69,7 @@ export function ReadyCard({
       // user dismissed the share sheet, or it failed — fall through to copy.
     }
     try {
-      await navigator.clipboard.writeText(url);
+      await writeClipboardText(url);
       toast('Enlace copiado al portapapeles.');
     } catch {
       toast('No se pudo copiar el enlace.');
@@ -103,14 +110,25 @@ export function ReadyCard({
           <div className="flex flex-col gap-2 p-4">
             {/* Full width, and allowed to wrap rather than being starved into a
                 112px column by a three-track footer grid. */}
-            <Button
-              type="button"
-              variant="hero"
-              className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
-              onClick={() => setPublishOpen(true)}
-            >
-              <Youtube className="size-4" aria-hidden /> PREPARAR PUBLICACIÓN
-            </Button>
+            {reviewRequired ? (
+              <Button
+                type="button"
+                variant="warning"
+                className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
+                onClick={() => setReviewOpen(true)}
+              >
+                <Settings2 className="size-4" aria-hidden /> RESOLVER REVISIÓN QA
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="hero"
+                className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
+                onClick={() => setPublishOpen(true)}
+              >
+                <Youtube className="size-4" aria-hidden /> PREPARAR PUBLICACIÓN
+              </Button>
+            )}
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -122,21 +140,34 @@ export function ReadyCard({
               >
                 <Download className="size-4" aria-hidden /> MP4
               </Button>
-              <DeleteVideoButton video={video} onDeleted={() => onDeleted?.()} />
+              <DeleteVideoButton video={video} onDeleted={() => onChange?.()} />
             </div>
           </div>
         }
       >
         <div className="flex flex-wrap items-center gap-2">
-          <StatusTag tone="success" dot>
-            Listo
-          </StatusTag>
+          {reviewRequired ? (
+            <StatusTag tone="warning" icon={AlertTriangle}>
+              Revisión necesaria
+            </StatusTag>
+          ) : (
+            <StatusTag tone="success" dot>
+              Listo
+            </StatusTag>
+          )}
           {video.availableForSec !== undefined ? (
             <StatusTag tone="warning" icon={Clock}>
               caduca en <span className="tabular-nums">{formatCountdown(video.availableForSec)}</span>
             </StatusTag>
           ) : null}
         </div>
+        {reviewRequired && video.warnings?.length ? (
+          <ul className="space-y-1 text-body-sm text-fg-2">
+            {video.warnings.map((warning) => (
+              <li key={warning}>• {warning}</li>
+            ))}
+          </ul>
+        ) : null}
       </ReelCard>
 
       <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
@@ -158,7 +189,217 @@ export function ReadyCard({
         </DialogContent>
       </Dialog>
 
-      <PublishAssistantDialog open={publishOpen} video={video} onOpenChange={setPublishOpen} />
+      {!reviewRequired ? (
+        <PublishAssistantDialog open={publishOpen} video={video} onOpenChange={setPublishOpen} />
+      ) : null}
+      {reviewRequired ? (
+        <ReviewResolutionDialog
+          open={reviewOpen}
+          video={video}
+          onOpenChange={setReviewOpen}
+          onResolved={() => onChange?.()}
+        />
+      ) : null}
     </>
+  );
+}
+
+function ReviewResolutionDialog({
+  open,
+  video,
+  onOpenChange,
+  onResolved,
+}: {
+  open: boolean;
+  video: Video;
+  onOpenChange: (open: boolean) => void;
+  onResolved: () => void;
+}) {
+  const original = video.editConfig ?? DEFAULT_EDIT_CONFIG;
+  const [draft, setDraft] = useState<EditConfig>(original);
+  const [reviewSnapshot, setReviewSnapshot] = useState<{
+    artifactPrefix: string;
+    warnings: string[];
+  } | null>(null);
+  const [briefApproved, setBriefApproved] = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState<'rerender' | 'accept' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setDraft(original);
+      setReviewSnapshot(
+        video.reviewArtifactPrefix && video.warnings
+          ? {
+              artifactPrefix: video.reviewArtifactPrefix,
+              warnings: [...video.warnings],
+            }
+          : null,
+      );
+      setBriefApproved(false);
+      setNote('');
+      setError(null);
+    } else if (!open) {
+      setReviewSnapshot(null);
+    }
+    wasOpen.current = open;
+  }, [open, original, video.reviewArtifactPrefix, video.warnings]);
+
+  const editChanged = JSON.stringify(draft) !== JSON.stringify(original);
+  const reviewChanged = reviewSnapshot !== null && (
+    reviewSnapshot.artifactPrefix !== video.reviewArtifactPrefix ||
+    JSON.stringify(reviewSnapshot.warnings) !== JSON.stringify(video.warnings ?? [])
+  );
+
+  function changeDraft(next: EditConfig) {
+    setDraft(next);
+    setBriefApproved(false);
+  }
+
+  async function resolveReview(kind: 'rerender' | 'accept') {
+    if (busy) return;
+    if (!reviewSnapshot || reviewChanged) {
+      setError('La revisión cambió o todavía no tiene un identificador durable. Actualiza la biblioteca e inspecciona los avisos actuales.');
+      onResolved();
+      return;
+    }
+    const expectedArtifactPrefix = reviewSnapshot.artifactPrefix;
+    const expectedWarnings = reviewSnapshot.warnings;
+    setBusy(kind);
+    setError(null);
+    try {
+      await api.resolveVideoReview(
+        video.id,
+        kind === 'rerender'
+          ? { kind, editConfig: draft, expectedArtifactPrefix, expectedWarnings }
+          : { kind, note, expectedArtifactPrefix, expectedWarnings },
+      );
+      onOpenChange(false);
+      onResolved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo resolver la revisión.');
+      onResolved();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const brief = [
+    `Formato: ${draft.format}`,
+    `HUD/captura: ${video.variant ?? 'viral-60-clean'} (no cambia sin recaptura)`,
+    `Efecto de kill: ${draft.killEffect}`,
+    `Transición: ${draft.transition}`,
+    `Contador: ${draft.killCounter ? 'sí' : 'no'}`,
+    `Título automático: ${draft.hookText ? 'sí' : 'no'}`,
+    `Intro / outro: ${draft.intro ? 'sí' : 'no'} / ${draft.outro ? 'sí' : 'no'}`,
+    `Música: ${video.songId ?? 'sin música'}`,
+    `Portada: ${draft.coverStrategy}`,
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Resolver revisión QA</DialogTitle>
+          <DialogDescription>
+            Inspecciona cada aviso. Corrige la edición y vuelve a renderizar, o documenta por qué el resultado es intencional.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div role="alert" className="rounded-md border border-warning/40 bg-warning/10 p-3">
+          <p className="mb-2 font-mono text-meta uppercase tracking-wider text-warning">Avisos actuales</p>
+          <ul className="space-y-1 text-body-sm text-fg-2">
+            {(reviewSnapshot?.warnings ?? []).map((warning) => <li key={warning}>• {warning}</li>)}
+          </ul>
+          {reviewChanged ? (
+            <p className="mt-2 text-body-sm text-warning">
+              Hay una revisión más reciente. Cierra este diálogo y vuelve a inspeccionarla.
+            </p>
+          ) : null}
+        </div>
+
+        <section className="space-y-4 rounded-md border border-border p-4">
+          <div>
+            <h3 className="font-display text-body uppercase tracking-wide">Corregir y volver a renderizar</h3>
+            <p className="text-body-sm text-fg-3">Debes cambiar al menos una opción y aprobar el brief completo.</p>
+          </div>
+          <div>
+            <p className="mb-2 font-mono text-meta uppercase tracking-wider text-fg-3">Formato</p>
+            <ToggleGroup
+              type="single"
+              value={draft.format}
+              onValueChange={(format) => format && changeDraft({ ...draft, format: format as EditConfig['format'] })}
+              disabled={busy !== null || reviewChanged}
+              variant="outline"
+            >
+              <ToggleGroupItem value="short-9x16">Vertical 9:16</ToggleGroupItem>
+              <ToggleGroupItem value="landscape-16x9">Horizontal 16:9</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+          <EditOptions value={draft} onChange={changeDraft} disabled={busy !== null || reviewChanged} />
+          <div className="rounded-md bg-surface-2 p-3">
+            <p className="mb-2 font-mono text-meta uppercase tracking-wider text-primary">Brief efectivo</p>
+            <ul className="grid gap-1 text-body-sm text-fg-2 sm:grid-cols-2">
+              {brief.map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </div>
+          <label className="flex items-start gap-2 text-body-sm text-fg-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              checked={briefApproved}
+              onChange={(event) => setBriefApproved(event.target.checked)}
+              disabled={busy !== null || reviewChanged}
+            />
+            Apruebo este brief exacto para el nuevo render.
+          </label>
+          <Button
+            type="button"
+            variant="hero"
+            className="w-full"
+            disabled={!editChanged || !briefApproved || reviewChanged}
+            loading={busy === 'rerender'}
+            onClick={() => void resolveReview('rerender')}
+          >
+            <Settings2 className="size-4" aria-hidden /> VOLVER A RENDERIZAR
+          </Button>
+        </section>
+
+        <section className="space-y-3 rounded-md border border-border p-4">
+          <div>
+            <h3 className="font-display text-body uppercase tracking-wide">Aceptar como intencional</h3>
+            <p className="text-body-sm text-fg-3">
+              La nota queda ligada a esta revisión y a estos avisos; un render nuevo exigirá otra revisión.
+            </p>
+          </div>
+          <label htmlFor="review-note" className="font-mono text-meta uppercase tracking-wider text-fg-2">
+            Motivo de aceptación
+          </label>
+          <textarea
+            id="review-note"
+            value={note}
+            maxLength={1000}
+            disabled={busy !== null || reviewChanged}
+            onChange={(event) => setNote(event.target.value)}
+            className="min-h-24 w-full resize-y rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-body-sm text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            placeholder="Ej.: la pausa de 0,4 s es intencional y coincide con el beat final."
+          />
+          <Button
+            type="button"
+            variant="outline-primary"
+            className="w-full"
+            disabled={!note.trim() || reviewChanged}
+            loading={busy === 'accept'}
+            onClick={() => void resolveReview('accept')}
+          >
+            <CheckCircle2 className="size-4" aria-hidden /> DOCUMENTAR Y MARCAR LISTO
+          </Button>
+        </section>
+
+        {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
+      </DialogContent>
+    </Dialog>
   );
 }

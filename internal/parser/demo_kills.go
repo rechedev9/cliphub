@@ -169,6 +169,9 @@ func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (ki
 			mapName = name
 		}
 	})
+	p.RegisterEventHandler(func(events.MatchStart) {
+		c.resetForMatchStart()
+	})
 
 	p.RegisterEventHandler(func(e events.Kill) {
 		gs := p.GameState()

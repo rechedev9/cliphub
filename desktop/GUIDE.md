@@ -51,6 +51,11 @@ visibility, and scheduling choices. No Google credentials are required by the
 installer. Optional public trend hints remain available when
 `FIRECRAWL_API_KEY` is inherited by the desktop process.
 
+Clipboard reads and Chromium web permissions remain denied. Copy buttons use a
+text-only preload IPC capped at 512 KiB; preload requires transient user
+activation, and the main process authenticates the active Studio top frame and
+exact loopback origin before writing.
+
 ## No embedded assistant
 
 Studio ships no assistant surface.
@@ -130,6 +135,17 @@ pnpm run assemble        # builds the web + stages build-resources/
 pnpm start
 ```
 
+The Electron suites use unique disposable `userData` profiles and one shared
+420-second cold-boot budget. They may copy only an explicitly verified runtime
+tool fixture into a profile, so concurrent suites never share SQLite, cookies,
+ports, window state, or a writable tool cache.
+
+```powershell
+pnpm run build
+pnpm run assemble
+pnpm run test:e2e:ui
+```
+
 ## Measure desktop efficiency
 
 After Studio is open, capture a 1 Hz process-tree sample without persisting
@@ -169,5 +185,7 @@ when comparing builds.
    (`ORCHESTRATOR_URL` pointing at the orchestrator, `PORT=<webPort>`).
 5. Waits for `/healthz` and the web root.
 6. Loads `/matches` in the window.
-7. Kills the orchestrator and web children on quit. A single-instance lock
-   prevents a second launch from spawning a duplicate backend.
+7. Kills the orchestrator and web children on quit. Packaged builds acquire
+   Electron's OS-backed single-instance lock under canonical `appData` before
+   restoring any explicit profile, so changing `--user-data-dir` cannot bypass
+   it; dev/E2E keeps profile-scoped isolation.

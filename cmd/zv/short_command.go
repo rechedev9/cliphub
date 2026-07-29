@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -31,6 +34,10 @@ type shortOptions struct {
 	Transition    string
 	Intro         bool
 	Outro         bool
+	Hook          bool
+	KillCounter   bool
+	Covers        bool
+	CoverSheets   bool
 	// CoverFirstFrame freezes the cover frame over the first frames of the
 	// rendered Short so YouTube's thumbnail frame selector can pick it.
 	CoverFirstFrame bool
@@ -95,6 +102,10 @@ type shortDryRunEdit struct {
 	Transition   string `json:"transition"`
 	Intro        bool   `json:"intro"`
 	Outro        bool   `json:"outro"`
+	Hook         bool   `json:"hook"`
+	KillCounter  bool   `json:"kill_counter"`
+	Covers       bool   `json:"covers"`
+	CoverSheets  bool   `json:"cover_sheets"`
 }
 
 type shortDryRunOutput struct {
@@ -144,7 +155,7 @@ func runShort(args []string, stdout, stderr io.Writer, stdin io.Reader, runner c
 		return exitInvalidArgs
 	}
 	if opts.DryRun && opts.Format == "json" {
-		if err := writeJSON(stdout, buildShortDryRunResult(plan)); err != nil {
+		if err := writeJSON(stdout, buildShortDryRunResult(opts, plan)); err != nil {
 			fmt.Fprintf(stderr, "error: writing json: %v\n", err)
 			return exitUnexpected
 		}
@@ -160,7 +171,7 @@ func runShort(args []string, stdout, stderr io.Writer, stdin io.Reader, runner c
 		return exitSuccess
 	}
 	for _, dir := range plan.stageDirs {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			fmt.Fprintf(stderr, "error: create stage output directory: %v\n", err)
 			return exitUnexpected
 		}
@@ -224,6 +235,10 @@ func parseShortArgs(args []string) (shortOptions, error) {
 	fs.StringVar(&opts.Transition, "transition", editor.TransitionFlash, "cut, flash, whip, or dip")
 	fs.BoolVar(&opts.Intro, "intro", false, "add a professional intro title overlay")
 	fs.BoolVar(&opts.Outro, "outro", false, "add a professional outro title overlay")
+	fs.BoolVar(&opts.Hook, "hook", true, "draw the generated headline as a hook over the first ~2s")
+	fs.BoolVar(&opts.KillCounter, "kill-counter", true, "pop a running kill count with 2K/3K/4K/ACE milestones")
+	fs.BoolVar(&opts.Covers, "covers", true, "generate local JPG covers for the publish pack")
+	fs.BoolVar(&opts.CoverSheets, "cover-sheets", true, "generate tiled cover contact sheets")
 	fs.BoolVar(&opts.CoverFirstFrame, "cover-first-frame", false, "freeze the cover frame over the first frames so YouTube's Shorts thumbnail selector can pick it")
 	fs.BoolVar(&opts.DryRun, "dry-run", false, "print the resolved plan without launching HLAE/CS2 or FFmpeg")
 	if err := fs.Parse(args); err != nil {
@@ -274,8 +289,19 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 	if outputFormat == "" {
 		outputFormat = editor.OutputFormatShort9x16
 	}
+	steamID := ""
+	if opts.FromRecording == "" {
+		steamID, err = resolveShortSteamID(opts, intent)
+		if err != nil {
+			return shortPlan{}, err
+		}
+	}
+	outDir, err := shortOutDir(opts, intent, steamID)
+	if err != nil {
+		return shortPlan{}, err
+	}
 	plan := shortPlan{
-		preset: preset, intent: intent, outDir: shortOutDir(opts), outputFormat: outputFormat,
+		preset: preset, intent: intent, outDir: outDir, outputFormat: outputFormat,
 		killEffect: opts.KillEffect, transition: opts.Transition, intro: opts.Intro, outro: opts.Outro,
 	}
 	plan.stageDirs = []string{plan.outDir}
@@ -290,10 +316,6 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 	killPlanPath := ""
 	recordingResult := opts.FromRecording
 	if opts.FromRecording == "" {
-		steamID, err := resolveShortSteamID(opts, intent)
-		if err != nil {
-			return shortPlan{}, err
-		}
 		plan.player = steamID
 		if intent.TargetName != "" {
 			plan.player = steamID + " (" + intent.TargetName + ")"
@@ -302,15 +324,34 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 		if err != nil {
 			return shortPlan{}, err
 		}
-		killPlanPath = filepath.Join(plan.outDir, "killplan.json")
+		parsedKillPlanPath := filepath.Join(plan.outDir, "killplan.json")
+		killPlanPath = parsedKillPlanPath
 		recordingDir := filepath.Join(plan.outDir, "recording")
 		plan.stageDirs = append(plan.stageDirs, recordingDir)
 		recordingResult = filepath.Join(recordingDir, "recording-result.json")
 		plan.stages = append(plan.stages, shortStage{
 			label:  "parsing demo",
 			binary: "zv-parser",
-			args:   []string{"parse", "--demo", opts.DemoPath, "--steamid", steamID, "--out", killPlanPath},
+			args:   []string{"parse", "--demo", opts.DemoPath, "--steamid", steamID, "--out", parsedKillPlanPath},
 		})
+		if intent.BestMoments {
+			selfExecutable, err := os.Executable()
+			if err != nil {
+				return shortPlan{}, fmt.Errorf("resolve current zv executable: %w", err)
+			}
+			killPlanPath = filepath.Join(plan.outDir, "best-moments.killplan.json")
+			plan.stages = append(plan.stages, shortStage{
+				label:  "selecting scored best moments",
+				binary: selfExecutable,
+				args: []string{
+					"demo", "select",
+					"--killplan", parsedKillPlanPath,
+					"--top", strconv.Itoa(shortBestMomentsLimit),
+					"--out", killPlanPath,
+					"--format", "json",
+				},
+			})
+		}
 		recorderArgs := []string{"--killplan", killPlanPath, "--demo", opts.DemoPath, "--out", recordingDir, "--hlae", hlae, "--cs2", cs2}
 		if preset.HUDMode != "" {
 			recorderArgs = append(recorderArgs, "--hud", preset.HUDMode)
@@ -333,6 +374,11 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 		rhythmArgs := []string{"analyze", "--input", opts.MusicPath, "--out", rhythmPath}
 		if killPlanPath != "" {
 			rhythmArgs = append(rhythmArgs, "--killplan", killPlanPath)
+		} else {
+			rhythmArgs = append(rhythmArgs, "--recording-result", recordingResult)
+		}
+		if intent.BestMoments && opts.FromRecording != "" {
+			rhythmArgs = append(rhythmArgs, "--rank-moments", "--limit", strconv.Itoa(shortBestMomentsLimit))
 		}
 		plan.stages = append(plan.stages, shortStage{
 			label:  "analyzing music beats",
@@ -441,15 +487,13 @@ func shortRenderArgs(opts shortOptions, plan shortPlan, killPlanPath, recordingR
 		"--output-format", plan.outputFormat,
 		"--kill-effect", plan.killEffect,
 		"--transition", plan.transition,
-	}
-	if plan.intro {
-		args = append(args, "--intro")
-	}
-	if plan.outro {
-		args = append(args, "--outro")
-	}
-	if opts.CoverFirstFrame {
-		args = append(args, "--cover-first-frame")
+		"--intro=" + strconv.FormatBool(plan.intro),
+		"--outro=" + strconv.FormatBool(plan.outro),
+		"--hook=" + strconv.FormatBool(opts.Hook),
+		"--kill-counter=" + strconv.FormatBool(opts.KillCounter),
+		"--covers=" + strconv.FormatBool(opts.Covers),
+		"--cover-sheets=" + strconv.FormatBool(opts.CoverSheets),
+		"--cover-first-frame=" + strconv.FormatBool(opts.CoverFirstFrame),
 	}
 	if killPlanPath != "" {
 		args = append(args, "--killplan", killPlanPath)
@@ -461,9 +505,12 @@ func shortRenderArgs(opts shortOptions, plan shortPlan, killPlanPath, recordingR
 		args = append(args, "--rhythm", rhythmPath)
 	}
 	// One upload-ready Short: compile all selected segments into a single
-	// vertical video. Best-moments intent keeps only the top segments.
+	// vertical video. Fresh best-moment runs already persist an explicitly
+	// ranked kill plan before capture; resumed recordings rank their embedded
+	// factual plan before compilation.
 	args = append(args, "--compile-segments")
-	if plan.intent.BestMoments {
+	if plan.intent.BestMoments && opts.FromRecording != "" {
+		args = append(args, "--rank-moments")
 		args = append(args, "--limit", strconv.Itoa(shortBestMomentsLimit))
 	}
 	return args
@@ -472,15 +519,44 @@ func shortRenderArgs(opts shortOptions, plan shortPlan, killPlanPath, recordingR
 // shortBestMomentsLimit caps the compiled segments for best-moments prompts.
 const shortBestMomentsLimit = 5
 
-func shortOutDir(opts shortOptions) string {
+func shortOutDir(opts shortOptions, intent shortIntent, targetSteamID string) (string, error) {
 	if opts.OutDir != "" {
-		return opts.OutDir
+		return opts.OutDir, nil
+	}
+	sourceKind := "recording"
+	sourcePath := opts.FromRecording
+	selection := "all"
+	if intent.BestMoments {
+		selection = fmt.Sprintf("best-%d", shortBestMomentsLimit)
 	}
 	if opts.DemoPath != "" {
-		stem := strings.TrimSuffix(filepath.Base(opts.DemoPath), filepath.Ext(opts.DemoPath))
-		return filepath.Join("data", "runs", stem+"-short")
+		sourceKind = "demo"
+		sourcePath = opts.DemoPath
 	}
-	return filepath.Join(filepath.Dir(opts.FromRecording), "short")
+	absoluteSource, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return "", fmt.Errorf("resolve short source identity: %w", err)
+	}
+	identity := strings.Join([]string{
+		sourceKind,
+		filepath.Clean(absoluteSource),
+		targetSteamID,
+		selection,
+	}, "\n")
+	digest := sha256.Sum256([]byte(identity))
+	suffix := fmt.Sprintf("%x", digest[:6])
+	if !opts.DryRun {
+		var attempt [4]byte
+		if _, err := rand.Read(attempt[:]); err != nil {
+			return "", fmt.Errorf("create unique short run identity: %w", err)
+		}
+		suffix += "-" + hex.EncodeToString(attempt[:])
+	}
+	if sourceKind == "demo" {
+		stem := strings.TrimSuffix(filepath.Base(opts.DemoPath), filepath.Ext(opts.DemoPath))
+		return filepath.Join("data", "runs", stem+"-short-"+suffix), nil
+	}
+	return filepath.Join(filepath.Dir(opts.FromRecording), "short-"+suffix), nil
 }
 
 func printShortPlan(stdout io.Writer, plan shortPlan) {
@@ -493,7 +569,7 @@ func printShortPlan(stdout io.Writer, plan shortPlan) {
 	fmt.Fprintln(stdout, "dry-run: no stages executed")
 }
 
-func buildShortDryRunResult(plan shortPlan) shortDryRunResult {
+func buildShortDryRunResult(opts shortOptions, plan shortPlan) shortDryRunResult {
 	stages := make([]shortDryRunStage, 0, len(plan.stages))
 	for i, stage := range plan.stages {
 		stages = append(stages, shortDryRunStage{
@@ -523,6 +599,10 @@ func buildShortDryRunResult(plan shortPlan) shortDryRunResult {
 			Transition:   plan.transition,
 			Intro:        plan.intro,
 			Outro:        plan.outro,
+			Hook:         opts.Hook,
+			KillCounter:  opts.KillCounter,
+			Covers:       opts.Covers,
+			CoverSheets:  opts.CoverSheets,
 		},
 		Output: shortDryRunOutput{
 			RunDir:     plan.outDir,

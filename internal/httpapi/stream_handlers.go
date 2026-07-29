@@ -188,9 +188,8 @@ func (h *Handlers) createStreamJobFromURL(w http.ResponseWriter, r *http.Request
 	if !h.requireYtdlpEnabled(w) {
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 	var req createStreamJobFromURLRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeSingleJSONBody(w, r, &req, false); err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writeError(w, http.StatusRequestEntityTooLarge, "stream job JSON is too large")
 			return
@@ -200,7 +199,7 @@ func (h *Handlers) createStreamJobFromURL(w http.ResponseWriter, r *http.Request
 	}
 	source, err := vodfetch.ValidateSource(req.SourceURL)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid source_url: "+err.Error())
+		writeCodedError(w, http.StatusBadRequest, "invalid_source_url", "invalid source_url: "+err.Error())
 		return
 	}
 
@@ -367,13 +366,18 @@ func (h *Handlers) PutStreamEditPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
-	var plan streamclips.EditPlan
-	if err := json.NewDecoder(r.Body).Decode(&plan); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writeError(w, http.StatusRequestEntityTooLarge, "edit plan JSON is too large")
 			return
 		}
 		writeError(w, http.StatusBadRequest, "invalid edit plan JSON")
+		return
+	}
+	plan, err := streamclips.DecodeEditPlan(body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid edit plan JSON: "+err.Error())
 		return
 	}
 	plan = streamclips.NormalizeEditPlan(plan)
@@ -441,7 +445,7 @@ func (h *Handlers) StartStreamRender(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "stream edit plan requires migration after approval; save and review the migrated plan before rendering")
 		return
 	}
-	if err := plan.ValidateForSourceDuration(j.Probe.DurationSeconds); err != nil {
+	if err := plan.ValidateForRender(j.Probe.DurationSeconds); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -535,11 +539,8 @@ func decodeExpectedStreamPlanRevision(w http.ResponseWriter, r *http.Request) (t
 	if !isJSONContentType(r.Header.Get("Content-Type")) {
 		return time.Time{}, false, true
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
 	var input startStreamRenderRequest
-	if err := decoder.Decode(&input); err != nil {
+	if err := decodeSingleJSONBody(w, r, &input, true); err != nil {
 		if errors.Is(err, io.EOF) {
 			return time.Time{}, false, true
 		}
@@ -548,10 +549,6 @@ func decodeExpectedStreamPlanRevision(w http.ResponseWriter, r *http.Request) (t
 			return time.Time{}, false, false
 		}
 		writeError(w, http.StatusBadRequest, "invalid stream render request JSON")
-		return time.Time{}, false, false
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		writeError(w, http.StatusBadRequest, "stream render request must contain one JSON object")
 		return time.Time{}, false, false
 	}
 	if input.ExpectedEditPlanUpdatedAt == "" {

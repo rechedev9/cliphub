@@ -346,7 +346,7 @@ func runStreamRender(args []string, stdout, stderr io.Writer, service streamServ
 		return writeStreamRuntimeError(args, stdout, stderr, fmt.Errorf("probe stream input: %w", err))
 	}
 	plan = streamclips.NormalizeEditPlan(plan)
-	if err := plan.ValidateForSourceDuration(probe.DurationSeconds); err != nil {
+	if err := plan.ValidateForRender(probe.DurationSeconds); err != nil {
 		return writeStreamCommandError(args, stdout, stderr, fmt.Errorf("invalid stream edit plan: %w", err), streamRenderUsage)
 	}
 	absInput, _ := filepath.Abs(*input)
@@ -450,9 +450,11 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 	if err != nil {
 		return streamRenderResult{}, fmt.Errorf("hash source: %w", err)
 	}
-	planHash := sha256.Sum256(request.PlanJSON)
-	jobID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(sourceHash+hex.EncodeToString(planHash[:])))
 	plan := streamclips.NormalizeEditPlan(request.Plan)
+	jobID, err := streamRenderJobID(sourceHash, plan)
+	if err != nil {
+		return streamRenderResult{}, err
+	}
 	planJSON, err := marshalLocalEditPlan(plan)
 	if err != nil {
 		return streamRenderResult{}, fmt.Errorf("encode stream plan: %w", err)
@@ -472,10 +474,6 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 	if err := source.Close(); err != nil {
 		return streamRenderResult{}, fmt.Errorf("close stream source: %w", err)
 	}
-	workDir := request.WorkDir
-	if workDir == "" {
-		workDir = filepath.Join(request.OutDir, ".work")
-	}
 	now := time.Now().UTC()
 	job := streamclips.Job{
 		ID:           jobID,
@@ -490,7 +488,7 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 	}
 	repo := &directStreamRepository{job: job}
 	worker := workers.NewStreamRenderWorker(repo, store, workers.StreamRenderWorkerConfig{
-		WorkDir:    workDir,
+		WorkDir:    request.WorkDir,
 		FFmpegPath: request.FFmpeg,
 		Timeout:    request.Timeout,
 		MusicDir:   request.MusicDir,
@@ -546,6 +544,14 @@ func (localStreamService) Render(ctx context.Context, request streamRenderReques
 		request.CoverGenerator = ffmpegStreamCoverGenerator{}
 	}
 	return publishLocalStreamResult(ctx, store, job, request, workerResult)
+}
+
+func streamRenderJobID(sourceHash string, plan streamclips.EditPlan) (uuid.UUID, error) {
+	planFingerprint, err := streamclips.EditPlanFingerprint(streamclips.NormalizeEditPlan(plan))
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("fingerprint stream plan: %w", err)
+	}
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(sourceHash+planFingerprint)), nil
 }
 
 func marshalLocalEditPlan(plan streamclips.EditPlan) ([]byte, error) {
@@ -752,6 +758,7 @@ func parseStreamCrop(value string) (streamclips.CropRect, error) {
 }
 
 func sha256File(filePath string) (string, error) {
+	// #nosec G304 -- filePath is the explicit local stream input selected by the CLI user.
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err

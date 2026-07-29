@@ -47,7 +47,7 @@ func TestFindDemos(t *testing.T) {
 	write("notes.txt")
 	write("sub/c.dem")
 
-	flat, err := findDemos(root, false)
+	flat, err := FindDemos(root, false)
 	if err != nil {
 		t.Fatalf("findDemos flat: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestFindDemos(t *testing.T) {
 		t.Errorf("flat demos: got %d want %d (%v)", got, want, flat)
 	}
 
-	deep, err := findDemos(root, true)
+	deep, err := FindDemos(root, true)
 	if err != nil {
 		t.Fatalf("findDemos recursive: %v", err)
 	}

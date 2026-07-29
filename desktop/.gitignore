@@ -1,6 +1,12 @@
 node_modules/
 build-resources/
 dist-installer/
+.dist-installer-backup/
+.dist-installer-stage-*/
+.dist-installer-publication.json
+.dist-installer-publication.json.tmp-*
+.dist-installer-publication.lock
+.dist-installer-publication.lock.stale-*
 dist/
 e2e/artifacts/
 .env*

@@ -116,8 +116,8 @@ export function mutationHeaders(): Record<string, string> {
 }
 
 /**
- * Forwards a non-2xx orchestrator response as a normalized { error: string }
- * JSON object plus its status. For 4xx it extracts the upstream `error` string
+ * Forwards a non-2xx orchestrator response as a normalized { error: string,
+ * code?: string } JSON object plus its status. For 4xx it extracts the upstream `error` string
  * when present, otherwise wraps the raw text (or a generic message). The proxy
  * never forwards an arbitrary upstream JSON object verbatim, so the upstream's
  * body shape cannot leak through this layer. For 5xx it returns a generic error
@@ -131,7 +131,11 @@ export async function forwardError(res: Response): Promise<Response> {
   try {
     const body = JSON.parse(text) as unknown;
     if (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string') {
-      return NextResponse.json({ error: (body as { error: string }).error }, { status: res.status });
+      const error = (body as { error: string }).error;
+      const code = 'code' in body && typeof (body as { code: unknown }).code === 'string'
+        ? (body as { code: string }).code
+        : undefined;
+      return NextResponse.json(code === undefined ? { error } : { error, code }, { status: res.status });
     }
   } catch {
     // not JSON; fall through to a wrapped text error

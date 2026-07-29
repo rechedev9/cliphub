@@ -3,6 +3,7 @@ import {
   type PublishAssistant,
   type PublishRecommendation,
 } from './api/publish-assistant.ts';
+import { writeClipboardText } from './clipboard-write.ts';
 
 export type PublishDraft = {
   title: string;
@@ -27,7 +28,7 @@ export function recommendedPublishDraft(recommendation: PublishRecommendation): 
 }
 
 export async function copyPublishText(value: string): Promise<void> {
-  await navigator.clipboard.writeText(value);
+  await writeClipboardText(value);
 }
 
 export function publishTagsText(tags: string[]): string {

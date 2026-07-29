@@ -37,11 +37,6 @@ func TestNewUploadTargetsDerivesKeysAndPaths(t *testing.T) {
 
 	prefix := "jobs/11111111-1111-1111-1111-111111111111/recording"
 	want := []UploadTarget{{
-		Key:      prefix + "/recording-result.json",
-		Path:     resultPath,
-		Label:    "recording result",
-		Required: true,
-	}, {
 		Key:            prefix + "/recording.js",
 		Path:           filepath.Join(outDir, "recording.js"),
 		Label:          "recording script",
@@ -53,6 +48,11 @@ func TestNewUploadTargetsDerivesKeysAndPaths(t *testing.T) {
 		Label:     "segment seg-001",
 		Required:  true,
 		SegmentID: "seg-001",
+	}, {
+		Key:      prefix + "/recording-result.json",
+		Path:     resultPath,
+		Label:    "recording result",
+		Required: true,
 	}}
 	if len(got) != len(want) {
 		t.Fatalf("targets len = %d, want %d: %#v", len(got), len(want), got)
@@ -84,8 +84,8 @@ func TestNewUploadTargetsSkipsFailedSegmentAndKeepsLaterValidClip(t *testing.T) 
 	if gotCount, wantCount := len(got), 3; gotCount != wantCount {
 		t.Fatalf("targets len = %d, want %d: %#v", gotCount, wantCount, got)
 	}
-	if got[2].SegmentID != "seg-002" || got[2].Path != "seg-002.mp4" {
-		t.Fatalf("segment target = %#v, want valid seg-002", got[2])
+	if got[1].SegmentID != "seg-002" || got[1].Path != "seg-002.mp4" {
+		t.Fatalf("segment target = %#v, want valid seg-002", got[1])
 	}
 }
 
@@ -105,7 +105,7 @@ func TestNewUploadTargetsKeepsFailedScriptOptional(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("targets len = %d, want 2: %#v", len(got), got)
 	}
-	if got[1].Path != filepath.Join("custom", "recording.js") || got[1].Required {
-		t.Fatalf("script target = %#v, want custom optional script", got[1])
+	if got[0].Path != filepath.Join("custom", "recording.js") || got[0].Required {
+		t.Fatalf("script target = %#v, want custom optional script", got[0])
 	}
 }

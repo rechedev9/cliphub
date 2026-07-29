@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"net/http"
-	"os"
+	"os/exec"
+
+	"github.com/rechedev9/fragforge/internal/capturetools"
 )
 
 // CaptureTool is one external tool the media pipeline needs. Configured means a
@@ -52,21 +54,21 @@ func (h *Handlers) GetCapabilities(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// resolveTools fills Configured/Accessible from the current path and disk state,
-// leaving the startup-provided Name/Path untouched.
+// resolveTools fills Configured/Accessible from the current PATH and disk state.
+// Accessible tools report the same resolved command path used by worker
+// admission; invalid configured paths remain visible for diagnostics.
 func resolveTools(tools []CaptureTool) []CaptureTool {
 	out := make([]CaptureTool, len(tools))
 	for i, t := range tools {
 		t.Configured = t.Path != ""
-		t.Accessible = t.Configured && pathExists(t.Path)
+		resolved, err := exec.LookPath(t.Path)
+		t.Accessible = t.Configured && err == nil && capturetools.ExecutableFile(resolved)
+		if t.Accessible {
+			t.Path = resolved
+		}
 		out[i] = t
 	}
 	return out
-}
-
-func pathExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
 }
 
 // requireRecordEnabled reports whether gameplay capture is configured. When it

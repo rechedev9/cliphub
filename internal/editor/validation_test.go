@@ -17,7 +17,7 @@ func TestValidateShortArtifactWarnsWhenTooLongForYouTubeShorts(t *testing.T) {
 		Width:           1080,
 		Height:          1920,
 		FrameRate:       "60/1",
-	}, DefaultPreset().FPS)
+	}, DefaultPreset().FPS, OutputFormatShort9x16)
 	if len(warnings) != 1 || !strings.Contains(warnings[0], "want <= 180s for YouTube Shorts") {
 		t.Fatalf("warnings = %#v", warnings)
 	}
@@ -33,7 +33,7 @@ func TestValidateShortArtifactAcceptsUploadReadyShort(t *testing.T) {
 		Width:           1080,
 		Height:          1920,
 		FrameRate:       "60/1",
-	}, DefaultPreset().FPS)
+	}, DefaultPreset().FPS, OutputFormatShort9x16)
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %#v", warnings)
 	}
@@ -49,9 +49,38 @@ func TestValidateShortArtifactAcceptsConfiguredFPS(t *testing.T) {
 		Width:           1080,
 		Height:          1920,
 		FrameRate:       "24/1",
-	}, 24)
+	}, 24, OutputFormatShort9x16)
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %#v", warnings)
+	}
+}
+
+func TestValidateShortArtifactAcceptsLandscapeLongForm(t *testing.T) {
+	warnings := validateShortArtifact(recording.RecordingArtifact{
+		SegmentID:       "seg-landscape",
+		Path:            "long-form.mp4",
+		SizeBytes:       1,
+		DurationSeconds: 900,
+		Codec:           "h264",
+		Width:           1920,
+		Height:          1080,
+		FrameRate:       "60/1",
+	}, DefaultPreset().FPS, OutputFormatLandscape16x9)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none for valid landscape long-form output", warnings)
+	}
+}
+
+func TestValidateCoverArtifactAcceptsLandscapeGeometry(t *testing.T) {
+	warnings := ValidateCoverArtifact(recording.RecordingArtifact{
+		SegmentID: "seg-landscape",
+		Path:      "cover.jpg",
+		SizeBytes: 1,
+		Width:     1920,
+		Height:    1080,
+	}, OutputFormatLandscape16x9)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none for valid landscape cover", warnings)
 	}
 }
 

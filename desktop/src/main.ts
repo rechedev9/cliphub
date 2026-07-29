@@ -13,10 +13,13 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
+  screen,
   shell,
   session,
   type IpcMainInvokeEvent,
+  type Event as ElectronEvent,
 } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -28,7 +31,17 @@ import {
   orchestratorSecurityEnvironment,
   webSecurityEnvironment,
 } from './boot-security';
-import { validateWindowState, type WindowState } from './window-state';
+import {
+  isAbortedNavigation,
+  isSuccessfulInternalReplacement,
+  isSupersededInternalNavigation,
+  type SuccessfulNavigationEvidence,
+} from './boot-navigation';
+import {
+  fitWindowStateToWorkAreas,
+  validateWindowState,
+  type WindowState,
+} from './window-state';
 import { lastLines } from './log-tail';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
@@ -36,11 +49,13 @@ import { ProcessSession, type LaunchedProcess } from './process-session';
 import { waitForDesktopServices } from './service-health';
 import { provisionMusicLibrary } from './music-library';
 import { allocateStableServicePorts } from './stable-ports';
+import { requestCanonicalSingleInstanceLock } from './user-data-lock';
 import {
   isTrustedSettingsSender,
   parseStudioSettingsRequest,
   STUDIO_SETTINGS_CHANNEL,
 } from './studio-settings-ipc';
+import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboard-ipc';
 
 // FragForge reads XAI_API_KEY nowhere: no model provider is part of the
 // product. An operator's own key can still reach this process by ordinary
@@ -54,9 +69,11 @@ delete process.env.XAI_API_KEY;
 // the value that couples all the URLs below is not a scattered magic string.
 const LOOPBACK_HOST = '127.0.0.1';
 
-// A single running instance owns the orchestrator; a second launch just focuses
-// the existing window instead of spawning a duplicate backend on new ports.
-if (!app.requestSingleInstanceLock()) {
+// Electron's lock is OS-backed, but its namespace comes from userData. Acquire
+// the packaged lock under canonical appData before restoring any explicit
+// profile; dev/e2e remains profile-scoped so isolated tests can run together.
+const ownsElectronInstance = requestCanonicalSingleInstanceLock(app);
+if (!ownsElectronInstance) {
   app.quit();
   process.exit(0);
 }
@@ -185,11 +202,17 @@ const windowFile = path.join(app.getPath('userData'), 'window.json');
 /** Reads saved window bounds and maximize state, falling back to sane defaults if missing, corrupt, or implausibly small. */
 function loadWindowState(): WindowState {
   try {
-    return validateWindowState(JSON.parse(fs.readFileSync(windowFile, 'utf8')));
+    return fitWindowStateToWorkAreas(
+      validateWindowState(JSON.parse(fs.readFileSync(windowFile, 'utf8'))),
+      screen.getAllDisplays().map((display) => display.workArea),
+    );
   } catch {
     // Missing file or unparseable JSON; validateWindowState(undefined) returns
     // the same fallback the inline check used.
-    return validateWindowState(undefined);
+    return fitWindowStateToWorkAreas(
+      validateWindowState(undefined),
+      screen.getAllDisplays().map((display) => display.workArea),
+    );
   }
 }
 
@@ -381,12 +404,54 @@ async function loadMatches(webPort: number, proxyMutationCapability: string): Pr
   loadingScreenShowing = false;
   const win = aliveWindow();
   if (win === null) throw new Error('main window is unavailable');
+  const webOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
   await installProxyCapabilityCookie(
     win.webContents.session.cookies,
-    `http://${LOOPBACK_HOST}:${webPort}`,
+    webOrigin,
     proxyMutationCapability,
   );
-  await win.loadURL(`http://${LOOPBACK_HOST}:${webPort}/matches`);
+  const requestedURL = `${webOrigin}/matches`;
+  let observedReplacement: SuccessfulNavigationEvidence | null = null;
+  let resolveReplacement: ((evidence: SuccessfulNavigationEvidence) => void) | undefined;
+  const replacementCompleted = new Promise<SuccessfulNavigationEvidence>((resolve) => {
+    resolveReplacement = resolve;
+  });
+  const onDidNavigate = (
+    _event: ElectronEvent,
+    url: string,
+    httpResponseCode: number,
+  ): void => {
+    const evidence = { url, httpResponseCode };
+    if (!isSuccessfulInternalReplacement(requestedURL, evidence, webOrigin)) return;
+    observedReplacement = evidence;
+    resolveReplacement?.(evidence);
+  };
+  win.webContents.on('did-navigate', onDidNavigate);
+  try {
+    await win.loadURL(requestedURL);
+  } catch (error) {
+    if (observedReplacement === null && isAbortedNavigation(error)) {
+      observedReplacement = await waitForNavigationEvidence(replacementCompleted, 5_000);
+    }
+    if (!isSupersededInternalNavigation(error, requestedURL, observedReplacement, webOrigin)) {
+      throw error;
+    }
+  } finally {
+    win.webContents.off('did-navigate', onDidNavigate);
+  }
+}
+
+function waitForNavigationEvidence(
+  evidence: Promise<SuccessfulNavigationEvidence>,
+  timeoutMs: number,
+): Promise<SuccessfulNavigationEvidence | null> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(null), timeoutMs);
+    void evidence.then((value) => {
+      clearTimeout(timeout);
+      resolve(value);
+    });
+  });
 }
 
 // Generous overall deadline for each server to answer its health check.
@@ -602,6 +667,19 @@ function registerStudioSettingsIPC(): void {
   });
 }
 
+function registerStudioClipboardIPC(): void {
+  ipcMain.handle(STUDIO_CLIPBOARD_CHANNEL, (event, value: unknown): { ok: boolean; error?: string } => {
+    if (!trustedSettingsSender(event)) return { ok: false, error: 'Solicitud de portapapeles rechazada.' };
+    try {
+      const request = parseClipboardWriteRequest(value);
+      clipboard.writeText(request.text);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Solicitud de portapapeles no válida.' };
+    }
+  });
+}
+
 // Prevent crash watchers and retries from fighting an intentional shutdown.
 let quitting = false;
 
@@ -617,10 +695,15 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
-  // Local app needs no browser permissions (camera/mic/geolocation/notifications/etc).
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  // The web permission surface stays closed. User-activated clipboard writes
+  // use the narrow preload IPC bridge, where the main process can authenticate
+  // the exact active top frame and validate a bounded text-only request.
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => callback(false),
+  );
   session.defaultSession.setPermissionCheckHandler(() => false);
   registerStudioSettingsIPC();
+  registerStudioClipboardIPC();
   runBoot();
 });
 

@@ -25,13 +25,13 @@ import {
   STREAMER_NICK_RE,
   STREAM_OFFLINE_MESSAGE,
   blankClip,
-  blankPlan,
   errorMessage,
   fitPlanToSourceDuration,
   isServiceUnavailable,
   isStreamURLValidationError,
   nonVideoExtension,
   sleep,
+  withDefaultStreamTitle,
 } from '@/lib/streams/plan';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -39,7 +39,6 @@ import { Button } from '@/components/ui/button';
 import { StreamAcquiringCard } from '@/components/streams/acquiring-card';
 import { StreamEditor } from '@/components/streams/stream-editor';
 import { StreamSourceCard } from '@/components/streams/source-card';
-
 
 type Stage = 'idle' | 'submitting' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed';
 
@@ -93,7 +92,7 @@ function LocalStreamsPage() {
     serverPlanFingerprint.current = null;
   }, []);
 
-  const loadEditor = useCallback(async (j: StreamJob) => {
+  const loadEditor = useCallback(async (j: StreamJob, nextStage: 'editing' | 'rendering' = 'editing'): Promise<StreamEditPlan | null> => {
     const requestedLoad = nextStreamEditorLoad(editorLoad.current, j.id);
     editorLoad.current = requestedLoad;
     draftSessionId.current = window.crypto.randomUUID();
@@ -103,25 +102,28 @@ function LocalStreamsPage() {
     try {
       const browserDraft = typeof window === 'undefined' ? null : loadStreamDraft(window.localStorage, j.id);
       const serverPlan = j.edit_plan ?? (await streamsApi.getEditPlan(j.id));
-      if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return;
+      if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return null;
       serverPlanFingerprint.current = { jobId: j.id, fingerprint: streamEditPlanFingerprint(serverPlan) };
-      const loadedPlan = fitPlanToSourceDuration(
-        selectStreamDraftPlan(browserDraft, serverPlan) ?? serverPlan,
-        duration,
+      // A browser draft is editable state only. An admitted/in-flight render is
+      // bound to the persisted server revision and variant.
+      const selectedPlan =
+        nextStage === 'rendering' ? serverPlan : (selectStreamDraftPlan(browserDraft, serverPlan) ?? serverPlan);
+      const loadedPlan = withDefaultStreamTitle(
+        fitPlanToSourceDuration(selectedPlan, duration),
+        j.title,
+        nextStage === 'editing',
       );
-      if (j.title?.trim() && loadedPlan.clips[0] && !loadedPlan.clips[0].title?.trim()) {
-        loadedPlan.clips[0] = { ...loadedPlan.clips[0], title: j.title.trim() };
-      }
-      setPlan(
-        loadedPlan.clips.length > 0 ? loadedPlan : { ...loadedPlan, clips: [blankClip(duration)] },
-      );
-    } catch {
-      if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return;
-      setPlan(blankPlan(duration));
+      const editorPlan =
+        loadedPlan.clips.length > 0 ? loadedPlan : { ...loadedPlan, clips: [blankClip(duration)] };
+      setPlan(editorPlan);
+      setStage(nextStage);
+      return editorPlan;
+    } catch (err) {
+      if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return null;
+      reset(errorMessage(err, 'No se pudo cargar el plan guardado. Vuelve a abrir el trabajo para reintentarlo.'));
+      return null;
     }
-    if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return;
-    setStage('editing');
-  }, []);
+  }, [reset]);
 
   const pollAcquiring = useCallback(
     async (jobId: string) => {
@@ -156,20 +158,6 @@ function LocalStreamsPage() {
       reset('Se agotó el tiempo esperando a que el vídeo de origen estuviera listo.');
     },
     [loadEditor, reset],
-  );
-
-  const resumeJob = useCallback(
-    (candidate: StreamJob) => {
-      setError(null);
-      setJob(candidate);
-      if (candidate.status === 'acquiring') {
-        setStage('acquiring');
-        void pollAcquiring(candidate.id);
-        return;
-      }
-      void loadEditor(candidate);
-    },
-    [loadEditor, pollAcquiring],
   );
 
   const submitUrl = useCallback(async () => {
@@ -264,6 +252,24 @@ function LocalStreamsPage() {
     [reset],
   );
 
+  const resumeJob = useCallback(
+    (candidate: StreamJob) => {
+      setError(null);
+      setJob(candidate);
+      if (candidate.status === 'acquiring') {
+        setStage('acquiring');
+        void pollAcquiring(candidate.id);
+        return;
+      }
+      const resumesRender = candidate.status === 'rendering' || candidate.status === 'rendered';
+      void loadEditor(candidate, resumesRender ? 'rendering' : 'editing').then((loadedPlan) => {
+        if (!resumesRender || loadedPlan === null) return;
+        void pollRender(candidate.id, loadedPlan.variant, loadedPlan);
+      });
+    },
+    [loadEditor, pollAcquiring, pollRender],
+  );
+
   const createShorts = useCallback(async () => {
     if (!job || !plan) return;
     const fittedPlan = fitPlanToSourceDuration(plan, job.probe?.duration_seconds ?? 0);
@@ -303,13 +309,16 @@ function LocalStreamsPage() {
       }
       serverPlanFingerprint.current = { jobId: job.id, fingerprint: streamEditPlanFingerprint(saved) };
       setPlan(saved);
+      if (!saved.updated_at) {
+        throw new Error('El plan guardado no incluye una revisión verificable.');
+      }
       setStage('rendering');
       setRenderState((previous) =>
         previous && (previous.published || previous.status === 'rendered')
           ? { ...previous, published: true, status: 'queued' }
           : { status: 'queued', videos: [] },
       );
-      await streamsApi.startRender(job.id, saved.variant);
+      await streamsApi.startRender(job.id, saved.variant, saved.updated_at);
       void pollRender(job.id, saved.variant, saved);
     } catch (err) {
       setStage('editing');

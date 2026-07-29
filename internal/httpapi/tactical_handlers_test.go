@@ -14,6 +14,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/job"
 	"github.com/rechedev9/fragforge/internal/radarmap"
 	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/fragforge/internal/tactical"
 	"github.com/rechedev9/fragforge/internal/tacticalplan"
 	"github.com/rechedev9/fragforge/internal/tasks"
 )
@@ -144,6 +145,42 @@ func TestStartTacticalAnalysisRejectsOutOfRangeSampleRate(t *testing.T) {
 	}
 }
 
+func TestStartTacticalAnalysisRejectsNonCanonicalSampleRate(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	h := NewHandlers(repo, newFakeStorage(), queue)
+	id := tacticalTestJob(repo)
+
+	body := bytes.NewBufferString(`{"sample_hz":20}`)
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+id.String()+"/tactical", body))
+
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 0 {
+		t.Errorf("enqueued %d tasks, want none", len(queue.enqueued))
+	}
+}
+
+func TestStartTacticalAnalysisRejectsTrailingJSON(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	h := NewHandlers(repo, newFakeStorage(), queue)
+	id := tacticalTestJob(repo)
+
+	body := bytes.NewBufferString(`{"sample_hz":1}{"sample_hz":20}`)
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+id.String()+"/tactical", body))
+
+	if rw.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 0 {
+		t.Errorf("enqueued %d tasks, want none", len(queue.enqueued))
+	}
+}
+
 func TestGetTacticalStatusReportsNoneBeforeAnalysis(t *testing.T) {
 	repo := newFakeRepo()
 	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
@@ -161,6 +198,34 @@ func TestGetTacticalStatusReportsNoneBeforeAnalysis(t *testing.T) {
 	}
 	if status.State != artifacts.TacticalStateNone {
 		t.Errorf("state = %q, want %q", status.State, artifacts.TacticalStateNone)
+	}
+}
+
+func TestGetTacticalStatusDefaultsLegacySampleRateWithoutRewriting(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	h := NewHandlers(repo, store, &fakeQueue{})
+	id := tacticalTestJob(repo)
+	key := artifacts.TacticalStatusKey(id)
+	legacy := []byte(`{"state":"ready","generated_at":"2026-07-29T00:00:00Z","schema_version":"` +
+		tacticalplan.SchemaVersion + `"}` + "\n")
+	store.puts[key] = append([]byte(nil), legacy...)
+
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"/tactical/status", nil))
+
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	var status artifacts.TacticalStatus
+	if err := json.Unmarshal(rw.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.SampleHZ != tactical.DefaultSampleHZ {
+		t.Errorf("sample_hz = %v, want legacy default %v", status.SampleHZ, float64(tactical.DefaultSampleHZ))
+	}
+	if !bytes.Equal(store.puts[key], legacy) {
+		t.Fatalf("stored status = %s, want the legacy artifact left unchanged", store.puts[key])
 	}
 }
 

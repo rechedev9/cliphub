@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -63,9 +65,7 @@ func TestStreamJourneyBinaryChainsPlanAndRender(t *testing.T) {
 }
 
 // TestFlowsRunStreamDryRunChainsPlanAndRender exercises `zv flows run stream
-// --dry-run` end to end through the real binaries: the plan phase persists a real
-// edit plan (ffprobe) and the render phase runs as a dry run over the persisted
-// plan. Gated on ffmpeg/ffprobe like the manual journey.
+// --dry-run` end to end and proves that both phases are planned without writes.
 func TestFlowsRunStreamDryRunChainsPlanAndRender(t *testing.T) {
 	ffmpeg := requireStreamMediaTools(t)
 	exe := buildDelegatedBinaries(t)
@@ -75,23 +75,35 @@ func TestFlowsRunStreamDryRunChainsPlanAndRender(t *testing.T) {
 	generateSyntheticSource(t, ffmpeg, source)
 	runDir := filepath.Join(ws, "run")
 
-	stdout, _ := runZVBinarySplit(t, exe, ws, "flows", "run", "stream", "--input", source, "--run-dir", runDir, "--dry-run", "--format", "json")
-	var report flowRunReport
-	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
-		t.Fatalf("decode flow run report: %v\n%s", err, stdout)
+	cmd := exec.Command(exe, "flows", "run", "stream", "--input", source, "--run-dir", runDir, "--dry-run", "--format", "json")
+	cmd.Dir = ws
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err == nil {
+		t.Fatalf("flows run stream succeeded, want incomplete dry-run\nstdout:\n%s", stdout.String())
+	} else if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != exitUnexpected {
+		t.Fatalf("flows run stream: %v, want exit %d\nstdout:\n%s\nstderr:\n%s", err, exitUnexpected, stdout.String(), stderr.String())
 	}
-	if !report.OK || report.Flow != "stream" {
-		t.Fatalf("stream flow report = %#v, want ok", report)
+	var report flowRunReport
+	if err := json.Unmarshal([]byte(stdout.String()), &report); err != nil {
+		t.Fatalf("decode flow run report: %v\n%s", err, stdout.String())
+	}
+	if report.OK || report.Flow != "stream" {
+		t.Fatalf("stream flow report = %#v, want incomplete dependency report", report)
 	}
 
 	planPhase, ok := phaseByName(report, "plan")
-	if !ok || !planPhase.OK || planPhase.DryRun || !planPhase.Executed {
-		t.Fatalf("plan phase = %#v, want executed", planPhase)
+	if !ok || !planPhase.OK || !planPhase.DryRun || planPhase.Executed {
+		t.Fatalf("plan phase = %#v, want a successful declarative dry run", planPhase)
 	}
-	assertFileExists(t, filepath.Join(runDir, "edit-plan.json"))
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatalf("pure dry-run created run dir: %v", err)
+	}
 
 	renderPhase, ok := phaseByName(report, "render")
-	if !ok || !renderPhase.OK || !renderPhase.DryRun || renderPhase.Executed {
-		t.Fatalf("render phase = %#v, want a successful dry run", renderPhase)
+	if !ok || renderPhase.OK || !renderPhase.Skipped || renderPhase.DryRun || renderPhase.Executed ||
+		!strings.Contains(renderPhase.Reason, "edit-plan.json") {
+		t.Fatalf("render phase = %#v, want unvalidated edit-plan dependency", renderPhase)
 	}
 }

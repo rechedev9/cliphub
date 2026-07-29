@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/rechedev9/fragforge/internal/pathguard"
 	"github.com/rechedev9/fragforge/internal/tactical"
 	"github.com/rechedev9/fragforge/internal/tacticalplan"
 )
@@ -74,6 +75,9 @@ func main() {
 	if sampleTicks <= 0 {
 		sampleTicks = 1
 	}
+	if err := validateOutputPath(outPath, demoPath); err != nil {
+		log.Fatal(err)
+	}
 
 	// The shared scan takes a sample rate in Hz, not an interval in ticks, and a
 	// CS2 demo only reveals its tick rate part-way through parsing. Scanning at
@@ -97,6 +101,10 @@ func main() {
 	if err := os.WriteFile(outPath, append(b, '\n'), 0o600); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func validateOutputPath(outPath, demoPath string) error {
+	return pathguard.RejectOutputAliases(outPath, pathguard.Input{Flag: "--demo", Path: demoPath})
 }
 
 func export(scan tactical.Result, demoPath string, startTick, endTick, sampleTicks int) (output, error) {

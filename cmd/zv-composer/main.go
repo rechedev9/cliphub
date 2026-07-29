@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/fragforge/internal/composition"
+	"github.com/rechedev9/fragforge/internal/pathguard"
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
@@ -90,12 +91,24 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("resolve output path: %w", err)
 	}
+	resultPath := filepath.Join(filepath.Dir(absOut), "composition-result.json")
+	explicitInput := pathguard.Input{Flag: "--recording-result", Path: absRecordingResult}
+	if err := validateCompositionOutputs(absOut, resultPath, explicitInput); err != nil {
+		return err
+	}
 
 	recordingResult, err := readRecordingResult(absRecordingResult)
 	if err != nil {
 		return err
 	}
 	clips, warnings, clipErr := recording.ResolveSegmentClips(recordingResult)
+	clipInputs := make([]pathguard.Input, 0, len(clips))
+	for _, clip := range clips {
+		clipInputs = append(clipInputs, pathguard.Input{Flag: "recording clip", Path: clip.Path})
+	}
+	if err := validateCompositionOutputs(absOut, resultPath, clipInputs...); err != nil {
+		return err
+	}
 	result := composition.Result{
 		RecordingResult: absRecordingResult,
 		Output:          absOut,
@@ -103,7 +116,6 @@ func run() error {
 		Warnings:        warnings,
 	}
 
-	resultPath := filepath.Join(filepath.Dir(absOut), "composition-result.json")
 	if *dryRun {
 		if err := writeResult(resultPath, result); err != nil {
 			return err
@@ -159,6 +171,16 @@ func run() error {
 		return err
 	}
 	return writeCompositionSummary(os.Stdout, *format, result, resultPath, false)
+}
+
+func validateCompositionOutputs(outputPath, resultPath string, inputs ...pathguard.Input) error {
+	if err := pathguard.RejectOutputAliases(outputPath, pathguard.Input{Flag: "composition result", Path: resultPath}); err != nil {
+		return err
+	}
+	if err := pathguard.RejectOutputAliases(outputPath, inputs...); err != nil {
+		return err
+	}
+	return pathguard.RejectOutputAliases(resultPath, inputs...)
 }
 
 // compositionSummary is the {ok, dry_run, executed} success envelope emitted on

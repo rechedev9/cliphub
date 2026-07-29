@@ -32,6 +32,12 @@ func runSmokes(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (k
 			mapName = name
 		}
 	})
+	p.RegisterEventHandler(func(events.MatchStart) {
+		c.resetForMatchStart()
+		pending = nil
+		byEntityID = map[int]*RawUtilityThrow{}
+		byUniqueID = map[int64]*RawUtilityThrow{}
+	})
 
 	p.RegisterEventHandler(func(e events.WeaponFire) {
 		gs := p.GameState()

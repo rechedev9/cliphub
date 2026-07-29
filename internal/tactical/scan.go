@@ -399,6 +399,7 @@ func (s *scanner) slotFor(p *common.Player) (uint8, bool) {
 		s.warn("more than 16 players seen; %q was ignored", p.Name)
 		return 0, false
 	}
+	// #nosec G115 -- the hard 16-player bound above makes this conversion exact.
 	slot := uint8(len(s.players))
 	s.slots[p.SteamID64] = slot
 	s.players = append(s.players, &playerAcc{

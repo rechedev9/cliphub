@@ -8,6 +8,8 @@ import {
   decodePositionsHeader,
   decodeRoundFrames,
   decodeRoundFramesFromSlice,
+  TacticalDecodeError,
+  tacticalDecodeErrorMessage,
 } from './tactical-decode.ts';
 import {
   POSITIONS_FRAME_HEAD_SIZE,
@@ -314,7 +316,20 @@ test('an empty stream still decodes', () => {
 
 test('rejects a buffer shorter than the header', () => {
   const { buffer } = twoRoundBlob();
-  assert.throws(() => decodePositionsHeader(buffer.slice(0, 10)), /shorter than the 32-byte header/);
+  assert.throws(
+    () => decodePositionsHeader(buffer.slice(0, 10)),
+    (error: unknown) =>
+      error instanceof TacticalDecodeError
+      && error.code === 'short_header'
+      && /shorter than the 32-byte header/.test(error.message),
+  );
+});
+
+test('maps typed decoder failures to localized user-safe messages', () => {
+  const technical = new TacticalDecodeError('unsupported_format', 'decode positions: bad magic "oops"');
+  const message = tacticalDecodeErrorMessage(technical);
+  assert.equal(message, 'El formato de posiciones no es compatible con esta versión de FragForge.');
+  assert.equal(message.includes('bad magic'), false);
 });
 
 test('rejects a bad magic', () => {

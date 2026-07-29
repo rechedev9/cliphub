@@ -14,7 +14,12 @@
 #      pipeline to the local orchestrator.
 #   3. Opens the browser at the upload page.
 #
-# Ctrl+C stops the web UI and then the orchestrator.
+# Ctrl+C stops the web UI and then the orchestrator. Pass explicit loopback
+# ports (and a separate data directory) to run an isolated second instance:
+# .\scripts\local-studio.ps1 -OrchestratorPort 18080 -WebPort 13000 -DataDir C:\temp\fragforge-qa
+# Browser automation should also pass -NoBrowser, provide its own
+# FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY, and navigate its browser session to
+# /bootstrap#<capability>. The fragment is removed before the normal POST.
 #
 # Prerequisites:
 #   - Build the binaries first:  .\scripts\build.ps1   (produces .\bin\zv.exe)
@@ -24,19 +29,42 @@
 #     without them the app still runs the analyze flow and the Capture card tells
 #     you what is missing.
 
+[CmdletBinding()]
+param(
+    [ValidateRange(1, 65535)]
+    [int]$OrchestratorPort = 8080,
+    [ValidateRange(1, 65535)]
+    [int]$WebPort = 3000,
+    [string]$DataDir = "",
+    [switch]$NoBrowser
+)
+
 $ErrorActionPreference = "Stop"
+if ($OrchestratorPort -eq $WebPort) {
+    throw "-OrchestratorPort and -WebPort must be different"
+}
+
+# Keep every service descendant inside a kill-on-close Windows Job Object.
+# `finally` handles ordinary Ctrl+C/error exits; the OS job also handles an
+# externally terminated launcher, where PowerShell has no chance to run it.
+. (Join-Path $PSScriptRoot "local-process-job.ps1")
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $binZv = Join-Path $repoRoot "bin\zv.exe"
+$binOrchestrator = Join-Path $repoRoot "bin\zv-orchestrator.exe"
 $webDir = Join-Path $repoRoot "web"
-$dataDir = Join-Path $repoRoot "data"
+$dataDir = if ([string]::IsNullOrWhiteSpace($DataDir)) {
+    Join-Path $repoRoot "data"
+} else {
+    [System.IO.Path]::GetFullPath($DataDir)
+}
 
 # Loopback only: the web server proxies to the orchestrator over localhost, and
 # the browser only ever talks to the web server. Distinct process-local
 # capabilities keep the Next proxy, the standalone bootstrap form, and the Go
 # orchestrator from sharing one bearer secret.
-$orchestratorUrl = "http://127.0.0.1:8080"
-$webUrl = "http://localhost:3000"
+$orchestratorUrl = "http://127.0.0.1:$OrchestratorPort"
+$webUrl = "http://127.0.0.1:$WebPort"
 
 function New-LocalCapability {
     $bytes = New-Object byte[] 32
@@ -46,33 +74,42 @@ function New-LocalCapability {
     return ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
 }
 
-$secretNames = @(
+$mutatedEnvironmentNames = @(
+    "ZV_DATABASE_URL",
+    "ZV_DATA_DIR",
+    "ZV_HTTP_ADDR",
     "ZV_MUTATION_TOKEN",
+    "ORCHESTRATOR_URL",
     "ORCHESTRATOR_TOKEN",
     "FRAGFORGE_PROXY_MUTATION_CAPABILITY",
-    "FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"
+    "FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY",
+    "PORT",
+    "HOSTNAME"
 )
-$originalSecrets = @{}
-foreach ($name in $secretNames) {
-    $originalSecrets[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+$originalEnvironment = @{}
+foreach ($name in $mutatedEnvironmentNames) {
+    $originalEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
 }
-$mutationCapability = if ([string]::IsNullOrWhiteSpace($originalSecrets["ZV_MUTATION_TOKEN"])) {
+$mutationCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["ZV_MUTATION_TOKEN"])) {
     New-LocalCapability
 } else {
-    $originalSecrets["ZV_MUTATION_TOKEN"]
+    $originalEnvironment["ZV_MUTATION_TOKEN"]
 }
 if ($mutationCapability -notmatch '^[0-9a-f]{64}$') {
     throw "ZV_MUTATION_TOKEN must be 32 random bytes encoded as 64 lowercase hexadecimal characters"
 }
-$proxyCapability = if ([string]::IsNullOrWhiteSpace($originalSecrets["FRAGFORGE_PROXY_MUTATION_CAPABILITY"])) {
+$proxyCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["FRAGFORGE_PROXY_MUTATION_CAPABILITY"])) {
     New-LocalCapability
 } else {
-    $originalSecrets["FRAGFORGE_PROXY_MUTATION_CAPABILITY"]
+    $originalEnvironment["FRAGFORGE_PROXY_MUTATION_CAPABILITY"]
 }
-$bootstrapCapability = if ([string]::IsNullOrWhiteSpace($originalSecrets["FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"])) {
+$bootstrapCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"])) {
+    if ($NoBrowser) {
+        throw "-NoBrowser requires FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY so the caller can complete the browser handshake"
+    }
     New-LocalCapability
 } else {
-    $originalSecrets["FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"]
+    $originalEnvironment["FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"]
 }
 foreach ($capability in @($proxyCapability, $bootstrapCapability)) {
     if ($capability -notmatch '^[0-9a-f]{64}$') {
@@ -82,13 +119,23 @@ foreach ($capability in @($proxyCapability, $bootstrapCapability)) {
 if ((@($mutationCapability, $proxyCapability, $bootstrapCapability) | Select-Object -Unique).Count -ne 3) {
     throw "local Studio capabilities must be distinct"
 }
-foreach ($name in $secretNames) {
+foreach ($name in @(
+    "ZV_MUTATION_TOKEN",
+    "ORCHESTRATOR_TOKEN",
+    "FRAGFORGE_PROXY_MUTATION_CAPABILITY",
+    "FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"
+)) {
     [Environment]::SetEnvironmentVariable($name, $null, "Process")
 }
 
+$processJob = [IntPtr]::Zero
 try {
+$processJob = [FragForge.LocalProcessJob]::CreateKillOnClose()
 if (-not (Test-Path $binZv)) {
     throw "missing $binZv - build the binaries first with .\scripts\build.ps1"
+}
+if (-not (Test-Path $binOrchestrator)) {
+    throw "missing $binOrchestrator - build the binaries first with .\scripts\build.ps1"
 }
 
 if (-not (Test-Path (Join-Path $webDir "node_modules"))) {
@@ -164,9 +211,18 @@ Write-Host "[local-studio] starting orchestrator (SQLite jobs, capture auto-dete
 # services, so jobs survive a restart.
 $env:ZV_DATABASE_URL = "sqlite"
 $env:ZV_DATA_DIR = $dataDir
+$env:ZV_HTTP_ADDR = "127.0.0.1:$OrchestratorPort"
 $env:ZV_MUTATION_TOKEN = $mutationCapability
 try {
-    $orchestrator = Start-Process -FilePath $binZv -ArgumentList "serve" -PassThru -NoNewWindow
+    # Own the actual service process. Starting through `zv serve` owns only the
+    # short-lived delegate wrapper, so teardown can otherwise leave the
+    # orchestrator grandchild listening after Local Studio exits.
+    $orchestrator = [FragForge.LocalProcessJob]::StartInJob(
+        $processJob,
+        $binOrchestrator,
+        "",
+        $repoRoot
+    )
 } finally {
     [Environment]::SetEnvironmentVariable("ZV_MUTATION_TOKEN", $null, "Process")
 }
@@ -188,39 +244,74 @@ try {
     if (-not $healthy) { throw "orchestrator did not become healthy at $orchestratorUrl" }
     Write-Host "[local-studio] orchestrator healthy at $orchestratorUrl"
 
-    $browserJob = Start-Job -ScriptBlock {
-        param($url)
-        for ($i = 0; $i -lt 60; $i++) {
-            try {
-                $response = Invoke-WebRequest -Uri "$url/bootstrap" -UseBasicParsing -TimeoutSec 2
-                if ($response.StatusCode -eq 200) {
-                    Start-Process "$url/bootstrap"
-                    return
-                }
-            } catch {
-                Start-Sleep -Milliseconds 500
-            }
-        }
-    } -ArgumentList $webUrl
-
     # The /api/demos/* routes proxy the whole pipeline to the local
     # orchestrator; these values are read server-side by the Next.js server.
-    # Start the browser watcher first so it cannot inherit any of these secrets.
     $env:ORCHESTRATOR_URL = $orchestratorUrl
     $env:ORCHESTRATOR_TOKEN = $mutationCapability
     $env:FRAGFORGE_PROXY_MUTATION_CAPABILITY = $proxyCapability
     $env:FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY = $bootstrapCapability
+    $env:PORT = "$WebPort"
+    # Next's development server otherwise binds to :: and advertises a LAN URL.
+    # Studio is a local control plane, so both services must stay on loopback.
+    $env:HOSTNAME = "127.0.0.1"
 
-    Write-Host "[local-studio] standalone browser bootstrap: enter this one-launch capability: $bootstrapCapability"
+    if ($NoBrowser) {
+        Write-Host "[local-studio] browser launch disabled; navigate the owned browser to $webUrl/bootstrap#<the provided bootstrap capability>"
+    } else {
+        Write-Host "[local-studio] standalone browser will authorize itself with a one-launch local capability"
+    }
     Write-Host "[local-studio] starting web UI (Ctrl+C to stop everything)..."
-    Push-Location $webDir
-    try { & pnpm run dev }
-    finally {
-        Pop-Location
-        if ($browserJob) {
-            Stop-Job -Job $browserJob -ErrorAction SilentlyContinue
-            Remove-Job -Job $browserJob -Force -ErrorAction SilentlyContinue
+    $nodeCommand = (Get-Command node.exe -ErrorAction Stop).Source
+    $nextCommand = Join-Path $webDir "node_modules\next\dist\bin\next"
+    # Windows PowerShell 5 flattens ArgumentList into one command line, so an
+    # entrypoint beneath a repository path containing spaces must retain quotes.
+    $quotedNextCommand = '"' + $nextCommand + '"'
+    $webArguments = "$quotedNextCommand dev --hostname 127.0.0.1 --port $WebPort"
+    $webProcess = [FragForge.LocalProcessJob]::StartInJob(
+        $processJob,
+        $nodeCommand,
+        $webArguments,
+        $webDir
+    )
+    # Next inherited its server-only capabilities at spawn. Remove them from
+    # the launcher before any browser process is created; finally restores the
+    # caller's exact prior environment.
+    $env:ORCHESTRATOR_TOKEN = $null
+    $env:FRAGFORGE_PROXY_MUTATION_CAPABILITY = $null
+    $env:FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY = $null
+
+    Write-Host "[local-studio] waiting for web UI..."
+    $webReady = $false
+    for ($i = 0; $i -lt 120; $i++) {
+        if ($webProcess.HasExited) {
+            throw "web UI exited early (code $($webProcess.ExitCode))"
         }
+        try {
+            $response = Invoke-WebRequest -Uri "$webUrl/bootstrap" -UseBasicParsing -TimeoutSec 2
+            if ($response.StatusCode -eq 200) {
+                $webReady = $true
+                break
+            }
+        } catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    if (-not $webReady) {
+        throw "web UI did not become healthy at $webUrl"
+    }
+    Write-Host "[local-studio] web UI healthy at $webUrl"
+    if (-not $NoBrowser) {
+        # URL fragments are not sent to the web server. The bootstrap page
+        # removes this one-launch value from history before posting it and
+        # receiving the HttpOnly mutation cookie.
+        Start-Process "$webUrl/bootstrap#$bootstrapCapability"
+    }
+
+    while (-not $webProcess.HasExited) {
+        Start-Sleep -Milliseconds 500
+    }
+    if ($webProcess.ExitCode -ne 0) {
+        throw "web UI exited (code $($webProcess.ExitCode))"
     }
 }
 finally {
@@ -231,7 +322,10 @@ finally {
 }
 }
 finally {
-    foreach ($name in $secretNames) {
-        [Environment]::SetEnvironmentVariable($name, $originalSecrets[$name], "Process")
+    if ($processJob -ne [IntPtr]::Zero) {
+        [FragForge.LocalProcessJob]::Close($processJob)
+    }
+    foreach ($name in $mutatedEnvironmentNames) {
+        [Environment]::SetEnvironmentVariable($name, $originalEnvironment[$name], "Process")
     }
 }

@@ -10,13 +10,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rechedev9/fragforge/internal/moments"
+	"github.com/rechedev9/fragforge/internal/pathguard"
 	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/fragforge/internal/rhythm"
 )
 
 func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err := cfg.validate(); err != nil {
 		return Result{}, err
 	}
+	cfg.TailTrimSeconds = rhythm.NormalizeTailTrimSeconds(cfg.TailTrimSeconds)
 
 	recordingResultPath, err := filepath.Abs(cfg.RecordingResultPath)
 	if err != nil {
@@ -30,6 +34,17 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	recordingResult, err := ReadRecordingResult(recordingResultPath)
 	if err != nil {
 		return Result{}, err
+	}
+	recordingResult.Plan.Segments = recordingResult.Plan.SegmentsInEditorialOrder()
+	if cfg.RankMoments {
+		recordingResult.Plan.Segments = rankRecordingSegments(recordingResult.Plan)
+		recordingResult.Plan.EditorialSegmentIDs = make(
+			[]string,
+			len(recordingResult.Plan.Segments),
+		)
+		for i, segment := range recordingResult.Plan.Segments {
+			recordingResult.Plan.EditorialSegmentIDs[i] = segment.ID
+		}
 	}
 	killPlan, killPlanPath, metadataWarnings, err := resolveKillPlan(recordingResultPath, cfg.KillPlanPath)
 	if err != nil {
@@ -83,6 +98,33 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			return Result{}, fmt.Errorf("rhythm json not found: %w", err)
 		}
 	}
+	sourceInputs := []pathguard.Input{{Flag: "recording result", Path: recordingResultPath}}
+	for _, input := range []pathguard.Input{
+		{Flag: "kill plan", Path: killPlanPath},
+		{Flag: "effects script", Path: effectsPath},
+		{Flag: "music", Path: musicPath},
+		{Flag: "rhythm", Path: rhythmPath},
+		{Flag: "lineup catalog", Path: cfg.LineupCatalogPath},
+	} {
+		if input.Path != "" {
+			sourceInputs = append(sourceInputs, input)
+		}
+	}
+	recordingBaseDir := filepath.Dir(recordingResultPath)
+	for _, artifact := range recordingResult.Artifacts {
+		if artifact.Path != "" {
+			sourceInputs = append(sourceInputs, pathguard.Input{
+				Flag: "recording artifact",
+				Path: resolvePath(recordingBaseDir, artifact.Path),
+			})
+		}
+	}
+	if err := pathguard.RejectInputsWithinDirectory(outDir, sourceInputs...); err != nil {
+		return Result{}, err
+	}
+	if err := pathguard.RejectInputsWithinDirectory(publishDir, sourceInputs...); err != nil {
+		return Result{}, err
+	}
 
 	ffmpegPath := cfg.FFmpegPath
 	if ffmpegPath == "" {
@@ -132,12 +174,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		LineupCatalogPath:   cfg.LineupCatalogPath,
 		SegmentIDs:          cfg.SegmentIDs,
 		Limit:               cfg.Limit,
+		RankMoments:         cfg.RankMoments,
 		VideoCRF:            videoCRF,
 		VideoPreset:         videoPreset,
 		HQFilters:           cfg.HQFilters,
 		AudioNormalize:      cfg.AudioNormalize,
 		QualityChecks:       cfg.QualityChecks,
 		CoverSheets:         cfg.CoverSheets,
+		CoverSheetsSet:      cfg.CoverSheetsSet,
 		CoverFirstFrame:     cfg.CoverFirstFrame,
 		TemporalSmoothing:   cfg.TemporalSmoothing,
 		FFmpegPath:          commandFFmpeg,
@@ -220,6 +264,9 @@ func (c Config) validate() error {
 	}
 	if c.Limit < 0 {
 		return fmt.Errorf("limit must be >= 0")
+	}
+	if c.RankMoments && len(c.SegmentIDs) > 0 {
+		return fmt.Errorf("rank moments cannot be combined with explicit segment ids")
 	}
 	if c.RenderJobs < 0 {
 		return fmt.Errorf("render jobs must be >= 0")
@@ -330,6 +377,7 @@ func resultFromManifest(manifest Manifest, dryRun bool) Result {
 		SummaryPath:       manifest.SummaryPath,
 		SegmentFilter:     append([]string(nil), manifest.SegmentFilter...),
 		Limit:             manifest.Limit,
+		RankMoments:       manifest.RankMoments,
 		SkipExisting:      manifest.SkipExisting,
 		EffectsPath:       manifest.EffectsPath,
 		EffectsPreset:     manifest.EffectsPreset,
@@ -417,6 +465,21 @@ func resultFromManifest(manifest Manifest, dryRun bool) Result {
 		})
 	}
 	return result
+}
+
+func rankRecordingSegments(plan recording.RecordingPlan) []recording.RecordingSegment {
+	byID := make(map[string]recording.RecordingSegment, len(plan.Segments))
+	for _, segment := range plan.Segments {
+		byID[segment.ID] = segment
+	}
+	ranked := moments.Rank(plan.ToKillPlan())
+	out := make([]recording.RecordingSegment, 0, len(ranked))
+	for _, moment := range ranked {
+		if segment, ok := byID[moment.SegmentID]; ok {
+			out = append(out, segment)
+		}
+	}
+	return out
 }
 
 func WriteUnmatchedSmokes(manifest Manifest) error {

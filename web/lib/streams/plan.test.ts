@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { StreamClipRange, StreamEditPlan } from '../api/streams.ts';
 import {
   blankClip,
   blankPlan,
@@ -7,6 +8,7 @@ import {
   clipTimelineGeometry,
   errorMessage,
   fitPlanToSourceDuration,
+  withDefaultStreamTitle,
   formatStreamTimestamp,
   isServiceUnavailable,
   nextClipId,
@@ -15,9 +17,21 @@ import {
   planFingerprint,
   pruneClipEdit,
   streamSourceLabel,
+  STREAM_INVALID_URL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
 } from './plan.ts';
-import type { StreamClipRange, StreamEditPlan } from '../api/streams.ts';
+
+test('applies job title defaults only to editable plans', () => {
+  const plan = blankPlan(30);
+  plan.clips[0].title = '';
+  const editable = withDefaultStreamTitle(plan, '  Título del trabajo  ', true);
+  assert.equal(editable.clips[0].title, 'Título del trabajo');
+  assert.equal(plan.clips[0].title, '');
+
+  const rendering = withDefaultStreamTitle(plan, 'Título no renderizado', false);
+  assert.equal(rendering, plan);
+  assert.equal(rendering.clips[0].title, '');
+});
 
 function clip(overrides: Partial<StreamClipRange> = {}): StreamClipRange {
   return { id: 'clip-1', start_seconds: 10, end_seconds: 20, ...overrides };
@@ -42,6 +56,7 @@ test('an offline code wins over the generic fallback message', () => {
   const offline = { code: 'service_unavailable' };
   assert.equal(isServiceUnavailable(offline), true);
   assert.equal(errorMessage(offline, 'fallback'), STREAM_OFFLINE_MESSAGE);
+  assert.equal(errorMessage({ code: 'invalid_source_url' }, 'fallback'), STREAM_INVALID_URL_MESSAGE);
   assert.equal(errorMessage(new Error('boom'), 'fallback'), 'boom');
   assert.equal(errorMessage('weird', 'fallback'), 'fallback');
 });

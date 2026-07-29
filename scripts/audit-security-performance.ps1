@@ -49,7 +49,7 @@ Invoke-Step "gosec" {
 }
 
 Invoke-Step "govulncheck" {
-    & go run golang.org/x/vuln/cmd/govulncheck@v1.4.0 ./...
+    & go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
     if ($LASTEXITCODE -ne 0) {
         throw "govulncheck failed"
     }

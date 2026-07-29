@@ -13,7 +13,7 @@ import (
 // moments, select preflight then persist, record --dry-run, and shorts render
 // --dry-run. Each hop asserts the {ok, dry_run, executed} envelope and that the
 // artifact one stage writes is the literal input the next stage consumes. A
-// second tier records real placeholder segments with ZV_RECORDER_FAKE and runs
+// second tier records real placeholder segments with explicit --fake and runs
 // the render/compose dry runs over them; it is skipped when ffmpeg is absent.
 func TestDemoJourneyChainsStagesMediaFree(t *testing.T) {
 	t.Parallel()
@@ -22,9 +22,14 @@ func TestDemoJourneyChainsStagesMediaFree(t *testing.T) {
 	ws := t.TempDir()
 	// The shared kill plan fixture is the first Go consumer's input; moments and
 	// select both read it, so its absolute path is the chain's anchor.
-	killPlan := absPath(t, filepath.Join(repoRoot(t), "testdata", "agent-killplan.json"))
+	fixtureRoot := repoRoot(t)
+	killPlan := absPath(t, filepath.Join(fixtureRoot, "testdata", "agent-killplan.json"))
+	demoBytes, err := os.ReadFile(filepath.Join(fixtureRoot, "testdata", "agent-demo.fixture"))
+	if err != nil {
+		t.Fatalf("read demo fixture: %v", err)
+	}
 	demo := filepath.Join(ws, "match.dem")
-	if err := os.WriteFile(demo, []byte("dummy demo"), 0o600); err != nil {
+	if err := os.WriteFile(demo, demoBytes, 0o600); err != nil {
 		t.Fatalf("write demo fixture: %v", err)
 	}
 
@@ -113,8 +118,8 @@ func TestDemoJourneyChainsStagesMediaFree(t *testing.T) {
 		// Record real placeholder segments (no CS2/HLAE) so the render/compose
 		// dry runs operate over genuine on-disk MP4 artifacts, not empty ones.
 		fakeRecordingDir := filepath.Join(ws, "recording-fake")
-		out, _ := runZVBinarySplitWithEnv(t, exe, ws, []string{"ZV_RECORDER_FAKE=1"},
-			"record", "--killplan", selection.Output, "--demo", demo, "--out", fakeRecordingDir, "--format", "json")
+		out, _ := runZVBinarySplitWithEnv(t, exe, ws, nil,
+			"record", "--killplan", selection.Output, "--demo", demo, "--out", fakeRecordingDir, "--fake", "--format", "json")
 		var fake recordEnvelope
 		decodeJSON(t, "record fake", out, &fake)
 		if !fake.OK || fake.DryRun || !fake.Executed {

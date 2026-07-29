@@ -2,8 +2,8 @@
   "schema_version": "1.2",
   "generated_at": "2026-07-16T00:00:00Z",
   "demo": {
-    "path": "testdata/agent-demo.dem",
-    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path": "testdata/agent-demo.fixture",
+    "sha256": "510ff2592d03aaab90c029900bfd68eb12b29988143045f8fbafe073b8da11dd",
     "map": "de_nuke",
     "tickrate": 64,
     "duration_ticks": 640

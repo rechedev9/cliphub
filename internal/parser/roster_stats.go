@@ -42,6 +42,7 @@ type rosterAccumulator struct {
 	mvps              map[uint64]int
 	kastRounds        map[uint64]int
 	roundsByKillCount map[uint64]map[int]int // player -> kills-in-a-round -> count of such rounds
+	roundsByPlayer    map[uint64]int
 	rounds            int
 
 	// mapName comes from the demo header (CSVCMsg_ServerInfo) and, like the map
@@ -70,10 +71,21 @@ func (a *rosterAccumulator) reset() {
 	a.mvps = map[uint64]int{}
 	a.kastRounds = map[uint64]int{}
 	a.roundsByKillCount = map[uint64]map[int]int{}
+	a.roundsByPlayer = map[uint64]int{}
 	a.rounds = 0
 	a.curParticipants = map[uint64]string{}
 	a.curKills = nil
 	a.curKillsByID = map[uint64]int{}
+}
+
+func (a *rosterAccumulator) observeInRound(pl *common.Player) *PlayerStat {
+	stat := a.observe(pl)
+	if stat != nil {
+		if _, captured := a.curParticipants[pl.SteamID64]; !captured {
+			a.curParticipants[pl.SteamID64] = rosterTeam(pl.Team)
+		}
+	}
+	return stat
 }
 
 func (a *rosterAccumulator) observe(pl *common.Player) *PlayerStat {
@@ -104,26 +116,24 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 	p.RegisterEventHandler(func(events.RoundStart) {
 		a.curParticipants = map[uint64]string{}
 		for _, pl := range p.GameState().Participants().Playing() {
-			if pl != nil && pl.SteamID64 != 0 {
-				a.curParticipants[pl.SteamID64] = rosterTeam(pl.Team)
-			}
+			a.observeInRound(pl)
 		}
 		a.curKills = a.curKills[:0]
 		a.curKillsByID = map[uint64]int{}
 	})
 
 	p.RegisterEventHandler(func(e events.Kill) {
-		if killer := a.observe(e.Killer); killer != nil {
+		if killer := a.observeInRound(e.Killer); killer != nil {
 			killer.Kills++
 			if e.IsHeadshot {
 				killer.Headshots++
 			}
 			a.curKillsByID[e.Killer.SteamID64]++
 		}
-		if victim := a.observe(e.Victim); victim != nil {
+		if victim := a.observeInRound(e.Victim); victim != nil {
 			victim.Deaths++
 		}
-		if assister := a.observe(e.Assister); assister != nil {
+		if assister := a.observeInRound(e.Assister); assister != nil {
 			assister.Assists++
 		}
 		if e.Killer != nil && e.Victim != nil && e.Killer.SteamID64 != 0 && e.Victim.SteamID64 != 0 {
@@ -142,6 +152,8 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 	})
 
 	p.RegisterEventHandler(func(e events.PlayerHurt) {
+		a.observeInRound(e.Attacker)
+		a.observeInRound(e.Player)
 		if e.Attacker == nil || e.Player == nil || e.Attacker.SteamID64 == 0 {
 			return
 		}
@@ -152,20 +164,24 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 	})
 
 	p.RegisterEventHandler(func(e events.RoundMVPAnnouncement) {
-		if e.Player != nil && e.Player.SteamID64 != 0 {
+		if a.observeInRound(e.Player) != nil {
 			a.mvps[e.Player.SteamID64]++
 		}
 	})
 
 	p.RegisterEventHandler(func(events.RoundEnd) {
 		a.rounds++
-		if len(a.curParticipants) == 0 {
-			// No RoundStart snapshot (POV/odd demo): fall back to who is playing now.
-			for _, pl := range p.GameState().Participants().Playing() {
-				if pl != nil && pl.SteamID64 != 0 {
-					a.curParticipants[pl.SteamID64] = rosterTeam(pl.Team)
-				}
+		for _, pl := range p.GameState().Participants().Playing() {
+			if pl == nil || pl.SteamID64 == 0 {
+				continue
 			}
+			if _, capturedAtStart := a.curParticipants[pl.SteamID64]; capturedAtStart {
+				continue
+			}
+			a.observeInRound(pl)
+		}
+		for id := range a.curParticipants {
+			a.roundsByPlayer[id]++
 		}
 		tradeWindowTicks := int(p.TickRate() * tradeWindowSeconds)
 		for id := range kastCreditedPlayers(a.curParticipants, a.curKills, tradeWindowTicks) {
@@ -177,6 +193,9 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 			}
 			a.roundsByKillCount[id][n]++
 		}
+		a.curParticipants = map[uint64]string{}
+		a.curKills = nil
+		a.curKillsByID = map[uint64]int{}
 	})
 }
 
@@ -184,16 +203,17 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 // player and returns the scoreboard sorted by kills desc then name asc.
 func (a *rosterAccumulator) finalize() []PlayerStat {
 	for id, ps := range a.players {
+		playerRounds := a.roundsByPlayer[id]
 		ps.MVPs = a.mvps[id]
-		ps.Rounds = a.rounds
+		ps.Rounds = playerRounds
 		if ps.Kills > 0 {
 			ps.HSPct = round1(100 * float64(ps.Headshots) / float64(ps.Kills))
 		}
-		if a.rounds > 0 {
-			ps.ADR = round1(float64(a.damage[id]) / float64(a.rounds))
-			ps.KAST = round1(100 * float64(a.kastRounds[id]) / float64(a.rounds))
+		if playerRounds > 0 {
+			ps.ADR = round1(float64(a.damage[id]) / float64(playerRounds))
+			ps.KAST = round1(100 * float64(a.kastRounds[id]) / float64(playerRounds))
 		}
-		ps.Rating = round2(hltv1Rating(ps.Kills, ps.Deaths, a.rounds, a.roundsByKillCount[id]))
+		ps.Rating = round2(hltv1Rating(ps.Kills, ps.Deaths, playerRounds, a.roundsByKillCount[id]))
 		for n, count := range a.roundsByKillCount[id] {
 			switch {
 			case n == 2:

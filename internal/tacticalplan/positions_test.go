@@ -179,6 +179,18 @@ func TestEncodeRejectsBadSampleTicks(t *testing.T) {
 	if _, err := EncodePositions(sampleRounds(), 0, 64); err == nil {
 		t.Fatal("a zero sample interval must be an error")
 	}
+	if _, err := EncodePositions(sampleRounds(), math.MaxUint16+1, 64); err == nil {
+		t.Fatal("a sample interval wider than the uint16 header must be an error")
+	}
+}
+
+func TestEncodeRejectsTicksOutsideWireRange(t *testing.T) {
+	for _, tick := range []int{math.MinInt32 - 1, math.MaxInt32 + 1} {
+		rounds := []RoundFrames{{Round: 1, Frames: []Frame{{Tick: tick}}}}
+		if _, err := EncodePositions(rounds, 1, 64); err == nil {
+			t.Fatalf("tick %d outside int32 must be an error", tick)
+		}
+	}
 }
 
 func TestEncodeEmptyStreamStaysDecodable(t *testing.T) {

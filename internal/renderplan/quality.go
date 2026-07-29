@@ -1,6 +1,7 @@
 package renderplan
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,16 +44,55 @@ func NewQualityReport(jobID uuid.UUID, variant string, result editor.Result) Qua
 		GeneratedAt:   time.Now().UTC(),
 	}
 	for _, short := range result.Shorts {
-		report.Items = append(report.Items, qualityItem(short))
+		report.Items = append(report.Items, qualityItem(short, result.OutputFormat))
 	}
-	report.Status = summarizeQuality(report.Items, result.Error)
+	report.Status = summarizeQuality(report.Items, report.Warnings, result.Error)
 	return report
 }
 
-func qualityItem(short editor.ShortResult) QualityItem {
+// CompleteRenderWarnings merges renderer warnings with every artifact-level QA
+// warning used by the quality endpoint. The returned strings are stable review
+// tokens, so publication state and the quality report cannot disagree about an
+// unusable or incorrectly shaped video.
+func CompleteRenderWarnings(result editor.Result) []string {
+	warnings := append([]string(nil), result.Warnings...)
+	seen := make(map[string]struct{}, len(warnings))
+	for _, warning := range warnings {
+		seen[warning] = struct{}{}
+	}
+	for _, short := range result.Shorts {
+		artifact := short.PublishArtifact
+		if isEmptyArtifact(artifact) {
+			artifact = short.OutputArtifact
+		}
+		// Legacy render documents may predate artifact metadata entirely. That
+		// is unknown evidence, not proof that the already-persisted video is
+		// empty. Fresh editor results always include an artifact path.
+		if isEmptyArtifact(artifact) {
+			continue
+		}
+		for _, code := range artifactWarnings(artifact, effectiveShortOutputFormat(short, result.OutputFormat)) {
+			warning := fmt.Sprintf("quality %s: %s", short.SegmentID, code)
+			if _, exists := seen[warning]; exists {
+				continue
+			}
+			warnings = append(warnings, warning)
+			seen[warning] = struct{}{}
+		}
+	}
+	return warnings
+}
+
+func qualityItem(short editor.ShortResult, resultOutputFormat string) QualityItem {
 	artifact := short.PublishArtifact
 	if isEmptyArtifact(artifact) {
 		artifact = short.OutputArtifact
+	}
+	if isEmptyArtifact(artifact) {
+		return QualityItem{
+			SegmentID: short.SegmentID,
+			Status:    "unknown",
+		}
 	}
 	item := QualityItem{
 		SegmentID:       short.SegmentID,
@@ -60,7 +100,7 @@ func qualityItem(short editor.ShortResult) QualityItem {
 		VideoHeight:     artifact.Height,
 		DurationSeconds: artifact.DurationSeconds,
 		VideoCodec:      artifact.Codec,
-		Warnings:        artifactWarnings(artifact),
+		Warnings:        artifactWarnings(artifact, effectiveShortOutputFormat(short, resultOutputFormat)),
 	}
 	if len(item.Warnings) > 0 {
 		item.Status = "warning"
@@ -68,6 +108,13 @@ func qualityItem(short editor.ShortResult) QualityItem {
 		item.Status = "ready"
 	}
 	return item
+}
+
+func effectiveShortOutputFormat(short editor.ShortResult, resultOutputFormat string) string {
+	if short.OutputFormat != "" {
+		return short.OutputFormat
+	}
+	return resultOutputFormat
 }
 
 func isEmptyArtifact(artifact recording.RecordingArtifact) bool {
@@ -79,7 +126,7 @@ func isEmptyArtifact(artifact recording.RecordingArtifact) bool {
 		artifact.ProbeError == ""
 }
 
-func artifactWarnings(artifact recording.RecordingArtifact) []string {
+func artifactWarnings(artifact recording.RecordingArtifact, outputFormat string) []string {
 	var warnings []string
 	if artifact.ProbeError != "" {
 		warnings = append(warnings, "probe_error")
@@ -87,26 +134,37 @@ func artifactWarnings(artifact recording.RecordingArtifact) []string {
 	if artifact.SizeBytes == 0 {
 		warnings = append(warnings, "missing_or_empty_video")
 	}
-	if artifact.Width > 0 && artifact.Height > 0 && (artifact.Width != 1080 || artifact.Height != 1920) {
-		warnings = append(warnings, "unexpected_vertical_resolution")
+	wantWidth, wantHeight := 1080, 1920
+	if outputFormat == editor.OutputFormatLandscape16x9 {
+		wantWidth, wantHeight = 1920, 1080
 	}
-	if artifact.DurationSeconds > 60 {
+	if artifact.Width > 0 && artifact.Height > 0 && (artifact.Width != wantWidth || artifact.Height != wantHeight) {
+		warnings = append(warnings, "unexpected_output_resolution")
+	}
+	if outputFormat != editor.OutputFormatLandscape16x9 && artifact.DurationSeconds > 180 {
 		warnings = append(warnings, "too_long_for_shorts")
 	}
 	return warnings
 }
 
-func summarizeQuality(items []QualityItem, resultError string) string {
+func summarizeQuality(items []QualityItem, resultWarnings []string, resultError string) string {
 	if resultError != "" {
 		return "failed"
+	}
+	if len(resultWarnings) > 0 {
+		return "warning"
 	}
 	if len(items) == 0 {
 		return "unknown"
 	}
+	status := "ready"
 	for _, item := range items {
-		if item.Status != "ready" {
+		if item.Status == "warning" {
 			return "warning"
 		}
+		if item.Status != "ready" {
+			status = "unknown"
+		}
 	}
-	return "ready"
+	return status
 }

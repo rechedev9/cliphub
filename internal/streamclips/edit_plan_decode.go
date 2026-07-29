@@ -69,6 +69,13 @@ func DecodeEditPlan(body []byte) (EditPlan, error) {
 	if err := strict.Decode(&plan); err != nil {
 		return EditPlan{}, err
 	}
+	// Schema 1.1 removed retired presentation fields without changing the
+	// underlying clip ranges. Decode is the compatibility boundary: migrate
+	// accepted historical plans here so every later validation sees the current
+	// contract, while future/unknown versions still fail closed.
+	if plan.SchemaVersion == "" || plan.SchemaVersion == "1.0" {
+		plan.SchemaVersion = EditPlanSchemaVersion
+	}
 	return plan, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/rechedev9/fragforge/internal/filecommit"
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
@@ -346,13 +347,17 @@ func publishShort(short ShortEdit) error {
 	if err := os.MkdirAll(filepath.Dir(short.PublishPath), 0o750); err != nil {
 		return err
 	}
-	if err := os.Remove(short.PublishPath); err != nil && !os.IsNotExist(err) {
+	attempt, cleanup, err := filecommit.Attempt(short.PublishPath)
+	if err != nil {
 		return err
 	}
-	if err := os.Link(short.Output, short.PublishPath); err == nil {
-		return nil
+	defer cleanup()
+	if err := os.Link(short.Output, attempt); err != nil {
+		if err := copyFile(short.Output, attempt); err != nil {
+			return err
+		}
 	}
-	return copyFile(short.Output, short.PublishPath)
+	return filecommit.Commit(attempt, short.PublishPath)
 }
 
 func copyFile(src, dst string) error {
@@ -394,6 +399,7 @@ func PackManifestFromManifest(manifest Manifest, result Result) PackManifest {
 		SummaryPath:       manifest.SummaryPath,
 		SegmentFilter:     append([]string(nil), manifest.SegmentFilter...),
 		Limit:             manifest.Limit,
+		RankMoments:       manifest.RankMoments,
 		SkipExisting:      manifest.SkipExisting,
 		EffectsPath:       manifest.EffectsPath,
 		EffectsPreset:     manifest.EffectsPreset,

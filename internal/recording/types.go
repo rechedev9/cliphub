@@ -5,17 +5,26 @@ package recording
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 
+	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/killplan"
 )
 
 const steamID64AccountIDBase uint64 = 76561197960265728
 
 // CaptureContractVersion identifies the recorder behavior required before a
-// persisted capture may be reused. Bump it whenever a successful run proves a
-// materially stronger capture invariant.
-const CaptureContractVersion = "observer-steamid-v1"
+// persisted capture may be reused. V2 binds the verified capture to the exact
+// demo, timeline, target, and profile through CaptureInputFingerprint.
+const CaptureContractVersion = "observer-steamid-input-v2"
+
+// LegacyCaptureContractVersion is the durable V1 contract emitted before
+// capture-input fingerprints existed. It remains readable so an upgrade does
+// not strand already verified local captures whose source is no longer
+// available. New recordings must never emit this version.
+const LegacyCaptureContractVersion = "observer-steamid-v1"
 
 // Capture console markers are written by the HLAE runtime and consumed by the
 // recorder. A plan names the requested behavior; only the verified marker
@@ -23,6 +32,14 @@ const CaptureContractVersion = "observer-steamid-v1"
 const (
 	CaptureFailedMarker   = "ZACKVIDEO_CAPTURE_FAILED_OBSERVER_STEAMID_V1"
 	CaptureVerifiedMarker = "ZACKVIDEO_CAPTURE_VERIFIED_OBSERVER_STEAMID_V1"
+)
+
+type CaptureMode string
+
+const (
+	CaptureModeReal   CaptureMode = "real"
+	CaptureModeFake   CaptureMode = "fake"
+	CaptureModeDryRun CaptureMode = "dry_run"
 )
 
 func CaptureFailedAttestation(token string) string {
@@ -66,6 +83,12 @@ const (
 	HUDModeDeathnotices HUDMode = "deathnotices"
 )
 
+// Valid reports whether the value is one of the recording-stage HUD modes.
+// Keep this boundary here so CLI plans and orchestrator startup cannot drift.
+func (m HUDMode) Valid() bool {
+	return m == HUDModeGameplay || m == HUDModeClean || m == HUDModeDeathnotices
+}
+
 // StreamConfig describes how HLAE should emit raw recordings.
 // PortraitSafeKillfeed requests target-filtered notices for portrait delivery:
 // deathnotice-only capture moves them into the safe area, while gameplay
@@ -91,17 +114,21 @@ type RuntimeConfig struct {
 
 // RecordingPlan is the lowest-level input to script generation.
 type RecordingPlan struct {
-	CaptureContract  string             `json:"capture_contract"`
-	DemoPath         string             `json:"demo_path"`
-	DemoMap          string             `json:"demo_map,omitempty"`
-	OutputDir        string             `json:"output_dir"`
-	TargetSteamID64  string             `json:"target_steamid64"`
-	TargetNameInDemo string             `json:"target_name_in_demo,omitempty"`
-	TargetAccountID  uint32             `json:"target_account_id"`
-	Tickrate         int                `json:"tickrate"`
-	Segments         []RecordingSegment `json:"segments"`
-	Stream           StreamConfig       `json:"stream"`
-	Runtime          RuntimeConfig      `json:"runtime"`
+	CaptureContract       string             `json:"capture_contract"`
+	KillPlanSchemaVersion string             `json:"killplan_schema_version"`
+	DemoPath              string             `json:"demo_path"`
+	DemoSHA256            string             `json:"demo_sha256"`
+	DemoMap               string             `json:"demo_map,omitempty"`
+	DemoDurationTicks     int                `json:"demo_duration_ticks,omitempty"`
+	OutputDir             string             `json:"output_dir"`
+	TargetSteamID64       string             `json:"target_steamid64"`
+	TargetNameInDemo      string             `json:"target_name_in_demo,omitempty"`
+	TargetAccountID       uint32             `json:"target_account_id"`
+	Tickrate              int                `json:"tickrate"`
+	Segments              []RecordingSegment `json:"segments"`
+	EditorialSegmentIDs   []string           `json:"editorial_segment_ids,omitempty"`
+	Stream                StreamConfig       `json:"stream"`
+	Runtime               RuntimeConfig      `json:"runtime"`
 }
 
 // RecordingSegment is one HLAE record window.
@@ -135,13 +162,16 @@ type RecordingArtifact struct {
 
 // RecordingResult is the file emitted by zv-recorder after a run.
 type RecordingResult struct {
-	Plan            RecordingPlan       `json:"plan"`
-	Script          string              `json:"script"`
-	Artifacts       []RecordingArtifact `json:"artifacts"`
-	CaptureVerified bool                `json:"capture_verified,omitempty"`
-	CaptureRevision string              `json:"capture_revision,omitempty"`
-	Warnings        []string            `json:"warnings,omitempty"`
-	Error           string              `json:"error,omitempty"`
+	Plan                    RecordingPlan       `json:"plan"`
+	Script                  string              `json:"script"`
+	Artifacts               []RecordingArtifact `json:"artifacts"`
+	CaptureMode             CaptureMode         `json:"capture_mode"`
+	CaptureInputFingerprint string              `json:"capture_input_fingerprint"`
+	CaptureVerified         bool                `json:"capture_verified,omitempty"`
+	CaptureRevision         string              `json:"capture_revision,omitempty"`
+	PublicationPending      bool                `json:"publication_pending,omitempty"`
+	Warnings                []string            `json:"warnings,omitempty"`
+	Error                   string              `json:"error,omitempty"`
 }
 
 // DefaultStreamConfig returns the current V1 target recording format.
@@ -164,20 +194,24 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 	}
 	stream = normalizeStreamConfig(stream)
 	out := RecordingPlan{
-		CaptureContract:  CaptureContractVersion,
-		DemoPath:         demoPath,
-		DemoMap:          plan.Demo.Map,
-		OutputDir:        outputDir,
-		TargetSteamID64:  plan.Target.SteamID64,
-		TargetNameInDemo: plan.Target.NameInDemo,
-		TargetAccountID:  accountID,
-		Tickrate:         plan.Demo.Tickrate,
-		Stream:           stream,
+		CaptureContract:       CaptureContractVersion,
+		KillPlanSchemaVersion: plan.SchemaVersion,
+		DemoPath:              demoPath,
+		DemoSHA256:            plan.Demo.SHA256,
+		DemoMap:               plan.Demo.Map,
+		DemoDurationTicks:     plan.Demo.DurationTicks,
+		OutputDir:             outputDir,
+		TargetSteamID64:       plan.Target.SteamID64,
+		TargetNameInDemo:      plan.Target.NameInDemo,
+		TargetAccountID:       accountID,
+		Tickrate:              plan.Demo.Tickrate,
+		Stream:                stream,
 		Runtime: RuntimeConfig{
 			QuitTickPad: 200,
 		},
 	}
 	for _, s := range plan.Segments {
+		out.EditorialSegmentIDs = append(out.EditorialSegmentIDs, s.ID)
 		out.Segments = append(out.Segments, RecordingSegment{
 			ID:        s.ID,
 			Round:     s.Round,
@@ -187,10 +221,91 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 			Utility:   s.Utility,
 		})
 	}
+	// Kill-plan order is editorial: a top-moments selection is deliberately
+	// best-first. Capture order is a different contract because one demo
+	// playback can only advance safely through non-overlapping windows.
+	sort.SliceStable(out.Segments, func(i, j int) bool {
+		if out.Segments[i].TickStart != out.Segments[j].TickStart {
+			return out.Segments[i].TickStart < out.Segments[j].TickStart
+		}
+		if out.Segments[i].TickEnd != out.Segments[j].TickEnd {
+			return out.Segments[i].TickEnd < out.Segments[j].TickEnd
+		}
+		return out.Segments[i].ID < out.Segments[j].ID
+	})
 	if err := out.Validate(); err != nil {
 		return RecordingPlan{}, err
 	}
 	return out, nil
+}
+
+// ToKillPlan reconstructs the factual plan embedded in a recording result.
+// RecordingPlan intentionally carries every identity and event field needed by
+// downstream scoring and rhythm analysis, so resumed render workflows do not
+// need to guess or locate a separate parser artifact.
+func (p RecordingPlan) ToKillPlan() killplan.Plan {
+	out := killplan.NewPlan()
+	out.Demo = killplan.Demo{
+		Path:          p.DemoPath,
+		SHA256:        p.DemoSHA256,
+		Map:           p.DemoMap,
+		Tickrate:      p.Tickrate,
+		DurationTicks: p.DemoDurationTicks,
+	}
+	out.Target = killplan.Target{
+		SteamID64:  p.TargetSteamID64,
+		NameInDemo: p.TargetNameInDemo,
+	}
+	orderedSegments := p.SegmentsInEditorialOrder()
+	out.Segments = make([]killplan.Segment, 0, len(orderedSegments))
+	for _, segment := range orderedSegments {
+		converted := killplan.Segment{
+			ID:        segment.ID,
+			Round:     segment.Round,
+			TickStart: segment.TickStart,
+			TickEnd:   segment.TickEnd,
+			Kills:     append([]killplan.Kill(nil), segment.Kills...),
+			Utility:   append([]killplan.UtilityThrow(nil), segment.Utility...),
+		}
+		out.Segments = append(out.Segments, converted)
+		out.Stats.TotalKillsTarget += len(converted.Kills)
+		out.Stats.TotalUtilityTarget += len(converted.Utility)
+		for _, utility := range converted.Utility {
+			if strings.EqualFold(utility.Type, "smoke") || strings.EqualFold(utility.Type, "smokegrenade") {
+				out.Stats.TotalSmokesTarget++
+			}
+		}
+		if converted.TickEnd > converted.TickStart && p.Tickrate > 0 {
+			out.Stats.DurationSecondsTotal += float64(converted.TickEnd-converted.TickStart) / float64(p.Tickrate)
+		}
+	}
+	out.Stats.KillsAfterFilters = out.Stats.TotalKillsTarget
+	out.Stats.UtilityAfterFilters = out.Stats.TotalUtilityTarget
+	out.Stats.SmokesAfterFilters = out.Stats.TotalSmokesTarget
+	out.Stats.SegmentsCreated = len(out.Segments)
+	return out
+}
+
+// SegmentsInEditorialOrder returns a copy ordered for rendering. Capture keeps
+// RecordingPlan.Segments chronological so HLAE never seeks backwards.
+func (p RecordingPlan) SegmentsInEditorialOrder() []RecordingSegment {
+	orderedSegments := append([]RecordingSegment(nil), p.Segments...)
+	if len(p.EditorialSegmentIDs) == len(p.Segments) {
+		byID := make(map[string]RecordingSegment, len(p.Segments))
+		for _, segment := range p.Segments {
+			byID[segment.ID] = segment
+		}
+		orderedSegments = make([]RecordingSegment, 0, len(p.Segments))
+		for _, id := range p.EditorialSegmentIDs {
+			if segment, ok := byID[id]; ok {
+				orderedSegments = append(orderedSegments, segment)
+			}
+		}
+		if len(orderedSegments) != len(p.Segments) {
+			orderedSegments = append(orderedSegments[:0], p.Segments...)
+		}
+	}
+	return orderedSegments
 }
 
 // AccountIDFromSteamID64 converts a SteamID64 to the 32-bit account id used
@@ -211,8 +326,22 @@ func (p RecordingPlan) Validate() error {
 	if p.CaptureContract != CaptureContractVersion {
 		return fmt.Errorf("capture_contract must be %q", CaptureContractVersion)
 	}
+	if p.KillPlanSchemaVersion != killplan.SchemaVersion {
+		return fmt.Errorf("killplan_schema_version must be %q", killplan.SchemaVersion)
+	}
 	if p.DemoPath == "" {
 		return fmt.Errorf("demo_path is required")
+	}
+	if len(p.DemoSHA256) != 64 {
+		return fmt.Errorf("demo_sha256 must be a 64-character SHA-256")
+	}
+	for _, c := range p.DemoSHA256 {
+		if !strings.ContainsRune("0123456789abcdef", c) {
+			return fmt.Errorf("demo_sha256 must be lowercase hexadecimal")
+		}
+	}
+	if p.DemoDurationTicks <= 0 {
+		return fmt.Errorf("demo_duration_ticks must be positive")
 	}
 	if p.OutputDir == "" {
 		return fmt.Errorf("output_dir is required")
@@ -241,7 +370,7 @@ func (p RecordingPlan) Validate() error {
 	if p.Stream.Mode == "" {
 		return fmt.Errorf("stream mode is required")
 	}
-	if p.Stream.HUDMode != "" && p.Stream.HUDMode != HUDModeGameplay && p.Stream.HUDMode != HUDModeClean && p.Stream.HUDMode != HUDModeDeathnotices {
+	if p.Stream.HUDMode != "" && !p.Stream.HUDMode.Valid() {
 		return fmt.Errorf("stream hud_mode must be %q, %q, or %q", HUDModeGameplay, HUDModeClean, HUDModeDeathnotices)
 	}
 	if p.Stream.PortraitSafeKillfeed && p.Stream.HUDMode != HUDModeGameplay && p.Stream.HUDMode != HUDModeDeathnotices {
@@ -263,9 +392,13 @@ func (p RecordingPlan) Validate() error {
 		return fmt.Errorf("stream deathnotice_lifetime_seconds must be between 0 and 10")
 	}
 	seen := map[string]bool{}
+	previousEnd := 0
 	for i, s := range p.Segments {
 		if s.ID == "" {
 			return fmt.Errorf("segments[%d].id is required", i)
+		}
+		if err := artifacts.ValidateArtifactToken(fmt.Sprintf("segments[%d].id", i), s.ID); err != nil {
+			return err
 		}
 		if seen[s.ID] {
 			return fmt.Errorf("duplicate segment id %q", s.ID)
@@ -276,6 +409,39 @@ func (p RecordingPlan) Validate() error {
 		}
 		if s.TickEnd <= s.TickStart {
 			return fmt.Errorf("segment %s tick_end must be greater than tick_start", s.ID)
+		}
+		recordStart := EffectiveRecordStartTick(s, p.Tickrate)
+		if i > 0 && recordStart < previousEnd {
+			return fmt.Errorf("segment %s capture window overlaps or is out of order", s.ID)
+		}
+		if s.TickEnd > p.DemoDurationTicks {
+			return fmt.Errorf("segment %s tick_end %d exceeds demo duration %d", s.ID, s.TickEnd, p.DemoDurationTicks)
+		}
+		for j, kill := range s.Kills {
+			if kill.Tick < s.TickStart || kill.Tick > s.TickEnd {
+				return fmt.Errorf("segment %s kills[%d] tick %d is outside segment bounds", s.ID, j, kill.Tick)
+			}
+		}
+		for j, utility := range s.Utility {
+			if utility.ThrowTick < s.TickStart || utility.ThrowTick > s.TickEnd {
+				return fmt.Errorf("segment %s utility[%d] throw_tick %d is outside segment bounds", s.ID, j, utility.ThrowTick)
+			}
+		}
+		previousEnd = s.TickEnd
+	}
+	if len(p.EditorialSegmentIDs) > 0 {
+		if len(p.EditorialSegmentIDs) != len(p.Segments) {
+			return fmt.Errorf("editorial_segment_ids must name every capture segment exactly once")
+		}
+		editorialSeen := make(map[string]bool, len(p.EditorialSegmentIDs))
+		for i, id := range p.EditorialSegmentIDs {
+			if !seen[id] {
+				return fmt.Errorf("editorial_segment_ids[%d] names unknown segment %q", i, id)
+			}
+			if editorialSeen[id] {
+				return fmt.Errorf("editorial_segment_ids contains duplicate segment %q", id)
+			}
+			editorialSeen[id] = true
 		}
 	}
 	return nil

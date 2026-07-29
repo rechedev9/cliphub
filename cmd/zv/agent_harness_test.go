@@ -98,6 +98,8 @@ func TestGoGateRunsProjectCheck(t *testing.T) {
 	for _, want := range []string{
 		"== zv check ==",
 		"go run ./cmd/zv check",
+		"go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...",
+		"go run github.com/securego/gosec/v2/cmd/gosec@v2.28.0 ./...",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("%s does not contain %q", path, want)

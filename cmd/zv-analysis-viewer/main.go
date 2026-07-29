@@ -213,6 +213,7 @@ func listenGuard(addr string, allowPublic bool) error {
 }
 
 func loadAnalysis(path string) (analysisData, error) {
+	// #nosec G304 -- path is the analysis file explicitly selected by the local CLI user.
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return analysisData{}, err

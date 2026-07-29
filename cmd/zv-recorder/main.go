@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/fragforge/internal/pathguard"
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
@@ -66,10 +68,7 @@ func run() error {
 	)
 	flag.Parse()
 
-	// Fake mode also engages via the environment so the orchestrator's record
-	// worker (which builds the CLI args itself) can run a real end-to-end pipeline
-	// without HLAE/CS2 by setting ZV_RECORDER_FAKE=1.
-	fakeMode := *fake || os.Getenv("ZV_RECORDER_FAKE") == "1"
+	fakeMode := *fake
 
 	if *killPlanPath == "" || *demoPath == "" || *outDir == "" {
 		return fmt.Errorf("--killplan, --demo, and --out are required")
@@ -93,6 +92,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("resolve output path: %w", err)
 	}
+	if err := validateRecordingOutputDirectory(absOutDir, absKillPlanPath, absDemoPath); err != nil {
+		return err
+	}
 	absHLAEExe := *hlaeExe
 	absCS2Exe := *cs2Exe
 	if !*dryRun && !fakeMode {
@@ -109,6 +111,14 @@ func run() error {
 	kp, err := readKillPlan(absKillPlanPath)
 	if err != nil {
 		return err
+	}
+	if err := validateKillPlanDemo(kp, absDemoPath); err != nil {
+		return err
+	}
+	if !*dryRun {
+		if err := validateFreshOutputNamespace(absOutDir); err != nil {
+			return err
+		}
 	}
 	stream := recording.DefaultStreamConfig()
 	stream.HUDMode = recording.HUDMode(*hudMode)
@@ -149,16 +159,24 @@ func run() error {
 		return err
 	}
 
+	captureFingerprint, err := recording.CaptureInputFingerprint(plan)
+	if err != nil {
+		return err
+	}
 	result := recording.RecordingResult{
-		Plan:   plan,
-		Script: scriptPath,
+		Plan:                    plan,
+		Script:                  scriptPath,
+		CaptureMode:             recording.CaptureModeReal,
+		CaptureInputFingerprint: captureFingerprint,
 	}
 
 	if *dryRun {
+		result.CaptureMode = recording.CaptureModeDryRun
 		return writeResultAndReport(plan.OutputDir, result, true, *format, os.Stdout)
 	}
 
 	if fakeMode {
+		result.CaptureMode = recording.CaptureModeFake
 		fakeCtx, cancelFake := context.WithTimeout(context.Background(), *timeout)
 		defer cancelFake()
 		artifacts, err := generateFakeSegments(fakeCtx, plan)
@@ -168,9 +186,6 @@ func run() error {
 			return err
 		}
 		result.Artifacts = artifacts
-		// Fake clips exercise downstream E2E without HLAE. Do not stamp them with
-		// the real runtime contract or let workers reuse them as verified POV.
-		result.Plan.CaptureContract = ""
 		result.Warnings = recording.ValidateArtifacts(plan, result.Artifacts)
 		return writeResultAndReport(plan.OutputDir, result, false, *format, os.Stdout)
 	}
@@ -268,10 +283,17 @@ func run() error {
 	return writeResultAndReport(plan.OutputDir, result, false, *format, os.Stdout)
 }
 
+func validateRecordingOutputDirectory(outDir, killPlanPath, demoPath string) error {
+	return pathguard.RejectInputsWithinDirectory(outDir,
+		pathguard.Input{Flag: "--killplan", Path: killPlanPath},
+		pathguard.Input{Flag: "--demo", Path: demoPath},
+	)
+}
+
 // generateFakeSegments produces one placeholder mp4 per plan segment (at the
 // recording resolution, with a silent-ish tone) so the downstream compose/render
-// pipeline can run end-to-end without launching HLAE/CS2. Gated behind --fake /
-// ZV_RECORDER_FAKE and intended for local e2e and CI only.
+// pipeline can run end-to-end without launching HLAE/CS2. It is gated behind
+// the explicit --fake flag and intended for local e2e and CI only.
 func generateFakeSegments(ctx context.Context, plan recording.RecordingPlan) ([]recording.RecordingArtifact, error) {
 	ffmpeg := recording.FindFFmpeg()
 	if ffmpeg == "" {
@@ -335,6 +357,55 @@ func readKillPlan(path string) (killplan.Plan, error) {
 	return p, nil
 }
 
+func validateKillPlanDemo(plan killplan.Plan, demoPath string) error {
+	if plan.SchemaVersion != killplan.SchemaVersion {
+		return fmt.Errorf("kill plan schema_version must be %q", killplan.SchemaVersion)
+	}
+	if len(plan.Demo.SHA256) != sha256.Size*2 {
+		return fmt.Errorf("kill plan demo sha256 must be a 64-character digest")
+	}
+	// #nosec G304 -- demoPath is the explicit local capture input and its content is SHA-bound below.
+	file, err := os.Open(demoPath)
+	if err != nil {
+		return fmt.Errorf("open demo for SHA-256 validation: %w", err)
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, file)
+	closeErr := file.Close()
+	if copyErr != nil {
+		return fmt.Errorf("hash demo: %w", copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close demo after hashing: %w", closeErr)
+	}
+	actual := hex.EncodeToString(hash.Sum(nil))
+	if plan.Demo.SHA256 != actual {
+		return fmt.Errorf("kill plan demo sha256 does not match --demo")
+	}
+	return nil
+}
+
+func validateFreshOutputNamespace(outDir string) error {
+	entries, err := os.ReadDir(outDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect recording output directory: %w", err)
+	}
+	allowed := map[string]bool{
+		"recording.js":          true,
+		"recording-result.json": true,
+	}
+	for _, entry := range entries {
+		if allowed[entry.Name()] && entry.Type().IsRegular() {
+			continue
+		}
+		return fmt.Errorf("recording output directory contains stale artifact %q; use a fresh output directory", entry.Name())
+	}
+	return nil
+}
+
 func validateExecutables(hlaeExe, cs2Exe string) error {
 	if _, err := os.Stat(hlaeExe); err != nil {
 		return fmt.Errorf("HLAE not found: %w", err)
@@ -367,7 +438,7 @@ func ensureDefaultAvatar(cs2Exe string) error {
 	}
 
 	avatarDir := filepath.Dir(avatarPath)
-	if err := os.MkdirAll(avatarDir, 0o755); err != nil {
+	if err := os.MkdirAll(avatarDir, 0o750); err != nil {
 		return fmt.Errorf("create default CS2 avatar directory: %w", err)
 	}
 
@@ -409,6 +480,13 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if attestationToken == "" {
 		return fmt.Errorf("capture attestation token is required")
 	}
+	running, err := processRunning("cs2.exe")
+	if err != nil {
+		return fmt.Errorf("check for an existing cs2.exe before capture: %w", err)
+	}
+	if running {
+		return fmt.Errorf("cs2.exe is already running; close it before starting an HLAE capture")
+	}
 	hook, err := locateHookDLL(hlaeExe)
 	if err != nil {
 		return err
@@ -432,7 +510,10 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 		return fmt.Errorf("start HLAE: %w", err)
 	}
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("HLAE launcher failed: %w", err)
+		// A post-failure process-name lookup cannot prove that a newly visible
+		// cs2.exe belongs to this launch. Never terminate by image name here:
+		// doing so could close a process started concurrently by another user.
+		return launcherFailure(err)
 	}
 	if err := waitForWindowsProcessRunAndExit(ctx, "cs2.exe", consoleLog); err != nil {
 		return err
@@ -471,6 +552,7 @@ func forceWindowedVideoConfig(cs2Exe string) func() {
 		if !changed {
 			continue
 		}
+		// #nosec G703 -- paths are enumerated beneath the detected Steam userdata root.
 		if err := os.WriteFile(path, []byte(patched), 0o600); err != nil {
 			log.Printf("windowed capture: patch %s: %v", path, err)
 			continue
@@ -747,6 +829,16 @@ func waitForWindowsProcessRunAndExitWith(
 	for {
 		select {
 		case <-ctx.Done():
+			_, _, statusErr := status(image)
+			if statusErr != nil {
+				cause := errors.Join(ctx.Err(), fmt.Errorf("inspect %s during cancellation: %w", image, statusErr))
+				return stopProcessAfterWaitFailure(
+					image,
+					cause,
+					shouldTerminateAfterStatusFailure(statusErr, seen),
+					terminate,
+				)
+			}
 			return stopProcessAfterWaitFailure(image, ctx.Err(), seen, terminate)
 		case <-firstDeadline.C:
 			if !seen {
@@ -785,8 +877,15 @@ func waitForWindowsProcessRunAndExitWith(
 	}
 }
 
+func launcherFailure(waitErr error) error {
+	return fmt.Errorf("HLAE launcher failed: %w", waitErr)
+}
+
 func shouldTerminateAfterStatusFailure(err error, processSeen bool) bool {
 	var parseErr *demoParseError
+	// The console marker can only come from the CS2 instance launched for this
+	// capture. It is therefore ownership evidence even when tasklist polling
+	// has not successfully observed the process yet.
 	return processSeen || errors.As(err, &parseErr)
 }
 

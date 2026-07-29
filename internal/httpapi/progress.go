@@ -9,6 +9,7 @@ import (
 
 	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/job"
+	"github.com/rechedev9/fragforge/internal/recording"
 	"github.com/rechedev9/fragforge/internal/storage"
 )
 
@@ -46,6 +47,9 @@ func captureProgress(store storage.Storage, j job.Job) (captureProgressView, boo
 func captureProgressWithTotal(store storage.Storage, id uuid.UUID, status job.Status, fallbackTotal int) (captureProgressView, bool) {
 	if status != job.StatusRecording {
 		return captureProgressView{}, false
+	}
+	if progress, ok := captureProgressDocument(store, id); ok {
+		return progress, true
 	}
 	// Resolve the segments directory from the same key builder the recorder
 	// writes through, so the two never drift on the on-disk layout.
@@ -94,6 +98,22 @@ func captureProgressWithTotal(store storage.Storage, id uuid.UUID, status job.St
 		done = total
 	}
 	return captureProgressView{Done: done, Total: total}, true
+}
+
+func captureProgressDocument(store storage.Storage, id uuid.UUID) (captureProgressView, bool) {
+	rc, err := store.Open(artifacts.CaptureProgressKey(id))
+	if err != nil {
+		return captureProgressView{}, false
+	}
+	defer rc.Close()
+	var progress recording.CaptureProgress
+	if err := json.NewDecoder(rc).Decode(&progress); err != nil || progress.Validate() != nil {
+		return captureProgressView{}, false
+	}
+	return captureProgressView{
+		Done:  len(progress.CompletedSegmentIDs),
+		Total: len(progress.SegmentIDs),
+	}, true
 }
 
 // readCaptureSelection reads the ordered segment ids the in-flight record run

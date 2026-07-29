@@ -49,9 +49,34 @@ test('distribution entrypoint cannot package before the guarded runtime rebuild'
   const rebuild = source.indexOf(
     'runDistributionBuildSteps({ repo, desktop, environment: sanitizedEnvironment });',
   );
-  const packageInstaller = source.indexOf("execSync('electron-builder --win nsis'");
+  const packageInstaller = source.indexOf("join(desktop, 'node_modules', 'electron-builder', 'cli.js')");
 
   assert.notEqual(rebuild, -1, 'dist.mjs must invoke the guarded runtime rebuild');
   assert.notEqual(packageInstaller, -1, 'dist.mjs must retain its installer build');
   assert.ok(rebuild < packageInstaller, 'Go runtimes must be rebuilt before electron-builder packages them');
+});
+
+test('distribution entrypoint locks and recovers before starting a rebuild', () => {
+  const source = readFileSync(new URL('./dist.mjs', import.meta.url), 'utf8');
+  const acquire = source.indexOf(
+    'releasePublicationLock = await acquirePublicationLock(canonicalRelease.directory);',
+  );
+  const recover = source.indexOf(
+    'recoverInterruptedPublication(canonicalRelease.directory);',
+  );
+  const rebuild = source.indexOf(
+    'runDistributionBuildSteps({ repo, desktop, environment: sanitizedEnvironment });',
+  );
+  const commit = source.indexOf(
+    'commitPublishedDirectory(canonicalRelease.directory);',
+  );
+  const release = source.indexOf(
+    'if (releasePublicationLock !== undefined) await releasePublicationLock();',
+  );
+
+  assert.notEqual(acquire, -1, 'dist.mjs must acquire the publication lock');
+  assert.notEqual(recover, -1, 'dist.mjs must recover interrupted publication before rebuilding');
+  assert.ok(acquire < recover, 'recovery must happen under the exclusive lock');
+  assert.ok(recover < rebuild, 'recovery must happen before the long distribution build');
+  assert.ok(commit < release, 'the publication lock must remain held through commit');
 });

@@ -24,5 +24,6 @@ type TacticalStatus struct {
 	State         string    `json:"state"`
 	GeneratedAt   time.Time `json:"generated_at"`
 	SchemaVersion string    `json:"schema_version"`
+	SampleHZ      float64   `json:"sample_hz"`
 	Error         string    `json:"error,omitempty"`
 }

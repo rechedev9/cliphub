@@ -402,6 +402,7 @@ func FindBannerFont() string {
 		}
 	}
 	for _, candidate := range candidates {
+		// #nosec G703 -- candidates are fixed system-font paths beneath the local OS font root.
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate
 		}

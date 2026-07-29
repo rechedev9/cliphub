@@ -15,7 +15,7 @@ Runs the repo Go quality gate.
 
 Options:
   --race      run go test -race ./... -count=1
-  --security  run govulncheck and gosec when installed
+  --security  run govulncheck and gosec, using pinned ephemeral tools when absent
   --build     run go build ./cmd/...
   --no-format skip formatting changed Go files
   --no-staticcheck
@@ -80,13 +80,15 @@ if [ "$security" = true ]; then
     echo "== govulncheck =="
     "$govulncheck_path" ./...
   else
-    echo "skip govulncheck: not installed"
+    echo "== govulncheck (pinned ephemeral v1.6.0) =="
+    go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
   fi
 
   if gosec_path="$(go_tool_path gosec)"; then
     echo "== gosec =="
     "$gosec_path" ./...
   else
-    echo "skip gosec: not installed"
+    echo "== gosec (pinned ephemeral v2.28.0) =="
+    go run github.com/securego/gosec/v2/cmd/gosec@v2.28.0 ./...
   fi
 fi

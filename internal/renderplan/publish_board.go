@@ -16,6 +16,7 @@ type PublishBoard struct {
 	Status          string             `json:"status"`
 	UploadReadyRoot string             `json:"upload_ready_root"`
 	RenderReady     bool               `json:"render_ready"`
+	CoversRequired  bool               `json:"covers_required"`
 	RenderResultKey string             `json:"render_result_key,omitempty"`
 	PackManifestKey string             `json:"pack_manifest_key,omitempty"`
 	GalleryKey      string             `json:"gallery_key,omitempty"`
@@ -27,14 +28,15 @@ type PublishBoard struct {
 }
 
 type PublishBoardItem struct {
-	SegmentID    string `json:"segment_id"`
-	Status       string `json:"status"`
-	VideoKey     string `json:"video_key,omitempty"`
-	CoverKey     string `json:"cover_key,omitempty"`
-	CaptionKey   string `json:"caption_key,omitempty"`
-	VideoReady   bool   `json:"video_ready"`
-	CoverReady   bool   `json:"cover_ready"`
-	CaptionReady bool   `json:"caption_ready"`
+	SegmentID     string `json:"segment_id"`
+	Status        string `json:"status"`
+	VideoKey      string `json:"video_key,omitempty"`
+	CoverKey      string `json:"cover_key,omitempty"`
+	CaptionKey    string `json:"caption_key,omitempty"`
+	VideoReady    bool   `json:"video_ready"`
+	CoverReady    bool   `json:"cover_ready"`
+	CoverRequired bool   `json:"cover_required"`
+	CaptionReady  bool   `json:"caption_ready"`
 }
 
 type NewPublishBoardOptions struct {
@@ -48,6 +50,7 @@ type NewPublishBoardOptions struct {
 	Items           []PublishBoardItem
 	Warnings        []string
 	Error           string
+	CoversRequired  bool
 }
 
 // ArtifactExistsFunc reports whether an artifact key currently exists.
@@ -62,6 +65,8 @@ type NewPublishBoardForVariantOptions struct {
 	SegmentIDs      []string
 	Warnings        []string
 	Error           string
+	CoversRequired  bool
+	ArtifactPrefix  string
 	ArtifactExists  ArtifactExistsFunc
 }
 
@@ -72,6 +77,18 @@ func NewPublishBoardForVariant(opts NewPublishBoardForVariantOptions) (PublishBo
 	if err != nil {
 		return PublishBoard{}, err
 	}
+	state := RenderVariantState{JobID: opts.JobID, Variant: opts.Variant, ArtifactPrefix: opts.ArtifactPrefix}
+	if opts.ArtifactPrefix != "" {
+		resultRef, refErr := NewRenderVariantArtifactRefForState(state, RenderVariantArtifactResult, "")
+		if refErr != nil {
+			return PublishBoard{}, refErr
+		}
+		refs.Prefix = opts.ArtifactPrefix
+		refs.RenderResultKey = resultRef.Key
+		refs.PackManifestKey = opts.ArtifactPrefix + "/pack-manifest.json"
+		refs.GalleryKey = opts.ArtifactPrefix + "/index.html"
+		refs.PublishSummaryKey = opts.ArtifactPrefix + "/publish-summary.md"
+	}
 	exists := opts.ArtifactExists
 	if exists == nil {
 		exists = func(string) (bool, error) { return false, nil }
@@ -81,18 +98,21 @@ func NewPublishBoardForVariant(opts NewPublishBoardForVariantOptions) (PublishBo
 		if segmentID == "" {
 			continue
 		}
-		videoKey, err := renderVariantSegmentArtifactKey(opts.JobID, opts.Variant, RenderVariantArtifactVideo, segmentID)
+		videoRef, err := publishBoardArtifactRef(state, RenderVariantArtifactVideo, segmentID)
 		if err != nil {
 			return PublishBoard{}, err
 		}
-		coverKey, err := renderVariantSegmentArtifactKey(opts.JobID, opts.Variant, RenderVariantArtifactCover, segmentID)
+		videoKey := videoRef.Key
+		coverRef, err := publishBoardArtifactRef(state, RenderVariantArtifactCover, segmentID)
 		if err != nil {
 			return PublishBoard{}, err
 		}
-		captionKey, err := renderVariantSegmentArtifactKey(opts.JobID, opts.Variant, RenderVariantArtifactCaption, segmentID)
+		coverKey := coverRef.Key
+		captionRef, err := publishBoardArtifactRef(state, RenderVariantArtifactCaption, segmentID)
 		if err != nil {
 			return PublishBoard{}, err
 		}
+		captionKey := captionRef.Key
 		videoReady, err := exists(videoKey)
 		if err != nil {
 			return PublishBoard{}, fmt.Errorf("check video artifact %s: %w", segmentID, err)
@@ -106,13 +126,14 @@ func NewPublishBoardForVariant(opts NewPublishBoardForVariantOptions) (PublishBo
 			return PublishBoard{}, fmt.Errorf("check caption artifact %s: %w", segmentID, err)
 		}
 		items = append(items, PublishBoardItem{
-			SegmentID:    segmentID,
-			VideoKey:     videoKey,
-			CoverKey:     coverKey,
-			CaptionKey:   captionKey,
-			VideoReady:   videoReady,
-			CoverReady:   coverReady,
-			CaptionReady: captionReady,
+			SegmentID:     segmentID,
+			VideoKey:      videoKey,
+			CoverKey:      coverKey,
+			CaptionKey:    captionKey,
+			VideoReady:    videoReady,
+			CoverReady:    coverReady,
+			CoverRequired: opts.CoversRequired,
+			CaptionReady:  captionReady,
 		})
 	}
 	return NewPublishBoard(NewPublishBoardOptions{
@@ -126,7 +147,15 @@ func NewPublishBoardForVariant(opts NewPublishBoardForVariantOptions) (PublishBo
 		Items:           items,
 		Warnings:        opts.Warnings,
 		Error:           opts.Error,
+		CoversRequired:  opts.CoversRequired,
 	}), nil
+}
+
+func publishBoardArtifactRef(state RenderVariantState, kind RenderVariantArtifactKind, segmentID string) (RenderVariantArtifactRef, error) {
+	if state.ArtifactPrefix != "" {
+		return NewRenderVariantArtifactRefForState(state, kind, segmentID)
+	}
+	return NewRenderVariantArtifactRef(state.JobID, state.Variant, kind, segmentID)
 }
 
 func NewPublishBoard(opts NewPublishBoardOptions) PublishBoard {
@@ -146,13 +175,17 @@ func NewPublishBoard(opts NewPublishBoardOptions) PublishBoard {
 		Items:           append([]PublishBoardItem(nil), opts.Items...),
 		Warnings:        append([]string(nil), opts.Warnings...),
 		Error:           opts.Error,
+		CoversRequired:  opts.CoversRequired,
 		UpdatedAt:       time.Now().UTC(),
 	}
-	board.RenderReady, board.Status = summarizePublishBoard(board.Items, board.Error)
+	for i := range board.Items {
+		board.Items[i].CoverRequired = opts.CoversRequired
+	}
+	board.RenderReady, board.Status = summarizePublishBoard(board.Items, board.Warnings, board.Error)
 	return board
 }
 
-func summarizePublishBoard(items []PublishBoardItem, resultError string) (bool, string) {
+func summarizePublishBoard(items []PublishBoardItem, warnings []string, resultError string) (bool, string) {
 	if resultError != "" {
 		return false, "failed"
 	}
@@ -168,7 +201,7 @@ func summarizePublishBoard(items []PublishBoardItem, resultError string) (bool, 
 		case !item.VideoReady:
 			item.Status = "missing_video"
 			allReady = false
-		case !item.CoverReady:
+		case item.CoverRequired && !item.CoverReady:
 			item.Status = "needs_cover"
 			needsCover = true
 			allReady = false
@@ -181,13 +214,15 @@ func summarizePublishBoard(items []PublishBoardItem, resultError string) (bool, 
 		}
 	}
 	switch {
-	case allReady:
-		return true, "ready"
 	case needsCover:
 		return false, "needs_cover"
 	case needsCaption:
 		return false, "needs_caption"
-	default:
+	case !allReady:
 		return false, "draft"
+	case len(warnings) > 0:
+		return false, "review_required"
+	default:
+		return true, "ready"
 	}
 }

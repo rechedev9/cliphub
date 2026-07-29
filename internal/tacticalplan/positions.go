@@ -128,20 +128,31 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 	if sampleTicks <= 0 {
 		return Blob{}, fmt.Errorf("encode positions: sample ticks %d must be positive", sampleTicks)
 	}
+	if sampleTicks > math.MaxUint16 {
+		return Blob{}, fmt.Errorf("encode positions: sample ticks %d exceed the %d-tick header limit", sampleTicks, math.MaxUint16)
+	}
 	origin, quantum, slotCount, err := quantize(rounds)
 	if err != nil {
 		return Blob{}, err
 	}
+	if slotCount > maxSlots {
+		return Blob{}, fmt.Errorf("encode positions: slot count %d exceeds the %d-slot encoding", slotCount, maxSlots)
+	}
 
 	frameCount := 0
 	for _, r := range rounds {
+		if len(r.Frames) > math.MaxUint32-frameCount {
+			return Blob{}, fmt.Errorf("encode positions: frame count exceeds the %d-frame header limit", uint64(math.MaxUint32))
+		}
 		frameCount += len(r.Frames)
 	}
 
 	buf := make([]byte, positionsHeaderSize, positionsHeaderSize+frameCount*(positionsFrameHead+positionsSampleSize*slotCount))
 	copy(buf, positionsMagic)
 	binary.LittleEndian.PutUint16(buf[6:], positionsVersion)
+	// #nosec G115 -- slotCount and sampleTicks are validated against their wire widths above.
 	binary.LittleEndian.PutUint16(buf[8:], uint16(slotCount))
+	// #nosec G115 -- slotCount and sampleTicks are validated against their wire widths above.
 	binary.LittleEndian.PutUint16(buf[10:], uint16(sampleTicks))
 	binary.LittleEndian.PutUint32(buf[12:], math.Float32bits(float32(quantum)))
 	binary.LittleEndian.PutUint32(buf[16:], math.Float32bits(float32(origin[0])))
@@ -190,6 +201,9 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 }
 
 func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byte, error) {
+	if f.Tick < math.MinInt32 || f.Tick > math.MaxInt32 {
+		return nil, fmt.Errorf("tick %d is outside the int32 position encoding", f.Tick)
+	}
 	var mask uint16
 	for _, s := range f.Samples {
 		if s.Slot >= maxSlots {
@@ -201,6 +215,7 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 		mask |= 1 << s.Slot
 	}
 
+	// #nosec G115 -- the signed tick is range-checked above and its two's-complement bits are the wire format.
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(int32(f.Tick)))
 	buf = binary.LittleEndian.AppendUint16(buf, mask)
 	// Samples are written in ascending slot order so the mask alone tells a
@@ -210,9 +225,9 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 			continue
 		}
 		s := sampleForSlot(f.Samples, slot)
-		buf = binary.LittleEndian.AppendUint16(buf, uint16(quantizeAxis(s.X, origin[0], quantum)))
-		buf = binary.LittleEndian.AppendUint16(buf, uint16(quantizeAxis(s.Y, origin[1], quantum)))
-		buf = binary.LittleEndian.AppendUint16(buf, uint16(quantizeAxis(s.Z, origin[2], quantum)))
+		buf = appendSigned16(buf, quantizeAxis(s.X, origin[0], quantum))
+		buf = appendSigned16(buf, quantizeAxis(s.Y, origin[1], quantum))
+		buf = appendSigned16(buf, quantizeAxis(s.Z, origin[2], quantum))
 		buf = binary.LittleEndian.AppendUint16(buf, encodeYaw(s.Yaw))
 		buf = append(buf, clampHealth(s.Health), byte(s.Flags))
 	}
@@ -292,7 +307,7 @@ func DecodeFrames(data []byte, byteOffset int64, frameCount int, desc Positions)
 		if pos+positionsFrameHead > len(data) {
 			return nil, fmt.Errorf("decode frames: truncated frame header at byte %d", pos)
 		}
-		tick := int(int32(binary.LittleEndian.Uint32(data[pos:])))
+		tick := int(decodeSigned32(data[pos:]))
 		mask := binary.LittleEndian.Uint16(data[pos+4:])
 		pos += positionsFrameHead
 
@@ -312,9 +327,9 @@ func DecodeFrames(data []byte, byteOffset int64, frameCount int, desc Positions)
 			}
 			frame.Samples = append(frame.Samples, Sample{
 				Slot:   slot,
-				X:      dequantizeAxis(int16(binary.LittleEndian.Uint16(data[pos:])), desc.Origin[0], desc.Quantum),
-				Y:      dequantizeAxis(int16(binary.LittleEndian.Uint16(data[pos+2:])), desc.Origin[1], desc.Quantum),
-				Z:      dequantizeAxis(int16(binary.LittleEndian.Uint16(data[pos+4:])), desc.Origin[2], desc.Quantum),
+				X:      dequantizeAxis(decodeSigned16(data[pos:]), desc.Origin[0], desc.Quantum),
+				Y:      dequantizeAxis(decodeSigned16(data[pos+2:]), desc.Origin[1], desc.Quantum),
+				Z:      dequantizeAxis(decodeSigned16(data[pos+4:]), desc.Origin[2], desc.Quantum),
 				Yaw:    decodeYaw(binary.LittleEndian.Uint16(data[pos+6:])),
 				Health: int(data[pos+8]),
 				Flags:  SampleFlags(data[pos+9]),
@@ -386,6 +401,21 @@ func quantizeAxis(v, origin, quantum float64) int16 {
 
 func dequantizeAxis(v int16, origin, quantum float64) float64 {
 	return origin + float64(v)*quantum
+}
+
+func appendSigned16(buf []byte, value int16) []byte {
+	// #nosec G115 -- converting the signed sample to its two's-complement bits is the wire format.
+	return binary.LittleEndian.AppendUint16(buf, uint16(value))
+}
+
+func decodeSigned16(data []byte) int16 {
+	// #nosec G115 -- the wire value is a two's-complement signed coordinate.
+	return int16(binary.LittleEndian.Uint16(data))
+}
+
+func decodeSigned32(data []byte) int32 {
+	// #nosec G115 -- the wire value is a two's-complement signed demo tick.
+	return int32(binary.LittleEndian.Uint32(data))
 }
 
 // encodeYaw maps degrees onto the full uint16 range, giving ~0.0055° of

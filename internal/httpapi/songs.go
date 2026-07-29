@@ -87,6 +87,7 @@ func (h *Handlers) resolveSongFile(id string) string {
 	}
 	for _, ext := range songAudioExts {
 		p := filepath.Join(h.musicDir, id+ext)
+		// #nosec G703 -- id is restricted by songIDPattern to a separator-free artifact token.
 		if info, err := os.Stat(p); err == nil && !info.IsDir() {
 			return p
 		}
@@ -168,6 +169,7 @@ func (h *Handlers) GetSongAudio(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "song not found")
 		return
 	}
+	// #nosec G304 -- path comes from resolveSongFile after separator-free ID validation.
 	f, err := os.Open(path)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "song not found")

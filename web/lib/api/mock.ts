@@ -1,4 +1,4 @@
-import type { ApiClient } from './client';
+import type { ApiClient, VideoReviewResolution } from './client';
 import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
 import { DEFAULT_EDIT_CONFIG } from './reel-store';
@@ -475,6 +475,23 @@ export class MockApiClient implements ApiClient {
     video.status = 'queued';
     video.createdAt = Date.now();
     video.failureReason = undefined;
+    return project(video);
+  }
+
+  async resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video> {
+    await delay();
+    const video = videos.find((v) => v.id === id);
+    if (!video) throw new Error(`video not found: ${id}`);
+    if (video.status !== 'review_required') throw new Error('video is not awaiting review');
+    if (resolution.kind === 'rerender') {
+      video.editConfig = resolution.editConfig;
+      video.status = 'queued';
+      video.createdAt = Date.now();
+    } else {
+      if (!resolution.note.trim()) throw new Error('review note is required');
+      video.status = 'ready';
+    }
+    video.warnings = undefined;
     return project(video);
   }
 

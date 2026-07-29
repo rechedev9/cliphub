@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
+import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
 import { ANTICHEAT_DOCUMENT_KEYS } from '@/lib/api/anticheat';
 import {
   TACTICAL_DOCUMENT_KEYS,
@@ -256,12 +256,9 @@ export async function localStartTactical(request: Request, jobId: string): Promi
 
   let init: RequestInit = { method: 'POST' };
   if (incoming.text.trim() !== '') {
-    let body: { [TACTICAL_SAMPLE_HZ_FIELD]?: unknown };
-    try {
-      body = JSON.parse(incoming.text) as { [TACTICAL_SAMPLE_HZ_FIELD]?: unknown };
-    } catch {
-      return NextResponse.json({ error: 'invalid json body' }, { status: 400 });
-    }
+    const parsed = parseControlJSONObject(incoming.text, [TACTICAL_SAMPLE_HZ_FIELD]);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const body = parsed.value;
     const sampleHz = body[TACTICAL_SAMPLE_HZ_FIELD];
     if (sampleHz !== undefined) {
       if (typeof sampleHz !== 'number' || !Number.isFinite(sampleHz) || sampleHz < 0 || sampleHz > TACTICAL_MAX_SAMPLE_HZ) {

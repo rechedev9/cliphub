@@ -79,7 +79,7 @@ func TestRunShortChainsAllStages(t *testing.T) {
 		{"--list-presets"},
 		{"parse", "--demo", "inferno.dem", "--steamid", "76561198000000000", "--out", filepath.Join(outDir, "killplan.json")},
 		{"--killplan", filepath.Join(outDir, "killplan.json"), "--demo", "inferno.dem", "--out", filepath.Join(outDir, "recording"), "--hlae", `C:\Tools\HLAE.exe`, "--cs2", `C:\cs2.exe`, "--hud", "deathnotices", "--portrait-safe-killfeed"},
-		{"--recording-result", filepath.Join(outDir, "recording", "recording-result.json"), "--out", filepath.Join(outDir, "shorts"), "--publish-dir", filepath.Join(outDir, "shortslistosparasubir"), "--preset", "viral-60-clean", "--output-format", "short-9x16", "--kill-effect", "punch-in", "--transition", "flash", "--killplan", filepath.Join(outDir, "killplan.json"), "--compile-segments"},
+		{"--recording-result", filepath.Join(outDir, "recording", "recording-result.json"), "--out", filepath.Join(outDir, "shorts"), "--publish-dir", filepath.Join(outDir, "shortslistosparasubir"), "--preset", "viral-60-clean", "--output-format", "short-9x16", "--kill-effect", "punch-in", "--transition", "flash", "--intro=false", "--outro=false", "--hook=true", "--kill-counter=true", "--covers=true", "--cover-sheets=true", "--cover-first-frame=false", "--killplan", filepath.Join(outDir, "killplan.json"), "--compile-segments"},
 	}
 	wantBinaries := []string{"zv-editor", "zv-parser", "zv-recorder", "zv-editor"}
 	for i, call := range runner.calls {
@@ -320,6 +320,69 @@ func TestRunShortCreatesStageOutputDirectories(t *testing.T) {
 	}
 }
 
+func TestShortDefaultRunDirUsesSourceTargetAndSelectionIdentity(t *testing.T) {
+	root := t.TempDir()
+	sourceA := filepath.Join(root, "a", "match.dem")
+	sourceB := filepath.Join(root, "b", "match.dem")
+	targetA := "76561198000000001"
+	targetB := "76561198000000002"
+
+	dryRun := shortOptions{DemoPath: sourceA, DryRun: true}
+	allA, err := shortOutDir(dryRun, shortIntent{}, targetA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allARepeat, err := shortOutDir(dryRun, shortIntent{}, targetA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allB, err := shortOutDir(shortOptions{DemoPath: sourceB, DryRun: true}, shortIntent{}, targetA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherTarget, err := shortOutDir(shortOptions{DemoPath: sourceA, DryRun: true}, shortIntent{}, targetB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bestA, err := shortOutDir(dryRun, shortIntent{BestMoments: true}, targetA)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if allA != allARepeat {
+		t.Fatalf("same identity produced %q and %q", allA, allARepeat)
+	}
+	firstRun, err := shortOutDir(shortOptions{DemoPath: sourceA}, shortIntent{}, targetA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondRun, err := shortOutDir(shortOptions{DemoPath: sourceA}, shortIntent{}, targetA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstRun == secondRun {
+		t.Fatalf("independent execution attempts reused run dir %q", firstRun)
+	}
+	for label, candidate := range map[string]string{
+		"different source":    allB,
+		"different target":    otherTarget,
+		"different selection": bestA,
+	} {
+		if candidate == allA {
+			t.Fatalf("%s reused run dir %q", label, allA)
+		}
+	}
+
+	explicit := filepath.Join(root, "chosen")
+	got, err := shortOutDir(shortOptions{DemoPath: sourceA, OutDir: explicit}, shortIntent{BestMoments: true}, targetB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != explicit {
+		t.Fatalf("explicit output = %q, want %q", got, explicit)
+	}
+}
+
 func TestRunShortFailsFastWhenEditorPresetIsMissing(t *testing.T) {
 	setShortCaptureEnv(t)
 	runner := &multiRunner{editorPresets: []string{"short-classic", "short-premium"}}
@@ -391,26 +454,35 @@ func TestRunShortBeatSyncPromptAddsRhythmStage(t *testing.T) {
 	if got, want := code, exitSuccess; got != want {
 		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
 	}
-	if got, want := len(runner.calls), 5; got != want {
+	if got, want := len(runner.calls), 6; got != want {
 		t.Fatalf("calls len = %d, want %d: %#v", got, want, runner.calls)
 	}
 	if !strings.Contains(stdout.String(), "selection: best moments (top 5 segments)") {
 		t.Fatalf("stdout missing best-moments selection line:\n%s", stdout.String())
 	}
-	if got, want := strings.Join(runner.calls[3].Args, " "), "analyze --input track.mp3 --out "+filepath.Join(outDir, "rhythm.json")+" --killplan "+filepath.Join(outDir, "killplan.json"); got != want {
+	if got, want := strings.Join(runner.calls[4].Args, " "), "analyze --input track.mp3 --out "+filepath.Join(outDir, "rhythm.json")+" --killplan "+filepath.Join(outDir, "best-moments.killplan.json"); got != want {
 		t.Fatalf("rhythm args = %q, want %q", got, want)
 	}
-	renderArgs := strings.Join(runner.calls[4].Args, " ")
+	selectArgs := strings.Join(runner.calls[2].Args, " ")
+	for _, want := range []string{"demo select", "--top 5", "--out " + filepath.Join(outDir, "best-moments.killplan.json")} {
+		if !strings.Contains(selectArgs, want) {
+			t.Fatalf("selection args = %q, missing %q", selectArgs, want)
+		}
+	}
+	renderArgs := strings.Join(runner.calls[5].Args, " ")
 	for _, want := range []string{
 		"--preset viral-60-clean",
 		"--music track.mp3",
 		"--rhythm " + filepath.Join(outDir, "rhythm.json"),
 		"--compile-segments",
-		"--limit 5",
+		"--killplan " + filepath.Join(outDir, "best-moments.killplan.json"),
 	} {
 		if !strings.Contains(renderArgs, want) {
 			t.Fatalf("render args = %q, missing %q", renderArgs, want)
 		}
+	}
+	if strings.Contains(renderArgs, "--limit") || strings.Contains(renderArgs, "--rank-moments") {
+		t.Fatalf("fresh best-moment render must consume the pre-capture selected plan: %q", renderArgs)
 	}
 }
 
@@ -493,11 +565,49 @@ func TestRunShortFromRecordingSkipsParseAndRecord(t *testing.T) {
 	if got, want := len(runner.calls), 2; got != want {
 		t.Fatalf("calls len = %d, want %d: %#v", got, want, runner.calls)
 	}
-	if got, want := strings.Join(runner.calls[1].Args, " "), "--recording-result "+filepath.Join(outDir, "recording", "recording-result.json")+" --out "+filepath.Join(outDir, "shorts")+" --publish-dir "+filepath.Join(outDir, "shortslistosparasubir")+" --preset viral-60-clean --output-format short-9x16 --kill-effect punch-in --transition flash --compile-segments"; got != want {
+	if got, want := strings.Join(runner.calls[1].Args, " "), "--recording-result "+filepath.Join(outDir, "recording", "recording-result.json")+" --out "+filepath.Join(outDir, "shorts")+" --publish-dir "+filepath.Join(outDir, "shortslistosparasubir")+" --preset viral-60-clean --output-format short-9x16 --kill-effect punch-in --transition flash --intro=false --outro=false --hook=true --kill-counter=true --covers=true --cover-sheets=true --cover-first-frame=false --compile-segments"; got != want {
 		t.Fatalf("render args = %q, want %q", got, want)
 	}
 	if !strings.Contains(stdout.String(), "player: from existing recording") {
 		t.Fatalf("stdout missing from-recording player line:\n%s", stdout.String())
+	}
+}
+
+func TestRunShortFromRecordingRanksMomentsAndBuildsRhythmFromEmbeddedPlan(t *testing.T) {
+	setShortCaptureEnv(t)
+	runner := &multiRunner{}
+	var stdout, stderr strings.Builder
+	outDir := filepath.Join(t.TempDir(), "run")
+	recordingResult := filepath.Join(outDir, "recording", "recording-result.json")
+
+	code := Run([]string{
+		"zv", "short",
+		"--prompt", "mejores kills al ritmo de la musica",
+		"--from-recording", recordingResult,
+		"--out", outDir,
+		"--music", "track.mp3",
+	}, &stdout, &stderr, nil, runner)
+
+	if code != exitSuccess {
+		t.Fatalf("code = %d, stderr = %q", code, stderr.String())
+	}
+	if len(runner.calls) != 3 {
+		t.Fatalf("calls = %#v, want preset, rhythm, editor", runner.calls)
+	}
+	rhythmArgs := strings.Join(runner.calls[1].Args, " ")
+	if !strings.Contains(rhythmArgs, "--recording-result "+recordingResult) || strings.Contains(rhythmArgs, "--killplan") {
+		t.Fatalf("rhythm args = %q", rhythmArgs)
+	}
+	for _, want := range []string{"--rank-moments", "--limit 5"} {
+		if !strings.Contains(rhythmArgs, want) {
+			t.Fatalf("rhythm args = %q, want %q", rhythmArgs, want)
+		}
+	}
+	renderArgs := strings.Join(runner.calls[2].Args, " ")
+	for _, want := range []string{"--rank-moments", "--limit 5", "--compile-segments"} {
+		if !strings.Contains(renderArgs, want) {
+			t.Fatalf("render args = %q, missing %q", renderArgs, want)
+		}
 	}
 }
 
@@ -599,10 +709,11 @@ func TestRunShortDryRunJSONIsOneMachineReadablePlan(t *testing.T) {
 	if got, want := result.Stages[1].Executable, "zv-recorder"; got != want {
 		t.Fatalf("record stage executable = %q, want %q", got, want)
 	}
+	runDir := result.Output.RunDir
 	wantRecordArgs := []string{
-		"--killplan", filepath.Join("data", "runs", "inferno-short", "killplan.json"),
+		"--killplan", filepath.Join(runDir, "killplan.json"),
 		"--demo", "inferno.dem",
-		"--out", filepath.Join("data", "runs", "inferno-short", "recording"),
+		"--out", filepath.Join(runDir, "recording"),
 		"--hlae", `C:\HLAE-detected\HLAE.exe`,
 		"--cs2", `C:\Steam\cs2.exe`,
 		"--hud", "deathnotices",
@@ -614,7 +725,7 @@ func TestRunShortDryRunJSONIsOneMachineReadablePlan(t *testing.T) {
 	if result.Output.RunDir == "" || result.Output.ShortsDir == "" || result.Output.PublishDir == "" {
 		t.Fatalf("result output paths = %#v, want all paths", result.Output)
 	}
-	if got, want := result.Output.PublishDir, filepath.Join("data", "runs", "inferno-short", "shortslistosparasubir"); got != want {
+	if got, want := result.Output.PublishDir, filepath.Join(runDir, "shortslistosparasubir"); got != want {
 		t.Fatalf("publish dir = %q, want %q", got, want)
 	}
 }
@@ -627,7 +738,7 @@ func TestRunShortDryRunResolvesLandscapeAndEditorialChoices(t *testing.T) {
 		"--prompt", "video largo 16:9 de 76561198000000000",
 		"--kill-effect", "velocity",
 		"--transition", "whip",
-		"--intro", "--outro",
+		"--intro", "--outro", "--hook=false", "--kill-counter=false", "--covers=false", "--cover-sheets=false", "--cover-first-frame=false",
 		"--dry-run", "--format", "json",
 	}, &stdout, &stderr, nil, &multiRunner{})
 	if code != exitSuccess || stderr.Len() != 0 {
@@ -640,11 +751,11 @@ func TestRunShortDryRunResolvesLandscapeAndEditorialChoices(t *testing.T) {
 	if result.Preset.Width != 1920 || result.Preset.Height != 1080 {
 		t.Fatalf("preset dimensions = %#v", result.Preset)
 	}
-	if result.Edit.OutputFormat != editor.OutputFormatLandscape16x9 || result.Edit.KillEffect != editor.KillEffectVelocity || result.Edit.Transition != editor.TransitionWhip || !result.Edit.Intro || !result.Edit.Outro {
+	if result.Edit.OutputFormat != editor.OutputFormatLandscape16x9 || result.Edit.KillEffect != editor.KillEffectVelocity || result.Edit.Transition != editor.TransitionWhip || !result.Edit.Intro || !result.Edit.Outro || result.Edit.Hook || result.Edit.KillCounter || result.Edit.Covers || result.Edit.CoverSheets {
 		t.Fatalf("edit = %#v", result.Edit)
 	}
 	renderArgs := strings.Join(result.Stages[len(result.Stages)-1].Args, " ")
-	for _, want := range []string{"--output-format landscape-16x9", "--kill-effect velocity", "--transition whip", "--intro", "--outro"} {
+	for _, want := range []string{"--output-format landscape-16x9", "--kill-effect velocity", "--transition whip", "--intro=true", "--outro=true", "--hook=false", "--kill-counter=false", "--covers=false", "--cover-sheets=false", "--cover-first-frame=false"} {
 		if !strings.Contains(renderArgs, want) {
 			t.Fatalf("render args = %q, missing %q", renderArgs, want)
 		}

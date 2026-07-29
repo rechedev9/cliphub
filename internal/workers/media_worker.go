@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -129,6 +131,26 @@ func recordTaskFailureAs(ctx context.Context, repo statusUpdater, id uuid.UUID, 
 	}
 	recordStageFailure(id, stage, class, err)
 	logWorkerTransition(id, taskType, job.StatusFailed)
+	return nil
+}
+
+// recordPreservedRecordingFailure closes a failed recording attempt without
+// invalidating a prior committed capture that remained usable. The task still
+// returns its error, so a guided generate never renders stale media as though
+// the requested recapture had succeeded.
+func recordPreservedRecordingFailure(ctx context.Context, repo statusUpdater, id uuid.UUID, err error) error {
+	if !taskIsTerminal(ctx) {
+		logWorkerError(id, tasks.TypeRecordDemo+" will retry with the previous recording preserved", err)
+		return nil
+	}
+	statusCtx, cancel := context.WithTimeout(context.Background(), failureWriteTimeout)
+	defer cancel()
+	if statusErr := repo.UpdateStatus(statusCtx, id, job.StatusRecorded, ""); statusErr != nil {
+		logWorkerError(id, "preserve recorded status after failed recapture", statusErr)
+		return statusErr
+	}
+	recordStageFailure(id, obs.StageWorker, tasks.TypeRecordDemo, err)
+	logWorkerTransition(id, tasks.TypeRecordDemo, job.StatusRecorded)
 	return nil
 }
 
@@ -255,17 +277,15 @@ type RecordWorker struct {
 	enqueuer        Enqueuer
 	// jobLocks serializes recording per job so two reels for the same job (each a
 	// distinct, non-deduped task with different segment ids) never launch the
-	// recorder concurrently or race on the job-level recording result. Process-
-	// local: it covers the inline queue and a single orchestrator process.
-	jobLocks sync.Map // uuid.UUID -> *sync.Mutex
+	// recorder concurrently or race on the job-level recording result. The
+	// coordinator removes an entry after its final waiter releases it, so a
+	// long-running orchestrator does not retain every completed job forever.
+	jobLocks *streamclips.JobLocks
 }
 
 // lockJob acquires the per-job recording lock and returns its release func.
 func (w *RecordWorker) lockJob(id uuid.UUID) func() {
-	m, _ := w.jobLocks.LoadOrStore(id, &sync.Mutex{})
-	mu := m.(*sync.Mutex)
-	mu.Lock()
-	return mu.Unlock
+	return w.jobLocks.Lock(id)
 }
 
 func NewRecordWorker(repo StatusRepository, store storage.Storage, cfg RecordWorkerConfig) *RecordWorker {
@@ -275,6 +295,7 @@ func NewRecordWorker(repo StatusRepository, store storage.Storage, cfg RecordWor
 		generateIntents: generateintent.New(store),
 		cfg:             cfg,
 		runner:          execCommandRunner{},
+		jobLocks:        streamclips.NewJobLocks(),
 	}
 }
 
@@ -309,16 +330,23 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		if retErr == nil {
 			return
 		}
+		recordFailure := func() error {
+			var preserved *recordingCommitPreservedError
+			if errors.As(retErr, &preserved) {
+				return recordPreservedRecordingFailure(ctx, w.repo, payload.JobID, retErr)
+			}
+			return recordTaskFailure(ctx, w.repo, payload.JobID, tasks.TypeRecordDemo, retErr)
+		}
 		if hasGenerateIntent && taskIsTerminal(ctx) {
 			_, err := w.generateIntents.Finish(payload.JobID, generateIntent.ActiveRunID, func() error {
-				return recordTaskFailure(ctx, w.repo, payload.JobID, tasks.TypeRecordDemo, retErr)
+				return recordFailure()
 			})
 			if err != nil {
 				logWorkerError(payload.JobID, "finish failed generate task", err)
 			}
 			return
 		}
-		_ = recordTaskFailure(ctx, w.repo, payload.JobID, tasks.TypeRecordDemo, retErr)
+		_ = recordFailure()
 	}()
 	generateIntent, hasGenerateIntent, err = tasks.GenerateIntentFromTask(t)
 	if err != nil {
@@ -329,10 +357,9 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	if err != nil {
 		return fmt.Errorf("load job %s: %w", payload.JobID, err)
 	}
-	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecording, ""); err != nil {
-		return fmt.Errorf("mark recording: %w", err)
+	if j.KillPlan == nil {
+		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
-	logWorkerTransition(j.ID, tasks.TypeRecordDemo, job.StatusRecording)
 
 	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed); err != nil {
 		return err
@@ -439,11 +466,16 @@ func (w *RecordWorker) writeRenderState(id uuid.UUID, variant, status, message s
 	if err != nil {
 		return err
 	}
+	previous, _, err := w.readRenderVariantState(id, variant)
+	if err != nil {
+		return fmt.Errorf("read previous render state: %w", err)
+	}
 	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-		JobID:   id,
-		Loadout: loadout,
-		Status:  status,
-		Error:   message,
+		JobID:    id,
+		Loadout:  loadout,
+		Status:   status,
+		Error:    message,
+		Previous: previous,
 	})
 	if err != nil {
 		return err
@@ -459,7 +491,27 @@ func (w *RecordWorker) writeRenderState(id uuid.UUID, variant, status, message s
 	return w.storage.Put(key, bytes.NewReader(b))
 }
 
-func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) error {
+func (w *RecordWorker) readRenderVariantState(id uuid.UUID, variant string) (*renderplan.RenderVariantState, bool, error) {
+	key, err := renderplan.RenderVariantStateKey(id, variant)
+	if err != nil {
+		return nil, false, err
+	}
+	rc, err := w.storage.Open(key)
+	if err != nil {
+		if storage.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	defer rc.Close()
+	var state renderplan.RenderVariantState
+	if err := json.NewDecoder(rc).Decode(&state); err != nil {
+		return nil, false, err
+	}
+	return &state, true, nil
+}
+
+func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) (retErr error) {
 	if j.KillPlan == nil {
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
@@ -482,12 +534,6 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err != nil {
 		return err
 	}
-	// Persist the ordered segment ids this reel captures so the job poll scopes
-	// capture progress to this reel, not the whole kill plan. Overwritten at the
-	// start of every record task (last writer wins - it is the in-flight reel).
-	if err := putCaptureSelection(w.storage, j.ID, killPlanSegmentIDs(recordPlan)); err != nil {
-		return fmt.Errorf("persist capture selection: %w", err)
-	}
 
 	cfg := w.cfg.withDefaults()
 	// A per-job preset HUD (e.g. "Clean POV") overrides the worker default.
@@ -498,13 +544,73 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err != nil {
 		return fmt.Errorf("build recording profile: %w", err)
 	}
-	ready, keys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedStream)
+	expectedProfile, err := recording.NewPlanFromKillPlan(*recordPlan, "profile.dem", "profile", expectedStream)
+	if err != nil {
+		return fmt.Errorf("build expected recording identity: %w", err)
+	}
+	ready, keys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedProfile)
 	if err != nil {
 		return err
 	}
 	if ready {
 		logWorkerSkip(j.ID, tasks.TypeRecordDemo, keys)
 		return nil
+	}
+
+	// Establish whether an earlier recording is a complete durable commit before
+	// starting any replacement work. A decoded result alone is insufficient: its
+	// script or one of its clips may already be missing.
+	prev, hasPrev, err := tryDecodeStoredRecordingResult(w.storage, j.ID)
+	if err != nil {
+		return err
+	}
+	previousCommitReady := false
+	if hasPrev {
+		previousCommitReady, err = recordingCommitReady(w.storage, j.ID, prev)
+		if err != nil {
+			return fmt.Errorf("verify previous recording commit: %w", err)
+		}
+	}
+
+	var (
+		rollbackCaptureAttempt func() error
+		uploadEntered          bool
+	)
+	// Everything before uploadRecordingOutputs is attempt-local or UI-only. If
+	// it fails while a complete earlier commit still exists, restore the prior
+	// selection/progress documents and classify the error so the handler keeps
+	// Recorded.
+	// Upload owns its finer mutation boundary because a failure after replacing
+	// an old clip can no longer make this promise.
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		var preserved *recordingCommitPreservedError
+		commitPreserved := errors.As(retErr, &preserved)
+		if !commitPreserved && (!previousCommitReady || uploadEntered) {
+			return
+		}
+		if rollbackCaptureAttempt != nil {
+			if rollbackErr := rollbackCaptureAttempt(); rollbackErr != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("rollback capture attempt documents: %w", rollbackErr))
+			}
+		}
+		if !commitPreserved {
+			retErr = &recordingCommitPreservedError{cause: retErr}
+		}
+	}()
+
+	rollbackCaptureAttempt, err = prepareCaptureAttemptRollback(w.storage, j.ID)
+	if err != nil {
+		return fmt.Errorf("prepare capture attempt rollback: %w", err)
+	}
+
+	// Persist the ordered segment ids this reel captures so the job poll scopes
+	// capture progress to this reel, not the whole kill plan. Overwritten at the
+	// start of every record task (last writer wins - it is the in-flight reel).
+	if err := putCaptureSelection(w.storage, j.ID, killPlanSegmentIDs(recordPlan)); err != nil {
+		return fmt.Errorf("persist capture selection: %w", err)
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -526,26 +632,10 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err := writeJSONFile(killPlanPath, recordPlan); err != nil {
 		return fmt.Errorf("write kill plan: %w", err)
 	}
-
-	// Snapshot the previously stored result (earlier reels of this job) under the
-	// per-job lock, before the upload below overwrites it.
-	prev, hasPrev, err := tryDecodeStoredRecordingResult(w.storage, j.ID)
+	expectedPlan, err := recording.NewPlanFromKillPlan(*recordPlan, demoPath, outDir, expectedStream)
 	if err != nil {
-		return err
+		return fmt.Errorf("build launched recording plan: %w", err)
 	}
-
-	// Upload each segment clip to durable storage as the recorder finishes it,
-	// so the job poll reports live capture progress mid-run. The watcher is
-	// owned here: cancelled the moment the recorder exits and waited for before
-	// results are read. Best-effort by construction — it can never fail the
-	// task, and uploadRecordingOutputs below re-uploads every clip as the
-	// authoritative reconciliation pass.
-	watchCtx, stopWatch := context.WithCancel(ctx)
-	watchDone := make(chan struct{})
-	go func() {
-		defer close(watchDone)
-		newSegmentClipWatcher(w.storage, j.ID, filepath.Join(outDir, "segments")).watch(watchCtx, segmentWatchInterval)
-	}()
 
 	recorderArgs := []string{
 		"--killplan", killPlanPath,
@@ -559,9 +649,36 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if portraitSafeKillfeed {
 		recorderArgs = append(recorderArgs, "--portrait-safe-killfeed")
 	}
+	progressAttemptID, err := startCaptureProgressAttempt(w.storage, j.ID, killPlanSegmentIDs(recordPlan))
+	if err != nil {
+		return fmt.Errorf("start capture progress attempt: %w", err)
+	}
+	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecording, ""); err != nil {
+		rollbackErr := rollbackCaptureAttempt()
+		rollbackCaptureAttempt = nil
+		if rollbackErr != nil {
+			rollbackErr = fmt.Errorf("rollback capture attempt documents: %w", rollbackErr)
+		}
+		return errors.Join(fmt.Errorf("mark recording: %w", err), rollbackErr)
+	}
+	logWorkerTransition(j.ID, tasks.TypeRecordDemo, job.StatusRecording)
+
+	progressCtx, stopProgress := context.WithCancel(ctx)
+	progressDone := make(chan struct{})
+	progress := newCaptureProgressReporter(
+		w.storage,
+		j.ID,
+		progressAttemptID,
+		filepath.Join(outDir, "segments"),
+		killPlanSegmentIDs(recordPlan),
+	)
+	go func() {
+		defer close(progressDone)
+		progress.watch(progressCtx)
+	}()
 	_, runErr := w.runner.Run(ctx, cfg.RecorderPath, recorderArgs...)
-	stopWatch()
-	<-watchDone
+	stopProgress()
+	<-progressDone
 
 	resultPath := filepath.Join(outDir, "recording-result.json")
 	var result recording.RecordingResult
@@ -571,48 +688,30 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		}
 		return fmt.Errorf("read recording result: %w", err)
 	}
-	var resultErr error
-	if runErr == nil {
-		resultErr = recording.ValidateRunResult(result)
-		if resultErr == nil {
-			result.CaptureRevision = uuid.NewString()
-			if err := writeJSONFile(resultPath, result); err != nil {
-				return fmt.Errorf("write recording revision: %w", err)
-			}
-		}
+	if runErr != nil {
+		return newRecordFailure(runErr, result, requested)
 	}
-	keys, err = uploadRecordingOutputs(w.storage, j.ID, outDir, resultPath, result)
+	if err := recording.ValidateRecordingAttempt(expectedPlan, outDir, result); err != nil {
+		return err
+	}
+	result.CaptureRevision = uuid.NewString()
+	durable := result
+	if hasPrev && recordingProfilesCompatible(prev, result) {
+		durable, err = mergeRecordingResults(prev, result, j.KillPlan)
+		if err != nil {
+			return err
+		}
+		durable.CaptureRevision = result.CaptureRevision
+	}
+	if err := writeJSONFile(resultPath, durable); err != nil {
+		return fmt.Errorf("write recording revision: %w", err)
+	}
+	uploadEntered = true
+	keys, err = uploadRecordingOutputs(w.storage, j.ID, outDir, resultPath, result, durable, prev, hasPrev)
 	if err != nil {
 		return err
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeRecordDemo, keys)
-
-	// Accumulate across reels. The recorder result is a single job-level file, but
-	// reels are recorded one segment at a time, and uploadRecordingOutputs just
-	// overwrote it with only this run's segments. On success, union this run over
-	// the prior result (ordered by the kill plan) so result.json lists every
-	// recorded segment. On failure, restore the prior result so a flaky capture
-	// never drops an already-recorded reel. Clips live under per-segment keys and
-	// survive either way.
-	if hasPrev {
-		durable := prev
-		if runErr == nil && resultErr == nil {
-			durable = result
-			if recordingProfilesCompatible(prev, result) {
-				durable = mergeRecordingResults(prev, result, j.KillPlan)
-			}
-		}
-		if err := putRecordingResult(w.storage, j.ID, durable); err != nil {
-			return fmt.Errorf("persist recording result: %w", err)
-		}
-	}
-
-	if runErr != nil {
-		return newRecordFailure(runErr, result, requested)
-	}
-	if resultErr != nil {
-		return resultErr
-	}
 	return nil
 }
 
@@ -646,18 +745,20 @@ func (c RecordWorkerConfig) validate() error {
 
 // ComposeWorker handles the "compose:final" Asynq task.
 type ComposeWorker struct {
-	repo    StatusRepository
-	storage storage.Storage
-	cfg     ComposeWorkerConfig
-	runner  commandRunner
+	repo     StatusRepository
+	storage  storage.Storage
+	cfg      ComposeWorkerConfig
+	runner   commandRunner
+	jobLocks *streamclips.JobLocks
 }
 
 func NewComposeWorker(repo StatusRepository, store storage.Storage, cfg ComposeWorkerConfig) *ComposeWorker {
 	return &ComposeWorker{
-		repo:    repo,
-		storage: store,
-		cfg:     cfg,
-		runner:  execCommandRunner{},
+		repo:     repo,
+		storage:  store,
+		cfg:      cfg,
+		runner:   execCommandRunner{},
+		jobLocks: streamclips.NewJobLocks(),
 	}
 }
 
@@ -666,6 +767,8 @@ func (w *ComposeWorker) HandleComposeFinal(ctx context.Context, t *asynq.Task) e
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		return fmt.Errorf("decode payload: %w", err)
 	}
+	release := w.jobLocks.Lock(payload.JobID)
+	defer release()
 
 	j, err := w.repo.GetMeta(ctx, payload.JobID)
 	if err != nil {
@@ -676,48 +779,67 @@ func (w *ComposeWorker) HandleComposeFinal(ctx context.Context, t *asynq.Task) e
 	}
 	logWorkerTransition(j.ID, tasks.TypeComposeFinal, job.StatusComposing)
 
-	if err := w.compose(ctx, j); err != nil {
-		recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeComposeFinal, err)
+	reviewRequired, err := w.compose(ctx, j)
+	if err != nil {
+		if statusErr := recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeComposeFinal, err); statusErr != nil {
+			return errors.Join(err, fmt.Errorf("record compose failure status: %w", statusErr))
+		}
 		return err
 	}
-	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusComposed, ""); err != nil {
+	finalStatus := compositionCompletionStatus(reviewRequired)
+	if err := w.repo.UpdateStatus(ctx, j.ID, finalStatus, ""); err != nil {
 		return fmt.Errorf("mark composed: %w", err)
 	}
-	logWorkerTransition(j.ID, tasks.TypeComposeFinal, job.StatusComposed)
+	logWorkerTransition(j.ID, tasks.TypeComposeFinal, finalStatus)
 	return nil
 }
 
-func (w *ComposeWorker) compose(ctx context.Context, j job.Job) error {
-	ready, keys, err := compositionOutputsReady(w.storage, j.ID)
+func compositionCompletionStatus(reviewRequired bool) job.Status {
+	if reviewRequired {
+		return job.StatusReviewRequired
+	}
+	return job.StatusComposed
+}
+
+func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
+	ready, reviewRequired, keys, err := compositionOutputsReady(w.storage, j.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if ready {
 		logWorkerSkip(j.ID, tasks.TypeComposeFinal, keys)
-		return nil
+		return reviewRequired, nil
 	}
 
 	cfg := w.cfg.withDefaults()
 	if err := cfg.validate(); err != nil {
-		return err
+		return false, err
 	}
 
 	workDir, cleanup, err := prepareStageDir(cfg.WorkDir, j.ID, "compose")
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer cleanup()
 
 	recordingResult, err := readStoredRecordingResult(w.storage, j.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	localRecordingResult := filepath.Join(workDir, "recording-result.json")
 	if err := localizeSegmentClips(w.storage, j.ID, workDir, &recordingResult); err != nil {
-		return err
+		return false, err
 	}
 	if err := writeJSONFile(localRecordingResult, recordingResult); err != nil {
-		return fmt.Errorf("write localized recording result: %w", err)
+		return false, fmt.Errorf("write localized recording result: %w", err)
+	}
+
+	// The result key is the commit marker for the fixed-key composition pair.
+	// Invalidate it before the composer can replace final.mp4, so a failed
+	// result upload can never leave an old successful marker pointing at a new
+	// MP4. Put is atomic per key, making this a small two-phase publication.
+	if err := writeCompositionPendingMarker(w.storage, j.ID); err != nil {
+		return false, err
 	}
 
 	finalPath := filepath.Join(workDir, "final.mp4")
@@ -734,27 +856,50 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) error {
 	resultPath := filepath.Join(workDir, "composition-result.json")
 	var result composition.Result
 	if err := readJSONFile(resultPath, &result); err != nil {
-		if runErr != nil {
-			return runErr
-		}
-		return fmt.Errorf("read composition result: %w", err)
+		return false, errors.Join(runErr, fmt.Errorf("read composition result: %w", err))
 	}
-	if err := uploadFile(w.storage, composition.ResultArtifactKey(j.ID), resultPath); err != nil {
-		return fmt.Errorf("upload composition result: %w", err)
+	validationErr := composition.ValidateUploadResult(result)
+	if result.Error != "" {
+		// A structured composer failure is useful even when the executable also
+		// exits non-zero. Persist it before returning the process error; failed
+		// results are diagnostic artifacts because readiness rejects Error.
+		uploadErr := uploadFile(w.storage, composition.ResultArtifactKey(j.ID), resultPath)
+		if uploadErr != nil {
+			uploadErr = fmt.Errorf("upload failed composition result: %w", uploadErr)
+		}
+		return false, errors.Join(runErr, validationErr, uploadErr)
 	}
 	if runErr != nil {
-		return runErr
+		return false, errors.Join(runErr, validationErr)
 	}
-	if err := composition.ValidateUploadResult(result); err != nil {
-		return err
+	if validationErr != nil {
+		return false, validationErr
 	}
 	if err := uploadFile(w.storage, composition.FinalArtifactKey(j.ID), finalPath); err != nil {
-		return fmt.Errorf("upload final mp4: %w", err)
+		return false, fmt.Errorf("upload final mp4: %w", err)
+	}
+	// The result is the commit marker and therefore lands after the MP4 it
+	// references. A failed final upload cannot leave a reusable result.
+	if err := uploadFile(w.storage, composition.ResultArtifactKey(j.ID), resultPath); err != nil {
+		return false, fmt.Errorf("upload composition result: %w", err)
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeComposeFinal, []string{
 		composition.ResultArtifactKey(j.ID),
 		composition.FinalArtifactKey(j.ID),
 	})
+	return len(result.Warnings) > 0, nil
+}
+
+func writeCompositionPendingMarker(store storage.Storage, id uuid.UUID) error {
+	marker, err := json.Marshal(composition.Result{
+		Error: "composition publication is incomplete; rebuild required",
+	})
+	if err != nil {
+		return fmt.Errorf("encode pending composition marker: %w", err)
+	}
+	if err := store.Put(composition.ResultArtifactKey(id), bytes.NewReader(marker)); err != nil {
+		return fmt.Errorf("invalidate composition result before rebuild: %w", err)
+	}
 	return nil
 }
 
@@ -971,7 +1116,7 @@ func (w *StreamRenderWorker) render(
 	if migrated, changed := streamclips.MigrateLegacySourceDuration(plan, j.Probe.DurationSeconds); changed {
 		plan = migrated
 	}
-	if err := plan.ValidateForSourceDuration(j.Probe.DurationSeconds); err != nil {
+	if err := plan.ValidateForRender(j.Probe.DurationSeconds); err != nil {
 		return err
 	}
 	if plan.Variant != variant {
@@ -979,9 +1124,6 @@ func (w *StreamRenderWorker) render(
 			"%w: task variant %q does not match edit plan variant %q",
 			errStreamRenderSuperseded, variant, plan.Variant,
 		)
-	}
-	if len(plan.Clips) == 0 {
-		return fmt.Errorf("edit plan has no clips")
 	}
 	if err := validateStreamRenderIntent(plan, intent, hasIntent); err != nil {
 		return err
@@ -1211,29 +1353,23 @@ func (w *StreamRenderWorker) render(
 	if err := w.ensureStreamRenderIntentCurrent(ctx, j.ID, intent, hasIntent); err != nil {
 		return err
 	}
-	previousState, owned, err := w.ownedStreamRenderState(j.ID, variant, intent, hasIntent)
+	_, owned, err = w.ownedStreamRenderState(j.ID, variant, intent, hasIntent)
 	if err != nil {
 		return err
 	}
 	if !owned {
 		return fmt.Errorf("%w: render attempt no longer owns variant state", errStreamRenderSuperseded)
 	}
-	previousRevision := ""
-	if previousState.HasPublishedRender() {
-		previousRevision = previousState.ArtifactDir
-	}
 	if err := w.writeStreamRenderState(state); err != nil {
 		return err
 	}
 	revisionCommitted = true
+	// A request may have resolved the previous state before this pointer swap
+	// and open its artifacts afterward. Retain every published revision until
+	// the whole job is deleted; only the deferred uncommitted cleanup is safe.
 	releaseCommit()
 	commitReleased = true
 	logWorkerArtifacts(j.ID, tasks.TypeRenderStreamClip, []string{resultKey, galleryKey})
-	if previousRevision != "" && previousRevision != revisionPrefix {
-		if err := w.deleteStreamRenderRevision(j.ID, variant, previousRevision); err != nil {
-			logWorkerError(j.ID, "delete superseded stream render revision", err)
-		}
-	}
 	if err := w.repo.UpdateStatus(ctx, j.ID, streamclips.StatusRendered, ""); err != nil {
 		return errors.Join(
 			errStreamRenderParentPromotion,
@@ -1475,7 +1611,16 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	cfg := w.cfg.withDefaults()
 	musicPath := resolveMusicFile(cfg.MusicDir, musicKey)
-	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, musicVolume, edit)
+	effectiveMusic := &renderplan.MusicSnapshot{}
+	effectiveMusicVolume := 0.0
+	if musicPath != "" {
+		effectiveMusicVolume = musicVolume
+		if effectiveMusicVolume <= 0 {
+			effectiveMusicVolume = 1
+		}
+		effectiveMusic = &renderplan.MusicSnapshot{Key: musicKey, Volume: effectiveMusicVolume}
+	}
+	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, edit)
 	if err != nil {
 		return fmt.Errorf("fingerprint render inputs: %w", err)
 	}
@@ -1483,22 +1628,33 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return fmt.Errorf("read render state: %w", err)
 	}
-	ready, keys, err := renderVariantOutputsReady(w.storage, j.ID, variant, inputFingerprint)
+	ready, cachedWarnings, keys, err := renderVariantOutputsReady(w.storage, j.ID, variant, inputFingerprint, previousState)
 	if err != nil {
 		return err
 	}
 	if ready {
-		state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-			JobID:    j.ID,
-			Loadout:  loadout,
-			Status:   renderplan.RenderVariantStatusReady,
-			Previous: previousState,
-		})
-		if err != nil {
-			return err
+		cachedStatus := renderVariantCompletionStatus(editor.Result{Warnings: cachedWarnings})
+		if previousState != nil && previousState.ReviewResolvedFor(cachedWarnings) {
+			cachedStatus = renderplan.RenderVariantStatusReady
 		}
-		if err := w.writeRenderVariantState(state); err != nil {
-			return fmt.Errorf("write ready render state: %w", err)
+		if previousState == nil || previousState.Status != cachedStatus || !reflect.DeepEqual(previousState.Warnings, cachedWarnings) {
+			migratedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:    j.ID,
+				Loadout:  loadout,
+				Status:   cachedStatus,
+				Warnings: cachedWarnings,
+				Previous: previousState,
+			})
+			if stateErr != nil {
+				return stateErr
+			}
+			preserveRenderArtifactPointer(&migratedState, previousState)
+			if previousState != nil && previousState.ReviewResolvedFor(cachedWarnings) {
+				migratedState.ReviewResolution = previousState.ReviewResolution
+			}
+			if stateErr := w.writeRenderVariantState(migratedState); stateErr != nil {
+				return fmt.Errorf("write migrated cached render state: %w", stateErr)
+			}
 		}
 		logWorkerSkip(j.ID, tasks.TypeRenderVariant, keys)
 		return nil
@@ -1515,6 +1671,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return err
 	}
+	preserveRenderArtifactPointer(&state, previousState)
 	if err := w.writeRenderVariantState(state); err != nil {
 		return fmt.Errorf("write rendering state: %w", err)
 	}
@@ -1536,6 +1693,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			err = fmt.Errorf("%w; build failed render state: %v", err, stateErr)
 			return
 		}
+		preserveRenderArtifactPointer(&failedState, previousState)
 		if writeErr := w.writeRenderVariantState(failedState); writeErr != nil {
 			err = fmt.Errorf("%w; write failed render state: %v", err, writeErr)
 		}
@@ -1561,7 +1719,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 
 	outDir := filepath.Join(workDir, "out")
 	publishDir := filepath.Join(outDir, "shortslistosparasubir")
-	if err := w.writeEditDocument(outDir, j.ID, loadout, recordingResult, edit); err != nil {
+	if err := w.writeEditDocument(outDir, j.ID, loadout, recordingResult, edit, effectiveMusic); err != nil {
 		return err
 	}
 	args := []string{
@@ -1575,37 +1733,32 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		"--transition", edit.Transition,
 		"--hook=" + strconv.FormatBool(edit.HookText),
 		"--kill-counter=" + strconv.FormatBool(edit.KillCounter),
+		"--intro=" + strconv.FormatBool(edit.Intro),
+		"--outro=" + strconv.FormatBool(edit.Outro),
 	}
+	args = append(args, explicitCoverArgs(loadout, edit)...)
 	args = append(args, compileSegmentsArgs(recording.SegmentIDs(recordingResult))...)
-	if edit.Intro {
-		args = append(args, "--intro")
-	}
-	if edit.Outro {
-		args = append(args, "--outro")
-	}
 	if edit.IntroText != "" {
 		args = append(args, "--intro-text", edit.IntroText)
 	}
 	if edit.OutroText != "" {
 		args = append(args, "--outro-text", edit.OutroText)
 	}
-	args = appendCoverStrategyArg(args, edit)
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)
 	}
 	if cfg.FFprobePath != "" {
 		args = append(args, "--ffprobe", cfg.FFprobePath)
 	}
-	if musicKey != "" {
-		if musicPath != "" {
-			args = append(args, "--music", musicPath)
-			if musicVolume > 0 {
-				args = append(args, "--music-volume", strconv.FormatFloat(musicVolume, 'f', -1, 64))
-			}
-		} else {
-			// Requested music is unavailable; render without it rather than fail.
-			logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("music %q not found in %q; rendering without music", musicKey, cfg.MusicDir))
-		}
+	if musicPath != "" {
+		args = append(
+			args,
+			"--music", musicPath,
+			"--music-volume", strconv.FormatFloat(effectiveMusicVolume, 'f', -1, 64),
+		)
+	} else if musicKey != "" {
+		// Requested music is unavailable; render without it rather than fail.
+		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("music %q not found in %q; rendering without music", musicKey, cfg.MusicDir))
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
@@ -1625,26 +1778,48 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			result.Warnings = append(result.Warnings, "ffprobe quality metadata: "+err.Error())
 		}
 	}
+	result.Warnings = renderplan.CompleteRenderWarnings(result)
 	if err := writeJSONFile(resultPath, result); err != nil {
 		return fmt.Errorf("write fingerprinted render result: %w", err)
 	}
-	keys, err = uploadRenderVariantOutputs(w.storage, j.ID, variant, outDir, publishDir, resultPath, result)
-	if err != nil {
-		return err
-	}
-	logWorkerArtifacts(j.ID, tasks.TypeRenderVariant, keys)
 	if runErr != nil {
 		return runErr
 	}
 	if err := renderplan.ValidateRenderVariantRunResult(result); err != nil {
 		return err
 	}
+	result.GalleryPath = filepath.Join(publishDir, "index.html")
+	result.SummaryPath = filepath.Join(publishDir, "publish-summary.md")
+	revisionID := uuid.New()
+	revisionPrefix, err := renderplan.RenderVariantRevisionPrefix(j.ID, variant, revisionID)
+	if err != nil {
+		return err
+	}
+	revisionCommitted := false
+	defer func() {
+		if revisionCommitted {
+			return
+		}
+		if deleteErr := deleteRenderVariantRevision(w.storage, j.ID, variant, revisionPrefix); deleteErr != nil {
+			logWorkerError(j.ID, "delete uncommitted render revision", deleteErr)
+		}
+	}()
+	if err := writeDurableRenderDocuments(j.ID, variant, revisionID, outDir, publishDir, resultPath, result); err != nil {
+		return err
+	}
+	keys, err = uploadRenderVariantOutputs(w.storage, j.ID, variant, revisionID, outDir, publishDir, resultPath, result)
+	if err != nil {
+		return err
+	}
+	logWorkerArtifacts(j.ID, tasks.TypeRenderVariant, keys)
+	readyStatus := renderVariantCompletionStatus(result)
 	readyState, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-		JobID:    j.ID,
-		Loadout:  loadout,
-		Status:   renderplan.RenderVariantStatusReady,
-		Warnings: result.Warnings,
-		Previous: currentState,
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     readyStatus,
+		Warnings:   result.Warnings,
+		Previous:   currentState,
+		RevisionID: revisionID,
 	})
 	if err != nil {
 		return err
@@ -1652,22 +1827,348 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err := w.writeRenderVariantState(readyState); err != nil {
 		return fmt.Errorf("write ready render state: %w", err)
 	}
+	revisionCommitted = true
+	// A request may have resolved the previous state before this pointer swap
+	// and open its artifacts afterward. Retain every published revision until
+	// the whole job is deleted; only the deferred uncommitted cleanup is safe.
 	return nil
 }
 
-func appendCoverStrategyArg(args []string, edit renderplan.EditRequest) []string {
-	if edit.CoverStrategy == renderplan.CoverStrategyNone {
-		return append(args, "--no-covers")
+func renderVariantCompletionStatus(result editor.Result) string {
+	if len(result.Warnings) > 0 {
+		return renderplan.RenderVariantStatusReview
 	}
-	return args
+	return renderplan.RenderVariantStatusReady
 }
 
-func (w *RenderWorker) writeEditDocument(outDir string, id uuid.UUID, loadout renderplan.Loadout, result recording.RecordingResult, edit renderplan.EditRequest) error {
+func explicitCoverArgs(loadout renderplan.Loadout, edit renderplan.EditRequest) []string {
+	return []string{
+		"--cover-sheets=" + strconv.FormatBool(loadout.CoverSheets),
+		"--cover-first-frame=" + strconv.FormatBool(edit.CoverFirstFrame),
+		"--covers=" + strconv.FormatBool(edit.CoverStrategy != renderplan.CoverStrategyNone),
+	}
+}
+
+func preserveRenderArtifactPointer(state *renderplan.RenderVariantState, previous *renderplan.RenderVariantState) {
+	if state == nil || previous == nil {
+		return
+	}
+	if previous.Status != renderplan.RenderVariantStatusReady && previous.Status != renderplan.RenderVariantStatusReview {
+		return
+	}
+	state.EditDocumentKey = previous.EditDocumentKey
+	state.EditManifestKey = previous.EditManifestKey
+	state.RenderResultKey = previous.RenderResultKey
+	state.PackManifestKey = previous.PackManifestKey
+	state.GalleryKey = previous.GalleryKey
+	state.PublishSummaryKey = previous.PublishSummaryKey
+	if previous.ArtifactPrefix != "" {
+		state.ArtifactPrefix = previous.ArtifactPrefix
+	}
+}
+
+type renderRevisionDeleter interface {
+	DeleteTree(string) error
+}
+
+// deleteRenderVariantRevision removes only the exact immutable revision
+// namespace owned by id and variant. Canonical, foreign, and malformed
+// prefixes are rejected before the storage backend sees them.
+func deleteRenderVariantRevision(store storage.Storage, id uuid.UUID, variant, prefix string) error {
+	base, err := artifacts.RenderVariantPrefix(id, variant)
+	if err != nil {
+		return err
+	}
+	revisionText := strings.TrimPrefix(prefix, base+"/revisions/")
+	if revisionText == prefix || revisionText == "" || strings.Contains(revisionText, "/") {
+		return fmt.Errorf("render revision prefix is outside the expected job and variant namespace")
+	}
+	revisionID, err := uuid.Parse(revisionText)
+	if err != nil || revisionID == uuid.Nil {
+		return fmt.Errorf("render revision prefix has an invalid revision id")
+	}
+	want, err := renderplan.RenderVariantRevisionPrefix(id, variant, revisionID)
+	if err != nil {
+		return err
+	}
+	if want != prefix {
+		return fmt.Errorf("render revision prefix does not match its canonical revision namespace")
+	}
+	deleter, ok := store.(renderRevisionDeleter)
+	if !ok {
+		return nil
+	}
+	return deleter.DeleteTree(prefix)
+}
+
+func writeDurableRenderDocuments(id uuid.UUID, variant string, revisionID uuid.UUID, outDir, publishDir, resultPath string, local editor.Result) error {
+	refs, err := renderplan.NewRenderVariantRevisionArtifactRef(id, variant, revisionID, renderplan.RenderVariantArtifactResult, "")
+	if err != nil {
+		return err
+	}
+	if err := renderplan.ValidateRenderVariantRunResult(local); err != nil {
+		return fmt.Errorf("validate render result for durable projection: %w", err)
+	}
+	local.GalleryPath = filepath.Join(publishDir, "index.html")
+	local.SummaryPath = filepath.Join(publishDir, "publish-summary.md")
+	prefix := strings.TrimSuffix(refs.Key, "/render-result.json")
+	durable := local
+	durable.Shorts = append([]editor.ShortResult(nil), local.Shorts...)
+	for i := range durable.Shorts {
+		durable.Shorts[i].Parts = append([]editor.ShortPart(nil), local.Shorts[i].Parts...)
+	}
+	durable.RecordingResult = recording.ResultArtifactKey(id)
+	durable.KillPlan = ""
+	durable.OutputDir = prefix
+	durable.PublishDir = prefix
+	durable.GalleryPath = prefix + "/index.html"
+	durable.SummaryPath = prefix + "/publish-summary.md"
+	for i := range durable.Shorts {
+		if err := projectDurableShort(id, variant, revisionID, &durable.Shorts[i]); err != nil {
+			return fmt.Errorf("project render result short %d: %w", i, err)
+		}
+	}
+
+	var document renderplan.EditDocument
+	documentPath := filepath.Join(outDir, "edit-document.json")
+	if err := readJSONFile(documentPath, &document); err != nil {
+		return fmt.Errorf("read edit document for durable projection: %w", err)
+	}
+
+	var manifest editor.Manifest
+	manifestPath := filepath.Join(outDir, "edit-manifest.json")
+	if err := readJSONFile(manifestPath, &manifest); err != nil {
+		return fmt.Errorf("read edit manifest for durable projection: %w", err)
+	}
+
+	var pack editor.PackManifest
+	packPath := filepath.Join(publishDir, "pack-manifest.json")
+	if err := readJSONFile(packPath, &pack); err != nil {
+		return fmt.Errorf("read pack manifest for durable projection: %w", err)
+	}
+	resultSegmentIDs := make([]string, len(local.Shorts))
+	for i := range local.Shorts {
+		resultSegmentIDs[i] = local.Shorts[i].SegmentID
+	}
+	editSegmentIDs := make([]string, len(manifest.Shorts))
+	for i := range manifest.Shorts {
+		editSegmentIDs[i] = manifest.Shorts[i].SegmentID
+	}
+	if err := validateRenderManifestSegmentIDs("edit manifest", editSegmentIDs, resultSegmentIDs); err != nil {
+		return err
+	}
+	packSegmentIDs := make([]string, len(pack.Items))
+	for i := range pack.Items {
+		packSegmentIDs[i] = pack.Items[i].SegmentID
+	}
+	if err := validateRenderManifestSegmentIDs("pack manifest", packSegmentIDs, resultSegmentIDs); err != nil {
+		return err
+	}
+
+	document.Outputs.Prefix = prefix
+	document.Outputs.RenderResult = prefix + "/render-result.json"
+	document.Outputs.EditManifest = prefix + "/edit-manifest.json"
+	document.Outputs.PackManifest = prefix + "/pack-manifest.json"
+	document.Outputs.Gallery = prefix + "/index.html"
+	document.Outputs.PublishSummary = prefix + "/publish-summary.md"
+	document.Outputs.UploadReadyRoot = prefix
+	if err := writeJSONFile(documentPath, document); err != nil {
+		return fmt.Errorf("write durable edit document: %w", err)
+	}
+
+	manifest.RecordingResult = recording.ResultArtifactKey(id)
+	manifest.KillPlan = ""
+	manifest.OutputDir = prefix
+	manifest.PublishDir = prefix
+	manifest.GalleryPath = prefix + "/index.html"
+	manifest.SummaryPath = prefix + "/publish-summary.md"
+	for i := range manifest.Shorts {
+		if err := projectDurableEdit(id, variant, revisionID, &manifest.Shorts[i]); err != nil {
+			return fmt.Errorf("project edit manifest short %d: %w", i, err)
+		}
+	}
+	if err := writeJSONFile(manifestPath, manifest); err != nil {
+		return fmt.Errorf("write durable edit manifest: %w", err)
+	}
+
+	pack.RecordingResult = recording.ResultArtifactKey(id)
+	pack.KillPlan = ""
+	pack.PublishDir = prefix
+	pack.GalleryPath = prefix + "/index.html"
+	pack.SummaryPath = prefix + "/publish-summary.md"
+	for i := range pack.Items {
+		if err := projectDurablePublishItem(id, variant, revisionID, &pack.Items[i]); err != nil {
+			return fmt.Errorf("project pack manifest item %d: %w", i, err)
+		}
+	}
+	if err := writeJSONFile(packPath, pack); err != nil {
+		return fmt.Errorf("write durable pack manifest: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(publishDir, "index.html"), []byte(durableRenderGallery(id, variant, revisionID, durable)), 0o600); err != nil {
+		return fmt.Errorf("write durable render gallery: %w", err)
+	}
+	var summary strings.Builder
+	fmt.Fprintf(&summary, "# FragForge publish pack\n\nVariant: %s\n\n", variant)
+	for _, short := range durable.Shorts {
+		fmt.Fprintf(&summary, "- %s: %s\n", short.SegmentID, short.PublishPath)
+	}
+	if err := os.WriteFile(filepath.Join(publishDir, "publish-summary.md"), []byte(summary.String()), 0o600); err != nil {
+		return fmt.Errorf("write durable publish summary: %w", err)
+	}
+	if err := writeJSONFile(resultPath, durable); err != nil {
+		return fmt.Errorf("write durable render result: %w", err)
+	}
+	return nil
+}
+
+func validateRenderManifestSegmentIDs(label string, got, want []string) error {
+	seen := make(map[string]struct{}, len(got))
+	for i, segmentID := range got {
+		if err := artifacts.ValidateArtifactToken(label+" segment id", segmentID); err != nil {
+			return fmt.Errorf("%s entry %d: %w", label, i, err)
+		}
+		if _, duplicate := seen[segmentID]; duplicate {
+			return fmt.Errorf("%s contains duplicate segment id %q", label, segmentID)
+		}
+		seen[segmentID] = struct{}{}
+	}
+	if len(got) != len(want) {
+		return fmt.Errorf("%s contains %d segment ids, want %d from render result", label, len(got), len(want))
+	}
+	for _, segmentID := range want {
+		if _, ok := seen[segmentID]; !ok {
+			return fmt.Errorf("%s is missing render result segment id %q", label, segmentID)
+		}
+	}
+	return nil
+}
+
+type durableSegmentArtifactRefs struct {
+	video   renderplan.RenderVariantArtifactRef
+	caption renderplan.RenderVariantArtifactRef
+	cover   renderplan.RenderVariantArtifactRef
+}
+
+func newDurableSegmentArtifactRefs(id uuid.UUID, variant string, revisionID uuid.UUID, segmentID string) (durableSegmentArtifactRefs, error) {
+	video, err := renderplan.NewRenderVariantRevisionArtifactRef(id, variant, revisionID, renderplan.RenderVariantArtifactVideo, segmentID)
+	if err != nil {
+		return durableSegmentArtifactRefs{}, fmt.Errorf("derive video artifact: %w", err)
+	}
+	caption, err := renderplan.NewRenderVariantRevisionArtifactRef(id, variant, revisionID, renderplan.RenderVariantArtifactCaption, segmentID)
+	if err != nil {
+		return durableSegmentArtifactRefs{}, fmt.Errorf("derive caption artifact: %w", err)
+	}
+	cover, err := renderplan.NewRenderVariantRevisionArtifactRef(id, variant, revisionID, renderplan.RenderVariantArtifactCover, segmentID)
+	if err != nil {
+		return durableSegmentArtifactRefs{}, fmt.Errorf("derive cover artifact: %w", err)
+	}
+	return durableSegmentArtifactRefs{video: video, caption: caption, cover: cover}, nil
+}
+
+func projectDurableShort(id uuid.UUID, variant string, revisionID uuid.UUID, short *editor.ShortResult) error {
+	refs, err := newDurableSegmentArtifactRefs(id, variant, revisionID, short.SegmentID)
+	if err != nil {
+		return err
+	}
+	short.Input = ""
+	short.Output = refs.video.Key
+	short.PromptPath = ""
+	short.PublishPath = refs.video.Key
+	short.CaptionPath = refs.caption.Key
+	if short.CoverPath != "" {
+		short.CoverPath = refs.cover.Key
+	}
+	short.CoverSheetPath = ""
+	short.RenderLogPath = ""
+	short.QualityLogPath = ""
+	short.OutputArtifact.Path = refs.video.Key
+	short.PublishArtifact.Path = refs.video.Key
+	if short.CoverArtifact.Path != "" {
+		short.CoverArtifact.Path = refs.cover.Key
+	}
+	short.CoverSheetArtifact.Path = ""
+	for i := range short.Parts {
+		short.Parts[i].Input = ""
+		short.Parts[i].SourceArtifact.Path = ""
+	}
+	return nil
+}
+
+func projectDurableEdit(id uuid.UUID, variant string, revisionID uuid.UUID, short *editor.ShortEdit) error {
+	refs, err := newDurableSegmentArtifactRefs(id, variant, revisionID, short.SegmentID)
+	if err != nil {
+		return err
+	}
+	short.Input = ""
+	short.Output = refs.video.Key
+	short.PromptPath = ""
+	short.PublishPath = refs.video.Key
+	short.CaptionPath = refs.caption.Key
+	if short.CoverPath != "" {
+		short.CoverPath = refs.cover.Key
+	}
+	short.CoverSheetPath = ""
+	short.RenderLogPath = ""
+	short.QualityLogPath = ""
+	short.FFmpegCommand = nil
+	short.CoverCommand = nil
+	short.CoverSheetCommand = nil
+	short.QualityCommand = nil
+	short.OutputArtifact.Path = refs.video.Key
+	short.PublishArtifact.Path = refs.video.Key
+	return nil
+}
+
+func projectDurablePublishItem(id uuid.UUID, variant string, revisionID uuid.UUID, item *editor.PublishItem) error {
+	refs, err := newDurableSegmentArtifactRefs(id, variant, revisionID, item.SegmentID)
+	if err != nil {
+		return err
+	}
+	item.Source = ""
+	item.Video = refs.video.Key
+	item.CaptionPath = refs.caption.Key
+	if item.CoverPath != "" {
+		item.CoverPath = refs.cover.Key
+	}
+	item.CoverSheetPath = ""
+	item.Artifact.Path = refs.video.Key
+	if item.CoverArtifact.Path != "" {
+		item.CoverArtifact.Path = refs.cover.Key
+	}
+	item.CoverSheetArtifact.Path = ""
+	item.SourceArtifact.Path = ""
+	return nil
+}
+
+func durableRenderGallery(id uuid.UUID, variant string, revisionID uuid.UUID, result editor.Result) string {
+	var b strings.Builder
+	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>FragForge Publish Pack</title></head><body><h1>FragForge publish pack</h1>")
+	base := fmt.Sprintf(
+		"/api/jobs/%s/renders/%s/revisions/%s",
+		id,
+		url.PathEscape(variant),
+		revisionID,
+	)
+	for _, short := range result.Shorts {
+		name := url.PathEscape(short.SegmentID)
+		fmt.Fprintf(&b, "<article><h2>%s</h2><video controls src=\"%s/videos/%s\"></video>", html.EscapeString(short.Title), base, name)
+		if short.CoverPath != "" {
+			fmt.Fprintf(&b, "<img alt=\"cover\" src=\"%s/covers/%s\">", base, name)
+		}
+		fmt.Fprintf(&b, "<p><a href=\"%s/captions/%s\">Caption</a></p></article>", base, name)
+	}
+	b.WriteString("</body></html>")
+	return b.String()
+}
+
+func (w *RenderWorker) writeEditDocument(outDir string, id uuid.UUID, loadout renderplan.Loadout, result recording.RecordingResult, edit renderplan.EditRequest, music *renderplan.MusicSnapshot) error {
 	doc, err := renderplan.NewEditDocumentForLoadout(renderplan.NewEditDocumentForLoadoutOptions{
 		JobID:      id,
 		Loadout:    loadout,
 		SegmentIDs: recording.SegmentIDs(result),
 		Edit:       edit,
+		Music:      music,
 	})
 	if err != nil {
 		return err
@@ -1876,30 +2377,119 @@ func uploadOptionalFile(store storage.Storage, key, path string) (bool, error) {
 	return true, uploadFile(store, key, path)
 }
 
-func uploadRecordingOutputs(store storage.Storage, id uuid.UUID, outDir, resultPath string, result recording.RecordingResult) ([]string, error) {
+// recordingCommitReady reports whether result names a complete, reusable
+// durable recording commit. Structural validation alone is insufficient:
+// downstream readers also require the canonical script and every planned clip.
+func recordingCommitReady(store storage.Storage, id uuid.UUID, result recording.RecordingResult) (bool, error) {
+	if result.Error != "" {
+		return false, nil
+	}
+	if err := recording.ValidateUploadResult(result); err != nil {
+		return false, nil
+	}
+	exists, err := store.Exists(recording.ScriptArtifactKey(id))
+	if err != nil || !exists {
+		return false, err
+	}
+	for _, segment := range result.Plan.Segments {
+		key, err := recording.SegmentClipArtifactKey(id, segment.ID)
+		if err != nil {
+			return false, err
+		}
+		exists, err := store.Exists(key)
+		if err != nil || !exists {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func uploadRecordingOutputs(
+	store storage.Storage,
+	id uuid.UUID,
+	outDir, resultPath string,
+	attempt, durable, previous recording.RecordingResult,
+	hasPrevious bool,
+) ([]string, error) {
+	previousCommitRecoverable := false
+	previousClipKeys := make(map[string]struct{})
+	var previousScript []byte
+	if hasPrevious {
+		var err error
+		previousCommitRecoverable, err = recordingCommitReady(store, id, previous)
+		if err != nil {
+			return nil, fmt.Errorf("verify previous recording commit: %w", err)
+		}
+		if previousCommitRecoverable {
+			previousScript, err = readRecordingScriptForRollback(store, id)
+			if err != nil {
+				return nil, fmt.Errorf("snapshot previous recording script: %w", err)
+			}
+			for _, segment := range previous.Plan.Segments {
+				key, keyErr := recording.SegmentClipArtifactKey(id, segment.ID)
+				if keyErr != nil {
+					return nil, fmt.Errorf("derive previous recording clip key: %w", keyErr)
+				}
+				previousClipKeys[key] = struct{}{}
+			}
+		}
+	}
+	preserveUnchangedCommit := func(cause error) error {
+		if !previousCommitRecoverable {
+			return cause
+		}
+		return &recordingCommitPreservedError{cause: cause}
+	}
+
 	targets, err := recording.NewUploadTargets(recording.NewUploadTargetsOptions{
 		JobID:      id,
 		OutDir:     outDir,
 		ResultPath: resultPath,
-		Result:     result,
+		Result:     attempt,
 	})
 	if err != nil {
-		return nil, err
+		return nil, preserveUnchangedCommit(err)
+	}
+	if err := recording.ValidateUploadResult(durable); err != nil {
+		return nil, preserveUnchangedCommit(err)
+	}
+	resultKey := recording.ResultArtifactKey(id)
+	if len(targets) == 0 || targets[len(targets)-1].Key != resultKey {
+		return nil, preserveUnchangedCommit(fmt.Errorf("recording upload plan does not end with the canonical result"))
+	}
+	previousClipsIntact := previousCommitRecoverable
+	failPublication := func(cause error) error {
+		if !previousClipsIntact {
+			return cause
+		}
+		if restoreErr := restorePreviousRecordingCommit(store, id, previous, previousScript); restoreErr != nil {
+			return errors.Join(cause, fmt.Errorf("restore previous recording commit: %w", restoreErr))
+		}
+		return &recordingCommitPreservedError{cause: cause}
+	}
+
+	pending := recording.RecordingResult{PublicationPending: true}
+	if hasPrevious {
+		pending = previous
+		pending.PublicationPending = true
+	}
+	if err := putRecordingResult(store, id, pending); err != nil {
+		return nil, preserveUnchangedCommit(fmt.Errorf("invalidate recording result before publishing outputs: %w", err))
 	}
 
 	keys := make([]string, 0, len(targets))
-	for _, target := range targets {
+	for _, target := range targets[:len(targets)-1] {
 		uploaded := false
 		if target.Required {
 			if err := uploadFile(store, target.Key, target.Path); err != nil {
 				if target.MissingMessage != "" && os.IsNotExist(err) {
-					return nil, errors.New(target.MissingMessage)
+					return nil, failPublication(errors.New(target.MissingMessage))
 				}
-				return nil, fmt.Errorf("upload %s: %w", target.Label, err)
+				return nil, failPublication(fmt.Errorf("upload %s: %w", target.Label, err))
 			}
 			uploaded = true
 		} else if ok, err := uploadOptionalFile(store, target.Key, target.Path); err != nil {
-			return nil, fmt.Errorf("upload %s: %w", target.Label, err)
+			return nil, failPublication(fmt.Errorf("upload %s: %w", target.Label, err))
 		} else {
 			uploaded = ok
 		}
@@ -1907,14 +2497,68 @@ func uploadRecordingOutputs(store storage.Storage, id uuid.UUID, outDir, resultP
 			continue
 		}
 		keys = append(keys, target.Key)
+		if _, overwrotePreviousClip := previousClipKeys[target.Key]; overwrotePreviousClip {
+			previousClipsIntact = false
+		}
 	}
-	if err := recording.ValidateUploadResult(result); err != nil {
-		return nil, err
+	durable.PublicationPending = false
+	if err := putRecordingResult(store, id, durable); err != nil {
+		return nil, failPublication(fmt.Errorf("commit recording result after publishing outputs: %w", err))
 	}
+	keys = append(keys, resultKey)
 	return keys, nil
 }
 
-func uploadRenderVariantOutputs(store storage.Storage, id uuid.UUID, variant, outDir, publishDir, resultPath string, result editor.Result) ([]string, error) {
+// recordingCommitPreservedError means a recording attempt failed while the
+// last committed script, result, and every referenced clip remained usable.
+// Callers must surface the failed attempt while preserving Recorded state.
+type recordingCommitPreservedError struct {
+	cause error
+}
+
+func (e *recordingCommitPreservedError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *recordingCommitPreservedError) Unwrap() error {
+	return e.cause
+}
+
+const maxRecordingRollbackScriptBytes = 8 << 20
+
+func readRecordingScriptForRollback(store storage.Storage, id uuid.UUID) ([]byte, error) {
+	rc, err := store.Open(recording.ScriptArtifactKey(id))
+	if err != nil {
+		return nil, err
+	}
+	body, readErr := io.ReadAll(io.LimitReader(rc, maxRecordingRollbackScriptBytes+1))
+	closeErr := rc.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		return nil, err
+	}
+	if len(body) > maxRecordingRollbackScriptBytes {
+		return nil, fmt.Errorf("previous recording script exceeds %d bytes", maxRecordingRollbackScriptBytes)
+	}
+	return body, nil
+}
+
+func restorePreviousRecordingCommit(
+	store storage.Storage,
+	id uuid.UUID,
+	previous recording.RecordingResult,
+	script []byte,
+) error {
+	if err := store.Put(recording.ScriptArtifactKey(id), bytes.NewReader(script)); err != nil {
+		return fmt.Errorf("restore script: %w", err)
+	}
+	previous.PublicationPending = false
+	if err := putRecordingResult(store, id, previous); err != nil {
+		return fmt.Errorf("restore result: %w", err)
+	}
+	return nil
+}
+
+func uploadRenderVariantOutputs(store storage.Storage, id uuid.UUID, variant string, revisionID uuid.UUID, outDir, publishDir, resultPath string, result editor.Result) ([]string, error) {
 	targets, err := renderplan.NewRenderVariantUploadTargets(renderplan.NewRenderVariantUploadTargetsOptions{
 		JobID:      id,
 		Variant:    variant,
@@ -1922,6 +2566,7 @@ func uploadRenderVariantOutputs(store storage.Storage, id uuid.UUID, variant, ou
 		PublishDir: publishDir,
 		ResultPath: resultPath,
 		Result:     result,
+		RevisionID: revisionID,
 	})
 	if err != nil {
 		return nil, err
@@ -1983,6 +2628,46 @@ func compileSegmentsArgs(segmentIDs []string) []string {
 		return nil
 	}
 	return []string{"--compile-segments", "--segments", strings.Join(segmentIDs, ",")}
+}
+
+// prepareCaptureAttemptRollback snapshots both UI-only documents before a new
+// attempt publishes either one. Rollback restores each exact prior body, or
+// deletes the attempt's document when that key did not previously exist.
+func prepareCaptureAttemptRollback(store storage.Storage, id uuid.UUID) (func() error, error) {
+	snapshot := func(key, label string) (func() error, error) {
+		rc, err := store.Open(key)
+		if err != nil {
+			if !storage.IsNotExist(err) {
+				return nil, err
+			}
+			deleter, ok := store.(interface{ Delete(string) error })
+			if !ok {
+				return nil, fmt.Errorf("storage cannot delete an uncommitted %s", label)
+			}
+			return func() error {
+				return deleter.Delete(key)
+			}, nil
+		}
+		body, readErr := io.ReadAll(rc)
+		if err := errors.Join(readErr, rc.Close()); err != nil {
+			return nil, err
+		}
+		return func() error {
+			return store.Put(key, bytes.NewReader(body))
+		}, nil
+	}
+
+	selectionRollback, err := snapshot(artifacts.CaptureSelectionKey(id), "capture selection")
+	if err != nil {
+		return nil, fmt.Errorf("snapshot capture selection: %w", err)
+	}
+	progressRollback, err := snapshot(artifacts.CaptureProgressKey(id), "capture progress")
+	if err != nil {
+		return nil, fmt.Errorf("snapshot capture progress: %w", err)
+	}
+	return func() error {
+		return errors.Join(selectionRollback(), progressRollback())
+	}, nil
 }
 
 // putCaptureSelection persists the ordered segment ids a record run will
@@ -2060,21 +2745,56 @@ func normalizedRecordingStream(plan *killplan.Plan, hudMode string, portraitSafe
 }
 
 func recordingProfilesCompatible(a, b recording.RecordingResult) bool {
-	return a.Plan.Stream == b.Plan.Stream &&
-		a.Plan.CaptureContract == recording.CaptureContractVersion &&
-		b.Plan.CaptureContract == recording.CaptureContractVersion &&
-		a.CaptureVerified &&
-		b.CaptureVerified
+	if a.CaptureMode != recording.CaptureModeReal || b.CaptureMode != recording.CaptureModeReal ||
+		!a.CaptureVerified || !b.CaptureVerified ||
+		!captureProfilesCompatible(a.Plan, b.Plan) {
+		return false
+	}
+	aFingerprint, err := recording.CaptureInputFingerprint(a.Plan)
+	if err != nil || a.CaptureInputFingerprint != aFingerprint {
+		return false
+	}
+	bFingerprint, err := recording.CaptureInputFingerprint(b.Plan)
+	return err == nil && b.CaptureInputFingerprint == bFingerprint
+}
+
+func captureProfilesCompatible(a, b recording.RecordingPlan) bool {
+	return a.CaptureContract == recording.CaptureContractVersion &&
+		b.CaptureContract == recording.CaptureContractVersion &&
+		a.KillPlanSchemaVersion == b.KillPlanSchemaVersion &&
+		a.DemoSHA256 == b.DemoSHA256 &&
+		a.DemoMap == b.DemoMap &&
+		a.DemoDurationTicks == b.DemoDurationTicks &&
+		a.TargetSteamID64 == b.TargetSteamID64 &&
+		a.TargetNameInDemo == b.TargetNameInDemo &&
+		a.TargetAccountID == b.TargetAccountID &&
+		a.Tickrate == b.Tickrate &&
+		a.Stream == b.Stream &&
+		a.Runtime == b.Runtime
+}
+
+func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) bool {
+	return legacy.CaptureContract == recording.LegacyCaptureContractVersion &&
+		current.CaptureContract == recording.CaptureContractVersion &&
+		legacy.DemoMap == current.DemoMap &&
+		legacy.TargetSteamID64 == current.TargetSteamID64 &&
+		legacy.TargetNameInDemo == current.TargetNameInDemo &&
+		legacy.TargetAccountID == current.TargetAccountID &&
+		legacy.Tickrate == current.Tickrate &&
+		legacy.Stream == current.Stream &&
+		legacy.Runtime == current.Runtime
 }
 
 // mergeRecordingResults unions a freshly recorded result over a previously
 // stored one so the job-level recording result accumulates every segment any
 // reel has recorded. The new run wins for segments it covers; segments only in
 // prev are carried forward (their clips still live in storage under their
-// per-segment keys). The merged segments are reordered to follow fullPlan so the
-// result stays in kill-plan order regardless of which reel recorded when.
-func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killplan.Plan) recording.RecordingResult {
+// per-segment keys). Capture remains chronological; EditorialSegmentIDs keeps
+// the user-selected order from fullPlan regardless of which reel recorded when.
+func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killplan.Plan) (recording.RecordingResult, error) {
 	merged := next
+	merged.Plan.Segments = append([]recording.RecordingSegment(nil), next.Plan.Segments...)
+	merged.Artifacts = append([]recording.RecordingArtifact(nil), next.Artifacts...)
 	haveSegment := make(map[string]bool, len(next.Plan.Segments))
 	for _, s := range next.Plan.Segments {
 		haveSegment[s.ID] = true
@@ -2082,14 +2802,20 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 	for _, s := range prev.Plan.Segments {
 		if !haveSegment[s.ID] {
 			merged.Plan.Segments = append(merged.Plan.Segments, s)
+			haveSegment[s.ID] = true
 		}
 	}
-	order := make(map[string]int, len(fullPlan.Segments))
-	for i, s := range fullPlan.Segments {
-		order[s.ID] = i
+	merged.Plan.EditorialSegmentIDs = make([]string, 0, len(merged.Plan.Segments))
+	for _, segment := range fullPlan.Segments {
+		if haveSegment[segment.ID] {
+			merged.Plan.EditorialSegmentIDs = append(merged.Plan.EditorialSegmentIDs, segment.ID)
+		}
 	}
 	sort.SliceStable(merged.Plan.Segments, func(a, b int) bool {
-		return order[merged.Plan.Segments[a].ID] < order[merged.Plan.Segments[b].ID]
+		if merged.Plan.Segments[a].TickStart != merged.Plan.Segments[b].TickStart {
+			return merged.Plan.Segments[a].TickStart < merged.Plan.Segments[b].TickStart
+		}
+		return merged.Plan.Segments[a].ID < merged.Plan.Segments[b].ID
 	})
 	haveClip := make(map[string]bool, len(next.Artifacts))
 	for _, a := range next.Artifacts {
@@ -2102,7 +2828,15 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 			merged.Artifacts = append(merged.Artifacts, a)
 		}
 	}
-	return merged
+	if err := merged.Plan.Validate(); err != nil {
+		return recording.RecordingResult{}, fmt.Errorf("merge recording plans: %w", err)
+	}
+	fingerprint, err := recording.CaptureInputFingerprint(merged.Plan)
+	if err != nil {
+		return recording.RecordingResult{}, fmt.Errorf("fingerprint merged recording plan: %w", err)
+	}
+	merged.CaptureInputFingerprint = fingerprint
+	return merged, nil
 }
 
 // putRecordingResult overwrites the durable recording result with result.
@@ -2119,7 +2853,7 @@ func putRecordingResult(store storage.Storage, id uuid.UUID, result recording.Re
 // effective segment ids (whole-demo mode passes every plan segment), so a reel
 // scoped to one clip is never wrongly skipped against the job-level result.json,
 // which holds only the last run's segments until the accumulate step unions it.
-func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedStream recording.StreamConfig) (bool, []string, error) {
+func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan) (bool, []string, error) {
 	if len(requested) == 0 {
 		return false, nil, nil
 	}
@@ -2132,17 +2866,22 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 	if err != nil || result.Error != "" {
 		return false, nil, err
 	}
-	if result.Plan.Stream != expectedStream {
+	if result.PublicationPending {
 		return false, nil, nil
 	}
-	if result.Plan.CaptureContract != recording.CaptureContractVersion {
+	if err := recording.ValidateRunResult(result); err != nil {
 		return false, nil, nil
 	}
-	if !result.CaptureVerified {
+	if !captureProfilesCompatible(result.Plan, expectedPlan) &&
+		!legacyCaptureProfileCompatible(result.Plan, expectedPlan) {
 		return false, nil, nil
 	}
 
 	recorded := make(map[string]bool)
+	recordedSegments := make(map[string]recording.RecordingSegment, len(result.Plan.Segments))
+	for _, segment := range result.Plan.Segments {
+		recordedSegments[segment.ID] = segment
+	}
 	for _, a := range result.Artifacts {
 		if isSegmentClip(a) {
 			recorded[a.SegmentID] = true
@@ -2153,8 +2892,17 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 		return false, nil, err
 	}
 	keys := []string{resultKey, scriptKey}
+	expectedSegments := make(map[string]recording.RecordingSegment, len(expectedPlan.Segments))
+	for _, segment := range expectedPlan.Segments {
+		expectedSegments[segment.ID] = segment
+	}
 	for _, segID := range requested {
 		if !recorded[segID] {
+			return false, nil, nil
+		}
+		storedSegment, stored := recordedSegments[segID]
+		expectedSegment, expected := expectedSegments[segID]
+		if !stored || !expected || !reflect.DeepEqual(storedSegment, expectedSegment) {
 			return false, nil, nil
 		}
 		clipKey, err := recording.SegmentClipArtifactKey(id, segID)
@@ -2170,35 +2918,35 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 	return true, keys, nil
 }
 
-func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, []string, error) {
+func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, bool, []string, error) {
 	resultKey := composition.ResultArtifactKey(id)
 	resultExists, err := store.Exists(resultKey)
 	if err != nil || !resultExists {
-		return false, nil, err
+		return false, false, nil, err
 	}
 
 	rc, err := store.Open(resultKey)
 	if err != nil {
-		return false, nil, fmt.Errorf("open composition result: %w", err)
+		return false, false, nil, fmt.Errorf("open composition result: %w", err)
 	}
 	defer rc.Close()
 	var result composition.Result
 	if err := json.NewDecoder(rc).Decode(&result); err != nil {
-		return false, nil, fmt.Errorf("decode composition result: %w", err)
+		return false, false, nil, fmt.Errorf("decode composition result: %w", err)
 	}
 	if result.Error != "" {
-		return false, nil, nil
+		return false, false, nil, nil
 	}
 	readyArtifacts := composition.NewReadyArtifacts(id, result)
 	keys := []string{readyArtifacts.ResultKey}
 	for _, key := range readyArtifacts.RequiredKeys {
 		exists, err := store.Exists(key)
 		if err != nil || !exists {
-			return false, nil, err
+			return false, false, nil, err
 		}
 		keys = append(keys, key)
 	}
-	return true, keys, nil
+	return true, len(result.Warnings) > 0, keys, nil
 }
 
 type renderMusicInput struct {
@@ -2217,9 +2965,10 @@ type renderFingerprintInput struct {
 	KillPlan      killplan.Plan             `json:"kill_plan"`
 }
 
-func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Plan, variant, musicKey, musicPath string, musicVolume float64, edit renderplan.EditRequest) (string, error) {
-	music := renderMusicInput{Key: musicKey, Available: musicPath != "", Volume: musicVolume}
+func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Plan, variant, musicKey, musicPath string, effectiveMusicVolume float64, edit renderplan.EditRequest) (string, error) {
+	music := renderMusicInput{Key: musicKey, Available: musicPath != "", Volume: effectiveMusicVolume}
 	if musicPath != "" {
+		// #nosec G304 -- musicPath is the worker-local materialization of a validated durable music artifact.
 		f, err := os.Open(musicPath)
 		if err != nil {
 			return "", fmt.Errorf("open music: %w", err)
@@ -2251,38 +3000,100 @@ func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Pla
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, expectedFingerprint string) (bool, []string, error) {
-	readyArtifacts, err := renderplan.NewRenderVariantReadyArtifacts(id, variant)
-	if err != nil {
-		return false, nil, err
+func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, expectedFingerprint string, states ...*renderplan.RenderVariantState) (bool, []string, []string, error) {
+	var state *renderplan.RenderVariantState
+	if len(states) > 0 && states[0] != nil {
+		state = states[0]
+	} else {
+		loadout, err := renderplan.LoadoutForVariant(variant)
+		if err != nil {
+			return false, nil, nil, err
+		}
+		legacy, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+			JobID:   id,
+			Loadout: loadout,
+			Status:  renderplan.RenderVariantStatusReady,
+		})
+		if err != nil {
+			return false, nil, nil, err
+		}
+		state = &legacy
 	}
-	resultKey := readyArtifacts.ResultKey
+	if state == nil || (state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview) {
+		return false, nil, nil, nil
+	}
+	resultKey := state.RenderResultKey
+	if resultKey == "" {
+		return false, nil, nil, nil
+	}
 	exists, err := store.Exists(resultKey)
 	if err != nil || !exists {
-		return false, nil, err
+		return false, nil, nil, err
 	}
 	rc, err := store.Open(resultKey)
 	if err != nil {
-		return false, nil, fmt.Errorf("open render result: %w", err)
+		return false, nil, nil, fmt.Errorf("open render result: %w", err)
 	}
 	defer rc.Close()
 	var result editor.Result
 	if err := json.NewDecoder(rc).Decode(&result); err != nil {
-		return false, nil, fmt.Errorf("decode render result: %w", err)
+		return false, nil, nil, fmt.Errorf("decode render result: %w", err)
 	}
 	if result.Error != "" {
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 	if result.InputFingerprint == "" || result.InputFingerprint != expectedFingerprint {
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 	keys := []string{resultKey}
-	for _, key := range readyArtifacts.RequiredKeys {
+	for _, key := range []string{
+		state.EditDocumentKey,
+		state.EditManifestKey,
+		state.PackManifestKey,
+		state.GalleryKey,
+		state.PublishSummaryKey,
+	} {
+		if key == "" {
+			return false, nil, nil, nil
+		}
 		exists, err := store.Exists(key)
 		if err != nil || !exists {
-			return false, nil, err
+			return false, nil, nil, err
 		}
 		keys = append(keys, key)
+	}
+	if err := renderplan.ValidateRenderVariantRunResult(result); err != nil {
+		return false, nil, nil, nil
+	}
+	for _, short := range result.Shorts {
+		if short.SegmentID == "" {
+			return false, nil, nil, nil
+		}
+		for _, kind := range []renderplan.RenderVariantArtifactKind{
+			renderplan.RenderVariantArtifactVideo,
+			renderplan.RenderVariantArtifactCaption,
+		} {
+			ref, refErr := renderplan.NewRenderVariantArtifactRefForState(*state, kind, short.SegmentID)
+			if refErr != nil {
+				return false, nil, nil, refErr
+			}
+			exists, existsErr := store.Exists(ref.Key)
+			if existsErr != nil || !exists {
+				return false, nil, nil, existsErr
+			}
+			keys = append(keys, ref.Key)
+		}
+		if result.CoversEnabled {
+			ref, refErr := renderplan.NewRenderVariantArtifactRefForState(*state, renderplan.RenderVariantArtifactCover, short.SegmentID)
+			if refErr != nil {
+				return false, nil, nil, refErr
+			}
+			exists, existsErr := store.Exists(ref.Key)
+			if existsErr != nil || !exists {
+				return false, nil, nil, existsErr
+			}
+			keys = append(keys, ref.Key)
+		}
 	}
 	// A per-segment render is only reusable if it already produced a short for
 	// every segment in the (possibly grown) recording result. When a later reel
@@ -2290,12 +3101,12 @@ func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, exp
 	// its short instead of being skipped as "already rendered".
 	covers, err := renderCoversRecordedSegments(store, id, result)
 	if err != nil {
-		return false, nil, err
+		return false, nil, nil, err
 	}
 	if !covers {
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
-	return true, keys, nil
+	return true, renderplan.CompleteRenderWarnings(result), keys, nil
 }
 
 // compilationSegmentID is the synthetic segment id the editor uses for a single

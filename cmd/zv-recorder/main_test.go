@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rechedev9/fragforge/internal/killplan"
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
@@ -58,6 +61,67 @@ func TestWriteResultAndReportEmitsMachineReadableDryRunSummary(t *testing.T) {
 	}
 	if _, err := os.Stat(got.ResultPath); err != nil {
 		t.Fatalf("recording result: %v", err)
+	}
+}
+
+func TestValidateRecordingOutputDirectoryRejectsSourceInsideNamespace(t *testing.T) {
+	outDir := t.TempDir()
+	killPlanPath := filepath.Join(outDir, "recording-result.json")
+	demoPath := filepath.Join(t.TempDir(), "source.dem")
+	if err := validateRecordingOutputDirectory(outDir, killPlanPath, demoPath); err == nil {
+		t.Fatal("validateRecordingOutputDirectory error = nil, want source/output namespace conflict")
+	}
+}
+
+func TestValidateKillPlanDemoBindsSchemaAndSHA256(t *testing.T) {
+	demoPath := filepath.Join(t.TempDir(), "match.dem")
+	contents := []byte("deterministic demo fixture")
+	if err := os.WriteFile(demoPath, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(contents)
+	plan := killplan.NewPlan()
+	plan.Demo.SHA256 = fmt.Sprintf("%x", sum)
+
+	if err := validateKillPlanDemo(plan, demoPath); err != nil {
+		t.Fatalf("validateKillPlanDemo error = %v", err)
+	}
+	plan.Demo.SHA256 = strings.Repeat("0", 64)
+	if err := validateKillPlanDemo(plan, demoPath); err == nil {
+		t.Fatal("validateKillPlanDemo mismatch error = nil")
+	}
+	plan.Demo.SHA256 = fmt.Sprintf("%x", sum)
+	plan.SchemaVersion = "999"
+	if err := validateKillPlanDemo(plan, demoPath); err == nil {
+		t.Fatal("validateKillPlanDemo future schema error = nil")
+	}
+}
+
+func TestValidateFreshOutputNamespaceRejectsStaleCaptureArtifacts(t *testing.T) {
+	for _, name := range []string{"take0001.mp4", filepath.Join("segments", "seg-001.mp4"), "unexpected.txt"} {
+		t.Run(name, func(t *testing.T) {
+			outDir := t.TempDir()
+			path := filepath.Join(outDir, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("stale"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateFreshOutputNamespace(outDir); err == nil {
+				t.Fatal("validateFreshOutputNamespace error = nil")
+			}
+		})
+	}
+
+	outDir := t.TempDir()
+	for _, name := range []string{"recording.js", "recording-result.json"} {
+		if err := os.WriteFile(filepath.Join(outDir, name), []byte("dry-run metadata"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := validateFreshOutputNamespace(outDir); err != nil {
+		t.Fatalf("validateFreshOutputNamespace dry-run metadata error = %v", err)
 	}
 }
 
@@ -341,7 +405,120 @@ func TestWaitForWindowsProcessRunAndExitStopsRunningProcessOnStatusFailure(t *te
 	}
 }
 
-func TestWaitForWindowsProcessRunAndExitStopsProcessOnDemoParseFailureBeforeSeen(t *testing.T) {
+func TestWaitForWindowsProcessRunAndExitCancellationDoesNotStopUnobservedProcess(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stopped string
+	err := waitForWindowsProcessRunAndExitWith(
+		ctx,
+		"cs2.exe",
+		time.Hour,
+		time.Hour,
+		func(string) (bool, string, error) { return false, "", nil },
+		func(image string) error {
+			stopped = image
+			return nil
+		},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if stopped != "" {
+		t.Fatalf("terminated image = %q, want no unobserved process termination", stopped)
+	}
+}
+
+func TestWaitForWindowsProcessRunAndExitCancellationDoesNotClaimProcessFoundByFinalLookup(t *testing.T) {
+	statusErr := errors.New("tasklist failed after finding cs2.exe")
+	for _, tt := range []struct {
+		name      string
+		statusErr error
+	}{
+		{name: "successful lookup"},
+		{name: "failed lookup", statusErr: statusErr},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			var stopped string
+
+			err := waitForWindowsProcessRunAndExitWith(
+				ctx,
+				"cs2.exe",
+				time.Hour,
+				time.Hour,
+				func(string) (bool, string, error) {
+					return true, "Counter-Strike 2", tt.statusErr
+				},
+				func(image string) error {
+					stopped = image
+					return nil
+				},
+			)
+
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v, want context.Canceled", err)
+			}
+			if tt.statusErr != nil && !errors.Is(err, tt.statusErr) {
+				t.Fatalf("error = %v, want status error %v", err, tt.statusErr)
+			}
+			if stopped != "" {
+				t.Fatalf("terminated image = %q, want no process termination without prior ownership evidence", stopped)
+			}
+		})
+	}
+}
+
+func TestWaitForWindowsProcessRunAndExitCancellationStopsObservedProcessWhenStatusFails(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	observed := make(chan struct{})
+	statusCalls := 0
+	statusErr := errors.New("tasklist unavailable")
+	var stopped string
+	status := func(string) (bool, string, error) {
+		statusCalls++
+		if statusCalls == 1 {
+			close(observed)
+			return true, "Counter-Strike 2", nil
+		}
+		return false, "", statusErr
+	}
+	go func() {
+		<-observed
+		cancel()
+	}()
+
+	err := waitForWindowsProcessRunAndExitWith(
+		ctx,
+		"cs2.exe",
+		time.Hour,
+		time.Millisecond,
+		status,
+		func(image string) error {
+			stopped = image
+			return nil
+		},
+	)
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, statusErr) {
+		t.Fatalf("error = %v, want cancellation and status error", err)
+	}
+	if stopped != "cs2.exe" {
+		t.Fatalf("terminated image = %q, want cs2.exe", stopped)
+	}
+}
+
+func TestLauncherFailurePreservesCauseWithoutAssumingCS2Ownership(t *testing.T) {
+	waitErr := errors.New("launcher exit 1")
+	err := launcherFailure(waitErr)
+	if !errors.Is(err, waitErr) {
+		t.Fatalf("error = %v, want launcher cause preserved", err)
+	}
+	if !strings.Contains(err.Error(), "HLAE launcher failed") {
+		t.Fatalf("error = %q, want launcher failure context", err)
+	}
+}
+
+func TestWaitForWindowsProcessRunAndExitStopsOwnedProcessOnDemoParseFailure(t *testing.T) {
 	var stopped string
 	status := func(image string) (bool, string, error) {
 		return false, "", &demoParseError{path: `C:\game\csgo\console.log`}
@@ -392,6 +569,28 @@ func TestWaitForWindowsProcessRunAndExitChecksDemoParseFailureAtFirstDeadline(t 
 	}
 	if stopped != "cs2.exe" {
 		t.Fatalf("terminated image = %q, want cs2.exe", stopped)
+	}
+}
+
+func TestWaitForWindowsProcessRunAndExitDoesNotStopUnobservedProcessOnGenericStatusFailure(t *testing.T) {
+	wantErr := errors.New("tasklist unavailable")
+	var stopped string
+	err := waitForWindowsProcessRunAndExitWith(
+		context.Background(),
+		"cs2.exe",
+		time.Second,
+		time.Millisecond,
+		func(string) (bool, string, error) { return false, "", wantErr },
+		func(image string) error {
+			stopped = image
+			return nil
+		},
+	)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("error = %v, want %v", err, wantErr)
+	}
+	if stopped != "" {
+		t.Fatalf("terminated image = %q, want no unowned process termination", stopped)
 	}
 }
 
@@ -580,7 +779,35 @@ func appendConsoleLog(t *testing.T, path, content string) {
 
 func TestValidateCaptureResultIncludesConsoleLog(t *testing.T) {
 	cs2 := filepath.FromSlash("C:/Steam/game/bin/win64/cs2.exe")
-	err := validateCaptureResult(recording.RecordingResult{}, cs2)
+	killPlan := killplan.NewPlan()
+	killPlan.Demo.SHA256 = strings.Repeat("a", 64)
+	killPlan.Demo.Tickrate = 64
+	killPlan.Demo.DurationTicks = 1000
+	killPlan.Target.SteamID64 = "76561197960265729"
+	killPlan.Segments = []killplan.Segment{{
+		ID:        "seg-001",
+		TickStart: 64,
+		TickEnd:   128,
+	}}
+	plan, err := recording.NewPlanFromKillPlan(
+		killPlan,
+		"match.dem",
+		"recording-output",
+		recording.DefaultStreamConfig(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := recording.RecordingResult{
+		Plan:            plan,
+		CaptureMode:     recording.CaptureModeReal,
+		CaptureVerified: true,
+	}
+	result.CaptureInputFingerprint, err = recording.CaptureInputFingerprint(result.Plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = validateCaptureResult(result, cs2)
 	if err == nil {
 		t.Fatal("validateCaptureResult() error = nil, want missing clips error")
 	}

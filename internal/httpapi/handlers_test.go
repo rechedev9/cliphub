@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -71,6 +72,7 @@ func reviewedDefaultEditPlanJSON(t *testing.T) json.RawMessage {
 	t.Helper()
 	plan := streamclips.DefaultEditPlan()
 	plan.FaceCropReviewed = true
+	plan.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 1}}
 	raw, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +255,9 @@ func (f *fakeRepo) SetParseInputs(_ context.Context, id uuid.UUID, steamID strin
 
 // fakeStorage records every Put call.
 type fakeStorage struct {
-	puts map[string][]byte
+	puts     map[string][]byte
+	deleted  []string
+	onDelete func(string)
 }
 
 func newFakeStorage() *fakeStorage { return &fakeStorage{puts: map[string][]byte{}} }
@@ -278,6 +282,10 @@ func (f *fakeStorage) Exists(key string) (bool, error) {
 }
 func (f *fakeStorage) Delete(key string) error {
 	delete(f.puts, key)
+	f.deleted = append(f.deleted, key)
+	if f.onDelete != nil {
+		f.onDelete(key)
+	}
 	return nil
 }
 
@@ -1934,6 +1942,9 @@ func TestStartRenderVariantPreservesReadyStateWhenTaskIsDuplicate(t *testing.T) 
 	if err := h.writeRenderVariantState(ready); err != nil {
 		t.Fatalf("writeRenderVariantState error = %v", err)
 	}
+	putAssistantJSON(t, store, ready.RenderResultKey, editor.Result{
+		Preset: editor.PresetViral60Clean,
+	})
 
 	r := chi.NewRouter()
 	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
@@ -1953,6 +1964,399 @@ func TestStartRenderVariantPreservesReadyStateWhenTaskIsDuplicate(t *testing.T) 
 	}
 	if state.Status != renderplan.RenderVariantStatusReady {
 		t.Fatalf("state status = %q, want ready", state.Status)
+	}
+}
+
+func TestStartRenderVariantReviewReplacementUsesExactRevisionCAS(t *testing.T) {
+	tests := []struct {
+		name       string
+		queueErr   error
+		prefix     string
+		warnings   string
+		wantStatus int
+		wantQueued bool
+	}{
+		{
+			name:       "accepted replacement retains committed artifact pointer",
+			prefix:     "current",
+			warnings:   `["freeze at 00:12"]`,
+			wantStatus: http.StatusAccepted,
+			wantQueued: true,
+		},
+		{
+			name:       "stale revision is rejected before enqueue",
+			prefix:     "stale",
+			warnings:   `["freeze at 00:12"]`,
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "stale warnings are rejected before enqueue",
+			prefix:     "current",
+			warnings:   `["different warning"]`,
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "missing expectations cannot replace a review",
+			warnings:   `null`,
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "duplicate task does not claim correction was accepted",
+			queueErr:   asynq.ErrDuplicateTask,
+			prefix:     "current",
+			warnings:   `["freeze at 00:12"]`,
+			wantStatus: http.StatusConflict,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			queue := &fakeQueue{err: tc.queueErr}
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, store, queue)
+			loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+			if err != nil {
+				t.Fatal(err)
+			}
+			review, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:      j.ID,
+				Loadout:    loadout,
+				Status:     renderplan.RenderVariantStatusReview,
+				Warnings:   []string{"freeze at 00:12"},
+				RevisionID: uuid.New(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.writeRenderVariantState(review); err != nil {
+				t.Fatal(err)
+			}
+			putAssistantJSON(t, store, review.EditDocumentKey, renderplan.EditDocument{
+				SchemaVersion: renderplan.EditDocumentSchemaVersion,
+				Edit:          renderplan.DefaultEditRequest(),
+				Music:         &renderplan.MusicSnapshot{},
+			})
+
+			expectedPrefix := tc.prefix
+			if expectedPrefix == "current" {
+				expectedPrefix = review.ArtifactPrefix
+			}
+			body := fmt.Sprintf(
+				`{"expected_artifact_prefix":%q,"expected_warnings":%s,"edit":{"transition":"whip"}}`,
+				expectedPrefix,
+				tc.warnings,
+			)
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/jobs/"+j.ID.String()+"/renders/viral-60-clean",
+				strings.NewReader(body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+			if rw.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantStatus, rw.Body.String())
+			}
+
+			state, ok, err := h.readRenderVariantState(j.ID, editor.PresetViral60Clean)
+			if err != nil || !ok {
+				t.Fatalf("readRenderVariantState = (%v, %v, %v)", state, ok, err)
+			}
+			if tc.wantQueued {
+				if state.Status != renderplan.RenderVariantStatusQueued {
+					t.Fatalf("state status = %q, want queued", state.Status)
+				}
+				if state.ArtifactPrefix != review.ArtifactPrefix ||
+					state.RenderResultKey != review.RenderResultKey {
+					t.Fatalf("queued state lost committed revision pointer: %#v", state)
+				}
+				if len(queue.enqueued) != 1 {
+					t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
+				}
+			} else {
+				if state.Status != renderplan.RenderVariantStatusReview ||
+					state.ArtifactPrefix != review.ArtifactPrefix {
+					t.Fatalf("rejected replacement changed review state: %#v", state)
+				}
+				if len(queue.enqueued) != 0 {
+					t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
+				}
+			}
+		})
+	}
+}
+
+func TestStartRenderVariantRejectsUnknownCorrectionFieldsWithoutReplacingReview(t *testing.T) {
+	tests := []struct {
+		name  string
+		patch string
+	}{
+		{
+			name:  "top-level field",
+			patch: `"correccion":"whip"`,
+		},
+		{
+			name:  "edit field",
+			patch: `"edit":{"transiton":"whip"}`,
+		},
+		{
+			name:  "music object field",
+			patch: `"music":{"key":"phonk-01","volum":0.35}`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			queue := &fakeQueue{}
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, store, queue)
+			loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+			if err != nil {
+				t.Fatal(err)
+			}
+			review, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:      j.ID,
+				Loadout:    loadout,
+				Status:     renderplan.RenderVariantStatusReview,
+				Warnings:   []string{"freeze at 00:12"},
+				RevisionID: uuid.New(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.writeRenderVariantState(review); err != nil {
+				t.Fatal(err)
+			}
+
+			body := fmt.Sprintf(
+				`{"expected_artifact_prefix":%q,"expected_warnings":["freeze at 00:12"],%s}`,
+				review.ArtifactPrefix,
+				tc.patch,
+			)
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/jobs/"+j.ID.String()+"/renders/viral-60-clean",
+				strings.NewReader(body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			if rw.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+			}
+			if len(queue.enqueued) != 0 {
+				t.Fatalf("enqueued = %d, want no replacement for unknown field", len(queue.enqueued))
+			}
+			state, ok, err := h.readRenderVariantState(j.ID, editor.PresetViral60Clean)
+			if err != nil || !ok {
+				t.Fatalf("readRenderVariantState = (%v, %v, %v)", state, ok, err)
+			}
+			same, compareErr := sameRenderVariantState(state, &review)
+			if compareErr != nil {
+				t.Fatalf("compare render state: %v", compareErr)
+			}
+			if !same {
+				t.Fatalf("unknown correction field changed review state:\ngot  %#v\nwant %#v", state, review)
+			}
+		})
+	}
+}
+
+func TestStartRenderVariantPartialReviewCorrectionPreservesEffectiveEditAndMusic(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue)
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusReview,
+		Warnings:   []string{"freeze at 00:12"},
+		RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.writeRenderVariantState(review); err != nil {
+		t.Fatal(err)
+	}
+	effectiveEdit := renderplan.EditRequest{
+		Format:          renderplan.FormatLandscape16x9,
+		KillEffect:      renderplan.KillEffectVelocity,
+		Transition:      renderplan.TransitionFlash,
+		Intro:           true,
+		Outro:           true,
+		HookText:        true,
+		KillCounter:     true,
+		CoverStrategy:   renderplan.CoverStrategyGenerated,
+		CoverFirstFrame: true,
+		IntroText:       "Approved intro",
+		OutroText:       "Approved outro",
+	}
+	putAssistantJSON(t, store, review.EditDocumentKey, renderplan.EditDocument{
+		SchemaVersion: renderplan.EditDocumentSchemaVersion,
+		Edit:          effectiveEdit,
+		Music:         &renderplan.MusicSnapshot{Key: "phonk-01", Volume: 0.35},
+	})
+
+	body := fmt.Sprintf(
+		`{"expected_artifact_prefix":%q,"expected_warnings":["freeze at 00:12"],"edit":{"transition":"whip"}}`,
+		review.ArtifactPrefix,
+	)
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/jobs/"+j.ID.String()+"/renders/viral-60-clean",
+		strings.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	effectiveEdit.Transition = renderplan.TransitionWhip
+	if payload.Edit != effectiveEdit {
+		t.Fatalf("edit payload = %#v, want merged %#v", payload.Edit, effectiveEdit)
+	}
+	if payload.MusicKey != "phonk-01" || payload.MusicVolume != 0.35 {
+		t.Fatalf("music payload = %q/%v, want preserved phonk-01/0.35", payload.MusicKey, payload.MusicVolume)
+	}
+}
+
+func TestGetRenderVariantReturnsEffectiveEditForCurrentRevision(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusReady,
+		RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(t, store, state.RenderResultKey, editor.Result{Preset: editor.PresetViral60Clean})
+	putAssistantJSON(t, store, state.EditDocumentKey, renderplan.EditDocument{
+		SchemaVersion: renderplan.EditDocumentSchemaVersion,
+		Edit: renderplan.EditRequest{
+			Format:        renderplan.FormatLandscape16x9,
+			KillEffect:    renderplan.KillEffectVelocity,
+			Transition:    renderplan.TransitionWhip,
+			Intro:         true,
+			HookText:      true,
+			CoverStrategy: renderplan.CoverStrategyNone,
+		},
+		Music: &renderplan.MusicSnapshot{Key: "phonk-01", Volume: 0.35},
+	})
+
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/jobs/"+j.ID.String()+"/renders/viral-60-clean",
+		nil,
+	)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	if !strings.Contains(rw.Body.String(), `"edit":{"format":"landscape-16x9","killEffect":"velocity","transition":"whip"`) {
+		t.Fatalf("response missing effective edit: %s", rw.Body.String())
+	}
+	if !strings.Contains(rw.Body.String(), `"music":{"key":"phonk-01","volume":0.35}`) {
+		t.Fatalf("response missing effective music: %s", rw.Body.String())
+	}
+}
+
+func TestRenderPublishBoardBlocksFailedReplacementState(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusFailed,
+		Error:      "replacement render failed",
+		RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(t, store, state.RenderResultKey, editor.Result{
+		Shorts: []editor.ShortResult{{SegmentID: "seg-001"}},
+	})
+	for _, kind := range []renderplan.RenderVariantArtifactKind{
+		renderplan.RenderVariantArtifactVideo,
+		renderplan.RenderVariantArtifactCaption,
+	} {
+		ref, err := renderplan.NewRenderVariantArtifactRefForState(state, kind, "seg-001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.puts[ref.Key] = []byte("artifact")
+	}
+
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/renders/{variant}/publish", h.GetRenderPublishBoard)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/jobs/"+j.ID.String()+"/renders/viral-60-clean/publish",
+		nil,
+	)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	if !strings.Contains(rw.Body.String(), `"status":"failed"`) ||
+		!strings.Contains(rw.Body.String(), `"render_ready":false`) ||
+		!strings.Contains(rw.Body.String(), `"error":"replacement render failed"`) {
+		t.Fatalf("publish board did not block failed replacement: %s", rw.Body.String())
 	}
 }
 
@@ -2081,6 +2485,476 @@ func TestGetRenderVariantReturnsQueuedState(t *testing.T) {
 	}
 	if !strings.Contains(rw.Body.String(), "edit-document.json") {
 		t.Fatalf("body missing artifact keys: %s", rw.Body.String())
+	}
+}
+
+func TestLegacyWarningRenderCanBeResolvedOrRerenderedAfterGet(t *testing.T) {
+	const warning = "freeze at 00:12.400"
+	for _, action := range []string{"resolve", "rerender"} {
+		t.Run(action, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			queue := &fakeQueue{}
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			variant := editor.PresetViral60Clean
+			resultKey, err := artifacts.RenderVariantResultKey(j.ID, variant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			putAssistantJSON(t, store, resultKey, editor.Result{
+				Preset:   variant,
+				Warnings: []string{warning},
+			})
+			h := NewHandlers(repo, store, queue)
+			r := chi.NewRouter()
+			r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
+			r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+			r.Post("/api/jobs/{id}/renders/{variant}/review", h.ResolveRenderReview)
+
+			path := "/api/jobs/" + j.ID.String() + "/renders/" + variant
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+			if rw.Code != http.StatusOK {
+				t.Fatalf("legacy GET status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+			}
+			state, exists, err := h.readRenderVariantState(j.ID, variant)
+			if err != nil || !exists {
+				t.Fatalf("materialized state = (%#v, %v, %v), want durable review", state, exists, err)
+			}
+			if state.Status != renderplan.RenderVariantStatusReview ||
+				!slices.Equal(state.Warnings, []string{warning}) {
+				t.Fatalf("materialized state = %#v, want exact legacy review", state)
+			}
+
+			var body string
+			if action == "resolve" {
+				body = fmt.Sprintf(
+					`{"note":"intentional beat hold","expected_artifact_prefix":%q,"expected_warnings":[%q]}`,
+					state.ArtifactPrefix,
+					warning,
+				)
+				path += "/review"
+			} else {
+				body = fmt.Sprintf(
+					`{"expected_artifact_prefix":%q,"expected_warnings":[%q],"music":null,"edit":{"format":"short-9x16","killEffect":"punch-in","transition":"whip","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"cover_strategy":"generated-gameplay","cover_first_frame":false,"intro_text":"","outro_text":""}}`,
+					state.ArtifactPrefix,
+					warning,
+				)
+			}
+			req = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rw = httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			wantStatus := http.StatusOK
+			wantState := renderplan.RenderVariantStatusReady
+			if action == "rerender" {
+				wantStatus = http.StatusAccepted
+				wantState = renderplan.RenderVariantStatusQueued
+			}
+			if rw.Code != wantStatus {
+				t.Fatalf("%s status = %d, want %d; body=%s", action, rw.Code, wantStatus, rw.Body.String())
+			}
+			state, exists, err = h.readRenderVariantState(j.ID, variant)
+			if err != nil || !exists || state.Status != wantState {
+				t.Fatalf("%s state = (%#v, %v, %v), want %s", action, state, exists, err, wantState)
+			}
+			if action == "rerender" && len(queue.enqueued) != 1 {
+				t.Fatalf("rerender enqueued = %d, want 1", len(queue.enqueued))
+			}
+		})
+	}
+}
+
+func TestReadyRenderWarningStateMigratesAndRemainsActionable(t *testing.T) {
+	const rendererWarning = "freeze at 00:12.400"
+	expectedWarnings := []string{
+		rendererWarning,
+		"quality seg-001: unexpected_output_resolution",
+	}
+	for _, action := range []string{"resolve", "rerender"} {
+		t.Run(action, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			queue := &fakeQueue{}
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			variant := editor.PresetViral60Clean
+			loadout, err := renderplan.LoadoutForVariant(variant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:      j.ID,
+				Loadout:    loadout,
+				Status:     renderplan.RenderVariantStatusReady,
+				Warnings:   []string{rendererWarning},
+				RevisionID: uuid.New(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := NewHandlers(repo, store, queue)
+			if err := h.writeRenderVariantState(state); err != nil {
+				t.Fatal(err)
+			}
+			putAssistantJSON(t, store, state.RenderResultKey, editor.Result{
+				Preset:   variant,
+				Warnings: []string{rendererWarning},
+				Shorts: []editor.ShortResult{{
+					SegmentID:    "seg-001",
+					OutputFormat: editor.OutputFormatShort9x16,
+					PublishArtifact: recording.RecordingArtifact{
+						Path:      "seg-001.mp4",
+						SizeBytes: 10,
+						Width:     720,
+						Height:    1280,
+					},
+				}},
+			})
+
+			r := chi.NewRouter()
+			r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
+			r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+			r.Post("/api/jobs/{id}/renders/{variant}/review", h.ResolveRenderReview)
+			renderPath := "/api/jobs/" + j.ID.String() + "/renders/" + variant
+			req := httptest.NewRequest(http.MethodGet, renderPath, nil)
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+			if rw.Code != http.StatusOK {
+				t.Fatalf("ready GET status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+			}
+			stateAfterGet, exists, err := h.readRenderVariantState(j.ID, variant)
+			if err != nil || !exists {
+				t.Fatalf("migrated state = (%#v, %v, %v)", stateAfterGet, exists, err)
+			}
+			if stateAfterGet.Status != renderplan.RenderVariantStatusReview ||
+				!slices.Equal(stateAfterGet.Warnings, expectedWarnings) ||
+				stateAfterGet.ReviewResolution != nil {
+				t.Fatalf("migrated state = %#v, want exact unresolved warning set", stateAfterGet)
+			}
+
+			requestBody := map[string]any{
+				"expected_artifact_prefix": stateAfterGet.ArtifactPrefix,
+				"expected_warnings":        expectedWarnings,
+			}
+			actionPath := renderPath
+			wantStatus := http.StatusAccepted
+			wantState := renderplan.RenderVariantStatusQueued
+			if action == "resolve" {
+				requestBody["note"] = "intentional hold"
+				actionPath += "/review"
+				wantStatus = http.StatusOK
+				wantState = renderplan.RenderVariantStatusReady
+			} else {
+				requestBody["music"] = nil
+				requestBody["edit"] = map[string]any{
+					"format":            renderplan.FormatShort9x16,
+					"killEffect":        renderplan.KillEffectPunchIn,
+					"transition":        renderplan.TransitionWhip,
+					"intro":             false,
+					"outro":             false,
+					"hook_text":         false,
+					"kill_counter":      false,
+					"cover_strategy":    renderplan.CoverStrategyGenerated,
+					"cover_first_frame": false,
+					"intro_text":        "",
+					"outro_text":        "",
+				}
+			}
+			body, err := json.Marshal(requestBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req = httptest.NewRequest(http.MethodPost, actionPath, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rw = httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+			if rw.Code != wantStatus {
+				t.Fatalf("%s status = %d, want %d; body=%s", action, rw.Code, wantStatus, rw.Body.String())
+			}
+			finalState, exists, err := h.readRenderVariantState(j.ID, variant)
+			if err != nil || !exists || finalState.Status != wantState {
+				t.Fatalf("%s state = (%#v, %v, %v), want %s", action, finalState, exists, err, wantState)
+			}
+			if action == "rerender" && len(queue.enqueued) != 1 {
+				t.Fatalf("rerender enqueued = %d, want 1", len(queue.enqueued))
+			}
+		})
+	}
+}
+
+func TestReadyRenderWithoutStoredWarningsMigratesNestedArtifactWarningAndResolves(t *testing.T) {
+	const warning = "quality seg-001: unexpected_output_resolution"
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	variant := editor.PresetViral60Clean
+	loadout, err := renderplan.LoadoutForVariant(variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusReady,
+		RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(t, store, state.RenderResultKey, editor.Result{
+		Preset: variant,
+		Shorts: []editor.ShortResult{{
+			SegmentID:    "seg-001",
+			OutputFormat: editor.OutputFormatShort9x16,
+			PublishArtifact: recording.RecordingArtifact{
+				Path:      "seg-001.mp4",
+				SizeBytes: 10,
+				Width:     720,
+				Height:    1280,
+			},
+		}},
+	})
+
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
+	r.Post("/api/jobs/{id}/renders/{variant}/review", h.ResolveRenderReview)
+	renderPath := "/api/jobs/" + j.ID.String() + "/renders/" + variant
+	req := httptest.NewRequest(http.MethodGet, renderPath, nil)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("ready GET status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	migrated, exists, err := h.readRenderVariantState(j.ID, variant)
+	if err != nil || !exists {
+		t.Fatalf("migrated state = (%#v, %v, %v)", migrated, exists, err)
+	}
+	if migrated.Status != renderplan.RenderVariantStatusReview ||
+		!slices.Equal(migrated.Warnings, []string{warning}) ||
+		migrated.ReviewResolution != nil {
+		t.Fatalf("migrated state = %#v, want unresolved nested artifact warning", migrated)
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"note":                     "reviewed artifact dimensions",
+		"expected_artifact_prefix": migrated.ArtifactPrefix,
+		"expected_warnings":        []string{warning},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = httptest.NewRequest(http.MethodPost, renderPath+"/review", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rw = httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("review status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	resolved, exists, err := h.readRenderVariantState(j.ID, variant)
+	if err != nil || !exists || resolved.Status != renderplan.RenderVariantStatusReady ||
+		!resolved.ReviewResolvedFor([]string{warning}) {
+		t.Fatalf("resolved state = (%#v, %v, %v), want ready with exact resolution", resolved, exists, err)
+	}
+}
+
+func TestReadyRenderWithResolvedWarningsStaysReady(t *testing.T) {
+	const warning = "freeze at 00:12.400"
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	variant := editor.PresetViral60Clean
+	loadout, err := renderplan.LoadoutForVariant(variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedAt := time.Date(2026, time.July, 29, 10, 0, 0, 0, time.UTC)
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusReady,
+		Warnings:   []string{warning},
+		Now:        updatedAt,
+		RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.ReviewResolution = &renderplan.RenderReviewResolution{
+		ArtifactPrefix: state.ArtifactPrefix,
+		Warnings:       []string{warning},
+		Note:           "intentional hold",
+		ReviewedAt:     updatedAt,
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(t, store, state.RenderResultKey, editor.Result{
+		Preset:   variant,
+		Warnings: []string{warning},
+	})
+
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/renders/"+variant, nil)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	stored, exists, err := h.readRenderVariantState(j.ID, variant)
+	if err != nil || !exists {
+		t.Fatalf("stored state = (%#v, %v, %v)", stored, exists, err)
+	}
+	if stored.Status != renderplan.RenderVariantStatusReady ||
+		!stored.ReviewResolvedFor([]string{warning}) ||
+		stored.ReviewResolution.Note != "intentional hold" ||
+		!stored.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("resolved ready state was degraded: %#v", stored)
+	}
+}
+
+func TestResolveRenderReviewPersistsExactDecisionAndUnblocksPublishBoard(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	// The parent review state belongs to the composition worker. Resolving a
+	// render-variant warning must not clear that independent review gate.
+	j := job.Job{ID: uuid.New(), Status: job.StatusReviewRequired, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	variant := editor.PresetViral60Clean
+	loadout, err := renderplan.LoadoutForVariant(variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	warnings := []string{"freeze at 00:12.400"}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:    j.ID,
+		Loadout:  loadout,
+		Status:   renderplan.RenderVariantStatusReview,
+		Warnings: warnings,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	result := editor.Result{
+		Preset:        variant,
+		Warnings:      warnings,
+		CoversEnabled: true,
+		Shorts:        []editor.ShortResult{{SegmentID: "seg-001"}},
+	}
+	resultBody, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = store.Put(state.RenderResultKey, bytes.NewReader(resultBody))
+	for _, key := range []string{
+		state.PackManifestKey,
+		state.GalleryKey,
+		state.PublishSummaryKey,
+	} {
+		_ = store.Put(key, bytes.NewReader([]byte("artifact")))
+	}
+	for _, kind := range []renderplan.RenderVariantArtifactKind{
+		renderplan.RenderVariantArtifactVideo,
+		renderplan.RenderVariantArtifactCover,
+		renderplan.RenderVariantArtifactCaption,
+	} {
+		ref, err := renderplan.NewRenderVariantArtifactRefForState(state, kind, "seg-001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = store.Put(ref.Key, bytes.NewReader([]byte("artifact")))
+	}
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}/review", h.ResolveRenderReview)
+	r.Get("/api/jobs/{id}/renders/{variant}/publish", h.GetRenderPublishBoard)
+	body := fmt.Sprintf(
+		`{"note":"Freeze intentional para cerrar en el beat.","expected_artifact_prefix":%q,"expected_warnings":["freeze at 00:12.400"]}`,
+		state.ArtifactPrefix,
+	)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/"+variant+"/review", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("review status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	if !strings.Contains(rw.Body.String(), `"status":"ready"`) ||
+		!strings.Contains(rw.Body.String(), `"note":"Freeze intentional para cerrar en el beat."`) {
+		t.Fatalf("review response missing durable resolution: %s", rw.Body.String())
+	}
+	if got := repo.jobs[j.ID].Status; got != job.StatusReviewRequired {
+		t.Fatalf("parent job status = %s, want independent composition review to remain required", got)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/renders/"+variant+"/publish", nil)
+	rw = httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("publish status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	if !strings.Contains(rw.Body.String(), `"status":"ready"`) ||
+		!strings.Contains(rw.Body.String(), `"render_ready":true`) {
+		t.Fatalf("resolved publish board is not ready: %s", rw.Body.String())
+	}
+}
+
+func TestResolveRenderReviewRejectsStaleRevision(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:    j.ID,
+		Loadout:  loadout,
+		Status:   renderplan.RenderVariantStatusReview,
+		Warnings: []string{"current warning"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}/review", h.ResolveRenderReview)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/jobs/"+j.ID.String()+"/renders/viral-60-clean/review",
+		strings.NewReader(`{"note":"reviewed","expected_artifact_prefix":"stale","expected_warnings":["current warning"]}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+	}
+	stored, _, err := h.readRenderVariantState(j.ID, editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != renderplan.RenderVariantStatusReview || stored.ReviewResolution != nil {
+		t.Fatalf("stale review mutated state: %#v", stored)
 	}
 }
 
@@ -2262,6 +3136,13 @@ func TestGetRenderVariantReportsArtifactNames(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := store.Put(statusKey, bytes.NewReader(b)); err != nil {
+				t.Fatal(err)
+			}
+			resultBody, err := json.Marshal(editor.Result{Preset: variant})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Put(state.RenderResultKey, bytes.NewReader(resultBody)); err != nil {
 				t.Fatal(err)
 			}
 			if tc.writeFiles {
@@ -2567,6 +3448,84 @@ func TestDeleteRenderVideoRemovesVideoCoverAndCaption(t *testing.T) {
 	r.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean/videos/seg-001_seg-002", nil))
 	if rw.Code != http.StatusNoContent {
 		t.Fatalf("repeat delete status = %d, want 204; body=%s", rw.Code, rw.Body.String())
+	}
+}
+
+func TestDeleteRenderVideoUsesOneRenderRevisionSnapshot(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusDone, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, &fakeQueue{})
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateA, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID: j.ID, Loadout: loadout, Status: renderplan.RenderVariantStatusReady, RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateB, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID: j.ID, Loadout: loadout, Status: renderplan.RenderVariantStatusReady, RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.writeRenderVariantState(stateA); err != nil {
+		t.Fatal(err)
+	}
+	name := "seg-001"
+	kinds := []renderplan.RenderVariantArtifactKind{
+		renderplan.RenderVariantArtifactVideo,
+		renderplan.RenderVariantArtifactCover,
+		renderplan.RenderVariantArtifactCaption,
+	}
+	var refsA, refsB []renderplan.RenderVariantArtifactRef
+	for _, kind := range kinds {
+		refA, err := renderplan.NewRenderVariantArtifactRefForState(stateA, kind, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refB, err := renderplan.NewRenderVariantArtifactRefForState(stateB, kind, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refsA = append(refsA, refA)
+		refsB = append(refsB, refB)
+		_ = store.Put(refA.Key, bytes.NewReader([]byte("old revision")))
+		_ = store.Put(refB.Key, bytes.NewReader([]byte("new revision")))
+	}
+	swapped := false
+	store.onDelete = func(string) {
+		if swapped {
+			return
+		}
+		swapped = true
+		if err := h.writeRenderVariantState(stateB); err != nil {
+			t.Errorf("swap render state: %v", err)
+		}
+	}
+
+	r := chi.NewRouter()
+	r.Delete("/api/jobs/{id}/renders/{variant}/videos/{name}", h.DeleteRenderVideo)
+	req := httptest.NewRequest(http.MethodDelete, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean/videos/"+name, nil)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204; body=%s", rw.Code, rw.Body.String())
+	}
+	for i, ref := range refsA {
+		if got := store.deleted[i]; got != ref.Key {
+			t.Fatalf("deleted[%d] = %q, want snapshotted %q", i, got, ref.Key)
+		}
+	}
+	for _, ref := range refsB {
+		if _, ok := store.puts[ref.Key]; !ok {
+			t.Errorf("new revision artifact %q was deleted", ref.Key)
+		}
 	}
 }
 
@@ -3162,6 +4121,45 @@ func TestPutStreamEditPlanRejectsClipPastProbedSourceDuration(t *testing.T) {
 	}
 }
 
+func TestPutStreamEditPlanRejectsUnknownFieldsAndFutureSchema(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+	}{
+		{
+			name: "unknown top-level field",
+			body: `{"schema_version":"1.1","variant":"streamer-vertical-stack-40-60","clips":[],"efects":{"grade":true}}`,
+		},
+		{
+			name: "unknown clip field",
+			body: `{"schema_version":"1.1","variant":"streamer-vertical-stack-40-60","clips":[{"id":"clip-001","start_seconds":0,"end_seconds":1,"edti":{"speed":2}}]}`,
+		},
+		{
+			name: "future schema",
+			body: `{"schema_version":"999.0","variant":"streamer-vertical-stack-40-60","clips":[]}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			streamRepo := newFakeStreamRepo()
+			id := uuid.New()
+			streamRepo.jobs[id] = streamclips.Job{
+				ID: id, Status: streamclips.StatusUploaded,
+				SourcePath: streamclips.SourceKey(id),
+				Probe:      streamclips.SourceProbe{DurationSeconds: 15},
+			}
+			h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(streamRepo))
+			r := chi.NewRouter()
+			r.Put("/api/stream-jobs/{id}/edit-plan", h.PutStreamEditPlan)
+			req := httptest.NewRequest(http.MethodPut, "/api/stream-jobs/"+id.String()+"/edit-plan", strings.NewReader(tt.body))
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+			if rw.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+			}
+		})
+	}
+}
+
 func TestStartStreamRenderAcceptsLegacyTwentySecondPlanWithoutPersistingMigration(t *testing.T) {
 	streamRepo := newFakeStreamRepo()
 	store := newFakeStorage()
@@ -3622,6 +4620,15 @@ func TestCreateStreamJobFromURLRejectsInvalidURL(t *testing.T) {
 			if rw.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
 			}
+			var response struct {
+				Code string `json:"code"`
+			}
+			if err := json.Unmarshal(rw.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != "invalid_source_url" {
+				t.Fatalf("code = %q, want invalid_source_url", response.Code)
+			}
 			if len(streamRepo.jobs) != 0 {
 				t.Fatalf("stream job created for an invalid url: %#v", streamRepo.jobs)
 			}
@@ -3654,6 +4661,7 @@ func TestStartStreamRenderAcceptsRegistryVariantsAndRejectsUnknown(t *testing.T)
 			id := uuid.New()
 			plan := streamclips.DefaultEditPlan()
 			plan.Variant = variant
+			plan.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 1}}
 			layout, ok := streamclips.VariantByName(variant)
 			if !ok {
 				t.Fatalf("variant %q missing from registry", variant)
@@ -3688,6 +4696,7 @@ func TestStartStreamRenderAcceptsRegistryVariantsAndRejectsUnknown(t *testing.T)
 		streamRepo := newFakeStreamRepo()
 		id := uuid.New()
 		plan := streamclips.DefaultEditPlan()
+		plan.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 1}}
 		planJSON, err := json.Marshal(plan)
 		if err != nil {
 			t.Fatal(err)
@@ -3721,6 +4730,7 @@ func TestStartStreamRenderAcceptsRegistryVariantsAndRejectsUnknown(t *testing.T)
 		id := uuid.New()
 		plan := streamclips.DefaultEditPlan()
 		plan.FaceCropReviewed = false
+		plan.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 1}}
 		planJSON, err := json.Marshal(plan)
 		if err != nil {
 			t.Fatal(err)
@@ -3772,6 +4782,7 @@ func TestStartStreamRenderRequiresTheApprovedEditPlanRevision(t *testing.T) {
 	id := uuid.New()
 	plan := streamclips.DefaultEditPlan()
 	plan.FaceCropReviewed = true
+	plan.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 1}}
 	plan.UpdatedAt = time.Date(2026, 7, 20, 20, 0, 0, 123, time.UTC)
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
@@ -3817,6 +4828,7 @@ func TestStartStreamRenderAcceptsAnEmptyOptionalJSONBody(t *testing.T) {
 	id := uuid.New()
 	plan := streamclips.DefaultEditPlan()
 	plan.FaceCropReviewed = true
+	plan.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 1}}
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)

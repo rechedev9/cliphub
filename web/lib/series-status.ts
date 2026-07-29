@@ -122,6 +122,7 @@ const SERIES_REEL_STATES: Record<VideoStatus, { label: string; tone: SeriesStatu
   recording: { label: 'grabando reel', tone: 'progress', active: true },
   composing: { label: 'renderizando reel', tone: 'progress', active: true },
   ready: { label: 'reel listo', tone: 'done', active: false },
+  review_required: { label: 'reel pendiente de revisión', tone: 'pending', active: false },
   failed: { label: 'reel fallido', tone: 'failed', active: false },
 };
 

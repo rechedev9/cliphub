@@ -19,10 +19,19 @@ type EditDocument struct {
 	Source          Source          `json:"source"`
 	Selection       Selection       `json:"selection"`
 	Edit            EditRequest     `json:"edit"`
+	Music           *MusicSnapshot  `json:"music,omitempty"`
 	LoadoutSnapshot LoadoutSnapshot `json:"loadout_snapshot"`
 	Layers          Layers          `json:"layers"`
 	Publish         Publish         `json:"publish"`
 	Outputs         Outputs         `json:"outputs"`
+}
+
+// MusicSnapshot records the music that was actually mixed into a render.
+// An empty snapshot means the render is explicitly music-free; a nil pointer
+// identifies legacy edit documents that predate this durable fact.
+type MusicSnapshot struct {
+	Key    string  `json:"key"`
+	Volume float64 `json:"volume"`
 }
 
 type Source struct {
@@ -98,6 +107,7 @@ type NewEditDocumentOptions struct {
 	PublishSummaryKey  string
 	SegmentIDs         []string
 	Edit               EditRequest
+	Music              *MusicSnapshot
 }
 
 // NewEditDocumentForLoadoutOptions carries the render loadout plus the current
@@ -108,6 +118,7 @@ type NewEditDocumentForLoadoutOptions struct {
 	KillPlanSource string
 	SegmentIDs     []string
 	Edit           EditRequest
+	Music          *MusicSnapshot
 }
 
 // NewEditDocumentForLoadout derives storage keys from the loadout's variant
@@ -148,6 +159,7 @@ func NewEditDocumentForLoadout(opts NewEditDocumentForLoadoutOptions) (EditDocum
 		PublishSummaryKey:  refs.PublishSummaryKey,
 		SegmentIDs:         opts.SegmentIDs,
 		Edit:               edit,
+		Music:              opts.Music,
 	}), nil
 }
 
@@ -174,6 +186,11 @@ func NewEditDocument(opts NewEditDocumentOptions) EditDocument {
 	if uploadReadyRoot == "" {
 		uploadReadyRoot = "shortslistosparasubir"
 	}
+	var music *MusicSnapshot
+	if opts.Music != nil {
+		snapshot := *opts.Music
+		music = &snapshot
+	}
 	return EditDocument{
 		SchemaVersion: EditDocumentSchemaVersion,
 		JobID:         opts.JobID,
@@ -186,7 +203,8 @@ func NewEditDocument(opts NewEditDocumentOptions) EditDocument {
 		Selection: Selection{
 			SegmentIDs: append([]string(nil), opts.SegmentIDs...),
 		},
-		Edit: NormalizeEditRequest(opts.Edit),
+		Edit:  NormalizeEditRequest(opts.Edit),
+		Music: music,
 		LoadoutSnapshot: LoadoutSnapshot{
 			Preset:          opts.Preset,
 			EffectsPreset:   effectsPreset,

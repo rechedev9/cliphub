@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   prepareLocalUploadBody,
+  parseControlJSONObject,
   readBoundedText,
   type RequestBodySource,
 } from './bounded-request-body.ts';
@@ -14,6 +15,22 @@ const LOCAL_HEADERS = {
 };
 
 process.env.FRAGFORGE_PROXY_MUTATION_CAPABILITY = 'upload-test-secret';
+
+test('control JSON must be an object with only supported keys', () => {
+  for (const text of ['null', '[]', '"value"', '1']) {
+    const result = parseControlJSONObject(text, ['known']);
+    assert.equal(result.ok, false, text);
+    if (!result.ok) assert.match(result.error, /must be an object/);
+  }
+  assert.deepEqual(parseControlJSONObject('{"known":1}', ['known']), {
+    ok: true,
+    value: { known: 1 },
+  });
+  assert.deepEqual(parseControlJSONObject('{"typo":1}', ['known']), {
+    ok: false,
+    error: 'unsupported field: typo',
+  });
+});
 
 test('rejects an oversized Content-Length before reading the upload body', async () => {
   let bodyRead = false;

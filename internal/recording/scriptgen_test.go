@@ -31,13 +31,16 @@ func TestStreamSetupCommandsQuotesRecordName(t *testing.T) {
 
 func testPlan() RecordingPlan {
 	return RecordingPlan{
-		CaptureContract:  CaptureContractVersion,
-		DemoPath:         `C:\demos\x.dem`,
-		OutputDir:        `C:\out`,
-		TargetSteamID64:  "76561198148986856",
-		TargetNameInDemo: "maaryy",
-		TargetAccountID:  188721128,
-		Tickrate:         64,
+		CaptureContract:       CaptureContractVersion,
+		KillPlanSchemaVersion: killplan.SchemaVersion,
+		DemoPath:              `C:\demos\x.dem`,
+		DemoSHA256:            strings.Repeat("a", 64),
+		DemoDurationTicks:     40000,
+		OutputDir:             `C:\out`,
+		TargetSteamID64:       "76561198148986856",
+		TargetNameInDemo:      "maaryy",
+		TargetAccountID:       188721128,
+		Tickrate:              64,
 		Segments: []RecordingSegment{
 			{ID: "seg-001", TickStart: 22086, TickEnd: 22406},
 			{ID: "seg-002", TickStart: 31746, TickEnd: 32258},
@@ -98,6 +101,25 @@ func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 		if !strings.Contains(js, want) {
 			t.Errorf("generated JS missing %q\n%s", want, js)
 		}
+	}
+}
+
+func TestGenerateHLAEJavaScriptBindsRecordEndToActiveSegment(t *testing.T) {
+	js, err := GenerateHLAEJavaScript(testPlan())
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	for _, want := range []string{
+		"activeSegment !== null",
+		"activeSegment !== window.segmentId",
+		"capture end ${item.key} does not match active segment",
+	} {
+		if !strings.Contains(js, want) {
+			t.Fatalf("generated script missing %q", want)
+		}
+	}
+	if strings.Contains(js, `if (item.key.startsWith("record-end-")) activeSegment = null;`) {
+		t.Fatal("generated script contains unbound record-end state reset")
 	}
 }
 

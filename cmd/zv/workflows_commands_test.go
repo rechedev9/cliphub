@@ -10,6 +10,26 @@ import (
 	"testing"
 )
 
+func TestWorkflowsValidateDemoMomentsMatchesTypedExecutionContract(t *testing.T) {
+	for _, value := range []string{"not-an-integer", "-1"} {
+		var stdout, stderr strings.Builder
+		code := Run([]string{
+			"zv", "workflows", "validate", "demo-moments", "--format", "json", "--",
+			"--killplan", "plan.json", "--top", value,
+		}, &stdout, &stderr, nil, &fakeRunner{})
+		if code != exitInvalidArgs || stderr.Len() != 0 {
+			t.Fatalf("--top %q code = %d stderr = %q", value, code, stderr.String())
+		}
+		var result workflowValidationResult
+		if err := json.Unmarshal([]byte(stdout.String()), &result); err != nil {
+			t.Fatalf("decode validator output: %v\n%s", err, stdout.String())
+		}
+		if result.OK || !strings.Contains(result.Error, "--top") {
+			t.Fatalf("--top %q result = %#v", value, result)
+		}
+	}
+}
+
 func TestRunWorkflowsCheckAcceptsStandardRepoContracts(t *testing.T) {
 	tempDir := t.TempDir()
 	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{

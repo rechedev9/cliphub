@@ -27,13 +27,6 @@ type NewUploadTargetsOptions struct {
 
 // NewUploadTargets returns the ordered upload plan for one recording run.
 func NewUploadTargets(opts NewUploadTargetsOptions) ([]UploadTarget, error) {
-	targets := []UploadTarget{{
-		Key:      ResultArtifactKey(opts.JobID),
-		Path:     opts.ResultPath,
-		Label:    "recording result",
-		Required: true,
-	}}
-
 	scriptPath := opts.Result.Script
 	if scriptPath == "" {
 		scriptPath = filepath.Join(opts.OutDir, "recording.js")
@@ -43,13 +36,13 @@ func NewUploadTargets(opts NewUploadTargetsOptions) ([]UploadTarget, error) {
 	if scriptRequired {
 		missingScriptMessage = "recording script not found at " + scriptPath
 	}
-	targets = append(targets, UploadTarget{
+	targets := []UploadTarget{{
 		Key:            ScriptArtifactKey(opts.JobID),
 		Path:           scriptPath,
 		Label:          "recording script",
 		Required:       scriptRequired,
 		MissingMessage: missingScriptMessage,
-	})
+	}}
 
 	for _, artifact := range opts.Result.Artifacts {
 		if !isUsableSegmentClip(artifact) {
@@ -67,5 +60,11 @@ func NewUploadTargets(opts NewUploadTargetsOptions) ([]UploadTarget, error) {
 			SegmentID: artifact.SegmentID,
 		})
 	}
+	targets = append(targets, UploadTarget{
+		Key:      ResultArtifactKey(opts.JobID),
+		Path:     opts.ResultPath,
+		Label:    "recording result",
+		Required: true,
+	})
 	return targets, nil
 }

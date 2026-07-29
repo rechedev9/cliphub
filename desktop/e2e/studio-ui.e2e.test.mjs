@@ -17,6 +17,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
+import { E2E_BOOT_DEADLINE_MS } from '../scripts/e2e-boot-budget.mjs';
+import { createE2EProfile } from '../scripts/e2e-profile.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron } = require('playwright-core');
@@ -30,14 +32,13 @@ const bootstrapPath = join(desktopRoot, 'e2e', 'isolated-userdata.cjs');
 // First boot provisions runtime tools (HLAE unpack, ffmpeg download) into
 // userData, which can take minutes; a warm profile boots in seconds. The
 // deadline covers the cold case without hanging forever on a real failure.
-const BOOT_DEADLINE_MS = 180_000;
-
 /** @type {import('playwright-core').ElectronApplication} */
 let app;
 /** @type {import('playwright-core').Page} */
 let page;
 const pageErrors = [];
 const consoleErrors = [];
+const profile = createE2EProfile('studio-ui');
 
 before(async () => {
   mkdirSync(artifactsDir, { recursive: true });
@@ -45,6 +46,7 @@ before(async () => {
     executablePath: require('electron'),
     args: [bootstrapPath],
     cwd: desktopRoot,
+    env: profile.environment(),
   });
   page = await app.firstWindow();
   page.on('pageerror', (err) => pageErrors.push(String(err)));
@@ -58,16 +60,19 @@ after(async () => {
     await page.screenshot({ path: join(artifactsDir, 'final-state.png') }).catch(() => {});
   }
   await app?.close().catch(() => {});
+  profile.dispose();
 });
 
 test('boots to the matches shell, not the error screen', async () => {
-  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, { timeout: BOOT_DEADLINE_MS });
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, {
+    timeout: E2E_BOOT_DEADLINE_MS,
+  });
   const url = page.url();
   assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/matches/, `landed on ${url}`);
   // The document titles itself with the shared web product name, while the
   // native window must keep the desktop product name (main.ts suppresses
   // page-title-updated).
-  assert.equal(await page.title(), 'FragForge');
+  assert.equal(await page.title(), 'Partidas · FragForge');
   const nativeTitle = await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0];
     return win ? win.getTitle() : null;
@@ -124,6 +129,63 @@ test('web -> orchestrator proxy answers from inside the app', async () => {
     return res.status;
   });
   assert.equal(status, 200);
+});
+
+test('clipboard writes require a focused, user-activated Studio action', async () => {
+  const originalClipboard = await app.evaluate(({ clipboard }) => clipboard.readText());
+  const marker = `fragforge-e2e-${Date.now()}`;
+  try {
+    // Chromium's transient activation can survive the preceding focus/restore
+    // test for roughly five seconds. Let that standard window expire before
+    // proving the bridge rejects a passive renderer call.
+    await new Promise((resolve) => setTimeout(resolve, 5_500));
+    const passiveBridgeWrite = await app.evaluate(async ({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (!win) return true;
+      return win.webContents.executeJavaScript(
+        `window.fragforgeClipboard.writeText('passive-bridge-write-must-fail').then(() => true, () => false)`,
+        false,
+      );
+    });
+    assert.equal(passiveBridgeWrite, false, 'clipboard bridge ignored user activation');
+
+    const passiveNavigatorWrite = await page.evaluate(async () => {
+      try {
+        await navigator.clipboard.writeText('passive-write-must-fail');
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    assert.equal(passiveNavigatorWrite, false, 'native clipboard permission was left open');
+
+    await page.evaluate((value) => {
+      const button = document.createElement('button');
+      button.id = 'e2e-copy-button';
+      button.type = 'button';
+      button.textContent = 'Copy QA marker';
+      button.style.position = 'fixed';
+      button.style.top = '16px';
+      button.style.right = '16px';
+      button.style.zIndex = '2147483647';
+      button.addEventListener('click', () => {
+        void window.fragforgeClipboard.writeText(value).then(
+          () => { document.documentElement.dataset.e2eClipboard = 'written'; },
+          () => { document.documentElement.dataset.e2eClipboard = 'denied'; },
+        );
+      });
+      document.body.append(button);
+    }, marker);
+    await page.locator('#e2e-copy-button').click();
+    await page.waitForFunction(() => document.documentElement.dataset.e2eClipboard !== undefined);
+    assert.equal(
+      await page.evaluate(() => document.documentElement.dataset.e2eClipboard),
+      'written',
+    );
+    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), marker);
+  } finally {
+    await app.evaluate(({ clipboard }, value) => clipboard.writeText(value), originalClipboard);
+  }
 });
 
 test('renderer produced no uncaught exceptions', () => {

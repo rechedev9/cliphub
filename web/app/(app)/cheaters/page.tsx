@@ -236,6 +236,10 @@ export default function CheatersPage(): ReactNode {
   // The selected job is read inside the poll timer, which must not restart on
   // every render; a ref keeps the timer stable while still seeing the latest id.
   const selectedRef = useRef<string | null>(null);
+  const analysisRequest = useRef(0);
+  const analysisInFlight = useRef(0);
+  const startRequest = useRef(0);
+  const dossierRequest = useRef(0);
   selectedRef.current = selected;
 
   useEffect(() => {
@@ -253,27 +257,41 @@ export default function CheatersPage(): ReactNode {
   }, []);
 
   const load = useCallback(async (jobId: string, background: boolean) => {
+    // Polls are refreshes, not superseding navigation. Skipping an overlapping
+    // background request lets the current foreground request settle loading.
+    if (background && analysisInFlight.current > 0) return;
+    const generation = ++analysisRequest.current;
+    analysisInFlight.current += 1;
     if (!background) setLoading(true);
     try {
       const doc = await fetchAnticheat(jobId);
       // A late response for a demo the user already navigated away from must
       // not overwrite the panel they are looking at now.
-      if (selectedRef.current !== jobId) return;
+      if (selectedRef.current !== jobId || analysisRequest.current !== generation) return;
       setDocument(doc);
       setError(null);
     } catch (err) {
-      if (selectedRef.current !== jobId) return;
+      if (selectedRef.current !== jobId || analysisRequest.current !== generation) return;
       setError(err instanceof Error ? err.message : 'error desconocido');
     } finally {
-      if (!background) setLoading(false);
+      analysisInFlight.current -= 1;
+      if (!background && selectedRef.current === jobId && analysisRequest.current === generation) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (selected === null) return;
+    analysisRequest.current += 1;
+    startRequest.current += 1;
+    dossierRequest.current += 1;
+    setStarting(false);
     setDocument(null);
     setExpanded(null);
     setError(null);
+    setDossier(null);
+    setDossierPendingFor(null);
     setDossierError(null);
     void load(selected, false);
   }, [selected, load]);
@@ -290,29 +308,43 @@ export default function CheatersPage(): ReactNode {
 
   const start = useCallback(async () => {
     if (selected === null) return;
+    const jobId = selected;
+    const generation = ++startRequest.current;
     setStarting(true);
     setError(null);
     try {
-      await startAnticheat(selected);
-      await load(selected, true);
+      await startAnticheat(jobId);
+      if (selectedRef.current !== jobId || startRequest.current !== generation) return;
+      await load(jobId, true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'error desconocido');
+      if (selectedRef.current === jobId && startRequest.current === generation) {
+        setError(err instanceof Error ? err.message : 'error desconocido');
+      }
     } finally {
-      setStarting(false);
+      if (selectedRef.current === jobId && startRequest.current === generation) setStarting(false);
     }
   }, [selected, load]);
 
   const openDossier = useCallback(
     async (player: AnticheatPlayer) => {
       if (selected === null) return;
-      setDossierPendingFor(player.steamid64);
+      const jobId = selected;
+      const steamId = player.steamid64;
+      const generation = ++dossierRequest.current;
+      setDossierPendingFor(steamId);
       setDossierError(null);
       try {
-        setDossier(await fetchDossier(selected, player.steamid64));
+        const next = await fetchDossier(jobId, steamId);
+        if (selectedRef.current !== jobId || dossierRequest.current !== generation) return;
+        setDossier(next);
       } catch (err) {
-        setDossierError(err instanceof Error ? err.message : 'error desconocido');
+        if (selectedRef.current === jobId && dossierRequest.current === generation) {
+          setDossierError(err instanceof Error ? err.message : 'error desconocido');
+        }
       } finally {
-        setDossierPendingFor(null);
+        if (selectedRef.current === jobId && dossierRequest.current === generation) {
+          setDossierPendingFor(null);
+        }
       }
     },
     [selected],

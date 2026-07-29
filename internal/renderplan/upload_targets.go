@@ -1,6 +1,7 @@
 package renderplan
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/google/uuid"
@@ -33,41 +34,51 @@ type NewRenderVariantUploadTargetsOptions struct {
 	PublishDir string
 	ResultPath string
 	Result     editor.Result
+	RevisionID uuid.UUID
 }
 
 // NewRenderVariantUploadTargets returns the ordered upload plan for one render
-// variant. The first target is the required render result; later targets are
-// optional artifacts uploaded when their local files exist.
+// variant. Every delivery contract is required, and the render result is last:
+// its presence is the commit marker after all referenced artifacts exist.
 func NewRenderVariantUploadTargets(opts NewRenderVariantUploadTargetsOptions) ([]RenderVariantUploadTarget, error) {
-	refs, err := renderVariantArtifactsFor(opts.JobID, opts.Variant)
+	var refs renderVariantArtifacts
+	var err error
+	if opts.RevisionID != uuid.Nil {
+		refs, err = renderVariantArtifactsForRevision(opts.JobID, opts.Variant, opts.RevisionID)
+	} else {
+		refs, err = renderVariantArtifactsFor(opts.JobID, opts.Variant)
+	}
 	if err != nil {
 		return nil, err
 	}
+	if err := ValidateRenderVariantRunResult(opts.Result); err != nil {
+		return nil, err
+	}
 	targets := []RenderVariantUploadTarget{{
-		Key:      refs.RenderResultKey,
-		Path:     opts.ResultPath,
-		Label:    "render result",
+		Key:      refs.EditDocumentKey,
+		Path:     filepath.Join(opts.OutDir, "edit-document.json"),
+		Label:    "edit document",
 		Required: true,
 	}, {
-		Key:   refs.EditDocumentKey,
-		Path:  filepath.Join(opts.OutDir, "edit-document.json"),
-		Label: "edit document",
+		Key:      refs.EditManifestKey,
+		Path:     filepath.Join(opts.OutDir, "edit-manifest.json"),
+		Label:    "edit manifest",
+		Required: true,
 	}, {
-		Key:   refs.EditManifestKey,
-		Path:  filepath.Join(opts.OutDir, "edit-manifest.json"),
-		Label: "edit manifest",
+		Key:      refs.PackManifestKey,
+		Path:     filepath.Join(opts.PublishDir, "pack-manifest.json"),
+		Label:    "pack manifest",
+		Required: true,
 	}, {
-		Key:   refs.PackManifestKey,
-		Path:  filepath.Join(opts.PublishDir, "pack-manifest.json"),
-		Label: "pack manifest",
+		Key:      refs.PublishSummaryKey,
+		Path:     opts.Result.SummaryPath,
+		Label:    "publish summary",
+		Required: true,
 	}, {
-		Key:   refs.PublishSummaryKey,
-		Path:  opts.Result.SummaryPath,
-		Label: "publish summary",
-	}, {
-		Key:   refs.GalleryKey,
-		Path:  opts.Result.GalleryPath,
-		Label: "gallery",
+		Key:      refs.GalleryKey,
+		Path:     opts.Result.GalleryPath,
+		Label:    "gallery",
+		Required: true,
 	}}
 	for _, short := range opts.Result.Shorts {
 		if short.SegmentID == "" {
@@ -77,41 +88,54 @@ func NewRenderVariantUploadTargets(opts NewRenderVariantUploadTargetsOptions) ([
 		if videoPath == "" {
 			videoPath = short.Output
 		}
-		if videoPath != "" {
-			key, err := renderVariantSegmentArtifactKey(opts.JobID, opts.Variant, RenderVariantArtifactVideo, short.SegmentID)
-			if err != nil {
-				return nil, err
-			}
-			targets = append(targets, RenderVariantUploadTarget{
-				Key:   key,
-				Path:  videoPath,
-				Label: "render video " + short.SegmentID,
-			})
+		if videoPath == "" {
+			return nil, fmt.Errorf("render video %s has no path", short.SegmentID)
+		}
+		ref, err := renderVariantUploadArtifactRef(opts, RenderVariantArtifactVideo, short.SegmentID)
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, RenderVariantUploadTarget{
+			Key:      ref.Key,
+			Path:     videoPath,
+			Label:    "render video " + short.SegmentID,
+			Required: true,
+		})
+		if opts.Result.CoversEnabled && short.CoverPath == "" {
+			return nil, fmt.Errorf("render cover %s has no path", short.SegmentID)
 		}
 		if short.CoverPath != "" {
-			key, err := renderVariantSegmentArtifactKey(opts.JobID, opts.Variant, RenderVariantArtifactCover, short.SegmentID)
+			ref, err := renderVariantUploadArtifactRef(opts, RenderVariantArtifactCover, short.SegmentID)
 			if err != nil {
 				return nil, err
 			}
 			targets = append(targets, RenderVariantUploadTarget{
-				Key:   key,
-				Path:  short.CoverPath,
-				Label: "render cover " + short.SegmentID,
+				Key:      ref.Key,
+				Path:     short.CoverPath,
+				Label:    "render cover " + short.SegmentID,
+				Required: opts.Result.CoversEnabled,
 			})
 		}
-		if short.CaptionPath != "" {
-			key, err := renderVariantSegmentArtifactKey(opts.JobID, opts.Variant, RenderVariantArtifactCaption, short.SegmentID)
-			if err != nil {
-				return nil, err
-			}
-			targets = append(targets, RenderVariantUploadTarget{
-				Key:   key,
-				Path:  short.CaptionPath,
-				Label: "render caption " + short.SegmentID,
-			})
+		if short.CaptionPath == "" {
+			return nil, fmt.Errorf("render caption %s has no path", short.SegmentID)
 		}
+		ref, err = renderVariantUploadArtifactRef(opts, RenderVariantArtifactCaption, short.SegmentID)
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, RenderVariantUploadTarget{
+			Key:      ref.Key,
+			Path:     short.CaptionPath,
+			Label:    "render caption " + short.SegmentID,
+			Required: true,
+		})
 		if short.RenderLogPath != "" {
-			key, err := renderVariantLogArtifactKey(opts.JobID, opts.Variant, short.SegmentID)
+			var key string
+			if opts.RevisionID != uuid.Nil {
+				key = filepath.ToSlash(filepath.Join(refs.Prefix, "logs", short.SegmentID+"-render.log"))
+			} else {
+				key, err = renderVariantLogArtifactKey(opts.JobID, opts.Variant, short.SegmentID)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -122,7 +146,20 @@ func NewRenderVariantUploadTargets(opts NewRenderVariantUploadTargetsOptions) ([
 			})
 		}
 	}
+	targets = append(targets, RenderVariantUploadTarget{
+		Key:      refs.RenderResultKey,
+		Path:     opts.ResultPath,
+		Label:    "render result",
+		Required: true,
+	})
 	return targets, nil
+}
+
+func renderVariantUploadArtifactRef(opts NewRenderVariantUploadTargetsOptions, kind RenderVariantArtifactKind, segmentID string) (RenderVariantArtifactRef, error) {
+	if opts.RevisionID != uuid.Nil {
+		return NewRenderVariantRevisionArtifactRef(opts.JobID, opts.Variant, opts.RevisionID, kind, segmentID)
+	}
+	return NewRenderVariantArtifactRef(opts.JobID, opts.Variant, kind, segmentID)
 }
 
 // NewRenderVariantReadyArtifacts returns the minimal durable artifacts that

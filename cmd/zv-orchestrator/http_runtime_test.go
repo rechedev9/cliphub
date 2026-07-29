@@ -54,14 +54,26 @@ func TestPrepareHTTPServerRejectsOccupiedAddress(t *testing.T) {
 	}
 }
 
-func TestPrepareHTTPServerRejectsResolvedNonLoopbackListener(t *testing.T) {
-	prepared, err := prepareHTTPServer(&http.Server{Addr: "0.0.0.0:0"})
+func TestPrepareHTTPServerRejectsConfiguredNonLoopbackBeforeListening(t *testing.T) {
+	listenCalled := false
+	prepared, err := prepareHTTPServerWithListen(
+		&http.Server{Addr: "0.0.0.0:0"},
+		func(string, string) (net.Listener, error) {
+			listenCalled = true
+			return nil, nil
+		},
+	)
 	if err == nil {
-		_ = prepared.listener.Close()
 		t.Fatal("prepareHTTPServer() error = nil, want non-loopback rejection")
 	}
-	if !strings.Contains(err.Error(), "resolved to non-loopback authority") {
-		t.Fatalf("prepareHTTPServer() error = %q, want resolved authority rejection", err)
+	if prepared != nil {
+		t.Fatalf("prepareHTTPServer() = %#v, want nil", prepared)
+	}
+	if listenCalled {
+		t.Fatal("prepareHTTPServer() called net.Listen for a wildcard address")
+	}
+	if !strings.Contains(err.Error(), "not an explicit loopback address") {
+		t.Fatalf("prepareHTTPServer() error = %q, want configured-address rejection", err)
 	}
 }
 

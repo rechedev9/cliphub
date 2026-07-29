@@ -39,6 +39,11 @@ func (h *Handlers) StartAnticheat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "demo is still being ingested; retry once the roster scan finishes")
 		return
 	}
+	// Reading the document, writing the claim, and admitting the task form one
+	// state transition. Without this critical section, concurrent POSTs can all
+	// observe a missing document and enqueue duplicate deterministic parses.
+	release := h.anticheatJobLocks.Lock(j.ID)
+	defer release()
 
 	now := time.Now()
 	if doc, err := h.readAnticheatDocument(j.ID); err == nil &&

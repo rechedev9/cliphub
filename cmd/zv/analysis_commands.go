@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -95,10 +96,10 @@ func runAnalysisTactical(args []string, stdout, stderr io.Writer) int {
 	if *format != "text" && *format != "json" {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), analysisTacticalUsage, exitInvalidArgs)
 	}
-	if *hz <= 0 || *hz > tactical.MaxSampleHZ {
+	if math.IsNaN(*hz) || math.IsInf(*hz, 0) || *hz <= 0 || *hz > tactical.MaxSampleHZ {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("--hz %v must be in (0, %d]", *hz, tactical.MaxSampleHZ), analysisTacticalUsage, exitInvalidArgs)
 	}
-	if *cellSize <= 0 {
+	if math.IsNaN(*cellSize) || math.IsInf(*cellSize, 0) || *cellSize <= 0 {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("--cell-size %v must be positive", *cellSize), analysisTacticalUsage, exitInvalidArgs)
 	}
 	if err := pathguard.RejectOutputAliases(*outPath, pathguard.Input{Flag: "--demo", Path: *demoPath}); err != nil {

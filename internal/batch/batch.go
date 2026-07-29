@@ -64,7 +64,7 @@ type Summary struct {
 // individual demo failures do not abort the run (they are recorded), but a bad
 // directory or a cancelled context returns an error.
 func Run(ctx context.Context, opts Options, rec *obs.Recorder, progress io.Writer) (Summary, error) {
-	demos, err := findDemos(opts.Dir, opts.Recursive)
+	demos, err := FindDemos(opts.Dir, opts.Recursive)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -72,7 +72,7 @@ func Run(ctx context.Context, opts Options, rec *obs.Recorder, progress io.Write
 		return Summary{}, fmt.Errorf("no .dem files found under %s", opts.Dir)
 	}
 	if opts.OutDir != "" {
-		if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
+		if err := os.MkdirAll(opts.OutDir, 0o750); err != nil {
 			return Summary{}, fmt.Errorf("create out dir: %w", err)
 		}
 	}
@@ -310,7 +310,9 @@ func classify(err error) (class, message string) {
 	}
 }
 
-func findDemos(dir string, recursive bool) ([]string, error) {
+// FindDemos enumerates the exact sorted input set a batch run will process.
+// Callers can use it to validate output paths before parsing begins.
+func FindDemos(dir string, recursive bool) ([]string, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, fmt.Errorf("stat dir: %w", err)

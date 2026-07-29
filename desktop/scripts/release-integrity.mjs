@@ -4,11 +4,11 @@ import { basename, join } from 'node:path';
 
 const CHECKSUM_LINE = /^([a-f0-9]{64})  ([^\r\n]+)$/;
 
-export function releasePaths(desktopDirectory) {
-  const outputDirectory = join(desktopDirectory, 'dist-installer');
+export function releasePaths(desktopDirectory, outputDirectory = join(desktopDirectory, 'dist-installer')) {
   const metadata = JSON.parse(readFileSync(join(desktopDirectory, 'package.json'), 'utf8'));
   const installerName = `FragForge Studio Setup ${metadata.version}.exe`;
   return {
+    directory: outputDirectory,
     artifacts: [
       join(outputDirectory, installerName),
       join(outputDirectory, `${installerName}.blockmap`),

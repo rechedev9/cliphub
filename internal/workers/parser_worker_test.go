@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/job"
@@ -107,6 +108,10 @@ func (f *fakeStorage) Exists(key string) (bool, error) {
 	_, ok := f.files[key]
 	return ok, nil
 }
+func (f *fakeStorage) Delete(key string) error {
+	delete(f.files, key)
+	return nil
+}
 
 // real demo helper ------------------------------------------------------
 
@@ -123,8 +128,32 @@ func loadRealDemo(t *testing.T) []byte {
 	return b
 }
 
+func realDemoTargetSteamID(t *testing.T, demo []byte) string {
+	t.Helper()
+	if target := os.Getenv("TEST_DEMO_TARGET_STEAMID"); target != "" {
+		return target
+	}
+	if os.Getenv("TEST_DEMO_PATH") == "" {
+		return "76561198148986856" // maaryy in the default fixture
+	}
+	p := demoinfocs.NewParser(bytes.NewReader(demo))
+	defer p.Close()
+	result, err := parser.RosterScan(p)
+	if err != nil {
+		t.Fatalf("scan TEST_DEMO_PATH roster for target: %v", err)
+	}
+	for _, player := range result.Players {
+		if player.Kills > 0 {
+			return player.SteamID64
+		}
+	}
+	t.Fatal("TEST_DEMO_PATH roster has no player with a kill; set TEST_DEMO_TARGET_STEAMID explicitly")
+	return ""
+}
+
 func TestParserWorkerRunsAgainstRealDemo(t *testing.T) {
 	demo := loadRealDemo(t)
+	targetSteamID := realDemoTargetSteamID(t, demo)
 	repo := newFakeRepo()
 	store := newFakeStorage()
 
@@ -134,7 +163,7 @@ func TestParserWorkerRunsAgainstRealDemo(t *testing.T) {
 		Status:        job.StatusQueued,
 		DemoPath:      "demos/test.dem",
 		DemoSHA256:    "fake",
-		TargetSteamID: "76561198148986856", // maaryy
+		TargetSteamID: targetSteamID,
 		Rules:         rules.Default(),
 	}
 	_ = store.Put("demos/test.dem", bytes.NewReader(demo))

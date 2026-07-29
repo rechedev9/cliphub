@@ -15,7 +15,12 @@ import type {
   TacticalFrame,
   TacticalTendencies,
 } from '@/lib/api/tactical';
-import { decodePositionsHeader, decodeRoundFrames } from '@/lib/tactical-decode';
+import {
+  decodePositionsHeader,
+  decodeRoundFrames,
+  TacticalDecodeError,
+  tacticalDecodeErrorMessage,
+} from '@/lib/tactical-decode';
 import type { PositionsScale } from '@/lib/tactical-decode';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery } from '@/lib/tactical-filter';
 import { StudioEmptyState } from '@/components/studio/empty-state';
@@ -46,8 +51,12 @@ async function positionsAreStale(doc: TacticalDocument, blob: ArrayBuffer): Prom
 
 function errorMessage(error: unknown): string {
   if (isServiceUnavailableError(error)) return 'El servicio de análisis local no está disponible.';
-  return error instanceof Error ? error.message : 'fallo desconocido';
+  if (error instanceof TacticalDecodeError) return tacticalDecodeErrorMessage(error);
+  if (error instanceof UserFacingTacticalError) return error.message;
+  return 'No se pudo cargar el análisis táctico. Revisa el estado local y vuelve a intentarlo.';
 }
+
+class UserFacingTacticalError extends Error {}
 
 /**
  * The ready workspace: the round index, the 2D replay and the tendencies of one
@@ -92,7 +101,7 @@ export function TacticalAnalysis({
           fetchTacticalPositions(jobId),
         ]);
         if (await positionsAreStale(doc, blob)) {
-          throw new Error(
+          throw new UserFacingTacticalError(
             'Las posiciones no coinciden con el índice (SHA-256 distinto): el análisis está desfasado y hay que repetirlo.',
           );
         }

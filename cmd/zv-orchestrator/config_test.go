@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -131,13 +133,22 @@ func TestLoadConfigAllowsPartialRecordWorkerConfig(t *testing.T) {
 func TestLoadConfigEnablesMediaWorkers(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("ZV_DATABASE_URL", "postgres://example")
-	t.Setenv("ZV_RECORDER_PATH", "zv-recorder.exe")
-	t.Setenv("ZV_HLAE_PATH", "HLAE.exe")
-	t.Setenv("ZV_CS2_PATH", "cs2.exe")
-	t.Setenv("ZV_COMPOSER_PATH", "zv-composer.exe")
-	t.Setenv("ZV_EDITOR_PATH", "zv-editor.exe")
-	t.Setenv("ZV_FFMPEG_PATH", "ffmpeg.exe")
-	t.Setenv("ZV_FFPROBE_PATH", "ffprobe.exe")
+	toolsDir := t.TempDir()
+	fakeTool := func(name string) string {
+		t.Helper()
+		path := filepath.Join(toolsDir, name)
+		if err := os.WriteFile(path, []byte("stub"), 0o700); err != nil {
+			t.Fatalf("write fake tool %s: %v", name, err)
+		}
+		return path
+	}
+	t.Setenv("ZV_RECORDER_PATH", fakeTool("zv-recorder.exe"))
+	t.Setenv("ZV_HLAE_PATH", fakeTool("HLAE.exe"))
+	t.Setenv("ZV_CS2_PATH", fakeTool("cs2.exe"))
+	t.Setenv("ZV_COMPOSER_PATH", fakeTool("zv-composer.exe"))
+	t.Setenv("ZV_EDITOR_PATH", fakeTool("zv-editor.exe"))
+	t.Setenv("ZV_FFMPEG_PATH", fakeTool("ffmpeg.exe"))
+	t.Setenv("ZV_FFPROBE_PATH", fakeTool("ffprobe.exe"))
 	t.Setenv("ZV_RECORD_TIMEOUT", "30m")
 	t.Setenv("ZV_COMPOSE_TIMEOUT", "10m")
 	t.Setenv("ZV_RENDER_TIMEOUT", "12m")
@@ -170,6 +181,73 @@ func TestLoadConfigEnablesMediaWorkers(t *testing.T) {
 	}
 }
 
+func TestConfiguredDirectoriesAndMissingToolsNeverEnableWorkers(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config{
+		RecorderPath: dir,
+		HLAEPath:     filepath.Join(dir, "missing-hlae.exe"),
+		CS2Path:      filepath.Join(dir, "missing-cs2.exe"),
+		ComposerPath: dir,
+		EditorPath:   dir,
+		FFmpegPath:   dir,
+		YtdlpPath:    dir,
+	}
+	if cfg.recordWorkerEnabled() || cfg.composeWorkerEnabled() || cfg.renderWorkerEnabled() ||
+		cfg.streamRenderWorkerEnabled() || cfg.streamAcquireWorkerEnabled() {
+		t.Fatalf("unusable configured paths enabled a worker: %#v", cfg)
+	}
+}
+
+func TestExecutableAdmissionResolvesPATHBasenamesAndRejectsInvalidCommands(t *testing.T) {
+	toolsDir := t.TempDir()
+	toolName := "zv-path-tool"
+	if runtime.GOOS == "windows" {
+		toolName += ".exe"
+	}
+	toolPath := filepath.Join(toolsDir, toolName)
+	if err := os.WriteFile(toolPath, []byte("stub"), 0o700); err != nil {
+		t.Fatalf("write PATH tool: %v", err)
+	}
+	t.Setenv("PATH", toolsDir)
+
+	cfg := config{
+		RecorderPath: toolName,
+		HLAEPath:     toolName,
+		CS2Path:      toolName,
+		ComposerPath: toolName,
+		EditorPath:   toolName,
+		FFmpegPath:   toolName,
+		YtdlpPath:    toolName,
+	}
+	if !cfg.recordWorkerEnabled() || !cfg.composeWorkerEnabled() || !cfg.renderWorkerEnabled() ||
+		!cfg.streamRenderWorkerEnabled() || !cfg.streamAcquireWorkerEnabled() {
+		t.Fatalf("PATH basename did not enable workers: %#v", cfg)
+	}
+
+	nonExecutable := filepath.Join(toolsDir, "not-executable.txt")
+	if err := os.WriteFile(nonExecutable, []byte("stub"), 0o600); err != nil {
+		t.Fatalf("write non-executable file: %v", err)
+	}
+	missingName := "zv-missing-path-tool"
+	if runtime.GOOS == "windows" {
+		missingName += ".exe"
+	}
+	for _, tt := range []struct {
+		name    string
+		command string
+	}{
+		{name: "missing basename", command: missingName},
+		{name: "explicit directory", command: toolsDir},
+		{name: "non-executable file", command: nonExecutable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if admittedExecutable(tt.command) {
+				t.Fatalf("admittedExecutable(%q) = true, want false", tt.command)
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidDuration(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("ZV_DATABASE_URL", "postgres://example")
@@ -178,6 +256,56 @@ func TestLoadConfigRejectsInvalidDuration(t *testing.T) {
 	_, err := loadConfig()
 	if err == nil {
 		t.Fatal("loadConfig error = nil, want invalid duration")
+	}
+}
+
+func TestLoadConfigValidatesRecordHUDAtStartup(t *testing.T) {
+	for _, hud := range []string{"", "gameplay", "clean", "deathnotices"} {
+		t.Run("valid_"+hud, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("ZV_DATABASE_URL", "memory")
+			t.Setenv("ZV_RECORD_HUD", hud)
+			if _, err := loadConfig(); err != nil {
+				t.Fatalf("loadConfig(%q) error = %v", hud, err)
+			}
+		})
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("ZV_DATABASE_URL", "memory")
+	t.Setenv("ZV_RECORD_HUD", "death-notices")
+	_, err := loadConfig()
+	if err == nil || !strings.Contains(err.Error(), "ZV_RECORD_HUD") {
+		t.Fatalf("loadConfig error = %v, want invalid HUD rejected at startup", err)
+	}
+}
+
+func TestLoadConfigBoundsWorkerConcurrency(t *testing.T) {
+	for _, concurrency := range []string{"1", "64"} {
+		t.Run("valid_"+concurrency, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("ZV_DATABASE_URL", "memory")
+			t.Setenv("ZV_WORKER_CONCURRENCY", concurrency)
+			cfg, err := loadConfig()
+			if err != nil {
+				t.Fatalf("loadConfig(%q) error = %v", concurrency, err)
+			}
+			if got := strconv.Itoa(cfg.WorkerConcurrency); got != concurrency {
+				t.Fatalf("WorkerConcurrency = %s, want %s", got, concurrency)
+			}
+		})
+	}
+
+	for _, concurrency := range []string{"0", "65", "999999999999999999999"} {
+		t.Run("invalid_"+concurrency, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("ZV_DATABASE_URL", "memory")
+			t.Setenv("ZV_WORKER_CONCURRENCY", concurrency)
+			_, err := loadConfig()
+			if err == nil || !strings.Contains(err.Error(), "between 1 and 64") {
+				t.Fatalf("loadConfig(%q) error = %v, want bounded concurrency rejection", concurrency, err)
+			}
+		})
 	}
 }
 

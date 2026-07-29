@@ -1,10 +1,18 @@
-import type { ApiClient } from './client';
+import type { ApiClient, VideoReviewResolution } from './client';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo } from './types';
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
 import { planToMatch, planToPlays, type KillPlan } from './map';
-import { canHaveRenderState, deriveReelView, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
+import { canHaveRenderState, deriveReelView, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store';
+import {
+  applyEffectiveRenderMusic,
+  clearVideoArtifactUrls,
+  hydrateVideoFromIntent,
+  parseEffectiveEditConfig,
+  parseEffectiveRenderMusic,
+  type EffectiveRenderMusic,
+} from './render-hydration';
 import { dataPlane, type DataPlane } from './dataplane';
 import { parsePublishAssistant, type PublishAssistant } from './publish-assistant';
 import {
@@ -15,6 +23,7 @@ import {
   type IndexedJob,
   type SeriesSummary,
 } from './jobs-index';
+import { reconcileReels } from './reconcile-batch';
 import { playsSelectionLabel } from '@/lib/format';
 
 /** Segment ids joined into the stable local id for a reel (not an artifact path). */
@@ -152,6 +161,10 @@ function buildMusicRequest(intent: ReelIntent): string | { key: string; volume: 
   return intent.songId;
 }
 
+function editConfigsEqual(left: EditConfig, right: EditConfig): boolean {
+  return JSON.stringify(buildEditRequest(left)) === JSON.stringify(buildEditRequest(right));
+}
+
 /** A queued placeholder Video for an intent; its live status is filled by reconcile. */
 function videoFromIntent(intent: ReelIntent): Video {
   return {
@@ -164,6 +177,7 @@ function videoFromIntent(intent: ReelIntent): Video {
     mode: intent.mode,
     variant: intent.variant,
     songId: intent.songId,
+    musicVolume: intent.musicVolume,
     editConfig: intent.editConfig,
     status: 'queued',
     createdAt: intent.createdAt,
@@ -478,6 +492,77 @@ export class RealApiClient implements ApiClient {
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
 
+  async resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video> {
+    const intent = this.intents.get(id);
+    if (!intent) return this.fallback.resolveVideoReview(id, resolution);
+    const current = this.reels.get(id);
+    if (!current || current.status !== 'review_required') {
+      throw new Error('El reel ya no está pendiente de revisión.');
+    }
+
+    if (resolution.kind === 'rerender') {
+      if (editConfigsEqual(intent.editConfig, resolution.editConfig)) {
+        throw new Error('Cambia al menos una opción de edición antes de volver a renderizar.');
+      }
+      if (this.driving.has(intent.videoId)) {
+        throw new Error('Ya hay una operación activa para este reel.');
+      }
+      this.driving.add(intent.videoId);
+      try {
+        // Persist the new intent only after the server admits the render. If the
+        // POST fails, the Library must keep describing the revision on screen so
+        // the user can retry the same correction instead of inheriting an edit
+        // configuration that was never rendered.
+        await readJson<unknown>(
+          await this.send((dp) => ({
+            url: dp.renderUrl(intent.jobId, variantOf(intent)),
+            init: {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                music: buildMusicRequest(intent),
+                edit: buildEditRequest(resolution.editConfig),
+                expected_artifact_prefix: resolution.expectedArtifactPrefix,
+                expected_warnings: resolution.expectedWarnings,
+              }),
+            },
+          })),
+        );
+        this.artifactNames.delete(intent.videoId);
+        const previousRevision = this.reels.get(intent.videoId);
+        if (previousRevision) {
+          this.reels.set(intent.videoId, clearVideoArtifactUrls(previousRevision));
+        }
+        intent.editConfig = resolution.editConfig;
+        saveReelIntents(Array.from(this.intents.values()));
+        this.applyView(intent, { status: 'queued', action: 'none' });
+      } finally {
+        this.driving.delete(intent.videoId);
+      }
+      await this.reconcileOne(intent);
+      return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
+    }
+
+    const note = resolution.note.trim();
+    if (!note) throw new Error('Documenta por qué los avisos son intencionales.');
+    await readJson<unknown>(
+      await this.send((dp) => ({
+        url: dp.renderReviewUrl(intent.jobId, variantOf(intent)),
+        init: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            note,
+            expected_artifact_prefix: resolution.expectedArtifactPrefix,
+            expected_warnings: resolution.expectedWarnings,
+          }),
+        },
+      })),
+    );
+    await this.reconcileOne(intent);
+    return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
+  }
+
   /**
    * Removes a reel from the library. The orchestrator delete (video + cover +
    * caption artifacts, freeing disk) is best-effort: the local intent is
@@ -558,14 +643,15 @@ export class RealApiClient implements ApiClient {
   /**
    * Reconciles every non-terminal tracked reel against the orchestrator and drives
    * its next step. Idempotent and resumable: it reads server truth each tick, so a
-   * reload simply reattaches. One reel's failure never breaks the batch.
+   * reload simply reattaches. Reel-local failures stay isolated; an all-reel
+   * service outage still reaches the page-level offline state.
    */
   private async reconcile(): Promise<void> {
     const active = Array.from(this.intents.values()).filter((intent) => {
       const v = this.reels.get(intent.videoId);
-      return !v || (v.status !== 'ready' && v.status !== 'failed');
+      return shouldReconcileVideoStatus(v?.status);
     });
-    await Promise.all(active.map((intent) => this.reconcileOne(intent).catch(() => {})));
+    await reconcileReels(active.map((intent) => this.reconcileOne(intent)));
   }
 
   private async reconcileOne(intent: ReelIntent): Promise<void> {
@@ -590,7 +676,16 @@ export class RealApiClient implements ApiClient {
     // 'recorded'); before that the GET is a guaranteed 404 that floods the browser
     // network console the whole recording phase, so gate the call on the job status
     // and use 'none' — the same value the GET would map a 404 to — otherwise.
-    const render: { status: RenderStatus; failureReason?: string; videoName?: string; coverName?: string } =
+    const render: {
+      status: RenderStatus;
+      failureReason?: string;
+      warnings?: string[];
+      videoName?: string;
+      coverName?: string;
+      artifactPrefix?: string;
+      editConfig?: EditConfig;
+      effectiveMusic?: EffectiveRenderMusic;
+    } =
       canHaveRenderState(job.status)
         ? await this.fetchRenderStatus(intent.jobId, variantOf(intent))
         : { status: 'none' };
@@ -601,11 +696,24 @@ export class RealApiClient implements ApiClient {
       if (render.coverName) names.cover = render.coverName;
       this.artifactNames.set(intent.videoId, names);
     }
+    if (render.status === 'ready' || render.status === 'review_required') {
+      let intentChanged = false;
+      if (render.editConfig && !editConfigsEqual(intent.editConfig, render.editConfig)) {
+        intent.editConfig = render.editConfig;
+        intentChanged = true;
+      }
+      if (render.effectiveMusic) {
+        intentChanged = applyEffectiveRenderMusic(intent, render.effectiveMusic) || intentChanged;
+      }
+      if (intentChanged) saveReelIntents(Array.from(this.intents.values()));
+    }
     const view = deriveReelView({
       jobStatus: job.status,
       jobFailureReason: job.failureReason,
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
+      renderWarnings: render.warnings,
+      renderArtifactPrefix: render.artifactPrefix,
       captureProgress: job.captureProgress,
     });
     this.applyView(intent, view);
@@ -617,7 +725,14 @@ export class RealApiClient implements ApiClient {
     const base = this.reels.get(intent.videoId) ?? videoFromIntent(intent);
     // captureProgress is present only while recording (view carries it through);
     // any other status clears it so a stale percent never lingers on the card.
-    const next: Video = { ...base, status: view.status, failureReason: view.failureReason, captureProgress: view.captureProgress };
+    const next = hydrateVideoFromIntent({
+      ...base,
+      status: view.status,
+      failureReason: view.failureReason,
+      warnings: view.warnings,
+      reviewArtifactPrefix: view.reviewArtifactPrefix,
+      captureProgress: view.captureProgress,
+    }, intent);
     if (intent.targetName) next.targetName = intent.targetName;
     // The unrecoverable flag is a latch: once the job is authoritatively gone it
     // stays gone, so a racing plain-failed view (e.g. an in-flight drive() error
@@ -626,11 +741,12 @@ export class RealApiClient implements ApiClient {
     delete next.unrecoverable;
     if (view.unrecoverable || base.unrecoverable) next.unrecoverable = true;
     // The server-reported artifact names are present once the render is ready
+    // or awaiting warning review
     // (fetchRenderStatus fills them). If a tick sees ready before the names are
     // known, leave the URLs unset so the card keeps its placeholder until the
     // next tick resolves them - the same not-yet-ready handling as before.
     const names = this.artifactNames.get(intent.videoId);
-    if (view.status === 'ready' && names) {
+    if ((view.status === 'ready' || view.status === 'review_required') && names) {
       // Same-origin proxy URLs the browser can hand straight to <video>/<img>.
       const variant = variantOf(intent);
       const dp = dataPlane();
@@ -781,13 +897,58 @@ export class RealApiClient implements ApiClient {
   private async fetchRenderStatus(
     jobId: string,
     variant: string,
-  ): Promise<{ status: RenderStatus; failureReason?: string; videoName?: string; coverName?: string }> {
+  ): Promise<{
+    status: RenderStatus;
+    failureReason?: string;
+    warnings?: string[];
+    videoName?: string;
+    coverName?: string;
+    artifactPrefix?: string;
+    editConfig?: EditConfig;
+    effectiveMusic?: EffectiveRenderMusic;
+  }> {
     const res = await this.send((dp) => ({ url: dp.renderUrl(jobId, variant) }));
-    if (!res.ok) return { status: 'none' }; // 404 = render not started yet
-    const data = (await res.json()) as { status?: string; failure_reason?: string; videos?: string[]; covers?: string[] };
-    const known = new Set<RenderStatus>(['queued', 'rendering', 'ready', 'failed']);
+    if (res.status === 404) return { status: 'none' };
+    if (!res.ok) await readJson<never>(res);
+    const data = (await res.json()) as {
+      status?: string;
+      failure_reason?: string;
+      warnings?: string[];
+      videos?: string[];
+      covers?: string[];
+      artifact_prefix?: string;
+      music?: unknown;
+      edit?: {
+        format?: EditConfig['format'];
+        killEffect?: EditConfig['killEffect'];
+        transition?: EditConfig['transition'];
+        intro?: boolean;
+        outro?: boolean;
+        hook_text?: boolean;
+        kill_counter?: boolean;
+        cover_strategy?: EditConfig['coverStrategy'];
+        intro_text?: string;
+        outro_text?: string;
+      };
+    };
+    const known = new Set<RenderStatus>([
+      'queued',
+      'rendering',
+      'ready',
+      'review_required',
+      'failed',
+    ]);
     const status: RenderStatus = data.status && known.has(data.status as RenderStatus) ? (data.status as RenderStatus) : 'none';
-    return { status, failureReason: data.failure_reason, videoName: data.videos?.[0], coverName: data.covers?.[0] };
+    return {
+      status,
+      failureReason: data.failure_reason,
+      warnings: data.warnings,
+      videoName: data.videos?.[0],
+      coverName: data.covers?.[0],
+      artifactPrefix: data.artifact_prefix,
+      editConfig: parseEffectiveEditConfig(data.edit),
+      effectiveMusic: parseEffectiveRenderMusic(data.music),
+    };
   }
 
   // --- everything below is outside the upload→reel path: capture readiness is

@@ -16,8 +16,9 @@ func TestNewRenderVariantUploadTargetsDerivesKeysAndPaths(t *testing.T) {
 	publishDir := filepath.Join(outDir, "shortslistosparasubir")
 	resultPath := filepath.Join(outDir, "shorts-result.json")
 	result := editor.Result{
-		SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
-		GalleryPath: filepath.Join(publishDir, "index.html"),
+		CoversEnabled: true,
+		SummaryPath:   filepath.Join(publishDir, "publish-summary.md"),
+		GalleryPath:   filepath.Join(publishDir, "index.html"),
 		Shorts: []editor.ShortResult{{
 			SegmentID:     "seg-001",
 			Output:        filepath.Join(outDir, "seg-001.mp4"),
@@ -26,10 +27,10 @@ func TestNewRenderVariantUploadTargetsDerivesKeysAndPaths(t *testing.T) {
 			CaptionPath:   filepath.Join(publishDir, "seg-001.caption.txt"),
 			RenderLogPath: filepath.Join(outDir, "logs", "seg-001-render.log"),
 		}, {
-			SegmentID: "seg-002",
-			Output:    filepath.Join(outDir, "seg-002.mp4"),
-		}, {
-			Output: filepath.Join(outDir, "missing-segment.mp4"),
+			SegmentID:   "seg-002",
+			Output:      filepath.Join(outDir, "seg-002.mp4"),
+			CoverPath:   filepath.Join(publishDir, "seg-002.jpg"),
+			CaptionPath: filepath.Join(publishDir, "seg-002.caption.txt"),
 		}},
 	}
 
@@ -47,50 +48,69 @@ func TestNewRenderVariantUploadTargetsDerivesKeysAndPaths(t *testing.T) {
 
 	prefix := "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean"
 	want := []RenderVariantUploadTarget{{
-		Key:      prefix + "/render-result.json",
-		Path:     resultPath,
-		Label:    "render result",
+		Key:      prefix + "/edit-document.json",
+		Path:     filepath.Join(outDir, "edit-document.json"),
+		Label:    "edit document",
 		Required: true,
 	}, {
-		Key:   prefix + "/edit-document.json",
-		Path:  filepath.Join(outDir, "edit-document.json"),
-		Label: "edit document",
+		Key:      prefix + "/edit-manifest.json",
+		Path:     filepath.Join(outDir, "edit-manifest.json"),
+		Label:    "edit manifest",
+		Required: true,
 	}, {
-		Key:   prefix + "/edit-manifest.json",
-		Path:  filepath.Join(outDir, "edit-manifest.json"),
-		Label: "edit manifest",
+		Key:      prefix + "/pack-manifest.json",
+		Path:     filepath.Join(publishDir, "pack-manifest.json"),
+		Label:    "pack manifest",
+		Required: true,
 	}, {
-		Key:   prefix + "/pack-manifest.json",
-		Path:  filepath.Join(publishDir, "pack-manifest.json"),
-		Label: "pack manifest",
+		Key:      prefix + "/publish-summary.md",
+		Path:     result.SummaryPath,
+		Label:    "publish summary",
+		Required: true,
 	}, {
-		Key:   prefix + "/publish-summary.md",
-		Path:  result.SummaryPath,
-		Label: "publish summary",
+		Key:      prefix + "/index.html",
+		Path:     result.GalleryPath,
+		Label:    "gallery",
+		Required: true,
 	}, {
-		Key:   prefix + "/index.html",
-		Path:  result.GalleryPath,
-		Label: "gallery",
+		Key:      prefix + "/videos/seg-001.mp4",
+		Path:     result.Shorts[0].PublishPath,
+		Label:    "render video seg-001",
+		Required: true,
 	}, {
-		Key:   prefix + "/videos/seg-001.mp4",
-		Path:  result.Shorts[0].PublishPath,
-		Label: "render video seg-001",
+		Key:      prefix + "/covers/seg-001.jpg",
+		Path:     result.Shorts[0].CoverPath,
+		Label:    "render cover seg-001",
+		Required: true,
 	}, {
-		Key:   prefix + "/covers/seg-001.jpg",
-		Path:  result.Shorts[0].CoverPath,
-		Label: "render cover seg-001",
-	}, {
-		Key:   prefix + "/captions/seg-001.caption.txt",
-		Path:  result.Shorts[0].CaptionPath,
-		Label: "render caption seg-001",
+		Key:      prefix + "/captions/seg-001.caption.txt",
+		Path:     result.Shorts[0].CaptionPath,
+		Label:    "render caption seg-001",
+		Required: true,
 	}, {
 		Key:   prefix + "/logs/seg-001-render.log",
 		Path:  result.Shorts[0].RenderLogPath,
 		Label: "render log seg-001",
 	}, {
-		Key:   prefix + "/videos/seg-002.mp4",
-		Path:  result.Shorts[1].Output,
-		Label: "render video seg-002",
+		Key:      prefix + "/videos/seg-002.mp4",
+		Path:     result.Shorts[1].Output,
+		Label:    "render video seg-002",
+		Required: true,
+	}, {
+		Key:      prefix + "/covers/seg-002.jpg",
+		Path:     result.Shorts[1].CoverPath,
+		Label:    "render cover seg-002",
+		Required: true,
+	}, {
+		Key:      prefix + "/captions/seg-002.caption.txt",
+		Path:     result.Shorts[1].CaptionPath,
+		Label:    "render caption seg-002",
+		Required: true,
+	}, {
+		Key:      prefix + "/render-result.json",
+		Path:     resultPath,
+		Label:    "render result",
+		Required: true,
 	}}
 	if len(got) != len(want) {
 		t.Fatalf("targets len = %d, want %d: %#v", len(got), len(want), got)
@@ -117,8 +137,8 @@ func TestNewRenderVariantUploadTargetsRejectsUnsafeSegmentID(t *testing.T) {
 	if err == nil {
 		t.Fatal("NewRenderVariantUploadTargets error = nil, want unsafe segment id error")
 	}
-	if !strings.Contains(err.Error(), "invalid artifact name") {
-		t.Fatalf("error = %q, want invalid artifact name", err.Error())
+	if !strings.Contains(err.Error(), "invalid render segment id") {
+		t.Fatalf("error = %q, want invalid render segment id", err.Error())
 	}
 }
 

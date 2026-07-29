@@ -63,6 +63,37 @@ export type DecodedPositions = {
   frames: TacticalFrame[];
 };
 
+export type TacticalDecodeErrorCode =
+  | 'short_header'
+  | 'unsupported_format'
+  | 'invalid_descriptor'
+  | 'invalid_offset'
+  | 'truncated_data';
+
+/** Stable decoder boundary: UI code maps codes, never raw parser details. */
+export class TacticalDecodeError extends Error {
+  readonly code: TacticalDecodeErrorCode;
+
+  constructor(code: TacticalDecodeErrorCode, detail: string) {
+    super(detail);
+    this.name = 'TacticalDecodeError';
+    this.code = code;
+  }
+}
+
+export function tacticalDecodeErrorMessage(error: TacticalDecodeError): string {
+  switch (error.code) {
+    case 'short_header':
+    case 'truncated_data':
+      return 'El archivo de posiciones está incompleto. Repite el análisis táctico.';
+    case 'unsupported_format':
+      return 'El formato de posiciones no es compatible con esta versión de FragForge.';
+    case 'invalid_descriptor':
+    case 'invalid_offset':
+      return 'Los datos de posiciones no son válidos. Repite el análisis táctico.';
+  }
+}
+
 const YAW_STEPS = 65536;
 
 function view(buffer: ArrayBuffer): DataView {
@@ -77,7 +108,8 @@ function view(buffer: ArrayBuffer): DataView {
  */
 export function decodePositionsHeader(buffer: ArrayBuffer): PositionsHeader {
   if (buffer.byteLength < POSITIONS_HEADER_SIZE) {
-    throw new Error(
+    throw new TacticalDecodeError(
+      'short_header',
       `decode positions: ${buffer.byteLength} bytes is shorter than the ${POSITIONS_HEADER_SIZE}-byte header`,
     );
   }
@@ -87,19 +119,22 @@ export function decodePositionsHeader(buffer: ArrayBuffer): PositionsHeader {
     magic += String.fromCharCode(data.getUint8(i));
   }
   if (magic !== POSITIONS_MAGIC) {
-    throw new Error(`decode positions: bad magic "${magic}"`);
+    throw new TacticalDecodeError('unsupported_format', `decode positions: bad magic "${magic}"`);
   }
   const version = data.getUint16(6, true);
   if (version !== POSITIONS_VERSION) {
-    throw new Error(`decode positions: unsupported blob version ${version}`);
+    throw new TacticalDecodeError('unsupported_format', `decode positions: unsupported blob version ${version}`);
   }
   const slotCount = data.getUint16(8, true);
   if (slotCount > POSITIONS_MAX_SLOTS) {
-    throw new Error(`decode positions: slot count ${slotCount} exceeds ${POSITIONS_MAX_SLOTS}`);
+    throw new TacticalDecodeError(
+      'invalid_descriptor',
+      `decode positions: slot count ${slotCount} exceeds ${POSITIONS_MAX_SLOTS}`,
+    );
   }
   const quantum = data.getFloat32(12, true);
   if (!(quantum > 0)) {
-    throw new Error(`decode positions: quantum ${quantum} must be positive`);
+    throw new TacticalDecodeError('invalid_descriptor', `decode positions: quantum ${quantum} must be positive`);
   }
   return {
     format: POSITIONS_FORMAT,
@@ -125,7 +160,8 @@ export function decodeFrames(
   scale: PositionsScale,
 ): TacticalFrame[] {
   if (byteOffset < POSITIONS_HEADER_SIZE || byteOffset > buffer.byteLength) {
-    throw new Error(
+    throw new TacticalDecodeError(
+      'invalid_offset',
       `decode frames: offset ${byteOffset} is outside the ${buffer.byteLength}-byte blob`,
     );
   }
@@ -154,7 +190,8 @@ export function decodeRoundFramesFromSlice(
   scale: PositionsScale,
 ): TacticalFrame[] {
   if (slice.byteLength < offset.byte_length) {
-    throw new Error(
+    throw new TacticalDecodeError(
+      'truncated_data',
       `decode frames: round ${offset.round} slice is ${slice.byteLength} bytes, expected ${offset.byte_length}`,
     );
   }
@@ -174,17 +211,20 @@ function readFrames(
   scale: PositionsScale,
 ): TacticalFrame[] {
   if (!(scale.quantum > 0)) {
-    throw new Error('decode frames: descriptor has no quantum');
+    throw new TacticalDecodeError('invalid_descriptor', 'decode frames: descriptor has no quantum');
   }
   if (!Number.isInteger(frameCount) || frameCount < 0) {
-    throw new Error(`decode frames: frame count ${frameCount} must be a non-negative integer`);
+    throw new TacticalDecodeError(
+      'invalid_descriptor',
+      `decode frames: frame count ${frameCount} must be a non-negative integer`,
+    );
   }
   const data = view(buffer);
   const frames: TacticalFrame[] = [];
   let pos = start;
   for (let i = 0; i < frameCount; i += 1) {
     if (pos + POSITIONS_FRAME_HEAD_SIZE > buffer.byteLength) {
-      throw new Error(`decode frames: truncated frame header at byte ${pos}`);
+      throw new TacticalDecodeError('truncated_data', `decode frames: truncated frame header at byte ${pos}`);
     }
     const tick = data.getInt32(pos, true);
     const mask = data.getUint16(pos + 4, true);
@@ -195,7 +235,7 @@ function readFrames(
       if ((mask & (1 << slot)) !== 0) present += 1;
     }
     if (pos + present * POSITIONS_SAMPLE_SIZE > buffer.byteLength) {
-      throw new Error(`decode frames: truncated samples at byte ${pos}`);
+      throw new TacticalDecodeError('truncated_data', `decode frames: truncated samples at byte ${pos}`);
     }
 
     const samples: TacticalSample[] = [];

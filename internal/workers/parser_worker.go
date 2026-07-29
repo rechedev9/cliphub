@@ -66,7 +66,9 @@ func (w *ParserWorker) ProcessParseDemo(ctx context.Context, jobID uuid.UUID) er
 
 	plan, parseErr := w.parse(ctx, j)
 	if parseErr != nil {
-		recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeParseDemo, parseErr)
+		if statusErr := recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeParseDemo, parseErr); statusErr != nil {
+			return errors.Join(parseErr, fmt.Errorf("record parse failure status: %w", statusErr))
+		}
 		return parseErr
 	}
 	if err := w.repo.SetKillPlan(ctx, j.ID, plan); err != nil {
@@ -109,7 +111,9 @@ func (w *ParserWorker) ProcessScanRoster(ctx context.Context, jobID uuid.UUID) e
 
 	rosterKey, scanErr := w.scanRoster(ctx, j)
 	if scanErr != nil {
-		recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeScanRoster, scanErr)
+		if statusErr := recordTaskFailure(ctx, w.repo, j.ID, tasks.TypeScanRoster, scanErr); statusErr != nil {
+			return errors.Join(scanErr, fmt.Errorf("record roster failure status: %w", statusErr))
+		}
 		return scanErr
 	}
 	logWorkerArtifacts(j.ID, tasks.TypeScanRoster, []string{rosterKey})

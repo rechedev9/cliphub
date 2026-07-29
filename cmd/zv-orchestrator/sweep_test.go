@@ -543,7 +543,7 @@ func TestSweepInterruptedGenerateRunsUsesActiveRunMarker(t *testing.T) {
 	}
 }
 
-func TestSweepInterruptedStreamJobsFailsOnlyAcquiringAndRendering(t *testing.T) {
+func TestSweepInterruptedStreamJobsFailsOnlyRenderingAndPreservesAcquiring(t *testing.T) {
 	for _, repoName := range []string{"memory", "sqlite"} {
 		t.Run(repoName, func(t *testing.T) {
 			var repo streamInterruptSweeperRepo
@@ -569,7 +569,7 @@ func TestSweepInterruptedStreamJobsFailsOnlyAcquiringAndRendering(t *testing.T) 
 			if err != nil {
 				t.Fatalf("sweepInterruptedStreamJobs: %v", err)
 			}
-			if got, want := swept, 2; got != want {
+			if got, want := swept, 1; got != want {
 				t.Fatalf("swept = %d, want %d", got, want)
 			}
 			for _, before := range seeded {
@@ -579,8 +579,8 @@ func TestSweepInterruptedStreamJobsFailsOnlyAcquiringAndRendering(t *testing.T) 
 				}
 				switch before.Status {
 				case streamclips.StatusAcquiring:
-					if got.Status != streamclips.StatusFailed || got.FailureReason != interruptedStreamAcquire {
-						t.Errorf("acquiring job = status %s reason %q, want failed/%q", got.Status, got.FailureReason, interruptedStreamAcquire)
+					if got.Status != streamclips.StatusAcquiring || got.FailureReason != "" {
+						t.Errorf("acquiring job = status %s reason %q, want preserved for recovery", got.Status, got.FailureReason)
 					}
 				case streamclips.StatusRendering:
 					if got.Status != streamclips.StatusFailed || got.FailureReason != interruptedStreamRender {
@@ -598,8 +598,8 @@ func TestSweepInterruptedStreamJobsFailsOnlyAcquiringAndRendering(t *testing.T) 
 
 func TestSweepInterruptedStreamJobsAggregatesRecordFailures(t *testing.T) {
 	base := newMemoryStreamJobRepository()
-	firstFailure := seedStreamJob(t, base, streamclips.StatusAcquiring)
-	success := seedStreamJob(t, base, streamclips.StatusAcquiring)
+	firstFailure := seedStreamJob(t, base, streamclips.StatusRendering)
+	success := seedStreamJob(t, base, streamclips.StatusRendering)
 	secondFailure := seedStreamJob(t, base, streamclips.StatusRendering)
 	repo := failingStreamUpdateRepo{
 		streamInterruptSweeperRepo: base,
@@ -641,7 +641,7 @@ func TestSweepInterruptedStreamJobsIsNotCappedAtHTTPListLimit(t *testing.T) {
 				repo = newTestSQLiteStreamRepo(t)
 			}
 			for range jobCount {
-				seedStreamJob(t, repo, streamclips.StatusAcquiring)
+				seedStreamJob(t, repo, streamclips.StatusRendering)
 			}
 			ready := seedStreamJob(t, repo, streamclips.StatusReady)
 

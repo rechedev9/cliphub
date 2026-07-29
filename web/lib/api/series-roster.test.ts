@@ -2,7 +2,7 @@
 // Run: node --test series-roster.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregateSeriesRoster } from './series-roster.ts';
+import { aggregateGroupedSeriesRoster, aggregateSeriesRoster } from './series-roster.ts';
 import type { DemoPlayer } from './types.ts';
 
 /** Builds a DemoPlayer with zeroed defaults so each case sets only what it tests. */
@@ -73,12 +73,12 @@ test('unions a player across maps and sums counting stats', () => {
   assert.equal(agg.rounds5k, 1);
 });
 
-test('weights rate stats by each map rounds, and averages plainly when no rounds', () => {
-  const map1 = mk({ steamId: '100', rounds: 20, adr: 80, hsPct: 30, kast: 60, rating: 1.0 });
-  const map2 = mk({ steamId: '100', rounds: 24, adr: 100, hsPct: 50, kast: 80, rating: 1.4 });
+test('weights round-based rate stats and derives headshot percentage from total headshots and kills', () => {
+  const map1 = mk({ steamId: '100', kills: 1, headshots: 1, rounds: 20, adr: 80, hsPct: 100, kast: 60, rating: 1.0 });
+  const map2 = mk({ steamId: '100', kills: 20, headshots: 0, rounds: 24, adr: 100, hsPct: 0, kast: 80, rating: 1.4 });
   const [weighted] = aggregateSeriesRoster([[map1], [map2]]);
   assert.equal(weighted.adr, (80 * 20 + 100 * 24) / 44);
-  assert.equal(weighted.hsPct, (30 * 20 + 50 * 24) / 44);
+  assert.equal(weighted.hsPct, 100 / 21);
   assert.equal(weighted.kast, (60 * 20 + 80 * 24) / 44);
   assert.equal(weighted.rating, (1.0 * 20 + 1.4 * 24) / 44);
 
@@ -88,6 +88,107 @@ test('weights rate stats by each map rounds, and averages plainly when no rounds
   const [plain] = aggregateSeriesRoster([[zero1], [zero2]]);
   assert.equal(plain.adr, (60 + 80) / 2);
   assert.equal(plain.rating, (1.1 + 1.3) / 2);
+});
+
+test('preserves reported headshot percentages when kill counts are unavailable', () => {
+  const map1 = mk({ steamId: '200', kills: 0, headshots: 0, rounds: 10, hsPct: 60 });
+  const map2 = mk({ steamId: '200', kills: 0, headshots: 0, rounds: 30, hsPct: 40 });
+  const [weighted] = aggregateSeriesRoster([[map1], [map2]]);
+  assert.equal(weighted.hsPct, 45);
+
+  const zeroRounds1 = mk({ steamId: '300', kills: 0, headshots: 0, hsPct: 62.5 });
+  const zeroRounds2 = mk({ steamId: '300', kills: 0, headshots: 0, hsPct: 37.5 });
+  const [plain] = aggregateSeriesRoster([[zeroRounds1], [zeroRounds2]]);
+  assert.equal(plain.hsPct, 50);
+});
+
+test('preserves every reported percentage when only some maps lack kill counts', () => {
+  const counted = mk({
+    steamId: '400',
+    kills: 10,
+    headshots: 5,
+    rounds: 10,
+    hsPct: 50,
+  });
+  const percentageOnly = mk({
+    steamId: '400',
+    kills: 0,
+    headshots: 0,
+    rounds: 30,
+    hsPct: 30,
+  });
+
+  const [weighted] = aggregateSeriesRoster([[counted], [percentageOnly]]);
+
+  assert.equal(weighted.hsPct, 35);
+});
+
+test('HLTV split parts count as one logical map and still sum their statistics', () => {
+  const rows = [
+    {
+      jobId: 'p1',
+      fileName: 'match-m1-inferno-p1.dem',
+      players: [mk({ steamId: '100', kills: 4, headshots: 2, rounds: 10 })],
+    },
+    {
+      jobId: 'p2',
+      fileName: 'match-m1-inferno-p2.dem',
+      players: [mk({ steamId: '100', kills: 6, headshots: 3, rounds: 12 })],
+    },
+    {
+      jobId: 'm2',
+      fileName: 'match-m2-mirage.dem',
+      players: [mk({ steamId: '100', kills: 8, headshots: 4, rounds: 20 })],
+    },
+  ];
+  const [player] = aggregateGroupedSeriesRoster(rows);
+  assert.equal(player.mapsPresent, 2);
+  assert.equal(player.kills, 18);
+  assert.equal(player.headshots, 9);
+  assert.equal(player.hsPct, 50);
+});
+
+test('HLTV split-part aggregation preserves hsPct-only coverage through later maps', () => {
+  const rows = [
+    {
+      jobId: 'p1',
+      fileName: 'match-m1-inferno-p1.dem',
+      players: [mk({
+        steamId: '100',
+        kills: 10,
+        headshots: 5,
+        rounds: 10,
+        hsPct: 50,
+      })],
+    },
+    {
+      jobId: 'p2',
+      fileName: 'match-m1-inferno-p2.dem',
+      players: [mk({
+        steamId: '100',
+        kills: 0,
+        headshots: 0,
+        rounds: 30,
+        hsPct: 30,
+      })],
+    },
+    {
+      jobId: 'm2',
+      fileName: 'match-m2-mirage.dem',
+      players: [mk({
+        steamId: '100',
+        kills: 10,
+        headshots: 10,
+        rounds: 20,
+        hsPct: 100,
+      })],
+    },
+  ];
+
+  const [player] = aggregateGroupedSeriesRoster(rows);
+
+  assert.equal(player.mapsPresent, 2);
+  assert.equal(player.hsPct, 170 / 3);
 });
 
 test('a player missing from a map only aggregates the maps they played', () => {

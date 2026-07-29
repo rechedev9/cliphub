@@ -13,7 +13,10 @@ const STAGES = [
   { status: 'recording', label: 'Captura' },
   { status: 'composing', label: 'Edición' },
   { status: 'ready', label: 'Listo' },
-] as const satisfies readonly { status: Exclude<VideoStatus, 'failed'>; label: string }[];
+] as const satisfies readonly {
+  status: Exclude<VideoStatus, 'failed' | 'review_required'>;
+  label: string;
+}[];
 
 /** CAPTURA is the REC stage, so its accent is magenta rather than cyan. */
 const CAPTURE_INDEX = 1;
@@ -121,8 +124,9 @@ export function ReelStageTrack({ status, percent, className }: ReelStageTrackPro
     );
   }
 
-  const active = STAGES.findIndex((stage) => stage.status === status);
-  const finished = status === 'ready';
+  const pipelineStatus = status === 'review_required' ? 'ready' : status;
+  const active = STAGES.findIndex((stage) => stage.status === pipelineStatus);
+  const finished = pipelineStatus === 'ready';
   const pct = percent === undefined ? undefined : Math.min(100, Math.max(0, Math.round(percent)));
 
   return (

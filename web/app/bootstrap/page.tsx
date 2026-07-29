@@ -5,15 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { Wordmark } from '@/components/brand/wordmark';
+import { AutomaticBootstrap } from '@/components/bootstrap/automatic-bootstrap';
 
 export const metadata: Metadata = { title: 'Autoriza este navegador' };
 
 /**
  * Copy for the failures `app/api/session/bootstrap/route.ts` can produce. The
- * route answers `403 {error}` today, so a wrong capability navigates the
- * browser to a page showing raw JSON — the product's worst first impression.
- * Redirecting to `/bootstrap?error=<code>` instead makes this panel the answer;
- * the codes are named here so neither side has to repeat a string literal.
+ * route redirects failed form submissions to `/bootstrap?error=<code>`, so
+ * this panel remains the recovery surface instead of exposing a raw API body.
  */
 const BOOTSTRAP_ERRORS = {
   capability: 'La capacidad no coincide con la que muestra Local Studio. Cópiala otra vez tal cual.',
@@ -51,10 +50,12 @@ export default async function BootstrapPage({
       <Wordmark />
 
       <form
+        id="local-bootstrap-form"
         action="/api/session/bootstrap"
         method="post"
         className="studio-panel studio-panel-raised flex w-full max-w-[30rem] flex-col gap-5 p-7"
       >
+        <AutomaticBootstrap formId="local-bootstrap-form" inputId="capability" />
         <div className="flex flex-col gap-3">
           <SectionEyebrow label="Sesión local" />
           <h1 className="font-display text-title font-bold text-fg-1">Autoriza este navegador</h1>

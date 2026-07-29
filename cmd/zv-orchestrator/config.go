@@ -4,12 +4,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/rechedev9/fragforge/internal/capturetools"
 	"github.com/rechedev9/fragforge/internal/httpapi"
+	"github.com/rechedev9/fragforge/internal/recording"
 )
 
 type config struct {
@@ -36,15 +39,23 @@ type config struct {
 }
 
 const (
-	databaseURLMemory                  = "memory"
-	mutationTokenEnvironmentVariable   = "ZV_MUTATION_TOKEN"
+	databaseURLMemory = "memory"
+	// #nosec G101 -- these are environment-variable names, never credential values.
+	mutationTokenEnvironmentVariable = "ZV_MUTATION_TOKEN"
+	// #nosec G101 -- these are environment-variable names, never credential values.
 	firecrawlAPIKeyEnvironmentVariable = "FIRECRAWL_API_KEY"
-	legacyGroqAPIKeyVariable           = "GROQ_API_KEY"
-	legacyGroqAPIKeyOverrideVariable   = "ZV_GROQ_API_KEY"
-	legacyXAIAPIKeyVariable            = "XAI_API_KEY"
+	// #nosec G101 -- these are environment-variable names, never credential values.
+	legacyGroqAPIKeyVariable = "GROQ_API_KEY"
+	// #nosec G101 -- these are environment-variable names, never credential values.
+	legacyGroqAPIKeyOverrideVariable = "ZV_GROQ_API_KEY"
+	// #nosec G101 -- these are environment-variable names, never credential values.
+	legacyXAIAPIKeyVariable = "XAI_API_KEY"
 	// databaseURLSQLite selects the on-disk SQLite job repository. Accepts the
 	// bare value "sqlite" (stores <DataDir>/jobs.db) or "sqlite:<path>".
 	databaseURLSQLite = "sqlite"
+	// Inline workers can launch parsers and media subprocesses. A typo must not
+	// allocate an arbitrary number of goroutines or overflow queue capacity.
+	maxWorkerConcurrency = 64
 )
 
 // sqlitePath resolves the SQLite file path from the database URL, defaulting to
@@ -92,11 +103,24 @@ func loadConfig() (config, error) {
 	if !validSessionCapability(c.MutationToken) {
 		return c, fmt.Errorf("ZV_MUTATION_TOKEN must be a per-session capability of 32 random bytes encoded as lowercase hex")
 	}
+	if c.RecordHUD != "" && !recording.HUDMode(c.RecordHUD).Valid() {
+		return c, fmt.Errorf(
+			"ZV_RECORD_HUD must be %q, %q, or %q, got %q",
+			recording.HUDModeGameplay,
+			recording.HUDModeClean,
+			recording.HUDModeDeathnotices,
+			c.RecordHUD,
+		)
+	}
 
 	concRaw := envOr("ZV_WORKER_CONCURRENCY", "2")
 	conc, err := strconv.Atoi(concRaw)
-	if err != nil || conc < 1 {
-		return c, fmt.Errorf("ZV_WORKER_CONCURRENCY must be a positive integer, got %q", concRaw)
+	if err != nil || conc < 1 || conc > maxWorkerConcurrency {
+		return c, fmt.Errorf(
+			"ZV_WORKER_CONCURRENCY must be an integer between 1 and %d, got %q",
+			maxWorkerConcurrency,
+			concRaw,
+		)
 	}
 	c.WorkerConcurrency = conc
 
@@ -172,23 +196,30 @@ func (c config) recordWorkerEnabled() bool {
 	// auto-detection expected to fill the rest) is not an error: after
 	// detection, an incomplete trio just leaves the worker disabled, and the
 	// startup log plus /api/capabilities say which tool is missing.
-	return c.RecorderPath != "" && c.HLAEPath != "" && c.CS2Path != ""
+	return admittedExecutable(c.RecorderPath) &&
+		admittedExecutable(c.HLAEPath) &&
+		admittedExecutable(c.CS2Path)
 }
 
 func (c config) composeWorkerEnabled() bool {
-	return c.ComposerPath != ""
+	return admittedExecutable(c.ComposerPath)
 }
 
 func (c config) renderWorkerEnabled() bool {
-	return c.EditorPath != ""
+	return admittedExecutable(c.EditorPath)
 }
 
 func (c config) streamRenderWorkerEnabled() bool {
-	return c.FFmpegPath != ""
+	return admittedExecutable(c.FFmpegPath)
 }
 
 func (c config) ytdlpEnabled() bool {
-	return c.YtdlpPath != ""
+	return admittedExecutable(c.YtdlpPath)
+}
+
+func admittedExecutable(command string) bool {
+	resolved, err := exec.LookPath(command)
+	return err == nil && capturetools.ExecutableFile(resolved)
 }
 
 func (c config) firecrawlEnabled() bool {
@@ -243,7 +274,7 @@ func (c config) missingRecordTools() []string {
 		if t.path == "" {
 			continue
 		}
-		if _, err := os.Stat(t.path); err != nil {
+		if !admittedExecutable(t.path) {
 			missing = append(missing, t.name+"="+t.path)
 		}
 	}

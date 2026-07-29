@@ -234,6 +234,32 @@ func TestRunParseDryRunMissingDemoExits3(t *testing.T) {
 	}
 }
 
+func TestRunParseDryRunRejectsOutputAliasingDemo(t *testing.T) {
+	dir := t.TempDir()
+	demoPath := filepath.Join(dir, "source.dem")
+	original := []byte("not a real demo")
+	if err := os.WriteFile(demoPath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, stderr := runApp(t, "parse",
+		"--demo", demoPath,
+		"--steamid", "76561198000000000",
+		"--out", demoPath,
+		"--dry-run",
+	)
+	if code != exitInvalidArgs {
+		t.Fatalf("exit code = %d, want %d; stderr=%s", code, exitInvalidArgs, stderr)
+	}
+	got, err := os.ReadFile(demoPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("demo changed to %q, want original bytes", got)
+	}
+}
+
 func TestRunUtilityAuditMissingPlanExits2(t *testing.T) {
 	code, _, stderr := runApp(t, "utility-audit")
 	if code != 2 {
@@ -241,6 +267,31 @@ func TestRunUtilityAuditMissingPlanExits2(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "plan") {
 		t.Errorf("stderr %q should mention --plan", stderr)
+	}
+}
+
+func TestRunUtilityAuditRejectsOutputAliasingPlan(t *testing.T) {
+	dir := t.TempDir()
+	planPath := filepath.Join(dir, "plan.json")
+	original := []byte(`{"schema_version":"1.2","segments":[]}`)
+	if err := os.WriteFile(planPath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, stderr := runApp(t, "utility-audit",
+		"--plan", planPath,
+		"--format", "json",
+		"--out", planPath,
+	)
+	if code != exitInvalidArgs {
+		t.Fatalf("exit code = %d, want %d; stderr=%s", code, exitInvalidArgs, stderr)
+	}
+	got, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("plan changed to %q, want original bytes", got)
 	}
 }
 

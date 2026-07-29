@@ -22,6 +22,7 @@ func checkCodexPromptContents() ([]skillIssue, error) {
 	var issues []skillIssue
 	for _, rule := range codexPromptContentRules() {
 		path := filepath.Join(root, filepath.FromSlash(rule.Path))
+		// #nosec G304 -- rule paths are fixed repository-owned prompt definitions.
 		b, err := os.ReadFile(path)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {

@@ -21,6 +21,29 @@ export type PreparedUploadBody = {
 };
 
 export type BoundedText = BodyReadFailure | { ok: true; text: string };
+export type JSONObjectResult =
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; error: string };
+
+/** Parses one control document as an object and rejects unsupported keys. */
+export function parseControlJSONObject(text: string, allowedKeys: readonly string[]): JSONObjectResult {
+  let value: unknown;
+  try {
+    value = JSON.parse(text || '{}') as unknown;
+  } catch {
+    return { ok: false, error: 'invalid json body' };
+  }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, error: 'json body must be an object' };
+  }
+  const object = value as Record<string, unknown>;
+  const allowed = new Set(allowedKeys);
+  const unsupported = Object.keys(object).find((key) => !allowed.has(key));
+  if (unsupported !== undefined) {
+    return { ok: false, error: `unsupported field: ${unsupported}` };
+  }
+  return { ok: true, value: object };
+}
 
 /**
  * Validates a local upload before touching its body, then returns a streaming

@@ -28,6 +28,7 @@ type Collector struct {
 	targetName        string
 	targetTeamAtStart string
 	targetSeen        bool
+	identityCaptured  bool
 }
 
 // PlanMeta carries the metadata about the source demo that the segmenter
@@ -46,16 +47,30 @@ func NewCollector(target string, r rules.Rules) *Collector {
 	return &Collector{target: target, rules: r}
 }
 
+// resetForMatchStart discards provisional warmup/knife-round observations.
+// Callers deliberately invoke it only when the demo contains MatchStart; demos
+// without that event retain the documented collect-from-first-event fallback.
+func (c *Collector) resetForMatchStart() {
+	c.kills = nil
+	c.roundEnds = nil
+	c.totalKillsTarget = 0
+	c.killsAfterFilters = 0
+	// Keep warmup identity as fallback for matches where the target has no live
+	// events, but let the first live observation replace its provisional values.
+	c.identityCaptured = false
+}
+
 // RecordTargetIdentity captures the in-demo display name and starting team
 // of the target player. Called once at the start of the demo (or whenever
 // the target is first observed).
 func (c *Collector) RecordTargetIdentity(name, teamAtStart string) {
-	if c.targetSeen {
+	if c.identityCaptured {
 		return
 	}
 	c.targetName = name
 	c.targetTeamAtStart = teamAtStart
 	c.targetSeen = true
+	c.identityCaptured = true
 }
 
 // RecordKill processes one kill attributed to the target. The kill is
@@ -105,6 +120,7 @@ func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
 	sortRawKillsByTick(c.kills)
 
 	segs := Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
+	segs = clampSegmentsToDuration(segs, m.DurationTicks)
 	if segs == nil {
 		segs = []killplan.Segment{}
 	}
@@ -131,6 +147,27 @@ func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
 		DurationSecondsTotal: totalSegmentSeconds(segs, m.Tickrate),
 	}
 	return plan, nil
+}
+
+func clampSegmentsToDuration(segments []killplan.Segment, durationTicks int) []killplan.Segment {
+	if durationTicks <= 0 || len(segments) == 0 {
+		return segments
+	}
+	out := segments[:0]
+	for _, segment := range segments {
+		if segment.TickStart >= durationTicks {
+			continue
+		}
+		if segment.TickEnd > durationTicks {
+			segment.TickEnd = durationTicks
+		}
+		if segment.TickEnd <= segment.TickStart {
+			continue
+		}
+		segment.ID = killplan.FormatSegmentID(len(out) + 1)
+		out = append(out, segment)
+	}
+	return out
 }
 
 func totalSegmentSeconds(segs []killplan.Segment, tickrate int) float64 {

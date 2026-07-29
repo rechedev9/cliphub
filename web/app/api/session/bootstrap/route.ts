@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { readBoundedText } from '@/lib/api/bounded-request-body';
 import {
   BOOTSTRAP_CAPABILITY_ERROR,
+  localAPIOrigin,
   localAPIBootstrapError,
+  PROXY_BOOTSTRAP_CAPABILITY_ENV,
   PROXY_MUTATION_CAPABILITY_ENV,
   PROXY_MUTATION_CAPABILITY_COOKIE,
 } from '@/lib/api/local-request-guard';
@@ -10,6 +12,10 @@ import {
 export const runtime = 'nodejs';
 
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded';
+
+function bootstrapErrorRedirect(request: Request, code: 'capability' | 'unavailable'): Response {
+  return NextResponse.redirect(new URL(`/bootstrap?error=${code}`, request.url), 303);
+}
 
 /**
  * POST /api/session/bootstrap seeds the HttpOnly mutation-capability cookie
@@ -26,15 +32,25 @@ export async function POST(request: Request): Promise<Response> {
 
   const capability = new URLSearchParams(body.text).get('capability');
   if (capability === null) {
-    return NextResponse.json({ error: BOOTSTRAP_CAPABILITY_ERROR }, { status: 403 });
+    return bootstrapErrorRedirect(request, 'capability');
+  }
+  if (!process.env[PROXY_BOOTSTRAP_CAPABILITY_ENV]) {
+    return bootstrapErrorRedirect(request, 'unavailable');
   }
   const error = await localAPIBootstrapError(request.headers, capability);
-  if (error !== undefined) return NextResponse.json({ error }, { status: 403 });
+  if (error !== undefined) {
+    return bootstrapErrorRedirect(request, error === BOOTSTRAP_CAPABILITY_ERROR ? 'capability' : 'unavailable');
+  }
 
   const proxyCapability = process.env[PROXY_MUTATION_CAPABILITY_ENV];
-  if (!proxyCapability) return NextResponse.json({ error: BOOTSTRAP_CAPABILITY_ERROR }, { status: 403 });
+  if (!proxyCapability) return bootstrapErrorRedirect(request, 'unavailable');
 
-  const response = NextResponse.redirect(new URL('/upload', request.url), 303);
+  // The guard above has validated Host as an explicit loopback origin. Keep
+  // that exact host so a cookie seeded on 127.0.0.1 is not lost by redirecting
+  // to Next's canonical localhost Request.url (or vice versa).
+  const localOrigin = localAPIOrigin(request.headers);
+  if (!localOrigin) return bootstrapErrorRedirect(request, 'unavailable');
+  const response = NextResponse.redirect(new URL('/upload', localOrigin), 303);
   response.cookies.set({
     name: PROXY_MUTATION_CAPABILITY_COOKIE,
     value: proxyCapability,

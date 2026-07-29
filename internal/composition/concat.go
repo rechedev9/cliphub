@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rechedev9/fragforge/internal/filecommit"
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
@@ -22,6 +23,11 @@ func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.Seg
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o750); err != nil {
 		return err
 	}
+	attemptPath, cleanupAttempt, err := filecommit.Attempt(outputPath)
+	if err != nil {
+		return fmt.Errorf("create composition attempt: %w", err)
+	}
+	defer cleanupAttempt()
 	if workDir == "" {
 		workDir = filepath.Dir(outputPath)
 	}
@@ -46,7 +52,7 @@ func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.Seg
 		"-c:a", "aac",
 		"-b:a", "192k",
 		"-movflags", "+faststart",
-		outputPath,
+		attemptPath,
 	)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -55,6 +61,9 @@ func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.Seg
 			return fmt.Errorf("ffmpeg concat: %w: %s", err, msg)
 		}
 		return fmt.Errorf("ffmpeg concat: %w", err)
+	}
+	if err := filecommit.Commit(attemptPath, outputPath); err != nil {
+		return fmt.Errorf("publish composition: %w", err)
 	}
 	return nil
 }

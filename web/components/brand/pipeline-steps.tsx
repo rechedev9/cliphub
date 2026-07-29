@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { VideoStatus } from '@/lib/api/types';
 
-type PipelineStatus = Exclude<VideoStatus, 'failed'>;
+type PipelineStatus = Exclude<VideoStatus, 'failed' | 'review_required'>;
 
 export type PipelineStepsProps = {
   status: VideoStatus;
@@ -123,8 +123,9 @@ function stepTone(index: number, state: StepState, finished: boolean): string {
 export function PipelineSteps({ status, className }: PipelineStepsProps) {
   if (status === 'failed') return null;
 
-  const active = activeIndex(status);
-  const finished = status === 'ready';
+  const pipelineStatus = status === 'review_required' ? 'ready' : status;
+  const active = activeIndex(pipelineStatus);
+  const finished = pipelineStatus === 'ready';
 
   return (
     <ol aria-label="Progreso del reel" className={cn(RAIL_CLASS, className)}>

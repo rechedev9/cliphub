@@ -117,6 +117,9 @@ func scanDemo(demoPath, contains string) (rosterResult, error) {
 			mapName = name
 		}
 	})
+	p.RegisterEventHandler(func(events.MatchStart) {
+		players = resetPlayerStats(p.GameState().Participants().Playing())
+	})
 	p.RegisterEventHandler(func(e events.Kill) {
 		tick := p.GameState().IngameTick()
 		if tick > maxTick {
@@ -162,6 +165,16 @@ func scanDemo(demoPath, contains string) (rosterResult, error) {
 		result.DurationSeconds = float64(maxTick) / float64(tickrate)
 	}
 	return result, nil
+}
+
+func resetPlayerStats(playing []*common.Player) map[uint64]*playerStats {
+	players := make(map[uint64]*playerStats, len(playing))
+	for _, player := range playing {
+		if player != nil {
+			ensurePlayer(players, player)
+		}
+	}
+	return players
 }
 
 func writeRosterText(w io.Writer, result rosterResult) {

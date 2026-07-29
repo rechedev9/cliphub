@@ -337,6 +337,9 @@ func DefaultEditPlan() EditPlan {
 }
 
 func (p EditPlan) Validate() error {
+	if p.SchemaVersion != "" && p.SchemaVersion != EditPlanSchemaVersion {
+		return fmt.Errorf("schema_version must be %q", EditPlanSchemaVersion)
+	}
 	if p.Variant == "" {
 		return fmt.Errorf("variant is required")
 	}
@@ -375,6 +378,18 @@ func (p EditPlan) Validate() error {
 		if math.IsNaN(*positionY) || math.IsInf(*positionY, 0) || *positionY < minVerticalPositionY || *positionY > maxVerticalPositionY {
 			return fmt.Errorf("streamer banner position_y must be finite and between 0.025 and 0.975")
 		}
+	}
+	return nil
+}
+
+// ValidateForRender applies source-duration validation and requires at least
+// one clip. Empty plans remain valid editing drafts, but are never renderable.
+func (p EditPlan) ValidateForRender(durationSeconds float64) error {
+	if err := p.ValidateForSourceDuration(durationSeconds); err != nil {
+		return err
+	}
+	if len(p.Clips) == 0 {
+		return fmt.Errorf("edit plan has no clips")
 	}
 	return nil
 }

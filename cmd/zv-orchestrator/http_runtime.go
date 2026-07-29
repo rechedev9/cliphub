@@ -37,7 +37,20 @@ type preparedHTTPServer struct {
 }
 
 func prepareHTTPServer(server *http.Server) (*preparedHTTPServer, error) {
-	listener, err := net.Listen("tcp", server.Addr)
+	return prepareHTTPServerWithListen(server, net.Listen)
+}
+
+func prepareHTTPServerWithListen(
+	server *http.Server,
+	listen func(network, address string) (net.Listener, error),
+) (*preparedHTTPServer, error) {
+	// Validate before asking the OS for a socket. Apart from defending callers
+	// that bypass loadConfig, this keeps test binaries from briefly exposing a
+	// wildcard listener and triggering a Windows Firewall prompt.
+	if !httpapi.IsLoopbackAddr(server.Addr) {
+		return nil, fmt.Errorf("listen address %s is not an explicit loopback address", server.Addr)
+	}
+	listener, err := listen("tcp", server.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("listen on %s: %w", server.Addr, err)
 	}

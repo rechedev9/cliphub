@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readBoundedText } from '@/lib/api/bounded-request-body';
+import { parseControlJSONObject, readBoundedText } from '@/lib/api/bounded-request-body';
 import { jobUrl, mutationHeaders, forwardError, callOrchestrator, serviceUnavailable } from '../../_lib';
 
 export const runtime = 'nodejs';
@@ -16,13 +16,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
 
   const incoming = await readBoundedText(request);
   if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
-  let requestBody: { steamId?: unknown };
-  try {
-    requestBody = JSON.parse(incoming.text || '{}') as { steamId?: unknown };
-  } catch {
-    return NextResponse.json({ error: 'invalid json body' }, { status: 400 });
-  }
-  const { steamId } = requestBody;
+  const parsed = parseControlJSONObject(incoming.text, ['steamId']);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const { steamId } = parsed.value;
   if (typeof steamId !== 'string' || !steamId) {
     return NextResponse.json({ error: 'steamId required' }, { status: 400 });
   }

@@ -140,7 +140,7 @@ func TestZVBinaryEveryWorkflowRunCommandEndToEnd(t *testing.T) {
 		t.Run(workflow.Name, func(t *testing.T) {
 			args := workflowRunCommandArgs(t, workflow)
 			args = append(args, workflowRunSampleForwardedArgs(t, workflow, galleryPath)...)
-			runZVBinaryWithEnv(t, exe, tempDir, env, args...)
+			runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
 			seen[workflow.Name] = true
 			switch {
 			case workflow.RunArgs[0] == "gallery":
@@ -237,7 +237,7 @@ func TestZVBinaryEveryWorkflowRunAcceptsEqualsRequiredFlagsEndToEnd(t *testing.T
 			args := workflowRunCommandArgs(t, workflow)
 			forwarded := equalsRequiredFlags(t, workflowRunSampleForwardedArgs(t, workflow, galleryPath), required)
 			args = append(args, forwarded...)
-			runZVBinaryWithEnv(t, exe, tempDir, env, args...)
+			runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
 			switch {
 			case workflow.RunArgs[0] == "gallery":
 				wantOpenPathCalls++
@@ -1422,7 +1422,7 @@ func TestZVBinaryEveryDirectWorkflowAcceptsEqualsRequiredFlagsEndToEnd(t *testin
 		}
 		t.Run(workflow.Name, func(t *testing.T) {
 			args := equalsRequiredFlags(t, workflowDirectSampleArgs(t, workflow, galleryPath), required)
-			runZVBinaryWithEnv(t, exe, tempDir, env, args...)
+			runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
 			switch {
 			case workflow.RunArgs[0] == "gallery":
 				wantOpenPathCalls++
@@ -1729,7 +1729,7 @@ func TestZVBinaryWorkflowListJSONRunCommandsEndToEnd(t *testing.T) {
 		}
 		args := workflowRunCommandArgs(t, listedWorkflow)
 		args = append(args, workflowRunSampleForwardedArgs(t, catalogWorkflow, galleryPath)...)
-		runZVBinaryWithEnv(t, exe, tempDir, env, args...)
+		runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
 		seen[listedWorkflow.Name] = true
 		switch {
 		case catalogWorkflow.RunArgs[0] == "gallery":
@@ -1916,7 +1916,7 @@ func TestZVBinaryWorkflowShowJSONRunCommandsEndToEnd(t *testing.T) {
 
 		args := workflowRunCommandArgs(t, shown)
 		args = append(args, workflowRunSampleForwardedArgs(t, catalogWorkflow, galleryPath)...)
-		runZVBinaryWithEnv(t, exe, tempDir, env, args...)
+		runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, tempDir, env, args...)
 		seen[shown.Name] = true
 		switch {
 		case catalogWorkflow.RunArgs[0] == "gallery":

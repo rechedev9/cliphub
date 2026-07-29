@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/tasks"
 )
 
-func TestSuccessfulStreamRerenderDeletesPreviousRevisionAndKeepsWinner(t *testing.T) {
+func TestSuccessfulStreamRerenderKeepsPreviousAndWinningRevisionsReadable(t *testing.T) {
 	jobID := uuid.New()
 	plan := streamclips.DefaultEditPlan()
 	plan.Clips = []streamclips.ClipRange{{
@@ -117,19 +118,10 @@ func TestSuccessfulStreamRerenderDeletesPreviousRevisionAndKeepsWinner(t *testin
 		t.Fatalf("winner state = %+v", winner)
 	}
 	for _, key := range []string{winner.ResultKey, winner.GalleryKey, winner.Videos[0].Key} {
-		exists, err := store.Exists(key)
-		if err != nil || !exists {
-			t.Fatalf("winning artifact %s exists = %v, error = %v", key, exists, err)
-		}
+		assertRevisionCleanupArtifactReadable(t, store, key)
 	}
 	for _, key := range []string{oldResultKey, oldGalleryKey, oldVideoKey} {
-		exists, err := store.Exists(key)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if exists {
-			t.Fatalf("superseded revision artifact remains: %s", key)
-		}
+		assertRevisionCleanupArtifactReadable(t, store, key)
 	}
 }
 
@@ -162,5 +154,17 @@ func readRevisionCleanupJSON(t *testing.T, store storage.Storage, key string, va
 	defer r.Close()
 	if err := json.NewDecoder(r).Decode(value); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func assertRevisionCleanupArtifactReadable(t *testing.T, store storage.Storage, key string) {
+	t.Helper()
+	r, err := store.Open(key)
+	if err != nil {
+		t.Fatalf("open revision artifact %s: %v", key, err)
+	}
+	defer r.Close()
+	if _, err := io.ReadAll(r); err != nil {
+		t.Fatalf("read revision artifact %s: %v", key, err)
 	}
 }

@@ -12,7 +12,13 @@ import type { VideoStatus, CaptureProgress } from './types';
  */
 
 /** Render-variant lifecycle as the orchestrator reports it; 'none' = not started. */
-export type RenderStatus = 'none' | 'queued' | 'rendering' | 'ready' | 'failed';
+export type RenderStatus =
+  | 'none'
+  | 'queued'
+  | 'rendering'
+  | 'ready'
+  | 'review_required'
+  | 'failed';
 
 /** The one pipeline step to issue this tick (idempotent against server state). */
 export type ReelAction = 'record' | 'render' | 'none';
@@ -29,7 +35,7 @@ export type ReelAction = 'record' | 'render' | 'none';
  * render wins over a failed job); skipping the GET for a failed job would wrongly
  * downgrade an already-rendered reel to failed.
  */
-const RENDER_STATE_STATUSES = new Set<string>(['recorded', 'composing', 'composed', 'done', 'failed']);
+const RENDER_STATE_STATUSES = new Set<string>(['recorded', 'composing', 'composed', 'review_required', 'done', 'failed']);
 
 /**
  * Whether a job's render variant can possibly exist yet, i.e. whether issuing the
@@ -40,11 +46,18 @@ export function canHaveRenderState(status: string): boolean {
   return RENDER_STATE_STATUSES.has(status);
 }
 
+/** Review cards stay on the idle poll so cross-tab resolutions become visible. */
+export function shouldReconcileVideoStatus(status: VideoStatus | undefined): boolean {
+  return status === undefined || status !== 'ready' && status !== 'failed';
+}
+
 export type ReconcileInput = {
   jobStatus: string;
   jobFailureReason?: string;
   renderStatus: RenderStatus;
   renderFailureReason?: string;
+  renderWarnings?: string[];
+  renderArtifactPrefix?: string;
   /** Live capture progress from the job poll; meaningful only while recording. */
   captureProgress?: CaptureProgress;
 };
@@ -54,6 +67,10 @@ export type ReelView = {
   action: ReelAction;
   /** Set only when status is 'failed' and the orchestrator supplied a reason. */
   failureReason?: string;
+  /** Exact QA warnings that block publication while review is required. */
+  warnings?: string[];
+  /** Immutable revision that produced `warnings`; required for review CAS. */
+  reviewArtifactPrefix?: string;
   /** Set only when status is 'recording' and the orchestrator reported progress. */
   captureProgress?: CaptureProgress;
   /**
@@ -110,10 +127,28 @@ function failed(reason?: string): ReelView {
 }
 
 export function deriveReelView(input: ReconcileInput): ReelView {
-  const { jobStatus, jobFailureReason, renderStatus, renderFailureReason, captureProgress } = input;
+  const {
+    jobStatus,
+    jobFailureReason,
+    renderStatus,
+    renderFailureReason,
+    renderWarnings,
+    renderArtifactPrefix,
+    captureProgress,
+  } = input;
 
-  // A finished render is always ready — even if the job later flags an error.
+  // A finished render is always terminal — even if the job later flags an
+  // error. Warnings remain a distinct state because publication must stay
+  // blocked until a human resolves them.
   if (renderStatus === 'ready') return { status: 'ready', action: 'none' };
+  if (renderStatus === 'review_required') {
+    return {
+      status: 'review_required',
+      action: 'none',
+      ...(renderWarnings?.length ? { warnings: renderWarnings } : {}),
+      ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),
+    };
+  }
   if (jobStatus === 'failed') return failed(jobFailureReason);
   if (renderStatus === 'failed') return failed(renderFailureReason);
   if (renderStatus === 'queued' || renderStatus === 'rendering') {

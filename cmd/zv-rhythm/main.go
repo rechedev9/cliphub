@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/rechedev9/fragforge/internal/pathguard"
 	"github.com/rechedev9/fragforge/internal/rhythm"
 )
 
@@ -38,6 +39,7 @@ func runAnalyze(args []string) error {
 	input := fs.String("input", "", "audio or video file to analyze")
 	out := fs.String("out", "", "rhythm analysis JSON output path")
 	killPlan := fs.String("killplan", "", "optional kill plan JSON to build segment-to-beat sync suggestions")
+	recordingResult := fs.String("recording-result", "", "optional recording result whose embedded plan supplies segment timing")
 	ffmpegPath := fs.String("ffmpeg", "", "path to ffmpeg.exe; defaults to PATH")
 	sampleRate := fs.Int("sample-rate", 22050, "analysis sample rate")
 	minBPM := fs.Float64("min-bpm", 85, "minimum expected BPM")
@@ -45,6 +47,9 @@ func runAnalyze(args []string) error {
 	killOffsetMS := fs.Int("kill-offset-ms", 100, "target delay after beat for kill impact")
 	maxBeats := fs.Int("max-beats", 256, "maximum beat timestamps to emit")
 	maxOnsets := fs.Int("max-onsets", 32, "maximum strong onset timestamps to emit")
+	tailTrim := fs.Float64("tail-trim", 0, "seconds retained after each segment's final kill")
+	rankMoments := fs.Bool("rank-moments", false, "score and order plan segments best-first")
+	limit := fs.Int("limit", 0, "maximum ranked segments to include; requires --rank-moments")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -54,16 +59,33 @@ func runAnalyze(args []string) error {
 	if *input == "" || *out == "" {
 		return fmt.Errorf("--input and --out are required")
 	}
+	inputs := []pathguard.Input{{Flag: "--input", Path: *input}}
+	if *killPlan != "" {
+		inputs = append(inputs, pathguard.Input{Flag: "--killplan", Path: *killPlan})
+	}
+	if *recordingResult != "" {
+		inputs = append(inputs, pathguard.Input{Flag: "--recording-result", Path: *recordingResult})
+	}
+	if *killPlan != "" && *recordingResult != "" {
+		return fmt.Errorf("--killplan and --recording-result are mutually exclusive")
+	}
+	if err := pathguard.RejectOutputAliases(*out, inputs...); err != nil {
+		return err
+	}
 	analysis, err := rhythm.AnalyzeFile(context.Background(), rhythm.Config{
-		InputPath:         *input,
-		KillPlanPath:      *killPlan,
-		FFmpegPath:        *ffmpegPath,
-		SampleRate:        *sampleRate,
-		MinBPM:            *minBPM,
-		MaxBPM:            *maxBPM,
-		KillOffsetSeconds: float64(*killOffsetMS) / 1000,
-		MaxBeats:          *maxBeats,
-		MaxOnsets:         *maxOnsets,
+		InputPath:           *input,
+		KillPlanPath:        *killPlan,
+		RecordingResultPath: *recordingResult,
+		FFmpegPath:          *ffmpegPath,
+		SampleRate:          *sampleRate,
+		MinBPM:              *minBPM,
+		MaxBPM:              *maxBPM,
+		KillOffsetSeconds:   float64(*killOffsetMS) / 1000,
+		MaxBeats:            *maxBeats,
+		MaxOnsets:           *maxOnsets,
+		TailTrimSeconds:     *tailTrim,
+		RankMoments:         *rankMoments,
+		Limit:               *limit,
 	})
 	if err != nil {
 		return err

@@ -2,6 +2,20 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 
+export type VideoReviewResolution =
+  | {
+      kind: 'rerender';
+      editConfig: EditConfig;
+      expectedArtifactPrefix: string;
+      expectedWarnings: string[];
+    }
+  | {
+      kind: 'accept';
+      note: string;
+      expectedArtifactPrefix: string;
+      expectedWarnings: string[];
+    };
+
 export interface ApiClient {
   /** Whether gameplay capture (HLAE + CS2) is configured on the local machine. */
   getCaptureReadiness(): Promise<CaptureReadiness>;
@@ -32,6 +46,8 @@ export interface ApiClient {
   getPublishAssistant(id: string): Promise<PublishAssistant>;
   /** Re-drive a failed reel from where it failed (re-record or re-render). */
   retryVideo(id: string): Promise<Video>;
+  /** Resolve a QA-blocked reel by changing its edit or documenting intentional warnings. */
+  resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video>;
   /** Remove a reel from the library, deleting its rendered artifacts where possible. */
   deleteVideo(id: string): Promise<void>;
   /**

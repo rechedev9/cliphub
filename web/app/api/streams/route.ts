@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
+import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
 import {
   orchestratorUrl,
   callOrchestrator,
@@ -56,12 +56,9 @@ export async function POST(request: Request): Promise<Response> {
   } else {
     const incoming = await readBoundedText(request);
     if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
-    let body: { source_url?: unknown; title?: unknown };
-    try {
-      body = JSON.parse(incoming.text || '{}') as { source_url?: unknown; title?: unknown };
-    } catch {
-      return NextResponse.json({ error: 'invalid json body' }, { status: 400 });
-    }
+    const parsed = parseControlJSONObject(incoming.text, ['source_url', 'title']);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const body = parsed.value;
     if (typeof body.source_url !== 'string' || !body.source_url) {
       return NextResponse.json({ error: 'source_url is required' }, { status: 400 });
     }

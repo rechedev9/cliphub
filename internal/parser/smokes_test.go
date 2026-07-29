@@ -59,6 +59,47 @@ func TestSegmentUtilityDoesNotExposeSharedAppendCapacity(t *testing.T) {
 	}
 }
 
+func TestUtilityCollectorsKeepFirstIdentityAndClampToDemoDuration(t *testing.T) {
+	for _, build := range []struct {
+		name string
+		run  func() (killplan.Plan, error)
+	}{
+		{
+			name: "smoke",
+			run: func() (killplan.Plan, error) {
+				c := NewSmokeCollector(targetID, defaultTestRules())
+				c.RecordTargetIdentity("first", "T")
+				c.RecordTargetIdentity("last", "CT")
+				c.RecordSmoke(mkSmoke(100, 0, 1))
+				return c.Build(PlanMeta{Tickrate: testTickrate, DurationTicks: 100})
+			},
+		},
+		{
+			name: "utility",
+			run: func() (killplan.Plan, error) {
+				c := NewUtilityCollector(targetID, defaultTestRules())
+				c.RecordTargetIdentity("first", "T")
+				c.RecordTargetIdentity("last", "CT")
+				c.RecordUtility(RawUtilityThrow{Type: FlashbangType, ThrowTick: 100, Round: 1})
+				return c.Build(PlanMeta{Tickrate: testTickrate, DurationTicks: 100})
+			},
+		},
+	} {
+		t.Run(build.name, func(t *testing.T) {
+			plan, err := build.run()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Target.NameInDemo != "first" || plan.Target.TeamAtStart != "T" {
+				t.Fatalf("target = %#v, want first identity", plan.Target)
+			}
+			if len(plan.Segments) != 1 || plan.Segments[0].TickEnd != 100 {
+				t.Fatalf("segments = %#v, want EOF-clamped end", plan.Segments)
+			}
+		})
+	}
+}
+
 func TestSegmentUtilityAllFilteredKeepsEmptyNonNilResult(t *testing.T) {
 	r := defaultTestRules()
 	r.MinRound = 10

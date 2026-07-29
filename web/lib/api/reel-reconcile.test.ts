@@ -3,7 +3,7 @@
 // reconcile state machine is testable with zero new dependencies (Node 24 node:test).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canHaveRenderState, deriveReelView, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
+import { canHaveRenderState, deriveReelView, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
 import type { ReconcileInput } from './reel-reconcile.ts';
 
 /** deriveReelView with sane defaults so each case states only what it varies. */
@@ -67,6 +67,30 @@ test('render ready wins even if job flags failed (a finished reel is ready)', ()
     view({ jobStatus: 'failed', jobFailureReason: 'x', renderStatus: 'ready' }),
     { status: 'ready', action: 'none' },
   );
+});
+
+test('render warnings stay terminal but block publication', () => {
+  assert.deepEqual(
+    view({
+      jobStatus: 'failed',
+      jobFailureReason: 'later failure',
+      renderStatus: 'review_required',
+      renderWarnings: ['frozen frame at 00:12.400'],
+      renderArtifactPrefix: 'jobs/j/renders/v/revisions/r',
+    }),
+    {
+      status: 'review_required',
+      action: 'none',
+      warnings: ['frozen frame at 00:12.400'],
+      reviewArtifactPrefix: 'jobs/j/renders/v/revisions/r',
+    },
+  );
+});
+
+test('review-required reels remain on idle reconciliation for cross-tab updates', () => {
+  assert.equal(shouldReconcileVideoStatus('review_required'), true);
+  assert.equal(shouldReconcileVideoStatus('ready'), false);
+  assert.equal(shouldReconcileVideoStatus('failed'), false);
 });
 
 test('job failed → failed with reason', () => {
@@ -135,7 +159,7 @@ test('a normal render failure stays recoverable (retry can re-drive it)', () => 
 });
 
 test('canHaveRenderState: true only once a render POST can have been driven', () => {
-  for (const s of ['recorded', 'composing', 'composed', 'done']) {
+  for (const s of ['recorded', 'composing', 'composed', 'review_required', 'done']) {
     assert.equal(canHaveRenderState(s), true, `${s} should allow a render GET`);
   }
 });

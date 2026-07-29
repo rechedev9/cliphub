@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/job"
 	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/fragforge/internal/recording"
 	"github.com/rechedev9/fragforge/internal/storage"
 )
 
@@ -20,6 +22,42 @@ func segmentPlan(n int) *killplan.Plan {
 		plan.Segments = append(plan.Segments, killplan.Segment{ID: "s" + string(rune('0'+i))})
 	}
 	return plan
+}
+
+func TestCaptureProgressUsesNonCommittingAttemptDocument(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	progress, err := recording.NewCaptureProgress(
+		uuid.New(),
+		[]string{"s1", "s2", "s3"},
+		[]string{"s1"},
+		time.Now(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.CaptureProgressKey(id), bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok := captureProgressWithTotal(store, id, job.StatusRecording, 99)
+	if !ok || got.Done != 1 || got.Total != 3 {
+		t.Fatalf("captureProgressWithTotal = (%+v, %v), want 1/3", got, ok)
+	}
+	clipKey, err := artifacts.SegmentClipKey(id, "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists, err := store.Exists(clipKey); err != nil || exists {
+		t.Fatalf("progress document committed a segment clip: exists=%v err=%v", exists, err)
+	}
 }
 
 // writeSegmentClips writes size-1 MP4 blobs for the given segment ids so the

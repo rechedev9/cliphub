@@ -73,9 +73,9 @@ type AnalyzeAnticheatPayload struct {
 }
 
 // AnalyzeTacticalPayload carries the job id for a tactical analysis worker.
-// SampleHZ is the position sampling rate; zero selects the scan default. It is
-// part of the payload so a scan at a different rate is a distinct task rather
-// than a duplicate of the one already queued.
+// The HTTP job artifact has one canonical sampling rate, so every admission
+// normalizes SampleHZ before constructing this payload and queue uniqueness
+// cannot diverge from artifact identity.
 type AnalyzeTacticalPayload struct {
 	JobID    uuid.UUID `json:"job_id"`
 	SampleHZ float64   `json:"sample_hz,omitempty"`

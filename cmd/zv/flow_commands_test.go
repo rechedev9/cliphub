@@ -100,7 +100,7 @@ func TestDemoFlowRequiresCreativeAndThumbnailGates(t *testing.T) {
 	for _, phase := range flow.Phases {
 		phases[phase.ID] = phase
 	}
-	for _, want := range []string{"--hud <gameplay|clean|deathnotices>", "--kill-effect <approved-effect>", "--kill-counter=<true|false>", "--covers=<true|false>"} {
+	for _, want := range []string{"--hud <gameplay|clean|deathnotices>", "--kill-effect <approved-effect>", "--hook=<true|false>", "--kill-counter=<true|false>", "--covers=<true|false>"} {
 		commands := phases["capture-preflight"].Command + phases["edit-preflight"].Command + phases["edit"].Command
 		if !strings.Contains(commands, want) {
 			t.Fatalf("approved choice %q missing from downstream commands: %s", want, commands)
@@ -141,6 +141,21 @@ func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T)
 	for _, id := range []string{"plan-preflight", "render-preflight"} {
 		if !strings.Contains(commands[id], "--dry-run") {
 			t.Fatalf("preflight phase %q = %q, want --dry-run", id, commands[id])
+		}
+	}
+	planReview := result.Flow.Phases[0]
+	for _, phase := range result.Flow.Phases {
+		if phase.ID == "plan-review" {
+			planReview = phase
+			break
+		}
+	}
+	if planReview.ID != "plan-review" || !planReview.Gate || !planReview.ReadOnly || planReview.Decision == "" {
+		t.Fatalf("plan review = %#v, want a read-only approval gate", planReview)
+	}
+	for _, want := range []string{"zv stream render", "--plan <run>/edit-plan.json", "--dry-run"} {
+		if !strings.Contains(planReview.Command, want) {
+			t.Fatalf("plan review command = %q, missing %q", planReview.Command, want)
 		}
 	}
 	for _, output := range result.Flow.Outputs {

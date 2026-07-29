@@ -10,8 +10,9 @@ import (
 
 func TestNewPublishBoardMarksReadyWhenAllItemsReady(t *testing.T) {
 	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:   uuid.New(),
-		Variant: "viral-60-clean",
+		JobID:          uuid.New(),
+		Variant:        "viral-60-clean",
+		CoversRequired: true,
 		Items: []PublishBoardItem{{
 			SegmentID:    "seg-001",
 			VideoReady:   true,
@@ -30,8 +31,9 @@ func TestNewPublishBoardMarksReadyWhenAllItemsReady(t *testing.T) {
 
 func TestNewPublishBoardSurfacesMissingCoverBeforeCaption(t *testing.T) {
 	board := NewPublishBoard(NewPublishBoardOptions{
-		JobID:   uuid.New(),
-		Variant: "viral-60-clean",
+		JobID:          uuid.New(),
+		Variant:        "viral-60-clean",
+		CoversRequired: true,
 		Items: []PublishBoardItem{{
 			SegmentID:    "seg-001",
 			VideoReady:   true,
@@ -76,6 +78,70 @@ func TestNewPublishBoardMarksFailedFromRenderError(t *testing.T) {
 
 	if board.Status != "failed" || board.RenderReady {
 		t.Fatalf("status/render_ready = %q/%v, want failed/false", board.Status, board.RenderReady)
+	}
+}
+
+func TestNewPublishBoardRequiresReviewForWarnings(t *testing.T) {
+	board := NewPublishBoard(NewPublishBoardOptions{
+		JobID:    uuid.New(),
+		Variant:  "viral-60-clean",
+		Warnings: []string{"frozen frame at 00:07"},
+		Items: []PublishBoardItem{{
+			SegmentID:    "seg-001",
+			VideoReady:   true,
+			CaptionReady: true,
+		}},
+	})
+
+	if board.Status != "review_required" || board.RenderReady {
+		t.Fatalf("status/render_ready = %q/%v, want review_required/false", board.Status, board.RenderReady)
+	}
+}
+
+func TestNewPublishBoardSurfacesMissingArtifactsBeforeWarnings(t *testing.T) {
+	tests := []struct {
+		name           string
+		coversRequired bool
+		item           PublishBoardItem
+		wantBoard      string
+		wantItem       string
+	}{
+		{
+			name:      "missing video",
+			item:      PublishBoardItem{CaptionReady: true},
+			wantBoard: "draft",
+			wantItem:  "missing_video",
+		},
+		{
+			name:           "missing required cover",
+			coversRequired: true,
+			item:           PublishBoardItem{VideoReady: true, CaptionReady: true},
+			wantBoard:      "needs_cover",
+			wantItem:       "needs_cover",
+		},
+		{
+			name:      "missing caption",
+			item:      PublishBoardItem{VideoReady: true, CoverReady: true},
+			wantBoard: "needs_caption",
+			wantItem:  "needs_caption",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			board := NewPublishBoard(NewPublishBoardOptions{
+				JobID:          uuid.New(),
+				Variant:        "viral-60-clean",
+				CoversRequired: test.coversRequired,
+				Warnings:       []string{"frozen frame at 00:07"},
+				Items:          []PublishBoardItem{test.item},
+			})
+			if board.Status != test.wantBoard || board.RenderReady {
+				t.Fatalf("status/render_ready = %q/%v, want %q/false", board.Status, board.RenderReady, test.wantBoard)
+			}
+			if board.Items[0].Status != test.wantItem {
+				t.Fatalf("item status = %q, want %q", board.Items[0].Status, test.wantItem)
+			}
+		})
 	}
 }
 

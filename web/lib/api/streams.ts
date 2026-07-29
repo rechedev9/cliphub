@@ -125,7 +125,7 @@ export interface StreamsApiClient {
   sourceUrl(id: string): string;
   getEditPlan(id: string): Promise<StreamEditPlan>;
   putEditPlan(id: string, plan: StreamEditPlan): Promise<StreamEditPlan>;
-  startRender(id: string, variant: StreamVariant): Promise<StreamRenderState>;
+  startRender(id: string, variant: StreamVariant, expectedEditPlanUpdatedAt: string): Promise<StreamRenderState>;
   getRenderState(id: string, variant: StreamVariant): Promise<StreamRenderState>;
   /** Same-origin URL for a <video>/download link to a rendered Short. */
   videoUrl(id: string, variant: StreamVariant, clipId: string): string;
@@ -194,8 +194,14 @@ export class RealStreamsApiClient implements StreamsApiClient {
     );
   }
 
-  async startRender(id: string, variant: StreamVariant): Promise<StreamRenderState> {
-    return readJson<StreamRenderState>(await fetch(`/api/streams/${id}/renders/${variant}`, { method: 'POST' }));
+  async startRender(id: string, variant: StreamVariant, expectedEditPlanUpdatedAt: string): Promise<StreamRenderState> {
+    return readJson<StreamRenderState>(
+      await fetch(`/api/streams/${id}/renders/${variant}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_edit_plan_updated_at: expectedEditPlanUpdatedAt }),
+      }),
+    );
   }
 
   async getRenderState(id: string, variant: StreamVariant): Promise<StreamRenderState> {

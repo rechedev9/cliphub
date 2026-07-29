@@ -21,6 +21,7 @@ type SmokeCollector struct {
 	targetName        string
 	targetTeamAtStart string
 	targetSeen        bool
+	identityCaptured  bool
 }
 
 type UtilityCollector struct {
@@ -38,6 +39,7 @@ type UtilityCollector struct {
 	targetName        string
 	targetTeamAtStart string
 	targetSeen        bool
+	identityCaptured  bool
 }
 
 func NewSmokeCollector(target string, r rules.Rules) *SmokeCollector {
@@ -49,15 +51,45 @@ func NewUtilityCollector(target string, r rules.Rules) *UtilityCollector {
 }
 
 func (c *SmokeCollector) RecordTargetIdentity(name, teamAtStart string) {
+	if c.identityCaptured {
+		return
+	}
 	c.targetName = name
 	c.targetTeamAtStart = teamAtStart
 	c.targetSeen = true
+	c.identityCaptured = true
 }
 
 func (c *UtilityCollector) RecordTargetIdentity(name, teamAtStart string) {
+	if c.identityCaptured {
+		return
+	}
 	c.targetName = name
 	c.targetTeamAtStart = teamAtStart
 	c.targetSeen = true
+	c.identityCaptured = true
+}
+
+func (c *SmokeCollector) resetForMatchStart() {
+	c.smokes = nil
+	c.roundEnds = nil
+	c.totalSmokesTarget = 0
+	c.smokesAfterFilters = 0
+	// Preserve warmup identity if the target has no live smoke events, while
+	// allowing the first live observation to refresh its alias and starting side.
+	c.identityCaptured = false
+}
+
+func (c *UtilityCollector) resetForMatchStart() {
+	c.utility = nil
+	c.roundEnds = nil
+	c.totalUtilityTarget = 0
+	c.utilityAfterFilters = 0
+	c.totalSmokesTarget = 0
+	c.smokesAfterFilters = 0
+	// Preserve warmup identity if the target has no live utility events, while
+	// allowing the first live observation to refresh its alias and starting side.
+	c.identityCaptured = false
 }
 
 func (c *SmokeCollector) RecordSmoke(s RawUtilityThrow) {
@@ -114,6 +146,7 @@ func (c *SmokeCollector) Build(m PlanMeta) (killplan.Plan, error) {
 	}
 
 	segs := SegmentSmokes(c.smokes, c.roundEnds, c.rules, m.Tickrate)
+	segs = clampSegmentsToDuration(segs, m.DurationTicks)
 	if segs == nil {
 		segs = []killplan.Segment{}
 	}
@@ -158,6 +191,7 @@ func (c *UtilityCollector) Build(m PlanMeta) (killplan.Plan, error) {
 	}
 
 	segs := SegmentUtility(c.utility, c.roundEnds, c.rules, m.Tickrate)
+	segs = clampSegmentsToDuration(segs, m.DurationTicks)
 	if segs == nil {
 		segs = []killplan.Segment{}
 	}

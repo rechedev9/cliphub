@@ -1,6 +1,9 @@
 package editor
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +11,7 @@ import (
 
 	"github.com/rechedev9/fragforge/internal/killplan"
 	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/fragforge/internal/rhythm"
 )
 
 func mustBuildManifest(t *testing.T, result recording.RecordingResult, opts ManifestOptions) Manifest {
@@ -114,6 +118,30 @@ func TestBuildManifestCoverFirstFrameKeepsCoverTimeWithoutCovers(t *testing.T) {
 	}
 	if first.CoverTimeSeconds != 0.88 {
 		t.Fatalf("cover time = %.3f, want 0.880 for the first-frame freeze", first.CoverTimeSeconds)
+	}
+}
+
+func TestBuildManifestHonorsExplicitCoverSheetDisable(t *testing.T) {
+	dir := t.TempDir()
+	result := testRecordingResult(dir)
+	opts := testManifestOptions(dir, nil)
+	opts.CoverSheetsSet = true
+	opts.CoverSheets = false
+	manifest := mustBuildManifest(t, result, opts)
+
+	if manifest.CoverSheets {
+		t.Fatal("manifest cover sheets = true, want explicit false to override the preset")
+	}
+	for _, short := range manifest.Shorts {
+		if short.CoverSheetPath != "" || len(short.CoverSheetCommand) != 0 {
+			t.Fatalf("short cover sheet = %q / %#v, want disabled", short.CoverSheetPath, short.CoverSheetCommand)
+		}
+	}
+}
+
+func TestResolveCoverSheetsPreservesEstablishedTrueOverride(t *testing.T) {
+	if got := resolveCoverSheets(false, true, false); !got {
+		t.Fatalf("resolveCoverSheets(false, true, false) = %v, want true", got)
 	}
 }
 
@@ -605,38 +633,39 @@ func TestBuildManifestCompileSegmentsCreatesOneShort(t *testing.T) {
 
 func TestBuildManifestAppliesRhythmSyncToCompiledParts(t *testing.T) {
 	dir := t.TempDir()
-	rhythmPath := filepath.Join(dir, "rhythm.json")
-	if err := os.WriteFile(rhythmPath, []byte(`{
-		"schema_version":"1.0",
-		"segment_sync":[
-			{"segment_id":"seg-001","timeline_start_seconds":0.500,"gap_before_seconds":0.500},
-			{"segment_id":"seg-002","timeline_start_seconds":9.000,"gap_before_seconds":1.000}
-		]
-	}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	result := testRecordingResult(dir)
 	opts := testManifestOptions(dir, nil)
 	opts.CompileSegments = true
 	opts.MusicPath = filepath.Join(dir, "music", "brightmelodicskippyedm.wav")
+	rhythmPath := filepath.Join(dir, "rhythm.json")
 	opts.RhythmPath = rhythmPath
 	opts.OutputFPS = 24
+	sync := writeCanonicalRhythmFixture(
+		t,
+		rhythmPath,
+		opts.MusicPath,
+		result.Plan.ToKillPlan(),
+		[]float64{4, 12, 20},
+		0.1,
+		0,
+	)
 
 	manifest := mustBuildManifest(t, result, opts)
 	if len(manifest.Warnings) != 0 {
 		t.Fatalf("warnings = %v", manifest.Warnings)
 	}
 	short := manifest.Shorts[0]
-	if got := short.Parts[0].GapBeforeSeconds; got != 0.5 {
-		t.Fatalf("part[0] gap = %.3f, want 0.500", got)
+	if got := short.Parts[0].GapBeforeSeconds; got != sync[0].GapBeforeSeconds {
+		t.Fatalf("part[0] gap = %.3f, want %.3f", got, sync[0].GapBeforeSeconds)
 	}
-	if got := short.Parts[1].TimelineStartSeconds; got != 9.0 {
-		t.Fatalf("part[1] timeline start = %.3f, want 9.000", got)
+	if got := short.Parts[1].TimelineStartSeconds; got != sync[1].TimelineStartSeconds {
+		t.Fatalf("part[1] timeline start = %.3f, want %.3f", got, sync[1].TimelineStartSeconds)
 	}
-	if got := short.Parts[1].GapBeforeSeconds; got != 0.5 {
-		t.Fatalf("part[1] gap = %.3f, want timeline-derived 0.500", got)
+	wantGap := sync[1].TimelineStartSeconds - (sync[0].TimelineStartSeconds + short.Parts[0].DurationSeconds)
+	if got := short.Parts[1].GapBeforeSeconds; got != wantGap {
+		t.Fatalf("part[1] gap = %.3f, want timeline-derived %.3f", got, wantGap)
 	}
-	if got := short.Kills[2].TimeSeconds; got <= 9.0 {
+	if got := short.Kills[2].TimeSeconds; got <= sync[1].TimelineStartSeconds {
 		t.Fatalf("third kill time = %.3f, want shifted onto compiled timeline", got)
 	}
 }
@@ -815,6 +844,42 @@ func testRecordingResult(dir string) recording.RecordingResult {
 			{SegmentID: "seg-001", Role: "segment", Type: "video", Path: filepath.Join(dir, "recording", "segments", "seg-001.mp4"), SizeBytes: 14_500_000, DurationSeconds: 8, Codec: "h264", Width: 1920, Height: 1080, FrameRate: "60/1"},
 		},
 	}
+}
+
+func writeCanonicalRhythmFixture(
+	t *testing.T,
+	rhythmPath string,
+	musicPath string,
+	plan killplan.Plan,
+	beats []float64,
+	killOffset float64,
+	tailTrimSeconds float64,
+) []rhythm.SegmentSync {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(musicPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	music := []byte("deterministic-rhythm-fixture")
+	if err := os.WriteFile(musicPath, music, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sync := rhythm.BuildSegmentSyncWithTrim(plan, beats, killOffset, tailTrimSeconds)
+	analysis := rhythm.Analysis{
+		SchemaVersion:     rhythm.SchemaVersion,
+		SourceSHA256:      fmt.Sprintf("%x", sha256.Sum256(music)),
+		KillOffsetSeconds: killOffset,
+		TailTrimSeconds:   tailTrimSeconds,
+		BeatTimesSeconds:  beats,
+		SegmentSync:       sync,
+	}
+	body, err := json.MarshalIndent(analysis, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rhythmPath, append(body, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return sync
 }
 
 func argAfter(args []string, key string) string {
@@ -1039,44 +1104,42 @@ func TestBuildManifestCompiledTailTrimsParts(t *testing.T) {
 	t.Fatalf("command = %v, want input-level -t 6.078 before the first part input", command)
 }
 
-func TestBuildManifestCompiledRhythmSkipsTailTrim(t *testing.T) {
+func TestBuildManifestCompiledRhythmAppliesTailTrim(t *testing.T) {
 	dir := t.TempDir()
-	rhythmPath := filepath.Join(dir, "rhythm.json")
-	if err := os.WriteFile(rhythmPath, []byte(`{
-		"schema_version":"1.0",
-		"segment_sync":[
-			{"segment_id":"seg-001","timeline_start_seconds":0.500,"gap_before_seconds":0.500},
-			{"segment_id":"seg-002","timeline_start_seconds":9.000,"gap_before_seconds":1.000}
-		]
-	}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	result := testRecordingResult(dir)
 	opts := testManifestOptions(dir, nil)
 	opts.CompileSegments = true
 	opts.MusicPath = filepath.Join(dir, "music", "beat.wav")
+	rhythmPath := filepath.Join(dir, "rhythm.json")
 	opts.RhythmPath = rhythmPath
 	opts.TailTrimSeconds = 1.5
+	sync := writeCanonicalRhythmFixture(
+		t,
+		rhythmPath,
+		opts.MusicPath,
+		result.Plan.ToKillPlan(),
+		[]float64{4, 12, 20},
+		0.1,
+		opts.TailTrimSeconds,
+	)
 
 	manifest := mustBuildManifest(t, result, opts)
-	found := false
 	for _, warning := range manifest.Warnings {
 		if strings.Contains(warning, "tail trim skipped") {
-			found = true
+			t.Fatalf("warnings = %v, tail trim must not be skipped", manifest.Warnings)
 		}
-	}
-	if !found {
-		t.Fatalf("warnings = %v, want tail trim skipped notice", manifest.Warnings)
 	}
 	short := manifest.Shorts[0]
-	if got := short.Parts[0].DurationSeconds; got != 8 {
-		t.Fatalf("part[0] duration = %.3f, want untrimmed 8.000", got)
+	if got := short.Parts[0].DurationSeconds; got != sync[0].DurationSeconds {
+		t.Fatalf("part[0] duration = %.3f, want trimmed %.3f", got, sync[0].DurationSeconds)
 	}
-	for _, arg := range short.FFmpegCommand {
-		if arg == "-t" {
-			t.Fatalf("command = %v, want no -t under rhythm sync", short.FFmpegCommand)
+	for i, arg := range short.FFmpegCommand {
+		if arg == "-t" && i+1 < len(short.FFmpegCommand) &&
+			short.FFmpegCommand[i+1] == fmt.Sprintf("%.3f", sync[0].DurationSeconds) {
+			return
 		}
 	}
+	t.Fatalf("command = %v, want input trim %.3f under rhythm sync", short.FFmpegCommand, sync[0].DurationSeconds)
 }
 
 func TestPrettifyMapName(t *testing.T) {

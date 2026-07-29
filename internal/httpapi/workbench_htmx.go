@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -89,6 +90,14 @@ type workbenchArtifactLink struct {
 	Ready bool
 }
 
+type workbenchClientError struct {
+	err error
+}
+
+func (e *workbenchClientError) Error() string {
+	return e.err.Error()
+}
+
 type bufferedResponse struct {
 	header http.Header
 	code   int
@@ -165,7 +174,7 @@ func (h *Handlers) WorkbenchWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	view, err := h.workbenchJobView(r, id)
 	if err != nil {
-		h.renderWorkbenchError(w, "load job", err)
+		h.renderWorkbenchJobViewError(w, err)
 		return
 	}
 	renderWorkbenchTemplate(w, workbenchJobTemplate, view)
@@ -179,7 +188,7 @@ func (h *Handlers) WorkbenchJob(w http.ResponseWriter, r *http.Request) {
 	}
 	view, err := h.workbenchJobView(r, id)
 	if err != nil {
-		h.renderWorkbenchError(w, "load job", err)
+		h.renderWorkbenchJobViewError(w, err)
 		return
 	}
 	renderWorkbenchTemplate(w, workbenchJobTemplate, view)
@@ -188,6 +197,7 @@ func (h *Handlers) WorkbenchJob(w http.ResponseWriter, r *http.Request) {
 // WorkbenchCreateJob adapts the HTMX upload form to POST /api/jobs.
 func (h *Handlers) WorkbenchCreateJob(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxMultipartBytes)
+	// #nosec G120 -- MaxBytesReader above bounds the complete multipart body before parsing.
 	if err := r.ParseMultipartForm(multipartMemBudget); err != nil {
 		h.renderWorkbenchError(w, "parse upload form", err)
 		return
@@ -394,6 +404,9 @@ func (h *Handlers) workbenchJobView(r *http.Request, id uuid.UUID) (workbenchJob
 	if variant == "" {
 		variant = editor.DefaultPreset().Name
 	}
+	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
+		return workbenchJobView{}, &workbenchClientError{err: err}
+	}
 
 	// A non-zero run id means a newly accepted capture still owns the guided
 	// handoff. Ignore any job+variant render state from an older run until the
@@ -403,6 +416,9 @@ func (h *Handlers) workbenchJobView(r *http.Request, id uuid.UUID) (workbenchJob
 	var renderErr error
 	if !activeGenerate {
 		renderState, renderErr = h.workbenchRenderState(j.ID, variant)
+	}
+	if renderErr != nil {
+		return workbenchJobView{}, fmt.Errorf("read render state: %w", renderErr)
 	}
 	roster, rosterErr := h.workbenchRoster(j.ID)
 	momentRows, momentsErr := h.workbenchMoments(j)
@@ -428,10 +444,9 @@ func (h *Handlers) workbenchJobView(r *http.Request, id uuid.UUID) (workbenchJob
 
 	var shorts []workbenchShort
 	if ready {
-		if s, err := h.workbenchShorts(j.ID, variant); err == nil {
-			shorts = s
-		} else {
-			renderErr = err
+		shorts, err = h.workbenchShorts(j.ID, variant)
+		if err != nil {
+			return workbenchJobView{}, fmt.Errorf("read current render result: %w", err)
 		}
 	}
 
@@ -462,9 +477,6 @@ func (h *Handlers) workbenchJobView(r *http.Request, id uuid.UUID) (workbenchJob
 	}
 	if momentsErr != nil {
 		view.MomentsError = momentsErr.Error()
-	}
-	if renderErr != nil {
-		view.RenderError = renderErr.Error()
 	}
 	return view, nil
 }
@@ -578,9 +590,13 @@ func (h *Handlers) workbenchGenerateIntent(id uuid.UUID) (renderplan.GenerateInt
 // workbenchShorts reads the finished render result and returns the per-short
 // data needed for inline preview and download.
 func (h *Handlers) workbenchShorts(id uuid.UUID, variant string) ([]workbenchShort, error) {
-	ref, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactResult, "")
+	snapshot, err := h.currentRenderVariantSnapshot(id, variant)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read render state: %w", err)
+	}
+	ref, err := snapshot.artifactRef(renderplan.RenderVariantArtifactResult, "")
+	if err != nil {
+		return nil, fmt.Errorf("resolve current render result: %w", err)
 	}
 	rc, err := h.storage.Open(ref.Key)
 	if err != nil {
@@ -665,9 +681,12 @@ func (h *Handlers) workbenchRenderState(id uuid.UUID, variant string) (*renderpl
 	if err := json.NewDecoder(rc).Decode(&result); err != nil {
 		return nil, fmt.Errorf("decode render result: %w", err)
 	}
+	warnings := renderplan.CompleteRenderWarnings(result)
 	status := renderplan.RenderVariantStatusReady
 	if result.Error != "" {
 		status = renderplan.RenderVariantStatusFailed
+	} else if len(warnings) > 0 {
+		status = renderplan.RenderVariantStatusReview
 	}
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {
@@ -677,7 +696,7 @@ func (h *Handlers) workbenchRenderState(id uuid.UUID, variant string) (*renderpl
 		JobID:    id,
 		Loadout:  loadout,
 		Status:   status,
-		Warnings: result.Warnings,
+		Warnings: warnings,
 		Error:    result.Error,
 	})
 	if err != nil {
@@ -742,6 +761,15 @@ func (h *Handlers) renderWorkbenchError(w http.ResponseWriter, op string, err er
 		Operation string
 		Message   string
 	}{Operation: op, Message: err.Error()})
+}
+
+func (h *Handlers) renderWorkbenchJobViewError(w http.ResponseWriter, err error) {
+	var clientErr *workbenchClientError
+	if errors.As(err, &clientErr) {
+		writeError(w, http.StatusBadRequest, clientErr.Error())
+		return
+	}
+	internalError(w, "load workbench job view", err)
 }
 
 func (h *Handlers) renderWorkbenchActionError(w http.ResponseWriter, op string, resp *bufferedResponse) {

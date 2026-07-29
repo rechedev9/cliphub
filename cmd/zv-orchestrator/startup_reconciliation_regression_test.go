@@ -41,6 +41,16 @@ func (r startupFailingJobRepository) UpdateStatus(ctx context.Context, id uuid.U
 	return r.orchestratorJobRepository.UpdateStatus(ctx, id, status, reason)
 }
 
+func TestReconcileInterruptedWorkRequiresStreamRepository(t *testing.T) {
+	result, err := reconcileInterruptedWork(context.Background(), nil, nil, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "stream repository is required") {
+		t.Fatalf("reconcileInterruptedWork error = %v, want missing stream repository", err)
+	}
+	if result.total() != 0 {
+		t.Fatalf("reconciliation result = %#v, want no partial work", result)
+	}
+}
+
 func TestReconcileInterruptedWorkPromotesCompletedStreamAfterSQLiteRestart(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -217,8 +227,8 @@ func TestReconcileInterruptedWorkPreservesRenderingParentsWhenStateAuditFails(t 
 	if err == nil || !strings.Contains(err.Error(), "injected render state read failure") {
 		t.Fatalf("reconcileInterruptedWork error = %v, want render state audit failure", err)
 	}
-	if result.StreamJobs != 1 {
-		t.Fatalf("reconciled stream jobs = %d, want only acquiring job", result.StreamJobs)
+	if result.StreamJobs != 0 || len(result.StreamAcquisitions) != 1 || result.StreamAcquisitions[0] != acquiring.ID {
+		t.Fatalf("reconciliation = stream jobs %d acquisitions %v, want acquiring job queued for recovery", result.StreamJobs, result.StreamAcquisitions)
 	}
 
 	gotRendering, err := streamRepo.Get(ctx, rendering.ID)
@@ -232,8 +242,8 @@ func TestReconcileInterruptedWorkPreservesRenderingParentsWhenStateAuditFails(t 
 	if err != nil {
 		t.Fatalf("Get acquiring parent: %v", err)
 	}
-	if gotAcquiring.Status != streamclips.StatusFailed || gotAcquiring.FailureReason != interruptedStreamAcquire {
-		t.Fatalf("acquiring parent after incomplete audit = status %q reason %q, want failed/%q", gotAcquiring.Status, gotAcquiring.FailureReason, interruptedStreamAcquire)
+	if gotAcquiring.Status != streamclips.StatusAcquiring || gotAcquiring.FailureReason != "" {
+		t.Fatalf("acquiring parent after incomplete audit = status %q reason %q, want unchanged for recovery", gotAcquiring.Status, gotAcquiring.FailureReason)
 	}
 }
 
@@ -262,8 +272,9 @@ func TestReconcileInterruptedWorkContinuesAfterCategoryFailure(t *testing.T) {
 			t.Errorf("reconcileInterruptedWork error %q does not contain %q", err, want)
 		}
 	}
-	if result.DemoJobs != 1 || result.StreamJobs != 1 {
-		t.Fatalf("reconciled counts = demo %d stream %d, want 1/1", result.DemoJobs, result.StreamJobs)
+	if result.DemoJobs != 1 || result.StreamJobs != 0 ||
+		len(result.StreamAcquisitions) != 1 || result.StreamAcquisitions[0] != repairedStream.ID {
+		t.Fatalf("reconciled counts = demo %d stream %d acquisitions %v, want 1/0 plus recoverable acquisition", result.DemoJobs, result.StreamJobs, result.StreamAcquisitions)
 	}
 
 	gotDemo, err := base.Get(ctx, repairedDemo.ID)
@@ -277,8 +288,8 @@ func TestReconcileInterruptedWorkContinuesAfterCategoryFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get repaired stream: %v", err)
 	}
-	if gotStream.Status != streamclips.StatusFailed {
-		t.Fatalf("repaired stream status = %s, want failed", gotStream.Status)
+	if gotStream.Status != streamclips.StatusAcquiring || gotStream.FailureReason != "" {
+		t.Fatalf("repaired stream status = %s reason %q, want unchanged acquiring", gotStream.Status, gotStream.FailureReason)
 	}
 }
 

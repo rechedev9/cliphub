@@ -74,6 +74,7 @@ func (h *Handlers) StartTacticalAnalysis(w http.ResponseWriter, r *http.Request)
 		State:         artifacts.TacticalStateQueued,
 		GeneratedAt:   time.Now().UTC(),
 		SchemaVersion: tacticalplan.SchemaVersion,
+		SampleHZ:      sampleHZ,
 	}
 	_, err = h.queue.EnqueueWithTransition(task, func(decision error) error {
 		switch {
@@ -142,6 +143,7 @@ func (h *Handlers) GetTacticalStatus(w http.ResponseWriter, r *http.Request) {
 			State:         artifacts.TacticalStateNone,
 			GeneratedAt:   time.Now().UTC(),
 			SchemaVersion: tacticalplan.SchemaVersion,
+			SampleHZ:      tactical.DefaultSampleHZ,
 		}
 	}
 	writeJSON(w, http.StatusOK, status)
@@ -245,15 +247,16 @@ func (h *Handlers) GetMapRadar(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, calibration)
 }
 
-// decodeTacticalSampleHZ reads the optional sampling rate from the request
-// body, bounded by what the scanner accepts. Zero means the scan default.
+// decodeTacticalSampleHZ reads the optional sampling rate from the request.
+// A job owns one canonical tactical artifact set, so the API accepts only the
+// canonical sampling rate. Ad-hoc rates remain available through the CLI,
+// where the caller also owns a distinct output path.
 func decodeTacticalSampleHZ(w http.ResponseWriter, r *http.Request) (float64, bool) {
 	if r.Body == nil {
-		return 0, true
+		return tactical.DefaultSampleHZ, true
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 	var req startTacticalRequest
-	switch err := json.NewDecoder(r.Body).Decode(&req); {
+	switch err := decodeSingleJSONBody(w, r, &req, false); {
 	case err == nil, errors.Is(err, io.EOF):
 	default:
 		writeError(w, http.StatusBadRequest, "invalid tactical request JSON")
@@ -263,7 +266,17 @@ func decodeTacticalSampleHZ(w http.ResponseWriter, r *http.Request) (float64, bo
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("sample_hz must be between 0 and %d", tactical.MaxSampleHZ))
 		return 0, false
 	}
-	return req.SampleHZ, true
+	if req.SampleHZ == 0 {
+		return tactical.DefaultSampleHZ, true
+	}
+	if req.SampleHZ != tactical.DefaultSampleHZ {
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"job tactical analysis uses the canonical sample_hz %.0f; use the CLI with a distinct output for custom rates",
+			float64(tactical.DefaultSampleHZ),
+		))
+		return 0, false
+	}
+	return tactical.DefaultSampleHZ, true
 }
 
 func (h *Handlers) readTacticalDocument(id uuid.UUID) (tacticalplan.Document, bool, error) {
@@ -294,6 +307,12 @@ func (h *Handlers) readTacticalStatus(id uuid.UUID) (artifacts.TacticalStatus, b
 	var status artifacts.TacticalStatus
 	if err := json.NewDecoder(rc).Decode(&status); err != nil {
 		return artifacts.TacticalStatus{}, false, err
+	}
+	// Status documents written before sample_hz was added decode the missing
+	// field as zero. Zero is not a valid persisted rate under the canonical job
+	// contract, so expose the default without rewriting a healthy artifact.
+	if status.SampleHZ == 0 {
+		status.SampleHZ = tactical.DefaultSampleHZ
 	}
 	return status, true, nil
 }

@@ -18,6 +18,7 @@ package obs
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -95,6 +96,7 @@ func New(dir string) (*Recorder, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create obs dir: %w", err)
 	}
+	// #nosec G302 -- this is a directory and therefore needs the owner execute bit.
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("restrict obs dir permissions: %w", err)
 	}
@@ -108,19 +110,25 @@ func New(dir string) (*Recorder, error) {
 var (
 	defaultOnce sync.Once
 	defaultRec  *Recorder
+	defaultErr  error
 )
 
-// Default returns a process-wide Recorder rooted at DefaultDir, created once.
-// Best-effort failure paths (the worker and `zv short`) share it so the
-// Recorder mutex serializes their writes within the process. It returns nil if
-// the recorder could not be created, so callers must nil-check before use.
-func Default() *Recorder {
+// InitializeDefault creates the process-wide Recorder and reports any failure.
+// Long-running services call this during startup so a broken observability
+// directory cannot masquerade behind a healthy readiness response.
+func InitializeDefault() (*Recorder, error) {
 	defaultOnce.Do(func() {
-		if rec, err := New(DefaultDir()); err == nil {
-			defaultRec = rec
-		}
+		defaultRec, defaultErr = New(DefaultDir())
 	})
-	return defaultRec
+	return defaultRec, defaultErr
+}
+
+// Default returns the initialized process-wide Recorder. Best-effort CLI and
+// worker failure paths may nil-check it; services must call InitializeDefault
+// and handle its error before becoming ready.
+func Default() *Recorder {
+	rec, _ := InitializeDefault()
+	return rec
 }
 
 // Reset clears all counters and removes the persisted metrics files. The
@@ -168,11 +176,14 @@ func (r *Recorder) RecordError(ev Event) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.inc(metricStageRuns, map[string]string{"stage": ev.Stage, "result": "error"})
-	r.inc(metricErrors, map[string]string{"stage": ev.Stage, "class": ev.Class})
+	// The journal is authoritative. Do not mutate derived in-memory counters
+	// until its event is durably appended, otherwise an append failure can be
+	// flushed later as a ghost error with no corresponding journal record.
 	if err := r.appendJournal(ev); err != nil {
 		return err
 	}
+	r.inc(metricStageRuns, map[string]string{"stage": ev.Stage, "result": "error"})
+	r.inc(metricErrors, map[string]string{"stage": ev.Stage, "class": ev.Class})
 	return r.flushLocked()
 }
 
@@ -256,7 +267,7 @@ func writeFileAtomic(path string, data []byte) error {
 	}
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		err = errors.Join(err, tmp.Close())
 		_ = os.Remove(tmpName)
 		return err
 	}

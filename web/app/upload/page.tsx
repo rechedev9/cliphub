@@ -21,7 +21,8 @@ import {
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
-import { aggregateSeriesRoster } from '@/lib/api/series-roster';
+import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
+import { groupSeriesDemos } from '@/lib/series-grouping';
 import { prettyMapName } from '@/lib/format';
 import { navSection } from '@/lib/nav';
 import { seriesTitle } from '@/lib/series-status';
@@ -269,7 +270,8 @@ export default function UploadPage() {
     () => scanRows.filter((r): r is Extract<ScanRow, { status: 'scanned' }> => r.status === 'scanned'),
     [scanRows],
   );
-  const aggregated = useMemo(() => aggregateSeriesRoster(scannedRows.map((r) => r.players)), [scannedRows]);
+  const logicalMapGroups = useMemo(() => groupSeriesDemos(scannedRows), [scannedRows]);
+  const aggregated = useMemo(() => aggregateGroupedSeriesRoster(scannedRows), [scannedRows]);
 
   const onPickSeries = useCallback(
     async (steamId: string) => {
@@ -319,7 +321,7 @@ export default function UploadPage() {
   // --- Header copy ---
 
   // Reachable singular: 2+ demos dropped but only one scan survived.
-  const mapCount = scannedRows.length;
+  const mapCount = logicalMapGroups.length;
   let headerTitle = 'ANALIZA CUALQUIER DEMO';
   let headerDescription: ReactNode = (
     <>Suelta un .dem — o varios, una serie bo3/bo5 completa — y forja las mejores jugadas en un reel. Sin login.</>

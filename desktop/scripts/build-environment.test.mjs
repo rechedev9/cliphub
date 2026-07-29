@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   environmentWithoutCodeSigningCredentials,
   environmentWithoutXAIAPIKey,
+  releaseBuildEnvironment,
 } from './build-environment.mjs';
 
 const desktop = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,4 +62,29 @@ test('desktop manifest exposes one credential-free distribution path', () => {
     resources.some((resource) => resource.from === 'build-resources/hlae' && resource.to === 'hlae'),
     true,
   );
+});
+
+test('release build environment is an allowlist, not a credential denylist', () => {
+  const original = {
+    Path: 'C:\\tools',
+    SystemRoot: 'C:\\Windows',
+    TEMP: 'C:\\temp',
+    ELECTRON_CACHE: 'C:\\cache\\electron',
+    FIRECRAWL_API_KEY: 'fixture',
+    FRAGFORGE_PROXY_MUTATION_CAPABILITY: 'fixture',
+    GH_TOKEN: 'fixture',
+    GROQ_API_KEY: 'fixture',
+    HTTPS_PROXY: 'http://proxy.invalid',
+    NPM_TOKEN: 'fixture',
+    ZV_MUTATION_TOKEN: 'fixture',
+  };
+
+  assert.deepEqual(releaseBuildEnvironment(original), {
+    Path: 'C:\\tools',
+    SystemRoot: 'C:\\Windows',
+    TEMP: 'C:\\temp',
+    ELECTRON_CACHE: 'C:\\cache\\electron',
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+  });
+  assert.equal(original.GH_TOKEN, 'fixture');
 });

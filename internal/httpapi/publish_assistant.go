@@ -165,6 +165,7 @@ func (c *publishAssistantCache) getOrBuild(
 	call := &publishAssistantCall{done: make(chan struct{})}
 	c.inFlight[key] = call
 	c.mu.Unlock()
+	// #nosec G118 -- the bounded single-flight build deliberately survives cancellation of its first waiter.
 	go c.runBuild(key, call, build)
 	select {
 	case <-call.done:
@@ -312,9 +313,23 @@ func (h *Handlers) loadPublishAssistantFacts(
 		writeError(w, http.StatusBadRequest, err.Error())
 		return publishAssistantFacts{}, false
 	}
-	videoRef, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactVideo, name)
-	if err != nil {
+	if _, err := renderplan.NewRenderVariantArtifactRef(
+		id,
+		variant,
+		renderplan.RenderVariantArtifactVideo,
+		name,
+	); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return publishAssistantFacts{}, false
+	}
+	snapshot, err := h.currentRenderVariantSnapshot(id, variant)
+	if err != nil {
+		internalError(w, "read render state for publish assistant", err)
+		return publishAssistantFacts{}, false
+	}
+	videoRef, err := snapshot.artifactRef(renderplan.RenderVariantArtifactVideo, name)
+	if err != nil {
+		internalError(w, "resolve current render video for publish assistant", err)
 		return publishAssistantFacts{}, false
 	}
 	video, err := h.storage.Open(videoRef.Key)
@@ -327,8 +342,25 @@ func (h *Handlers) loadPublishAssistantFacts(
 		return publishAssistantFacts{}, false
 	}
 
-	result, _, ok := h.loadRenderResult(w, id, variant)
+	result, _, ok := h.loadRenderResultFromSnapshot(w, snapshot)
 	if !ok {
+		return publishAssistantFacts{}, false
+	}
+	if result.Error != "" {
+		writeError(w, http.StatusConflict, "render is not ready for publication")
+		return publishAssistantFacts{}, false
+	}
+	warnings := renderplan.CompleteRenderWarnings(result)
+	if snapshot.state != nil {
+		if snapshot.state.Status != renderplan.RenderVariantStatusReady ||
+			(len(warnings) > 0 && !snapshot.state.ReviewResolvedFor(warnings)) {
+			writeError(w, http.StatusConflict, "render is not ready for publication")
+			return publishAssistantFacts{}, false
+		}
+	} else if len(warnings) > 0 {
+		// A warning-bearing legacy result without a state document predates the
+		// durable review decision and must be reviewed before publication.
+		writeError(w, http.StatusConflict, "render is not ready for publication")
 		return publishAssistantFacts{}, false
 	}
 	var short *editor.ShortResult
@@ -343,9 +375,9 @@ func (h *Handlers) loadPublishAssistantFacts(
 		return publishAssistantFacts{}, false
 	}
 
-	packRef, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactPackManifest, "")
+	packRef, err := snapshot.artifactRef(renderplan.RenderVariantArtifactPackManifest, "")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		internalError(w, "resolve current publish manifest", err)
 		return publishAssistantFacts{}, false
 	}
 	rc, err := h.storage.Open(packRef.Key)

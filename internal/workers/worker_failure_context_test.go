@@ -24,11 +24,16 @@ type ctxAwareRepo struct {
 	*fakeRepo
 	cancel   context.CancelFunc
 	cancelOn job.Status
+	failOn   job.Status
+	failErr  error
 }
 
 func (r *ctxAwareRepo) UpdateStatus(ctx context.Context, id uuid.UUID, s job.Status, reason string) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if r.failErr != nil && s == r.failOn {
+		return r.failErr
 	}
 	if err := r.fakeRepo.UpdateStatus(ctx, id, s, reason); err != nil {
 		return err
@@ -37,6 +42,63 @@ func (r *ctxAwareRepo) UpdateStatus(ctx context.Context, id uuid.UUID, s job.Sta
 		r.cancel()
 	}
 	return nil
+}
+
+func TestParserWorkerReturnsTerminalStatusWriteFailure(t *testing.T) {
+	statusErr := errors.New("status store unavailable")
+	id := uuid.New()
+	base := newFakeJobRepo(job.Job{
+		ID:            id,
+		Status:        job.StatusQueued,
+		DemoPath:      "demos/missing.dem",
+		TargetSteamID: "76561197960265729",
+		Rules:         rules.Default(),
+	})
+	repo := &ctxAwareRepo{fakeRepo: base, failOn: job.StatusFailed, failErr: statusErr}
+	w := NewParserWorker(repo, newFakeStorage())
+
+	err := w.ProcessParseDemo(context.Background(), id)
+	if !errors.Is(err, statusErr) {
+		t.Fatalf("ProcessParseDemo error = %v, want joined status error", err)
+	}
+	if got := base.jobs[id].Status; got != job.StatusParsing {
+		t.Fatalf("Status = %s, want parsing after failed terminal status write", got)
+	}
+}
+
+func TestRosterWorkerReturnsTerminalStatusWriteFailure(t *testing.T) {
+	statusErr := errors.New("status store unavailable")
+	id := uuid.New()
+	base := newFakeJobRepo(job.Job{ID: id, Status: job.StatusQueued, DemoPath: "demos/missing.dem"})
+	repo := &ctxAwareRepo{fakeRepo: base, failOn: job.StatusFailed, failErr: statusErr}
+	w := NewParserWorker(repo, newFakeStorage())
+
+	err := w.ProcessScanRoster(context.Background(), id)
+	if !errors.Is(err, statusErr) {
+		t.Fatalf("ProcessScanRoster error = %v, want joined status error", err)
+	}
+	if got := base.jobs[id].Status; got != job.StatusScanning {
+		t.Fatalf("Status = %s, want scanning after failed terminal status write", got)
+	}
+}
+
+func TestComposeWorkerReturnsTerminalStatusWriteFailure(t *testing.T) {
+	statusErr := errors.New("status store unavailable")
+	id := uuid.New()
+	base := newFakeJobRepo(job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()})
+	repo := &ctxAwareRepo{fakeRepo: base, failOn: job.StatusFailed, failErr: statusErr}
+	w := NewComposeWorker(repo, newFakeStorage(), ComposeWorkerConfig{
+		WorkDir:      t.TempDir(),
+		ComposerPath: "zv-composer",
+	})
+
+	err := w.HandleComposeFinal(context.Background(), composeTask(t, id))
+	if !errors.Is(err, statusErr) {
+		t.Fatalf("HandleComposeFinal error = %v, want joined status error", err)
+	}
+	if got := base.jobs[id].Status; got != job.StatusComposing {
+		t.Fatalf("Status = %s, want composing after failed terminal status write", got)
+	}
 }
 
 func TestRecordWorkerMarksFailedWhenHandlerContextCanceled(t *testing.T) {

@@ -22,8 +22,9 @@ const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * never receives the orchestrator token or the capability value in JavaScript.
  */
 export async function localAPIRequestError(headers: Headers, method = 'GET'): Promise<string | undefined> {
-  const host = headers.get('host')?.trim() ?? '';
-  if (!isLoopbackHostWithPort(host)) return INVALID_HOST_ERROR;
+  const localOrigin = localAPIOrigin(headers);
+  if (localOrigin === undefined) return INVALID_HOST_ERROR;
+  const host = new URL(localOrigin).host;
 
   const fetchSite = headers.get('sec-fetch-site');
   if (fetchSite !== null && !ALLOWED_FETCH_SITES.has(fetchSite.toLowerCase())) {
@@ -57,6 +58,18 @@ export async function localAPIRequestError(headers: Headers, method = 'GET'): Pr
     return MUTATION_CAPABILITY_ERROR;
   }
   return undefined;
+}
+
+/**
+ * Returns the exact validated loopback origin used by the browser request.
+ * Next's development Request.url can be canonicalized to `localhost` even
+ * when the Host header and capability cookie belong to `127.0.0.1`. Redirects
+ * must preserve this origin or the host-only HttpOnly cookie is immediately
+ * lost.
+ */
+export function localAPIOrigin(headers: Headers): string | undefined {
+  const host = headers.get('host')?.trim() ?? '';
+  return isLoopbackHostWithPort(host) ? `http://${host}` : undefined;
 }
 
 /**

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateWindowState } from './window-state.ts';
+import { fitWindowStateToWorkAreas, validateWindowState } from './window-state.ts';
 
 const FALLBACK = { bounds: { width: 1280, height: 900 }, isMaximized: false };
 
@@ -59,4 +59,55 @@ test('coerces a non-boolean isMaximized to false', () => {
     bounds: { width: 1280, height: 900 },
     isMaximized: false,
   });
+});
+
+test('moves an off-screen saved window onto the nearest current display', () => {
+  assert.deepEqual(
+    fitWindowStateToWorkAreas(
+      {
+        bounds: { width: 1280, height: 900, x: 32767, y: 32767 },
+        isMaximized: false,
+      },
+      [{ x: 0, y: 0, width: 1920, height: 1040 }],
+    ),
+    {
+      bounds: { width: 1280, height: 900, x: 640, y: 140 },
+      isMaximized: false,
+    },
+  );
+});
+
+test('preserves valid negative coordinates on a real left-hand display', () => {
+  assert.deepEqual(
+    fitWindowStateToWorkAreas(
+      {
+        bounds: { width: 1200, height: 800, x: -1800, y: 100 },
+        isMaximized: true,
+      },
+      [
+        { x: 0, y: 0, width: 1920, height: 1040 },
+        { x: -1920, y: 0, width: 1920, height: 1040 },
+      ],
+    ),
+    {
+      bounds: { width: 1200, height: 800, x: -1800, y: 100 },
+      isMaximized: true,
+    },
+  );
+});
+
+test('shrinks oversized saved bounds to the selected work area', () => {
+  assert.deepEqual(
+    fitWindowStateToWorkAreas(
+      {
+        bounds: { width: 2560, height: 1440, x: 100, y: 100 },
+        isMaximized: false,
+      },
+      [{ x: 0, y: 0, width: 1366, height: 728 }],
+    ),
+    {
+      bounds: { width: 1366, height: 728, x: 0, y: 0 },
+      isMaximized: false,
+    },
+  );
 });

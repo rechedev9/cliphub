@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -87,6 +88,58 @@ func TestRecordErrorRestrictsExistingJournalPermissions(t *testing.T) {
 	}
 	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
 		t.Errorf("journal permissions: got %o want %o", got, want)
+	}
+}
+
+func TestRecordErrorDoesNotCountAnEventTheJournalRejected(t *testing.T) {
+	dir := t.TempDir()
+	r, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// A directory at the journal path deterministically makes OpenFile fail
+	// without relying on platform-specific permission semantics.
+	if err := os.Mkdir(r.JournalPath(), 0o700); err != nil {
+		t.Fatalf("block journal path: %v", err)
+	}
+
+	err = r.RecordError(Event{Stage: StageRender, Class: "journal_blocked", Message: "boom"})
+	if err == nil {
+		t.Fatal("RecordError error = nil, want journal failure")
+	}
+	if got := r.Snapshot(); len(got) != 0 {
+		t.Fatalf("Snapshot = %#v, want no ghost counters for an unjournaled event", got)
+	}
+}
+
+func TestInitializeDefaultPreservesAndReportsInitializationFailure(t *testing.T) {
+	// This package owns the singleton and can reset it for a deterministic
+	// startup-boundary test. No other obs test calls Default concurrently.
+	defaultOnce = sync.Once{}
+	defaultRec = nil
+	defaultErr = nil
+	t.Cleanup(func() {
+		defaultOnce = sync.Once{}
+		defaultRec = nil
+		defaultErr = nil
+	})
+
+	dataDir := t.TempDir()
+	t.Setenv("ZV_DATA_DIR", dataDir)
+	if err := os.WriteFile(filepath.Join(dataDir, "obs"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("block obs directory: %v", err)
+	}
+
+	rec, err := InitializeDefault()
+	if err == nil || rec != nil {
+		t.Fatalf("InitializeDefault = (%v, %v), want explicit creation failure", rec, err)
+	}
+	again, againErr := InitializeDefault()
+	if again != nil || againErr == nil || againErr.Error() != err.Error() {
+		t.Fatalf("second InitializeDefault = (%v, %v), want stable failure %v", again, againErr, err)
+	}
+	if Default() != nil {
+		t.Fatal("Default returned a recorder after initialization failed")
 	}
 }
 

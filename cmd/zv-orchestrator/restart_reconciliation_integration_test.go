@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -117,10 +118,11 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 		DemoJobs:           1,
 		DemoRenders:        1,
 		GenerateRuns:       1,
-		StreamJobs:         1,
+		StreamJobs:         0,
 		StreamRenderStates: 1,
+		StreamAcquisitions: []uuid.UUID{acquiring.ID},
 	}
-	if reconciled != wantReconciled {
+	if !reflect.DeepEqual(reconciled, wantReconciled) {
 		t.Fatalf("reconciled = %+v, want %+v", reconciled, wantReconciled)
 	}
 
@@ -149,8 +151,8 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get acquiring stream: %v", err)
 	}
-	if gotAcquiring.Status != streamclips.StatusFailed || gotAcquiring.FailureReason != interruptedStreamAcquire {
-		t.Fatalf("acquiring stream after restart = status %q reason %q, want failed/%q", gotAcquiring.Status, gotAcquiring.FailureReason, interruptedStreamAcquire)
+	if gotAcquiring.Status != streamclips.StatusAcquiring || gotAcquiring.FailureReason != "" {
+		t.Fatalf("acquiring stream after restart = status %q reason %q, want acquiring with no failure before re-enqueue", gotAcquiring.Status, gotAcquiring.FailureReason)
 	}
 	gotStreamParent, err := streamAfter.Get(ctx, streamRendering.ID)
 	if err != nil {

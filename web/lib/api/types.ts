@@ -41,11 +41,17 @@ export type Song = { id: string; title: string; artist: string; genre: string; p
  * both the recording HUD and the render style. `hudMode` is shown for context.
  */
 export type Preset = { name: string; label: string; description: string; hudMode?: string; default?: boolean };
-export type VideoStatus = 'queued' | 'recording' | 'composing' | 'ready' | 'failed';
+export type VideoStatus =
+  | 'queued'
+  | 'recording'
+  | 'composing'
+  | 'ready'
+  | 'review_required'
+  | 'failed';
 /** Live capture progress (segments done/total); set only while status is 'recording'. */
 export type CaptureProgress = { done: number; total: number };
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
-export type Video = { id: string; jobId?: string; title: string; map: string; score: string; /** Display name of the canonical SteamID target, when known. */ targetName?: string; mode: RenderMode; variant?: string; songId?: string; editConfig?: EditConfig; status: VideoStatus; createdAt: number; availableForSec?: number; thumbnailUrl?: string; downloadUrl?: string; failureReason?: string; captureProgress?: CaptureProgress; /** Set only on a failed reel whose orchestrator job is gone: retry can never succeed, so the card offers delete/re-forge instead. */ unrecoverable?: true };
+export type Video = { id: string; jobId?: string; title: string; map: string; score: string; /** Display name of the canonical SteamID target, when known. */ targetName?: string; mode: RenderMode; variant?: string; songId?: string; musicVolume?: number; editConfig?: EditConfig; status: VideoStatus; createdAt: number; availableForSec?: number; thumbnailUrl?: string; downloadUrl?: string; failureReason?: string; /** Exact render QA warnings; populated only while status is review_required. */ warnings?: string[]; /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */ reviewArtifactPrefix?: string; captureProgress?: CaptureProgress; /** Set only on a failed reel whose orchestrator job is gone: retry can never succeed, so the card offers delete/re-forge instead. */ unrecoverable?: true };
 export type Slots = { used: number; total: number };
 export type FeedItem = { id: string; author: string; authorAvatarUrl: string; title: string; map: string; thumbnailUrl: string; likes: number; createdAt: number; videoUrl: string };
 export type Session = { user: SteamUser | null; slots: Slots; pcPaired: boolean; matchHistoryLinked: boolean };

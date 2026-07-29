@@ -87,7 +87,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 	hqFilters := opts.HQFilters || renderPreset.HQFilters
 	audioNormalize := opts.AudioNormalize || renderPreset.AudioNormalize
 	qualityChecks := opts.QualityChecks || renderPreset.QualityChecks
-	coverSheets := opts.CoverSheets || renderPreset.CoverSheets
+	coverSheets := resolveCoverSheets(renderPreset.CoverSheets, opts.CoverSheets, opts.CoverSheetsSet)
 	temporalSmoothing := opts.TemporalSmoothing || renderPreset.TemporalSmoothing
 	segmentFilter := uniqueSegmentIDs(opts.SegmentIDs)
 	lineupCatalog, err := lineups.LoadDir(opts.LineupCatalogPath)
@@ -105,6 +105,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		SummaryPath:       filepath.Join(opts.PublishDir, "publish-summary.md"),
 		SegmentFilter:     append([]string(nil), segmentFilter...),
 		Limit:             opts.Limit,
+		RankMoments:       opts.RankMoments,
 		SkipExisting:      opts.SkipExisting,
 		EffectsPath:       effectsSource.Path,
 		EffectsPreset:     effectsSource.Preset,
@@ -157,15 +158,22 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		}
 	}
 	if opts.CompileSegments {
-		rhythmSync, err := loadRhythmSync(opts.RhythmPath)
+		rhythmPlan := result.Plan.ToKillPlan()
+		rhythmPlan.Segments = nil
+		for _, segment := range result.Plan.ToKillPlan().Segments {
+			if len(selected) > 0 && !selected[segment.ID] {
+				continue
+			}
+			if opts.Limit > 0 && len(rhythmPlan.Segments) >= opts.Limit {
+				break
+			}
+			if _, ok := clipBySegment[segment.ID]; ok {
+				rhythmPlan.Segments = append(rhythmPlan.Segments, segment)
+			}
+		}
+		rhythmSync, err := loadRhythmSyncForRender(opts.RhythmPath, opts.MusicPath, rhythmPlan, opts.TailTrimSeconds)
 		if err != nil {
 			return manifest, err
-		}
-		if rhythmSync != nil && opts.TailTrimSeconds > 0 {
-			// Rhythm sync placed each segment on the beat grid using the full
-			// clip durations; trimming tails here would shift every later
-			// segment off its beat.
-			manifest.Warnings = append(manifest.Warnings, "tail trim skipped: rhythm sync uses untrimmed segment durations")
 		}
 		compiled, err := buildCompiledShort(result, opts, compiledShortOptions{
 			BaseDir:           baseDir,
@@ -331,6 +339,13 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 	return manifest, nil
 }
 
+func resolveCoverSheets(presetValue, optionValue, optionSet bool) bool {
+	if optionSet || optionValue {
+		return optionValue
+	}
+	return presetValue
+}
+
 func uniqueSegmentIDs(ids []string) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(ids))
@@ -397,11 +412,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		}
 		partKills := killCues(segment, result.Plan.Tickrate)
 		duration := clipDuration(segment, result.Plan.Tickrate, clip.DurationSeconds)
-		if c.RhythmSync == nil {
-			// Rhythm sync placed segments using untrimmed durations, so tails
-			// are only trimmed on beat-free compilations (see buildManifest).
-			duration = tailTrimmedDuration(partKills, duration, c.TailTrimSeconds)
-		}
+		duration = tailTrimmedDuration(partKills, duration, c.TailTrimSeconds)
 		if duration <= 0 {
 			continue
 		}
@@ -881,9 +892,6 @@ func tailTrimmedDuration(kills []KillCue, duration, tailSeconds float64) float64
 // tailTrimForRhythm reports the effective tail trim for a compiled short: zero
 // under rhythm sync, where trimming is skipped to keep segments on the beat.
 func tailTrimForRhythm(c compiledShortOptions) float64 {
-	if c.RhythmSync != nil {
-		return 0
-	}
 	return c.TailTrimSeconds
 }
 

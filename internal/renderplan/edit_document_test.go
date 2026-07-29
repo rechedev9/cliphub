@@ -34,6 +34,7 @@ func TestNewEditDocumentSnapshotsStableRenderIntent(t *testing.T) {
 		PublishSummaryKey:  "jobs/111/renders/viral-60-clean/publish-summary.md",
 		SegmentIDs:         []string{"seg-001"},
 		Edit:               EditRequest{Format: FormatLandscape16x9, KillEffect: KillEffectVelocity, Transition: TransitionWhip, Intro: true, Outro: true},
+		Music:              &MusicSnapshot{Key: "phonk-01", Volume: 0.35},
 	})
 
 	if doc.SchemaVersion != EditDocumentSchemaVersion {
@@ -57,6 +58,9 @@ func TestNewEditDocumentSnapshotsStableRenderIntent(t *testing.T) {
 	if doc.Edit.Format != FormatLandscape16x9 || doc.Edit.KillEffect != KillEffectVelocity || doc.Edit.Transition != TransitionWhip || !doc.Edit.Intro || !doc.Edit.Outro {
 		t.Fatalf("edit request = %#v", doc.Edit)
 	}
+	if doc.Music == nil || doc.Music.Key != "phonk-01" || doc.Music.Volume != 0.35 {
+		t.Fatalf("music snapshot = %#v", doc.Music)
+	}
 	if doc.Outputs.UploadReadyRoot != "shortslistosparasubir" {
 		t.Fatalf("upload ready root = %q", doc.Outputs.UploadReadyRoot)
 	}
@@ -74,6 +78,7 @@ func TestNewEditDocumentForLoadoutDerivesStandardArtifactKeys(t *testing.T) {
 		Loadout:    loadout,
 		SegmentIDs: []string{"seg-001", "seg-002"},
 		Edit:       EditRequest{Format: FormatLandscape16x9},
+		Music:      &MusicSnapshot{},
 	})
 	if err != nil {
 		t.Fatalf("NewEditDocumentForLoadout error = %v", err)
@@ -114,5 +119,15 @@ func TestNewEditDocumentForLoadoutDerivesStandardArtifactKeys(t *testing.T) {
 	}
 	if doc.LoadoutSnapshot.Output.AspectRatio != "16:9" || doc.LoadoutSnapshot.Output.Width != 1920 || doc.LoadoutSnapshot.Output.Height != 1080 {
 		t.Fatalf("landscape output snapshot = %#v", doc.LoadoutSnapshot.Output)
+	}
+	if doc.Music == nil || doc.Music.Key != "" || doc.Music.Volume != 0 {
+		t.Fatalf("music-free snapshot = %#v", doc.Music)
+	}
+}
+
+func TestNewEditDocumentLeavesLegacyMusicUnknownWhenNotProvided(t *testing.T) {
+	doc := NewEditDocument(NewEditDocumentOptions{})
+	if doc.Music != nil {
+		t.Fatalf("music snapshot = %#v, want nil legacy/unknown state", doc.Music)
 	}
 }

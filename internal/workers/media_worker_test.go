@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -83,7 +86,7 @@ func TestRecordWorkerStoresOutputsAndMarksRecorded(t *testing.T) {
 		if err := os.WriteFile(segmentPath, []byte("clip"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		result := recordingResultWithSegment(scriptPath, segmentPath)
+		result := recordingResultForRunnerArgs(t, args, scriptPath, segmentPath)
 		if err := writeJSONFile(filepath.Join(outDir, "recording-result.json"), result); err != nil {
 			t.Fatal(err)
 		}
@@ -151,7 +154,7 @@ func TestRecordWorkerHUDFromPayloadOverridesDefault(t *testing.T) {
 				_ = os.MkdirAll(filepath.Dir(segmentPath), 0o755)
 				_ = os.WriteFile(scriptPath, []byte("script"), 0o644)
 				_ = os.WriteFile(segmentPath, []byte("clip"), 0o644)
-				_ = writeJSONFile(filepath.Join(outDir, "recording-result.json"), recordingResultWithSegment(scriptPath, segmentPath))
+				_ = writeJSONFile(filepath.Join(outDir, "recording-result.json"), recordingResultForRunnerArgs(t, args, scriptPath, segmentPath))
 				return []byte("recorded"), nil
 			}}
 			// Worker default HUD is "deathnotices" (withDefaults); the payload may override it.
@@ -363,6 +366,277 @@ func TestComposeWorkerMarksFailedOnResultError(t *testing.T) {
 	}
 }
 
+func TestComposeWorkerPersistsStructuredResultWhenRunnerAlsoFails(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+
+	runErr := errors.New("composer process failed")
+	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		outPath := argValue(args, "--out")
+		result := composition.Result{Output: outPath, Error: "ffmpeg failed at frame 42"}
+		if err := writeJSONFile(filepath.Join(filepath.Dir(outPath), "composition-result.json"), result); err != nil {
+			t.Fatal(err)
+		}
+		return nil, runErr
+	}}
+	w := NewComposeWorker(repo, store, ComposeWorkerConfig{
+		WorkDir:      t.TempDir(),
+		ComposerPath: "zv-composer",
+	})
+	w.runner = runner
+
+	err := w.HandleComposeFinal(context.Background(), composeTask(t, id))
+	if !errors.Is(err, runErr) {
+		t.Fatalf("HandleComposeFinal error = %v, want runner error", err)
+	}
+	var stored composition.Result
+	if err := json.Unmarshal(store.files[composition.ResultArtifactKey(id)], &stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.Error != "ffmpeg failed at frame 42" {
+		t.Fatalf("stored diagnostic error = %q", stored.Error)
+	}
+	ready, _, _, err := compositionOutputsReady(store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready {
+		t.Fatal("failed diagnostic must not be a reusable composition result")
+	}
+}
+
+func TestComposeWorkerSerializesSameJobComposition(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		close(started)
+		<-release
+		outPath := argValue(args, "--out")
+		if err := os.WriteFile(outPath, []byte("final"), 0o600); err != nil {
+			return nil, err
+		}
+		result := composition.Result{
+			Output: outPath,
+			OutputArtifact: recording.RecordingArtifact{
+				Role:      "final",
+				Type:      "video",
+				Path:      outPath,
+				SizeBytes: 5,
+			},
+		}
+		return nil, writeJSONFile(filepath.Join(filepath.Dir(outPath), "composition-result.json"), result)
+	}}
+	w := NewComposeWorker(repo, store, ComposeWorkerConfig{
+		WorkDir:      t.TempDir(),
+		ComposerPath: "zv-composer",
+	})
+	w.runner = runner
+
+	errs := make(chan error, 2)
+	go func() { errs <- w.HandleComposeFinal(context.Background(), composeTask(t, id)) }()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("first composition did not start")
+	}
+	go func() { errs <- w.HandleComposeFinal(context.Background(), composeTask(t, id)) }()
+
+	time.Sleep(25 * time.Millisecond)
+	runner.mu.Lock()
+	callsWhileBlocked := len(runner.calls)
+	runner.mu.Unlock()
+	if callsWhileBlocked != 1 {
+		t.Fatalf("composer calls while first run blocked = %d, want 1", callsWhileBlocked)
+	}
+	close(release)
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatalf("HandleComposeFinal error = %v", err)
+		}
+	}
+	runner.mu.Lock()
+	totalCalls := len(runner.calls)
+	runner.mu.Unlock()
+	if totalCalls != 1 {
+		t.Fatalf("composer calls = %d, want one committed run plus one cache skip", totalCalls)
+	}
+}
+
+func TestComposeWorkerJoinsRunnerAndResultReadErrors(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+
+	runErr := errors.New("composer exited")
+	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+		return nil, runErr
+	}}
+	w := NewComposeWorker(repo, store, ComposeWorkerConfig{
+		WorkDir:      t.TempDir(),
+		ComposerPath: "zv-composer",
+	})
+	w.runner = runner
+
+	err := w.HandleComposeFinal(context.Background(), composeTask(t, id))
+	if !errors.Is(err, runErr) || !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("HandleComposeFinal error = %v, want runner and missing-result errors", err)
+	}
+	if !strings.Contains(err.Error(), "read composition result") {
+		t.Fatalf("HandleComposeFinal error = %v, want causal read context", err)
+	}
+}
+
+func TestComposeWorkerJoinsRunnerAndResultValidationErrors(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+
+	runErr := errors.New("composer exited")
+	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		outPath := argValue(args, "--out")
+		if err := writeJSONFile(filepath.Join(filepath.Dir(outPath), "composition-result.json"), composition.Result{}); err != nil {
+			return nil, err
+		}
+		return nil, runErr
+	}}
+	w := NewComposeWorker(repo, store, ComposeWorkerConfig{
+		WorkDir:      t.TempDir(),
+		ComposerPath: "zv-composer",
+	})
+	w.runner = runner
+
+	err := w.HandleComposeFinal(context.Background(), composeTask(t, id))
+	if !errors.Is(err, runErr) {
+		t.Fatalf("HandleComposeFinal error = %v, want runner error", err)
+	}
+	if !strings.Contains(err.Error(), "composition result has no output") {
+		t.Fatalf("HandleComposeFinal error = %v, want validation cause", err)
+	}
+}
+
+type failSuccessfulCompositionResultStorage struct {
+	*fakeStorage
+	failNextSuccessfulResult bool
+}
+
+func (s *failSuccessfulCompositionResultStorage) Put(key string, r io.Reader) error {
+	body, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	if key == composition.ResultArtifactKey(uuid.Nil) {
+		panic("test storage requires a concrete job id")
+	}
+	if strings.HasSuffix(key, "/composition-result.json") && s.failNextSuccessfulResult {
+		var result composition.Result
+		if json.Unmarshal(body, &result) == nil && result.Error == "" {
+			s.failNextSuccessfulResult = false
+			return errors.New("result commit failed")
+		}
+	}
+	return s.fakeStorage.Put(key, bytes.NewReader(body))
+}
+
+func TestComposeWorkerInvalidatesOldCommitMarkerBeforeRepair(t *testing.T) {
+	repo := newFakeRepo()
+	baseStore := newFakeStorage()
+	store := &failSuccessfulCompositionResultStorage{
+		fakeStorage:              baseStore,
+		failNextSuccessfulResult: true,
+	}
+	id := uuid.New()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	putJSON(t, baseStore, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+	_ = baseStore.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+	putJSON(t, baseStore, composition.ResultArtifactKey(id), composition.Result{Output: "old-final.mp4"})
+
+	runs := 0
+	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		runs++
+		outPath := argValue(args, "--out")
+		if err := os.WriteFile(outPath, []byte(fmt.Sprintf("final-%d", runs)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		result := composition.Result{
+			Output: outPath,
+			OutputArtifact: recording.RecordingArtifact{
+				Role:      "final",
+				Type:      "video",
+				Path:      outPath,
+				SizeBytes: int64(len(fmt.Sprintf("final-%d", runs))),
+			},
+		}
+		if err := writeJSONFile(filepath.Join(filepath.Dir(outPath), "composition-result.json"), result); err != nil {
+			t.Fatal(err)
+		}
+		return nil, nil
+	}}
+	w := NewComposeWorker(repo, store, ComposeWorkerConfig{
+		WorkDir:      t.TempDir(),
+		ComposerPath: "zv-composer",
+	})
+	w.runner = runner
+
+	if err := w.HandleComposeFinal(context.Background(), composeTask(t, id)); err == nil ||
+		!strings.Contains(err.Error(), "result commit failed") {
+		t.Fatalf("first HandleComposeFinal error = %v, want result commit failure", err)
+	}
+	var pending composition.Result
+	if err := json.Unmarshal(baseStore.files[composition.ResultArtifactKey(id)], &pending); err != nil {
+		t.Fatal(err)
+	}
+	if pending.Error == "" {
+		t.Fatal("failed result commit left a reusable successful marker")
+	}
+	ready, _, _, err := compositionOutputsReady(store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready {
+		t.Fatal("mixed old result and new final must not be reusable")
+	}
+
+	if err := w.HandleComposeFinal(context.Background(), composeTask(t, id)); err != nil {
+		t.Fatalf("retry HandleComposeFinal error = %v", err)
+	}
+	if runs != 2 {
+		t.Fatalf("composer runs = %d, want 2", runs)
+	}
+	ready, _, _, err = compositionOutputsReady(store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ready {
+		t.Fatal("successful retry did not commit the repaired composition pair")
+	}
+}
+
+func TestCompositionCompletionStatusRequiresReviewForWarnings(t *testing.T) {
+	if got := compositionCompletionStatus(false); got != job.StatusComposed {
+		t.Fatalf("clean composition status = %s, want composed", got)
+	}
+	if got := compositionCompletionStatus(true); got != job.StatusReviewRequired {
+		t.Fatalf("warning composition status = %s, want review_required", got)
+	}
+}
+
 func TestComposeWorkerSkipsWhenOutputsAlreadyExist(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
@@ -420,7 +694,7 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 		if !hasArg(args, "--hook=true") || !hasArg(args, "--kill-counter=false") {
 			t.Fatalf("editor args missing explicit automatic text values: %#v", args)
 		}
-		if !hasArg(args, "--intro") || !hasArg(args, "--outro") {
+		if !hasArg(args, "--intro=true") || !hasArg(args, "--outro=true") {
 			t.Fatalf("editor args missing intro/outro flags: %#v", args)
 		}
 		if got := argValue(args, "--intro-text"); got != "Watch this ace" {
@@ -453,10 +727,10 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 			path string
 			body string
 		}{
-			{filepath.Join(outDir, "edit-manifest.json"), `{"shorts":[]}`},
-			{filepath.Join(publishDir, "pack-manifest.json"), `{"items":[]}`},
+			{filepath.Join(outDir, "edit-manifest.json"), `{"shorts":[{"segment_id":"seg-001"}]}`},
+			{filepath.Join(publishDir, "pack-manifest.json"), `{"items":[{"segment_id":"seg-001"}]}`},
 			{filepath.Join(publishDir, "index.html"), `<html></html>`},
-			{filepath.Join(publishDir, "summary.md"), `summary`},
+			{filepath.Join(publishDir, "publish-summary.md"), `summary`},
 			{videoPath, "video"},
 			{coverPath, "cover"},
 			{captionPath, "caption"},
@@ -474,7 +748,7 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 			OutputDir:   outDir,
 			PublishDir:  publishDir,
 			GalleryPath: filepath.Join(publishDir, "index.html"),
-			SummaryPath: filepath.Join(publishDir, "summary.md"),
+			SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
 			Shorts: []editor.ShortResult{{
 				SegmentID:     "seg-001",
 				Output:        videoPath,
@@ -516,28 +790,69 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 	if repo.jobs[id].Status != job.StatusRecorded {
 		t.Fatalf("Status = %s, want unchanged recorded", repo.jobs[id].Status)
 	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := state.Status, renderplan.RenderVariantStatusReady; got != want {
+		t.Fatalf("render state = %q, want %q", got, want)
+	}
+	videoRef, err := renderplan.NewRenderVariantArtifactRefForState(state, renderplan.RenderVariantArtifactVideo, "seg-001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coverRef, err := renderplan.NewRenderVariantArtifactRefForState(state, renderplan.RenderVariantArtifactCover, "seg-001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	captionRef, err := renderplan.NewRenderVariantArtifactRefForState(state, renderplan.RenderVariantArtifactCaption, "seg-001")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, key := range []string{
-		mustRenderVariantResultKey(t, id, editor.PresetViral60Clean),
 		mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean),
-		mustRenderVariantEditDocumentKey(t, id, editor.PresetViral60Clean),
-		mustRenderVariantEditManifestKey(t, id, editor.PresetViral60Clean),
-		mustRenderVariantPackManifestKey(t, id, editor.PresetViral60Clean),
-		mustRenderVariantPublishSummaryKey(t, id, editor.PresetViral60Clean),
-		mustRenderVariantGalleryKey(t, id, editor.PresetViral60Clean),
-		mustRenderVariantVideoKey(t, id, editor.PresetViral60Clean, "seg-001"),
-		mustRenderVariantCoverKey(t, id, editor.PresetViral60Clean, "seg-001"),
-		mustRenderVariantCaptionKey(t, id, editor.PresetViral60Clean, "seg-001"),
-		mustRenderVariantLogKey(t, id, editor.PresetViral60Clean, "seg-001-render"),
+		state.RenderResultKey,
+		state.EditDocumentKey,
+		state.EditManifestKey,
+		state.PackManifestKey,
+		state.PublishSummaryKey,
+		state.GalleryKey,
+		videoRef.Key,
+		coverRef.Key,
+		captionRef.Key,
+		state.ArtifactPrefix + "/logs/seg-001-render.log",
 	} {
 		if _, ok := store.files[key]; !ok {
 			t.Fatalf("storage missing %s", key)
 		}
 	}
-	if !strings.Contains(string(store.files[mustRenderVariantEditDocumentKey(t, id, editor.PresetViral60Clean)]), "shortslistosparasubir") {
-		t.Fatalf("edit document missing upload-ready root: %s", store.files[mustRenderVariantEditDocumentKey(t, id, editor.PresetViral60Clean)])
+	revisionID := state.ArtifactPrefix[strings.LastIndex(state.ArtifactPrefix, "/")+1:]
+	revisionBase := fmt.Sprintf(
+		"/api/jobs/%s/renders/%s/revisions/%s",
+		id,
+		editor.PresetViral60Clean,
+		revisionID,
+	)
+	gallery := string(store.files[state.GalleryKey])
+	for _, want := range []string{
+		revisionBase + "/videos/seg-001",
+		revisionBase + "/covers/seg-001",
+		revisionBase + "/captions/seg-001",
+	} {
+		if !strings.Contains(gallery, want) {
+			t.Fatalf("durable gallery missing revision-scoped URL %q: %s", want, gallery)
+		}
+	}
+	mutableVideoURL := fmt.Sprintf(
+		`src="/api/jobs/%s/renders/%s/videos/seg-001"`,
+		id,
+		editor.PresetViral60Clean,
+	)
+	if strings.Contains(gallery, mutableVideoURL) {
+		t.Fatalf("durable gallery retained mutable video URL %q: %s", mutableVideoURL, gallery)
 	}
 	var doc renderplan.EditDocument
-	if err := json.Unmarshal(store.files[mustRenderVariantEditDocumentKey(t, id, editor.PresetViral60Clean)], &doc); err != nil {
+	if err := json.Unmarshal(store.files[state.EditDocumentKey], &doc); err != nil {
 		t.Fatal(err)
 	}
 	if doc.Edit.Format != renderplan.FormatLandscape16x9 || doc.LoadoutSnapshot.Output.AspectRatio != "16:9" || doc.LoadoutSnapshot.Output.Width != 1920 || doc.LoadoutSnapshot.Output.Height != 1080 {
@@ -546,15 +861,20 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 	if !doc.Edit.HookText || doc.Edit.KillCounter {
 		t.Fatalf("edit document automatic text = hook %v / counter %v, want true / false", doc.Edit.HookText, doc.Edit.KillCounter)
 	}
-	var state renderplan.RenderVariantState
-	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
-		t.Fatal(err)
+	wantDocumentOutputs := renderplan.Outputs{
+		Prefix:          state.ArtifactPrefix,
+		RenderResult:    state.RenderResultKey,
+		EditManifest:    state.EditManifestKey,
+		PackManifest:    state.PackManifestKey,
+		Gallery:         state.GalleryKey,
+		PublishSummary:  state.PublishSummaryKey,
+		UploadReadyRoot: state.ArtifactPrefix,
 	}
-	if got, want := state.Status, renderplan.RenderVariantStatusReady; got != want {
-		t.Fatalf("render state = %q, want %q", got, want)
+	if doc.Outputs != wantDocumentOutputs {
+		t.Fatalf("edit document outputs = %#v, want revision-scoped %#v", doc.Outputs, wantDocumentOutputs)
 	}
 	var storedResult editor.Result
-	if err := json.Unmarshal(store.files[mustRenderVariantResultKey(t, id, editor.PresetViral60Clean)], &storedResult); err != nil {
+	if err := json.Unmarshal(store.files[state.RenderResultKey], &storedResult); err != nil {
 		t.Fatal(err)
 	}
 	if storedResult.InputFingerprint == "" {
@@ -562,23 +882,300 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 	}
 }
 
-func TestAppendCoverStrategyArg(t *testing.T) {
+func TestWriteDurableRenderDocumentsRejectsMalformedOrMismatchedManifestSegments(t *testing.T) {
 	tests := []struct {
-		name string
-		edit renderplan.EditRequest
-		want bool
+		name    string
+		editIDs []string
+		packIDs []string
+		want    string
 	}{
-		{name: "generated gameplay candidates", edit: renderplan.EditRequest{CoverStrategy: renderplan.CoverStrategyGenerated}},
-		{name: "no cover", edit: renderplan.EditRequest{CoverStrategy: renderplan.CoverStrategyNone}, want: true},
+		{
+			name:    "unsafe edit manifest id",
+			editIDs: []string{"../escape"},
+			packIDs: []string{"seg-001"},
+			want:    "edit manifest entry 0",
+		},
+		{
+			name:    "duplicate pack manifest id",
+			editIDs: []string{"seg-001"},
+			packIDs: []string{"seg-001", "seg-001"},
+			want:    `pack manifest contains duplicate segment id "seg-001"`,
+		},
+		{
+			name:    "pack manifest differs from result",
+			editIDs: []string{"seg-001"},
+			packIDs: []string{"seg-002"},
+			want:    `pack manifest is missing render result segment id "seg-001"`,
+		},
+		{
+			name:    "edit manifest omits result",
+			editIDs: nil,
+			packIDs: []string{"seg-001"},
+			want:    "edit manifest contains 0 segment ids, want 1",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args := appendCoverStrategyArg([]string{"--preset", editor.PresetViral60Clean}, tt.edit)
-			got := slices.Contains(args, "--no-covers")
-			if got != tt.want {
-				t.Fatalf("--no-covers present = %v, want %v; args = %#v", got, tt.want, args)
+			root := t.TempDir()
+			outDir := filepath.Join(root, "out")
+			publishDir := filepath.Join(outDir, "shortslistosparasubir")
+			resultPath := filepath.Join(outDir, "shorts-result.json")
+			if err := writeJSONFile(filepath.Join(outDir, "edit-document.json"), renderplan.EditDocument{}); err != nil {
+				t.Fatal(err)
+			}
+			manifest := editor.Manifest{Shorts: make([]editor.ShortEdit, len(tt.editIDs))}
+			for i, segmentID := range tt.editIDs {
+				manifest.Shorts[i].SegmentID = segmentID
+			}
+			if err := writeJSONFile(filepath.Join(outDir, "edit-manifest.json"), manifest); err != nil {
+				t.Fatal(err)
+			}
+			pack := editor.PackManifest{Items: make([]editor.PublishItem, len(tt.packIDs))}
+			for i, segmentID := range tt.packIDs {
+				pack.Items[i].SegmentID = segmentID
+			}
+			if err := writeJSONFile(filepath.Join(publishDir, "pack-manifest.json"), pack); err != nil {
+				t.Fatal(err)
+			}
+			const originalResult = "not yet committed"
+			if err := os.WriteFile(resultPath, []byte(originalResult), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			local := editor.Result{
+				GalleryPath: filepath.Join(publishDir, "index.html"),
+				SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
+				Shorts:      []editor.ShortResult{{SegmentID: "seg-001"}},
+			}
+
+			err := writeDurableRenderDocuments(
+				uuid.New(),
+				editor.PresetViral60Clean,
+				uuid.New(),
+				outDir,
+				publishDir,
+				resultPath,
+				local,
+			)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("writeDurableRenderDocuments error = %v, want %q", err, tt.want)
+			}
+			body, readErr := os.ReadFile(resultPath)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(body) != originalResult {
+				t.Fatalf("result marker changed before manifest validation: %q", body)
 			}
 		})
+	}
+}
+
+func TestWriteDurableRenderDocumentsIgnoresRendererPublishDocumentPaths(t *testing.T) {
+	tests := []struct {
+		name  string
+		paths func(root, publishDir string) (string, string)
+	}{
+		{
+			name: "external absolute paths",
+			paths: func(root, _ string) (string, string) {
+				return filepath.Join(root, "outside-gallery.html"), filepath.Join(root, "outside-summary.md")
+			},
+		},
+		{
+			name: "aliased traversal path",
+			paths: func(_, publishDir string) (string, string) {
+				alias := filepath.Clean(filepath.Join(publishDir, "..", "..", "aliased-output.txt"))
+				return alias, alias
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			outDir := filepath.Join(root, "work", "out")
+			publishDir := filepath.Join(outDir, "shortslistosparasubir")
+			resultPath := filepath.Join(outDir, "shorts-result.json")
+			if err := writeJSONFile(filepath.Join(outDir, "edit-document.json"), renderplan.EditDocument{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSONFile(filepath.Join(outDir, "edit-manifest.json"), editor.Manifest{
+				Shorts: []editor.ShortEdit{{SegmentID: "seg-001"}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSONFile(filepath.Join(publishDir, "pack-manifest.json"), editor.PackManifest{
+				Items: []editor.PublishItem{{SegmentID: "seg-001"}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			rendererGallery, rendererSummary := tt.paths(t.TempDir(), publishDir)
+			const sentinel = "must remain untouched"
+			poisoned := map[string]struct{}{
+				rendererGallery: {},
+				rendererSummary: {},
+			}
+			for path := range poisoned {
+				if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(sentinel), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			err := writeDurableRenderDocuments(
+				uuid.New(),
+				editor.PresetViral60Clean,
+				uuid.New(),
+				outDir,
+				publishDir,
+				resultPath,
+				editor.Result{
+					GalleryPath: rendererGallery,
+					SummaryPath: rendererSummary,
+					Shorts:      []editor.ShortResult{{SegmentID: "seg-001"}},
+				},
+			)
+			if err != nil {
+				t.Fatalf("writeDurableRenderDocuments error = %v", err)
+			}
+			for path := range poisoned {
+				body, readErr := os.ReadFile(path)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				if string(body) != sentinel {
+					t.Fatalf("renderer-controlled path %s changed to %q", path, body)
+				}
+			}
+			gallery, err := os.ReadFile(filepath.Join(publishDir, "index.html"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(gallery, []byte("FragForge publish pack")) {
+				t.Fatalf("canonical gallery = %q", gallery)
+			}
+			summary, err := os.ReadFile(filepath.Join(publishDir, "publish-summary.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(summary, []byte("# FragForge publish pack")) {
+				t.Fatalf("canonical summary = %q", summary)
+			}
+		})
+	}
+}
+
+func TestDurableRenderProjectorsReturnArtifactReferenceErrors(t *testing.T) {
+	id := uuid.New()
+	revisionID := uuid.New()
+	tests := []struct {
+		name    string
+		project func() error
+	}{
+		{
+			name: "render result",
+			project: func() error {
+				short := editor.ShortResult{SegmentID: "../escape"}
+				return projectDurableShort(id, editor.PresetViral60Clean, revisionID, &short)
+			},
+		},
+		{
+			name: "edit manifest",
+			project: func() error {
+				short := editor.ShortEdit{SegmentID: "../escape"}
+				return projectDurableEdit(id, editor.PresetViral60Clean, revisionID, &short)
+			},
+		},
+		{
+			name: "pack manifest",
+			project: func() error {
+				item := editor.PublishItem{SegmentID: "../escape"}
+				return projectDurablePublishItem(id, editor.PresetViral60Clean, revisionID, &item)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.project()
+			if err == nil || !strings.Contains(err.Error(), "artifact name") {
+				t.Fatalf("project error = %v, want artifact reference validation", err)
+			}
+		})
+	}
+}
+
+func TestExplicitCoverArgsCarriesEveryBooleanDecision(t *testing.T) {
+	tests := []struct {
+		name string
+		edit renderplan.EditRequest
+		want string
+	}{
+		{name: "generated gameplay candidates", edit: renderplan.EditRequest{CoverStrategy: renderplan.CoverStrategyGenerated}, want: "--covers=true"},
+		{name: "no cover", edit: renderplan.EditRequest{CoverStrategy: renderplan.CoverStrategyNone}, want: "--covers=false"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := explicitCoverArgs(renderplan.Loadout{CoverSheets: false}, tt.edit)
+			for _, want := range []string{tt.want, "--cover-sheets=false", "--cover-first-frame=false"} {
+				if !slices.Contains(args, want) {
+					t.Fatalf("args = %#v, want %q", args, want)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderVariantCompletionStatusRequiresReviewForWarnings(t *testing.T) {
+	if got := renderVariantCompletionStatus(editor.Result{}); got != renderplan.RenderVariantStatusReady {
+		t.Fatalf("clean result status = %q, want ready", got)
+	}
+	if got := renderVariantCompletionStatus(editor.Result{Warnings: []string{"frozen frame"}}); got != renderplan.RenderVariantStatusReview {
+		t.Fatalf("warning result status = %q, want review_required", got)
+	}
+}
+
+func TestPreserveRenderArtifactPointerKeepsCanonicalPrefixForLegacyState(t *testing.T) {
+	id := uuid.New()
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusReady,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy.ArtifactPrefix = ""
+	migrated, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:    id,
+		Loadout:  loadout,
+		Status:   renderplan.RenderVariantStatusRendering,
+		Previous: &legacy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalPrefix := migrated.ArtifactPrefix
+
+	preserveRenderArtifactPointer(&migrated, &legacy)
+
+	if migrated.ArtifactPrefix != canonicalPrefix || migrated.ArtifactPrefix == "" {
+		t.Fatalf("artifact prefix = %q, want canonical %q", migrated.ArtifactPrefix, canonicalPrefix)
+	}
+	ref, err := renderplan.NewRenderVariantArtifactRefForState(
+		migrated,
+		renderplan.RenderVariantArtifactVideo,
+		"seg-001",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := canonicalPrefix + "/videos/seg-001.mp4"; ref.Key != want {
+		t.Fatalf("video key = %q, want %q", ref.Key, want)
 	}
 }
 
@@ -630,24 +1227,20 @@ func TestRenderWorkerCompilesMultipleSegmentsIntoOneShort(t *testing.T) {
 	id := uuid.New()
 	plan := multiSegmentKillPlan("seg-001", "seg-002")
 	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+	recordingPlan, err := recording.NewPlanFromKillPlan(plan, "demo.dem", "out", recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
 	rec := recording.RecordingResult{
-		Plan: recording.RecordingPlan{
-			DemoPath:        "demo.dem",
-			OutputDir:       "out",
-			TargetSteamID64: "76561197960265729",
-			TargetAccountID: 1,
-			Tickrate:        64,
-			Stream:          recording.DefaultStreamConfig(),
-			Segments: []recording.RecordingSegment{
-				{ID: "seg-001", TickStart: 64, TickEnd: 128},
-				{ID: "seg-002", TickStart: 128, TickEnd: 192},
-			},
-		},
+		Plan:            recordingPlan,
+		CaptureMode:     recording.CaptureModeReal,
+		CaptureVerified: true,
 		Artifacts: []recording.RecordingArtifact{
 			{SegmentID: "seg-001", Role: "segment", Type: "video", Path: "C:/stale/seg-001.mp4", SizeBytes: 4},
 			{SegmentID: "seg-002", Role: "segment", Type: "video", Path: "C:/stale/seg-002.mp4", SizeBytes: 4},
 		},
 	}
+	rec.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(rec.Plan)
 	putJSON(t, store, recording.ResultArtifactKey(id), rec)
 	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip1")))
 	_ = store.Put(mustSegmentClipKey(t, id, "seg-002"), bytes.NewReader([]byte("clip2")))
@@ -670,10 +1263,10 @@ func TestRenderWorkerCompilesMultipleSegmentsIntoOneShort(t *testing.T) {
 			path string
 			body string
 		}{
-			{filepath.Join(outDir, "edit-manifest.json"), `{"shorts":[]}`},
-			{filepath.Join(publishDir, "pack-manifest.json"), `{"items":[]}`},
+			{filepath.Join(outDir, "edit-manifest.json"), `{"shorts":[{"segment_id":"demo-compilation"}]}`},
+			{filepath.Join(publishDir, "pack-manifest.json"), `{"items":[{"segment_id":"demo-compilation"}]}`},
 			{filepath.Join(publishDir, "index.html"), `<html></html>`},
-			{filepath.Join(publishDir, "summary.md"), `summary`},
+			{filepath.Join(publishDir, "publish-summary.md"), `summary`},
 			{videoPath, "video"},
 			{coverPath, "cover"},
 			{captionPath, "caption"},
@@ -691,7 +1284,7 @@ func TestRenderWorkerCompilesMultipleSegmentsIntoOneShort(t *testing.T) {
 			OutputDir:   outDir,
 			PublishDir:  publishDir,
 			GalleryPath: filepath.Join(publishDir, "index.html"),
-			SummaryPath: filepath.Join(publishDir, "summary.md"),
+			SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
 			// A compiled render emits exactly one short covering every selected
 			// segment, not one short per segment.
 			Shorts: []editor.ShortResult{{
@@ -719,27 +1312,6 @@ func TestRenderWorkerCompilesMultipleSegmentsIntoOneShort(t *testing.T) {
 		t.Fatalf("HandleRenderVariant error = %v", err)
 	}
 
-	// The published output is one compiled reel, not per-segment shorts: only
-	// the "demo-compilation" video/cover/caption keys exist.
-	for _, key := range []string{
-		mustRenderVariantVideoKey(t, id, editor.PresetViral60Clean, compiledID),
-		mustRenderVariantCoverKey(t, id, editor.PresetViral60Clean, compiledID),
-		mustRenderVariantCaptionKey(t, id, editor.PresetViral60Clean, compiledID),
-	} {
-		if _, ok := store.files[key]; !ok {
-			t.Fatalf("storage missing compiled short artifact %s", key)
-		}
-	}
-	for _, segmentID := range []string{"seg-001", "seg-002"} {
-		key, err := artifacts.RenderVariantVideoKey(id, editor.PresetViral60Clean, segmentID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := store.files[key]; ok {
-			t.Fatalf("storage has a per-segment short %s; multi-segment renders must compile into one reel", key)
-		}
-	}
-
 	var state renderplan.RenderVariantState
 	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
 		t.Fatal(err)
@@ -747,12 +1319,36 @@ func TestRenderWorkerCompilesMultipleSegmentsIntoOneShort(t *testing.T) {
 	if got, want := state.Status, renderplan.RenderVariantStatusReady; got != want {
 		t.Fatalf("render state = %q, want %q", got, want)
 	}
+	// The published output is one compiled reel, not per-segment shorts: only
+	// the "demo-compilation" video/cover/caption keys exist.
+	for _, kind := range []renderplan.RenderVariantArtifactKind{
+		renderplan.RenderVariantArtifactVideo,
+		renderplan.RenderVariantArtifactCover,
+		renderplan.RenderVariantArtifactCaption,
+	} {
+		ref, err := renderplan.NewRenderVariantArtifactRefForState(state, kind, compiledID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := store.files[ref.Key]; !ok {
+			t.Fatalf("storage missing compiled short artifact %s", ref.Key)
+		}
+	}
+	for _, segmentID := range []string{"seg-001", "seg-002"} {
+		ref, err := renderplan.NewRenderVariantArtifactRefForState(state, renderplan.RenderVariantArtifactVideo, segmentID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := store.files[ref.Key]; ok {
+			t.Fatalf("storage has a per-segment short %s; multi-segment renders must compile into one reel", ref.Key)
+		}
+	}
 
 	// The result artifact is the source the videos-listing endpoints
 	// (GetRenderPublishBoard, GetRenderVariant) read from; confirm it reports
 	// the single compiled short so the API/web exposes exactly one video.
 	var result editor.Result
-	if err := json.Unmarshal(store.files[mustRenderVariantResultKey(t, id, editor.PresetViral60Clean)], &result); err != nil {
+	if err := json.Unmarshal(store.files[state.RenderResultKey], &result); err != nil {
 		t.Fatal(err)
 	}
 	if len(result.Shorts) != 1 || result.Shorts[0].SegmentID != compiledID {
@@ -857,13 +1453,11 @@ func TestRenderWorkerDefaultsToViral60WhenVariantEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	putJSON(t, store, mustRenderVariantResultKey(t, id, defaultVariant), editor.Result{
+	seedLegacyRenderVariantReady(t, store, id, defaultVariant, editor.Result{
 		Preset:           defaultVariant,
 		InputFingerprint: fingerprint,
 		Shorts:           []editor.ShortResult{{SegmentID: "seg-001"}},
 	})
-	_ = store.Put(mustRenderVariantPackManifestKey(t, id, defaultVariant), bytes.NewReader([]byte("pack")))
-	_ = store.Put(mustRenderVariantGalleryKey(t, id, defaultVariant), bytes.NewReader([]byte("<html></html>")))
 
 	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
 		t.Fatal("runner should not be called when default variant outputs already exist")
@@ -936,15 +1530,13 @@ func TestRenderWorkerSkipsWhenVariantOutputsAlreadyExist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	putJSON(t, store, mustRenderVariantResultKey(t, id, editor.PresetViral60Clean), editor.Result{
+	seedLegacyRenderVariantReady(t, store, id, editor.PresetViral60Clean, editor.Result{
 		Preset:           editor.PresetViral60Clean,
 		InputFingerprint: fingerprint,
 		Shorts: []editor.ShortResult{{
 			SegmentID: "seg-001",
 		}},
 	})
-	_ = store.Put(mustRenderVariantPackManifestKey(t, id, editor.PresetViral60Clean), bytes.NewReader([]byte("pack")))
-	_ = store.Put(mustRenderVariantGalleryKey(t, id, editor.PresetViral60Clean), bytes.NewReader([]byte("gallery")))
 
 	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
 		t.Fatal("runner should not be called when render variant outputs already exist")
@@ -958,6 +1550,157 @@ func TestRenderWorkerSkipsWhenVariantOutputsAlreadyExist(t *testing.T) {
 	}
 	if len(runner.calls) != 0 {
 		t.Fatalf("runner calls = %d, want 0", len(runner.calls))
+	}
+}
+
+func TestRenderWorkerMigratesCachedWarningsToReviewRequired(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := minimalKillPlan()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+	recordingResult := recordingResultWithSegment("", "C:/stale/seg-001.mp4")
+	recordingResult.CaptureRevision = "capture-1"
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResult)
+	fingerprint, err := renderInputFingerprint(recordingResult, &plan, editor.PresetViral60Clean, "", "", 0, renderplan.DefaultEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	warnings := []string{"frozen frame at 00:07"}
+	seedLegacyRenderVariantReady(t, store, id, editor.PresetViral60Clean, editor.Result{
+		Preset:           editor.PresetViral60Clean,
+		InputFingerprint: fingerprint,
+		Warnings:         warnings,
+		Shorts:           []editor.ShortResult{{SegmentID: "seg-001"}},
+	})
+
+	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+		t.Fatal("runner should not be called when cached render outputs are complete")
+		return nil, nil
+	}}
+	worker := NewRenderWorker(repo, store, RenderWorkerConfig{})
+	worker.runner = runner
+	if err := worker.HandleRenderVariant(context.Background(), renderTask(t, id, editor.PresetViral60Clean)); err != nil {
+		t.Fatalf("HandleRenderVariant error = %v", err)
+	}
+
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusReview {
+		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusReview)
+	}
+	if !slices.Equal(state.Warnings, warnings) {
+		t.Fatalf("warnings = %#v, want %#v", state.Warnings, warnings)
+	}
+}
+
+func TestRenderWorkerMigratesCachedArtifactWarningsToReviewRequired(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := minimalKillPlan()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+	recordingResult := recordingResultWithSegment("", "C:/stale/seg-001.mp4")
+	recordingResult.CaptureRevision = "capture-1"
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResult)
+	fingerprint, err := renderInputFingerprint(recordingResult, &plan, editor.PresetViral60Clean, "", "", 0, renderplan.DefaultEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedLegacyRenderVariantReady(t, store, id, editor.PresetViral60Clean, editor.Result{
+		Preset:           editor.PresetViral60Clean,
+		InputFingerprint: fingerprint,
+		Shorts: []editor.ShortResult{{
+			SegmentID: "seg-001",
+			PublishArtifact: recording.RecordingArtifact{
+				Path:   "seg-001.mp4",
+				Width:  1080,
+				Height: 1920,
+			},
+		}},
+	})
+
+	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+		t.Fatal("runner should not be called when cached render outputs are complete")
+		return nil, nil
+	}}
+	worker := NewRenderWorker(repo, store, RenderWorkerConfig{})
+	worker.runner = runner
+	if err := worker.HandleRenderVariant(context.Background(), renderTask(t, id, editor.PresetViral60Clean)); err != nil {
+		t.Fatalf("HandleRenderVariant error = %v", err)
+	}
+
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusReview {
+		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusReview)
+	}
+	want := []string{"quality seg-001: missing_or_empty_video"}
+	if !slices.Equal(state.Warnings, want) {
+		t.Fatalf("warnings = %#v, want %#v", state.Warnings, want)
+	}
+}
+
+func TestRenderWorkerPreservesResolvedReviewForSameCachedRevision(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := minimalKillPlan()
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+	recordingResult := recordingResultWithSegment("", "C:/stale/seg-001.mp4")
+	recordingResult.CaptureRevision = "capture-1"
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResult)
+	fingerprint, err := renderInputFingerprint(recordingResult, &plan, editor.PresetViral60Clean, "", "", 0, renderplan.DefaultEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	warnings := []string{"intentional freeze at 00:07"}
+	seedLegacyRenderVariantReady(t, store, id, editor.PresetViral60Clean, editor.Result{
+		Preset:           editor.PresetViral60Clean,
+		InputFingerprint: fingerprint,
+		Warnings:         warnings,
+		Shorts:           []editor.ShortResult{{SegmentID: "seg-001"}},
+	})
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:    id,
+		Loadout:  loadout,
+		Status:   renderplan.RenderVariantStatusReady,
+		Warnings: warnings,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.ReviewResolution = &renderplan.RenderReviewResolution{
+		ArtifactPrefix: state.ArtifactPrefix,
+		Warnings:       warnings,
+		Note:           "Freeze inspected and intentional.",
+		ReviewedAt:     time.Now().UTC(),
+	}
+	putJSON(t, store, mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean), state)
+
+	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+		t.Fatal("runner should not be called for the same resolved cached revision")
+		return nil, nil
+	}}
+	worker := NewRenderWorker(repo, store, RenderWorkerConfig{})
+	worker.runner = runner
+	if err := worker.HandleRenderVariant(context.Background(), renderTask(t, id, editor.PresetViral60Clean)); err != nil {
+		t.Fatalf("HandleRenderVariant error = %v", err)
+	}
+	var stored renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != renderplan.RenderVariantStatusReady || !stored.ReviewResolvedFor(warnings) {
+		t.Fatalf("resolved cached state regressed: %#v", stored)
 	}
 }
 
@@ -1043,13 +1786,29 @@ func TestRenderWorkerRerunsWhenCachedInputsChange(t *testing.T) {
 
 func TestRenderWorkerPassesMusicVolume(t *testing.T) {
 	cases := []struct {
-		name      string
-		volume    float64
-		wantFlag  bool
-		wantValue string
+		name           string
+		volume         float64
+		musicAvailable bool
+		wantMusic      renderplan.MusicSnapshot
 	}{
-		{"custom volume threads to editor", 0.35, true, "0.35"},
-		{"default volume omits flag", 0, false, ""},
+		{
+			name:           "custom volume threads to every consumer",
+			volume:         0.35,
+			musicAvailable: true,
+			wantMusic:      renderplan.MusicSnapshot{Key: "phonk", Volume: 0.35},
+		},
+		{
+			name:           "default volume is explicit unity everywhere",
+			volume:         0,
+			musicAvailable: true,
+			wantMusic:      renderplan.MusicSnapshot{Key: "phonk", Volume: 1},
+		},
+		{
+			name:           "unavailable music stays music free",
+			volume:         1,
+			musicAvailable: false,
+			wantMusic:      renderplan.MusicSnapshot{},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1062,13 +1821,24 @@ func TestRenderWorkerPassesMusicVolume(t *testing.T) {
 			_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
 
 			musicDir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(musicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
-				t.Fatal(err)
+			if tc.musicAvailable {
+				if err := os.WriteFile(filepath.Join(musicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
+					t.Fatal(err)
+				}
 			}
 			var gotArgs []string
+			var gotDocument renderplan.EditDocument
 			wantErr := errors.New("stop after args")
 			runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 				gotArgs = append([]string(nil), args...)
+				documentPath := filepath.Join(argValue(args, "--out"), "edit-document.json")
+				body, err := os.ReadFile(documentPath)
+				if err != nil {
+					t.Fatalf("read effective edit document: %v", err)
+				}
+				if err := json.Unmarshal(body, &gotDocument); err != nil {
+					t.Fatalf("decode effective edit document: %v", err)
+				}
 				return nil, wantErr
 			}}
 			w := NewRenderWorker(repo, store, RenderWorkerConfig{
@@ -1085,18 +1855,162 @@ func TestRenderWorkerPassesMusicVolume(t *testing.T) {
 			if err := w.HandleRenderVariant(context.Background(), task); !errors.Is(err, wantErr) {
 				t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
 			}
-			if !hasArg(gotArgs, "--music") {
-				t.Fatalf("editor args missing --music: %#v", gotArgs)
+			if got := hasArg(gotArgs, "--music"); got != tc.musicAvailable {
+				t.Fatalf("--music present = %v, want %v: %#v", got, tc.musicAvailable, gotArgs)
 			}
-			if got := hasArg(gotArgs, "--music-volume"); got != tc.wantFlag {
-				t.Fatalf("--music-volume present = %v, want %v: %#v", got, tc.wantFlag, gotArgs)
+			if got := hasArg(gotArgs, "--music-volume"); got != tc.musicAvailable {
+				t.Fatalf("--music-volume present = %v, want %v: %#v", got, tc.musicAvailable, gotArgs)
 			}
-			if tc.wantFlag {
-				if got := argValue(gotArgs, "--music-volume"); got != tc.wantValue {
-					t.Fatalf("--music-volume = %q, want %q", got, tc.wantValue)
+			if tc.musicAvailable {
+				wantValue := strconv.FormatFloat(tc.wantMusic.Volume, 'f', -1, 64)
+				if got := argValue(gotArgs, "--music-volume"); got != wantValue {
+					t.Fatalf("--music-volume = %q, want %q", got, wantValue)
 				}
 			}
+			if gotDocument.Music == nil ||
+				*gotDocument.Music != tc.wantMusic {
+				t.Fatalf("effective music snapshot = %#v, want %#v", gotDocument.Music, tc.wantMusic)
+			}
 		})
+	}
+}
+
+func TestRenderWorkerTreatsDefaultAndUnityMusicVolumeAsSameCacheIdentity(t *testing.T) {
+	tests := []struct {
+		name         string
+		firstVolume  float64
+		secondVolume float64
+	}{
+		{name: "default then explicit unity", firstVolume: 0, secondVolume: 1},
+		{name: "explicit unity then default", firstVolume: 1, secondVolume: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := minimalKillPlan()
+			repo.jobs[id] = &job.Job{
+				ID:       id,
+				Status:   job.StatusRecorded,
+				Rules:    rules.Default(),
+				KillPlan: &plan,
+			}
+			putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+			if err := store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip"))); err != nil {
+				t.Fatal(err)
+			}
+			musicDir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(musicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				if got := argValue(args, "--music-volume"); got != "1" {
+					t.Fatalf("--music-volume = %q, want normalized unity", got)
+				}
+				documentPath := filepath.Join(argValue(args, "--out"), "edit-document.json")
+				var document renderplan.EditDocument
+				if err := readJSONFile(documentPath, &document); err != nil {
+					t.Fatal(err)
+				}
+				if document.Music == nil || *document.Music != (renderplan.MusicSnapshot{Key: "phonk", Volume: 1}) {
+					t.Fatalf("effective music snapshot = %#v, want phonk/1", document.Music)
+				}
+				writeSuccessfulSingleShortRenderOutput(t, args)
+				return []byte("rendered"), nil
+			}}
+			worker := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:    t.TempDir(),
+				EditorPath: "zv-editor",
+				MusicDir:   musicDir,
+			})
+			worker.runner = runner
+
+			run := func(volume float64) {
+				t.Helper()
+				task, err := tasks.NewRenderVariantTask(
+					id,
+					editor.PresetViral60Clean,
+					"phonk",
+					volume,
+					renderplan.DefaultEditRequest(),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := worker.HandleRenderVariant(context.Background(), task); err != nil {
+					t.Fatalf("HandleRenderVariant(%v) error = %v", volume, err)
+				}
+			}
+
+			run(tt.firstVolume)
+			var firstState renderplan.RenderVariantState
+			if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &firstState); err != nil {
+				t.Fatal(err)
+			}
+			var firstResult editor.Result
+			if err := json.Unmarshal(store.files[firstState.RenderResultKey], &firstResult); err != nil {
+				t.Fatal(err)
+			}
+			if firstResult.InputFingerprint == "" {
+				t.Fatal("first render fingerprint is empty")
+			}
+
+			run(tt.secondVolume)
+			if len(runner.calls) != 1 {
+				t.Fatalf("runner calls = %d, want one render plus one equivalent cache hit", len(runner.calls))
+			}
+			var secondState renderplan.RenderVariantState
+			if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &secondState); err != nil {
+				t.Fatal(err)
+			}
+			if secondState.ArtifactPrefix != firstState.ArtifactPrefix ||
+				secondState.RenderResultKey != firstState.RenderResultKey {
+				t.Fatalf("cache identity changed: first=%#v second=%#v", firstState, secondState)
+			}
+		})
+	}
+}
+
+func writeSuccessfulSingleShortRenderOutput(t *testing.T, args []string) {
+	t.Helper()
+	outDir := argValue(args, "--out")
+	publishDir := argValue(args, "--publish-dir")
+	videoPath := filepath.Join(publishDir, "seg-001.mp4")
+	captionPath := filepath.Join(publishDir, "seg-001.caption.txt")
+	if err := writeJSONFile(filepath.Join(outDir, "edit-manifest.json"), editor.Manifest{
+		Shorts: []editor.ShortEdit{{SegmentID: "seg-001"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSONFile(filepath.Join(publishDir, "pack-manifest.json"), editor.PackManifest{
+		Items: []editor.PublishItem{{SegmentID: "seg-001"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for path, body := range map[string]string{
+		videoPath:   "video",
+		captionPath: "caption",
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), editor.Result{
+		Preset:      editor.PresetViral60Clean,
+		OutputDir:   outDir,
+		PublishDir:  publishDir,
+		GalleryPath: filepath.Join(publishDir, "index.html"),
+		SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
+		Shorts: []editor.ShortResult{{
+			SegmentID:   "seg-001",
+			Output:      videoPath,
+			PublishPath: videoPath,
+			CaptionPath: captionPath,
+		}},
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -1145,6 +2059,8 @@ func TestTaskIsTerminalUsesInlineAttemptContext(t *testing.T) {
 func minimalKillPlan() killplan.Plan {
 	plan := killplan.NewPlan()
 	plan.Demo.Tickrate = 64
+	plan.Demo.SHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	plan.Demo.DurationTicks = 100000
 	plan.Target.SteamID64 = "76561197960265729"
 	plan.Rules = rules.Default()
 	plan.Segments = []killplan.Segment{{
@@ -1160,13 +2076,23 @@ func recordingResultWithSegment(scriptPath, segmentPath string) recording.Record
 	plan := minimalKillPlan()
 	stream := recording.DefaultStreamConfig()
 	stream.HUDMode = recording.HUDModeDeathnotices
-	recordingPlan, err := recording.NewPlanFromKillPlan(plan, "demo.dem", "out", stream)
+	outDir := "out"
+	demoPath := "demo.dem"
+	if segmentPath != "" {
+		outDir = filepath.Dir(filepath.Dir(segmentPath))
+		demoPath = filepath.Join(filepath.Dir(outDir), "demo.dem")
+	} else if scriptPath != "" {
+		outDir = filepath.Dir(scriptPath)
+		demoPath = filepath.Join(filepath.Dir(outDir), "demo.dem")
+	}
+	recordingPlan, err := recording.NewPlanFromKillPlan(plan, demoPath, outDir, stream)
 	if err != nil {
 		panic(fmt.Sprintf("build test recording plan: %v", err))
 	}
-	return recording.RecordingResult{
+	result := recording.RecordingResult{
 		Plan:            recordingPlan,
 		Script:          scriptPath,
+		CaptureMode:     recording.CaptureModeReal,
 		CaptureVerified: true,
 		Artifacts: []recording.RecordingArtifact{{
 			SegmentID: "seg-001",
@@ -1176,6 +2102,42 @@ func recordingResultWithSegment(scriptPath, segmentPath string) recording.Record
 			SizeBytes: 4,
 		}},
 	}
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
+	return result
+}
+
+func recordingResultForRunnerArgs(t *testing.T, args []string, scriptPath, segmentPath string) recording.RecordingResult {
+	t.Helper()
+	var plan killplan.Plan
+	if err := readJSONFile(argValue(args, "--killplan"), &plan); err != nil {
+		t.Fatalf("read runner kill plan: %v", err)
+	}
+	stream := recording.DefaultStreamConfig()
+	stream.HUDMode = recording.HUDMode(argValue(args, "--hud"))
+	stream.PortraitSafeKillfeed = hasArg(args, "--portrait-safe-killfeed")
+	recordingPlan, err := recording.NewPlanFromKillPlan(plan, argValue(args, "--demo"), argValue(args, "--out"), stream)
+	if err != nil {
+		t.Fatalf("build runner recording plan: %v", err)
+	}
+	info, err := os.Stat(segmentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := recording.RecordingResult{
+		Plan:            recordingPlan,
+		Script:          scriptPath,
+		CaptureMode:     recording.CaptureModeReal,
+		CaptureVerified: true,
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID: plan.Segments[0].ID,
+			Role:      "segment",
+			Type:      "video",
+			Path:      segmentPath,
+			SizeBytes: info.Size(),
+		}},
+	}
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
+	return result
 }
 
 func recordTask(t *testing.T, id uuid.UUID) *asynq.Task {
@@ -1343,11 +2305,42 @@ func mustRenderVariantCaptionKey(t *testing.T, id uuid.UUID, variant, name strin
 	return key
 }
 
-func mustRenderVariantLogKey(t *testing.T, id uuid.UUID, variant, name string) string {
+func seedLegacyRenderVariantReady(
+	t *testing.T,
+	store *fakeStorage,
+	id uuid.UUID,
+	variant string,
+	result editor.Result,
+) {
 	t.Helper()
-	key, err := artifacts.RenderVariantLogKey(id, variant, name)
-	if err != nil {
-		t.Fatal(err)
+	putJSON(t, store, mustRenderVariantResultKey(t, id, variant), result)
+	for _, key := range []string{
+		mustRenderVariantEditDocumentKey(t, id, variant),
+		mustRenderVariantEditManifestKey(t, id, variant),
+		mustRenderVariantPackManifestKey(t, id, variant),
+		mustRenderVariantPublishSummaryKey(t, id, variant),
+		mustRenderVariantGalleryKey(t, id, variant),
+	} {
+		if err := store.Put(key, bytes.NewReader([]byte("artifact"))); err != nil {
+			t.Fatal(err)
+		}
 	}
-	return key
+	for _, short := range result.Shorts {
+		for _, key := range []string{
+			mustRenderVariantVideoKey(t, id, variant, short.SegmentID),
+			mustRenderVariantCaptionKey(t, id, variant, short.SegmentID),
+		} {
+			if err := store.Put(key, bytes.NewReader([]byte("artifact"))); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if result.CoversEnabled {
+			if err := store.Put(
+				mustRenderVariantCoverKey(t, id, variant, short.SegmentID),
+				bytes.NewReader([]byte("artifact")),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 }

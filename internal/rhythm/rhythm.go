@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -15,37 +16,45 @@ import (
 	"strings"
 
 	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/fragforge/internal/moments"
 	"github.com/rechedev9/fragforge/internal/recording"
 )
 
-const SchemaVersion = "1.0"
+const SchemaVersion = "1.1"
 
 type Config struct {
-	InputPath         string
-	KillPlanPath      string
-	FFmpegPath        string
-	SampleRate        int
-	MinBPM            float64
-	MaxBPM            float64
-	KillOffsetSeconds float64
-	MaxBeats          int
-	MaxOnsets         int
+	InputPath           string
+	KillPlanPath        string
+	RecordingResultPath string
+	FFmpegPath          string
+	SampleRate          int
+	MinBPM              float64
+	MaxBPM              float64
+	KillOffsetSeconds   float64
+	MaxBeats            int
+	MaxOnsets           int
+	TailTrimSeconds     float64
+	RankMoments         bool
+	Limit               int
 }
 
 type Analysis struct {
-	SchemaVersion     string        `json:"schema_version"`
-	SourcePath        string        `json:"source_path,omitempty"`
-	KillPlanPath      string        `json:"killplan,omitempty"`
-	DurationSeconds   float64       `json:"duration_seconds"`
-	SampleRate        int           `json:"sample_rate"`
-	EstimatedBPM      float64       `json:"estimated_bpm"`
-	BeatPeriodSeconds float64       `json:"beat_period_seconds"`
-	BeatPhaseSeconds  float64       `json:"beat_phase_seconds"`
-	KillOffsetSeconds float64       `json:"kill_offset_seconds"`
-	BeatTimesSeconds  []float64     `json:"beat_times_seconds"`
-	StrongOnsets      []Onset       `json:"strong_onsets,omitempty"`
-	SegmentSync       []SegmentSync `json:"segment_sync,omitempty"`
-	Warnings          []string      `json:"warnings,omitempty"`
+	SchemaVersion       string        `json:"schema_version"`
+	SourcePath          string        `json:"source_path,omitempty"`
+	SourceSHA256        string        `json:"source_sha256"`
+	KillPlanPath        string        `json:"killplan,omitempty"`
+	RecordingResultPath string        `json:"recording_result,omitempty"`
+	DurationSeconds     float64       `json:"duration_seconds"`
+	SampleRate          int           `json:"sample_rate"`
+	EstimatedBPM        float64       `json:"estimated_bpm"`
+	BeatPeriodSeconds   float64       `json:"beat_period_seconds"`
+	BeatPhaseSeconds    float64       `json:"beat_phase_seconds"`
+	KillOffsetSeconds   float64       `json:"kill_offset_seconds"`
+	TailTrimSeconds     float64       `json:"tail_trim_seconds"`
+	BeatTimesSeconds    []float64     `json:"beat_times_seconds"`
+	StrongOnsets        []Onset       `json:"strong_onsets,omitempty"`
+	SegmentSync         []SegmentSync `json:"segment_sync,omitempty"`
+	Warnings            []string      `json:"warnings,omitempty"`
 }
 
 type Onset struct {
@@ -73,24 +82,44 @@ type samplesConfig struct {
 	MaxOnsets         int
 }
 
+type inputStatter func(string) error
+
+type stableSampleDecoder func(context.Context, string, string, int) ([]float64, string, error)
+
 // AnalyzeFile decodes audio through FFmpeg and returns a beat grid plus optional
 // kill-plan sync suggestions.
 func AnalyzeFile(ctx context.Context, cfg Config) (Analysis, error) {
+	return analyzeFile(ctx, cfg, statInput, decodeStableFileSamples)
+}
+
+func analyzeFile(ctx context.Context, cfg Config, stat inputStatter, decode stableSampleDecoder) (Analysis, error) {
+	if strings.TrimSpace(cfg.KillPlanPath) != "" && strings.TrimSpace(cfg.RecordingResultPath) != "" {
+		return Analysis{}, fmt.Errorf("killplan path and recording result path are mutually exclusive")
+	}
 	if strings.TrimSpace(cfg.InputPath) == "" {
 		return Analysis{}, fmt.Errorf("input path is required")
+	}
+	if cfg.TailTrimSeconds < 0 || math.IsNaN(cfg.TailTrimSeconds) || math.IsInf(cfg.TailTrimSeconds, 0) {
+		return Analysis{}, fmt.Errorf("tail trim seconds must be finite and non-negative")
+	}
+	if cfg.Limit < 0 {
+		return Analysis{}, fmt.Errorf("limit must be non-negative")
+	}
+	if cfg.Limit > 0 && !cfg.RankMoments {
+		return Analysis{}, fmt.Errorf("limit requires ranked moments")
 	}
 	inputPath, err := filepath.Abs(cfg.InputPath)
 	if err != nil {
 		return Analysis{}, fmt.Errorf("resolve input path: %w", err)
 	}
-	if _, err := os.Stat(inputPath); err != nil {
+	if err := stat(inputPath); err != nil {
 		return Analysis{}, fmt.Errorf("input not found: %w", err)
 	}
 	sampleRate := cfg.SampleRate
 	if sampleRate <= 0 {
 		sampleRate = 22050
 	}
-	samples, err := decodeMonoSamples(ctx, cfg.FFmpegPath, inputPath, sampleRate)
+	samples, sourceSHA256, err := decode(ctx, cfg.FFmpegPath, inputPath, sampleRate)
 	if err != nil {
 		return Analysis{}, err
 	}
@@ -102,6 +131,9 @@ func AnalyzeFile(ctx context.Context, cfg Config) (Analysis, error) {
 		MaxOnsets:         cfg.MaxOnsets,
 	})
 	analysis.SourcePath = inputPath
+	analysis.SourceSHA256 = sourceSHA256
+	tailTrimSeconds := NormalizeTailTrimSeconds(cfg.TailTrimSeconds)
+	analysis.TailTrimSeconds = tailTrimSeconds
 	if strings.TrimSpace(cfg.KillPlanPath) != "" {
 		planPath, err := filepath.Abs(cfg.KillPlanPath)
 		if err != nil {
@@ -111,13 +143,69 @@ func AnalyzeFile(ctx context.Context, cfg Config) (Analysis, error) {
 		if err != nil {
 			return Analysis{}, err
 		}
+		if cfg.RankMoments {
+			plan = rankedPlan(plan, cfg.Limit)
+		}
 		analysis.KillPlanPath = planPath
-		analysis.SegmentSync = BuildSegmentSync(plan, analysis.BeatTimesSeconds, analysis.KillOffsetSeconds)
+		analysis.SegmentSync = BuildSegmentSyncWithTrim(plan, analysis.BeatTimesSeconds, analysis.KillOffsetSeconds, tailTrimSeconds)
 		if len(analysis.SegmentSync) == 0 {
 			analysis.Warnings = append(analysis.Warnings, "killplan produced no segment sync entries")
 		}
+	} else if strings.TrimSpace(cfg.RecordingResultPath) != "" {
+		resultPath, err := filepath.Abs(cfg.RecordingResultPath)
+		if err != nil {
+			return Analysis{}, fmt.Errorf("resolve recording result path: %w", err)
+		}
+		result, err := readRecordingResult(resultPath)
+		if err != nil {
+			return Analysis{}, err
+		}
+		if err := recording.ValidateRunResult(result); err != nil {
+			return Analysis{}, fmt.Errorf("validate recording result: %w", err)
+		}
+		rhythmPlan := result.Plan.ToKillPlan()
+		if cfg.RankMoments {
+			rhythmPlan = rankedPlan(rhythmPlan, cfg.Limit)
+		}
+		analysis.RecordingResultPath = resultPath
+		analysis.SegmentSync = BuildSegmentSyncWithTrim(
+			rhythmPlan,
+			analysis.BeatTimesSeconds,
+			analysis.KillOffsetSeconds,
+			tailTrimSeconds,
+		)
+		if len(analysis.SegmentSync) == 0 {
+			analysis.Warnings = append(analysis.Warnings, "recording result produced no segment sync entries")
+		}
 	}
 	return analysis, nil
+}
+
+func statInput(path string) error {
+	_, err := os.Stat(path)
+	return err
+}
+
+func decodeStableFileSamples(ctx context.Context, ffmpegPath, inputPath string, sampleRate int) ([]float64, string, error) {
+	return decodeStableMonoSamples(ctx, ffmpegPath, inputPath, sampleRate, decodeMonoSamples)
+}
+
+func rankedPlan(plan killplan.Plan, limit int) killplan.Plan {
+	segmentsByID := make(map[string]killplan.Segment, len(plan.Segments))
+	for _, segment := range plan.Segments {
+		segmentsByID[segment.ID] = segment
+	}
+	ranked := moments.Rank(plan)
+	if limit > 0 && len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+	plan.Segments = make([]killplan.Segment, 0, len(ranked))
+	for _, moment := range ranked {
+		if segment, ok := segmentsByID[moment.SegmentID]; ok {
+			plan.Segments = append(plan.Segments, segment)
+		}
+	}
+	return plan
 }
 
 func AnalyzeSamples(samples []float64, sampleRate int, cfg samplesConfig) Analysis {
@@ -183,6 +271,12 @@ func AnalyzeSamples(samples []float64, sampleRate int, cfg samplesConfig) Analys
 }
 
 func BuildSegmentSync(plan killplan.Plan, beats []float64, killOffset float64) []SegmentSync {
+	return BuildSegmentSyncWithTrim(plan, beats, killOffset, 0)
+}
+
+// BuildSegmentSyncWithTrim binds beat placement to the exact clip durations
+// the editor will use, so changing trim invalidates the rhythm artifact.
+func BuildSegmentSyncWithTrim(plan killplan.Plan, beats []float64, killOffset, tailTrimSeconds float64) []SegmentSync {
 	if plan.Demo.Tickrate <= 0 || len(beats) == 0 {
 		return nil
 	}
@@ -206,6 +300,13 @@ func BuildSegmentSync(plan killplan.Plan, beats []float64, killOffset float64) [
 		}
 		firstKillSeconds := float64(firstKill-recordStart) / float64(plan.Demo.Tickrate)
 		durationSeconds := float64(segment.TickEnd-recordStart) / float64(plan.Demo.Tickrate)
+		if tailTrimSeconds > 0 {
+			lastKill := lastKillTick(segment.Kills)
+			trimmed := float64(lastKill-recordStart)/float64(plan.Demo.Tickrate) + tailTrimSeconds
+			if trimmed > 0 && trimmed < durationSeconds {
+				durationSeconds = trimmed
+			}
+		}
 		if durationSeconds <= 0 {
 			continue
 		}
@@ -234,6 +335,45 @@ func BuildSegmentSync(plan killplan.Plan, beats []float64, killOffset float64) [
 		cursor = start + durationSeconds
 	}
 	return out
+}
+
+func lastKillTick(kills []killplan.Kill) int {
+	out := 0
+	for _, kill := range kills {
+		if kill.Tick > out {
+			out = kill.Tick
+		}
+	}
+	return out
+}
+
+type monoSampleDecoder func(context.Context, string, string, int) ([]float64, error)
+
+// decodeStableMonoSamples verifies the source immediately before and after the
+// decoder reads it. The persisted fingerprint therefore names the bytes FFmpeg
+// analyzed, or the analysis fails if the source was replaced or modified.
+func decodeStableMonoSamples(
+	ctx context.Context,
+	ffmpegPath, inputPath string,
+	sampleRate int,
+	decode monoSampleDecoder,
+) ([]float64, string, error) {
+	before, err := SourceSHA256(inputPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("hash input before analysis: %w", err)
+	}
+	samples, err := decode(ctx, ffmpegPath, inputPath, sampleRate)
+	if err != nil {
+		return nil, "", err
+	}
+	after, err := SourceSHA256(inputPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("hash input after analysis: %w", err)
+	}
+	if before != after {
+		return nil, "", fmt.Errorf("input changed during audio analysis: sha256 before %s, after %s", before, after)
+	}
+	return samples, before, nil
 }
 
 func decodeMonoSamples(ctx context.Context, ffmpegPath, inputPath string, sampleRate int) ([]float64, error) {
@@ -267,6 +407,7 @@ func decodeMonoSamples(ctx context.Context, ffmpegPath, inputPath string, sample
 	}
 	samples := make([]float64, len(out)/2)
 	for i := range samples {
+		// #nosec G115 -- ffmpeg emits signed little-endian PCM; this reinterprets its two's-complement bits.
 		v := int16(binary.LittleEndian.Uint16(out[i*2 : i*2+2]))
 		samples[i] = float64(v) / 32768
 	}
@@ -454,6 +595,28 @@ func readKillPlan(path string) (killplan.Plan, error) {
 	return plan, nil
 }
 
+func readRecordingResult(path string) (recording.RecordingResult, error) {
+	// #nosec G304 -- the local CLI operator explicitly supplies this artifact.
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return recording.RecordingResult{}, fmt.Errorf("read recording result: %w", err)
+	}
+	var result recording.RecordingResult
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&result); err != nil {
+		return recording.RecordingResult{}, fmt.Errorf("decode recording result: %w", err)
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("multiple JSON values")
+		}
+		return recording.RecordingResult{}, fmt.Errorf("decode recording result: %w", err)
+	}
+	return result, nil
+}
+
 func firstKillTick(kills []killplan.Kill) int {
 	out := 0
 	for _, kill := range kills {
@@ -494,6 +657,14 @@ func frameTime(frame, sampleRate, hop int) float64 {
 
 func roundMillis(v float64) float64 {
 	return math.Round(v*1000) / 1000
+}
+
+// NormalizeTailTrimSeconds is the shared precision contract for rhythm
+// generation and rendering. Stored sync timestamps are millisecond-precision,
+// so both producers and consumers must normalize the option before deriving or
+// comparing a plan.
+func NormalizeTailTrimSeconds(v float64) float64 {
+	return roundMillis(v)
 }
 
 func roundHundredths(v float64) float64 {

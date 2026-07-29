@@ -38,9 +38,25 @@ export const MUSIC_VOLUMES: readonly { value: number; label: string }[] = [
 /** The one offline sentence every stream call falls back to. */
 export const STREAM_OFFLINE_MESSAGE =
   'El servicio de Clips de stream está offline. Arráncalo y vuelve a intentarlo.';
+export const STREAM_INVALID_URL_MESSAGE =
+  'Esa URL no es un clip o VOD compatible. Usa un enlace HTTPS de Twitch o YouTube sin credenciales ni redirecciones.';
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function withDefaultStreamTitle(
+  plan: StreamEditPlan,
+  title: string | undefined,
+  editable: boolean,
+): StreamEditPlan {
+  const normalizedTitle = title?.trim() ?? '';
+  if (!editable || normalizedTitle === '' || !plan.clips[0] || plan.clips[0].title?.trim()) {
+    return plan;
+  }
+  const clips = [...plan.clips];
+  clips[0] = { ...clips[0], title: normalizedTitle };
+  return { ...plan, clips };
 }
 
 /** True when an API error means the local analysis service is unreachable. */
@@ -52,6 +68,9 @@ export function isServiceUnavailable(err: unknown): boolean {
 export function errorMessage(err: unknown, fallback: string): string {
   if (isServiceUnavailable(err)) {
     return STREAM_OFFLINE_MESSAGE;
+  }
+  if ((err as { code?: string } | null)?.code === 'invalid_source_url') {
+    return STREAM_INVALID_URL_MESSAGE;
   }
   if (err instanceof Error) {
     return err.message;

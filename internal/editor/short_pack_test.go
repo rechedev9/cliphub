@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/fragforge/internal/recording"
 )
 
 func TestRunFFmpegWithOptionalLogRecordsStartFailure(t *testing.T) {
@@ -51,6 +53,75 @@ func TestNormalizeRenderJobs(t *testing.T) {
 				t.Errorf("normalizeRenderJobs(%d) = %d, out of expected range", tt.jobs, got)
 			}
 		})
+	}
+}
+
+func TestValidatedExistingArtifactRequiresMatchingProducerContract(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	videoPath := filepath.Join(dir, "compiled.mp4")
+	coverPath := filepath.Join(dir, "compiled.cover.jpg")
+	sheetPath := filepath.Join(dir, "compiled.sheet.jpg")
+	for _, path := range []string{videoPath, coverPath, sheetPath} {
+		if err := os.WriteFile(path, []byte("existing"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	previousShort := ShortResult{
+		SegmentID:         "demo-compilation",
+		FFmpegCommand:     []string{"ffmpeg", "-i", "seg-001.mp4", "-i", "seg-002.mp4", videoPath},
+		CoverCommand:      []string{"ffmpeg", "-i", videoPath, coverPath},
+		CoverSheetCommand: []string{"ffmpeg", "-i", videoPath, sheetPath},
+		OutputArtifact: recording.RecordingArtifact{
+			Path:      videoPath,
+			SizeBytes: int64(len("existing")),
+		},
+		CoverArtifact: recording.RecordingArtifact{
+			Path:      coverPath,
+			SizeBytes: int64(len("existing")),
+		},
+		CoverSheetArtifact: recording.RecordingArtifact{
+			Path:      sheetPath,
+			SizeBytes: int64(len("existing")),
+		},
+	}
+	previous := &Result{
+		Executed: true,
+		Shorts:   []ShortResult{previousShort},
+	}
+
+	for _, role := range []struct {
+		name string
+		path string
+	}{
+		{name: "video", path: videoPath},
+		{name: "cover", path: coverPath},
+		{name: "cover-sheet", path: sheetPath},
+	} {
+		if !validatedExistingArtifact(previous, previousShort, role.path, role.name) {
+			t.Fatalf("identical %s producer contract was not reusable", role.name)
+		}
+	}
+
+	for _, changedCommand := range [][]string{
+		{"ffmpeg", "-i", "seg-002.mp4", "-i", "seg-001.mp4", videoPath},
+		{"ffmpeg", "-i", "seg-001.mp4", videoPath},
+	} {
+		current := previousShort
+		current.FFmpegCommand = changedCommand
+		for _, role := range []struct {
+			name string
+			path string
+		}{
+			{name: "video", path: videoPath},
+			{name: "cover", path: coverPath},
+			{name: "cover-sheet", path: sheetPath},
+		} {
+			if validatedExistingArtifact(previous, current, role.path, role.name) {
+				t.Fatalf("%s reused after compiled producer changed to %v", role.name, changedCommand)
+			}
+		}
 	}
 }
 

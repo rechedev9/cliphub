@@ -1,4 +1,5 @@
 import type { DemoPlayer, AggregatedSeriesPlayer } from './types';
+import { groupSeriesDemos } from '../series-grouping.ts';
 
 /**
  * Per-player accumulator across the maps of a series. Counting stats sum; rate
@@ -13,6 +14,9 @@ type Accumulator = {
   deaths: number;
   assists: number;
   headshots: number;
+  hsPctW: number;
+  hsPctS: number;
+  hsPctNeedsFallback: boolean;
   mvps: number;
   rounds: number;
   rounds2k: number;
@@ -21,12 +25,14 @@ type Accumulator = {
   rounds5k: number;
   adrW: number;
   adrS: number;
-  hsPctW: number;
-  hsPctS: number;
   kastW: number;
   kastS: number;
   ratingW: number;
   ratingS: number;
+};
+
+type AggregatedPlayerWithCoverage = AggregatedSeriesPlayer & {
+  hsPctNeedsFallback: boolean;
 };
 
 /**
@@ -40,6 +46,12 @@ type Accumulator = {
  * sorted by total kills descending, then steamId, for a deterministic order.
  */
 export function aggregateSeriesRoster(rosters: DemoPlayer[][]): AggregatedSeriesPlayer[] {
+  return aggregateSeriesRosterWithCoverage(rosters).map(({ hsPctNeedsFallback: _, ...player }) => player);
+}
+
+function aggregateSeriesRosterWithCoverage(
+  rosters: readonly (readonly AggregatedPlayerWithCoverage[] | readonly DemoPlayer[])[],
+): AggregatedPlayerWithCoverage[] {
   const byId = new Map<string, Accumulator>();
 
   for (const roster of rosters) {
@@ -50,6 +62,14 @@ export function aggregateSeriesRoster(rosters: DemoPlayer[][]): AggregatedSeries
       acc.deaths += player.deaths;
       acc.assists += player.assists;
       acc.headshots += player.headshots;
+      acc.hsPctW += player.hsPct * player.rounds;
+      acc.hsPctS += player.hsPct;
+      if (
+        ('hsPctNeedsFallback' in player && player.hsPctNeedsFallback) ||
+        (player.kills === 0 && player.hsPct !== 0)
+      ) {
+        acc.hsPctNeedsFallback = true;
+      }
       acc.mvps += player.mvps;
       acc.rounds += player.rounds;
       acc.rounds2k += player.rounds2k ?? 0;
@@ -58,8 +78,6 @@ export function aggregateSeriesRoster(rosters: DemoPlayer[][]): AggregatedSeries
       acc.rounds5k += player.rounds5k ?? 0;
       acc.adrW += player.adr * player.rounds;
       acc.adrS += player.adr;
-      acc.hsPctW += player.hsPct * player.rounds;
-      acc.hsPctS += player.hsPct;
       acc.kastW += player.kast * player.rounds;
       acc.kastS += player.kast;
       acc.ratingW += player.rating * player.rounds;
@@ -80,6 +98,9 @@ function newAccumulator(base: DemoPlayer): Accumulator {
     deaths: 0,
     assists: 0,
     headshots: 0,
+    hsPctW: 0,
+    hsPctS: 0,
+    hsPctNeedsFallback: false,
     mvps: 0,
     rounds: 0,
     rounds2k: 0,
@@ -88,8 +109,6 @@ function newAccumulator(base: DemoPlayer): Accumulator {
     rounds5k: 0,
     adrW: 0,
     adrS: 0,
-    hsPctW: 0,
-    hsPctS: 0,
     kastW: 0,
     kastS: 0,
     ratingW: 0,
@@ -97,7 +116,7 @@ function newAccumulator(base: DemoPlayer): Accumulator {
   };
 }
 
-function finalize(acc: Accumulator): AggregatedSeriesPlayer {
+function finalize(acc: Accumulator): AggregatedPlayerWithCoverage {
   const rate = (weighted: number, plainSum: number): number => {
     if (acc.rounds > 0) return weighted / acc.rounds;
     return acc.mapsPresent > 0 ? plainSum / acc.mapsPresent : 0;
@@ -113,7 +132,9 @@ function finalize(acc: Accumulator): AggregatedSeriesPlayer {
     mvps: acc.mvps,
     rounds: acc.rounds,
     adr: rate(acc.adrW, acc.adrS),
-    hsPct: rate(acc.hsPctW, acc.hsPctS),
+    hsPct: acc.kills > 0 && !acc.hsPctNeedsFallback
+      ? (100 * acc.headshots) / acc.kills
+      : rate(acc.hsPctW, acc.hsPctS),
     kast: rate(acc.kastW, acc.kastS),
     rating: rate(acc.ratingW, acc.ratingS),
     rounds2k: acc.rounds2k,
@@ -121,5 +142,21 @@ function finalize(acc: Accumulator): AggregatedSeriesPlayer {
     rounds4k: acc.rounds4k,
     rounds5k: acc.rounds5k,
     mapsPresent: acc.mapsPresent,
+    hsPctNeedsFallback: acc.hsPctNeedsFallback,
   };
+}
+
+/**
+ * Aggregates upload scan rows by logical map before building the series roster.
+ * HLTV `-pN.dem` parts therefore contribute their statistics to one map and
+ * increment `mapsPresent` only once.
+ */
+export function aggregateGroupedSeriesRoster<T extends { fileName?: string; jobId?: string; players: DemoPlayer[] }>(
+  rows: readonly T[],
+): AggregatedSeriesPlayer[] {
+  const logicalMapRosters = groupSeriesDemos(rows).map((group) =>
+    aggregateSeriesRosterWithCoverage(group.demos.map((demo) => demo.players)),
+  );
+  return aggregateSeriesRosterWithCoverage(logicalMapRosters)
+    .map(({ hsPctNeedsFallback: _, ...player }) => player);
 }

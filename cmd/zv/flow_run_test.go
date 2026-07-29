@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// runFlowsRunInProcess dispatches `zv flows run ...` in-process. It suits the
-// media-free paths (no --demo, so capture and render are skipped) where every
-// executed phase runs inside this process without shelling out.
+// runFlowsRunInProcess dispatches `zv flows run ...` with a no-op delegated
+// runner. Local read-only checks still execute; no capture, render, or artifact
+// write can escape the process.
 func runFlowsRunInProcess(t *testing.T, args ...string) (flowRunReport, int, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
@@ -47,6 +47,63 @@ func TestFlowsRunRejectsWithoutDryRun(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "supports only --dry-run") {
 		t.Fatalf("stderr = %q, want the stage-by-stage explanation", stderr.String())
+	}
+}
+
+// TestWorkflowsValidateFlowsRunMatchesRunnerPrerequisites keeps the advertised
+// zero-execution preflight aligned with the runner's fail-fast requirements.
+func TestWorkflowsValidateFlowsRunMatchesRunnerPrerequisites(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "dry run is required",
+			args: []string{"demo", "--killplan", "plan.json", "--run-dir", "run"},
+			want: "supports only --dry-run",
+		},
+		{
+			name: "demo needs an input source",
+			args: []string{"demo", "--run-dir", "run", "--dry-run"},
+			want: "requires --demo for capture and render",
+		},
+		{
+			name: "demo parsing needs a target player",
+			args: []string{"demo", "--demo", "match.dem", "--run-dir", "run", "--dry-run"},
+			want: "--demo requires --steamid",
+		},
+		{
+			name: "stream needs a source video",
+			args: []string{"stream", "--run-dir", "run", "--dry-run"},
+			want: "stream flow requires --input",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var validatedOut, validatedErr bytes.Buffer
+			validateArgs := append([]string{"zv", "workflows", "validate", "flows-run", "--format", "json", "--"}, tc.args...)
+			code := Run(validateArgs, &validatedOut, &validatedErr, nil, &fakeRunner{})
+			if got, want := code, exitInvalidArgs; got != want {
+				t.Fatalf("validator code = %d, want %d; stderr=%s", got, want, validatedErr.String())
+			}
+			var result workflowValidationResult
+			if err := json.Unmarshal(validatedOut.Bytes(), &result); err != nil {
+				t.Fatalf("unmarshal validator output: %v\n%s", err, validatedOut.String())
+			}
+			if result.OK || !strings.Contains(result.Error, tc.want) {
+				t.Fatalf("validator result = %#v, want error containing %q", result, tc.want)
+			}
+
+			var runOut, runErr bytes.Buffer
+			code = Run(append([]string{"zv", "flows", "run"}, tc.args...), &runOut, &runErr, nil, &fakeRunner{})
+			if got, want := code, exitInvalidArgs; got != want {
+				t.Fatalf("runner code = %d, want %d; stderr=%s", got, want, runErr.String())
+			}
+			if output := runOut.String() + runErr.String(); !strings.Contains(output, tc.want) {
+				t.Fatalf("runner output = %q, want error containing %q", output, tc.want)
+			}
+		})
 	}
 }
 
@@ -147,7 +204,7 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 				"plan":           "plan",
 				"render":         "render",
 			},
-			exempt: setOf("doctor", "layouts", "plan-preflight", "render-preflight", "review"),
+			exempt: setOf("doctor", "layouts", "plan-preflight", "plan-review", "render-preflight", "review"),
 		},
 	}
 	for _, tc := range cases {
@@ -195,7 +252,7 @@ func TestFlowsRunDemoFailsFastOnMissingParseInputs(t *testing.T) {
 		{
 			name: "neither demo nor killplan",
 			args: []string{},
-			want: "requires --demo (or --killplan to skip parse)",
+			want: "requires --demo for capture and render",
 		},
 	}
 	for _, tc := range cases {
@@ -272,64 +329,30 @@ func TestFlowsRunUnknownFlowIsRejected(t *testing.T) {
 	}
 }
 
-func TestFlowsRunDemoSkipsGatesAndCaptureWithoutDemo(t *testing.T) {
+func TestFlowsRunDemoRejectsKillPlanWithoutCaptureSource(t *testing.T) {
 	ws := t.TempDir()
 	plan := writeStageContractPlan(t, ws)
 	runDir := filepath.Join(ws, "run")
 
-	report, code, stderr := runFlowsRunInProcess(t, "demo", "--killplan", plan, "--run-dir", runDir, "--dry-run", "--format", "json")
-	if code != exitSuccess {
-		t.Fatalf("code = %d, want %d\nstderr: %s", code, exitSuccess, stderr)
+	report, code, _ := runFlowsRunInProcess(t, "demo", "--killplan", plan, "--run-dir", runDir, "--dry-run", "--format", "json")
+	if code != exitInvalidArgs || report.OK {
+		t.Fatalf("code = %d, report = %#v, want fail-fast invalid args", code, report)
 	}
-	if !report.OK || report.Flow != "demo" {
-		t.Fatalf("report = %#v", report)
-	}
-
-	want := []struct {
-		phase    string
-		skipped  bool
-		executed bool
-		dryRun   bool
-	}{
-		{"parse", true, false, false},
-		{"moments", false, true, false},
-		{"creative-brief", true, false, false},
-		{"select", false, true, false},
-		{"record", true, false, false},
-		{"shorts-render", true, false, false},
-		{"thumbnail-selection", true, false, false},
-	}
-	if len(report.Phases) != len(want) {
-		t.Fatalf("phases = %d, want %d: %#v", len(report.Phases), len(want), report.Phases)
-	}
-	for i, w := range want {
-		got := report.Phases[i]
-		if got.Phase != w.phase || got.Skipped != w.skipped || got.Executed != w.executed || got.DryRun != w.dryRun {
-			t.Fatalf("phase %d = %#v, want %s skipped=%v executed=%v dryRun=%v", i, got, w.phase, w.skipped, w.executed, w.dryRun)
-		}
-	}
-
-	// The creative-brief and thumbnail gates report as creative gates, not failures.
-	for _, id := range []string{"creative-brief", "thumbnail-selection"} {
-		phase, _ := phaseByName(report, id)
-		if !strings.Contains(phase.Reason, "creative gate") {
-			t.Fatalf("gate %s reason = %q, want a creative gate", id, phase.Reason)
-		}
-	}
-	// moments and select actually wrote their chainable artifacts.
-	for _, name := range []string{"moments.json", "selected-plan.json"} {
-		if _, err := os.Stat(filepath.Join(runDir, name)); err != nil {
-			t.Fatalf("expected %s written: %v", name, err)
-		}
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatalf("run dir exists after rejected incomplete flow: %v", err)
 	}
 }
 
-func TestFlowsRunStopsOnFirstFailure(t *testing.T) {
+func TestFlowsRunDryRunStopsAtInvalidSuppliedKillPlan(t *testing.T) {
 	ws := t.TempDir()
 	runDir := filepath.Join(ws, "run")
 	missing := filepath.Join(ws, "does-not-exist.json")
+	demo := filepath.Join(ws, "demo.dem")
+	if err := os.WriteFile(demo, []byte("dummy demo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
-	report, code, _ := runFlowsRunInProcess(t, "demo", "--killplan", missing, "--run-dir", runDir, "--dry-run", "--format", "json")
+	report, code, _ := runFlowsRunInProcess(t, "demo", "--demo", demo, "--killplan", missing, "--run-dir", runDir, "--dry-run", "--format", "json")
 	if code == exitSuccess {
 		t.Fatalf("code = %d, want failure", code)
 	}
@@ -338,21 +361,11 @@ func TestFlowsRunStopsOnFirstFailure(t *testing.T) {
 	}
 
 	parse, _ := phaseByName(report, "parse")
-	if !parse.Skipped {
-		t.Fatalf("parse = %#v, want skipped (killplan supplied)", parse)
-	}
-	moments, _ := phaseByName(report, "moments")
-	if moments.OK || moments.Skipped {
-		t.Fatalf("moments = %#v, want a hard failure", moments)
-	}
-	// moments is a real (non-dry-run) stage: it ran and failed, so the report
-	// must show executed:true (the command ran and may have partially mutated),
-	// not hide the failure by leaving executed:false.
-	if !moments.Executed {
-		t.Fatalf("moments.Executed = false after a real stage ran and failed, want true: %#v", moments)
+	if parse.OK || parse.Skipped || !strings.Contains(parse.Reason, "read kill plan") {
+		t.Fatalf("parse = %#v, want supplied-plan preflight failure", parse)
 	}
 	// Every phase after the failure is reported as not run.
-	for _, id := range []string{"select", "record", "shorts-render", "thumbnail-selection"} {
+	for _, id := range []string{"moments", "creative-brief", "select", "record", "shorts-render", "thumbnail-selection"} {
 		phase, ok := phaseByName(report, id)
 		if !ok {
 			t.Fatalf("phase %s missing from report", id)
@@ -361,9 +374,102 @@ func TestFlowsRunStopsOnFirstFailure(t *testing.T) {
 			t.Fatalf("phase %s = %#v, want not-run", id, phase)
 		}
 	}
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatalf("pure dry-run created run dir: %v", err)
+	}
 }
 
-func TestFlowsRunDemoDryRunChainsCaptureAndRender(t *testing.T) {
+func TestFlowsRunDryRunRejectsMissingSourceFiles(t *testing.T) {
+	ws := t.TempDir()
+	tests := []struct {
+		name      string
+		args      []string
+		phase     string
+		wantError string
+	}{
+		{
+			name:      "demo",
+			args:      []string{"demo", "--demo", filepath.Join(ws, "missing.dem"), "--steamid", "76561198377256168"},
+			phase:     "parse",
+			wantError: "validate --demo",
+		},
+		{
+			name:      "stream",
+			args:      []string{"stream", "--input", filepath.Join(ws, "missing.mp4")},
+			phase:     "plan",
+			wantError: "validate --input",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runDir := filepath.Join(ws, tt.name+"-run")
+			args := append(append([]string(nil), tt.args...), "--run-dir", runDir, "--dry-run", "--format", "json")
+			report, code, _ := runFlowsRunInProcess(t, args...)
+			if code == exitSuccess || report.OK {
+				t.Fatalf("code = %d, report = %#v, want failed source preflight", code, report)
+			}
+			phase, ok := phaseByName(report, tt.phase)
+			if !ok || phase.OK || phase.Skipped || !strings.Contains(phase.Reason, tt.wantError) {
+				t.Fatalf("%s phase = %#v, want error containing %q", tt.phase, phase, tt.wantError)
+			}
+			if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+				t.Fatalf("pure dry-run created run dir: %v", err)
+			}
+		})
+	}
+}
+
+func TestFlowsRunDemoDryRunRejectsKillPlanDemoHashMismatch(t *testing.T) {
+	ws := t.TempDir()
+	plan := writeStageContractPlan(t, ws)
+	demo := filepath.Join(ws, "different.dem")
+	if err := os.WriteFile(demo, []byte("different demo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(ws, "run")
+
+	report, code, _ := runFlowsRunInProcess(t, "demo", "--demo", demo, "--killplan", plan, "--run-dir", runDir, "--dry-run", "--format", "json")
+	if code == exitSuccess || report.OK {
+		t.Fatalf("code = %d, report = %#v, want failed SHA-256 preflight", code, report)
+	}
+	parse, ok := phaseByName(report, "parse")
+	if !ok || parse.OK || parse.Skipped || !strings.Contains(parse.Reason, "sha256 does not match --demo") {
+		t.Fatalf("parse = %#v, want demo binding mismatch", parse)
+	}
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatalf("pure dry-run created run dir: %v", err)
+	}
+}
+
+func TestFlowsRunDemoDryRunMarksGeneratedKillPlanDependenciesUnvalidated(t *testing.T) {
+	ws := t.TempDir()
+	demo := filepath.Join(ws, "demo.dem")
+	if err := os.WriteFile(demo, []byte("dummy demo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(ws, "run")
+
+	report, code, _ := runFlowsRunInProcess(t, "demo", "--demo", demo, "--steamid", "76561198377256168", "--run-dir", runDir, "--dry-run", "--format", "json")
+	if code != exitUnexpected || report.OK {
+		t.Fatalf("code = %d, report = %#v, want incomplete dry-run", code, report)
+	}
+	parse, _ := phaseByName(report, "parse")
+	if !parse.OK || !parse.DryRun || parse.Executed {
+		t.Fatalf("parse = %#v, want successful read-only preflight", parse)
+	}
+	for _, id := range []string{"moments", "select"} {
+		phase, ok := phaseByName(report, id)
+		if !ok || phase.OK || !phase.Skipped || phase.DryRun || phase.Executed ||
+			!strings.Contains(phase.Reason, "killplan.json") {
+			t.Fatalf("%s = %#v, want unvalidated generated-plan dependency", id, phase)
+		}
+	}
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatalf("pure dry-run created run dir: %v", err)
+	}
+}
+
+func TestFlowsRunDemoDryRunReportsUnmaterializedCaptureDependencies(t *testing.T) {
 	t.Parallel()
 	exe := buildDelegatedBinaries(t)
 
@@ -381,46 +487,47 @@ func TestFlowsRunDemoDryRunChainsCaptureAndRender(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("flows run demo: %v\nstdout:\n%s\nstderr:\n%s", err, stdout.String(), stderr.String())
+	if err := cmd.Run(); err == nil {
+		t.Fatalf("flows run demo succeeded, want incomplete dry-run\nstdout:\n%s", stdout.String())
+	} else if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != exitUnexpected {
+		t.Fatalf("flows run demo: %v, want exit %d\nstdout:\n%s\nstderr:\n%s", err, exitUnexpected, stdout.String(), stderr.String())
 	}
 
 	var report flowRunReport
 	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		t.Fatalf("unmarshal report: %v\n%s", err, stdout.String())
 	}
-	if !report.OK {
-		t.Fatalf("report.OK = false: %s", stdout.String())
+	if report.OK {
+		t.Fatalf("report.OK = true, want incomplete dependency report: %s", stdout.String())
 	}
 
-	// Capture and render run as dry runs (not executed) but succeed and chain.
-	record, _ := phaseByName(report, "record")
-	if !record.OK || !record.DryRun || record.Executed {
-		t.Fatalf("record phase = %#v, want a successful dry run", record)
-	}
-	render, _ := phaseByName(report, "shorts-render")
-	if !render.OK || !render.DryRun || render.Executed {
-		t.Fatalf("shorts-render phase = %#v, want a successful dry run", render)
-	}
-
-	// Each stage's artifact is the literal input the next stage consumed.
-	chain := []string{
-		filepath.Join(runDir, "moments.json"),
-		filepath.Join(runDir, "selected-plan.json"),
-		filepath.Join(runDir, "recording", "recording-result.json"),
-	}
-	for _, path := range chain {
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("expected chained artifact %s: %v", path, err)
+	for _, id := range []string{"moments", "select"} {
+		phase, _ := phaseByName(report, id)
+		if !phase.OK || !phase.DryRun || phase.Executed {
+			t.Fatalf("%s phase = %#v, want a successful read-only preflight", id, phase)
 		}
 	}
-	if len(record.Outputs) == 0 || record.Outputs[0] != filepath.Join(runDir, "recording", "recording-result.json") {
-		t.Fatalf("record outputs = %#v, want the recording-result.json path", record.Outputs)
+	record, _ := phaseByName(report, "record")
+	if record.OK || !record.Skipped || record.DryRun || record.Executed ||
+		!strings.Contains(record.Reason, "selected-plan.json") {
+		t.Fatalf("record phase = %#v, want unvalidated selected-plan dependency", record)
+	}
+	render, _ := phaseByName(report, "shorts-render")
+	if render.OK || !render.Skipped || render.DryRun || render.Executed ||
+		!strings.Contains(render.Reason, "recording-result.json") {
+		t.Fatalf("shorts-render phase = %#v, want unvalidated recording-result dependency", render)
 	}
 
-	// The chain is verified through the reported argv, not just file existence:
-	// record must consume the plan select persisted, and shorts render must
-	// consume the recording result record produced.
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatalf("pure dry-run created run dir: %v", err)
+	}
+	for _, phase := range report.Phases {
+		if len(phase.Outputs) != 0 {
+			t.Fatalf("phase %s outputs = %#v, pure dry-run must not claim written artifacts", phase.Phase, phase.Outputs)
+		}
+	}
+
+	// The planned chain remains auditable even though it is not materialized.
 	selectedPlan := filepath.Join(runDir, "selected-plan.json")
 	if got, ok := flagValue(record.Argv, "--killplan"); !ok || got != selectedPlan {
 		t.Fatalf("record --killplan = %q (ok=%v), want the selected plan %q", got, ok, selectedPlan)

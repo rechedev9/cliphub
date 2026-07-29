@@ -14,9 +14,11 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/fragforge/internal/anticheat"
 	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/composition"
 	"github.com/rechedev9/fragforge/internal/editor"
@@ -81,23 +84,25 @@ type Enqueuer interface {
 
 // Handlers bundles the dependencies needed by every endpoint.
 type Handlers struct {
-	repo             JobRepository
-	streamRepo       StreamJobRepository
-	streamPlanMu     sync.Mutex
-	streamJobLocks   *streamclips.JobLocks
-	storage          storage.Storage
-	generateIntents  *generateintent.Store
-	voiceProfiles    *voiceprofile.Store
-	queue            Enqueuer
-	mutationToken    string
-	requireReadAuth  bool
-	rateLimiter      *rateLimiter
-	uploadLimiter    *uploadLimiter
-	streamProber     streamclips.Prober
-	musicDir         string
-	capabilities     Capabilities
-	youtubeTrends    YouTubeTrends
-	publishAssistant *publishAssistantCache
+	repo              JobRepository
+	streamRepo        StreamJobRepository
+	streamPlanMu      sync.Mutex
+	renderStateMu     sync.Mutex
+	anticheatJobLocks *anticheat.JobLocks
+	streamJobLocks    *streamclips.JobLocks
+	storage           storage.Storage
+	generateIntents   *generateintent.Store
+	voiceProfiles     *voiceprofile.Store
+	queue             Enqueuer
+	mutationToken     string
+	requireReadAuth   bool
+	rateLimiter       *rateLimiter
+	uploadLimiter     *uploadLimiter
+	streamProber      streamclips.Prober
+	musicDir          string
+	capabilities      Capabilities
+	youtubeTrends     YouTubeTrends
+	publishAssistant  *publishAssistantCache
 }
 
 type Option func(*Handlers)
@@ -188,13 +193,14 @@ func WithPublishAssistantTrends(trends YouTubeTrends) Option {
 // NewHandlers constructs an HTTP handler set.
 func NewHandlers(repo JobRepository, store storage.Storage, queue Enqueuer, opts ...Option) *Handlers {
 	h := &Handlers{
-		repo:             repo,
-		storage:          store,
-		generateIntents:  generateintent.New(store),
-		voiceProfiles:    voiceprofile.New(store),
-		queue:            queue,
-		publishAssistant: newPublishAssistantCache(),
-		streamJobLocks:   streamclips.NewJobLocks(),
+		repo:              repo,
+		storage:           store,
+		generateIntents:   generateintent.New(store),
+		voiceProfiles:     voiceprofile.New(store),
+		queue:             queue,
+		publishAssistant:  newPublishAssistantCache(),
+		streamJobLocks:    streamclips.NewJobLocks(),
+		anticheatJobLocks: anticheat.NewJobLocks(),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -623,9 +629,8 @@ func (h *Handlers) StartParse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 	var req startParseRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeSingleJSONBody(w, r, &req, false); err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writeError(w, http.StatusRequestEntityTooLarge, "parse request JSON is too large")
 			return
@@ -698,7 +703,7 @@ func (h *Handlers) GetFinal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if j.Status != job.StatusComposed && j.Status != job.StatusDone {
+	if j.Status != job.StatusComposed && j.Status != job.StatusReviewRequired && j.Status != job.StatusDone {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job final is not ready (status=%s)", j.Status))
 		return
 	}
@@ -760,13 +765,12 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	var segmentIDs []string
 	var portraitSafeKillfeed bool
 	if r.Body != nil {
-		r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 		var req struct {
 			Preset     string                 `json:"preset"`
 			SegmentIDs []string               `json:"segment_ids"`
 			Edit       renderplan.EditRequest `json:"edit"`
 		}
-		switch err := json.NewDecoder(r.Body).Decode(&req); {
+		switch err := decodeSingleJSONBody(w, r, &req, false); {
 		case err == nil, errors.Is(err, io.EOF):
 			if req.Preset != "" {
 				preset, ok := editor.PresetByName(req.Preset)
@@ -845,8 +849,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		SegmentIDs []string               `json:"segment_ids"`
 	}
 	if r.Body != nil {
-		r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
-		switch err := json.NewDecoder(r.Body).Decode(&req); {
+		switch err := decodeSingleJSONBody(w, r, &req, false); {
 		case err == nil, errors.Is(err, io.EOF):
 		default:
 			writeError(w, http.StatusBadRequest, "invalid generate request JSON")
@@ -970,7 +973,7 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if j.Status != job.StatusRecorded && j.Status != job.StatusComposed {
+	if j.Status != job.StatusRecorded && j.Status != job.StatusComposed && j.Status != job.StatusReviewRequired {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to compose (status=%s)", j.Status))
 		return
 	}
@@ -998,9 +1001,11 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 type renderMusicRequest struct {
 	Key    string
 	Volume float64
+	set    bool
 }
 
 func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
+	*m = renderMusicRequest{set: true}
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || string(trimmed) == "null" {
 		return nil
@@ -1012,12 +1017,88 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 		Key    string  `json:"key"`
 		Volume float64 `json:"volume"`
 	}
-	if err := json.Unmarshal(trimmed, &obj); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&obj); err != nil {
 		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errMultipleJSONValues
+		}
+		return fmt.Errorf("invalid trailing music JSON data: %w", err)
 	}
 	m.Key = obj.Key
 	m.Volume = obj.Volume
 	return nil
+}
+
+// renderEditRequest preserves JSON field presence so review corrections can
+// update one choice without resetting the rest of the approved edit contract.
+type renderEditRequest struct {
+	Format          *string `json:"format"`
+	KillEffect      *string `json:"killEffect"`
+	Transition      *string `json:"transition"`
+	Intro           *bool   `json:"intro"`
+	Outro           *bool   `json:"outro"`
+	HookText        *bool   `json:"hook_text"`
+	KillCounter     *bool   `json:"kill_counter"`
+	CoverStrategy   *string `json:"cover_strategy"`
+	CoverFirstFrame *bool   `json:"cover_first_frame"`
+	IntroText       *string `json:"intro_text"`
+	OutroText       *string `json:"outro_text"`
+}
+
+func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
+	if r.Format != nil {
+		base.Format = *r.Format
+	}
+	if r.KillEffect != nil {
+		base.KillEffect = *r.KillEffect
+	}
+	if r.Transition != nil {
+		base.Transition = *r.Transition
+	}
+	if r.Intro != nil {
+		base.Intro = *r.Intro
+	}
+	if r.Outro != nil {
+		base.Outro = *r.Outro
+	}
+	if r.HookText != nil {
+		base.HookText = *r.HookText
+	}
+	if r.KillCounter != nil {
+		base.KillCounter = *r.KillCounter
+	}
+	if r.CoverStrategy != nil {
+		base.CoverStrategy = *r.CoverStrategy
+	}
+	if r.CoverFirstFrame != nil {
+		base.CoverFirstFrame = *r.CoverFirstFrame
+	}
+	if r.IntroText != nil {
+		base.IntroText = *r.IntroText
+	}
+	if r.OutroText != nil {
+		base.OutroText = *r.OutroText
+	}
+	return renderplan.NormalizeEditRequest(base)
+}
+
+func (r renderEditRequest) complete() bool {
+	return r.Format != nil &&
+		r.KillEffect != nil &&
+		r.Transition != nil &&
+		r.Intro != nil &&
+		r.Outro != nil &&
+		r.HookText != nil &&
+		r.KillCounter != nil &&
+		r.CoverStrategy != nil &&
+		r.CoverFirstFrame != nil &&
+		r.IntroText != nil &&
+		r.OutroText != nil
 }
 
 // StartRenderVariant handles POST /api/jobs/{id}/renders/{variant}.
@@ -1027,7 +1108,9 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	variant := chi.URLParam(r, "variant")
-	if j.Status != job.StatusRecorded && j.Status != job.StatusComposed && j.Status != job.StatusDone {
+	h.renderStateMu.Lock()
+	defer h.renderStateMu.Unlock()
+	if j.Status != job.StatusRecorded && j.Status != job.StatusComposed && j.Status != job.StatusReviewRequired && j.Status != job.StatusDone {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to render (status=%s)", j.Status))
 		return
 	}
@@ -1039,41 +1122,87 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	// Optional JSON body { "music": "<track-key>", "edit": {...} } selects a
 	// track to mix in. "music" also accepts an object {"key","volume"} so the
 	// client can set the music gain; volume is in (0,1], 0 means the default.
-	var musicKey string
-	var musicVolume float64
-	editRequest := renderplan.DefaultEditRequest()
+	var musicRequest renderMusicRequest
+	var editPatch renderEditRequest
+	var expectedArtifactPrefix string
+	var expectedWarnings []string
 	if r.Body != nil {
-		r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 		var req struct {
-			Music renderMusicRequest     `json:"music"`
-			Edit  renderplan.EditRequest `json:"edit"`
+			Music                  renderMusicRequest `json:"music"`
+			Edit                   renderEditRequest  `json:"edit"`
+			ExpectedArtifactPrefix string             `json:"expected_artifact_prefix"`
+			ExpectedWarnings       []string           `json:"expected_warnings"`
 		}
-		switch err := json.NewDecoder(r.Body).Decode(&req); {
+		switch err := decodeSingleJSONBody(w, r, &req, true); {
 		case err == nil, errors.Is(err, io.EOF):
-			musicKey = req.Music.Key
-			musicVolume = req.Music.Volume
-			if musicVolume < 0 || musicVolume > 1 {
+			musicRequest = req.Music
+			editPatch = req.Edit
+			if musicRequest.Volume < 0 || musicRequest.Volume > 1 {
 				writeError(w, http.StatusBadRequest, "music volume must be between 0 and 1")
 				return
 			}
-			editRequest = renderplan.NormalizeEditRequest(req.Edit)
-			if err := editRequest.Validate(); err != nil {
-				writeError(w, http.StatusBadRequest, err.Error())
-				return
-			}
+			expectedArtifactPrefix = req.ExpectedArtifactPrefix
+			expectedWarnings = req.ExpectedWarnings
 		default:
 			writeError(w, http.StatusBadRequest, "invalid render request JSON")
 			return
 		}
 	}
-	task, err := tasks.NewRenderVariantTask(j.ID, variant, musicKey, musicVolume, editRequest)
+	previous, _, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant)
 	if err != nil {
+		internalError(w, "read render state", err)
+		return
+	}
+	reviewReplacement := previous != nil && previous.Status == renderplan.RenderVariantStatusReview
+	if reviewReplacement &&
+		(expectedArtifactPrefix == "" ||
+			expectedWarnings == nil ||
+			previous.ArtifactPrefix != expectedArtifactPrefix ||
+			!slices.Equal(previous.Warnings, expectedWarnings)) {
+		writeError(w, http.StatusConflict, "render changed while the correction was being prepared; inspect the current warnings")
+		return
+	}
+	if !reviewReplacement && (expectedArtifactPrefix != "" || expectedWarnings != nil) {
+		writeError(w, http.StatusConflict, "render is no longer awaiting this correction")
+		return
+	}
+	editRequest := renderplan.DefaultEditRequest()
+	var musicKey string
+	var musicVolume float64
+	if reviewReplacement {
+		document, err := h.readRenderVariantDocument(previous.EditDocumentKey)
+		if err != nil {
+			internalError(w, "read effective render document for correction", err)
+			return
+		}
+		if document == nil {
+			if !editPatch.complete() || !musicRequest.set {
+				writeError(w, http.StatusConflict, "the reviewed render has no effective edit document; submit every edit and music choice")
+				return
+			}
+		} else {
+			editRequest = document.Edit
+			if document.Music != nil {
+				musicKey = document.Music.Key
+				musicVolume = document.Music.Volume
+			} else if !musicRequest.set {
+				writeError(w, http.StatusConflict, "the reviewed render does not record its effective music choice; submit music explicitly")
+				return
+			}
+		}
+	}
+	editRequest = editPatch.merge(editRequest)
+	if err := editRequest.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	previous, _, err := h.readRenderVariantState(j.ID, variant)
+	if musicRequest.set {
+		musicKey = musicRequest.Key
+		musicVolume = musicRequest.Volume
+	}
+	task, err := tasks.NewRenderVariantTask(j.ID, variant, musicKey, musicVolume, editRequest)
 	if err != nil {
-		internalError(w, "read render state", err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
@@ -1086,12 +1215,23 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "build render state", err)
 		return
 	}
+	queuedState := state
+	var admitted atomic.Bool
 	_, err = h.queue.EnqueueWithTransition(task, func(decision error) error {
+		postAdmission := admitted.Load()
+		if postAdmission {
+			h.renderStateMu.Lock()
+			defer h.renderStateMu.Unlock()
+		}
 		switch {
 		case decision == nil:
-			return h.generateIntents.WhileIdle(j.ID, func() error {
+			err := h.generateIntents.WhileIdle(j.ID, func() error {
 				return h.writeRenderVariantState(state)
 			})
+			if err == nil {
+				admitted.Store(true)
+			}
+			return err
 		case errors.Is(decision, asynq.ErrDuplicateTask):
 			existing, ok, readErr := h.readRenderVariantState(j.ID, variant)
 			if readErr != nil {
@@ -1102,6 +1242,29 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		default:
+			if reviewReplacement {
+				if !postAdmission {
+					// Rejected work never published queuedState, so preserving
+					// the prior review requires no compensating write.
+					return nil
+				}
+				current, exists, readErr := h.readRenderVariantState(j.ID, variant)
+				if readErr != nil {
+					return readErr
+				}
+				matches, compareErr := sameRenderVariantState(current, &queuedState)
+				if compareErr != nil {
+					return compareErr
+				}
+				if !exists || !matches {
+					// The worker or another request already advanced the
+					// durable state. A stale discard must fail closed instead
+					// of resurrecting the superseded review.
+					return nil
+				}
+				state = *previous
+				return h.writeRenderVariantState(*previous)
+			}
 			failedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 				JobID:    j.ID,
 				Loadout:  loadout,
@@ -1117,6 +1280,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	}, asynq.Unique(renderUniqueTTL))
 	if err != nil {
 		if errors.Is(err, asynq.ErrDuplicateTask) {
+			if reviewReplacement {
+				writeError(w, http.StatusConflict, "another render is already active; this correction was not accepted")
+				return
+			}
 			writeJSON(w, http.StatusAccepted, map[string]any{
 				"id":         j.ID,
 				"task":       tasks.TypeRenderVariant,
@@ -1140,7 +1307,90 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		"variant":    variant,
 		"status":     state.Status,
 		"status_key": mustRenderVariantStatusKey(j.ID, variant),
+		"accepted":   true,
 	})
+}
+
+func sameRenderVariantState(a, b *renderplan.RenderVariantState) (bool, error) {
+	if a == nil || b == nil {
+		return a == nil && b == nil, nil
+	}
+	aJSON, err := json.Marshal(a)
+	if err != nil {
+		return false, fmt.Errorf("encode current render state for comparison: %w", err)
+	}
+	bJSON, err := json.Marshal(b)
+	if err != nil {
+		return false, fmt.Errorf("encode expected render state for comparison: %w", err)
+	}
+	return bytes.Equal(aJSON, bJSON), nil
+}
+
+const maxRenderReviewNoteLength = 1000
+
+// ResolveRenderReview records that a human inspected the current QA warnings
+// and documented why they are intentional. The request must echo the exact
+// artifact revision and warnings it showed, so a racing or later render can
+// never inherit a stale approval.
+func (h *Handlers) ResolveRenderReview(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadJob(w, r)
+	if !ok {
+		return
+	}
+	variant := chi.URLParam(r, "variant")
+	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var req struct {
+		Note                   string   `json:"note"`
+		ExpectedArtifactPrefix string   `json:"expected_artifact_prefix"`
+		ExpectedWarnings       []string `json:"expected_warnings"`
+	}
+	if err := decodeSingleJSONBody(w, r, &req, true); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid review resolution JSON")
+		return
+	}
+	req.Note = strings.TrimSpace(req.Note)
+	if req.Note == "" {
+		writeError(w, http.StatusBadRequest, "review note is required")
+		return
+	}
+	if len([]rune(req.Note)) > maxRenderReviewNoteLength {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("review note must be at most %d characters", maxRenderReviewNoteLength))
+		return
+	}
+
+	h.renderStateMu.Lock()
+	defer h.renderStateMu.Unlock()
+	state, exists, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant)
+	if err != nil {
+		internalError(w, "read render state for review", err)
+		return
+	}
+	if !exists || state.Status != renderplan.RenderVariantStatusReview {
+		writeError(w, http.StatusConflict, "render is not awaiting review")
+		return
+	}
+	if req.ExpectedArtifactPrefix != state.ArtifactPrefix ||
+		!slices.Equal(req.ExpectedWarnings, state.Warnings) {
+		writeError(w, http.StatusConflict, "render changed while it was being reviewed; inspect the current warnings")
+		return
+	}
+	now := time.Now().UTC()
+	state.Status = renderplan.RenderVariantStatusReady
+	state.ReviewResolution = &renderplan.RenderReviewResolution{
+		ArtifactPrefix: state.ArtifactPrefix,
+		Warnings:       append([]string(nil), state.Warnings...),
+		Note:           req.Note,
+		ReviewedAt:     now,
+	}
+	state.UpdatedAt = now
+	if err := h.writeRenderVariantState(*state); err != nil {
+		internalError(w, "write render review resolution", err)
+		return
+	}
+	h.writeRenderVariant(w, state)
 }
 
 // GetRenderVariant handles GET /api/jobs/{id}/renders/{variant}.
@@ -1154,51 +1404,129 @@ func (h *Handlers) GetRenderVariant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if state, ok, err := h.readRenderVariantState(j.ID, variant); err != nil {
+	state, exists, err := h.readOrMaterializeRenderVariantState(j.ID, variant)
+	if err != nil {
 		internalError(w, "read render state", err)
 		return
-	} else if ok {
-		h.writeRenderVariant(w, state)
+	}
+	if !exists {
+		writeError(w, http.StatusNotFound, "render variant not found")
 		return
 	}
-	resultRef, err := renderplan.NewRenderVariantArtifactRef(j.ID, variant, renderplan.RenderVariantArtifactResult, "")
+	h.writeRenderVariant(w, state)
+}
+
+// readOrMaterializeRenderVariantState reads the durable state, migrating a
+// warning-bearing legacy render result before returning it. The shared render
+// lock makes that migration atomic with correction and review-resolution POSTs:
+// the API never exposes a review CAS token that those endpoints cannot consume.
+func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant string) (*renderplan.RenderVariantState, bool, error) {
+	h.renderStateMu.Lock()
+	defer h.renderStateMu.Unlock()
+	return h.readOrMaterializeRenderVariantStateLocked(id, variant)
+}
+
+// readOrMaterializeRenderVariantStateLocked performs the durable migration.
+// The caller must hold renderStateMu so the returned review token and the state
+// consumed by correction or resolution requests are one coherent revision.
+func (h *Handlers) readOrMaterializeRenderVariantStateLocked(id uuid.UUID, variant string) (*renderplan.RenderVariantState, bool, error) {
+	if state, ok, err := h.readRenderVariantState(id, variant); err != nil {
+		return nil, false, err
+	} else if ok {
+		if state.Status == renderplan.RenderVariantStatusReady {
+			warnings, err := h.readCompleteRenderWarnings(*state)
+			if err != nil {
+				return nil, false, err
+			}
+			switch {
+			case state.ReviewResolvedFor(warnings):
+				if slices.Equal(state.Warnings, warnings) {
+					return state, true, nil
+				}
+				state.Warnings = append([]string(nil), warnings...)
+			case len(warnings) == 0:
+				if len(state.Warnings) == 0 && state.ReviewResolution == nil {
+					return state, true, nil
+				}
+				state.Warnings = nil
+				state.ReviewResolution = nil
+			default:
+				state.Status = renderplan.RenderVariantStatusReview
+				state.Warnings = append([]string(nil), warnings...)
+				state.ReviewResolution = nil
+			}
+			state.UpdatedAt = time.Now().UTC()
+			if err := h.writeRenderVariantState(*state); err != nil {
+				return nil, false, err
+			}
+		}
+		return state, true, nil
+	}
+	resultRef, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactResult, "")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+		return nil, false, err
 	}
 	rc, err := h.storage.Open(resultRef.Key)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "render variant not found")
-		return
+		if storage.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
 	}
 	defer rc.Close()
 
 	var result editor.Result
 	if err := json.NewDecoder(rc).Decode(&result); err != nil {
-		internalError(w, "decode render result", err)
-		return
+		return nil, false, err
 	}
+	warnings := renderplan.CompleteRenderWarnings(result)
 	status := "ready"
 	if result.Error != "" {
 		status = "failed"
+	} else if len(warnings) > 0 {
+		status = renderplan.RenderVariantStatusReview
 	}
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+		return nil, false, err
 	}
 	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-		JobID:    j.ID,
+		JobID:    id,
 		Loadout:  loadout,
 		Status:   status,
-		Warnings: result.Warnings,
+		Warnings: warnings,
 		Error:    result.Error,
 	})
 	if err != nil {
-		internalError(w, "build render state", err)
-		return
+		return nil, false, err
 	}
-	h.writeRenderVariant(w, &state)
+	if state.Status == renderplan.RenderVariantStatusReview {
+		if err := h.writeRenderVariantState(state); err != nil {
+			return nil, false, err
+		}
+	}
+	return &state, true, nil
+}
+
+func (h *Handlers) readCompleteRenderWarnings(state renderplan.RenderVariantState) ([]string, error) {
+	resultRef, err := renderplan.NewRenderVariantArtifactRefForState(
+		state,
+		renderplan.RenderVariantArtifactResult,
+		"",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve render result for warning migration: %w", err)
+	}
+	rc, err := h.storage.Open(resultRef.Key)
+	if err != nil {
+		return nil, fmt.Errorf("open render result for warning migration: %w", err)
+	}
+	defer rc.Close()
+	var result editor.Result
+	if err := json.NewDecoder(rc).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode render result for warning migration: %w", err)
+	}
+	return renderplan.CompleteRenderWarnings(result), nil
 }
 
 // renderArtifactLister is the optional storage capability GetRenderVariant uses
@@ -1230,8 +1558,10 @@ func listArtifactDir(store storage.Storage, key string) ([]string, bool) {
 // the names the editor actually wrote instead of guessing them from segment ids.
 type renderVariantResponse struct {
 	*renderplan.RenderVariantState
-	Videos []string `json:"videos"`
-	Covers []string `json:"covers"`
+	Videos []string                  `json:"videos"`
+	Covers []string                  `json:"covers"`
+	Edit   *renderplan.EditRequest   `json:"edit,omitempty"`
+	Music  *renderplan.MusicSnapshot `json:"music,omitempty"`
 }
 
 // artifactNamePlaceholder is a valid artifact token used only to resolve a
@@ -1241,25 +1571,66 @@ const artifactNamePlaceholder = "placeholder"
 // writeRenderVariant writes the render-variant state plus the reel's real video
 // and cover artifact names (empty arrays when the variant has none yet).
 func (h *Handlers) writeRenderVariant(w http.ResponseWriter, state *renderplan.RenderVariantState) {
-	videos, err := h.listRenderArtifactNames(state.JobID, state.Variant, renderplan.RenderVariantArtifactVideo)
+	videos, err := h.listRenderArtifactNames(*state, renderplan.RenderVariantArtifactVideo)
 	if err != nil {
 		internalError(w, "list render videos", err)
 		return
 	}
-	covers, err := h.listRenderArtifactNames(state.JobID, state.Variant, renderplan.RenderVariantArtifactCover)
+	covers, err := h.listRenderArtifactNames(*state, renderplan.RenderVariantArtifactCover)
 	if err != nil {
 		internalError(w, "list render covers", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, renderVariantResponse{RenderVariantState: state, Videos: videos, Covers: covers})
+	document, err := h.readRenderVariantDocument(state.EditDocumentKey)
+	if err != nil {
+		internalError(w, "read effective render document", err)
+		return
+	}
+	var edit *renderplan.EditRequest
+	var music *renderplan.MusicSnapshot
+	if document != nil {
+		edit = &document.Edit
+		music = document.Music
+	}
+	writeJSON(w, http.StatusOK, renderVariantResponse{
+		RenderVariantState: state,
+		Videos:             videos,
+		Covers:             covers,
+		Edit:               edit,
+		Music:              music,
+	})
+}
+
+func (h *Handlers) readRenderVariantDocument(key string) (*renderplan.EditDocument, error) {
+	if key == "" {
+		return nil, nil
+	}
+	rc, err := h.storage.Open(key)
+	if err != nil {
+		if storage.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer rc.Close()
+	var document renderplan.EditDocument
+	if err := json.NewDecoder(rc).Decode(&document); err != nil {
+		return nil, err
+	}
+	edit := renderplan.NormalizeEditRequest(document.Edit)
+	if err := edit.Validate(); err != nil {
+		return nil, err
+	}
+	document.Edit = edit
+	return &document, nil
 }
 
 // listRenderArtifactNames returns the artifact names (file base names, extension
 // stripped) present under the variant's directory for the given kind, reusing
 // the same key resolution the videos/{name} and covers/{name} handlers use. The
 // result is empty when the backend cannot list or the directory is absent.
-func (h *Handlers) listRenderArtifactNames(id uuid.UUID, variant string, kind renderplan.RenderVariantArtifactKind) ([]string, error) {
-	ref, err := renderplan.NewRenderVariantArtifactRef(id, variant, kind, artifactNamePlaceholder)
+func (h *Handlers) listRenderArtifactNames(state renderplan.RenderVariantState, kind renderplan.RenderVariantArtifactKind) ([]string, error) {
+	ref, err := renderplan.NewRenderVariantArtifactRefForState(state, kind, artifactNamePlaceholder)
 	if err != nil {
 		return nil, err
 	}
@@ -1295,6 +1666,9 @@ func (h *Handlers) readRenderVariantState(id uuid.UUID, variant string) (*render
 	if err := json.NewDecoder(rc).Decode(&state); err != nil {
 		return nil, false, err
 	}
+	if state.JobID != id || state.Variant != variant {
+		return nil, false, fmt.Errorf("render state identity does not match request")
+	}
 	return &state, true, nil
 }
 
@@ -1325,7 +1699,20 @@ func (h *Handlers) GetRenderPublishBoard(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	variant := chi.URLParam(r, "variant")
-	result, _, ok := h.loadRenderResult(w, j.ID, variant)
+	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	state, exists, err := h.readOrMaterializeRenderVariantState(j.ID, variant)
+	if err != nil {
+		internalError(w, "read render state for publish board", err)
+		return
+	}
+	snapshot := renderVariantSnapshot{jobID: j.ID, variant: variant}
+	if exists {
+		snapshot.state = state
+	}
+	result, _, ok := h.loadRenderResultFromSnapshot(w, snapshot)
 	if !ok {
 		return
 	}
@@ -1333,19 +1720,54 @@ func (h *Handlers) GetRenderPublishBoard(w http.ResponseWriter, r *http.Request)
 	for _, short := range result.Shorts {
 		segmentIDs = append(segmentIDs, short.SegmentID)
 	}
+	artifactPrefix := ""
+	if snapshot.state != nil {
+		artifactPrefix = snapshot.state.ArtifactPrefix
+	}
 	board, err := renderplan.NewPublishBoardForVariant(renderplan.NewPublishBoardForVariantOptions{
 		JobID:          j.ID,
 		Variant:        variant,
 		SegmentIDs:     segmentIDs,
-		Warnings:       result.Warnings,
+		Warnings:       unresolvedRenderWarnings(snapshot.state, renderplan.CompleteRenderWarnings(result)),
 		Error:          result.Error,
+		CoversRequired: result.CoversEnabled,
+		ArtifactPrefix: artifactPrefix,
 		ArtifactExists: h.storage.Exists,
 	})
 	if err != nil {
 		internalError(w, "build publish board", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, board)
+	if snapshot.state != nil {
+		switch snapshot.state.Status {
+		case renderplan.RenderVariantStatusQueued, renderplan.RenderVariantStatusRendering:
+			board.Status = snapshot.state.Status
+			board.RenderReady = false
+		case renderplan.RenderVariantStatusFailed:
+			board.Status = renderplan.RenderVariantStatusFailed
+			board.RenderReady = false
+			board.Error = snapshot.state.Error
+		}
+	}
+	response := renderPublishBoardResponse{PublishBoard: board}
+	if snapshot.state != nil && snapshot.state.Status == renderplan.RenderVariantStatusReview {
+		response.ExpectedArtifactPrefix = snapshot.state.ArtifactPrefix
+		response.ExpectedWarnings = append([]string(nil), snapshot.state.Warnings...)
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+type renderPublishBoardResponse struct {
+	renderplan.PublishBoard
+	ExpectedArtifactPrefix string   `json:"expected_artifact_prefix,omitempty"`
+	ExpectedWarnings       []string `json:"expected_warnings,omitempty"`
+}
+
+func unresolvedRenderWarnings(state *renderplan.RenderVariantState, warnings []string) []string {
+	if state != nil && state.ReviewResolvedFor(warnings) {
+		return nil
+	}
+	return warnings
 }
 
 // GetRenderQuality handles GET /api/jobs/{id}/renders/{variant}/quality.
@@ -1404,21 +1826,35 @@ func (h *Handlers) DeleteRenderVideo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	name := chi.URLParam(r, "name")
+	if _, err := renderplan.NewRenderVariantArtifactRef(
+		j.ID,
+		variant,
+		renderplan.RenderVariantArtifactVideo,
+		name,
+	); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	deleter, ok := h.storage.(renderArtifactDeleter)
 	if !ok {
 		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
 		return
 	}
-	name := chi.URLParam(r, "name")
+	snapshot, err := h.currentRenderVariantSnapshot(j.ID, variant)
+	if err != nil {
+		internalError(w, "read render state for video deletion", err)
+		return
+	}
 	kinds := []renderplan.RenderVariantArtifactKind{
 		renderplan.RenderVariantArtifactVideo,
 		renderplan.RenderVariantArtifactCover,
 		renderplan.RenderVariantArtifactCaption,
 	}
 	for _, kind := range kinds {
-		ref, err := renderplan.NewRenderVariantArtifactRef(j.ID, variant, kind, name)
+		ref, err := snapshot.artifactRef(kind, name)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			internalError(w, "resolve render artifact for video deletion", err)
 			return
 		}
 		if err := deleter.Delete(ref.Key); err != nil {
@@ -1499,6 +1935,54 @@ func (h *Handlers) GetRenderCaption(w http.ResponseWriter, r *http.Request) {
 	h.streamRenderVariantArtifact(w, r, "text/plain; charset=utf-8", renderplan.RenderVariantArtifactCaption, name)
 }
 
+// GetRenderRevisionGallery streams the immutable gallery for one render revision.
+func (h *Handlers) GetRenderRevisionGallery(w http.ResponseWriter, r *http.Request) {
+	h.streamRenderVariantRevisionArtifact(w, r, "text/html; charset=utf-8", renderplan.RenderVariantArtifactGallery, "")
+}
+
+// GetRenderRevisionVideo streams one immutable render revision MP4.
+func (h *Handlers) GetRenderRevisionVideo(w http.ResponseWriter, r *http.Request) {
+	h.streamRenderVariantRevisionArtifact(w, r, "video/mp4", renderplan.RenderVariantArtifactVideo, chi.URLParam(r, "name"))
+}
+
+// GetRenderRevisionCover streams one immutable render revision cover.
+func (h *Handlers) GetRenderRevisionCover(w http.ResponseWriter, r *http.Request) {
+	h.streamRenderVariantRevisionArtifact(w, r, "image/jpeg", renderplan.RenderVariantArtifactCover, chi.URLParam(r, "name"))
+}
+
+// GetRenderRevisionCaption streams one immutable render revision caption.
+func (h *Handlers) GetRenderRevisionCaption(w http.ResponseWriter, r *http.Request) {
+	h.streamRenderVariantRevisionArtifact(w, r, "text/plain; charset=utf-8", renderplan.RenderVariantArtifactCaption, chi.URLParam(r, "name"))
+}
+
+func (h *Handlers) streamRenderVariantRevisionArtifact(w http.ResponseWriter, r *http.Request, contentType string, kind renderplan.RenderVariantArtifactKind, segmentID string) {
+	j, ok := h.loadJob(w, r)
+	if !ok {
+		return
+	}
+	variant := chi.URLParam(r, "variant")
+	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	revisionID, err := uuid.Parse(chi.URLParam(r, "revision"))
+	if err != nil || revisionID == uuid.Nil {
+		writeError(w, http.StatusBadRequest, "invalid render revision id")
+		return
+	}
+	ref, err := renderplan.NewRenderVariantRevisionArtifactRef(j.ID, variant, revisionID, kind, segmentID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	rc, err := h.storage.Open(ref.Key)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "render revision artifact not found")
+		return
+	}
+	serveArtifact(w, r, contentType, rc)
+}
+
 func (h *Handlers) streamRenderVariantArtifact(w http.ResponseWriter, r *http.Request, contentType string, kind renderplan.RenderVariantArtifactKind, segmentID string) {
 	j, ok := h.loadJob(w, r)
 	if !ok {
@@ -1509,9 +1993,18 @@ func (h *Handlers) streamRenderVariantArtifact(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ref, err := renderplan.NewRenderVariantArtifactRef(j.ID, variant, kind, segmentID)
-	if err != nil {
+	if _, err := renderplan.NewRenderVariantArtifactRef(j.ID, variant, kind, segmentID); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	snapshot, err := h.currentRenderVariantSnapshot(j.ID, variant)
+	if err != nil {
+		internalError(w, "read render state for artifact", err)
+		return
+	}
+	ref, err := snapshot.artifactRef(kind, segmentID)
+	if err != nil {
+		internalError(w, "resolve current render artifact", err)
 		return
 	}
 	rc, err := h.storage.Open(ref.Key)
@@ -1549,9 +2042,22 @@ func serveArtifact(w http.ResponseWriter, r *http.Request, contentType string, r
 }
 
 func (h *Handlers) loadRenderResult(w http.ResponseWriter, id uuid.UUID, variant string) (editor.Result, string, bool) {
-	resultRef, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactResult, "")
-	if err != nil {
+	if _, err := renderplan.LoadoutForVariant(variant); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return editor.Result{}, "", false
+	}
+	snapshot, err := h.currentRenderVariantSnapshot(id, variant)
+	if err != nil {
+		internalError(w, "read render state for result", err)
+		return editor.Result{}, "", false
+	}
+	return h.loadRenderResultFromSnapshot(w, snapshot)
+}
+
+func (h *Handlers) loadRenderResultFromSnapshot(w http.ResponseWriter, snapshot renderVariantSnapshot) (editor.Result, string, bool) {
+	resultRef, err := snapshot.artifactRef(renderplan.RenderVariantArtifactResult, "")
+	if err != nil {
+		internalError(w, "resolve current render result", err)
 		return editor.Result{}, "", false
 	}
 	rc, err := h.storage.Open(resultRef.Key)
@@ -1566,6 +2072,31 @@ func (h *Handlers) loadRenderResult(w http.ResponseWriter, id uuid.UUID, variant
 		return editor.Result{}, "", false
 	}
 	return result, resultRef.Key, true
+}
+
+type renderVariantSnapshot struct {
+	jobID   uuid.UUID
+	variant string
+	state   *renderplan.RenderVariantState
+}
+
+func (h *Handlers) currentRenderVariantSnapshot(id uuid.UUID, variant string) (renderVariantSnapshot, error) {
+	state, exists, err := h.readRenderVariantState(id, variant)
+	if err != nil {
+		return renderVariantSnapshot{}, err
+	}
+	snapshot := renderVariantSnapshot{jobID: id, variant: variant}
+	if exists {
+		snapshot.state = state
+	}
+	return snapshot, nil
+}
+
+func (s renderVariantSnapshot) artifactRef(kind renderplan.RenderVariantArtifactKind, name string) (renderplan.RenderVariantArtifactRef, error) {
+	if s.state != nil {
+		return renderplan.NewRenderVariantArtifactRefForState(*s.state, kind, name)
+	}
+	return renderplan.NewRenderVariantArtifactRef(s.jobID, s.variant, kind, name)
 }
 
 func (h *Handlers) loadJob(w http.ResponseWriter, r *http.Request) (job.Job, bool) {
@@ -1595,6 +2126,10 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func writeCodedError(w http.ResponseWriter, status int, code, msg string) {
+	writeJSON(w, status, map[string]string{"code": code, "error": msg})
 }
 
 // internalError logs the underlying error at the boundary and returns a generic

@@ -73,7 +73,11 @@ func runDemoAnticheat(args []string, stdout, stderr io.Writer) int {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoAnticheatUsage, exitInvalidArgs)
 	}
 	if strings.TrimSpace(*outPath) != "" {
-		if err := pathguard.RejectOutputAliases(*outPath, pathguard.Input{Flag: "--demo", Path: *demoPath}); err != nil {
+		inputs := []pathguard.Input{{Flag: "--demo", Path: *demoPath}}
+		if strings.TrimSpace(*baselinePath) != "" {
+			inputs = append(inputs, pathguard.Input{Flag: "--baseline", Path: *baselinePath})
+		}
+		if err := pathguard.RejectOutputAliases(*outPath, inputs...); err != nil {
 			return writeCommandError(args, stdout, stderr, err, demoAnticheatUsage, exitInvalidArgs)
 		}
 	}
@@ -161,6 +165,15 @@ func runDemoAnticheatCalibrate(args []string, stdout, stderr io.Writer) int {
 	}
 	if len(demos) == 0 {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("no .dem files under %s", *demosDir), "", exitInvalidArgs)
+	}
+	if !*dryRun {
+		inputs := make([]pathguard.Input, 0, len(demos))
+		for _, demo := range demos {
+			inputs = append(inputs, pathguard.Input{Flag: "--demos", Path: demo})
+		}
+		if err := pathguard.RejectOutputAliases(*outPath, inputs...); err != nil {
+			return writeCommandError(args, stdout, stderr, err, demoAnticheatCalibrateUsage, exitInvalidArgs)
+		}
 	}
 
 	// A calibration run is long and unattended, so one unreadable demo must

@@ -13,6 +13,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { VerdictBadge } from '@/components/cheaters/verdict-badge';
 import type { AnticheatDossier } from '@/lib/api/anticheat';
+import { writeClipboardText } from '@/lib/clipboard-write';
 
 /**
  * The report kit for one player.
@@ -41,7 +42,7 @@ export function DossierDialog({
   const copy = async () => {
     if (!dossier) return;
     try {
-      await navigator.clipboard.writeText(dossier.markdown);
+      await writeClipboardText(dossier.markdown);
     } catch {
       setCopyFailed(true);
       return;

@@ -285,8 +285,8 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv analysis tactical-data --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000
 ./bin/zv analysis view --json data/analysis/MarcusN1-deaths.json
 ./bin/zv gallery open --path data/runs/run-004/shortslistosparasubir/index.html
-# Chain the whole demo journey safely; supply --killplan to skip parse and omit --demo to skip capture.
-./bin/zv flows run demo --killplan testdata/agent-killplan.json --run-dir data/runs/agent-doc --dry-run --format json
+# Chain the whole demo journey safely; --killplan skips parsing, while --demo remains required for capture validation.
+./bin/zv flows run demo --demo testdata/agent-demo.fixture --killplan testdata/agent-killplan.json --run-dir data/runs/agent-doc --dry-run --format json
 # The stream journey form needs real media, so it is documented here in prose only:
 # "zv flows run stream --input <stream.mp4> --run-dir <dir> --dry-run" chains the
 # creative gate, plan, and render phases over the persisted edit plan.
@@ -311,7 +311,7 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows run analysis-tactical-data -- --demo testdata/foo.dem --out data/runs/run-004/tactical.json --start 1000 --end 2000
 ./bin/zv workflows run analysis-viewer -- --json data/analysis/MarcusN1-deaths.json
 ./bin/zv workflows run gallery-open -- --path data/runs/run-004/shortslistosparasubir/index.html
-./bin/zv workflows run flows-run -- demo --killplan testdata/agent-killplan.json --run-dir data/runs/agent-doc --dry-run --format json
+./bin/zv workflows run flows-run -- demo --demo testdata/agent-demo.fixture --killplan testdata/agent-killplan.json --run-dir data/runs/agent-doc --dry-run --format json
 ./bin/zv workflows run serve
 ./bin/zv workflows run skills-check
 ./bin/zv workflows run skills-check -- --format json

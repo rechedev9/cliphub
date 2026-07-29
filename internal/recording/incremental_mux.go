@@ -65,11 +65,9 @@ type finishedTake struct {
 
 // finishedTakePairs maps completed take directories to plan segments. Takes are
 // direct children of the plan's output dir, sorted by take number. Only takes
-// that hold both video.mp4 and audio.wav consume a segment slot, and the i-th
-// such take records the i-th plan segment - the same compression the end-of-run
-// mapTakesToSegments applies, so an artifact-less middle take never shifts later
-// takes onto the wrong segment. The newest take is excluded because HLAE may
-// still be writing it.
+// that hold both video.mp4 and audio.wav are emitted, but every take number
+// retains its plan index. The newest take is excluded because HLAE may still be
+// writing it.
 func finishedTakePairs(plan RecordingPlan) []finishedTake {
 	takes := takeDirNames(plan.OutputDir)
 	if len(takes) < 2 {
@@ -77,26 +75,22 @@ func finishedTakePairs(plan RecordingPlan) []finishedTake {
 	}
 	// The newest take may still be streaming; the end-of-run pass owns it.
 	candidates := takes[:len(takes)-1]
-	bearing := make([]finishedTake, 0, len(candidates))
-	takeIDs := make([]string, 0, len(candidates))
+	out := make([]finishedTake, 0, len(candidates))
 	for _, take := range candidates {
 		video := filepath.Join(plan.OutputDir, take, "video.mp4")
 		audio := filepath.Join(plan.OutputDir, take, "audio.wav")
 		if !fileExists(video) || !fileExists(audio) {
-			continue // an artifact-less take consumes no segment slot
+			continue
 		}
-		bearing = append(bearing, finishedTake{videoPath: video, audioPath: audio})
-		takeIDs = append(takeIDs, take)
-	}
-	takeSegments := mapTakeOrderToSegments(takeIDs, plan.Segments)
-	out := make([]finishedTake, 0, len(bearing))
-	for i, take := range takeIDs {
-		segmentID, ok := takeSegments[take]
-		if !ok {
+		index, ok := takeNumber(take)
+		if !ok || index < 0 || index >= len(plan.Segments) {
 			continue // more takes than segments
 		}
-		bearing[i].segmentID = segmentID
-		out = append(out, bearing[i])
+		out = append(out, finishedTake{
+			segmentID: plan.Segments[index].ID,
+			videoPath: video,
+			audioPath: audio,
+		})
 	}
 	return out
 }

@@ -113,6 +113,84 @@ func TestGetPublishAssistantReturnsFactualManualPack(t *testing.T) {
 	}
 }
 
+func TestGetPublishAssistantRejectsUnresolvedRenderWarnings(t *testing.T) {
+	h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
+		Player: "reche", Map: "Mirage", KillCount: 5, Hook: "5K TOTAL",
+	})
+	req := assistantRequest(http.MethodGet, url)
+	id, err := uuid.Parse(chi.URLParam(req, "id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	loadout, err := renderplan.LoadoutForVariant(chi.URLParam(req, "variant"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:    id,
+		Loadout:  loadout,
+		Status:   renderplan.RenderVariantStatusReady,
+		Warnings: []string{"freeze at 00:12"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(t, h.storage.(*fakeStorage), state.RenderResultKey, editor.Result{
+		Warnings: []string{"freeze at 00:12"},
+		Shorts:   []editor.ShortResult{{SegmentID: chi.URLParam(req, "name"), Headline: "5K TOTAL"}},
+	})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	rw := httptest.NewRecorder()
+	h.GetPublishAssistant(rw, req)
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+	}
+
+	state.ReviewResolution = &renderplan.RenderReviewResolution{
+		ArtifactPrefix: state.ArtifactPrefix,
+		Warnings:       []string{"freeze at 00:12"},
+		Note:           "Freeze inspected at the reported interval and intentional.",
+		ReviewedAt:     time.Now().UTC(),
+	}
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	rw = httptest.NewRecorder()
+	h.GetPublishAssistant(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("reviewed status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+}
+
+func TestGetPublishAssistantRejectsFailedLegacyResult(t *testing.T) {
+	h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
+		Player: "reche", Map: "Mirage", KillCount: 5,
+	})
+	req := assistantRequest(http.MethodGet, url)
+	id, err := uuid.Parse(chi.URLParam(req, "id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(
+		t,
+		h.storage.(*fakeStorage),
+		mustAssistantRef(t, id, chi.URLParam(req, "variant"), renderplan.RenderVariantArtifactResult, ""),
+		editor.Result{
+			Error:  "ffmpeg exited",
+			Shorts: []editor.ShortResult{{SegmentID: chi.URLParam(req, "name")}},
+		},
+	)
+
+	rw := httptest.NewRecorder()
+	h.GetPublishAssistant(rw, req)
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+	}
+}
+
 func TestGetPublishAssistantFallsBackWithoutFirecrawl(t *testing.T) {
 	h, url := newPublishAssistantFixture(t, nil, publishAssistantFacts{
 		Player: "reche", Map: "Dust II", KillCount: 3, PrimaryWeapon: "M4A1-S", Hook: "3K HOLD",

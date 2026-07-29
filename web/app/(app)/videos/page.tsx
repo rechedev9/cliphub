@@ -20,7 +20,7 @@ import { VideoFilters, type VideoFormatFilter } from '@/components/videos/video-
 
 
 // Poll fast while a reel is advancing through the pipeline; once every reel is
-// terminal (ready/failed) there is nothing to drive, so back off to an idle
+// terminal (ready/review_required/failed) there is nothing to drive, so back off to an idle
 // cadence to stop hammering the orchestrator. A newly created reel resumes fast
 // polling on the next tick.
 const FAST_POLL_MS = 1500;
@@ -47,7 +47,9 @@ function isServiceUnavailable(err: unknown): boolean {
 }
 
 function hasActiveReel(list: Video[] | undefined): boolean {
-  return !!list && list.some((v) => v.status !== 'ready' && v.status !== 'failed');
+  return !!list && list.some(
+    (v) => v.status !== 'ready' && v.status !== 'review_required' && v.status !== 'failed',
+  );
 }
 
 function matchesFormat(video: Video, filter: VideoFormatFilter): boolean {
@@ -200,7 +202,9 @@ function LibraryGrid({ videos, onChange }: { videos: Video[]; onChange(): void }
       <section className={REEL_GRID_CLASS} aria-label="Reels">
         {videos.map((v) => {
           if (v.status === 'failed') return <FailedCard key={v.id} video={v} onChange={onChange} />;
-          if (v.status === 'ready') return <ReadyCard key={v.id} video={v} onDeleted={onChange} />;
+          if (v.status === 'ready' || v.status === 'review_required') {
+            return <ReadyCard key={v.id} video={v} onChange={onChange} />;
+          }
           return <RenderingCard key={v.id} video={v} />;
         })}
       </section>

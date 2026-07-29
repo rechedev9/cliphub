@@ -27,6 +27,7 @@ func checkCodexPromptWrappers() (int, []skillIssue, error) {
 	}
 
 	guidePath := filepath.Join(root, ".codex", "GUIDE.md")
+	// #nosec G304 -- this is a fixed file under the checked repository root.
 	b, err := os.ReadFile(guidePath)
 	if err != nil {
 		return 0, nil, fmt.Errorf("read .codex/GUIDE.md: %w", err)
@@ -35,6 +36,7 @@ func checkCodexPromptWrappers() (int, []skillIssue, error) {
 	var issues []skillIssue
 	runnerPath := filepath.Join(root, "scripts", "codex-run.sh")
 	relRunner := filepath.ToSlash(mustRel(root, runnerPath))
+	// #nosec G304 -- this is a fixed file under the checked repository root.
 	if b, err := os.ReadFile(runnerPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			issues = append(issues, skillIssue{Path: relRunner, Message: "missing codex prompt runner"})
@@ -58,6 +60,7 @@ func checkCodexPromptWrappers() (int, []skillIssue, error) {
 			continue
 		}
 		relWrapper := filepath.ToSlash(mustRel(root, wrapper))
+		// #nosec G304 -- wrappers are discovered from a repository-owned fixed glob.
 		b, err := os.ReadFile(wrapper)
 		if err != nil {
 			return 0, nil, fmt.Errorf("read %s: %w", relWrapper, err)

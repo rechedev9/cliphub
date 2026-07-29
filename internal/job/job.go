@@ -37,6 +37,9 @@ const (
 	// Appended after StatusFailed so the existing integer values are unchanged.
 	StatusScanning // queued→scanning while the roster scan runs
 	StatusScanned  // roster ready; awaiting the user's target pick
+	// Appended to preserve every existing durable integer value. The media is
+	// materialized but QA warnings must be reviewed before it is publishable.
+	StatusReviewRequired
 )
 
 var statusNames = [...]string{
@@ -51,6 +54,7 @@ var statusNames = [...]string{
 	"failed",
 	"scanning",
 	"scanned",
+	"review_required",
 }
 
 // String returns the canonical lowercase representation used in JSON and DB.

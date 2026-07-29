@@ -24,6 +24,7 @@ import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
  */
 export function FailedCard({ video, onChange }: { video: Video; onChange: () => void }) {
   const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const unrecoverable = video.unrecoverable ?? false;
   const failure = parseFailureReason(video.failureReason);
   // A demo-incompatible failure is deterministic in the .dem itself: retry can
@@ -44,9 +45,12 @@ export function FailedCard({ video, onChange }: { video: Video; onChange: () => 
   async function onRetry() {
     if (retrying) return;
     setRetrying(true);
+    setRetryError(null);
     try {
       await api.retryVideo(video.id);
       onChange();
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : 'No se pudo reintentar el reel.');
     } finally {
       // Always re-arm the button: a retry can resolve while the reel stays
       // failed (e.g. capture still unconfigured), and a card stuck at
@@ -102,6 +106,11 @@ export function FailedCard({ video, onChange }: { video: Video; onChange: () => 
       <p className="border-t border-destructive/25 pt-2.5 font-mono text-meta uppercase text-fg-3">
         {footerHint()}
       </p>
+      {retryError ? (
+        <p role="alert" className="border-t border-destructive/25 pt-2.5 text-body-sm text-destructive">
+          {retryError}
+        </p>
+      ) : null}
     </ReelCard>
   );
 }

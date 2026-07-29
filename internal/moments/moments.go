@@ -11,11 +11,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/editor"
 	"github.com/rechedev9/fragforge/internal/killplan"
 )
 
 const SchemaVersion = "1.0"
+const DefaultVariant = "viral-60-clean"
 
 func ArtifactKey(jobID uuid.UUID) string {
 	return artifacts.MomentsKey(jobID)
@@ -75,16 +75,29 @@ type UtilityEvent struct {
 }
 
 func Build(jobID uuid.UUID, plan killplan.Plan) Document {
-	doc := Document{
+	return Document{
 		SchemaVersion: SchemaVersion,
 		JobID:         jobID,
 		GeneratedAt:   time.Now().UTC(),
-		Moments:       make([]Moment, 0, len(plan.Segments)),
+		Moments:       Rank(plan),
 	}
+}
+
+// Rank scores every planned segment and returns a deterministic best-first
+// order. Segment ID is the stable tie-breaker so capture, CLI review, and
+// editor compilation cannot disagree when scores are equal.
+func Rank(plan killplan.Plan) []Moment {
+	ranked := make([]Moment, 0, len(plan.Segments))
 	for i, segment := range plan.Segments {
-		doc.Moments = append(doc.Moments, buildMoment(i+1, segment, plan))
+		ranked = append(ranked, buildMoment(i+1, segment, plan))
 	}
-	return doc
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].Score != ranked[j].Score {
+			return ranked[i].Score > ranked[j].Score
+		}
+		return ranked[i].SegmentID < ranked[j].SegmentID
+	})
+	return ranked
 }
 
 func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment {
@@ -113,7 +126,7 @@ func buildMoment(index int, segment killplan.Segment, plan killplan.Plan) Moment
 		Victims:         victims(segment),
 		Utility:         utilityEvents(segment),
 		Warnings:        warnings,
-		DefaultVariant:  editor.PresetViral60Clean,
+		DefaultVariant:  DefaultVariant,
 	}
 }
 

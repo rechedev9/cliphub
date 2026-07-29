@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { localAPIBootstrapError, localAPIRequestError } from './local-request-guard.ts';
+import { localAPIBootstrapError, localAPIOrigin, localAPIRequestError } from './local-request-guard.ts';
 
 function requestHeaders(values: Record<string, string>): Headers {
   return new Headers(values);
 }
+
+test('derives redirects from the exact validated loopback Host header', () => {
+  assert.equal(localAPIOrigin(requestHeaders({ host: '127.0.0.1:3000' })), 'http://127.0.0.1:3000');
+  assert.equal(localAPIOrigin(requestHeaders({ host: 'localhost:4100' })), 'http://localhost:4100');
+  assert.equal(localAPIOrigin(requestHeaders({ host: 'evil.example:3000' })), undefined);
+  assert.equal(localAPIOrigin(requestHeaders({ host: '127.0.0.1' })), undefined);
+});
 
 test('rejects a non-loopback Host even when the browser reports same-origin', async () => {
   const error = await localAPIRequestError(requestHeaders({

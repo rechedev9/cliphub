@@ -169,6 +169,7 @@ func equalArgs(got, want []string) bool {
 		return false
 	}
 	for i := range got {
+		// #nosec G602 -- equal lengths are established above before indexing want.
 		if got[i] != want[i] {
 			return false
 		}

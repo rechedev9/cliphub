@@ -109,6 +109,55 @@ func TestBuildPlanWithNoKillsReturnsEmptySegments(t *testing.T) {
 	}
 }
 
+type matchStartIdentityCollector interface {
+	RecordTargetIdentity(string, string)
+	resetForMatchStart()
+	Build(PlanMeta) (killplan.Plan, error)
+}
+
+func TestCollectorsPreserveWarmupTargetWhenLiveMatchHasNoEvents(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		new  func() matchStartIdentityCollector
+	}{
+		{
+			name: "kills",
+			new: func() matchStartIdentityCollector {
+				return NewCollector(targetID, defaultTestRules())
+			},
+		},
+		{
+			name: "smokes",
+			new: func() matchStartIdentityCollector {
+				return NewSmokeCollector(targetID, defaultTestRules())
+			},
+		},
+		{
+			name: "utility",
+			new: func() matchStartIdentityCollector {
+				return NewUtilityCollector(targetID, defaultTestRules())
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := tc.new()
+			c.RecordTargetIdentity("Warmup Target", "T")
+			c.resetForMatchStart()
+
+			plan, err := c.Build(meta())
+			if err != nil {
+				t.Fatalf("Build after MatchStart error = %v", err)
+			}
+			if plan.Target.NameInDemo != "Warmup Target" || plan.Target.TeamAtStart != "T" {
+				t.Fatalf("target = %#v, want preserved warmup identity", plan.Target)
+			}
+			if len(plan.Segments) != 0 {
+				t.Fatalf("segments = %#v, want empty live plan", plan.Segments)
+			}
+		})
+	}
+}
+
 func TestRecordTargetIdentityKeepsTheFirstObservedAliasAndTeam(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	c.RecordTargetIdentity("ZaCkETiZOR", "T")
@@ -123,6 +172,19 @@ func TestRecordTargetIdentityKeepsTheFirstObservedAliasAndTeam(t *testing.T) {
 	}
 	if got, want := plan.Target.TeamAtStart, "T"; got != want {
 		t.Fatalf("Target.TeamAtStart = %q, want starting team %q", got, want)
+	}
+}
+
+func TestBuildClampsSegmentEndToDemoDuration(t *testing.T) {
+	c := NewCollector(targetID, defaultTestRules())
+	c.RecordTargetIdentity("Target", "CT")
+	c.RecordKill(RawKill{Tick: 100, Round: 1, Weapon: "ak47"})
+	plan, err := c.Build(PlanMeta{Tickrate: 64, DurationTicks: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Segments) != 1 || plan.Segments[0].TickEnd != 100 {
+		t.Fatalf("segments = %#v, want EOF-clamped end tick 100", plan.Segments)
 	}
 }
 

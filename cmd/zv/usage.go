@@ -175,11 +175,12 @@ reason codes, duration, and score. --out persists the same moments document;
 --dry-run scores in memory and skips the write.
 `
 
-const demoSelectUsage = `usage: zv demo select --killplan <plan.json> --segments <seg-ids> --out <selected-plan.json> [--dry-run] [--format text|json]
+const demoSelectUsage = `usage: zv demo select --killplan <plan.json> (--segments <seg-ids> | --top <n>) --out <selected-plan.json> [--dry-run] [--format text|json]
 
-Create a recorder-ready kill plan containing only the requested segments, in
-the exact order supplied. This is the decision boundary between review and
-HLAE/CS2 capture; use --dry-run before committing expensive GPU work.
+Create a recorder-ready kill plan containing either the requested segments in
+the exact order supplied or the highest-scoring N moments. This is the decision
+boundary between review and HLAE/CS2 capture; use --dry-run before committing
+expensive GPU work.
 `
 
 const utilityUsage = `usage: zv utility audit [zv-parser utility-audit flags]
@@ -198,7 +199,7 @@ and crops, then render production artifacts directly under
 <out>/shortslistosparasubir without starting Studio or MCP.
 `
 
-const musicUsage = `usage: zv music analyze --input <audio-or-video> --out <rhythm.json> [--killplan <plan.json>]
+const musicUsage = `usage: zv music analyze --input <audio-or-video> --out <rhythm.json> [--killplan <plan.json>|--recording-result <recording-result.json>] [--tail-trim <seconds>] [--rank-moments [--limit <n>]]
 `
 
 const analysisUsage = `usage: zv analysis tactical --demo <match.dem> --out <tactical.json> [flags]

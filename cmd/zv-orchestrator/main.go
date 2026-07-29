@@ -10,6 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
+
 	"github.com/rechedev9/fragforge/internal/generateintent"
 	"github.com/rechedev9/fragforge/internal/httpapi"
 	"github.com/rechedev9/fragforge/internal/obs"
@@ -26,6 +29,8 @@ type orchestratorStreamJobRepository interface {
 }
 
 const gracefulShutdownTimeout = 10 * time.Second
+
+const streamAcquireRecoveryDisabledReason = "interrupted: stream acquisition cannot resume because the acquisition worker is disabled"
 
 func main() {
 	if err := run(); err != nil {
@@ -63,12 +68,26 @@ func run() error {
 		log.Printf("capture: configured record tool path(s) not found on disk: %v", missing)
 	}
 
+	dataLease, err := acquireDataDirLease(cfg.DataDir)
+	if err != nil {
+		return fmt.Errorf("data directory lease: %w", err)
+	}
+	defer func() {
+		if err := dataLease.Close(); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	store, err := storage.NewLocal(cfg.DataDir)
 	if err != nil {
 		return fmt.Errorf("storage: %w", err)
+	}
+	observability, err := obs.InitializeDefault()
+	if err != nil {
+		return fmt.Errorf("observability: %w", err)
 	}
 	generateIntents := generateintent.New(store)
 	youtubeTrends, err := youtubetrends.New(youtubetrends.Options{APIKey: cfg.FirecrawlAPIKey})
@@ -105,18 +124,19 @@ func run() error {
 	// Reconcile durable state whose process-local work vanished with the previous
 	// desktop process. Run every sweep before serving traffic so clients never
 	// observe an active state with no queue owner capable of advancing it.
-	reconciled, err := reconcileInterruptedWork(ctx, repo, streamRepo, store, obs.Default())
+	reconciled, err := reconcileInterruptedWork(ctx, repo, streamRepo, store, observability)
 	if err != nil {
 		return fmt.Errorf("startup reconciliation: %w", err)
 	}
 	if reconciled.total() > 0 {
 		log.Printf(
-			"startup: reconciled interrupted work (demo_jobs=%d demo_renders=%d generate_runs=%d stream_jobs=%d stream_renders=%d)",
+			"startup: reconciled interrupted work (demo_jobs=%d demo_renders=%d generate_runs=%d stream_jobs=%d stream_renders=%d stream_acquisitions=%d)",
 			reconciled.DemoJobs,
 			reconciled.DemoRenders,
 			reconciled.GenerateRuns,
 			reconciled.StreamJobs,
 			reconciled.StreamRenderStates,
+			len(reconciled.StreamAcquisitions),
 		)
 	}
 	// HTTP plan mutations and stream render workers share this per-job
@@ -180,7 +200,8 @@ func run() error {
 		taskHandlers[tasks.TypeRenderStreamClip] = streamWorker.HandleRenderStreamClip
 		log.Printf("worker: stream render enabled")
 	}
-	if cfg.streamAcquireWorkerEnabled() && streamRepo != nil {
+	streamAcquireEnabled := cfg.streamAcquireWorkerEnabled()
+	if streamAcquireEnabled && streamRepo != nil {
 		acquireWorker := workers.NewAcquireWorker(streamRepo, store, workers.AcquireWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			YtdlpPath:   cfg.YtdlpPath,
@@ -227,6 +248,16 @@ func run() error {
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 	inline.Start(workerCtx)
+	if err := recoverStreamAcquisitions(
+		ctx,
+		reconciled.StreamAcquisitions,
+		streamAcquireEnabled,
+		streamRepo,
+		inline,
+		observability,
+	); err != nil {
+		return err
+	}
 	log.Printf("queue: inline mode enabled (concurrency=%d)", cfg.WorkerConcurrency)
 	httpRuntime.Start()
 	log.Printf("http: listening on %s", httpRuntime.Addr())
@@ -256,6 +287,41 @@ func run() error {
 	log.Print("shutdown: done")
 	if serveErr != nil {
 		return fmt.Errorf("http: %w", serveErr)
+	}
+	return nil
+}
+
+func recoverStreamAcquisitions(
+	ctx context.Context,
+	ids []uuid.UUID,
+	workerEnabled bool,
+	repo orchestratorStreamJobRepository,
+	queue *inlineQueue,
+	rec *obs.Recorder,
+) error {
+	if !workerEnabled {
+		for _, id := range ids {
+			if err := repo.UpdateStatus(ctx, id, streamclips.StatusFailed, streamAcquireRecoveryDisabledReason); err != nil {
+				return fmt.Errorf("fail unrecoverable stream acquisition %s: %w", id, err)
+			}
+			if rec != nil {
+				_ = rec.RecordError(obs.Event{
+					Stage:   obs.StageStreamAcquire,
+					Class:   interruptedClass,
+					Message: id.String() + ": " + streamAcquireRecoveryDisabledReason,
+				})
+			}
+		}
+		return nil
+	}
+	for _, id := range ids {
+		task, taskErr := tasks.NewStreamAcquireTask(id)
+		if taskErr != nil {
+			return fmt.Errorf("build recovered stream acquisition %s: %w", id, taskErr)
+		}
+		if _, enqueueErr := queue.Enqueue(task, asynq.MaxRetry(0)); enqueueErr != nil {
+			return fmt.Errorf("enqueue recovered stream acquisition %s: %w", id, enqueueErr)
+		}
 	}
 	return nil
 }

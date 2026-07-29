@@ -98,6 +98,8 @@ export function productStatusLabel(status: VideoStatus): string {
       return 'Editando';
     case 'ready':
       return 'Listo';
+    case 'review_required':
+      return 'Revisión necesaria';
     case 'failed':
       return 'Fallido';
   }

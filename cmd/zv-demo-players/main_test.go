@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 )
 
 func TestRunMissingDemoReturnsMachineReadableUsageError(t *testing.T) {
@@ -60,6 +62,22 @@ func TestWriteRosterJSONPersistsStructuredPlayerData(t *testing.T) {
 	}
 	if len(got.Players) != 1 || got.Players[0].Name != "Joey-" || got.Players[0].SteamID64 == 0 {
 		t.Fatalf("got = %#v", got)
+	}
+}
+
+func TestMatchStartResetKeepsPlayingPlayerWithoutLaterCombat(t *testing.T) {
+	quiet := &common.Player{SteamID64: 1, Name: "Quiet", Team: common.TeamCounterTerrorists}
+	killer := &common.Player{SteamID64: 2, Name: "Killer", Team: common.TeamCounterTerrorists}
+
+	players := resetPlayerStats([]*common.Player{quiet, killer})
+	ensurePlayer(players, killer).Kills++
+
+	got := players[quiet.SteamID64]
+	if got == nil {
+		t.Fatal("playing player without post-start combat is missing")
+	}
+	if got.Name != quiet.Name || got.Team != "CT" || got.Kills != 0 || got.Deaths != 0 {
+		t.Fatalf("quiet player = %#v, want reseeded zero stats", got)
 	}
 }
 

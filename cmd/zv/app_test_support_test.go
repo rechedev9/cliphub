@@ -615,11 +615,14 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 		return []string{"--", "--path", galleryPath}
 	case "flows-run":
 		baseDir := filepath.Dir(filepath.Dir(galleryPath))
-		planPath := writeDemoReviewPlan(t, baseDir)
-		// A kill plan without a demo keeps the run media-free: parse is skipped,
-		// moments and select run in-process, and capture/render are skipped (no
-		// recording), so no delegated subcommand is invoked.
-		return []string{"--", "demo", "--killplan", planPath, "--run-dir", filepath.Join(baseDir, "flowdry"), "--dry-run"}
+		fixtureRoot := repoRoot(t)
+		return []string{
+			"--", "demo",
+			"--demo", filepath.Join(fixtureRoot, "testdata", "agent-demo.fixture"),
+			"--killplan", filepath.Join(fixtureRoot, "testdata", "agent-killplan.json"),
+			"--run-dir", filepath.Join(baseDir, "flowdry"),
+			"--dry-run",
+		}
 	case "capabilities", "skills-check", "workflows-check", "project-check", "serve":
 		return nil
 	default:
@@ -972,6 +975,11 @@ func assertDiscoveredWorkflowRunMatchesDirect(t *testing.T, exe, root, source st
 }
 
 func workflowDelegatesExternally(workflow workflowInfo) bool {
+	if workflow.Name == "flows-run" {
+		// The catalog sample supplies a kill plan, so its validated phases run
+		// in-process and the missing generated dependencies stay write-free.
+		return false
+	}
 	switch workflow.Name {
 	case "demo-moments", "demo-select", "analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		// These run in-process inside zv itself; they never spawn a subcommand.
@@ -989,10 +997,26 @@ func workflowDelegatesExternally(workflow workflowInfo) bool {
 }
 
 func workflowHelpDelegatesExternally(workflow workflowInfo) bool {
-	if workflow.Name == "serve" {
+	if workflow.Name == "serve" || workflow.Name == "flows-run" {
 		return false
 	}
 	return workflowDelegatesExternally(workflow)
+}
+
+func isolateDocumentedFlowRunDir(command []string, runDir string) []string {
+	isFlowRun := len(command) >= 2 && command[0] == "flows" && command[1] == "run"
+	isWorkflowRun := len(command) >= 3 && command[0] == "workflows" && command[1] == "run" && command[2] == "flows-run"
+	if !isFlowRun && !isWorkflowRun {
+		return command
+	}
+	isolated := append([]string(nil), command...)
+	for i := 0; i+1 < len(isolated); i++ {
+		if isolated[i] == "--run-dir" {
+			isolated[i+1] = runDir
+			return isolated
+		}
+	}
+	return isolated
 }
 
 type codexPromptWrapperFixture struct {
@@ -2046,6 +2070,40 @@ func runZVBinaryWithEnv(t *testing.T, exe, dir string, env []string, args ...str
 		t.Fatalf("%s %s: %v\n%s", exe, strings.Join(args, " "), err, out)
 	}
 	return string(out)
+}
+
+// runZVBinaryWithEnvExpectFlowDryRunIncomplete preserves the generic workflow
+// catalog tests while pinning the special flows-run contract: a write-free
+// chain that reaches an unmaterialized dependency must return exit 1 and an
+// explicit unsuccessful report, not masquerade as a completed workflow.
+func runZVBinaryWithEnvExpectFlowDryRunIncomplete(t *testing.T, exe, dir string, env []string, args ...string) string {
+	t.Helper()
+	directFlowRun := len(args) >= 2 && args[0] == "flows" && args[1] == "run"
+	workflowFlowRun := len(args) >= 3 && args[0] == "workflows" && args[1] == "run" && args[2] == "flows-run"
+	if !directFlowRun && !workflowFlowRun {
+		return runZVBinaryWithEnv(t, exe, dir, env, args...)
+	}
+
+	cmd := exec.Command(exe, args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), withCaptureToolsEnv(t, env)...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != exitUnexpected {
+		t.Fatalf("%s %s: error = %v, want exit %d\nstdout:\n%s\nstderr:\n%s",
+			exe, strings.Join(args, " "), err, exitUnexpected, stdout.String(), stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("%s %s wrote stderr for expected incomplete flow: %s", exe, strings.Join(args, " "), stderr.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, `"ok": false`) && !strings.Contains(output, "result: failed") {
+		t.Fatalf("%s %s output does not report an incomplete flow:\n%s", exe, strings.Join(args, " "), output)
+	}
+	return output
 }
 
 func assertPathDoesNotExist(t *testing.T, path string) {

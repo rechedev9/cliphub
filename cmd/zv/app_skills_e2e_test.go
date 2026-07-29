@@ -1075,6 +1075,7 @@ func TestZVBinaryCurrentWorkflowDocExamplesEndToEnd(t *testing.T) {
 	seen := make(map[string]bool)
 	var wantSubcommandCalls, wantOpenPathCalls int
 	for _, command := range commands {
+		command = isolateDocumentedFlowRunDir(command, filepath.Join(tempDir, "workflow-doc-flow"))
 		workflowName := command[2]
 		seen[workflowName] = true
 		workflow, ok := findWorkflow(workflowName)
@@ -1088,7 +1089,7 @@ func TestZVBinaryCurrentWorkflowDocExamplesEndToEnd(t *testing.T) {
 		default:
 			wantSubcommandCalls++
 		}
-		runZVBinaryWithEnv(t, exe, root, env, command...)
+		runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, root, env, command...)
 	}
 
 	for _, workflow := range workflowCatalog() {
@@ -1126,12 +1127,15 @@ func TestZVBinaryCurrentDirectDocExamplesEndToEnd(t *testing.T) {
 	documented := make(map[string]bool)
 	var wantSubcommandCalls, wantOpenPathCalls int
 	for _, command := range commands {
+		command = isolateDocumentedFlowRunDir(command, filepath.Join(tempDir, "direct-doc-flow"))
 		if got := documentedWorkflowCommand("zv " + strings.Join(command, " ")); got != "" {
 			documented[got] = true
 		}
 		switch command[0] {
 		case "gallery":
 			wantOpenPathCalls++
+		case "flows":
+			// `flows run --dry-run` is a pure in-process plan.
 		case "demo":
 			if len(command) < 2 || (command[1] != "moments" && command[1] != "select") {
 				wantSubcommandCalls++
@@ -1144,7 +1148,7 @@ func TestZVBinaryCurrentDirectDocExamplesEndToEnd(t *testing.T) {
 		case "utility", "record", "compose", "shorts", "music", "stream", "serve":
 			wantSubcommandCalls++
 		}
-		runZVBinaryWithEnv(t, exe, root, env, command...)
+		runZVBinaryWithEnvExpectFlowDryRunIncomplete(t, exe, root, env, command...)
 	}
 
 	for _, workflow := range workflowCatalog() {

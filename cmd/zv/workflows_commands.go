@@ -64,8 +64,8 @@ func runWorkflows(args []string, stdout, stderr io.Writer, stdin io.Reader, runn
 		}
 		workflow, ok := findWorkflow(rest[0])
 		if !ok {
-			fmt.Fprintf(stderr, "error: workflow not found: %s\n", rest[0])
-			return exitInvalidArgs
+			return writeCommandError(args[1:], stdout, stderr,
+				fmt.Errorf("workflow not found: %s", rest[0]), "", exitInvalidArgs)
 		}
 		if format == "json" {
 			if err := writeJSON(stdout, workflow); err != nil {

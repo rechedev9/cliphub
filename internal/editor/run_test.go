@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/fragforge/internal/recording"
 )
 
 func TestRunDryRunWritesManifestsPromptsAndDoesNotExecuteFFmpeg(t *testing.T) {
@@ -95,6 +97,178 @@ func TestRunDryRunFiltersSegmentsAndLimit(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(publishDir, "01_seg-001_martinezsa_de_ancient_2k_ak47.caption.txt")); !os.IsNotExist(err) {
 		t.Fatalf("unselected caption should not exist, stat err = %v", err)
+	}
+}
+
+func TestRunDryRunPreservesEditorialSegmentOrder(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	fixture := testRecordingResult(dir)
+	fixture.Plan.EditorialSegmentIDs = []string{"seg-002", "seg-001"}
+	recordingResultPath := writeRecordingResult(t, dir, fixture)
+
+	result, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           filepath.Join(dir, "shorts"),
+		FFmpegPath:          filepath.Join(dir, "missing-ffmpeg"),
+		DryRun:              true,
+		CompileSegments:     true,
+	})
+	if err != nil {
+		t.Fatalf("Run dry-run error = %v", err)
+	}
+	if len(result.Shorts) != 1 {
+		t.Fatalf("shorts len = %d, want 1 compiled short", len(result.Shorts))
+	}
+	got := result.Shorts[0].Parts
+	if len(got) != 2 || got[0].SegmentID != "seg-002" || got[1].SegmentID != "seg-001" {
+		t.Fatalf("compiled parts = %#v, want editorial order [seg-002 seg-001]", got)
+	}
+}
+
+func TestRankRecordingSegmentsUsesMomentScoreBeforePlanOrder(t *testing.T) {
+	plan := recording.RecordingPlan{
+		Tickrate: 64,
+		Segments: []recording.RecordingSegment{
+			{
+				ID:        "seg-first",
+				TickStart: 0,
+				TickEnd:   640,
+				Kills:     []killplan.Kill{{Tick: 100}},
+			},
+			{
+				ID:        "seg-best",
+				TickStart: 640,
+				TickEnd:   1280,
+				Kills: []killplan.Kill{
+					{Tick: 700, Headshot: true},
+					{Tick: 800, Headshot: true},
+					{Tick: 900, Headshot: true},
+				},
+			},
+		},
+	}
+
+	ranked := rankRecordingSegments(plan)
+	if len(ranked) != 2 || ranked[0].ID != "seg-best" || ranked[1].ID != "seg-first" {
+		t.Fatalf("ranked recording segments = %#v", ranked)
+	}
+}
+
+func TestRunRankedCompilationKeepsRhythmAndManifestOrderAligned(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	fixture := testRecordingResult(dir)
+	// Start with the weaker segment first editorially so ranking must change
+	// the order rather than accidentally confirming the persisted IDs.
+	fixture.Plan.EditorialSegmentIDs = []string{"seg-002", "seg-001"}
+	recordingResultPath := writeRecordingResult(t, dir, fixture)
+
+	rankedPlan := fixture.Plan
+	rankedPlan.Segments = rankRecordingSegments(rankedPlan)
+	rankedPlan.EditorialSegmentIDs = []string{"seg-001", "seg-002"}
+	musicPath := filepath.Join(dir, "music", "ranked.wav")
+	rhythmPath := filepath.Join(dir, "ranked-rhythm.json")
+	writeCanonicalRhythmFixture(
+		t,
+		rhythmPath,
+		musicPath,
+		rankedPlan.ToKillPlan(),
+		[]float64{0.5, 1, 1.5, 2},
+		0.1,
+		0,
+	)
+
+	result, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           filepath.Join(dir, "shorts"),
+		FFmpegPath:          filepath.Join(dir, "missing-ffmpeg"),
+		MusicPath:           musicPath,
+		RhythmPath:          rhythmPath,
+		CompileSegments:     true,
+		RankMoments:         true,
+		DryRun:              true,
+	})
+	if err != nil {
+		t.Fatalf("Run ranked rhythm dry-run error = %v", err)
+	}
+	if len(result.Shorts) != 1 {
+		t.Fatalf("shorts len = %d, want 1 compiled short", len(result.Shorts))
+	}
+	parts := result.Shorts[0].Parts
+	if len(parts) != 2 || parts[0].SegmentID != "seg-001" || parts[1].SegmentID != "seg-002" {
+		t.Fatalf("compiled parts = %#v, want ranked order [seg-001 seg-002]", parts)
+	}
+}
+
+func TestConfigRejectsRankMomentsWithExplicitSegmentIDs(t *testing.T) {
+	err := (Config{
+		RecordingResultPath: "recording-result.json",
+		OutputDir:           "shorts",
+		RankMoments:         true,
+		SegmentIDs:          []string{"seg-001"},
+	}).validate()
+	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("validate error = %v, want conflicting selection modes", err)
+	}
+}
+
+func TestRunRejectsRecordingResultInsideOutputNamespace(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "shorts")
+	recordingResultPath := filepath.Join(outDir, "shorts-result.json")
+	writeJSONFile(t, recordingResultPath, testRecordingResult(dir))
+	original, err := os.ReadFile(recordingResultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           outDir,
+		DryRun:              true,
+	})
+	if err == nil {
+		t.Fatal("Run error = nil, want source/output namespace conflict")
+	}
+	got, readErr := os.ReadFile(recordingResultPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("recording result changed to %q, want original bytes", got)
+	}
+}
+
+func TestRunRejectsRelativeRecordingArtifactInsideOutputNamespace(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "shorts")
+	sourcePath := filepath.Join(outDir, "short-001-seg-001.mp4")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("recording source")
+	if err := os.WriteFile(sourcePath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result := testRecordingResult(dir)
+	result.Artifacts[0].Path = filepath.Join("..", "shorts", filepath.Base(sourcePath))
+	recordingResultPath := writeRecordingResult(t, dir, result)
+
+	_, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           outDir,
+		DryRun:              true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "recording artifact") {
+		t.Fatalf("Run error = %v, want relative artifact conflict", err)
+	}
+	got, readErr := os.ReadFile(sourcePath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("recording source changed to %q", got)
 	}
 }
 
@@ -235,20 +409,43 @@ func TestRunSkipExistingReusesRenderedFiles(t *testing.T) {
 	recordingResultPath := writeRecordingResultFixture(t, dir)
 	outDir := filepath.Join(dir, "shorts")
 	publishDir := defaultPublishDir(outDir)
-	for _, path := range []string{
-		filepath.Join(outDir, "short-001-seg-001.mp4"),
-		filepath.Join(outDir, "short-002-seg-002.mp4"),
-		filepath.Join(publishDir, "01_seg-001_martinezsa_de_ancient_2k_ak47.cover.jpg"),
-		filepath.Join(publishDir, "02_seg-002_martinezsa_de_ancient_1k_awp.cover.jpg"),
-		filepath.Join(publishDir, "01_seg-001_martinezsa_de_ancient_2k_ak47.sheet.jpg"),
-		filepath.Join(publishDir, "02_seg-002_martinezsa_de_ancient_1k_awp.sheet.jpg"),
-	} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
+	prior, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           outDir,
+		FFmpegPath:          filepath.Join(dir, "missing-ffmpeg"),
+		SkipExisting:        true,
+		DryRun:              true,
+	})
+	if err != nil {
+		t.Fatalf("seed dry Run error = %v", err)
+	}
+	prior.DryRun = false
+	prior.Executed = true
+	for i := range prior.Shorts {
+		short := &prior.Shorts[i]
+		for _, path := range []string{short.Output, short.CoverPath, short.CoverSheetPath} {
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("existing"), 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if err := os.WriteFile(path, []byte("existing"), 0o644); err != nil {
-			t.Fatal(err)
+		short.OutputArtifact = recording.RecordingArtifact{
+			Path:      short.Output,
+			SizeBytes: int64(len("existing")),
 		}
+		short.CoverArtifact = recording.RecordingArtifact{
+			Path:      short.CoverPath,
+			SizeBytes: int64(len("existing")),
+		}
+		short.CoverSheetArtifact = recording.RecordingArtifact{
+			Path:      short.CoverSheetPath,
+			SizeBytes: int64(len("existing")),
+		}
+	}
+	if err := WriteResult(filepath.Join(outDir, "shorts-result.json"), prior); err != nil {
+		t.Fatal(err)
 	}
 
 	result, err := Run(context.Background(), Config{
@@ -271,6 +468,59 @@ func TestRunSkipExistingReusesRenderedFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(publishDir, "01_seg-001_martinezsa_de_ancient_2k_ak47.mp4")); err != nil {
 		t.Fatalf("publish output missing after reuse: %v", err)
+	}
+}
+
+func TestRunSkipExistingRerendersChangedCompiledProducerContract(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	fixture := testRecordingResult(dir)
+	fixture.Plan.EditorialSegmentIDs = []string{"seg-002", "seg-001"}
+	recordingResultPath := writeRecordingResult(t, dir, fixture)
+	outDir := filepath.Join(dir, "shorts")
+	ffmpegPath := fakeFFmpeg(t, dir)
+
+	previous, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           outDir,
+		FFmpegPath:          ffmpegPath,
+		CompileSegments:     true,
+	})
+	if err != nil {
+		t.Fatalf("initial compiled Run error = %v", err)
+	}
+	if len(previous.Shorts) != 1 || len(previous.Shorts[0].Parts) != 2 ||
+		previous.Shorts[0].Parts[0].SegmentID != "seg-002" {
+		t.Fatalf("initial compilation = %#v, want editorial order", previous.Shorts)
+	}
+
+	current, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           outDir,
+		FFmpegPath:          ffmpegPath,
+		CompileSegments:     true,
+		RankMoments:         true,
+		SkipExisting:        true,
+	})
+	if err != nil {
+		t.Fatalf("ranked compiled Run error = %v", err)
+	}
+	if len(current.Shorts) != 1 || len(current.Shorts[0].Parts) != 2 ||
+		current.Shorts[0].Parts[0].SegmentID != "seg-001" {
+		t.Fatalf("current compilation = %#v, want ranked order", current.Shorts)
+	}
+	oldShort, newShort := previous.Shorts[0], current.Shorts[0]
+	if oldShort.Output != newShort.Output ||
+		oldShort.CoverPath != newShort.CoverPath ||
+		oldShort.CoverSheetPath != newShort.CoverSheetPath {
+		t.Fatalf(
+			"artifact paths changed; regression needs the same reuse targets:\nold=%#v\nnew=%#v",
+			oldShort,
+			newShort,
+		)
+	}
+	if newShort.RenderSkipped || newShort.CoverSkipped || newShort.CoverSheetSkipped {
+		t.Fatalf("changed compilation reused stale artifacts: %#v", newShort)
 	}
 }
 
@@ -538,7 +788,7 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "short render failed")
 		os.Exit(2)
 	}
-	if strings.Contains(mode, "fail-cover") && strings.HasSuffix(out, ".cover.jpg") {
+	if strings.Contains(mode, "fail-cover") && strings.HasSuffix(out, ".jpg") {
 		os.Exit(2)
 	}
 	if out == "-" {
@@ -562,7 +812,7 @@ func main() {
 			return
 		}
 	} else {
-		body := "#!/bin/sh\nlast=\nfor arg in \"$@\"; do last=\"$arg\"; done\nmode=$(basename \"$0\")\ncase \"$mode:$last\" in *fail-short*:*.mp4) echo short render failed >&2; exit 2;; *fail-cover*:*.cover.jpg) exit 2;; *:-) exit 0;; esac\nmkdir -p \"$(dirname \"$last\")\"\nprintf fake > \"$last\"\n"
+		body := "#!/bin/sh\nlast=\nfor arg in \"$@\"; do last=\"$arg\"; done\nmode=$(basename \"$0\")\ncase \"$mode:$last\" in *fail-short*:*.mp4) echo short render failed >&2; exit 2;; *fail-cover*:*.jpg) exit 2;; *:-) exit 0;; esac\nmkdir -p \"$(dirname \"$last\")\"\nprintf fake > \"$last\"\n"
 		if err := os.WriteFile(fakeFFmpegPath, []byte(body), 0o755); err != nil {
 			fakeFFmpegFixtureErr = err
 			return

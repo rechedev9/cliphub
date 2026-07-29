@@ -67,7 +67,10 @@ own Windows + GPU PC, capture included:
 
 It starts the orchestrator with a persistent local SQLite job database and an
 in-process queue (HLAE/CS2 auto-detected), then starts the web UI and opens
-`http://localhost:3000/upload`.
+`http://127.0.0.1:3000/upload`. The launcher authorizes that browser
+automatically with a one-launch URL fragment that is removed before the
+HttpOnly session cookie is issued; normal use never asks the operator to copy a
+capability.
 The flow is: upload a demo -> pick a player -> pick specific kills -> create the
 reel, at which point HLAE + CS2 open to capture and the edit is applied.
 
@@ -203,6 +206,13 @@ remain editable, and the dialog can copy each field, download the MP4, and open
 the stable [YouTube Studio](https://studio.youtube.com/) home page in the system
 browser.
 
+Reels with QA warnings remain blocked in `review_required`. **RESOLVER REVISIÓN
+QA** lets the user either change the edit, approve the complete effective brief,
+and re-render, or document why every current warning is intentional. A documented
+decision is stored against the exact artifact revision and warning list; any new
+render or changed warning set requires a fresh review. The publication assistant
+rejects unresolved revisions.
+
 FragForge does not choose the channel, audience, visibility, or publication
 date. In YouTube Studio, follow the official **CREAR -> Subir vídeos** flow and
 complete those decisions there; see [YouTube's official upload guide](https://support.google.com/youtube/answer/57407?hl=es).
@@ -236,18 +246,17 @@ Manager -> Windows Credentials** if desired.
 
 ## Render presets
 
-`internal/editor/preset.go` is the preset source of truth.
-The loadout catalog (`internal/renderplan`), the HTTP API (`/api/presets`, `/api/loadouts`, render-variant validation), the workbench UI, and the render worker all derive from that registry.
-All current presets default to 1080x1920 at 60fps; `--output-format landscape-16x9` uses the same editing contract at 1920x1080.
-Unknown preset names are rejected with the valid list.
+`internal/editor/preset.go` retains the editor and capture-mode profiles. The public unified `zv` catalog intentionally exposes only the production `viral-60-clean` profile; its list is the source of truth for `zv short`, `zv shorts render`, and their workflow validation.
+The loadout catalog (`internal/renderplan`), the HTTP API (`/api/presets`, `/api/loadouts`, render-variant validation), the workbench UI, and the render worker use the production catalog.
+`viral-60-clean` defaults to 1080x1920 at 60fps; `--output-format landscape-16x9` uses the same editing contract at 1920x1080. Unknown public preset names are rejected with the supported list.
 
 List them any time with `zv presets` (`--format json` for automation).
 
 | Preset | What it does |
 |--------|--------------|
 | `viral-60-clean` (default) | HUD-less POV with in-game death notices and `viral-ultra-clean` effects. |
-| `clean-pov-60` | Fully HUD-less POV with no in-game killfeed. |
-| `full-hud-60` | Full gameplay HUD, including health, ammo, radar, and killfeed. |
+
+The editor also retains `clean-pov-60` (clean HUD) and `full-hud-60` (full gameplay HUD) as capture-mode profiles. They are not public unified-CLI choices in the current product, so changing to either requires a future product decision rather than a render-only override.
 
 The editing choices behind the viral presets: hook text in the first 1-2s,
 punch-ins on kills, slow-mo only on the final kill, beat-synced drops,
@@ -296,12 +305,14 @@ capability for API reads and mutations. Other environment variables:
 ### Smoke tests
 
 ```bash
-# Parser-only (requires a .dem in testdata/)
+# Parser-only (requires a .dem in testdata/). Starts an isolated orchestrator
+# and generates its session capability in memory.
 ./scripts/smoke.sh testdata/<your-demo>.dem <SteamID64>
 ```
 
 ```powershell
-# Full real run against a running orchestrator with recorder/composer configured
+# Full real run. Starts an isolated orchestrator with auto-detected capture tools
+# and keeps its generated session capability out of argv, logs, and disk.
 .\scripts\smoke-real.ps1 -Demo testdata\lavked-vs-tnc-m2-nuke.dem -TargetSteamID 76561198148986856
 ```
 
@@ -309,6 +320,10 @@ The real smoke uploads the demo, waits for `parsed`, records, retries `record`
 once to verify artifact skipping, composes, retries `compose`, then downloads
 the final MP4 and validates H.264, 1920x1080, 60fps when `ffprobe` is
 available.
+
+To test an orchestrator that is already running, set `ZV_BASE_URL` (or pass
+`-BaseUrl`) and pipe that external session's 64-character capability to stdin.
+The default self-owned path needs no manual token handoff.
 
 ## HTTP API
 
@@ -322,6 +337,7 @@ available.
 | GET | `/api/jobs/{id}/final` | Stream the composed MP4 when ready. |
 | GET | `/api/presets` | Render preset registry as JSON (name, geometry, behavior flags, default). |
 | GET | `/api/stream-variants` | Stream/VOD render variant registry, including the default. |
+| POST | `/api/jobs/{id}/renders/{variant}/review` | Resolve the current QA warning set with a required note and exact revision/warnings precondition. |
 | GET | `/api/jobs/{id}/renders/{variant}/videos/{name}/publish-assistant?days=7` | Reel metadata, factual suggestions, Madrid schedule, optional trend hints, and the stable YouTube Studio URL. |
 
 `POST /record` is accepted for `parsed` and `recorded` jobs; `POST /compose`

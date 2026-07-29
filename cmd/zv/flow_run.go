@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,8 +15,8 @@ import (
 
 // flowRunReport is the machine-readable summary of a `zv flows run` dry-run: one
 // entry per phase in flow order, plus the global outcome. Global OK is false
-// when any executed (or dry-run preflight) phase failed; intentional skips
-// (creative gates, missing preconditions) do not flip it.
+// when any read-only preflight failed or a dependent phase could not be
+// validated. Intentional creative gates do not flip it.
 type flowRunReport struct {
 	OK     bool                 `json:"ok"`
 	Flow   string               `json:"flow"`
@@ -34,33 +36,24 @@ type flowRunPhaseReport struct {
 	Outputs  []string `json:"outputs,omitempty"`
 }
 
-// flowRunStep is one phase of a production flow's dry-run. build is evaluated
-// immediately before the phase runs so it can read the chainable JSON artifacts
-// earlier phases wrote into the run dir (for example, `select` reads the kill
-// plan `parse` produced to select every segment in plan order).
+// flowRunStep is one phase of a production flow's declarative dry-run.
 type flowRunStep struct {
 	id    string
 	build func() (flowRunAction, error)
 }
 
-// flowRunAction is what a phase does: run argv (cheap stages for real, expensive
-// stages with dryRun set so --dry-run is already in argv), skip a creative gate
-// (gate), or skip because a precondition is missing (skip). outputs are the
-// artifact paths the phase is expected to write, filtered to those that exist.
+// flowRunAction describes the argv a phase would run, or why it is gated/skipped.
 type flowRunAction struct {
-	argv    []string
-	dryRun  bool
-	outputs []string
-	gate    bool
-	skip    bool
-	reason  string
+	argv        []string
+	gate        bool
+	skip        bool
+	unvalidated bool
+	reason      string
 }
 
-// runFlowsRun executes a production flow end to end in --dry-run mode: cheap,
-// deterministic stages run for real and write chainable JSON into --run-dir,
-// expensive capture/render stages run with --dry-run appended, and creative
-// gates are reported as skipped. Real execution stays stage by stage behind the
-// creative gates, so a non-dry-run invocation is rejected.
+// runFlowsRun executes only read-only phase preflights and never writes a run
+// artifact. Real execution stays stage by stage behind the creative gates, so
+// a non-dry-run invocation is rejected.
 func runFlowsRun(args []string, stdout, stderr io.Writer, stdin io.Reader, runner commandRunner) int {
 	if isSingleHelp(args) {
 		fmt.Fprint(stdout, flowsRunUsage)
@@ -107,26 +100,21 @@ func runFlowsRun(args []string, stdout, stderr io.Writer, stdin io.Reader, runne
 	var steps []flowRunStep
 	switch flowName {
 	case "demo":
-		// Parse runs only when no kill plan is supplied and needs both inputs;
-		// fail fast instead of creating a run dir for a chain that cannot start.
+		// A kill plan can skip parsing, but capture still needs the source demo.
+		// Never report an end-to-end demo flow as successful when its two central
+		// media phases are structurally impossible.
+		if strings.TrimSpace(*demo) == "" {
+			return writeFlowError(args, stdout, stderr,
+				fmt.Errorf(`the demo flow requires --demo for capture and render; --killplan only skips parse`), flowsRunUsage)
+		}
 		if strings.TrimSpace(*killplanPath) == "" {
-			if strings.TrimSpace(*demo) == "" {
-				return writeFlowError(args, stdout, stderr,
-					fmt.Errorf(`the demo flow requires --demo (or --killplan to skip parse)`), flowsRunUsage)
-			}
 			if strings.TrimSpace(*steamid) == "" {
 				return writeFlowError(args, stdout, stderr,
 					fmt.Errorf(`--demo requires --steamid for "demo parse"`), flowsRunUsage)
 			}
 		}
-		if err := os.MkdirAll(*runDir, 0o750); err != nil {
-			return writeFlowError(args, stdout, stderr, fmt.Errorf("create run dir: %w", err), "")
-		}
 		steps = demoFlowRunSteps(*runDir, *demo, *steamid, *killplanPath)
 	case "stream":
-		if err := os.MkdirAll(*runDir, 0o750); err != nil {
-			return writeFlowError(args, stdout, stderr, fmt.Errorf("create run dir: %w", err), "")
-		}
 		steps = streamFlowRunSteps(*runDir, *input)
 	default:
 		return writeFlowError(args, stdout, stderr,
@@ -151,17 +139,31 @@ func runFlowsRun(args []string, stdout, stderr io.Writer, stdin io.Reader, runne
 			report.Phases = append(report.Phases, flowRunPhaseReport{Phase: step.id, OK: true, Skipped: true, Reason: action.reason})
 			continue
 		}
+		argv := append([]string(nil), action.argv...)
+		if len(argv) > 0 && !containsArg(argv, "--dry-run") {
+			argv = append(argv, "--dry-run")
+		}
+		if action.unvalidated {
+			report.OK = false
+			report.Phases = append(report.Phases, flowRunPhaseReport{
+				Phase:   step.id,
+				Argv:    argv,
+				Skipped: true,
+				Reason:  action.reason,
+			})
+			continue
+		}
 		var out, errBuf bytes.Buffer
-		code := Run(append([]string{"zv"}, action.argv...), &out, &errBuf, stdin, runner)
-		// The command ran, so a real (non-dry-run) phase is executed regardless of
-		// its exit code: a failure may have persisted partial mutations, and the
-		// report must not hide that by only setting Executed on success.
-		phase := flowRunPhaseReport{Phase: step.id, Argv: action.argv, DryRun: action.dryRun, Executed: !action.dryRun}
+		code := Run(append([]string{"zv"}, argv...), &out, &errBuf, stdin, runner)
+		phase := flowRunPhaseReport{
+			Phase:    step.id,
+			Argv:     argv,
+			DryRun:   true,
+			Executed: false,
+		}
 		if code == exitSuccess {
 			phase.OK = true
-			phase.Outputs = existingPaths(action.outputs)
 		} else {
-			phase.OK = false
 			phase.Reason = flowPhaseFailureReason(errBuf.String(), out.String(), code)
 			report.OK = false
 			failed = true
@@ -198,12 +200,17 @@ func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep 
 	recordingResult := filepath.Join(recordingDir, "recording-result.json")
 	renderDir := filepath.Join(runDir, "render")
 	publishDir := filepath.Join(runDir, "shortslistosparasubir")
-	shortsResult := filepath.Join(renderDir, "shorts-result.json")
 
 	return []flowRunStep{
 		{id: "parse", build: func() (flowRunAction, error) {
+			if err := validateFlowInputFile("--demo", demo); err != nil {
+				return flowRunAction{}, err
+			}
 			if strings.TrimSpace(killplanFlag) != "" {
-				return flowRunAction{skip: true, reason: "kill plan supplied; skipping demo parse"}, nil
+				if err := validateDemoFlowBinding(killplanFlag, demo); err != nil {
+					return flowRunAction{}, err
+				}
+				return flowRunAction{skip: true, reason: "kill plan supplied; demo and plan binding validated without parsing"}, nil
 			}
 			if strings.TrimSpace(demo) == "" {
 				return flowRunAction{}, fmt.Errorf("demo parse requires --demo or --killplan")
@@ -212,47 +219,49 @@ func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep 
 				return flowRunAction{}, fmt.Errorf("demo parse requires --steamid")
 			}
 			return flowRunAction{
-				argv:    []string{"demo", "parse", "--demo", demo, "--steamid", steamid, "--out", killplanPath},
-				outputs: []string{killplanPath},
+				argv: []string{"demo", "parse", "--demo", demo, "--steamid", steamid, "--out", killplanPath},
 			}, nil
 		}},
 		{id: "moments", build: func() (flowRunAction, error) {
-			return flowRunAction{
-				argv:    []string{"demo", "moments", "--killplan", killplanPath, "--out", momentsPath, "--format", "json"},
-				outputs: []string{momentsPath},
-			}, nil
+			action := flowRunAction{
+				argv: []string{"demo", "moments", "--killplan", killplanPath, "--out", momentsPath, "--format", "json"},
+			}
+			if strings.TrimSpace(killplanFlag) == "" {
+				action.unvalidated = true
+				action.reason = "unvalidated: requires killplan.json from parse, which a write-free dry-run does not create"
+			}
+			return action, nil
 		}},
 		{id: "creative-brief", build: func() (flowRunAction, error) {
 			return flowRunAction{gate: true, reason: "creative gate: approve delivery format, HUD/killfeed, kill effect, transition, counter, intro/outro, music, and thumbnail strategy; ambiguous go/hazlo is not approval until it answers a shown brief"}, nil
 		}},
 		{id: "select", build: func() (flowRunAction, error) {
+			if strings.TrimSpace(killplanFlag) == "" {
+				return flowRunAction{
+					unvalidated: true,
+					reason:      "unvalidated: requires killplan.json from parse, which a write-free dry-run does not create",
+				}, nil
+			}
 			ids, err := demoFlowSegmentIDs(killplanPath)
 			if err != nil {
 				return flowRunAction{}, err
 			}
 			return flowRunAction{
-				argv:    []string{"demo", "select", "--killplan", killplanPath, "--segments", strings.Join(ids, ","), "--out", selectedPath, "--format", "json"},
-				outputs: []string{selectedPath},
+				argv: []string{"demo", "select", "--killplan", killplanPath, "--segments", strings.Join(ids, ","), "--out", selectedPath, "--format", "json"},
 			}, nil
 		}},
 		{id: "record", build: func() (flowRunAction, error) {
-			if strings.TrimSpace(demo) == "" {
-				return flowRunAction{skip: true, reason: "no --demo provided; skipping capture dry-run"}, nil
-			}
 			return flowRunAction{
-				argv:    []string{"record", "--killplan", selectedPath, "--demo", demo, "--out", recordingDir, "--dry-run", "--format", "json"},
-				dryRun:  true,
-				outputs: []string{recordingResult},
+				argv:        []string{"record", "--killplan", selectedPath, "--demo", demo, "--out", recordingDir, "--dry-run", "--format", "json"},
+				unvalidated: true,
+				reason:      "unvalidated: requires selected-plan.json from select, which a write-free dry-run does not create",
 			}, nil
 		}},
 		{id: "shorts-render", build: func() (flowRunAction, error) {
-			if _, err := os.Stat(recordingResult); err != nil {
-				return flowRunAction{skip: true, reason: "no recording-result.json (capture skipped); skipping render dry-run"}, nil
-			}
 			return flowRunAction{
-				argv:    []string{"shorts", "render", "--recording-result", recordingResult, "--killplan", selectedPath, "--out", renderDir, "--publish-dir", publishDir, "--dry-run"},
-				dryRun:  true,
-				outputs: []string{shortsResult},
+				argv:        []string{"shorts", "render", "--recording-result", recordingResult, "--killplan", selectedPath, "--out", renderDir, "--publish-dir", publishDir, "--dry-run"},
+				unvalidated: true,
+				reason:      "unvalidated: requires recording-result.json from record, which a write-free dry-run does not create",
 			}, nil
 		}},
 		{id: "thumbnail-selection", build: func() (flowRunAction, error) {
@@ -261,9 +270,17 @@ func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep 
 	}
 }
 
-// streamFlowRunSteps mirrors the stream journey's chain: the creative gate, plan
-// (persisted for real; it probes media with ffprobe), and the render dry run.
-// Render consumes the plan phase's persisted document.
+func containsArg(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == want || strings.HasPrefix(arg, want+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+// streamFlowRunSteps mirrors the stream journey's chain: the creative gate, a
+// read-only plan preflight, and the dependent render phase.
 func streamFlowRunSteps(runDir, input string) []flowRunStep {
 	editPlan := filepath.Join(runDir, "edit-plan.json")
 	renderDir := filepath.Join(runDir, "render")
@@ -276,19 +293,61 @@ func streamFlowRunSteps(runDir, input string) []flowRunStep {
 			if strings.TrimSpace(input) == "" {
 				return flowRunAction{}, fmt.Errorf("stream plan requires --input")
 			}
+			if err := validateFlowInputFile("--input", input); err != nil {
+				return flowRunAction{}, err
+			}
 			return flowRunAction{
-				argv:    []string{"stream", "plan", "--input", input, "--out", editPlan, "--format", "json"},
-				outputs: []string{editPlan},
+				argv: []string{"stream", "plan", "--input", input, "--out", editPlan, "--format", "json"},
 			}, nil
 		}},
 		{id: "render", build: func() (flowRunAction, error) {
 			return flowRunAction{
-				argv:    []string{"stream", "render", "--input", input, "--plan", editPlan, "--out", renderDir, "--dry-run", "--format", "json"},
-				dryRun:  true,
-				outputs: []string{renderDir},
+				argv:        []string{"stream", "render", "--input", input, "--plan", editPlan, "--out", renderDir, "--dry-run", "--format", "json"},
+				unvalidated: true,
+				reason:      "unvalidated: requires edit-plan.json from plan, which a write-free dry-run does not create",
 			}, nil
 		}},
 	}
+}
+
+func validateFlowInputFile(flagName, path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("validate %s %q: %w", flagName, path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("validate %s %q: input is not a regular file", flagName, path)
+	}
+	return nil
+}
+
+func validateDemoFlowBinding(killplanPath, demoPath string) error {
+	plan, err := loadDemoKillPlan(killplanPath)
+	if err != nil {
+		return fmt.Errorf("read kill plan: %w", err)
+	}
+	if len(plan.Demo.SHA256) != sha256.Size*2 {
+		return fmt.Errorf("kill plan demo sha256 must be a 64-character digest")
+	}
+	// #nosec G304 -- demoPath is the explicit local dry-run input and is opened
+	// only to verify the durable plan's SHA-256 binding.
+	file, err := os.Open(demoPath)
+	if err != nil {
+		return fmt.Errorf("open demo for SHA-256 validation: %w", err)
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, file)
+	closeErr := file.Close()
+	if copyErr != nil {
+		return fmt.Errorf("hash demo: %w", copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close demo after hashing: %w", closeErr)
+	}
+	if actual := hex.EncodeToString(hash.Sum(nil)); plan.Demo.SHA256 != actual {
+		return fmt.Errorf("kill plan demo sha256 does not match --demo")
+	}
+	return nil
 }
 
 func demoFlowSegmentIDs(path string) ([]string, error) {
@@ -307,16 +366,6 @@ func demoFlowSegmentIDs(path string) ([]string, error) {
 		return nil, fmt.Errorf("kill plan has no segments to select")
 	}
 	return ids, nil
-}
-
-func existingPaths(paths []string) []string {
-	var out []string
-	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
-			out = append(out, p)
-		}
-	}
-	return out
 }
 
 func flowPhaseFailureReason(stderr, stdout string, code int) string {

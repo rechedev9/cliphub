@@ -120,7 +120,7 @@ func recordRunnerWithSegment(t *testing.T) *fakeRunner {
 		if err := os.WriteFile(segmentPath, []byte("clip"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSONFile(filepath.Join(outDir, "recording-result.json"), recordingResultWithSegment(scriptPath, segmentPath)); err != nil {
+		if err := writeJSONFile(filepath.Join(outDir, "recording-result.json"), recordingResultForRunnerArgs(t, args, scriptPath, segmentPath)); err != nil {
 			t.Fatal(err)
 		}
 		return []byte("recorded"), nil
@@ -518,6 +518,43 @@ func TestRecordWorkerPreservesReadyStateWhenFinishedTaskIsStillDuplicate(t *test
 	}
 	if state.Status != renderplan.RenderVariantStatusReady {
 		t.Fatalf("render state status = %q, want ready", state.Status)
+	}
+}
+
+func TestRecordWorkerGenerateHandoffCarriesCommittedRenderRevision(t *testing.T) {
+	store := newFakeStorage()
+	repo, id := parsedRecordJob(store)
+	w := newRecordWorkerForTest(repo, store, t)
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	committed, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      id,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusReview,
+		Warnings:   []string{"freeze"},
+		RevisionID: uuid.New(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	putJSON(t, store, mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean), committed)
+
+	if err := w.writeQueuedRenderState(id, editor.PresetViral60Clean); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.writeFailedRenderState(id, editor.PresetViral60Clean, "handoff failed"); err != nil {
+		t.Fatal(err)
+	}
+	var failed renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &failed); err != nil {
+		t.Fatal(err)
+	}
+	if failed.Status != renderplan.RenderVariantStatusFailed ||
+		failed.ArtifactPrefix != committed.ArtifactPrefix ||
+		failed.RenderResultKey != committed.RenderResultKey {
+		t.Fatalf("handoff state lost committed revision: %#v", failed)
 	}
 }
 

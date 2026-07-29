@@ -38,7 +38,11 @@ func TestRunAnalysisTacticalFlagValidation(t *testing.T) {
 		{name: "unsupported format", args: []string{"--demo", "match.dem", "--out", "t.json", "--format", "yaml"}, want: `unsupported format "yaml"`},
 		{name: "hz above maximum", args: []string{"--demo", "match.dem", "--out", "t.json", "--hz", "128"}, want: "--hz 128 must be in (0, 64]"},
 		{name: "zero hz", args: []string{"--demo", "match.dem", "--out", "t.json", "--hz", "0"}, want: "--hz 0 must be in (0, 64]"},
+		{name: "NaN hz", args: []string{"--demo", "match.dem", "--out", "t.json", "--hz", "NaN"}, want: "--hz NaN must be in (0, 64]"},
+		{name: "infinite hz", args: []string{"--demo", "match.dem", "--out", "t.json", "--hz", "+Inf"}, want: "--hz +Inf must be in (0, 64]"},
 		{name: "negative cell size", args: []string{"--demo", "match.dem", "--out", "t.json", "--cell-size", "-1"}, want: "--cell-size -1 must be positive"},
+		{name: "NaN cell size", args: []string{"--demo", "match.dem", "--out", "t.json", "--cell-size", "NaN"}, want: "--cell-size NaN must be positive"},
+		{name: "infinite cell size", args: []string{"--demo", "match.dem", "--out", "t.json", "--cell-size", "+Inf"}, want: "--cell-size +Inf must be positive"},
 		{name: "unknown flag", args: []string{"--demo", "match.dem", "--out", "t.json", "--nope"}, want: "flag provided but not defined: -nope"},
 		{name: "positional arg", args: []string{"--demo", "match.dem", "--out", "t.json", "extra"}, want: `unexpected positional arg "extra"`},
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/killplan"
 	"github.com/rechedev9/fragforge/internal/lineups"
 	"github.com/rechedev9/fragforge/internal/parser"
+	"github.com/rechedev9/fragforge/internal/pathguard"
 	"github.com/rechedev9/fragforge/internal/rules"
 	"github.com/rechedev9/fragforge/internal/utilityaudit"
 )
@@ -131,6 +132,16 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "error: --segment-mode must be %q, %q, or %q\n", parser.SegmentModeKills, parser.SegmentModeSmokes, parser.SegmentModeUtility)
 		return exitInvalidArgs
 	}
+	if pa.out != "-" {
+		inputs := []pathguard.Input{{Flag: "--demo", Path: pa.demo}}
+		if pa.rules != "" {
+			inputs = append(inputs, pathguard.Input{Flag: "--rules", Path: pa.rules})
+		}
+		if err := pathguard.RejectOutputAliases(pa.out, inputs...); err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return exitInvalidArgs
+		}
+	}
 
 	r, code := loadRules(pa.rules, stderr)
 	if code != exitSuccess {
@@ -225,6 +236,12 @@ func runUtilityAudit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return exitInvalidArgs
 	}
+	if aa.out != "-" {
+		if err := pathguard.RejectOutputAliases(aa.out, pathguard.Input{Flag: "--plan", Path: aa.plan}); err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return exitInvalidArgs
+		}
+	}
 	plan, code := loadPlan(aa.plan, stderr)
 	if code != exitSuccess {
 		return code
@@ -313,7 +330,7 @@ func writeBytes(b []byte, out string, stdout, stderr io.Writer) int {
 		}
 		return exitSuccess
 	}
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(out), 0o750); err != nil {
 		fmt.Fprintf(stderr, "error: creating output directory: %v\n", err)
 		return exitFileError
 	}

@@ -119,6 +119,7 @@ test('labels every reel status in Spanish with its tone', () => {
     ['recording', 'grabando reel', 'progress'],
     ['composing', 'renderizando reel', 'progress'],
     ['ready', 'reel listo', 'done'],
+    ['review_required', 'reel pendiente de revisión', 'pending'],
     ['failed', 'reel fallido', 'failed'],
   ];
   for (const [status, label, tone] of cases) {
@@ -132,5 +133,6 @@ test('treats queued/recording/composing reels as active so the series keeps poll
   assert.equal(seriesReelIsActive('recording'), true);
   assert.equal(seriesReelIsActive('composing'), true);
   assert.equal(seriesReelIsActive('ready'), false);
+  assert.equal(seriesReelIsActive('review_required'), false);
   assert.equal(seriesReelIsActive('failed'), false);
 });

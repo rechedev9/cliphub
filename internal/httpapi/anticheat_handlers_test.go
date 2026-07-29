@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -126,6 +127,38 @@ func TestStartAnticheatIsIdempotentWhileRunning(t *testing.T) {
 	}
 	if len(queue.enqueued) != 0 {
 		t.Fatalf("queue = %#v, want no second parse of the same demo", queue.enqueued)
+	}
+}
+
+func TestStartAnticheatAdmitsOnlyOneConcurrentClaim(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	j := scannedJob()
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue)
+	router := anticheatRouter(h)
+
+	const requests = 40
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(requests)
+	for range requests {
+		go func() {
+			defer wg.Done()
+			<-start
+			rw := httptest.NewRecorder()
+			router.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/anticheat", nil))
+			if rw.Code != http.StatusAccepted {
+				t.Errorf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if got := len(queue.enqueued); got != 1 {
+		t.Fatalf("enqueued tasks = %d, want exactly one", got)
 	}
 }
 

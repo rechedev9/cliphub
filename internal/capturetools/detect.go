@@ -265,6 +265,7 @@ func steamPathFromRegOutput(out string) string {
 }
 
 func steamLibraryPaths(vdf string) []string {
+	// #nosec G304 G703 -- vdf is the fixed Steam library manifest found beneath a detected install root.
 	data, err := os.ReadFile(vdf)
 	if err != nil {
 		return nil
@@ -325,6 +326,14 @@ func isExecutableFile(path string) bool {
 		return false
 	}
 	return true
+}
+
+// ExecutableFile reports whether path resolves to a regular executable accepted
+// by the host OS. Orchestrator admission and capability reporting use this same
+// boundary as auto-detection so a configured directory or missing path can
+// never enable work that is guaranteed to fail.
+func ExecutableFile(path string) bool {
+	return path != "" && isExecutableFile(path)
 }
 
 func hasWindowsExecutableExtension(path string) bool {

@@ -4,25 +4,26 @@
 
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
+import { E2E_BOOT_DEADLINE_MS } from '../scripts/e2e-boot-budget.mjs';
+import { createE2EProfile } from '../scripts/e2e-profile.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron } = require('playwright-core');
 const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.4.5');
 const bootstrapPath = join(desktopRoot, 'e2e', 'isolated-userdata.cjs');
-const BOOT_DEADLINE_MS = 180_000;
-
 /** @type {import('playwright-core').ElectronApplication} */
 let app;
 /** @type {import('playwright-core').Page} */
 let page;
 let origin;
 const pageErrors = [];
+const profile = createE2EProfile('release-2.4.5');
 
 before(async () => {
   mkdirSync(artifactsDir, { recursive: true });
@@ -30,18 +31,30 @@ before(async () => {
     executablePath: require('electron'),
     args: [bootstrapPath],
     cwd: desktopRoot,
+    env: profile.environment(),
   });
   page = await app.firstWindow();
-  page.on('pageerror', (error) => pageErrors.push(String(error)));
-  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, { timeout: BOOT_DEADLINE_MS });
+  page.on('pageerror', (error) => pageErrors.push({ url: page.url(), message: String(error), stack: error.stack }));
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, {
+    timeout: E2E_BOOT_DEADLINE_MS,
+  });
   origin = new URL(page.url()).origin;
 });
 
 after(async () => {
   if (page && !page.isClosed()) {
+    // The release evaluation seeds fake reel intents below. Remove them even
+    // when an assertion fails so a later Electron suite never rehydrates test
+    // IDs against a real empty orchestrator.
+    await page.evaluate(() => window.localStorage.removeItem('fragforge.reels.v1')).catch(() => {});
     await page.screenshot({ path: join(artifactsDir, 'final-state.png'), fullPage: true }).catch(() => {});
   }
   await app?.close().catch(() => {});
+  const studioLog = join(profile.root, 'studio.log');
+  if (existsSync(studioLog)) {
+    copyFileSync(studioLog, join(artifactsDir, 'studio.log'));
+  }
+  profile.dispose();
 });
 
 async function goto(pathname) {
@@ -55,7 +68,6 @@ async function screenshot(name) {
 
 test('installed release exposes version-only desktop settings with no MCP surface', async () => {
   await goto('/settings');
-  await screenshot('settings-before-version-check.png');
   await page.getByText('Versión', { exact: true }).waitFor();
   assert.equal(await page.getByText(/Consulta la versión instalada de FragForge Studio\./).isVisible(), true);
   const bridgeShape = await page.evaluate(() => ({
@@ -76,7 +88,9 @@ test('installed release exposes version-only desktop settings with no MCP surfac
   });
   try {
     const installedPage = await installedApp.firstWindow();
-    await installedPage.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, { timeout: BOOT_DEADLINE_MS });
+    await installedPage.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, {
+      timeout: E2E_BOOT_DEADLINE_MS,
+    });
     const installedOrigin = new URL(installedPage.url()).origin;
     await installedPage.getByRole('link', { name: 'Ajustes' }).click();
     await installedPage.waitForURL(`${installedOrigin}/settings`);
@@ -200,6 +214,10 @@ test('demo reel requires the exact creative brief and keeps publication metadata
   assert.notEqual(await secondTitle.inputValue(), 'NO DEBE HEREDARSE');
   await screenshot('publication-metadata-isolated.png');
   await page.keyboard.press('Escape');
+  // The real client keeps rehydrated intents in memory, but this durable store
+  // is what a later Electron launch reads. Clearing it prevents test-only job
+  // IDs leaking into the shared isolated profile.
+  await page.evaluate(() => window.localStorage.removeItem('fragforge.reels.v1'));
   await page.unroute('**/api/demos/**');
 });
 
@@ -254,13 +272,14 @@ test('stream editor validates, recovers, previews, reports progress, switches la
     music: {},
     effects: { grade: true },
   };
+  let persistedPlan = basePlan;
   const job = {
     id: jobId,
     status: 'ready',
     title: 'vaya saco..',
     source_url: 'https://clips.twitch.tv/CulturedStormyKittenAllenHuhu-sMpul952n8rWF81N',
     probe: { width: 1920, height: 1080, duration_seconds: 15.112, audio_codec: 'aac' },
-    edit_plan: basePlan,
+    edit_plan: persistedPlan,
     created_at: '2026-07-20T10:00:00Z',
     updated_at: '2026-07-20T10:05:00Z',
   };
@@ -282,14 +301,20 @@ test('stream editor validates, recovers, previews, reports progress, switches la
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
-    if (path === '/api/streams' && method === 'GET') return route.fulfill({ json: { jobs: [job] } });
+    if (path === '/api/streams' && method === 'GET') {
+      return route.fulfill({ json: { jobs: [{ ...job, edit_plan: persistedPlan }] } });
+    }
     if (path === `/api/streams/${jobId}/source`) {
       return route.fulfill({ status: 200, contentType: 'video/mp4', body: Buffer.from('invalid-media-for-actionable-preview-error') });
     }
-    if (path === `/api/streams/${jobId}/edit-plan` && method === 'GET') return route.fulfill({ json: basePlan });
+    if (path === `/api/streams/${jobId}/edit-plan` && method === 'GET') return route.fulfill({ json: persistedPlan });
     if (path === `/api/streams/${jobId}/edit-plan` && method === 'PUT') {
       if (autosaveFails) return route.fulfill({ status: 503, json: { code: 'service_unavailable', error: 'eval autosave offline' } });
-      return route.fulfill({ json: JSON.parse(request.postData() || '{}') });
+      persistedPlan = {
+        ...JSON.parse(request.postData() || '{}'),
+        updated_at: '2026-07-20T10:06:00Z',
+      };
+      return route.fulfill({ json: persistedPlan });
     }
     if (path === `/api/streams/${jobId}/renders/streamer-fullframe-nocam` && method === 'POST') {
       return route.fulfill({ json: { status: 'queued', videos: [] } });

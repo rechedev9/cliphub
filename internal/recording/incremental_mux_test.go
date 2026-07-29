@@ -91,10 +91,8 @@ func TestFinishedTakePairs(t *testing.T) {
 			want:     []string{"s1"},
 		},
 		{
-			// An artifact-less middle take must not consume a segment slot: the
-			// later take's clip must publish under the COMPRESSED segment id
-			// (s2), exactly what the end-of-run mapTakesToSegments assigns, not
-			// under the positional s3.
+			// An artifact-less middle take consumed the second record window.
+			// The later take therefore remains the third segment.
 			name: "artifact-less middle take does not shift later takes",
 			takes: map[string][]string{
 				"take0000": {"video.mp4", "audio.wav"},
@@ -103,7 +101,7 @@ func TestFinishedTakePairs(t *testing.T) {
 				"take0003": {"video.mp4"},              // newest, still streaming
 			},
 			segments: []string{"s1", "s2", "s3"},
-			want:     []string{"s1", "s2"},
+			want:     []string{"s1", "s3"},
 		},
 	}
 	for _, tt := range tests {

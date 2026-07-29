@@ -14,6 +14,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/batch"
 	"github.com/rechedev9/fragforge/internal/obs"
 	"github.com/rechedev9/fragforge/internal/parser"
+	"github.com/rechedev9/fragforge/internal/pathguard"
 )
 
 // runBatch parses a folder of demos in-process and records every failure to the
@@ -70,6 +71,26 @@ func runBatch(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "error: --segment-mode must be %q, %q, or %q\n", parser.SegmentModeKills, parser.SegmentModeSmokes, parser.SegmentModeUtility)
 		return exitInvalidArgs
 	}
+	if format != "text" && format != "json" {
+		fmt.Fprintln(stderr, "error: --format must be \"text\" or \"json\"")
+		return exitInvalidArgs
+	}
+
+	demos, err := batch.FindDemos(dir, recursive)
+	if err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return exitUnexpected
+	}
+	if report != "" {
+		inputs := make([]pathguard.Input, 0, len(demos))
+		for _, demo := range demos {
+			inputs = append(inputs, pathguard.Input{Flag: "batch demo", Path: demo})
+		}
+		if err := pathguard.RejectOutputAliases(report, inputs...); err != nil {
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return exitInvalidArgs
+		}
+	}
 
 	rec, err := obs.New(obsDir)
 	if err != nil {
@@ -85,7 +106,11 @@ func runBatch(args []string, stdout, stderr io.Writer) int {
 		Jobs:        jobs,
 		SegmentMode: mode,
 	}
-	sum, err := batch.Run(context.Background(), opts, rec, stdout)
+	progress := stdout
+	if format == "json" {
+		progress = io.Discard
+	}
+	sum, err := batch.Run(context.Background(), opts, rec, progress)
 	if err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return exitUnexpected
@@ -226,6 +251,7 @@ func printErrorSummary(w io.Writer, events []obs.Event) {
 }
 
 func readEvents(path string) ([]obs.Event, error) {
+	// #nosec G304 -- path is the observation journal explicitly selected by the local CLI user.
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {

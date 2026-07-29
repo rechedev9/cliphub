@@ -27,6 +27,7 @@ const DefaultBaseURL = "http://127.0.0.1:8080"
 
 // tokenHeader is the mutation/read token header the orchestrator checks
 // (internal/httpapi/routes.go requireMutationToken).
+// #nosec G101 -- this is the public HTTP header name, not a credential value.
 const tokenHeader = "X-FragForge-Token"
 
 // Config configures a Client. Zero values fall back to sensible defaults and

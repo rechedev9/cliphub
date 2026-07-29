@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { RotateCcw, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { writeClipboardText } from '@/lib/clipboard-write';
 
 /**
  * Route-level error boundary. FragForge ships packaged with `devTools: false`,
@@ -71,7 +72,7 @@ export default function AppError({
             type="button"
             variant="ghost"
             onClick={() => {
-              void navigator.clipboard.writeText(diagnostics).then(() => setCopied(true));
+              void writeClipboardText(diagnostics).then(() => setCopied(true));
             }}
           >
             {copied ? 'Diagnóstico copiado' : 'Copiar diagnóstico'}

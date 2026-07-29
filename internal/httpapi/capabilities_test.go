@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -74,6 +75,75 @@ func TestGetCapabilitiesReportsPerToolStatus(t *testing.T) {
 		if got := [2]bool{tool.Configured, tool.Accessible}; got != w {
 			t.Errorf("%s: got configured/accessible %v, want %v", tool.Name, got, w)
 		}
+	}
+}
+
+func TestGetCapabilitiesDoesNotReportADirectoryAsAnAccessibleTool(t *testing.T) {
+	dir := t.TempDir()
+	caps := Capabilities{
+		RecordTools: []CaptureTool{{Name: "ZV_RECORDER_PATH", Path: dir}},
+	}
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithCapabilities(caps))
+	rw := httptest.NewRecorder()
+	h.GetCapabilities(rw, httptest.NewRequest(http.MethodGet, "/api/capabilities", nil))
+
+	var got struct {
+		Record struct {
+			Tools []CaptureTool `json:"tools"`
+		} `json:"record"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Record.Tools) != 1 || !got.Record.Tools[0].Configured || got.Record.Tools[0].Accessible {
+		t.Fatalf("directory tool status = %#v, want configured but inaccessible", got.Record.Tools)
+	}
+}
+
+func TestGetCapabilitiesResolvesPATHBasename(t *testing.T) {
+	dir := t.TempDir()
+	executableName := "recorder"
+	if runtime.GOOS == "windows" {
+		executableName += ".exe"
+		t.Setenv("PATHEXT", ".EXE")
+	}
+	executable := filepath.Join(dir, executableName)
+	if err := os.WriteFile(executable, []byte("x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	h := NewHandlers(
+		newFakeRepo(),
+		newFakeStorage(),
+		&fakeQueue{},
+		WithCapabilities(Capabilities{
+			RecordTools: []CaptureTool{{Name: "ZV_RECORDER_PATH", Path: "recorder"}},
+		}),
+	)
+
+	rw := httptest.NewRecorder()
+	h.GetCapabilities(rw, httptest.NewRequest(http.MethodGet, "/api/capabilities", nil))
+
+	var got struct {
+		Record struct {
+			Tools []CaptureTool `json:"tools"`
+		} `json:"record"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Record.Tools) != 1 {
+		t.Fatalf("tools = %#v, want one", got.Record.Tools)
+	}
+	tool := got.Record.Tools[0]
+	resolvedInfo, resolvedErr := os.Stat(tool.Path)
+	executableInfo, executableErr := os.Stat(executable)
+	if !tool.Configured ||
+		!tool.Accessible ||
+		resolvedErr != nil ||
+		executableErr != nil ||
+		!os.SameFile(resolvedInfo, executableInfo) {
+		t.Fatalf("PATH tool = %#v, want configured accessible path %q", tool, executable)
 	}
 }
 

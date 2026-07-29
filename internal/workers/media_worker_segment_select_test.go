@@ -57,15 +57,17 @@ func planRecorderRunner(t *testing.T, seen *[]string) *fakeRunner {
 		stream := recording.DefaultStreamConfig()
 		stream.HUDMode = recording.HUDMode(argValue(args, "--hud"))
 		stream.PortraitSafeKillfeed = hasArg(args, "--portrait-safe-killfeed")
-		recordingPlan, err := recording.NewPlanFromKillPlan(plan, "demo.dem", outDir, stream)
+		recordingPlan, err := recording.NewPlanFromKillPlan(plan, argValue(args, "--demo"), outDir, stream)
 		if err != nil {
 			t.Fatalf("build recording plan: %v", err)
 		}
 		result := recording.RecordingResult{
 			Plan:            recordingPlan,
 			Script:          scriptPath,
+			CaptureMode:     recording.CaptureModeReal,
 			CaptureVerified: true,
 		}
+		result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
 		for _, s := range plan.Segments {
 			if seen != nil {
 				*seen = append(*seen, s.ID)
@@ -262,6 +264,12 @@ func TestRecordWorkerInvalidatesGameplayCaptureWhenPortraitSafetyChanges(t *test
 	if got := recording.SegmentIDs(result); len(got) != 2 || got[0] != "seg-001" || got[1] != "seg-002" {
 		t.Fatalf("segments after compatible merge = %v, want [seg-001 seg-002]", got)
 	}
+	if err := result.Plan.Validate(); err != nil {
+		t.Fatalf("merged plan is invalid: %v", err)
+	}
+	if got := result.Plan.EditorialSegmentIDs; len(got) != 2 || got[0] != "seg-001" || got[1] != "seg-002" {
+		t.Fatalf("merged editorial order = %v, want [seg-001 seg-002]", got)
+	}
 }
 
 func TestRecordWorkerFailedReelPreservesPriorReelResult(t *testing.T) {
@@ -317,6 +325,54 @@ func TestRecordWorkerFailedReelPreservesPriorReelResult(t *testing.T) {
 	}
 }
 
+func TestRecordWorkerInvalidSuccessfulAttemptPreservesPriorResult(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := multiSegmentKillPlan("seg-001", "seg-002")
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/test.dem", Rules: rules.Default(), KillPlan: &plan}
+	_ = store.Put("demos/test.dem", bytes.NewReader([]byte("demo")))
+
+	w := newRecordWorkerForTest(repo, store, t)
+	w.runner = planRecorderRunner(t, nil)
+	if err := w.HandleRecordDemo(context.Background(), recordTaskFor(t, id, []string{"seg-001"})); err != nil {
+		t.Fatalf("first record error = %v", err)
+	}
+
+	w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		outDir := argValue(args, "--out")
+		scriptPath := filepath.Join(outDir, "recording.js")
+		segmentPath := filepath.Join(outDir, "segments", "seg-002.mp4")
+		if err := os.MkdirAll(filepath.Dir(segmentPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(scriptPath, []byte("script"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(segmentPath, []byte("clip"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		result := recordingResultForRunnerArgs(t, args, scriptPath, segmentPath)
+		result.Plan.TargetNameInDemo = "different-player"
+		result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
+		if err := writeJSONFile(filepath.Join(outDir, "recording-result.json"), result); err != nil {
+			t.Fatal(err)
+		}
+		return []byte("recorded"), nil
+	}}
+	if err := w.HandleRecordDemo(context.Background(), recordTaskFor(t, id, []string{"seg-002"})); err == nil {
+		t.Fatal("invalid successful attempt should have failed")
+	}
+
+	result := storedRecordingResult(t, store, id)
+	if ids := recording.SegmentIDs(result); len(ids) != 1 || ids[0] != "seg-001" {
+		t.Fatalf("stored result segments = %v, want prior [seg-001]", ids)
+	}
+	if _, ok := store.files[mustSegmentClipKey(t, id, "seg-002")]; ok {
+		t.Fatal("invalid seg-002 was published before attempt validation")
+	}
+}
+
 func TestRenderCoversToleratesPlanSegmentWithoutClip(t *testing.T) {
 	store := newFakeStorage()
 	id := uuid.New()
@@ -345,10 +401,12 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	store := newFakeStorage()
 	id := uuid.New()
 	stream := recording.DefaultStreamConfig()
+	expectedPlan, err := recording.NewPlanFromKillPlan(minimalKillPlan(), "profile.dem", "profile", stream)
+	if err != nil {
+		t.Fatal(err)
+	}
 	result := recording.RecordingResult{
-		Plan: recording.RecordingPlan{
-			Stream: stream,
-		},
+		Plan: expectedPlan,
 		Artifacts: []recording.RecordingArtifact{{
 			SegmentID: "seg-001",
 			Role:      "segment",
@@ -365,7 +423,7 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 		t.Fatal(err)
 	}
 
-	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, stream)
+	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,17 +431,51 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 		t.Fatal("capture without observer-SteamID verification was reused")
 	}
 
-	result.Plan.CaptureContract = recording.CaptureContractVersion
+	legacy := result
+	legacy.Plan.CaptureContract = recording.LegacyCaptureContractVersion
+	legacy.Plan.KillPlanSchemaVersion = ""
+	legacy.Plan.DemoSHA256 = ""
+	legacy.Plan.DemoDurationTicks = 0
+	legacy.Plan.EditorialSegmentIDs = nil
+	legacy.CaptureVerified = true
+	if err := putRecordingResult(store, id, legacy); err != nil {
+		t.Fatal(err)
+	}
+	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ready {
+		t.Fatal("verified durable V1 capture was stranded after the V2 upgrade")
+	}
+
+	result.CaptureMode = recording.CaptureModeReal
 	result.CaptureVerified = true
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
 	if err := putRecordingResult(store, id, result); err != nil {
 		t.Fatal(err)
 	}
-	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, stream)
+	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ready {
 		t.Fatal("capture with current observer-SteamID contract was not reusable")
+	}
+
+	staleSegments := append([]recording.RecordingSegment(nil), result.Plan.Segments...)
+	staleSegments[0].TickStart++
+	result.Plan.Segments = staleSegments
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
+	if err := putRecordingResult(store, id, result); err != nil {
+		t.Fatal(err)
+	}
+	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready {
+		t.Fatal("capture with stale segment bounds was reused")
 	}
 }
 
@@ -393,22 +485,27 @@ func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
 	expected := recording.DefaultStreamConfig()
 	expected.HUDMode = recording.HUDModeGameplay
 	expected.PortraitSafeKillfeed = true
+	expectedPlan, err := recording.NewPlanFromKillPlan(minimalKillPlan(), "profile.dem", "profile", expected)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	centered := expected
 	centered.DeathnoticeSafeZoneX = 0.28
 	centered.DeathnoticeSafeZoneY = 0.82
+	resultPlan := expectedPlan
+	resultPlan.Stream = centered
 	result := recording.RecordingResult{
-		Plan: recording.RecordingPlan{
-			CaptureContract: recording.CaptureContractVersion,
-			Stream:          centered,
-		},
+		Plan: resultPlan,
 		Artifacts: []recording.RecordingArtifact{{
 			SegmentID: "seg-001",
 			Role:      "segment",
 			Type:      "video",
 		}},
+		CaptureMode:     recording.CaptureModeReal,
 		CaptureVerified: true,
 	}
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
 	if err := putRecordingResult(store, id, result); err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +516,7 @@ func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expected)
+	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,13 +526,12 @@ func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
 }
 
 func TestRecordingProfilesCompatibleRejectsLegacyPOVContract(t *testing.T) {
-	current := recording.RecordingResult{
-		Plan: recording.RecordingPlan{
-			Stream:          recording.DefaultStreamConfig(),
-			CaptureContract: recording.CaptureContractVersion,
-		},
-		CaptureVerified: true,
+	plan, err := recording.NewPlanFromKillPlan(minimalKillPlan(), "profile.dem", "profile", recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatal(err)
 	}
+	current := recording.RecordingResult{Plan: plan, CaptureMode: recording.CaptureModeReal, CaptureVerified: true}
+	current.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(current.Plan)
 	legacy := current
 	legacy.Plan.CaptureContract = ""
 
@@ -509,15 +605,13 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	putJSON(t, store, mustRenderVariantResultKey(t, id, editor.PresetViral60Clean), editor.Result{
+	seedLegacyRenderVariantReady(t, store, id, editor.PresetViral60Clean, editor.Result{
 		Preset:           editor.PresetViral60Clean,
 		InputFingerprint: fingerprint,
 		Shorts:           []editor.ShortResult{{SegmentID: "seg-001"}},
 	})
-	_ = store.Put(mustRenderVariantPackManifestKey(t, id, editor.PresetViral60Clean), bytes.NewReader([]byte("pack")))
-	_ = store.Put(mustRenderVariantGalleryKey(t, id, editor.PresetViral60Clean), bytes.NewReader([]byte("gallery")))
 
-	ready, _, err := renderVariantOutputsReady(store, id, editor.PresetViral60Clean, fingerprint)
+	ready, _, _, err := renderVariantOutputsReady(store, id, editor.PresetViral60Clean, fingerprint)
 	if err != nil || !ready {
 		t.Fatalf("matching inputs ready/error = %v/%v, want true/nil", ready, err)
 	}
@@ -569,7 +663,7 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 		"legacy empty":     "",
 	} {
 		t.Run(name, func(t *testing.T) {
-			ready, _, err := renderVariantOutputsReady(store, id, editor.PresetViral60Clean, candidate)
+			ready, _, _, err := renderVariantOutputsReady(store, id, editor.PresetViral60Clean, candidate)
 			if err != nil {
 				t.Fatal(err)
 			}

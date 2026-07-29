@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -48,7 +47,7 @@ func runDemoMoments(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	killPlanPath := fs.String("killplan", "", "kill plan JSON to score")
 	outPath := fs.String("out", "", "optional moments JSON artifact")
-	top := fs.Int("top", 0, "maximum moments, highest score first; 0 keeps all")
+	topValue := fs.String("top", "0", "maximum moments, highest score first; 0 keeps all")
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "validate and score without writing")
 	if err := fs.Parse(args); err != nil {
@@ -60,8 +59,9 @@ func runDemoMoments(args []string, stdout, stderr io.Writer) int {
 	if strings.TrimSpace(*killPlanPath) == "" {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("--killplan is required"), demoMomentsUsage, exitInvalidArgs)
 	}
-	if *top < 0 {
-		return writeCommandError(args, stdout, stderr, fmt.Errorf("--top must be >= 0"), demoMomentsUsage, exitInvalidArgs)
+	top, err := parseNonNegativeIntFlag("--top", *topValue)
+	if err != nil {
+		return writeCommandError(args, stdout, stderr, err, demoMomentsUsage, exitInvalidArgs)
 	}
 	if *format != "text" && *format != "json" {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoMomentsUsage, exitInvalidArgs)
@@ -77,14 +77,8 @@ func runDemoMoments(args []string, stdout, stderr io.Writer) int {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("read kill plan: %w", err), "", exitUnexpected)
 	}
 	doc := moments.Build(demoMomentsJobID(plan), plan)
-	sort.SliceStable(doc.Moments, func(i, j int) bool {
-		if doc.Moments[i].Score != doc.Moments[j].Score {
-			return doc.Moments[i].Score > doc.Moments[j].Score
-		}
-		return doc.Moments[i].SegmentID < doc.Moments[j].SegmentID
-	})
-	if *top > 0 && len(doc.Moments) > *top {
-		doc.Moments = doc.Moments[:*top]
+	if top > 0 && len(doc.Moments) > top {
+		doc.Moments = doc.Moments[:top]
 	}
 	absInput, _ := filepath.Abs(*killPlanPath)
 	result := demoMomentsResult{OK: true, DryRun: *dryRun, Executed: !*dryRun, Input: absInput, Count: len(doc.Moments), Document: doc}
@@ -130,6 +124,7 @@ func runDemoSelect(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	killPlanPath := fs.String("killplan", "", "source kill plan JSON")
 	segmentsValue := fs.String("segments", "", "ordered comma-separated segment ids")
+	top := fs.Int("top", 0, "select the highest-scoring N segments")
 	outPath := fs.String("out", "", "selected kill plan JSON")
 	format := fs.String("format", "text", "text or json")
 	dryRun := fs.Bool("dry-run", false, "validate selection without writing")
@@ -139,8 +134,16 @@ func runDemoSelect(args []string, stdout, stderr io.Writer) int {
 	if fs.NArg() != 0 {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("unexpected positional arg %q", fs.Arg(0)), demoSelectUsage, exitInvalidArgs)
 	}
-	if strings.TrimSpace(*killPlanPath) == "" || strings.TrimSpace(*segmentsValue) == "" || strings.TrimSpace(*outPath) == "" {
-		return writeCommandError(args, stdout, stderr, fmt.Errorf("--killplan, --segments, and --out are required"), demoSelectUsage, exitInvalidArgs)
+	if strings.TrimSpace(*killPlanPath) == "" || strings.TrimSpace(*outPath) == "" {
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--killplan and --out are required"), demoSelectUsage, exitInvalidArgs)
+	}
+	segmentsSet := strings.TrimSpace(*segmentsValue) != ""
+	_, topSet := flagValue(args, "--top")
+	if segmentsSet == topSet {
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("exactly one of --segments or --top is required"), demoSelectUsage, exitInvalidArgs)
+	}
+	if topSet && *top <= 0 {
+		return writeCommandError(args, stdout, stderr, fmt.Errorf("--top must be > 0"), demoSelectUsage, exitInvalidArgs)
 	}
 	if *format != "text" && *format != "json" {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("unsupported format %q", *format), demoSelectUsage, exitInvalidArgs)
@@ -148,13 +151,25 @@ func runDemoSelect(args []string, stdout, stderr io.Writer) int {
 	if err := pathguard.RejectOutputAliases(*outPath, pathguard.Input{Flag: "--killplan", Path: *killPlanPath}); err != nil {
 		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
 	}
-	segmentIDs, err := parseOrderedSegmentIDs(*segmentsValue)
-	if err != nil {
-		return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
-	}
 	plan, err := loadDemoKillPlan(*killPlanPath)
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("read kill plan: %w", err), "", exitUnexpected)
+	}
+	var segmentIDs []string
+	if topSet {
+		ranked := moments.Rank(plan)
+		if len(ranked) > *top {
+			ranked = ranked[:*top]
+		}
+		segmentIDs = make([]string, 0, len(ranked))
+		for _, moment := range ranked {
+			segmentIDs = append(segmentIDs, moment.SegmentID)
+		}
+	} else {
+		segmentIDs, err = parseOrderedSegmentIDs(*segmentsValue)
+		if err != nil {
+			return writeCommandError(args, stdout, stderr, err, demoSelectUsage, exitInvalidArgs)
+		}
 	}
 	selected, err := selectDemoSegments(plan, segmentIDs)
 	if err != nil {

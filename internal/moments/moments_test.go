@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/editor"
 	"github.com/rechedev9/fragforge/internal/killplan"
 )
 
@@ -60,8 +59,8 @@ func TestBuildDerivesScoredKillMoments(t *testing.T) {
 	if got.Score <= 0.5 {
 		t.Fatalf("score = %v, want > 0.5", got.Score)
 	}
-	if got.DefaultVariant != editor.PresetViral60Clean {
-		t.Fatalf("default variant = %q, want %q", got.DefaultVariant, editor.PresetViral60Clean)
+	if got.DefaultVariant != DefaultVariant {
+		t.Fatalf("default variant = %q, want %q", got.DefaultVariant, DefaultVariant)
 	}
 }
 
@@ -113,6 +112,21 @@ func TestBuildWarnsOnInvalidSegments(t *testing.T) {
 		if !hasReason(got.Warnings, want) {
 			t.Fatalf("warnings = %v, missing %q", got.Warnings, want)
 		}
+	}
+}
+
+func TestRankReturnsHighestScoringSegmentsFirstWithStableTies(t *testing.T) {
+	plan := killplan.NewPlan()
+	plan.Demo.Tickrate = 64
+	plan.Segments = []killplan.Segment{
+		{ID: "seg-003", TickStart: 0, TickEnd: 640, Kills: []killplan.Kill{{Tick: 100}}},
+		{ID: "seg-002", TickStart: 0, TickEnd: 640, Kills: []killplan.Kill{{Tick: 100}, {Tick: 200, Headshot: true}}},
+		{ID: "seg-001", TickStart: 0, TickEnd: 640, Kills: []killplan.Kill{{Tick: 100}, {Tick: 200, Headshot: true}}},
+	}
+
+	ranked := Rank(plan)
+	if got := []string{ranked[0].SegmentID, ranked[1].SegmentID, ranked[2].SegmentID}; got[0] != "seg-001" || got[1] != "seg-002" || got[2] != "seg-003" {
+		t.Fatalf("ranked segments = %#v, want seg-001, seg-002, seg-003", got)
 	}
 }
 

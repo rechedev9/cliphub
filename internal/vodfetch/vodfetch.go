@@ -307,6 +307,7 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 	if err := os.MkdirAll(destDir, 0o700); err != nil {
 		return Result{}, fmt.Errorf("create dest dir: %w", err)
 	}
+	// #nosec G302 -- this is a directory and therefore needs the owner execute bit.
 	if err := os.Chmod(destDir, 0o700); err != nil {
 		return Result{}, fmt.Errorf("restrict dest dir permissions: %w", err)
 	}

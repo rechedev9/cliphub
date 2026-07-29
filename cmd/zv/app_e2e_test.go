@@ -827,11 +827,12 @@ func TestZVBinaryDiscoveryCommandsRejectUnknownNamesEndToEnd(t *testing.T) {
 		name            string
 		args            []string
 		wantExactStderr string
+		wantJSONError   string
 	}{
 		{name: "skills show text", args: []string{"skills", "show", "missing"}, wantExactStderr: "error: skill not found: missing\n"},
-		{name: "skills show json", args: []string{"skills", "show", "missing", "--format=json"}, wantExactStderr: "error: skill not found: missing\n"},
+		{name: "skills show json", args: []string{"skills", "show", "missing", "--format=json"}, wantJSONError: "skill not found: missing"},
 		{name: "workflows show text", args: []string{"workflows", "show", "missing"}, wantExactStderr: "error: workflow not found: missing\n"},
-		{name: "workflows show json", args: []string{"workflows", "show", "missing", "--format=json"}, wantExactStderr: "error: workflow not found: missing\n"},
+		{name: "workflows show json", args: []string{"workflows", "show", "missing", "--format=json"}, wantJSONError: "workflow not found: missing"},
 		{name: "workflows run", args: []string{"workflows", "run", "missing"}, wantExactStderr: "error: workflow not found: missing\n"},
 		{name: "workflows run with separator", args: []string{"workflows", "run", "missing", "--"}, wantExactStderr: "error: workflow not found: missing\n"},
 	}
@@ -841,6 +842,23 @@ func TestZVBinaryDiscoveryCommandsRejectUnknownNamesEndToEnd(t *testing.T) {
 
 			if got, want := code, exitInvalidArgs; got != want {
 				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got, want, stdout, stderr)
+			}
+			if tt.wantJSONError != "" {
+				if stderr != "" {
+					t.Fatalf("stderr = %q, want empty for JSON response", stderr)
+				}
+				var result struct {
+					OK       bool   `json:"ok"`
+					Executed bool   `json:"executed"`
+					Error    string `json:"error"`
+				}
+				if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+					t.Fatalf("unmarshal JSON error: %v\n%s", err, stdout)
+				}
+				if result.OK || result.Executed || result.Error != tt.wantJSONError {
+					t.Fatalf("JSON error = %#v, want unexecuted error %q", result, tt.wantJSONError)
+				}
+				return
 			}
 			if stdout != "" {
 				t.Fatalf("stdout = %q, want empty", stdout)

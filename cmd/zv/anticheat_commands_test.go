@@ -45,7 +45,7 @@ func TestRunDemoAnticheatRequiresADemo(t *testing.T) {
 	if code != exitInvalidArgs {
 		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
 	}
-	if !strings.Contains(reason, "--demo is required") {
+	if !strings.Contains(reason, `missing required flag --demo for "demo anticheat"`) {
 		t.Fatalf("reason = %q, want the missing-flag reason", reason)
 	}
 }
@@ -68,8 +68,8 @@ func TestRunDemoAnticheatReportsHumanErrorsOnStderr(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want text mode to keep errors off stdout", stdout)
 	}
-	if !strings.Contains(stderr, "--demo is required") || !strings.Contains(stderr, "usage: zv demo anticheat") {
-		t.Fatalf("stderr = %q, want the reason and the usage", stderr)
+	if !strings.Contains(stderr, `missing required flag --demo for "demo anticheat"`) {
+		t.Fatalf("stderr = %q, want the canonical missing-flag reason", stderr)
 	}
 }
 
@@ -81,6 +81,25 @@ func TestRunDemoAnticheatRejectsWritingOverItsInput(t *testing.T) {
 	code, _ := anticheatError(t, "--demo", demo, "--out", demo)
 	if code != exitInvalidArgs {
 		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
+	}
+}
+
+func TestRunDemoAnticheatRejectsWritingOverItsBaseline(t *testing.T) {
+	root := t.TempDir()
+	demo := filepath.Join(root, "match.dem")
+	baseline := filepath.Join(root, "baseline.json")
+	if err := os.WriteFile(demo, []byte("PBDEMS2\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSONArtifact(baseline, anticheat.DefaultBaseline()); err != nil {
+		t.Fatal(err)
+	}
+	code, reason := anticheatError(t, "--demo", demo, "--baseline", baseline, "--out", baseline)
+	if code != exitInvalidArgs {
+		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
+	}
+	if !strings.Contains(reason, "--baseline") {
+		t.Fatalf("reason = %q, want baseline alias rejection", reason)
 	}
 }
 
@@ -111,7 +130,7 @@ func TestRunDemoAnticheatCalibrateRequiresItsFlags(t *testing.T) {
 	if code != exitInvalidArgs {
 		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
 	}
-	if !strings.Contains(reason, "--demos and --id are required") {
+	if !strings.Contains(reason, `missing required flags --demos, --id for "demo anticheat calibrate"`) {
 		t.Fatalf("reason = %q, want the missing-flag reason", reason)
 	}
 }
@@ -133,6 +152,22 @@ func TestRunDemoAnticheatCalibrateRejectsAnEmptyCorpus(t *testing.T) {
 	}
 	if !strings.Contains(reason, "no .dem files") {
 		t.Fatalf("reason = %q, want the empty-corpus reason", reason)
+	}
+}
+
+func TestRunDemoAnticheatCalibrateRejectsWritingOverCorpusDemo(t *testing.T) {
+	corpus := t.TempDir()
+	demo := filepath.Join(corpus, "match.dem")
+	if err := os.WriteFile(demo, []byte("PBDEMS2\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, reason := anticheatError(t, "calibrate", "--demos", corpus, "--id", "pro-2026", "--out", demo)
+	if code != exitInvalidArgs {
+		t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
+	}
+	if !strings.Contains(reason, "must not overwrite --demos") {
+		t.Fatalf("reason = %q, want output alias rejection", reason)
 	}
 }
 
@@ -198,6 +233,11 @@ func TestValidateSkillCommandChecksDemoAnticheatFlags(t *testing.T) {
 			name:    "unknown flag",
 			command: []string{"demo", "anticheat", "--demo", "match.dem", "--bogus", "x"},
 			want:    `unknown flag --bogus for "demo anticheat"`,
+		},
+		{
+			name:    "duplicate demo",
+			command: []string{"demo", "anticheat", "--demo", "first.dem", "--demo", "second.dem"},
+			want:    `duplicate flag --demo for "demo anticheat"`,
 		},
 		{
 			name:    "valid screening",

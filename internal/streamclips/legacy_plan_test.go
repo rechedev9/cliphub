@@ -42,6 +42,9 @@ func TestDecodeEditPlanDropsKillfeedAndCaptions(t *testing.T) {
 	if err := plan.Validate(); err != nil {
 		t.Fatalf("validate legacy plan: %v", err)
 	}
+	if plan.SchemaVersion != EditPlanSchemaVersion {
+		t.Fatalf("schema version = %q, want migrated %q", plan.SchemaVersion, EditPlanSchemaVersion)
+	}
 	if len(plan.Clips) != 1 {
 		t.Fatalf("clips = %d, want 1", len(plan.Clips))
 	}

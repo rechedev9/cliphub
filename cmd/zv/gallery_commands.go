@@ -69,6 +69,7 @@ func openPath(path string) error {
 }
 
 func appendOpenPathLog(logPath, path string) error {
+	// #nosec G304 G703 -- logPath is an explicit test-only fake-open destination, never a server request path.
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("open fake path log: %w", err)

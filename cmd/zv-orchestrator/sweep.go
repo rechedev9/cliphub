@@ -27,7 +27,6 @@ const (
 	interruptedQueuedJobReason  = "interrupted: the orchestrator restarted before queued work started"
 	interruptedDemoRenderReason = "interrupted: the orchestrator restarted before render completed"
 	interruptedGenerateReason   = "interrupted: the orchestrator restarted before guided generation reached render handoff"
-	interruptedStreamAcquire    = "interrupted: the orchestrator restarted before stream acquisition completed"
 	interruptedStreamRender     = "interrupted: the orchestrator restarted before stream render completed"
 )
 
@@ -263,9 +262,24 @@ func idleGenerateIntent() (renderplan.GenerateIntent, error) {
 	}, nil
 }
 
-// sweepInterruptedStreamJobs fails accepted acquisition and render tasks that
-// cannot survive the desktop process stopping. Uploaded, ready, rendered, and
-// already-failed jobs remain untouched.
+// listInterruptedStreamAcquisitions returns acquisitions that must be
+// idempotently re-enqueued after workers start. The acquire worker can resume
+// from every crash window because source.mp4 is its durable commit boundary.
+func listInterruptedStreamAcquisitions(ctx context.Context, repo streamInterruptSweeper) ([]uuid.UUID, error) {
+	jobs, err := repo.ListByStatus(ctx, streamclips.StatusAcquiring)
+	if err != nil {
+		return nil, fmt.Errorf("list acquiring stream jobs: %w", err)
+	}
+	sort.Slice(jobs, func(i, k int) bool { return jobs[i].ID.String() < jobs[k].ID.String() })
+	ids := make([]uuid.UUID, 0, len(jobs))
+	for _, j := range jobs {
+		ids = append(ids, j.ID)
+	}
+	return ids, nil
+}
+
+// sweepInterruptedStreamJobs fails render tasks that cannot survive the
+// desktop process stopping. Acquisitions are re-enqueued instead.
 func sweepInterruptedStreamJobs(ctx context.Context, repo streamInterruptSweeper, rec *obs.Recorder) (int, error) {
 	return sweepInterruptedStreamJobsAfterRenderStates(ctx, repo, rec, streamRenderSweepResult{auditComplete: true})
 }
@@ -278,7 +292,7 @@ func sweepInterruptedStreamJobsAfterRenderStates(
 ) (int, error) {
 	swept := 0
 	var errs []error
-	statuses := []streamclips.Status{streamclips.StatusAcquiring}
+	var statuses []streamclips.Status
 	if renderStates.auditComplete {
 		statuses = append(statuses, streamclips.StatusRendering)
 	}
@@ -316,9 +330,6 @@ func sweepInterruptedStreamJobsAfterRenderStates(
 }
 
 func interruptedStreamJob(status streamclips.Status) (reason, stage string) {
-	if status == streamclips.StatusAcquiring {
-		return interruptedStreamAcquire, obs.StageStreamAcquire
-	}
 	return interruptedStreamRender, obs.StageRender
 }
 

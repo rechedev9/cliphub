@@ -72,6 +72,22 @@ func TestRunDemoMomentsDryRunScoresWithoutWriting(t *testing.T) {
 	}
 }
 
+func TestRunDemoMomentsRejectsInvalidTopBeforeReadingPlan(t *testing.T) {
+	for _, value := range []string{"not-an-integer", "-1"} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"zv", "demo", "moments", "--killplan", "missing.json",
+			"--top", value, "--dry-run", "--format", "json",
+		}, &stdout, &stderr, nil, &fakeRunner{})
+		if code != exitInvalidArgs {
+			t.Fatalf("--top %q code = %d, want %d", value, code, exitInvalidArgs)
+		}
+		if output := stdout.String() + stderr.String(); !strings.Contains(output, "--top") {
+			t.Fatalf("--top %q output = %q", value, output)
+		}
+	}
+}
+
 func mustAbs(t *testing.T, path string) string {
 	t.Helper()
 	abs, err := filepath.Abs(path)
@@ -140,6 +156,30 @@ func TestRunDemoSelectPreservesRequestedOrderAndRecalculatesStats(t *testing.T) 
 	}
 	if _, err := os.Stat(outPath); err != nil {
 		t.Fatalf("stat selected plan: %v", err)
+	}
+}
+
+func TestRunDemoSelectTopPersistsMomentRankBeforeCapture(t *testing.T) {
+	dir := t.TempDir()
+	planPath := writeDemoReviewPlan(t, dir)
+	outPath := filepath.Join(dir, "best-plan.json")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"zv", "demo", "select", "--killplan", planPath,
+		"--top", "2", "--out", outPath, "--format", "json",
+	}, &stdout, &stderr, nil, &fakeRunner{})
+	if code != exitSuccess || stderr.Len() != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, stderr.String())
+	}
+	var result demoSelectionResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if got := result.SelectedSegments; len(got) != 2 || got[0] != "seg-002" {
+		t.Fatalf("selected ranked segments = %#v", got)
+	}
+	if _, err := os.Stat(outPath); err != nil {
+		t.Fatalf("ranked plan not persisted: %v", err)
 	}
 }
 

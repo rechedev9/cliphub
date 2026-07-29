@@ -63,7 +63,9 @@ func replaceLocalFile(tempPath, destinationPath string) error {
 		return err
 	}
 	replaced, _, callErr := replaceFileW.Call(
+		// #nosec G103 -- audited Win32 ReplaceFileW FFI; pointers remain live for the duration of Call.
 		uintptr(unsafe.Pointer(destination)),
+		// #nosec G103 -- audited Win32 ReplaceFileW FFI; pointers remain live for the duration of Call.
 		uintptr(unsafe.Pointer(temp)),
 		0,
 		0,

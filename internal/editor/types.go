@@ -83,12 +83,16 @@ type Config struct {
 	LineupCatalogPath string
 	SegmentIDs        []string
 	Limit             int
+	RankMoments       bool
 	VideoCRF          int
 	VideoPreset       string
 	HQFilters         bool
 	AudioNormalize    bool
 	QualityChecks     bool
 	CoverSheets       bool
+	// CoverSheetsSet distinguishes an explicit CLI decision from callers that
+	// leave this option to the selected render preset.
+	CoverSheetsSet bool
 	// CoverFirstFrame freezes the cover frame (the frame at CoverTimeSeconds)
 	// over the first frames of each rendered short, so YouTube's Shorts
 	// thumbnail frame selector can pick the cover without a separate upload.
@@ -134,12 +138,14 @@ type ManifestOptions struct {
 	LineupCatalogPath   string
 	SegmentIDs          []string
 	Limit               int
+	RankMoments         bool
 	VideoCRF            int
 	VideoPreset         string
 	HQFilters           bool
 	AudioNormalize      bool
 	QualityChecks       bool
 	CoverSheets         bool
+	CoverSheetsSet      bool
 	CoverFirstFrame     bool
 	TemporalSmoothing   bool
 	FFmpegPath          string
@@ -164,6 +170,7 @@ type Manifest struct {
 	SummaryPath       string      `json:"summary_path"`
 	SegmentFilter     []string    `json:"segment_filter,omitempty"`
 	Limit             int         `json:"limit,omitempty"`
+	RankMoments       bool        `json:"rank_moments,omitempty"`
 	SkipExisting      bool        `json:"skip_existing,omitempty"`
 	EffectsPath       string      `json:"effects_path,omitempty"`
 	EffectsPreset     string      `json:"effects_preset,omitempty"`
@@ -319,6 +326,7 @@ type Result struct {
 	SummaryPath       string        `json:"summary_path"`
 	SegmentFilter     []string      `json:"segment_filter,omitempty"`
 	Limit             int           `json:"limit,omitempty"`
+	RankMoments       bool          `json:"rank_moments,omitempty"`
 	SkipExisting      bool          `json:"skip_existing,omitempty"`
 	EffectsPath       string        `json:"effects_path,omitempty"`
 	EffectsPreset     string        `json:"effects_preset,omitempty"`
@@ -422,6 +430,7 @@ type PackManifest struct {
 	SummaryPath       string        `json:"summary_path"`
 	SegmentFilter     []string      `json:"segment_filter,omitempty"`
 	Limit             int           `json:"limit,omitempty"`
+	RankMoments       bool          `json:"rank_moments,omitempty"`
 	SkipExisting      bool          `json:"skip_existing,omitempty"`
 	EffectsPath       string        `json:"effects_path,omitempty"`
 	EffectsPreset     string        `json:"effects_preset,omitempty"`

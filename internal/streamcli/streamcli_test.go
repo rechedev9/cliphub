@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -296,6 +297,58 @@ func TestRunStreamRenderDryRunRejectsUnavailableFFmpeg(t *testing.T) {
 	}
 	if !strings.Contains(result.Error, "ffmpeg missing") {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestRunStreamRenderDryRunRejectsEmptyPlan(t *testing.T) {
+	dir := t.TempDir()
+	plan := streamclips.DefaultEditPlan()
+	planPath := filepath.Join(dir, "empty-plan.json")
+	body, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service := &fakeStreamService{probe: streamclips.SourceProbe{DurationSeconds: 10}}
+	var stdout, stderr bytes.Buffer
+	code := runStreamWithService([]string{
+		"render", "--input", "stream.mp4", "--plan", planPath, "--out", filepath.Join(dir, "run"),
+		"--dry-run", "--format", "json",
+	}, &stdout, &stderr, service)
+	if code != exitInvalidArgs || service.renderCalls != 0 || service.ffmpegChecks != 0 {
+		t.Fatalf("code = %d render calls = %d ffmpeg checks = %d", code, service.renderCalls, service.ffmpegChecks)
+	}
+	if !strings.Contains(stdout.String(), "edit plan has no clips") {
+		t.Fatalf("stdout = %s, want empty-plan error", stdout.String())
+	}
+}
+
+func TestStreamRenderJobIDUsesSemanticPlanFingerprint(t *testing.T) {
+	left := streamclips.DefaultEditPlan()
+	left.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 10}}
+	right := left
+	right.UpdatedAt = left.UpdatedAt.Add(time.Hour)
+
+	leftID, err := streamRenderJobID("source-sha", left)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rightID, err := streamRenderJobID("source-sha", right)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leftID != rightID {
+		t.Fatalf("semantic-equivalent plans produced %s and %s", leftID, rightID)
+	}
+	right.Clips = []streamclips.ClipRange{{ID: "clip-001", StartSeconds: 1, EndSeconds: 10}}
+	changedID, err := streamRenderJobID("source-sha", right)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedID == leftID {
+		t.Fatal("timing change did not change job identity")
 	}
 }
 

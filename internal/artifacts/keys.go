@@ -24,7 +24,7 @@ func RecordingScriptKey(id uuid.UUID) string {
 }
 
 func SegmentClipKey(id uuid.UUID, segmentID string) (string, error) {
-	if err := validateArtifactToken("segment id", segmentID); err != nil {
+	if err := ValidateArtifactToken("segment id", segmentID); err != nil {
 		return "", err
 	}
 	return path.Join(JobPrefix(id), "recording", "segments", segmentID+".mp4"), nil
@@ -37,6 +37,13 @@ func SegmentClipKey(id uuid.UUID, segmentID string) (string, error) {
 // whole kill plan.
 func CaptureSelectionKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "recording", "capture-selection.json")
+}
+
+// CaptureProgressKey is a non-committing status document for the in-flight
+// recorder. It never makes a segment reusable; validated clips are still
+// published only with the authoritative recording result.
+func CaptureProgressKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "recording", "capture-progress.json")
 }
 
 func CompositionResultKey(id uuid.UUID) string {
@@ -92,7 +99,7 @@ func GenerateIntentKey(id uuid.UUID) string {
 // RenderVariantPrefix returns the durable storage prefix for a named render
 // variant, such as a vertical Shorts pack or a future mobile render.
 func RenderVariantPrefix(id uuid.UUID, variant string) (string, error) {
-	if err := validateArtifactToken("render variant", variant); err != nil {
+	if err := ValidateArtifactToken("render variant", variant); err != nil {
 		return "", err
 	}
 	return path.Join(JobPrefix(id), "renders", variant), nil
@@ -165,7 +172,7 @@ func RenderVariantVideoKey(id uuid.UUID, variant, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := validateArtifactToken("artifact name", name); err != nil {
+	if err := ValidateArtifactToken("artifact name", name); err != nil {
 		return "", err
 	}
 	return path.Join(prefix, "videos", name+".mp4"), nil
@@ -178,7 +185,7 @@ func RenderVariantCoverKey(id uuid.UUID, variant, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := validateArtifactToken("artifact name", name); err != nil {
+	if err := ValidateArtifactToken("artifact name", name); err != nil {
 		return "", err
 	}
 	return path.Join(prefix, "covers", name+".jpg"), nil
@@ -191,7 +198,7 @@ func RenderVariantCaptionKey(id uuid.UUID, variant, name string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	if err := validateArtifactToken("artifact name", name); err != nil {
+	if err := ValidateArtifactToken("artifact name", name); err != nil {
 		return "", err
 	}
 	return path.Join(prefix, "captions", name+".caption.txt"), nil
@@ -213,13 +220,15 @@ func RenderVariantLogKey(id uuid.UUID, variant, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := validateArtifactToken("log name", name); err != nil {
+	if err := ValidateArtifactToken("log name", name); err != nil {
 		return "", err
 	}
 	return path.Join(prefix, "logs", name+".log"), nil
 }
 
-func validateArtifactToken(label, value string) error {
+// ValidateArtifactToken rejects values that cannot safely be used as one
+// artifact-name path component.
+func ValidateArtifactToken(label, value string) error {
 	if !artifactTokenPattern.MatchString(value) {
 		return fmt.Errorf("invalid %s %q", label, value)
 	}

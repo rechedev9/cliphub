@@ -194,7 +194,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="shell-wall w-(--sidebar-width) p-0 text-sidebar-foreground [&>button]:hidden"
+          className="shell-wall w-(--sidebar-width) p-0 text-sidebar-foreground"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -303,12 +303,12 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Mostrar u ocultar barra lateral"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-standard group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] after:transition-colors after:duration-(--dur-fast) hover:after:bg-primary/70 sm:flex",
+        "absolute inset-y-0 z-20 hidden w-10 -translate-x-1/2 transition-all ease-standard group-data-[side=left]:-right-10 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] after:transition-colors after:duration-(--dur-fast) hover:after:bg-primary/70 sm:flex",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar",
-        "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
-        "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
+        "[[data-side=left][data-collapsible=offcanvas]_&]:-right-5",
+        "[[data-side=right][data-collapsible=offcanvas]_&]:-left-5",
         className
       )}
       {...props}

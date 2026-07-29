@@ -60,6 +60,7 @@ export default function FindHighlightsPage({
   const [editConfig, setEditConfig] = useState<EditConfig>(DEFAULT_EDIT_CONFIG);
   const [songOpen, setSongOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
 
   useEffect(() => {
@@ -119,8 +120,13 @@ export default function FindHighlightsPage({
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, songTitle, musicVolume);
   const busy = creating;
 
+  function revokeBriefApproval() {
+    setBriefApproved(false);
+  }
+
   function toggleSelect(playId: string) {
     if (busy) return;
+    revokeBriefApproval();
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(playId)) next.delete(playId);
@@ -131,17 +137,35 @@ export default function FindHighlightsPage({
 
   function selectAll() {
     if (busy || !plays) return;
+    revokeBriefApproval();
     setSelectedIds(new Set(plays.map((p) => p.id)));
   }
 
   function clearSelection() {
     if (busy) return;
+    revokeBriefApproval();
     setSelectedIds(new Set());
+  }
+
+  function chooseVariant(nextVariant: string) {
+    revokeBriefApproval();
+    setVariant(nextVariant);
+  }
+
+  function changeEditConfig(nextConfig: EditConfig) {
+    revokeBriefApproval();
+    setEditConfig(nextConfig);
+  }
+
+  function changeMusicVolume(nextVolume: number) {
+    revokeBriefApproval();
+    setMusicVolume(nextVolume);
   }
 
   async function onCreate() {
     if (!canForgeReel({ briefApproved, creating: busy, hasPreset: variant !== null, selectionCount: selectedPlays.length })) return;
     setCreating(true);
+    setCreateError(null);
     try {
       await api.createVideo({
         matchId: id,
@@ -154,12 +178,14 @@ export default function FindHighlightsPage({
         editConfig,
       });
       router.push(seriesId ? `/series/${seriesId}` : '/videos');
-    } catch {
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'No se pudo crear el reel.');
       setCreating(false);
     }
   }
 
   function onChooseSong(chosenId: string, chosenTitle: string) {
+    revokeBriefApproval();
     setSongId(chosenId);
     setSongTitle(chosenTitle);
     setSongOpen(false);
@@ -232,7 +258,7 @@ export default function FindHighlightsPage({
       <PresetCards
         presets={presets}
         value={variant}
-        onChange={setVariant}
+        onChange={chooseVariant}
         disabled={selectedIds.size === 0 || busy}
       />
     );
@@ -323,7 +349,7 @@ export default function FindHighlightsPage({
 
             <section className="flex flex-col gap-3">
               <SectionEyebrow label="OPCIONES DE EDICIÓN" />
-              <EditOptions value={editConfig} onChange={setEditConfig} disabled={selectedIds.size === 0 || busy} />
+              <EditOptions value={editConfig} onChange={changeEditConfig} disabled={selectedIds.size === 0 || busy} />
             </section>
 
             <section className="flex flex-col gap-3">
@@ -347,6 +373,7 @@ export default function FindHighlightsPage({
                         size="sm"
                         disabled={busy}
                         onClick={() => {
+                          revokeBriefApproval();
                           setSongId(null);
                           setSongTitle(null);
                           setMusicVolume(VOLUME_DEFAULT);
@@ -371,7 +398,7 @@ export default function FindHighlightsPage({
                       step={VOLUME_STEP}
                       value={musicVolume}
                       disabled={busy}
-                      onChange={(e) => setMusicVolume(Number(e.target.value))}
+                      onChange={(e) => changeMusicVolume(Number(e.target.value))}
                       className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
@@ -394,6 +421,12 @@ export default function FindHighlightsPage({
 
       <div className="flex-1" />
 
+      {createError ? (
+        <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
+          {createError}
+        </p>
+      ) : null}
+
       {/* Sticky action bar */}
       {n > 0 ? (
         <CreateReelBar
@@ -401,7 +434,7 @@ export default function FindHighlightsPage({
           presetLabel={presetLabel}
           songTitle={songTitle}
           format={editConfig.format}
-          onFormatChange={(format) => setEditConfig({ ...editConfig, format })}
+          onFormatChange={(format) => changeEditConfig({ ...editConfig, format })}
           creating={creating}
           briefItems={briefItems}
           briefApproved={briefApproved}

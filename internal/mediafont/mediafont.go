@@ -4,6 +4,7 @@ package mediafont
 import (
 	"crypto/sha256"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -103,16 +104,25 @@ func materializeFile(dir, fileName, wantSHA string, data []byte) error {
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
 	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return fmt.Errorf("materialize %s: set font permissions: %w", fileName, err)
+		return fmt.Errorf(
+			"materialize %s: set font permissions: %w",
+			fileName,
+			errors.Join(err, tmp.Close()),
+		)
 	}
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return fmt.Errorf("materialize %s: write font: %w", fileName, err)
+		return fmt.Errorf(
+			"materialize %s: write font: %w",
+			fileName,
+			errors.Join(err, tmp.Close()),
+		)
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return fmt.Errorf("materialize %s: sync font: %w", fileName, err)
+		return fmt.Errorf(
+			"materialize %s: sync font: %w",
+			fileName,
+			errors.Join(err, tmp.Close()),
+		)
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("materialize %s: close font: %w", fileName, err)
@@ -138,6 +148,7 @@ func materializeFile(dir, fileName, wantSHA string, data []byte) error {
 }
 
 func fileMatchesSHA(path, wantSHA string) (bool, error) {
+	// #nosec G304 -- path is constructed from FragForge's fixed cache root and bundled font filenames.
 	f, err := os.Open(path)
 	if err != nil {
 		return false, err

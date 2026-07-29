@@ -47,7 +47,7 @@ func validateSkillCommand(command []string) string {
 		case "moments":
 			return validateRequiredFlags(`"demo moments"`, command[2:], requiredFlagsForRunArgs("demo", "moments")...)
 		case "select":
-			return validateRequiredFlags(`"demo select"`, command[2:], requiredFlagsForRunArgs("demo", "select")...)
+			return validateDemoSelectCommand(command[2:])
 		case "anticheat":
 			// The screening pass has no workflow entry, so its required flags
 			// are stated here rather than derived from the catalog. Without
@@ -95,7 +95,7 @@ func validateSkillCommand(command []string) string {
 		if len(command) < 2 || command[1] != "analyze" {
 			return `uses non-standard zv command "music"; expected "music analyze"`
 		}
-		return validateRequiredFlags(`"music analyze"`, command[2:], requiredFlagsForRunArgs("music", "analyze")...)
+		return validateMusicAnalyzeCommand(command[2:])
 	case "analysis":
 		if len(command) < 2 || !containsString(analysisSubcommands(), command[1]) {
 			return `uses non-standard zv command "analysis"; expected "analysis tactical", "analysis rounds", "analysis tendencies", "analysis tactical-data", or "analysis view"`
@@ -189,8 +189,9 @@ func validateSkillCommand(command []string) string {
 // first avoids the earlier "first non-dash token" scan, which misparsed
 // "flows run --run-dir X demo" by stealing a flag value as the flow. Required-flag
 // reporting is delegated to validateRequiredFlags so the message matches every
-// other workflow. --dry-run is enforced at runtime, not here, because the only
-// supported mode is dry-run.
+// other workflow. The remaining checks are intentionally shared with workflow
+// preflight so it never approves argv that the direct runner will reject before
+// starting a flow.
 func validateFlowsRunCommand(args []string) string {
 	if isSingleHelp(args) {
 		return ""
@@ -213,7 +214,31 @@ func validateFlowsRunCommand(args []string) string {
 	if flowName != "demo" && flowName != "stream" && flowName != "<demo|stream>" {
 		return fmt.Sprintf(`unknown flow %q for "flows run"; expected demo or stream`, flowName)
 	}
-	return validateRequiredFlags(`"flows run"`, rest, "--run-dir")
+	if issue := validateRequiredFlags(`"flows run"`, rest, "--run-dir"); issue != "" {
+		return issue
+	}
+	// The template is catalog metadata rather than runnable argv. It remains
+	// accepted here so the catalog can validate itself; runFlowsRun rejects it.
+	if flowName == "<demo|stream>" {
+		return ""
+	}
+	if !booleanFlagIsTrue(rest, "--dry-run") {
+		return `"flows run" currently supports only --dry-run; real execution remains stage by stage behind the creative gates`
+	}
+	switch flowName {
+	case "demo":
+		if !hasFlagValue(rest, "--demo") {
+			return `the demo flow requires --demo for capture and render; --killplan only skips parse`
+		}
+		if !hasFlagValue(rest, "--killplan") && !hasFlagValue(rest, "--steamid") {
+			return `--demo requires --steamid for "demo parse"`
+		}
+	case "stream":
+		if !hasFlagValue(rest, "--input") {
+			return `the stream flow requires --input`
+		}
+	}
+	return ""
 }
 
 func validateBatchCommand(args []string) string {
@@ -423,7 +448,25 @@ func validateWorkflowValueConstraints(workflow workflowInfo, args []string) stri
 		return fmt.Sprintf("invalid value %q for flag %s in workflow %q; allowed values: %s",
 			value, constraint.Flag, workflow.Name, strings.Join(constraint.AllowedValues, ", "))
 	}
+	if workflow.Name == "demo-moments" {
+		if value, ok := flagValue(args, "--top"); ok {
+			if _, err := parseNonNegativeIntFlag("--top", value); err != nil {
+				return err.Error()
+			}
+		}
+	}
 	return ""
+}
+
+func parseNonNegativeIntFlag(name, raw string) (int, error) {
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an integer: %w", name, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("%s must be >= 0", name)
+	}
+	return value, nil
 }
 
 func flagValue(args []string, name string) (string, bool) {
@@ -477,6 +520,51 @@ func validateRequiredFlags(commandName string, args []string, required ...string
 	return ""
 }
 
+func validateDemoSelectCommand(args []string) string {
+	if isSingleHelp(args) {
+		return ""
+	}
+	if issue := validateRequiredFlags(`"demo select"`, args, "--killplan", "--out"); issue != "" {
+		return issue
+	}
+	segments := hasFlagValue(args, "--segments")
+	topValue, top := flagValue(args, "--top")
+	if segments == top {
+		return `"demo select" requires exactly one of --segments or --top`
+	}
+	if top {
+		value, err := strconv.Atoi(topValue)
+		if err != nil {
+			return fmt.Sprintf("invalid value %q for flag --top for \"demo select\": %v", topValue, err)
+		}
+		if value <= 0 {
+			return `flag --top for "demo select" must be > 0`
+		}
+	}
+	return ""
+}
+
+func validateMusicAnalyzeCommand(args []string) string {
+	if issue := validateRequiredFlags(`"music analyze"`, args, requiredFlagsForRunArgs("music", "analyze")...); issue != "" {
+		return issue
+	}
+	_, hasKillPlan := flagValue(args, "--killplan")
+	_, hasRecordingResult := flagValue(args, "--recording-result")
+	if hasKillPlan && hasRecordingResult {
+		return "--killplan and --recording-result are mutually exclusive"
+	}
+	if raw, ok := flagValue(args, "--limit"); ok {
+		limit, err := parseNonNegativeIntFlag("--limit", raw)
+		if err != nil {
+			return err.Error()
+		}
+		if limit > 0 && !booleanFlagIsTrue(args, "--rank-moments") {
+			return `--limit requires --rank-moments for "music analyze"`
+		}
+	}
+	return ""
+}
+
 func commandValueFlags(commandName string, required []string) []string {
 	flags := append([]string(nil), required...)
 	switch commandName {
@@ -489,7 +577,7 @@ func commandValueFlags(commandName string, required []string) []string {
 	case `"demo moments"`:
 		flags = append(flags, "--out", "--top", "--format")
 	case `"demo select"`:
-		flags = append(flags, "--format")
+		flags = append(flags, "--segments", "--top", "--format")
 	case `"demo anticheat"`:
 		flags = append(flags, "--baseline", "--out", "--dossier", "--format")
 	case `"demo anticheat calibrate"`:
@@ -555,6 +643,7 @@ func commandValueFlags(commandName string, required []string) []string {
 	case `"music analyze"`:
 		flags = append(flags,
 			"--killplan",
+			"--recording-result",
 			"--ffmpeg",
 			"--sample-rate",
 			"--min-bpm",
@@ -562,6 +651,8 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--kill-offset-ms",
 			"--max-beats",
 			"--max-onsets",
+			"--tail-trim",
+			"--limit",
 		)
 	case `"analysis tactical-data"`:
 		flags = append(flags, "--sample")
@@ -589,11 +680,11 @@ func commandBoolFlags(commandName string) []string {
 	case `"demo select"`, `"demo anticheat"`, `"demo anticheat calibrate"`:
 		return []string{"--dry-run"}
 	case `"short"`:
-		return []string{"--dry-run", "--intro", "--outro", "--cover-first-frame"}
+		return []string{"--dry-run", "--intro", "--outro", "--hook", "--kill-counter", "--covers", "--cover-sheets", "--cover-first-frame"}
 	case `"compose final"`:
 		return []string{"--dry-run"}
 	case `"record"`:
-		return []string{"--dry-run", "--portrait-safe-killfeed"}
+		return []string{"--dry-run", "--fake", "--portrait-safe-killfeed"}
 	case `"shorts render"`:
 		return []string{
 			"--audio-normalize",
@@ -606,6 +697,7 @@ func commandBoolFlags(commandName string) []string {
 			"--outro",
 			"--hook",
 			"--kill-counter",
+			"--rank-moments",
 			"--killfeed-overlay",
 			"--no-covers",
 			"--open-gallery",
@@ -616,6 +708,8 @@ func commandBoolFlags(commandName string) []string {
 		}
 	case `"stream plan"`, `"stream render"`:
 		return []string{"--dry-run"}
+	case `"music analyze"`:
+		return []string{"--rank-moments"}
 	case `"flows run"`:
 		return []string{"--dry-run"}
 	case `"analysis tactical"`:

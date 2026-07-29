@@ -32,6 +32,7 @@ func (h *Handlers) PutVoiceProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxVoiceMultipartBytes)
+	// #nosec G120 -- MaxBytesReader above bounds the complete multipart body before parsing.
 	parseErr := r.ParseMultipartForm(voiceMultipartMemory)
 	if r.MultipartForm != nil {
 		defer func() { _ = r.MultipartForm.RemoveAll() }()

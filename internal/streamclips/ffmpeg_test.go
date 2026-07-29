@@ -50,6 +50,21 @@ func TestEditPlanValidateForSourceDurationRejectsOverrun(t *testing.T) {
 	}
 }
 
+func TestEditPlanValidateForRenderRequiresClipAndCurrentSchema(t *testing.T) {
+	plan := DefaultEditPlan()
+	if err := plan.ValidateForRender(20); err == nil || !strings.Contains(err.Error(), "has no clips") {
+		t.Fatalf("ValidateForRender empty error = %v, want no clips", err)
+	}
+	plan.Clips = []ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 10}}
+	if err := plan.ValidateForRender(20); err != nil {
+		t.Fatalf("ValidateForRender error = %v", err)
+	}
+	plan.SchemaVersion = "999.0"
+	if err := plan.ValidateForRender(20); err == nil || !strings.Contains(err.Error(), "schema_version") {
+		t.Fatalf("ValidateForRender future schema error = %v", err)
+	}
+}
+
 func TestMigrateLegacySourceDurationOnlyFitsHistoricalTwentySecondDefault(t *testing.T) {
 	plan := DefaultEditPlan()
 	plan.Clips = []ClipRange{

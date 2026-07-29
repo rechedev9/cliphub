@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rechedev9/fragforge/internal/obs"
 	"github.com/rechedev9/fragforge/internal/storage"
 )
@@ -17,10 +18,11 @@ type startupReconciliationResult struct {
 	GenerateRuns       int
 	StreamJobs         int
 	StreamRenderStates int
+	StreamAcquisitions []uuid.UUID
 }
 
 func (r startupReconciliationResult) total() int {
-	return r.DemoJobs + r.DemoRenders + r.GenerateRuns + r.StreamJobs + r.StreamRenderStates
+	return r.DemoJobs + r.DemoRenders + r.GenerateRuns + r.StreamJobs + r.StreamRenderStates + len(r.StreamAcquisitions)
 }
 
 // reconcileInterruptedWork repairs every process-local lifecycle it can, then
@@ -35,6 +37,12 @@ func reconcileInterruptedWork(
 	rec *obs.Recorder,
 ) (startupReconciliationResult, error) {
 	var result startupReconciliationResult
+	// Every supported main wiring constructs a stream repository before startup
+	// reconciliation. A nil value therefore means the internal wiring invariant
+	// was broken; fail before any partial repair instead of panicking mid-sweep.
+	if streamRepo == nil {
+		return result, fmt.Errorf("stream repository is required for startup reconciliation")
+	}
 	var errs []error
 
 	var err error
@@ -60,6 +68,10 @@ func reconcileInterruptedWork(
 	err = streamRenderErr
 	if err != nil {
 		errs = append(errs, fmt.Errorf("stream render states: %w", err))
+	}
+	result.StreamAcquisitions, err = listInterruptedStreamAcquisitions(ctx, streamRepo)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("stream acquisitions: %w", err))
 	}
 	result.StreamJobs, err = sweepInterruptedStreamJobsAfterRenderStates(ctx, streamRepo, rec, streamRenderStates)
 	if err != nil {
