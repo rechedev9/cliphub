@@ -2,9 +2,26 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { verifyReleaseChecksums, writeReleaseChecksums } from './release-integrity.mjs';
+import { releasePaths, verifyReleaseChecksums, writeReleaseChecksums } from './release-integrity.mjs';
+
+const desktop = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+test('derives the release paths from the canonical Electron artifact name', () => {
+  const metadata = JSON.parse(readFileSync(join(desktop, 'package.json'), 'utf8'));
+  const output = join('C:', 'release');
+
+  assert.deepEqual(releasePaths(desktop, output), {
+    directory: output,
+    artifacts: [
+      join(output, `FragForge.Studio.Setup.${metadata.version}.exe`),
+      join(output, `FragForge.Studio.Setup.${metadata.version}.exe.blockmap`),
+    ],
+    checksum: join(output, 'SHA256SUMS.txt'),
+  });
+});
 
 test('writes deterministic checksums and verifies both release artifacts', async () => {
   await withReleaseFiles(async ({ artifacts, checksum }) => {
@@ -69,8 +86,8 @@ test('refuses to checksum an empty release artifact', async () => {
 async function withReleaseFiles(run) {
   const directory = mkdtempSync(join(tmpdir(), 'fragforge-release-integrity-'));
   const artifacts = [
-    join(directory, 'FragForge Studio Setup 2.2.1.exe'),
-    join(directory, 'FragForge Studio Setup 2.2.1.exe.blockmap'),
+    join(directory, 'FragForge.Studio.Setup.2.2.1.exe'),
+    join(directory, 'FragForge.Studio.Setup.2.2.1.exe.blockmap'),
   ];
   const checksum = join(directory, 'SHA256SUMS.txt');
   writeFileSync(artifacts[0], 'installer bytes');

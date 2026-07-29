@@ -6,7 +6,14 @@ const CHECKSUM_LINE = /^([a-f0-9]{64})  ([^\r\n]+)$/;
 
 export function releasePaths(desktopDirectory, outputDirectory = join(desktopDirectory, 'dist-installer')) {
   const metadata = JSON.parse(readFileSync(join(desktopDirectory, 'package.json'), 'utf8'));
-  const installerName = `FragForge Studio Setup ${metadata.version}.exe`;
+  const artifactName = metadata.build?.artifactName;
+  if (typeof artifactName !== 'string' || artifactName.length === 0) {
+    throw new Error('desktop build.artifactName must define the release artifact contract');
+  }
+  const installerName = artifactName
+    .replaceAll('${productName}', metadata.build.productName)
+    .replaceAll('${version}', metadata.version)
+    .replaceAll('${ext}', 'exe');
   return {
     directory: outputDirectory,
     artifacts: [

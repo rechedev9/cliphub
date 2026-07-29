@@ -53,6 +53,7 @@ test('desktop manifest exposes one credential-free distribution path', () => {
 
   assert.equal(scripts.assemble, 'node scripts/assemble.mjs');
   assert.equal(scripts.dist, 'node scripts/dist.mjs');
+  assert.equal(manifest.build.artifactName, 'FragForge.Studio.Setup.${version}.${ext}');
   assert.equal(Object.keys(scripts).some((name) => name.includes('team')), false);
   assert.equal(
     resources.some((resource) => /(?:credential|xai-api-key)/i.test(`${resource.from} ${resource.to}`)),
