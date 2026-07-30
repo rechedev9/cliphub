@@ -48,6 +48,11 @@ export interface ApiClient {
   retryVideo(id: string): Promise<Video>;
   /** Resolve a QA-blocked reel by changing its edit or documenting intentional warnings. */
   resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video>;
+  /**
+   * Approve one cover candidate as the Library thumbnail (second gate after
+   * candidates exist). No-op when the name is not in the current candidates.
+   */
+  selectVideoCover(id: string, coverName: string): Promise<Video>;
   /** Remove a reel from the library, deleting its rendered artifacts where possible. */
   deleteVideo(id: string): Promise<void>;
   /**

@@ -81,7 +81,9 @@ func writeRecordJSONError(message string, dryRun bool, code int, stdout, stderr 
 
 func resolveRecordCaptureArgs(args []string, detected capturetools.Paths) ([]string, error) {
 	resolved := append([]string(nil), args...)
-	if booleanFlagIsTrue(args, "--dry-run") {
+	// --dry-run never launches CS2; --fake writes placeholder segments for
+	// media-free e2e/CI. Both skip the HLAE/CS2 availability gate.
+	if booleanFlagIsTrue(args, "--dry-run") || booleanFlagIsTrue(args, "--fake") {
 		return resolved, nil
 	}
 
@@ -104,7 +106,7 @@ func resolveRecordCaptureArgs(args []string, detected capturetools.Paths) ([]str
 		missing = append(missing, "CS2")
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("capture tools are unavailable (%s); inspect zv capabilities --format json, pass --hlae/--cs2, or use --dry-run", strings.Join(missing, " and "))
+		return nil, fmt.Errorf("capture tools are unavailable (%s); inspect zv capabilities --format json, pass --hlae/--cs2, or use --dry-run/--fake", strings.Join(missing, " and "))
 	}
 	return resolved, nil
 }

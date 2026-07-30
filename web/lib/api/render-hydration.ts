@@ -5,7 +5,11 @@ export type EffectiveRenderMusic =
   | { mode: 'clean' }
   | { mode: 'music'; songId: string; musicVolume: number };
 
-/** Parses the Go edit document's snake-case wire representation. */
+/**
+ * Parses the orchestrator edit wire. Go uses mixed tags intentionally
+ * (`killEffect` camelCase alongside snake_case booleans like `hook_text`);
+ * accept both spellings for kill effect so server→client hydration works.
+ */
 export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const edit = value as Record<string, unknown>;
@@ -13,11 +17,17 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   const killEffects = new Set<EditConfig['killEffect']>(['clean', 'punch-in', 'velocity', 'freeze-flash']);
   const transitions = new Set<EditConfig['transition']>(['cut', 'flash', 'whip', 'dip']);
   const covers = new Set<EditConfig['coverStrategy']>(['generated-gameplay', 'no-cover']);
+  let killEffectRaw: string | undefined;
+  if (typeof edit.killEffect === 'string') {
+    killEffectRaw = edit.killEffect;
+  } else if (typeof edit.kill_effect === 'string') {
+    killEffectRaw = edit.kill_effect;
+  }
   if (
     typeof edit.format !== 'string' ||
     !formats.has(edit.format as EditConfig['format']) ||
-    typeof edit.kill_effect !== 'string' ||
-    !killEffects.has(edit.kill_effect as EditConfig['killEffect']) ||
+    killEffectRaw === undefined ||
+    !killEffects.has(killEffectRaw as EditConfig['killEffect']) ||
     typeof edit.transition !== 'string' ||
     !transitions.has(edit.transition as EditConfig['transition']) ||
     typeof edit.cover_strategy !== 'string' ||
@@ -31,7 +41,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   }
   const parsed: EditConfig = {
     format: edit.format as EditConfig['format'],
-    killEffect: edit.kill_effect as EditConfig['killEffect'],
+    killEffect: killEffectRaw as EditConfig['killEffect'],
     transition: edit.transition as EditConfig['transition'],
     coverStrategy: edit.cover_strategy as EditConfig['coverStrategy'],
     intro: edit.intro,
@@ -81,13 +91,19 @@ export function applyEffectiveRenderMusic(intent: ReelIntent, music: EffectiveRe
 
 /** Rehydrates live card fields from the latest durable local intent. */
 export function hydrateVideoFromIntent(video: Video, intent: ReelIntent): Video {
-  return {
+  const next: Video = {
     ...video,
     mode: intent.mode,
     songId: intent.songId,
     musicVolume: intent.musicVolume,
     editConfig: intent.editConfig,
   };
+  if (intent.selectedCoverName) {
+    next.selectedCoverName = intent.selectedCoverName;
+  } else {
+    delete next.selectedCoverName;
+  }
+  return next;
 }
 
 /** Removes URLs that belong to an older render revision. */

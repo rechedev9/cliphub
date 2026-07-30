@@ -36,7 +36,34 @@ test('effective music parser distinguishes explicit clean from legacy unknown', 
   assert.equal(parseEffectiveRenderMusic({ key: '', volume: 1 }), undefined);
 });
 
-test('effective edit parser reads the Go snake-case wire fields', () => {
+test('effective edit parser reads the Go mixed wire fields', () => {
+  const expected = {
+    format: 'short-9x16' as const,
+    killEffect: 'freeze-flash' as const,
+    transition: 'dip' as const,
+    coverStrategy: 'generated-gameplay' as const,
+    intro: true,
+    outro: false,
+    hookText: true,
+    killCounter: false,
+    introText: 'Watch this',
+  };
+  // Live orchestrator wire: killEffect camelCase + snake_case booleans.
+  assert.deepEqual(
+    parseEffectiveEditConfig({
+      format: 'short-9x16',
+      killEffect: 'freeze-flash',
+      transition: 'dip',
+      cover_strategy: 'generated-gameplay',
+      intro: true,
+      outro: false,
+      hook_text: true,
+      kill_counter: false,
+      intro_text: 'Watch this',
+    }),
+    expected,
+  );
+  // Legacy / alternate spelling still accepted.
   assert.deepEqual(
     parseEffectiveEditConfig({
       format: 'short-9x16',
@@ -49,22 +76,11 @@ test('effective edit parser reads the Go snake-case wire fields', () => {
       kill_counter: false,
       intro_text: 'Watch this',
     }),
-    {
-      format: 'short-9x16',
-      killEffect: 'freeze-flash',
-      transition: 'dip',
-      coverStrategy: 'generated-gameplay',
-      intro: true,
-      outro: false,
-      hookText: true,
-      killCounter: false,
-      introText: 'Watch this',
-    },
+    expected,
   );
   assert.equal(
     parseEffectiveEditConfig({
       format: 'short-9x16',
-      killEffect: 'freeze-flash',
       transition: 'dip',
       cover_strategy: 'generated-gameplay',
       intro: true,

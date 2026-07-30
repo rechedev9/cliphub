@@ -1495,6 +1495,9 @@ func TestStartRecordingEnqueuesRecordTaskWhenParsed(t *testing.T) {
 	if len(queue.options) != 1 || !hasAsynqOption(queue.options[0], "Unique(") {
 		t.Fatalf("enqueue options = %#v, want Unique option for dedup", queue.options)
 	}
+	if !hasAsynqOption(queue.options[0], "MaxRetry(0)") {
+		t.Fatalf("enqueue options = %#v, want MaxRetry(0) so capture never auto-retries", queue.options)
+	}
 }
 
 func TestStartRecordingAppliesPresetCaptureHUD(t *testing.T) {
@@ -1821,6 +1824,9 @@ func TestStartRenderVariantEnqueuesRenderTaskWhenRecorded(t *testing.T) {
 	}
 	if len(queue.options) != 1 || !hasAsynqOption(queue.options[0], "Unique(") {
 		t.Fatalf("enqueue options = %#v, want Unique option", queue.options)
+	}
+	if !hasAsynqOption(queue.options[0], "MaxRetry(0)") {
+		t.Fatalf("enqueue options = %#v, want MaxRetry(0) so media render never auto-retries", queue.options)
 	}
 	statusKey, err := artifacts.RenderVariantStatusKey(j.ID, editor.PresetViral60Clean)
 	if err != nil {

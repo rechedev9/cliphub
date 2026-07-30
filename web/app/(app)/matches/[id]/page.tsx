@@ -4,6 +4,7 @@ import { use, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Music, SearchX, Unplug } from 'lucide-react';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
+import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { isSeriesId } from '@/lib/series-status';
@@ -23,6 +24,10 @@ import { PresetCards } from '@/components/clips/preset-cards';
 import { CreateReelBar } from '@/components/clips/create-reel-bar';
 import { EditOptions } from '@/components/clips/edit-options';
 import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
+
+function isServiceUnavailable(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
+}
 
 // Music volume slider, in UI percent. Default 100 renders at full volume (the
 // legacy byte-identical form); only < 100 sends a reduced volume to the render.
@@ -49,7 +54,8 @@ export default function FindHighlightsPage({
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[] | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
+  /** null = ok/not-loaded; offline = 503; error = any other failure. */
+  const [loadFailure, setLoadFailure] = useState<'offline' | 'error' | null>(null);
 
   const [presets, setPresets] = useState<Preset[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -75,14 +81,14 @@ export default function FindHighlightsPage({
         if (!active) return;
         setMatch(m);
         setPlays(p);
-        setLoadFailed(false);
-      } catch {
-        // A thrown fetch is an unreachable service, not a missing match; the two
-        // read very differently to a user and now get different screens.
+        setLoadFailure(null);
+      } catch (err) {
+        // 503 service_unavailable means the orchestrator is down; any other
+        // failure (404, 5xx, network) is a load error — not necessarily offline.
         if (!active) return;
         setMatch(null);
         setPlays([]);
-        setLoadFailed(true);
+        setLoadFailure(isServiceUnavailable(err) ? 'offline' : 'error');
       } finally {
         if (active) setLoaded(true);
       }
@@ -196,17 +202,27 @@ export default function FindHighlightsPage({
   }
 
   if (!match) {
+    const offline = loadFailure === 'offline';
+    const errored = loadFailure === 'error';
+    let emptyTitle = 'Partida no encontrada';
+    let emptyDescription =
+      'Esta partida ya no está en tu biblioteca local. Puede que se haya borrado con sus artefactos.';
+    if (offline) {
+      emptyTitle = 'Servicio local sin conexión';
+      emptyDescription =
+        'El servicio local de FragForge no respondió. Arráncalo y vuelve a intentarlo.';
+    } else if (errored) {
+      emptyTitle = 'No se pudo cargar la partida';
+      emptyDescription =
+        'Hubo un error al leer esta partida. Vuelve a intentarlo o regresa a la lista.';
+    }
     return (
       <div className="flex flex-col gap-8">
         <StudioBackLink href="/matches">PARTIDAS</StudioBackLink>
         <StudioEmptyState
-          icon={loadFailed ? Unplug : SearchX}
-          title={loadFailed ? 'No se pudo cargar la partida' : 'Partida no encontrada'}
-          description={
-            loadFailed
-              ? 'El servicio local de FragForge no respondió. Arráncalo y vuelve a intentarlo.'
-              : 'Esta partida ya no está en tu biblioteca local. Puede que se haya borrado con sus artefactos.'
-          }
+          icon={offline || errored ? Unplug : SearchX}
+          title={emptyTitle}
+          description={emptyDescription}
           actions={
             <Button onClick={() => router.push('/matches')}>VOLVER A PARTIDAS</Button>
           }

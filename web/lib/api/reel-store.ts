@@ -32,6 +32,11 @@ export type ReelIntent = {
   score: string;
   /** Display name for the selected SteamID; optional for migrated intents. */
   targetName?: string;
+  /**
+   * Cover basename the user approved after candidates exist. Absent means the
+   * thumbnail second gate is still open (when covers are generated).
+   */
+  selectedCoverName?: string;
   createdAt: number;
 };
 
@@ -92,7 +97,7 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
     if (typeof r.videoId !== 'string' || typeof r.jobId !== 'string') continue;
     const segmentIds = coerceSegmentIds(r);
     if (segmentIds.length === 0) continue;
-    out.push({
+    const intent: ReelIntent = {
       videoId: r.videoId,
       jobId: r.jobId,
       segmentIds,
@@ -106,7 +111,11 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
       score: typeof r.score === 'string' ? r.score : '',
       targetName: typeof r.targetName === 'string' && r.targetName.trim() !== '' ? r.targetName.trim() : undefined,
       createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
-    });
+    };
+    if (typeof r.selectedCoverName === 'string' && r.selectedCoverName.trim() !== '') {
+      intent.selectedCoverName = r.selectedCoverName.trim();
+    }
+    out.push(intent);
   }
   return out;
 }

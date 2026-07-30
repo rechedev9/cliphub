@@ -11,6 +11,9 @@ import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+const isWin32 = process.platform === 'win32';
+const winTest = isWin32 ? test : test.skip;
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const helperPath = join(repo, 'scripts', 'local-process-job.ps1');
@@ -35,7 +38,7 @@ test('Local Studio assigns suspended services before resuming them', () => {
   assert.doesNotMatch(launcher, /LocalProcessJob\]::AddProcess/);
 });
 
-test('a returned short-lived process remains waitable with its exit code', (t) => {
+winTest('a returned short-lived process remains waitable with its exit code', (t) => {
   const testRoot = mkdtempSync(join(tmpdir(), 'fragforge-local-job-exit-'));
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
   const harnessPath = join(testRoot, 'harness.ps1');
@@ -95,7 +98,7 @@ try {
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
-test('closing the Local Studio job kills a service and its descendant', (t) => {
+winTest('closing the Local Studio job kills a service and its descendant', (t) => {
   const testRoot = mkdtempSync(join(tmpdir(), 'fragforge-local-job-'));
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
   const grandchildPath = join(testRoot, 'grandchild.ps1');

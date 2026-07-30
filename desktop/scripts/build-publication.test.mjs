@@ -17,6 +17,10 @@ import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+const isWin32 = process.platform === 'win32';
+/** PowerShell publication harness is Windows-only. */
+const winTest = isWin32 ? test : test.skip;
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const helperPath = join(repoRoot, 'scripts', 'build-publication.ps1');
 
@@ -173,7 +177,7 @@ function createDirectoryReparsePoint(t, target, path, type) {
   }
 }
 
-test('build publication uses a write-through Win32 move primitive', (t) => {
+winTest('build publication uses a write-through Win32 move primitive', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-durable-move-'));
   const sourcePath = join(root, 'source.bin');
   const destinationPath = join(root, 'destination.bin');
@@ -198,7 +202,7 @@ Move-BuildPublicationFileDurably -From '${sourcePath.replaceAll("'", "''")}' -To
   assert.match(helper, /MOVEFILE_WRITE_THROUGH/);
 });
 
-test('build publication lock rejects a symbolic link without modifying its target', (t) => {
+winTest('build publication lock rejects a symbolic link without modifying its target', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-lock-symlink-'));
   const bin = join(root, 'bin');
   const linkedTarget = join(root, 'linked-lock-target.txt');
@@ -225,7 +229,7 @@ test('build publication lock rejects a symbolic link without modifying its targe
   assert.equal(readFileSync(linkedTarget, 'utf8'), 'do-not-truncate');
 });
 
-test('build publication lock rejects a hard link without modifying its target', (t) => {
+winTest('build publication lock rejects a hard link without modifying its target', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-lock-hardlink-'));
   const bin = join(root, 'bin');
   const linkedTarget = join(root, 'linked-lock-target.txt');
@@ -243,7 +247,7 @@ test('build publication lock rejects a hard link without modifying its target', 
   assert.equal(readFileSync(lockPath, 'utf8'), 'do-not-truncate');
 });
 
-test('initial journal is durable before the first artifact move', (t) => {
+winTest('initial journal is durable before the first artifact move', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-initial-journal-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a90');
@@ -275,7 +279,7 @@ if ($From -eq '${join(bin, 'a.exe').replaceAll("'", "''")}') {
   assert.equal(readFileSync(join(bin, 'a.exe'), 'utf8'), 'new-a');
 });
 
-test('build artifact publication commits a complete set and cleans its backup', (t) => {
+winTest('build artifact publication commits a complete set and cleans its backup', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-publish-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -292,7 +296,7 @@ test('build artifact publication commits a complete set and cleans its backup', 
   assert.equal(existsSync(backup), false);
 });
 
-test('build artifact publication rejects case-insensitive duplicate names before journal or moves', (t) => {
+winTest('build artifact publication rejects case-insensitive duplicate names before journal or moves', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-duplicate-name-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -319,7 +323,7 @@ test('build artifact publication rejects case-insensitive duplicate names before
   assert.equal(existsSync(moveMarker), false);
 });
 
-test('build artifact publication rejects a directory target before transaction side effects', (t) => {
+winTest('build artifact publication rejects a directory target before transaction side effects', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-directory-target-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -350,7 +354,7 @@ test('build artifact publication rejects a directory target before transaction s
   assert.equal(existsSync(moveMarker), false);
 });
 
-test('build artifact publication rejects a symbolic-link target before transaction side effects', (t) => {
+winTest('build artifact publication rejects a symbolic-link target before transaction side effects', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-symlink-target-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -390,7 +394,7 @@ test('build artifact publication rejects a symbolic-link target before transacti
   assert.equal(existsSync(moveMarker), false);
 });
 
-test('build artifact publication rejects a staging junction without touching its external target', (t) => {
+winTest('build artifact publication rejects a staging junction without touching its external target', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-stage-junction-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-stage1');
@@ -429,7 +433,7 @@ test('build artifact publication rejects a staging junction without touching its
   assert.equal(existsSync(moveMarker), false);
 });
 
-test('build artifact publication rejects a backup symlink without touching its external target', (t) => {
+winTest('build artifact publication rejects a backup symlink without touching its external target', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-backup-symlink-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-stage2');
@@ -469,7 +473,7 @@ test('build artifact publication rejects a backup symlink without touching its e
   assert.equal(existsSync(moveMarker), false);
 });
 
-test('build artifact publication fully rolls back a failed staged move', (t) => {
+winTest('build artifact publication fully rolls back a failed staged move', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-rollback-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -492,7 +496,7 @@ test('build artifact publication fully rolls back a failed staged move', (t) => 
   assert.equal(existsSync(backup), false);
 });
 
-test('build artifact publication retains recovery backup when rollback is incomplete', (t) => {
+winTest('build artifact publication retains recovery backup when rollback is incomplete', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovery-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -520,7 +524,7 @@ if ($From -eq '${failedRestore}') { throw "injected restore failure" }
   assert.equal(readFileSync(join(bin, 'b.exe'), 'utf8'), 'old-b');
 });
 
-test('build artifact publication retains a new target when its original backup disappears', (t) => {
+winTest('build artifact publication retains a new target when its original backup disappears', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-missing-backup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -551,7 +555,7 @@ if ($From -eq '${failedPublish}') {
   assert.equal(existsSync(backup), true);
 });
 
-test('build artifact publication recovers when a backup move completes before throwing', (t) => {
+winTest('build artifact publication recovers when a backup move completes before throwing', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-ambiguous-move-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
@@ -580,7 +584,7 @@ if ($From -eq '${ambiguousSource}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('recovery retains journal and target when a durable phase says the original was moved', (t) => {
+winTest('recovery retains journal and target when a durable phase says the original was moved', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-missing-durable-backup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a70');
@@ -614,7 +618,7 @@ test('recovery retains journal and target when a durable phase says the original
   assert.equal(existsSync(backup), true);
 });
 
-test('recovery rejects staging and backup reparse points before cleanup', (t) => {
+winTest('recovery rejects staging and backup reparse points before cleanup', (t) => {
   const cases = [
     { name: 'staging-junction', field: 'stage', type: 'junction' },
     { name: 'backup-symlink', field: 'backup', type: 'dir' },
@@ -670,7 +674,7 @@ test('recovery rejects staging and backup reparse points before cleanup', (t) =>
   }
 });
 
-test('recovery accepts a present original only while its durable item phase is pending', (t) => {
+winTest('recovery accepts a present original only while its durable item phase is pending', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-pending-original-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a71');
@@ -703,7 +707,7 @@ test('recovery accepts a present original only while its durable item phase is p
   assert.equal(existsSync(backup), false);
 });
 
-test('publication classifies targets after recovering an original from a pending transaction', (t) => {
+winTest('publication classifies targets after recovering an original from a pending transaction', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovered-presence-'));
   const bin = join(root, 'bin');
   const oldStage = join(bin, '.build-old1');
@@ -763,7 +767,7 @@ if ($Path -eq '${target.replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('legacy journal cannot infer an original from a missing backup', (t) => {
+winTest('legacy journal cannot infer an original from a missing backup', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-legacy-missing-backup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a72');
@@ -793,7 +797,7 @@ test('legacy journal cannot infer an original from a missing backup', (t) => {
   assert.equal(existsSync(journal), true);
 });
 
-test('legacy recovery migrates to restart-safe phases before deleting backups', (t) => {
+winTest('legacy recovery migrates to restart-safe phases before deleting backups', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-legacy-cleanup-kill-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a74');
@@ -842,7 +846,7 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
   assert.equal(existsSync(stage), false);
 });
 
-test('recovery retains a no-original candidate when injected removal is a no-op', (t) => {
+winTest('recovery retains a no-original candidate when injected removal is a no-op', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-candidate-remove-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a73');
@@ -877,7 +881,7 @@ test('recovery retains a no-original candidate when injected removal is a no-op'
   assert.equal(existsSync(journal), true);
 });
 
-test('recovery rejects malformed item schemas before touching transaction artifacts', (t) => {
+winTest('recovery rejects malformed item schemas before touching transaction artifacts', (t) => {
   const malformedCases = [
     {
       name: 'missing-had-original',
@@ -985,7 +989,7 @@ test('build entrypoint delegates publication and never removes the recovery back
   assert.doesNotMatch(buildScript, /Remove-Item[^\r\n]*\$backupDir/i);
 });
 
-test('build artifact publication recovers a process-killed mixed binary set', (t) => {
+winTest('build artifact publication recovers a process-killed mixed binary set', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-interrupted-'));
   const bin = join(root, 'bin');
   const firstStage = join(bin, '.build-a11');
@@ -1034,7 +1038,7 @@ if ($From -eq '${killAfterFirstPublish}') {
   assert.equal(existsSync(join(bin, '.build-publication.json')), false);
 });
 
-test('recovery is idempotent when killed after moving a backup to its target', (t) => {
+winTest('recovery is idempotent when killed after moving a backup to its target', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovery-restore-kill-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a80');
@@ -1079,7 +1083,7 @@ if ($From -eq '${join(backup, 'a.exe').replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('live rollback is idempotent when killed after restoring one target', (t) => {
+winTest('live rollback is idempotent when killed after restoring one target', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-live-restore-kill-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a81');
@@ -1116,7 +1120,7 @@ if ($From -eq '${join(backup, 'b.exe').replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('committed journal recovery keeps the complete new artifact generation', (t) => {
+winTest('committed journal recovery keeps the complete new artifact generation', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-committed-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a33');
@@ -1152,7 +1156,7 @@ if ($Path -eq '${journal.replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('publication does not report success while a committed journal remains', (t) => {
+winTest('publication does not report success while a committed journal remains', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-journal-cleanup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a34');
@@ -1188,7 +1192,7 @@ if ($Path -eq '${journal.replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('publishing retains the committed journal when directory cleanup does not complete', (t) => {
+winTest('publishing retains the committed journal when directory cleanup does not complete', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-directory-cleanup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a35');
@@ -1223,7 +1227,7 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('recovery retains a committed journal when directory cleanup must be retried', (t) => {
+winTest('recovery retains a committed journal when directory cleanup must be retried', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovery-cleanup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a36');
@@ -1268,7 +1272,7 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
   assert.equal(existsSync(backup), false);
 });
 
-test('overlapping build publishers cannot recover a live transaction', async (t) => {
+winTest('overlapping build publishers cannot recover a live transaction', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'fragforge-build-overlap-'));
   const bin = join(root, 'bin');
   const firstStage = join(bin, '.build-a44');

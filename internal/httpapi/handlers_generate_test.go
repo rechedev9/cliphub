@@ -81,6 +81,9 @@ func TestStartGenerateEnqueuesRecordAndWritesIntent(t *testing.T) {
 	if len(queue.options) != 1 || !hasAsynqOption(queue.options[0], "Unique(") {
 		t.Fatalf("enqueue options = %#v, want Unique option for dedup", queue.options)
 	}
+	if !hasAsynqOption(queue.options[0], "MaxRetry(0)") {
+		t.Fatalf("enqueue options = %#v, want MaxRetry(0) so capture never auto-retries", queue.options)
+	}
 
 	// The intent is persisted so the record worker can chain the render.
 	raw, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]

@@ -208,7 +208,7 @@ export class RealApiClient implements ApiClient {
   /** Consecutive 404 status polls per reel, feeding the unrecoverable latch. */
   private readonly jobGoneTicks = new Map<string, number>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
-  private readonly artifactNames = new Map<string, { video: string; cover?: string }>();
+  private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[] }>();
   /**
    * Cached per-job series match (map/score), keyed by jobId. A match is
    * immutable once a job has one, and this client is a module singleton, so
@@ -534,6 +534,8 @@ export class RealApiClient implements ApiClient {
           this.reels.set(intent.videoId, clearVideoArtifactUrls(previousRevision));
         }
         intent.editConfig = resolution.editConfig;
+        // New candidates will appear after re-render; reopen the thumbnail gate.
+        delete intent.selectedCoverName;
         saveReelIntents(Array.from(this.intents.values()));
         this.applyView(intent, { status: 'queued', action: 'none' });
       } finally {
@@ -569,6 +571,28 @@ export class RealApiClient implements ApiClient {
    * dropped regardless so the reel disappears even when the orchestrator is
    * unreachable, matching the user's intent to clear it.
    */
+  async selectVideoCover(id: string, coverName: string): Promise<Video> {
+    const intent = this.intents.get(id);
+    if (!intent) throw new Error('Reel desconocido.');
+    const names = this.artifactNames.get(id);
+    const candidates = names?.covers ?? (names?.cover ? [names.cover] : []);
+    if (!candidates.includes(coverName)) {
+      throw new Error('Esa portada ya no está entre las candidatas de este reel.');
+    }
+    intent.selectedCoverName = coverName;
+    saveReelIntents(Array.from(this.intents.values()));
+    const current = this.reels.get(id) ?? videoFromIntent(intent);
+    const variant = variantOf(intent);
+    const next: Video = {
+      ...current,
+      selectedCoverName: coverName,
+      coverCandidates: candidates,
+      thumbnailUrl: dataPlane().coverUrl(intent.jobId, variant, coverName),
+    };
+    this.reels.set(id, next);
+    return { ...next };
+  }
+
   async deleteVideo(id: string): Promise<void> {
     const intent = this.intents.get(id);
     if (!intent) return this.fallback.deleteVideo(id);
@@ -682,6 +706,7 @@ export class RealApiClient implements ApiClient {
       warnings?: string[];
       videoName?: string;
       coverName?: string;
+      coverNames?: string[];
       artifactPrefix?: string;
       editConfig?: EditConfig;
       effectiveMusic?: EffectiveRenderMusic;
@@ -692,8 +717,14 @@ export class RealApiClient implements ApiClient {
     // Capture the server's real artifact names so applyView addresses the reel
     // by the editor's file names instead of guessing from segment ids.
     if (render.videoName) {
-      const names: { video: string; cover?: string } = { video: render.videoName };
-      if (render.coverName) names.cover = render.coverName;
+      const names: { video: string; cover?: string; covers?: string[] } = { video: render.videoName };
+      if (render.coverNames && render.coverNames.length > 0) {
+        names.covers = render.coverNames;
+        names.cover = render.coverName ?? render.coverNames[0];
+      } else if (render.coverName) {
+        names.cover = render.coverName;
+        names.covers = [render.coverName];
+      }
       this.artifactNames.set(intent.videoId, names);
     }
     if (render.status === 'ready' || render.status === 'review_required') {
@@ -751,7 +782,20 @@ export class RealApiClient implements ApiClient {
       const variant = variantOf(intent);
       const dp = dataPlane();
       next.downloadUrl = dp.videoUrl(intent.jobId, variant, names.video);
-      if (names.cover) next.thumbnailUrl = dp.coverUrl(intent.jobId, variant, names.cover);
+      if (names.covers && names.covers.length > 0) {
+        next.coverCandidates = [...names.covers];
+      }
+      const approvedCover =
+        intent.selectedCoverName && names.covers?.includes(intent.selectedCoverName)
+          ? intent.selectedCoverName
+          : undefined;
+      if (approvedCover) {
+        next.selectedCoverName = approvedCover;
+        next.thumbnailUrl = dp.coverUrl(intent.jobId, variant, approvedCover);
+      } else if (names.cover) {
+        // Preview the first candidate without treating it as approved.
+        next.thumbnailUrl = dp.coverUrl(intent.jobId, variant, names.cover);
+      }
     }
     this.reels.set(intent.videoId, next);
   }
@@ -903,6 +947,7 @@ export class RealApiClient implements ApiClient {
     warnings?: string[];
     videoName?: string;
     coverName?: string;
+    coverNames?: string[];
     artifactPrefix?: string;
     editConfig?: EditConfig;
     effectiveMusic?: EffectiveRenderMusic;
@@ -939,12 +984,16 @@ export class RealApiClient implements ApiClient {
       'failed',
     ]);
     const status: RenderStatus = data.status && known.has(data.status as RenderStatus) ? (data.status as RenderStatus) : 'none';
+    const coverNames = Array.isArray(data.covers)
+      ? data.covers.filter((name): name is string => typeof name === 'string' && name.length > 0)
+      : undefined;
     return {
       status,
       failureReason: data.failure_reason,
       warnings: data.warnings,
       videoName: data.videos?.[0],
-      coverName: data.covers?.[0],
+      coverName: coverNames?.[0],
+      coverNames,
       artifactPrefix: data.artifact_prefix,
       editConfig: parseEffectiveEditConfig(data.edit),
       effectiveMusic: parseEffectiveRenderMusic(data.music),

@@ -27,6 +27,9 @@ import {
   rollbackPublishedDirectory,
 } from './atomic-publication.mjs';
 
+const isWin32 = process.platform === 'win32';
+const winTest = isWin32 ? test : test.skip;
+
 test('invokes the Windows write-through rename helper without shell interpolation', () => {
   if (process.platform !== 'win32') return;
   let invocation;
@@ -573,7 +576,7 @@ test('recovery completes a restoring journal after its backup rename', (t) => {
   assert.equal(existsSync(journal), false);
 });
 
-test('publication lock excludes another live process and releases on owner death', async (t) => {
+winTest('publication lock excludes another live process and releases on owner death', async (t) => {
   const testRoot = mkdtempSync(join(tmpdir(), 'fragforge-publication-lock-'));
   const target = join(testRoot, 'dist-installer');
   const moduleURL = new URL('./atomic-publication.mjs', import.meta.url).href;
@@ -613,7 +616,7 @@ test('publication lock excludes another live process and releases on owner death
   );
 });
 
-test('publication lock grants exactly one of two simultaneous contenders', async (t) => {
+winTest('publication lock grants exactly one of two simultaneous contenders', async (t) => {
   const testRoot = mkdtempSync(join(tmpdir(), 'fragforge-publication-lock-race-'));
   const target = join(testRoot, 'dist-installer');
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
@@ -687,7 +690,7 @@ test('publication lock rejects a hard-linked lock path without touching its targ
   assert.equal(readFileSync(lockPath, 'utf8'), sentinel);
 });
 
-test('publication fence survives helper death while its Node owner is alive', async (t) => {
+winTest('publication fence survives helper death while its Node owner is alive', async (t) => {
   const testRoot = mkdtempSync(join(tmpdir(), 'fragforge-publication-fence-'));
   const target = join(testRoot, 'dist-installer');
   let helper;

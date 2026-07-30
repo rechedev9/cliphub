@@ -45,6 +45,16 @@ for (const required of [zvOrchestrator, zvEditor, zvRecorder]) {
     process.exit(1);
   }
 }
+// Manual assemble can ship stale bins if someone skips dist's rebuild step.
+// Release path (dist.mjs → build.ps1 then assemble) is correct; warn loudly so
+// ad-hoc packaging is not mistaken for a fresh runtime.
+if (process.env.FRAGFORGE_ASSEMBLE_ALLOW_STALE_BIN !== '1') {
+  console.warn(
+    '[assemble] using existing repo/bin/*.exe without rebuilding. ' +
+      'Release packaging must go through pnpm --dir desktop run dist ' +
+      '(rebuilds Go runtimes first). Set FRAGFORGE_ASSEMBLE_ALLOW_STALE_BIN=1 to silence.',
+  );
+}
 // electron-builder picks up build/icon.ico automatically (see desktop/GUIDE.md);
 // it does not fail loudly if it's missing, it just ships an installer with the
 // default Electron icon. Fail here instead, before the (slow) Next.js build

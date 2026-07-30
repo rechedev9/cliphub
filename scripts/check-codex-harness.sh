@@ -14,7 +14,15 @@ if ! command -v codex >/dev/null 2>&1; then
 fi
 
 echo "== shell syntax =="
-mapfile -t shell_scripts < <(find scripts -maxdepth 1 -type f -name '*.sh' | sort)
+# Bash 3.2 (macOS /bin/bash) has no mapfile; keep a portable file list.
+shell_scripts=()
+while IFS= read -r script; do
+  shell_scripts+=("$script")
+done < <(find scripts -maxdepth 1 -type f -name '*.sh' | sort)
+if [ "${#shell_scripts[@]}" -eq 0 ]; then
+  echo "FAIL: no scripts/*.sh files found" >&2
+  exit 1
+fi
 bash -n "${shell_scripts[@]}"
 
 echo "== Codex sees AGENTS.md =="

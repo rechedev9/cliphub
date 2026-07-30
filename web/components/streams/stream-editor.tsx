@@ -20,6 +20,7 @@ import {
   startMontagePlayback,
 } from '@/lib/stream-preview';
 import { STREAMER_NICK_RE, planFingerprint } from '@/lib/streams/plan';
+import { streamCreativeBrief } from '@/lib/streams/brief';
 import { StreamFrameSession } from '@/components/streams/stream-frame-session';
 import { StreamJobHeader } from '@/components/streams/job-header';
 import { StreamLayoutPicker } from '@/components/streams/layout-picker';
@@ -79,6 +80,14 @@ export function StreamEditor({
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReload, setPreviewReload] = useState(0);
+  const [briefApproved, setBriefApproved] = useState(false);
+  const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
+  const planKey = useMemo(() => planFingerprint(plan), [plan]);
+
+  // Any plan mutation invalidates the creative brief (same contract as demo reels).
+  useEffect(() => {
+    setBriefApproved(false);
+  }, [planKey]);
 
   useEffect(() => {
     if (!previewPlaying || sourceDuration <= 0) return;
@@ -241,6 +250,9 @@ export function StreamEditor({
           <StreamRenderBar
             rendering={stage === 'rendering'}
             busy={busy}
+            briefItems={briefItems}
+            briefApproved={briefApproved}
+            onBriefApprovedChange={setBriefApproved}
             onCreate={onCreate}
             onStartOver={onStartOver}
           />

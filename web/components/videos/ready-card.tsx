@@ -23,6 +23,7 @@ import { PublishAssistantDialog } from '@/components/videos/publish-assistant-di
 import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
 import { EditOptions } from '@/components/clips/edit-options';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { CoverImage } from '@/components/studio/cover-image';
 
 /**
  * A finished, downloadable reel. The card is the shared `ReelCard` in its payoff
@@ -44,11 +45,36 @@ export function ReadyCard({
   const [publishOpen, setPublishOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const reviewRequired = video.status === 'review_required';
+  const coverStrategy = video.editConfig?.coverStrategy ?? 'generated-gameplay';
+  const coverCandidates = video.coverCandidates ?? [];
+  const needsCoverGate =
+    !reviewRequired &&
+    coverStrategy !== 'no-cover' &&
+    coverCandidates.length > 0;
+  const coverApproved =
+    !needsCoverGate ||
+    (video.selectedCoverName != null && coverCandidates.includes(video.selectedCoverName));
 
   const handleDownload = () => {
     if (!video.downloadUrl) return;
     downloadPublishMP4(video.downloadUrl, video.title);
+  };
+
+  const handleSelectCover = async (coverName: string) => {
+    if (coverBusy) return;
+    setCoverBusy(true);
+    setCoverError(null);
+    try {
+      await api.selectVideoCover(video.id, coverName);
+      onChange?.();
+    } catch (err) {
+      setCoverError(err instanceof Error ? err.message : 'No se pudo seleccionar la portada.');
+    } finally {
+      setCoverBusy(false);
+    }
   };
 
   // In cloud mode the reel's media is a DOM object URL (blob:) fetched through the
@@ -108,6 +134,55 @@ export function ReadyCard({
         }
         footer={
           <div className="flex flex-col gap-2 p-4">
+            {needsCoverGate ? (
+              <section
+                className="space-y-2 border border-primary/25 bg-primary/[0.04] p-3"
+                aria-labelledby={`cover-gate-${video.id}`}
+              >
+                <p
+                  id={`cover-gate-${video.id}`}
+                  className="font-mono text-meta uppercase tracking-wider text-primary"
+                >
+                  Portada · elige candidata
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {coverCandidates.map((name) => {
+                    const selected = video.selectedCoverName === name;
+                    const src =
+                      video.jobId && video.variant
+                        ? `/api/demos/${video.jobId}/renders/${video.variant}/covers/${name}`
+                        : undefined;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        disabled={coverBusy}
+                        onClick={() => void handleSelectCover(name)}
+                        className={
+                          selected
+                            ? 'relative aspect-video overflow-hidden border-2 border-primary focus-visible:outline-2 focus-visible:outline-ring'
+                            : 'relative aspect-video overflow-hidden border border-border-strong opacity-90 hover:border-primary/60 focus-visible:outline-2 focus-visible:outline-ring'
+                        }
+                        aria-pressed={selected}
+                        aria-label={`Seleccionar portada ${name}`}
+                      >
+                        <CoverImage src={src} className="absolute inset-0 size-full object-cover" />
+                      </button>
+                    );
+                  })}
+                </div>
+                {!coverApproved ? (
+                  <p className="text-body-sm text-fg-2">
+                    Confirma una portada antes de marcar el pack listo para subir.
+                  </p>
+                ) : (
+                  <p className="text-body-sm text-fg-2">Portada aprobada.</p>
+                )}
+                {coverError ? (
+                  <p role="alert" className="text-body-sm text-destructive">{coverError}</p>
+                ) : null}
+              </section>
+            ) : null}
             {/* Full width, and allowed to wrap rather than being starved into a
                 112px column by a three-track footer grid. */}
             {reviewRequired ? (
@@ -125,6 +200,7 @@ export function ReadyCard({
                 variant="hero"
                 className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
                 onClick={() => setPublishOpen(true)}
+                disabled={!coverApproved}
               >
                 <Youtube className="size-4" aria-hidden /> PREPARAR PUBLICACIÓN
               </Button>
@@ -136,7 +212,7 @@ export function ReadyCard({
                 size="sm"
                 className="flex-1"
                 onClick={handleDownload}
-                disabled={!video.downloadUrl}
+                disabled={!video.downloadUrl || !coverApproved}
               >
                 <Download className="size-4" aria-hidden /> MP4
               </Button>

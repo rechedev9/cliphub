@@ -11,6 +11,7 @@ import (
 
 	"github.com/rechedev9/fragforge/internal/anticheat"
 	"github.com/rechedev9/fragforge/internal/artifacts"
+	"github.com/rechedev9/fragforge/internal/job"
 	"github.com/rechedev9/fragforge/internal/tasks"
 )
 
@@ -24,6 +25,45 @@ func TestFailAnticheatMarksTerminalCancellationFailed(t *testing.T) {
 	err := NewParserWorker(newFakeRepo(), store).failAnticheat(ctx, id, doc, errors.New("analysis interrupted"))
 	if err != nil {
 		t.Fatalf("failAnticheat error = %v", err)
+	}
+
+	raw, ok := store.files[artifacts.AnticheatKey(id)]
+	if !ok {
+		t.Fatal("anticheat document was not written")
+	}
+	decoded, err := anticheat.DecodeDocument(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("decode document: %v", err)
+	}
+	if decoded.Status != anticheat.StatusFailed {
+		t.Fatalf("document status = %q, want %q", decoded.Status, anticheat.StatusFailed)
+	}
+}
+
+// Side-lane contract: a failed screening only writes anticheat.json and must
+// never flip the demo job status (parse/clip pipeline stays independent).
+func TestProcessAnalyzeAnticheatFailureDoesNotMutateJobStatus(t *testing.T) {
+	id := uuid.New()
+	repo := newFakeJobRepo(job.Job{
+		ID:       id,
+		Status:   job.StatusParsed,
+		DemoPath: "demos/missing-for-anticheat.dem",
+	})
+	store := newFakeStorage()
+
+	if err := NewParserWorker(repo, store).ProcessAnalyzeAnticheat(context.Background(), id); err != nil {
+		t.Fatalf("ProcessAnalyzeAnticheat error = %v, want nil (failure is in the document)", err)
+	}
+
+	got := repo.jobs[id]
+	if got == nil {
+		t.Fatal("job disappeared")
+	}
+	if got.Status != job.StatusParsed {
+		t.Fatalf("job status = %v, want StatusParsed (anticheat must not mutate job status)", got.Status)
+	}
+	if got.FailureReason != "" {
+		t.Fatalf("job failure_reason = %q, want empty (anticheat failures stay in the document)", got.FailureReason)
 	}
 
 	raw, ok := store.files[artifacts.AnticheatKey(id)]

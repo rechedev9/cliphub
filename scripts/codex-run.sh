@@ -119,7 +119,13 @@ if is_true "${CODEX_DRY_RUN:-}"; then
   echo "sandbox: $sandbox"
   echo "approval: $approval"
   printf 'command: codex'
-  printf ' %q' "${global_args[@]}" exec "${exec_args[@]}" -
+  # Bash 3.2 + set -u rejects expanding an empty array with "${arr[@]}".
+  printf ' %q' "${global_args[@]}"
+  printf ' %q' exec
+  if [ "${#exec_args[@]}" -gt 0 ]; then
+    printf ' %q' "${exec_args[@]}"
+  fi
+  printf ' %q' -
   echo
   echo "--- final prompt ---"
   cat "$tmp"
@@ -131,4 +137,7 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 127
 fi
 
-exec codex "${global_args[@]}" exec "${exec_args[@]}" - < "$tmp"
+if [ "${#exec_args[@]}" -gt 0 ]; then
+  exec codex "${global_args[@]}" exec "${exec_args[@]}" - < "$tmp"
+fi
+exec codex "${global_args[@]}" exec - < "$tmp"

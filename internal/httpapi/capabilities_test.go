@@ -19,7 +19,8 @@ import (
 func TestGetCapabilitiesReportsPerToolStatus(t *testing.T) {
 	dir := t.TempDir()
 	present := filepath.Join(dir, "recorder.exe")
-	if err := os.WriteFile(present, []byte("x"), 0o600); err != nil {
+	// LookPath / ExecutableFile require the execute bit on Unix; Windows ignores mode.
+	if err := os.WriteFile(present, []byte("x"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	caps := Capabilities{

@@ -162,7 +162,9 @@ func TestCodexHarnessRunsProjectCheck(t *testing.T) {
 	for _, want := range []string{
 		"source scripts/go-env.sh",
 		"ensure_go_toolchain",
-		"mapfile -t shell_scripts",
+		// Portable on bash 3.2 (macOS /bin/bash has no mapfile).
+		`shell_scripts=()`,
+		`shell_scripts+=("$script")`,
 		"find scripts -maxdepth 1 -type f -name '*.sh' | sort",
 		`bash -n "${shell_scripts[@]}"`,
 		"== FragForge workflow contract ==",
@@ -171,6 +173,9 @@ func TestCodexHarnessRunsProjectCheck(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("%s does not contain %q", path, want)
 		}
+	}
+	if strings.Contains(body, "mapfile ") {
+		t.Fatalf("%s still uses mapfile (bash 4+ only)", path)
 	}
 }
 

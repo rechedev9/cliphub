@@ -487,11 +487,26 @@ export class MockApiClient implements ApiClient {
       video.editConfig = resolution.editConfig;
       video.status = 'queued';
       video.createdAt = Date.now();
+      delete video.selectedCoverName;
+      delete video.coverCandidates;
     } else {
       if (!resolution.note.trim()) throw new Error('review note is required');
       video.status = 'ready';
     }
     video.warnings = undefined;
+    return project(video);
+  }
+
+  async selectVideoCover(id: string, coverName: string): Promise<Video> {
+    await delay();
+    const video = videos.find((v) => v.id === id);
+    if (!video) throw new Error(`video not found: ${id}`);
+    const candidates = video.coverCandidates ?? [];
+    if (candidates.length > 0 && !candidates.includes(coverName)) {
+      throw new Error('cover candidate not found');
+    }
+    video.selectedCoverName = coverName;
+    video.thumbnailUrl = video.thumbnailUrl ?? `/mock/covers/${coverName}`;
     return project(video);
   }
 

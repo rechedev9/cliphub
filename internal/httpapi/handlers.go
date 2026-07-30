@@ -1277,7 +1277,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			}
 			return h.writeRenderVariantState(failedState)
 		}
-	}, asynq.Unique(renderUniqueTTL))
+	}, asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL))
 	if err != nil {
 		if errors.Is(err, asynq.ErrDuplicateTask) {
 			if reviewReplacement {

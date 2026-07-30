@@ -198,6 +198,34 @@ func TestRunRecordReportsUnavailableCaptureTools(t *testing.T) {
 	}
 }
 
+func TestRunRecordFakeSkipsCaptureTools(t *testing.T) {
+	// --fake is the media-free e2e tier: placeholder segments without HLAE/CS2.
+	runner := &multiRunner{}
+	var stdout, stderr strings.Builder
+
+	code := Run([]string{
+		"zv", "record",
+		"--killplan", "plan.json",
+		"--demo", "inferno.dem",
+		"--out", "recording",
+		"--fake",
+	}, &stdout, &stderr, nil, runner)
+
+	if got, want := code, exitSuccess; got != want {
+		t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
+	}
+	if got, want := len(runner.calls), 1; got != want {
+		t.Fatalf("calls len = %d, want %d: %#v", got, want, runner.calls)
+	}
+	gotArgs := strings.Join(runner.calls[0].Args, " ")
+	if !strings.Contains(gotArgs, "--fake") {
+		t.Fatalf("record args = %q, want --fake preserved", gotArgs)
+	}
+	if strings.Contains(gotArgs, "--hlae") || strings.Contains(gotArgs, "--cs2") {
+		t.Fatalf("record args = %q, want no HLAE/CS2 injection in fake mode", gotArgs)
+	}
+}
+
 func TestRunRecordJSONErrorsStayStructured(t *testing.T) {
 	tests := []struct {
 		name string
