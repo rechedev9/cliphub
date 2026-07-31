@@ -12,11 +12,11 @@ import (
 	"github.com/hibiken/asynq"
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/job"
-	"github.com/rechedev9/fragforge/internal/tactical"
-	"github.com/rechedev9/fragforge/internal/tacticalplan"
-	"github.com/rechedev9/fragforge/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/tactical"
+	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/tickcut/internal/tasks"
 )
 
 func TestTacticalWorkerSkipsScanWhenArtifactsExist(t *testing.T) {

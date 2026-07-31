@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/capturetools"
+	"github.com/rechedev9/tickcut/internal/capturetools"
 )
 
 type commandRunner interface {

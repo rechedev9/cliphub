@@ -3,7 +3,7 @@
 `AGENTS.md` is a tracked symbolic link to this file.
 Edit `CLAUDE.md` only, and never replace the `AGENTS.md` symlink with a regular file.
 The pre-commit hook rejects a broken link and commits made outside `main`.
-This repository intentionally has no `README` files; use purpose-specific names such as `PRODUCT.md`, `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md`.
+The root `README.md` is the public product entrypoint (GitHub + onboarding). Prefer purpose-specific names such as `PRODUCT.md`, `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md` for operational detail.
 
 ## Product
 
@@ -159,7 +159,7 @@ The change-aware `.githooks/pre-commit` gate runs project checks and package-spe
 Never bypass it with `--no-verify` or `core.hooksPath`: with no CI behind it, a skipped hook means the change was never checked at all.
 TickCut has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
 Every desktop distribution must rebuild all Go runtime executables in the same `dist` invocation before `assemble` stages `bin/`; an existing executable is not proof that it matches the current source. Keep the guarded `scripts/build.ps1` step in `desktop/scripts/dist.mjs`, and never publish an installer produced from a manually staged or pre-existing `bin/`.
-Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/fragforge`, update the landing download URL, then deploy Vercel project `fragforge-landing` with root `landing/` to `https://fragforge.gravityroom.app/`.
+Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/tickcut`, update the landing download URL, then deploy Vercel project `fragforge-landing` with root `landing/` to `https://fragforge.gravityroom.app/`.
 Do not use the retired VPS landing path.
 
 ## Codex Harness

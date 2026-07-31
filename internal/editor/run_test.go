@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 func TestRunDryRunWritesManifestsPromptsAndDoesNotExecuteFFmpeg(t *testing.T) {

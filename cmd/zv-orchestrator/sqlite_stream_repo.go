@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/streamclips"
-	"github.com/rechedev9/fragforge/internal/vodfetch"
+	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/vodfetch"
 )
 
 // sqliteStreamJobRepository persists streamer-clip jobs (internal/streamclips)

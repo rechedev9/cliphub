@@ -5,10 +5,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rechedev9/fragforge/internal/editor"
-	"github.com/rechedev9/fragforge/internal/parser"
-	"github.com/rechedev9/fragforge/internal/recording"
-	"github.com/rechedev9/fragforge/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/tickcut/internal/parser"
+	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/tickcut/internal/streamclips"
 )
 
 func findWorkflow(name string) (workflowInfo, bool) {

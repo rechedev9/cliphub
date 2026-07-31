@@ -3,8 +3,8 @@ package workers
 import (
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/streamclips"
-	"github.com/rechedev9/fragforge/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/tasks"
 )
 
 // writeRecoverableStreamRenderState persists the stable machine-readable code

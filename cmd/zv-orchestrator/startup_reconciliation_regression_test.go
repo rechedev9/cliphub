@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/job"
-	"github.com/rechedev9/fragforge/internal/obs"
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/streamclips"
 )
 
 type startupFailingJobRepository struct {

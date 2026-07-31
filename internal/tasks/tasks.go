@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/fragforge/internal/renderplan"
+	"github.com/rechedev9/tickcut/internal/renderplan"
 )
 
 const (

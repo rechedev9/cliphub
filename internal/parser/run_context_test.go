@@ -13,7 +13,7 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	dp "github.com/markus-wa/godispatch"
 
-	"github.com/rechedev9/fragforge/internal/rules"
+	"github.com/rechedev9/tickcut/internal/rules"
 )
 
 const testTargetSteamID = "76561198000000000"

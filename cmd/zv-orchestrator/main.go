@@ -13,14 +13,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/fragforge/internal/generateintent"
-	"github.com/rechedev9/fragforge/internal/httpapi"
-	"github.com/rechedev9/fragforge/internal/obs"
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/streamclips"
-	"github.com/rechedev9/fragforge/internal/tasks"
-	"github.com/rechedev9/fragforge/internal/workers"
-	"github.com/rechedev9/fragforge/internal/youtubetrends"
+	"github.com/rechedev9/tickcut/internal/generateintent"
+	"github.com/rechedev9/tickcut/internal/httpapi"
+	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/workers"
+	"github.com/rechedev9/tickcut/internal/youtubetrends"
 )
 
 type orchestratorStreamJobRepository interface {

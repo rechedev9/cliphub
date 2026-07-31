@@ -8,8 +8,8 @@ import (
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/rules"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/rules"
 )
 
 // ErrTargetNotFound is returned when the requested target SteamID was never

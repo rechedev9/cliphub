@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/tuiclient"
+	"github.com/rechedev9/tickcut/internal/tuiclient"
 )
 
 // truncate shortens s to at most n runes, adding an ellipsis when cut. A

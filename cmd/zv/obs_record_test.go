@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/obs"
+	"github.com/rechedev9/tickcut/internal/obs"
 )
 
 func TestShortStageClass(t *testing.T) {

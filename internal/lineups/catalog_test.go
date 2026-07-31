@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 func TestCatalogMatchesSmokeByLandingAndThrow(t *testing.T) {

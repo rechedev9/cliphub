@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/tacticalplan"
+	"github.com/rechedev9/tickcut/internal/tacticalplan"
 )
 
 // siteRadius is how close to a site centre a player counts as being on it. A

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/rhythm"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/rhythm"
 )
 
 func TestLoadRhythmSyncIndexesSegments(t *testing.T) {

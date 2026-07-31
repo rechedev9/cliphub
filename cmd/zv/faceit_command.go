@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/faceit"
-	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/tickcut/internal/faceit"
+	"github.com/rechedev9/tickcut/internal/storage"
 )
 
 type faceitIndexer interface {

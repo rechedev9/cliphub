@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/httpapi"
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/httpapi"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/streamclips"
 )
 
 // TestPostStreamJobsUnderSQLiteMode is the regression test for the desktop

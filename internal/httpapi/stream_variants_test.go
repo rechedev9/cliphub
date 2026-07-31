@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/streamclips"
 )
 
 func TestListStreamVariantsUsesRegistryOrderAndDefault(t *testing.T) {

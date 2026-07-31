@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/capturetools"
-	"github.com/rechedev9/fragforge/internal/editor"
+	"github.com/rechedev9/tickcut/internal/capturetools"
+	"github.com/rechedev9/tickcut/internal/editor"
 )
 
 // multiRunner records every delegated call and can fail a specific stage. It

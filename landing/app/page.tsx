@@ -24,9 +24,9 @@ import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/fragforge/releases/download/v2.4.8/TickCut.Studio.Setup.2.4.8.exe";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.8/TickCut.Studio.Setup.2.4.8.exe";
 const RELEASE_VERSION = "v2.4.8";
-const REPO_URL = "https://github.com/rechedev9/fragforge";
+const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
   return (

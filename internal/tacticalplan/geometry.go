@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/rechedev9/fragforge/internal/radarmap"
+	"github.com/rechedev9/tickcut/internal/radarmap"
 )
 
 // GeometrySourceOccupancy marks geometry derived from where players actually

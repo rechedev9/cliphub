@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/tuiclient"
+	"github.com/rechedev9/tickcut/internal/tuiclient"
 )
 
 // Messages carry the result of async work back into the Bubble Tea update loop.

@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/rules"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/rules"
 )
 
 // ErrNotFound is returned by Get when no job has the requested id.

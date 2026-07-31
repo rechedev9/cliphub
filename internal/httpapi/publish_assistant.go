@@ -17,11 +17,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/editor"
-	"github.com/rechedev9/fragforge/internal/renderplan"
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/youtubeinsights"
-	"github.com/rechedev9/fragforge/internal/youtubetrends"
+	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/tickcut/internal/renderplan"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/youtubeinsights"
+	"github.com/rechedev9/tickcut/internal/youtubetrends"
 )
 
 const (

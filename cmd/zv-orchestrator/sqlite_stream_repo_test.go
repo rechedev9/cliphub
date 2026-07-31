@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/streamclips"
 )
 
 // newTestSQLiteStreamRepo builds a sqlite stream job repository the same way

@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/job"
-	"github.com/rechedev9/fragforge/internal/recording"
-	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/tickcut/internal/storage"
 )
 
 // captureProgressView reports how far a capturing job has advanced: how many of

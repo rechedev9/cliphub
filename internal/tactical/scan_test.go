@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/tacticalplan"
+	"github.com/rechedev9/tickcut/internal/tacticalplan"
 )
 
 func TestOptionsSampleRate(t *testing.T) {

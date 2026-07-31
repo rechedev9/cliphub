@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/obs"
-	"github.com/rechedev9/fragforge/internal/parser"
+	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/tickcut/internal/parser"
 )
 
 func TestIsDemo(t *testing.T) {

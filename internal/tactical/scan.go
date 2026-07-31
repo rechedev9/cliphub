@@ -26,9 +26,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/parser"
-	"github.com/rechedev9/fragforge/internal/radarmap"
-	"github.com/rechedev9/fragforge/internal/tacticalplan"
+	"github.com/rechedev9/tickcut/internal/parser"
+	"github.com/rechedev9/tickcut/internal/radarmap"
+	"github.com/rechedev9/tickcut/internal/tacticalplan"
 )
 
 // DefaultSampleHZ is the position sampling rate. At 125 ms between samples a

@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/job"
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 var benchmarkStatusResponseSize int

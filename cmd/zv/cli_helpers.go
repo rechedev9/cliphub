@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/tickcut/internal/storage"
 )
 
 func parseFormatArgs(args []string) (string, []string, error) {

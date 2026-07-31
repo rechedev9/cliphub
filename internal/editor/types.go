@@ -4,8 +4,8 @@ package editor
 import (
 	"image"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 const (

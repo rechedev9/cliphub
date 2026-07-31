@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/mediafont"
+	"github.com/rechedev9/tickcut/internal/mediafont"
 )
 
 const (

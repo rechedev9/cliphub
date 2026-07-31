@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 var (

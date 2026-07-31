@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 const smokeGrenadeType = "smokegrenade"

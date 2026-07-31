@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/rechedev9/fragforge/internal/filecommit"
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/filecommit"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 func publishFileBase(index int, segmentID, player, mapName string, killCount int, weapon string) string {

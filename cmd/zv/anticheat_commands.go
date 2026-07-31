@@ -14,8 +14,8 @@ import (
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
-	"github.com/rechedev9/fragforge/internal/anticheat"
-	"github.com/rechedev9/fragforge/internal/pathguard"
+	"github.com/rechedev9/tickcut/internal/anticheat"
+	"github.com/rechedev9/tickcut/internal/pathguard"
 )
 
 // demoAnticheatResult is the JSON contract of `zv demo anticheat`.

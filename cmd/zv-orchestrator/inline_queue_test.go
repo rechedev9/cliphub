@@ -13,7 +13,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	tasktypes "github.com/rechedev9/fragforge/internal/tasks"
+	tasktypes "github.com/rechedev9/tickcut/internal/tasks"
 )
 
 func startTestInlineQueue(t *testing.T, handlers map[string]taskHandler, concurrency int) *inlineQueue {

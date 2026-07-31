@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/obs"
+	"github.com/rechedev9/tickcut/internal/obs"
 )
 
 func TestHealthHandler(t *testing.T) {

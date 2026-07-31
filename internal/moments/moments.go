@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 const SchemaVersion = "1.0"

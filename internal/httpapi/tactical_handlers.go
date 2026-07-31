@@ -15,12 +15,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/radarmap"
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/tactical"
-	"github.com/rechedev9/fragforge/internal/tacticalplan"
-	"github.com/rechedev9/fragforge/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/radarmap"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/tactical"
+	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/tickcut/internal/tasks"
 )
 
 const tacticalUniqueTTL = 24 * time.Hour

@@ -13,7 +13,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/fragforge/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/tasks"
 )
 
 type taskHandler func(context.Context, *asynq.Task) error

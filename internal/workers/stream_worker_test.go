@@ -14,9 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/fragforge/internal/streamclips"
-	"github.com/rechedev9/fragforge/internal/tasks"
-	"github.com/rechedev9/fragforge/internal/vodfetch"
+	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/vodfetch"
 )
 
 func TestWriteStreamCoverExtractsRenderedFrame(t *testing.T) {

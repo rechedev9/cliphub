@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/lineups"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/lineups"
 )
 
 func TestBuildMarksAutoDestinationSeparately(t *testing.T) {

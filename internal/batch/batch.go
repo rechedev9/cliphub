@@ -25,10 +25,10 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/obs"
-	"github.com/rechedev9/fragforge/internal/parser"
-	"github.com/rechedev9/fragforge/internal/rules"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/tickcut/internal/parser"
+	"github.com/rechedev9/tickcut/internal/rules"
 )
 
 // Options configures a batch run.

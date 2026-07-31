@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/moments"
-	"github.com/rechedev9/fragforge/internal/pathguard"
-	"github.com/rechedev9/fragforge/internal/recording"
-	"github.com/rechedev9/fragforge/internal/rhythm"
+	"github.com/rechedev9/tickcut/internal/moments"
+	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/tickcut/internal/rhythm"
 )
 
 func Run(ctx context.Context, cfg Config) (Result, error) {

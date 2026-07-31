@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rechedev9/fragforge/internal/filecommit"
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/filecommit"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 type shortPackOptions struct {

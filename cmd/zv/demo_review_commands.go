@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/moments"
-	"github.com/rechedev9/fragforge/internal/pathguard"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/moments"
+	"github.com/rechedev9/tickcut/internal/pathguard"
 )
 
 type demoMomentsResult struct {

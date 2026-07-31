@@ -24,6 +24,11 @@ func checkWorkflowDocs() ([]workflowDoc, []skillIssue, error) {
 		return nil, nil, err
 	}
 	for _, path := range readmePaths {
+		// The root README.md is the public product entrypoint (GitHub). Nested
+		// README files stay banned so operational docs keep purpose-specific names.
+		if isRootReadme(path) {
+			continue
+		}
 		issues = append(issues, skillIssue{
 			Path:    path,
 			Message: "README files are not allowed; use a purpose-specific document name",
@@ -102,6 +107,12 @@ func skipReadmeScanDirectory(name string) bool {
 	default:
 		return false
 	}
+}
+
+func isRootReadme(relPath string) bool {
+	relPath = filepath.ToSlash(relPath)
+	base := filepath.Base(relPath)
+	return !strings.Contains(relPath, "/") && strings.EqualFold(strings.TrimSuffix(base, filepath.Ext(base)), "README")
 }
 
 func isExecutableDirectWorkflowCommand(command []string, workflow workflowInfo) bool {

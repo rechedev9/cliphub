@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/tickcut/internal/storage"
 )
 
 func BenchmarkOpenDemoLocal(b *testing.B) {

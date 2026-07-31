@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 const EditDocumentSchemaVersion = "1.0"

@@ -7,9 +7,9 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/fragforge/internal/editor"
-	"github.com/rechedev9/fragforge/internal/job"
-	"github.com/rechedev9/fragforge/internal/renderplan"
+	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/renderplan"
 )
 
 func TestRecordWorkerMarksGenerateFailedWhenIntentHeaderIsMalformed(t *testing.T) {

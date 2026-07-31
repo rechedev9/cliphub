@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 func TestBuildDerivesScoredKillMoments(t *testing.T) {

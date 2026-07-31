@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/filecommit"
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/filecommit"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.SegmentClip, outputPath, workDir string) error {

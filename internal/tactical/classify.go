@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/rechedev9/fragforge/internal/tacticalplan"
+	"github.com/rechedev9/tickcut/internal/tacticalplan"
 )
 
 // The economy thresholds below are per player and are multiplied by the number

@@ -8,7 +8,7 @@ import (
 	"github.com/golang/geo/r3"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 func isSmokeProjectile(projectile *common.GrenadeProjectile) bool {

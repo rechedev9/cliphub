@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/streamclips"
+	"github.com/rechedev9/tickcut/internal/streamclips"
 )
 
 func TestRecoverStreamAcquisitionsFailsJobsWhenWorkerDisabled(t *testing.T) {

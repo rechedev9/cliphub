@@ -17,12 +17,12 @@ import (
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/lineups"
-	"github.com/rechedev9/fragforge/internal/parser"
-	"github.com/rechedev9/fragforge/internal/pathguard"
-	"github.com/rechedev9/fragforge/internal/rules"
-	"github.com/rechedev9/fragforge/internal/utilityaudit"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/lineups"
+	"github.com/rechedev9/tickcut/internal/parser"
+	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/tickcut/internal/utilityaudit"
 )
 
 const (

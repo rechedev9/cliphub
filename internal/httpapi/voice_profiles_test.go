@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/voiceprofile"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/voiceprofile"
 )
 
 func TestVoiceProfileHTTPRoundTrip(t *testing.T) {

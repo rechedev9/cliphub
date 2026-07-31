@@ -3,8 +3,8 @@ package renderplan
 import (
 	"fmt"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/editor"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/editor"
 )
 
 // ValidateRenderVariantRunResult returns an error when the editor wrote a

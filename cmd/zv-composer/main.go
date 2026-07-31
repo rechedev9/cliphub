@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/composition"
-	"github.com/rechedev9/fragforge/internal/pathguard"
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/composition"
+	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 func main() {

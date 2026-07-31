@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/editor"
+	"github.com/rechedev9/tickcut/internal/editor"
 )
 
 func TestRenderVariantFailureMessagePrefersResultError(t *testing.T) {

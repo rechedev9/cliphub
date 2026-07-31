@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 // demoIncompatiblePrefix is the stable, machine-readable marker the web UI

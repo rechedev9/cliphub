@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/rechedev9/fragforge/internal/obs"
+	"github.com/rechedev9/tickcut/internal/obs"
 )
 
 // Health is a cheap liveness probe that never touches the database. It is

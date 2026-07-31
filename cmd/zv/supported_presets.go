@@ -1,6 +1,6 @@
 package main
 
-import "github.com/rechedev9/fragforge/internal/editor"
+import "github.com/rechedev9/tickcut/internal/editor"
 
 func supportedPresetNames() []string {
 	return []string{editor.DefaultPreset().Name}

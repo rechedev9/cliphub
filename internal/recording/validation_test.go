@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 func TestValidateArtifactsAcceptsCompleteSet(t *testing.T) {

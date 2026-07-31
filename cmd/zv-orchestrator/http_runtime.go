@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/httpapi"
+	"github.com/rechedev9/tickcut/internal/httpapi"
 )
 
 const (

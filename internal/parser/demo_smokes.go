@@ -10,8 +10,8 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/rules"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/rules"
 )
 
 func runSmokes(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {

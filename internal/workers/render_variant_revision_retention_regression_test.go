@@ -9,13 +9,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/editor"
-	"github.com/rechedev9/fragforge/internal/job"
-	"github.com/rechedev9/fragforge/internal/recording"
-	"github.com/rechedev9/fragforge/internal/renderplan"
-	"github.com/rechedev9/fragforge/internal/rules"
-	"github.com/rechedev9/fragforge/internal/storage"
-	"github.com/rechedev9/fragforge/internal/tasks"
+	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/tickcut/internal/renderplan"
+	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/tickcut/internal/tasks"
 )
 
 func TestSuccessfulRenderVariantRerenderKeepsPreviousAndWinningRevisionsReadable(t *testing.T) {

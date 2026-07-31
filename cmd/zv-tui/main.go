@@ -12,7 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/rechedev9/fragforge/internal/tuiclient"
+	"github.com/rechedev9/tickcut/internal/tuiclient"
 )
 
 const usage = `zv-tui - lazygit-style terminal UI for the TickCut pipeline

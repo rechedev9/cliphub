@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/editor"
-	"github.com/rechedev9/fragforge/internal/renderplan"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/tickcut/internal/renderplan"
 )
 
 type blockingStorage struct {

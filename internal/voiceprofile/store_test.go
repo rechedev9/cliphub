@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/tickcut/internal/storage"
 )
 
 func TestStoreSaveGetOpenAndDelete(t *testing.T) {

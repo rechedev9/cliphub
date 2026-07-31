@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/artifacts"
-	"github.com/rechedev9/fragforge/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/tickcut/internal/killplan"
 )
 
 const steamID64AccountIDBase uint64 = 76561197960265728

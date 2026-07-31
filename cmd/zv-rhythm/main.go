@@ -9,8 +9,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/rechedev9/fragforge/internal/pathguard"
-	"github.com/rechedev9/fragforge/internal/rhythm"
+	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/tickcut/internal/rhythm"
 )
 
 func main() {

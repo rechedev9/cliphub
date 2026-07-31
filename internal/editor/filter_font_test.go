@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/mediafont"
+	"github.com/rechedev9/tickcut/internal/mediafont"
 )
 
 func TestDefaultDrawtextFontsUseEmbeddedMontserrat(t *testing.T) {

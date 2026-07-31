@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/fragforge/internal/recording"
+	"github.com/rechedev9/tickcut/internal/recording"
 )
 
 func TestRunFFmpegWithOptionalLogRecordsStartFailure(t *testing.T) {

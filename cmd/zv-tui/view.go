@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/rechedev9/fragforge/internal/tuiclient"
+	"github.com/rechedev9/tickcut/internal/tuiclient"
 )
 
 func (m model) View() string {

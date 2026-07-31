@@ -1,4 +1,4 @@
-module github.com/rechedev9/fragforge
+module github.com/rechedev9/tickcut
 
 go 1.26.5
 

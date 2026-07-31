@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rechedev9/fragforge/internal/storage"
+	"github.com/rechedev9/tickcut/internal/storage"
 )
 
 const (

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/rechedev9/fragforge/internal/streamcli"
+	"github.com/rechedev9/tickcut/internal/streamcli"
 )
 
 func main() {

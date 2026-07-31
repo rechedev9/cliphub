@@ -6,10 +6,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rechedev9/fragforge/internal/killplan"
-	"github.com/rechedev9/fragforge/internal/lineups"
-	"github.com/rechedev9/fragforge/internal/recording"
-	"github.com/rechedev9/fragforge/internal/rhythm"
+	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/tickcut/internal/lineups"
+	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/tickcut/internal/rhythm"
 )
 
 func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Manifest, error) {

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/rechedev9/fragforge/internal/capturetools"
+import "github.com/rechedev9/tickcut/internal/capturetools"
 
 // captureToolSource records how each capture/render tool path was resolved, so
 // /api/capabilities can tell the user "auto-detected" vs "you set it" vs
