@@ -1,4 +1,4 @@
-# Go spike playbook for FragForge
+# Go spike playbook for TickCut
 
 Follow `AGENTS.md`.
 

@@ -25,7 +25,7 @@ func TestHealthHandler(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode health response: %v", err)
 	}
-	if got, want := body["service"], "fragforge"; got != want {
+	if got, want := body["service"], "tickcut"; got != want {
 		t.Errorf("service: got %q want %q", got, want)
 	}
 	if got, want := body["status"], "ok"; got != want {
@@ -84,7 +84,7 @@ func TestMetricsHandlerServesCounters(t *testing.T) {
 		t.Fatalf("status: got %d want 200", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, `fragforge_errors_total{class="boom",stage="http"} 1`) {
+	if !strings.Contains(body, `TICKCUT_errors_total{class="boom",stage="http"} 1`) {
 		t.Errorf("metrics body missing seeded counter:\n%s", body)
 	}
 	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {

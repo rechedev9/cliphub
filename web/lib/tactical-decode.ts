@@ -87,7 +87,7 @@ export function tacticalDecodeErrorMessage(error: TacticalDecodeError): string {
     case 'truncated_data':
       return 'El archivo de posiciones está incompleto. Repite el análisis táctico.';
     case 'unsupported_format':
-      return 'El formato de posiciones no es compatible con esta versión de FragForge.';
+      return 'El formato de posiciones no es compatible con esta versión de TickCut.';
     case 'invalid_descriptor':
     case 'invalid_offset':
       return 'Los datos de posiciones no son válidos. Repite el análisis táctico.';

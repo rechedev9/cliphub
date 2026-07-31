@@ -192,7 +192,7 @@ func buildWorkflowCatalog() []workflowInfo {
 		},
 		{
 			Name:        "project-check",
-			Description: "Run the full FragForge CLI, workflow, docs, and skills contract.",
+			Description: "Run the full TickCut CLI, workflow, docs, and skills contract.",
 			Command:     "zv check",
 			RunArgs:     []string{"check"},
 		},

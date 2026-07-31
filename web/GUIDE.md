@@ -1,6 +1,6 @@
-# FragForge Web UI Guide
+# TickCut Web UI Guide
 
-`web/` is the Next.js UI shipped inside the FragForge Windows desktop app. The
+`web/` is the Next.js UI shipped inside the TickCut Windows desktop app. The
 desktop process starts this app as a standalone Next.js server alongside the
 local Go orchestrator, then opens it in an Electron window. It is not a hosted
 web application.
@@ -25,9 +25,9 @@ surface still use typed fixture data through `MockApiClient`.
 
 Read-only proxy requests require the loopback/Origin guard. Every `POST`,
 `PUT`, `PATCH`, and `DELETE` additionally requires the HttpOnly,
-`SameSite=Strict`, `Path=/` cookie named `fragforge_proxy_capability`. The
+`SameSite=Strict`, `Path=/` cookie named `tickcut_proxy_capability`. The
 Next server compares it in constant time with its server-only
-`FRAGFORGE_PROXY_MUTATION_CAPABILITY` environment value and fails closed when
+`TICKCUT_PROXY_MUTATION_CAPABILITY` environment value and fails closed when
 either is absent.
 
 Electron main owns this integration: generate a fresh high-entropy value for
@@ -38,7 +38,7 @@ JavaScript. The value is a proxy capability, separate from
 `ORCHESTRATOR_TOKEN`, which remains server-side.
 
 For `scripts/local-studio.ps1`, a second server-only
-`FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY` is generated (or accepted from the
+`TICKCUT_PROXY_BOOTSTRAP_CAPABILITY` is generated (or accepted from the
 environment) and printed only to the launching terminal. Open `/bootstrap` and
 enter it in the password form. The same-origin POST validates that bootstrap
 value, then sets the separate mutation capability as the HttpOnly cookie. This
@@ -105,7 +105,7 @@ web/
     (app)/feed/                # feed view
   components/
     ui/                        # shadcn/ui primitives
-    brand/                     # FragForge presentation components
+    brand/                     # TickCut presentation components
     shell/                     # app shell and capture readiness
     matches/ clips/ videos/    # feature components
   lib/

@@ -1,4 +1,4 @@
-// Package obs provides local, dependency-free observability for the FragForge
+// Package obs provides local, dependency-free observability for the TickCut
 // pipeline: a structured error journal (newline-delimited JSON) plus counters
 // exported in the Prometheus text exposition format.
 //
@@ -51,8 +51,8 @@ const (
 
 // Metric names. HELP text for each lives in metricHelp.
 const (
-	metricStageRuns = "fragforge_stage_runs_total"
-	metricErrors    = "fragforge_errors_total"
+	metricStageRuns = "TICKCUT_stage_runs_total"
+	metricErrors    = "TICKCUT_errors_total"
 )
 
 var metricHelp = map[string]string{
@@ -258,7 +258,7 @@ func (r *Recorder) flushLocked() error {
 
 // writeFileAtomic writes data to a temp file in the target's directory and
 // renames it over path, so a concurrent reader never observes a torn file.
-// os.Rename replaces the destination atomically on the platforms FragForge
+// os.Rename replaces the destination atomically on the platforms TickCut
 // targets (including Windows, via MoveFileEx).
 func writeFileAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".obs-*.tmp")

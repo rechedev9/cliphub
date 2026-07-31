@@ -26,7 +26,7 @@ function temporaryLibrary(t: test.TestContext): {
   bundledMusicDir: string;
   musicDir: string;
 } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-music-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-music-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return {
     bundledMusicDir: path.join(root, 'bundled'),

@@ -66,7 +66,7 @@ export function StudioInfo(): ReactNode {
         <div className="flex min-w-0 flex-col gap-1">
           <SectionEyebrow label="APLICACIÓN" />
           <h2 id="studio-info-title" className="font-display text-title font-bold uppercase text-fg-1">
-            FragForge Studio
+            TickCut Studio
           </h2>
         </div>
       </div>

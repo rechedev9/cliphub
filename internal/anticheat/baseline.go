@@ -19,7 +19,7 @@ import (
 // per-metric sample count and can judge it.
 const minCalibrationSamples = 15
 
-// defaultBaselineJSON is the reference distribution FragForge ships with. It
+// defaultBaselineJSON is the reference distribution TickCut ships with. It
 // lives as data rather than as literals so recalibrating is a file swap and
 // its provenance travels with the numbers.
 //
@@ -37,7 +37,7 @@ var loadDefaultBaseline = sync.OnceValue(func() Baseline {
 	return b
 })
 
-// DefaultBaseline returns the reference distribution FragForge ships with:
+// DefaultBaseline returns the reference distribution TickCut ships with:
 // top-level professional play, measured with a median and a MAD-derived spread
 // so one atypical match cannot widen it.
 //

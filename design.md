@@ -1,13 +1,13 @@
-# FragForge Codex Workbench Design
+# TickCut Codex Workbench Design
 
-Status: superseded 2026-07-26 — FragForge Studio shipped without the Codex assistant this document proposes; the embedded agent, its typed operation gateway, and the `agent:codex` publish-text worker were removed. Retained as a record of what was proposed. See `PRODUCT.md` and `desktop/GUIDE.md` for the shipped product.
+Status: superseded 2026-07-26 — TickCut Studio shipped without the Codex assistant this document proposes; the embedded agent, its typed operation gateway, and the `agent:codex` publish-text worker were removed. Retained as a record of what was proposed. See `PRODUCT.md` and `desktop/GUIDE.md` for the shipped product.
 Date: 2026-06-07
-Owner: FragForge
+Owner: TickCut
 Document type: product design + UX/UI specification
 
 ## 1. Vision
 
-FragForge should stop feeling like a terminal pipeline and start feeling like a
+TickCut should stop feeling like a terminal pipeline and start feeling like a
 local production desk for CS2 Shorts.
 
 The operator should open one visual Workbench, drop a `.dem`, write the same
@@ -17,7 +17,7 @@ with Codex as the visible operator assistant:
 ```text
 .dem + prompt
   -> Codex understands the intent
-  -> FragForge parses and explains the demo
+  -> TickCut parses and explains the demo
   -> the operator approves expensive steps
   -> HLAE/CS2 records the right footage
   -> FFmpeg renders the selected pack
@@ -60,7 +60,7 @@ work, less hidden state, and fewer repeated manual commands.
 
 ## 4. Target User
 
-Primary user: the local FragForge operator.
+Primary user: the local TickCut operator.
 
 They know the domain, understand CS2 demos, care about full HUD preservation,
 and want output ready for Shorts/Reels/TikTok. They do not want to remember
@@ -123,7 +123,7 @@ Purpose: global health and local setup.
 
 Content:
 
-- Product name: `FragForge Workbench`
+- Product name: `TickCut Workbench`
 - Environment badge: `local`
 - API health
 - worker health summary
@@ -211,7 +211,7 @@ The first screen must be usable immediately.
 
 ```text
 +--------------------------------------------------------------------------------+
-| FragForge Workbench       local | API ready | workers: parser, record, render   |
+| TickCut Workbench       local | API ready | workers: parser, record, render   |
 +---------------------+--------------------------------------+-------------------+
 | New run             | Codex Operator                       | Review            |
 |                     |                                      |                   |

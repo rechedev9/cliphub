@@ -1,13 +1,13 @@
 ---
 name: zackvideo-shorts-production
-description: "Generate professional CS2 Shorts with FragForge from demos, archives, kill plans, utility plans, or recording results. Use when asked to create, rerender, review, polish, concatenate, split, or QA Shorts packs, especially viral-60-clean POV kill highlights with deathnotices, viral-ultra-clean overlays, 120fps capture, long compilations, map-specific compilations, split by map/player, joining many Shorts into one video, publish galleries, and platform-ready upload assets."
+description: "Generate professional CS2 Shorts with TickCut from demos, archives, kill plans, utility plans, or recording results. Use when asked to create, rerender, review, polish, concatenate, split, or QA Shorts packs, especially viral-60-clean POV kill highlights with deathnotices, viral-ultra-clean overlays, 120fps capture, long compilations, map-specific compilations, split by map/player, joining many Shorts into one video, publish galleries, and platform-ready upload assets."
 ---
 
-# FragForge Shorts Production
+# TickCut Shorts Production
 
 ## Overview
 
-Use FragForge as the deterministic source of truth: parse demo segments, record with HLAE/CS2, render vertical Shorts with the editor, then review the publish gallery. Prefer code/preset improvements and reproducible FFmpeg output before introducing manual NLE steps.
+Use TickCut as the deterministic source of truth: parse demo segments, record with HLAE/CS2, render vertical Shorts with the editor, then review the publish gallery. Prefer code/preset improvements and reproducible FFmpeg output before introducing manual NLE steps.
 
 ## Before Running
 
@@ -18,7 +18,7 @@ Use FragForge as the deterministic source of truth: parse demo segments, record 
 - Do not stage or commit generated MP4/WAV/PNG/WebP/JPG/HTML publish artifacts, local binaries, or capture output.
 - Do not clean, delete, or overwrite existing run artifacts unless the user explicitly asks.
 - Use the latest official HLAE release for local capture. Confirm the highest installed version with `zv capabilities --format json`, compare it with the latest official AdvancedFX release, and update before capture when necessary.
-- Let FragForge auto-detect the highest numeric version under `C:\HLAE-*\HLAE.exe`; use `--hlae` only for an explicit override. Never use `C:\HLAE\HLAE.exe`.
+- Let TickCut auto-detect the highest numeric version under `C:\HLAE-*\HLAE.exe`; use `--hlae` only for an explicit override. Never use `C:\HLAE\HLAE.exe`.
 - CS2 must launch through HLAE in windowed mode for recording runs. The CS2
   command line must include `-windowed`; do not record demos in fullscreen or
   borderless fullscreen.
@@ -176,7 +176,7 @@ For kill/highlight deliverables, treat the per-segment rendered Shorts as interm
 
 ## Long Compilations
 
-When asked to join many Shorts into one longer vertical video, do not use `xfade` for FragForge compilation renders; use concat only. Use publish MP4s from `pack-manifest.json` or `publish-summary.md`, sorted by pack order/filename. Do not join raw segment MP4s or unrelated preview files.
+When asked to join many Shorts into one longer vertical video, do not use `xfade` for TickCut compilation renders; use concat only. Use publish MP4s from `pack-manifest.json` or `publish-summary.md`, sorted by pack order/filename. Do not join raw segment MP4s or unrelated preview files.
 
 Before joining, run `ffprobe` on every input and reject missing audio, non-H.264 video, unexpected resolution/FPS, or corrupt files. For large joins, create a short sample or extract review frames before delivering the final.
 

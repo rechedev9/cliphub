@@ -93,8 +93,8 @@ func TestSelectHLAEPrefersLatestInstalledVersion(t *testing.T) {
 		},
 		{
 			name:    "version suffix remains comparable",
-			matches: []string{`C:\HLAE-2.190.2-fragforge-fixed\HLAE.exe`, `C:\HLAE-2.190.1\HLAE.exe`},
-			want:    `C:\HLAE-2.190.2-fragforge-fixed\HLAE.exe`,
+			matches: []string{`C:\HLAE-2.190.2-tickcut-fixed\HLAE.exe`, `C:\HLAE-2.190.1\HLAE.exe`},
+			want:    `C:\HLAE-2.190.2-tickcut-fixed\HLAE.exe`,
 		},
 		{
 			name:    "version prefix comparison is case insensitive",

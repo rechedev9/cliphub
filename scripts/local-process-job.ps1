@@ -1,6 +1,6 @@
 # Windows process-job support for Local Studio. Services are created suspended,
 # assigned to the kill-on-close job, and only then allowed to execute.
-if (-not ("FragForge.LocalProcessJob" -as [type])) {
+if (-not ("TickCut.LocalProcessJob" -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
 using System.ComponentModel;
@@ -8,7 +8,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace FragForge {
+namespace TickCut {
     public static class LocalProcessJob {
         private const uint CREATE_SUSPENDED = 0x00000004;
         private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;

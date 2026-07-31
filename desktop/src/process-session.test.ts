@@ -143,11 +143,11 @@ test('refuses to launch new children after stop', () => {
 });
 
 test('can remove a sensitive inherited variable for a specific child', (t) => {
-  const previous = process.env.FRAGFORGE_TEST_SECRET;
-  process.env.FRAGFORGE_TEST_SECRET = 'inherited-secret';
+  const previous = process.env.TICKCUT_TEST_SECRET;
+  process.env.TICKCUT_TEST_SECRET = 'inherited-secret';
   t.after(() => {
-    if (previous === undefined) delete process.env.FRAGFORGE_TEST_SECRET;
-    else process.env.FRAGFORGE_TEST_SECRET = previous;
+    if (previous === undefined) delete process.env.TICKCUT_TEST_SECRET;
+    else process.env.TICKCUT_TEST_SECRET = previous;
   });
   let childEnvironment: NodeJS.ProcessEnv | undefined;
   const session = new ProcessSession({
@@ -158,10 +158,10 @@ test('can remove a sensitive inherited variable for a specific child', (t) => {
     },
   });
 
-  session.launch('web', 'node.exe', [], { FRAGFORGE_TEST_SECRET: undefined });
+  session.launch('web', 'node.exe', [], { TICKCUT_TEST_SECRET: undefined });
 
-  assert.equal(childEnvironment?.FRAGFORGE_TEST_SECRET, undefined);
-  assert.equal(childEnvironment && 'FRAGFORGE_TEST_SECRET' in childEnvironment, false);
+  assert.equal(childEnvironment?.TICKCUT_TEST_SECRET, undefined);
+  assert.equal(childEnvironment && 'TICKCUT_TEST_SECRET' in childEnvironment, false);
 });
 
 test('removes differently-cased sensitive variables from Windows child environments', (t) => {
@@ -169,7 +169,7 @@ test('removes differently-cased sensitive variables from Windows child environme
     t.skip('Windows environment names are case-insensitive');
     return;
   }
-  const inheritedName = 'fragforge_test_secret';
+  const inheritedName = 'TICKCUT_test_secret';
   const previous = process.env[inheritedName];
   process.env[inheritedName] = 'inherited-secret';
   t.after(() => {
@@ -185,10 +185,10 @@ test('removes differently-cased sensitive variables from Windows child environme
     },
   });
 
-  session.launch('web', 'node.exe', [], { FRAGFORGE_TEST_SECRET: undefined });
+  session.launch('web', 'node.exe', [], { TICKCUT_TEST_SECRET: undefined });
 
   const inheritedKeys = Object.keys(childEnvironment ?? {})
-    .filter((name) => name.toLowerCase() === 'fragforge_test_secret');
+    .filter((name) => name.toLowerCase() === 'TICKCUT_test_secret');
   assert.deepEqual(inheritedKeys, []);
 });
 

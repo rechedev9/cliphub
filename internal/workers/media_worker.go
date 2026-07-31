@@ -2049,7 +2049,7 @@ func writeDurableRenderDocuments(id uuid.UUID, variant string, revisionID uuid.U
 		return fmt.Errorf("write durable render gallery: %w", err)
 	}
 	var summary strings.Builder
-	fmt.Fprintf(&summary, "# FragForge publish pack\n\nVariant: %s\n\n", variant)
+	fmt.Fprintf(&summary, "# TickCut publish pack\n\nVariant: %s\n\n", variant)
 	for _, short := range durable.Shorts {
 		fmt.Fprintf(&summary, "- %s: %s\n", short.SegmentID, short.PublishPath)
 	}
@@ -2183,7 +2183,7 @@ func projectDurablePublishItem(id uuid.UUID, variant string, revisionID uuid.UUI
 
 func durableRenderGallery(id uuid.UUID, variant string, revisionID uuid.UUID, result editor.Result) string {
 	var b strings.Builder
-	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>FragForge Publish Pack</title></head><body><h1>FragForge publish pack</h1>")
+	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>TickCut Publish Pack</title></head><body><h1>TickCut publish pack</h1>")
 	base := fmt.Sprintf(
 		"/api/jobs/%s/renders/%s/revisions/%s",
 		id,

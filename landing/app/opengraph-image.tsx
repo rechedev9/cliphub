@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const alt = "FragForge — Your best CS2 frags, ready to post";
+export const alt = "TickCut — Your best CS2 frags, ready to post";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -191,7 +191,7 @@ export default async function OpengraphImage() {
           >
             <span style={{ color: CYAN, fontWeight: 700 }}>LOCAL CAPTURE</span>
             <span>•</span>
-            <span>NO FRAGFORGE ACCOUNT</span>
+            <span>NO TICKCUT ACCOUNT</span>
             <span>•</span>
             <span>FRAGFORGE.GRAVITYROOM.APP</span>
           </div>

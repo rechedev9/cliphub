@@ -3,7 +3,7 @@ interface ClipboardBridge {
 }
 
 interface ClipboardScope {
-  fragforgeClipboard?: unknown;
+  tickcutClipboard?: unknown;
   navigator?: {
     clipboard?: {
       writeText?: unknown;
@@ -13,7 +13,7 @@ interface ClipboardScope {
 
 /** Uses Electron's user-activation-gated bridge, with the browser API fallback. */
 export async function writeClipboardText(value: string, scope: ClipboardScope = globalThis): Promise<void> {
-  const bridge = clipboardBridge(scope.fragforgeClipboard);
+  const bridge = clipboardBridge(scope.tickcutClipboard);
   if (bridge !== null) {
     await bridge.writeText(value);
     return;

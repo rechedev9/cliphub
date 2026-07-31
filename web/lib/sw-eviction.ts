@@ -4,7 +4,7 @@
  */
 
 /** sessionStorage key marking that this tab already reloaded after an eviction. */
-export const SW_EVICTED_RELOAD_KEY = 'fragforge:sw-evicted-reload';
+export const SW_EVICTED_RELOAD_KEY = 'tickcut:sw-evicted-reload';
 
 /**
  * Whether the page must reload once after evicting service workers.

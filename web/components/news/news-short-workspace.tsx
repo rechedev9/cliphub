@@ -409,12 +409,12 @@ export function NewsShortWorkspace(): ReactNode {
 
         <NewsPanel icon={ShieldCheck} eyebrow="PRIVACIDAD" title="Dónde vive la muestra">
           <div className="flex flex-col gap-2">
-            <StudioDataRow label="Ubicación" value="Datos locales de FragForge" />
+            <StudioDataRow label="Ubicación" value="Datos locales de TickCut" />
             <StudioDataRow label="Repositorio / instalador" value="No incluida" />
             <StudioDataRow label="Envío a terceros" value="Ninguno" />
           </div>
           <p className="mt-4 text-body-sm text-fg-2">
-            FragForge no la envía a xAI, YouTube ni a ningún proveedor de voz. Puedes escucharla, reemplazarla o
+            TickCut no la envía a xAI, YouTube ni a ningún proveedor de voz. Puedes escucharla, reemplazarla o
             eliminarla aquí.
           </p>
         </NewsPanel>

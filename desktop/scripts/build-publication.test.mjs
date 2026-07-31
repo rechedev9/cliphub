@@ -178,7 +178,7 @@ function createDirectoryReparsePoint(t, target, path, type) {
 }
 
 winTest('build publication uses a write-through Win32 move primitive', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-durable-move-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-durable-move-'));
   const sourcePath = join(root, 'source.bin');
   const destinationPath = join(root, 'destination.bin');
   const harness = join(root, 'move.ps1');
@@ -203,7 +203,7 @@ Move-BuildPublicationFileDurably -From '${sourcePath.replaceAll("'", "''")}' -To
 });
 
 winTest('build publication lock rejects a symbolic link without modifying its target', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-lock-symlink-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-lock-symlink-'));
   const bin = join(root, 'bin');
   const linkedTarget = join(root, 'linked-lock-target.txt');
   const lockPath = join(bin, '.build-publication.lock');
@@ -230,7 +230,7 @@ winTest('build publication lock rejects a symbolic link without modifying its ta
 });
 
 winTest('build publication lock rejects a hard link without modifying its target', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-lock-hardlink-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-lock-hardlink-'));
   const bin = join(root, 'bin');
   const linkedTarget = join(root, 'linked-lock-target.txt');
   const lockPath = join(bin, '.build-publication.lock');
@@ -248,7 +248,7 @@ winTest('build publication lock rejects a hard link without modifying its target
 });
 
 winTest('initial journal is durable before the first artifact move', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-initial-journal-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-initial-journal-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a90');
   const backup = join(bin, '.backup-b90');
@@ -280,7 +280,7 @@ if ($From -eq '${join(bin, 'a.exe').replaceAll("'", "''")}') {
 });
 
 winTest('build artifact publication commits a complete set and cleans its backup', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-publish-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-publish-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -297,7 +297,7 @@ winTest('build artifact publication commits a complete set and cleans its backup
 });
 
 winTest('build artifact publication rejects case-insensitive duplicate names before journal or moves', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-duplicate-name-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-duplicate-name-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -324,7 +324,7 @@ winTest('build artifact publication rejects case-insensitive duplicate names bef
 });
 
 winTest('build artifact publication rejects a directory target before transaction side effects', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-directory-target-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-directory-target-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -355,7 +355,7 @@ winTest('build artifact publication rejects a directory target before transactio
 });
 
 winTest('build artifact publication rejects a symbolic-link target before transaction side effects', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-symlink-target-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-symlink-target-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -395,7 +395,7 @@ winTest('build artifact publication rejects a symbolic-link target before transa
 });
 
 winTest('build artifact publication rejects a staging junction without touching its external target', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-stage-junction-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-stage-junction-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-stage1');
   const backup = join(bin, '.backup-backup1');
@@ -434,7 +434,7 @@ winTest('build artifact publication rejects a staging junction without touching 
 });
 
 winTest('build artifact publication rejects a backup symlink without touching its external target', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-backup-symlink-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-backup-symlink-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-stage2');
   const backup = join(bin, '.backup-backup2');
@@ -474,7 +474,7 @@ winTest('build artifact publication rejects a backup symlink without touching it
 });
 
 winTest('build artifact publication fully rolls back a failed staged move', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-rollback-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-rollback-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -497,7 +497,7 @@ winTest('build artifact publication fully rolls back a failed staged move', (t) 
 });
 
 winTest('build artifact publication retains recovery backup when rollback is incomplete', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovery-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-recovery-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -525,7 +525,7 @@ if ($From -eq '${failedRestore}') { throw "injected restore failure" }
 });
 
 winTest('build artifact publication retains a new target when its original backup disappears', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-missing-backup-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-missing-backup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -556,7 +556,7 @@ if ($From -eq '${failedPublish}') {
 });
 
 winTest('build artifact publication recovers when a backup move completes before throwing', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-ambiguous-move-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-ambiguous-move-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-test');
   const backup = join(bin, '.backup-test');
@@ -585,7 +585,7 @@ if ($From -eq '${ambiguousSource}') {
 });
 
 winTest('recovery retains journal and target when a durable phase says the original was moved', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-missing-durable-backup-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-missing-durable-backup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a70');
   const backup = join(bin, '.backup-b70');
@@ -625,7 +625,7 @@ winTest('recovery rejects staging and backup reparse points before cleanup', (t)
   ];
 
   for (const scenario of cases) {
-    const root = mkdtempSync(join(tmpdir(), `fragforge-build-recovery-${scenario.name}-`));
+    const root = mkdtempSync(join(tmpdir(), `tickcut-build-recovery-${scenario.name}-`));
     const bin = join(root, 'bin');
     const stage = join(bin, '.build-recovery1');
     const backup = join(bin, '.backup-recovery1');
@@ -675,7 +675,7 @@ winTest('recovery rejects staging and backup reparse points before cleanup', (t)
 });
 
 winTest('recovery accepts a present original only while its durable item phase is pending', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-pending-original-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-pending-original-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a71');
   const backup = join(bin, '.backup-b71');
@@ -708,7 +708,7 @@ winTest('recovery accepts a present original only while its durable item phase i
 });
 
 winTest('publication classifies targets after recovering an original from a pending transaction', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovered-presence-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-recovered-presence-'));
   const bin = join(root, 'bin');
   const oldStage = join(bin, '.build-old1');
   const oldBackup = join(bin, '.backup-old1');
@@ -768,7 +768,7 @@ if ($Path -eq '${target.replaceAll("'", "''")}') {
 });
 
 winTest('legacy journal cannot infer an original from a missing backup', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-legacy-missing-backup-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-legacy-missing-backup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a72');
   const backup = join(bin, '.backup-b72');
@@ -798,7 +798,7 @@ winTest('legacy journal cannot infer an original from a missing backup', (t) => 
 });
 
 winTest('legacy recovery migrates to restart-safe phases before deleting backups', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-legacy-cleanup-kill-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-legacy-cleanup-kill-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a74');
   const backup = join(bin, '.backup-b74');
@@ -847,7 +847,7 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
 });
 
 winTest('recovery retains a no-original candidate when injected removal is a no-op', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-candidate-remove-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-candidate-remove-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a73');
   const backup = join(bin, '.backup-b73');
@@ -937,7 +937,7 @@ winTest('recovery rejects malformed item schemas before touching transaction art
   ];
 
   for (const malformed of malformedCases) {
-    const root = mkdtempSync(join(tmpdir(), `fragforge-build-${malformed.name}-`));
+    const root = mkdtempSync(join(tmpdir(), `tickcut-build-${malformed.name}-`));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const bin = join(root, 'bin');
     const stage = join(bin, '.build-a91');
@@ -990,7 +990,7 @@ test('build entrypoint delegates publication and never removes the recovery back
 });
 
 winTest('build artifact publication recovers a process-killed mixed binary set', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-interrupted-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-interrupted-'));
   const bin = join(root, 'bin');
   const firstStage = join(bin, '.build-a11');
   const firstBackup = join(bin, '.backup-b11');
@@ -1039,7 +1039,7 @@ if ($From -eq '${killAfterFirstPublish}') {
 });
 
 winTest('recovery is idempotent when killed after moving a backup to its target', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovery-restore-kill-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-recovery-restore-kill-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a80');
   const backup = join(bin, '.backup-b80');
@@ -1084,7 +1084,7 @@ if ($From -eq '${join(backup, 'a.exe').replaceAll("'", "''")}') {
 });
 
 winTest('live rollback is idempotent when killed after restoring one target', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-live-restore-kill-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-live-restore-kill-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a81');
   const backup = join(bin, '.backup-b81');
@@ -1121,7 +1121,7 @@ if ($From -eq '${join(backup, 'b.exe').replaceAll("'", "''")}') {
 });
 
 winTest('committed journal recovery keeps the complete new artifact generation', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-committed-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-committed-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a33');
   const backup = join(bin, '.backup-b33');
@@ -1157,7 +1157,7 @@ if ($Path -eq '${journal.replaceAll("'", "''")}') {
 });
 
 winTest('publication does not report success while a committed journal remains', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-journal-cleanup-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-journal-cleanup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a34');
   const backup = join(bin, '.backup-b34');
@@ -1193,7 +1193,7 @@ if ($Path -eq '${journal.replaceAll("'", "''")}') {
 });
 
 winTest('publishing retains the committed journal when directory cleanup does not complete', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-directory-cleanup-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-directory-cleanup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a35');
   const backup = join(bin, '.backup-b35');
@@ -1228,7 +1228,7 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
 });
 
 winTest('recovery retains a committed journal when directory cleanup must be retried', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-recovery-cleanup-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-recovery-cleanup-'));
   const bin = join(root, 'bin');
   const stage = join(bin, '.build-a36');
   const backup = join(bin, '.backup-b36');
@@ -1273,7 +1273,7 @@ if ($Path -eq '${backup.replaceAll("'", "''")}') {
 });
 
 winTest('overlapping build publishers cannot recover a live transaction', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'fragforge-build-overlap-'));
+  const root = mkdtempSync(join(tmpdir(), 'tickcut-build-overlap-'));
   const bin = join(root, 'bin');
   const firstStage = join(bin, '.build-a44');
   const firstBackup = join(bin, '.backup-b44');

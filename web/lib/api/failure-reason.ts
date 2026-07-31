@@ -51,7 +51,7 @@ const DEMO_INCOMPATIBLE_MESSAGE =
   'Reintentar no lo arreglará: usa una demo jugada después del último parche.';
 
 const RECORDING_NOT_REUSABLE_MESSAGE =
-  'La captura guardada no es reutilizable con esta versión de FragForge. ' +
+  'La captura guardada no es reutilizable con esta versión de TickCut. ' +
   'Reintenta: se volverá a grabar la POV con el contrato actual.';
 
 // Matches the orchestrator's "; captured N/M segments before the failure" clause.

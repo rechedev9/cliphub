@@ -22,7 +22,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace FragForge {
+namespace TickCut {
     public sealed class PublicationLockContendedException : IOException {
         public PublicationLockContendedException()
             : base("another distribution build is already running") {}
@@ -140,7 +140,7 @@ function Test-LockContention {
     param([System.Management.Automation.ErrorRecord]$ErrorRecord)
     $exception = $ErrorRecord.Exception
     while ($null -ne $exception) {
-        if ($exception -is [FragForge.PublicationLockContendedException]) {
+        if ($exception -is [TickCut.PublicationLockContendedException]) {
             return $true
         }
         $exception = $exception.InnerException
@@ -227,7 +227,7 @@ try {
             # point. The native helper validates this exact exclusive handle as
             # a regular, single-link disk file before FileStream can read or
             # truncate it.
-            $validatedHandle = [FragForge.PublicationLockFile]::OpenValidated($LockPath)
+            $validatedHandle = [TickCut.PublicationLockFile]::OpenValidated($LockPath)
             try {
                 $lock = [System.IO.FileStream]::new(
                     $validatedHandle,

@@ -1,6 +1,6 @@
 # Codex App And CLI Guide
 
-Repo-local harness for using Codex Desktop or Codex CLI safely on FragForge.
+Repo-local harness for using Codex Desktop or Codex CLI safely on TickCut.
 
 Codex should automatically load `AGENTS.md` from the repo root. That file holds
 project boundaries, Go style, safety rules, and verification expectations.
@@ -9,7 +9,7 @@ project boundaries, Go style, safety rules, and verification expectations.
 
 The unified Windows CLI is the primary interface. Open
 `C:\Users\reche\Documents\zackvideo` as a folder in Codex Desktop, select
-Codex, and ask for the desired FragForge result. Studio is not a prerequisite.
+Codex, and ask for the desired TickCut result. Studio is not a prerequisite.
 Codex follows this machine-readable loop:
 
 ```powershell
@@ -69,9 +69,9 @@ must keep it aligned with the latest official AdvancedFX release.
 The `output.publish_dir` field points to the required upload-ready
 `<run>\shortslistosparasubir` folder; `output.shorts_dir` contains intermediates.
 
-The former external FragForge MCP registration has been removed. Use the
+The former external TickCut MCP registration has been removed. Use the
 unified `zv` CLI for repository workflows, or drive Studio through its own
-interface; `.codex/config.toml` must not register a FragForge MCP server.
+interface; `.codex/config.toml` must not register a TickCut MCP server.
 
 ## Common commands
 
@@ -339,7 +339,7 @@ is intentionally outside that claim.
 ## Verify AGENTS.md loading
 
 ```bash
-codex --cd . debug prompt-input "test" | grep -i FragForge
+codex --cd . debug prompt-input "test" | grep -i TickCut
 ```
 
 Or run:

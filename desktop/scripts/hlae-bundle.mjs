@@ -47,7 +47,7 @@ export async function stageBundledHLAE({
 
   try {
     const response = await fetchImpl(spec.url, {
-      headers: { 'User-Agent': 'FragForge-Studio-build' },
+      headers: { 'User-Agent': 'TickCut-Studio-build' },
       redirect: 'follow',
     });
     if (!response.ok) {

@@ -1,9 +1,9 @@
 ---
 name: zackvideo-cs2-utility-shorts
-description: "Create CS2 utility Shorts from a demo with FragForge: parse utility, audit destinations/actions, record, render with the standard viral-60-clean preset, and open the gallery."
+description: "Create CS2 utility Shorts from a demo with TickCut: parse utility, audit destinations/actions, record, render with the standard viral-60-clean preset, and open the gallery."
 ---
 
-# FragForge CS2 Utility Shorts
+# TickCut CS2 Utility Shorts
 
 Use this skill when the user wants Shorts about CS2 utility from a demo, especially smokes/flashes/molotovs for one player. Use the standard `viral-60-clean` preset; alternate effects presets are retired.
 

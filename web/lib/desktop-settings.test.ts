@@ -11,16 +11,16 @@ function bridge(): DesktopSettingsBridge {
 test('returns null outside Electron instead of falling back to HTTP', () => {
   assert.equal(getDesktopSettingsBridge({}), null);
   assert.equal(getDesktopSettingsBridge(null), null);
-  assert.equal(getDesktopSettingsBridge({ fragforgeSettings: {} }), null);
+  assert.equal(getDesktopSettingsBridge({ tickcutSettings: {} }), null);
 });
 
 test('rejects a preload surface without the app info call', () => {
-  assert.equal(getDesktopSettingsBridge({ fragforgeSettings: { getAppInfo: 'nope' } }), null);
+  assert.equal(getDesktopSettingsBridge({ tickcutSettings: { getAppInfo: 'nope' } }), null);
 });
 
 test('returns the complete narrow preload bridge', async () => {
   const expected = bridge();
-  const got = getDesktopSettingsBridge({ fragforgeSettings: expected });
+  const got = getDesktopSettingsBridge({ tickcutSettings: expected });
 
   assert.equal(got, expected);
   if (got === null) throw new Error('expected the desktop settings bridge');

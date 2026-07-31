@@ -32,7 +32,7 @@ export type EditConfig = {
   coverStrategy: CoverStrategy;
   /** Optional intro headline override, shown only while `intro` is on; empty = generated headline. */
   introText?: string;
-  /** Optional outro text override, shown only while `outro` is on; empty = "FragForge". */
+  /** Optional outro text override, shown only while `outro` is on; empty = "TickCut". */
   outroText?: string;
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };

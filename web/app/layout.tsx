@@ -22,8 +22,8 @@ const shareTechMono = Share_Tech_Mono({
 
 export const metadata: Metadata = {
   // Every route shared one browser title before this template; segments set
-  // their own `title` and land as "Biblioteca · FragForge".
-  title: { default: 'FragForge', template: '%s · FragForge' },
+  // their own `title` and land as "Biblioteca · TickCut".
+  title: { default: 'TickCut', template: '%s · TickCut' },
   description: 'Forja tus frags de CS2 en reels destacados - capturados en tu propio equipo.',
 };
 

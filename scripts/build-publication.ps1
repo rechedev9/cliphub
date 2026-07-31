@@ -1,4 +1,4 @@
-if (-not ("FragForge.BuildPublicationFiles" -as [type])) {
+if (-not ("TickCut.BuildPublicationFiles" -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
 using System.ComponentModel;
@@ -6,7 +6,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace FragForge {
+namespace TickCut {
     public static class BuildPublicationFiles {
         private const uint GENERIC_READ = 0x80000000;
         private const uint GENERIC_WRITE = 0x40000000;
@@ -177,7 +177,7 @@ function Move-BuildPublicationFileDurably {
         [Parameter(Mandatory = $true)][string]$To,
         [switch]$ReplaceExisting
     )
-    [FragForge.BuildPublicationFiles]::MoveDurably($From, $To, [bool]$ReplaceExisting)
+    [TickCut.BuildPublicationFiles]::MoveDurably($From, $To, [bool]$ReplaceExisting)
 }
 
 function Get-BuildPublicationJournalPath {
@@ -194,7 +194,7 @@ function Enter-BuildPublicationLock {
         $owner = [System.Text.UTF8Encoding]::new($false).GetBytes(
             "pid=$PID started=$([DateTimeOffset]::UtcNow.ToString('O'))"
         )
-        $lock = [FragForge.BuildPublicationFiles]::OpenExclusiveLock($lockPath, $owner)
+        $lock = [TickCut.BuildPublicationFiles]::OpenExclusiveLock($lockPath, $owner)
         return $lock
     } catch {
         if ($null -ne $lock) {
@@ -249,7 +249,7 @@ function Assert-BuildPublicationTransactionDirectory {
         [switch]$AllowMissing
     )
     try {
-        return [FragForge.BuildPublicationFiles]::AssertSafeTransactionDirectory(
+        return [TickCut.BuildPublicationFiles]::AssertSafeTransactionDirectory(
             $Path,
             [bool]$AllowMissing
         )

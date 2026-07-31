@@ -64,7 +64,7 @@ export function reelCreativeBrief(
     { label: 'Transición', value: TRANSITION_LABEL[edit.transition] },
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador activado' : 'Sin contador'}` },
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
-    { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma FragForge') },
+    { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma TickCut') },
     { label: 'Música', value: songTitle ? `${songTitle} · ${musicVolumePercent}%` : 'Sin música' },
     {
       label: 'Portada',

@@ -748,12 +748,12 @@ func TestWorkbenchServesLocalApp(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rw.Code)
 	}
 	body := rw.Body.String()
-	for _, want := range []string{"FragForge Workbench", "Mutation token", "workbench-shell", "HTMX", `hx-post="/ui/jobs"`, `hx-get="/ui/jobs"`, `hx-get="/ui/workspace"`} {
+	for _, want := range []string{"TickCut Workbench", "Mutation token", "workbench-shell", "HTMX", `hx-post="/ui/jobs"`, `hx-get="/ui/jobs"`, `hx-get="/ui/workspace"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("workbench missing %q", want)
 		}
 	}
-	if !strings.Contains(body, `"X-FragForge-Token"`) {
+	if !strings.Contains(body, `"X-TickCut-Token"`) {
 		t.Fatalf("workbench missing mutation token header")
 	}
 	if strings.Contains(body, "X-ZackVideo-Token") {
@@ -3809,7 +3809,7 @@ func TestWorkbenchLocalProductFlowEndToEnd(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 		}
 		if token {
-			req.Header.Set("X-FragForge-Token", "secret")
+			req.Header.Set("X-TickCut-Token", "secret")
 		}
 		rw := httptest.NewRecorder()
 		r.ServeHTTP(rw, req)
@@ -3823,7 +3823,7 @@ func TestWorkbenchLocalProductFlowEndToEnd(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/", "FragForge Workbench"},
+		{"/", "TickCut Workbench"},
 		{"/api/jobs", j.ID.String()},
 		{"/api/loadouts", editor.PresetViral60Clean},
 		{"/api/jobs/" + j.ID.String() + "/moments", "MartinezSa"},

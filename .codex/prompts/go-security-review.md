@@ -1,4 +1,4 @@
-# Go security review for FragForge
+# Go security review for TickCut
 
 Follow `AGENTS.md`.
 

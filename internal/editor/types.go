@@ -62,7 +62,7 @@ type Config struct {
 	Intro               bool
 	Outro               bool
 	// IntroText and OutroText customize the intro/outro overlay card text;
-	// empty falls back to the generated headline (intro) or "FragForge"
+	// empty falls back to the generated headline (intro) or "TickCut"
 	// (outro). Neither auto-enables its bookend.
 	IntroText string
 	OutroText string

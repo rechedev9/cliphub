@@ -1104,7 +1104,7 @@ func writeSkillBody(t *testing.T, root, name, body string) {
 func writeWorkflowDocs(t *testing.T, root string) {
 	t.Helper()
 	catalogDoc := strings.Join([]string{
-		"# FragForge",
+		"# TickCut",
 		"",
 		"```bash",
 		"./bin/zv presets",
@@ -1289,7 +1289,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 	writeFile(t, filepath.Join(root, "scripts", "check-codex-harness.sh"), strings.Join([]string{
 		"mapfile -t shell_scripts < <(find scripts -maxdepth 1 -type f -name '*.sh' | sort)",
 		`bash -n "${shell_scripts[@]}"`,
-		`echo "== FragForge workflow contract =="`,
+		`echo "== TickCut workflow contract =="`,
 		"go run ./cmd/zv check",
 		"",
 	}, "\n"))

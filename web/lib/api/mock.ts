@@ -168,7 +168,7 @@ const seriesScans = new Map<string, SeriesScan[]>();
  * URL still resolves after a reload or a direct visit, matching the Steam path.
  * Guarded for SSR (no window) and tolerant of corrupt / over-quota storage.
  */
-const UPLOAD_STORE_KEY = 'fragforge.uploads.v1';
+const UPLOAD_STORE_KEY = 'tickcut.uploads.v1';
 
 function saveUploads(): void {
   if (typeof window === 'undefined') return;
@@ -204,7 +204,7 @@ loadUploads();
  * user signed in (and slots/pairing state) instead of silently logging out.
  * Same SSR/quota guards as the upload store.
  */
-const SESSION_STORE_KEY = 'fragforge.session.v1';
+const SESSION_STORE_KEY = 'tickcut.session.v1';
 
 function saveSession(): void {
   if (typeof window === 'undefined') return;

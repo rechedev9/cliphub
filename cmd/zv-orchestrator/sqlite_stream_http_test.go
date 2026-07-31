@@ -17,7 +17,7 @@ import (
 )
 
 // TestPostStreamJobsUnderSQLiteMode is the regression test for the desktop
-// bug: FragForge Studio runs the orchestrator with ZV_DATABASE_URL=sqlite,
+// bug: TickCut Studio runs the orchestrator with ZV_DATABASE_URL=sqlite,
 // and main.go's sqlite branch left streamRepo nil (only the memory and
 // postgres branches assigned it), so POST /api/stream-jobs 500'd for every
 // desktop user. This assembles the same building blocks as that sqlite

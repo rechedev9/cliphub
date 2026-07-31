@@ -1,4 +1,4 @@
-# Go TDD playbook for FragForge
+# Go TDD playbook for TickCut
 
 Follow `AGENTS.md`.
 

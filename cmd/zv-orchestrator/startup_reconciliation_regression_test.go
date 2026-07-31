@@ -312,7 +312,7 @@ func createStartupStreamJob(t *testing.T, repo interface {
 func startupInterruptedObsCount(rec *obs.Recorder, stage string) int64 {
 	var count int64
 	for _, metric := range rec.Snapshot() {
-		if metric.Name == "fragforge_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == interruptedClass {
+		if metric.Name == "TICKCUT_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == interruptedClass {
 			count += metric.Value
 		}
 	}

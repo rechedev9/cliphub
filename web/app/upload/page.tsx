@@ -400,7 +400,7 @@ export default function UploadPage() {
       */}
       <div className="@container/upload relative mx-auto flex min-h-screen w-full max-w-[1536px] flex-col px-4 sm:px-6 lg:px-12">
         <header className="relative flex min-h-[68px] items-center justify-between border-b border-border py-3">
-          <Link href={homeHref} aria-label="Inicio de FragForge" className="inline-flex min-h-11 items-center">
+          <Link href={homeHref} aria-label="Inicio de TickCut" className="inline-flex min-h-11 items-center">
             <Wordmark />
           </Link>
           <div

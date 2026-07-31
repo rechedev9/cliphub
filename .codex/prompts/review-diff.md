@@ -1,4 +1,4 @@
-# Review current diff for FragForge
+# Review current diff for TickCut
 
 Follow `AGENTS.md`.
 

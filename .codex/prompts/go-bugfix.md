@@ -1,4 +1,4 @@
-# Go bugfix playbook for FragForge
+# Go bugfix playbook for TickCut
 
 Follow `AGENTS.md`.
 

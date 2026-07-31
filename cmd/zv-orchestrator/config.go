@@ -150,7 +150,7 @@ func validSessionCapability(secret string) bool {
 // clearLegacyCaptionCredentialsEnvironment keeps caption credentials from
 // older installations out of media subprocesses: the Groq pair from
 // Groq-enabled builds and the xAI key from builds that burned in stream
-// subtitles. FragForge no longer reads or uses any of the three, but an
+// subtitles. TickCut no longer reads or uses any of the three, but an
 // upgraded process may still inherit them from the user's environment, and
 // ffmpeg, HLAE, CS2, and yt-dlp must not see them. EqualFold matching
 // also removes casing variants on Windows, where environment variable names

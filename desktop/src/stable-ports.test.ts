@@ -9,7 +9,7 @@ import { allocateStableServicePorts } from './stable-ports.ts';
 const TEST_HOST = '127.0.0.1';
 
 function temporaryPortsFile(t: test.TestContext): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-ports-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-ports-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return path.join(root, 'ports.json');
 }

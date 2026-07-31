@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const dataDirLeaseFilename = ".fragforge.lock"
+const dataDirLeaseFilename = ".tickcut.lock"
 
 // dataDirLease holds an OS-backed exclusive lock for every mutable artifact
 // rooted at one ZV_DATA_DIR. The kernel releases it on process death, unlike a
@@ -41,7 +41,7 @@ func acquireDataDirLease(dataDir string) (*dataDirLease, error) {
 	if err := lockDataDirFile(file); err != nil {
 		_ = file.Close()
 		return nil, fmt.Errorf(
-			"data directory %s is already owned by another FragForge process: %w",
+			"data directory %s is already owned by another TickCut process: %w",
 			absDir,
 			err,
 		)

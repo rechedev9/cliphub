@@ -1,4 +1,4 @@
 interface:
-  display_name: "FragForge Shorts Production"
-  short_description: "Generate clean viral-60-clean CS2 kill Shorts, utility packs, long compilations, and split-by-map outputs with FragForge."
-  default_prompt: "Generate a clean viral-60-clean CS2 Shorts pack or long compilation from a demo or recording result using the FragForge pipeline: deathnotice POV capture, clean vertical render, gallery, split-by-map/player outputs when requested, and upload-ready assets."
+  display_name: "TickCut Shorts Production"
+  short_description: "Generate clean viral-60-clean CS2 kill Shorts, utility packs, long compilations, and split-by-map outputs with TickCut."
+  default_prompt: "Generate a clean viral-60-clean CS2 Shorts pack or long compilation from a demo or recording result using the TickCut pipeline: deathnotice POV capture, clean vertical render, gallery, split-by-map/player outputs when requested, and upload-ready assets."

@@ -2,7 +2,7 @@
 
 ## Goal
 
-The no-login upload screen should feel like the first operational step of FragForge Studio rather than a narrow marketing landing page.
+The no-login upload screen should feel like the first operational step of TickCut Studio rather than a narrow marketing landing page.
 The demo drop target remains the dominant action, while the surrounding chrome communicates that processing is private, local, and part of a three-stage workflow.
 
 ## Approved direction

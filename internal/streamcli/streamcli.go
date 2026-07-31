@@ -714,7 +714,7 @@ func replaceLocalPublishDirectoryWithCleanup(stagingDir, publishDir string, clea
 
 func renderLocalStreamGallery(title string, videos []streamLocalVideo) string {
 	if strings.TrimSpace(title) == "" {
-		title = "FragForge stream clips"
+		title = "TickCut stream clips"
 	}
 	var b strings.Builder
 	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>")

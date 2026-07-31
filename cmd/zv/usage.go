@@ -157,7 +157,7 @@ CS2 or HLAE and never contacts a network service.
 
 The result is an anomaly report, not a verdict of guilt. --dossier renders the
 evidence pack for one player, including the legitimate channels through which
-the user can file their own report; FragForge never submits one.
+the user can file their own report; TickCut never submits one.
 `
 
 const demoAnticheatCalibrateUsage = `usage: zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]

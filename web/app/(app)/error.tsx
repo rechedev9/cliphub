@@ -8,7 +8,7 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { writeClipboardText } from '@/lib/clipboard-write';
 
 /**
- * Route-level error boundary. FragForge ships packaged with `devTools: false`,
+ * Route-level error boundary. TickCut ships packaged with `devTools: false`,
  * so before this existed a thrown render error put the user on Next's unstyled
  * "Application error: a client-side exception has occurred" — no brand, no
  * recovery path, and nothing to send anyone. Studio already keeps a `studio.log`
@@ -25,7 +25,7 @@ export default function AppError({
 
   useEffect(() => {
     // The packaged app has no console to read, so the log is the only trail.
-    console.error('[fragforge] route error', error);
+    console.error('[tickcut] route error', error);
   }, [error]);
 
   const diagnostics = [

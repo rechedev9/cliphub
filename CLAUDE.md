@@ -1,4 +1,4 @@
-# FragForge Agent Instructions
+# TickCut Agent Instructions
 
 `AGENTS.md` is a tracked symbolic link to this file.
 Edit `CLAUDE.md` only, and never replace the `AGENTS.md` symlink with a regular file.
@@ -7,7 +7,7 @@ This repository intentionally has no `README` files; use purpose-specific names 
 
 ## Product
 
-FragForge is a Windows-local, deterministic CS2 demo/stream-to-video pipeline written primarily in Go.
+TickCut is a Windows-local, deterministic CS2 demo/stream-to-video pipeline written primarily in Go.
 The demo is the source of truth for player, camera, tick ranges, kills, and utility; never infer recording decisions from rendered video.
 
 ```text
@@ -67,7 +67,7 @@ Calibration uses a median and a MAD-derived spread and counts each demo once by 
 The composite blends the strongest of the information and aim clusters with the overall mean, because a plain mean across every metric cannot flag a single-kind cheat: a wall-only user maxes the information metrics and sits at the median on aim.
 
 The output is an anomaly report, never a verdict of guilt, and every surface must keep saying so: the report carries its own `limitations`, and the score is a prompt to review the listed ticks by hand.
-FragForge prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
+TickCut prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
 Valve decides cheating bans from its own detection, not from report volume, and coordinated mass reporting is both ineffective and against the Steam Subscriber Agreement.
 Do not add a feature that files reports on the user's behalf, and do not weaken the `insufficient_data` and confidence gates that stop a thin sample from producing a verdict.
 
@@ -93,7 +93,7 @@ For third-party music, persist the source URL, creator, license, downloaded-file
 
 Do not launch HLAE, CS2, a long FFmpeg render, or paid/cloud media work without an explicit request; prefer the CLI preflight.
 Host capture auto-detects the highest installed HLAE version under `C:\HLAE-*\HLAE.exe`; before a real run, compare it with the latest official HLAE release.
-Never use `C:\HLAE\HLAE.exe` for FragForge capture.
+Never use `C:\HLAE\HLAE.exe` for TickCut capture.
 Packaged Studio instead uses the SHA-256-pinned archive in `desktop/src/hlae-tool.json`; do not copy a version number into instructions or silently replace the manifest asset.
 CS2 must launch through HLAE with `-windowed`; fullscreen and borderless capture are unsupported.
 After final media is validated and no recapture/reparse is needed, send used extracted `.dem` files to the Windows Recycle Bin, but keep the original archive unless asked to remove it.
@@ -157,7 +157,7 @@ Work directly on `main`; committing or pushing still requires an explicit user r
 `main` is unprotected and there are no required status checks, so a push lands immediately: never open a pull request for work that belongs on `main`.
 The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths, and it is now the only automated gate the repository has.
 Never bypass it with `--no-verify` or `core.hooksPath`: with no CI behind it, a skipped hook means the change was never checked at all.
-FragForge has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
+TickCut has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
 Every desktop distribution must rebuild all Go runtime executables in the same `dist` invocation before `assemble` stages `bin/`; an existing executable is not proof that it matches the current source. Keep the guarded `scripts/build.ps1` step in `desktop/scripts/dist.mjs`, and never publish an installer produced from a manually staged or pre-existing `bin/`.
 Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/fragforge`, update the landing download URL, then deploy Vercel project `fragforge-landing` with root `landing/` to `https://fragforge.gravityroom.app/`.
 Do not use the retired VPS landing path.

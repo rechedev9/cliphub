@@ -40,7 +40,7 @@ func run() error {
 		intro               = flag.Bool("intro", false, "add an intro title overlay")
 		outro               = flag.Bool("outro", false, "add an outro title overlay")
 		introText           = flag.String("intro-text", "", "custom intro overlay text; defaults to the generated headline")
-		outroText           = flag.String("outro-text", "", "custom outro overlay text; defaults to \"FragForge\"")
+		outroText           = flag.String("outro-text", "", "custom outro overlay text; defaults to \"TickCut\"")
 		hook                = flag.Bool("hook", true, "draw the generated headline as a hook over the first ~2s")
 		killCounter         = flag.Bool("kill-counter", true, "pop a running kill count with 2K/3K/4K/ACE milestones")
 		killfeedOverlay     = flag.Bool("killfeed-overlay", true, "re-overlay the source kill notices near the top of the 9:16 frame")

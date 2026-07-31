@@ -68,7 +68,7 @@ func Materialize() (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("materialize %s: no user cache or temp directory available", FamilyName)
 	}
-	return materializeAt(filepath.Join(root, "FragForge", "fonts", Version))
+	return materializeAt(filepath.Join(root, "TickCut", "fonts", Version))
 }
 
 func materializeAt(dir string) (string, error) {
@@ -148,7 +148,7 @@ func materializeFile(dir, fileName, wantSHA string, data []byte) error {
 }
 
 func fileMatchesSHA(path, wantSHA string) (bool, error) {
-	// #nosec G304 -- path is constructed from FragForge's fixed cache root and bundled font filenames.
+	// #nosec G304 -- path is constructed from TickCut's fixed cache root and bundled font filenames.
 	f, err := os.Open(path)
 	if err != nil {
 		return false, err

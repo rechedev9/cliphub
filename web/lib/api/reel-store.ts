@@ -40,7 +40,9 @@ export type ReelIntent = {
   createdAt: number;
 };
 
-const STORE_KEY = 'fragforge.reels.v1';
+const STORE_KEY = 'tickcut.reels.v1';
+/** Pre-rebrand key; read once and migrate into STORE_KEY. */
+const LEGACY_STORE_KEY = 'fragforge.reels.v1';
 /** Keep localStorage bounded; newest intents win. */
 const MAX_INTENTS = 50;
 
@@ -69,7 +71,16 @@ export function loadReelIntents(): ReelIntent[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(STORE_KEY);
-    return raw ? coerceIntents(JSON.parse(raw)) : [];
+    if (raw) return coerceIntents(JSON.parse(raw));
+    // One-shot migration after FragForge → TickCut rename.
+    const legacy = window.localStorage.getItem(LEGACY_STORE_KEY);
+    if (!legacy) return [];
+    const intents = coerceIntents(JSON.parse(legacy));
+    if (intents.length > 0) {
+      saveReelIntents(intents);
+      window.localStorage.removeItem(LEGACY_STORE_KEY);
+    }
+    return intents;
   } catch {
     return []; // corrupt / unavailable storage: reels are best-effort.
   }

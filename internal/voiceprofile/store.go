@@ -26,7 +26,7 @@ var ErrNotFound = errors.New("voice profile not found")
 var ErrTooLarge = errors.New("voice reference is too large")
 
 // Profile describes one locally stored voice reference. AudioKey is a logical
-// storage key, never an external URL or a path outside FragForge's data root.
+// storage key, never an external URL or a path outside TickCut's data root.
 type Profile struct {
 	ID             string    `json:"id"`
 	Name           string    `json:"name"`

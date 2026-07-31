@@ -2,10 +2,10 @@ const ALLOWED_FETCH_SITES = new Set(['none', 'same-origin']);
 
 const INVALID_HOST_ERROR = 'local API host rejected';
 const CROSS_SITE_ERROR = 'cross-site request blocked';
-export const PROXY_MUTATION_CAPABILITY_ENV = 'FRAGFORGE_PROXY_MUTATION_CAPABILITY' as const;
-export const PROXY_MUTATION_CAPABILITY_COOKIE = 'fragforge_proxy_capability' as const;
+export const PROXY_MUTATION_CAPABILITY_ENV = 'TICKCUT_PROXY_MUTATION_CAPABILITY' as const;
+export const PROXY_MUTATION_CAPABILITY_COOKIE = 'tickcut_proxy_capability' as const;
 export const MUTATION_CAPABILITY_ERROR = 'local API mutation capability required' as const;
-export const PROXY_BOOTSTRAP_CAPABILITY_ENV = 'FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY' as const;
+export const PROXY_BOOTSTRAP_CAPABILITY_ENV = 'TICKCUT_PROXY_BOOTSTRAP_CAPABILITY' as const;
 export const BOOTSTRAP_CAPABILITY_ERROR = 'local API bootstrap capability required' as const;
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

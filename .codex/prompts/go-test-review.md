@@ -1,4 +1,4 @@
-# Go test review for FragForge
+# Go test review for TickCut
 
 Follow `AGENTS.md`.
 

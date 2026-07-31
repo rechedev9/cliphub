@@ -126,7 +126,7 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
             PREPARAR EXPEDIENTE
           </Button>
           <span className="text-xs text-muted-foreground">
-            Reúne la evidencia para que la denuncies tú desde tu cuenta. FragForge no envía nada.
+            Reúne la evidencia para que la denuncies tú desde tu cuenta. TickCut no envía nada.
           </span>
         </div>
       ) : null}

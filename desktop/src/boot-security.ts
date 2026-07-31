@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 const CAPABILITY_BYTES = 32;
 const CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
 
-export const PROXY_CAPABILITY_COOKIE = 'fragforge_proxy_capability';
+export const PROXY_CAPABILITY_COOKIE = 'tickcut_proxy_capability';
 
 export interface BootSecurityCapabilities {
   mutationToken: string;
@@ -46,8 +46,8 @@ export function orchestratorSecurityEnvironment(
   capabilities: BootSecurityCapabilities,
 ): NodeJS.ProcessEnv {
   return {
-    FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    FRAGFORGE_PROXY_MUTATION_CAPABILITY: undefined,
+    TICKCUT_PROXY_BOOTSTRAP_CAPABILITY: undefined,
+    TICKCUT_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
     ZV_MUTATION_TOKEN: capabilities.mutationToken,
   };
@@ -57,8 +57,8 @@ export function webSecurityEnvironment(
   capabilities: BootSecurityCapabilities,
 ): NodeJS.ProcessEnv {
   return {
-    FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    FRAGFORGE_PROXY_MUTATION_CAPABILITY: capabilities.proxyMutationCapability,
+    TICKCUT_PROXY_BOOTSTRAP_CAPABILITY: undefined,
+    TICKCUT_PROXY_MUTATION_CAPABILITY: capabilities.proxyMutationCapability,
     ORCHESTRATOR_TOKEN: capabilities.mutationToken,
     ZV_MUTATION_TOKEN: undefined,
   };

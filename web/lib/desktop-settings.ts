@@ -1,5 +1,5 @@
 /**
- * Narrow bridge exposed only by the FragForge Studio Electron preload.
+ * Narrow bridge exposed only by the TickCut Studio Electron preload.
  *
  * The browser UI deliberately has no HTTP fallback for these operations: they
  * are answered by the desktop main process, so a plain browser must render the
@@ -18,13 +18,13 @@ export interface DesktopSettingsBridge {
 }
 
 /**
- * Returns the preload bridge when running inside FragForge Studio. A normal
+ * Returns the preload bridge when running inside TickCut Studio. A normal
  * browser (including frontend-only development) receives null and must render
  * the desktop-only state instead of attempting a network fallback.
  */
 export function getDesktopSettingsBridge(scope: unknown = globalThis): DesktopSettingsBridge | null {
   if (!isRecord(scope)) return null;
-  const candidate = scope.fragforgeSettings;
+  const candidate = scope.tickcutSettings;
   return isDesktopSettingsBridge(candidate) ? candidate : null;
 }
 

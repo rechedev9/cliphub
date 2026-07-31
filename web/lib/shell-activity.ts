@@ -3,7 +3,7 @@ import type { Video } from './api/types.ts';
 /**
  * The shell's view of what the machine is doing right now.
  *
- * FragForge's whole premise is long-running local capture and render jobs, and
+ * TickCut's whole premise is long-running local capture and render jobs, and
  * until this module existed the chrome never showed one: `videos/page.tsx`
  * computed `hasActiveReel` every 1.5s and threw it away, so navigating to Feed
  * mid-render told the user nothing, and the `html[data-capture-active]` gate in

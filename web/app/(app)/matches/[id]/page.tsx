@@ -210,7 +210,7 @@ export default function FindHighlightsPage({
     if (offline) {
       emptyTitle = 'Servicio local sin conexión';
       emptyDescription =
-        'El servicio local de FragForge no respondió. Arráncalo y vuelve a intentarlo.';
+        'El servicio local de TickCut no respondió. Arráncalo y vuelve a intentarlo.';
     } else if (errored) {
       emptyTitle = 'No se pudo cargar la partida';
       emptyDescription =

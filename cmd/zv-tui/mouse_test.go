@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 func TestListIndexAt(t *testing.T) {
 	tests := []struct {
@@ -27,22 +31,26 @@ func TestListIndexAt(t *testing.T) {
 }
 
 func TestTabAtX(t *testing.T) {
-	// "FragForge" (9) + 2 = 11; tabs are padded by one column each side.
+	// Zones track titleStyle("TickCut") + gap; compute the same base the
+	// production helper uses so a brand rename does not hard-code widths.
+	base := lipgloss.Width(titleStyle.Render("TickCut")) + 2
+	demosW := lipgloss.Width(tabInactive.Render("Demos → Reel"))
+	streamsStart := base + demosW + 1
 	tests := []struct {
 		name string
 		x    int
 		want int
 	}{
-		{"title area", 3, -1},
-		{"demos tab start", 11, 0},
-		{"demos tab end", 24, 0},
-		{"streams tab", 26, 1},
+		{"title area", max(0, base-2), -1},
+		{"demos tab start", base, 0},
+		{"demos tab end", base + demosW - 1, 0},
+		{"streams tab", streamsStart, 1},
 		{"past tabs", 60, -1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tabAtX(tt.x); got != tt.want {
-				t.Errorf("tabAtX(%d) got %d, want %d", tt.x, got, tt.want)
+				t.Errorf("tabAtX(%d) got %d, want %d (base=%d demosW=%d)", tt.x, got, tt.want, base, demosW)
 			}
 		})
 	}

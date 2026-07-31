@@ -1,4 +1,4 @@
-export const STUDIO_CLIPBOARD_CHANNEL = 'fragforge:clipboard-write';
+export const STUDIO_CLIPBOARD_CHANNEL = 'tickcut:clipboard-write';
 
 const MAX_CLIPBOARD_TEXT_LENGTH = 512 * 1024;
 

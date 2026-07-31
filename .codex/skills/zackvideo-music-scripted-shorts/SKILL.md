@@ -1,9 +1,9 @@
 ---
 name: zackvideo-music-scripted-shorts
-description: "Create music-synced FragForge CS2 Shorts: parse demos, record target-player segments, analyze CC0 music BPM, render one 60fps compiled vertical Short per demo with external music, rhythm JSON, viral-60-clean effects, publish assets, gallery review, and upload-ready outputs under shortslistosparasubir."
+description: "Create music-synced TickCut CS2 Shorts: parse demos, record target-player segments, analyze CC0 music BPM, render one 60fps compiled vertical Short per demo with external music, rhythm JSON, viral-60-clean effects, publish assets, gallery review, and upload-ready outputs under shortslistosparasubir."
 ---
 
-# FragForge Music Scripted Shorts
+# TickCut Music Scripted Shorts
 
 Use this skill when the user wants CS2 Shorts with external music, beat/rhythm sync, BPM-based cuts, or one music-edited compilation per demo. Keep `viral-60-clean` as the visual standard.
 

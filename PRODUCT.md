@@ -1,10 +1,10 @@
-# FragForge Product Guide
+# TickCut Product Guide
 
 Deterministic CS2 demo/stream-to-video pipeline. Give its agent-first CLI a
 `.dem` or a stream clip and produce upload-ready 1080x1920 vertical videos or
 1920x1080 long-form videos at 60fps, with polished editing by default.
 
-FragForge ships as a Windows desktop installer.
+TickCut ships as a Windows desktop installer.
 Download it from the [`landing/`](./landing) site - there is no hosted service to sign up for.
 
 It parses demos into kill plans, records gameplay with HLAE/CS2, and
@@ -77,7 +77,7 @@ reel, at which point HLAE + CS2 open to capture and the edit is applied.
 ### Codex app (CLI-first)
 
 Open the repository root in Codex Desktop and select Codex. `AGENTS.md` loads
-the project rules automatically, and Codex operates FragForge through the
+the project rules automatically, and Codex operates TickCut through the
 unified Windows CLI; Studio does not need to be running. Build the local
 binaries once after cloning or after CLI changes:
 
@@ -192,7 +192,7 @@ edit that preserves the complete source frame, HUD, killfeed, and facecam.
 The edit plan is the reviewable contract for clip ranges, normalized facecam and gameplay crops, music, effects, and text.
 Final MP4s, covers, manifest, and local gallery are written to `<run>/shortslistosparasubir/`.
 
-Ask naturally from the app, for example: “usa la CLI de FragForge para revisar
+Ask naturally from the app, for example: “usa la CLI de TickCut para revisar
 las capacidades, valida un Short con todas las kills de este demo y ejecútalo”.
 The repo-local production skills add the specialized parse, capture, render,
 QA, and publishing steps while continuing to use `zv workflows run`.
@@ -213,10 +213,10 @@ decision is stored against the exact artifact revision and warning list; any new
 render or changed warning set requires a fresh review. The publication assistant
 rejects unresolved revisions.
 
-FragForge does not choose the channel, audience, visibility, or publication
+TickCut does not choose the channel, audience, visibility, or publication
 date. In YouTube Studio, follow the official **CREAR -> Subir vídeos** flow and
 complete those decisions there; see [YouTube's official upload guide](https://support.google.com/youtube/answer/57407?hl=es).
-No Google project or account connection is required by FragForge.
+No Google project or account connection is required by TickCut.
 
 The assistant uses this deterministic local-time Shorts reference:
 
@@ -239,8 +239,8 @@ use terms that match the player, map, weapon, hook, or kill count from that
 request.
 
 Experimental local builds may have left generic Windows Credential Manager
-entries named `FragForge/YouTube/OAuthClient`,
-`FragForge/YouTube/Connection`, or `FragForge/YouTube/Upload/<id>`. Current
+entries named `TickCut/YouTube/OAuthClient`,
+`TickCut/YouTube/Connection`, or `TickCut/YouTube/Upload/<id>`. Current
 builds do not read or delete them. Remove them manually from **Credential
 Manager -> Windows Credentials** if desired.
 

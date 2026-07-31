@@ -14,7 +14,7 @@ import (
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"service": "fragforge", "status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"service": "tickcut", "status": "ok"})
 }
 
 // Metrics serves the local pipeline counters in the Prometheus text exposition

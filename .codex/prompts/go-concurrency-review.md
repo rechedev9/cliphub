@@ -1,4 +1,4 @@
-# Go concurrency review for FragForge
+# Go concurrency review for TickCut
 
 Follow `AGENTS.md`.
 

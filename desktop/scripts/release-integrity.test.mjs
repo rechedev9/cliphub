@@ -16,8 +16,8 @@ test('derives the release paths from the canonical Electron artifact name', () =
   assert.deepEqual(releasePaths(desktop, output), {
     directory: output,
     artifacts: [
-      join(output, `FragForge.Studio.Setup.${metadata.version}.exe`),
-      join(output, `FragForge.Studio.Setup.${metadata.version}.exe.blockmap`),
+      join(output, `TickCut.Studio.Setup.${metadata.version}.exe`),
+      join(output, `TickCut.Studio.Setup.${metadata.version}.exe.blockmap`),
     ],
     checksum: join(output, 'SHA256SUMS.txt'),
   });
@@ -84,10 +84,10 @@ test('refuses to checksum an empty release artifact', async () => {
 });
 
 async function withReleaseFiles(run) {
-  const directory = mkdtempSync(join(tmpdir(), 'fragforge-release-integrity-'));
+  const directory = mkdtempSync(join(tmpdir(), 'tickcut-release-integrity-'));
   const artifacts = [
-    join(directory, 'FragForge.Studio.Setup.2.2.1.exe'),
-    join(directory, 'FragForge.Studio.Setup.2.2.1.exe.blockmap'),
+    join(directory, 'TickCut.Studio.Setup.2.2.1.exe'),
+    join(directory, 'TickCut.Studio.Setup.2.2.1.exe.blockmap'),
   ];
   const checksum = join(directory, 'SHA256SUMS.txt');
   writeFileSync(artifacts[0], 'installer bytes');

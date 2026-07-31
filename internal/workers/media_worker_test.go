@@ -1052,14 +1052,14 @@ func TestWriteDurableRenderDocumentsIgnoresRendererPublishDocumentPaths(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Contains(gallery, []byte("FragForge publish pack")) {
+			if !bytes.Contains(gallery, []byte("TickCut publish pack")) {
 				t.Fatalf("canonical gallery = %q", gallery)
 			}
 			summary, err := os.ReadFile(filepath.Join(publishDir, "publish-summary.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Contains(summary, []byte("# FragForge publish pack")) {
+			if !bytes.Contains(summary, []byte("# TickCut publish pack")) {
 				t.Fatalf("canonical summary = %q", summary)
 			}
 		})

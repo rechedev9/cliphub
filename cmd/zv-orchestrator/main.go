@@ -118,7 +118,7 @@ func run() error {
 		streamRepo = sqliteStreamRepo
 		log.Printf("jobs: using sqlite repository at %s", path)
 	default:
-		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: fragforge desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
+		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: tickcut desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
 	}
 
 	// Reconcile durable state whose process-local work vanished with the previous

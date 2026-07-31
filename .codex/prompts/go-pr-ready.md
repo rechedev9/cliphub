@@ -1,4 +1,4 @@
-# Go PR-ready playbook for FragForge
+# Go PR-ready playbook for TickCut
 
 Follow `AGENTS.md`.
 

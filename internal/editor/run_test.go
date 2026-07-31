@@ -368,7 +368,7 @@ func TestRunWithFakeFFmpegWritesShortResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"# FragForge Publish Summary", "Total kills: 3", "AK-47 x1", "AWP x1", "| 01 | seg-001 |"} {
+	for _, want := range []string{"# TickCut Publish Summary", "Total kills: 3", "AK-47 x1", "AWP x1", "| 01 | seg-001 |"} {
 		if !strings.Contains(string(summary), want) {
 			t.Fatalf("publish summary missing %q:\n%s", want, summary)
 		}

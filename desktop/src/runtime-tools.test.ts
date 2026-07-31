@@ -12,7 +12,7 @@ import {
 } from './runtime-tools.ts';
 
 test('maps resolved runtime tools to the orchestrator environment', (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const ffmpeg = path.join(directory, 'ffmpeg.exe');
   fs.writeFileSync(path.join(directory, 'ffprobe.exe'), '');
@@ -43,7 +43,7 @@ test('skips Windows runtime provisioning on other platforms', async () => {
 });
 
 test('reuses complete cached installations without download work', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   const paths = {
     hlae: path.join(toolsDir, 'hlae', '2.191.1', 'HLAE.exe'),
@@ -85,14 +85,14 @@ test('reuses complete cached installations without download work', async (t) => 
   });
   assert.deepEqual(logs, []);
   assert.deepEqual(statuses, []);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.191.1', '.fragforge-install.json')), true);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.fragforge-install.json')), true);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.fragforge-install.json')), true);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.191.1', '.tickcut-install.json')), true);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.tickcut-install.json')), true);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.tickcut-install.json')), true);
   assert.equal(fs.existsSync(staleStaging), false);
 });
 
 test('retires markerless legacy tools instead of using them after a failed refresh', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedLegacyHLAE(toolsDir);
   seedLegacyFFmpeg(toolsDir);
@@ -114,15 +114,15 @@ test('retires markerless legacy tools instead of using them after a failed refre
 
   assert.deepEqual(env, {});
   assert.deepEqual(statuses.sort(), ['ffmpeg', 'hlae', 'ytdlp']);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.191.1', '.fragforge-install.json')), false);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.fragforge-install.json')), false);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.fragforge-install.json')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.191.1', '.tickcut-install.json')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.tickcut-install.json')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.tickcut-install.json')), false);
   assert.equal(logs.filter((line) => line.includes('no valid per-file digest manifest')).length, 3);
   assert.equal(logs.filter((line) => line.includes('feature stays unconfigured')).length, 3);
 });
 
 test('installs uncached tools through staging and publishes only complete versions', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   const statuses: string[] = [];
   const bundledHLAEArchive = path.join(toolsDir, 'bundled', 'hlae_2_191_1.zip');
@@ -180,8 +180,8 @@ test('installs uncached tools through staging and publishes only complete versio
     const installDir = path.join(toolsDir, name, version);
     assert.equal(fs.existsSync(`${installDir}.installing`), false);
     assert.equal(fs.existsSync(`${installDir}.previous`), false);
-    assert.equal(fs.existsSync(path.join(installDir, '.fragforge-install.json')), true);
-    const marker = JSON.parse(fs.readFileSync(path.join(installDir, '.fragforge-install.json'), 'utf8'));
+    assert.equal(fs.existsSync(path.join(installDir, '.tickcut-install.json')), true);
+    const marker = JSON.parse(fs.readFileSync(path.join(installDir, '.tickcut-install.json'), 'utf8'));
     assert.equal(marker.schemaVersion, 2);
     assert.ok(Array.isArray(marker.files));
     assert.ok(marker.files.length > 0);
@@ -189,7 +189,7 @@ test('installs uncached tools through staging and publishes only complete versio
 });
 
 test('rehashes every cached file and refuses a modified executable when refresh fails', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
@@ -218,13 +218,13 @@ test('rehashes every cached file and refuses a modified executable when refresh 
 });
 
 test('migrates a legacy archive-only marker only through a fresh pinned installation', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
   seedLegacyYtdlp(toolsDir);
   const installDir = path.join(toolsDir, 'ytdlp', '2026.06.09');
-  fs.writeFileSync(path.join(installDir, '.fragforge-install.json'), JSON.stringify({
+  fs.writeFileSync(path.join(installDir, '.tickcut-install.json'), JSON.stringify({
     version: '2026.06.09',
     sha256: '3a48cb955d55c8821b60ccbdbbc6f61bc958f2f3d3b7ad5eaf3d83a543293a27',
   }));
@@ -242,13 +242,13 @@ test('migrates a legacy archive-only marker only through a fresh pinned installa
   }));
 
   assert.equal(env.ZV_YTDLP_PATH, path.join(installDir, 'yt-dlp.exe'));
-  const marker = JSON.parse(fs.readFileSync(path.join(installDir, '.fragforge-install.json'), 'utf8'));
+  const marker = JSON.parse(fs.readFileSync(path.join(installDir, '.tickcut-install.json'), 'utf8'));
   assert.equal(marker.schemaVersion, 2);
   assert.equal(marker.files[0].path, 'yt-dlp.exe');
 });
 
 test('removes obsolete versioned HLAE caches after the pinned version is ready', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
@@ -273,7 +273,7 @@ test('removes obsolete versioned HLAE caches after the pinned version is ready',
 });
 
 test('rejects a hash mismatch without publishing the failed tool', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
@@ -297,7 +297,7 @@ test('rejects a hash mismatch without publishing the failed tool', async (t) => 
 });
 
 test('cleans staging when archive extraction fails', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteYtdlp(toolsDir);
@@ -324,7 +324,7 @@ test('cleans staging when archive extraction fails', async (t) => {
 });
 
 test('aborts and cleans an installation that exceeds its time budget', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
@@ -356,7 +356,7 @@ test('aborts and cleans an installation that exceeds its time budget', async (t)
 });
 
 test('caller cancellation aborts work instead of activating legacy fallbacks', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedLegacyHLAE(toolsDir);
   seedLegacyFFmpeg(toolsDir);
@@ -391,7 +391,7 @@ test('caller cancellation aborts work instead of activating legacy fallbacks', a
 });
 
 test('restores an install interrupted during atomic publication', async (t) => {
-  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fragforge-tools-'));
+  const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
@@ -413,7 +413,7 @@ test('restores an install interrupted during atomic publication', async (t) => {
   }));
 
   assert.equal(env.ZV_YTDLP_PATH, path.join(installDir, 'yt-dlp.exe'));
-  assert.equal(fs.existsSync(path.join(installDir, '.fragforge-install.json')), true);
+  assert.equal(fs.existsSync(path.join(installDir, '.tickcut-install.json')), true);
   assert.equal(fs.existsSync(previousDir), false);
 });
 
@@ -488,7 +488,7 @@ function writeCompleteMarker(installDir: string, name: keyof typeof MARKERS): vo
     path: relativePath,
     sha256: createFixtureDigest(path.join(installDir, ...relativePath.split('/'))),
   }));
-  fs.writeFileSync(path.join(installDir, '.fragforge-install.json'), JSON.stringify({
+  fs.writeFileSync(path.join(installDir, '.tickcut-install.json'), JSON.stringify({
     files,
     schemaVersion: 2,
     sourceSha256: MARKERS[name].sha256,
@@ -499,7 +499,7 @@ function writeCompleteMarker(installDir: string, name: keyof typeof MARKERS): vo
 function collectFixtureFiles(directory: string, relativeDirectory = ''): string[] {
   const files: string[] = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    if (entry.name === '.fragforge-install.json') continue;
+    if (entry.name === '.tickcut-install.json') continue;
     const relativePath = relativeDirectory === '' ? entry.name : `${relativeDirectory}/${entry.name}`;
     if (entry.isDirectory()) {
       files.push(...collectFixtureFiles(path.join(directory, entry.name), relativePath));

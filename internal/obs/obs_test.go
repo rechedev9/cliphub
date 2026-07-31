@@ -54,9 +54,9 @@ func TestRecordErrorWritesJournalAndCounters(t *testing.T) {
 	}
 
 	want := map[string]int64{
-		`fragforge_errors_total{class="target_not_found",stage="parse"}`: 2,
-		`fragforge_stage_runs_total{result="error",stage="parse"}`:       2,
-		`fragforge_stage_runs_total{result="ok",stage="parse"}`:          1,
+		`TICKCUT_errors_total{class="target_not_found",stage="parse"}`: 2,
+		`TICKCUT_stage_runs_total{result="error",stage="parse"}`:       2,
+		`TICKCUT_stage_runs_total{result="ok",stage="parse"}`:          1,
 	}
 	got := counterMap(r.Snapshot())
 	for k, v := range want {
@@ -152,7 +152,7 @@ func TestRecordErrorDefaultsStageAndClass(t *testing.T) {
 		t.Fatalf("RecordError: %v", err)
 	}
 	got := counterMap(r.Snapshot())
-	if got[`fragforge_errors_total{class="unknown",stage="unknown"}`] != 1 {
+	if got[`TICKCUT_errors_total{class="unknown",stage="unknown"}`] != 1 {
 		t.Errorf("expected unknown/unknown counter, got %v", got)
 	}
 }
@@ -175,7 +175,7 @@ func TestCountersPersistAcrossReopen(t *testing.T) {
 		t.Fatalf("RecordError: %v", err)
 	}
 	got := counterMap(r2.Snapshot())
-	if got[`fragforge_errors_total{class="ffmpeg_failed",stage="render"}`] != 2 {
+	if got[`TICKCUT_errors_total{class="ffmpeg_failed",stage="render"}`] != 2 {
 		t.Errorf("counter did not accumulate across reopen: %v", got)
 	}
 }
@@ -192,10 +192,10 @@ func TestWritePrometheusFormat(t *testing.T) {
 	WritePrometheus(&b, r.Snapshot())
 	out := b.String()
 	for _, want := range []string{
-		"# HELP fragforge_errors_total",
-		"# TYPE fragforge_errors_total counter",
-		`fragforge_errors_total{class="corrupt",stage="parse"} 1`,
-		"# TYPE fragforge_stage_runs_total counter",
+		"# HELP TICKCUT_errors_total",
+		"# TYPE TICKCUT_errors_total counter",
+		`TICKCUT_errors_total{class="corrupt",stage="parse"} 1`,
+		"# TYPE TICKCUT_stage_runs_total counter",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("prometheus output missing %q\n---\n%s", want, out)
@@ -215,7 +215,7 @@ func TestMetricsPromFileWritten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read prom file: %v", err)
 	}
-	if !strings.Contains(string(b), `fragforge_stage_runs_total{result="ok",stage="compose"} 1`) {
+	if !strings.Contains(string(b), `TICKCUT_stage_runs_total{result="ok",stage="compose"} 1`) {
 		t.Errorf("prom file missing expected series:\n%s", b)
 	}
 }

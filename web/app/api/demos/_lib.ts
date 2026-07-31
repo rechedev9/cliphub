@@ -112,7 +112,7 @@ export function jobsListUrl(): string {
 /** Auth headers: the required orchestrator session token, server-side only. */
 export function mutationHeaders(): Record<string, string> {
   const token = process.env.ORCHESTRATOR_TOKEN;
-  return token ? { 'X-FragForge-Token': token } : {};
+  return token ? { 'X-TickCut-Token': token } : {};
 }
 
 /**

@@ -53,7 +53,7 @@ test('desktop manifest exposes one credential-free distribution path', () => {
 
   assert.equal(scripts.assemble, 'node scripts/assemble.mjs');
   assert.equal(scripts.dist, 'node scripts/dist.mjs');
-  assert.equal(manifest.build.artifactName, 'FragForge.Studio.Setup.${version}.${ext}');
+  assert.equal(manifest.build.artifactName, 'TickCut.Studio.Setup.${version}.${ext}');
   assert.equal(Object.keys(scripts).some((name) => name.includes('team')), false);
   assert.equal(
     resources.some((resource) => /(?:credential|xai-api-key)/i.test(`${resource.from} ${resource.to}`)),
@@ -72,7 +72,7 @@ test('release build environment is an allowlist, not a credential denylist', () 
     TEMP: 'C:\\temp',
     ELECTRON_CACHE: 'C:\\cache\\electron',
     FIRECRAWL_API_KEY: 'fixture',
-    FRAGFORGE_PROXY_MUTATION_CAPABILITY: 'fixture',
+    TICKCUT_PROXY_MUTATION_CAPABILITY: 'fixture',
     GH_TOKEN: 'fixture',
     GROQ_API_KEY: 'fixture',
     HTTPS_PROXY: 'http://proxy.invalid',

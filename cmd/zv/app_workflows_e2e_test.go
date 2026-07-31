@@ -16,7 +16,7 @@ func TestZVBinaryWorkflowsCatalogEndToEnd(t *testing.T) {
 	for _, want := range []string{
 		"demo-parse\tParse a CS2 demo",
 		"workflows-check\tValidate skills, workflow catalog, and current workflow docs.",
-		"project-check\tRun the full FragForge CLI, workflow, docs, and skills contract.",
+		"project-check\tRun the full TickCut CLI, workflow, docs, and skills contract.",
 	} {
 		if !strings.Contains(listOut, want) {
 			t.Fatalf("list output = %q, want %q", listOut, want)

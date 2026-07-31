@@ -1,6 +1,6 @@
 // Package batch runs a folder of CS2 demos through the parse stage in-process
 // and records every failure to an obs.Recorder. It exists so an operator (or an
-// agent) can point FragForge at a directory of demos, get a pass/fail summary,
+// agent) can point TickCut at a directory of demos, get a pass/fail summary,
 // and drive the error journal to empty without invoking the per-demo CLI by
 // hand.
 package batch

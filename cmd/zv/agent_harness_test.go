@@ -58,8 +58,8 @@ func TestCodexAppUsesCLIAndNoExternalMCP(t *testing.T) {
 	}
 	configBody := string(config)
 	for _, retired := range []string{
-		"[mcp_servers.fragforge]",
-		"fragforge-mcp",
+		"[mcp_servers.tickcut]",
+		"tickcut-mcp",
 	} {
 		if strings.Contains(configBody, retired) {
 			t.Fatalf("%s still contains retired external MCP configuration %q", configPath, retired)
@@ -167,7 +167,7 @@ func TestCodexHarnessRunsProjectCheck(t *testing.T) {
 		`shell_scripts+=("$script")`,
 		"find scripts -maxdepth 1 -type f -name '*.sh' | sort",
 		`bash -n "${shell_scripts[@]}"`,
-		"== FragForge workflow contract ==",
+		"== TickCut workflow contract ==",
 		"go run ./cmd/zv check",
 	} {
 		if !strings.Contains(body, want) {
@@ -186,7 +186,7 @@ func TestCodexHarnessExecutesWorkflowContractEndToEnd(t *testing.T) {
 	writeFile(t, fakeCodex, strings.Join([]string{
 		"#!/usr/bin/env bash",
 		"set -euo pipefail",
-		`printf '%s\n' 'FragForge is a Windows-local, deterministic CS2 demo/stream-to-video pipeline'`,
+		`printf '%s\n' 'TickCut is a Windows-local, deterministic CS2 demo/stream-to-video pipeline'`,
 		`printf '%s\n' 'AGENTS.md'`,
 	}, "\n"))
 	if err := os.Chmod(fakeCodex, 0o755); err != nil {
@@ -203,7 +203,7 @@ func TestCodexHarnessExecutesWorkflowContractEndToEnd(t *testing.T) {
 	for _, want := range []string{
 		"== shell syntax ==",
 		"== Codex sees AGENTS.md ==",
-		"== FragForge workflow contract ==",
+		"== TickCut workflow contract ==",
 		fmt.Sprintf("OK: 7 skills, %d workflows, 11 workflow docs, and 10 agent prompt wrappers checked", len(workflowCatalog())),
 		"OK: Codex harness is wired",
 	} {

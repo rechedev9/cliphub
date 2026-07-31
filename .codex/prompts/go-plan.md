@@ -1,4 +1,4 @@
-# Go planning playbook for FragForge
+# Go planning playbook for TickCut
 
 Follow `AGENTS.md`.
 

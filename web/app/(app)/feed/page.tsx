@@ -134,7 +134,7 @@ function FeedUnavailable({ offline, onRetry }: { offline: boolean; onRetry: () =
         title={offline ? 'Servicio local sin responder' : 'No se pudo cargar el feed'}
         description={
           offline
-            ? 'FragForge no ha podido contactar con el servicio local para traer el feed. Arráncalo y reintenta.'
+            ? 'TickCut no ha podido contactar con el servicio local para traer el feed. Arráncalo y reintenta.'
             : 'El feed de la comunidad no respondió. Reintenta en un momento.'
         }
         accent="magenta"

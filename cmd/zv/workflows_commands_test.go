@@ -1988,7 +1988,7 @@ func TestValidateSkillWorkflowRequirementSkillsRejectsMissingSkill(t *testing.T)
 	}
 }
 
-func TestValidateSkillWorkflowRequirementSkillsRejectsFragForgeSkillWithoutRequirements(t *testing.T) {
+func TestValidateSkillWorkflowRequirementSkillsRejectsTickCutSkillWithoutRequirements(t *testing.T) {
 	skills := []skillInfo{
 		{Name: "zackvideo-new-skill"},
 		{Name: "zackvideo-cs2-utility-shorts"},

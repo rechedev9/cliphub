@@ -26,7 +26,7 @@ const (
 	landscapeBannerX      = 32
 
 	// gradeFilter is the light contrast/saturation lift EffectsPlan.Grade
-	// applies — the same restrained look FragForge's viral presets use.
+	// applies — the same restrained look TickCut's viral presets use.
 	gradeFilter = "eq=contrast=1.05:saturation=1.15"
 )
 

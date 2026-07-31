@@ -1,4 +1,4 @@
-# Go readability review for FragForge
+# Go readability review for TickCut
 
 Follow `AGENTS.md`.
 

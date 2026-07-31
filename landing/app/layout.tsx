@@ -18,7 +18,7 @@ const shareTechMono = Share_Tech_Mono({
   display: "swap",
 });
 
-const SOCIAL_TITLE = "Your CS2 frags, ready to post | FragForge";
+const SOCIAL_TITLE = "Your CS2 frags, ready to post | TickCut";
 const SITE_DESCRIPTION =
   "Turn CS2 demos and stream moments into polished vertical Shorts with local capture and ready-to-post edits.";
 
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://fragforge.gravityroom.app"),
   title: SOCIAL_TITLE,
   description: SITE_DESCRIPTION,
-  applicationName: "FragForge Studio",
+  applicationName: "TickCut Studio",
   keywords: [
     "CS2",
     "Counter-Strike 2",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    siteName: "FragForge Studio",
+    siteName: "TickCut Studio",
     title: SOCIAL_TITLE,
     description: SITE_DESCRIPTION,
     url: "/",

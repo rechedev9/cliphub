@@ -445,7 +445,7 @@ func mapPublishSchedule(days []youtubeinsights.DailyRecommendation) []publishSch
 				Source:     "baseline",
 				Confidence: slot.Confidence,
 				Score:      slot.Score,
-				Rationale:  "Referencia diaria de FragForge en hora de España.",
+				Rationale:  "Referencia diaria de TickCut en hora de España.",
 			})
 		}
 		result = append(result, publishScheduleDay{

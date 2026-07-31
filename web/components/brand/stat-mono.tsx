@@ -18,7 +18,7 @@ export type StatMonoProps = {
 const LABEL_CLASS = 'font-mono text-meta uppercase tracking-widest text-fg-3';
 
 /**
- * StatMono — a labeled mono number, NEON HUD style. Every stat in FragForge
+ * StatMono — a labeled mono number, NEON HUD style. Every stat in TickCut
  * (K / D / A / MVP / K/D / scores / ticks / durations) is rendered through
  * this: a Share Tech Mono tabular value at the scoreboard step over a dim
  * wide-tracked label, so the scoreboard/demo-tick feel is consistent.

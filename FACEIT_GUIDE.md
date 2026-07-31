@@ -1,6 +1,6 @@
 # FACEIT Demo Index Guide
 
-FragForge can turn a FACEIT player URL or nickname into a durable CS2 match
+TickCut can turn a FACEIT player URL or nickname into a durable CS2 match
 index. The index contains every match in the requested UTC date range,
 match-level statistics, actual demo availability reported by FACEIT, canonical
 room links, and a deterministic shortlist order for content review.

@@ -1,6 +1,6 @@
 import type { StreamEditPlan, StreamJob } from './api/streams.ts';
 
-const PREFIX = 'fragforge.stream-draft.';
+const PREFIX = 'tickcut.stream-draft.';
 
 export type StreamDraft = {
   savedAt: string;

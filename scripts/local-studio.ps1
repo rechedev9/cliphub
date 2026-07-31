@@ -1,4 +1,4 @@
-# FragForge Local Studio
+# TickCut Local Studio
 #
 # One command to run the whole product on the user's own Windows + GPU PC: the
 # orchestrator (parse + HLAE/CS2 capture + render) and the web UI, wired so the
@@ -16,9 +16,9 @@
 #
 # Ctrl+C stops the web UI and then the orchestrator. Pass explicit loopback
 # ports (and a separate data directory) to run an isolated second instance:
-# .\scripts\local-studio.ps1 -OrchestratorPort 18080 -WebPort 13000 -DataDir C:\temp\fragforge-qa
+# .\scripts\local-studio.ps1 -OrchestratorPort 18080 -WebPort 13000 -DataDir C:\temp\tickcut-qa
 # Browser automation should also pass -NoBrowser, provide its own
-# FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY, and navigate its browser session to
+# TICKCUT_PROXY_BOOTSTRAP_CAPABILITY, and navigate its browser session to
 # /bootstrap#<capability>. The fragment is removed before the normal POST.
 #
 # Prerequisites:
@@ -81,8 +81,8 @@ $mutatedEnvironmentNames = @(
     "ZV_MUTATION_TOKEN",
     "ORCHESTRATOR_URL",
     "ORCHESTRATOR_TOKEN",
-    "FRAGFORGE_PROXY_MUTATION_CAPABILITY",
-    "FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY",
+    "TICKCUT_PROXY_MUTATION_CAPABILITY",
+    "TICKCUT_PROXY_BOOTSTRAP_CAPABILITY",
     "PORT",
     "HOSTNAME"
 )
@@ -98,18 +98,18 @@ $mutationCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["ZV_
 if ($mutationCapability -notmatch '^[0-9a-f]{64}$') {
     throw "ZV_MUTATION_TOKEN must be 32 random bytes encoded as 64 lowercase hexadecimal characters"
 }
-$proxyCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["FRAGFORGE_PROXY_MUTATION_CAPABILITY"])) {
+$proxyCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["TICKCUT_PROXY_MUTATION_CAPABILITY"])) {
     New-LocalCapability
 } else {
-    $originalEnvironment["FRAGFORGE_PROXY_MUTATION_CAPABILITY"]
+    $originalEnvironment["TICKCUT_PROXY_MUTATION_CAPABILITY"]
 }
-$bootstrapCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"])) {
+$bootstrapCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["TICKCUT_PROXY_BOOTSTRAP_CAPABILITY"])) {
     if ($NoBrowser) {
-        throw "-NoBrowser requires FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY so the caller can complete the browser handshake"
+        throw "-NoBrowser requires TICKCUT_PROXY_BOOTSTRAP_CAPABILITY so the caller can complete the browser handshake"
     }
     New-LocalCapability
 } else {
-    $originalEnvironment["FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"]
+    $originalEnvironment["TICKCUT_PROXY_BOOTSTRAP_CAPABILITY"]
 }
 foreach ($capability in @($proxyCapability, $bootstrapCapability)) {
     if ($capability -notmatch '^[0-9a-f]{64}$') {
@@ -122,15 +122,15 @@ if ((@($mutationCapability, $proxyCapability, $bootstrapCapability) | Select-Obj
 foreach ($name in @(
     "ZV_MUTATION_TOKEN",
     "ORCHESTRATOR_TOKEN",
-    "FRAGFORGE_PROXY_MUTATION_CAPABILITY",
-    "FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY"
+    "TICKCUT_PROXY_MUTATION_CAPABILITY",
+    "TICKCUT_PROXY_BOOTSTRAP_CAPABILITY"
 )) {
     [Environment]::SetEnvironmentVariable($name, $null, "Process")
 }
 
 $processJob = [IntPtr]::Zero
 try {
-$processJob = [FragForge.LocalProcessJob]::CreateKillOnClose()
+$processJob = [TickCut.LocalProcessJob]::CreateKillOnClose()
 if (-not (Test-Path $binZv)) {
     throw "missing $binZv - build the binaries first with .\scripts\build.ps1"
 }
@@ -217,7 +217,7 @@ try {
     # Own the actual service process. Starting through `zv serve` owns only the
     # short-lived delegate wrapper, so teardown can otherwise leave the
     # orchestrator grandchild listening after Local Studio exits.
-    $orchestrator = [FragForge.LocalProcessJob]::StartInJob(
+    $orchestrator = [TickCut.LocalProcessJob]::StartInJob(
         $processJob,
         $binOrchestrator,
         "",
@@ -248,8 +248,8 @@ try {
     # orchestrator; these values are read server-side by the Next.js server.
     $env:ORCHESTRATOR_URL = $orchestratorUrl
     $env:ORCHESTRATOR_TOKEN = $mutationCapability
-    $env:FRAGFORGE_PROXY_MUTATION_CAPABILITY = $proxyCapability
-    $env:FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY = $bootstrapCapability
+    $env:TICKCUT_PROXY_MUTATION_CAPABILITY = $proxyCapability
+    $env:TICKCUT_PROXY_BOOTSTRAP_CAPABILITY = $bootstrapCapability
     $env:PORT = "$WebPort"
     # Next's development server otherwise binds to :: and advertises a LAN URL.
     # Studio is a local control plane, so both services must stay on loopback.
@@ -267,7 +267,7 @@ try {
     # entrypoint beneath a repository path containing spaces must retain quotes.
     $quotedNextCommand = '"' + $nextCommand + '"'
     $webArguments = "$quotedNextCommand dev --hostname 127.0.0.1 --port $WebPort"
-    $webProcess = [FragForge.LocalProcessJob]::StartInJob(
+    $webProcess = [TickCut.LocalProcessJob]::StartInJob(
         $processJob,
         $nodeCommand,
         $webArguments,
@@ -277,8 +277,8 @@ try {
     # the launcher before any browser process is created; finally restores the
     # caller's exact prior environment.
     $env:ORCHESTRATOR_TOKEN = $null
-    $env:FRAGFORGE_PROXY_MUTATION_CAPABILITY = $null
-    $env:FRAGFORGE_PROXY_BOOTSTRAP_CAPABILITY = $null
+    $env:TICKCUT_PROXY_MUTATION_CAPABILITY = $null
+    $env:TICKCUT_PROXY_BOOTSTRAP_CAPABILITY = $null
 
     Write-Host "[local-studio] waiting for web UI..."
     $webReady = $false
@@ -323,7 +323,7 @@ finally {
 }
 finally {
     if ($processJob -ne [IntPtr]::Zero) {
-        [FragForge.LocalProcessJob]::Close($processJob)
+        [TickCut.LocalProcessJob]::Close($processJob)
     }
     foreach ($name in $mutatedEnvironmentNames) {
         [Environment]::SetEnvironmentVariable($name, $originalEnvironment[$name], "Process")

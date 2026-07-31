@@ -99,7 +99,7 @@ export const RUNTIME_TOOL_LABELS: Record<RuntimeToolName, string> = {
   ytdlp: 'yt-dlp',
 };
 
-const INSTALL_MARKER = '.fragforge-install.json';
+const INSTALL_MARKER = '.tickcut-install.json';
 const INSTALL_MARKER_SCHEMA_VERSION = 2;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROGRESS_REPORT_MIN_INTERVAL_MS = 1000;

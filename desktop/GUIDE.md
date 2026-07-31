@@ -1,4 +1,4 @@
-# FragForge Studio Desktop Guide
+# TickCut Studio Desktop Guide
 
 A Windows desktop wrapper around Local Studio: one app that boots the Go
 orchestrator and the Next.js web UI (in local mode) and shows the flow in a
@@ -31,7 +31,7 @@ Studio rehashes every cached file before reuse and compares the canonical tree
 against that code-pinned value; the writable cache manifest is metadata, not a
 root of trust. Markerless, forged, and archive-only legacy caches are migrated
 only by reinstalling from the pinned, verified source. The FFmpeg source is an
-immutable FragForge release asset copied from a checksum-verified BtbN build,
+immutable TickCut release asset copied from a checksum-verified BtbN build,
 not a rotating `latest` autobuild URL.
 HLAE is available offline; the remaining downloads are best-effort and retry on the next launch.
 After the current HLAE package is verified, Studio removes older versioned HLAE caches.
@@ -59,7 +59,7 @@ exact loopback origin before writing.
 ## No embedded assistant
 
 Studio ships no assistant surface.
-There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes only `fragforgeSettings.getAppInfo`.
+There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes only `tickcutSettings.getAppInfo`.
 The pipeline is driven through the interface itself and, for scripted work, the `zv` CLI in the repository build.
 No publish text is model-generated: the render writes each pack's title, caption, and hashtags deterministically from demo facts, and the publication assistant above offers factual, reel-derived metadata alternatives.
 
@@ -75,7 +75,7 @@ The Next.js server is additionally launched with that name explicitly removed fr
 Studio never reads the value it removes.
 
 Packaging still strips `XAI_API_KEY` from the build, web, and electron-builder environments, and the installer manifest contains no credential resource.
-That scrub is defence in depth against an operator's unrelated key leaking into a build, not a feature: nothing in FragForge reads the value.
+That scrub is defence in depth against an operator's unrelated key leaking into a build, not a feature: nothing in TickCut reads the value.
 
 ## Build the installer (on Windows)
 
@@ -93,7 +93,7 @@ rebuilt from the current source in the same distribution invocation. It then
 runs `scripts/assemble.mjs` (builds the web in local mode and
 stages `zv-orchestrator.exe`, `zv-editor.exe`, `zv-recorder.exe`, and the
 standalone server into `build-resources/`), then `electron-builder` produces the
-installer under `dist-installer/` (`FragForge Studio Setup <version>.exe`,
+installer under `dist-installer/` (`TickCut Studio Setup <version>.exe`,
 where `<version>` is the `version` field in `desktop/package.json`). The
 distribution command verifies the packaged HLAE archive, installer, blockmap,
 and checksums before returning success.

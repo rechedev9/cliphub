@@ -8,8 +8,8 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
-export const E2E_USER_DATA_ENV = 'FRAGFORGE_E2E_USER_DATA';
-export const E2E_TOOL_FIXTURE_ENV = 'FRAGFORGE_E2E_TOOL_FIXTURE';
+export const E2E_USER_DATA_ENV = 'TICKCUT_E2E_USER_DATA';
+export const E2E_TOOL_FIXTURE_ENV = 'TICKCUT_E2E_TOOL_FIXTURE';
 
 function safeLabel(label) {
   return String(label).replaceAll(/[^A-Za-z0-9_-]/g, '-').slice(0, 40) || 'run';
@@ -40,7 +40,7 @@ export function createE2EProfile(label, options = {}, {
   const fixture = verifiedFixtureDirectory(
     options.toolFixture ?? process.env[E2E_TOOL_FIXTURE_ENV],
   );
-  const root = createTemporaryDirectory(join(tmpdir(), `fragforge-${safeLabel(label)}-`));
+  const root = createTemporaryDirectory(join(tmpdir(), `tickcut-${safeLabel(label)}-`));
   try {
     if (fixture !== null) {
       copyDirectory(fixture, join(root, 'tools'), {

@@ -30,7 +30,7 @@ func (osCommandRunner) CapturePaths() capturetools.Paths {
 }
 
 func (osCommandRunner) Run(ctx context.Context, name string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	// #nosec G204 G702 -- callers delegate only to fixed FragForge subcommand binaries.
+	// #nosec G204 G702 -- callers delegate only to fixed TickCut subcommand binaries.
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout

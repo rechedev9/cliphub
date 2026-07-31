@@ -438,12 +438,12 @@ func introText(short ShortEdit) string {
 }
 
 // outroText resolves the outro card's text: the custom text set on the
-// request, or the "FragForge" default.
+// request, or the "TickCut" default.
 func outroText(short ShortEdit) string {
 	if text := strings.TrimSpace(short.OutroText); text != "" {
 		return text
 	}
-	return "FragForge"
+	return "TickCut"
 }
 
 // titleFontSize picks a hook/intro title size that fits within the frame's

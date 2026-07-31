@@ -113,7 +113,7 @@ function New-SmokeCapability {
 
 function Invoke-Curl {
     param([string[]]$Arguments, [string]$Description)
-    $headerName = "X-FragForge-" + "Token"
+    $headerName = "X-TickCut-" + "Token"
     $curlConfig = 'header = "{0}: {1}"' -f $headerName, $Capability
     # Windows PowerShell otherwise writes a UTF-16/BOM native pipeline, which
     # makes curl parse the first directive as "﻿header". Keep the capability on
@@ -267,7 +267,7 @@ if ([string]::IsNullOrWhiteSpace($configuredBaseUrl)) {
     if ($existingListenerPID -gt 0) {
         Fail "smoke port $OrchestratorPort is already owned by process $existingListenerPID"
     }
-    $ownedDataDir = Join-Path ([IO.Path]::GetTempPath()) ("fragforge-smoke-" + [guid]::NewGuid().ToString("N"))
+    $ownedDataDir = Join-Path ([IO.Path]::GetTempPath()) ("tickcut-smoke-" + [guid]::NewGuid().ToString("N"))
     [void](New-Item -ItemType Directory -Path $ownedDataDir)
     $ownedNames = @("ZV_DATABASE_URL", "ZV_DATA_DIR", "ZV_HTTP_ADDR", "ZV_MUTATION_TOKEN")
     $ownedOriginal = @{}

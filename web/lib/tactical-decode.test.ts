@@ -328,7 +328,7 @@ test('rejects a buffer shorter than the header', () => {
 test('maps typed decoder failures to localized user-safe messages', () => {
   const technical = new TacticalDecodeError('unsupported_format', 'decode positions: bad magic "oops"');
   const message = tacticalDecodeErrorMessage(technical);
-  assert.equal(message, 'El formato de posiciones no es compatible con esta versión de FragForge.');
+  assert.equal(message, 'El formato de posiciones no es compatible con esta versión de TickCut.');
   assert.equal(message.includes('bad magic'), false);
 });
 

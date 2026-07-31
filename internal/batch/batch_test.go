@@ -133,7 +133,7 @@ func TestRunRecordsCorruptDemo(t *testing.T) {
 		t.Errorf("event missing class: %+v", events[0])
 	}
 
-	if v := counterValue(rec, "fragforge_stage_runs_total", map[string]string{"result": "error", "stage": "parse"}); v != 1 {
+	if v := counterValue(rec, "TICKCUT_stage_runs_total", map[string]string{"result": "error", "stage": "parse"}); v != 1 {
 		t.Errorf("expected one recorded parse error, got %d", v)
 	}
 }
