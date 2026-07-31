@@ -23,9 +23,11 @@ import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
+// Point at a published GitHub Release asset only. v2.4.8 was never uploaded;
+// latest ship is still the 2.4.7 installer (pre-rebrand filename).
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.8/TickCut.Studio.Setup.2.4.8.exe";
-const RELEASE_VERSION = "v2.4.8";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.7/FragForge.Studio.Setup.2.4.7.exe";
+const RELEASE_VERSION = "v2.4.7";
 const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
