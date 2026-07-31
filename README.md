@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/rechedev9/tickcut/releases"><img src="https://img.shields.io/github/v/release/rechedev9/tickcut?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
-  <a href="https://fragforge.gravityroom.app/"><img src="https://img.shields.io/badge/Website-fragforge.gravityroom.app-22d9ee?style=for-the-badge" alt="Website"></a>
+  <a href="https://tickcut.gravityroom.app/"><img src="https://img.shields.io/badge/Website-tickcut.gravityroom.app-22d9ee?style=for-the-badge" alt="Website"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-see%20repo-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
@@ -21,7 +21,7 @@ The **demo is the source of truth**. TickCut does not invent kills from pixels o
 
 If you want a local creator rig for CS2 highlights that feels like a production tool, this is it.
 
-[Website](https://fragforge.gravityroom.app/) · [Releases](https://github.com/rechedev9/tickcut/releases) · [Product](PRODUCT.md) · [Desktop](desktop/GUIDE.md) · [Web](web/GUIDE.md) · [FACEIT](FACEIT_GUIDE.md)
+[Website](https://tickcut.gravityroom.app/) · [Releases](https://github.com/rechedev9/tickcut/releases) · [Product](PRODUCT.md) · [Desktop](desktop/GUIDE.md) · [Web](web/GUIDE.md) · [FACEIT](FACEIT_GUIDE.md)
 
 ---
 
@@ -218,14 +218,14 @@ Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) —
 
 Versioned installers + `SHA256SUMS.txt` → [GitHub Releases](https://github.com/rechedev9/tickcut/releases).
 
-Landing download URL is updated per release at [fragforge.gravityroom.app](https://fragforge.gravityroom.app/) (DNS hostname may lag the product rename).
+Landing download URL is updated per release at [tickcut.gravityroom.app](https://tickcut.gravityroom.app/).
 
 ```powershell
 pnpm --dir desktop run dist
 pnpm --dir desktop run verify:dist-integrity
 ```
 
-Publish flow: ship assets to `rechedev9/tickcut` Releases → update landing download URL → deploy Vercel project `fragforge-landing` (root `landing/`).
+Publish flow: ship assets to `rechedev9/tickcut` Releases → update landing download URL → deploy Vercel project `tickcut-landing` (root `landing/`).
 
 ---
 
@@ -233,7 +233,7 @@ Publish flow: ship assets to `rechedev9/tickcut` Releases → update landing dow
 
 **TickCut** — demo **ticks** cut into publish-ready reels.
 
-Formerly developed as **FragForge**; the product brand and GitHub repo are now **TickCut** (`rechedev9/tickcut`). The website hostname may still say `fragforge` until DNS/landing are retargeted.
+Formerly developed as **FragForge**; the product brand, GitHub repo, and site are now **TickCut** (`rechedev9/tickcut`, [tickcut.gravityroom.app](https://tickcut.gravityroom.app/)). The old host `fragforge.gravityroom.app` redirects to the new one when still configured.
 
 ---
 

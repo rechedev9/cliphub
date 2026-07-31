@@ -23,7 +23,7 @@ const SITE_DESCRIPTION =
   "Turn CS2 demos and stream moments into polished vertical Shorts with local capture and ready-to-post edits.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://fragforge.gravityroom.app"),
+  metadataBase: new URL("https://tickcut.gravityroom.app"),
   title: SOCIAL_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: "TickCut Studio",
