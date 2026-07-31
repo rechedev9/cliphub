@@ -1,4 +1,7 @@
 import type { VideoStatus, CaptureProgress } from './types';
+import { requiresRecapture } from './failure-reason.ts';
+
+export { requiresRecapture } from './failure-reason.ts';
 
 /**
  * Reel reconcile core — pure, framework-free, the testable heart of the durable
@@ -149,8 +152,23 @@ export function deriveReelView(input: ReconcileInput): ReelView {
       ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),
     };
   }
-  if (jobStatus === 'failed') return failed(jobFailureReason);
-  if (renderStatus === 'failed') return failed(renderFailureReason);
+  if (jobStatus === 'failed') {
+    // A failed job whose reason is a non-reusable capture still needs record,
+    // same as a plain capture failure. Retry and reconcile both re-drive record.
+    if (requiresRecapture(jobFailureReason)) {
+      return { status: 'queued', action: 'record' };
+    }
+    return failed(jobFailureReason);
+  }
+  if (renderStatus === 'failed') {
+    // Stale capture under the current contract: re-record instead of looping on
+    // render. After a successful re-record the worker clears this failed state
+    // so the next tick sees render "none" and drives render.
+    if (requiresRecapture(renderFailureReason)) {
+      return { status: 'queued', action: 'record' };
+    }
+    return failed(renderFailureReason);
+  }
   if (renderStatus === 'queued' || renderStatus === 'rendering') {
     return { status: 'composing', action: 'none' };
   }

@@ -3,7 +3,7 @@
 // reconcile state machine is testable with zero new dependencies (Node 24 node:test).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canHaveRenderState, deriveReelView, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
+import { canHaveRenderState, deriveReelView, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
 import type { ReconcileInput } from './reel-reconcile.ts';
 
 /** deriveReelView with sane defaults so each case states only what it varies. */
@@ -105,6 +105,82 @@ test('render failed → failed with reason', () => {
     view({ jobStatus: 'recorded', renderStatus: 'failed', renderFailureReason: 'ffmpeg error' }),
     { status: 'failed', action: 'none', failureReason: 'ffmpeg error' },
   );
+});
+
+test('render failed with non-reusable capture → re-record instead of looping render', () => {
+  assert.deepEqual(
+    view({
+      jobStatus: 'recorded',
+      renderStatus: 'failed',
+      renderFailureReason: 'recording result capture_mode must be "real"',
+    }),
+    { status: 'queued', action: 'record' },
+  );
+  assert.deepEqual(
+    view({
+      jobStatus: 'recorded',
+      renderStatus: 'failed',
+      renderFailureReason: 'recording_not_reusable:recording result capture_mode must be "real"',
+    }),
+    { status: 'queued', action: 'record' },
+  );
+});
+
+test('job failed with non-reusable capture → re-record', () => {
+  assert.deepEqual(
+    view({
+      jobStatus: 'failed',
+      jobFailureReason: 'recording_not_reusable:recording result lacks completed POV verification',
+    }),
+    { status: 'queued', action: 'record' },
+  );
+});
+
+test('requiresRecapture matches prefix and legacy English strings', () => {
+  assert.equal(requiresRecapture(undefined), false);
+  assert.equal(requiresRecapture(''), false);
+  assert.equal(requiresRecapture('ffmpeg error'), false);
+  assert.equal(requiresRecapture('compose failed'), false);
+  assert.equal(requiresRecapture('recording result capture_mode must be "real"'), true);
+  assert.equal(requiresRecapture('recording_not_reusable:anything'), true);
+  assert.equal(requiresRecapture('recording result lacks completed POV verification'), true);
+  assert.equal(requiresRecapture('recording result capture input fingerprint does not match its plan'), true);
+  assert.equal(requiresRecapture('legacy recording result contains fields from a newer capture contract'), true);
+  assert.equal(requiresRecapture('recording result publication is pending'), true);
+});
+
+test('ordinary render failure keeps failed + no re-record action (retry re-renders)', () => {
+  const v = view({
+    jobStatus: 'recorded',
+    renderStatus: 'failed',
+    renderFailureReason: 'ffmpeg exited with code 1',
+  });
+  assert.equal(v.status, 'failed');
+  assert.equal(v.action, 'none');
+  assert.equal(v.failureReason, 'ffmpeg exited with code 1');
+  assert.equal(requiresRecapture(v.failureReason), false);
+});
+
+test('all known non-reusable render strings map to re-record', () => {
+  const reasons = [
+    'recording result capture_mode must be "real"',
+    'recording_not_reusable:recording result capture_mode must be "real"',
+    'recording result lacks completed POV verification',
+    'recording_not_reusable:recording result lacks completed POV verification',
+    'recording result capture input fingerprint does not match its plan',
+    'legacy recording result contains fields from a newer capture contract',
+    'recording result publication is pending',
+  ];
+  for (const reason of reasons) {
+    const v = view({
+      jobStatus: 'recorded',
+      renderStatus: 'failed',
+      renderFailureReason: reason,
+    });
+    assert.equal(v.status, 'queued', `status for ${reason}`);
+    assert.equal(v.action, 'record', `action for ${reason}`);
+    assert.equal(requiresRecapture(reason), true, `requiresRecapture(${reason})`);
+  }
 });
 
 test('still parsing → queued, no action (only drive from parsed onward)', () => {

@@ -7,6 +7,29 @@ import (
 	"github.com/rechedev9/fragforge/internal/artifacts"
 )
 
+// NotReusablePrefix marks a stored recording that cannot feed compose/render
+// under the current capture contract. Downstream stages and the Studio client
+// treat this as "re-record required" rather than a permanent render failure.
+const NotReusablePrefix = "recording_not_reusable:"
+
+// IsNotReusableMessage reports whether message describes a stored capture that
+// must be re-recorded before compose/render can succeed. It matches both the
+// stable prefix and the pre-prefix English validation strings so already-failed
+// reels recover after upgrade.
+func IsNotReusableMessage(message string) bool {
+	if message == "" {
+		return false
+	}
+	if strings.HasPrefix(message, NotReusablePrefix) {
+		return true
+	}
+	return strings.Contains(message, `capture_mode must be "real"`) ||
+		strings.Contains(message, "lacks completed POV verification") ||
+		strings.Contains(message, "capture input fingerprint does not match") ||
+		strings.Contains(message, "legacy recording result contains fields from a newer capture contract") ||
+		strings.Contains(message, "recording result publication is pending")
+}
+
 // ValidateRunResult returns an error when the recorder wrote a structured
 // failure result after the process completed.
 func ValidateRunResult(result RecordingResult) error {
@@ -36,6 +59,21 @@ func ValidateRunResult(result RecordingResult) error {
 		return fmt.Errorf("recording result capture input fingerprint does not match its plan")
 	}
 	return nil
+}
+
+// MarkNotReusable wraps a ValidateRunResult (or equivalent) failure so callers
+// and the Studio client can distinguish "re-record required" from a plain
+// render/tool error. Publication-pending is included: a half-published commit
+// is not safe to render and must be replaced by a complete capture.
+func MarkNotReusable(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if strings.HasPrefix(msg, NotReusablePrefix) {
+		return err
+	}
+	return fmt.Errorf("%s%w", NotReusablePrefix, err)
 }
 
 // validateLegacyRunResult preserves the exact verified V1 contract that shipped

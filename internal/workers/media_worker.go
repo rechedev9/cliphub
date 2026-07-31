@@ -368,6 +368,12 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		return fmt.Errorf("mark recorded: %w", err)
 	}
 	logWorkerTransition(j.ID, tasks.TypeRecordDemo, job.StatusRecorded)
+	// A successful capture (including a readiness skip against a now-valid
+	// result) invalidates prior "re-record required" render failures so the
+	// Studio client re-drives render instead of looping on re-record forever.
+	if err := w.clearNotReusableRenderFailures(j.ID); err != nil {
+		logWorkerError(j.ID, "clear not-reusable render failures", err)
+	}
 	// A guided generate task carries its own immutable render intent, so another
 	// accepted capture cannot change the treatment this capture chains. A
 	// chaining failure must not fail capture; manual render remains a fallback.
@@ -509,6 +515,40 @@ func (w *RecordWorker) readRenderVariantState(id uuid.UUID, variant string) (*re
 		return nil, false, err
 	}
 	return &state, true, nil
+}
+
+// clearNotReusableRenderFailures drops failed render status documents whose
+// error says the stored capture is not reusable under the current contract.
+// After a successful re-record the client must see render status "none" so it
+// drives render instead of looping on re-record against the same failure.
+func (w *RecordWorker) clearNotReusableRenderFailures(id uuid.UUID) error {
+	deleter, ok := w.storage.(interface{ Delete(string) error })
+	if !ok {
+		return fmt.Errorf("storage cannot delete not-reusable render failures")
+	}
+	var errs []error
+	for _, variant := range editor.PresetNames() {
+		state, exists, err := w.readRenderVariantState(id, variant)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("read render state %q: %w", variant, err))
+			continue
+		}
+		if !exists || state.Status != renderplan.RenderVariantStatusFailed {
+			continue
+		}
+		if !recording.IsNotReusableMessage(state.Error) {
+			continue
+		}
+		key, err := renderplan.RenderVariantStateKey(id, variant)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("render state key %q: %w", variant, err))
+			continue
+		}
+		if err := deleter.Delete(key); err != nil {
+			errs = append(errs, fmt.Errorf("delete render state %q: %w", variant, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) (retErr error) {
@@ -2613,7 +2653,9 @@ func readStoredRecordingResult(store storage.Storage, id uuid.UUID) (recording.R
 		return recording.RecordingResult{}, err
 	}
 	if err := recording.ValidateRunResult(result); err != nil {
-		return recording.RecordingResult{}, err
+		// Prefix so compose/render failures are classified as "re-record
+		// required" instead of a permanent render loop on a stale capture.
+		return recording.RecordingResult{}, recording.MarkNotReusable(err)
 	}
 	return result, nil
 }

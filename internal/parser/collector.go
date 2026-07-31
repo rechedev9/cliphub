@@ -120,7 +120,7 @@ func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
 	sortRawKillsByTick(c.kills)
 
 	segs := Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
-	segs = clampSegmentsToDuration(segs, m.DurationTicks)
+	segs = clampSegmentsToDuration(segs, m.DurationTicks, m.Tickrate)
 	if segs == nil {
 		segs = []killplan.Segment{}
 	}
@@ -149,18 +149,110 @@ func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
 	return plan, nil
 }
 
-func clampSegmentsToDuration(segments []killplan.Segment, durationTicks int) []killplan.Segment {
+// demoEndSafetyMarginSeconds keeps segment ends away from CS2 demo EOF.
+// Recording into the final ticks freezes or corrupts the last frames ("se
+// raya"), and a record-end scheduled at DurationTicks often never fires
+// because playback stops before that tick, so the runtime cannot shut down
+// cleanly.
+const demoEndSafetyMarginSeconds = 2
+
+// demoEndShortTailSeconds is the maximum post-event pad kept when a kill or
+// utility throw already sits inside the EOF safety zone. Full post-roll into
+// the glitch zone is worse than a short clean tail.
+const demoEndShortTailSeconds = 1
+
+func demoEndSafetyMarginTicks(tickrate, durationTicks int) int {
+	if durationTicks <= 1 {
+		return 0
+	}
+	if tickrate <= 0 {
+		tickrate = 64
+	}
+	margin := demoEndSafetyMarginSeconds * tickrate
+	if margin < 1 {
+		margin = 1
+	}
+	// Never reserve more than a quarter of a short demo fixture.
+	if maxMargin := durationTicks / 4; maxMargin > 0 && margin > maxMargin {
+		margin = maxMargin
+	}
+	if margin >= durationTicks {
+		margin = durationTicks - 1
+	}
+	return margin
+}
+
+func lastSegmentEventTick(segment killplan.Segment) int {
+	last := 0
+	for _, kill := range segment.Kills {
+		if kill.Tick > last {
+			last = kill.Tick
+		}
+	}
+	for _, utility := range segment.Utility {
+		if utility.ThrowTick > last {
+			last = utility.ThrowTick
+		}
+		if utility.PopTick > last {
+			last = utility.PopTick
+		}
+	}
+	return last
+}
+
+// clampSegmentsToDuration trims segment ends that would run past the demo, and
+// prefers stopping before the EOF glitch zone so capture ends cleanly.
+func clampSegmentsToDuration(segments []killplan.Segment, durationTicks, tickrate int) []killplan.Segment {
 	if durationTicks <= 0 || len(segments) == 0 {
 		return segments
 	}
+	if tickrate <= 0 {
+		tickrate = 64
+	}
+	margin := demoEndSafetyMarginTicks(tickrate, durationTicks)
+	softCap := durationTicks - margin
+	if softCap < 1 {
+		softCap = durationTicks
+	}
+	shortTail := demoEndShortTailSeconds * tickrate
+	if shortTail < 1 {
+		shortTail = 1
+	}
+
 	out := segments[:0]
 	for _, segment := range segments {
 		if segment.TickStart >= durationTicks {
 			continue
 		}
-		if segment.TickEnd > durationTicks {
-			segment.TickEnd = durationTicks
+		end := segment.TickEnd
+		if end > softCap {
+			end = softCap
 		}
+		lastEvent := lastSegmentEventTick(segment)
+		// Soft margin may sit before the last selected event. Keep a short clean
+		// tail after that event instead of full post-roll into EOF junk.
+		if lastEvent > 0 && end < lastEvent {
+			end = lastEvent + shortTail
+		}
+		// Prefer one tick of headroom so record-end still fires while playback
+		// advances, unless the last event is already on the final tick.
+		if durationTicks > 1 && end >= durationTicks {
+			if lastEvent > 0 && lastEvent < durationTicks-1 {
+				end = durationTicks - 1
+			} else if lastEvent <= 0 {
+				end = durationTicks - 1
+			} else {
+				end = durationTicks
+			}
+		}
+		if end > durationTicks {
+			end = durationTicks
+		}
+		// Validator requires every kill/throw inside [TickStart, TickEnd].
+		if lastEvent > end {
+			continue
+		}
+		segment.TickEnd = end
 		if segment.TickEnd <= segment.TickStart {
 			continue
 		}

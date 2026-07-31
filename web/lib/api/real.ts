@@ -3,7 +3,7 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
 import { planToMatch, planToPlays, type KillPlan } from './map';
-import { canHaveRenderState, deriveReelView, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
+import { canHaveRenderState, deriveReelView, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store';
 import {
   applyEffectiveRenderMusic,
@@ -486,7 +486,13 @@ export class RealApiClient implements ApiClient {
     if (job && job.status === 'failed') {
       await this.drive(intent, 'record');
     } else if (render.status === 'failed') {
-      await this.drive(intent, 'render');
+      // Non-reusable capture (e.g. pre-2.4.6 result missing capture_mode):
+      // re-render cannot fix it; re-record under the current contract.
+      if (requiresRecapture(render.failureReason)) {
+        await this.drive(intent, 'record');
+      } else {
+        await this.drive(intent, 'render');
+      }
     }
     await this.reconcile();
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };

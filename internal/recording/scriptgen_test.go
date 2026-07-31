@@ -193,6 +193,9 @@ func TestGenerateHLAEJavaScriptAttestsWhenDemoPlaybackEndsEarly(t *testing.T) {
 
 func TestBuildRuntimeScheduleAllowsPOVDriftDuringKillPostRoll(t *testing.T) {
 	plan := testPlan()
+	// Keep the segment well before DemoDurationTicks so EOF soft-cap does not
+	// rewrite the editorial post-roll under test.
+	plan.DemoDurationTicks = 200_000
 	plan.Segments = []RecordingSegment{{
 		ID:        "seg-021",
 		TickStart: 178844,
@@ -219,6 +222,154 @@ func TestBuildRuntimeScheduleAllowsPOVDriftDuringKillPostRoll(t *testing.T) {
 	}
 	if deathTick := 179242; deathTick <= window.VerifyUntil || deathTick > window.RecordEnd {
 		t.Fatalf("death tick %d should be recorded after POV verification ends: %+v", deathTick, window)
+	}
+}
+
+func TestEffectiveRecordEndTickPullsBackNearDemoEOF(t *testing.T) {
+	plan := testPlan()
+	plan.DemoDurationTicks = 10_500
+	plan.Tickrate = 64
+	segment := RecordingSegment{
+		ID:        "seg-eof",
+		TickStart: 10_000,
+		TickEnd:   10_500, // would record into absolute EOF
+		Kills:     []killplan.Kill{{Tick: 10_200}},
+	}
+	got := EffectiveRecordEndTick(segment, plan)
+	want := 10_500 - 2*64 // soft cap (kill is still before softCap)
+	if got != want {
+		t.Fatalf("EffectiveRecordEndTick = %d, want soft-cap %d", got, want)
+	}
+	if got >= plan.DemoDurationTicks {
+		t.Fatalf("EffectiveRecordEndTick = %d must stay before demo duration %d", got, plan.DemoDurationTicks)
+	}
+}
+
+func TestEffectiveRecordEndTickLeavesMiddleOfDemoPostRollIntact(t *testing.T) {
+	plan := testPlan()
+	plan.DemoDurationTicks = 200_000
+	plan.Tickrate = 64
+	segment := RecordingSegment{
+		ID:        "seg-mid",
+		TickStart: 50_000,
+		TickEnd:   50_640,
+		Kills:     []killplan.Kill{{Tick: 50_320}},
+	}
+	got := EffectiveRecordEndTick(segment, plan)
+	if got != segment.TickEnd {
+		t.Fatalf("EffectiveRecordEndTick = %d, want unchanged post-roll %d", got, segment.TickEnd)
+	}
+}
+
+func TestEffectiveRecordEndTickShortTailWhenKillInsideEOFMargin(t *testing.T) {
+	// Parser short-tail leaves TickEnd covering a near-EOF kill (e.g. 9999).
+	// Soft-capping alone would stop before the kill (9872); short-tail must cover it.
+	plan := testPlan()
+	plan.DemoDurationTicks = 10_000
+	plan.Tickrate = 64
+	const killTick = 9_950
+	segment := RecordingSegment{
+		ID:        "seg-kill-margin",
+		TickStart: 9_500,
+		TickEnd:   9_999, // plan already short-tailed by parser
+		Kills:     []killplan.Kill{{Tick: killTick}},
+	}
+	got := EffectiveRecordEndTick(segment, plan)
+	softCap := 10_000 - 2*64 // 9872 — must NOT win
+	if got == softCap {
+		t.Fatalf("EffectiveRecordEndTick soft-capped to %d before kill %d", got, killTick)
+	}
+	if got < killTick {
+		t.Fatalf("EffectiveRecordEndTick = %d ends before kill %d", got, killTick)
+	}
+	if got >= plan.DemoDurationTicks {
+		t.Fatalf("EffectiveRecordEndTick = %d lands on absolute duration %d", got, plan.DemoDurationTicks)
+	}
+	// Short tail wants kill+64=10014, hard headroom is duration-1=9999.
+	if want := plan.DemoDurationTicks - 1; got != want {
+		t.Fatalf("EffectiveRecordEndTick = %d, want EOF headroom %d", got, want)
+	}
+}
+
+func TestEffectiveRecordEndTickShortTailWhenUtilityThrowInsideEOFMargin(t *testing.T) {
+	// Regression: last event must include utility ThrowTick/PopTick, not only kills.
+	// duration=10000 tickrate=64 throw=9950 TickEnd=9999 → must not RecordEnd=9872.
+	plan := testPlan()
+	plan.DemoDurationTicks = 10_000
+	plan.Tickrate = 64
+	const throwTick = 9_950
+	segment := RecordingSegment{
+		ID:        "seg-util-margin",
+		TickStart: 9_500,
+		TickEnd:   9_999,
+		Utility: []killplan.UtilityThrow{{
+			Type:      "smokegrenade",
+			ThrowTick: throwTick,
+			PopTick:   throwTick + 20,
+		}},
+	}
+	got := EffectiveRecordEndTick(segment, plan)
+	softCap := 10_000 - 2*64
+	if got <= softCap {
+		t.Fatalf("EffectiveRecordEndTick = %d soft-capped at/before %d; must cover utility throw %d", got, softCap, throwTick)
+	}
+	if got < throwTick {
+		t.Fatalf("EffectiveRecordEndTick = %d ends before utility throw %d", got, throwTick)
+	}
+	if got < throwTick+20 {
+		t.Fatalf("EffectiveRecordEndTick = %d ends before utility pop %d", got, throwTick+20)
+	}
+	if got >= plan.DemoDurationTicks {
+		t.Fatalf("EffectiveRecordEndTick = %d lands on absolute duration %d", got, plan.DemoDurationTicks)
+	}
+	if want := plan.DemoDurationTicks - 1; got != want {
+		t.Fatalf("EffectiveRecordEndTick = %d, want EOF headroom %d", got, want)
+	}
+}
+
+func TestBuildRuntimeScheduleRecordEndUsesEOFSoftCap(t *testing.T) {
+	plan := testPlan()
+	plan.DemoDurationTicks = 10_500
+	plan.Tickrate = 64
+	plan.Segments = []RecordingSegment{{
+		ID:        "seg-eof",
+		TickStart: 10_000,
+		TickEnd:   10_500,
+		Kills:     []killplan.Kill{{Tick: 10_200}},
+	}}
+	_, _, windows := buildRuntimeSchedule(plan)
+	if len(windows) != 1 {
+		t.Fatalf("windows = %d, want 1", len(windows))
+	}
+	want := 10_500 - 2*64
+	if windows[0].RecordEnd != want {
+		t.Fatalf("RecordEnd = %d, want soft-cap %d (not absolute duration)", windows[0].RecordEnd, want)
+	}
+	if windows[0].RecordEnd >= plan.DemoDurationTicks {
+		t.Fatalf("RecordEnd = %d lands on demo duration %d", windows[0].RecordEnd, plan.DemoDurationTicks)
+	}
+}
+
+func TestBuildRuntimeScheduleRecordEndCoversUtilityInsideEOFMargin(t *testing.T) {
+	plan := testPlan()
+	plan.DemoDurationTicks = 10_000
+	plan.Tickrate = 64
+	const throwTick = 9_950
+	plan.Segments = []RecordingSegment{{
+		ID:        "seg-util",
+		TickStart: 9_500,
+		TickEnd:   9_999,
+		Utility:   []killplan.UtilityThrow{{Type: "smokegrenade", ThrowTick: throwTick, PopTick: throwTick + 20}},
+	}}
+	_, _, windows := buildRuntimeSchedule(plan)
+	if len(windows) != 1 {
+		t.Fatalf("windows = %d, want 1", len(windows))
+	}
+	if windows[0].RecordEnd < throwTick+20 {
+		t.Fatalf("RecordEnd = %d does not cover utility through pop %d", windows[0].RecordEnd, throwTick+20)
+	}
+	if windows[0].RecordEnd >= plan.DemoDurationTicks {
+		t.Fatalf("RecordEnd = %d lands on duration %d", windows[0].RecordEnd, plan.DemoDurationTicks)
 	}
 }
 

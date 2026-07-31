@@ -337,9 +337,10 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	for i, s := range plan.Segments {
 		seekTick := 50
 		if i > 0 {
-			seekTick = plan.Segments[i-1].TickEnd + 32
+			seekTick = EffectiveRecordEndTick(plan.Segments[i-1], plan) + 32
 		}
 		recordStart := EffectiveRecordStartTick(s, plan.Tickrate)
+		recordEnd := EffectiveRecordEndTick(s, plan)
 		leadTicks := plan.Tickrate * 5
 		seekTarget := max(1, s.TickStart-leadTicks)
 		cameraWarmupTick := seekTarget + max(1, plan.Tickrate/2)
@@ -350,19 +351,19 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		if cameraWarmupTick >= recordStart {
 			cameraWarmupTick = recordStart - max(2, plan.Tickrate/2)
 		}
-		verifyUntil := s.TickEnd
+		verifyUntil := recordEnd
 		if lastKill := lastKillTick(s); lastKill > 0 {
 			// Once the final selected kill has happened, a spectator change can
 			// be CS2's legitimate death cam during post-roll. Keep recording the
 			// full segment, but stop treating that camera change as POV drift.
-			verifyUntil = min(s.TickEnd, max(recordStart, lastKill))
+			verifyUntil = min(recordEnd, max(recordStart, lastKill))
 		}
 		windows = append(windows, captureWindow{
 			SegmentID:   s.ID,
 			LockFrom:    max(seekTarget+1, cameraWarmupTick),
 			RecordStart: recordStart,
 			VerifyUntil: verifyUntil,
-			RecordEnd:   s.TickEnd,
+			RecordEnd:   recordEnd,
 		})
 
 		// Short demo_gototick jumps can corrupt CS2's demo netchannel. Let nearby
@@ -399,17 +400,17 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 
 		commands = append(commands,
 			scheduledCommand{Tick: recordStart, Key: "record-start-" + s.ID, Commands: []string{"mirv_streams record start"}},
-			scheduledCommand{Tick: s.TickEnd, Key: "record-end-" + s.ID, Commands: []string{"mirv_streams record end"}},
+			scheduledCommand{Tick: recordEnd, Key: "record-end-" + s.ID, Commands: []string{"mirv_streams record end"}},
 		)
 
 		if plan.Runtime.HostTimescale > 0 && plan.Runtime.HostTimescale != 1 {
 			commands = append(commands,
-				scheduledCommand{Tick: s.TickEnd + 4, Key: "timescale-reset-" + s.ID, Commands: []string{"host_timescale 1"}},
+				scheduledCommand{Tick: recordEnd + 4, Key: "timescale-reset-" + s.ID, Commands: []string{"host_timescale 1"}},
 			)
 		}
 	}
 
-	lastEnd := plan.Segments[len(plan.Segments)-1].TickEnd
+	lastEnd := EffectiveRecordEndTick(plan.Segments[len(plan.Segments)-1], plan)
 	pad := plan.Runtime.QuitTickPad
 	if pad <= 0 {
 		pad = 200
@@ -455,6 +456,77 @@ func EffectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
 	return stabilizedStart
 }
 
+// EffectiveRecordEndTick returns the tick where HLAE stops recording a segment.
+// Middle-of-demo segments keep their planned end. Only ends that already
+// approach demo EOF are pulled back so the glitchy last frames are not
+// captured and record-end can still fire while playback is advancing.
+//
+// Last-event logic matches the parser clamp: kills and utility throw/pop ticks
+// all count. When the last event sits inside the EOF safety margin, keep a
+// short clean tail (and hard headroom before absolute duration) instead of
+// soft-capping before that event.
+func EffectiveRecordEndTick(segment RecordingSegment, plan RecordingPlan) int {
+	end := segment.TickEnd
+	if plan.DemoDurationTicks <= 1 || end <= 0 {
+		return end
+	}
+	tickrate := plan.Tickrate
+	if tickrate <= 0 {
+		tickrate = 64
+	}
+	// Match parser demoEndSafetyMarginSeconds (2s) and short-tail (1s).
+	const (
+		safetySeconds   = 2
+		shortTailSeconds = 1
+	)
+	margin := safetySeconds * tickrate
+	if maxMargin := plan.DemoDurationTicks / 4; maxMargin > 0 && margin > maxMargin {
+		margin = maxMargin
+	}
+	if margin < 1 {
+		margin = 1
+	}
+	softCap := plan.DemoDurationTicks - margin
+	if softCap < 1 {
+		softCap = plan.DemoDurationTicks
+	}
+	// Segment is safely before the EOF zone: keep editorial post-roll as planned.
+	if end <= softCap {
+		return end
+	}
+	end = softCap
+	lastEvent := lastSegmentEventTick(segment)
+	shortTail := shortTailSeconds * tickrate
+	if shortTail < 1 {
+		shortTail = 1
+	}
+	// Soft margin may sit before the last selected kill/utility event. Keep a
+	// short clean tail after that event rather than ending before it.
+	if lastEvent > 0 && end < lastEvent {
+		end = lastEvent + shortTail
+	}
+	if plan.DemoDurationTicks > 1 && end >= plan.DemoDurationTicks {
+		if lastEvent > 0 && lastEvent < plan.DemoDurationTicks-1 {
+			end = plan.DemoDurationTicks - 1
+		} else if lastEvent <= 0 {
+			end = plan.DemoDurationTicks - 1
+		} else {
+			end = plan.DemoDurationTicks
+		}
+	}
+	if end > plan.DemoDurationTicks {
+		end = plan.DemoDurationTicks
+	}
+	if end < segment.TickStart {
+		return segment.TickEnd
+	}
+	// Never stop before the last selected event; fall back to the plan end.
+	if lastEvent > 0 && end < lastEvent {
+		return segment.TickEnd
+	}
+	return end
+}
+
 func effectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
 	return EffectiveRecordStartTick(segment, tickrate)
 }
@@ -480,6 +552,22 @@ func lastKillTick(segment RecordingSegment) int {
 		}
 	}
 	return out
+}
+
+// lastSegmentEventTick is the latest kill or utility throw/pop in the segment.
+// It must stay aligned with parser lastSegmentEventTick so capture ends cover
+// the same selected events the plan validated.
+func lastSegmentEventTick(segment RecordingSegment) int {
+	last := lastKillTick(segment)
+	for _, utility := range segment.Utility {
+		if utility.ThrowTick > last {
+			last = utility.ThrowTick
+		}
+		if utility.PopTick > last {
+			last = utility.PopTick
+		}
+	}
+	return last
 }
 
 func streamSetupCommands(plan RecordingPlan) []string {

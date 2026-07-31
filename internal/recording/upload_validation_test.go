@@ -1,6 +1,7 @@
 package recording
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -30,6 +31,111 @@ func TestValidateRunResultAcceptsSuccessfulResult(t *testing.T) {
 	err := ValidateRunResult(verifiedTestResult(t, RecordingResult{}))
 	if err != nil {
 		t.Fatalf("ValidateRunResult error = %v", err)
+	}
+}
+
+func TestValidateRunResultRejectsNonReusableCaptures(t *testing.T) {
+	// Positive control: a verified real capture remains reusable.
+	if err := ValidateRunResult(verifiedTestResult(t, RecordingResult{})); err != nil {
+		t.Fatalf("verified real result rejected: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		mutate func(*RecordingResult)
+		want   string
+	}{
+		{
+			name: "empty capture mode (pre-contract / missing field)",
+			mutate: func(result *RecordingResult) {
+				result.CaptureMode = ""
+			},
+			want: `capture_mode must be "real"`,
+		},
+		{
+			name: "fake capture mode",
+			mutate: func(result *RecordingResult) {
+				result.CaptureMode = CaptureModeFake
+			},
+			want: `capture_mode must be "real"`,
+		},
+		{
+			name: "dry_run capture mode",
+			mutate: func(result *RecordingResult) {
+				result.CaptureMode = CaptureModeDryRun
+			},
+			want: `capture_mode must be "real"`,
+		},
+		{
+			name: "missing POV verification",
+			mutate: func(result *RecordingResult) {
+				result.CaptureVerified = false
+			},
+			want: "lacks completed POV verification",
+		},
+		{
+			name: "fingerprint mismatch",
+			mutate: func(result *RecordingResult) {
+				result.CaptureInputFingerprint = strings.Repeat("b", 64)
+			},
+			want: "capture input fingerprint does not match",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			result := verifiedTestResult(t, RecordingResult{})
+			tt.mutate(&result)
+			err := ValidateRunResult(result)
+			if err == nil {
+				t.Fatal("ValidateRunResult error = nil, want non-reusable rejection")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %q, want substring %q", err.Error(), tt.want)
+			}
+			// Same wrap workers apply when reading a stored result for render/compose.
+			wrapped := MarkNotReusable(err)
+			if !strings.HasPrefix(wrapped.Error(), NotReusablePrefix) {
+				t.Fatalf("MarkNotReusable = %q, want %s prefix", wrapped.Error(), NotReusablePrefix)
+			}
+			if !IsNotReusableMessage(wrapped.Error()) {
+				t.Fatalf("IsNotReusableMessage(%q) = false, want true", wrapped.Error())
+			}
+		})
+	}
+}
+
+func TestIsNotReusableMessage(t *testing.T) {
+	for _, tt := range []struct {
+		msg  string
+		want bool
+	}{
+		{msg: "", want: false},
+		{msg: "ffmpeg error", want: false},
+		{msg: "compose failed", want: false},
+		{msg: `recording result capture_mode must be "real"`, want: true},
+		{msg: NotReusablePrefix + `recording result capture_mode must be "real"`, want: true},
+		{msg: "recording result lacks completed POV verification", want: true},
+		{msg: "recording result capture input fingerprint does not match its plan", want: true},
+		{msg: "legacy recording result contains fields from a newer capture contract", want: true},
+		{msg: "recording result publication is pending", want: true},
+		{msg: NotReusablePrefix + "anything downstream can classify", want: true},
+	} {
+		if got := IsNotReusableMessage(tt.msg); got != tt.want {
+			t.Fatalf("IsNotReusableMessage(%q) = %v, want %v", tt.msg, got, tt.want)
+		}
+	}
+}
+
+func TestMarkNotReusablePrefixesOnce(t *testing.T) {
+	err := MarkNotReusable(fmt.Errorf(`recording result capture_mode must be "real"`))
+	if err == nil || !strings.HasPrefix(err.Error(), NotReusablePrefix) {
+		t.Fatalf("MarkNotReusable error = %v, want %s prefix", err, NotReusablePrefix)
+	}
+	again := MarkNotReusable(err)
+	if again.Error() != err.Error() {
+		t.Fatalf("MarkNotReusable double-wrap = %q, want single prefix", again.Error())
+	}
+	if !IsNotReusableMessage(err.Error()) {
+		t.Fatalf("IsNotReusableMessage should accept MarkNotReusable output %q", err.Error())
 	}
 }
 

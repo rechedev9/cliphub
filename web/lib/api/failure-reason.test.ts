@@ -33,6 +33,32 @@ test('a generic reason stays generic and retryable', () => {
   assert.equal(result.counts, undefined);
 });
 
+test('a non-reusable capture reason is retryable with a Spanish re-record message', () => {
+  for (const reason of [
+    'recording result capture_mode must be "real"',
+    'recording_not_reusable:recording result capture_mode must be "real"',
+    'recording result lacks completed POV verification',
+    'recording result capture input fingerprint does not match its plan',
+    'legacy recording result contains fields from a newer capture contract',
+    'recording result publication is pending',
+  ]) {
+    const result = parseFailureReason(reason);
+    assert.equal(result.kind, 'recording-not-reusable', reason);
+    assert.equal(result.retryCanHelp, true, reason);
+    assert.match(result.message, /no es reutilizable/);
+    assert.match(result.message, /volverá a grabar/i);
+  }
+});
+
+test('ordinary tool failures stay generic and surface the raw English reason', () => {
+  for (const reason of ['ffmpeg exited with code 1', 'compose failed', 'editor timed out']) {
+    const result = parseFailureReason(reason);
+    assert.equal(result.kind, 'generic', reason);
+    assert.equal(result.retryCanHelp, true, reason);
+    assert.equal(result.message, reason);
+  }
+});
+
 test('undefined and empty reasons fall back to a generic retryable message', () => {
   for (const reason of [undefined, '', '   ']) {
     const result = parseFailureReason(reason);

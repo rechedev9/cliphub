@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/fragforge/internal/artifacts"
 	"github.com/rechedev9/fragforge/internal/editor"
 	"github.com/rechedev9/fragforge/internal/job"
+	"github.com/rechedev9/fragforge/internal/recording"
 	"github.com/rechedev9/fragforge/internal/renderplan"
 	"github.com/rechedev9/fragforge/internal/rules"
 	"github.com/rechedev9/fragforge/internal/tasks"
@@ -573,6 +574,111 @@ func TestRecordWorkerWithoutIntentDoesNotChain(t *testing.T) {
 	}
 	if len(enq.tasks) != 0 {
 		t.Fatalf("chained tasks = %d, want 0 without an intent", len(enq.tasks))
+	}
+}
+
+func TestRecordWorkerClearsNotReusableRenderFailuresAfterSuccess(t *testing.T) {
+	// A successful capture must drop failed render states that only said the
+	// previous result was not reusable, so reconcile can drive render again
+	// instead of looping on re-record against the same failure document.
+	store := newFakeStorage()
+	repo, id := parsedRecordJob(store)
+	w := newRecordWorkerForTest(repo, store, t)
+
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusFailed,
+		Error:   recording.NotReusablePrefix + `recording result capture_mode must be "real"`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleKey := mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)
+	putJSON(t, store, staleKey, stale)
+
+	if err := w.HandleRecordDemo(context.Background(), recordTask(t, id)); err != nil {
+		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if repo.jobs[id].Status != job.StatusRecorded {
+		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
+	}
+	if _, ok := store.files[staleKey]; ok {
+		t.Fatalf("not-reusable failed render state %q still present after successful record", staleKey)
+	}
+}
+
+func TestRecordWorkerKeepsOrdinaryRenderFailuresAfterSuccess(t *testing.T) {
+	// ffmpeg (and similar) failures are not capture-contract problems; a new
+	// capture must not erase them via the not-reusable cleaner.
+	store := newFakeStorage()
+	repo, id := parsedRecordJob(store)
+	w := newRecordWorkerForTest(repo, store, t)
+
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordinary, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusFailed,
+		Error:   "ffmpeg exited with code 1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)
+	putJSON(t, store, key, ordinary)
+
+	if err := w.HandleRecordDemo(context.Background(), recordTask(t, id)); err != nil {
+		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	raw, ok := store.files[key]
+	if !ok {
+		t.Fatalf("ordinary failed render state %q was deleted; want preserved", key)
+	}
+	var kept renderplan.RenderVariantState
+	if err := json.Unmarshal(raw, &kept); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Status != renderplan.RenderVariantStatusFailed || kept.Error != "ffmpeg exited with code 1" {
+		t.Fatalf("preserved state = %#v, want ordinary ffmpeg failure", kept)
+	}
+}
+
+func TestRecordWorkerClearsLegacyCaptureModeRenderFailureWithoutPrefix(t *testing.T) {
+	// 2.4.6 already stamped the bare English capture_mode error before the
+	// stable recording_not_reusable: prefix existed; those must still clear.
+	store := newFakeStorage()
+	repo, id := parsedRecordJob(store)
+	w := newRecordWorkerForTest(repo, store, t)
+
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusFailed,
+		Error:   `recording result capture_mode must be "real"`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)
+	putJSON(t, store, key, legacy)
+
+	if err := w.HandleRecordDemo(context.Background(), recordTask(t, id)); err != nil {
+		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if _, ok := store.files[key]; ok {
+		t.Fatalf("legacy capture_mode failed render state %q still present after successful record", key)
 	}
 }
 

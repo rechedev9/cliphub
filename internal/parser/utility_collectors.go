@@ -146,7 +146,7 @@ func (c *SmokeCollector) Build(m PlanMeta) (killplan.Plan, error) {
 	}
 
 	segs := SegmentSmokes(c.smokes, c.roundEnds, c.rules, m.Tickrate)
-	segs = clampSegmentsToDuration(segs, m.DurationTicks)
+	segs = clampSegmentsToDuration(segs, m.DurationTicks, m.Tickrate)
 	if segs == nil {
 		segs = []killplan.Segment{}
 	}
@@ -191,7 +191,7 @@ func (c *UtilityCollector) Build(m PlanMeta) (killplan.Plan, error) {
 	}
 
 	segs := SegmentUtility(c.utility, c.roundEnds, c.rules, m.Tickrate)
-	segs = clampSegmentsToDuration(segs, m.DurationTicks)
+	segs = clampSegmentsToDuration(segs, m.DurationTicks, m.Tickrate)
 	if segs == nil {
 		segs = []killplan.Segment{}
 	}
