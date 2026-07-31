@@ -42,11 +42,21 @@ export const metadata: Metadata = {
     title: SOCIAL_TITLE,
     description: SITE_DESCRIPTION,
     url: "/",
+    // Query busts Discord/Slack OG caches after the TickCut rebrand.
+    images: [
+      {
+        url: "/opengraph-image?v=tickcut-1",
+        width: 1200,
+        height: 630,
+        alt: "TickCut — Your best CS2 frags, ready to post",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SOCIAL_TITLE,
     description: SITE_DESCRIPTION,
+    images: ["/opengraph-image?v=tickcut-1"],
   },
 };
 

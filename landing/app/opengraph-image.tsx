@@ -9,12 +9,19 @@ export const contentType = "image/png";
 const CYAN = "#22d9ee";
 const WHITE = "#f2fbff";
 const PINK = "#ec4899";
+const RED = "#ff493d";
 
 export default async function OpengraphImage() {
   const heroImage = await readFile(
     path.join(process.cwd(), "public", "images", "hero-replay-forge-og.jpg"),
   );
   const heroSource = `data:image/jpeg;base64,${heroImage.toString("base64")}`;
+
+  const markSvg = await readFile(
+    path.join(process.cwd(), "public", "brand", "tickcut-mark.svg"),
+    "utf8",
+  );
+  const markSource = `data:image/svg+xml;base64,${Buffer.from(markSvg).toString("base64")}`;
 
   return new ImageResponse(
     (
@@ -89,36 +96,30 @@ export default async function OpengraphImage() {
               justifyContent: "space-between",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 17 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <img
+                alt=""
+                src={markSource}
+                width={52}
+                height={52}
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 12,
+                  border: `2px solid ${CYAN}`,
+                }}
+              />
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 48,
-                  height: 48,
-                  border: `2px solid ${CYAN}`,
-                  backgroundColor: "rgba(4,18,26,0.82)",
+                  alignItems: "baseline",
+                  fontSize: 34,
+                  fontWeight: 800,
+                  letterSpacing: "0.04em",
                 }}
               >
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={CYAN}
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="7" />
-                  <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-                </svg>
-              </div>
-              <div style={{ display: "flex", fontSize: 31, fontWeight: 700 }}>
-                <span style={{ color: WHITE }}>FRAG</span>
-                <span style={{ color: CYAN }}>//</span>
-                <span style={{ color: WHITE }}>FORGE</span>
+                <span style={{ color: WHITE }}>Tick</span>
+                <span style={{ color: CYAN }}>Cut</span>
               </div>
             </div>
 
@@ -191,9 +192,18 @@ export default async function OpengraphImage() {
           >
             <span style={{ color: CYAN, fontWeight: 700 }}>LOCAL CAPTURE</span>
             <span>•</span>
-            <span>NO TICKCUT ACCOUNT</span>
+            <span>NO ACCOUNT</span>
             <span>•</span>
-            <span>FRAGFORGE.GRAVITYROOM.APP</span>
+            <span style={{ color: CYAN }}>TICKCUT.GRAVITYROOM.APP</span>
+            <span
+              style={{
+                marginLeft: 8,
+                width: 10,
+                height: 10,
+                borderRadius: 2,
+                backgroundColor: RED,
+              }}
+            />
           </div>
         </div>
       </div>
