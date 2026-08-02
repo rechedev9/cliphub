@@ -72,7 +72,7 @@ export function loadReelIntents(): ReelIntent[] {
   try {
     const raw = window.localStorage.getItem(STORE_KEY);
     if (raw) return coerceIntents(JSON.parse(raw));
-    // One-shot migration after FragForge → TickCut rename.
+    // One-shot migration from the pre-rebrand localStorage key.
     const legacy = window.localStorage.getItem(LEGACY_STORE_KEY);
     if (!legacy) return [];
     const intents = coerceIntents(JSON.parse(legacy));

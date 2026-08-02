@@ -200,7 +200,7 @@ pnpm --dir desktop run test:unit
 
 Discover flags with `.\bin\zv.exe … --help` and `flows show`, not from prose alone.
 
-Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) — do not invent version numbers or use `C:\HLAE\HLAE.exe` for FragForge/TickCut capture.
+Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) — do not invent version numbers or use `C:\HLAE\HLAE.exe` for TickCut capture.
 
 ---
 
@@ -233,7 +233,7 @@ Publish flow: ship assets to `rechedev9/tickcut` Releases → update landing dow
 
 **TickCut** — demo **ticks** cut into publish-ready reels.
 
-Formerly developed as **FragForge**; the product brand, GitHub repo, and site are now **TickCut** (`rechedev9/tickcut`, [tickcut.gravityroom.app](https://tickcut.gravityroom.app/)). The old host `fragforge.gravityroom.app` redirects to the new one when still configured.
+Canonical product surfaces: GitHub `rechedev9/tickcut`, site [tickcut.gravityroom.app](https://tickcut.gravityroom.app/).
 
 ---
 
