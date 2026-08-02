@@ -23,11 +23,11 @@ import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
-// Point at a published GitHub Release asset only. 2.4.10 restores the radar
-// height and makes the tactical view crop robust to stray samples.
+// Point at a published GitHub Release asset only. 2.4.11 bundles HLAE 2.192.1
+// (demo xray crash fix and mirv_streams improvements).
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.10/TickCut.Studio.Setup.2.4.10.exe";
-const RELEASE_VERSION = "v2.4.10";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.11/TickCut.Studio.Setup.2.4.11.exe";
+const RELEASE_VERSION = "v2.4.11";
 const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
