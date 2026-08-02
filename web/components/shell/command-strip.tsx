@@ -44,7 +44,9 @@ export function CommandStrip(): ReactElement {
         title="Barra lateral · Ctrl/⌘ B"
       />
 
-      <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-2">
+      {/* 6px inside the label, 14px across the level break, so the breadcrumb
+          reads as two levels instead of four equal tokens. */}
+      <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
         {section === null ? null : (
           <span
             className="font-[family-name:var(--font-mono)] text-meta text-fg-3 tabular-nums"
@@ -58,7 +60,7 @@ export function CommandStrip(): ReactElement {
         </span>
         {trail === null ? null : (
           <>
-            <span className="shrink-0 text-fg-4" aria-hidden>
+            <span className="shrink-0 px-1 text-fg-4" aria-hidden>
               ›
             </span>
             <span className="max-w-[14ch] truncate font-[family-name:var(--font-mono)] text-meta text-fg-3">

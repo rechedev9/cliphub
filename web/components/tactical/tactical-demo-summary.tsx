@@ -3,15 +3,14 @@ import { Info, TriangleAlert } from 'lucide-react';
 import { RADAR_CALIBRATION_SOURCES, TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalDocument, TacticalTeam } from '@/lib/api/tactical';
 import { prettyMapName, timeAgo } from '@/lib/format';
+import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 function StatCell({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </span>
-      <span className="truncate font-[family-name:var(--font-mono)] text-sm tabular-nums text-foreground">
+      <span className="font-mono text-meta uppercase tracking-widest text-fg-3">{label}</span>
+      <span className="truncate font-mono text-body-sm tabular-nums text-foreground">
         {value}
       </span>
     </div>
@@ -26,10 +25,10 @@ function TeamChip({ team }: { team: TacticalTeam }): ReactNode {
         className={cn('size-2 shrink-0 rounded-full', ct ? 'bg-primary' : 'bg-warning')}
         aria-hidden
       />
-      <span className="truncate font-[family-name:var(--font-display)] text-sm font-semibold uppercase tracking-[0.04em] text-foreground">
+      <span className="truncate font-display text-body-sm font-semibold uppercase tracking-wide text-foreground">
         {team.name || team.key}
       </span>
-      <span className="shrink-0 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+      <span className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-3">
         empieza {team.start_side}
       </span>
     </span>
@@ -53,13 +52,13 @@ export function TacticalDemoSummary({
   const warnings = doc.warnings ?? [];
 
   return (
-    <section className="studio-panel rounded-xl px-5 py-5 sm:px-6" aria-label="Demo analizada">
+    <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Demo analizada">
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase leading-none tracking-tight text-foreground">
+          <h2 className="font-display text-2xl font-bold uppercase leading-none tracking-tight text-foreground">
             {prettyMapName(doc.demo.map)}
           </h2>
-          <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
             analizada {timeAgo(generatedAt)}
           </span>
         </div>
@@ -70,7 +69,7 @@ export function TacticalDemoSummary({
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border/60 pt-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border-subtle pt-4 sm:grid-cols-3 lg:grid-cols-5">
           <StatCell label="Rondas" value={String(doc.rounds.length)} />
           <StatCell label="Formato" value={`MR${Math.round(doc.demo.max_rounds / 2)}`} />
           <StatCell label="Tickrate" value={`${doc.demo.tickrate}`} />
@@ -79,7 +78,7 @@ export function TacticalDemoSummary({
         </div>
 
         {derived ? (
-          <p className="flex items-start gap-2 rounded-md border border-warning/35 bg-warning/8 px-3 py-2 text-[13px] leading-5 text-warning">
+          <p className="flex items-start gap-2 rounded-md border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm leading-5 text-warning">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
               Este mapa no trae calibración oficial: el encuadre se derivó de las posiciones observadas. Es
@@ -89,16 +88,19 @@ export function TacticalDemoSummary({
         ) : null}
 
         {warnings.length > 0 ? (
-          <details className="group rounded-md border border-border/70 bg-background/35">
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+          <details className="group rounded-md border border-border-strong bg-surface-1">
+            <summary className={cn(
+                'flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-mono text-meta uppercase tracking-wider text-fg-3 outline-none hover:text-foreground',
+                FOCUS_RING,
+              )}>
               <TriangleAlert className="size-3.5 text-warning" aria-hidden />
               {warnings.length} aviso{warnings.length === 1 ? '' : 's'} del escaneo
             </summary>
-            <ul className="flex flex-col gap-1.5 border-t border-border/70 px-3 py-3">
+            <ul className="flex flex-col gap-1.5 border-t border-border-subtle px-3 py-3">
               {warnings.map((warning) => (
                 <li
                   key={warning}
-                  className="font-[family-name:var(--font-mono)] text-[12px] leading-5 text-muted-foreground"
+                  className="font-mono text-body-sm leading-5 text-muted-foreground"
                 >
                   {warning}
                 </li>

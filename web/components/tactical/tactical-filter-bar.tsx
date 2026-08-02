@@ -34,9 +34,11 @@ import {
   tPatternLabel,
 } from '@/lib/tactical-labels';
 import { STUDIO_FILTER_CHIP_CLASS } from '@/components/studio/filter-chip';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Button } from '@/components/ui/button';
+import { Button, FOCUS_RING } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 /** Sentinel for the "no constraint" chip of a single-choice group. */
 const ANY_VALUE = 'any';
@@ -49,10 +51,7 @@ function optionsFor<T extends string>(values: readonly T[], label: (value: T) =>
 
 function GroupLabel({ children, id }: { children: ReactNode; id: string }): ReactNode {
   return (
-    <span
-      id={id}
-      className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-muted-foreground"
-    >
+    <span id={id} className="font-mono text-meta uppercase tracking-widest text-fg-3">
       {children}
     </span>
   );
@@ -161,10 +160,7 @@ function BoundInput({
   const inputId = useId();
   return (
     <div className="flex flex-col gap-2">
-      <label
-        htmlFor={inputId}
-        className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-muted-foreground"
-      >
+      <label htmlFor={inputId} className="font-mono text-meta uppercase tracking-widest text-fg-3">
         {label}
       </label>
       <Input
@@ -178,7 +174,9 @@ function BoundInput({
           const parsed = Number(event.target.value);
           onChange(Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined);
         }}
-        className="h-11 w-24 border-primary/25 bg-background/55 font-[family-name:var(--font-mono)] text-sm tabular-nums"
+        // The Input primitive already supplies h-11, --border-strong (the WCAG
+        // 1.4.11 control boundary) and the recessed --surface-3 field.
+        className="w-24 font-mono text-body-sm tabular-nums"
       />
     </div>
   );
@@ -255,7 +253,12 @@ export function TacticalFilterBar({
   };
 
   return (
-    <section className="studio-panel rounded-xl px-5 py-5 sm:px-6" aria-label="Filtros de rondas">
+    // shadow-md maps onto --elev-2, so the control rail sits one step above the
+    // --elev-1 content panels it filters. .studio-panel owns the radius.
+    <section
+      className="studio-panel px-5 py-5 shadow-md sm:px-6 sm:py-6"
+      aria-label="Filtros de rondas"
+    >
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
@@ -305,15 +308,20 @@ export function TacticalFilterBar({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.14em] text-muted-foreground tabular-nums">
+          {/* ml-auto survives the wrap: with only justify-between the cluster
+              lost its right alignment the moment the chips filled the row. */}
+          <div className="ml-auto flex items-center gap-3">
+            <span className="font-mono text-meta uppercase text-fg-2 tabular-nums">
               {matched} / {total} rondas
             </span>
             <Button
               variant="outline"
               onClick={() => onChange({})}
               disabled={tacticalFilterCount(filter) === 0}
-              className="font-[family-name:var(--font-mono)] text-xs tracking-[0.14em]"
+              // The outline variant already ships a measured disabled recipe
+              // (--surface-2 + --fg-3, the AA floor); the base opacity-50 was
+              // compositing that floor down to ~2:1.
+              className="font-mono text-meta tracking-wider disabled:opacity-100"
             >
               <FilterX aria-hidden />
               LIMPIAR
@@ -324,15 +332,20 @@ export function TacticalFilterBar({
         <details
           open={advancedOpen}
           onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-          className="group border-t border-border/60 pt-4"
+          className="group border-t border-border-subtle pt-4"
         >
-          <summary className="flex cursor-pointer list-none items-center gap-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+          <summary
+            className={cn(
+              'flex cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-widest text-fg-3 outline-none hover:text-foreground',
+              FOCUS_RING,
+            )}
+          >
             <SlidersHorizontal className="size-3.5" aria-hidden />
             Filtros avanzados
             {advancedCount > 0 ? (
-              <span className="rounded-sm border border-primary/40 px-1.5 py-0.5 text-primary tabular-nums">
+              <Badge variant="outline" className="border-primary/45 text-primary tabular-nums">
                 {advancedCount}
-              </span>
+              </Badge>
             ) : null}
           </summary>
 

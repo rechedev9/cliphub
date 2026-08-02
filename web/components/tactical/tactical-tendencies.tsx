@@ -15,12 +15,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 const HEAD_CELL =
-  'px-3 py-2 text-left font-[family-name:var(--font-mono)] text-[10px] font-normal uppercase tracking-[0.14em] text-muted-foreground';
+  'px-3 py-2 text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-3';
 const BODY_CELL = 'px-3 py-2 align-middle';
 
 function SectionTitle({ children }: { children: ReactNode }): ReactNode {
   return (
-    <h3 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+    <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
       {children}
     </h3>
   );
@@ -37,20 +37,20 @@ function CrossCell({
   reliable: boolean;
 }): ReactNode {
   if (rounds === 0) {
-    return <span className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground/50">—</span>;
+    return <span className="font-mono text-meta text-fg-3">—</span>;
   }
   return (
     <span className="flex flex-col gap-1">
       <span className="flex items-baseline gap-2">
         <span
           className={cn(
-            'font-[family-name:var(--font-mono)] text-xs tabular-nums',
+            'font-mono text-meta tracking-normal tabular-nums',
             reliable ? 'text-foreground' : 'text-muted-foreground',
           )}
         >
           {pct.toFixed(1)} %
         </span>
-        <span className="font-[family-name:var(--font-mono)] text-[10px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-meta tracking-normal tabular-nums text-fg-3">
           n={rounds}
         </span>
       </span>
@@ -77,19 +77,19 @@ export function TacticalTendenciesPanel({
   roundCount: number;
 }): ReactNode {
   return (
-    <section className="studio-panel rounded-xl px-5 py-5 sm:px-6" aria-label="Tendencias">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border/60 pb-4">
-        <h2 className="font-[family-name:var(--font-display)] text-lg font-bold uppercase tracking-tight text-foreground">
+    <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Tendencias">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle pb-4">
+        <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
           Tendencias
         </h2>
-        <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
           calculadas sobre las {roundCount} rondas filtradas · tasas con menos de {MIN_RELIABLE_SAMPLE} rondas
           marcadas
         </p>
       </header>
 
       {error !== null ? (
-        <p className="mt-5 rounded-md border border-destructive/45 bg-destructive/8 px-3 py-2 font-[family-name:var(--font-mono)] text-[13px] leading-5 break-words text-destructive">
+        <p className="mt-5 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 font-mono text-body-sm leading-5 break-words text-destructive">
           No se pudieron calcular las tendencias: {error}
         </p>
       ) : null}
@@ -102,7 +102,7 @@ export function TacticalTendenciesPanel({
       ) : null}
 
       {tendencies !== null && tendencies.round_count === 0 ? (
-        <p className="mt-5 text-[15px] leading-6 text-muted-foreground">
+        <p className="mt-5 text-body leading-6 text-muted-foreground">
           El filtro actual no selecciona ninguna ronda, así que no hay nada que agregar.
         </p>
       ) : null}
@@ -158,7 +158,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
       </div>
 
       {perspective === undefined ? (
-        <p className="rounded-md border border-primary/35 bg-primary/8 px-3 py-2.5 text-[13px] leading-5 text-foreground">
+        <p className="rounded-md border border-primary/45 bg-primary/10 px-3 py-2.5 text-body-sm leading-5 text-foreground">
           Elige un equipo o un lado en el filtro para ver economía, victorias y duelos de apertura: sin
           perspectiva el agregado no puede atribuir una compra ni una ronda ganada a nadie. El reparto de
           formas y los tiempos sí son válidos tal cual.
@@ -171,7 +171,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse">
             <thead>
-              <tr className="border-b border-border/60">
+              <tr className="border-b border-border-subtle">
                 <th scope="col" className={HEAD_CELL}>
                   Compra
                 </th>
@@ -191,17 +191,17 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
             </thead>
             <tbody>
               {buys.map((bucket) => (
-                <tr key={bucket.buy} className="border-b border-border/40 last:border-b-0">
+                <tr key={bucket.buy} className="border-b border-border-subtle last:border-b-0">
                   <th
                     scope="row"
                     className={cn(
                       BODY_CELL,
-                      'text-left font-[family-name:var(--font-mono)] text-[11px] font-normal uppercase tracking-[0.12em] text-foreground',
+                      'text-left font-mono text-meta font-normal uppercase tracking-wider text-foreground',
                     )}
                   >
                     {buyLabel(bucket.buy)}
                   </th>
-                  <td className={cn(BODY_CELL, 'font-[family-name:var(--font-mono)] text-xs tabular-nums text-muted-foreground')}>
+                  <td className={cn(BODY_CELL, 'font-mono text-meta tracking-normal tabular-nums text-muted-foreground')}>
                     {bucket.rounds}
                   </td>
                   <td className={BODY_CELL}>
@@ -233,7 +233,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse">
               <thead>
-                <tr className="border-b border-border/60">
+                <tr className="border-b border-border-subtle">
                   <th scope="col" className={HEAD_CELL}>
                     Propia \ rival
                   </th>
@@ -246,12 +246,12 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
               </thead>
               <tbody>
                 {ownBuys.map((buy) => (
-                  <tr key={buy} className="border-b border-border/40 last:border-b-0">
+                  <tr key={buy} className="border-b border-border-subtle last:border-b-0">
                     <th
                       scope="row"
                       className={cn(
                         BODY_CELL,
-                        'text-left font-[family-name:var(--font-mono)] text-[11px] font-normal uppercase tracking-[0.12em] text-foreground',
+                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-foreground',
                       )}
                     >
                       {buyLabel(buy)}
@@ -282,7 +282,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse">
               <thead>
-                <tr className="border-b border-border/60">
+                <tr className="border-b border-border-subtle">
                   <th scope="col" className={HEAD_CELL}>
                     Economía \ sitio
                   </th>
@@ -295,12 +295,12 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
               </thead>
               <tbody>
                 {buySiteBuys.map((buy) => (
-                  <tr key={buy} className="border-b border-border/40 last:border-b-0">
+                  <tr key={buy} className="border-b border-border-subtle last:border-b-0">
                     <th
                       scope="row"
                       className={cn(
                         BODY_CELL,
-                        'text-left font-[family-name:var(--font-mono)] text-[11px] font-normal uppercase tracking-[0.12em] text-foreground',
+                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-foreground',
                       )}
                     >
                       {buyLabel(buy)}
@@ -414,11 +414,11 @@ function Headline({
 }): ReactNode {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+      <span className="font-mono text-meta uppercase tracking-widest text-fg-3">
         {label}
       </span>
       <span className="flex items-center gap-2">
-        <span className="font-[family-name:var(--font-mono)] text-sm tabular-nums text-foreground">{value}</span>
+        <span className="font-mono text-body-sm tabular-nums text-foreground">{value}</span>
         {warn ? <SmallSampleChip /> : null}
       </span>
     </div>
@@ -428,7 +428,7 @@ function Headline({
 /** The win rate that belongs next to a share, with its own denominator. */
 function WinRateNote({ pct, total }: { pct: number; total: number }): ReactNode {
   return (
-    <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.1em] tabular-nums text-muted-foreground">
+    <span className="font-mono text-meta uppercase tracking-wider tabular-nums text-fg-3">
       gana {total > 0 ? `${pct.toFixed(1)} %` : '—'} (n={total})
     </span>
   );

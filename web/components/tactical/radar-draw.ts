@@ -59,12 +59,12 @@ export type RadarScene = {
 };
 
 /** Occupancy weight is long-tailed, so the ramp is on its square root. */
-const CELL_MIN_ALPHA = 0.1;
-const CELL_ALPHA_RANGE = 0.5;
+const CELL_MIN_ALPHA = 0.07;
+const CELL_ALPHA_RANGE = 0.38;
 /** Levels the player is not on stay legible but recede. */
 const INACTIVE_LEVEL_ALPHA = 0.22;
 /** Callouts below this share of the busiest one would only add noise. */
-const CALLOUT_SAMPLE_SHARE = 0.06;
+const CALLOUT_SAMPLE_SHARE = 0.12;
 /** Below this size a callout label costs more legibility than it adds. */
 const CALLOUT_MIN_SIZE = 380;
 /** An event mark fades to its resting alpha over this many seconds. */
@@ -106,7 +106,9 @@ function drawCallouts(
   const busiest = geometry.callouts.reduce((max, callout) => Math.max(max, callout.samples), 0);
   if (busiest <= 0) return;
 
-  ctx.font = `${Math.round(size * 0.018)}px ${style.fontFamily}`;
+  // Static map furniture sits BEHIND the blips, so it is set smaller than the
+  // player tags (0.019) rather than larger.
+  ctx.font = `${Math.round(size * 0.0145)}px ${style.fontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = style.callout;
@@ -114,7 +116,7 @@ function drawCallouts(
     if (callout.samples / busiest < CALLOUT_SAMPLE_SHARE) continue;
     if (callout.level !== activeLevel) continue;
     const point = worldToRendered(geometry.calibration, callout.center[0], callout.center[1], size);
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.32;
     ctx.fillText(callout.name.toUpperCase(), point.x, point.y);
   }
   ctx.globalAlpha = 1;
@@ -298,8 +300,9 @@ function drawPlayer(ctx: CanvasRenderingContext2D, scene: RadarScene, sample: Ta
   // replay can say about intent.
   const heading = (yawToRadarAngle(sample.yaw) * Math.PI) / 180;
   const half = (26 * Math.PI) / 180;
-  const reach = radius * 5.2;
-  ctx.globalAlpha = 0.16;
+  const reach = radius * 4.4;
+  // Five cones overlapping at spawn used to composite into one solid mass.
+  ctx.globalAlpha = 0.11;
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(at.x, at.y);
@@ -359,18 +362,18 @@ function drawPlayer(ctx: CanvasRenderingContext2D, scene: RadarScene, sample: Ta
 
   const label = scene.labels.get(sample.slot);
   if (label !== undefined && size >= CALLOUT_MIN_SIZE) {
-    ctx.font = `${Math.round(size * 0.017)}px ${style.fontFamily}`;
+    ctx.font = `${Math.round(size * 0.019)}px ${style.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.lineWidth = Math.max(2, size * 0.005);
+    ctx.lineWidth = Math.max(2.5, size * 0.006);
     ctx.strokeStyle = style.panel;
     ctx.lineJoin = 'round';
     // A halo in the panel colour keeps the name legible over any occupancy tone.
-    ctx.strokeText(label, at.x, at.y + radius * 2.1);
+    // 2.9r clears both the health ring (~1.4r) and the bomb dot (down to 2.12r),
+    // which the old 2.1r offset collided with.
+    ctx.strokeText(label, at.x, at.y + radius * 2.9);
     ctx.fillStyle = style.text;
-    ctx.globalAlpha = 0.85;
-    ctx.fillText(label, at.x, at.y + radius * 2.1);
-    ctx.globalAlpha = 1;
+    ctx.fillText(label, at.x, at.y + radius * 2.9);
   }
 }
 

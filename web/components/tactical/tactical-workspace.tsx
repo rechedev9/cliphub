@@ -129,8 +129,8 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
         description="Clasificación determinista de rondas, repetición 2D y tendencias. Todo sale de la demo; nada se infiere del vídeo."
         actions={
           <div className="flex items-center gap-3">
-            {status ? <TacticalStateBadge state={status.state} /> : null}
-            <Button asChild variant="outline" className="font-[family-name:var(--font-mono)] text-xs tracking-[0.14em]">
+            {status ? <TacticalStateBadge state={status.state} className="h-9 px-3" /> : null}
+            <Button asChild variant="outline" className="font-mono text-meta tracking-wider">
               <Link href="/tactical">
                 <ArrowLeft aria-hidden />
                 OTRA DEMO
@@ -179,7 +179,7 @@ function TacticalBody({
           description="No se pudo contactar con el servicio de análisis local. Arráncalo y vuelve a intentarlo."
           compact
           actions={
-            <Button onClick={onRetry} className="font-[family-name:var(--font-display)] tracking-[0.06em]">
+            <Button onClick={onRetry} className="font-display tracking-wide">
               <RefreshCw aria-hidden />
               REINTENTAR
             </Button>
@@ -233,7 +233,7 @@ function TacticalStartPanel({
         <Button
           onClick={onStart}
           disabled={starting}
-          className="font-[family-name:var(--font-display)] tracking-[0.06em]"
+          className="font-display tracking-wide"
         >
           <Radar aria-hidden />
           {starting ? 'ENVIANDO…' : 'ANALIZAR'}
@@ -247,16 +247,16 @@ function TacticalStartPanel({
 function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode {
   return (
     <section
-      className="studio-panel studio-panel-raised flex flex-col items-center gap-4 rounded-xl px-6 py-14 text-center sm:px-10"
+      className="studio-panel studio-panel-raised flex flex-col items-center gap-4 px-6 py-14 text-center sm:px-10"
       aria-live="polite"
     >
-      <span className="grid size-12 place-items-center rounded-lg border border-primary/30 bg-background/55 text-primary shadow-inner">
+      <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-primary shadow-[var(--elev-0)]">
         <Radar className="size-5 animate-pulse motion-reduce:animate-none" aria-hidden />
       </span>
-      <h2 className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight text-foreground">
+      <h2 className="font-display text-xl font-bold uppercase tracking-tight text-foreground">
         {stateLabel(status.state)}
       </h2>
-      <p className="max-w-xl text-[15px] leading-6 text-muted-foreground">
+      <p className="max-w-xl text-body leading-6 text-muted-foreground">
         Se está recorriendo la demo para clasificar rondas y muestrear posiciones. Esta página se actualiza sola
         al terminar.
       </p>
@@ -280,13 +280,13 @@ function TacticalFailurePanel({
       icon={TriangleAlert}
       title="El análisis falló"
       description={
-        <span className="font-[family-name:var(--font-mono)] text-sm break-words text-destructive">{reason}</span>
+        <span className="font-mono text-body-sm break-words text-destructive">{reason}</span>
       }
       actions={
         <Button
           onClick={onRetry}
           disabled={starting}
-          className="font-[family-name:var(--font-display)] tracking-[0.06em]"
+          className="font-display tracking-wide"
         >
           <RefreshCw aria-hidden />
           {starting ? 'ENVIANDO…' : 'REINTENTAR ANÁLISIS'}

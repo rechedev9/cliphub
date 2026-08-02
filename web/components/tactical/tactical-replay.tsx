@@ -58,18 +58,22 @@ function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
     return value === '' ? fallback : value;
   };
   return {
-    background: token('--background', '#060a14'),
-    panel: token('--card', '#091020'),
+    // --surface-0 is the ramp's void/well step, so the radar reads as a recess
+    // in the --surface-2 panel instead of being painted in the panel's own
+    // colour. `panel` is also the label halo and the health-ring backing, both
+    // of which need a dark plate under them to separate stacked blips.
+    background: token('--surface-0', '#04070f'),
+    panel: token('--surface-0', '#04070f'),
     // The occupancy grid is the map, not a signal: it stays neutral so cyan can
     // keep meaning "CT" on top of it.
-    map: token('--muted-foreground', '#8fa3bf'),
-    callout: token('--muted-foreground', '#8fa3bf'),
-    ct: token('--primary', '#22d9ee'),
-    t: token('--warning', '#f0b429'),
-    bomb: token('--destructive', '#ff5a66'),
-    defuse: token('--success', '#5eead4'),
-    utility: token('--muted-foreground', '#8fa3bf'),
-    text: token('--foreground', '#f2fbff'),
+    map: token('--fg-3', '#8998a7'),
+    callout: token('--fg-3', '#8998a7'),
+    ct: token('--primary', '#21d9ee'),
+    t: token('--warning', '#fcb52c'),
+    bomb: token('--destructive', '#fe545c'),
+    defuse: token('--success', '#5de0b0'),
+    utility: token('--fg-3', '#8998a7'),
+    text: token('--fg-1', '#edf7fb'),
     // Resolved through the element, so the var() in --font-mono is already
     // substituted with the family next/font generated.
     fontFamily: computed.fontFamily || 'ui-monospace, monospace',
@@ -314,9 +318,9 @@ export function TacticalReplay({
 
   if (round === undefined) {
     return (
-      <section className="studio-panel flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-xl px-6 text-center">
+      <section className="studio-panel flex min-h-[420px] flex-col items-center justify-center gap-3 px-6 text-center">
         <Radar className="size-6 text-muted-foreground" aria-hidden />
-        <p className="text-[15px] leading-6 text-muted-foreground">
+        <p className="text-body leading-6 text-muted-foreground">
           Selecciona una ronda para abrir la repetición.
         </p>
       </section>
@@ -325,17 +329,17 @@ export function TacticalReplay({
 
   return (
     <section
-      className="studio-panel @container rounded-xl"
+      className="studio-panel @container"
       aria-label={`Repetición de la ronda ${round.number}`}
     >
-      <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border/60 px-5 py-4">
-        <h2 className="font-[family-name:var(--font-display)] text-lg font-bold uppercase tracking-tight text-foreground">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle px-5 py-4">
+        <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
           Ronda {round.number}
-          <span className="pl-3 font-[family-name:var(--font-mono)] text-sm font-normal tabular-nums text-muted-foreground">
+          <span className="pl-3 font-mono text-body-sm font-normal tabular-nums text-muted-foreground">
             {round.score_ct_before}:{round.score_t_before}
           </span>
         </h2>
-        <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
           {buyLabel(round.economy.ct_buy)} vs {buyLabel(round.economy.t_buy)} · {tPatternLabel(round.class.t_side)} /{' '}
           {ctPatternLabel(round.class.ct_side)} · {siteLabel(round.class.site)}
         </p>
@@ -349,18 +353,22 @@ export function TacticalReplay({
         className="grid gap-5 p-4 sm:p-5 @[62rem]:grid-cols-[minmax(0,1fr)_300px]"
         onKeyDown={onKeyDown}
       >
-        <div className="flex min-w-0 flex-col gap-4">
+        {/* One measure for the media and the transport that drives it, so the
+            scrubber stops overhanging the radar on both sides. */}
+        <div className="flex min-w-0 flex-col gap-4 [--radar-max:min(100%,74vh)]">
           <div
             ref={containerRef}
-            className="relative mx-auto aspect-square w-full max-w-[min(100%,62vh)] overflow-hidden rounded-lg border border-border/70"
+            // The inverted --edge-shade/--edge-light pair reads as a recess
+            // rather than a raised plate.
+            className="relative mx-auto aspect-square w-full max-w-(--radar-max) overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
           >
             <canvas
               ref={canvasRef}
               aria-hidden="true"
-              className="block h-full w-full font-[family-name:var(--font-mono)]"
+              className="block h-full w-full font-mono"
             />
             {drawable ? null : (
-              <p className="absolute inset-0 grid place-items-center px-6 text-center text-[13px] leading-5 text-muted-foreground">
+              <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-muted-foreground">
                 Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la
                 repetición. Los eventos y las tendencias siguen siendo válidos.
               </p>
@@ -368,30 +376,32 @@ export function TacticalReplay({
           </div>
 
           {drawable && frames.length === 0 ? (
-            <p className="rounded-md border border-warning/35 bg-warning/8 px-3 py-2 text-[13px] leading-5 text-warning">
+            <p className="rounded-md border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm leading-5 text-warning">
               Esta ronda no tiene posiciones en el blob: la repetición queda vacía, el resto del análisis no.
             </p>
           ) : null}
 
-          <TacticalTimelineBar
-            timeline={timeline}
-            events={events}
-            playing={playing}
-            speed={speed}
-            loop={loop}
-            scrubRef={scrubRef}
-            clockRef={clockRef}
-            onTogglePlay={togglePlay}
-            onSpeedChange={setSpeed}
-            onToggleLoop={() => setLoop((current) => !current)}
-            onSeek={seekTo}
-          />
+          <div className="mx-auto w-full max-w-(--radar-max)">
+            <TacticalTimelineBar
+              timeline={timeline}
+              events={events}
+              playing={playing}
+              speed={speed}
+              loop={loop}
+              scrubRef={scrubRef}
+              clockRef={clockRef}
+              onTogglePlay={togglePlay}
+              onSpeedChange={setSpeed}
+              onToggleLoop={() => setLoop((current) => !current)}
+              onSeek={seekTo}
+            />
+          </div>
 
           <RoundLegend round={round} names={names} labels={labels} />
         </div>
 
-        <aside className="flex min-w-0 flex-col rounded-lg border border-border/70 bg-background/35 @[62rem]:max-h-[62vh]">
-          <h3 className="border-b border-border/60 px-3 py-2.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+        <aside className="flex min-w-0 flex-col rounded-lg border border-border-strong bg-surface-1 @[62rem]:max-h-[62vh]">
+          <h3 className="border-b border-border-subtle px-3 py-2.5 font-mono text-meta uppercase tracking-widest text-fg-3">
             Eventos de la ronda
           </h3>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -420,7 +430,7 @@ function RoundLegend({
         <div key={side} className="flex min-w-0 flex-col gap-1.5">
           <span
             className={cn(
-              'font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em]',
+              'font-mono text-meta uppercase tracking-widest',
               side === TACTICAL_SIDES.ct ? 'text-primary' : 'text-warning',
             )}
           >
@@ -431,7 +441,7 @@ function RoundLegend({
             .map((player) => (
               <div
                 key={player.slot}
-                className="flex min-w-0 items-baseline gap-2 font-[family-name:var(--font-mono)] text-[11px] tabular-nums"
+                className="flex min-w-0 items-baseline gap-2 font-mono text-meta tracking-normal tabular-nums"
               >
                 <span
                   className={cn(
@@ -447,9 +457,7 @@ function RoundLegend({
                 <span className="shrink-0 text-muted-foreground">
                   {player.kills}/{player.deaths}/{player.assists}
                 </span>
-                {player.survived ? null : (
-                  <span className="shrink-0 text-muted-foreground/70">✕</span>
-                )}
+                {player.survived ? null : <span className="shrink-0 text-fg-3">✕</span>}
               </div>
             ))}
         </div>

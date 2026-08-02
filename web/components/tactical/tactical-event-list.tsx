@@ -6,6 +6,7 @@ import type { TacticalEvent } from '@/lib/api/tactical';
 import { eventKindLabel, siteLabel } from '@/lib/tactical-labels';
 import { roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
+import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /** A slot's display name, or the slot itself when the identity table has none. */
@@ -68,7 +69,7 @@ export function TacticalEventList({
 }): ReactNode {
   if (events.length === 0) {
     return (
-      <p className="px-3 py-6 text-center text-[13px] leading-5 text-muted-foreground">
+      <p className="px-3 py-6 text-center text-body-sm leading-5 text-muted-foreground">
         Esta ronda no registró ningún evento.
       </p>
     );
@@ -86,22 +87,26 @@ export function TacticalEventList({
             // tick, and neither carries a target. The list is a fixed ordered
             // slice of one round, so the index is stable for its lifetime.
             key={`${event.kind}-${event.tick}-${event.actor_slot ?? 'x'}-${event.target_slot ?? 'x'}-${index}`}
-            className="border-b border-border/50 last:border-b-0"
+            className="border-b border-border-subtle last:border-b-0"
           >
             <button
               type="button"
               onClick={() => onSeek(entry.seconds)}
-              className="flex min-h-11 w-full items-baseline gap-3 px-3 py-2 text-left outline-none transition-colors hover:bg-primary/8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              className={cn(
+                'flex min-h-11 w-full items-baseline gap-3 px-3 py-2 text-left outline-none transition-colors hover:bg-primary/10',
+                FOCUS_RING,
+                'focus-visible:outline-offset-[-2px]',
+              )}
             >
-              <span className="w-14 shrink-0 font-[family-name:var(--font-mono)] text-[11px] tabular-nums text-muted-foreground">
+              <span className="w-14 shrink-0 font-mono text-meta tracking-normal tabular-nums text-fg-3">
                 {roundClockLabelFor(timeline, entry.seconds)}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className={cn('text-[13px] leading-5', sideClass(event))}>
+                <span className={cn('text-body-sm leading-5', sideClass(event))}>
                   {describe(event, names)}
                 </span>
                 {event.weapon || notes.length > 0 || event.place ? (
-                  <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+                  <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
                     {[event.weapon, event.place, ...notes].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}

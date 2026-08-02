@@ -14,10 +14,10 @@ export function TacticalWorkspaceSkeleton(): ReactNode {
         <Skeleton className="h-10 w-72" />
         <Skeleton className="h-5 w-96 max-w-full" />
       </div>
-      <Skeleton className="h-[104px] w-full rounded-xl" />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-        <Skeleton className="h-[520px] w-full rounded-xl" />
-        <Skeleton className="h-[520px] w-full rounded-xl" />
+      <Skeleton className="h-[104px] w-full rounded-lg" />
+      <div className="grid gap-6 sm:gap-8 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+        <Skeleton className="h-[520px] w-full rounded-lg" />
+        <Skeleton className="h-[520px] w-full rounded-lg" />
       </div>
     </div>
   );

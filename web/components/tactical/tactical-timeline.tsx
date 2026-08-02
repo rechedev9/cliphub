@@ -7,7 +7,7 @@ import type { TacticalEvent } from '@/lib/api/tactical';
 import { TACTICAL_REPLAY_SPEEDS, roundClockLabelFor } from '@/lib/tactical-timeline';
 import type { RoundTimeline, TimelineEvent } from '@/lib/tactical-timeline';
 import { eventKindLabel } from '@/lib/tactical-labels';
-import { Button } from '@/components/ui/button';
+import { Button, FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /** Marker colour per event family; kills take the attacker's side colour. */
@@ -25,10 +25,11 @@ function markerClass(event: TacticalEvent): string {
   return 'bg-muted-foreground';
 }
 
+/** Seated on the rail's baseline, so the three steps read as one ranked family. */
 function markerHeight(event: TacticalEvent): string {
   if (event.kind === TACTICAL_EVENT_KINDS.plant) return 'h-full';
-  if (event.kind === TACTICAL_EVENT_KINDS.kill) return 'h-3/4';
-  return 'h-1/2';
+  if (event.kind === TACTICAL_EVENT_KINDS.kill) return 'h-[62%]';
+  return 'h-[38%]';
 }
 
 /**
@@ -68,9 +69,11 @@ export function TacticalTimelineBar({
   return (
     <div className="flex flex-col gap-3">
       <div className="relative h-10">
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 overflow-hidden rounded-sm border border-border/70 bg-background/60">
+        {/* A well, so it takes --surface-0 and the WCAG control edge; inset by
+            the thumb's half-width so 0-100% matches the playhead's travel. */}
+        <div className="studio-rim pointer-events-none absolute inset-x-[3px] top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-sm border border-border-strong bg-surface-0">
           <div
-            className="absolute inset-y-0 left-0 border-r border-primary/40 bg-muted/70"
+            className="absolute inset-y-0 left-0 border-r border-primary/40 bg-surface-3"
             style={{ width: `${freezeFraction * 100}%` }}
             aria-hidden
           />
@@ -81,7 +84,7 @@ export function TacticalTimelineBar({
               key={`${entry.event.kind}-${entry.event.tick}-${entry.event.actor_slot ?? 'x'}-${entry.event.target_slot ?? 'x'}-${index}`}
               title={eventKindLabel(entry.event.kind)}
               className={cn(
-                'absolute top-1/2 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full',
+                'absolute bottom-0 w-[3px] -translate-x-1/2 rounded-t-[1px]',
                 markerHeight(entry.event),
                 markerClass(entry.event),
               )}
@@ -103,28 +106,28 @@ export function TacticalTimelineBar({
           className={cn(
             'absolute inset-0 h-10 w-full cursor-pointer appearance-none bg-transparent outline-none',
             '[&::-webkit-slider-runnable-track]:h-10 [&::-webkit-slider-runnable-track]:bg-transparent',
-            '[&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-[6px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_var(--primary)]',
+            '[&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-[6px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-[2px] [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[var(--glow-primary-sm)]',
             '[&::-moz-range-track]:h-10 [&::-moz-range-track]:bg-transparent',
             '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-[6px] [&::-moz-range-thumb]:rounded-[2px] [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary',
-            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            FOCUS_RING,
           )}
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        {/* The only solid cyan fill in the row, and the largest control in it. */}
         <Button
           type="button"
-          size="icon-sm"
+          size="icon"
           onClick={onTogglePlay}
           aria-label={playing ? 'Pausar (espacio)' : 'Reproducir (espacio)'}
         >
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
         </Button>
 
-        <span
-          ref={clockRef}
-          className="min-w-[86px] font-[family-name:var(--font-mono)] text-sm tabular-nums text-foreground"
-        >
+        {/* Right-aligned so the leading sign grows leftward instead of shifting
+            every digit; 8ch in a mono face fits the widest label. */}
+        <span ref={clockRef} className="w-[8ch] text-right font-mono text-body tabular-nums text-fg-1">
           {roundClockLabelFor(timeline, 0)}
         </span>
 
@@ -135,11 +138,14 @@ export function TacticalTimelineBar({
               type="button"
               onClick={() => onSpeedChange(option)}
               aria-pressed={speed === option}
+              // Same resting/active contract as the square filter chips one
+              // panel above (STUDIO_FILTER_CHIP_CLASS), at the same 44px.
               className={cn(
-                'h-10 min-w-11 rounded-md border px-2 font-[family-name:var(--font-mono)] text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                'h-11 min-w-11 border px-3 font-mono text-meta tabular-nums outline-none transition-colors duration-(--dur-fast) ease-standard',
+                FOCUS_RING,
                 speed === option
-                  ? 'border-primary bg-primary font-semibold text-primary-foreground'
-                  : 'border-primary/25 bg-background/45 text-muted-foreground hover:border-primary/55 hover:bg-primary/10 hover:text-foreground',
+                  ? 'border-primary bg-primary font-semibold text-primary-foreground shadow-[var(--elev-1),var(--glow-primary-sm)]'
+                  : 'border-border-strong bg-surface-2 text-fg-2 hover:border-border-accent hover:bg-surface-3 hover:text-fg-1',
               )}
             >
               {option}×
@@ -147,10 +153,11 @@ export function TacticalTimelineBar({
           ))}
         </div>
 
+        {/* An engaged toggle, not a second CTA. */}
         <Button
           type="button"
           size="icon-sm"
-          variant={loop ? 'default' : 'outline'}
+          variant={loop ? 'outline-primary' : 'outline'}
           onClick={onToggleLoop}
           aria-pressed={loop}
           aria-label="Repetir en bucle"
@@ -158,7 +165,7 @@ export function TacticalTimelineBar({
           <Repeat aria-hidden />
         </Button>
 
-        <span className="ml-auto font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="ml-auto font-mono text-meta uppercase tracking-wider text-fg-3">
           espacio · ←/→ 1 s · ⇧←/→ evento
         </span>
       </div>

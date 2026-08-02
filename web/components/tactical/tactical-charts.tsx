@@ -21,7 +21,8 @@ export function SmallSampleChip({ className }: { className?: string }): ReactNod
     <span
       title={`Menos de ${MIN_RELIABLE_SAMPLE} rondas: no es una tendencia`}
       className={cn(
-        'shrink-0 rounded-sm border border-warning/45 px-1.5 py-px font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.1em] text-warning',
+        // The house pair for a tinted chip: edge 45%, fill 10%, square.
+        'shrink-0 border border-warning/45 bg-warning/10 px-2 py-0.5 font-mono text-meta uppercase tracking-wider text-warning',
         className,
       )}
     >
@@ -53,7 +54,7 @@ export function RateBar({ rate, className }: { rate: TacticalRate; className?: s
           <line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" strokeWidth="2.5" />
         </pattern>
       </defs>
-      <rect width="100%" height="8" rx="1.5" className="fill-muted/60" />
+      <rect width="100%" height="8" rx="1.5" className="fill-surface-3" />
       <rect
         width={`${pct}%`}
         height="8"
@@ -70,7 +71,7 @@ export function RateValue({ rate, className }: { rate: TacticalRate; className?:
     <span className={cn('inline-flex items-center gap-2', className)}>
       <span
         className={cn(
-          'font-[family-name:var(--font-mono)] text-xs tabular-nums',
+          'font-mono text-meta tracking-normal tabular-nums',
           rate.reliable ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
@@ -103,7 +104,7 @@ export function RateRow({
   const toneClass = RATE_TONE[tone];
   return (
     <div className="grid grid-cols-[minmax(96px,1fr)_minmax(0,2fr)_auto] items-center gap-x-3 gap-y-1">
-      <span className="min-w-0 truncate font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+      <span className="min-w-0 truncate font-mono text-meta uppercase tracking-wider text-fg-3">
         {label}
       </span>
       <RateBar rate={rate} className={toneClass} />
@@ -141,11 +142,9 @@ export function HistogramChart({
   return (
     <figure className="flex min-w-0 flex-col gap-2">
       <figcaption className="flex items-baseline justify-between gap-3">
-        <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-          {title}
-        </span>
+        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{title}</span>
         <span className="flex items-center gap-2">
-          <span className="font-[family-name:var(--font-mono)] text-xs tabular-nums text-foreground">
+          <span className="font-mono text-meta tracking-normal tabular-nums text-foreground">
             mediana {histogram.median.toFixed(1)} s (n={histogram.samples})
           </span>
           {histogram.samples > 0 && histogram.samples < MIN_RELIABLE_SAMPLE ? <SmallSampleChip /> : null}
@@ -153,7 +152,7 @@ export function HistogramChart({
       </figcaption>
 
       {histogram.samples === 0 || peak === 0 ? (
-        <p className="rounded-md border border-border/60 bg-background/35 px-3 py-4 text-center font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="rounded-md border border-border bg-surface-1 px-3 py-4 text-center font-mono text-meta uppercase tracking-wider text-fg-3">
           sin muestras
         </p>
       ) : (
@@ -197,7 +196,7 @@ export function HistogramChart({
           <text
             x="0"
             y={HISTOGRAM_HEIGHT - 3}
-            className="fill-muted-foreground font-[family-name:var(--font-mono)] text-[10px]"
+            className="fill-fg-3 font-mono text-meta tracking-normal"
           >
             0 s
           </text>
@@ -205,7 +204,7 @@ export function HistogramChart({
             x="100%"
             y={HISTOGRAM_HEIGHT - 3}
             textAnchor="end"
-            className="fill-muted-foreground font-[family-name:var(--font-mono)] text-[10px]"
+            className="fill-fg-3 font-mono text-meta tracking-normal"
           >
             {axisSeconds} s
           </text>

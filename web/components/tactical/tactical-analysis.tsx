@@ -188,7 +188,7 @@ export function TacticalAnalysis({
         icon={TriangleAlert}
         title="No se pudo abrir el análisis"
         description={
-          <span className="font-[family-name:var(--font-mono)] text-sm break-words text-destructive">
+          <span className="font-mono text-body-sm break-words text-destructive">
             {loadError}
           </span>
         }
@@ -211,7 +211,7 @@ export function TacticalAnalysis({
         total={loaded.doc.rounds.length}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-6 sm:gap-8 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:items-start">
         <TacticalRoundList
           doc={loaded.doc}
           rounds={rounds}

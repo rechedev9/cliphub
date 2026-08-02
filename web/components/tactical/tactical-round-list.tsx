@@ -6,6 +6,7 @@ import { TACTICAL_SIDES } from '@/lib/api/tactical';
 import type { TacticalDocument, TacticalFilter, TacticalRound, TacticalSide } from '@/lib/api/tactical';
 import { tacticalPerspective } from '@/lib/tactical-filter';
 import { buyLabel, ctPatternLabel, roundTagLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
+import { FOCUS_RING } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 function sideClass(side: TacticalSide): string {
@@ -15,13 +16,15 @@ function sideClass(side: TacticalSide): string {
 function sideBarClass(winner: TacticalSide | ''): string {
   if (winner === TACTICAL_SIDES.ct) return 'bg-primary';
   if (winner === TACTICAL_SIDES.t) return 'bg-warning';
-  return 'bg-border';
+  // --fg-4 is the hairline/graphics token (3.75:1 on --surface-2); --border is an
+  // edge, and an edge token is not a surface fill.
+  return 'bg-fg-4';
 }
 
 /** The economy line, always in CT-then-T order so rows scan vertically. */
 function BuyLine({ round }: { round: TacticalRound }): ReactNode {
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.1em]">
+    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-meta uppercase tracking-wider">
       <span className="text-primary">{buyLabel(round.economy.ct_buy)}</span>
       <span className="text-muted-foreground">vs</span>
       <span className="text-warning">{buyLabel(round.economy.t_buy)}</span>
@@ -58,47 +61,57 @@ function RoundRow({
         // shrink-0 is load-bearing: the list is a flex column with a bounded
         // height, so without it 35 rounds compress to fit instead of
         // scrolling, and overflow-hidden then slices the text of every row.
-        'studio-panel shrink-0 overflow-hidden rounded-lg transition-colors',
-        selected ? 'studio-panel-raised border-primary/70' : 'studio-panel-interactive',
+        // .studio-panel already owns the radius; the selected step keeps the
+        // --border-accent edge the raised recipe sets and adds the sanctioned
+        // selected-tile glow instead of a stronger hue.
+        'studio-panel shrink-0 overflow-hidden transition-colors',
+        selected
+          ? 'studio-panel-raised shadow-[var(--elev-3),var(--glow-primary-sm)]'
+          : 'studio-panel-interactive',
       )}
     >
       <div className="flex items-stretch">
-        <span className={cn('w-[3px] shrink-0', sideBarClass(round.winner))} aria-hidden />
+        <span className={cn('w-1 shrink-0', sideBarClass(round.winner))} aria-hidden />
         <button
           type="button"
           onClick={() => onSelect(round.number)}
           aria-current={selected ? 'true' : undefined}
-          className="flex min-h-[68px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className={cn(
+            'flex min-h-[68px] min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left outline-none',
+            FOCUS_RING,
+          )}
         >
-          <span className="flex w-12 shrink-0 flex-col items-start gap-0.5">
+          <span className="flex w-9 shrink-0 flex-col items-center gap-1">
             <span
               className={cn(
-                'font-[family-name:var(--font-mono)] text-lg leading-none tabular-nums',
+                'font-mono text-title leading-none tabular-nums',
                 selected ? 'text-primary' : 'text-foreground',
               )}
             >
               {round.number}
             </span>
-            <span className="font-[family-name:var(--font-mono)] text-[11px] leading-none tabular-nums text-muted-foreground">
+            <span className="font-mono text-meta leading-none tracking-normal tabular-nums text-fg-3">
               {round.score_ct_before}:{round.score_t_before}
             </span>
           </span>
 
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <BuyLine round={round} />
-            <span className="min-w-0 break-words font-[family-name:var(--font-display)] text-[13px] font-semibold uppercase leading-tight tracking-[0.03em] text-foreground">
-              {tPatternLabel(round.class.t_side)}
-              <span className="px-1 text-muted-foreground">/</span>
-              {ctPatternLabel(round.class.ct_side)}
-              <span className="px-1 text-muted-foreground">·</span>
-              <span className="text-muted-foreground">{siteLabel(round.class.site)}</span>
+            {/* A token row, not a text run: the measure is ~155px, and
+                `break-words` was splitting inside a label ("SI / N SITIO"). */}
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-1 font-display text-label font-semibold uppercase leading-tight text-foreground">
+              <span className="whitespace-nowrap">{tPatternLabel(round.class.t_side)}</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="whitespace-nowrap">{ctPatternLabel(round.class.ct_side)}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="whitespace-nowrap text-muted-foreground">{siteLabel(round.class.site)}</span>
             </span>
             {round.class.tags.length > 0 ? (
-              <span className="flex flex-wrap gap-1">
+              <span className="mt-1 flex flex-wrap gap-1">
                 {round.class.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-sm border border-border/80 bg-background/45 px-1.5 py-px font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.1em] text-muted-foreground"
+                    className="border border-border-subtle px-1.5 py-0.5 font-mono text-meta uppercase text-fg-3"
                   >
                     {roundTagLabel(tag)}
                   </span>
@@ -107,24 +120,22 @@ function RoundRow({
             ) : null}
           </span>
 
-          <span className="flex w-10 shrink-0 flex-col items-end gap-0.5">
+          <span className="flex shrink-0 flex-col items-end gap-1">
             <span
               className={cn(
-                'font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em]',
-                round.winner === '' ? 'text-muted-foreground' : sideClass(round.winner),
+                // border-current inherits the side's semantic colour, so the
+                // marker reads as a HUD key without a new token.
+                'inline-flex h-5 items-center justify-center border border-current px-1.5 font-mono text-meta leading-none tracking-wider',
+                round.winner === '' ? 'text-fg-3' : sideClass(round.winner),
               )}
             >
               {round.winner === '' ? '—' : round.winner}
             </span>
             {won ? (
-              <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.12em] text-success">
-                gana
-              </span>
+              <span className="font-mono text-meta uppercase tracking-wider text-success">gana</span>
             ) : null}
             {lost ? (
-              <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                pierde
-              </span>
+              <span className="font-mono text-meta uppercase tracking-wider text-fg-3">pierde</span>
             ) : null}
           </span>
         </button>
@@ -135,18 +146,22 @@ function RoundRow({
           aria-expanded={open}
           aria-controls={reasonsId}
           aria-label={`Por qué la ronda ${round.number} se clasificó así`}
-          className="grid w-10 shrink-0 place-items-center border-l border-border/60 text-muted-foreground outline-none transition-colors hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          className={cn(
+            'grid w-8 shrink-0 place-items-center border-l border-border-subtle text-muted-foreground outline-none transition-colors hover:bg-primary/10 hover:text-primary',
+            FOCUS_RING,
+            'focus-visible:outline-offset-[-2px]',
+          )}
         >
           <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} aria-hidden />
         </button>
       </div>
 
-      <div id={reasonsId} hidden={!open} className="border-t border-border/60 bg-background/35 px-3 py-3">
-        <p className="mb-2 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+      <div id={reasonsId} hidden={!open} className="border-t border-border-subtle bg-surface-1 px-3 py-3">
+        <p className="mb-2 font-mono text-meta uppercase tracking-widest text-fg-3">
           Por qué se clasificó así
         </p>
         {reasons.length === 0 ? (
-          <p className="font-[family-name:var(--font-mono)] text-[12px] leading-5 text-muted-foreground">
+          <p className="font-mono text-body-sm leading-5 text-muted-foreground">
             El clasificador no registró ningún motivo para esta ronda.
           </p>
         ) : (
@@ -154,7 +169,7 @@ function RoundRow({
             {reasons.map((reason) => (
               <li
                 key={reason}
-                className="font-[family-name:var(--font-mono)] text-[12px] leading-5 text-muted-foreground break-words"
+                className="font-mono text-body-sm leading-5 text-muted-foreground break-words"
               >
                 {reason}
               </li>
@@ -187,27 +202,26 @@ export function TacticalRoundList({
 
   return (
     <section
-      className="studio-panel flex flex-col rounded-xl xl:sticky xl:top-6 xl:max-h-[calc(100vh-6rem)]"
+      // The command strip is a 56px opaque ceiling: sticking at 24px from the
+      // viewport parked this header under it, so both the offset and the height
+      // budget start below --shell-strip-height.
+      className="studio-panel flex flex-col overflow-hidden xl:sticky xl:top-[calc(var(--shell-strip-height)+1.5rem)] xl:max-h-[calc(100vh-var(--shell-strip-height)-3rem)]"
       aria-label="Rondas"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-        <h2 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Rondas
-        </h2>
-        <span className="font-[family-name:var(--font-mono)] text-[11px] tabular-nums text-muted-foreground">
-          {rounds.length}
-        </span>
+      <header className="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-3">
+        <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">Rondas</h2>
+        <span className="font-mono text-meta tracking-normal tabular-nums text-fg-2">{rounds.length}</span>
       </header>
 
       {rounds.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
           <ScrollText className="size-5 text-muted-foreground" aria-hidden />
-          <p className="text-[13px] leading-5 text-muted-foreground">
+          <p className="text-body-sm leading-5 text-muted-foreground">
             Ninguna ronda cumple el filtro actual.
           </p>
         </div>
       ) : (
-        <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-3">
+        <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-3 scroll-py-3 [scrollbar-gutter:stable]">
           {rounds.map((round) => (
             <RoundRow
               key={round.number}

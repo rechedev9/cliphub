@@ -72,7 +72,7 @@ export function TacticalDemoPicker(): ReactNode {
         }
         compact
         actions={
-          <Button asChild className="font-[family-name:var(--font-display)] tracking-[0.06em]">
+          <Button asChild className="font-display tracking-wide">
             <Link href="/upload">
               <UploadCloud aria-hidden />
               SUBIR UNA DEMO
@@ -89,17 +89,17 @@ export function TacticalDemoPicker(): ReactNode {
         <Link
           key={match.id}
           href={`/tactical/${match.id}`}
-          className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 rounded-xl px-4 py-4 transition-colors sm:px-5"
+          className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 transition-colors sm:px-5"
         >
           <div className="flex min-w-0 items-center gap-4">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
               <Radar className="size-5" aria-hidden />
             </span>
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="truncate font-[family-name:var(--font-display)] text-lg font-bold uppercase leading-tight tracking-tight text-foreground">
+              <span className="truncate font-display text-lg font-bold uppercase leading-tight tracking-tight text-foreground">
                 {match.map}
               </span>
-              <span className="truncate font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.1em] text-muted-foreground">
+              <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
                 {[match.player, matchDateLabel(match)].filter(Boolean).join(' · ')}
               </span>
             </div>
@@ -119,7 +119,7 @@ function DemoPickerSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-3" aria-hidden>
       {[0, 1, 2].map((row) => (
-        <Skeleton key={row} className="h-[72px] w-full rounded-xl" />
+        <Skeleton key={row} className="h-[72px] w-full rounded-lg" />
       ))}
     </div>
   );
