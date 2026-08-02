@@ -46,7 +46,7 @@ test('reuses complete cached installations without download work', async (t) => 
   const toolsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-tools-'));
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   const paths = {
-    hlae: path.join(toolsDir, 'hlae', '2.191.1', 'HLAE.exe'),
+    hlae: path.join(toolsDir, 'hlae', '2.192.1', 'HLAE.exe'),
     ffmpeg: path.join(
       toolsDir,
       'ffmpeg',
@@ -63,7 +63,7 @@ test('reuses complete cached installations without download work', async (t) => 
   }
   const ffprobe = path.join(path.dirname(paths.ffmpeg), 'ffprobe.exe');
   fs.writeFileSync(ffprobe, 'cached');
-  writeCompleteMarker(path.join(toolsDir, 'hlae', '2.191.1'), 'hlae');
+  writeCompleteMarker(path.join(toolsDir, 'hlae', '2.192.1'), 'hlae');
   writeCompleteMarker(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723'), 'ffmpeg');
   writeCompleteMarker(path.join(toolsDir, 'ytdlp', '2026.06.09'), 'ytdlp');
   const staleStaging = path.join(toolsDir, 'ytdlp', '2026.06.09.installing');
@@ -85,7 +85,7 @@ test('reuses complete cached installations without download work', async (t) => 
   });
   assert.deepEqual(logs, []);
   assert.deepEqual(statuses, []);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.191.1', '.tickcut-install.json')), true);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.192.1', '.tickcut-install.json')), true);
   assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.tickcut-install.json')), true);
   assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.tickcut-install.json')), true);
   assert.equal(fs.existsSync(staleStaging), false);
@@ -114,7 +114,7 @@ test('retires markerless legacy tools instead of using them after a failed refre
 
   assert.deepEqual(env, {});
   assert.deepEqual(statuses.sort(), ['ffmpeg', 'hlae', 'ytdlp']);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.191.1', '.tickcut-install.json')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.192.1', '.tickcut-install.json')), false);
   assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.tickcut-install.json')), false);
   assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.tickcut-install.json')), false);
   assert.equal(logs.filter((line) => line.includes('no valid per-file digest manifest')).length, 3);
@@ -175,7 +175,7 @@ test('installs uncached tools through staging and publishes only complete versio
     statuses.filter((status) => status.endsWith(':start')).sort(),
     ['ffmpeg:start', 'hlae:start', 'ytdlp:start'],
   );
-  const versions = { hlae: '2.191.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.06.09' };
+  const versions = { hlae: '2.192.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.06.09' };
   for (const [name, version] of Object.entries(versions)) {
     const installDir = path.join(toolsDir, name, version);
     assert.equal(fs.existsSync(`${installDir}.installing`), false);
@@ -385,7 +385,7 @@ test('caller cancellation aborts work instead of activating legacy fallbacks', a
   controller.abort();
 
   await assert.rejects(provisioning, /runtime tool provisioning aborted/);
-  for (const [name, version] of Object.entries({ hlae: '2.191.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.06.09' })) {
+  for (const [name, version] of Object.entries({ hlae: '2.192.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.06.09' })) {
     assert.equal(fs.existsSync(path.join(toolsDir, name, `${version}.installing`)), false);
   }
 });
@@ -419,7 +419,7 @@ test('restores an install interrupted during atomic publication', async (t) => {
 
 function digestFor(url: string): string {
   if (url.includes('advancedfx')) {
-    return '307ba9170b151a7df9b7e5604b335c2d8b8df5bf5cb8d6700ae3fd01069da514';
+    return '08ae68bb1c42c99bcd441f688d17e24bc52faed27eac07ebea5fc7c98e34b465';
   }
   if (url.includes('ffmpeg-n8.1-win64-gpl-shared')) {
     return 'c22260c1b2d5f2e499e5bb9c5ab32224ff6bf3da79beb7543a955b4b31a4c03c';
@@ -428,14 +428,14 @@ function digestFor(url: string): string {
 }
 
 function seedLegacyHLAE(toolsDir: string): void {
-  const executable = path.join(toolsDir, 'hlae', '2.191.1', 'HLAE.exe');
+  const executable = path.join(toolsDir, 'hlae', '2.192.1', 'HLAE.exe');
   fs.mkdirSync(path.dirname(executable), { recursive: true });
   fs.writeFileSync(executable, 'cached');
 }
 
 function seedCompleteHLAE(toolsDir: string): void {
   seedLegacyHLAE(toolsDir);
-  writeCompleteMarker(path.join(toolsDir, 'hlae', '2.191.1'), 'hlae');
+  writeCompleteMarker(path.join(toolsDir, 'hlae', '2.192.1'), 'hlae');
 }
 
 function seedLegacyFFmpeg(toolsDir: string): void {
@@ -470,8 +470,8 @@ function seedCompleteYtdlp(toolsDir: string): void {
 
 const MARKERS = {
   hlae: {
-    version: '2.191.1',
-    sha256: '307ba9170b151a7df9b7e5604b335c2d8b8df5bf5cb8d6700ae3fd01069da514',
+    version: '2.192.1',
+    sha256: '08ae68bb1c42c99bcd441f688d17e24bc52faed27eac07ebea5fc7c98e34b465',
   },
   ffmpeg: {
     version: 'n8.1.2-30-g45f1910444-20260723',
@@ -529,7 +529,7 @@ function withFixtureTrust(
 
 function fixtureTreeSha256(toolsDir: string): Partial<Record<RuntimeToolName, string>> {
   const directories: Record<RuntimeToolName, string> = {
-    hlae: path.join(toolsDir, 'hlae', '2.191.1'),
+    hlae: path.join(toolsDir, 'hlae', '2.192.1'),
     ffmpeg: path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723'),
     ytdlp: path.join(toolsDir, 'ytdlp', '2026.06.09'),
   };
