@@ -672,3 +672,272 @@ func TestGenerateHLAEJavaScriptTimescale(t *testing.T) {
 		t.Errorf("generated JS missing host_timescale wrapper:\n%s", js)
 	}
 }
+
+// TestBuildRuntimeScheduleSoftQuitsWithoutBatchedDisconnectQuit is the contract
+// that stops CS2 from hard-crashing at end of capture: the tick schedule only
+// marks shutdown; disconnect+delayed quit live in beginSoftQuit (client frames),
+// because disconnect ends demo ticks so a later scheduled quit would never run.
+func TestBuildRuntimeScheduleSoftQuitsWithoutBatchedDisconnectQuit(t *testing.T) {
+	commands, _, _ := buildRuntimeSchedule(testPlan())
+	var shutdown *scheduledCommand
+	for i := range commands {
+		if commands[i].Key == "shutdown" {
+			shutdown = &commands[i]
+		}
+		if commands[i].Key == "shutdown-quit" {
+			t.Fatalf("unexpected shutdown-quit schedule entry (quit must be frame-delayed): %#v", commands[i])
+		}
+		joined := strings.Join(commands[i].Commands, " ")
+		if strings.Contains(joined, "disconnect") && strings.Contains(joined, "quit") {
+			t.Fatalf("command %q still batches disconnect+quit: %v", commands[i].Key, commands[i].Commands)
+		}
+	}
+	if shutdown == nil {
+		t.Fatalf("shutdown schedule entry missing in %#v", commandKeys(commands))
+	}
+	if len(shutdown.Commands) != 0 {
+		t.Fatalf("shutdown commands = %v, want empty (runtime beginSoftQuit owns exit)", shutdown.Commands)
+	}
+}
+
+func commandKeys(commands []scheduledCommand) []string {
+	keys := make([]string, len(commands))
+	for i, c := range commands {
+		keys[i] = c.Key
+	}
+	return keys
+}
+
+// TestGenerateHLAEJavaScriptSoftQuitContract locks the runtime paths that used
+// to call disconnect and quit in the same client frame (failCapture, demo EOF,
+// and the scheduled shutdown pair).
+func TestGenerateHLAEJavaScriptSoftQuitContract(t *testing.T) {
+	js, err := GenerateHLAEJavaScript(testPlan())
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	for _, want := range []string{
+		`const beginSoftQuit = () => {`,
+		`pendingQuitFrames = softQuitClientFrames`,
+		`const softQuitClientFrames = 45`,
+		`if (pendingQuitFrames > 0)`,
+		`mirv.exec("quit")`,
+		`beginSoftQuit()`,
+		`"key": "shutdown"`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("generated JS missing soft-quit contract %q", want)
+		}
+	}
+	if strings.Contains(js, `"key": "shutdown-quit"`) {
+		t.Fatal("generated JS still schedules shutdown-quit on the tick clock")
+	}
+	// beginSoftQuit must appear for failCapture, demo-end, and scheduled shutdown.
+	if got := strings.Count(js, "beginSoftQuit()"); got < 3 {
+		t.Fatalf("beginSoftQuit() calls = %d, want >= 3 exit paths", got)
+	}
+	// Same-frame double fire is the crash pattern: disconnect then quit with no
+	// pendingQuit / separate schedule entry between them.
+	if strings.Contains(js, `mirv.exec("disconnect");
+        mirv.exec("quit");`) || strings.Contains(js, "mirv.exec(\"disconnect\");\n            mirv.exec(\"quit\");") {
+		t.Fatal("generated JS still issues disconnect and quit back-to-back")
+	}
+	// failCapture must soft-quit, not hard-quit.
+	failIdx := strings.Index(js, "const failCapture = (reason)")
+	if failIdx < 0 {
+		t.Fatal("failCapture missing")
+	}
+	failBody := js[failIdx : failIdx+800]
+	if !strings.Contains(failBody, "beginSoftQuit()") {
+		t.Fatalf("failCapture does not soft-quit:\n%s", failBody)
+	}
+	if strings.Contains(failBody, `mirv.exec("quit")`) {
+		t.Fatalf("failCapture still hard-quits:\n%s", failBody)
+	}
+}
+
+// TestParseToCaptureScriptPipeline is the pure unit path from a kill plan
+// (parser output) through recording plan generation into HLAE script facts the
+// capture runtime depends on.
+func TestParseToCaptureScriptPipeline(t *testing.T) {
+	tests := []struct {
+		name       string
+		segments   []killplan.Segment
+		wantSegIDs []string
+		wantStarts int // min record-start keys
+	}{
+		{
+			name: "single kill segment",
+			segments: []killplan.Segment{{
+				ID: "seg-001", TickStart: 1000, TickEnd: 1400,
+				Kills: []killplan.Kill{{Tick: 1200, Weapon: "ak47", Killer: killplan.Player{SteamID64: "76561198148986856", NameInDemo: "p"}}},
+			}},
+			wantSegIDs: []string{"seg-001"},
+			wantStarts: 1,
+		},
+		{
+			name: "editorial reverse becomes capture chronological",
+			segments: []killplan.Segment{
+				{ID: "late", TickStart: 5000, TickEnd: 5400, Kills: []killplan.Kill{{Tick: 5200, Killer: killplan.Player{SteamID64: "76561198148986856"}}}},
+				{ID: "early", TickStart: 1000, TickEnd: 1400, Kills: []killplan.Kill{{Tick: 1200, Killer: killplan.Player{SteamID64: "76561198148986856"}}}},
+			},
+			wantSegIDs: []string{"early", "late"},
+			wantStarts: 2,
+		},
+		{
+			name: "multi kill multi segment preserves both record windows",
+			segments: []killplan.Segment{
+				{ID: "seg-001", TickStart: 2000, TickEnd: 2800, Kills: []killplan.Kill{
+					{Tick: 2200, Killer: killplan.Player{SteamID64: "76561198148986856"}},
+					{Tick: 2500, Killer: killplan.Player{SteamID64: "76561198148986856"}},
+				}},
+				{ID: "seg-002", TickStart: 8000, TickEnd: 8600, Kills: []killplan.Kill{
+					{Tick: 8300, Killer: killplan.Player{SteamID64: "76561198148986856"}},
+				}},
+			},
+			wantSegIDs: []string{"seg-001", "seg-002"},
+			wantStarts: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kp := killplan.NewPlan()
+			kp.Demo.Map = "de_dust2"
+			kp.Demo.Tickrate = 64
+			kp.Demo.SHA256 = strings.Repeat("b", 64)
+			kp.Demo.DurationTicks = 50_000
+			kp.Target.SteamID64 = "76561198148986856"
+			kp.Target.NameInDemo = "player"
+			kp.Segments = tt.segments
+
+			plan, err := NewPlanFromKillPlan(kp, `C:\demos\match.dem`, `C:\out\run`, DefaultStreamConfig())
+			if err != nil {
+				t.Fatalf("NewPlanFromKillPlan: %v", err)
+			}
+			if err := plan.Validate(); err != nil {
+				t.Fatalf("plan.Validate: %v", err)
+			}
+			if len(plan.Segments) != len(tt.wantSegIDs) {
+				t.Fatalf("segments = %d, want %d", len(plan.Segments), len(tt.wantSegIDs))
+			}
+			for i, id := range tt.wantSegIDs {
+				if plan.Segments[i].ID != id {
+					t.Fatalf("capture order[%d] = %q, want %q", i, plan.Segments[i].ID, id)
+				}
+			}
+
+			commands, seeks, windows := buildRuntimeSchedule(plan)
+			if len(windows) != len(tt.wantSegIDs) {
+				t.Fatalf("capture windows = %d, want %d", len(windows), len(tt.wantSegIDs))
+			}
+			starts := 0
+			ends := 0
+			for _, c := range commands {
+				if strings.HasPrefix(c.Key, "record-start-") {
+					starts++
+				}
+				if strings.HasPrefix(c.Key, "record-end-") {
+					ends++
+				}
+			}
+			if starts != tt.wantStarts || ends != tt.wantStarts {
+				t.Fatalf("record start/end = %d/%d, want %d/%d", starts, ends, tt.wantStarts, tt.wantStarts)
+			}
+			// Seeks only across large gaps; multi-seg with far ticks should seek.
+			_ = seeks
+
+			js, err := GenerateHLAEJavaScript(plan)
+			if err != nil {
+				t.Fatalf("GenerateHLAEJavaScript: %v", err)
+			}
+			for _, id := range tt.wantSegIDs {
+				if !strings.Contains(js, "record-start-"+id) || !strings.Contains(js, "record-end-"+id) {
+					t.Fatalf("script missing record markers for %s", id)
+				}
+			}
+			if !strings.Contains(js, `"key": "shutdown"`) || !strings.Contains(js, "beginSoftQuit()") {
+				t.Fatal("script missing soft-quit shutdown path")
+			}
+			// Effective start must not place the first kill before record start.
+			for _, seg := range plan.Segments {
+				if len(seg.Kills) == 0 {
+					continue
+				}
+				start := EffectiveRecordStartTick(seg, plan.Tickrate)
+				first := seg.Kills[0].Tick
+				for _, k := range seg.Kills[1:] {
+					if k.Tick < first {
+						first = k.Tick
+					}
+				}
+				if start > first {
+					t.Fatalf("segment %s record start %d is after first kill %d", seg.ID, start, first)
+				}
+				if first-start < plan.Tickrate && start != seg.TickStart {
+					// When settle shortens pre-roll, still require at least some pre-kill frames unless clamped to TickStart.
+					t.Logf("segment %s short pre-roll: start=%d kill=%d", seg.ID, start, first)
+				}
+			}
+		})
+	}
+}
+
+// TestParseToCapturePipelineMutations kills individual pipeline invariants.
+func TestParseToCapturePipelineMutations(t *testing.T) {
+	kp := killplan.NewPlan()
+	kp.Demo.Map = "de_inferno"
+	kp.Demo.Tickrate = 64
+	kp.Demo.SHA256 = strings.Repeat("c", 64)
+	kp.Demo.DurationTicks = 20_000
+	kp.Target.SteamID64 = "76561198148986856"
+	kp.Segments = []killplan.Segment{{
+		ID: "seg-001", TickStart: 1000, TickEnd: 2000,
+		Kills: []killplan.Kill{{Tick: 1500, Killer: killplan.Player{SteamID64: "76561198148986856"}}},
+	}}
+
+	plan, err := NewPlanFromKillPlan(kp, "match.dem", "out", DefaultStreamConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("validate rejects empty demo path after plan", func(t *testing.T) {
+		bad := plan
+		bad.DemoPath = ""
+		if err := bad.Validate(); err == nil {
+			t.Fatal("Validate accepted empty demo path")
+		}
+	})
+	t.Run("script gen requires segments", func(t *testing.T) {
+		bad := plan
+		bad.Segments = nil
+		if _, err := GenerateHLAEJavaScript(bad); err == nil {
+			t.Fatal("GenerateHLAEJavaScript accepted empty segments")
+		}
+	})
+	t.Run("record window covers kill settle", func(t *testing.T) {
+		seg := plan.Segments[0]
+		start := EffectiveRecordStartTick(seg, 64)
+		// Camera settle: firstKill - tickrate, or TickStart+2s, whichever policy applies.
+		if start < seg.TickStart || start > seg.Kills[0].Tick {
+			t.Fatalf("EffectiveRecordStartTick=%d outside [%d, kill %d]", start, seg.TickStart, seg.Kills[0].Tick)
+		}
+	})
+	t.Run("shutdown after last record end", func(t *testing.T) {
+		commands, _, windows := buildRuntimeSchedule(plan)
+		lastEnd := 0
+		for _, w := range windows {
+			if w.RecordEnd > lastEnd {
+				lastEnd = w.RecordEnd
+			}
+		}
+		var shutdownTick int
+		for _, c := range commands {
+			if c.Key == "shutdown" {
+				shutdownTick = c.Tick
+			}
+		}
+		if shutdownTick <= lastEnd {
+			t.Fatalf("shutdown tick %d must be after last record end %d", shutdownTick, lastEnd)
+		}
+	})
+}

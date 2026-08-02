@@ -38,6 +38,10 @@ const (
 	minimumDemoSeekGapSeconds = 30
 	maxUnknownObserverFrames  = 3
 	demoEndedGraceFrames      = 30
+	// softQuitClientFrames delays quit after disconnect. disconnect ends demo
+	// playback so ticks stop; quit must be driven by client frames, not the
+	// tick schedule. Same-frame disconnect+quit hard-crashes CS2/AfxHookSource2.
+	softQuitClientFrames = 45
 )
 
 // GenerateHLAEJavaScript renders a self-contained HLAE 2.x mirv-script file.
@@ -119,7 +123,16 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    let demoEndedFrames = 0;\n")
 	sb.WriteString(fmt.Sprintf("    const demoEndedGraceFrames = %d;\n", demoEndedGraceFrames))
 	sb.WriteString("    let fatal = false;\n")
+	sb.WriteString("    let pendingQuitFrames = 0;\n")
+	sb.WriteString(fmt.Sprintf("    const softQuitClientFrames = %d;\n", softQuitClientFrames))
 	sb.WriteString("    const lockAttempts = {};\n")
+	sb.WriteString("    const beginSoftQuit = () => {\n")
+	sb.WriteString("        // disconnect first; quit a few client frames later so CS2 can leave\n")
+	sb.WriteString("        // demo playback without the native Afx/CS2 hard-crash dialog.\n")
+	sb.WriteString("        if (pendingQuitFrames > 0) return;\n")
+	sb.WriteString("        mirv.exec(\"disconnect\");\n")
+	sb.WriteString("        pendingQuitFrames = softQuitClientFrames;\n")
+	sb.WriteString("    };\n")
 	sb.WriteString("    const entityFromHandle = (handle) => {\n")
 	sb.WriteString("        if (!mirv.isHandleValid(handle)) return null;\n")
 	sb.WriteString("        return mirv.getEntityFromIndex(mirv.getHandleEntryIndex(handle));\n")
@@ -173,8 +186,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString(fmt.Sprintf("        mirv.warning(%q);\n", failedAttestation+"\\n"))
 	sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", "echo "+failedAttestation))
 	sb.WriteString("        if (activeSegment !== null) mirv.exec(\"mirv_streams record end\");\n")
-	sb.WriteString("        mirv.exec(\"disconnect\");\n")
-	sb.WriteString("        mirv.exec(\"quit\");\n")
+	sb.WriteString("        activeSegment = null;\n")
+	sb.WriteString("        beginSoftQuit();\n")
 	sb.WriteString("    };\n")
 	sb.WriteString("    const run = (item) => {\n")
 	sb.WriteString("        if (fired[item.key]) return;\n")
@@ -186,7 +199,17 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        }\n")
 	sb.WriteString("    };\n\n")
 	sb.WriteString("    mirv.events.clientFrameStageNotify.on(id, (e) => {\n")
-	sb.WriteString("        if (e.isBefore || fatal) return;\n")
+	sb.WriteString("        if (e.isBefore) return;\n")
+	sb.WriteString("        // Soft-quit countdown must run after fatal/demo-end disconnect so CS2\n")
+	sb.WriteString("        // still receives quit even when the capture schedule is frozen.\n")
+	sb.WriteString("        if (pendingQuitFrames > 0) {\n")
+	sb.WriteString("            pendingQuitFrames--;\n")
+	sb.WriteString("            if (pendingQuitFrames === 0) {\n")
+	sb.WriteString("                mirv.exec(\"quit\");\n")
+	sb.WriteString("            }\n")
+	sb.WriteString("            return;\n")
+	sb.WriteString("        }\n")
+	sb.WriteString("        if (fatal) return;\n")
 	sb.WriteString("        // A local empty server can advance its tick before the delayed +playdemo\n")
 	sb.WriteString("        // command starts playback. getDemoTick alone therefore cannot prove that a\n")
 	sb.WriteString("        // demo is active. Wait for HLAE's engine-backed playback check first.\n")
@@ -205,8 +228,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("            fired[\"shutdown\"] = true;\n")
 	sb.WriteString(fmt.Sprintf("            mirv.message(%q);\n", verifiedAttestation+"\\n"))
 	sb.WriteString(fmt.Sprintf("            mirv.exec(%q);\n", "echo "+verifiedAttestation))
-	sb.WriteString("            mirv.exec(\"disconnect\");\n")
-	sb.WriteString("            mirv.exec(\"quit\");\n")
+	sb.WriteString("            beginSoftQuit();\n")
 	sb.WriteString("            return;\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("        demoEndedFrames = 0;\n")
@@ -304,6 +326,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                }\n")
 	sb.WriteString(fmt.Sprintf("                mirv.message(%q);\n", verifiedAttestation+"\\n"))
 	sb.WriteString(fmt.Sprintf("                mirv.exec(%q);\n", "echo "+verifiedAttestation))
+	sb.WriteString("                run(item);\n")
+	sb.WriteString("                beginSoftQuit();\n")
+	sb.WriteString("                continue;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("            run(item);\n")
 	sb.WriteString("        }\n")
@@ -423,8 +448,11 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 			Commands: []string{cmd},
 		})
 	}
+	// Shutdown only disconnects via beginSoftQuit in the runtime; quit is
+	// delayed by softQuitClientFrames because disconnect ends demo playback and
+	// ticks stop advancing (a scheduled quit after disconnect would never fire).
 	commands = append(commands,
-		scheduledCommand{Tick: shutdownTick, Key: "shutdown", Commands: []string{"disconnect", "quit"}},
+		scheduledCommand{Tick: shutdownTick, Key: "shutdown", Commands: []string{}},
 	)
 	return commands, seeks, windows
 }
@@ -476,7 +504,7 @@ func EffectiveRecordEndTick(segment RecordingSegment, plan RecordingPlan) int {
 	}
 	// Match parser demoEndSafetyMarginSeconds (2s) and short-tail (1s).
 	const (
-		safetySeconds   = 2
+		safetySeconds    = 2
 		shortTailSeconds = 1
 	)
 	margin := safetySeconds * tickrate
