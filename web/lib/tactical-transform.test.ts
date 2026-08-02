@@ -11,6 +11,7 @@ import {
   isMultiLevelMap,
   levelForAltitude,
   maxCellWeight,
+  occupancyBounds,
   pixelToWorld,
   radarScaleFactor,
   radarViewRect,
@@ -26,7 +27,12 @@ import {
   RADAR_CALIBRATION_SOURCES,
   RADAR_LEVELS,
 } from './api/tactical.ts';
-import type { RadarCalibration, TacticalGeometry } from './api/tactical.ts';
+import type {
+  RadarBounds,
+  RadarCalibration,
+  TacticalGeometry,
+  TacticalGeometryCell,
+} from './api/tactical.ts';
 
 /*
  * The calibrations are the ones CS2 ships in resource/overviews/<map>.txt, as
@@ -190,52 +196,114 @@ test('a world rectangle keeps its corners on the matching radar corners', () => 
   assertClose(rect.height, 1000 / MIRAGE.scale, 'world rect height');
 });
 
-test('the radar view window is the play bounds as a fraction of the square', () => {
-  const cases: readonly { name: string; geo: TacticalGeometry; want: RadarRect }[] = [
-    {
-      name: 'bounds well inside the square are padded on all four edges',
-      geo: geometry({ bounds: { min_x: -2000, min_y: -1000, max_x: 0, max_y: 1000 } }),
-      want: { x: 0.190234375, y: 0.0892578125, width: 0.490625, height: 0.490625 },
-    },
-    {
-      name: 'an elongated play area clamps at 16/9 by growing its short axis',
-      geo: geometry({ bounds: { min_x: -3000, min_y: -500, max_x: 1000, max_y: 500 } }),
-      want: { x: 0, y: 0.08814697265625, width: 0.876171875, height: 0.4928466796875 },
-    },
-    {
-      name: 'bounds overflowing the square clamp to its edges',
-      geo: geometry(),
-      want: { x: 0, y: 0, width: 1, height: 0.9705078125 },
-    },
-    {
-      name: 'empty bounds fall back to the whole square',
-      geo: geometry({ bounds: { min_x: 0, min_y: 0, max_x: 0, max_y: 0 } }),
-      want: { x: 0, y: 0, width: 1, height: 1 },
-    },
-    {
-      name: 'a zero cell size falls back to the whole square',
-      geo: geometry({ cell_size: 0, bounds: { min_x: -2000, min_y: -1000, max_x: 0, max_y: 1000 } }),
-      want: { x: 0, y: 0, width: 1, height: 1 },
-    },
-    {
-      name: 'an unusable calibration falls back to the whole square',
-      geo: geometry({ calibration: calibration({ scale: 0 }) }),
-      want: { x: 0, y: 0, width: 1, height: 1 },
-    },
-  ];
+/**
+ * A tight, heavy occupancy cluster (world x [-512, -320], y [256, 448]) and the
+ * kind of stray sample — one lonely count far away — that used to unfold the
+ * view back to the whole square.
+ */
+const CLUSTER_CELLS: readonly TacticalGeometryCell[] = [
+  [-8, 4, 300],
+  [-7, 4, 500],
+  [-6, 5, 400],
+  [-7, 6, 250],
+];
+const STRAY_CELL: TacticalGeometryCell = [30, -40, 1];
 
+function occupancy(cells: readonly TacticalGeometryCell[]): TacticalGeometry {
+  return geometry({ levels: [{ name: RADAR_LEVELS.default, cells: [...cells] }] });
+}
+
+/** Asserts `outer` contains `inner`; both are fractions of the same square. */
+function assertContains(outer: RadarRect, inner: RadarRect, name: string): void {
+  assert.ok(outer.x <= inner.x + 1e-9, `${name}: left edge`);
+  assert.ok(outer.y <= inner.y + 1e-9, `${name}: top edge`);
+  assert.ok(outer.x + outer.width >= inner.x + inner.width - 1e-9, `${name}: right edge`);
+  assert.ok(outer.y + outer.height >= inner.y + inner.height - 1e-9, `${name}: bottom edge`);
+}
+
+test('occupancy bounds trim stray mass and are null without weighted cells', () => {
+  const cases: readonly { name: string; geo: TacticalGeometry; want: RadarBounds | null }[] = [
+    {
+      name: 'heavy cells fix the span untouched',
+      geo: occupancy(CLUSTER_CELLS),
+      want: { min_x: -512, min_y: 256, max_x: -320, max_y: 448 },
+    },
+    {
+      name: 'a stray one-sample cell is shed from both axes',
+      geo: occupancy([...CLUSTER_CELLS, STRAY_CELL]),
+      want: { min_x: -512, min_y: 256, max_x: -320, max_y: 448 },
+    },
+    { name: 'no levels means no occupancy to read', geo: geometry({ levels: [] }), want: null },
+    {
+      name: 'weightless cells mean no occupancy to read',
+      geo: occupancy([[0, 0, 0]]),
+      want: null,
+    },
+    { name: 'a zero cell size cannot place cells in the world', geo: geometry({ cell_size: 0 }), want: null },
+  ];
   for (const row of cases) {
-    const got = radarViewRect(row.geo);
-    assertClose(got.x, row.want.x, `${row.name}: x`);
-    assertClose(got.y, row.want.y, `${row.name}: y`);
-    assertClose(got.width, row.want.width, `${row.name}: width`);
-    assertClose(got.height, row.want.height, `${row.name}: height`);
-    // The window is a viewport onto the square, so it can never leave it.
-    assert.ok(got.x >= 0 && got.y >= 0, `${row.name}: origin inside the square`);
+    assert.deepEqual(occupancyBounds(row.geo), row.want, row.name);
+  }
+});
+
+test('the radar view window frames the play area without golden margins', () => {
+  // Properties rather than literals: the margins are tuned by eye, so the
+  // assertions pin what must hold of any tuning — the window frames the play
+  // area, keeps a usable aspect, and ignores stray samples.
+  const view = radarViewRect(occupancy(CLUSTER_CELLS));
+  assert.ok(view.width < 1 && view.height < 1, 'a framed demo is a real crop');
+  assertContains(
+    view,
+    worldRectToRadarRect(MIRAGE, { minX: -512, minY: 256, maxX: -320, maxY: 448 }, 1),
+    'occupancy inside the window',
+  );
+  const aspect = view.width / view.height;
+  assert.ok(aspect >= 3 / 4 - 1e-9 && aspect <= 16 / 9 + 1e-9, 'aspect stays in band');
+
+  // The point of reading the grid: one stray sample no longer unfolds the
+  // window back to the square, which is what a raw min/max bounds did.
+  assert.deepEqual(
+    radarViewRect(occupancy([...CLUSTER_CELLS, STRAY_CELL])),
+    view,
+    'a stray sample does not move the window',
+  );
+
+  // An elongated strip clamps at 16/9 by growing its short axis.
+  const strip = Array.from({ length: 60 }, (_, i): TacticalGeometryCell => [i - 30, 0, 100]);
+  const wide = radarViewRect(occupancy(strip));
+  assertClose(wide.width / wide.height, 16 / 9, 'clamped aspect');
+
+  // Without cells the raw server bounds still frame the window.
+  const bounds = { min_x: -2000, min_y: -1000, max_x: 0, max_y: 1000 };
+  const fallback = radarViewRect(geometry({ levels: [], bounds }));
+  assert.ok(fallback.width < 1 && fallback.height < 1, 'framed fallback is a real crop');
+  assertContains(
+    fallback,
+    worldRectToRadarRect(MIRAGE, { minX: -2000, minY: -1000, maxX: 0, maxY: 1000 }, 1),
+    'bounds inside the window',
+  );
+
+  // The window is a viewport onto the square, so it can never leave it.
+  for (const [name, rect] of [['occupancy', view], ['fallback', fallback], ['strip', wide]] as const) {
+    assert.ok(rect.x >= 0 && rect.y >= 0, `${name}: origin inside the square`);
     assert.ok(
-      got.x + got.width <= 1 + 1e-9 && got.y + got.height <= 1 + 1e-9,
-      `${row.name}: window inside the square`,
+      rect.x + rect.width <= 1 + 1e-9 && rect.y + rect.height <= 1 + 1e-9,
+      `${name}: window inside the square`,
     );
+  }
+});
+
+test('the radar view window falls back to the whole square', () => {
+  const cases: readonly { name: string; geo: TacticalGeometry }[] = [
+    {
+      name: 'empty bounds and no cells',
+      geo: geometry({ levels: [], bounds: { min_x: 0, min_y: 0, max_x: 0, max_y: 0 } }),
+    },
+    { name: 'a zero cell size', geo: geometry({ cell_size: 0, levels: [] }) },
+    { name: 'an unusable calibration', geo: geometry({ calibration: calibration({ scale: 0 }) }) },
+  ];
+  for (const row of cases) {
+    assert.deepEqual(radarViewRect(row.geo), { x: 0, y: 0, width: 1, height: 1 }, row.name);
   }
 });
 

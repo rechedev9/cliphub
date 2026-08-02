@@ -1,5 +1,6 @@
 import { RADAR_LEVELS } from './api/tactical.ts';
 import type {
+  RadarBounds,
   RadarCalibration,
   RadarLevel,
   TacticalGeometry,
@@ -205,6 +206,70 @@ const RADAR_VIEW_MAX_ASPECT = 16 / 9;
 /** The whole square: the answer whenever a geometry cannot be framed. */
 const RADAR_VIEW_FULL: RadarRect = { x: 0, y: 0, width: 1, height: 1 };
 
+/**
+ * Sample mass each edge of an axis may shed before the outermost remaining
+ * cell fixes the play bounds. A stray sample — a spectator camera, a teleport
+ * glitch, a body flung out of the world — is a handful of samples in an
+ * otherwise empty cell, while any position that mattered was held for whole
+ * seconds and weighs hundreds; 0.05% of a demo sits between the two, and the
+ * absolute floor keeps the trim meaningful on very short demos.
+ */
+const OCCUPANCY_TRIM_SHARE = 0.0005;
+const OCCUPANCY_TRIM_FLOOR = 2;
+
+/** The trimmed [min, max] cell span of one axis' occupancy mass. */
+function trimmedCellSpan(mass: Map<number, number>, trim: number): { min: number; max: number } {
+  const entries = [...mass.entries()].sort((a, b) => a[0] - b[0]);
+  let lo = 0;
+  let hi = entries.length - 1;
+  let shed = 0;
+  while (lo < hi && shed + entries[lo][1] <= trim) {
+    shed += entries[lo][1];
+    lo += 1;
+  }
+  shed = 0;
+  while (hi > lo && shed + entries[hi][1] <= trim) {
+    shed += entries[hi][1];
+    hi -= 1;
+  }
+  return { min: entries[lo][0], max: entries[hi][0] };
+}
+
+/**
+ * The world-space play bounds re-derived from the occupancy grid instead of
+ * `geometry.bounds`. The server's bounds are the unconditional min/max of every
+ * sample, so one out-of-world sample stretches them to the whole square and the
+ * view window degenerates; the grid carries a per-cell sample count, which lets
+ * each axis shed that stray mass from its edges before the span is read. `null`
+ * when the geometry has no weighted cells to read.
+ */
+export function occupancyBounds(geometry: TacticalGeometry): RadarBounds | null {
+  if (!(geometry.cell_size > 0)) return null;
+  const xMass = new Map<number, number>();
+  const yMass = new Map<number, number>();
+  let total = 0;
+  for (const level of geometry.levels) {
+    for (const [x, y, weight] of level.cells) {
+      if (!(weight > 0)) continue;
+      xMass.set(x, (xMass.get(x) ?? 0) + weight);
+      yMass.set(y, (yMass.get(y) ?? 0) + weight);
+      total += weight;
+    }
+  }
+  if (total === 0) return null;
+  const trim = Math.max(OCCUPANCY_TRIM_FLOOR, total * OCCUPANCY_TRIM_SHARE);
+  const xs = trimmedCellSpan(xMass, trim);
+  const ys = trimmedCellSpan(yMass, trim);
+  // Cells are indexed by floor(world / cell_size), so the far edge of the
+  // outermost surviving cell is one whole cell past its index.
+  return {
+    min_x: xs.min * geometry.cell_size,
+    min_y: ys.min * geometry.cell_size,
+    max_x: (xs.max + 1) * geometry.cell_size,
+    max_y: (ys.max + 1) * geometry.cell_size,
+  };
+}
+
 /** Grows one axis of the window around its centre, keeping it inside [0, 1]. */
 function growAxis(
   origin: number,
@@ -229,9 +294,12 @@ function growAxis(
  * does today.
  */
 export function radarViewRect(geometry: TacticalGeometry): RadarRect {
-  const { calibration, bounds } = geometry;
+  const { calibration } = geometry;
   if (!isCalibrationUsable(calibration)) return RADAR_VIEW_FULL;
   if (!(geometry.cell_size > 0)) return RADAR_VIEW_FULL;
+  // The occupancy grid is outlier-trimmed; the raw server bounds are only the
+  // fallback for a geometry that carries no weighted cells.
+  const bounds = occupancyBounds(geometry) ?? geometry.bounds;
   // Mirrors `radarmap.Bounds.Empty`, and rejects NaN on the way through.
   if (!(bounds.max_x > bounds.min_x) || !(bounds.max_y > bounds.min_y)) return RADAR_VIEW_FULL;
 
@@ -240,9 +308,9 @@ export function radarViewRect(geometry: TacticalGeometry): RadarRect {
     { minX: bounds.min_x, minY: bounds.min_y, maxX: bounds.max_x, maxY: bounds.max_y },
     1,
   );
-  // Cells are indexed by floor(world / cell_size), so the drawn grid reaches one
-  // whole cell past the outermost sample; the mark floor covers the furniture a
-  // blip standing on that edge still draws around itself.
+  // One cell of pad keeps the fallback bounds — raw sample min/max, whose grid
+  // reaches a whole cell past the outermost sample — inside the window; the mark
+  // floor covers the furniture a blip standing on that edge draws around itself.
   const longer = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y);
   const worldPad = geometry.cell_size + RADAR_VIEW_MARGIN * longer;
   const pad = Math.max(worldPad / (calibration.scale * calibration.size), RADAR_VIEW_MARK_MARGIN);

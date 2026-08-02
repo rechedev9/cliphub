@@ -62,12 +62,11 @@ const INITIAL_METRICS: CanvasMetrics = {
 
 /**
  * The plate's height ceiling; its width cap is this times the map's aspect.
- * Cropping the square to the play bounds made the plate show ~78% more map at
- * the same height, so the ceiling can come down and still draw a bigger map
- * than the uncropped square did: it now gives the column back ~80px, which is
- * what puts the scrubber and the transport on screen with the whole plate.
+ * On maps whose play area fills the overview the crop returns (nearly) the
+ * whole square, so the ceiling must stand on its own: lowering it to pocket the
+ * crop's savings shrank the radar on exactly those maps.
  */
-const RADAR_MAX_HEIGHT_VH = 66;
+const RADAR_MAX_HEIGHT_VH = 74;
 
 /** A round with no frames still needs a timeline for the disabled transport. */
 const EMPTY_TIMELINE = roundTimeline(
@@ -174,10 +173,11 @@ export function TacticalReplay({
   const view = useMemo(() => radarViewRect(doc.geometry), [doc.geometry]);
 
   /**
-   * One measure for the plate and the transport that drives it. It is now the
-   * map's own aspect rather than a square, so the 74vh ceiling only ever binds
-   * on height. Typed rather than cast: `CSSProperties` has no index signature
-   * for custom properties (the SHELL_VARS pattern in app/(app)/layout.tsx).
+   * One measure for the plate and the transport that drives it. It is the
+   * map's own aspect rather than a square, so the RADAR_MAX_HEIGHT_VH ceiling
+   * only ever binds on height. Typed rather than cast: `CSSProperties` has no
+   * index signature for custom properties (the SHELL_VARS pattern in
+   * app/(app)/layout.tsx).
    */
   const radarVars = useMemo<CSSProperties & { '--radar-max': string }>(
     () => ({
@@ -415,15 +415,17 @@ export function TacticalReplay({
       {/* The keyboard contract lives on the section so the transport answers
           wherever focus sits inside the replay. The split is a container query,
           not a viewport one: the panel's own width is what decides whether the
-          radar can afford a column beside it. */}
+          radar can afford a column beside it. 56rem, because inside the app
+          shell (240px sidebar, 1440px content cap, --shell-gutter) this panel
+          tops out around 59rem — a higher threshold can never fire. */}
       <div
-        className="grid gap-5 p-4 sm:p-5 @[62rem]:grid-cols-[minmax(0,1fr)_300px]"
+        className="grid gap-5 p-4 sm:p-5 @[56rem]:grid-cols-[minmax(0,1fr)_300px]"
         onKeyDown={onKeyDown}
       >
         {/* One measure for the media and the transport that drives it, so the
             scrubber stops overhanging the radar on both sides. The measure is
-            the map's own aspect now, not a square: --radar-max is 74vh times
-            that aspect, so the ceiling still binds on height. */}
+            the map's own aspect, not a square: --radar-max is the height
+            ceiling times that aspect, so the ceiling still binds on height. */}
         <div className="flex min-w-0 flex-col gap-4" style={radarVars}>
           <div
             ref={containerRef}
@@ -471,7 +473,7 @@ export function TacticalReplay({
           <RoundLegend round={round} names={names} labels={labels} />
         </div>
 
-        <aside className="flex min-w-0 flex-col rounded-lg border border-border-strong bg-surface-1 @[62rem]:max-h-[62vh]">
+        <aside className="flex min-w-0 flex-col rounded-lg border border-border-strong bg-surface-1 @[56rem]:max-h-[62vh]">
           <h3 className="border-b border-border-subtle px-3 py-2.5 font-mono text-meta uppercase tracking-widest text-fg-3">
             Eventos de la ronda
           </h3>

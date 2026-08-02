@@ -80,9 +80,9 @@ function RoundRow({
           className={cn(
             // Two bands, not one row: the meta footline spans the whole button,
             // so the tag run gets ~256px instead of the ~180px the middle
-            // column can spare. Nothing inside grows with content, so min-h-20
-            // is the exact height of every row (39 + 6 + 15 + 20 = 80), not a
-            // floor some rows clear.
+            // column can spare. Both text spans truncate, so nothing grows with
+            // content; min-h-20 is the height whenever the winner column shows
+            // its gana/pierde line, and the floor rows without it sit on.
             'flex min-h-20 min-w-0 flex-1 flex-col justify-center gap-1.5 px-3 py-2.5 text-left outline-none',
             FOCUS_RING,
           )}
