@@ -253,7 +253,7 @@ function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode
       <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-primary shadow-[var(--elev-0)]">
         <Radar className="size-5 animate-pulse motion-reduce:animate-none" aria-hidden />
       </span>
-      <h2 className="font-display text-xl font-bold uppercase tracking-tight text-foreground">
+      <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
         {stateLabel(status.state)}
       </h2>
       <p className="max-w-xl text-body leading-6 text-muted-foreground">

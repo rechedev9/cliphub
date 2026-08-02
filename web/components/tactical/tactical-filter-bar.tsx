@@ -150,16 +150,21 @@ function BoundInput({
   label,
   value,
   max,
+  placeholder,
+  edgeClassName,
   onChange,
 }: {
   label: string;
   value: number | undefined;
   max: number;
+  placeholder: string;
+  /** Which outer corners this cell keeps, so the two bounds read as one plate. */
+  edgeClassName: string;
   onChange: (next: number | undefined) => void;
 }): ReactNode {
   const inputId = useId();
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-1 flex-col gap-2">
       <label htmlFor={inputId} className="font-mono text-meta uppercase tracking-widest text-fg-3">
         {label}
       </label>
@@ -169,14 +174,22 @@ function BoundInput({
         inputMode="numeric"
         min={1}
         max={max}
+        placeholder={placeholder}
         value={value === undefined ? '' : String(value)}
         onChange={(event) => {
           const parsed = Number(event.target.value);
           onChange(Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined);
         }}
-        // The Input primitive already supplies h-11, --border-strong (the WCAG
-        // 1.4.11 control boundary) and the recessed --surface-3 field.
-        className="w-24 font-mono text-body-sm tabular-nums"
+        // The fill stays the primitive's --surface-3, which the ramp annotates
+        // as "field-on-panel": these are the only <Input>s in the zone, and a
+        // local override made them the only two fields in the product that do
+        // not match the field recipe. It also contradicted itself — --elev-0 is
+        // the RAISED bevel (light top, shade bottom), so a step-down fill under
+        // a step-up bevel read as two depths at once. Only the joined corners
+        // and the mono/tabular type are local. z-10 on focus is
+        // toggle-group.tsx's fix, so one cell's 2px focus outline is not painted
+        // over by its neighbour's background.
+        className={cn('font-mono text-body-sm tabular-nums focus-visible:z-10', edgeClassName)}
       />
     </div>
   );
@@ -260,72 +273,95 @@ export function TacticalFilterBar({
       aria-label="Filtros de rondas"
     >
       <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-            {teamOptions.length > 0 ? (
-              <SingleChips
-                label="Equipo"
-                anyLabel="Ambos"
-                options={teamOptions}
-                selected={filter.team_key}
-                onChange={(team_key) => patch({ team_key })}
-              />
-            ) : null}
+        {/* One wrapping rail, not two nested flex containers: two levels can
+            never share a line, so the counter was always pushed onto a third,
+            otherwise empty band. Flat, every group is a sibling and the rail
+            wraps once. */}
+        <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+          {teamOptions.length > 0 ? (
             <SingleChips
-              label="Lado"
+              label="Equipo"
               anyLabel="Ambos"
-              options={SIDE_OPTIONS}
-              selected={filter.side}
-              onChange={(side) => patch({ side })}
+              options={teamOptions}
+              selected={filter.team_key}
+              onChange={(team_key) => patch({ team_key })}
             />
-            <SingleChips
-              label="Resultado"
-              anyLabel="Todas"
-              options={OUTCOME_OPTIONS}
-              selected={filter.outcome}
-              onChange={(outcome) => patch({ outcome })}
-            />
-            <SingleChips
-              label="Fase"
-              anyLabel="Todas"
-              options={PHASE_OPTIONS}
-              selected={filter.phase}
-              onChange={(phase) => patch({ phase })}
-            />
-            <div className="flex items-end gap-3">
+          ) : null}
+          <SingleChips
+            label="Lado"
+            anyLabel="Ambos"
+            options={SIDE_OPTIONS}
+            selected={filter.side}
+            onChange={(side) => patch({ side })}
+          />
+          <SingleChips
+            label="Resultado"
+            anyLabel="Todas"
+            options={OUTCOME_OPTIONS}
+            selected={filter.outcome}
+            onChange={(outcome) => patch({ outcome })}
+          />
+          <SingleChips
+            label="Fase"
+            anyLabel="Todas"
+            options={PHASE_OPTIONS}
+            selected={filter.phase}
+            onChange={(phase) => patch({ phase })}
+          />
+
+          {/* Range, readout and reset are one scope group: how much of the
+              match, and what that left. They stay in ONE flex item so the
+              counter can never be pushed onto a line of its own, and that item
+              GROWS instead of taking an ml-auto: an auto margin would pin the
+              whole group to the right end of its line, leaving the rail's left
+              two thirds empty. Growing plus justify-between spends the same
+              free space between the fields and the actions, so the plate keeps
+              the rail's left edge (under EQUIPO) and the counter stays flush
+              right. items-end bottom-aligns the labelled plate with the counter
+              cluster, which keeps its own items-center so the readout stays
+              centred on LIMPIAR. */}
+          <div className="flex grow flex-wrap items-end justify-between gap-x-8 gap-y-4">
+            {/* One plate, not two boxes: 160px of two 80px cells sharing a
+                single hairline (the joined recipe from toggle-group.tsx), each
+                showing the bound it already declares in min/max as a
+                placeholder, so an unset window reads "1 | 19" instead of as two
+                empty voids. */}
+            <div className="flex w-40 shrink-0">
               <BoundInput
                 label="Desde"
                 value={filter.round_from}
                 max={total}
+                placeholder="1"
+                edgeClassName="rounded-r-none"
                 onChange={(round_from) => patch({ round_from })}
               />
               <BoundInput
                 label="Hasta"
                 value={filter.round_to}
                 max={total}
+                placeholder={String(total)}
+                edgeClassName="rounded-l-none border-l-0"
                 onChange={(round_to) => patch({ round_to })}
               />
             </div>
-          </div>
 
-          {/* ml-auto survives the wrap: with only justify-between the cluster
-              lost its right alignment the moment the chips filled the row. */}
-          <div className="ml-auto flex items-center gap-3">
-            <span className="font-mono text-meta uppercase text-fg-2 tabular-nums">
-              {matched} / {total} rondas
-            </span>
-            <Button
-              variant="outline"
-              onClick={() => onChange({})}
-              disabled={tacticalFilterCount(filter) === 0}
-              // The outline variant already ships a measured disabled recipe
-              // (--surface-2 + --fg-3, the AA floor); the base opacity-50 was
-              // compositing that floor down to ~2:1.
-              className="font-mono text-meta tracking-wider disabled:opacity-100"
-            >
-              <FilterX aria-hidden />
-              LIMPIAR
-            </Button>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="font-mono text-meta uppercase text-fg-2 tabular-nums">
+                {matched} / {total} rondas
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => onChange({})}
+                disabled={tacticalFilterCount(filter) === 0}
+                // The outline variant already ships a measured disabled recipe
+                // (--surface-2 + --fg-3, the AA floor); the base opacity-50 was
+                // compositing that floor down to ~2:1.
+                className="font-mono text-meta tracking-wider disabled:opacity-100"
+              >
+                <FilterX aria-hidden />
+                LIMPIAR
+              </Button>
+            </div>
           </div>
         </div>
 

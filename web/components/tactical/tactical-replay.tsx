@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
@@ -31,7 +32,7 @@ import {
 } from '@/lib/tactical-timeline';
 import type { RoundTimeline } from '@/lib/tactical-timeline';
 import { dominantLevel, frameCursor, interpolatedSamples, sampleTrails } from '@/lib/tactical-replay';
-import { isCalibrationUsable } from '@/lib/tactical-transform';
+import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import { drawTacticalScene, renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
 import { TacticalEventList } from '@/components/tactical/tactical-event-list';
@@ -40,9 +41,33 @@ import { buyLabel, ctPatternLabel, siteLabel, tPatternLabel } from '@/lib/tactic
 import { cn } from '@/lib/utils';
 
 /** Enough of the canvas box to draw one frame without measuring again. */
-type CanvasMetrics = { cssWidth: number; cssHeight: number; dpr: number; size: number };
+type CanvasMetrics = {
+  cssWidth: number;
+  cssHeight: number;
+  dpr: number;
+  /** Side of the virtual radar square; the box shows `view` of it. */
+  size: number;
+  offsetX: number;
+  offsetY: number;
+};
 
-const INITIAL_METRICS: CanvasMetrics = { cssWidth: 1, cssHeight: 1, dpr: 1, size: 1 };
+const INITIAL_METRICS: CanvasMetrics = {
+  cssWidth: 1,
+  cssHeight: 1,
+  dpr: 1,
+  size: 1,
+  offsetX: 0,
+  offsetY: 0,
+};
+
+/**
+ * The plate's height ceiling; its width cap is this times the map's aspect.
+ * Cropping the square to the play bounds made the plate show ~78% more map at
+ * the same height, so the ceiling can come down and still draw a bigger map
+ * than the uncropped square did: it now gives the column back ~80px, which is
+ * what puts the scrubber and the transport on screen with the whole plate.
+ */
+const RADAR_MAX_HEIGHT_VH = 66;
 
 /** A round with no frames still needs a timeline for the disabled transport. */
 const EMPTY_TIMELINE = roundTimeline(
@@ -60,10 +85,13 @@ function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
   return {
     // --surface-0 is the ramp's void/well step, so the radar reads as a recess
     // in the --surface-2 panel instead of being painted in the panel's own
-    // colour. `panel` is also the label halo and the health-ring backing, both
-    // of which need a dark plate under them to separate stacked blips.
+    // colour. `panel` is also the health-ring backing, which needs a dark ring
+    // under it to separate stacked blips.
     background: token('--surface-0', '#04070f'),
     panel: token('--surface-0', '#04070f'),
+    // Identity chips take the ramp's raised step rather than more alpha over
+    // --surface-0, so a name reads on an opaque plate whatever is behind it.
+    plate: token('--surface-3', '#141b2b'),
     // The occupancy grid is the map, not a signal: it stays neutral so cyan can
     // keep meaning "CT" on top of it.
     map: token('--fg-3', '#8998a7'),
@@ -80,7 +108,7 @@ function readRadarStyle(canvas: HTMLCanvasElement): RadarStyle {
   };
 }
 
-/** The three-letter tag drawn under a dot; the legend carries the full name. */
+/** The three-letter tag on a player's radar chip; the legend carries the full name. */
 function shortLabel(name: string): string {
   return name.trim().slice(0, 3).toUpperCase();
 }
@@ -137,20 +165,41 @@ export function TacticalReplay({
     [doc.players],
   );
 
+  /**
+   * The window of the native radar square this demo happened in. It decides the
+   * plate's shape and how much of the square is on screen, never the transform:
+   * the bake and every mark still run through one `size` under one translate, so
+   * a blip lands on exactly the cell it lands on without a crop.
+   */
+  const view = useMemo(() => radarViewRect(doc.geometry), [doc.geometry]);
+
+  /**
+   * One measure for the plate and the transport that drives it. It is now the
+   * map's own aspect rather than a square, so the 74vh ceiling only ever binds
+   * on height. Typed rather than cast: `CSSProperties` has no index signature
+   * for custom properties (the SHELL_VARS pattern in app/(app)/layout.tsx).
+   */
+  const radarVars = useMemo<CSSProperties & { '--radar-max': string }>(
+    () => ({
+      '--radar-max': `min(100%, ${((RADAR_MAX_HEIGHT_VH * view.width) / view.height).toFixed(2)}vh)`,
+    }),
+    [view],
+  );
+
   /** The baked map bitmap for the current size, pixel ratio and level. */
   const background = useCallback(
     (level: RadarLevel, size: number, dpr: number, style: RadarStyle): HTMLCanvasElement => {
-      const key = `${size}|${dpr}|${level}|${doc.geometry.map}`;
+      const key = `${size}|${dpr}|${level}|${doc.geometry.map}|${view.x},${view.y},${view.width},${view.height}`;
       const cached = backgroundsRef.current.get(key);
       if (cached !== undefined) return cached;
-      const baked = renderRadarBackground(doc.geometry, level, size, dpr, style);
+      const baked = renderRadarBackground(doc.geometry, level, size, dpr, style, view);
       // A handful of sizes and two levels is all a session ever needs; drop the
       // cache wholesale rather than growing it after a long resize drag.
       if (backgroundsRef.current.size > 8) backgroundsRef.current.clear();
       backgroundsRef.current.set(key, baked);
       return baked;
     },
-    [doc.geometry],
+    [doc.geometry, view],
   );
 
   // Both the radar transform and the occupancy grid reject unusable numbers, and
@@ -175,21 +224,28 @@ export function TacticalReplay({
       const context = canvas.getContext('2d', { alpha: false });
       if (context === null) return;
       const style = styleRef.current ?? readRadarStyle(canvas);
-      const { cssWidth, cssHeight, dpr, size } = metricsRef.current;
+      const { cssWidth, cssHeight, dpr, size, offsetX, offsetY } = metricsRef.current;
 
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.fillStyle = style.background;
       context.fillRect(0, 0, cssWidth, cssHeight);
-      context.translate(Math.round((cssWidth - size) / 2), Math.round((cssHeight - size) / 2));
+      context.translate(offsetX, offsetY);
 
       const cursor = frameCursor(frames, timelineTick(timeline, seconds));
       const samples = cursor === undefined ? [] : interpolatedSamples(frames, cursor);
       const level = dominantLevel(doc.geometry.calibration, samples);
-      context.drawImage(background(level, size, dpr, style), 0, 0, size, size);
+      context.drawImage(
+        background(level, size, dpr, style),
+        view.x * size,
+        view.y * size,
+        view.width * size,
+        view.height * size,
+      );
 
       if (cursor !== undefined) {
         drawTacticalScene(context, {
           size,
+          view,
           geometry: doc.geometry,
           activeLevel: level,
           samples,
@@ -202,7 +258,7 @@ export function TacticalReplay({
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [background, doc.geometry, drawable, events, frames, labels, timeline],
+    [background, doc.geometry, drawable, events, frames, labels, timeline, view],
   );
 
   useEffect(() => {
@@ -237,7 +293,18 @@ export function TacticalReplay({
       // change and repaint straight after.
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
-      metricsRef.current = { cssWidth, cssHeight, dpr, size: Math.floor(Math.min(cssWidth, cssHeight)) };
+      // The square is scaled so its window fills the box, then panned so the
+      // window's origin lands on the box's. With a full-square view this is
+      // Math.floor(Math.min(cssWidth, cssHeight)) centred, exactly as before.
+      const size = Math.max(1, Math.floor(Math.min(cssWidth / view.width, cssHeight / view.height)));
+      metricsRef.current = {
+        cssWidth,
+        cssHeight,
+        dpr,
+        size,
+        offsetX: Math.round((cssWidth - size * view.width) / 2 - size * view.x),
+        offsetY: Math.round((cssHeight - size * view.height) / 2 - size * view.y),
+      };
       styleRef.current = readRadarStyle(canvas);
       renderRef.current(positionRef.current);
     };
@@ -251,7 +318,7 @@ export function TacticalReplay({
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [view]);
 
   useEffect(() => {
     if (!playing) return;
@@ -354,13 +421,17 @@ export function TacticalReplay({
         onKeyDown={onKeyDown}
       >
         {/* One measure for the media and the transport that drives it, so the
-            scrubber stops overhanging the radar on both sides. */}
-        <div className="flex min-w-0 flex-col gap-4 [--radar-max:min(100%,74vh)]">
+            scrubber stops overhanging the radar on both sides. The measure is
+            the map's own aspect now, not a square: --radar-max is 74vh times
+            that aspect, so the ceiling still binds on height. */}
+        <div className="flex min-w-0 flex-col gap-4" style={radarVars}>
           <div
             ref={containerRef}
             // The inverted --edge-shade/--edge-light pair reads as a recess
-            // rather than a raised plate.
-            className="relative mx-auto aspect-square w-full max-w-(--radar-max) overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
+            // rather than a raised plate. The ratio is the crop window's, so the
+            // box is the map instead of the 1024 square the map sits in.
+            className="relative mx-auto w-full max-w-(--radar-max) overflow-hidden rounded-lg border border-border-strong bg-surface-0 shadow-[inset_0_1px_0_0_var(--edge-shade),inset_0_-1px_0_0_var(--edge-light)]"
+            style={{ aspectRatio: `${view.width} / ${view.height}` }}
           >
             <canvas
               ref={canvasRef}
@@ -441,12 +512,12 @@ function RoundLegend({
             .map((player) => (
               <div
                 key={player.slot}
-                className="flex min-w-0 items-baseline gap-2 font-mono text-meta tracking-normal tabular-nums"
+                className="flex min-w-0 items-center gap-2 font-mono text-meta tracking-normal tabular-nums"
               >
                 <span
                   className={cn(
-                    'w-8 shrink-0',
-                    player.side === TACTICAL_SIDES.ct ? 'text-primary' : 'text-warning',
+                    'w-11 shrink-0 border-l-2 bg-surface-3 py-0.5 pr-1.5 pl-1 text-fg-1',
+                    player.side === TACTICAL_SIDES.ct ? 'border-l-primary' : 'border-l-warning',
                   )}
                 >
                   {labels.get(player.slot) ?? '···'}

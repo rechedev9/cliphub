@@ -55,7 +55,7 @@ export function TacticalDemoSummary({
     <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Demo analizada">
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h2 className="font-display text-2xl font-bold uppercase leading-none tracking-tight text-foreground">
+          <h2 className="font-display text-section font-bold uppercase leading-none tracking-tight text-foreground">
             {prettyMapName(doc.demo.map)}
           </h2>
           <span className="font-mono text-meta uppercase tracking-wider text-fg-3">

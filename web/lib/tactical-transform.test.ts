@@ -13,12 +13,14 @@ import {
   maxCellWeight,
   pixelToWorld,
   radarScaleFactor,
+  radarViewRect,
   renderedToWorld,
   worldRectToRadarRect,
   worldToPixel,
   worldToRendered,
   yawToRadarAngle,
 } from './tactical-transform.ts';
+import type { RadarRect } from './tactical-transform.ts';
 import {
   GEOMETRY_SOURCE_OCCUPANCY,
   RADAR_CALIBRATION_SOURCES,
@@ -186,6 +188,55 @@ test('a world rectangle keeps its corners on the matching radar corners', () => 
   assertClose(rect.y, topLeft.y, 'world rect y');
   assertClose(rect.width, 1000 / MIRAGE.scale, 'world rect width');
   assertClose(rect.height, 1000 / MIRAGE.scale, 'world rect height');
+});
+
+test('the radar view window is the play bounds as a fraction of the square', () => {
+  const cases: readonly { name: string; geo: TacticalGeometry; want: RadarRect }[] = [
+    {
+      name: 'bounds well inside the square are padded on all four edges',
+      geo: geometry({ bounds: { min_x: -2000, min_y: -1000, max_x: 0, max_y: 1000 } }),
+      want: { x: 0.190234375, y: 0.0892578125, width: 0.490625, height: 0.490625 },
+    },
+    {
+      name: 'an elongated play area clamps at 16/9 by growing its short axis',
+      geo: geometry({ bounds: { min_x: -3000, min_y: -500, max_x: 1000, max_y: 500 } }),
+      want: { x: 0, y: 0.08814697265625, width: 0.876171875, height: 0.4928466796875 },
+    },
+    {
+      name: 'bounds overflowing the square clamp to its edges',
+      geo: geometry(),
+      want: { x: 0, y: 0, width: 1, height: 0.9705078125 },
+    },
+    {
+      name: 'empty bounds fall back to the whole square',
+      geo: geometry({ bounds: { min_x: 0, min_y: 0, max_x: 0, max_y: 0 } }),
+      want: { x: 0, y: 0, width: 1, height: 1 },
+    },
+    {
+      name: 'a zero cell size falls back to the whole square',
+      geo: geometry({ cell_size: 0, bounds: { min_x: -2000, min_y: -1000, max_x: 0, max_y: 1000 } }),
+      want: { x: 0, y: 0, width: 1, height: 1 },
+    },
+    {
+      name: 'an unusable calibration falls back to the whole square',
+      geo: geometry({ calibration: calibration({ scale: 0 }) }),
+      want: { x: 0, y: 0, width: 1, height: 1 },
+    },
+  ];
+
+  for (const row of cases) {
+    const got = radarViewRect(row.geo);
+    assertClose(got.x, row.want.x, `${row.name}: x`);
+    assertClose(got.y, row.want.y, `${row.name}: y`);
+    assertClose(got.width, row.want.width, `${row.name}: width`);
+    assertClose(got.height, row.want.height, `${row.name}: height`);
+    // The window is a viewport onto the square, so it can never leave it.
+    assert.ok(got.x >= 0 && got.y >= 0, `${row.name}: origin inside the square`);
+    assert.ok(
+      got.x + got.width <= 1 + 1e-9 && got.y + got.height <= 1 + 1e-9,
+      `${row.name}: window inside the square`,
+    );
+  }
 });
 
 test('geometry levels are looked up by name and weighted by their heaviest cell', () => {

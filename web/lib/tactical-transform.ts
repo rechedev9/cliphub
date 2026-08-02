@@ -187,6 +187,90 @@ export function worldRectToRadarRect(
   };
 }
 
+/** World-space breathing room around the play bounds, as a share of its longer axis. */
+const RADAR_VIEW_MARGIN = 0.03;
+/**
+ * Floor for that margin as a share of the square. `radar-draw` sizes a blip's
+ * view cone at 4.4 radii (0.046 of the square) and its name chip at 2.6 radii
+ * plus a 1.5-line 0.016 glyph (0.051), so a player standing exactly on the
+ * bounds keeps their cone, health ring and chip inside the window. A chip that
+ * still would not fit is pulled in by `placeTag`, which clamps to this window
+ * rather than to the square, so it is nudged over the outermost cells instead
+ * of being sliced by the plate's border.
+ */
+const RADAR_VIEW_MARK_MARGIN = 0.05;
+/** The plate is a window, never a sliver: the crop's aspect stays in this band. */
+const RADAR_VIEW_MIN_ASPECT = 3 / 4;
+const RADAR_VIEW_MAX_ASPECT = 16 / 9;
+/** The whole square: the answer whenever a geometry cannot be framed. */
+const RADAR_VIEW_FULL: RadarRect = { x: 0, y: 0, width: 1, height: 1 };
+
+/** Grows one axis of the window around its centre, keeping it inside [0, 1]. */
+function growAxis(
+  origin: number,
+  extent: number,
+  target: number,
+): { origin: number; extent: number } {
+  if (!(target > extent)) return { origin, extent };
+  const grown = Math.min(target, 1);
+  const centre = origin + extent / 2;
+  return { origin: Math.min(Math.max(centre - grown / 2, 0), 1 - grown), extent: grown };
+}
+
+/**
+ * The window of the native radar square the demo actually happened in, as
+ * fractions of that square (a `RadarRect` of a `renderedSize = 1` radar).
+ *
+ * This is a viewport, never a transform. The caller scales one square by
+ * `1 / width` and pans it, so the baked map, the cells, the callouts, the
+ * trails, the event marks and the blips all move together and a blip lands on
+ * exactly the cell it lands on without a crop. A geometry that cannot be framed
+ * answers the whole square, which reduces the caller's arithmetic to what it
+ * does today.
+ */
+export function radarViewRect(geometry: TacticalGeometry): RadarRect {
+  const { calibration, bounds } = geometry;
+  if (!isCalibrationUsable(calibration)) return RADAR_VIEW_FULL;
+  if (!(geometry.cell_size > 0)) return RADAR_VIEW_FULL;
+  // Mirrors `radarmap.Bounds.Empty`, and rejects NaN on the way through.
+  if (!(bounds.max_x > bounds.min_x) || !(bounds.max_y > bounds.min_y)) return RADAR_VIEW_FULL;
+
+  const rect = worldRectToRadarRect(
+    calibration,
+    { minX: bounds.min_x, minY: bounds.min_y, maxX: bounds.max_x, maxY: bounds.max_y },
+    1,
+  );
+  // Cells are indexed by floor(world / cell_size), so the drawn grid reaches one
+  // whole cell past the outermost sample; the mark floor covers the furniture a
+  // blip standing on that edge still draws around itself.
+  const longer = Math.max(bounds.max_x - bounds.min_x, bounds.max_y - bounds.min_y);
+  const worldPad = geometry.cell_size + RADAR_VIEW_MARGIN * longer;
+  const pad = Math.max(worldPad / (calibration.scale * calibration.size), RADAR_VIEW_MARK_MARGIN);
+
+  const left = Math.min(Math.max(rect.x - pad, 0), 1);
+  const right = Math.min(Math.max(rect.x + rect.width + pad, 0), 1);
+  const top = Math.min(Math.max(rect.y - pad, 0), 1);
+  const bottom = Math.min(Math.max(rect.y + rect.height + pad, 0), 1);
+  let x = left;
+  let y = top;
+  let width = right - left;
+  let height = bottom - top;
+  if (!(width > 0) || !(height > 0)) return RADAR_VIEW_FULL;
+
+  // The short axis grows rather than the long one shrinking, so the clamp never
+  // crops something the margin just made room for.
+  if (width / height > RADAR_VIEW_MAX_ASPECT) {
+    const grown = growAxis(y, height, width / RADAR_VIEW_MAX_ASPECT);
+    y = grown.origin;
+    height = grown.extent;
+  } else if (width / height < RADAR_VIEW_MIN_ASPECT) {
+    const grown = growAxis(x, width, height * RADAR_VIEW_MIN_ASPECT);
+    x = grown.origin;
+    width = grown.extent;
+  }
+  return { x, y, width, height };
+}
+
 /**
  * The radar rectangle one packed occupancy cell `[cellX, cellY, weight]` should
  * be drawn in. This is the whole map-drawing primitive: a level's cells, each

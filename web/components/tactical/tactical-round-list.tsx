@@ -7,6 +7,7 @@ import type { TacticalDocument, TacticalFilter, TacticalRound, TacticalSide } fr
 import { tacticalPerspective } from '@/lib/tactical-filter';
 import { buyLabel, ctPatternLabel, roundTagLabel, siteLabel, tPatternLabel } from '@/lib/tactical-labels';
 import { FOCUS_RING } from '@/components/ui/button';
+import { StatusTag } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
 
 function sideClass(side: TacticalSide): string {
@@ -24,19 +25,19 @@ function sideBarClass(winner: TacticalSide | ''): string {
 /** The economy line, always in CT-then-T order so rows scan vertically. */
 function BuyLine({ round }: { round: TacticalRound }): ReactNode {
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-meta uppercase tracking-wider">
-      <span className="text-primary">{buyLabel(round.economy.ct_buy)}</span>
-      <span className="text-muted-foreground">vs</span>
+    <span className="block truncate font-mono text-meta uppercase tracking-wider">
+      <span className="text-primary">{buyLabel(round.economy.ct_buy)}</span>{' '}
+      <span className="text-muted-foreground">vs</span>{' '}
       <span className="text-warning">{buyLabel(round.economy.t_buy)}</span>
     </span>
   );
 }
 
 /**
- * One round of the index. The reasons the classifier recorded are one click
- * away on every row: a label an analyst disagrees with has to be traceable to
- * the rule that produced it, which is the whole point of a deterministic
- * classifier.
+ * One round of the index. The chevron opens the full classification record —
+ * the tags the classifier attached, then the rules that produced them: a label
+ * an analyst disagrees with has to be traceable, which is the whole point of a
+ * deterministic classifier.
  */
 function RoundRow({
   round,
@@ -77,66 +78,75 @@ function RoundRow({
           onClick={() => onSelect(round.number)}
           aria-current={selected ? 'true' : undefined}
           className={cn(
-            'flex min-h-[68px] min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left outline-none',
+            // Two bands, not one row: the meta footline spans the whole button,
+            // so the tag run gets ~256px instead of the ~180px the middle
+            // column can spare. Nothing inside grows with content, so min-h-20
+            // is the exact height of every row (39 + 6 + 15 + 20 = 80), not a
+            // floor some rows clear.
+            'flex min-h-20 min-w-0 flex-1 flex-col justify-center gap-1.5 px-3 py-2.5 text-left outline-none',
             FOCUS_RING,
           )}
         >
-          <span className="flex w-9 shrink-0 flex-col items-center gap-1">
-            <span
-              className={cn(
-                'font-mono text-title leading-none tabular-nums',
-                selected ? 'text-primary' : 'text-foreground',
-              )}
-            >
-              {round.number}
-            </span>
-            <span className="font-mono text-meta leading-none tracking-normal tabular-nums text-fg-3">
-              {round.score_ct_before}:{round.score_t_before}
-            </span>
-          </span>
-
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <BuyLine round={round} />
-            {/* A token row, not a text run: the measure is ~155px, and
-                `break-words` was splitting inside a label ("SI / N SITIO"). */}
-            <span className="flex min-w-0 flex-wrap items-baseline gap-x-1 font-display text-label font-semibold uppercase leading-tight text-foreground">
-              <span className="whitespace-nowrap">{tPatternLabel(round.class.t_side)}</span>
-              <span className="text-muted-foreground">/</span>
-              <span className="whitespace-nowrap">{ctPatternLabel(round.class.ct_side)}</span>
-              <span className="text-muted-foreground">·</span>
-              <span className="whitespace-nowrap text-muted-foreground">{siteLabel(round.class.site)}</span>
-            </span>
-            {round.class.tags.length > 0 ? (
-              <span className="mt-1 flex flex-wrap gap-1">
-                {round.class.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="border border-border-subtle px-1.5 py-0.5 font-mono text-meta uppercase text-fg-3"
-                  >
-                    {roundTagLabel(tag)}
-                  </span>
-                ))}
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="flex w-9 shrink-0 flex-col items-center gap-1">
+              <span
+                className={cn(
+                  'font-mono text-title leading-none tabular-nums',
+                  selected ? 'text-primary' : 'text-foreground',
+                )}
+              >
+                {round.number}
               </span>
-            ) : null}
+              <span className="font-mono text-meta leading-none tracking-normal tabular-nums text-fg-3">
+                {round.score_ct_before}:{round.score_t_before}
+              </span>
+            </span>
+
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <BuyLine round={round} />
+              {/* One line, never two: the index column is pinned at 360px
+                  (tactical-analysis.tsx) so this measure never grows, and the
+                  site moved to the footline so the pair fits. The untruncated
+                  string is reprinted in the replay header when the round is
+                  selected. */}
+              <span className="block truncate font-display text-label font-semibold uppercase leading-tight text-foreground">
+                {tPatternLabel(round.class.t_side)}{' '}
+                <span className="text-muted-foreground">/</span>{' '}
+                {ctPatternLabel(round.class.ct_side)}
+              </span>
+            </span>
+
+            <span className="flex shrink-0 flex-col items-end gap-1">
+              <span
+                className={cn(
+                  // border-current inherits the side's semantic colour, so the
+                  // marker reads as a HUD key without a new token.
+                  'inline-flex h-5 items-center justify-center border border-current px-1.5 font-mono text-meta leading-none tracking-wider',
+                  round.winner === '' ? 'text-fg-3' : sideClass(round.winner),
+                )}
+              >
+                {round.winner === '' ? '—' : round.winner}
+              </span>
+              {won ? (
+                <span className="font-mono text-meta uppercase tracking-wider text-success">gana</span>
+              ) : null}
+              {lost ? (
+                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">pierde</span>
+              ) : null}
+            </span>
           </span>
 
-          <span className="flex shrink-0 flex-col items-end gap-1">
-            <span
-              className={cn(
-                // border-current inherits the side's semantic colour, so the
-                // marker reads as a HUD key without a new token.
-                'inline-flex h-5 items-center justify-center border border-current px-1.5 font-mono text-meta leading-none tracking-wider',
-                round.winner === '' ? 'text-fg-3' : sideClass(round.winner),
-              )}
-            >
-              {round.winner === '' ? '—' : round.winner}
-            </span>
-            {won ? (
-              <span className="font-mono text-meta uppercase tracking-wider text-success">gana</span>
-            ) : null}
-            {lost ? (
-              <span className="font-mono text-meta uppercase tracking-wider text-fg-3">pierde</span>
-            ) : null}
+          {/* Site first, then the tags, as one `·` run — the house idiom
+              (tactical-event-list.tsx). tracking-normal rather than the
+              mono-meta tracking-wider on purpose: at 0.12em a three-tag round
+              loses nine characters of a ~256px band, and this is a dense data
+              run, not a HUD label. Overflow ellipsises; the full list is in the
+              drawer. */}
+          <span className="block truncate font-mono text-meta uppercase tracking-normal text-fg-3">
+            <span className="text-fg-2">{siteLabel(round.class.site)}</span>
+            {round.class.tags.map((tag) => (
+              <span key={tag}>{` · ${roundTagLabel(tag)}`}</span>
+            ))}
           </span>
         </button>
 
@@ -157,6 +167,13 @@ function RoundRow({
       </div>
 
       <div id={reasonsId} hidden={!open} className="border-t border-border-subtle bg-surface-1 px-3 py-3">
+        {round.class.tags.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {round.class.tags.map((tag) => (
+              <StatusTag key={tag}>{roundTagLabel(tag)}</StatusTag>
+            ))}
+          </div>
+        ) : null}
         <p className="mb-2 font-mono text-meta uppercase tracking-widest text-fg-3">
           Por qué se clasificó así
         </p>
