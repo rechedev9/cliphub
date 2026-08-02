@@ -23,11 +23,11 @@ import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
-// Point at a published GitHub Release asset only. 2.4.9 is the first installer
-// built under the TickCut name, so the filename no longer says FragForge.
+// Point at a published GitHub Release asset only. 2.4.10 restores the radar
+// height and makes the tactical view crop robust to stray samples.
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.9/TickCut.Studio.Setup.2.4.9.exe";
-const RELEASE_VERSION = "v2.4.9";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.10/TickCut.Studio.Setup.2.4.10.exe";
+const RELEASE_VERSION = "v2.4.10";
 const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
