@@ -322,3 +322,289 @@ func TestRefineKillfeedEffectsDropsGeneratedOverlayWithoutHighlight(t *testing.T
 		t.Fatalf("effects[1] = %#v, want the scripted killfeed with default crop", kept)
 	}
 }
+
+// TestKillfeedSampleTimesCoversDemoTickLag documents the candidate window used
+// when CS2 paints the death notice later than the tick-derived kill time (real
+// captures observed ~0.6–0.8s lag). Mutation of the window constants must still
+// keep the legacy first sample and reach past that lag.
+func TestKillfeedSampleTimesCoversDemoTickLag(t *testing.T) {
+	tests := []struct {
+		name        string
+		short       ShortEdit
+		effect      Effect
+		wantInput   string
+		wantFirst   float64
+		mustInclude []float64
+		mustStayLE  float64
+	}{
+		{
+			name: "compilation part clamps to part duration",
+			short: ShortEdit{
+				Parts: []ShortPart{
+					{SegmentID: "seg-001", Input: "seg-001.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 0},
+				},
+			},
+			effect:      Effect{Type: EffectKillfeed, AtSeconds: 1.0, StartSeconds: 0.65},
+			wantInput:   "seg-001.mp4",
+			wantFirst:   1.0 + killfeedSampleDelaySeconds,
+			mustInclude: []float64{1.0 + killfeedSampleDelaySeconds, 1.75},
+			mustStayLE:  2.5,
+		},
+		{
+			name: "later part offsets from timeline start",
+			short: ShortEdit{
+				Parts: []ShortPart{
+					{SegmentID: "seg-001", Input: "a.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 0},
+					{SegmentID: "seg-002", Input: "b.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 2.5},
+				},
+			},
+			effect:      Effect{Type: EffectKillfeed, AtSeconds: 3.5, StartSeconds: 3.15},
+			wantInput:   "b.mp4",
+			wantFirst:   1.0 + killfeedSampleDelaySeconds,
+			mustInclude: []float64{1.0 + killfeedSampleDelaySeconds, 1.75},
+			mustStayLE:  2.5,
+		},
+		{
+			name: "single-clip short uses duration as bound",
+			short: ShortEdit{
+				Input:           "only.mp4",
+				DurationSeconds: 6,
+			},
+			effect:      Effect{Type: EffectKillfeed, AtSeconds: 1.0, StartSeconds: 0.65},
+			wantInput:   "only.mp4",
+			wantFirst:   1.0 + killfeedSampleDelaySeconds,
+			mustInclude: []float64{1.0 + killfeedSampleDelaySeconds, 1.0 + killfeedSampleDelaySeconds + 0.8},
+			mustStayLE:  6,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input, times := killfeedSampleTimes(&tt.short, tt.effect)
+			if input != tt.wantInput {
+				t.Fatalf("input = %q, want %q", input, tt.wantInput)
+			}
+			if len(times) == 0 {
+				t.Fatal("sample times empty")
+			}
+			if math.Abs(times[0]-tt.wantFirst) > 1e-9 {
+				t.Fatalf("first sample = %.3f, want legacy delay %.3f", times[0], tt.wantFirst)
+			}
+			for i := 1; i < len(times); i++ {
+				if times[i] <= times[i-1] {
+					t.Fatalf("times not strictly increasing: %v", times)
+				}
+			}
+			for _, need := range tt.mustInclude {
+				if !sampleTimesContain(times, need) {
+					t.Fatalf("times = %v, want to include %.3f (covers demo/tick lag)", times, need)
+				}
+			}
+			for _, at := range times {
+				if at > tt.mustStayLE+1e-9 {
+					t.Fatalf("sample %.3f exceeds bound %.3f: %v", at, tt.mustStayLE, times)
+				}
+				if at < 0 {
+					t.Fatalf("negative sample %.3f in %v", at, times)
+				}
+			}
+		})
+	}
+}
+
+func sampleTimesContain(times []float64, want float64) bool {
+	for _, at := range times {
+		if math.Abs(at-want) <= 1e-9 {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRefineKillfeedEffectsFindsLateDeathNotice is the production failure mode:
+// tick-derived AtSeconds + 0.35s has no red ring yet; the notice appears later
+// in the same segment (observed ~+0.7s). The probe must walk the window, crop
+// the late frame, and retime AtSeconds so the FFmpeg freeze uses that same frame.
+func TestRefineKillfeedEffectsFindsLateDeathNotice(t *testing.T) {
+	notice := image.Rect(1690, 80, 1910, 116)
+	const killAt = 1.0
+	const noticeAt = 1.70 // ~0.7s after tick-derived kill, inside the scan window
+
+	var probed []float64
+	probe := func(input string, atSeconds float64) (image.Image, error) {
+		if input != "seg-001.mp4" {
+			t.Fatalf("probe input = %q, want seg-001.mp4", input)
+		}
+		probed = append(probed, atSeconds)
+		if atSeconds+1e-9 < noticeAt {
+			return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+		}
+		return killfeedTestFrame(t, notice), nil
+	}
+
+	short := ShortEdit{
+		DurationSeconds: 12,
+		Effects: []Effect{
+			{
+				Type:         EffectKillfeed,
+				StartSeconds: killAt - 0.35,
+				EndSeconds:   killAt + 2.80,
+				AtSeconds:    killAt,
+				Width:        430,
+				CropX:        1558,
+				CropY:        64,
+				CropWidth:    360,
+				CropHeight:   110,
+				Source:       "edit-request",
+			},
+		},
+		Parts: []ShortPart{
+			{SegmentID: "seg-001", Input: "seg-001.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 0},
+		},
+	}
+
+	warnings := refineKillfeedEffects(&short, probe)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want success once the late notice is found", warnings)
+	}
+	if len(short.Effects) != 1 {
+		t.Fatalf("effects = %#v, want the generated overlay kept", short.Effects)
+	}
+	if len(probed) < 2 {
+		t.Fatalf("probe calls = %v, want multiple samples after the empty early frame", probed)
+	}
+	if math.Abs(probed[0]-(killAt+killfeedSampleDelaySeconds)) > 1e-9 {
+		t.Fatalf("first probe = %.3f, want legacy %.3f", probed[0], killAt+killfeedSampleDelaySeconds)
+	}
+	if !sampleTimesContain(probed, noticeAt) && probed[len(probed)-1]+1e-9 < noticeAt {
+		t.Fatalf("probe calls = %v, never reached notice at %.3f", probed, noticeAt)
+	}
+
+	effect := short.Effects[0]
+	crop := image.Rect(effect.CropX, effect.CropY, effect.CropX+effect.CropWidth, effect.CropY+effect.CropHeight)
+	if crop.Min.X > notice.Min.X || crop.Min.Y > notice.Min.Y || crop.Max.X < notice.Max.X || crop.Max.Y < notice.Max.Y {
+		t.Fatalf("crop = %v, want it to cover late notice %v", crop, notice)
+	}
+
+	// Freeze path must reuse the winning sample, not the original kill+0.35.
+	_, freezeAt := killfeedSamplePart(&short, effect)
+	if freezeAt+1e-9 < noticeAt {
+		t.Fatalf("freeze sample = %.3f, want >= notice frame %.3f (AtSeconds was retimed)", freezeAt, noticeAt)
+	}
+	if math.Abs(freezeAt-probed[len(probed)-1]) > 1e-9 {
+		t.Fatalf("freeze sample = %.3f, want last successful probe %.3f", freezeAt, probed[len(probed)-1])
+	}
+}
+
+// TestRefineKillfeedEffectsLateNoticeMutations kills individual behaviors the
+// windowed probe relies on: giving up after the first empty frame, forgetting
+// to retime AtSeconds, or accepting a probe error as terminal without trying
+// later samples in the window.
+func TestRefineKillfeedEffectsLateNoticeMutations(t *testing.T) {
+	notice := image.Rect(1700, 90, 1910, 126)
+	tests := []struct {
+		name     string
+		probe    func(calls *[]float64) func(string, float64) (image.Image, error)
+		wantWarn bool
+		wantKeep bool
+		check    func(t *testing.T, short ShortEdit, calls []float64)
+	}{
+		{
+			name: "empty early frames then hit",
+			probe: func(calls *[]float64) func(string, float64) (image.Image, error) {
+				return func(_ string, at float64) (image.Image, error) {
+					*calls = append(*calls, at)
+					if at < 1.55 {
+						return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+					}
+					return killfeedTestFrame(t, notice), nil
+				}
+			},
+			wantKeep: true,
+			check: func(t *testing.T, short ShortEdit, calls []float64) {
+				t.Helper()
+				// Mutation: a single-sample probe would only call 1.35 and drop.
+				if len(calls) < 2 {
+					t.Fatalf("calls = %v, want at least one empty frame then a hit", calls)
+				}
+				if math.Abs(calls[0]-1.35) > 1e-9 || calls[len(calls)-1] < 1.55 {
+					t.Fatalf("calls = %v, want first legacy 1.35 then a sample >= 1.55", calls)
+				}
+				_, freeze := killfeedSamplePart(&short, short.Effects[0])
+				if freeze < 1.55 {
+					t.Fatalf("freeze = %.3f, want retimed past 1.55", freeze)
+				}
+			},
+		},
+		{
+			name: "transient probe error then hit",
+			probe: func(calls *[]float64) func(string, float64) (image.Image, error) {
+				return func(_ string, at float64) (image.Image, error) {
+					*calls = append(*calls, at)
+					if at < 1.5 {
+						return nil, fmt.Errorf("ffmpeg flake at %.2f", at)
+					}
+					return killfeedTestFrame(t, notice), nil
+				}
+			},
+			wantKeep: true,
+			check: func(t *testing.T, short ShortEdit, calls []float64) {
+				t.Helper()
+				if len(calls) < 2 {
+					t.Fatalf("calls = %v, want retry after probe error", calls)
+				}
+				if short.Effects[0].CropWidth == 360 && short.Effects[0].CropX == 1558 {
+					t.Fatal("crop left at defaults; success path should rewrite measured box")
+				}
+			},
+		},
+		{
+			name: "window exhausted stays drop for generated",
+			probe: func(calls *[]float64) func(string, float64) (image.Image, error) {
+				return func(_ string, at float64) (image.Image, error) {
+					*calls = append(*calls, at)
+					return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+				}
+			},
+			wantWarn: true,
+			wantKeep: false,
+			check: func(t *testing.T, short ShortEdit, calls []float64) {
+				t.Helper()
+				if len(calls) < 4 {
+					t.Fatalf("calls = %v, want full window before giving up", calls)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []float64
+			short := ShortEdit{
+				DurationSeconds: 6,
+				Effects: []Effect{{
+					Type: EffectKillfeed, StartSeconds: 0.65, EndSeconds: 3.8, AtSeconds: 1.0,
+					CropX: 1558, CropY: 64, CropWidth: 360, CropHeight: 110, Width: 430, Source: "edit-request",
+				}},
+				Parts: []ShortPart{{SegmentID: "seg-001", Input: "seg-001.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 0}},
+			}
+			warnings := refineKillfeedEffects(&short, tt.probe(&calls))
+			if tt.wantWarn && len(warnings) == 0 {
+				t.Fatal("warnings empty, want a failure warning")
+			}
+			if !tt.wantWarn && len(warnings) != 0 {
+				t.Fatalf("warnings = %v, want none", warnings)
+			}
+			kept := false
+			for _, e := range short.Effects {
+				if e.Type == EffectKillfeed {
+					kept = true
+				}
+			}
+			if kept != tt.wantKeep {
+				t.Fatalf("killfeed kept = %v, want %v (effects=%#v)", kept, tt.wantKeep, short.Effects)
+			}
+			if tt.check != nil {
+				tt.check(t, short, calls)
+			}
+		})
+	}
+}

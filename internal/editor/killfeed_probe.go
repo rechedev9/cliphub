@@ -9,9 +9,17 @@ import (
 )
 
 const (
-	// killfeedSampleDelaySeconds samples the frame slightly after the kill so
-	// the death notice is fully drawn before measuring.
+	// killfeedSampleDelaySeconds is the first probe offset after the
+	// tick-derived kill time. CS2 usually has the death notice drawn by then.
 	killfeedSampleDelaySeconds = 0.35
+	// killfeedSampleMaxOffsetSeconds is the latest in-source offset after the
+	// tick-derived kill time that refine still probes. Real HLAE captures
+	// often paint the local-player highlight ~0.6–0.8s later than the demo
+	// tick maps to (tickrate math vs when mirv/CS2 present the notice), so a
+	// single 0.35s sample drops every overlay on those reels.
+	killfeedSampleMaxOffsetSeconds = 1.80
+	// killfeedSampleStepSeconds is the stride of the late-notice scan window.
+	killfeedSampleStepSeconds = 0.20
 	// killfeedHighlightMargin pads the detected highlight box. The two-pass
 	// detection already includes the anti-aliased border ring, so anything
 	// wider drags mismatched source background into the overlay.
@@ -42,13 +50,13 @@ const (
 )
 
 // refineKillfeedEffects replaces the static killfeed crop defaults with a
-// per-kill measurement: it samples the source frame just after each kill,
-// finds the red highlight box CS2 draws around the recording player's own
-// kill notice, and crops exactly that entry. Probe errors keep the static
-// crop and are reported as warnings. When the probe runs but explicitly finds
-// no highlight, generated ("edit-request") overlays are dropped instead —
-// overlaying the static region would paint arbitrary scene pixels — while
-// script-authored effects keep the crop the author asked for.
+// per-kill measurement: it samples source frames in a short window after each
+// kill (tick-derived time can lag the painted death notice), finds the red
+// highlight box CS2 draws around the recording player's own kill notice, and
+// crops exactly that entry. On success it retimes AtSeconds so the FFmpeg
+// freeze uses the same winning frame. Probe errors on one sample continue the
+// window; exhausting the window with no highlight drops generated
+// ("edit-request") overlays and keeps script-authored crops with a warning.
 func refineKillfeedEffects(short *ShortEdit, probe func(input string, atSeconds float64) (image.Image, error)) []string {
 	if probe == nil {
 		return nil
@@ -61,42 +69,127 @@ func refineKillfeedEffects(short *ShortEdit, probe func(input string, atSeconds 
 			kept = append(kept, *effect)
 			continue
 		}
-		input, sampleAt := killfeedSampleSource(short, *effect)
-		if input == "" {
+		input, samples := killfeedSampleTimes(short, *effect)
+		if input == "" || len(samples) == 0 {
 			warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no source input to probe; keeping default crop", effect.StartSeconds))
 			kept = append(kept, *effect)
 			continue
 		}
-		frame, err := probe(input, sampleAt)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: %v; keeping default crop", effect.StartSeconds, err))
-			kept = append(kept, *effect)
-			continue
-		}
-		rect, ok := detectKillfeedHighlight(frame)
-		if !ok {
-			if effect.Source == "edit-request" {
-				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; dropping overlay", effect.StartSeconds, input))
+
+		var (
+			lastErr     error
+			sawEmpty    bool
+			found       bool
+			foundSample float64
+			rect        image.Rectangle
+		)
+		for _, sampleAt := range samples {
+			frame, err := probe(input, sampleAt)
+			if err != nil {
+				lastErr = err
 				continue
 			}
-			warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; keeping default crop", effect.StartSeconds, input))
-			kept = append(kept, *effect)
+			r, ok := detectKillfeedHighlight(frame)
+			if !ok {
+				sawEmpty = true
+				continue
+			}
+			rect = r
+			foundSample = sampleAt
+			found = true
+			break
+		}
+		if !found {
+			switch {
+			case lastErr != nil && !sawEmpty:
+				// Every sample failed to extract a frame: keep defaults.
+				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: %v; keeping default crop", effect.StartSeconds, lastErr))
+				kept = append(kept, *effect)
+			case effect.Source == "edit-request":
+				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; dropping overlay", effect.StartSeconds, input))
+			default:
+				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; keeping default crop", effect.StartSeconds, input))
+				kept = append(kept, *effect)
+			}
 			continue
 		}
+
 		effect.CropX = rect.Min.X
 		effect.CropY = rect.Min.Y
 		effect.CropWidth = rect.Dx()
 		effect.CropHeight = rect.Dy()
 		effect.Width = int(float64(rect.Dx())*killfeedOverlayScale + 0.5)
+		// Retime so killfeedSamplePart (FFmpeg freeze) resolves to foundSample:
+		// sample = AtSeconds - timelineStart + delay  =>  At = sample + timelineStart - delay.
+		effect.AtSeconds = killfeedAtSecondsForSample(short, *effect, foundSample)
 		kept = append(kept, *effect)
 	}
 	short.Effects = kept
 	return warnings
 }
 
+// killfeedSampleTimes returns the source path and ascending in-source timestamps
+// to probe for a killfeed effect. The first time is the legacy kill+0.35s
+// sample; later times walk a fixed window so late-painted death notices still
+// measure. Times are clamped to the owning part (or short) duration.
+func killfeedSampleTimes(short *ShortEdit, effect Effect) (string, []float64) {
+	partIndex, first := killfeedSamplePart(short, effect)
+	input := short.Input
+	maxDuration := short.DurationSeconds
+	killInSource := first - killfeedSampleDelaySeconds
+	if partIndex >= 0 {
+		part := short.Parts[partIndex]
+		input = part.Input
+		if part.DurationSeconds > 0 {
+			maxDuration = part.DurationSeconds
+		}
+		at := effect.AtSeconds
+		if at == 0 {
+			at = effect.StartSeconds
+		}
+		killInSource = at - part.TimelineStartSeconds
+	}
+	if input == "" {
+		return "", nil
+	}
+	if killInSource < 0 {
+		killInSource = 0
+	}
+
+	var times []float64
+	appendUnique := func(at float64) {
+		if maxDuration > 0 && at > maxDuration {
+			at = maxDuration
+		}
+		if at < 0 {
+			at = 0
+		}
+		if len(times) > 0 && at <= times[len(times)-1]+1e-9 {
+			return
+		}
+		times = append(times, at)
+	}
+	for offset := killfeedSampleDelaySeconds; offset <= killfeedSampleMaxOffsetSeconds+1e-9; offset += killfeedSampleStepSeconds {
+		appendUnique(killInSource + offset)
+	}
+	if len(times) == 0 {
+		appendUnique(first)
+	}
+	return input, times
+}
+
+// killfeedAtSecondsForSample chooses AtSeconds so killfeedSamplePart returns sample.
+func killfeedAtSecondsForSample(short *ShortEdit, effect Effect, sample float64) float64 {
+	partIndex, _ := killfeedSamplePart(short, effect)
+	if partIndex < 0 {
+		return sample - killfeedSampleDelaySeconds
+	}
+	return sample + short.Parts[partIndex].TimelineStartSeconds - killfeedSampleDelaySeconds
+}
+
 // killfeedSampleSource resolves which source file and timestamp to probe for
 // a killfeed effect: the owning part on the compiled timeline, or the short's
-// own input for single-clip renders.
+// own input for single-clip renders. Prefer killfeedSampleTimes when scanning.
 func killfeedSampleSource(short *ShortEdit, effect Effect) (string, float64) {
 	partIndex, sample := killfeedSamplePart(short, effect)
 	if partIndex < 0 {
@@ -108,14 +201,19 @@ func killfeedSampleSource(short *ShortEdit, effect Effect) (string, float64) {
 // killfeedSamplePart resolves the part index (-1 for single-clip shorts) and
 // the in-part timestamp of the frame that represents a killfeed effect. The
 // probe measures this exact frame and the render freezes it, so both must
-// resolve identically.
+// resolve identically. After refineKillfeedEffects succeeds, AtSeconds is
+// retimed so this helper yields the winning late-notice sample.
 func killfeedSamplePart(short *ShortEdit, effect Effect) (int, float64) {
 	at := effect.AtSeconds
 	if at == 0 {
 		at = effect.StartSeconds
 	}
 	if len(short.Parts) == 0 {
-		return -1, at + killfeedSampleDelaySeconds
+		sample := at + killfeedSampleDelaySeconds
+		if sample < 0 {
+			sample = 0
+		}
+		return -1, sample
 	}
 	partIndex := compilationPartIndexAt(short.Parts, effect)
 	part := short.Parts[partIndex]
