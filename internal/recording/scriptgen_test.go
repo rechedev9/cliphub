@@ -716,38 +716,19 @@ func TestGenerateHLAEJavaScriptSoftQuitContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
 	}
-	for _, want := range []string{
-		`const beginSoftQuit = () => {`,
-		`pendingQuitFrames = softQuitClientFrames`,
-		`const softQuitClientFrames = 45`,
-		`if (pendingQuitFrames > 0)`,
-		`mirv.exec("quit")`,
-		`beginSoftQuit()`,
-		`"key": "shutdown"`,
-	} {
-		if !strings.Contains(js, want) {
-			t.Errorf("generated JS missing soft-quit contract %q", want)
-		}
-	}
-	if strings.Contains(js, `"key": "shutdown-quit"`) {
-		t.Fatal("generated JS still schedules shutdown-quit on the tick clock")
+	if err := assertSoftQuitContract(js); err != nil {
+		t.Fatal(err)
 	}
 	// beginSoftQuit must appear for failCapture, demo-end, and scheduled shutdown.
 	if got := strings.Count(js, "beginSoftQuit()"); got < 3 {
 		t.Fatalf("beginSoftQuit() calls = %d, want >= 3 exit paths", got)
-	}
-	// Same-frame double fire is the crash pattern: disconnect then quit with no
-	// pendingQuit / separate schedule entry between them.
-	if strings.Contains(js, `mirv.exec("disconnect");
-        mirv.exec("quit");`) || strings.Contains(js, "mirv.exec(\"disconnect\");\n            mirv.exec(\"quit\");") {
-		t.Fatal("generated JS still issues disconnect and quit back-to-back")
 	}
 	// failCapture must soft-quit, not hard-quit.
 	failIdx := strings.Index(js, "const failCapture = (reason)")
 	if failIdx < 0 {
 		t.Fatal("failCapture missing")
 	}
-	failBody := js[failIdx : failIdx+800]
+	failBody := js[failIdx:min(failIdx+800, len(js))]
 	if !strings.Contains(failBody, "beginSoftQuit()") {
 		t.Fatalf("failCapture does not soft-quit:\n%s", failBody)
 	}
