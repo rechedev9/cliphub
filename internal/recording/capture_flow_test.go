@@ -544,6 +544,221 @@ func TestCaptureFlowFailurePaths(t *testing.T) {
 	})
 }
 
+// TestCaptureFlowStressCombinations hammers the shipped kill-plan → schedule →
+// HLAE script path across a cartesian product of tickrates, HUD modes, and
+// segment layouts. Failures here are determinism / contract bugs, not flaky
+// game I/O (no HLAE/CS2 launch).
+func TestCaptureFlowStressCombinations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping capture stress under -short")
+	}
+	target := killplan.Player{SteamID64: "76561198148986856", NameInDemo: "t"}
+	tickrates := []int{64, 128}
+	huds := []StreamConfig{
+		DefaultStreamConfig(),
+		{Mode: StreamModeFFmpegDirect, HUDMode: HUDModeClean, FPS: 60, Width: 1920, Height: 1080, CRF: 18},
+		{Mode: StreamModeFFmpegDirect, HUDMode: HUDModeDeathnotices, PortraitSafeKillfeed: true, FPS: 60, Width: 1920, Height: 1080, CRF: 18},
+		{Mode: StreamModeFFmpegDirect, HUDMode: HUDModeGameplay, FPS: 60, Width: 1920, Height: 1080, CRF: 16},
+	}
+	layouts := []struct {
+		name     string
+		duration int
+		segs     func(tr int) []killplan.Segment
+	}{
+		{
+			name:     "solo",
+			duration: 30_000,
+			segs: func(tr int) []killplan.Segment {
+				return []killplan.Segment{{
+					ID: "s1", TickStart: tr * 20, TickEnd: tr * 30,
+					Kills: []killplan.Kill{{Tick: tr * 25, Killer: target}},
+				}}
+			},
+		},
+		{
+			name:     "multi-kill",
+			duration: 40_000,
+			segs: func(tr int) []killplan.Segment {
+				return []killplan.Segment{{
+					ID: "mk", TickStart: tr * 40, TickEnd: tr * 55,
+					Kills: []killplan.Kill{
+						{Tick: tr * 42, Killer: target},
+						{Tick: tr * 48, Killer: target},
+						{Tick: tr * 52, Killer: target},
+					},
+				}}
+			},
+		},
+		{
+			name:     "utility-only",
+			duration: 40_000,
+			segs: func(tr int) []killplan.Segment {
+				return []killplan.Segment{{
+					ID: "ut", TickStart: tr * 50, TickEnd: tr * 60,
+					Utility: []killplan.UtilityThrow{{
+						Type: "smokegrenade", ThrowTick: tr * 52, PopTick: tr * 54, Thrower: target,
+					}},
+				}}
+			},
+		},
+		{
+			name:     "far-pair",
+			duration: 200_000,
+			segs: func(tr int) []killplan.Segment {
+				return []killplan.Segment{
+					{ID: "early", TickStart: tr * 10, TickEnd: tr * 18, Kills: []killplan.Kill{{Tick: tr * 14, Killer: target}}},
+					{ID: "late", TickStart: tr * 800, TickEnd: tr * 810, Kills: []killplan.Kill{{Tick: tr * 805, Killer: target}}},
+				}
+			},
+		},
+		{
+			name:     "near-chain",
+			duration: 80_000,
+			segs: func(tr int) []killplan.Segment {
+				// ~10s gaps at 64-tick: under 30s seek threshold between neighbors.
+				base := tr * 100
+				span := tr * 8
+				gap := tr * 12
+				var segs []killplan.Segment
+				for i := 0; i < 4; i++ {
+					start := base + i*(span+gap)
+					segs = append(segs, killplan.Segment{
+						ID:        "c" + string(rune('a'+i)),
+						TickStart: start,
+						TickEnd:   start + span,
+						Kills:     []killplan.Kill{{Tick: start + span/2, Killer: target}},
+					})
+				}
+				return segs
+			},
+		},
+		{
+			name:     "eof",
+			duration: 10_000,
+			segs: func(tr int) []killplan.Segment {
+				// Last kill inside demo with post-roll that would hit EOF soft-cap.
+				return []killplan.Segment{{
+					ID: "eof", TickStart: 9_000, TickEnd: 9_900,
+					Kills: []killplan.Kill{{Tick: 9_400, Killer: target}},
+				}}
+			},
+		},
+		{
+			name:     "editorial-reverse",
+			duration: 100_000,
+			segs: func(tr int) []killplan.Segment {
+				return []killplan.Segment{
+					{ID: "best", TickStart: tr * 500, TickEnd: tr * 510, Kills: []killplan.Kill{{Tick: tr * 505, Killer: target}}},
+					{ID: "first", TickStart: tr * 30, TickEnd: tr * 40, Kills: []killplan.Kill{{Tick: tr * 35, Killer: target}}},
+					{ID: "mid", TickStart: tr * 200, TickEnd: tr * 210, Kills: []killplan.Kill{{Tick: tr * 205, Killer: target}}},
+				}
+			},
+		},
+	}
+
+	var cases int
+	for _, tr := range tickrates {
+		for _, stream := range huds {
+			for _, layout := range layouts {
+				cases++
+				name := layout.name + "/tr" + itoa(tr) + "/" + string(stream.HUDMode)
+				if stream.PortraitSafeKillfeed {
+					name += "+portrait"
+				}
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					plan := captureFlowFixture(t, tr, layout.duration, layout.segs(tr), stream)
+					commands, seeks, windows := buildRuntimeSchedule(plan)
+					if len(windows) != len(plan.Segments) {
+						t.Fatalf("windows=%d segments=%d", len(windows), len(plan.Segments))
+					}
+					// Capture order must be non-decreasing by TickStart.
+					for i := 1; i < len(plan.Segments); i++ {
+						if plan.Segments[i].TickStart < plan.Segments[i-1].TickStart {
+							t.Fatalf("capture order not chronological: %s then %s", plan.Segments[i-1].ID, plan.Segments[i].ID)
+						}
+					}
+					// Every segment has paired record start/end keys.
+					for _, seg := range plan.Segments {
+						var startTick, endTick int
+						var hasStart, hasEnd bool
+						for _, c := range commands {
+							if c.Key == "record-start-"+seg.ID {
+								hasStart, startTick = true, c.Tick
+							}
+							if c.Key == "record-end-"+seg.ID {
+								hasEnd, endTick = true, c.Tick
+							}
+						}
+						if !hasStart || !hasEnd {
+							t.Fatalf("segment %s missing record markers start=%v end=%v", seg.ID, hasStart, hasEnd)
+						}
+						if endTick <= startTick {
+							t.Fatalf("segment %s record end %d <= start %d", seg.ID, endTick, startTick)
+						}
+						// Window bounds must be consistent with schedule ticks.
+						for _, w := range windows {
+							if w.SegmentID != seg.ID {
+								continue
+							}
+							if w.RecordStart != startTick || w.RecordEnd != endTick {
+								t.Fatalf("window %s start/end %d/%d != schedule %d/%d", seg.ID, w.RecordStart, w.RecordEnd, startTick, endTick)
+							}
+							if w.LockFrom > w.RecordStart {
+								t.Fatalf("window %s lockFrom %d after recordStart %d", seg.ID, w.LockFrom, w.RecordStart)
+							}
+							if w.VerifyUntil < w.RecordStart || w.VerifyUntil > w.RecordEnd {
+								t.Fatalf("window %s verifyUntil %d outside [%d,%d]", seg.ID, w.VerifyUntil, w.RecordStart, w.RecordEnd)
+							}
+						}
+					}
+					// Seeks only advance to later targets.
+					for i := 1; i < len(seeks); i++ {
+						if seeks[i].Target <= seeks[i-1].Target {
+							t.Fatalf("seeks not increasing: %+v", seeks)
+						}
+					}
+					js, err := GenerateHLAEJavaScript(plan)
+					if err != nil {
+						t.Fatalf("GenerateHLAEJavaScript: %v", err)
+					}
+					if err := assertSoftQuitContract(js); err != nil {
+						t.Fatal(err)
+					}
+					for _, seg := range plan.Segments {
+						if !strings.Contains(js, "record-start-"+seg.ID) || !strings.Contains(js, "record-end-"+seg.ID) {
+							t.Fatalf("script missing markers for %s", seg.ID)
+						}
+					}
+					// Schedule + windows JSON must round-trip.
+					for _, marker := range []string{"const schedule = ", "const seeks = ", "const captureWindows = "} {
+						if !strings.Contains(js, marker) {
+							t.Fatalf("script missing %q", marker)
+						}
+					}
+				})
+			}
+		}
+	}
+	if cases < 40 {
+		t.Fatalf("stress cases = %d, want a dense cartesian product", cases)
+	}
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b [16]byte
+	i := len(b)
+	for n > 0 {
+		i--
+		b[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(b[i:])
+}
+
 // TestCaptureFlowScheduleJSONRoundTrip ensures the embedded schedule the HLAE
 // runtime parses is valid JSON and preserves soft-quit + per-segment markers.
 func TestCaptureFlowScheduleJSONRoundTrip(t *testing.T) {
