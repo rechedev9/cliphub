@@ -116,10 +116,11 @@ installer and its blockmap, then verifies both before returning success.
 `pnpm run verify:dist-integrity` repeats checksum verification in a fresh Node
 process. Publish all three files together in GitHub Releases.
 
-The current installer is unsigned, so Windows SmartScreen can show an
-"unknown publisher" prompt on first run. Choose "More info" and then "Run
-anyway". Public code signing remains a tracked release-hardening task and must
-not block the established versioned installer flow.
+The installer is **intentionally unsigned** (project policy: never Authenticode /
+`signtool` / cert-based signing of the app or NSIS package). Integrity is the
+GitHub Release asset plus `SHA256SUMS.txt`. Windows SmartScreen may show an
+"unknown publisher" prompt on first run — choose "More info" then "Run anyway".
+Do not add code signing as a release step or treat SmartScreen as a blocker.
 
 ## Run without packaging (dev)
 
