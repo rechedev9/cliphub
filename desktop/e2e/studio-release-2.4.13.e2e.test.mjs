@@ -1,4 +1,4 @@
-// Release evals for TickCut Studio 2.4.12. This launches the real Electron
+// Release evals for TickCut Studio 2.4.13. This launches the real Electron
 // application and drives the renderer with Playwright. Expensive/external
 // stream stages use controlled same-origin responses.
 
@@ -15,7 +15,7 @@ import { createE2EProfile } from '../scripts/e2e-profile.mjs';
 const require = createRequire(import.meta.url);
 const { _electron } = require('playwright-core');
 const desktopRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.4.12');
+const artifactsDir = join(desktopRoot, 'e2e', 'artifacts', 'release-2.4.13');
 const bootstrapPath = join(desktopRoot, 'e2e', 'isolated-userdata.cjs');
 /** @type {import('playwright-core').ElectronApplication} */
 let app;
@@ -23,7 +23,7 @@ let app;
 let page;
 let origin;
 const pageErrors = [];
-const profile = createE2EProfile('release-2.4.12');
+const profile = createE2EProfile('release-2.4.13');
 
 before(async () => {
   mkdirSync(artifactsDir, { recursive: true });
@@ -102,8 +102,8 @@ test('installed release exposes version-only desktop settings with no MCP surfac
     }));
     assert.deepEqual(installedBridgeShape, { hasRetiredMCPConfig: false });
     assert.doesNotMatch(await installedPage.locator('body').innerText(), /servidor MCP|configuraci[oó]n MCP/i);
-    assert.equal(await installedInfo.getByText('2.4.12', { exact: true }).isVisible(), true);
-    await installedPage.screenshot({ path: join(artifactsDir, 'installed-settings-2.4.12.png'), fullPage: true });
+    assert.equal(await installedInfo.getByText('2.4.13', { exact: true }).isVisible(), true);
+    await installedPage.screenshot({ path: join(artifactsDir, 'installed-settings-2.4.13.png'), fullPage: true });
   } finally {
     await installedApp.close();
     rmSync(installedUserData, { force: true, recursive: true });
