@@ -23,11 +23,11 @@ import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
-// Point at a published GitHub Release asset only. 2.4.12 keeps HLAE 2.192.1 and
-// ships soft-quit after capture plus killfeed probe window fixes.
+// Point at a published GitHub Release asset only. 2.4.13 pins the bundled
+// recorder so stale environment variables from older installs cannot break capture.
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.12/TickCut.Studio.Setup.2.4.12.exe";
-const RELEASE_VERSION = "v2.4.12";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.13/TickCut.Studio.Setup.2.4.13.exe";
+const RELEASE_VERSION = "v2.4.13";
 const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
