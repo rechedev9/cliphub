@@ -149,8 +149,8 @@ test('demo reel requires the exact creative brief and keeps publication metadata
     introText: '', outroText: '',
   };
   const intents = [
-    { videoId: `${alphaJob}__seg-alpha`, jobId: alphaJob, segmentIds: ['seg-alpha'], mode: 'clean', variant: 'viral-60-clean', editConfig: defaultEdit, title: 'Reel Alpha', map: 'Inferno', score: '13-2', createdAt: Date.now() },
-    { videoId: `${betaJob}__seg-beta`, jobId: betaJob, segmentIds: ['seg-beta'], mode: 'clean', variant: 'viral-60-clean', editConfig: defaultEdit, title: 'Reel Beta', map: 'Mirage', score: '13-9', createdAt: Date.now() - 1_000 },
+    { videoId: `${alphaJob}__seg-alpha`, jobId: alphaJob, segmentIds: ['seg-alpha'], mode: 'clean', variant: 'viral-60-clean', editConfig: defaultEdit, selectedCoverName: 'alpha.jpg', title: 'Reel Alpha', map: 'Inferno', score: '13-2', createdAt: Date.now() },
+    { videoId: `${betaJob}__seg-beta`, jobId: betaJob, segmentIds: ['seg-beta'], mode: 'clean', variant: 'viral-60-clean', editConfig: defaultEdit, selectedCoverName: 'beta.jpg', title: 'Reel Beta', map: 'Mirage', score: '13-9', createdAt: Date.now() - 1_000 },
   ];
   const publishPayload = (title) => ({
     schema_version: '1.0',
@@ -340,7 +340,11 @@ test('stream editor validates, recovers, previews, reports progress, switches la
   assert.equal(Number(await endInput.inputValue()), 15.112);
   assert.equal(await titleInput.inputValue(), 'vaya saco..');
 
-  await page.getByRole('button', { name: 'CREAR SHORTS' }).click();
+  const streamApproval = page.getByLabel(/Apruebo todas estas decisiones/);
+  const createShorts = page.getByRole('button', { name: 'CREAR SHORTS' });
+  assert.equal(await createShorts.isDisabled(), true);
+  await streamApproval.check();
+  await createShorts.click();
   await page.getByText(/Confirma manualmente el recorte de facecam/).waitFor();
   assert.equal(await page.getByText(/podría coincidir con el radar/).isVisible(), true);
 
@@ -368,7 +372,9 @@ test('stream editor validates, recovers, previews, reports progress, switches la
   await page.getByText(/No hace falta recorte de facecam/).waitFor();
   assert.equal(await page.getByText(/Recorte de facecam: arrastra/).count(), 0);
   autosaveFails = false;
-  await page.getByRole('button', { name: 'CREAR SHORTS' }).click();
+  assert.equal(await createShorts.isDisabled(), true, 'changing the stream plan must revoke approval');
+  await streamApproval.check();
+  await createShorts.click();
   await page.getByRole('heading', { name: 'Paquete shortslistosparasubir' }).waitFor({ timeout: 10_000 });
   for (const artifact of ['final.mp4', 'cover.jpg', 'edit-plan.json', 'manifest.json']) {
     assert.equal(await page.getByText(artifact, { exact: true }).isVisible(), true, `missing delivery ${artifact}`);
