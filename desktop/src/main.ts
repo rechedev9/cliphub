@@ -43,6 +43,7 @@ import {
   type WindowState,
 } from './window-state';
 import { lastLines } from './log-tail';
+import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
 import { ProcessSession, type LaunchedProcess } from './process-session';
@@ -102,6 +103,10 @@ function resourcePath(...parts: string[]): string {
 const orchestratorExe = resourcePath(
   'bin',
   process.platform === 'win32' ? 'zv-orchestrator.exe' : 'zv-orchestrator',
+);
+const recorderExe = resourcePath(
+  'bin',
+  process.platform === 'win32' ? 'zv-recorder.exe' : 'zv-recorder',
 );
 const nextServer = resourcePath('web', 'server.js');
 const dataDir = path.join(app.getPath('userData'), 'data');
@@ -527,14 +532,19 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   allowedOrigins.add(activeWebOrigin);
 
   setLoadingStatus('Iniciando el orquestador…');
-  const orch = attempt.processes.launch('orchestrator', orchestratorExe, [], {
-    ZV_DATABASE_URL: 'sqlite',
-    ZV_DATA_DIR: dataDir,
-    ZV_HTTP_ADDR: `${LOOPBACK_HOST}:${orchPort}`,
-    ZV_MUSIC_DIR: musicDir,
-    ...orchestratorSecurityEnvironment(security),
-    ...toolEnv,
-  });
+  const orch = attempt.processes.launch(
+    'orchestrator',
+    orchestratorExe,
+    [],
+    createOrchestratorEnvironment({
+      dataDir,
+      httpAddress: `${LOOPBACK_HOST}:${orchPort}`,
+      musicDir,
+      recorderPath: recorderExe,
+      securityEnvironment: orchestratorSecurityEnvironment(security),
+      toolEnvironment: toolEnv,
+    }),
+  );
 
   setLoadingStatus('Iniciando el servidor web…');
   const web = attempt.processes.launch('web', process.execPath, [nextServer], {

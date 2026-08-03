@@ -13,7 +13,9 @@ It bundles the same pieces `scripts/local-studio.ps1` runs:
   `ZV_DATA_DIR=<userData>/data`; HLAE/CS2/FFmpeg are auto-detected, or use the
   tools provisioned on first boot below.
 - `zv-recorder.exe` and `zv-editor.exe` - the required capture and render
-  workers, auto-detected beside the orchestrator.
+  workers. Studio explicitly pins the bundled recorder so a stale inherited
+  `ZV_RECORDER_PATH` cannot select an incompatible developer binary; the editor
+  is auto-detected beside the orchestrator.
 - The Next.js standalone server - started with Electron's own Node (no separate
   Node runtime shipped), in local mode so the UI proxies the whole pipeline to
   the orchestrator.
@@ -181,7 +183,8 @@ when comparing builds.
 3. Spawns `zv-orchestrator.exe` directly - without a `zv.exe serve`
    intermediary - so quitting the app reliably kills the real server (`ZV_DATABASE_URL=sqlite`,
    `ZV_DATA_DIR=<userData>/data`, `ZV_HTTP_ADDR=127.0.0.1:<orchPort>`, the
-   ephemeral `ZV_MUTATION_TOKEN`, plus any provisioned tool paths).
+   ephemeral `ZV_MUTATION_TOKEN`, the bundled `ZV_RECORDER_PATH`, plus any
+   provisioned tool paths).
 4. Spawns the Next standalone `server.js` via `ELECTRON_RUN_AS_NODE`
    (`ORCHESTRATOR_URL` pointing at the orchestrator, `PORT=<webPort>`).
 5. Waits for `/healthz` and the web root.
