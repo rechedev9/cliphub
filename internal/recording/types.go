@@ -162,16 +162,65 @@ type RecordingArtifact struct {
 
 // RecordingResult is the file emitted by zv-recorder after a run.
 type RecordingResult struct {
-	Plan                    RecordingPlan       `json:"plan"`
-	Script                  string              `json:"script"`
-	Artifacts               []RecordingArtifact `json:"artifacts"`
-	CaptureMode             CaptureMode         `json:"capture_mode"`
-	CaptureInputFingerprint string              `json:"capture_input_fingerprint"`
-	CaptureVerified         bool                `json:"capture_verified,omitempty"`
-	CaptureRevision         string              `json:"capture_revision,omitempty"`
-	PublicationPending      bool                `json:"publication_pending,omitempty"`
-	Warnings                []string            `json:"warnings,omitempty"`
-	Error                   string              `json:"error,omitempty"`
+	Plan                    RecordingPlan         `json:"plan"`
+	Script                  string                `json:"script"`
+	Artifacts               []RecordingArtifact   `json:"artifacts"`
+	Performance             *RecordingPerformance `json:"performance,omitempty"`
+	CaptureMode             CaptureMode           `json:"capture_mode"`
+	CaptureInputFingerprint string                `json:"capture_input_fingerprint"`
+	CaptureVerified         bool                  `json:"capture_verified,omitempty"`
+	CaptureRevision         string                `json:"capture_revision,omitempty"`
+	PublicationPending      bool                  `json:"publication_pending,omitempty"`
+	Warnings                []string              `json:"warnings,omitempty"`
+	Error                   string                `json:"error,omitempty"`
+}
+
+// RecordingPerformance contains monotonic timings for one or more physical
+// recorder runs represented by a recording result.
+type RecordingPerformance struct {
+	Version int                       `json:"version"`
+	Runs    []RecordingRunPerformance `json:"runs"`
+}
+
+// RecordingRunPerformance contains elapsed timings for one recorder process.
+// IncrementalMuxMS can overlap LaunchAndCaptureMS and must not be added to
+// BeforeResultWriteMS.
+type RecordingRunPerformance struct {
+	CaptureSegmentIDs   []string                      `json:"capture_segment_ids"`
+	Stream              StreamConfig                  `json:"stream"`
+	PrepareMS           int64                         `json:"prepare_ms,omitempty"`
+	LaunchAndCaptureMS  int64                         `json:"launch_and_capture_ms,omitempty"`
+	IncrementalMuxMS    int64                         `json:"incremental_mux_ms,omitempty"`
+	ArtifactProbeMS     int64                         `json:"artifact_probe_ms,omitempty"`
+	FinalMuxMS          int64                         `json:"final_mux_ms,omitempty"`
+	ValidationMS        int64                         `json:"validation_ms,omitempty"`
+	BeforeResultWriteMS int64                         `json:"before_result_write_ms,omitempty"`
+	Events              []RecordingPerformanceEvent   `json:"events,omitempty"`
+	Segments            []RecordingSegmentPerformance `json:"segments,omitempty"`
+}
+
+// RecordingSegmentPerformance combines observed recorder markers with probed
+// video metadata. Marker timings describe when zv-recorder observed the
+// requested HLAE commands, not exact encoder boundaries.
+type RecordingSegmentPerformance struct {
+	SegmentID               string  `json:"segment_id"`
+	RecordStartObservedMS   int64   `json:"record_start_observed_ms,omitempty"`
+	RecordEndObservedMS     int64   `json:"record_end_observed_ms,omitempty"`
+	RequestedActiveMS       int64   `json:"requested_active_ms,omitempty"`
+	VideoFrameCount         int64   `json:"video_frame_count,omitempty"`
+	VideoDurationSeconds    float64 `json:"video_duration_seconds,omitempty"`
+	ObservedFramesPerSecond float64 `json:"observed_frames_per_second,omitempty"`
+}
+
+// RecordingPerformanceEvent is a recorder marker observed in the CS2 console.
+// ElapsedMS is measured when the recorder observes the marker, not when an
+// encoded frame reaches disk.
+type RecordingPerformanceEvent struct {
+	Kind         string `json:"kind"`
+	SegmentID    string `json:"segment_id,omitempty"`
+	TargetTick   int    `json:"target_tick,omitempty"`
+	ObservedTick int    `json:"observed_tick,omitempty"`
+	ElapsedMS    int64  `json:"elapsed_ms"`
 }
 
 // DefaultStreamConfig returns the current V1 target recording format.

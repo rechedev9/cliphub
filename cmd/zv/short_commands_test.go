@@ -78,7 +78,7 @@ func TestRunShortChainsAllStages(t *testing.T) {
 	wantArgs := [][]string{
 		{"--list-presets"},
 		{"parse", "--demo", "inferno.dem", "--steamid", "76561198000000000", "--out", filepath.Join(outDir, "killplan.json")},
-		{"--killplan", filepath.Join(outDir, "killplan.json"), "--demo", "inferno.dem", "--out", filepath.Join(outDir, "recording"), "--hlae", `C:\Tools\HLAE.exe`, "--cs2", `C:\cs2.exe`, "--hud", "deathnotices", "--portrait-safe-killfeed"},
+		{"--killplan", filepath.Join(outDir, "killplan.json"), "--demo", "inferno.dem", "--out", filepath.Join(outDir, "recording"), "--hlae", `C:\Tools\HLAE.exe`, "--cs2", `C:\cs2.exe`, "--fps", "60", "--hud", "deathnotices", "--portrait-safe-killfeed"},
 		{"--recording-result", filepath.Join(outDir, "recording", "recording-result.json"), "--out", filepath.Join(outDir, "shorts"), "--publish-dir", filepath.Join(outDir, "shortslistosparasubir"), "--preset", "viral-60-clean", "--output-format", "short-9x16", "--kill-effect", "punch-in", "--transition", "flash", "--intro=false", "--outro=false", "--hook=true", "--kill-counter=true", "--covers=true", "--cover-sheets=true", "--cover-first-frame=false", "--killplan", filepath.Join(outDir, "killplan.json"), "--compile-segments"},
 	}
 	wantBinaries := []string{"zv-editor", "zv-parser", "zv-recorder", "zv-editor"}
@@ -744,6 +744,7 @@ func TestRunShortDryRunJSONIsOneMachineReadablePlan(t *testing.T) {
 		"--out", filepath.Join(runDir, "recording"),
 		"--hlae", `C:\HLAE-detected\HLAE.exe`,
 		"--cs2", `C:\Steam\cs2.exe`,
+		"--fps", "60",
 		"--hud", "deathnotices",
 		"--portrait-safe-killfeed",
 	}

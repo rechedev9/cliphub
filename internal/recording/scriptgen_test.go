@@ -123,6 +123,21 @@ func TestGenerateHLAEJavaScriptBindsRecordEndToActiveSegment(t *testing.T) {
 	}
 }
 
+func TestGenerateHLAEJavaScriptReportsSeekLandingBeforeAdvancing(t *testing.T) {
+	js, err := GenerateHLAEJavaScript(testPlan())
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	markerIndex := strings.Index(js, "seek-landed -> ${s.target} (at ${tick})")
+	advanceIndex := strings.Index(js, "seekIdx++;")
+	if markerIndex < 0 {
+		t.Fatalf("generated script does not report seek landing:\n%s", js)
+	}
+	if advanceIndex < 0 || markerIndex >= advanceIndex {
+		t.Fatal("seek landing marker must precede the seek index advance")
+	}
+}
+
 func TestGenerateHLAEJavaScriptLocksAndVerifiesTheObservedSteamID(t *testing.T) {
 	token := strings.Repeat("unit-test-", 4)
 	js, err := GenerateHLAEJavaScriptWithAttestation(testPlan(), token)

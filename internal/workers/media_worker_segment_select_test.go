@@ -103,6 +103,42 @@ func storedRecordingResult(t *testing.T, store *fakeStorage, id uuid.UUID) recor
 	return result
 }
 
+func TestMergeRecordingPerformancePreservesEveryPhysicalRun(t *testing.T) {
+	previous := &recording.RecordingPerformance{
+		Version: 1,
+		Runs: []recording.RecordingRunPerformance{{
+			CaptureSegmentIDs:   []string{"seg-001"},
+			BeforeResultWriteMS: 100,
+		}},
+	}
+	next := &recording.RecordingPerformance{
+		Version: 1,
+		Runs: []recording.RecordingRunPerformance{{
+			CaptureSegmentIDs:   []string{"seg-002"},
+			BeforeResultWriteMS: 200,
+		}},
+	}
+
+	got := mergeRecordingPerformance(previous, next)
+
+	if got == nil || got.Version != 1 || len(got.Runs) != 2 {
+		t.Fatalf("merged performance = %#v", got)
+	}
+	if got.Runs[0].CaptureSegmentIDs[0] != "seg-001" || got.Runs[1].CaptureSegmentIDs[0] != "seg-002" {
+		t.Fatalf("merged runs = %#v", got.Runs)
+	}
+	incompatible := mergeRecordingPerformance(previous, &recording.RecordingPerformance{
+		Version: 2,
+		Runs:    []recording.RecordingRunPerformance{{CaptureSegmentIDs: []string{"new"}}},
+	})
+	if incompatible.Version != 2 || len(incompatible.Runs) != 1 || incompatible.Runs[0].CaptureSegmentIDs[0] != "new" {
+		t.Fatalf("incompatible versions merged = %#v", incompatible)
+	}
+	if mergeRecordingPerformance(nil, nil) != nil {
+		t.Fatal("nil legacy performance should remain nil")
+	}
+}
+
 func TestRecordWorkerFiltersKillPlanToSelectedSegment(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()

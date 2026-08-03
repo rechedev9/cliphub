@@ -260,6 +260,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    }\n")
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
+	sb.WriteString("                mirv.message(`[zackvideo] seek-landed -> ${s.target} (at ${tick})\\n`);\n")
 	sb.WriteString("                seekIdx++;\n")
 	sb.WriteString("                seekAttempts = 0;\n")
 	sb.WriteString("            }\n")

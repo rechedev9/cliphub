@@ -2837,6 +2837,7 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 	merged := next
 	merged.Plan.Segments = append([]recording.RecordingSegment(nil), next.Plan.Segments...)
 	merged.Artifacts = append([]recording.RecordingArtifact(nil), next.Artifacts...)
+	merged.Performance = mergeRecordingPerformance(prev.Performance, next.Performance)
 	haveSegment := make(map[string]bool, len(next.Plan.Segments))
 	for _, s := range next.Plan.Segments {
 		haveSegment[s.ID] = true
@@ -2879,6 +2880,33 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 	}
 	merged.CaptureInputFingerprint = fingerprint
 	return merged, nil
+}
+
+func mergeRecordingPerformance(prev, next *recording.RecordingPerformance) *recording.RecordingPerformance {
+	if prev == nil && next == nil {
+		return nil
+	}
+	if prev == nil {
+		return copyRecordingPerformance(next)
+	}
+	if next == nil {
+		return copyRecordingPerformance(prev)
+	}
+	if prev.Version != next.Version {
+		return copyRecordingPerformance(next)
+	}
+	merged := copyRecordingPerformance(prev)
+	merged.Runs = append(merged.Runs, next.Runs...)
+	return merged
+}
+
+func copyRecordingPerformance(source *recording.RecordingPerformance) *recording.RecordingPerformance {
+	if source == nil {
+		return nil
+	}
+	out := &recording.RecordingPerformance{Version: source.Version}
+	out.Runs = append([]recording.RecordingRunPerformance(nil), source.Runs...)
+	return out
 }
 
 // putRecordingResult overwrites the durable recording result with result.

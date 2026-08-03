@@ -352,7 +352,14 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 				},
 			})
 		}
-		recorderArgs := []string{"--killplan", killPlanPath, "--demo", opts.DemoPath, "--out", recordingDir, "--hlae", hlae, "--cs2", cs2}
+		recorderArgs := []string{
+			"--killplan", killPlanPath,
+			"--demo", opts.DemoPath,
+			"--out", recordingDir,
+			"--hlae", hlae,
+			"--cs2", cs2,
+			"--fps", strconv.Itoa(preset.FPS),
+		}
 		if preset.HUDMode != "" {
 			recorderArgs = append(recorderArgs, "--hud", preset.HUDMode)
 		}

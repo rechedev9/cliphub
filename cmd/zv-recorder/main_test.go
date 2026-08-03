@@ -64,6 +64,98 @@ func TestWriteResultAndReportEmitsMachineReadableDryRunSummary(t *testing.T) {
 	}
 }
 
+func TestWriteResultOmitsAbsentPerformanceAndRoundTripsPresentPerformance(t *testing.T) {
+	outDir := t.TempDir()
+	result := recording.RecordingResult{Plan: recording.RecordingPlan{}, Script: "recording.js"}
+	if err := writeResult(outDir, result); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(outDir, "recording-result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), `"performance"`) {
+		t.Fatalf("legacy result unexpectedly contains performance: %s", body)
+	}
+
+	result.Performance = &recording.RecordingPerformance{
+		Version: 1,
+		Runs: []recording.RecordingRunPerformance{{
+			CaptureSegmentIDs:   []string{"seg-001"},
+			Stream:              recording.StreamConfig{FPS: 60, Width: 1920, Height: 1080},
+			BeforeResultWriteMS: 123,
+		}},
+	}
+	if err := writeResult(outDir, result); err != nil {
+		t.Fatal(err)
+	}
+	var decoded recording.RecordingResult
+	body, err = os.ReadFile(filepath.Join(outDir, "recording-result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Performance == nil || decoded.Performance.Runs[0].BeforeResultWriteMS != 123 ||
+		decoded.Performance.Runs[0].Stream.FPS != 60 {
+		t.Fatalf("performance round trip = %#v", decoded.Performance)
+	}
+}
+
+func TestPerformanceTraceParsesRecorderMarkers(t *testing.T) {
+	run := recording.RecordingRunPerformance{}
+	trace := newPerformanceTrace(time.Now(), &run)
+	monitor := &cs2ConsoleLogMonitor{trace: trace}
+	monitor.consumePerformanceMarkers("[zackvideo] armed at tick 100\n[zackvideo] seek 1 -> 200 attempt 1 ")
+	monitor.consumePerformanceMarkers("(at 120)\n[zackvideo] seek-landed -> 200 (at 198)\nnoise\n[zackvideo] record-start-seg:001: mirv_streams record start\n")
+	monitor.consumePerformanceMarkers("[zackvideo] record-end-seg:001: mirv_streams record end\n")
+
+	if got, want := len(run.Events), 5; got != want {
+		t.Fatalf("event count = %d, want %d: %#v", got, want, run.Events)
+	}
+	if run.Events[0].Kind != "demo_armed_observed" || run.Events[0].ObservedTick != 100 {
+		t.Fatalf("armed event = %#v", run.Events[0])
+	}
+	if run.Events[1].Kind != "seek_requested_observed" || run.Events[1].TargetTick != 200 || run.Events[1].ObservedTick != 120 {
+		t.Fatalf("seek event = %#v", run.Events[1])
+	}
+	if run.Events[2].Kind != "seek_landed_observed" || run.Events[2].ObservedTick != 198 {
+		t.Fatalf("seek landed event = %#v", run.Events[2])
+	}
+	if run.Events[3].SegmentID != "seg:001" || run.Events[4].Kind != "record_end_requested_observed" {
+		t.Fatalf("record events = %#v", run.Events[3:])
+	}
+}
+
+func TestCaptureSegmentIDsAndSegmentSummary(t *testing.T) {
+	plan := recording.RecordingPlan{
+		Stream: recording.StreamConfig{FPS: 60, Width: 1920, Height: 1080},
+		Segments: []recording.RecordingSegment{
+			{ID: "early", TickStart: 100},
+			{ID: "late", TickStart: 300},
+		},
+	}
+	if got := strings.Join(captureSegmentIDs(plan), ","); got != "early,late" {
+		t.Fatalf("capture segment ids = %q", got)
+	}
+	run := recording.RecordingRunPerformance{
+		CaptureSegmentIDs: []string{"early"},
+		Events: []recording.RecordingPerformanceEvent{
+			{Kind: "record_start_requested_observed", SegmentID: "early", ElapsedMS: 1_000},
+			{Kind: "record_end_requested_observed", SegmentID: "early", ElapsedMS: 3_000},
+		},
+	}
+	got := summarizeSegmentPerformance(run, []recording.RecordingArtifact{
+		{SegmentID: "early", Type: "video", FrameCount: 10},
+		{SegmentID: "early", Type: "video", Role: "segment", FrameCount: 120, DurationSeconds: 2},
+	})
+	if len(got) != 1 || got[0].RequestedActiveMS != 2_000 || got[0].VideoFrameCount != 120 ||
+		got[0].VideoDurationSeconds != 2 || got[0].ObservedFramesPerSecond != 60 {
+		t.Fatalf("segment summary = %#v", got)
+	}
+}
+
 func TestValidateRecordingOutputDirectoryRejectsSourceInsideNamespace(t *testing.T) {
 	outDir := t.TempDir()
 	killPlanPath := filepath.Join(outDir, "recording-result.json")

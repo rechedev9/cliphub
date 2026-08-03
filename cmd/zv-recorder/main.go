@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,6 +137,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	runStarted := time.Now()
 
 	if err := os.MkdirAll(plan.OutputDir, 0o750); err != nil {
 		return err
@@ -168,6 +170,19 @@ func run() error {
 		Script:                  scriptPath,
 		CaptureMode:             recording.CaptureModeReal,
 		CaptureInputFingerprint: captureFingerprint,
+	}
+	perfRun := recording.RecordingRunPerformance{
+		CaptureSegmentIDs: captureSegmentIDs(plan),
+		Stream:            plan.Stream,
+	}
+	trace := newPerformanceTrace(runStarted, &perfRun)
+	finalizePerformance := func() {
+		perfRun.BeforeResultWriteMS = elapsedMilliseconds(runStarted)
+		perfRun.Segments = summarizeSegmentPerformance(perfRun, result.Artifacts)
+		result.Performance = &recording.RecordingPerformance{
+			Version: 1,
+			Runs:    []recording.RecordingRunPerformance{perfRun},
+		}
 	}
 
 	if *dryRun {
@@ -238,9 +253,11 @@ func run() error {
 			case <-muxCtx.Done():
 				return
 			case <-ticker.C:
+				started := time.Now()
 				for _, id := range muxer.MuxFinished(muxCtx) {
 					log.Printf("segment %s recorded", id)
 				}
+				perfRun.IncrementalMuxMS += elapsedMilliseconds(started)
 			}
 		}
 	}()
@@ -249,20 +266,31 @@ func run() error {
 		<-muxDone
 	}
 
-	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath, attestationToken); err != nil {
+	perfRun.PrepareMS = elapsedMilliseconds(runStarted)
+	captureStarted := time.Now()
+	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath, attestationToken, trace); err != nil {
+		perfRun.LaunchAndCaptureMS = elapsedMilliseconds(captureStarted)
 		stopIncrementalMux()
 		result.Error = err.Error()
 		// Preserve completed takes before returning the capture failure. Avoid
 		// probing partial files here: a single stuck ffprobe must not consume the
 		// fresh recovery budget before FFmpeg can publish usable segment clips.
+		probeStarted := time.Now()
 		result.Artifacts = recording.CollectArtifacts(context.Background(), plan, "")
+		perfRun.ArtifactProbeMS = elapsedMilliseconds(probeStarted)
 		recoveryCtx, recoveryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		muxStarted := time.Now()
 		result.Artifacts = append(result.Artifacts, recording.MuxSegmentClips(recoveryCtx, plan, result.Artifacts, ffmpegPath, "")...)
+		perfRun.FinalMuxMS = elapsedMilliseconds(muxStarted)
 		recoveryCancel()
+		validationStarted := time.Now()
 		result.Warnings = recording.ValidateArtifacts(plan, result.Artifacts)
+		perfRun.ValidationMS = elapsedMilliseconds(validationStarted)
+		finalizePerformance()
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
+	perfRun.LaunchAndCaptureMS = elapsedMilliseconds(captureStarted)
 	result.CaptureVerified = true
 	stopIncrementalMux()
 
@@ -272,15 +300,84 @@ func run() error {
 	// most of --timeout would otherwise starve muxing and drop its segment clips.
 	postCtx, postCancel := context.WithTimeout(context.Background(), *timeout)
 	defer postCancel()
+	probeStarted := time.Now()
 	result.Artifacts = recording.CollectArtifacts(postCtx, plan, ffprobePath)
+	perfRun.ArtifactProbeMS = elapsedMilliseconds(probeStarted)
+	muxStarted := time.Now()
 	result.Artifacts = append(result.Artifacts, recording.MuxSegmentClips(postCtx, plan, result.Artifacts, ffmpegPath, ffprobePath)...)
+	perfRun.FinalMuxMS = elapsedMilliseconds(muxStarted)
+	validationStarted := time.Now()
 	result.Warnings = recording.ValidateArtifacts(plan, result.Artifacts)
 	if err := validateCaptureResult(result, absCS2Exe); err != nil {
+		perfRun.ValidationMS = elapsedMilliseconds(validationStarted)
+		finalizePerformance()
 		result.Error = err.Error()
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
+	perfRun.ValidationMS = elapsedMilliseconds(validationStarted)
+	finalizePerformance()
 	return writeResultAndReport(plan.OutputDir, result, false, *format, os.Stdout)
+}
+
+func elapsedMilliseconds(started time.Time) int64 {
+	return time.Since(started).Milliseconds()
+}
+
+func captureSegmentIDs(plan recording.RecordingPlan) []string {
+	ids := make([]string, 0, len(plan.Segments))
+	for _, segment := range plan.Segments {
+		if segment.ID != "" {
+			ids = append(ids, segment.ID)
+		}
+	}
+	return ids
+}
+
+func summarizeSegmentPerformance(run recording.RecordingRunPerformance, artifacts []recording.RecordingArtifact) []recording.RecordingSegmentPerformance {
+	summaries := make(map[string]recording.RecordingSegmentPerformance, len(run.CaptureSegmentIDs))
+	for _, id := range run.CaptureSegmentIDs {
+		summaries[id] = recording.RecordingSegmentPerformance{SegmentID: id}
+	}
+	for _, event := range run.Events {
+		summary, ok := summaries[event.SegmentID]
+		if !ok {
+			continue
+		}
+		switch event.Kind {
+		case "record_start_requested_observed":
+			summary.RecordStartObservedMS = event.ElapsedMS
+		case "record_end_requested_observed":
+			summary.RecordEndObservedMS = event.ElapsedMS
+		}
+		summaries[event.SegmentID] = summary
+	}
+	video := make(map[string]recording.RecordingArtifact, len(summaries))
+	for _, artifact := range artifacts {
+		if artifact.SegmentID == "" || artifact.Type != "video" {
+			continue
+		}
+		current, exists := video[artifact.SegmentID]
+		if !exists || (current.Role != "segment" && artifact.Role == "segment") {
+			video[artifact.SegmentID] = artifact
+		}
+	}
+	out := make([]recording.RecordingSegmentPerformance, 0, len(run.CaptureSegmentIDs))
+	for _, id := range run.CaptureSegmentIDs {
+		summary := summaries[id]
+		if summary.RecordEndObservedMS > summary.RecordStartObservedMS {
+			summary.RequestedActiveMS = summary.RecordEndObservedMS - summary.RecordStartObservedMS
+		}
+		if artifact, ok := video[id]; ok {
+			summary.VideoFrameCount = artifact.FrameCount
+			summary.VideoDurationSeconds = artifact.DurationSeconds
+		}
+		if summary.VideoFrameCount > 0 && summary.RequestedActiveMS > 0 {
+			summary.ObservedFramesPerSecond = float64(summary.VideoFrameCount) * 1000 / float64(summary.RequestedActiveMS)
+		}
+		out = append(out, summary)
+	}
+	return out
 }
 
 func validateRecordingOutputDirectory(outDir, killPlanPath, demoPath string) error {
@@ -473,7 +570,7 @@ func newCaptureAttestationToken() (string, error) {
 	return hex.EncodeToString(token[:]), nil
 }
 
-func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.RecordingPlan, scriptPath, attestationToken string) error {
+func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.RecordingPlan, scriptPath, attestationToken string, trace *performanceTrace) error {
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("HLAE/CS2 capture is supported only on Windows")
 	}
@@ -496,6 +593,7 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 		return err
 	}
 	consoleLog := newCS2ConsoleLogMonitor(consoleLogPath, attestationToken)
+	consoleLog.trace = trace
 	cs2CmdLine := cs2LaunchCommandLine(plan, scriptPath)
 	// #nosec G204 -- HLAE/CS2 paths are explicit local tool paths and args are not shell-interpolated.
 	cmd := exec.CommandContext(ctx, hlaeExe,
@@ -646,6 +744,8 @@ type cs2ConsoleLogMonitor struct {
 	path            string
 	offset          int64
 	tail            string
+	lineTail        string
+	trace           *performanceTrace
 	captureVerified bool
 	failedMarker    string
 	verifiedMarker  string
@@ -686,6 +786,7 @@ func (m *cs2ConsoleLogMonitor) failure() error {
 	if info.Size() < m.offset {
 		m.offset = 0
 		m.tail = ""
+		m.lineTail = ""
 	}
 	if _, err := file.Seek(m.offset, io.SeekStart); err != nil {
 		return nil
@@ -700,6 +801,7 @@ func (m *cs2ConsoleLogMonitor) failure() error {
 	}
 
 	content := m.tail + string(data)
+	m.consumePerformanceMarkers(string(data))
 	if strings.Contains(content, m.failedMarker) {
 		return &captureVerificationError{path: m.path, reason: "HLAE runtime rejected the observer POV"}
 	}
@@ -739,6 +841,63 @@ type captureVerificationError struct {
 
 func (e *captureVerificationError) Error() string {
 	return fmt.Sprintf("capture POV verification failed: %s; check CS2 console log %q", e.reason, e.path)
+}
+
+var (
+	armedMarker      = regexp.MustCompile(`^\[zackvideo\] armed at tick (\d+)$`)
+	seekMarker       = regexp.MustCompile(`^\[zackvideo\] seek \d+ -> (\d+) attempt \d+ \(at (\d+)\)$`)
+	seekLandedMarker = regexp.MustCompile(`^\[zackvideo\] seek-landed -> (\d+) \(at (\d+)\)$`)
+	recordMarker     = regexp.MustCompile(`^\[zackvideo\] record-(start|end)-(.+): mirv_streams record (start|end)$`)
+)
+
+type performanceTrace struct {
+	started time.Time
+	run     *recording.RecordingRunPerformance
+}
+
+func newPerformanceTrace(started time.Time, run *recording.RecordingRunPerformance) *performanceTrace {
+	return &performanceTrace{started: started, run: run}
+}
+
+func (m *cs2ConsoleLogMonitor) consumePerformanceMarkers(chunk string) {
+	if m.trace == nil || m.trace.run == nil {
+		return
+	}
+	content := m.lineTail + chunk
+	lines := strings.Split(content, "\n")
+	m.lineTail = lines[len(lines)-1]
+	for _, line := range lines[:len(lines)-1] {
+		m.trace.consume(strings.TrimSpace(line))
+	}
+}
+
+func (t *performanceTrace) consume(line string) {
+	event := recording.RecordingPerformanceEvent{ElapsedMS: elapsedMilliseconds(t.started)}
+	switch match := armedMarker.FindStringSubmatch(line); {
+	case match != nil:
+		event.Kind = "demo_armed_observed"
+		event.ObservedTick, _ = strconv.Atoi(match[1])
+	case seekMarker.MatchString(line):
+		match = seekMarker.FindStringSubmatch(line)
+		event.Kind = "seek_requested_observed"
+		event.TargetTick, _ = strconv.Atoi(match[1])
+		event.ObservedTick, _ = strconv.Atoi(match[2])
+	case seekLandedMarker.MatchString(line):
+		match = seekLandedMarker.FindStringSubmatch(line)
+		event.Kind = "seek_landed_observed"
+		event.TargetTick, _ = strconv.Atoi(match[1])
+		event.ObservedTick, _ = strconv.Atoi(match[2])
+	case recordMarker.MatchString(line):
+		match = recordMarker.FindStringSubmatch(line)
+		if match[1] != match[3] {
+			return
+		}
+		event.Kind = "record_" + match[1] + "_requested_observed"
+		event.SegmentID = match[2]
+	default:
+		return
+	}
+	t.run.Events = append(t.run.Events, event)
 }
 
 type demoParseError struct {
