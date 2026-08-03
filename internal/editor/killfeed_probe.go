@@ -187,17 +187,6 @@ func killfeedAtSecondsForSample(short *ShortEdit, effect Effect, sample float64)
 	return sample + short.Parts[partIndex].TimelineStartSeconds - killfeedSampleDelaySeconds
 }
 
-// killfeedSampleSource resolves which source file and timestamp to probe for
-// a killfeed effect: the owning part on the compiled timeline, or the short's
-// own input for single-clip renders. Prefer killfeedSampleTimes when scanning.
-func killfeedSampleSource(short *ShortEdit, effect Effect) (string, float64) {
-	partIndex, sample := killfeedSamplePart(short, effect)
-	if partIndex < 0 {
-		return short.Input, sample
-	}
-	return short.Parts[partIndex].Input, sample
-}
-
 // killfeedSamplePart resolves the part index (-1 for single-clip shorts) and
 // the in-part timestamp of the frame that represents a killfeed effect. The
 // probe measures this exact frame and the render freezes it, so both must

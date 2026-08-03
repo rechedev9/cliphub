@@ -5,6 +5,7 @@ package storage
 import "os"
 
 func openLocalFile(path string) (*os.File, error) {
+	// #nosec G304 -- path is resolved under Local.root by the only caller.
 	return os.Open(path)
 }
 
