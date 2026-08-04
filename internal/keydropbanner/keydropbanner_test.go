@@ -102,7 +102,7 @@ func TestTargetWidth(t *testing.T) {
 		in, want int
 	}{
 		{0, 1080},
-		{1080, 993},
+		{1080, 928},
 		{1920, 1080},
 		{200, 320},
 	}

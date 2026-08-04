@@ -25,7 +25,7 @@ const (
 	DefaultCode  = "ZACKCSGO"
 
 	// Version bumps force re-materialization when embedded plates change.
-	Version = "v3"
+	Version = "v4"
 
 	maxCodeRunes = 16
 )
@@ -63,17 +63,17 @@ var styles = map[string]Style{
 	StyleOperator: {
 		ID:           StyleOperator,
 		FileName:     "style-operator.png",
-		SHA256:       "602800a19e52b7d5516e97e77cb1f2c84ed4575b9e089f259c0ab2e3021269d7",
+		SHA256:       "d9b53431aaf6019e9b65a588704d99becc0442dff9bda074df42df0dcfd26452",
 		Data:         styleOperatorPNG,
 		Width:        1080,
-		Height:       320,
-		CoverX:       0.23,
-		CoverY:       0.49,
-		CoverW:       0.55,
-		CoverH:       0.24,
-		CoverColor:   "0x0a0a0c",
-		TextCenterY:  0.61,
-		FontSizeFrac: 0.145,
+		Height:       722,
+		CoverX:       0.28,
+		CoverY:       0.442,
+		CoverW:       0.62,
+		CoverH:       0.148,
+		CoverColor:   "0x0c0c0e",
+		TextCenterY:  0.516,
+		FontSizeFrac: 0.095,
 	},
 	StyleClassic: {
 		ID:           StyleClassic,
@@ -247,8 +247,9 @@ func TargetWidth(outputWidth int) int {
 	if outputWidth <= 0 {
 		return 1080
 	}
-	// ~92% of a 1080-wide vertical frame; scale proportionally for landscape.
-	w := int(float64(outputWidth) * 0.92)
+	// ~86% of the frame width so the full character plate stays readable
+	// without burying the whole lower third of a 9:16 short.
+	w := int(float64(outputWidth) * 0.86)
 	if w < 320 {
 		w = 320
 	}

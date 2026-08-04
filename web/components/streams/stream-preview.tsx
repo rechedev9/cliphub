@@ -271,14 +271,19 @@ export function StreamPreview({
           onPointerUp={endKeyDropDrag}
           onPointerCancel={endKeyDropDrag}
           onKeyDown={moveKeyDropWithKeyboard}
-          className={`absolute left-[4%] right-[4%] h-[14%] -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-70' : 'cursor-ns-resize'}`}
+          className={`absolute left-[7%] right-[7%] h-[18%] -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-80' : 'cursor-ns-resize'}`}
           style={{ top: `${keyDropPosition * 100}%` }}
         >
           <div
-            className={`flex h-full w-full items-center justify-center rounded-md border border-amber-400/70 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-2 text-white shadow-md ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}
+            className={`relative flex h-full w-full items-center overflow-hidden rounded-sm border border-amber-400/80 bg-gradient-to-b from-zinc-900 via-black to-zinc-950 shadow-[0_0_18px_rgba(245,158,11,0.28)] ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}
           >
-            <span className="truncate font-[family-name:var(--font-display)] text-[clamp(6px,2.8vw,11px)] font-black leading-none tracking-[0.04em]">
-              {keyDropStyle === 'classic' ? '🎁 ' : '◆ '}
+            <span
+              className={`ml-[2%] flex aspect-square h-[78%] shrink-0 items-center justify-center rounded-full border-2 border-amber-400 bg-zinc-950 text-[clamp(5px,2.1vw,9px)] font-black leading-none ${keyDropStyle === 'classic' ? 'text-amber-300' : 'text-amber-400'}`}
+              aria-hidden
+            >
+              {keyDropStyle === 'classic' ? '🎁' : 'KD'}
+            </span>
+            <span className="min-w-0 flex-1 truncate px-[3%] text-center font-[family-name:var(--font-display)] text-[clamp(7px,3vw,12px)] font-black leading-none tracking-[0.04em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
               {keyDropLabel}
             </span>
           </div>
