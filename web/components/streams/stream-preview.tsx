@@ -271,19 +271,33 @@ export function StreamPreview({
           onPointerUp={endKeyDropDrag}
           onPointerCancel={endKeyDropDrag}
           onKeyDown={moveKeyDropWithKeyboard}
-          className={`absolute left-[7%] right-[7%] h-[18%] -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-80' : 'cursor-ns-resize'}`}
+          className={`absolute left-[7%] right-[7%] -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-90' : 'cursor-ns-resize'}`}
           style={{ top: `${keyDropPosition * 100}%` }}
         >
-          <div
-            className={`relative flex h-full w-full items-center overflow-hidden rounded-sm border border-amber-400/80 bg-gradient-to-b from-zinc-900 via-black to-zinc-950 shadow-[0_0_18px_rgba(245,158,11,0.28)] ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}
-          >
+          {/*
+            Same plates the Go renderer embeds under internal/keydropbanner.
+            The plate has an empty code bay; the live sponsor code is drawn on
+            top so the preview tracks the editable plan field.
+          */}
+          <div className={`relative w-full ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}>
+            <img
+              src={
+                keyDropStyle === 'classic'
+                  ? '/brand/keydrop/classic.png'
+                  : '/brand/keydrop/operator.png'
+              }
+              alt=""
+              draggable={false}
+              className="pointer-events-none block h-auto w-full select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.55)]"
+            />
             <span
-              className={`ml-[2%] flex aspect-square h-[78%] shrink-0 items-center justify-center rounded-full border-2 border-amber-400 bg-zinc-950 text-[clamp(5px,2.1vw,9px)] font-black leading-none ${keyDropStyle === 'classic' ? 'text-amber-300' : 'text-amber-400'}`}
+              className={
+                keyDropStyle === 'classic'
+                  ? 'pointer-events-none absolute left-[12%] right-[12%] top-[50%] flex h-[28%] -translate-y-[10%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                  : 'pointer-events-none absolute left-[28%] right-[10%] top-[44%] flex h-[15%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.6vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+              }
               aria-hidden
             >
-              {keyDropStyle === 'classic' ? '🎁' : 'KD'}
-            </span>
-            <span className="min-w-0 flex-1 truncate px-[3%] text-center font-[family-name:var(--font-display)] text-[clamp(7px,3vw,12px)] font-black leading-none tracking-[0.04em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
               {keyDropLabel}
             </span>
           </div>
