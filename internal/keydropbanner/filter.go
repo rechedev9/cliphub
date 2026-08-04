@@ -9,10 +9,13 @@ import (
 
 // OverlayParams drives the FFmpeg filter chain that paints a KeyDrop plate
 // onto an already-laid-out content label and emits a new label.
+//
+// KeyDropImagePath must be a plate that already carries the live sponsor
+// code (CompositeWithCode). This filter only scales, loops, and overlays —
+// it never draws the code itself, so a wrong or stale code cannot hide
+// inside an in-filtergraph drawtext that the caller never re-ran.
 type OverlayParams struct {
 	Style        Style
-	Code         string
-	FontPath     string
 	OutputWidth  int
 	OutputHeight int
 	// PositionY is the vertical center of the plate as a fraction of output
@@ -37,17 +40,14 @@ type OverlayParams struct {
 	InputIndex int
 }
 
-// BuildOverlayFilter returns the filtergraph fragment that covers the baked
-// code on the plate, draws the live code, and overlays the result.
+// BuildOverlayFilter returns the filtergraph fragment that scales the
+// pre-composited plate and overlays it on ContentLabel.
 //
 // The fragment assumes the plate PNG is already present as input InputIndex
 // and that ContentLabel exists. It ends by defining OutputLabel.
 func BuildOverlayFilter(p OverlayParams) (string, error) {
 	if p.Style.ID == "" {
 		return "", fmt.Errorf("keydrop overlay: style is required")
-	}
-	if strings.TrimSpace(p.FontPath) == "" {
-		return "", fmt.Errorf("keydrop overlay: font path is required")
 	}
 	if p.OutputWidth <= 0 || p.OutputHeight <= 0 {
 		return "", fmt.Errorf("keydrop overlay: output size is required")
@@ -90,29 +90,8 @@ func BuildOverlayFilter(p OverlayParams) (string, error) {
 		top = p.OutputHeight - targetH
 	}
 
-	// Cover geometry in post-scale plate pixels.
-	coverX := int(math.Round(p.Style.CoverX * float64(targetW)))
-	coverY := int(math.Round(p.Style.CoverY * float64(targetH)))
-	coverW := int(math.Round(p.Style.CoverW * float64(targetW)))
-	coverH := int(math.Round(p.Style.CoverH * float64(targetH)))
-	if coverW < 1 {
-		coverW = 1
-	}
-	if coverH < 1 {
-		coverH = 1
-	}
-	fontSize := int(math.Round(float64(targetH) * p.Style.FontSizeFrac))
-	if fontSize < 18 {
-		fontSize = 18
-	}
-	textY := int(math.Round(p.Style.TextCenterY*float64(targetH))) - fontSize/2
-	if textY < 0 {
-		textY = 0
-	}
-
 	start, end := resolveVisibleWindow(p.StartSeconds, p.EndSeconds, p.DurationSeconds)
 	window := end - start
-	label := DisplayLabel(p.Code)
 	xExpr := "(main_w-overlay_w)/2"
 	if p.SlideEnabled {
 		phase := math.Min(0.35, window/2)
@@ -128,17 +107,11 @@ func BuildOverlayFilter(p OverlayParams) (string, error) {
 	}
 
 	// loop+trim so a still PNG covers the whole clip; setpts aligns with content.
+	// Code is already burned into the plate PNG by CompositeWithCode.
 	plate := fmt.Sprintf(
 		"[%d:v]format=rgba,scale=%d:%d:flags=lanczos,"+
-			"drawbox=x=%d:y=%d:w=%d:h=%d:color=%s@1:t=fill,"+
-			"drawtext=fontfile='%s':text='%s':fontcolor=white:fontsize=%d:"+
-			"borderw=2:bordercolor=black@0.75:shadowcolor=black@0.45:shadowx=2:shadowy=2:"+
-			"x=(w-text_w)/2:y=%d,"+
 			"loop=loop=-1:size=1:start=0,setpts=N/60/TB,trim=duration=%s,setpts=PTS-STARTPTS[kdplate]",
 		p.InputIndex, targetW, targetH,
-		coverX, coverY, coverW, coverH, p.Style.CoverColor,
-		ffmpegFilterPath(p.FontPath), ffmpegDrawtextText(label), fontSize,
-		textY,
 		floatArg(p.DurationSeconds),
 	)
 

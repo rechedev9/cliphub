@@ -1176,14 +1176,6 @@ func (w *StreamRenderWorker) render(
 			return fmt.Errorf("render banner or text overlays: embedded font unavailable and no supported fallback font found")
 		}
 	}
-	keyDropImagePath := ""
-	if plan.KeyDropBanner.Enabled() {
-		path, err := keydropbanner.Materialize(plan.KeyDropBanner.Style)
-		if err != nil {
-			return fmt.Errorf("materialize keydrop banner: %w", err)
-		}
-		keyDropImagePath = path
-	}
 
 	previousStatus := j.Status
 	if err := w.repo.UpdateStatus(ctx, j.ID, streamclips.StatusRendering, ""); err != nil {
@@ -1210,6 +1202,24 @@ func (w *StreamRenderWorker) render(
 		return err
 	}
 	defer cleanup()
+
+	// Burn the plan's sponsor code into the plate PNG once per render. The
+	// filtergraph only scales and overlays this file, so a code change always
+	// produces a new plate instead of relying on in-filter drawtext.
+	keyDropImagePath := ""
+	if plan.KeyDropBanner.Enabled() {
+		platePath := filepath.Join(workDir, "keydrop-banner.png")
+		if err := keydropbanner.CompositeWithCode(
+			cfg.FFmpegPath,
+			plan.KeyDropBanner.Style,
+			plan.KeyDropBanner.Code,
+			bannerFontPath,
+			platePath,
+		); err != nil {
+			return fmt.Errorf("composite keydrop banner code %q: %w", keydropbanner.EffectiveCode(plan.KeyDropBanner.Code), err)
+		}
+		keyDropImagePath = platePath
+	}
 
 	sourcePath := filepath.Join(workDir, "source.mp4")
 	if err := copyStorageToFile(w.storage, j.SourcePath, sourcePath); err != nil {

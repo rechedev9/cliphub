@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBuildOverlayFilterCoversCodeAndDrawsLabel(t *testing.T) {
+func TestBuildOverlayFilterScalesPrecompositedPlate(t *testing.T) {
 	t.Parallel()
 	style, ok := Lookup(StyleOperator)
 	if !ok {
@@ -13,8 +13,6 @@ func TestBuildOverlayFilterCoversCodeAndDrawsLabel(t *testing.T) {
 	}
 	filter, err := BuildOverlayFilter(OverlayParams{
 		Style:           style,
-		Code:            "TESTCODE",
-		FontPath:        `C:\Fonts\Montserrat.ttf`,
 		OutputWidth:     1080,
 		OutputHeight:    1920,
 		PositionY:       0.86,
@@ -28,16 +26,19 @@ func TestBuildOverlayFilterCoversCodeAndDrawsLabel(t *testing.T) {
 	}
 	for _, want := range []string{
 		"[1:v]format=rgba,scale=",
-		"drawbox=",
-		"drawtext=",
-		"CODE\\: TESTCODE",
 		"[content][kdplate]overlay=",
 		"[keydropped]",
-		`C\:/Fonts/Montserrat.ttf`,
 		"enable='between(t\\,0.000000\\,8.000000)'",
 	} {
 		if !strings.Contains(filter, want) {
 			t.Fatalf("filter missing %q\n%s", want, filter)
+		}
+	}
+	// Code is burned into the PNG by CompositeWithCode; the overlay filter
+	// must not re-draw text (that path ignored plan code changes on some hosts).
+	for _, banned := range []string{"drawtext=", "drawbox=", "CODE\\:"} {
+		if strings.Contains(filter, banned) {
+			t.Fatalf("filter unexpectedly contains %q\n%s", banned, filter)
 		}
 	}
 }
@@ -47,8 +48,6 @@ func TestBuildOverlayFilterHonorsVisibilityWindow(t *testing.T) {
 	style, _ := Lookup(StyleOperator)
 	filter, err := BuildOverlayFilter(OverlayParams{
 		Style:           style,
-		Code:            "ZACK",
-		FontPath:        "/usr/share/fonts/test.ttf",
 		OutputWidth:     1080,
 		OutputHeight:    1920,
 		DurationSeconds: 15,
@@ -71,8 +70,6 @@ func TestBuildOverlayFilterSlideUsesEvalFrame(t *testing.T) {
 	style, _ := Lookup(StyleClassic)
 	filter, err := BuildOverlayFilter(OverlayParams{
 		Style:           style,
-		Code:            "ZACKCSGO",
-		FontPath:        "/usr/share/fonts/test.ttf",
 		OutputWidth:     1920,
 		OutputHeight:    1080,
 		SlideEnabled:    true,
@@ -94,17 +91,16 @@ func TestBuildOverlayFilterSlideUsesEvalFrame(t *testing.T) {
 
 func TestBuildOverlayFilterRejectsBadInput(t *testing.T) {
 	t.Parallel()
-	style, _ := Lookup(StyleOperator)
 	_, err := BuildOverlayFilter(OverlayParams{
-		Style:           style,
-		FontPath:        "",
+		// Empty style is invalid even when every other field is set.
 		OutputWidth:     1080,
 		OutputHeight:    1920,
 		DurationSeconds: 1,
 		ContentLabel:    "c",
 		OutputLabel:     "o",
+		InputIndex:      1,
 	})
-	if err == nil || !strings.Contains(err.Error(), "font path") {
-		t.Fatalf("error = %v, want font path", err)
+	if err == nil || !strings.Contains(err.Error(), "style is required") {
+		t.Fatalf("error = %v, want style is required", err)
 	}
 }

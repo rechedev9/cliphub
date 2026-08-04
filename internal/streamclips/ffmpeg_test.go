@@ -194,25 +194,27 @@ func TestBuildFFmpegArgsOverlaysKeyDropBanner(t *testing.T) {
 	args, err := BuildFFmpegArgs(FFmpegInputs{
 		SourcePath:       "in.mp4",
 		OutputPath:       "out.mp4",
-		BannerFontPath:   "/fonts/test.ttf",
-		KeyDropImagePath: "/cache/style-operator.png",
+		// Plate is pre-composited with the live code; filter only scales/overlays it.
+		KeyDropImagePath: "/cache/keydrop-banner.png",
 		SourceHasAudio:   true,
 	}, plan, clip)
 	if err != nil {
 		t.Fatalf("BuildFFmpegArgs: %v", err)
 	}
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "style-operator.png") {
+	if !strings.Contains(joined, "keydrop-banner.png") {
 		t.Fatalf("args missing keydrop plate input: %s", joined)
-	}
-	if !strings.Contains(joined, "CODE\\: TESTCODE") && !strings.Contains(joined, "TESTCODE") {
-		t.Fatalf("args missing keydrop code: %s", joined)
 	}
 	if !strings.Contains(joined, "keydropped") {
 		t.Fatalf("args missing keydrop output label: %s", joined)
 	}
 	if !strings.Contains(joined, "between(t\\,0.500000\\,2.500000)") {
 		t.Fatalf("args missing keydrop visibility window: %s", joined)
+	}
+	// Code is burned into the plate PNG before FFmpeg; the filtergraph must not
+	// re-draw it (that path could ignore a changed plan code).
+	if strings.Contains(joined, "drawtext=") && strings.Contains(joined, "TESTCODE") {
+		t.Fatalf("args re-draw keydrop code in filtergraph: %s", joined)
 	}
 }
 

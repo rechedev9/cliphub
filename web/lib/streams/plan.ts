@@ -229,6 +229,7 @@ export function planFingerprint(plan: StreamEditPlan): string {
     e?.fade_out_seconds ?? 0,
     (e?.text_overlays ?? []).map(overlay),
   ];
+  const keyDrop = plan.keydrop_banner;
   return JSON.stringify({
     variant: plan.variant,
     face: rect(plan.face_crop),
@@ -238,6 +239,14 @@ export function planFingerprint(plan: StreamEditPlan): string {
     streamerNick: plan.streamer_banner?.nick?.trim() ?? '',
     streamerPosition: plan.streamer_banner?.position_y ?? null,
     streamerSlide: plan.streamer_banner?.slide_enabled ?? false,
+    // KeyDrop is burn-in on every clip: style, code, placement, slide, and the
+    // on-screen window all change the rendered Short and must move this key.
+    keyDropStyle: keyDrop?.style?.trim() ?? '',
+    keyDropCode: (keyDrop?.code?.trim() ?? '').toUpperCase(),
+    keyDropPosition: keyDrop?.position_y ?? null,
+    keyDropSlide: keyDrop?.slide_enabled ?? false,
+    keyDropStart: keyDrop?.start_seconds ?? null,
+    keyDropEnd: keyDrop?.end_seconds ?? null,
     music: [plan.music?.key ?? '', plan.music?.volume ?? 0],
     grade: plan.effects?.grade ?? false,
   });

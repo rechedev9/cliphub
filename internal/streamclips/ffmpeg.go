@@ -40,8 +40,9 @@ type FFmpegInputs struct {
 	OutputPath     string
 	MusicPath      string // resolved track file; empty renders without music
 	BannerFontPath string // resolved bold font file; required when the banner has a nick
-	// KeyDropImagePath is the materialized plate PNG; required when the plan
-	// enables a KeyDrop banner.
+	// KeyDropImagePath is the pre-composited plate PNG with the live sponsor
+	// code already burned in (keydropbanner.CompositeWithCode). Required when
+	// the plan enables a KeyDrop banner.
 	KeyDropImagePath string
 	SourceHasAudio   bool
 	// TextOverlayPaths holds materialized text files, index-aligned with the
@@ -69,9 +70,6 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 	if plan.KeyDropBanner.Enabled() {
 		if in.KeyDropImagePath == "" {
 			return nil, fmt.Errorf("keydrop banner image path is required")
-		}
-		if in.BannerFontPath == "" {
-			return nil, fmt.Errorf("keydrop banner font path is required")
 		}
 	}
 	if clip.Edit != nil && len(clip.Edit.TextOverlays) > 0 {
@@ -338,7 +336,7 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 		if keyDropInput < 0 {
 			return "", fmt.Errorf("keydrop banner input index is required")
 		}
-		kdFilter, err := keyDropBannerFilter(layout, plan.KeyDropBanner, bannerFontPath, duration, current, keyDropInput)
+		kdFilter, err := keyDropBannerFilter(layout, plan.KeyDropBanner, duration, current, keyDropInput)
 		if err != nil {
 			return "", err
 		}
@@ -348,8 +346,9 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 	return graph + ";[" + current + "]" + tail, nil
 }
 
-// keyDropBannerFilter overlays the sponsor plate on the named content label.
-func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, fontPath string, duration float64, contentLabel string, inputIndex int) (string, error) {
+// keyDropBannerFilter overlays the pre-composited sponsor plate on the named
+// content label. The plate PNG already carries the live code.
+func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, duration float64, contentLabel string, inputIndex int) (string, error) {
 	style, ok := keydropbanner.Lookup(banner.Style)
 	if !ok {
 		return "", fmt.Errorf("unknown keydrop banner style %q", banner.Style)
@@ -369,8 +368,6 @@ func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, fontPat
 	}
 	return keydropbanner.BuildOverlayFilter(keydropbanner.OverlayParams{
 		Style:           style,
-		Code:            banner.Code,
-		FontPath:        fontPath,
 		OutputWidth:     layout.OutputWidth,
 		OutputHeight:    outputHeight,
 		PositionY:       positionY,

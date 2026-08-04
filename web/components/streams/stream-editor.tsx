@@ -16,12 +16,14 @@ import {
   advanceMontagePlayback,
   clampKeyDropBannerPosition,
   clampStreamerBannerPosition,
+  keyDropPreviewSourceSeconds,
   representativeFrameTime,
   resolveKeyDropBannerPosition,
   resolveStreamerBannerPosition,
   startMontagePlayback,
 } from '@/lib/stream-preview';
 import {
+  DEFAULT_KEYDROP_CODE,
   DEFAULT_KEYDROP_END_SECONDS,
   DEFAULT_KEYDROP_START_SECONDS,
   STREAMER_NICK_RE,
@@ -186,13 +188,25 @@ export function StreamEditor({
       ? Math.min(DEFAULT_KEYDROP_END_SECONDS, longestClipSeconds)
       : DEFAULT_KEYDROP_END_SECONDS);
 
+  /** Keep the 9:16 monitor inside the plate's on-screen window so code edits are visible. */
+  const revealKeyDropOnPreview = (start: number, end: number) => {
+    setPreviewPlaying(false);
+    setPreviewSeconds(
+      keyDropPreviewSourceSeconds(plan.clips, previewSecondsRef.current, start, end),
+    );
+  };
+
   const setKeyDropStyle = (style: KeyDropBannerStyle | '') => {
     if (!style) {
       onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, style: '' } });
       return;
     }
     const next = { ...plan.keydrop_banner, style };
-    // First enable: default a short callout window so the plate does not sit all clip.
+    // First enable: pin the default sponsor code and a short callout window so
+    // the rendered plate never depends on an implicit ZACKCSGO fallback alone.
+    if (!plan.keydrop_banner?.code?.trim()) {
+      next.code = DEFAULT_KEYDROP_CODE;
+    }
     if (plan.keydrop_banner?.start_seconds === undefined) {
       next.start_seconds = DEFAULT_KEYDROP_START_SECONDS;
     }
@@ -202,10 +216,15 @@ export function StreamEditor({
           ? Math.min(DEFAULT_KEYDROP_END_SECONDS, longestClipSeconds)
           : DEFAULT_KEYDROP_END_SECONDS;
     }
+    const start = next.start_seconds ?? DEFAULT_KEYDROP_START_SECONDS;
+    const end = next.end_seconds ?? DEFAULT_KEYDROP_END_SECONDS;
+    revealKeyDropOnPreview(start, end);
     onPlanChange({ ...plan, keydrop_banner: next });
   };
-  const setKeyDropCode = (code: string) =>
+  const setKeyDropCode = (code: string) => {
+    revealKeyDropOnPreview(keyDropStart, keyDropEnd);
     onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, code } });
+  };
   const setKeyDropPosition = (position: number) =>
     onPlanChange({
       ...plan,
@@ -227,6 +246,7 @@ export function StreamEditor({
     const start = Math.max(0, startSeconds);
     let end = keyDropEnd;
     if (end <= start) end = start + 0.5;
+    revealKeyDropOnPreview(start, end);
     onPlanChange({
       ...plan,
       keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end },
@@ -237,6 +257,7 @@ export function StreamEditor({
     if (longestClipSeconds > 0) end = Math.min(end, longestClipSeconds);
     let start = keyDropStart;
     if (end <= start) start = Math.max(0, end - 0.5);
+    revealKeyDropOnPreview(start, end);
     onPlanChange({
       ...plan,
       keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end },

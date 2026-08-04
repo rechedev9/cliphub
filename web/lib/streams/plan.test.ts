@@ -133,6 +133,47 @@ test('the fingerprint moves when a rendered field changes and not when updated_a
   );
 });
 
+test('the fingerprint moves when any KeyDrop plate field that burns into the Short changes', () => {
+  const base: StreamEditPlan = {
+    schema_version: '1.1',
+    variant: 'streamer-vertical-stack-40-60',
+    clips: [clip()],
+    keydrop_banner: {
+      style: 'classic',
+      code: 'ZACKCSGO',
+      slide_enabled: false,
+      start_seconds: 0,
+      end_seconds: 4,
+    },
+  };
+  assert.notEqual(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, code: 'OTROCODE' } }),
+  );
+  assert.notEqual(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, style: 'operator' } }),
+  );
+  assert.notEqual(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, slide_enabled: true } }),
+  );
+  assert.notEqual(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, position_y: 0.7 } }),
+  );
+  assert.notEqual(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, end_seconds: 8 } }),
+  );
+  assert.notEqual(planFingerprint(base), planFingerprint({ ...base, keydrop_banner: { style: '' } }));
+  // Case/whitespace on the sponsor code must not create a false mismatch.
+  assert.equal(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, code: '  zackcsgo  ' } }),
+  );
+});
+
 test('the clip band is positioned against the probed duration and skipped without one', () => {
   const geometry = clipTimelineGeometry(clip({ start_seconds: 25, end_seconds: 50 }), 100);
   assert.deepEqual(

@@ -147,6 +147,44 @@ export function representativeFrameTime(duration: number): number {
 }
 
 /**
+ * Source time where the KeyDrop plate is on-screen. Keeps the playhead when it
+ * already sits inside a clip's plate window; otherwise jumps to the plate's
+ * start on the active or first playable clip so code edits are visible.
+ * (The default editor frame is the source midpoint, which almost never falls
+ * inside the product default 0–4s callout.)
+ */
+export function keyDropPreviewSourceSeconds(
+  clips: readonly StreamClipRange[],
+  sourceSeconds: number,
+  startSeconds: number,
+  endSeconds: number,
+): number {
+  const start = Number.isFinite(startSeconds) && startSeconds >= 0 ? startSeconds : 0;
+  const end =
+    Number.isFinite(endSeconds) && endSeconds > start ? endSeconds : start + 4;
+
+  const seekInClip = (clip: StreamClipRange): number => {
+    const clipLen = clip.end_seconds - clip.start_seconds;
+    const local = Math.min(start, Math.max(0, clipLen - 0.05));
+    return clip.start_seconds + local;
+  };
+
+  const active = clips.find(
+    (clip) =>
+      playableClip(clip) &&
+      sourceSeconds >= clip.start_seconds &&
+      sourceSeconds < clip.end_seconds,
+  );
+  if (active) {
+    const local = sourceSeconds - active.start_seconds;
+    if (local >= start && local < end) return sourceSeconds;
+    return seekInClip(active);
+  }
+  const first = clips.find(playableClip);
+  return first ? seekInClip(first) : sourceSeconds;
+}
+
+/**
  * The text overlays visible at `frameSeconds`. Overlay windows are relative to
  * the owning clip's start in source seconds (matching the render's drawtext
  * enable windows); missing bounds extend to the clip edges.

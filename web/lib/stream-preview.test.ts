@@ -8,6 +8,7 @@ import {
   calculateCropCoverGeometry,
   clampStreamerBannerPosition,
   defaultStreamerBannerPosition,
+  keyDropPreviewSourceSeconds,
   representativeFrameTime,
   resolveStreamerBannerPosition,
   startMontagePlayback,
@@ -85,6 +86,17 @@ test('representative time is the safe midpoint for every editor video', () => {
   assert.equal(representativeFrameTime(0.05), 0);
   assert.equal(representativeFrameTime(0), 0);
   assert.equal(representativeFrameTime(Number.POSITIVE_INFINITY), 0);
+});
+
+test('KeyDrop preview seeks into the plate window when the playhead is outside it', () => {
+  const clips = [{ id: 'c1', start_seconds: 0, end_seconds: 20 }];
+  // Default editor frame is mid-source; plate only shows 0–4s.
+  assert.equal(keyDropPreviewSourceSeconds(clips, 10, 0, 4), 0);
+  // Already inside the window: leave the playhead alone.
+  assert.equal(keyDropPreviewSourceSeconds(clips, 2.5, 0, 4), 2.5);
+  // Offset window on a later clip.
+  const later = [{ id: 'c2', start_seconds: 30, end_seconds: 50 }];
+  assert.equal(keyDropPreviewSourceSeconds(later, 40, 1, 3), 31);
 });
 
 test('streamer banner defaults follow each output layout', () => {
