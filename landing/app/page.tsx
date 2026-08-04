@@ -23,11 +23,11 @@ import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
-// Point at a published GitHub Release asset only. 2.4.18 pins the bundled
+// Point at a published GitHub Release asset only. 2.4.19 pins the bundled
 // recorder so stale environment variables from older installs cannot break capture.
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.18/TickCut.Studio.Setup.2.4.18.exe";
-const RELEASE_VERSION = "v2.4.18";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.19/TickCut.Studio.Setup.2.4.19.exe";
+const RELEASE_VERSION = "v2.4.19";
 const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
