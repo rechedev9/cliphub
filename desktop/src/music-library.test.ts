@@ -16,6 +16,11 @@ const VIRAL_CC0_TRACK_IDS = [
   'acid-beat',
   'urban-funk',
   'retro-fireworks',
+  'latin-1',
+  'ragga-1',
+  'house-3',
+  'techno-1',
+  'trap-5',
 ] as const;
 
 function sha256(value: string): string {

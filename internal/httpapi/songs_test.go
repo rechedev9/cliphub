@@ -122,6 +122,11 @@ func TestListSongsShippedCatalogIncludesViralPack(t *testing.T) {
 		"acid-beat",
 		"urban-funk",
 		"retro-fireworks",
+		"latin-1",
+		"ragga-1",
+		"house-3",
+		"techno-1",
+		"trap-5",
 	}
 	for _, id := range viralIDs {
 		if !got[id] {
