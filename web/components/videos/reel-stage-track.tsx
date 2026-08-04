@@ -175,9 +175,20 @@ export function ReelStageTrack({ status, percent, className }: ReelStageTrackPro
             ) : null}
 
             {running && !determinate ? (
+              // Indeterminate: real stage is active but the pipeline has no
+              // percentage yet. Expose a progressbar without aria-valuenow so
+              // AT hears "in progress" rather than a fabricated 0–100 value.
               <span
-                aria-hidden
-                className={cn('absolute inset-0 -z-10 animate-pulse', FILL_CLASS[accent], INDETERMINATE_MOTION_GATE)}
+                role="progressbar"
+                aria-label={`${stage.label}, en curso`}
+                aria-valuetext={`${stage.label}, en curso`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className={cn(
+                  'absolute inset-0 -z-10 animate-pulse',
+                  FILL_CLASS[accent],
+                  INDETERMINATE_MOTION_GATE,
+                )}
               />
             ) : null}
 

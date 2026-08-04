@@ -103,8 +103,8 @@ function AnalysisPanel({
         description={error}
         compact
         actions={
-          <Button onClick={onStart} disabled={starting}>
-            {starting ? <Loader2 className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+          <Button onClick={onStart} loading={starting} loadingText="REINTENTANDO…">
+            <RefreshCw aria-hidden />
             REINTENTAR
           </Button>
         }
@@ -120,8 +120,8 @@ function AnalysisPanel({
         description="El análisis lee la demo una vez y puntúa a los diez jugadores. No abre CS2 ni HLAE, no toca la partida y no cambia nada del reel."
         compact
         actions={
-          <Button onClick={onStart} disabled={starting}>
-            {starting ? <Loader2 className="animate-spin" aria-hidden /> : <ShieldAlert aria-hidden />}
+          <Button onClick={onStart} loading={starting} loadingText="INICIANDO ANÁLISIS…">
+            <ShieldAlert aria-hidden />
             ANALIZAR DEMO
           </Button>
         }
@@ -137,8 +137,8 @@ function AnalysisPanel({
         description="Se está recorriendo la demo tick a tick para medir puntería, información y tiempos de reacción. Puedes salir de esta pantalla; el análisis sigue. Si lleva demasiado tiempo aquí, reinicia el análisis."
         compact
         actions={
-          <Button variant="outline" onClick={onStart} disabled={starting}>
-            {starting ? <Loader2 className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+          <Button variant="outline" onClick={onStart} loading={starting} loadingText="REINICIANDO ANÁLISIS…">
+            <RefreshCw aria-hidden />
             REINICIAR ANÁLISIS
           </Button>
         }
@@ -154,8 +154,8 @@ function AnalysisPanel({
         description={document.failure_reason ?? 'La demo no pudo analizarse.'}
         compact
         actions={
-          <Button onClick={onStart} disabled={starting}>
-            {starting ? <Loader2 className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+          <Button onClick={onStart} loading={starting} loadingText="REINTENTANDO…">
+            <RefreshCw aria-hidden />
             REINTENTAR
           </Button>
         }

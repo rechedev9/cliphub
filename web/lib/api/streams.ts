@@ -73,6 +73,15 @@ export type StreamEffects = { grade?: boolean };
 /** Optional branded strip rendered over the stream output. */
 export type StreamerBanner = { nick?: string; position_y?: number; slide_enabled?: boolean };
 
+/** KeyDrop sponsor plate; empty style disables the overlay. */
+export type KeyDropBannerStyle = 'operator' | 'classic';
+export type KeyDropBanner = {
+  style?: KeyDropBannerStyle | '';
+  code?: string;
+  position_y?: number;
+  slide_enabled?: boolean;
+};
+
 export type StreamEditPlan = {
   schema_version: string;
   variant: StreamVariant;
@@ -82,6 +91,7 @@ export type StreamEditPlan = {
   gameplay_crop?: NormalizedRect;
   clips: StreamClipRange[];
   streamer_banner?: StreamerBanner;
+  keydrop_banner?: KeyDropBanner;
   music?: StreamMusic;
   effects?: StreamEffects;
   updated_at?: string;

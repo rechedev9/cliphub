@@ -1037,17 +1037,20 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 // renderEditRequest preserves JSON field presence so review corrections can
 // update one choice without resetting the rest of the approved edit contract.
 type renderEditRequest struct {
-	Format          *string `json:"format"`
-	KillEffect      *string `json:"killEffect"`
-	Transition      *string `json:"transition"`
-	Intro           *bool   `json:"intro"`
-	Outro           *bool   `json:"outro"`
-	HookText        *bool   `json:"hook_text"`
-	KillCounter     *bool   `json:"kill_counter"`
-	CoverStrategy   *string `json:"cover_strategy"`
-	CoverFirstFrame *bool   `json:"cover_first_frame"`
-	IntroText       *string `json:"intro_text"`
-	OutroText       *string `json:"outro_text"`
+	Format           *string  `json:"format"`
+	KillEffect       *string  `json:"killEffect"`
+	Transition       *string  `json:"transition"`
+	Intro            *bool    `json:"intro"`
+	Outro            *bool    `json:"outro"`
+	HookText         *bool    `json:"hook_text"`
+	KillCounter      *bool    `json:"kill_counter"`
+	CoverStrategy    *string  `json:"cover_strategy"`
+	CoverFirstFrame  *bool    `json:"cover_first_frame"`
+	IntroText        *string  `json:"intro_text"`
+	OutroText        *string  `json:"outro_text"`
+	KeyDropStyle     *string  `json:"keydrop_style"`
+	KeyDropCode      *string  `json:"keydrop_code"`
+	KeyDropPositionY *float64 `json:"keydrop_position_y"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -1083,6 +1086,16 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.OutroText != nil {
 		base.OutroText = *r.OutroText
+	}
+	if r.KeyDropStyle != nil {
+		base.KeyDropStyle = *r.KeyDropStyle
+	}
+	if r.KeyDropCode != nil {
+		base.KeyDropCode = *r.KeyDropCode
+	}
+	if r.KeyDropPositionY != nil {
+		y := *r.KeyDropPositionY
+		base.KeyDropPositionY = &y
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

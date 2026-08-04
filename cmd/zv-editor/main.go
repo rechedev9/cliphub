@@ -44,6 +44,9 @@ func run() error {
 		hook                = flag.Bool("hook", true, "draw the generated headline as a hook over the first ~2s")
 		killCounter         = flag.Bool("kill-counter", true, "pop a running kill count with 2K/3K/4K/ACE milestones")
 		killfeedOverlay     = flag.Bool("killfeed-overlay", true, "re-overlay the source kill notices near the top of the 9:16 frame")
+		keyDropStyle        = flag.String("keydrop-style", "", "optional KeyDrop banner style: operator or classic")
+		keyDropCode         = flag.String("keydrop-code", "", "KeyDrop sponsor code; defaults to ZACKCSGO when style is set")
+		keyDropPositionY    = flag.Float64("keydrop-position-y", 0, "KeyDrop banner vertical center 0.025-0.975; 0 uses the default")
 		tailTrim            = flag.Float64("tail-trim", 1.5, "end each kill clip this many seconds after its final kill; 0 disables")
 		outputFPS           = flag.Int("fps", 0, "optional final output FPS; defaults to 60")
 		compileSegments     = flag.Bool("compile-segments", false, "render selected segments as one compilation short")
@@ -95,6 +98,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	var keyDropPosition *float64
+	if *keyDropPositionY != 0 {
+		v := *keyDropPositionY
+		keyDropPosition = &v
+	}
 	result, err := editor.Run(context.Background(), editor.Config{
 		RecordingResultPath: *recordingResultPath,
 		KillPlanPath:        *killPlanPath,
@@ -116,6 +124,9 @@ func run() error {
 		HookText:            *hook,
 		KillCounter:         *killCounter,
 		KillfeedOverlay:     *killfeedOverlay,
+		KeyDropStyle:        *keyDropStyle,
+		KeyDropCode:         *keyDropCode,
+		KeyDropPositionY:    keyDropPosition,
 		TailTrimSeconds:     *tailTrim,
 		OutputFPS:           *outputFPS,
 		CompileSegments:     *compileSegments,

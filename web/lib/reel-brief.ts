@@ -65,6 +65,12 @@ export function reelCreativeBrief(
     { label: 'Título / contador', value: `${edit.hookText ? 'Título automático' : 'Sin título automático'} · ${edit.killCounter ? 'Contador activado' : 'Sin contador'}` },
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
     { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma TickCut') },
+    {
+      label: 'KeyDrop',
+      value: edit.keyDropStyle
+        ? `${edit.keyDropStyle === 'classic' ? 'Classic' : 'Operator'} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()}`
+        : 'No',
+    },
     { label: 'Música', value: songTitle ? `${songTitle} · ${musicVolumePercent}%` : 'Sin música' },
     {
       label: 'Portada',

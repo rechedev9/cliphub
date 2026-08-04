@@ -28,6 +28,7 @@ import (
 	"github.com/rechedev9/tickcut/internal/editor"
 	"github.com/rechedev9/tickcut/internal/generateintent"
 	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/tickcut/internal/keydropbanner"
 	"github.com/rechedev9/tickcut/internal/killplan"
 	"github.com/rechedev9/tickcut/internal/obs"
 	"github.com/rechedev9/tickcut/internal/recording"
@@ -1169,11 +1170,19 @@ func (w *StreamRenderWorker) render(
 		return err
 	}
 	bannerFontPath := ""
-	if plan.StreamerBanner.Nick != "" || plan.HasTextOverlays() {
+	if plan.StreamerBanner.Nick != "" || plan.HasTextOverlays() || plan.KeyDropBanner.Enabled() {
 		bannerFontPath = streamclips.FindBannerFont()
 		if bannerFontPath == "" {
 			return fmt.Errorf("render banner or text overlays: embedded font unavailable and no supported fallback font found")
 		}
+	}
+	keyDropImagePath := ""
+	if plan.KeyDropBanner.Enabled() {
+		path, err := keydropbanner.Materialize(plan.KeyDropBanner.Style)
+		if err != nil {
+			return fmt.Errorf("materialize keydrop banner: %w", err)
+		}
+		keyDropImagePath = path
 	}
 
 	previousStatus := j.Status
@@ -1254,6 +1263,7 @@ func (w *StreamRenderWorker) render(
 			OutputPath:       outPath,
 			MusicPath:        musicPath,
 			BannerFontPath:   bannerFontPath,
+			KeyDropImagePath: keyDropImagePath,
 			SourceHasAudio:   j.Probe.AudioCodec != "",
 			TextOverlayPaths: textPaths,
 		}, plan, clip)
@@ -1783,6 +1793,15 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	if edit.OutroText != "" {
 		args = append(args, "--outro-text", edit.OutroText)
+	}
+	if style := strings.TrimSpace(edit.KeyDropStyle); style != "" {
+		args = append(args, "--keydrop-style", style)
+		if code := strings.TrimSpace(edit.KeyDropCode); code != "" {
+			args = append(args, "--keydrop-code", code)
+		}
+		if y := edit.KeyDropPositionY; y != nil {
+			args = append(args, "--keydrop-position-y", strconv.FormatFloat(*y, 'f', 6, 64))
+		}
 	}
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)

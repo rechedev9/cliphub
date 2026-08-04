@@ -91,8 +91,8 @@ export function StreamSourceCard({
                     className="pl-10"
                   />
                 </div>
-                <Button type="button" variant="stream" onClick={onSubmitUrl} disabled={submitting} loading={submitting}>
-                  {submitting ? null : <Sparkles className="size-4" />}
+                <Button type="button" variant="stream" onClick={onSubmitUrl} disabled={submitting} loading={submitting} loadingText="TRAYENDO CLIP…">
+                  <Sparkles className="size-4" />
                   TRAER CLIP
                 </Button>
               </div>

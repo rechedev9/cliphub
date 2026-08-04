@@ -84,6 +84,7 @@ function Button({
   size = "default",
   asChild = false,
   loading = false,
+  loadingText,
   disabled,
   children,
   ...props
@@ -91,6 +92,7 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
     loading?: boolean
+    loadingText?: string
   }) {
   const Comp = asChild ? Slot.Root : "button"
 
@@ -113,7 +115,7 @@ function Button({
       {busy ? (
         <>
           <Loader2Icon aria-hidden className="animate-spin" />
-          {children}
+          {loadingText !== undefined ? loadingText : children}
         </>
       ) : (
         children

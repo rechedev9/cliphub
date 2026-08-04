@@ -51,6 +51,15 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   };
   if (typeof edit.intro_text === 'string') parsed.introText = edit.intro_text;
   if (typeof edit.outro_text === 'string') parsed.outroText = edit.outro_text;
+  if (edit.keydrop_style === 'operator' || edit.keydrop_style === 'classic') {
+    parsed.keyDropStyle = edit.keydrop_style;
+  }
+  if (typeof edit.keydrop_code === 'string') {
+    parsed.keyDropCode = edit.keydrop_code;
+  }
+  if (typeof edit.keydrop_position_y === 'number' && Number.isFinite(edit.keydrop_position_y)) {
+    parsed.keyDropPositionY = edit.keydrop_position_y;
+  }
   return parsed;
 }
 

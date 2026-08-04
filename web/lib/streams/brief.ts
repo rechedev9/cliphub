@@ -45,12 +45,22 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
   if (nick) {
     banner = plan.streamer_banner?.slide_enabled ? `${nick} · slide` : nick;
   }
+  const kdStyle = plan.keydrop_banner?.style?.trim() ?? '';
+  const kdCode = (plan.keydrop_banner?.code?.trim() || 'ZACKCSGO').toUpperCase();
+  let keydrop = 'No';
+  if (kdStyle) {
+    const styleLabel = kdStyle === 'classic' ? 'Classic' : 'Operator';
+    keydrop = plan.keydrop_banner?.slide_enabled
+      ? `${styleLabel} · ${kdCode} · slide`
+      : `${styleLabel} · ${kdCode}`;
+  }
 
   return [
     { label: 'Layout', value: variantLabel(plan.variant) },
     { label: 'Facecam', value: facecam },
     { label: 'Clips', value: clipSummary },
     { label: 'Banner', value: banner },
+    { label: 'KeyDrop', value: keydrop },
     { label: 'Música', value: music },
     { label: 'Grade', value: plan.effects?.grade ? 'Sí' : 'No' },
   ];

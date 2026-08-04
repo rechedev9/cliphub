@@ -67,6 +67,11 @@ export type ReelCardProps = {
   frameActions?: ReactNode;
   /** Dim/desaturate the cover while the reel has no finished frame yet. */
   coverClassName?: string;
+  /**
+   * Drop the decorative crosshair on the fallback plate. Processing cards use
+   * this so the centered mark is not read as a spinner while capture/edit runs.
+   */
+  plainCover?: boolean;
   /** Stage tint painted over the cover, inside the parallax plane. */
   coverTintClassName?: string;
   /** Bottom-up gradient, for frames that carry overlaid text. */
@@ -107,6 +112,7 @@ export function ReelCard({
   frameFooter,
   frameActions,
   coverClassName,
+  plainCover = false,
   coverTintClassName,
   scrim = false,
   percent,
@@ -130,7 +136,11 @@ export function ReelCard({
    */
   const cover = (
     <>
-      <ReelCover seed={video.id} className={cn('absolute inset-0 size-full', coverClassName)} />
+      <ReelCover
+        seed={video.id}
+        plain={plainCover}
+        className={cn('absolute inset-0 size-full', coverClassName)}
+      />
       <CoverImage src={video.thumbnailUrl} className={cn('absolute inset-0', coverClassName)} />
     </>
   );

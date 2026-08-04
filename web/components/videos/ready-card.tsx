@@ -436,7 +436,7 @@ function ReviewResolutionDialog({
             variant="hero"
             className="w-full"
             disabled={!editChanged || !briefApproved || reviewChanged}
-            loading={busy === 'rerender'}
+            loading={busy === 'rerender'} loadingText="RENDERIZANDO DE NUEVO…"
             onClick={() => void resolveReview('rerender')}
           >
             <Settings2 className="size-4" aria-hidden /> VOLVER A RENDERIZAR
@@ -467,7 +467,7 @@ function ReviewResolutionDialog({
             variant="outline-primary"
             className="w-full"
             disabled={!note.trim() || reviewChanged}
-            loading={busy === 'accept'}
+            loading={busy === 'accept'} loadingText="DOCUMENTANDO REVISIÓN…"
             onClick={() => void resolveReview('accept')}
           >
             <CheckCircle2 className="size-4" aria-hidden /> DOCUMENTAR Y MARCAR LISTO

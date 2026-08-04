@@ -148,7 +148,7 @@ function coerceSegmentIds(r: Record<string, unknown>): string[] {
 export function coerceEditConfig(value: unknown): EditConfig {
   if (!value || typeof value !== 'object') return DEFAULT_EDIT_CONFIG;
   const raw = value as Partial<EditConfig>;
-  return {
+  const cfg: EditConfig = {
     format: raw.format === 'landscape-16x9' ? 'landscape-16x9' : DEFAULT_EDIT_CONFIG.format,
     killEffect: isKillEffect(raw.killEffect) ? raw.killEffect : DEFAULT_EDIT_CONFIG.killEffect,
     transition: isTransition(raw.transition) ? raw.transition : DEFAULT_EDIT_CONFIG.transition,
@@ -160,6 +160,20 @@ export function coerceEditConfig(value: unknown): EditConfig {
     introText: coerceBookendText(raw.introText),
     outroText: coerceBookendText(raw.outroText),
   };
+  if (raw.keyDropStyle === 'operator' || raw.keyDropStyle === 'classic') {
+    cfg.keyDropStyle = raw.keyDropStyle;
+  }
+  if (typeof raw.keyDropCode === 'string' && raw.keyDropCode.trim() !== '') {
+    cfg.keyDropCode = raw.keyDropCode.trim().toUpperCase().slice(0, 16);
+  }
+  if (
+    typeof raw.keyDropPositionY === 'number' &&
+    raw.keyDropPositionY >= 0.025 &&
+    raw.keyDropPositionY <= 0.975
+  ) {
+    cfg.keyDropPositionY = raw.keyDropPositionY;
+  }
+  return cfg;
 }
 
 /**

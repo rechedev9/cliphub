@@ -24,8 +24,19 @@ test('stream creative brief lists every production decision', () => {
   assert.equal(byLabel.Facecam, 'Recorte confirmado');
   assert.match(byLabel.Clips, /1 clip/);
   assert.equal(byLabel.Banner, 'pro_player · slide');
+  assert.equal(byLabel.KeyDrop, 'No');
   assert.equal(byLabel.Música, 'phonk-01 · 25%');
   assert.equal(byLabel.Grade, 'Sí');
+});
+
+test('stream creative brief lists KeyDrop when enabled', () => {
+  const items = streamCreativeBrief(
+    plan({
+      keydrop_banner: { style: 'classic', code: 'zackcsgo', slide_enabled: true },
+    }),
+  );
+  const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
+  assert.equal(byLabel.KeyDrop, 'Classic · ZACKCSGO · slide');
 });
 
 test('stream creative brief marks unreviewed facecam and empty music', () => {

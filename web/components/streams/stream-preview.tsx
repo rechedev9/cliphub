@@ -7,12 +7,18 @@ import { DEFAULT_OVERLAY_FONT_SIZE } from '@/lib/clip-edit';
 import { StreamFrameCanvas } from '@/components/streams/stream-frame-session';
 import {
   activeTextOverlays,
+  clampKeyDropBannerPosition,
   clampStreamerBannerPosition,
+  KEYDROP_BANNER_MAX_POSITION,
+  KEYDROP_BANNER_MIN_POSITION,
+  resolveKeyDropBannerPosition,
   resolveStreamerBannerPosition,
   STREAMER_BANNER_MAX_POSITION,
   STREAMER_BANNER_MIN_POSITION,
   type FrameSize,
 } from '@/lib/stream-preview';
+import type { KeyDropBannerStyle } from '@/lib/api/streams';
+import { DEFAULT_KEYDROP_CODE } from '@/lib/streams/plan';
 
 const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 const EMPTY_CLIPS: StreamClipRange[] = [];
@@ -79,6 +85,11 @@ export function StreamPreview({
   streamerPositionY,
   streamerSlideEnabled = false,
   onStreamerPositionChange,
+  keyDropStyle,
+  keyDropCode,
+  keyDropPositionY,
+  keyDropSlideEnabled = false,
+  onKeyDropPositionChange,
   disabled = false,
 }: {
   variant: StreamVariant;
@@ -90,10 +101,16 @@ export function StreamPreview({
   streamerPositionY?: number;
   streamerSlideEnabled?: boolean;
   onStreamerPositionChange?: (position: number) => void;
+  keyDropStyle?: KeyDropBannerStyle | '';
+  keyDropCode?: string;
+  keyDropPositionY?: number;
+  keyDropSlideEnabled?: boolean;
+  onKeyDropPositionChange?: (position: number) => void;
   disabled?: boolean;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startClientY: number; startPosition: number } | null>(null);
+  const keyDropDragRef = useRef<{ startClientY: number; startPosition: number } | null>(null);
   const gameplay = gameplayCrop ?? FULL_FRAME;
   const layout = PREVIEW_LAYOUTS[variant];
   const faceLayout = layout.face;
@@ -101,6 +118,8 @@ export function StreamPreview({
     ? (faceLayout.height * 100) / (faceLayout.height + layout.gameplay.height)
     : 0;
   const bannerPosition = resolveStreamerBannerPosition(variant, streamerPositionY);
+  const keyDropPosition = resolveKeyDropBannerPosition(keyDropPositionY);
+  const keyDropLabel = `CODE: ${(keyDropCode?.trim() || DEFAULT_KEYDROP_CODE).toUpperCase()}`;
   const activeOverlays = activeTextOverlays(clips, frameSeconds);
 
   const beginBannerDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -134,6 +153,38 @@ export function StreamPreview({
     event.preventDefault();
     onStreamerPositionChange(clampStreamerBannerPosition(next));
   }, [bannerPosition, disabled, onStreamerPositionChange]);
+
+  const beginKeyDropDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled || !onKeyDropPositionChange) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    keyDropDragRef.current = { startClientY: event.clientY, startPosition: keyDropPosition };
+  }, [disabled, keyDropPosition, onKeyDropPositionChange]);
+
+  const moveKeyDrop = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = keyDropDragRef.current;
+    const container = containerRef.current;
+    if (!drag || !container || !onKeyDropPositionChange) return;
+    const height = container.clientHeight;
+    if (height <= 0) return;
+    onKeyDropPositionChange(clampKeyDropBannerPosition(drag.startPosition + (event.clientY - drag.startClientY) / height));
+  }, [onKeyDropPositionChange]);
+
+  const endKeyDropDrag = useCallback(() => {
+    keyDropDragRef.current = null;
+  }, []);
+
+  const moveKeyDropWithKeyboard = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled || !onKeyDropPositionChange) return;
+    let next: number | undefined;
+    if (event.key === 'ArrowUp') next = keyDropPosition - 0.01;
+    if (event.key === 'ArrowDown') next = keyDropPosition + 0.01;
+    if (event.key === 'Home') next = KEYDROP_BANNER_MIN_POSITION;
+    if (event.key === 'End') next = KEYDROP_BANNER_MAX_POSITION;
+    if (next === undefined) return;
+    event.preventDefault();
+    onKeyDropPositionChange(clampKeyDropBannerPosition(next));
+  }, [disabled, keyDropPosition, onKeyDropPositionChange]);
 
   return (
     <div
@@ -204,9 +255,41 @@ export function StreamPreview({
           </div>
         </div>
       ) : null}
+      {keyDropStyle ? (
+        <div
+          role="slider"
+          tabIndex={disabled ? -1 : 0}
+          aria-label="Posición del banner KeyDrop en la vista previa"
+          aria-orientation="vertical"
+          aria-valuemin={KEYDROP_BANNER_MIN_POSITION * 100}
+          aria-valuemax={KEYDROP_BANNER_MAX_POSITION * 100}
+          aria-valuenow={Math.round(keyDropPosition * 1000) / 10}
+          aria-disabled={disabled}
+          data-keydrop-banner
+          onPointerDown={beginKeyDropDrag}
+          onPointerMove={moveKeyDrop}
+          onPointerUp={endKeyDropDrag}
+          onPointerCancel={endKeyDropDrag}
+          onKeyDown={moveKeyDropWithKeyboard}
+          className={`absolute left-[4%] right-[4%] h-[14%] -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-70' : 'cursor-ns-resize'}`}
+          style={{ top: `${keyDropPosition * 100}%` }}
+        >
+          <div
+            className={`flex h-full w-full items-center justify-center rounded-md border border-amber-400/70 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-2 text-white shadow-md ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}
+          >
+            <span className="truncate font-[family-name:var(--font-display)] text-[clamp(6px,2.8vw,11px)] font-black leading-none tracking-[0.04em]">
+              {keyDropStyle === 'classic' ? '🎁 ' : '◆ '}
+              {keyDropLabel}
+            </span>
+          </div>
+        </div>
+      ) : null}
       <style>{`
         .streamer-banner-slide-preview {
           animation: streamer-banner-slide-preview 2.8s ease-in-out 1;
+        }
+        .keydrop-banner-slide-preview {
+          animation: keydrop-banner-slide-preview 2.8s ease-in-out 1;
         }
 
         @keyframes streamer-banner-slide-preview {
@@ -214,9 +297,15 @@ export function StreamPreview({
           24%, 76% { transform: translateX(0); }
           90%, 100% { transform: translateX(-105%); }
         }
+        @keyframes keydrop-banner-slide-preview {
+          0%, 10% { transform: translateX(-105%); }
+          24%, 76% { transform: translateX(0); }
+          90%, 100% { transform: translateX(-105%); }
+        }
 
         @media (prefers-reduced-motion: reduce) {
-          .streamer-banner-slide-preview { animation: none; }
+          .streamer-banner-slide-preview,
+          .keydrop-banner-slide-preview { animation: none; }
         }
       `}</style>
     </div>

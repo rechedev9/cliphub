@@ -41,7 +41,9 @@ export function RenderingCard({ video }: { video: Video }) {
   let tone: ReelCardTone = 'neutral';
   let coverTint = 'bg-surface-0/55';
   let stageIndicator: ReactNode = <StatusTag>En cola</StatusTag>;
-  let detail = 'Esperando captura';
+  // Queued jobs share one cs2.exe capture lane — the detail names the wait, not
+  // a generic "loading" state the user could mistake for a stuck spinner.
+  let detail = 'Esperando turno de captura';
 
   if (isCapturing) {
     tone = 'stream';
@@ -53,7 +55,7 @@ export function RenderingCard({ video }: { video: Video }) {
         <RecDot label="Capturando" />
       </span>
     );
-    detail = capture ? `Segmentos ${capture.done}/${capture.total}` : 'Preparando captura';
+    detail = capture ? `Segmentos ${capture.done}/${capture.total}` : 'Preparando captura local';
   } else if (isComposing) {
     tone = 'primary';
     coverTint = 'bg-gradient-to-br from-primary/18 via-surface-0/25 to-surface-0/70';
@@ -62,7 +64,7 @@ export function RenderingCard({ video }: { video: Video }) {
         Editando
       </StatusTag>
     );
-    detail = 'Cortes + ritmo';
+    detail = 'Montando cortes y ritmo';
   }
 
   return (
@@ -70,6 +72,7 @@ export function RenderingCard({ video }: { video: Video }) {
       video={video}
       tone={tone}
       percent={capture?.pct}
+      plainCover
       coverClassName="opacity-55"
       coverTintClassName={coverTint}
       badge={formatBadge ? <StatusTag>{formatBadge}</StatusTag> : undefined}
@@ -77,11 +80,18 @@ export function RenderingCard({ video }: { video: Video }) {
     >
       {/*
         role="status" so a stage change on a multi-minute local job is announced
-        without stealing focus. The percentage is aria-hidden: the stage track's
-        progressbar already exposes the same number, and announcing both would
-        read it twice on every poll tick.
+        without stealing focus. polite + atomic re-read the whole line on change;
+        busy marks the job still in flight. The percentage is aria-hidden: the
+        stage track's progressbar already exposes the same number, and announcing
+        both would read it twice on every poll tick.
       */}
-      <div role="status" className="flex items-end justify-between gap-3">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-busy="true"
+        className="flex items-end justify-between gap-3"
+      >
         <span className="min-w-0 truncate font-mono text-meta uppercase text-fg-2">{detail}</span>
         {/* `capture` only ever exists while recording, so the stat is always the
             REC colour; there is no other stage with a real percentage. */}

@@ -71,6 +71,21 @@ export function advanceMontagePlayback(
 export const STREAMER_BANNER_MIN_POSITION = 0.025;
 export const STREAMER_BANNER_MAX_POSITION = 0.975;
 
+/** Shared vertical bounds for streamer and KeyDrop banners. */
+export const KEYDROP_BANNER_MIN_POSITION = STREAMER_BANNER_MIN_POSITION;
+export const KEYDROP_BANNER_MAX_POSITION = STREAMER_BANNER_MAX_POSITION;
+export const KEYDROP_BANNER_DEFAULT_POSITION = 0.86;
+
+export function clampKeyDropBannerPosition(position: number): number {
+  return Math.min(KEYDROP_BANNER_MAX_POSITION, Math.max(KEYDROP_BANNER_MIN_POSITION, position));
+}
+
+export function resolveKeyDropBannerPosition(position?: number): number {
+  return position === undefined
+    ? KEYDROP_BANNER_DEFAULT_POSITION
+    : clampKeyDropBannerPosition(position);
+}
+
 const STREAMER_BANNER_DEFAULTS: Record<StreamVariant, number> = {
   'streamer-vertical-stack-40-60': 0.374,
   'streamer-vertical-stack': 520 / 1920,

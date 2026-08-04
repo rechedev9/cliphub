@@ -15,6 +15,9 @@ import (
 	lua "github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/ast"
 	"github.com/yuin/gopher-lua/parse"
+
+	"github.com/rechedev9/tickcut/internal/keydropbanner"
+	"github.com/rechedev9/tickcut/internal/mediafont"
 )
 
 var effectsEvaluationTimeout = 500 * time.Millisecond
@@ -106,6 +109,9 @@ func normalizeEffectsPreset(preset string) string {
 func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath string, killfeedProbe func(input string, atSeconds float64) (image.Image, error)) error {
 	manifest.EffectsPath = source.Path
 	manifest.EffectsPreset = source.Preset
+	if err := ensureKeyDropPlate(manifest, ffmpegPath); err != nil {
+		return err
+	}
 	// Compile the effects script once and reuse the bytecode for every short.
 	// Re-parsing the same source per clip dominates a multi-clip render.
 	proto, err := compileEffectsScript(source)
@@ -136,6 +142,37 @@ func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath
 	return nil
 }
 
+// ensureKeyDropPlate composites the sponsor plate once per manifest and stamps
+// the path onto every short that requested a style.
+func ensureKeyDropPlate(manifest *Manifest, ffmpegPath string) error {
+	if manifest == nil || len(manifest.Shorts) == 0 {
+		return nil
+	}
+	style := strings.TrimSpace(manifest.Shorts[0].KeyDropStyle)
+	if style == "" {
+		return nil
+	}
+	if path := strings.TrimSpace(manifest.Shorts[0].KeyDropImagePath); path != "" {
+		// Caller already supplied a composited plate.
+		return nil
+	}
+	fontPath, err := mediafont.Materialize()
+	if err != nil {
+		return fmt.Errorf("keydrop banner font: %w", err)
+	}
+	outPath := filepath.Join(manifest.OutputDir, "keydrop-banner.png")
+	if err := keydropbanner.CompositeWithCode(ffmpegPath, style, manifest.Shorts[0].KeyDropCode, fontPath, outPath); err != nil {
+		return err
+	}
+	for i := range manifest.Shorts {
+		if strings.TrimSpace(manifest.Shorts[i].KeyDropStyle) == "" {
+			continue
+		}
+		manifest.Shorts[i].KeyDropImagePath = outPath
+	}
+	return nil
+}
+
 func generatedEditEffects(short ShortEdit) []Effect {
 	var effects []Effect
 	effects = append(effects, generatedKillEffects(short)...)
@@ -144,7 +181,39 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	effects = append(effects, generatedKillCounterEffects(short)...)
 	effects = append(effects, generatedKillfeedEffects(short)...)
 	effects = append(effects, generatedBookendEffects(short)...)
+	effects = append(effects, generatedKeyDropEffect(short)...)
 	return effects
+}
+
+// generatedKeyDropEffect overlays the pre-composited KeyDrop plate for the
+// full short. The plate PNG already carries the live code; this only places it.
+func generatedKeyDropEffect(short ShortEdit) []Effect {
+	if strings.TrimSpace(short.KeyDropStyle) == "" || strings.TrimSpace(short.KeyDropImagePath) == "" {
+		return nil
+	}
+	end := short.DurationSeconds
+	if end <= 0 {
+		return nil
+	}
+	positionY := 0.86
+	if short.KeyDropPositionY != nil {
+		positionY = *short.KeyDropPositionY
+	}
+	// Approximate output width from format for scale; imageScaleFilter uses Width.
+	width := 993
+	if short.OutputFormat == OutputFormatLandscape16x9 {
+		width = 1080
+	}
+	return []Effect{{
+		Type:         EffectImage,
+		Path:         short.KeyDropImagePath,
+		X:            "(W-w)/2",
+		Y:            fmt.Sprintf("H*%g-h/2", positionY),
+		Width:        width,
+		StartSeconds: 0,
+		EndSeconds:   end,
+		Source:       "edit-request",
+	}}
 }
 
 // generatedHookEffect draws the generated headline over the first ~2 seconds

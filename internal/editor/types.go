@@ -110,6 +110,12 @@ type Config struct {
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
+	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
+	KeyDropStyle string
+	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
+	KeyDropCode string
+	// KeyDropPositionY is the plate center as a fraction of frame height.
+	KeyDropPositionY *float64
 }
 
 type ManifestOptions struct {
@@ -154,7 +160,16 @@ type ManifestOptions struct {
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
-	KillPlan    *killplan.Plan
+	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
+	KeyDropStyle string
+	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
+	KeyDropCode string
+	// KeyDropPositionY is the plate center as a fraction of frame height.
+	KeyDropPositionY *float64
+	// KeyDropImagePath is a pre-composited plate PNG with the live code.
+	// Empty means the plate is materialized during effects evaluation.
+	KeyDropImagePath string
+	KillPlan         *killplan.Plan
 	// KillfeedFrameProbe loads a source frame for per-kill killfeed crop
 	// measurement; nil keeps the static crop defaults.
 	KillfeedFrameProbe func(input string, atSeconds float64) (image.Image, error)
@@ -225,25 +240,31 @@ type ShortEdit struct {
 	MusicPath       string                      `json:"music_path,omitempty"`
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
-	MusicVolume       float64     `json:"music_volume,omitempty"`
-	RhythmPath        string      `json:"rhythm_path,omitempty"`
-	OutputFormat      string      `json:"output_format,omitempty"`
-	KillEffect        string      `json:"kill_effect,omitempty"`
-	Transition        string      `json:"transition,omitempty"`
-	Intro             bool        `json:"intro,omitempty"`
-	Outro             bool        `json:"outro,omitempty"`
-	IntroText         string      `json:"intro_text,omitempty"`
-	OutroText         string      `json:"outro_text,omitempty"`
-	HookText          bool        `json:"hook_text,omitempty"`
-	KillCounter       bool        `json:"kill_counter,omitempty"`
-	KillfeedOverlay   bool        `json:"killfeed_overlay,omitempty"`
-	TailTrimSeconds   float64     `json:"tail_trim_seconds,omitempty"`
-	OutputFPS         int         `json:"output_fps,omitempty"`
-	VideoCRF          int         `json:"video_crf,omitempty"`
-	VideoPreset       string      `json:"video_preset,omitempty"`
-	HQFilters         bool        `json:"hq_filters,omitempty"`
-	AudioNormalize    bool        `json:"audio_normalize,omitempty"`
-	TemporalSmoothing bool        `json:"temporal_smoothing,omitempty"`
+	MusicVolume       float64 `json:"music_volume,omitempty"`
+	RhythmPath        string  `json:"rhythm_path,omitempty"`
+	OutputFormat      string  `json:"output_format,omitempty"`
+	KillEffect        string  `json:"kill_effect,omitempty"`
+	Transition        string  `json:"transition,omitempty"`
+	Intro             bool    `json:"intro,omitempty"`
+	Outro             bool    `json:"outro,omitempty"`
+	IntroText         string  `json:"intro_text,omitempty"`
+	OutroText         string  `json:"outro_text,omitempty"`
+	HookText          bool    `json:"hook_text,omitempty"`
+	KillCounter       bool    `json:"kill_counter,omitempty"`
+	KillfeedOverlay   bool    `json:"killfeed_overlay,omitempty"`
+	TailTrimSeconds   float64 `json:"tail_trim_seconds,omitempty"`
+	OutputFPS         int     `json:"output_fps,omitempty"`
+	VideoCRF          int     `json:"video_crf,omitempty"`
+	VideoPreset       string  `json:"video_preset,omitempty"`
+	HQFilters         bool    `json:"hq_filters,omitempty"`
+	AudioNormalize    bool    `json:"audio_normalize,omitempty"`
+	TemporalSmoothing bool    `json:"temporal_smoothing,omitempty"`
+	// KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
+	// the optional sponsor plate for the full short duration.
+	KeyDropStyle      string      `json:"keydrop_style,omitempty"`
+	KeyDropCode       string      `json:"keydrop_code,omitempty"`
+	KeyDropPositionY  *float64    `json:"keydrop_position_y,omitempty"`
+	KeyDropImagePath  string      `json:"keydrop_image_path,omitempty"`
 	CaptionPath       string      `json:"caption_path"`
 	CoverPath         string      `json:"cover_path,omitempty"`
 	CoverSheetPath    string      `json:"cover_sheet_path,omitempty"`

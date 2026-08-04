@@ -150,6 +150,7 @@ export function CreateReelBar({
             size="lg"
             disabled={!ready}
             loading={creating}
+            loadingText="FORJANDO REEL…"
             onClick={onCreate}
             className="neon-notch shrink-0 focus-visible:-outline-offset-4"
           >

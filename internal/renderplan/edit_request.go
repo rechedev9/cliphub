@@ -42,6 +42,15 @@ type EditRequest struct {
 	// switch, so a render can carry custom text while the bookend stays off.
 	IntroText string `json:"intro_text,omitempty"`
 	OutroText string `json:"outro_text,omitempty"`
+	// KeyDropStyle enables the sponsor plate when set to "operator" or
+	// "classic". Empty leaves the reel without a KeyDrop banner.
+	KeyDropStyle string `json:"keydrop_style,omitempty"`
+	// KeyDropCode is the sponsor code drawn on the plate; empty defaults to
+	// ZACKCSGO when KeyDropStyle is set.
+	KeyDropCode string `json:"keydrop_code,omitempty"`
+	// KeyDropPositionY is the plate center as a fraction of output height.
+	// Nil uses the shared default (bottom-safe ~0.86).
+	KeyDropPositionY *float64 `json:"keydrop_position_y,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -69,6 +78,8 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	}
 	req.IntroText = strings.TrimSpace(req.IntroText)
 	req.OutroText = strings.TrimSpace(req.OutroText)
+	req.KeyDropStyle = strings.ToLower(strings.TrimSpace(req.KeyDropStyle))
+	req.KeyDropCode = strings.ToUpper(strings.TrimSpace(req.KeyDropCode))
 	return req
 }
 
@@ -98,6 +109,30 @@ func (r EditRequest) Validate() error {
 	}
 	if len(strings.TrimSpace(r.OutroText)) > maxBookendTextLength {
 		return fmt.Errorf("outro text exceeds %d characters", maxBookendTextLength)
+	}
+	style := strings.ToLower(strings.TrimSpace(r.KeyDropStyle))
+	if style != "" && style != "operator" && style != "classic" {
+		return fmt.Errorf("unknown keydrop style %q", r.KeyDropStyle)
+	}
+	code := strings.ToUpper(strings.TrimSpace(r.KeyDropCode))
+	if code != "" {
+		if len([]rune(code)) > 16 {
+			return fmt.Errorf("keydrop code must be at most 16 characters")
+		}
+		for _, r := range code {
+			if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+				continue
+			}
+			return fmt.Errorf("keydrop code must use letters, numbers, underscores, or hyphens")
+		}
+		if code[0] == '_' || code[0] == '-' {
+			return fmt.Errorf("keydrop code must start with a letter or number")
+		}
+	}
+	if y := r.KeyDropPositionY; y != nil {
+		if *y < 0.025 || *y > 0.975 {
+			return fmt.Errorf("keydrop position_y must be between 0.025 and 0.975")
+		}
 	}
 	return nil
 }

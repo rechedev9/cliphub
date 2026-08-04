@@ -27,6 +27,7 @@ func TestEditPlanFingerprintTracksRenderAffectingContent(t *testing.T) {
 		{name: "gameplay crop", mutate: func(p *EditPlan) { p.GameplayCrop = CropRect{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5} }},
 		{name: "layout variant", mutate: func(p *EditPlan) { p.Variant = VariantStreamerFullframeNoCam }},
 		{name: "streamer banner", mutate: func(p *EditPlan) { p.StreamerBanner = StreamerBannerPlan{Nick: "zacketizorcs2"} }},
+		{name: "keydrop banner", mutate: func(p *EditPlan) { p.KeyDropBanner = KeyDropBannerPlan{Style: "operator", Code: "ZACKCSGO"} }},
 		{name: "music", mutate: func(p *EditPlan) { p.Music = MusicPlan{Key: "concrete-teeth"} }},
 		{name: "effects grade", mutate: func(p *EditPlan) { p.Effects = EffectsPlan{Grade: true} }},
 	}

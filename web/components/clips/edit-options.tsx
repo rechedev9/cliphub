@@ -1,10 +1,13 @@
 'use client';
 
-import { ImageIcon, ListOrdered, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
-import { BOOKEND_TEXT_MAX_LENGTH, type EditConfig } from '@/lib/api/types';
+import { Gift, ImageIcon, ListOrdered, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
+import { BOOKEND_TEXT_MAX_LENGTH, type EditConfig, type KeyDropStyle } from '@/lib/api/types';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+
+const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
+const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
 
 /** Show the live character counter only once the input is getting close to the limit. */
 const COUNTER_THRESHOLD = BOOKEND_TEXT_MAX_LENGTH - 20;
@@ -162,6 +165,62 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
             Sin portada
           </ToggleGroupItem>
         </ToggleGroup>
+      </OptionBlock>
+
+      <OptionBlock label="BANNER KEYDROP" className="md:col-span-2">
+        <ToggleGroup
+          type="single"
+          value={value.keyDropStyle || 'off'}
+          onValueChange={(next) => {
+            if (!next) return;
+            if (next === 'off') {
+              onChange({ ...value, keyDropStyle: '', keyDropCode: value.keyDropCode });
+              return;
+            }
+            onChange({ ...value, keyDropStyle: next as KeyDropStyle });
+          }}
+          disabled={disabled}
+          variant="outline"
+          className="flex-wrap"
+        >
+          <ToggleGroupItem value="off" aria-label="Sin banner KeyDrop">
+            Sin KeyDrop
+          </ToggleGroupItem>
+          <ToggleGroupItem value="operator" aria-label="Estilo Operator">
+            <Gift className="size-4" />
+            Operator
+          </ToggleGroupItem>
+          <ToggleGroupItem value="classic" aria-label="Estilo Classic">
+            <Gift className="size-4" />
+            Classic
+          </ToggleGroupItem>
+        </ToggleGroup>
+        {value.keyDropStyle ? (
+          <div className="flex max-w-sm flex-col gap-1.5 pt-1">
+            <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+              Código
+            </span>
+            <Input
+              value={value.keyDropCode ?? ''}
+              placeholder={DEFAULT_KEYDROP_CODE}
+              maxLength={16}
+              disabled={disabled}
+              className="font-mono uppercase"
+              aria-invalid={
+                Boolean(value.keyDropCode?.trim()) &&
+                !KEYDROP_CODE_RE.test((value.keyDropCode ?? '').trim())
+              }
+              onChange={(e) => onChange({ ...value, keyDropCode: e.target.value.toUpperCase() })}
+              aria-label="Código KeyDrop"
+            />
+            <p className="text-body-sm text-fg-3">
+              Se renderiza como{' '}
+              <span className="font-mono text-fg-1">
+                CODE: {(value.keyDropCode?.trim() || DEFAULT_KEYDROP_CODE)}
+              </span>
+            </p>
+          </div>
+        ) : null}
       </OptionBlock>
     </div>
   );

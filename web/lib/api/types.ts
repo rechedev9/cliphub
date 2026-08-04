@@ -21,6 +21,9 @@ export type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip';
 export type CoverStrategy = 'generated-gameplay' | 'no-cover';
 /** Max length (trimmed) for the intro/outro bookend text, enforced client-side via `maxLength`. */
 export const BOOKEND_TEXT_MAX_LENGTH = 80;
+/** KeyDrop plate style for demo reels; empty/undefined disables the banner. */
+export type KeyDropStyle = 'operator' | 'classic';
+
 export type EditConfig = {
   format: RenderFormat;
   killEffect: KillEffect;
@@ -34,6 +37,12 @@ export type EditConfig = {
   introText?: string;
   /** Optional outro text override, shown only while `outro` is on; empty = "TickCut". */
   outroText?: string;
+  /** KeyDrop plate style; empty/undefined leaves the reel without a sponsor banner. */
+  keyDropStyle?: KeyDropStyle | '';
+  /** Sponsor code burned onto the plate; empty defaults to ZACKCSGO when style is set. */
+  keyDropCode?: string;
+  /** Vertical center of the plate (0.025–0.975); undefined uses the default bottom-safe position. */
+  keyDropPositionY?: number;
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };
 /**

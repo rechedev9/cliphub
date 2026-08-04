@@ -127,6 +127,9 @@ type EditRequestBody = {
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
+  keydrop_style?: string;
+  keydrop_code?: string;
+  keydrop_position_y?: number;
 };
 
 function buildEditRequest(edit: EditConfig): EditRequestBody {
@@ -144,6 +147,15 @@ function buildEditRequest(edit: EditConfig): EditRequestBody {
   if (edit.intro && introText) body.intro_text = introText;
   const outroText = edit.outroText?.trim();
   if (edit.outro && outroText) body.outro_text = outroText;
+  const keyDropStyle = edit.keyDropStyle?.trim();
+  if (keyDropStyle) {
+    body.keydrop_style = keyDropStyle;
+    const code = edit.keyDropCode?.trim();
+    if (code) body.keydrop_code = code.toUpperCase();
+    if (typeof edit.keyDropPositionY === 'number') {
+      body.keydrop_position_y = edit.keyDropPositionY;
+    }
+  }
   return body;
 }
 

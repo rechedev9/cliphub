@@ -607,7 +607,7 @@ function ParseRowStatus({ status }: { status: ParseRow['status'] }): ReactNode {
     case 'parsing':
       return (
         <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
-          Analizando
+          Forjando
         </StatusTag>
       );
     case 'done':

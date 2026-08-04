@@ -26,6 +26,10 @@ export function StreamPreviewColumn({
   streamerNick,
   streamerPositionY,
   streamerSlideEnabled,
+  keyDropStyle,
+  keyDropCode,
+  keyDropPositionY,
+  keyDropSlideEnabled,
   playing,
   canPlay,
   previewError,
@@ -34,6 +38,7 @@ export function StreamPreviewColumn({
   audioKey,
   busy,
   onStreamerPositionChange,
+  onKeyDropPositionChange,
   onTogglePlay,
   onAudioPause,
   onAudioError,
@@ -48,6 +53,10 @@ export function StreamPreviewColumn({
   streamerNick?: string;
   streamerPositionY?: number;
   streamerSlideEnabled?: boolean;
+  keyDropStyle?: import('@/lib/api/streams').KeyDropBannerStyle | '';
+  keyDropCode?: string;
+  keyDropPositionY?: number;
+  keyDropSlideEnabled?: boolean;
   playing: boolean;
   canPlay: boolean;
   previewError: string | null;
@@ -56,6 +65,7 @@ export function StreamPreviewColumn({
   audioKey: number;
   busy: boolean;
   onStreamerPositionChange: (position: number) => void;
+  onKeyDropPositionChange: (position: number) => void;
   onTogglePlay: () => void;
   onAudioPause: () => void;
   onAudioError: () => void;
@@ -79,6 +89,11 @@ export function StreamPreviewColumn({
         streamerNick={streamerNick}
         streamerPositionY={streamerPositionY}
         streamerSlideEnabled={streamerSlideEnabled}
+        keyDropStyle={keyDropStyle}
+        keyDropCode={keyDropCode}
+        keyDropPositionY={keyDropPositionY}
+        keyDropSlideEnabled={keyDropSlideEnabled}
+        onKeyDropPositionChange={busy ? undefined : onKeyDropPositionChange}
         onStreamerPositionChange={onStreamerPositionChange}
         disabled={busy}
       />

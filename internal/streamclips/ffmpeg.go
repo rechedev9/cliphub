@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/tickcut/internal/keydropbanner"
 	"github.com/rechedev9/tickcut/internal/mediafont"
 )
 
@@ -39,7 +40,10 @@ type FFmpegInputs struct {
 	OutputPath     string
 	MusicPath      string // resolved track file; empty renders without music
 	BannerFontPath string // resolved bold font file; required when the banner has a nick
-	SourceHasAudio bool
+	// KeyDropImagePath is the materialized plate PNG; required when the plan
+	// enables a KeyDrop banner.
+	KeyDropImagePath string
+	SourceHasAudio   bool
 	// TextOverlayPaths holds materialized text files, index-aligned with the
 	// clip's Edit.TextOverlays. drawtext reads each file with expansion=none,
 	// so arbitrary user text never needs filtergraph escaping.
@@ -62,6 +66,14 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 	if plan.StreamerBanner.Nick != "" && in.BannerFontPath == "" {
 		return nil, fmt.Errorf("streamer banner font path is required")
 	}
+	if plan.KeyDropBanner.Enabled() {
+		if in.KeyDropImagePath == "" {
+			return nil, fmt.Errorf("keydrop banner image path is required")
+		}
+		if in.BannerFontPath == "" {
+			return nil, fmt.Errorf("keydrop banner font path is required")
+		}
+	}
 	if clip.Edit != nil && len(clip.Edit.TextOverlays) > 0 {
 		if in.BannerFontPath == "" {
 			return nil, fmt.Errorf("text overlay font path is required")
@@ -75,7 +87,24 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 	}
 	duration := clip.EndSeconds - clip.StartSeconds
 
-	filter := buildStandardFilterGraph(layout, plan, clip, in.BannerFontPath, in.TextOverlayPaths, duration)
+	// Input 0 is always the source. Music (optional) stays at 1 so existing
+	// audio filters keep their [1:a] labels. The KeyDrop plate is appended
+	// after music so its index is 1 without music and 2 with music.
+	nextInput := 1
+	musicInput := -1
+	keyDropInput := -1
+	if in.MusicPath != "" {
+		musicInput = nextInput
+		nextInput++
+	}
+	if plan.KeyDropBanner.Enabled() {
+		keyDropInput = nextInput
+	}
+
+	filter, err := buildStandardFilterGraph(layout, plan, clip, in.BannerFontPath, in.TextOverlayPaths, duration, keyDropInput)
+	if err != nil {
+		return nil, err
+	}
 
 	args := []string{
 		"-y",
@@ -83,17 +112,23 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 		"-t", secondsArg(duration),
 		"-i", in.SourcePath,
 	}
+	if musicInput >= 0 {
+		args = append(args, "-stream_loop", "-1", "-i", in.MusicPath)
+	}
+	if keyDropInput >= 0 {
+		args = append(args, "-loop", "1", "-t", secondsArg(duration), "-i", in.KeyDropImagePath)
+	}
 	audioMap := "0:a?"
 	shortest := false
 	srcFilters := sourceAudioFilters(clip.Edit)
 	fadeFilters := boundaryFades(clip.Edit, clip.OutputDurationSeconds(), "afade")
-	if in.MusicPath != "" {
+	if musicInput >= 0 {
 		// Loop the track so it always covers the clip; amix/-shortest bound it.
-		args = append(args, "-stream_loop", "-1", "-i", in.MusicPath)
 		volume := plan.Music.Volume
 		if volume == 0 {
 			volume = defaultMusicVolume
 		}
+		musicLabel := fmt.Sprintf("[%d:a]", musicInput)
 		if in.SourceHasAudio {
 			// Gain and tempo edits apply to the source before the mix so the
 			// music keeps its own volume and pace; fades apply to the mix.
@@ -102,14 +137,14 @@ func BuildFFmpegArgs(in FFmpegInputs, plan EditPlan, clip ClipRange) ([]string, 
 				filter += ";[0:a]" + srcFilters + "[srca]"
 				mixInput = "[srca]"
 			}
-			filter += fmt.Sprintf(";[1:a]volume=%s[bgm];%s[bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0", floatArg(volume), mixInput)
+			filter += fmt.Sprintf(";%svolume=%s[bgm];%s[bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0", musicLabel, floatArg(volume), mixInput)
 			if fadeFilters != "" {
 				filter += "," + fadeFilters
 			}
 			filter += "[a]"
 		} else {
 			// No original audio to bound the mix: -shortest ends with the video.
-			filter += fmt.Sprintf(";[1:a]volume=%s", floatArg(volume))
+			filter += fmt.Sprintf(";%svolume=%s", musicLabel, floatArg(volume))
 			if fadeFilters != "" {
 				filter += "," + fadeFilters
 			}
@@ -251,11 +286,12 @@ func atempoChain(speed float64) string {
 	}
 }
 
-func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRange, bannerFontPath string, textPaths []string, duration float64) string {
+func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRange, bannerFontPath string, textPaths []string, duration float64, keyDropInput int) (string, error) {
 	tail := videoTail(plan, clip, bannerFontPath, textPaths)
+	needsNamedContent := plan.StreamerBanner.Nick != "" || plan.KeyDropBanner.Enabled()
 
 	outputLabel := ""
-	if plan.StreamerBanner.Nick != "" {
+	if needsNamedContent {
 		outputLabel = "[content]"
 	}
 
@@ -288,10 +324,54 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 		)
 	}
 
-	if plan.StreamerBanner.Nick == "" {
-		return content + "," + tail
+	if !needsNamedContent {
+		return content + "," + tail, nil
 	}
-	return content + ";" + streamerBannerFilter(layout, plan.StreamerBanner, bannerFontPath, duration) + ";[bannered]" + tail
+
+	current := "content"
+	graph := content
+	if plan.StreamerBanner.Nick != "" {
+		graph += ";" + streamerBannerFilter(layout, plan.StreamerBanner, bannerFontPath, duration)
+		current = "bannered"
+	}
+	if plan.KeyDropBanner.Enabled() {
+		if keyDropInput < 0 {
+			return "", fmt.Errorf("keydrop banner input index is required")
+		}
+		kdFilter, err := keyDropBannerFilter(layout, plan.KeyDropBanner, bannerFontPath, duration, current, keyDropInput)
+		if err != nil {
+			return "", err
+		}
+		graph += ";" + kdFilter
+		current = "keydropped"
+	}
+	return graph + ";[" + current + "]" + tail, nil
+}
+
+// keyDropBannerFilter overlays the sponsor plate on the named content label.
+func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, fontPath string, duration float64, contentLabel string, inputIndex int) (string, error) {
+	style, ok := keydropbanner.Lookup(banner.Style)
+	if !ok {
+		return "", fmt.Errorf("unknown keydrop banner style %q", banner.Style)
+	}
+	outputHeight := layout.FaceOutputHeight + layout.GameOutputHeight
+	positionY := keydropbanner.DefaultPositionY
+	if banner.PositionY != nil {
+		positionY = *banner.PositionY
+	}
+	return keydropbanner.BuildOverlayFilter(keydropbanner.OverlayParams{
+		Style:           style,
+		Code:            banner.Code,
+		FontPath:        fontPath,
+		OutputWidth:     layout.OutputWidth,
+		OutputHeight:    outputHeight,
+		PositionY:       positionY,
+		SlideEnabled:    banner.SlideEnabled,
+		DurationSeconds: duration,
+		ContentLabel:    contentLabel,
+		OutputLabel:     "keydropped",
+		InputIndex:      inputIndex,
+	})
 }
 
 // streamerBannerFilter builds the strip independently and overlays it on the

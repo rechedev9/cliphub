@@ -14,8 +14,10 @@ import {
 } from '@/lib/api/streams';
 import {
   advanceMontagePlayback,
+  clampKeyDropBannerPosition,
   clampStreamerBannerPosition,
   representativeFrameTime,
+  resolveKeyDropBannerPosition,
   resolveStreamerBannerPosition,
   startMontagePlayback,
 } from '@/lib/stream-preview';
@@ -25,12 +27,17 @@ import { StreamFrameSession } from '@/components/streams/stream-frame-session';
 import { StreamJobHeader } from '@/components/streams/job-header';
 import { StreamLayoutPicker } from '@/components/streams/layout-picker';
 import { StreamBannerControls } from '@/components/streams/banner-controls';
+import {
+  isKeyDropCodeValid,
+  StreamKeyDropBannerControls,
+} from '@/components/streams/keydrop-banner-controls';
 import { StreamClipEditor } from '@/components/streams/clip-editor';
 import { StreamMusicCard } from '@/components/streams/music-card';
 import { StreamRenderBar } from '@/components/streams/render-bar';
 import { StreamRenderStage } from '@/components/streams/render-stage';
 import { StreamRenderResults } from '@/components/streams/render-results';
 import { StreamPreviewColumn } from '@/components/streams/preview-column';
+import type { KeyDropBannerStyle } from '@/lib/api/streams';
 
 /**
  * The stream edit workspace: one persisted plan, the panels that write to it,
@@ -146,6 +153,7 @@ export function StreamEditor({
   const confirmFaceCrop = () => onPlanChange({ ...plan, face_crop_reviewed: true });
 
   const bannerPosition = resolveStreamerBannerPosition(plan.variant, plan.streamer_banner?.position_y);
+  const keyDropPosition = resolveKeyDropBannerPosition(plan.keydrop_banner?.position_y);
   const setStreamerNick = (nick: string) =>
     onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, nick } });
   const setStreamerPosition = (position: number) =>
@@ -159,6 +167,33 @@ export function StreamEditor({
   };
   const setStreamerSlide = (slideEnabled: boolean) =>
     onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, slide_enabled: slideEnabled } });
+
+  const setKeyDropStyle = (style: KeyDropBannerStyle | '') =>
+    onPlanChange({
+      ...plan,
+      keydrop_banner: style
+        ? { ...plan.keydrop_banner, style }
+        : { ...plan.keydrop_banner, style: '' },
+    });
+  const setKeyDropCode = (code: string) =>
+    onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, code } });
+  const setKeyDropPosition = (position: number) =>
+    onPlanChange({
+      ...plan,
+      keydrop_banner: {
+        ...plan.keydrop_banner,
+        position_y: clampKeyDropBannerPosition(position),
+      },
+    });
+  const resetKeyDropPosition = () => {
+    const { position_y: _position, ...banner } = plan.keydrop_banner ?? {};
+    onPlanChange({ ...plan, keydrop_banner: banner });
+  };
+  const setKeyDropSlide = (slideEnabled: boolean) =>
+    onPlanChange({
+      ...plan,
+      keydrop_banner: { ...plan.keydrop_banner, slide_enabled: slideEnabled },
+    });
 
   const setClips = (clips: StreamClipRange[]) => onPlanChange({ ...plan, clips });
 
@@ -205,6 +240,21 @@ export function StreamEditor({
               onPositionChange={setStreamerPosition}
               onResetPosition={resetStreamerPosition}
               onSlideChange={setStreamerSlide}
+            />
+
+            <StreamKeyDropBannerControls
+              style={(plan.keydrop_banner?.style as KeyDropBannerStyle | '') ?? ''}
+              code={plan.keydrop_banner?.code ?? ''}
+              codeValid={isKeyDropCodeValid(plan.keydrop_banner?.code ?? '')}
+              position={keyDropPosition}
+              hasExplicitPosition={plan.keydrop_banner?.position_y !== undefined}
+              slideEnabled={plan.keydrop_banner?.slide_enabled ?? false}
+              busy={busy}
+              onStyleChange={setKeyDropStyle}
+              onCodeChange={setKeyDropCode}
+              onPositionChange={setKeyDropPosition}
+              onResetPosition={resetKeyDropPosition}
+              onSlideChange={setKeyDropSlide}
             />
           </div>
 
@@ -277,6 +327,10 @@ export function StreamEditor({
           streamerNick={plan.streamer_banner?.nick?.trim()}
           streamerPositionY={plan.streamer_banner?.position_y}
           streamerSlideEnabled={plan.streamer_banner?.slide_enabled}
+          keyDropStyle={(plan.keydrop_banner?.style as KeyDropBannerStyle | '') ?? ''}
+          keyDropCode={plan.keydrop_banner?.code}
+          keyDropPositionY={plan.keydrop_banner?.position_y}
+          keyDropSlideEnabled={plan.keydrop_banner?.slide_enabled}
           playing={previewPlaying}
           canPlay={sourceDuration > 0 && startMontagePlayback(plan.clips, previewSeconds) !== null}
           previewError={previewError}
@@ -285,6 +339,7 @@ export function StreamEditor({
           audioKey={previewReload}
           busy={busy}
           onStreamerPositionChange={setStreamerPosition}
+          onKeyDropPositionChange={setKeyDropPosition}
           onTogglePlay={() => {
             setPreviewError(null);
             setPreviewPlaying((current) => !current);

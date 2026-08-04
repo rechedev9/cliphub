@@ -25,6 +25,16 @@ export const DEFAULT_FACE_CROP: NormalizedRect = { x: 0.62, y: 0.03, width: 0.34
 /** Nicks the streamer banner accepts, matching the Go validator. */
 export const STREAMER_NICK_RE = /^[A-Za-z0-9_]{0,25}$/;
 
+/** KeyDrop sponsor codes accepted by the Go validator. */
+export const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
+
+export const KEYDROP_STYLES = [
+  { value: 'operator' as const, label: 'Operator', subtitle: 'KeyDrop táctico' },
+  { value: 'classic' as const, label: 'Classic', subtitle: 'Promo con regalo' },
+];
+
+export const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
+
 /** Sentinel for the "no music" row: Radix Select forbids an empty value. */
 export const NO_MUSIC_VALUE = '__none__';
 

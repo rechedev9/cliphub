@@ -184,8 +184,14 @@ export function CaptureReadiness() {
         </p>
 
         <div className="flex justify-end">
-          <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void refresh()}
+            loading={loading}
+            loadingText="COMPROBANDO…"
+          >
+            <RefreshCw className="size-4" />
             Volver a comprobar
           </Button>
         </div>

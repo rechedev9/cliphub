@@ -39,6 +39,10 @@ var clipIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 // for. Twitch usernames are at most 25 ASCII letters, digits, or underscores.
 var streamerNickPattern = regexp.MustCompile(`^[A-Za-z0-9_]{1,25}$`)
 
+// keydropCodePattern mirrors internal/keydropbanner code validation so the
+// edit-plan package does not import the asset package (types stay lean).
+var keydropCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`)
+
 type Status string
 
 func ParseStatus(value string) (Status, error) {
@@ -163,6 +167,7 @@ type EditPlan struct {
 	GameplayCrop     CropRect           `json:"gameplay_crop"`
 	Clips            []ClipRange        `json:"clips"`
 	StreamerBanner   StreamerBannerPlan `json:"streamer_banner,omitzero"`
+	KeyDropBanner    KeyDropBannerPlan  `json:"keydrop_banner,omitzero"`
 	Music            MusicPlan          `json:"music,omitzero"`
 	Effects          EffectsPlan        `json:"effects,omitzero"`
 	UpdatedAt        time.Time          `json:"updated_at"`
@@ -176,6 +181,22 @@ type StreamerBannerPlan struct {
 	Nick         string   `json:"nick,omitempty"`
 	PositionY    *float64 `json:"position_y,omitempty"`
 	SlideEnabled bool     `json:"slide_enabled,omitempty"`
+}
+
+// KeyDropBannerPlan overlays the optional KeyDrop sponsor plate. An empty
+// Style keeps the render visually unchanged; Code defaults to ZACKCSGO when
+// the style is set and the code is blank.
+type KeyDropBannerPlan struct {
+	// Style is "operator" or "classic"; empty disables the banner.
+	Style        string   `json:"style,omitempty"`
+	Code         string   `json:"code,omitempty"`
+	PositionY    *float64 `json:"position_y,omitempty"`
+	SlideEnabled bool     `json:"slide_enabled,omitempty"`
+}
+
+// Enabled reports whether the plan requests a KeyDrop plate.
+func (p KeyDropBannerPlan) Enabled() bool {
+	return strings.TrimSpace(p.Style) != ""
 }
 
 // defaultMusicVolume is the music gain mixed under the clip's original audio
@@ -377,6 +398,33 @@ func (p EditPlan) Validate() error {
 	if positionY := p.StreamerBanner.PositionY; positionY != nil {
 		if math.IsNaN(*positionY) || math.IsInf(*positionY, 0) || *positionY < minVerticalPositionY || *positionY > maxVerticalPositionY {
 			return fmt.Errorf("streamer banner position_y must be finite and between 0.025 and 0.975")
+		}
+	}
+	if err := validateKeyDropBanner(p.KeyDropBanner); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateKeyDropBanner(banner KeyDropBannerPlan) error {
+	// Import cycle avoidance: keep validation rules mirrored with
+	// internal/keydropbanner rather than importing it from types.go.
+	style := strings.ToLower(strings.TrimSpace(banner.Style))
+	if style != "" && style != "operator" && style != "classic" {
+		return fmt.Errorf("unknown keydrop banner style %q", banner.Style)
+	}
+	code := strings.ToUpper(strings.TrimSpace(banner.Code))
+	if code != "" {
+		if len([]rune(code)) > 16 {
+			return fmt.Errorf("keydrop code must be at most 16 characters")
+		}
+		if !keydropCodePattern.MatchString(code) {
+			return fmt.Errorf("keydrop code must use 1-16 letters, numbers, underscores, or hyphens")
+		}
+	}
+	if positionY := banner.PositionY; positionY != nil {
+		if math.IsNaN(*positionY) || math.IsInf(*positionY, 0) || *positionY < minVerticalPositionY || *positionY > maxVerticalPositionY {
+			return fmt.Errorf("keydrop banner position_y must be finite and between 0.025 and 0.975")
 		}
 	}
 	return nil
@@ -612,6 +660,8 @@ func NormalizeEditPlan(plan EditPlan) EditPlan {
 		plan.Clips[i].ID = strings.TrimSpace(plan.Clips[i].ID)
 	}
 	plan.StreamerBanner.Nick = strings.TrimSpace(plan.StreamerBanner.Nick)
+	plan.KeyDropBanner.Style = strings.ToLower(strings.TrimSpace(plan.KeyDropBanner.Style))
+	plan.KeyDropBanner.Code = strings.ToUpper(strings.TrimSpace(plan.KeyDropBanner.Code))
 	plan.Music.Key = strings.TrimSpace(plan.Music.Key)
 	if plan.Music.Key == "" {
 		plan.Music.Volume = 0

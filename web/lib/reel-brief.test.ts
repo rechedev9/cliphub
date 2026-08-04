@@ -41,6 +41,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Título / contador', value: 'Título automático · Contador activado' },
     { label: 'Intro', value: 'Sí · “Entrada”' },
     { label: 'Outro', value: 'No' },
+    { label: 'KeyDrop', value: 'No' },
     { label: 'Música', value: 'Tema CC0 · 35%' },
     { label: 'Portada', value: 'Generar candidatos de gameplay para revisión' },
   ]);
@@ -65,6 +66,7 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');
   assert.equal(brief['Intro'], 'No');
   assert.equal(brief['Outro'], 'Sí · firma TickCut');
+  assert.equal(brief['KeyDrop'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');
 });

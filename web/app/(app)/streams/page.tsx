@@ -288,6 +288,16 @@ function LocalStreamsPage() {
       setError('El nick debe tener hasta 25 letras, números o guiones bajos.');
       return;
     }
+    const keyDropStyle = fittedPlan.keydrop_banner?.style?.trim() ?? '';
+    if (keyDropStyle && keyDropStyle !== 'operator' && keyDropStyle !== 'classic') {
+      setError('Elige un estilo KeyDrop válido (Operator o Classic).');
+      return;
+    }
+    const keyDropCode = fittedPlan.keydrop_banner?.code?.trim() ?? '';
+    if (keyDropCode !== '' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(keyDropCode)) {
+      setError('El código KeyDrop debe tener 1–16 letras, números, guiones o guiones bajos.');
+      return;
+    }
     const editIssue = clipEditIssue(fittedPlan.clips);
     if (editIssue !== null) {
       setError(editIssue);

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { FileText, Loader2 } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerdictBadge } from '@/components/cheaters/verdict-badge';
 import { isReviewable, type AnticheatMetric, type AnticheatPlayer } from '@/lib/api/anticheat';
@@ -119,10 +119,11 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
           <Button
             variant="outline"
             onClick={() => onOpenDossier(player)}
-            disabled={dossierPending}
+            loading={dossierPending}
+            loadingText="PREPARANDO EXPEDIENTE…"
             className="font-[family-name:var(--font-display)] tracking-[0.06em]"
           >
-            {dossierPending ? <Loader2 className="animate-spin" aria-hidden /> : <FileText aria-hidden />}
+            <FileText aria-hidden />
             PREPARAR EXPEDIENTE
           </Button>
           <span className="text-xs text-muted-foreground">

@@ -68,9 +68,10 @@ export function StreamRenderBar({
           onClick={onCreate}
           disabled={!ready}
           loading={busy}
+          loadingText={rendering ? 'RENDERIZANDO…' : 'GUARDANDO PLAN…'}
         >
-          {busy ? null : <Sparkles className="size-4" aria-hidden />}
-          {rendering ? 'RENDERIZANDO…' : 'CREAR SHORTS'}
+          <Sparkles className="size-4" aria-hidden />
+          CREAR SHORTS
         </Button>
 
         <Button type="button" variant="ghost" onClick={onStartOver} disabled={busy} className="ml-auto">
