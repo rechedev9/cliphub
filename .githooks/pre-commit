@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Keep repository invariants and direct-to-main changes green before a commit
 # becomes pushable. CLAUDE.md is the single source of truth for agent
 # instructions; edit it only.
@@ -23,7 +23,7 @@ ensure_go_toolchain
 
 changed="$(mktemp)"
 trap 'rm -f "$changed"' EXIT
-git diff --cached --name-only --diff-filter=ACMR >"$changed"
+git diff --cached --name-only --diff-filter=ACMRD >"$changed"
 
 if grep -Eq '(^|/)(cmd|internal)/|\.go$|^go\.(mod|sum)$|^effects/|^overlays/|^scripts/go-|^Makefile$' "$changed"; then
   bash scripts/go-gate.sh --no-format --no-staticcheck --build

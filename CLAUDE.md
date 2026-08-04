@@ -156,7 +156,17 @@ Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` a
 Work directly on `main`; committing or pushing still requires an explicit user request.
 `main` is unprotected and there are no required status checks, so a push lands immediately: never open a pull request for work that belongs on `main`.
 The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths, and it is now the only automated gate the repository has.
-Never bypass it with `--no-verify` or `core.hooksPath`: with no CI behind it, a skipped hook means the change was never checked at all.
+Use the authorized global `committer` with explicit, quoted file lists; when a repository-owned `.githooks` directory exists, it activates that directory for the commit without writing persistent Git configuration.
+Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hooksPath` away from `.githooks`: with no CI behind it, a skipped hook means the change was never checked at all.
+
+### Parallel Workspaces
+
+- Keep five long-lived, isolated workspaces for parallel implementation: `/home/reche/projects/fragforge` is the canonical integration checkout, and `/home/reche/projects/fragforge-slot-1` through `/home/reche/projects/fragforge-slot-4` are execution slots. Use independent full clones for these five workspaces; each must keep its own `.git` directory and must not use shared object alternates.
+- Keep every long-lived checkout on `main` and assign at most one writer or task to each slot. Before reusing a clean slot, synchronize it with `origin/main` using fast-forward-only operations; never discard uncommitted work to make a slot reusable.
+- Git worktrees are allowed for temporary review, inspection, or verification tasks and do not count toward the five long-lived workspaces. Agents may create and remove clean temporary review worktrees as needed; never remove or repurpose one that contains uncommitted work.
+- Do not push from execution slots. Integrate and push only from the canonical checkout, and continue to require explicit user approval before every commit or push.
+- `/home/reche/projects/fragforge-tactical` is a legacy worktree outside the five-workspace pool. Do not remove or modify it unless the user explicitly assigns work there or requests migration or cleanup.
+
 TickCut has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
 Every desktop distribution must rebuild all Go runtime executables in the same `dist` invocation before `assemble` stages `bin/`; an existing executable is not proof that it matches the current source. Keep the guarded `scripts/build.ps1` step in `desktop/scripts/dist.mjs`, and never publish an installer produced from a manually staged or pre-existing `bin/`.
 **Never code-sign the desktop app or installer** (no Authenticode, no `signtool`, no cert/PIN signing, no EV/OV cert purchase or CI signing setup). Shipping stays unsigned on purpose: integrity is the GitHub Release asset plus `SHA256SUMS.txt`, not a publisher signature. Do not treat SmartScreen "unknown publisher" as a release blocker, and do not add signing steps to release docs or automation.
