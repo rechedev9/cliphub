@@ -116,6 +116,9 @@ type Config struct {
 	KeyDropCode string
 	// KeyDropPositionY is the plate center as a fraction of frame height.
 	KeyDropPositionY *float64
+	// KeyDropStartSeconds / KeyDropEndSeconds bound plate visibility on the short.
+	KeyDropStartSeconds *float64
+	KeyDropEndSeconds   *float64
 }
 
 type ManifestOptions struct {
@@ -166,6 +169,9 @@ type ManifestOptions struct {
 	KeyDropCode string
 	// KeyDropPositionY is the plate center as a fraction of frame height.
 	KeyDropPositionY *float64
+	// KeyDropStartSeconds / KeyDropEndSeconds bound plate visibility on the short.
+	KeyDropStartSeconds *float64
+	KeyDropEndSeconds   *float64
 	// KeyDropImagePath is a pre-composited plate PNG with the live code.
 	// Empty means the plate is materialized during effects evaluation.
 	KeyDropImagePath string
@@ -260,12 +266,14 @@ type ShortEdit struct {
 	AudioNormalize    bool    `json:"audio_normalize,omitempty"`
 	TemporalSmoothing bool    `json:"temporal_smoothing,omitempty"`
 	// KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
-	// the optional sponsor plate for the full short duration.
-	KeyDropStyle      string      `json:"keydrop_style,omitempty"`
-	KeyDropCode       string      `json:"keydrop_code,omitempty"`
-	KeyDropPositionY  *float64    `json:"keydrop_position_y,omitempty"`
-	KeyDropImagePath  string      `json:"keydrop_image_path,omitempty"`
-	CaptionPath       string      `json:"caption_path"`
+	// the optional sponsor plate for a bounded window of the short.
+	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
+	KeyDropCode         string   `json:"keydrop_code,omitempty"`
+	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
+	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
+	KeyDropImagePath    string   `json:"keydrop_image_path,omitempty"`
+	CaptionPath         string   `json:"caption_path"`
 	CoverPath         string      `json:"cover_path,omitempty"`
 	CoverSheetPath    string      `json:"cover_sheet_path,omitempty"`
 	CoverTimeSeconds  float64     `json:"cover_time_seconds"`

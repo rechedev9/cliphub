@@ -173,6 +173,12 @@ export function coerceEditConfig(value: unknown): EditConfig {
   ) {
     cfg.keyDropPositionY = raw.keyDropPositionY;
   }
+  if (typeof raw.keyDropStartSeconds === 'number' && raw.keyDropStartSeconds >= 0) {
+    cfg.keyDropStartSeconds = raw.keyDropStartSeconds;
+  }
+  if (typeof raw.keyDropEndSeconds === 'number' && raw.keyDropEndSeconds > 0) {
+    cfg.keyDropEndSeconds = raw.keyDropEndSeconds;
+  }
   return cfg;
 }
 

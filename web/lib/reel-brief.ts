@@ -68,7 +68,7 @@ export function reelCreativeBrief(
     {
       label: 'KeyDrop',
       value: edit.keyDropStyle
-        ? `${edit.keyDropStyle === 'classic' ? 'Classic' : 'Operator'} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()}`
+        ? `${edit.keyDropStyle === 'classic' ? 'Classic' : 'Operator'} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · ${(edit.keyDropStartSeconds ?? 0).toFixed(1)}s–${edit.keyDropEndSeconds != null ? edit.keyDropEndSeconds.toFixed(1) : 'fin'}s`
         : 'No',
     },
     { label: 'Música', value: songTitle ? `${songTitle} · ${musicVolumePercent}%` : 'Sin música' },

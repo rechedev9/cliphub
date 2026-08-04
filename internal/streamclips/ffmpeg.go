@@ -359,6 +359,14 @@ func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, fontPat
 	if banner.PositionY != nil {
 		positionY = *banner.PositionY
 	}
+	start := 0.0
+	if banner.StartSeconds != nil {
+		start = *banner.StartSeconds
+	}
+	end := 0.0
+	if banner.EndSeconds != nil {
+		end = *banner.EndSeconds
+	}
 	return keydropbanner.BuildOverlayFilter(keydropbanner.OverlayParams{
 		Style:           style,
 		Code:            banner.Code,
@@ -368,6 +376,8 @@ func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, fontPat
 		PositionY:       positionY,
 		SlideEnabled:    banner.SlideEnabled,
 		DurationSeconds: duration,
+		StartSeconds:    start,
+		EndSeconds:      end,
 		ContentLabel:    contentLabel,
 		OutputLabel:     "keydropped",
 		InputIndex:      inputIndex,

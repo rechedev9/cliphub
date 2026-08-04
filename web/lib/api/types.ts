@@ -43,6 +43,10 @@ export type EditConfig = {
   keyDropCode?: string;
   /** Vertical center of the plate (0.025–0.975); undefined uses the default bottom-safe position. */
   keyDropPositionY?: number;
+  /** Seconds from reel start when the plate appears; default 0. */
+  keyDropStartSeconds?: number;
+  /** Seconds from reel start when the plate disappears; default full duration. */
+  keyDropEndSeconds?: number;
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };
 /**

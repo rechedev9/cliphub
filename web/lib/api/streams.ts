@@ -80,6 +80,10 @@ export type KeyDropBanner = {
   code?: string;
   position_y?: number;
   slide_enabled?: boolean;
+  /** Visible from this second within each clip (source time from clip start). */
+  start_seconds?: number;
+  /** Hidden after this second within each clip. */
+  end_seconds?: number;
 };
 
 export type StreamEditPlan = {

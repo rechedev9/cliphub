@@ -30,6 +30,8 @@ export function StreamPreviewColumn({
   keyDropCode,
   keyDropPositionY,
   keyDropSlideEnabled,
+  keyDropStartSeconds,
+  keyDropEndSeconds,
   playing,
   canPlay,
   previewError,
@@ -57,6 +59,8 @@ export function StreamPreviewColumn({
   keyDropCode?: string;
   keyDropPositionY?: number;
   keyDropSlideEnabled?: boolean;
+  keyDropStartSeconds?: number;
+  keyDropEndSeconds?: number;
   playing: boolean;
   canPlay: boolean;
   previewError: string | null;
@@ -93,6 +97,8 @@ export function StreamPreviewColumn({
         keyDropCode={keyDropCode}
         keyDropPositionY={keyDropPositionY}
         keyDropSlideEnabled={keyDropSlideEnabled}
+        keyDropStartSeconds={keyDropStartSeconds}
+        keyDropEndSeconds={keyDropEndSeconds}
         onKeyDropPositionChange={busy ? undefined : onKeyDropPositionChange}
         onStreamerPositionChange={onStreamerPositionChange}
         disabled={busy}

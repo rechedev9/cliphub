@@ -8,6 +8,8 @@ import {
 } from '@/lib/stream-preview';
 import {
   DEFAULT_KEYDROP_CODE,
+  DEFAULT_KEYDROP_END_SECONDS,
+  DEFAULT_KEYDROP_START_SECONDS,
   KEYDROP_CODE_RE,
   KEYDROP_STYLES,
 } from '@/lib/streams/plan';
@@ -18,9 +20,9 @@ import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 
 /**
- * Optional KeyDrop sponsor plate: style picker, editable code, vertical
- * placement and slide-in. Mirrors StreamBannerControls so both banners feel
- * like the same product surface.
+ * Optional KeyDrop sponsor plate: style, code, vertical placement, on-screen
+ * time window, and slide. The plate only burns in between start and end so it
+ * can pop for the code callout without covering the whole clip.
  */
 export function StreamKeyDropBannerControls({
   style,
@@ -29,12 +31,17 @@ export function StreamKeyDropBannerControls({
   position,
   hasExplicitPosition,
   slideEnabled,
+  startSeconds,
+  endSeconds,
+  clipDurationSeconds,
   busy,
   onStyleChange,
   onCodeChange,
   onPositionChange,
   onResetPosition,
   onSlideChange,
+  onStartChange,
+  onEndChange,
 }: {
   style: KeyDropBannerStyle | '';
   code: string;
@@ -42,20 +49,29 @@ export function StreamKeyDropBannerControls({
   position: number;
   hasExplicitPosition: boolean;
   slideEnabled: boolean;
+  startSeconds: number;
+  endSeconds: number;
+  /** Longest clip length used to clamp the time window; 0 = no clamp. */
+  clipDurationSeconds: number;
   busy: boolean;
   onStyleChange: (style: KeyDropBannerStyle | '') => void;
   onCodeChange: (code: string) => void;
   onPositionChange: (position: number) => void;
   onResetPosition: () => void;
   onSlideChange: (slideEnabled: boolean) => void;
+  onStartChange: (startSeconds: number) => void;
+  onEndChange: (endSeconds: number) => void;
 }): ReactNode {
   const enabled = style !== '';
+  const maxT = clipDurationSeconds > 0 ? clipDurationSeconds : Math.max(endSeconds, DEFAULT_KEYDROP_END_SECONDS, 30);
+  const rangeValid = startSeconds >= 0 && endSeconds > startSeconds && (clipDurationSeconds <= 0 || endSeconds <= clipDurationSeconds + 0.001);
+
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-5">
       <div className="flex flex-col gap-1">
         <Label className="text-label text-fg-2">Banner KeyDrop (opcional)</Label>
         <p className="text-body-sm text-fg-3">
-          Superpone la placa de sponsor con tu código. Puedes combinarla con el banner de Twitch.
+          Placa de sponsor con código. Elige cuándo entra y sale; no tiene por qué quedarse todo el clip.
         </p>
       </div>
 
@@ -109,6 +125,87 @@ export function StreamKeyDropBannerControls({
             ) : (
               <p role="alert" className="text-body-sm text-destructive">
                 Usa 1–16 letras, números, guiones o guiones bajos (sin espacios).
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-label text-fg-2">Visible en el clip</Label>
+              <output className="font-mono text-label tabular-nums text-amber-200">
+                {startSeconds.toFixed(1)}s → {endSeconds.toFixed(1)}s
+              </output>
+            </div>
+            <p className="text-body-sm text-fg-3">
+              Tiempo desde el inicio de cada clip (por defecto {DEFAULT_KEYDROP_START_SECONDS}–{DEFAULT_KEYDROP_END_SECONDS}s).
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="keydrop-start" className="text-label text-fg-3">
+                  Entra (s)
+                </Label>
+                <Input
+                  id="keydrop-start"
+                  type="number"
+                  min={0}
+                  max={maxT}
+                  step={0.1}
+                  value={Number.isFinite(startSeconds) ? startSeconds : 0}
+                  disabled={busy}
+                  onChange={(e) => onStartChange(Number(e.target.value))}
+                  className="max-w-[10rem] font-mono"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="keydrop-end" className="text-label text-fg-3">
+                  Sale (s)
+                </Label>
+                <Input
+                  id="keydrop-end"
+                  type="number"
+                  min={0.1}
+                  max={maxT}
+                  step={0.1}
+                  value={Number.isFinite(endSeconds) ? endSeconds : DEFAULT_KEYDROP_END_SECONDS}
+                  disabled={busy}
+                  onChange={(e) => onEndChange(Number(e.target.value))}
+                  className="max-w-[10rem] font-mono"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="keydrop-window-start" className="sr-only">
+                Inicio del banner en el clip
+              </Label>
+              <input
+                id="keydrop-window-start"
+                type="range"
+                min={0}
+                max={maxT}
+                step={0.1}
+                value={Math.min(startSeconds, maxT)}
+                disabled={busy}
+                aria-label="Segundo de entrada del banner KeyDrop"
+                onChange={(e) => onStartChange(Number(e.target.value))}
+                className={STREAM_SLIDER_CLASS}
+              />
+              <input
+                id="keydrop-window-end"
+                type="range"
+                min={0}
+                max={maxT}
+                step={0.1}
+                value={Math.min(endSeconds, maxT)}
+                disabled={busy}
+                aria-label="Segundo de salida del banner KeyDrop"
+                onChange={(e) => onEndChange(Number(e.target.value))}
+                className={STREAM_SLIDER_CLASS}
+              />
+            </div>
+            {rangeValid ? null : (
+              <p role="alert" className="text-body-sm text-destructive">
+                La salida debe ser mayor que la entrada
+                {clipDurationSeconds > 0 ? ` y como máximo ${clipDurationSeconds.toFixed(1)}s` : ''}.
               </p>
             )}
           </div>

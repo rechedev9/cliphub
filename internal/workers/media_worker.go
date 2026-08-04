@@ -1802,6 +1802,12 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		if y := edit.KeyDropPositionY; y != nil {
 			args = append(args, "--keydrop-position-y", strconv.FormatFloat(*y, 'f', 6, 64))
 		}
+		if s := edit.KeyDropStartSeconds; s != nil {
+			args = append(args, "--keydrop-start", strconv.FormatFloat(*s, 'f', 6, 64))
+		}
+		if e := edit.KeyDropEndSeconds; e != nil {
+			args = append(args, "--keydrop-end", strconv.FormatFloat(*e, 'f', 6, 64))
+		}
 	}
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)

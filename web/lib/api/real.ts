@@ -130,6 +130,8 @@ type EditRequestBody = {
   keydrop_style?: string;
   keydrop_code?: string;
   keydrop_position_y?: number;
+  keydrop_start_seconds?: number;
+  keydrop_end_seconds?: number;
 };
 
 function buildEditRequest(edit: EditConfig): EditRequestBody {
@@ -154,6 +156,12 @@ function buildEditRequest(edit: EditConfig): EditRequestBody {
     if (code) body.keydrop_code = code.toUpperCase();
     if (typeof edit.keyDropPositionY === 'number') {
       body.keydrop_position_y = edit.keyDropPositionY;
+    }
+    if (typeof edit.keyDropStartSeconds === 'number' && Number.isFinite(edit.keyDropStartSeconds)) {
+      body.keydrop_start_seconds = edit.keyDropStartSeconds;
+    }
+    if (typeof edit.keyDropEndSeconds === 'number' && Number.isFinite(edit.keyDropEndSeconds)) {
+      body.keydrop_end_seconds = edit.keyDropEndSeconds;
     }
   }
   return body;

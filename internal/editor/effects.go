@@ -185,14 +185,28 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	return effects
 }
 
-// generatedKeyDropEffect overlays the pre-composited KeyDrop plate for the
-// full short. The plate PNG already carries the live code; this only places it.
+// generatedKeyDropEffect overlays the pre-composited KeyDrop plate for a
+// bounded window of the short. The plate PNG already carries the live code.
 func generatedKeyDropEffect(short ShortEdit) []Effect {
 	if strings.TrimSpace(short.KeyDropStyle) == "" || strings.TrimSpace(short.KeyDropImagePath) == "" {
 		return nil
 	}
-	end := short.DurationSeconds
-	if end <= 0 {
+	clipEnd := short.DurationSeconds
+	if clipEnd <= 0 {
+		return nil
+	}
+	start := 0.0
+	if short.KeyDropStartSeconds != nil && *short.KeyDropStartSeconds > 0 {
+		start = *short.KeyDropStartSeconds
+	}
+	end := clipEnd
+	if short.KeyDropEndSeconds != nil && *short.KeyDropEndSeconds > 0 {
+		end = *short.KeyDropEndSeconds
+	}
+	if end > clipEnd {
+		end = clipEnd
+	}
+	if start >= end {
 		return nil
 	}
 	positionY := 0.86
@@ -211,7 +225,7 @@ func generatedKeyDropEffect(short ShortEdit) []Effect {
 		X:            "(W-w)/2",
 		Y:            fmt.Sprintf("H*%g-h/2", positionY),
 		Width:        width,
-		StartSeconds: 0,
+		StartSeconds: start,
 		EndSeconds:   end,
 		Source:       "edit-request",
 	}}

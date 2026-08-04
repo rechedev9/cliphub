@@ -177,7 +177,12 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
               onChange({ ...value, keyDropStyle: '', keyDropCode: value.keyDropCode });
               return;
             }
-            onChange({ ...value, keyDropStyle: next as KeyDropStyle });
+            onChange({
+              ...value,
+              keyDropStyle: next as KeyDropStyle,
+              keyDropStartSeconds: value.keyDropStartSeconds ?? 0,
+              keyDropEndSeconds: value.keyDropEndSeconds ?? 4,
+            });
           }}
           disabled={disabled}
           variant="outline"
@@ -196,28 +201,69 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
           </ToggleGroupItem>
         </ToggleGroup>
         {value.keyDropStyle ? (
-          <div className="flex max-w-sm flex-col gap-1.5 pt-1">
-            <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
-              Código
-            </span>
-            <Input
-              value={value.keyDropCode ?? ''}
-              placeholder={DEFAULT_KEYDROP_CODE}
-              maxLength={16}
-              disabled={disabled}
-              className="font-mono uppercase"
-              aria-invalid={
-                Boolean(value.keyDropCode?.trim()) &&
-                !KEYDROP_CODE_RE.test((value.keyDropCode ?? '').trim())
-              }
-              onChange={(e) => onChange({ ...value, keyDropCode: e.target.value.toUpperCase() })}
-              aria-label="Código KeyDrop"
-            />
-            <p className="text-body-sm text-fg-3">
-              Se renderiza como{' '}
-              <span className="font-mono text-fg-1">
-                CODE: {(value.keyDropCode?.trim() || DEFAULT_KEYDROP_CODE)}
+          <div className="flex max-w-md flex-col gap-3 pt-1">
+            <div className="flex max-w-sm flex-col gap-1.5">
+              <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+                Código
               </span>
+              <Input
+                value={value.keyDropCode ?? ''}
+                placeholder={DEFAULT_KEYDROP_CODE}
+                maxLength={16}
+                disabled={disabled}
+                className="font-mono uppercase"
+                aria-invalid={
+                  Boolean(value.keyDropCode?.trim()) &&
+                  !KEYDROP_CODE_RE.test((value.keyDropCode ?? '').trim())
+                }
+                onChange={(e) => onChange({ ...value, keyDropCode: e.target.value.toUpperCase() })}
+                aria-label="Código KeyDrop"
+              />
+              <p className="text-body-sm text-fg-3">
+                Se renderiza como{' '}
+                <span className="font-mono text-fg-1">
+                  CODE: {(value.keyDropCode?.trim() || DEFAULT_KEYDROP_CODE)}
+                </span>
+              </p>
+            </div>
+            <div className="grid max-w-sm gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Entra (s)
+                </span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={value.keyDropStartSeconds ?? 0}
+                  disabled={disabled}
+                  className="font-mono"
+                  onChange={(e) =>
+                    onChange({ ...value, keyDropStartSeconds: Number(e.target.value) })
+                  }
+                  aria-label="Segundo de entrada KeyDrop"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Sale (s)
+                </span>
+                <Input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={value.keyDropEndSeconds ?? 4}
+                  disabled={disabled}
+                  className="font-mono"
+                  onChange={(e) =>
+                    onChange({ ...value, keyDropEndSeconds: Number(e.target.value) })
+                  }
+                  aria-label="Segundo de salida KeyDrop"
+                />
+              </div>
+            </div>
+            <p className="text-body-sm text-fg-3">
+              La placa solo se ve entre esos segundos del reel (por defecto 0–4s).
             </p>
           </div>
         ) : null}

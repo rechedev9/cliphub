@@ -50,9 +50,15 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
   let keydrop = 'No';
   if (kdStyle) {
     const styleLabel = kdStyle === 'classic' ? 'Classic' : 'Operator';
+    const start = plan.keydrop_banner?.start_seconds;
+    const end = plan.keydrop_banner?.end_seconds;
+    const window =
+      typeof start === 'number' || typeof end === 'number'
+        ? ` · ${typeof start === 'number' ? start.toFixed(1) : '0'}s–${typeof end === 'number' ? end.toFixed(1) : 'fin'}s`
+        : '';
     keydrop = plan.keydrop_banner?.slide_enabled
-      ? `${styleLabel} · ${kdCode} · slide`
-      : `${styleLabel} · ${kdCode}`;
+      ? `${styleLabel} · ${kdCode}${window} · slide`
+      : `${styleLabel} · ${kdCode}${window}`;
   }
 
   return [

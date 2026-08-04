@@ -188,7 +188,8 @@ func TestBuildFFmpegArgsOldStreamerBannerPlanUsesCurrentLayoutDefault(t *testing
 func TestBuildFFmpegArgsOverlaysKeyDropBanner(t *testing.T) {
 	plan := DefaultEditPlan()
 	plan.Variant = VariantStreamerFullframeNoCam
-	plan.KeyDropBanner = KeyDropBannerPlan{Style: "operator", Code: "TESTCODE"}
+	start, end := 0.5, 2.5
+	plan.KeyDropBanner = KeyDropBannerPlan{Style: "operator", Code: "TESTCODE", StartSeconds: &start, EndSeconds: &end}
 	clip := ClipRange{ID: "c1", StartSeconds: 0, EndSeconds: 4}
 	args, err := BuildFFmpegArgs(FFmpegInputs{
 		SourcePath:       "in.mp4",
@@ -209,6 +210,9 @@ func TestBuildFFmpegArgsOverlaysKeyDropBanner(t *testing.T) {
 	}
 	if !strings.Contains(joined, "keydropped") {
 		t.Fatalf("args missing keydrop output label: %s", joined)
+	}
+	if !strings.Contains(joined, "between(t\\,0.500000\\,2.500000)") {
+		t.Fatalf("args missing keydrop visibility window: %s", joined)
 	}
 }
 

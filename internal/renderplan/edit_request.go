@@ -51,6 +51,10 @@ type EditRequest struct {
 	// KeyDropPositionY is the plate center as a fraction of output height.
 	// Nil uses the shared default (bottom-safe ~0.86).
 	KeyDropPositionY *float64 `json:"keydrop_position_y,omitempty"`
+	// KeyDropStartSeconds / KeyDropEndSeconds bound when the plate is visible
+	// on the short timeline. Nil start = 0; nil end = full short duration.
+	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -133,6 +137,15 @@ func (r EditRequest) Validate() error {
 		if *y < 0.025 || *y > 0.975 {
 			return fmt.Errorf("keydrop position_y must be between 0.025 and 0.975")
 		}
+	}
+	if s := r.KeyDropStartSeconds; s != nil && *s < 0 {
+		return fmt.Errorf("keydrop start_seconds must be >= 0")
+	}
+	if e := r.KeyDropEndSeconds; e != nil && *e <= 0 {
+		return fmt.Errorf("keydrop end_seconds must be > 0")
+	}
+	if r.KeyDropStartSeconds != nil && r.KeyDropEndSeconds != nil && *r.KeyDropEndSeconds <= *r.KeyDropStartSeconds {
+		return fmt.Errorf("keydrop end_seconds must be greater than start_seconds")
 	}
 	return nil
 }

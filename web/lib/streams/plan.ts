@@ -35,6 +35,10 @@ export const KEYDROP_STYLES = [
 
 export const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
 
+/** Default on-screen window when enabling KeyDrop (seconds within each clip). */
+export const DEFAULT_KEYDROP_START_SECONDS = 0;
+export const DEFAULT_KEYDROP_END_SECONDS = 4;
+
 /** Sentinel for the "no music" row: Radix Select forbids an empty value. */
 export const NO_MUSIC_VALUE = '__none__';
 

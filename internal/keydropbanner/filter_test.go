@@ -34,10 +34,35 @@ func TestBuildOverlayFilterCoversCodeAndDrawsLabel(t *testing.T) {
 		"[content][kdplate]overlay=",
 		"[keydropped]",
 		`C\:/Fonts/Montserrat.ttf`,
+		"enable='between(t\\,0.000000\\,8.000000)'",
 	} {
 		if !strings.Contains(filter, want) {
 			t.Fatalf("filter missing %q\n%s", want, filter)
 		}
+	}
+}
+
+func TestBuildOverlayFilterHonorsVisibilityWindow(t *testing.T) {
+	t.Parallel()
+	style, _ := Lookup(StyleOperator)
+	filter, err := BuildOverlayFilter(OverlayParams{
+		Style:           style,
+		Code:            "ZACK",
+		FontPath:        "/usr/share/fonts/test.ttf",
+		OutputWidth:     1080,
+		OutputHeight:    1920,
+		DurationSeconds: 15,
+		StartSeconds:    1.5,
+		EndSeconds:      5,
+		ContentLabel:    "content",
+		OutputLabel:     "out",
+		InputIndex:      1,
+	})
+	if err != nil {
+		t.Fatalf("BuildOverlayFilter: %v", err)
+	}
+	if !strings.Contains(filter, "enable='between(t\\,1.500000\\,5.000000)'") {
+		t.Fatalf("filter missing window enable: %s", filter)
 	}
 }
 

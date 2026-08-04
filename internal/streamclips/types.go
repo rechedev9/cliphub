@@ -186,12 +186,21 @@ type StreamerBannerPlan struct {
 // KeyDropBannerPlan overlays the optional KeyDrop sponsor plate. An empty
 // Style keeps the render visually unchanged; Code defaults to ZACKCSGO when
 // the style is set and the code is blank.
+//
+// StartSeconds / EndSeconds are relative to each clip's start on the source
+// timeline (same origin as text overlays). Nil means the clip edge: unset
+// start = 0, unset end = full clip duration. A short window (e.g. 0–4s) is
+// the intended product default so the plate does not sit on the whole clip.
 type KeyDropBannerPlan struct {
 	// Style is "operator" or "classic"; empty disables the banner.
 	Style        string   `json:"style,omitempty"`
 	Code         string   `json:"code,omitempty"`
 	PositionY    *float64 `json:"position_y,omitempty"`
 	SlideEnabled bool     `json:"slide_enabled,omitempty"`
+	// StartSeconds is when the plate becomes visible within each clip.
+	StartSeconds *float64 `json:"start_seconds,omitempty"`
+	// EndSeconds is when the plate disappears within each clip.
+	EndSeconds *float64 `json:"end_seconds,omitempty"`
 }
 
 // Enabled reports whether the plan requests a KeyDrop plate.
@@ -426,6 +435,19 @@ func validateKeyDropBanner(banner KeyDropBannerPlan) error {
 		if math.IsNaN(*positionY) || math.IsInf(*positionY, 0) || *positionY < minVerticalPositionY || *positionY > maxVerticalPositionY {
 			return fmt.Errorf("keydrop banner position_y must be finite and between 0.025 and 0.975")
 		}
+	}
+	if s := banner.StartSeconds; s != nil {
+		if math.IsNaN(*s) || math.IsInf(*s, 0) || *s < 0 {
+			return fmt.Errorf("keydrop banner start_seconds must be finite and >= 0")
+		}
+	}
+	if e := banner.EndSeconds; e != nil {
+		if math.IsNaN(*e) || math.IsInf(*e, 0) || *e <= 0 {
+			return fmt.Errorf("keydrop banner end_seconds must be finite and > 0")
+		}
+	}
+	if banner.StartSeconds != nil && banner.EndSeconds != nil && *banner.EndSeconds <= *banner.StartSeconds {
+		return fmt.Errorf("keydrop banner end_seconds must be greater than start_seconds")
 	}
 	return nil
 }

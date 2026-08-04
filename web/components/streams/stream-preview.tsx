@@ -89,6 +89,8 @@ export function StreamPreview({
   keyDropCode,
   keyDropPositionY,
   keyDropSlideEnabled = false,
+  keyDropStartSeconds = 0,
+  keyDropEndSeconds,
   onKeyDropPositionChange,
   disabled = false,
 }: {
@@ -105,6 +107,9 @@ export function StreamPreview({
   keyDropCode?: string;
   keyDropPositionY?: number;
   keyDropSlideEnabled?: boolean;
+  /** Plate visibility window relative to each clip start (seconds). */
+  keyDropStartSeconds?: number;
+  keyDropEndSeconds?: number;
   onKeyDropPositionChange?: (position: number) => void;
   disabled?: boolean;
 }): ReactNode {
@@ -121,6 +126,21 @@ export function StreamPreview({
   const keyDropPosition = resolveKeyDropBannerPosition(keyDropPositionY);
   const keyDropLabel = `CODE: ${(keyDropCode?.trim() || DEFAULT_KEYDROP_CODE).toUpperCase()}`;
   const activeOverlays = activeTextOverlays(clips, frameSeconds);
+  // KeyDrop times are relative to each clip start (same as the FFmpeg enable window).
+  const activeClip = clips.find(
+    (c) => frameSeconds >= c.start_seconds && frameSeconds < c.end_seconds,
+  );
+  const clipLocalT = activeClip ? frameSeconds - activeClip.start_seconds : frameSeconds;
+  const clipLen = activeClip ? activeClip.end_seconds - activeClip.start_seconds : 0;
+  const kdStart = keyDropStartSeconds ?? 0;
+  let kdEnd = Number.POSITIVE_INFINITY;
+  if (keyDropEndSeconds !== undefined && keyDropEndSeconds > 0) {
+    kdEnd = keyDropEndSeconds;
+  } else if (clipLen > 0) {
+    kdEnd = clipLen;
+  }
+  const keyDropVisible =
+    Boolean(keyDropStyle) && clipLocalT >= kdStart && clipLocalT < kdEnd;
 
   const beginBannerDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled || !onStreamerPositionChange) return;
@@ -255,7 +275,7 @@ export function StreamPreview({
           </div>
         </div>
       ) : null}
-      {keyDropStyle ? (
+      {keyDropVisible ? (
         <div
           role="slider"
           tabIndex={disabled ? -1 : 0}

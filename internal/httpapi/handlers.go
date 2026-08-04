@@ -1048,9 +1048,11 @@ type renderEditRequest struct {
 	CoverFirstFrame  *bool    `json:"cover_first_frame"`
 	IntroText        *string  `json:"intro_text"`
 	OutroText        *string  `json:"outro_text"`
-	KeyDropStyle     *string  `json:"keydrop_style"`
-	KeyDropCode      *string  `json:"keydrop_code"`
-	KeyDropPositionY *float64 `json:"keydrop_position_y"`
+	KeyDropStyle        *string  `json:"keydrop_style"`
+	KeyDropCode         *string  `json:"keydrop_code"`
+	KeyDropPositionY    *float64 `json:"keydrop_position_y"`
+	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds"`
+	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -1096,6 +1098,14 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	if r.KeyDropPositionY != nil {
 		y := *r.KeyDropPositionY
 		base.KeyDropPositionY = &y
+	}
+	if r.KeyDropStartSeconds != nil {
+		s := *r.KeyDropStartSeconds
+		base.KeyDropStartSeconds = &s
+	}
+	if r.KeyDropEndSeconds != nil {
+		e := *r.KeyDropEndSeconds
+		base.KeyDropEndSeconds = &e
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

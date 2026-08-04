@@ -20,8 +20,14 @@ type OverlayParams struct {
 	PositionY float64
 	// SlideEnabled animates the plate in from the left and out on exit.
 	SlideEnabled bool
-	// DurationSeconds is the clip length for slide timing and color source.
+	// DurationSeconds is the clip length for plate loop and clamp of the
+	// visibility window.
 	DurationSeconds float64
+	// StartSeconds / EndSeconds bound when the plate is visible on the clip
+	// timeline (t=0 is clip start). Negative or zero End means clip end.
+	// Start defaults to 0 when negative.
+	StartSeconds float64
+	EndSeconds   float64
 	// ContentLabel is the filtergraph label of the video under the plate
 	// (without brackets), e.g. "content" or "bannered".
 	ContentLabel string
@@ -104,15 +110,20 @@ func BuildOverlayFilter(p OverlayParams) (string, error) {
 		textY = 0
 	}
 
+	start, end := resolveVisibleWindow(p.StartSeconds, p.EndSeconds, p.DurationSeconds)
+	window := end - start
 	label := DisplayLabel(p.Code)
 	xExpr := "(main_w-overlay_w)/2"
 	if p.SlideEnabled {
-		phase := math.Min(0.35, p.DurationSeconds/2)
-		exitStart := p.DurationSeconds - phase
-		// Slide in from the left to center, hold, slide out left.
+		phase := math.Min(0.35, window/2)
+		enterEnd := start + phase
+		exitStart := end - phase
+		// Slide in at window start, hold, slide out before window end.
+		// t is clip-absolute (same clock as enable=between).
 		xExpr = fmt.Sprintf(
-			`if(lt(t\,%s)\,-overlay_w+(main_w-overlay_w)/2*(t/%s)\,if(lt(t\,%s)\,(main_w-overlay_w)/2\,(main_w-overlay_w)/2-overlay_w*((t-%s)/%s)))`,
-			floatArg(phase), floatArg(phase), floatArg(exitStart), floatArg(exitStart), floatArg(phase),
+			`if(lt(t\,%s)\,-overlay_w+(main_w-overlay_w)/2*((t-%s)/%s)\,if(lt(t\,%s)\,(main_w-overlay_w)/2\,(main_w-overlay_w)/2-overlay_w*((t-%s)/%s)))`,
+			floatArg(enterEnd), floatArg(start), floatArg(phase),
+			floatArg(exitStart), floatArg(exitStart), floatArg(phase),
 		)
 	}
 
@@ -132,10 +143,29 @@ func BuildOverlayFilter(p OverlayParams) (string, error) {
 	)
 
 	overlay := fmt.Sprintf(
-		"[%s][%s]overlay=x='%s':y=%d:eval=frame:format=auto:eof_action=pass:shortest=0[%s]",
-		content, "kdplate", xExpr, top, out,
+		"[%s][%s]overlay=x='%s':y=%d:eval=frame:format=auto:enable='between(t\\,%s\\,%s)':eof_action=pass:shortest=0[%s]",
+		content, "kdplate", xExpr, top, floatArg(start), floatArg(end), out,
 	)
 	return plate + ";" + overlay, nil
+}
+
+// resolveVisibleWindow clamps the plate's on-screen window to the clip.
+// start < 0 → 0; end <= 0 or past duration → duration; end <= start is rejected
+// by callers / expanded to a tiny epsilon only when duration allows.
+func resolveVisibleWindow(start, end, duration float64) (float64, float64) {
+	if start < 0 || math.IsNaN(start) || math.IsInf(start, 0) {
+		start = 0
+	}
+	if end <= 0 || math.IsNaN(end) || math.IsInf(end, 0) || end > duration {
+		end = duration
+	}
+	if start >= duration {
+		start = 0
+	}
+	if end <= start {
+		end = duration
+	}
+	return start, end
 }
 
 func floatArg(v float64) string {

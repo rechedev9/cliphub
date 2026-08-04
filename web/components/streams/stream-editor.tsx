@@ -21,7 +21,12 @@ import {
   resolveStreamerBannerPosition,
   startMontagePlayback,
 } from '@/lib/stream-preview';
-import { STREAMER_NICK_RE, planFingerprint } from '@/lib/streams/plan';
+import {
+  DEFAULT_KEYDROP_END_SECONDS,
+  DEFAULT_KEYDROP_START_SECONDS,
+  STREAMER_NICK_RE,
+  planFingerprint,
+} from '@/lib/streams/plan';
 import { streamCreativeBrief } from '@/lib/streams/brief';
 import { StreamFrameSession } from '@/components/streams/stream-frame-session';
 import { StreamJobHeader } from '@/components/streams/job-header';
@@ -168,13 +173,37 @@ export function StreamEditor({
   const setStreamerSlide = (slideEnabled: boolean) =>
     onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, slide_enabled: slideEnabled } });
 
-  const setKeyDropStyle = (style: KeyDropBannerStyle | '') =>
-    onPlanChange({
-      ...plan,
-      keydrop_banner: style
-        ? { ...plan.keydrop_banner, style }
-        : { ...plan.keydrop_banner, style: '' },
-    });
+  const longestClipSeconds = Math.max(
+    0,
+    ...plan.clips.map((c) => Math.max(0, c.end_seconds - c.start_seconds)),
+  );
+  const keyDropStart =
+    plan.keydrop_banner?.start_seconds ?? DEFAULT_KEYDROP_START_SECONDS;
+  const keyDropEndRaw = plan.keydrop_banner?.end_seconds;
+  const keyDropEnd =
+    keyDropEndRaw ??
+    (longestClipSeconds > 0
+      ? Math.min(DEFAULT_KEYDROP_END_SECONDS, longestClipSeconds)
+      : DEFAULT_KEYDROP_END_SECONDS);
+
+  const setKeyDropStyle = (style: KeyDropBannerStyle | '') => {
+    if (!style) {
+      onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, style: '' } });
+      return;
+    }
+    const next = { ...plan.keydrop_banner, style };
+    // First enable: default a short callout window so the plate does not sit all clip.
+    if (plan.keydrop_banner?.start_seconds === undefined) {
+      next.start_seconds = DEFAULT_KEYDROP_START_SECONDS;
+    }
+    if (plan.keydrop_banner?.end_seconds === undefined) {
+      next.end_seconds =
+        longestClipSeconds > 0
+          ? Math.min(DEFAULT_KEYDROP_END_SECONDS, longestClipSeconds)
+          : DEFAULT_KEYDROP_END_SECONDS;
+    }
+    onPlanChange({ ...plan, keydrop_banner: next });
+  };
   const setKeyDropCode = (code: string) =>
     onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, code } });
   const setKeyDropPosition = (position: number) =>
@@ -194,6 +223,25 @@ export function StreamEditor({
       ...plan,
       keydrop_banner: { ...plan.keydrop_banner, slide_enabled: slideEnabled },
     });
+  const setKeyDropStart = (startSeconds: number) => {
+    const start = Math.max(0, startSeconds);
+    let end = keyDropEnd;
+    if (end <= start) end = start + 0.5;
+    onPlanChange({
+      ...plan,
+      keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end },
+    });
+  };
+  const setKeyDropEnd = (endSeconds: number) => {
+    let end = Math.max(0.1, endSeconds);
+    if (longestClipSeconds > 0) end = Math.min(end, longestClipSeconds);
+    let start = keyDropStart;
+    if (end <= start) start = Math.max(0, end - 0.5);
+    onPlanChange({
+      ...plan,
+      keydrop_banner: { ...plan.keydrop_banner, start_seconds: start, end_seconds: end },
+    });
+  };
 
   const setClips = (clips: StreamClipRange[]) => onPlanChange({ ...plan, clips });
 
@@ -249,12 +297,17 @@ export function StreamEditor({
               position={keyDropPosition}
               hasExplicitPosition={plan.keydrop_banner?.position_y !== undefined}
               slideEnabled={plan.keydrop_banner?.slide_enabled ?? false}
+              startSeconds={keyDropStart}
+              endSeconds={keyDropEnd}
+              clipDurationSeconds={longestClipSeconds}
               busy={busy}
               onStyleChange={setKeyDropStyle}
               onCodeChange={setKeyDropCode}
               onPositionChange={setKeyDropPosition}
               onResetPosition={resetKeyDropPosition}
               onSlideChange={setKeyDropSlide}
+              onStartChange={setKeyDropStart}
+              onEndChange={setKeyDropEnd}
             />
           </div>
 
@@ -331,6 +384,8 @@ export function StreamEditor({
           keyDropCode={plan.keydrop_banner?.code}
           keyDropPositionY={plan.keydrop_banner?.position_y}
           keyDropSlideEnabled={plan.keydrop_banner?.slide_enabled}
+          keyDropStartSeconds={keyDropStart}
+          keyDropEndSeconds={keyDropEnd}
           playing={previewPlaying}
           canPlay={sourceDuration > 0 && startMontagePlayback(plan.clips, previewSeconds) !== null}
           previewError={previewError}
