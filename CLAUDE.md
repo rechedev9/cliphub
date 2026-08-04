@@ -156,7 +156,9 @@ Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` a
 Work directly on `main`; committing or pushing still requires an explicit user request.
 `main` is unprotected and there are no required status checks, so a push lands immediately: never open a pull request for work that belongs on `main`.
 The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths, and it is now the only automated gate the repository has.
-Never bypass it with `--no-verify` or `core.hooksPath`: with no CI behind it, a skipped hook means the change was never checked at all.
+Use the authorized global `committer` with explicit, quoted file lists; when a repository-owned `.githooks` directory exists, it activates that directory for the commit without writing persistent Git configuration.
+Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hooksPath` away from `.githooks`: with no CI behind it, a skipped hook means the change was never checked at all.
+
 TickCut has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
 Every desktop distribution must rebuild all Go runtime executables in the same `dist` invocation before `assemble` stages `bin/`; an existing executable is not proof that it matches the current source. Keep the guarded `scripts/build.ps1` step in `desktop/scripts/dist.mjs`, and never publish an installer produced from a manually staged or pre-existing `bin/`.
 **Never code-sign the desktop app or installer** (no Authenticode, no `signtool`, no cert/PIN signing, no EV/OV cert purchase or CI signing setup). Shipping stays unsigned on purpose: integrity is the GitHub Release asset plus `SHA256SUMS.txt`, not a publisher signature. Do not treat SmartScreen "unknown publisher" as a release blocker, and do not add signing steps to release docs or automation.
