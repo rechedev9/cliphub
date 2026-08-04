@@ -96,6 +96,41 @@ func TestLookupAndStyles(t *testing.T) {
 	}
 }
 
+func TestClassicCoverStaysInsideTextBay(t *testing.T) {
+	t.Parallel()
+	// The classic plate has a gift logo circle overlapping the left of the
+	// brown bar. Cover must not start left of ~0.16 or it paints the logo
+	// dark (black incomplete disc in the final MP4).
+	style, ok := Lookup(StyleClassic)
+	if !ok {
+		t.Fatal("classic style missing")
+	}
+	tests := []struct {
+		name string
+		got  float64
+		min  float64
+		max  float64
+	}{
+		{name: "CoverX", got: style.CoverX, min: 0.16, max: 0.25},
+		{name: "CoverY", got: style.CoverY, min: 0.50, max: 0.60},
+		{name: "CoverW", got: style.CoverW, min: 0.50, max: 0.70},
+		{name: "CoverH", got: style.CoverH, min: 0.15, max: 0.28},
+		{name: "TextCenterY", got: style.TextCenterY, min: 0.58, max: 0.72},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.got < tt.min || tt.got > tt.max {
+				t.Fatalf("%s = %v, want in [%v, %v]", tt.name, tt.got, tt.min, tt.max)
+			}
+		})
+	}
+	// Cover right edge must leave the knife art free (~x ≥ 0.86).
+	if right := style.CoverX + style.CoverW; right > 0.86 {
+		t.Fatalf("CoverX+CoverW = %v, want ≤ 0.86 so knife art stays clear", right)
+	}
+}
+
 func TestTargetWidth(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

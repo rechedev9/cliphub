@@ -313,7 +313,8 @@ export function StreamPreview({
             <span
               className={
                 keyDropStyle === 'classic'
-                  ? 'pointer-events-none absolute left-[12%] right-[12%] top-[50%] flex h-[28%] -translate-y-[10%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
+                  ? // Match Go CoverX/CoverW/TextCenterY for classic (0.18 / 0.64 / 0.65).
+                    'pointer-events-none absolute left-[18%] right-[18%] top-[54%] flex h-[22%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
                   : 'pointer-events-none absolute left-[28%] right-[10%] top-[44%] flex h-[15%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.6vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
               }
               aria-hidden

@@ -25,7 +25,7 @@ const (
 	DefaultCode  = "ZACKCSGO"
 
 	// Version bumps force re-materialization when embedded plates change.
-	Version = "v4"
+	Version = "v5"
 
 	maxCodeRunes = 16
 )
@@ -82,10 +82,13 @@ var styles = map[string]Style{
 		Data:         styleClassicPNG,
 		Width:        1080,
 		Height:       475,
-		CoverX:       0.10,
-		CoverY:       0.50,
-		CoverW:       0.80,
-		CoverH:       0.30,
+		// Cover stays inside the empty brown text bay only. A wider/taller
+		// box (old 0.10/0.50/0.80/0.30) painted over the gift logo circle on
+		// the left and produced a black incomplete disc in the final MP4.
+		CoverX:       0.18,
+		CoverY:       0.54,
+		CoverW:       0.64,
+		CoverH:       0.22,
 		CoverColor:   "0x1c120c",
 		TextCenterY:  0.65,
 		FontSizeFrac: 0.12,
