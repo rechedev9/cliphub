@@ -271,7 +271,7 @@ export function StreamPreview({
           onPointerUp={endKeyDropDrag}
           onPointerCancel={endKeyDropDrag}
           onKeyDown={moveKeyDropWithKeyboard}
-          className={`absolute left-[7%] right-[7%] -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-90' : 'cursor-ns-resize'}`}
+          className={`absolute left-1/2 w-[55%] -translate-x-1/2 -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-90' : 'cursor-ns-resize'}`}
           style={{ top: `${keyDropPosition * 100}%` }}
         >
           {/*

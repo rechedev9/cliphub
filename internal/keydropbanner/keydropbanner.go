@@ -242,19 +242,19 @@ func fileMatchesSHA(path, wantSHA string) (bool, error) {
 }
 
 // TargetWidth picks the plate width on the output canvas so the banner reads
-// as a lower-third without burying gameplay.
+// as a compact lower-third without burying gameplay.
 func TargetWidth(outputWidth int) int {
 	if outputWidth <= 0 {
-		return 1080
+		return 594
 	}
-	// ~86% of the frame width so the full character plate stays readable
-	// without burying the whole lower third of a 9:16 short.
-	w := int(float64(outputWidth) * 0.86)
-	if w < 320 {
-		w = 320
+	// ~55% of frame width: full character art stays readable while leaving most
+	// of the 9:16 gameplay clear (the previous ~86% plate dominated the frame).
+	w := int(float64(outputWidth) * 0.55)
+	if w < 280 {
+		w = 280
 	}
-	if w > 1080 {
-		w = 1080
+	if w > 720 {
+		w = 720
 	}
 	return w
 }

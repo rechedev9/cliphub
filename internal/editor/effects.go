@@ -199,11 +199,12 @@ func generatedKeyDropEffect(short ShortEdit) []Effect {
 	if short.KeyDropPositionY != nil {
 		positionY = *short.KeyDropPositionY
 	}
-	// Approximate output width from format for scale; imageScaleFilter uses Width.
-	width := 993
+	// Match streamclips plate scale via keydropbanner.TargetWidth.
+	frameW := 1080
 	if short.OutputFormat == OutputFormatLandscape16x9 {
-		width = 1080
+		frameW = 1920
 	}
+	width := keydropbanner.TargetWidth(frameW)
 	return []Effect{{
 		Type:         EffectImage,
 		Path:         short.KeyDropImagePath,

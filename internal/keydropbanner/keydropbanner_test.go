@@ -101,10 +101,10 @@ func TestTargetWidth(t *testing.T) {
 	tests := []struct {
 		in, want int
 	}{
-		{0, 1080},
-		{1080, 928},
-		{1920, 1080},
-		{200, 320},
+		{0, 594},
+		{1080, 594},
+		{1920, 720},
+		{200, 280},
 	}
 	for _, tt := range tests {
 		if got := TargetWidth(tt.in); got != tt.want {
