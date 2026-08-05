@@ -84,3 +84,4 @@ web/playwright-report/
 .vercel/
 # Local Pi runtime state
 .atl/
+.omo/
