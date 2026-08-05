@@ -147,11 +147,25 @@ if (-not (Test-Path (Join-Path $webDir "node_modules"))) {
 
 New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
+# Hash through the .NET API rather than Get-FileHash: launching this script from
+# a shell that rewrites PSModulePath (Git Bash --login, for one) leaves cmdlet
+# autoloading broken, and a hash that cannot run must never look like corruption.
+function Get-Sha256Hex {
+    param([Parameter(Mandatory)][string]$Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+        } finally { $sha.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
 # Provision the music library into <repo>\data\music, the directory the
 # orchestrator serves when ZV_MUSIC_DIR is unset. Best-effort: a machine that is
 # offline (or already provisioned) still boots Local Studio, just with whatever
-# tracks are present. sha256 mismatches are discarded so a truncated download
-# never poisons the library.
+# tracks are present. Only a confirmed sha256 mismatch discards a file, so a
+# truncated download never poisons the library and a failed check never empties it.
 $musicDir = Join-Path $dataDir "music"
 $catalogPath = Join-Path $musicDir "catalog.json"
 if (Test-Path $catalogPath) {
@@ -170,23 +184,24 @@ if (Test-Path $catalogPath) {
             }
             if (Test-Path $trackPath) {
                 try {
-                    $cachedDigest = (Get-FileHash -Path $trackPath -Algorithm SHA256).Hash.ToLowerInvariant()
-                    if ($cachedDigest -eq $track.sha256.ToLowerInvariant()) {
-                        Write-Host "[local-studio]   verified $($track.id).$($track.ext)"
-                        continue
-                    }
-                    Remove-Item -LiteralPath $trackPath -Force
-                    Write-Host "[local-studio]   discarded $($track.id).$($track.ext) (sha256 mismatch)"
+                    $cachedDigest = Get-Sha256Hex $trackPath
                 } catch {
-                    Remove-Item -LiteralPath $trackPath -Force -ErrorAction SilentlyContinue
-                    Write-Host "[local-studio]   discarded $($track.id).$($track.ext) (could not verify sha256)"
+                    # Keep the file: an unreadable hash says nothing about its contents.
+                    Write-Host "[local-studio]   kept $($track.id).$($track.ext) (could not verify sha256: $($_.Exception.Message))"
+                    continue
                 }
+                if ($cachedDigest -eq $track.sha256.ToLowerInvariant()) {
+                    Write-Host "[local-studio]   verified $($track.id).$($track.ext)"
+                    continue
+                }
+                Remove-Item -LiteralPath $trackPath -Force
+                Write-Host "[local-studio]   discarded $($track.id).$($track.ext) (sha256 mismatch)"
             }
             $tempPath = $null
             try {
                 $tempPath = Join-Path $musicDir ".music-$($track.id)-$([guid]::NewGuid().ToString('N')).tmp"
                 Invoke-WebRequest -Uri $track.downloadUrl -OutFile $tempPath -UseBasicParsing -TimeoutSec 60
-                $digest = (Get-FileHash -Path $tempPath -Algorithm SHA256).Hash.ToLowerInvariant()
+                $digest = Get-Sha256Hex $tempPath
                 if ($digest -ne $track.sha256.ToLowerInvariant()) {
                     Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
                     Write-Host "[local-studio]   discarded $($track.id) (sha256 mismatch)"
