@@ -1,6 +1,7 @@
 package streamclips
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,16 @@ import (
 func TestKeyDropRenderBurnsCustomCode(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not available")
+	}
+	// A minimal ffmpeg build (e.g. one compiled without libfreetype) has no
+	// drawtext filter, so the keydrop plate cannot be composited. Skip rather
+	// than fail, matching the ffmpeg availability guard above.
+	filterList, err := exec.Command("ffmpeg", "-hide_banner", "-filters").Output()
+	if err != nil {
+		t.Skipf("ffmpeg -filters failed: %v, skipping keydrop render e2e", err)
+	}
+	if !bytes.Contains(filterList, []byte("drawtext")) {
+		t.Skip("ffmpeg build has no drawtext filter, skipping keydrop render e2e")
 	}
 	dir := t.TempDir()
 	src := filepath.Join(dir, "src.mp4")

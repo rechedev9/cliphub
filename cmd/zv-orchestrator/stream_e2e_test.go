@@ -45,6 +45,17 @@ func TestStreamRenderE2E(t *testing.T) {
 		t.Skip("ffprobe not found on PATH, skipping real stream-render e2e")
 	}
 
+	// A minimal ffmpeg build (e.g. one compiled without libfreetype) has no
+	// drawtext filter, so the banner/overlay render cannot run on it. Skip
+	// rather than fail, matching the ffmpeg/ffprobe and font guards above.
+	filterList, err := exec.Command(ffmpegPath, "-hide_banner", "-filters").Output()
+	if err != nil {
+		t.Skipf("ffmpeg -filters failed: %v, skipping real stream-render e2e", err)
+	}
+	if !bytes.Contains(filterList, []byte("drawtext")) {
+		t.Skip("ffmpeg build has no drawtext filter, skipping real stream-render e2e")
+	}
+
 	srv, sourcePath := newStreamE2EServer(t, ffmpegPath, ffprobePath)
 	t.Cleanup(srv.Close)
 	client := srv.Client()

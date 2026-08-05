@@ -1,6 +1,7 @@
 package keydropbanner
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,16 @@ import (
 func TestCompositeWithCodeWritesCustomLabel(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not available")
+	}
+	// A minimal ffmpeg build (e.g. one compiled without libfreetype) has no
+	// drawtext filter, so the composite plate cannot be rendered. Skip rather
+	// than fail, matching the ffmpeg availability guard above.
+	filterList, err := exec.Command("ffmpeg", "-hide_banner", "-filters").Output()
+	if err != nil {
+		t.Skipf("ffmpeg -filters failed: %v, skipping composite e2e", err)
+	}
+	if !bytes.Contains(filterList, []byte("drawtext")) {
+		t.Skip("ffmpeg build has no drawtext filter, skipping composite e2e")
 	}
 	font, err := mediafont.Materialize()
 	if err != nil {
