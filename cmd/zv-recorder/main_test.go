@@ -430,6 +430,8 @@ func TestWaitForWindowsProcessRunAndExitStopsCS2OnHookError(t *testing.T) {
 		"cs2.exe",
 		time.Second,
 		time.Millisecond,
+		time.Hour,
+		nil,
 		status,
 		terminate,
 	)
@@ -456,6 +458,8 @@ func TestWaitForWindowsProcessRunAndExitReportsCleanupFailure(t *testing.T) {
 		"cs2.exe",
 		time.Second,
 		time.Millisecond,
+		time.Hour,
+		nil,
 		status,
 		terminate,
 	)
@@ -486,6 +490,8 @@ func TestWaitForWindowsProcessRunAndExitStopsRunningProcessOnStatusFailure(t *te
 		"cs2.exe",
 		time.Second,
 		time.Millisecond,
+		time.Hour,
+		nil,
 		status,
 		terminate,
 	)
@@ -506,6 +512,8 @@ func TestWaitForWindowsProcessRunAndExitCancellationDoesNotStopUnobservedProcess
 		"cs2.exe",
 		time.Hour,
 		time.Hour,
+		time.Hour,
+		nil,
 		func(string) (bool, string, error) { return false, "", nil },
 		func(image string) error {
 			stopped = image
@@ -539,6 +547,8 @@ func TestWaitForWindowsProcessRunAndExitCancellationDoesNotClaimProcessFoundByFi
 				"cs2.exe",
 				time.Hour,
 				time.Hour,
+				time.Hour,
+				nil,
 				func(string) (bool, string, error) {
 					return true, "Counter-Strike 2", tt.statusErr
 				},
@@ -585,6 +595,8 @@ func TestWaitForWindowsProcessRunAndExitCancellationStopsObservedProcessWhenStat
 		"cs2.exe",
 		time.Hour,
 		time.Millisecond,
+		time.Hour,
+		nil,
 		status,
 		func(image string) error {
 			stopped = image
@@ -625,6 +637,8 @@ func TestWaitForWindowsProcessRunAndExitStopsOwnedProcessOnDemoParseFailure(t *t
 		"cs2.exe",
 		time.Second,
 		time.Millisecond,
+		time.Hour,
+		nil,
 		status,
 		terminate,
 	)
@@ -652,6 +666,8 @@ func TestWaitForWindowsProcessRunAndExitChecksDemoParseFailureAtFirstDeadline(t 
 		"cs2.exe",
 		time.Millisecond,
 		time.Hour,
+		time.Hour,
+		nil,
 		status,
 		terminate,
 	)
@@ -672,6 +688,8 @@ func TestWaitForWindowsProcessRunAndExitDoesNotStopUnobservedProcessOnGenericSta
 		"cs2.exe",
 		time.Second,
 		time.Millisecond,
+		time.Hour,
+		nil,
 		func(string) (bool, string, error) { return false, "", wantErr },
 		func(image string) error {
 			stopped = image
@@ -683,6 +701,149 @@ func TestWaitForWindowsProcessRunAndExitDoesNotStopUnobservedProcessOnGenericSta
 	}
 	if stopped != "" {
 		t.Fatalf("terminated image = %q, want no unowned process termination", stopped)
+	}
+}
+
+func TestWaitForWindowsProcessRunAndExitClosesCS2AfterVerifiedCapture(t *testing.T) {
+	// Once the capture-verified attestation marker proves this launch owns
+	// cs2.exe and the frames are captured, the close must not depend on the
+	// in-engine soft-quit succeeding: a process that outlives the grace window
+	// is force-closed deterministically, while a clean in-engine quit within the
+	// window needs no force-close.
+	const (
+		firstWait = time.Hour             // process is already running; first-appearance deadline never fires
+		poll      = 20 * time.Millisecond // poll >> hung grace so only the grace branch is ready when it fires
+		hungGrace = 5 * time.Millisecond  // shorter than one poll: fires cleanly between ticks
+	)
+	verifiedNow := func() func() bool { return func() bool { return true } }
+	runningForever := func() func(string) (bool, string, error) {
+		return func(string) (bool, string, error) { return true, "Counter-Strike 2", nil }
+	}
+
+	tests := []struct {
+		name          string
+		closeGrace    time.Duration
+		newVerified   func() func() bool
+		newStatus     func() func(string) (bool, string, error)
+		terminateErr  error
+		wantTerminate bool
+		wantErr       string // "" means the wait returns nil
+	}{
+		{
+			name:          "hung capture is force-closed after the grace window",
+			closeGrace:    hungGrace,
+			newVerified:   verifiedNow,
+			newStatus:     runningForever,
+			wantTerminate: true,
+		},
+		{
+			name:          "force-close failure is surfaced with capture-ownership context",
+			closeGrace:    hungGrace,
+			newVerified:   verifiedNow,
+			newStatus:     runningForever,
+			terminateErr:  errors.New("access denied"),
+			wantTerminate: true,
+			wantErr:       "force-close cs2.exe after verified capture",
+		},
+		{
+			name:        "clean in-engine quit within grace needs no force-close",
+			closeGrace:  time.Hour, // never fires: the process exits within a few polls
+			newVerified: verifiedNow,
+			newStatus: func() func(string) (bool, string, error) {
+				calls := 0
+				return func(string) (bool, string, error) {
+					calls++
+					if calls >= 3 {
+						return false, "", nil
+					}
+					return true, "Counter-Strike 2", nil
+				}
+			},
+			wantTerminate: false,
+		},
+		{
+			name:       "grace arms only after verification is observed",
+			closeGrace: hungGrace,
+			newVerified: func() func() bool {
+				calls := 0
+				return func() bool {
+					calls++
+					return calls > 3
+				}
+			},
+			newStatus:     runningForever,
+			wantTerminate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var terminated string
+			err := waitForWindowsProcessRunAndExitWith(
+				context.Background(),
+				"cs2.exe",
+				firstWait,
+				poll,
+				tt.closeGrace,
+				tt.newVerified(),
+				tt.newStatus(),
+				func(image string) error {
+					terminated = image
+					return tt.terminateErr
+				},
+			)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("error = %v, want nil", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want substring %q", err, tt.wantErr)
+			}
+			if gotTerminate := terminated == "cs2.exe"; gotTerminate != tt.wantTerminate {
+				t.Fatalf("force-closed = %v, want %v", gotTerminate, tt.wantTerminate)
+			}
+		})
+	}
+}
+
+func TestWaitForWindowsProcessRunAndExitDoesNotForceCloseUnverifiedProcess(t *testing.T) {
+	// The grace gate must arm only after the capture-verified marker. Without
+	// verification a still-running cs2.exe must never be treated as a completed
+	// capture and force-closed: the wait runs until cancellation instead. A
+	// grace so short it would fire at once if it ever armed makes the gating
+	// explicit — the wait must still return context.Canceled, not the nil of a
+	// clean grace-driven close.
+	ctx, cancel := context.WithCancel(context.Background())
+	var terminated string
+	calls := 0
+	status := func(string) (bool, string, error) {
+		calls++
+		if calls >= 5 {
+			cancel()
+		}
+		return true, "Counter-Strike 2", nil
+	}
+
+	err := waitForWindowsProcessRunAndExitWith(
+		ctx,
+		"cs2.exe",
+		time.Hour,
+		time.Millisecond,
+		time.Nanosecond, // would fire immediately if the gate ignored verification
+		func() bool { return false },
+		status,
+		func(image string) error {
+			terminated = image
+			return nil
+		},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled (grace must not complete an unverified wait)", err)
+	}
+	// The observed process is still stopped, but via the cancellation path, not
+	// the grace gate — which is exactly why the error is context.Canceled.
+	if terminated != "cs2.exe" {
+		t.Fatalf("terminated image = %q, want cs2.exe via the cancellation path", terminated)
 	}
 }
 

@@ -595,6 +595,21 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	consoleLog := newCS2ConsoleLogMonitor(consoleLogPath, attestationToken)
 	consoleLog.trace = trace
 	cs2CmdLine := cs2LaunchCommandLine(plan, scriptPath)
+
+	// A kill-on-close job object owns the launcher and, through it, cs2.exe. Its
+	// deferred close guarantees the whole capture tree is torn down on every
+	// return path, backstopping the grace-gate close below. Creation failure is
+	// non-fatal: the grace gate stays the primary deterministic teardown.
+	job, err := newCaptureJob()
+	if err != nil {
+		log.Printf("capture job object unavailable, relying on grace-gate close: %v", err)
+	}
+	defer func() {
+		if err := job.close(); err != nil {
+			log.Printf("capture job cleanup: %v", err)
+		}
+	}()
+
 	// #nosec G204 -- HLAE/CS2 paths are explicit local tool paths and args are not shell-interpolated.
 	cmd := exec.CommandContext(ctx, hlaeExe,
 		"-customLoader",
@@ -607,10 +622,17 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start HLAE: %w", err)
 	}
+	// Assign the launcher to the job before it spawns cs2.exe so the descendant
+	// inherits the job. Assignment failure is non-fatal for the same reason.
+	if err := job.assign(cmd.Process.Pid); err != nil {
+		log.Printf("capture job assignment failed, relying on grace-gate close: %v", err)
+	}
 	if err := cmd.Wait(); err != nil {
 		// A post-failure process-name lookup cannot prove that a newly visible
 		// cs2.exe belongs to this launch. Never terminate by image name here:
 		// doing so could close a process started concurrently by another user.
+		// A cs2.exe this failed launcher did spawn is in the job, so the deferred
+		// job close still tears it down — by membership, never by image name.
 		return launcherFailure(err)
 	}
 	if err := waitForWindowsProcessRunAndExit(ctx, "cs2.exe", consoleLog); err != nil {
@@ -949,12 +971,25 @@ func locateHookDLL(hlaeExe string) (string, error) {
 	return "", fmt.Errorf("AfxHookSource2.dll not found next to HLAE.exe or under x64")
 }
 
+// captureCloseGracePeriod bounds how long the recorder waits for the in-engine
+// soft-quit (scriptgen's mirv.exec("quit")) to close cs2.exe on its own once the
+// capture-verified attestation marker has appeared. CS2 occasionally hangs on
+// shutdown — a stalled render thread, a native modal, or client frames that stop
+// advancing before the quit countdown lands — so relying on the in-engine quit
+// alone makes the close non-deterministic. After the attestation marker proves
+// this launch owns cs2.exe and the capture is complete, force-closing the
+// process past this grace window is deterministic and safe, instead of blocking
+// until the recorder's global timeout fires.
+const captureCloseGracePeriod = 15 * time.Second
+
 func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleLog *cs2ConsoleLogMonitor) error {
 	return waitForWindowsProcessRunAndExitWith(
 		ctx,
 		image,
 		60*time.Second,
 		500*time.Millisecond,
+		captureCloseGracePeriod,
+		func() bool { return consoleLog != nil && consoleLog.captureVerified },
 		func(image string) (bool, string, error) {
 			running, title, err := tasklistWindowTitle(image)
 			if err != nil {
@@ -976,6 +1011,8 @@ func waitForWindowsProcessRunAndExitWith(
 	image string,
 	firstWait time.Duration,
 	pollInterval time.Duration,
+	closeGrace time.Duration,
+	verified func() bool,
 	status func(string) (bool, string, error),
 	terminate func(string) error,
 ) error {
@@ -984,6 +1021,30 @@ func waitForWindowsProcessRunAndExitWith(
 	defer firstDeadline.Stop()
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
+
+	// The grace timer arms only once the capture-verified marker proves this run
+	// owns cs2.exe and recording is complete. Until then graceC stays nil so the
+	// select never takes that branch, and an unverified process is never
+	// force-closed. When the timer fires, cs2.exe has outlived the in-engine
+	// soft-quit and is force-closed deterministically.
+	graceTimer := time.NewTimer(closeGrace)
+	if !graceTimer.Stop() {
+		select {
+		case <-graceTimer.C:
+		default:
+		}
+	}
+	defer graceTimer.Stop()
+	var graceC <-chan time.Time
+	graceArmed := false
+	armGraceIfVerified := func() {
+		if graceArmed || verified == nil || !verified() {
+			return
+		}
+		graceArmed = true
+		graceTimer.Reset(closeGrace)
+		graceC = graceTimer.C
+	}
 
 	for {
 		select {
@@ -1014,7 +1075,24 @@ func waitForWindowsProcessRunAndExitWith(
 				if !running {
 					return fmt.Errorf("%s did not appear within %s", image, firstWait)
 				}
+				armGraceIfVerified()
 			}
+		case <-graceC:
+			// Capture is verified but cs2.exe is still up past the grace window:
+			// the in-engine quit did not land. Force-close the proven-owned
+			// process so the close is deterministic rather than waiting on the
+			// recorder's global timeout.
+			running, _, err := status(image)
+			if err != nil {
+				return stopProcessAfterWaitFailure(image, err, shouldTerminateAfterStatusFailure(err, seen), terminate)
+			}
+			if !running {
+				return nil
+			}
+			if err := terminate(image); err != nil {
+				return fmt.Errorf("force-close %s after verified capture: %w", image, err)
+			}
+			return nil
 		case <-ticker.C:
 			running, title, err := status(image)
 			if running {
@@ -1027,6 +1105,7 @@ func waitForWindowsProcessRunAndExitWith(
 				return stopProcessAfterWaitFailure(image, &hookIncompatibleError{windowTitle: title}, true, terminate)
 			}
 			if running {
+				armGraceIfVerified()
 				continue
 			}
 			if seen {
