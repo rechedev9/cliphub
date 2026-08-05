@@ -23,11 +23,11 @@ import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import Reveal from "@/components/reveal";
 
-// Point at a published GitHub Release asset only. 2.4.20 ships the stream
-// KeyDrop code burn-in fix so the sponsor plate matches the plan code.
+// Point at a published GitHub Release asset only. 2.4.21 bundles ten new music
+// tracks and stops music provisioning from deleting a track it cannot hash.
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.20/TickCut.Studio.Setup.2.4.20.exe";
-const RELEASE_VERSION = "v2.4.20";
+  "https://github.com/rechedev9/tickcut/releases/download/v2.4.21/TickCut.Studio.Setup.2.4.21.exe";
+const RELEASE_VERSION = "v2.4.21";
 const REPO_URL = "https://github.com/rechedev9/tickcut";
 
 function Corners() {
