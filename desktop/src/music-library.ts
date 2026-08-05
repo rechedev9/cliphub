@@ -74,16 +74,19 @@ export async function provisionMusicLibrary({
     }
 
     if (fs.existsSync(destination)) {
+      let cachedDigest: string;
       try {
-        const cachedDigest = await fileSHA256(destination, signal);
-        if (sha256Matches(cachedDigest, sha256)) continue;
-        fs.rmSync(destination, { force: true });
-        logLine(`[music] removed ${id}.${ext}: sha256 mismatch\n`);
+        cachedDigest = await fileSHA256(destination, signal);
       } catch (err) {
         if (signal.aborted) return;
-        fs.rmSync(destination, { force: true });
-        logLine(`[music] removed ${id}.${ext}: could not verify sha256: ${String(err)}\n`);
+        // A hash that cannot be read says nothing about the contents, so keep
+        // the track rather than deleting a file that is probably intact.
+        logLine(`[music] kept ${id}.${ext}: could not verify sha256: ${String(err)}\n`);
+        continue;
       }
+      if (sha256Matches(cachedDigest, sha256)) continue;
+      fs.rmSync(destination, { force: true });
+      logLine(`[music] removed ${id}.${ext}: sha256 mismatch\n`);
     }
 
     try {

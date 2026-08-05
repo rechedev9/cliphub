@@ -179,6 +179,40 @@ test('removes a downloaded remote track when its sha256 mismatches', async (t) =
   assert.deepEqual(logs, ['[music] skip remote: Error: sha256 mismatch\n']);
 });
 
+test('keeps a cached remote track when its sha256 cannot be computed', async (t) => {
+  const paths = temporaryLibrary(t);
+  fs.mkdirSync(paths.bundledMusicDir, { recursive: true });
+  fs.mkdirSync(paths.musicDir, { recursive: true });
+  // A directory cannot be read as a stream, so hashing throws the way a locked
+  // or unreadable file does. That failure is not evidence the audio is corrupt.
+  fs.mkdirSync(path.join(paths.musicDir, 'remote.mp3'));
+  fs.writeFileSync(path.join(paths.bundledMusicDir, 'catalog.json'), JSON.stringify({
+    tracks: [{
+      id: 'remote',
+      ext: 'mp3',
+      downloadUrl: 'https://example.test/remote',
+      sha256: sha256('expected audio'),
+    }],
+  }));
+  const logs: string[] = [];
+  const downloads: string[] = [];
+
+  await provisionMusicLibrary({
+    ...paths,
+    signal: new AbortController().signal,
+    logLine: (line) => logs.push(line),
+    download: async (url) => {
+      downloads.push(url);
+      return sha256('expected audio');
+    },
+  });
+
+  assert.equal(fs.existsSync(path.join(paths.musicDir, 'remote.mp3')), true);
+  assert.deepEqual(downloads, []);
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /^\[music\] kept remote\.mp3: could not verify sha256: /);
+});
+
 test('rejects a remote track without a valid sha256 and removes an unverified cached file', async (t) => {
   const paths = temporaryLibrary(t);
   fs.mkdirSync(paths.bundledMusicDir, { recursive: true });
