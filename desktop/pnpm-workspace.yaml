@@ -1,9 +1,16 @@
 allowBuilds:
   electron-winstaller: true
 overrides:
-  brace-expansion: 5.0.8
+  # GHSA-rgw5-rvv9-x895 (CVE-2026-69152): 5.0.8's DoS mitigation is
+  # incomplete; 5.0.9 bounds the intermediate arrays too.
+  brace-expansion: 5.0.9
+  # GHSA-* (undici): dev-time download/build tooling — pin to patched minors.
+  "@electron/get>undici": 7.29.0
+  "node-gyp>undici": 6.28.0
+  # GHSA-* (fast-uri): dev-time schema tooling (ajv) — pin to patched 3.1.5.
+  "ajv>fast-uri": 3.1.5
 minimumReleaseAgeExclude:
   - brace-expansion@1.1.16 || 2.1.2
   - fast-uri@3.1.4
 patchedDependencies:
-  brace-expansion@5.0.8: patches/brace-expansion@5.0.8.patch
+  brace-expansion@5.0.9: patches/brace-expansion@5.0.9.patch
