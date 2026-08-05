@@ -42,8 +42,108 @@
     },
     {
       "id": "concrete-tamborzao",
-      "title": "Concrete Tamborz\u00e3o",
+      "title": "Concrete Tamborzão",
       "artist": "TickCut (Gemini)",
+      "genre": "brazilian-phonk",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "reggaeton-1",
+      "title": "Reggaeton 1",
+      "artist": "TickCut (Suno)",
+      "genre": "reggaeton",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "pase-directo",
+      "title": "Pase Directo",
+      "artist": "TickCut (Suno)",
+      "genre": "reggaeton",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "el-leon-en-la-pista",
+      "title": "El León en la Pista",
+      "artist": "TickCut (Suno)",
+      "genre": "reggaeton",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "render-distance",
+      "title": "Render Distance",
+      "artist": "TickCut (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "absolute-zenith",
+      "title": "Absolute Zenith",
+      "artist": "TickCut (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "pura-presion",
+      "title": "Pura Presión",
+      "artist": "TickCut (Suno)",
+      "genre": "reggaeton",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "fracture-the-frame",
+      "title": "Fracture the Frame",
+      "artist": "TickCut (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "tropa-na-bruma",
+      "title": "Tropa na Bruma",
+      "artist": "TickCut (Suno)",
+      "genre": "brazilian-phonk",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "pacto-de-ferro",
+      "title": "Pacto de Ferro",
+      "artist": "TickCut (Suno)",
+      "genre": "brazilian-phonk",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "pressao-do-grave",
+      "title": "Pressão do Grave",
+      "artist": "TickCut (Suno)",
       "genre": "brazilian-phonk",
       "durationSec": 31,
       "ext": "mp3",
