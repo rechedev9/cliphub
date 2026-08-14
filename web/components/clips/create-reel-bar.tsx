@@ -16,6 +16,8 @@ export type CreateReelBarProps = {
   presetLabel: string | null;
   /** Title of the chosen soundtrack, or null when the reel has no music. */
   songTitle: string | null;
+  /** False until the user picks a track or explicitly chooses no music. */
+  musicDecided: boolean;
   /** Reel aspect (the mockup's 9:16 / 16:9 segmented toggle). */
   format: RenderFormat;
   onFormatChange: (format: RenderFormat) => void;
@@ -36,7 +38,7 @@ const FORMAT_ITEMS: Array<{ value: RenderFormat; label: string }> = [
  * CreateReelBar — the sticky bottom action bar: the mono REEL summary, the exact
  * creative brief with its approval gate, the 9:16/16:9 aspect toggle and the
  * notched cyan FORJAR REEL CTA. Enabled once at least one highlight and a preset
- * are chosen; 2+ selected highlights render as one concatenated reel.
+ * are chosen and music is decided; 2+ selected highlights render as one concatenated reel.
  *
  * The brief and its checkbox stay inside this bar on purpose: the approval gate
  * is a product contract ("approval must answer a shown brief"), so the thing
@@ -52,6 +54,7 @@ export function CreateReelBar({
   selectionLabel,
   presetLabel,
   songTitle,
+  musicDecided,
   format,
   onFormatChange,
   creating,
@@ -60,12 +63,13 @@ export function CreateReelBar({
   onBriefApprovedChange,
   onCreate,
 }: CreateReelBarProps) {
-  const configured = selectionLabel != null && presetLabel != null;
+  const configured = selectionLabel != null && presetLabel != null && musicDecided;
   const ready = canForgeReel({
     briefApproved,
     creating,
     hasPreset: presetLabel !== null,
     selectionCount: selectionLabel === null ? 0 : 1,
+    musicDecided,
   });
 
   return (
@@ -106,13 +110,11 @@ export function CreateReelBar({
                 {selectionLabel}
                 <span className="text-fg-3"> · </span>
                 <span className="text-primary">{presetLabel}</span>
-                {songTitle ? <span className="text-fg-2"> · ♪ {songTitle}</span> : null}
+                {songTitle ? <span className="text-fg-2"> · ♪ {songTitle}</span> : <span className="text-fg-3"> · sin música</span>}
               </p>
             ) : (
               <p className="mt-1 truncate text-body-sm text-fg-2">
-                {selectionLabel == null
-                  ? 'Elige al menos una jugada para empezar.'
-                  : 'Elige un preset para continuar.'}
+                {forgeHint(selectionLabel, presetLabel)}
               </p>
             )}
           </div>
@@ -160,4 +162,10 @@ export function CreateReelBar({
       </div>
     </div>
   );
+}
+
+function forgeHint(selectionLabel: string | null, presetLabel: string | null): string {
+  if (selectionLabel == null) return 'Elige al menos una jugada para empezar.';
+  if (presetLabel == null) return 'Elige un preset para continuar.';
+  return 'Decide la música: un tema o sin música.';
 }

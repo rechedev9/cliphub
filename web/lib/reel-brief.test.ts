@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canForgeReel, canRerenderWithMusic, reelCreativeBrief } from './reel-brief.ts';
+import { canForgeReel, canRerenderWithMusic, musicBriefValue, reelCreativeBrief } from './reel-brief.ts';
 import type { EditConfig, Preset } from './api/types.ts';
 
 const PRESET: Preset = {
@@ -19,12 +19,19 @@ test('library music rerender stays blocked until the mix changes and the brief i
 });
 
 test('forging stays blocked until the exact brief is approved', () => {
-  const ready = { briefApproved: true, creating: false, hasPreset: true, selectionCount: 1 };
+  const ready = { briefApproved: true, creating: false, hasPreset: true, selectionCount: 1, musicDecided: true };
   assert.equal(canForgeReel(ready), true);
   assert.equal(canForgeReel({ ...ready, briefApproved: false }), false);
   assert.equal(canForgeReel({ ...ready, creating: true }), false);
   assert.equal(canForgeReel({ ...ready, hasPreset: false }), false);
   assert.equal(canForgeReel({ ...ready, selectionCount: 0 }), false);
+  assert.equal(canForgeReel({ ...ready, musicDecided: false }), false);
+});
+
+test('music brief distinguishes pending from an explicit no-music choice', () => {
+  assert.equal(musicBriefValue({ status: 'pending' }), 'Pendiente de decisión');
+  assert.equal(musicBriefValue({ status: 'none' }), 'Sin música');
+  assert.equal(musicBriefValue({ status: 'track', title: 'Tema CC0', volumePercent: 35 }), 'Tema CC0 · 35%');
 });
 
 test('creative brief resolves every required production choice', () => {
@@ -41,7 +48,7 @@ test('creative brief resolves every required production choice', () => {
     outroText: '',
   };
 
-  assert.deepEqual(reelCreativeBrief(edit, PRESET, 'Tema CC0', 35), [
+  assert.deepEqual(reelCreativeBrief(edit, PRESET, { status: 'track', title: 'Tema CC0', volumePercent: 35 }), [
     { label: 'Formato', value: 'Vertical 9:16 · 1080×1920' },
     { label: 'HUD / killfeed', value: 'Sin HUD, conserva killfeed' },
     { label: 'Efecto de kill', value: 'Impacto / punch-in' },
@@ -68,7 +75,7 @@ test('creative brief makes disabled options and missing preset explicit', () => 
     introText: '',
     outroText: '',
   };
-  const brief = Object.fromEntries(reelCreativeBrief(edit, null, null, 100).map((item) => [item.label, item.value]));
+  const brief = Object.fromEntries(reelCreativeBrief(edit, null, { status: 'none' }).map((item) => [item.label, item.value]));
   assert.equal(brief['Formato'], 'Horizontal 16:9 · 1920×1080');
   assert.equal(brief['HUD / killfeed'], 'Pendiente de preset');
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');

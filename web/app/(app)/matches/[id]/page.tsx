@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { isSeriesId } from '@/lib/series-status';
 import { formatKd, matchDateLabel, playsSelectionLabel, ratingClass } from '@/lib/format';
-import { canForgeReel, reelCreativeBrief } from '@/lib/reel-brief';
+import { canForgeReel, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,6 +62,7 @@ export default function FindHighlightsPage({
   const [variant, setVariant] = useState<string | null>(null);
   const [songId, setSongId] = useState<string | null>(null);
   const [songTitle, setSongTitle] = useState<string | null>(null);
+  const [musicDecided, setMusicDecided] = useState(false);
   const [musicVolume, setMusicVolume] = useState<number>(VOLUME_DEFAULT);
   const [editConfig, setEditConfig] = useState<EditConfig>(DEFAULT_EDIT_CONFIG);
   const [songOpen, setSongOpen] = useState(false);
@@ -71,7 +72,7 @@ export default function FindHighlightsPage({
 
   useEffect(() => {
     setBriefApproved(false);
-  }, [selectedIds, variant, songId, musicVolume, editConfig]);
+  }, [selectedIds, variant, songId, musicDecided, musicVolume, editConfig]);
 
   useEffect(() => {
     let active = true;
@@ -123,7 +124,11 @@ export default function FindHighlightsPage({
   const selectionLabel = playsSelectionLabel(selectedPlays);
   const selectedPreset = presets?.find((p) => p.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
-  const briefItems = reelCreativeBrief(editConfig, selectedPreset, songTitle, musicVolume);
+  const briefItems = reelCreativeBrief(
+    editConfig,
+    selectedPreset,
+    musicBriefFor(musicDecided, songTitle, musicVolume),
+  );
   const busy = creating;
 
   function revokeBriefApproval() {
@@ -169,7 +174,7 @@ export default function FindHighlightsPage({
   }
 
   async function onCreate() {
-    if (!canForgeReel({ briefApproved, creating: busy, hasPreset: variant !== null, selectionCount: selectedPlays.length })) return;
+    if (!canForgeReel({ briefApproved, creating: busy, hasPreset: variant !== null, selectionCount: selectedPlays.length, musicDecided })) return;
     setCreating(true);
     setCreateError(null);
     try {
@@ -194,7 +199,24 @@ export default function FindHighlightsPage({
     revokeBriefApproval();
     setSongId(chosenId);
     setSongTitle(chosenTitle);
+    setMusicDecided(true);
     setSongOpen(false);
+  }
+
+  function chooseNoMusic() {
+    revokeBriefApproval();
+    setSongId(null);
+    setSongTitle(null);
+    setMusicVolume(VOLUME_DEFAULT);
+    setMusicDecided(true);
+  }
+
+  function clearMusicDecision() {
+    revokeBriefApproval();
+    setSongId(null);
+    setSongTitle(null);
+    setMusicVolume(VOLUME_DEFAULT);
+    setMusicDecided(false);
   }
 
   if (!loaded) {
@@ -364,72 +386,22 @@ export default function FindHighlightsPage({
             </section>
 
             <section className="flex flex-col gap-3">
-              <SectionEyebrow label="OPCIONES DE EDICIÓN" />
-              <EditOptions value={editConfig} onChange={changeEditConfig} disabled={selectedIds.size === 0 || busy} />
+              <SectionEyebrow label="MÚSICA" />
+              <MusicDecisionPanel
+                decided={musicDecided}
+                songTitle={songTitle}
+                musicVolume={musicVolume}
+                busy={busy}
+                onOpenPicker={() => setSongOpen(true)}
+                onChooseNone={chooseNoMusic}
+                onClear={clearMusicDecision}
+                onVolumeChange={changeMusicVolume}
+              />
             </section>
 
             <section className="flex flex-col gap-3">
-              <SectionEyebrow label="MÚSICA (OPCIONAL)" />
-              {songTitle ? (
-                <div className="studio-panel flex flex-col">
-                  <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Music className="size-5 shrink-0 text-stream" aria-hidden />
-                      <div className="min-w-0">
-                        <p className="truncate text-body-sm font-medium text-fg-1">{songTitle}</p>
-                        <p className="text-meta text-fg-3">Música añadida</p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button variant="secondary" size="sm" disabled={busy} onClick={() => setSongOpen(true)}>
-                        Cambiar
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => {
-                          revokeBriefApproval();
-                          setSongId(null);
-                          setSongTitle(null);
-                          setMusicVolume(VOLUME_DEFAULT);
-                        }}
-                      >
-                        Quitar
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 border-t border-border-subtle px-4 py-3">
-                    <label
-                      htmlFor="music-volume"
-                      className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
-                    >
-                      VOLUMEN <span className="text-stream-text">· {musicVolume}%</span>
-                    </label>
-                    <input
-                      id="music-volume"
-                      type="range"
-                      min={VOLUME_MIN}
-                      max={VOLUME_MAX}
-                      step={VOLUME_STEP}
-                      value={musicVolume}
-                      disabled={busy}
-                      onChange={(e) => changeMusicVolume(Number(e.target.value))}
-                      className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setSongOpen(true)}
-                  className="flex min-h-11 items-center gap-3 border border-dashed border-border-strong bg-surface-2 px-4 py-3.5 text-left text-body-sm text-fg-2 transition-colors duration-(--dur-fast) ease-standard hover:border-stream/55 hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Music className="size-5 shrink-0" aria-hidden />
-                  Añade música: sincroniza la acción con un tema.
-                </button>
-              )}
+              <SectionEyebrow label="OPCIONES DE EDICIÓN" />
+              <EditOptions value={editConfig} onChange={changeEditConfig} disabled={selectedIds.size === 0 || busy} />
             </section>
           </div>
         </div>
@@ -449,6 +421,7 @@ export default function FindHighlightsPage({
           selectionLabel={selectionLabel}
           presetLabel={presetLabel}
           songTitle={songTitle}
+          musicDecided={musicDecided}
           format={editConfig.format}
           onFormatChange={(format) => changeEditConfig({ ...editConfig, format })}
           creating={creating}
@@ -465,6 +438,121 @@ export default function FindHighlightsPage({
         onChoose={onChooseSong}
         selectedSongId={songId}
       />
+    </div>
+  );
+}
+
+function musicBriefFor(decided: boolean, songTitle: string | null, volumePercent: number): MusicBrief {
+  if (!decided) return { status: 'pending' };
+  if (songTitle) return { status: 'track', title: songTitle, volumePercent };
+  return { status: 'none' };
+}
+
+function MusicDecisionPanel({
+  decided,
+  songTitle,
+  musicVolume,
+  busy,
+  onOpenPicker,
+  onChooseNone,
+  onClear,
+  onVolumeChange,
+}: {
+  decided: boolean;
+  songTitle: string | null;
+  musicVolume: number;
+  busy: boolean;
+  onOpenPicker: () => void;
+  onChooseNone: () => void;
+  onClear: () => void;
+  onVolumeChange: (volume: number) => void;
+}): ReactNode {
+  if (decided && songTitle) {
+    return (
+      <div className="studio-panel flex flex-col">
+        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <Music className="size-5 shrink-0 text-stream" aria-hidden />
+            <div className="min-w-0">
+              <p className="truncate text-body-sm font-medium text-fg-1">{songTitle}</p>
+              <p className="text-meta text-fg-3">Música añadida</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="secondary" size="sm" disabled={busy} onClick={onOpenPicker}>
+              Cambiar
+            </Button>
+            <Button variant="ghost" size="sm" disabled={busy} onClick={onClear}>
+              Quitar
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 border-t border-border-subtle px-4 py-3">
+          <label
+            htmlFor="music-volume"
+            className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+          >
+            VOLUMEN <span className="text-stream-text">· {musicVolume}%</span>
+          </label>
+          <input
+            id="music-volume"
+            type="range"
+            min={VOLUME_MIN}
+            max={VOLUME_MAX}
+            step={VOLUME_STEP}
+            value={musicVolume}
+            disabled={busy}
+            onChange={(e) => onVolumeChange(Number(e.target.value))}
+            className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (decided) {
+    return (
+      <div className="studio-panel flex items-center justify-between gap-3 px-4 py-3.5">
+        <div className="min-w-0">
+          <p className="text-body-sm font-medium text-fg-1">Sin música</p>
+          <p className="text-meta text-fg-3">El reel se forja con el audio de la partida.</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onOpenPicker}>
+            Elegir tema
+          </Button>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={onClear}>
+            Cambiar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-body-sm text-fg-2">
+        Elige un tema o confirma que va sin música. Después de forjar, cambiarlo exige otro render.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onOpenPicker}
+          className="flex min-h-11 flex-1 items-center gap-3 border border-dashed border-stream/55 bg-surface-2 px-4 py-3.5 text-left text-body-sm text-fg-1 transition-colors duration-(--dur-fast) ease-standard hover:border-stream hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Music className="size-5 shrink-0 text-stream" aria-hidden />
+          Elegir un tema
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onChooseNone}
+          className="flex min-h-11 items-center border border-border-strong bg-surface-2 px-4 py-3.5 text-body-sm text-fg-2 transition-colors duration-(--dur-fast) ease-standard hover:border-primary/55 hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Sin música
+        </button>
+      </div>
     </div>
   );
 }

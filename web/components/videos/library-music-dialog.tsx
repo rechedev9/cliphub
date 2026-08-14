@@ -94,8 +94,9 @@ export function LibraryMusicDialog({
   const briefItems = reelCreativeBrief(
     video.editConfig ?? DEFAULT_EDIT_CONFIG,
     preset,
-    song?.title ?? null,
-    song ? volumePercent : MUSIC_VOLUME_DEFAULT_PERCENT,
+    song
+      ? { status: 'track', title: song.title, volumePercent }
+      : { status: 'none' },
   );
   const ready = canRerenderWithMusic({ briefApproved, busy, musicChanged });
 

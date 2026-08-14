@@ -5,18 +5,25 @@ export type CreativeBriefItem = {
   value: string;
 };
 
+export type MusicBrief =
+  | { status: 'pending' }
+  | { status: 'none' }
+  | { status: 'track'; title: string; volumePercent: number };
+
 export function canForgeReel({
   briefApproved,
   creating,
   hasPreset,
   selectionCount,
+  musicDecided,
 }: {
   briefApproved: boolean;
   creating: boolean;
   hasPreset: boolean;
   selectionCount: number;
+  musicDecided: boolean;
 }): boolean {
-  return !creating && briefApproved && hasPreset && selectionCount > 0;
+  return !creating && briefApproved && hasPreset && selectionCount > 0 && musicDecided;
 }
 
 /** Library music rerender: the capture already exists; only a changed mix may proceed. */
@@ -62,12 +69,17 @@ function bookendLabel(enabled: boolean, text: string | undefined, generatedFallb
   return text?.trim() ? `Sí · “${text.trim()}”` : `Sí · ${generatedFallback}`;
 }
 
+export function musicBriefValue(music: MusicBrief): string {
+  if (music.status === 'pending') return 'Pendiente de decisión';
+  if (music.status === 'none') return 'Sin música';
+  return `${music.title} · ${music.volumePercent}%`;
+}
+
 /** Exact, reviewable values that must be approved before capture or render. */
 export function reelCreativeBrief(
   edit: EditConfig,
   preset: Preset | null,
-  songTitle: string | null,
-  musicVolumePercent: number,
+  music: MusicBrief,
 ): CreativeBriefItem[] {
   const hud = preset?.hudMode ? (HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`) : 'Pendiente de preset';
   return [
@@ -84,7 +96,7 @@ export function reelCreativeBrief(
         ? `${edit.keyDropStyle === 'classic' ? 'Classic' : 'Operator'} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · ${(edit.keyDropStartSeconds ?? 0).toFixed(1)}s–${edit.keyDropEndSeconds != null ? edit.keyDropEndSeconds.toFixed(1) : 'fin'}s`
         : 'No',
     },
-    { label: 'Música', value: songTitle ? `${songTitle} · ${musicVolumePercent}%` : 'Sin música' },
+    { label: 'Música', value: musicBriefValue(music) },
     {
       label: 'Portada',
       value: edit.coverStrategy === 'generated-gameplay'
