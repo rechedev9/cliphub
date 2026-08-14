@@ -1,6 +1,7 @@
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
+import type { MusicChoice } from './reel-music.ts';
 
 export type VideoReviewResolution =
   | {
@@ -48,6 +49,11 @@ export interface ApiClient {
   retryVideo(id: string): Promise<Video>;
   /** Resolve a QA-blocked reel by changing its edit or documenting intentional warnings. */
   resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video>;
+  /**
+   * Re-render a ready reel with a new soundtrack (or none). Reuses the existing
+   * capture; the Library card leaves ready and polls the new revision.
+   */
+  rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video>;
   /**
    * Approve one cover candidate as the Library thumbnail (second gate after
    * candidates exist). No-op when the name is not in the current candidates.

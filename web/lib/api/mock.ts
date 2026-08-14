@@ -1,15 +1,16 @@
 import type { ApiClient, VideoReviewResolution } from './client';
+import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
 import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
-import { DEFAULT_EDIT_CONFIG } from './reel-store';
+import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 import {
   PUBLISH_ASSISTANT_SCHEMA_VERSION,
   PUBLISH_ASSISTANT_TIME_ZONE,
   YOUTUBE_STUDIO_URL,
   type PublishAssistant,
   type PublishRecommendation,
-} from './publish-assistant';
-import { playsSelectionLabel } from '@/lib/format';
+} from './publish-assistant.ts';
+import { playsSelectionLabel } from '../format.ts';
 import {
   fixtureUser,
   fixtureSlots,
@@ -22,7 +23,7 @@ import {
   synthRoster,
   synthRosterMatch,
   SAMPLE_REEL_URL,
-} from './fixtures';
+} from './fixtures.ts';
 
 /**
  * Mutable in-memory state at module scope so a single browser session keeps its
@@ -494,6 +495,34 @@ export class MockApiClient implements ApiClient {
       video.status = 'ready';
     }
     video.warnings = undefined;
+    return project(video);
+  }
+
+  async rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video> {
+    await delay();
+    const video = videos.find((v) => v.id === id);
+    if (!video) throw new Error(`video not found: ${id}`);
+    if (video.status !== 'ready') throw new Error('video is not ready');
+    const next: MusicChoice = choice.songId
+      ? { songId: choice.songId, musicVolume: choice.musicVolume }
+      : {};
+    if (musicChoicesEqual({ songId: video.songId, musicVolume: video.musicVolume }, next)) {
+      throw new Error('music choice is unchanged');
+    }
+    if (next.songId) {
+      video.mode = 'music';
+      video.songId = next.songId;
+      video.musicVolume = next.musicVolume;
+    } else {
+      video.mode = 'clean';
+      delete video.songId;
+      delete video.musicVolume;
+    }
+    video.status = 'queued';
+    video.createdAt = Date.now();
+    delete video.selectedCoverName;
+    delete video.coverCandidates;
+    delete video.downloadUrl;
     return project(video);
   }
 

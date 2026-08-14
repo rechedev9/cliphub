@@ -19,6 +19,19 @@ export function canForgeReel({
   return !creating && briefApproved && hasPreset && selectionCount > 0;
 }
 
+/** Library music rerender: the capture already exists; only a changed mix may proceed. */
+export function canRerenderWithMusic({
+  briefApproved,
+  busy,
+  musicChanged,
+}: {
+  briefApproved: boolean;
+  busy: boolean;
+  musicChanged: boolean;
+}): boolean {
+  return briefApproved && !busy && musicChanged;
+}
+
 const FORMAT_LABEL: Record<EditConfig['format'], string> = {
   'short-9x16': 'Vertical 9:16 · 1080×1920',
   'landscape-16x9': 'Horizontal 16:9 · 1920×1080',

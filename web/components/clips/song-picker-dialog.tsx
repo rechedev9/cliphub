@@ -23,6 +23,13 @@ export type SongPickerDialogProps = {
   selectedSongId?: string | null;
 };
 
+export type SongCatalogProps = {
+  /** When false, playback stops and the catalog does not fetch. */
+  active: boolean;
+  selectedSongId?: string | null;
+  onChoose: (song: Song) => void;
+};
+
 function mmss(totalSec: number): string {
   if (!totalSec || totalSec < 0) return '';
   const m = Math.floor(totalSec / 60);
@@ -31,36 +38,32 @@ function mmss(totalSec: number): string {
 }
 
 /**
- * SongPickerDialog — the soundtrack picker. Lists the orchestrator's curated
- * open-source catalog, plays a real audio preview per row (one shared <audio>),
- * and commits the chosen track to the reel. Music is optional; the reel is
- * created from the page's main CTA.
+ * The curated soundtrack list plus one shared preview player. Used by the
+ * pre-capture picker and by the Library music rerender dialog.
  */
-export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId }: SongPickerDialogProps) {
+export function SongCatalog({ active, selectedSongId, onChoose }: SongCatalogProps): ReactNode {
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playRequestRef = useRef(0);
 
   useEffect(() => {
-    if (!open) return;
-    let active = true;
+    if (!active) return;
+    let mounted = true;
     (async () => {
       const next = await api.listSongs();
-      if (active) setSongs(next);
+      if (mounted) setSongs(next);
     })();
     return () => {
-      active = false;
+      mounted = false;
     };
-  }, [open]);
+  }, [active]);
 
-  // Stop playback whenever the dialog closes.
   useEffect(() => {
-    if (!open) {
-      audioRef.current?.pause();
-      setPlayingId(null);
-    }
-  }, [open]);
+    if (active) return;
+    audioRef.current?.pause();
+    setPlayingId(null);
+  }, [active]);
 
   async function togglePlay(song: Song): Promise<void> {
     const audio = audioRef.current;
@@ -107,7 +110,7 @@ export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId 
             playing={playingId === song.id}
             selected={selectedSongId === song.id}
             onTogglePlay={() => void togglePlay(song)}
-            onUse={() => onChoose(song.id, song.title)}
+            onUse={() => onChoose(song)}
           />
         ))}
       </ul>
@@ -115,23 +118,38 @@ export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId 
   }
 
   return (
+    <>
+      <audio
+        ref={audioRef}
+        preload="none"
+        onPause={() => setPlayingId(null)}
+        onEnded={() => setPlayingId(null)}
+        className="hidden"
+      />
+      <div className="-mx-2 max-h-[22rem] overflow-y-auto px-2">{list}</div>
+    </>
+  );
+}
+
+/**
+ * SongPickerDialog — the soundtrack picker. Lists the orchestrator's curated
+ * open-source catalog, plays a real audio preview per row (one shared <audio>),
+ * and commits the chosen track to the reel. Music is optional; the reel is
+ * created from the page's main CTA.
+ */
+export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId }: SongPickerDialogProps) {
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-[family-name:var(--font-display)] tracking-tight">ELIGE UN TEMA</DialogTitle>
           <DialogDescription>Cortamos la acción al ritmo del beat. Pulsa play para escucharlo.</DialogDescription>
         </DialogHeader>
-
-        {/* One shared element drives every row's preview. */}
-        <audio
-          ref={audioRef}
-          preload="none"
-          onPause={() => setPlayingId(null)}
-          onEnded={() => setPlayingId(null)}
-          className="hidden"
+        <SongCatalog
+          active={open}
+          selectedSongId={selectedSongId}
+          onChoose={(song) => onChoose(song.id, song.title)}
         />
-
-        <div className="-mx-2 max-h-[22rem] overflow-y-auto px-2">{list}</div>
       </DialogContent>
     </Dialog>
   );

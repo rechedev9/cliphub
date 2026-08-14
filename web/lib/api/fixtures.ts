@@ -1,5 +1,5 @@
 import type { Match, Play, Song, Video, FeedItem, SteamUser, Slots, DemoPlayer, RosterMatch } from './types';
-import { DEFAULT_EDIT_CONFIG } from './reel-store';
+import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 
 /**
  * Static mock data backing the MockApiClient. None of these reference real

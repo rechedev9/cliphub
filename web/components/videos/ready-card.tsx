@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, Download, Eye, Settings2, Share2, Youtube } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Download, Eye, Music, Settings2, Share2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Video } from '@/lib/api/types';
@@ -24,6 +24,7 @@ import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
 import { EditOptions } from '@/components/clips/edit-options';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { CoverImage } from '@/components/studio/cover-image';
+import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 
 /**
  * A finished, downloadable reel. The card is the shared `ReelCard` in its payoff
@@ -45,6 +46,7 @@ export function ReadyCard({
   const [publishOpen, setPublishOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [musicOpen, setMusicOpen] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
   const reviewRequired = video.status === 'review_required';
@@ -195,15 +197,26 @@ export function ReadyCard({
                 <Settings2 className="size-4" aria-hidden /> RESOLVER REVISIÓN QA
               </Button>
             ) : (
-              <Button
-                type="button"
-                variant="hero"
-                className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
-                onClick={() => setPublishOpen(true)}
-                disabled={!coverApproved}
-              >
-                <Youtube className="size-4" aria-hidden /> PREPARAR PUBLICACIÓN
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
+                  onClick={() => setMusicOpen(true)}
+                >
+                  <Music className="size-4 text-stream" aria-hidden />
+                  {video.songId ? 'CAMBIAR MÚSICA' : 'AÑADIR MÚSICA'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="hero"
+                  className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-center leading-tight"
+                  onClick={() => setPublishOpen(true)}
+                  disabled={!coverApproved}
+                >
+                  <Youtube className="size-4" aria-hidden /> PREPARAR PUBLICACIÓN
+                </Button>
+              </>
             )}
             <div className="flex items-center gap-2">
               <Button
@@ -231,6 +244,9 @@ export function ReadyCard({
               Listo
             </StatusTag>
           )}
+          {video.songId ? (
+            <StatusTag tone="stream">Con música</StatusTag>
+          ) : null}
           {video.availableForSec !== undefined ? (
             <StatusTag tone="warning" icon={Clock}>
               caduca en <span className="tabular-nums">{formatCountdown(video.availableForSec)}</span>
@@ -267,6 +283,14 @@ export function ReadyCard({
 
       {!reviewRequired ? (
         <PublishAssistantDialog open={publishOpen} video={video} onOpenChange={setPublishOpen} />
+      ) : null}
+      {!reviewRequired ? (
+        <LibraryMusicDialog
+          open={musicOpen}
+          video={video}
+          onOpenChange={setMusicOpen}
+          onApplied={() => onChange?.()}
+        />
       ) : null}
       {reviewRequired ? (
         <ReviewResolutionDialog

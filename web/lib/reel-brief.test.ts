@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canForgeReel, reelCreativeBrief } from './reel-brief.ts';
+import { canForgeReel, canRerenderWithMusic, reelCreativeBrief } from './reel-brief.ts';
 import type { EditConfig, Preset } from './api/types.ts';
 
 const PRESET: Preset = {
@@ -9,6 +9,14 @@ const PRESET: Preset = {
   description: 'test',
   hudMode: 'deathnotices',
 };
+
+test('library music rerender stays blocked until the mix changes and the brief is approved', () => {
+  const ready = { briefApproved: true, busy: false, musicChanged: true };
+  assert.equal(canRerenderWithMusic(ready), true);
+  assert.equal(canRerenderWithMusic({ ...ready, briefApproved: false }), false);
+  assert.equal(canRerenderWithMusic({ ...ready, busy: true }), false);
+  assert.equal(canRerenderWithMusic({ ...ready, musicChanged: false }), false);
+});
 
 test('forging stays blocked until the exact brief is approved', () => {
   const ready = { briefApproved: true, creating: false, hasPreset: true, selectionCount: 1 };

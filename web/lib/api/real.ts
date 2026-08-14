@@ -1,4 +1,10 @@
 import type { ApiClient, VideoReviewResolution } from './client';
+import {
+  applyMusicChoice,
+  musicChoicesEqual,
+  titleWithMusicSuffix,
+  type MusicChoice,
+} from './reel-music.ts';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo } from './types';
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
@@ -587,6 +593,76 @@ export class RealApiClient implements ApiClient {
         },
       })),
     );
+    await this.reconcileOne(intent);
+    return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
+  }
+
+  /**
+   * Re-renders a ready reel with a different music mix. Capture stays put; the
+   * orchestrator writes a new revision. The intent is persisted only after the
+   * POST is accepted so a rejected request cannot leave the Library describing
+   * a soundtrack that was never rendered.
+   */
+  async rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video> {
+    const intent = this.intents.get(id);
+    if (!intent) return this.fallback.rerenderVideoMusic(id, choice);
+    const current = this.reels.get(id);
+    if (!current || current.status !== 'ready') {
+      throw new Error('El reel tiene que estar listo para añadir o cambiar la música.');
+    }
+    if (current.unrecoverable) {
+      throw new Error('Este reel ya no se puede volver a renderizar.');
+    }
+    const nextChoice: MusicChoice = choice.songId
+      ? { songId: choice.songId, musicVolume: choice.musicVolume }
+      : {};
+    if (musicChoicesEqual({ songId: intent.songId, musicVolume: intent.musicVolume }, nextChoice)) {
+      throw new Error('Elige una pista o un volumen distinto al actual.');
+    }
+    if (this.driving.has(intent.videoId)) {
+      throw new Error('Ya hay una operación activa para este reel.');
+    }
+
+    this.driving.add(intent.videoId);
+    try {
+      const nextIntent: ReelIntent = { ...intent };
+      applyMusicChoice(nextIntent, nextChoice);
+      nextIntent.title = titleWithMusicSuffix(
+        intent.title,
+        variantLabel(variantOf(intent)),
+        Boolean(nextIntent.songId),
+      );
+      const accepted = await readJson<{ accepted?: boolean; duplicate?: boolean }>(
+        await this.send((dp) => ({
+          url: dp.renderUrl(intent.jobId, variantOf(intent)),
+          init: {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              music: buildMusicRequest(nextIntent),
+              edit: buildEditRequest(intent.editConfig),
+            }),
+          },
+        })),
+      );
+      if (accepted.duplicate && accepted.accepted !== true) {
+        throw new Error('No se pudo encolar un render nuevo. Espera o cambia pista o volumen.');
+      }
+      this.artifactNames.delete(intent.videoId);
+      applyMusicChoice(intent, nextChoice);
+      intent.title = nextIntent.title;
+      saveReelIntents(Array.from(this.intents.values()));
+      const previousRevision = this.reels.get(intent.videoId);
+      if (previousRevision) {
+        this.reels.set(intent.videoId, {
+          ...clearVideoArtifactUrls(previousRevision),
+          title: intent.title,
+        });
+      }
+      this.applyView(intent, { status: 'queued', action: 'none' });
+    } finally {
+      this.driving.delete(intent.videoId);
+    }
     await this.reconcileOne(intent);
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
