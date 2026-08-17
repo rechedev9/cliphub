@@ -23,6 +23,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
 import HeroReel from "@/components/hero-reel";
+import KillfeedReel from "@/components/killfeed-reel";
 import Reveal from "@/components/reveal";
 
 // The pre-rebrand filename is deliberate: a published Release asset cannot be
@@ -305,26 +306,7 @@ export default function Home() {
 
           <Reveal className="relative mx-auto w-full max-w-[430px]" delay={1}>
             <div aria-hidden="true" className="absolute inset-8 animate-pulse bg-orange-400/20 blur-3xl motion-reduce:animate-none" />
-            <div className="relative mx-auto aspect-[9/16] w-[min(78vw,330px)] border border-orange-400/35 bg-[url('/images/hero-replay-forge.webp')] bg-cover bg-[position:76%_center] p-4 shadow-[0_0_80px_rgba(251,146,60,0.18)]">
-              <Corners />
-              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/10 via-transparent to-slate-950/85" />
-              <div className="relative flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-white/70">
-                <span>Round 09</span>
-                <span className="inline-flex items-center gap-2 text-emerald-300"><span className="size-1.5 animate-pulse bg-emerald-300 motion-reduce:animate-none" />Live</span>
-              </div>
-              <div className="absolute right-4 top-[20%] grid gap-1.5 text-[10px] font-semibold sm:text-xs">
-                {["vini  AK-47  Leomonster", "vini  AK-47  zmb", "vini  AK-47  Divine"].map((kill) => (
-                  <div key={kill} className="border-l-2 border-orange-400 bg-slate-950/85 px-3 py-2 text-white shadow-lg backdrop-blur-sm">{kill}</div>
-                ))}
-              </div>
-              <div className="absolute inset-x-4 bottom-4 border border-white/15 bg-slate-950/80 p-4 backdrop-blur-md">
-                <div className="flex items-end justify-between">
-                  <div><p className="font-mono text-[10px] uppercase tracking-[0.22em] text-orange-400">Export ready</p><p className="mt-1 text-2xl font-bold text-white">ACE</p></div>
-                  <p className="font-mono text-xs text-slate-300">5 / 5</p>
-                </div>
-                <div className="mt-3 h-1 bg-white/10"><div className="h-full w-full bg-gradient-to-r from-orange-400 to-violet-500" /></div>
-              </div>
-            </div>
+            <KillfeedReel />
           </Reveal>
         </div>
       </section>
