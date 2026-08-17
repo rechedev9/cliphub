@@ -74,7 +74,8 @@ export default function HeroReel() {
           )}
 
           {/* Multi-kill chip */}
-          <div className="absolute left-2.5 top-[38%] border border-orange-400/35 bg-slate-950/75 px-2.5 py-2 backdrop-blur-sm motion-safe:animate-[reel-chip_9s_ease-out_infinite]">
+          {/* Below the webcam + scoreboard band so it sits over open gameplay */}
+          <div className="absolute left-2.5 top-[50%] border border-orange-400/35 bg-slate-950/75 px-2.5 py-2 backdrop-blur-sm motion-safe:animate-[reel-chip_9s_ease-out_infinite]">
             <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-slate-400">Live analysis</p>
             <div className="mt-1 flex items-center gap-2">
               <p className="text-xl font-bold leading-none text-white">2K</p>
