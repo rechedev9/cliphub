@@ -52,14 +52,14 @@ const STATUS_META: Record<
     label: 'Sin conexión',
     text: 'text-fg-3',
     bar: 'bg-fg-4',
-    hint: 'Arranca el servicio local de TickCut.',
+    hint: 'Arranca el servicio local de ClipHub.',
     icon: WifiOff,
   },
 };
 
 /** The three record tools, with a friendly name and a typical Windows path. */
 const TOOL_GUIDE: Array<{ name: string; label: string; example: string }> = [
-  { name: 'ZV_RECORDER_PATH', label: 'Grabador TickCut', example: 'C:\\...\\bin\\zv-recorder.exe' },
+  { name: 'ZV_RECORDER_PATH', label: 'Grabador ClipHub', example: 'C:\\...\\bin\\zv-recorder.exe' },
   { name: 'ZV_HLAE_PATH', label: 'HLAE', example: 'C:\\HLAE-<latest-version>\\HLAE.exe' },
   { name: 'ZV_CS2_PATH', label: 'CS2', example: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\bin\\win64\\cs2.exe' },
 ];
@@ -138,7 +138,7 @@ export function CaptureReadiness() {
         <DialogHeader>
           <DialogTitle>Captura de gameplay</DialogTitle>
           <DialogDescription>
-            TickCut graba en tu PC con HLAE + CS2 y los encuentra automáticamente. Esto es lo que detectó en esta máquina:
+            ClipHub graba en tu PC con HLAE + CS2 y los encuentra automáticamente. Esto es lo que detectó en esta máquina:
           </DialogDescription>
         </DialogHeader>
 

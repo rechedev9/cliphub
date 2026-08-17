@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/recording"
-	"github.com/rechedev9/tickcut/internal/rhythm"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/rhythm"
 )
 
 func mustBuildManifest(t *testing.T, result recording.RecordingResult, opts ManifestOptions) Manifest {

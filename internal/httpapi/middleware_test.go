@@ -93,7 +93,7 @@ func TestRequireReadAuthGatesExposedReads(t *testing.T) {
 			}
 			req := httptest.NewRequest(method, tc.path, nil)
 			if tc.token != "" {
-				req.Header.Set("X-TickCut-Token", tc.token)
+				req.Header.Set("X-ClipHub-Token", tc.token)
 			}
 			rw := httptest.NewRecorder()
 			h.requireMutationToken(next).ServeHTTP(rw, req)
@@ -141,7 +141,7 @@ func TestRequireMutationTokenUsesConstantTimeCompare(t *testing.T) {
 			})
 			req := httptest.NewRequest(http.MethodPost, "/api/jobs", nil)
 			if tc.token != "" {
-				req.Header.Set("X-TickCut-Token", tc.token)
+				req.Header.Set("X-ClipHub-Token", tc.token)
 			}
 			rw := httptest.NewRecorder()
 			h.requireMutationToken(next).ServeHTTP(rw, req)

@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/composition"
-	"github.com/rechedev9/tickcut/internal/pathguard"
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 func main() {

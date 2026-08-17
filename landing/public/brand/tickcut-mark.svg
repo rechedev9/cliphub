@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TickCut">
-  <rect width="64" height="64" rx="14" fill="#060b16"/>
-  <path stroke="#f5fbff" stroke-width="2.5" stroke-linecap="round" d="M10 34h44"/>
-  <path stroke="#f5fbff" stroke-width="2" stroke-linecap="round" d="M16 34v-5M28 34v-9M40 34v-5M52 34v-7"/>
-  <path stroke="#22d9ee" stroke-width="3" stroke-linecap="round" d="M22 34v-12M34 34v-16M46 34v-12"/>
-  <path fill="#f5fbff" d="M38.5 12.5 20 48.5l4.2 2.2 18.5-36-4.2-2.2Z"/>
-  <path fill="#c8d4e0" d="M36.2 14.8 22.4 41.6l1.8.9 13.8-26.8-1.8-.9Z"/>
-  <rect x="48" y="10" width="6" height="6" rx="1.2" fill="#ff493d"/>
-</svg>

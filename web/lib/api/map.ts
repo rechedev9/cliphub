@@ -1,7 +1,7 @@
 import type { Match, Play, DemoPlayer } from './types';
 
 /**
- * Minimal mirror of the killplan JSON (github.com/rechedev9/tickcut
+ * Minimal mirror of the killplan JSON (github.com/rechedev9/cliphub
  * internal/killplan) — only the fields the web client consumes. The Go schema is
  * richer; we read what we map to the UI and ignore the rest.
  */

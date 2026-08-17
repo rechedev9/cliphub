@@ -3,7 +3,7 @@ package recording
 import (
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/artifacts"
 )
 
 // ResultArtifactKey returns the durable recorder result JSON key for a job.

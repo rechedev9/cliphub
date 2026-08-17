@@ -50,7 +50,7 @@ test('PowerShell smoke rejects a post-preflight decoy listener without killing i
     return;
   }
 
-  const root = mkdtempSync(join(tmpdir(), 'tickcut-smoke-decoy-race-'));
+  const root = mkdtempSync(join(tmpdir(), 'cliphub-smoke-decoy-race-'));
   const scriptsDir = join(root, 'scripts');
   const binDir = join(root, 'bin');
   const smokePath = join(scriptsDir, 'smoke-real.ps1');
@@ -419,7 +419,7 @@ test('shell smoke rejects an occupied Unix port without killing its listener', a
     return;
   }
 
-  const root = mkdtempSync(join(tmpdir(), 'tickcut-smoke-occupied-port-'));
+  const root = mkdtempSync(join(tmpdir(), 'cliphub-smoke-occupied-port-'));
   const demo = join(root, 'fixture.dem');
   const shimDir = join(root, 'shims');
   const lsofShim = join(shimDir, 'lsof');

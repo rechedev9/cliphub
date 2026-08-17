@@ -14,7 +14,7 @@ var steamID64Pattern = regexp.MustCompile(`^7656119[0-9]{10}$`)
 // what the analysis measured, the exact ticks a reviewer can seek to, and the
 // legitimate channels through which the user can file a report themselves.
 //
-// It is deliberately not a submission client. TickCut never sends a report
+// It is deliberately not a submission client. ClipHub never sends a report
 // anywhere; it prepares the material and points at the official flow.
 type Dossier struct {
 	SteamID64  string  `json:"steamid64"`
@@ -58,14 +58,14 @@ type ReportPolicy struct {
 // than at the UI layer, so every consumer of the dossier gets the same answer.
 func reportPolicy() ReportPolicy {
 	return ReportPolicy{
-		Summary: "TickCut prepara el expediente; la denuncia la presentas tú, una sola vez, desde tu propia cuenta.",
+		Summary: "ClipHub prepara el expediente; la denuncia la presentas tú, una sola vez, desde tu propia cuenta.",
 		Rules: []string{
 			"Los baneos por trampas en CS2 los decide Valve por detección automática y revisión propia, no por número de denuncias recibidas.",
 			"Denunciar en masa o de forma coordinada no aumenta la probabilidad de baneo y va contra el Acuerdo de Suscriptor de Steam.",
 			"Una denuncia con evidencia concreta (demo, tick, ronda) vale más que muchas denuncias vacías.",
 			"Esta herramienta mide anomalías estadísticas: úsala para decidir si merece la pena mirar la demo, no como veredicto.",
 		},
-		Rejected: "TickCut no envía denuncias automáticamente ni genera denuncias múltiples contra una cuenta.",
+		Rejected: "ClipHub no envía denuncias automáticamente ni genera denuncias múltiples contra una cuenta.",
 	}
 }
 

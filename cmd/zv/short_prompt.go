@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 // shortIntent is the deterministic interpretation of a `zv short --prompt`

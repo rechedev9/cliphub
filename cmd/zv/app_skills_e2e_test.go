@@ -644,7 +644,7 @@ func TestZVBinarySkillsCheckRejectsRequiredWorkflowRunsOutOfOrderEndToEnd(t *tes
 	writeSkillBody(t, tempDir, "zackvideo-cs2-utility-shorts", strings.Join([]string{
 		"---",
 		"name: zackvideo-cs2-utility-shorts",
-		`description: "Create CS2 utility Shorts from a demo with TickCut."`,
+		`description: "Create CS2 utility Shorts from a demo with ClipHub."`,
 		"---",
 		"",
 		"```powershell",
@@ -684,7 +684,7 @@ func TestZVBinarySkillsCheckRejectsRequiredWorkflowRunDocumentedOnlyAsHelpEndToE
 	writeSkillBody(t, tempDir, "zackvideo-lineup-audit", strings.Join([]string{
 		"---",
 		"name: zackvideo-lineup-audit",
-		`description: "Review and correct TickCut CS2 utility destination labels."`,
+		`description: "Review and correct ClipHub CS2 utility destination labels."`,
 		"---",
 		"",
 		"```powershell",
@@ -757,7 +757,7 @@ func TestZVBinarySkillsCheckRejectsUnexpectedRequiredSkillWorkflowRunsEndToEnd(t
 	writeSkillBody(t, tempDir, "zackvideo-lineup-audit", strings.Join([]string{
 		"---",
 		"name: zackvideo-lineup-audit",
-		`description: "Review and correct TickCut CS2 utility destination labels."`,
+		`description: "Review and correct ClipHub CS2 utility destination labels."`,
 		"---",
 		"",
 		"```powershell",
@@ -788,13 +788,13 @@ func TestZVBinarySkillsCheckRejectsUnexpectedRequiredSkillWorkflowRunsEndToEnd(t
 	}
 }
 
-func TestZVBinarySkillsCheckRejectsTickCutSkillWithoutWorkflowRequirementsEndToEnd(t *testing.T) {
+func TestZVBinarySkillsCheckRejectsClipHubSkillWithoutWorkflowRequirementsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	exe := buildZVBinary(t, tempDir)
 	writeSkillBody(t, tempDir, "zackvideo-cs2-utility-shorts", strings.Join([]string{
 		"---",
 		"name: zackvideo-cs2-utility-shorts",
-		`description: "Create CS2 utility Shorts from a demo with TickCut."`,
+		`description: "Create CS2 utility Shorts from a demo with ClipHub."`,
 		"---",
 		"",
 		"```powershell",
@@ -809,7 +809,7 @@ func TestZVBinarySkillsCheckRejectsTickCutSkillWithoutWorkflowRequirementsEndToE
 	writeSkillBody(t, tempDir, "zackvideo-lineup-audit", strings.Join([]string{
 		"---",
 		"name: zackvideo-lineup-audit",
-		`description: "Review and correct TickCut CS2 utility destination labels."`,
+		`description: "Review and correct ClipHub CS2 utility destination labels."`,
 		"---",
 		"",
 		"```powershell",
@@ -820,7 +820,7 @@ func TestZVBinarySkillsCheckRejectsTickCutSkillWithoutWorkflowRequirementsEndToE
 	writeSkillBody(t, tempDir, "zackvideo-youtube-shorts-publish", strings.Join([]string{
 		"---",
 		"name: zackvideo-youtube-shorts-publish",
-		`description: "Prepare TickCut YouTube Shorts packs for manual publication."`,
+		`description: "Prepare ClipHub YouTube Shorts packs for manual publication."`,
 		"---",
 		"",
 		"```powershell",
@@ -831,7 +831,7 @@ func TestZVBinarySkillsCheckRejectsTickCutSkillWithoutWorkflowRequirementsEndToE
 	writeSkillBody(t, tempDir, "zackvideo-new-skill", strings.Join([]string{
 		"---",
 		"name: zackvideo-new-skill",
-		`description: "New TickCut workflow skill."`,
+		`description: "New ClipHub workflow skill."`,
 		"---",
 		"",
 		"```powershell",
@@ -867,7 +867,7 @@ func TestZVBinarySkillsCheckRejectsMissingRequiredRepoSkillEndToEnd(t *testing.T
 	writeSkillBody(t, tempDir, "zackvideo-cs2-utility-shorts", strings.Join([]string{
 		"---",
 		"name: zackvideo-cs2-utility-shorts",
-		`description: "Create CS2 utility Shorts from a demo with TickCut."`,
+		`description: "Create CS2 utility Shorts from a demo with ClipHub."`,
 		"---",
 		"",
 		"```powershell",

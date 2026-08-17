@@ -93,8 +93,8 @@ func TestSelectHLAEPrefersLatestInstalledVersion(t *testing.T) {
 		},
 		{
 			name:    "version suffix remains comparable",
-			matches: []string{`C:\HLAE-2.190.2-tickcut-fixed\HLAE.exe`, `C:\HLAE-2.190.1\HLAE.exe`},
-			want:    `C:\HLAE-2.190.2-tickcut-fixed\HLAE.exe`,
+			matches: []string{`C:\HLAE-2.190.2-cliphub-fixed\HLAE.exe`, `C:\HLAE-2.190.1\HLAE.exe`},
+			want:    `C:\HLAE-2.190.2-cliphub-fixed\HLAE.exe`,
 		},
 		{
 			name:    "version prefix comparison is case insensitive",
@@ -110,14 +110,14 @@ func TestSelectHLAEPrefersLatestInstalledVersion(t *testing.T) {
 			name: "packaged studio pin beats older C-drive release",
 			matches: []string{
 				`C:\HLAE-2.191.1\HLAE.exe`,
-				`C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`,
+				`C:\Users\reche\AppData\Roaming\cliphub-studio\tools\hlae\2.192.1\HLAE.exe`,
 			},
-			want: `C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`,
+			want: `C:\Users\reche\AppData\Roaming\cliphub-studio\tools\hlae\2.192.1\HLAE.exe`,
 		},
 		{
 			name:    "numeric studio dir without HLAE- prefix is comparable",
-			matches: []string{`C:\HLAE-2.190.1\HLAE.exe`, `D:\tickcut-studio\tools\hlae\2.191.1\HLAE.exe`},
-			want:    `D:\tickcut-studio\tools\hlae\2.191.1\HLAE.exe`,
+			matches: []string{`C:\HLAE-2.190.1\HLAE.exe`, `D:\cliphub-studio\tools\hlae\2.191.1\HLAE.exe`},
+			want:    `D:\cliphub-studio\tools\hlae\2.191.1\HLAE.exe`,
 		},
 		{
 			name:    "unrelated versioned folder is ignored",
@@ -137,7 +137,7 @@ func TestSelectHLAEPrefersLatestInstalledVersion(t *testing.T) {
 func TestHLAESearchGlobsIncludePackagedStudioPin(t *testing.T) {
 	t.Setenv("APPDATA", `C:\Users\reche\AppData\Roaming`)
 	got := hlaeSearchGlobs()
-	wantStudio := filepath.Join(`C:\Users\reche\AppData\Roaming`, "tickcut-studio", "tools", "hlae", "*", "HLAE.exe")
+	wantStudio := filepath.Join(`C:\Users\reche\AppData\Roaming`, "cliphub-studio", "tools", "hlae", "*", "HLAE.exe")
 	foundDrive, foundStudio := false, false
 	for _, pattern := range got {
 		if pattern == `C:\HLAE-*\HLAE.exe` {
@@ -159,8 +159,8 @@ func TestHLAEVersionAcceptsPackagedStudioPath(t *testing.T) {
 		want []int
 	}{
 		{path: `C:\HLAE-2.191.1\HLAE.exe`, ok: true, want: []int{2, 191, 1}},
-		{path: `C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`, ok: true, want: []int{2, 192, 1}},
-		{path: `C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1-pre\HLAE.exe`, ok: true, want: []int{2, 192, 1}},
+		{path: `C:\Users\reche\AppData\Roaming\cliphub-studio\tools\hlae\2.192.1\HLAE.exe`, ok: true, want: []int{2, 192, 1}},
+		{path: `C:\Users\reche\AppData\Roaming\cliphub-studio\tools\hlae\2.192.1-pre\HLAE.exe`, ok: true, want: []int{2, 192, 1}},
 		{path: `C:\tools\2.192.1\HLAE.exe`, ok: false},
 		{path: `C:\HLAE-latest\HLAE.exe`, ok: false},
 	}

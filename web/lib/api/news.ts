@@ -1,6 +1,6 @@
 export const NEWS_VOICE_PROFILE_ID = 'raizerinhocs2' as const;
 export const NEWS_VOICE_PROFILE_URL = '/api/news/voice-profile' as const;
-export const NEWS_DRAFT_STORAGE_KEY = 'tickcut:news-short:draft:v1' as const;
+export const NEWS_DRAFT_STORAGE_KEY = 'cliphub:news-short:draft:v1' as const;
 
 export type NewsVoiceProfile = {
   id: string;

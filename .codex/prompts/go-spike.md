@@ -1,4 +1,4 @@
-# Go spike playbook for TickCut
+# Go spike playbook for ClipHub
 
 Follow `AGENTS.md`.
 

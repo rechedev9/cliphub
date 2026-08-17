@@ -17,11 +17,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/youtubeinsights"
-	"github.com/rechedev9/tickcut/internal/youtubetrends"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/youtubeinsights"
+	"github.com/rechedev9/cliphub/internal/youtubetrends"
 )
 
 const (
@@ -445,7 +445,7 @@ func mapPublishSchedule(days []youtubeinsights.DailyRecommendation) []publishSch
 				Source:     "baseline",
 				Confidence: slot.Confidence,
 				Score:      slot.Score,
-				Rationale:  "Referencia diaria de TickCut en hora de España.",
+				Rationale:  "Referencia diaria de ClipHub en hora de España.",
 			})
 		}
 		result = append(result, publishScheduleDay{

@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 type productionFlow struct {

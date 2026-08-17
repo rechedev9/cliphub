@@ -1,4 +1,4 @@
-// TickCut Studio UI e2e: launches the real Electron app (dev layout, same
+// ClipHub Studio UI e2e: launches the real Electron app (dev layout, same
 // build-resources the installer bundles), waits for the full boot sequence
 // (orchestrator + Next server + window navigation), and exercises the shell UI
 // through Playwright's Electron driver.
@@ -6,7 +6,7 @@
 // Prerequisites: `pnpm run build` (dist/main.js) and `pnpm run assemble`
 // (build-resources/). The app allocates its own loopback ports, and the
 // isolated-userdata.cjs bootstrap gives the suite its own userData (and thus
-// its own single-instance lock), so it runs even while a real TickCut
+// its own single-instance lock), so it runs even while a real ClipHub
 // Studio instance is open.
 //
 // Run: pnpm run test:e2e:ui
@@ -72,12 +72,12 @@ test('boots to the matches shell, not the error screen', async () => {
   // The document titles itself with the shared web product name, while the
   // native window must keep the desktop product name (main.ts suppresses
   // page-title-updated).
-  assert.equal(await page.title(), 'Partidas · TickCut');
+  assert.equal(await page.title(), 'Partidas · ClipHub');
   const nativeTitle = await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0];
     return win ? win.getTitle() : null;
   });
-  assert.equal(nativeTitle, 'TickCut Studio');
+  assert.equal(nativeTitle, 'ClipHub Studio');
   await page.screenshot({ path: join(artifactsDir, 'matches.png') });
 });
 
@@ -133,7 +133,7 @@ test('web -> orchestrator proxy answers from inside the app', async () => {
 
 test('clipboard writes require a focused, user-activated Studio action', async () => {
   const originalClipboard = await app.evaluate(({ clipboard }) => clipboard.readText());
-  const marker = `tickcut-e2e-${Date.now()}`;
+  const marker = `cliphub-e2e-${Date.now()}`;
   try {
     // Chromium's transient activation can survive the preceding focus/restore
     // test for roughly five seconds. Let that standard window expire before
@@ -143,7 +143,7 @@ test('clipboard writes require a focused, user-activated Studio action', async (
       const win = BrowserWindow.getAllWindows()[0];
       if (!win) return true;
       return win.webContents.executeJavaScript(
-        `window.tickcutClipboard.writeText('passive-bridge-write-must-fail').then(() => true, () => false)`,
+        `window.cliphubClipboard.writeText('passive-bridge-write-must-fail').then(() => true, () => false)`,
         false,
       );
     });
@@ -169,7 +169,7 @@ test('clipboard writes require a focused, user-activated Studio action', async (
       button.style.right = '16px';
       button.style.zIndex = '2147483647';
       button.addEventListener('click', () => {
-        void window.tickcutClipboard.writeText(value).then(
+        void window.cliphubClipboard.writeText(value).then(
           () => { document.documentElement.dataset.e2eClipboard = 'written'; },
           () => { document.documentElement.dataset.e2eClipboard = 'denied'; },
         );

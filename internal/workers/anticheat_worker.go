@@ -11,11 +11,11 @@ import (
 	"github.com/hibiken/asynq"
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
-	"github.com/rechedev9/tickcut/internal/anticheat"
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/anticheat"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // HandleAnalyzeAnticheat is the Asynq handler for analyze:anticheat.

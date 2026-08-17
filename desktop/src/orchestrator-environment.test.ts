@@ -17,11 +17,11 @@ test('pins the bundled recorder over stale runtime tool overrides', () => {
   ];
 
   for (const tc of cases) {
-    const bundledRecorder = String.raw`C:\Users\player\AppData\Local\Programs\TickCut Studio\resources\bin\zv-recorder.exe`;
+    const bundledRecorder = String.raw`C:\Users\player\AppData\Local\Programs\ClipHub Studio\resources\bin\zv-recorder.exe`;
     const environment = createOrchestratorEnvironment({
-      dataDir: String.raw`C:\Users\player\AppData\Roaming\tickcut-studio\data`,
+      dataDir: String.raw`C:\Users\player\AppData\Roaming\cliphub-studio\data`,
       httpAddress: '127.0.0.1:23947',
-      musicDir: String.raw`C:\Users\player\AppData\Roaming\tickcut-studio\data\music`,
+      musicDir: String.raw`C:\Users\player\AppData\Roaming\cliphub-studio\data\music`,
       recorderPath: bundledRecorder,
       securityEnvironment: { ZV_DISCOVERY_SECRET: 'discovery' },
       toolEnvironment: tc.toolEnvironment,

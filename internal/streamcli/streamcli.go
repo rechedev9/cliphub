@@ -21,11 +21,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/recording"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
-	"github.com/rechedev9/tickcut/internal/workers"
+	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/workers"
 )
 
 type streamService interface {
@@ -714,7 +714,7 @@ func replaceLocalPublishDirectoryWithCleanup(stagingDir, publishDir string, clea
 
 func renderLocalStreamGallery(title string, videos []streamLocalVideo) string {
 	if strings.TrimSpace(title) == "" {
-		title = "TickCut stream clips"
+		title = "ClipHub stream clips"
 	}
 	var b strings.Builder
 	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>")

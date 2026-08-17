@@ -58,8 +58,8 @@ func TestCodexAppUsesCLIAndNoExternalMCP(t *testing.T) {
 	}
 	configBody := string(config)
 	for _, retired := range []string{
-		"[mcp_servers.tickcut]",
-		"tickcut-mcp",
+		"[mcp_servers.cliphub]",
+		"cliphub-mcp",
 	} {
 		if strings.Contains(configBody, retired) {
 			t.Fatalf("%s still contains retired external MCP configuration %q", configPath, retired)
@@ -167,7 +167,7 @@ func TestCodexHarnessRunsProjectCheck(t *testing.T) {
 		`shell_scripts+=("$script")`,
 		"find scripts -maxdepth 1 -type f -name '*.sh' | sort",
 		`bash -n "${shell_scripts[@]}"`,
-		"== TickCut workflow contract ==",
+		"== ClipHub workflow contract ==",
 		"go run ./cmd/zv check",
 	} {
 		if !strings.Contains(body, want) {
@@ -186,7 +186,7 @@ func TestCodexHarnessExecutesWorkflowContractEndToEnd(t *testing.T) {
 	writeFile(t, fakeCodex, strings.Join([]string{
 		"#!/usr/bin/env bash",
 		"set -euo pipefail",
-		`printf '%s\n' 'TickCut is a Windows-local, deterministic CS2 demo/stream-to-video pipeline'`,
+		`printf '%s\n' 'ClipHub is a Windows-local, deterministic CS2 demo/stream-to-video pipeline'`,
 		`printf '%s\n' 'AGENTS.md'`,
 	}, "\n"))
 	if err := os.Chmod(fakeCodex, 0o755); err != nil {
@@ -203,8 +203,8 @@ func TestCodexHarnessExecutesWorkflowContractEndToEnd(t *testing.T) {
 	for _, want := range []string{
 		"== shell syntax ==",
 		"== Codex sees AGENTS.md ==",
-		"== TickCut workflow contract ==",
-		fmt.Sprintf("OK: 7 skills, %d workflows, 11 workflow docs, and 10 agent prompt wrappers checked", len(workflowCatalog())),
+		"== ClipHub workflow contract ==",
+		fmt.Sprintf("OK: 7 skills, %d workflows, 10 workflow docs, and 10 agent prompt wrappers checked", len(workflowCatalog())),
 		"OK: Codex harness is wired",
 	} {
 		if !strings.Contains(body, want) {
@@ -545,41 +545,35 @@ func TestCurrentBuildScriptsCoverCommandEntrypoints(t *testing.T) {
 	}
 }
 
-func TestProductGuideUsesUnifiedCLI(t *testing.T) {
+// TestAgentGuideUsesUnifiedCLI keeps the agent-facing guide free of the retired
+// per-stage binaries. It replaces the PRODUCT.md variant that was dropped with
+// the product guide itself; .codex/GUIDE.md is now the only tracked doc that
+// enumerates the workflow command surface.
+func TestAgentGuideUsesUnifiedCLI(t *testing.T) {
 	root := repoRoot(t)
-	paths := []string{
-		filepath.Join(root, "PRODUCT.md"),
-	}
-	legacyCommands := legacyWorkflowCommands()
-	for _, path := range paths {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		body := string(b)
-		for _, legacy := range legacyCommands {
-			if strings.Contains(body, legacy) {
-				t.Fatalf("%s contains legacy workflow command %q; use ./bin/zv instead", path, legacy)
-			}
-		}
-	}
-	productGuide, err := os.ReadFile(filepath.Join(root, "PRODUCT.md"))
+	guidePath := filepath.Join(root, ".codex", "GUIDE.md")
+	b, err := os.ReadFile(guidePath)
 	if err != nil {
-		t.Fatalf("read PRODUCT.md: %v", err)
+		t.Fatalf("read .codex/GUIDE.md: %v", err)
+	}
+	body := string(b)
+	for _, legacy := range legacyWorkflowCommands() {
+		if strings.Contains(body, legacy) {
+			t.Fatalf(".codex/GUIDE.md contains legacy workflow command %q; use ./bin/zv instead", legacy)
+		}
 	}
 	for _, want := range []string{
-		"./bin/zv demo parse",
-		"./bin/zv demo players",
-		"./bin/zv record",
-		"./bin/zv compose final",
-		"./bin/zv music analyze",
-		"./bin/zv shorts render",
-		"./bin/zv presets",
+		"./bin/zv workflows run demo-parse",
+		"./bin/zv workflows run demo-players",
+		"./bin/zv workflows run record",
+		"./bin/zv workflows run compose-final",
+		"./bin/zv workflows run music-analyze",
+		"./bin/zv workflows run shorts-render",
 		"./bin/zv check",
-		"./bin/zv serve",
+		"./bin/zv workflows run serve",
 	} {
-		if !strings.Contains(string(productGuide), want) {
-			t.Fatalf("PRODUCT.md does not contain unified workflow command %q", want)
+		if !strings.Contains(body, want) {
+			t.Fatalf(".codex/GUIDE.md does not contain unified workflow command %q", want)
 		}
 	}
 }

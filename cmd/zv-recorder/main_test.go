@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 func testCaptureAttestation() string {

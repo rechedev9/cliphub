@@ -16,13 +16,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/moments"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 type workbenchOnboardingView struct {
@@ -915,7 +915,7 @@ const workbenchOnboardingTemplate = `
   <div class="onboarding-copy">
     <span class="meta-label">Start here</span>
     <h2>Turn a CS2 demo into an upload-ready reel from this machine.</h2>
-    <p>Use the Intake panel to upload a demo. Leave SteamID64 empty when you want TickCut to scan the roster first.</p>
+    <p>Use the Intake panel to upload a demo. Leave SteamID64 empty when you want ClipHub to scan the roster first.</p>
   </div>
   <div class="onboarding-steps">
     <div class="onboarding-step active">
@@ -1002,7 +1002,7 @@ const workbenchJobTemplate = `
     <div class="next-action">
       <span class="meta-label">Pick player</span>
       <strong>Choose the POV to clip</strong>
-      <p>The roster scan is ready. Pick the player and TickCut builds the kill plan.</p>
+      <p>The roster scan is ready. Pick the player and ClipHub builds the kill plan.</p>
     </div>
     <div class="htmx-actions">
       <form class="inline-form" hx-post="/ui/jobs/{{ .Job.ID }}/parse" hx-target="#workspace" hx-swap="innerHTML">
@@ -1019,7 +1019,7 @@ const workbenchJobTemplate = `
     <div class="generate-status">
       <span class="meta-label">{{ .PhaseLabel }}</span>
       <div class="progress"><span style="width: {{ .Progress }}%"></span></div>
-      <p>TickCut is capturing with HLAE and rendering your short. This runs locally and can take a few minutes; this view refreshes automatically.</p>
+      <p>ClipHub is capturing with HLAE and rendering your short. This runs locally and can take a few minutes; this view refreshes automatically.</p>
     </div>
   {{ else if .CanGenerate }}
     <div class="next-action">

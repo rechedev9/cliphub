@@ -13,14 +13,14 @@ import (
 	"github.com/hibiken/asynq"
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/moments"
-	"github.com/rechedev9/tickcut/internal/parser"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // in-memory fakes -------------------------------------------------------

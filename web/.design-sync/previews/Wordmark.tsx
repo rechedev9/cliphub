@@ -41,7 +41,7 @@ export function TextOnly() {
     <Frame>
       <Wordmark hideMark />
       <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
-        Lime “Frag” + white “Forge” — the TickCut mark
+        Lime “Frag” + white “Forge” — the ClipHub mark
       </span>
     </Frame>
   );

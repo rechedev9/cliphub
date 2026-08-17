@@ -20,7 +20,7 @@ test('allocates independent disposable profiles for concurrent suites', (t) => {
 });
 
 test('copies a managed tool fixture rather than sharing its mutable directory', (t) => {
-  const fixture = mkdtempSync(join(tmpdir(), 'tickcut-tool-fixture-'));
+  const fixture = mkdtempSync(join(tmpdir(), 'cliphub-tool-fixture-'));
   t.after(() => rmSync(fixture, { force: true, recursive: true }));
   mkdirSync(join(fixture, 'ffmpeg'), { recursive: true });
   writeFileSync(join(fixture, 'ffmpeg', 'fixture.txt'), 'verified by runtime on boot');
@@ -32,7 +32,7 @@ test('copies a managed tool fixture rather than sharing its mutable directory', 
 });
 
 test('rejects an invalid fixture before allocating a profile root', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-invalid-fixture-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-invalid-fixture-'));
   const fixtureFile = join(testRoot, 'not-a-directory');
   t.after(() => rmSync(testRoot, { force: true, recursive: true }));
   writeFileSync(fixtureFile, 'invalid fixture');
@@ -45,13 +45,13 @@ test('rejects an invalid fixture before allocating a profile root', (t) => {
         throw new Error('profile allocation must not run');
       },
     }),
-    /TICKCUT_E2E_TOOL_FIXTURE must name a real directory/,
+    /CLIPHUB_E2E_TOOL_FIXTURE must name a real directory/,
   );
   assert.equal(allocationCalled, false);
 });
 
 test('removes the allocated profile root when fixture copy initialization fails', (t) => {
-  const fixture = mkdtempSync(join(tmpdir(), 'tickcut-copy-failure-fixture-'));
+  const fixture = mkdtempSync(join(tmpdir(), 'cliphub-copy-failure-fixture-'));
   t.after(() => rmSync(fixture, { force: true, recursive: true }));
   writeFileSync(join(fixture, 'fixture.txt'), 'fixture');
   let allocatedRoot;

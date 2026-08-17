@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/faceit"
+	"github.com/rechedev9/cliphub/internal/faceit"
 )
 
 func TestParseFaceitIndexOptionsDefaultsToCurrentYearToDate(t *testing.T) {

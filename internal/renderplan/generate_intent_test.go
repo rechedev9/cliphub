@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 func TestGenerateIntentNormalizeDefaultsEdit(t *testing.T) {

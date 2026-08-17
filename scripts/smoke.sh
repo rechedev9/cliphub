@@ -274,7 +274,7 @@ cleanup() {
       wait "$OWNED_PID" 2>/dev/null || true
     fi
   fi
-  if [ -n "$OWNED_DATA" ] && [[ "$OWNED_DATA" == */tickcut-smoke.* ]] && [ -d "$OWNED_DATA" ]; then
+  if [ -n "$OWNED_DATA" ] && [[ "$OWNED_DATA" == */cliphub-smoke.* ]] && [ -d "$OWNED_DATA" ]; then
     for _ in $(seq 1 20); do
       rm -r -- "$OWNED_DATA" 2>/dev/null && break
       sleep 0.1
@@ -320,7 +320,7 @@ else
     echo "smoke port $OWNED_PORT is already owned by process $EXISTING_PID" >&2
     exit 1
   fi
-  OWNED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/tickcut-smoke.XXXXXXXX")"
+  OWNED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/cliphub-smoke.XXXXXXXX")"
   # Canonical launch contract: ./bin/zv serve.
   SERVER_COMMAND=("$ZV" serve)
   if ! command -v taskkill.exe >/dev/null 2>&1 && command -v setsid >/dev/null 2>&1; then
@@ -419,7 +419,7 @@ else
   echo "→ started isolated smoke orchestrator at $BASE"
 fi
 
-HEADER_NAME="X-TickCut-"Token
+HEADER_NAME="X-ClipHub-"Token
 curl_auth() {
   printf 'header = "%s: %s"\n' "$HEADER_NAME" "$CAPABILITY" | curl --config - "$@"
 }

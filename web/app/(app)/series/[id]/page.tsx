@@ -245,7 +245,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
             ? 'Arranca el servicio de análisis local y vuelve a intentarlo.'
             : 'Hubo un problema al cargar esta serie. Recarga la página para reintentar.'
         }
-        note={offline ? 'TickCut no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
+        note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
           <Button asChild variant="outline">
             <Link href="/upload">SUBIR DEMOS</Link>

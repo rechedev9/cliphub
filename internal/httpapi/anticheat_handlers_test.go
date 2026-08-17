@@ -14,11 +14,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/anticheat"
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/anticheat"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // anticheatRouter mounts the three CheaterDetect endpoints on a chi router so

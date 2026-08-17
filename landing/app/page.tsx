@@ -25,10 +25,14 @@ import Reveal from "@/components/reveal";
 
 // Point at a published GitHub Release asset only. 2.4.21 bundles ten new music
 // tracks and stops music provisioning from deleting a track it cannot hash.
+// The asset filename is deliberately pre-rebrand: v2.4.21 was published as
+// TickCut.Studio.Setup.2.4.21.exe and a released asset cannot be renamed
+// retroactively. Only the repo path moves. Update the filename once a
+// ClipHub-named installer ships.
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/tickcut/releases/download/v2.4.21/TickCut.Studio.Setup.2.4.21.exe";
+  "https://github.com/rechedev9/cliphub/releases/download/v2.4.21/TickCut.Studio.Setup.2.4.21.exe";
 const RELEASE_VERSION = "v2.4.21";
-const REPO_URL = "https://github.com/rechedev9/tickcut";
+const REPO_URL = "https://github.com/rechedev9/cliphub";
 
 function Corners() {
   return (
@@ -44,10 +48,10 @@ function Wordmark({ compact = false }: { compact?: boolean }) {
     <span className="inline-flex items-center gap-3">
       <span className="relative grid size-9 place-items-center overflow-hidden border border-cyan-300/50 bg-[#060b16] text-cyan-300 shadow-[0_0_24px_rgba(34,217,238,0.18)]">
         {/* eslint-disable-next-line @next/next/no-img-element -- small brand mark SVG */}
-        <img src="/brand/tickcut-mark.svg" alt="" width={36} height={36} className="size-9" />
+        <img src="/brand/cliphub-mark.svg" alt="" width={36} height={36} className="size-9" />
       </span>
       <span className={compact ? "text-lg font-bold tracking-[0.08em]" : "text-xl font-bold tracking-[0.08em]"}>
-        Tick<span className="text-cyan-300">Cut</span>
+        Clip<span className="text-cyan-300">Hub</span>
       </span>
     </span>
   );
@@ -72,7 +76,7 @@ const FEATURES: {
   {
     icon: Target,
     title: "The demo is the source of truth",
-    body: "TickCut parses every tick, identifies the exact killer, victim and round, then builds the recording plan from real match data.",
+    body: "ClipHub parses every tick, identifies the exact killer, victim and round, then builds the recording plan from real match data.",
     signal: "TICK-PERFECT",
     className: "md:col-span-7",
   },
@@ -102,7 +106,7 @@ const FEATURES: {
 const STEPS = [
   { title: "Add the source", body: "Drop a .dem or paste a stream URL. Demo parsing and capture stay on your PC." },
   { title: "Choose the story", body: "Pick the player, round and exact kills worth turning into a Short." },
-  { title: "Let the cut run", body: "TickCut records the real POV or cuts the stream, then composes the vertical edit on your machine." },
+  { title: "Let the cut run", body: "ClipHub records the real POV or cuts the stream, then composes the vertical edit on your machine." },
   { title: "Post the result", body: "Prepare the metadata, download the MP4 and open YouTube Studio to finish the official upload flow." },
 ];
 
@@ -131,7 +135,7 @@ export default function Home() {
           </div>
           <a href={DOWNLOAD_URL} className="group inline-flex items-center gap-2 border border-cyan-300/40 bg-slate-950/55 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_28px_rgba(34,217,238,0.1)] backdrop-blur-md transition duration-300 hover:border-cyan-300 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
             <span className="sm:hidden">Get app</span>
-            <span className="hidden sm:inline">Get TickCut</span>
+            <span className="hidden sm:inline">Get ClipHub</span>
             <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
           </a>
         </nav>
@@ -173,7 +177,7 @@ export default function Home() {
             <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 font-mono text-xs uppercase tracking-[0.12em] text-slate-400">
               <span className="inline-flex items-center gap-2"><LockKeyhole className="size-4 text-cyan-300" />Local capture</span>
               <span className="inline-flex items-center gap-2"><Gauge className="size-4 text-cyan-300" />60 FPS output</span>
-              <span className="inline-flex items-center gap-2"><CheckCircle2 className="size-4 text-cyan-300" />No TickCut account</span>
+              <span className="inline-flex items-center gap-2"><CheckCircle2 className="size-4 text-cyan-300" />No ClipHub account</span>
             </div>
           </div>
 
@@ -205,13 +209,13 @@ export default function Home() {
           </div>
         </div>
 
-        <a href="#what-it-does" aria-label="Explore the TickCut engine" className="absolute bottom-7 left-1/2 z-30 hidden -translate-x-1/2 flex-col items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400 transition hover:text-cyan-300 lg:flex">
+        <a href="#what-it-does" aria-label="Explore the ClipHub engine" className="absolute bottom-7 left-1/2 z-30 hidden -translate-x-1/2 flex-col items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400 transition hover:text-cyan-300 lg:flex">
           Explore the engine
           <span className="h-8 w-px animate-pulse bg-gradient-to-b from-cyan-300 to-transparent motion-reduce:animate-none" />
         </a>
       </section>
 
-      <section aria-label="TickCut product facts" className="relative border-b border-cyan-300/15 bg-[#070c18]">
+      <section aria-label="ClipHub product facts" className="relative border-b border-cyan-300/15 bg-[#070c18]">
         <div className="mx-auto grid max-w-[1480px] divide-y divide-cyan-300/10 px-5 sm:px-8 md:grid-cols-3 md:divide-x md:divide-y-0 lg:px-12">
           {[
             ["ZERO CLOUD", "Your demo never leaves the machine"],
@@ -237,7 +241,7 @@ export default function Home() {
               <Eyebrow>Inside the forge</Eyebrow>
               <h2 className="mt-5 text-balance text-4xl font-bold uppercase tracking-[-0.025em] text-white sm:text-6xl">What it does</h2>
               <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
-                Not another screen recorder. TickCut reconstructs the moment from the demo, captures it in the game and finishes the edit.
+                Not another screen recorder. ClipHub reconstructs the moment from the demo, captures it in the game and finishes the edit.
               </p>
             </div>
           </Reveal>
@@ -302,7 +306,7 @@ export default function Home() {
                 The killfeed survives.<span className="block text-cyan-300">The moment hits harder.</span>
               </h2>
               <p className="mt-7 max-w-2xl text-lg leading-relaxed text-slate-400">
-                TickCut keeps the native CS2 death notices inside the vertical safe area, filters them to your player and builds the edit around the real action.
+                ClipHub keeps the native CS2 death notices inside the vertical safe area, filters them to your player and builds the edit around the real action.
               </p>
               <ul className="mt-8 grid gap-4 sm:grid-cols-2">
                 {["Native, readable killfeed", "Target-player filtering", "Hook and kill counter", "Upload-ready publish pack"].map((item) => (
@@ -370,7 +374,7 @@ export default function Home() {
             <div>
               <h2 className="text-xl font-bold text-white">A transparent note about SmartScreen</h2>
               <p className="mt-3 leading-relaxed text-slate-400">
-                TickCut Studio is free and the installer is not code-signed yet. Windows may show{" "}
+                ClipHub Studio is free and the installer is not code-signed yet. Windows may show{" "}
                 <span className="font-semibold text-white">&ldquo;Windows protected your PC&rdquo;</span>. Choose{" "}
                 <span className="font-mono text-white">More info</span> and <span className="font-mono text-white">Run anyway</span>.
                 The full source and release checksum are public on GitHub.
@@ -393,7 +397,7 @@ export default function Home() {
               Free core, local capture and built for players who want the real moment — not another generic montage.
             </p>
             <a href={DOWNLOAD_URL} className="group mt-9 inline-flex min-h-14 items-center gap-3 bg-cyan-300 px-8 font-bold text-slate-950 shadow-[0_0_50px_rgba(34,217,238,0.35)] transition duration-300 hover:-translate-y-1 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-              <Download className="size-5" />Download TickCut Studio
+              <Download className="size-5" />Download ClipHub Studio
               <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
             </a>
             <p className="mt-4 font-mono text-xs uppercase tracking-[0.18em] text-slate-400">{RELEASE_VERSION} · 150 MB · Windows 10/11</p>
@@ -403,10 +407,10 @@ export default function Home() {
 
       <footer className="bg-[#040711] px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-[1320px] flex-col items-center justify-between gap-7 text-center sm:flex-row sm:text-left">
-          <div><Wordmark compact /><p className="mt-3 text-sm text-slate-500">Free core and local capture. TickCut never uploads your demos, clips or renders.</p></div>
+          <div><Wordmark compact /><p className="mt-3 text-sm text-slate-500">Free core and local capture. ClipHub never uploads your demos, clips or renders.</p></div>
           <div className="flex flex-col items-center gap-3 sm:items-end">
             <a href={REPO_URL} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300 transition hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"><Github className="size-4" />GitHub repository</a>
-            <p className="font-mono text-xs text-slate-600">© 2026 TickCut</p>
+            <p className="font-mono text-xs text-slate-600">© 2026 ClipHub</p>
           </div>
         </div>
       </footer>

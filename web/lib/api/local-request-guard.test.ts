@@ -64,8 +64,8 @@ test('allows origin-less reads only when Host is loopback with a port', async ()
 });
 
 test('fails closed for mutations without a seeded capability', async () => {
-  const previous = process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-  delete process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
+  const previous = process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+  delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
   try {
     const error = await localAPIRequestError(requestHeaders({
       host: '127.0.0.1:3000',
@@ -74,26 +74,26 @@ test('fails closed for mutations without a seeded capability', async () => {
     }), 'POST');
     assert.equal(error, 'local API mutation capability required');
   } finally {
-    if (previous === undefined) delete process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-    else process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = previous;
+    if (previous === undefined) delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+    else process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = previous;
   }
 });
 
 test('requires a capability for origin-less local mutations too', async () => {
-  const previous = process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-  delete process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
+  const previous = process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+  delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
   try {
     const error = await localAPIRequestError(requestHeaders({ host: '127.0.0.1:3000' }), 'POST');
     assert.equal(error, 'local API mutation capability required');
   } finally {
-    if (previous === undefined) delete process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-    else process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = previous;
+    if (previous === undefined) delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+    else process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = previous;
   }
 });
 
 test('requires the one capability cookie for mutations', async () => {
-  const previous = process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-  process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = 'one-launch-secret';
+  const previous = process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+  process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = 'one-launch-secret';
   try {
     const base = {
       host: '127.0.0.1:3000',
@@ -103,38 +103,38 @@ test('requires the one capability cookie for mutations', async () => {
     assert.equal(await localAPIRequestError(requestHeaders(base), 'DELETE'), 'local API mutation capability required');
     assert.equal(await localAPIRequestError(requestHeaders({
       ...base,
-      cookie: 'tickcut_proxy_capability=wrong-secret',
+      cookie: 'cliphub_proxy_capability=wrong-secret',
     }), 'DELETE'), 'local API mutation capability required');
     assert.equal(await localAPIRequestError(requestHeaders({
       ...base,
-      cookie: 'tickcut_proxy_capability=one-launch-secret',
+      cookie: 'cliphub_proxy_capability=one-launch-secret',
     }), 'DELETE'), undefined);
   } finally {
-    if (previous === undefined) delete process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-    else process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = previous;
+    if (previous === undefined) delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+    else process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = previous;
   }
 });
 
 test('rejects an ambiguous duplicated mutation capability cookie', async () => {
-  const previous = process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-  process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = 'one-launch-secret';
+  const previous = process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+  process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = 'one-launch-secret';
   try {
     const error = await localAPIRequestError(requestHeaders({
       host: '127.0.0.1:3000',
       origin: 'http://127.0.0.1:3000',
       'sec-fetch-site': 'same-origin',
-      cookie: 'tickcut_proxy_capability=one-launch-secret; tickcut_proxy_capability=wrong-secret',
+      cookie: 'cliphub_proxy_capability=one-launch-secret; cliphub_proxy_capability=wrong-secret',
     }), 'PATCH');
     assert.equal(error, 'local API mutation capability required');
   } finally {
-    if (previous === undefined) delete process.env.TICKCUT_PROXY_MUTATION_CAPABILITY;
-    else process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = previous;
+    if (previous === undefined) delete process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY;
+    else process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = previous;
   }
 });
 
 test('bootstrap needs its separate server-only capability and preserves the origin guard', async () => {
-  const previous = process.env.TICKCUT_PROXY_BOOTSTRAP_CAPABILITY;
-  process.env.TICKCUT_PROXY_BOOTSTRAP_CAPABILITY = 'standalone-bootstrap-secret';
+  const previous = process.env.CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY;
+  process.env.CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY = 'standalone-bootstrap-secret';
   try {
     const headers = requestHeaders({
       host: '127.0.0.1:3000',
@@ -150,7 +150,7 @@ test('bootstrap needs its separate server-only capability and preserves the orig
       'sec-fetch-site': 'same-origin',
     }), 'standalone-bootstrap-secret'), 'cross-site request blocked');
   } finally {
-    if (previous === undefined) delete process.env.TICKCUT_PROXY_BOOTSTRAP_CAPABILITY;
-    else process.env.TICKCUT_PROXY_BOOTSTRAP_CAPABILITY = previous;
+    if (previous === undefined) delete process.env.CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY;
+    else process.env.CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY = previous;
   }
 });

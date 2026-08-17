@@ -3,7 +3,7 @@ package composition
 import (
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/artifacts"
 )
 
 // ResultArtifactKey returns the durable composition result JSON key for a job.

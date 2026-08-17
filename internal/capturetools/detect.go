@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 const (
@@ -124,7 +124,7 @@ func detectSibling(name string) string {
 // detectHLAE deliberately ignores the known-wrong bare C:\HLAE install. The
 // highest installed versioned release always wins so CS2 signature updates do
 // not leave capture pinned to an older AfxHookSource2 build. Packaged Studio
-// unpacks under %APPDATA%\tickcut-studio\tools\hlae\<version>\HLAE.exe and
+// unpacks under %APPDATA%\cliphub-studio\tools\hlae\<version>\HLAE.exe and
 // must compete with C:\HLAE-* so a newer pin is not shadowed by an older
 // C-drive folder.
 func detectHLAE() string {
@@ -141,7 +141,7 @@ func detectHLAE() string {
 func hlaeSearchGlobs() []string {
 	globs := []string{`C:\HLAE-*\HLAE.exe`}
 	if appData := os.Getenv("APPDATA"); appData != "" {
-		globs = append(globs, filepath.Join(appData, `tickcut-studio`, "tools", "hlae", "*", "HLAE.exe"))
+		globs = append(globs, filepath.Join(appData, `cliphub-studio`, "tools", "hlae", "*", "HLAE.exe"))
 	}
 	return globs
 }
@@ -192,7 +192,7 @@ func hlaeVersion(path string) ([]int, bool) {
 	case len(dir) > len(prefix) && strings.EqualFold(dir[:len(prefix)], prefix):
 		raw = dir[len(prefix):]
 	case strings.EqualFold(grandparent, "hlae"):
-		// Packaged Studio pin: ...\tickcut-studio\tools\hlae\2.192.1\HLAE.exe
+		// Packaged Studio pin: ...\cliphub-studio\tools\hlae\2.192.1\HLAE.exe
 		raw = dir
 	default:
 		return nil, false

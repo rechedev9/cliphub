@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
 func TestFindBannerFontPrefersEmbeddedMontserrat(t *testing.T) {

@@ -23,19 +23,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/composition"
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/generateintent"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/keydropbanner"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/recording"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/generateintent"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/keydropbanner"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 const defaultMediaWorkerTimeout = "20m"
@@ -2094,7 +2094,7 @@ func writeDurableRenderDocuments(id uuid.UUID, variant string, revisionID uuid.U
 		return fmt.Errorf("write durable render gallery: %w", err)
 	}
 	var summary strings.Builder
-	fmt.Fprintf(&summary, "# TickCut publish pack\n\nVariant: %s\n\n", variant)
+	fmt.Fprintf(&summary, "# ClipHub publish pack\n\nVariant: %s\n\n", variant)
 	for _, short := range durable.Shorts {
 		fmt.Fprintf(&summary, "- %s: %s\n", short.SegmentID, short.PublishPath)
 	}
@@ -2228,7 +2228,7 @@ func projectDurablePublishItem(id uuid.UUID, variant string, revisionID uuid.UUI
 
 func durableRenderGallery(id uuid.UUID, variant string, revisionID uuid.UUID, result editor.Result) string {
 	var b strings.Builder
-	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>TickCut Publish Pack</title></head><body><h1>TickCut publish pack</h1>")
+	b.WriteString("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>ClipHub Publish Pack</title></head><body><h1>ClipHub publish pack</h1>")
 	base := fmt.Sprintf(
 		"/api/jobs/%s/renders/%s/revisions/%s",
 		id,

@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/capturetools"
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 // shortOptions are the parsed `zv short` command-line options.

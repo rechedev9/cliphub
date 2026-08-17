@@ -56,7 +56,7 @@ export function CommandStrip(): ReactElement {
           </span>
         )}
         <span className="truncate font-[family-name:var(--font-display)] text-label font-semibold tracking-wide text-fg-1 uppercase">
-          {section?.label ?? 'TickCut'}
+          {section?.label ?? 'ClipHub'}
         </span>
         {trail === null ? null : (
           <>

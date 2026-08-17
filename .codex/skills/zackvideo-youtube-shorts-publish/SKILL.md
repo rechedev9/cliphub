@@ -1,16 +1,16 @@
 ---
 name: zackvideo-youtube-shorts-publish
-description: "Prepare TickCut YouTube Shorts publish packs with titles, captions, hashtags, covers, and manual YouTube Studio guidance. Use when Codex needs to create or review upload-ready metadata and guide a user through the official browser-based publication flow."
+description: "Prepare ClipHub YouTube Shorts publish packs with titles, captions, hashtags, covers, and manual YouTube Studio guidance. Use when Codex needs to create or review upload-ready metadata and guide a user through the official browser-based publication flow."
 ---
 
-# TickCut YouTube Shorts Publish
+# ClipHub YouTube Shorts Publish
 
 Prepare and review upload-ready YouTube Shorts assets. Keep account, audience,
 visibility, scheduling, and publication decisions inside YouTube Studio.
 
 ## Publish Pack
 
-TickCut writes publish assets under:
+ClipHub writes publish assets under:
 
 ```text
 <run>\shortslistosparasubir\

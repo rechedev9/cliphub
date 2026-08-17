@@ -80,7 +80,7 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['HUD / killfeed'], 'Pendiente de preset');
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');
   assert.equal(brief['Intro'], 'No');
-  assert.equal(brief['Outro'], 'Sí · firma TickCut');
+  assert.equal(brief['Outro'], 'Sí · firma ClipHub');
   assert.equal(brief['KeyDrop'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');

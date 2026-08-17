@@ -10,11 +10,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/vodfetch"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
 
 type orchestratorJobRepository interface {

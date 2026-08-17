@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/rechedev9/tickcut/internal/radarmap"
-	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/radarmap"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // derivedRadarSize is the pixel resolution used when a map has no shipped

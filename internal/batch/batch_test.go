@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/parser"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
 )
 
 func TestIsDemo(t *testing.T) {
@@ -133,7 +133,7 @@ func TestRunRecordsCorruptDemo(t *testing.T) {
 		t.Errorf("event missing class: %+v", events[0])
 	}
 
-	if v := counterValue(rec, "TICKCUT_stage_runs_total", map[string]string{"result": "error", "stage": "parse"}); v != 1 {
+	if v := counterValue(rec, "CLIPHUB_stage_runs_total", map[string]string{"result": "error", "stage": "parse"}); v != 1 {
 		t.Errorf("expected one recorded parse error, got %d", v)
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
 // Fixed seed so chaos failures are reproducible in CI and locally.

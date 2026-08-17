@@ -857,8 +857,8 @@ func TestGeneratedBookendEffectsDefaultText(t *testing.T) {
 	if intro.Value != "2K HIGHLIGHT" {
 		t.Fatalf("intro value = %q, want upper-cased generated headline", intro.Value)
 	}
-	if outro.Value != "TickCut" {
-		t.Fatalf("outro value = %q, want the TickCut default", outro.Value)
+	if outro.Value != "ClipHub" {
+		t.Fatalf("outro value = %q, want the ClipHub default", outro.Value)
 	}
 	if !intro.Bold || intro.BorderWidth <= 0 || !outro.Bold || outro.BorderWidth <= 0 {
 		t.Fatalf("intro/outro styling = %#v / %#v, want bold outlined text", intro, outro)

@@ -35,7 +35,7 @@ export type EditConfig = {
   coverStrategy: CoverStrategy;
   /** Optional intro headline override, shown only while `intro` is on; empty = generated headline. */
   introText?: string;
-  /** Optional outro text override, shown only while `outro` is on; empty = "TickCut". */
+  /** Optional outro text override, shown only while `outro` is on; empty = "ClipHub". */
   outroText?: string;
   /** KeyDrop plate style; empty/undefined leaves the reel without a sponsor banner. */
   keyDropStyle?: KeyDropStyle | '';

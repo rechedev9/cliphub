@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 func TestRunFFmpegWithOptionalLogRecordsStartFailure(t *testing.T) {

@@ -1,6 +1,6 @@
 # Claude Code Guide
 
-Guidance for using Claude Code safely on TickCut.
+Guidance for using Claude Code safely on ClipHub.
 
 Claude Code automatically loads `CLAUDE.md` from the repo root.
 That file holds project boundaries, Go and TypeScript style, safety rules, and verification expectations.
@@ -18,7 +18,7 @@ Run Claude Code from the repository root in Git Bash, not through the broken bar
 claude
 ```
 
-Use the unified CLI for TickCut operations and inspect its executable contracts before composing commands:
+Use the unified CLI for ClipHub operations and inspect its executable contracts before composing commands:
 
 ```powershell
 .\bin\zv.exe capabilities --format json

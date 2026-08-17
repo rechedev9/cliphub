@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/lineups"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/lineups"
 )
 
 type Row struct {

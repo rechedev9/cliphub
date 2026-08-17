@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/capturetools"
 )
 
 type recordErrorResult struct {

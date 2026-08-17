@@ -58,7 +58,7 @@ const UNPLAYABLE_START_MESSAGE =
   'No relances CS2: no es un fallo de POV ni de HLAE.';
 
 const RECORDING_NOT_REUSABLE_MESSAGE =
-  'La captura guardada no es reutilizable con esta versión de TickCut. ' +
+  'La captura guardada no es reutilizable con esta versión de ClipHub. ' +
   'Reintenta: se volverá a grabar la POV con el contrato actual.';
 
 // Matches the orchestrator's "; captured N/M segments before the failure" clause.

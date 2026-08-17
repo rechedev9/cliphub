@@ -1,4 +1,4 @@
-# design-sync notes — TickCut web DS (cs2video-web)
+# design-sync notes — ClipHub web DS (cs2video-web)
 
 Repo-specific gotchas for syncing `web/` (Next.js 15 + React 19 + shadcn/ui +
 Tailwind v4) to claude.ai/design. Read this before re-syncing.
@@ -45,7 +45,7 @@ comment-free.
 
 Component styles are Tailwind utility classes; the bundle ships class names with
 no stylesheet unless compiled. `node .design-sync/compile-css.mjs` compiles
-`app/globals.css` (tokens + @theme + utilities + custom .tickcut-* classes)
+`app/globals.css` (tokens + @theme + utilities + custom .cliphub-* classes)
 scanning `components/`, the previews, and the built bundle, writing
 `node_modules/cs2video-web/styles.css` (inside the stub pkg so `cfg.cssEntry`
 containment passes). **Re-run compile-css.mjs whenever components or previews
@@ -63,7 +63,7 @@ back to system fonts, which is fine for grading).
 ## Authored-preview pattern
 
 Each `.design-sync/previews/<Name>.tsx`:
-- `import { X } from 'cs2video-web'` → resolves to `window.TickCut`. Excluded
+- `import { X } from 'cs2video-web'` → resolves to `window.ClipHub`. Excluded
   sub-parts (CardHeader, DialogContent, SidebarProvider, etc.) are still
   importable this way (they ship in the bundle, just no standalone card).
 - `import { Icon } from 'lucide-react'` works (bundled from node_modules).
@@ -84,7 +84,7 @@ Each `.design-sync/previews/<Name>.tsx`:
 
 51 components carded; 70 structural shadcn sub-parts excluded via
 `componentSrcMap: null` (kept importable on the global, shown composed inside
-their parent's preview). `window.TickCut` still exports all ~126 names.
+their parent's preview). `window.ClipHub` still exports all ~126 names.
 
 ## Per-component authoring learnings (folded from the fan-out waves)
 

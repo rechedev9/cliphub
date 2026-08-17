@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 // recordShortFailure records a failed `zv short` stage to the local obs journal.

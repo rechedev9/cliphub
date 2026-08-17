@@ -7,7 +7,7 @@ import (
 )
 
 func TestLocalStreamServiceRejectsMissingFFmpeg(t *testing.T) {
-	err := (localStreamService{}).ValidateFFmpeg(context.Background(), "tickcut-ffmpeg-that-does-not-exist")
+	err := (localStreamService{}).ValidateFFmpeg(context.Background(), "cliphub-ffmpeg-that-does-not-exist")
 	if err == nil || !strings.Contains(err.Error(), "not accessible") {
 		t.Fatalf("ValidateFFmpeg error = %v, want inaccessible executable", err)
 	}

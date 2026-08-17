@@ -1,4 +1,4 @@
-// Command zv-tui is a lazygit-style terminal UI for the TickCut pipeline. It
+// Command zv-tui is a lazygit-style terminal UI for the ClipHub pipeline. It
 // is a thin client of the orchestrator HTTP API (the same surface the web Studio
 // drives), so it runs the whole flow from a terminal: browse jobs, upload a
 // demo, pick a player, record, compose, and render Shorts - plus the stream-clip
@@ -12,10 +12,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/rechedev9/tickcut/internal/tuiclient"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
-const usage = `zv-tui - lazygit-style terminal UI for the TickCut pipeline
+const usage = `zv-tui - lazygit-style terminal UI for the ClipHub pipeline
 
 Usage:
   zv tui [--url <orchestrator>] [--token <token>] [file ...]
@@ -26,7 +26,7 @@ onto the running TUI uploads it too.
 
 Flags:
   --url <addr>     orchestrator base URL (default $ORCHESTRATOR_URL or ` + tuiclient.DefaultBaseURL + `)
-  --token <tok>    required per-session X-TickCut-Token
+  --token <tok>    required per-session X-ClipHub-Token
                    (default $ZV_MUTATION_TOKEN)
 
 Keys (the mouse works too: click tabs and rows, wheel to scroll, click the
@@ -44,7 +44,7 @@ func main() {
 	fs := flag.NewFlagSet("zv-tui", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	url := fs.String("url", "", "orchestrator base URL")
-	token := fs.String("token", "", "X-TickCut-Token")
+	token := fs.String("token", "", "X-ClipHub-Token")
 	help := fs.Bool("help", false, "show help")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	if err := fs.Parse(os.Args[1:]); err != nil {

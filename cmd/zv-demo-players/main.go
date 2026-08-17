@@ -18,8 +18,8 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 
-	"github.com/rechedev9/tickcut/internal/pathguard"
-	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/cliphub/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/storage"
 )
 
 const usage = `usage: zv-demo-players --demo <match.dem> [--contains <name>] [--out <players.json>] [--format text|json]

@@ -1,13 +1,13 @@
 let meta = #{
     name: "desktop-efficiency",
-    description: "Measure TickCut Studio process-tree cost, persist a baseline, remasure after a change, and accept only raw-process wins",
+    description: "Measure ClipHub Studio process-tree cost, persist a baseline, remasure after a change, and accept only raw-process wins",
     phases: [
         #{ title: "Measure", detail: "sample the desktop process tree and persist a baseline" },
         #{ title: "Change", detail: "apply a candidate code or config change" },
         #{ title: "Remeasure", detail: "sample the same scenario and duration" },
         #{ title: "Compare", detail: "accept only documented raw-process wins" },
     ],
-    when_to_use: "When iterating on TickCut Studio raw process cost (CPU, working set, private bytes) without launching HLAE, CS2, or a render.",
+    when_to_use: "When iterating on ClipHub Studio raw process cost (CPU, working set, private bytes) without launching HLAE, CS2, or a render.",
 };
 
 let measure_schema = #{
@@ -67,7 +67,7 @@ if mode == "compare" {
     }
     phase("Compare");
     let compare_prompt = "";
-    compare_prompt += "In the TickCut repo, compare two existing desktop efficiency reports. ";
+    compare_prompt += "In the ClipHub repo, compare two existing desktop efficiency reports. ";
     compare_prompt += forbidden + " ";
     compare_prompt += "Run: node desktop/scripts/compare-efficiency.mjs --baseline ";
     compare_prompt += json_encode(baseline_path);
@@ -110,7 +110,7 @@ let candidate_out = "desktop/e2e/artifacts/efficiency-" + scenario + "-candidate
 
 phase("Measure");
 let measure_prompt = "";
-measure_prompt += "In the TickCut repo, persist a baseline desktop efficiency sample. ";
+measure_prompt += "In the ClipHub repo, persist a baseline desktop efficiency sample. ";
 measure_prompt += forbidden + " ";
 measure_prompt += "Run this exact sampler, no other media tools: ";
 measure_prompt += "powershell -NoProfile -File .\\scripts\\measure-desktop-efficiency.ps1 -RootPid ";
@@ -152,7 +152,7 @@ await_user("user", "Baseline persisted. Apply the candidate code or config chang
 
 phase("Remeasure");
 let remasure_prompt = "";
-remasure_prompt += "In the TickCut repo, remasure the same desktop efficiency scenario and duration as the persisted baseline. ";
+remasure_prompt += "In the ClipHub repo, remasure the same desktop efficiency scenario and duration as the persisted baseline. ";
 remasure_prompt += forbidden + " ";
 remasure_prompt += "Use the same scenario and the same requested duration as the baseline. Run: ";
 remasure_prompt += "powershell -NoProfile -File .\\scripts\\measure-desktop-efficiency.ps1 -RootPid ";
@@ -178,7 +178,7 @@ if remasured == () || !remasured.success || remasured.output == () || remasured.
 
 phase("Compare");
 let iterate_compare_prompt = "";
-iterate_compare_prompt += "In the TickCut repo, compare the persisted baseline against the remasured candidate. ";
+iterate_compare_prompt += "In the ClipHub repo, compare the persisted baseline against the remasured candidate. ";
 iterate_compare_prompt += forbidden + " ";
 iterate_compare_prompt += "Run: node desktop/scripts/compare-efficiency.mjs --baseline ";
 iterate_compare_prompt += json_encode(baseline_out);

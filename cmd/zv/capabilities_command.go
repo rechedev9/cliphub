@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/capturetools"
 )
 
 type localCapabilityGroup struct {

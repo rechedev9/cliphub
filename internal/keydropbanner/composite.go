@@ -56,8 +56,8 @@ func CompositeWithCode(ffmpegPath, styleID, code, fontPath, outPath string) erro
 		coverX, coverY, coverW, coverH, style.CoverColor,
 		ffmpegFilterPath(fontPath), ffmpegDrawtextText(label), fontSize, textY,
 	)
-	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by TickCut config;
-	// plate/font/out paths are local materializations under TickCut control.
+	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config;
+	// plate/font/out paths are local materializations under ClipHub control.
 	cmd := exec.Command(ffmpegPath, //nolint:gosec
 		"-y", "-hide_banner", "-loglevel", "error",
 		"-i", platePath,

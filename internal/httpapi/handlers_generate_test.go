@@ -15,13 +15,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 func generateRouter(h *Handlers) chi.Router {

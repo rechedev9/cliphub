@@ -1,4 +1,4 @@
-# Go concurrency review for TickCut
+# Go concurrency review for ClipHub
 
 Follow `AGENTS.md`.
 

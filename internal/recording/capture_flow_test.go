@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
 // captureFlowFixture builds a minimal kill plan used as the post-parse input

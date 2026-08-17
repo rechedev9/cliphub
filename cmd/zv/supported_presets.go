@@ -1,6 +1,6 @@
 package main
 
-import "github.com/rechedev9/tickcut/internal/editor"
+import "github.com/rechedev9/cliphub/internal/editor"
 
 func supportedPresetNames() []string {
 	return []string{editor.DefaultPreset().Name}

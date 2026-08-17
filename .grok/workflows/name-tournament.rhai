@@ -1,6 +1,6 @@
 let meta = #{
     name: "name-tournament",
-    description: "Creative naming tournament for the CS2 local reel pipeline (replacing TickCut)",
+    description: "Creative naming tournament for the CS2 local reel pipeline (replacing ClipHub)",
     phases: [
         #{ title: "Ideate", detail: "four creative tables in parallel" },
         #{ title: "Skeptic", detail: "adversarial screen of candidates" },
@@ -84,7 +84,7 @@ brief += "Source of truth is the .dem (or stream VOD), not AI guesswork. ";
 brief += "Flow: parse demo -> kill plan -> HLAE/CS2 capture -> FFmpeg/Lua effects -> publish pack (MP4, cover, caption). ";
 brief += "Audience: CS2 creators, clippers, aspiring content makers; bilingual ES/EN ok. ";
 brief += "Tone: sharp, competitive, craft/tooling — not toy, not enterprise SaaS. ";
-brief += "CONSTRAINTS: current name TickCut is already taken elsewhere — do NOT propose TickCut, ForgeFrag, Frag-Forge variants, or near-collisions. ";
+brief += "CONSTRAINTS: current name ClipHub is already taken elsewhere — do NOT propose ClipHub, ForgeFrag, Frag-Forge variants, or near-collisions. ";
 brief += "Prefer one word or tight compounds (2-3 syllables ideal). Avoid pure generic (Clipper, ShortsMaker). ";
 brief += "Names should work as a desktop app brand and GitHub org. ";
 brief += "Avoid trademarks of Valve, Faceit, Twitch, YouTube, Adobe. ";
@@ -120,7 +120,7 @@ for t in tables {
     p += "YOUR ANGLE: " + t.angle + ". " + t.prompt_extra + " ";
     p += "Invent 5-8 original product names. For each: name, short tagline (ES or EN, max 8 words), why it fits, pronunciation guide. ";
     p += "No research tools required — pure creative judgment. Diversity inside the angle; no duplicates of each other. ";
-    p += "Do not output TickCut or any forge+frag mashup.";
+    p += "Do not output ClipHub or any forge+frag mashup.";
     ideate_jobs.push(#{
         prompt: p,
         label: "ideate:" + t.angle,
@@ -182,7 +182,7 @@ skeptic_prompt += "You are a ruthless brand skeptic for a CS2 desktop product. "
 skeptic_prompt += brief + " ";
 skeptic_prompt += "CANDIDATES JSON: " + pool_json + " ";
 skeptic_prompt += "For EACH candidate name, decide keep=true/false. ";
-skeptic_prompt += "Reject if: too close to TickCut; sounds like existing major tools (Premiere, OBS, Medal, Shadowplay, Faceit, HLTV, CSGO.Demos); ";
+skeptic_prompt += "Reject if: too close to ClipHub; sounds like existing major tools (Premiere, OBS, Medal, Shadowplay, Faceit, HLTV, CSGO.Demos); ";
 skeptic_prompt += "unpronounceable; offensive double meaning in ES/EN; generic SEO spam; trademark-looking of known orgs. ";
 skeptic_prompt += "score 1-10 (10=best brand for THIS product). ";
 skeptic_prompt += "Return survivors array covering every name you evaluated (include keep=false ones with risk notes). ";

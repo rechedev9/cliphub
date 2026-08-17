@@ -1,6 +1,6 @@
 let meta = #{
     name: "cli-operator",
-    description: "CLI-first TickCut path: inspect capabilities, probe playability, report the next zv argv",
+    description: "CLI-first ClipHub path: inspect capabilities, probe playability, report the next zv argv",
     phases: [
         #{ title: "Doctor", detail: "inspect zv capabilities" },
         #{ title: "Probe", detail: "classify playdemo tick-0 safety" },
@@ -36,9 +36,9 @@ if demo == () || demo == "" { pause("verification", "Pass args.demo — path to 
 
 phase("Doctor");
 let doctor_prompt = "";
-doctor_prompt += "In the TickCut repo, first run powershell -NoProfile -File .\\scripts\\operator-session.ps1. ";
+doctor_prompt += "In the ClipHub repo, first run powershell -NoProfile -File .\\scripts\\operator-session.ps1. ";
 doctor_prompt += "Then run .\\bin\\zv.exe capabilities --format json. Do not launch CS2 or HLAE. ";
-doctor_prompt += "The only allowed HLAE path is %APPDATA%\\tickcut-studio\\tools\\hlae\\2.192.1\\HLAE.exe. ";
+doctor_prompt += "The only allowed HLAE path is %APPDATA%\\cliphub-studio\\tools\\hlae\\2.192.1\\HLAE.exe. ";
 doctor_prompt += "C:\\HLAE\\HLAE.exe and C:\\HLAE-2.191.1\\HLAE.exe are wrong. ";
 doctor_prompt += "Set hlae_path to the path you will pass as --hlae on record. ";
 doctor_prompt += "Set pin_ok=true only if that path contains hlae\\2.192.1\\HLAE.exe and the file exists. ";
@@ -54,7 +54,7 @@ if doctor == () || !doctor.success || doctor.output == () {
 
 phase("Probe");
 let probe_prompt = "";
-probe_prompt += "In the TickCut repo, run: .\\bin\\zv.exe demo probe --demo ";
+probe_prompt += "In the ClipHub repo, run: .\\bin\\zv.exe demo probe --demo ";
 probe_prompt += json_encode(demo);
 probe_prompt += " --out playability.json --format json. ";
 probe_prompt += "Do not launch CS2 or HLAE. Read the JSON class, first_full_packet_tick, tickrate. ";

@@ -36,7 +36,7 @@ export function publishTagsText(tags: string[]): string {
 }
 
 export function downloadPublishMP4(url: string, title: string): void {
-  const safeTitle = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-') || 'tickcut-reel';
+  const safeTitle = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-') || 'cliphub-reel';
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `${safeTitle}.mp4`;

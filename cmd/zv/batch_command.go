@@ -11,10 +11,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/batch"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/parser"
-	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/batch"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/pathguard"
 )
 
 // runBatch parses a folder of demos in-process and records every failure to the

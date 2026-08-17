@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/rechedev9/tickcut/internal/tuiclient"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 // actionTimeout bounds any single API call the TUI makes. Uploads can be large,

@@ -53,7 +53,7 @@ test('renames a real Windows directory through the write-through helper', (t) =>
     t.skip('durable rename helper is Windows-specific');
     return;
   }
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-durable-rename-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-durable-rename-'));
   const source = join(testRoot, 'source');
   const destination = join(testRoot, 'destination');
   mkdirSync(source);
@@ -67,7 +67,7 @@ test('renames a real Windows directory through the write-through helper', (t) =>
 });
 
 test('publishes a verified directory while replacing the previous set', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publish-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publish-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   mkdirSync(target, { recursive: true });
@@ -91,7 +91,7 @@ test('publishes a verified directory while replacing the previous set', (t) => {
 });
 
 test('flushes the parent after journal and generation renames', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publish-flush-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publish-flush-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const flushed = [];
@@ -117,7 +117,7 @@ test('flushes the parent after journal and generation renames', (t) => {
 });
 
 test('restores the previous directory when the staging rename fails', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-rollback-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-rollback-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   mkdirSync(target, { recursive: true });
@@ -142,7 +142,7 @@ test('restores the previous directory when the staging rename fails', (t) => {
 });
 
 test('recovers an interrupted target-to-backup rename before publishing', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-recover-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-recover-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -159,7 +159,7 @@ test('recovers an interrupted target-to-backup rename before publishing', (t) =>
 });
 
 test('rolls a published directory back after post-publication verification fails', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-post-verify-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-post-verify-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   mkdirSync(target, { recursive: true });
@@ -177,7 +177,7 @@ test('rolls a published directory back after post-publication verification fails
 });
 
 test('failed first publication is discarded durably and a retry can commit', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-first-publish-rollback-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-first-publish-rollback-'));
   const target = join(testRoot, 'dist-installer');
   const firstStage = join(testRoot, 'stage-1');
   const retryStage = join(testRoot, 'stage-2');
@@ -208,7 +208,7 @@ test('failed first publication is discarded durably and a retry can commit', (t)
 });
 
 test('recovery completes an interrupted first-publication discard', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-first-publish-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-first-publish-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const journal = publicationJournalPath(target);
@@ -236,7 +236,7 @@ test('recovery completes an interrupted first-publication discard', (t) => {
 });
 
 test('recovery retries first-publication journal cleanup from restored phase', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-first-publish-journal-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-first-publish-journal-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const journal = publicationJournalPath(target);
@@ -263,7 +263,7 @@ test('recovery retries first-publication journal cleanup from restored phase', (
 });
 
 test('an interrupted unverified target is rolled back before the next publication', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-interrupted-verify-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-interrupted-verify-'));
   const target = join(testRoot, 'dist-installer');
   const firstStage = join(testRoot, 'stage-1');
   const secondStage = join(testRoot, 'stage-2');
@@ -291,7 +291,7 @@ test('an interrupted unverified target is rolled back before the next publicatio
 });
 
 test('committed recovery keeps the verified target after interrupted journal cleanup', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-committed-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-committed-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -322,7 +322,7 @@ test('committed recovery keeps the verified target after interrupted journal cle
 });
 
 test('rollback preserves the target and journal when the original backup is missing', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-missing-release-backup-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-missing-release-backup-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -345,7 +345,7 @@ test('rollback preserves the target and journal when the original backup is miss
 });
 
 test('backup creation failure immediately recovers the prepared target', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-prepared-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-prepared-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const journal = publicationJournalPath(target);
@@ -369,7 +369,7 @@ test('backup creation failure immediately recovers the prepared target', (t) => 
 });
 
 test('first publication discards an unverified target when its staging rename outlives the publisher', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-first-publish-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-first-publish-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const journal = publicationJournalPath(target);
@@ -393,7 +393,7 @@ test('first publication discards an unverified target when its staging rename ou
 });
 
 test('recovery accepts a valid Windows journal whose paths use different casing', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-path-case-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-path-case-recovery-'));
   const target = join(testRoot, 'Dist-Installer');
   const staging = join(testRoot, 'Stage');
   const journal = publicationJournalPath(target);
@@ -416,7 +416,7 @@ test('recovery accepts a valid Windows journal whose paths use different casing'
 });
 
 test('rename completion followed by metadata flush failure immediately restores target', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-backup-flush-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-backup-flush-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -452,7 +452,7 @@ test('rename completion followed by metadata flush failure immediately restores 
 });
 
 test('published transition failure after staging rename immediately restores target', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-published-transition-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-published-transition-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -489,7 +489,7 @@ test('published transition failure after staging rename immediately restores tar
 });
 
 test('publication preserves mutation and recovery errors', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-double-publication-failure-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-double-publication-failure-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -525,7 +525,7 @@ test('publication preserves mutation and recovery errors', (t) => {
 });
 
 test('live rollback accepts an injected error after its restore rename completed', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-restore-recovery-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-restore-recovery-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -552,7 +552,7 @@ test('live rollback accepts an injected error after its restore rename completed
 });
 
 test('recovery completes a restoring journal after its backup rename', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-restoring-journal-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-restoring-journal-'));
   const target = join(testRoot, 'dist-installer');
   const staging = join(testRoot, 'stage');
   const backup = publicationBackupDirectory(target);
@@ -577,17 +577,17 @@ test('recovery completes a restoring journal after its backup rename', (t) => {
 });
 
 winTest('publication lock excludes another live process and releases on owner death', async (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publication-lock-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publication-lock-'));
   const target = join(testRoot, 'dist-installer');
   const moduleURL = new URL('./atomic-publication.mjs', import.meta.url).href;
   const childCode = `
     import { acquirePublicationLock } from ${JSON.stringify(moduleURL)};
-    await acquirePublicationLock(process.env.TICKCUT_TEST_TARGET);
+    await acquirePublicationLock(process.env.CLIPHUB_TEST_TARGET);
     process.stdout.write('locked\\n');
     setInterval(() => {}, 1000);
   `;
   const child = spawn(process.execPath, ['--input-type=module', '--eval', childCode], {
-    env: { ...process.env, TICKCUT_TEST_TARGET: target },
+    env: { ...process.env, CLIPHUB_TEST_TARGET: target },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(() => {
@@ -617,7 +617,7 @@ winTest('publication lock excludes another live process and releases on owner de
 });
 
 winTest('publication lock grants exactly one of two simultaneous contenders', async (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publication-lock-race-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publication-lock-race-'));
   const target = join(testRoot, 'dist-installer');
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
 
@@ -640,7 +640,7 @@ test('publication lock rejects a symbolic-link lock path without touching its ta
     return;
   }
 
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publication-lock-symlink-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publication-lock-symlink-'));
   const target = join(testRoot, 'dist-installer');
   const protectedTarget = join(testRoot, 'protected.txt');
   const lockPath = publicationLockPath(target);
@@ -672,7 +672,7 @@ test('publication lock rejects a hard-linked lock path without touching its targ
     return;
   }
 
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publication-lock-hardlink-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publication-lock-hardlink-'));
   const target = join(testRoot, 'dist-installer');
   const protectedTarget = join(testRoot, 'protected.txt');
   const lockPath = publicationLockPath(target);
@@ -691,7 +691,7 @@ test('publication lock rejects a hard-linked lock path without touching its targ
 });
 
 winTest('publication fence survives helper death while its Node owner is alive', async (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-publication-fence-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-publication-fence-'));
   const target = join(testRoot, 'dist-installer');
   let helper;
   const release = await acquirePublicationLock(target, {

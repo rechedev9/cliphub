@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // TestWriteRecoverableStreamRenderStateCodesSuperseded pins the machine-readable

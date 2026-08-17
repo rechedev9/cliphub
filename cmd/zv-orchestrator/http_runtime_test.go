@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/httpapi"
+	"github.com/rechedev9/cliphub/internal/httpapi"
 )
 
 func TestNewOrchestratorHTTPServerSetsDefensiveTimeouts(t *testing.T) {
@@ -163,7 +163,7 @@ func TestPreparedHTTPServerRejectsRebindingHostAndRequiresCapability(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("X-TickCut-Token", capability)
+	request.Header.Set("X-ClipHub-Token", capability)
 	response, err = http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestPreparedHTTPServerRejectsRebindingHostAndRequiresCapability(t *testing.
 	}
 	request.Host = "attacker.example:" + strconv.Itoa(prepared.Addr().(*net.TCPAddr).Port)
 	request.Header.Set("Sec-Fetch-Site", "same-origin")
-	request.Header.Set("X-TickCut-Token", capability)
+	request.Header.Set("X-ClipHub-Token", capability)
 	response, err = http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)

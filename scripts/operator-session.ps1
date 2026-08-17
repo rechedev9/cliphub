@@ -2,7 +2,7 @@
 # Identity is the unpacked path + Test-Path. Do not Get-FileHash HLAE.exe against
 # desktop/src/hlae-tool.json: sha256 is the zip, treeSha256 is Studio's tree digest.
 $ErrorActionPreference = 'Stop'
-$pin = Join-Path $env:APPDATA 'tickcut-studio\tools\hlae\2.192.1\HLAE.exe'
+$pin = Join-Path $env:APPDATA 'cliphub-studio\tools\hlae\2.192.1\HLAE.exe'
 if (-not (Test-Path -LiteralPath $pin)) {
     throw "HLAE pin missing: $pin"
 }

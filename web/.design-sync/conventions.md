@@ -1,6 +1,6 @@
-# TickCut — building with this design system
+# ClipHub — building with this design system
 
-TickCut is **"the replay studio"**: it turns a player's own Counter-Strike 2
+ClipHub is **"the replay studio"**: it turns a player's own Counter-Strike 2
 demos into highlight reels, recorded on their own rig. Design it like a focused
 creator/editing tool — Linear / Vercel / a broadcast room — **not** a marketing
 SaaS dashboard. The bar is a premium product that bills a million dollars:

@@ -11,13 +11,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 // newTestSQLiteStreamRepo builds a sqlite stream job repository the same way
 // main.go's sqlite branch does: sharing the *sql.DB opened by
 // newSQLiteJobRepository rather than opening the file twice. This is the
-// regression coverage for the bug where TickCut Studio (desktop, which runs
+// regression coverage for the bug where ClipHub Studio (desktop, which runs
 // the orchestrator with ZV_DATABASE_URL=sqlite) left streamRepo nil, so every
 // /api/stream-jobs endpoint 500'd.
 func newTestSQLiteStreamRepo(t *testing.T) *sqliteStreamJobRepository {

@@ -19,7 +19,7 @@ import { writeClipboardText } from '@/lib/clipboard-write';
  * The report kit for one player.
  *
  * This dialog deliberately stops at "here is the evidence and here is where
- * the official flow lives". TickCut does not submit reports and does not
+ * the official flow lives". ClipHub does not submit reports and does not
  * help produce several of them against one account: Valve decides cheating
  * bans from its own detection, not from report volume, and coordinated mass
  * reporting is both ineffective and against the Steam Subscriber Agreement.

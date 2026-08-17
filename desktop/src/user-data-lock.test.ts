@@ -9,7 +9,7 @@ import {
 } from './user-data-lock.ts';
 
 function temporaryRoot(t: test.TestContext): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-user-data-lock-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-user-data-lock-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return root;
 }
@@ -35,7 +35,7 @@ class FakeUserDataLockApp implements UserDataLockApp {
   }
 
   getName(): string {
-    return 'TickCut Studio';
+    return 'ClipHub Studio';
   }
 
   getPath(name: 'appData' | 'userData'): string {
@@ -60,7 +60,7 @@ test('creates fresh canonical and explicit profile directories before setPath', 
   const root = temporaryRoot(t);
   const appData = path.join(root, 'app-data');
   const profileUserData = path.join(root, 'profiles', 'fresh');
-  const canonicalUserData = path.join(appData, 'TickCut Studio');
+  const canonicalUserData = path.join(appData, 'ClipHub Studio');
   const app = new FakeUserDataLockApp(true, appData, profileUserData, true);
 
   assert.equal(requestCanonicalSingleInstanceLock(app), true);
@@ -113,7 +113,7 @@ test('keeps development and e2e locks scoped to their existing profile', (t) => 
 test('rejects a non-directory canonical lock namespace before acquiring the lock', (t) => {
   const root = temporaryRoot(t);
   const appData = path.join(root, 'app-data');
-  const canonicalUserData = path.join(appData, 'TickCut Studio');
+  const canonicalUserData = path.join(appData, 'ClipHub Studio');
   fs.mkdirSync(appData);
   fs.writeFileSync(canonicalUserData, 'not a directory');
   const app = new FakeUserDataLockApp(

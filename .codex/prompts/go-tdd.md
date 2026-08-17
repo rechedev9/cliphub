@@ -1,4 +1,4 @@
-# Go TDD playbook for TickCut
+# Go TDD playbook for ClipHub
 
 Follow `AGENTS.md`.
 

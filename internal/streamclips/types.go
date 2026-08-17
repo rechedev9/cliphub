@@ -227,7 +227,7 @@ type MusicPlan struct {
 }
 
 // EffectsPlan opts a render into light, deterministic post effects. Grade
-// applies the mild contrast/saturation lift used across TickCut's viral
+// applies the mild contrast/saturation lift used across ClipHub's viral
 // presets; heavier looks are deliberately not offered.
 type EffectsPlan struct {
 	Grade bool `json:"grade,omitempty"`

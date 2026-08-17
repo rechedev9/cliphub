@@ -1,6 +1,6 @@
 package composition
 
-import "github.com/rechedev9/tickcut/internal/recording"
+import "github.com/rechedev9/cliphub/internal/recording"
 
 type Result struct {
 	RecordingResult string                      `json:"recording_result"`

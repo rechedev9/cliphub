@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 // writeTacticalDocument writes the committed reference tactical document into

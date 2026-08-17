@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
 const testRenderVariant = "viral-60-clean"

@@ -1,4 +1,4 @@
-# Go PR-ready playbook for TickCut
+# Go PR-ready playbook for ClipHub
 
 Follow `AGENTS.md`.
 

@@ -1,9 +1,9 @@
 ---
 name: zackvideo-cheater-pov-reels
-description: "Create CS2 Shorts reels against suspected cheaters or hackers from TickCut demos: every time the target is killed, show the killer POV first and then the target POV dying, concatenate all deaths into one long vertical video, and QA every kill block before delivery."
+description: "Create CS2 Shorts reels against suspected cheaters or hackers from ClipHub demos: every time the target is killed, show the killer POV first and then the target POV dying, concatenate all deaths into one long vertical video, and QA every kill block before delivery."
 ---
 
-# TickCut Cheater POV Reels
+# ClipHub Cheater POV Reels
 
 Use this skill when the user wants a funny CS2 video against a suspected cheater/hacker, especially requests like "cada vez que lo matamos", "sale el POV de quien lo mata y luego su POV muriendo", or "video del hacker".
 
@@ -132,7 +132,7 @@ Run final probes:
 ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,avg_frame_rate,duration -show_entries format=duration,size -of json <final.mp4>
 ```
 
-Expected final: H.264 video, AAC audio, `1080x1920`, `60/1`, nonzero duration, no missing audio. Also confirm no HLAE/CS2/TickCut recording processes remain running for the run.
+Expected final: H.264 video, AAC audio, `1080x1920`, `60/1`, nonzero duration, no missing audio. Also confirm no HLAE/CS2/ClipHub recording processes remain running for the run.
 
 ## Publishing Tone
 

@@ -1,4 +1,4 @@
-// Package tuiclient is a small, dependency-light HTTP client for the TickCut
+// Package tuiclient is a small, dependency-light HTTP client for the ClipHub
 // orchestrator API (the /api/jobs and /api/stream-jobs surfaces). It exists so
 // the terminal UI (cmd/zv-tui) can drive the exact same flow the web Studio
 // drives, without importing the heavy server-side domain packages (parser,
@@ -21,22 +21,22 @@ import (
 	"time"
 )
 
-// DefaultBaseURL is the orchestrator's default loopback bind (see PRODUCT.md;
-// ZV_HTTP_ADDR defaults to 127.0.0.1:8080).
+// DefaultBaseURL is the orchestrator's default loopback bind (ZV_HTTP_ADDR
+// defaults to 127.0.0.1:8080).
 const DefaultBaseURL = "http://127.0.0.1:8080"
 
 // tokenHeader is the mutation/read token header the orchestrator checks
 // (internal/httpapi/routes.go requireMutationToken).
 // #nosec G101 -- this is the public HTTP header name, not a credential value.
-const tokenHeader = "X-TickCut-Token"
+const tokenHeader = "X-ClipHub-Token"
 
 // Config configures a Client. Zero values fall back to sensible defaults and
-// the standard TickCut environment variables.
+// the standard ClipHub environment variables.
 type Config struct {
 	// BaseURL is the orchestrator root, e.g. "http://127.0.0.1:8080". Empty
 	// falls back to ORCHESTRATOR_URL, then DefaultBaseURL.
 	BaseURL string
-	// Token is the X-TickCut-Token value. Empty falls back to
+	// Token is the X-ClipHub-Token value. Empty falls back to
 	// ZV_MUTATION_TOKEN. Production orchestrators require a per-session token
 	// even on loopback; an empty value is retained only so the server can return
 	// its canonical authentication error.

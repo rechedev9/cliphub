@@ -47,7 +47,7 @@ export async function stageBundledHLAE({
 
   try {
     const response = await fetchImpl(spec.url, {
-      headers: { 'User-Agent': 'TickCut-Studio-build' },
+      headers: { 'User-Agent': 'ClipHub-Studio-build' },
       redirect: 'follow',
     });
     if (!response.ok) {

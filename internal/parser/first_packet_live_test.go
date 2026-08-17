@@ -10,8 +10,8 @@ func TestProbeDemoKnownLocalHalves(t *testing.T) {
 		name string
 		path string
 	}{
-		{"first-half", `C:\Users\reche\AppData\Roaming\tickcut-studio\data\demos\a03f752b-cd6c-410c-8327-4e57206e65e3.dem`},
-		{"second-half", `C:\Users\reche\AppData\Roaming\tickcut-studio\data\demos\5a44a22b-47a7-43a8-86d8-1af4eab62b26.dem`},
+		{"first-half", `C:\Users\reche\AppData\Roaming\cliphub-studio\data\demos\a03f752b-cd6c-410c-8327-4e57206e65e3.dem`},
+		{"second-half", `C:\Users\reche\AppData\Roaming\cliphub-studio\data\demos\5a44a22b-47a7-43a8-86d8-1af4eab62b26.dem`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

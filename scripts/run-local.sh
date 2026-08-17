@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-box local deploy of the full TickCut pipeline for the HTMX local UI:
+# One-box local deploy of the full ClipHub pipeline for the HTMX local UI:
 #   upload .dem -> scan roster -> pick player -> parse -> record (HLAE/CS2)
 #   -> render reel (viral-60-clean) -> upload-ready artifacts.
 #

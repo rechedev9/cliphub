@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 const youtubeShortMaxSeconds = 180.0

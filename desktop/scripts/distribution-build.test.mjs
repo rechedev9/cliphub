@@ -5,7 +5,7 @@ import test from 'node:test';
 import { runDistributionBuildSteps } from './distribution-build.mjs';
 
 test('rebuilds Go runtimes before desktop build and resource assembly', () => {
-  const repo = join('C:', 'work', 'tickcut');
+  const repo = join('C:', 'work', 'cliphub');
   const desktop = join(repo, 'desktop');
   const environment = { KEEP_ME: 'yes' };
   const calls = [];

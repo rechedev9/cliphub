@@ -1,4 +1,4 @@
-# Go readability review for TickCut
+# Go readability review for ClipHub
 
 Follow `AGENTS.md`.
 

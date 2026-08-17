@@ -1,6 +1,6 @@
 // Package faceit indexes a player's FACEIT match history for deterministic
 // demo acquisition. Match statistics are triage metadata only; the downloaded
-// CS2 demo remains TickCut's source of truth for recording decisions.
+// CS2 demo remains ClipHub's source of truth for recording decisions.
 package faceit
 
 import (
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const SchemaVersion = "tickcut.faceit-demo-index/v1"
+const SchemaVersion = "cliphub.faceit-demo-index/v1"
 
 var (
 	ErrNotConfigured   = errors.New("FACEIT Data API is not configured")

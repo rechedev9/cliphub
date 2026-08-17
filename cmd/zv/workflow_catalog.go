@@ -5,10 +5,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/parser"
-	"github.com/rechedev9/tickcut/internal/recording"
-	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 func findWorkflow(name string) (workflowInfo, bool) {
@@ -198,7 +198,7 @@ func buildWorkflowCatalog() []workflowInfo {
 		},
 		{
 			Name:        "project-check",
-			Description: "Run the full TickCut CLI, workflow, docs, and skills contract.",
+			Description: "Run the full ClipHub CLI, workflow, docs, and skills contract.",
 			Command:     "zv check",
 			RunArgs:     []string{"check"},
 		},

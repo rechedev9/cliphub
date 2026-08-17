@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 func TestRunDryRunWritesManifestsPromptsAndDoesNotExecuteFFmpeg(t *testing.T) {
@@ -368,7 +368,7 @@ func TestRunWithFakeFFmpegWritesShortResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"# TickCut Publish Summary", "Total kills: 3", "AK-47 x1", "AWP x1", "| 01 | seg-001 |"} {
+	for _, want := range []string{"# ClipHub Publish Summary", "Total kills: 3", "AK-47 x1", "AWP x1", "| 01 | seg-001 |"} {
 		if !strings.Contains(string(summary), want) {
 			t.Fatalf("publish summary missing %q:\n%s", want, summary)
 		}

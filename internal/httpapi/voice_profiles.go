@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/rechedev9/tickcut/internal/voiceprofile"
+	"github.com/rechedev9/cliphub/internal/voiceprofile"
 )
 
 const (
@@ -23,7 +23,7 @@ type voiceProfileResponse struct {
 }
 
 // PutVoiceProfile handles PUT /api/voice-profiles/{id}. The uploaded reference
-// stays in TickCut's local data store and is never sent to a TTS provider.
+// stays in ClipHub's local data store and is never sent to a TTS provider.
 func (h *Handlers) PutVoiceProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if !voiceprofile.ValidID(id) {

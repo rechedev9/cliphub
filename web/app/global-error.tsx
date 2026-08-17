@@ -75,14 +75,14 @@ export default function GlobalError({
   reset: () => void;
 }): ReactElement {
   useEffect(() => {
-    console.error('[tickcut] global error', error);
+    console.error('[cliphub] global error', error);
   }, [error]);
 
   return (
     <html lang="es">
       <body style={PAGE}>
         <main role="alert" style={PANEL}>
-          <p style={EYEBROW}>TickCut Studio</p>
+          <p style={EYEBROW}>ClipHub Studio</p>
           <h1 style={TITLE}>Studio no ha podido arrancar</h1>
           <p style={BODY}>
             Ha fallado la aplicación entera, no solo una pantalla. Tus demos, capturas y renders están en el

@@ -1,4 +1,4 @@
--- Natural TickCut preset for smoke lineup clips.
+-- Natural ClipHub preset for smoke lineup clips.
 -- Runs inside zv-editor, not HLAE.
 
 on_segment(function(s)

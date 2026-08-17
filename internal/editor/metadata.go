@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
 type pipelineResultRef struct {

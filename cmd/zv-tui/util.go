@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/tuiclient"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 // truncate shortens s to at most n runes, adding an ellipsis when cut. A
@@ -58,7 +58,7 @@ func defaultUploadDir() string {
 // saveFinal streams a composed job's MP4 to a file in the current directory and
 // returns its absolute path.
 func saveFinal(cl *tuiclient.Client, id string) (string, error) {
-	name := fmt.Sprintf("tickcut-%s.mp4", shortID(id))
+	name := fmt.Sprintf("cliphub-%s.mp4", shortID(id))
 	f, err := os.Create(name) // #nosec G304 -- fixed name in the operator's cwd
 	if err != nil {
 		return "", err

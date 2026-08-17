@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/radarmap"
+	"github.com/rechedev9/cliphub/internal/radarmap"
 )
 
 func TestOccupancyBuilderPacksCells(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 // TestStreamJourneyChainsStagesMediaFree drives the stream/VOD journey through

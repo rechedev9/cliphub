@@ -48,11 +48,11 @@ for (const required of [zvOrchestrator, zvEditor, zvRecorder]) {
 // Manual assemble can ship stale bins if someone skips dist's rebuild step.
 // Release path (dist.mjs → build.ps1 then assemble) is correct; warn loudly so
 // ad-hoc packaging is not mistaken for a fresh runtime.
-if (process.env.TICKCUT_ASSEMBLE_ALLOW_STALE_BIN !== '1') {
+if (process.env.CLIPHUB_ASSEMBLE_ALLOW_STALE_BIN !== '1') {
   console.warn(
     '[assemble] using existing repo/bin/*.exe without rebuilding. ' +
       'Release packaging must go through pnpm --dir desktop run dist ' +
-      '(rebuilds Go runtimes first). Set TICKCUT_ASSEMBLE_ALLOW_STALE_BIN=1 to silence.',
+      '(rebuilds Go runtimes first). Set CLIPHUB_ASSEMBLE_ALLOW_STALE_BIN=1 to silence.',
   );
 }
 // electron-builder picks up build/icon.ico automatically (see desktop/GUIDE.md);

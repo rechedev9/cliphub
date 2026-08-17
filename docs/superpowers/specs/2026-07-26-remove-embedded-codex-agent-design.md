@@ -4,7 +4,7 @@ Date: 2026-07-26
 
 ## Problem
 
-TickCut Studio ships an embedded assistant — TickCut Agent — that runs against the user's personal Codex session, plus a typed MCP operation gateway that lets it act on the app, plus a headless Codex worker that proposes title, caption and hashtag candidates for a demo render.
+ClipHub Studio ships an embedded assistant — ClipHub Agent — that runs against the user's personal Codex session, plus a typed MCP operation gateway that lets it act on the app, plus a headless Codex worker that proposes title, caption and hashtag candidates for a demo render.
 
 Luis wants all three gone. Studio becomes a pure GUI: the pipeline is driven through the interface and the `zv` CLI, and publish text is written by hand.
 
@@ -70,7 +70,7 @@ This is the significant difference from the stream killfeed and captions removal
 
 ## Documentation
 
-`CLAUDE.md` states that TickCut Agent is the only assistant surface shipped in Studio, and that Studio adds a separate approval of the exact costly or destructive operation preview. Both stop being true and must go, along with any instruction to reach for the integrated typed operation gateway.
+`CLAUDE.md` states that ClipHub Agent is the only assistant surface shipped in Studio, and that Studio adds a separate approval of the exact costly or destructive operation preview. Both stop being true and must go, along with any instruction to reach for the integrated typed operation gateway.
 
 `CLAUDE.md` lines 50 and 141, and `desktop/GUIDE.md` lines 62 and 83, promise a gateway that will no longer exist; those are the known hits, and a sweep must find the rest.
 

@@ -40,7 +40,7 @@ export type ReelIntent = {
   createdAt: number;
 };
 
-const STORE_KEY = 'tickcut.reels.v1';
+const STORE_KEY = 'cliphub.reels.v1';
 /** Pre-rebrand key; read once and migrate into STORE_KEY. */
 const LEGACY_STORE_KEY = 'fragforge.reels.v1';
 /** Keep localStorage bounded; newest intents win. */

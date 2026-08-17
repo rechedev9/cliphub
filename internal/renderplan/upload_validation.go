@@ -3,8 +3,8 @@ package renderplan
 import (
 	"fmt"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 // ValidateRenderVariantRunResult returns an error when the editor wrote a

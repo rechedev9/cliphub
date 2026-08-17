@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/artifacts"
 )
 
 // NotReusablePrefix marks a stored recording that cannot feed compose/render

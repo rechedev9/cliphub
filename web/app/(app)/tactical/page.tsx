@@ -2,7 +2,7 @@ import { StudioPageHeader } from '@/components/studio/page-header';
 import { TacticalDemoPicker } from '@/components/tactical/tactical-demo-picker';
 
 export const metadata = {
-  title: 'Táctica — TickCut Studio',
+  title: 'Táctica — ClipHub Studio',
 };
 
 /**

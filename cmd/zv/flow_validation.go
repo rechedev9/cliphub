@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 // flowPlaceholderSubstitutions resolves the angle-bracket placeholders used in

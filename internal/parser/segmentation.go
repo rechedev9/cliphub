@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 // RawKill is the normalized representation of a kill produced by the demo

@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 // sqliteJobRepository persists jobs in a local SQLite file so job state survives

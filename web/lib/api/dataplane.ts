@@ -1,5 +1,5 @@
 /**
- * Client-side data-plane addressing. TickCut processes every media byte on
+ * Client-side data-plane addressing. ClipHub processes every media byte on
  * the user's own PC: the browser reaches the bundled orchestrator through
  * same-origin Next route handlers under /api/demos/*, which proxy to the
  * orchestrator running on this machine. No token travels to the browser.

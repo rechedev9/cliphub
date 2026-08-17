@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 // Health is a cheap liveness probe that never touches the database. It is
@@ -14,7 +14,7 @@ import (
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"service": "tickcut", "status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"service": "cliphub", "status": "ok"})
 }
 
 // Metrics serves the local pipeline counters in the Prometheus text exposition

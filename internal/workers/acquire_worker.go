@@ -16,11 +16,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
-	"github.com/rechedev9/tickcut/internal/vodfetch"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
 
 // StreamAcquireRepository is the subset of the stream job repository the

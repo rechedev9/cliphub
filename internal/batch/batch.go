@@ -1,6 +1,6 @@
 // Package batch runs a folder of CS2 demos through the parse stage in-process
 // and records every failure to an obs.Recorder. It exists so an operator (or an
-// agent) can point TickCut at a directory of demos, get a pass/fail summary,
+// agent) can point ClipHub at a directory of demos, get a pass/fail summary,
 // and drive the error journal to empty without invoking the per-demo CLI by
 // hand.
 package batch
@@ -25,10 +25,10 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/parser"
-	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 // Options configures a batch run.

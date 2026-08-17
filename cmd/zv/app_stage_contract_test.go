@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
 // TestStageCommandsEmitDryRunEnvelope pins the {ok, dry_run, executed} success

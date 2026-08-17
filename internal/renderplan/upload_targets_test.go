@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 func TestNewRenderVariantUploadTargetsDerivesKeysAndPaths(t *testing.T) {

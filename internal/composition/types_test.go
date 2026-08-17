@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 func TestResultPreservesSegmentClipJSONShape(t *testing.T) {

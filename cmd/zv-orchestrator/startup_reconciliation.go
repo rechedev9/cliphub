@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/storage"
 )
 
 // startupReconciliationResult reports each durable lifecycle repaired before

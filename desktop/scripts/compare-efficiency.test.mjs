@@ -124,7 +124,7 @@ test('compareReports accepts only documented raw-process wins', () => {
 });
 
 test('runCompareCli reads Windows PowerShell UTF-8 BOM reports', (t) => {
-  const directory = mkdtempSync(join(tmpdir(), 'tickcut-compare-efficiency-bom-'));
+  const directory = mkdtempSync(join(tmpdir(), 'cliphub-compare-efficiency-bom-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const baselinePath = join(directory, 'baseline.json');
   const candidatePath = join(directory, 'candidate.json');
@@ -148,7 +148,7 @@ test('runCompareCli reads Windows PowerShell UTF-8 BOM reports', (t) => {
 });
 
 test('runCompareCli drives the shipped compare entry on two report files', (t) => {
-  const directory = mkdtempSync(join(tmpdir(), 'tickcut-compare-efficiency-'));
+  const directory = mkdtempSync(join(tmpdir(), 'cliphub-compare-efficiency-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const baselinePath = join(directory, 'baseline.json');
   const candidatePath = join(directory, 'candidate.json');

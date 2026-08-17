@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/rechedev9/tickcut/internal/tuiclient"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

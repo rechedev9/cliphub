@@ -3,7 +3,7 @@ import test from 'node:test';
 import { parseClipboardWriteRequest } from './clipboard-ipc.ts';
 
 test('accepts one bounded clipboard text field', () => {
-  assert.deepEqual(parseClipboardWriteRequest({ text: 'TickCut' }), { text: 'TickCut' });
+  assert.deepEqual(parseClipboardWriteRequest({ text: 'ClipHub' }), { text: 'ClipHub' });
   assert.deepEqual(parseClipboardWriteRequest({ text: '' }), { text: '' });
 });
 

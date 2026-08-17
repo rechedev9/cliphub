@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/keydropbanner"
-	"github.com/rechedev9/tickcut/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/keydropbanner"
+	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 	landscapeBannerX      = 32
 
 	// gradeFilter is the light contrast/saturation lift EffectsPlan.Grade
-	// applies — the same restrained look TickCut's viral presets use.
+	// applies — the same restrained look ClipHub's viral presets use.
 	gradeFilter = "eq=contrast=1.05:saturation=1.15"
 )
 

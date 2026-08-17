@@ -1,6 +1,6 @@
 import type { StreamEditPlan, StreamJob } from './api/streams.ts';
 
-const PREFIX = 'tickcut.stream-draft.';
+const PREFIX = 'cliphub.stream-draft.';
 
 export type StreamDraft = {
   savedAt: string;

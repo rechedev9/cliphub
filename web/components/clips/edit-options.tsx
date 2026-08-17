@@ -139,7 +139,7 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
             label="Texto de cierre"
             value={value.outroText ?? ''}
             visible={value.outro}
-            placeholder="Texto de cierre (tu handle; vacío = TickCut)"
+            placeholder="Texto de cierre (tu handle; vacío = ClipHub)"
             disabled={disabled}
             onChange={(outroText) => onChange({ ...value, outroText })}
           />

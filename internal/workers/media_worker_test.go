@@ -19,16 +19,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/composition"
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/recording"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 type runnerCall struct {
@@ -1128,14 +1128,14 @@ func TestWriteDurableRenderDocumentsIgnoresRendererPublishDocumentPaths(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Contains(gallery, []byte("TickCut publish pack")) {
+			if !bytes.Contains(gallery, []byte("ClipHub publish pack")) {
 				t.Fatalf("canonical gallery = %q", gallery)
 			}
 			summary, err := os.ReadFile(filepath.Join(publishDir, "publish-summary.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Contains(summary, []byte("# TickCut publish pack")) {
+			if !bytes.Contains(summary, []byte("# ClipHub publish pack")) {
 				t.Fatalf("canonical summary = %q", summary)
 			}
 		})

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/job"
+	"github.com/rechedev9/cliphub/internal/job"
 )
 
 func logWorkerTransition(id uuid.UUID, taskType string, status job.Status) {

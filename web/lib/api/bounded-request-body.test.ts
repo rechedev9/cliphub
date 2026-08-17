@@ -11,10 +11,10 @@ const LOCAL_HEADERS = {
   host: '127.0.0.1:3000',
   origin: 'http://127.0.0.1:3000',
   'sec-fetch-site': 'same-origin',
-  cookie: 'tickcut_proxy_capability=upload-test-secret',
+  cookie: 'cliphub_proxy_capability=upload-test-secret',
 };
 
-process.env.TICKCUT_PROXY_MUTATION_CAPABILITY = 'upload-test-secret';
+process.env.CLIPHUB_PROXY_MUTATION_CAPABILITY = 'upload-test-secret';
 
 test('control JSON must be an object with only supported keys', () => {
   for (const text of ['null', '[]', '"value"', '1']) {

@@ -1,4 +1,4 @@
-# Go bugfix playbook for TickCut
+# Go bugfix playbook for ClipHub
 
 Follow `AGENTS.md`.
 

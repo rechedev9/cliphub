@@ -1,4 +1,4 @@
-# Go security review for TickCut
+# Go security review for ClipHub
 
 Follow `AGENTS.md`.
 

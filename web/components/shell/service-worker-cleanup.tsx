@@ -6,7 +6,7 @@ import { shouldReloadAfterEviction, SW_EVICTED_RELOAD_KEY } from '@/lib/sw-evict
 /**
  * Unregisters any service worker registered for this origin, once on mount.
  *
- * TickCut never registers a service worker, so any registration found here is
+ * ClipHub never registers a service worker, so any registration found here is
  * foreign by definition — typically a stale worker left behind by another
  * project that previously served on the same localhost port. Such a worker can
  * silently intercept and hang <video> media requests (readyState stuck at 0) in
@@ -33,7 +33,7 @@ export function ServiceWorkerCleanup(): null {
             // One warn per evicted scope so the (unexpected) foreign worker is diagnosable.
             if (unregistered) {
               unregisteredCount += 1;
-              console.warn(`Unregistered a foreign service worker (TickCut registers none): ${scope}`);
+              console.warn(`Unregistered a foreign service worker (ClipHub registers none): ${scope}`);
             }
           }),
         );

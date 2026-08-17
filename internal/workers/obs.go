@@ -3,7 +3,7 @@ package workers
 import (
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/obs"
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 // recordStageFailure appends a terminal worker failure to the local obs journal

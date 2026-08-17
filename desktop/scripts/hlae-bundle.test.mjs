@@ -18,7 +18,7 @@ function fixtureSpec(bytes) {
 }
 
 test('stages and verifies the pinned HLAE archive', async (t) => {
-  const directory = mkdtempSync(join(tmpdir(), 'tickcut-hlae-bundle-'));
+  const directory = mkdtempSync(join(tmpdir(), 'cliphub-hlae-bundle-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const bytes = Buffer.from('official release fixture');
   const spec = fixtureSpec(bytes);
@@ -35,7 +35,7 @@ test('stages and verifies the pinned HLAE archive', async (t) => {
 });
 
 test('rejects a corrupt archive without publishing it', async (t) => {
-  const directory = mkdtempSync(join(tmpdir(), 'tickcut-hlae-bundle-'));
+  const directory = mkdtempSync(join(tmpdir(), 'cliphub-hlae-bundle-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const spec = fixtureSpec(Buffer.from('expected'));
 

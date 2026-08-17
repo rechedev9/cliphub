@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 // Collector accumulates the events the parser observes for the target player

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/rechedev9/tickcut/internal/streamcli"
+	"github.com/rechedev9/cliphub/internal/streamcli"
 )
 
 func main() {

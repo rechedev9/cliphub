@@ -7,12 +7,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/rechedev9/tickcut/internal/tuiclient"
+	"github.com/rechedev9/cliphub/internal/tuiclient"
 )
 
 func (m model) View() string {
 	if !m.ready || m.width < 40 || m.height < 10 {
-		return "starting TickCut TUI… (make the terminal at least 40x10)"
+		return "starting ClipHub TUI… (make the terminal at least 40x10)"
 	}
 	header := m.viewHeader()
 	footer := m.viewFooter()
@@ -40,7 +40,7 @@ func (m model) viewHeader() string {
 	} else {
 		tabs = tabInactive.Render(tabDemos) + " " + tabActive.Render(tabStreams)
 	}
-	left := titleStyle.Render("TickCut") + "  " + tabs
+	left := titleStyle.Render("ClipHub") + "  " + tabs
 
 	right := hintStyle.Render(m.cl.BaseURL())
 	if m.capsLoaded {

@@ -1,4 +1,4 @@
-// Release evals for TickCut Studio 2.4.21. This launches the real Electron
+// Release evals for ClipHub Studio 2.4.21. This launches the real Electron
 // application and drives the renderer with Playwright. Expensive/external
 // stream stages use controlled same-origin responses.
 
@@ -46,7 +46,7 @@ after(async () => {
     // The release evaluation seeds fake reel intents below. Remove them even
     // when an assertion fails so a later Electron suite never rehydrates test
     // IDs against a real empty orchestrator.
-    await page.evaluate(() => window.localStorage.removeItem('tickcut.reels.v1')).catch(() => {});
+    await page.evaluate(() => window.localStorage.removeItem('cliphub.reels.v1')).catch(() => {});
     await page.screenshot({ path: join(artifactsDir, 'final-state.png'), fullPage: true }).catch(() => {});
   }
   await app?.close().catch(() => {});
@@ -69,9 +69,9 @@ async function screenshot(name) {
 test('installed release exposes version-only desktop settings with no MCP surface', async () => {
   await goto('/settings');
   await page.getByText('Versión', { exact: true }).waitFor();
-  assert.equal(await page.getByText(/Consulta la versión instalada de TickCut Studio\./).isVisible(), true);
+  assert.equal(await page.getByText(/Consulta la versión instalada de ClipHub Studio\./).isVisible(), true);
   const bridgeShape = await page.evaluate(() => ({
-    hasRetiredMCPConfig: typeof window.tickcutSettings?.getMCPConfig === 'function',
+    hasRetiredMCPConfig: typeof window.cliphubSettings?.getMCPConfig === 'function',
   }));
   assert.deepEqual(bridgeShape, { hasRetiredMCPConfig: false });
   const body = await page.locator('body').innerText();
@@ -79,9 +79,9 @@ test('installed release exposes version-only desktop settings with no MCP surfac
   assert.doesNotMatch(body, /servidor MCP|configuraci[oó]n MCP/i);
   await screenshot('settings-version-only.png');
 
-  const installedExecutable = join(process.env.LOCALAPPDATA, 'Programs', 'TickCut Studio', 'TickCut Studio.exe');
+  const installedExecutable = join(process.env.LOCALAPPDATA, 'Programs', 'ClipHub Studio', 'ClipHub Studio.exe');
   assert.equal(existsSync(installedExecutable), true, `installed executable missing: ${installedExecutable}`);
-  const installedUserData = mkdtempSync(join(tmpdir(), 'tickcut-installed-e2e-'));
+  const installedUserData = mkdtempSync(join(tmpdir(), 'cliphub-installed-e2e-'));
   const installedApp = await _electron.launch({
     executablePath: installedExecutable,
     args: [`--user-data-dir=${installedUserData}`],
@@ -96,9 +96,9 @@ test('installed release exposes version-only desktop settings with no MCP surfac
     await installedPage.waitForURL(`${installedOrigin}/settings`);
     const installedInfo = installedPage.locator('[aria-labelledby="studio-info-title"]');
     await installedInfo.getByText('Versión', { exact: true }).waitFor();
-    assert.equal(await installedPage.getByText(/Consulta la versión instalada de TickCut Studio\./).isVisible(), true);
+    assert.equal(await installedPage.getByText(/Consulta la versión instalada de ClipHub Studio\./).isVisible(), true);
     const installedBridgeShape = await installedPage.evaluate(() => ({
-      hasRetiredMCPConfig: typeof window.tickcutSettings?.getMCPConfig === 'function',
+      hasRetiredMCPConfig: typeof window.cliphubSettings?.getMCPConfig === 'function',
     }));
     assert.deepEqual(installedBridgeShape, { hasRetiredMCPConfig: false });
     assert.doesNotMatch(await installedPage.locator('body').innerText(), /servidor MCP|configuraci[oó]n MCP/i);
@@ -192,7 +192,7 @@ test('demo reel requires the exact creative brief and keeps publication metadata
     }
     return route.fulfill({ status: 404, json: { error: `unhandled demo eval route ${path}` } });
   });
-  await page.evaluate((value) => window.localStorage.setItem('tickcut.reels.v1', JSON.stringify(value)), intents);
+  await page.evaluate((value) => window.localStorage.setItem('cliphub.reels.v1', JSON.stringify(value)), intents);
   await goto('/videos');
   await page.getByText('Reel Alpha', { exact: true }).waitFor();
   await page.getByText('Reel Beta', { exact: true }).waitFor();
@@ -217,7 +217,7 @@ test('demo reel requires the exact creative brief and keeps publication metadata
   // The real client keeps rehydrated intents in memory, but this durable store
   // is what a later Electron launch reads. Clearing it prevents test-only job
   // IDs leaking into the shared isolated profile.
-  await page.evaluate(() => window.localStorage.removeItem('tickcut.reels.v1'));
+  await page.evaluate(() => window.localStorage.removeItem('cliphub.reels.v1'));
   await page.unroute('**/api/demos/**');
 });
 
@@ -325,7 +325,7 @@ test('stream editor validates, recovers, previews, reports progress, switches la
     return route.fulfill({ status: 404, json: { error: `unhandled eval route ${method} ${path}` } });
   });
 
-  await page.evaluate((id) => window.localStorage.removeItem(`tickcut.stream-draft.${id}`), jobId);
+  await page.evaluate((id) => window.localStorage.removeItem(`cliphub.stream-draft.${id}`), jobId);
   await goto('/streams');
   await page.getByRole('button', { name: 'TRAER CLIP' }).click();
   const urlAlert = page.getByRole('alert').filter({ hasText: 'Pega una URL de clip o VOD' });

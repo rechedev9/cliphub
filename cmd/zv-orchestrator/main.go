@@ -13,14 +13,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/generateintent"
-	"github.com/rechedev9/tickcut/internal/httpapi"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
-	"github.com/rechedev9/tickcut/internal/workers"
-	"github.com/rechedev9/tickcut/internal/youtubetrends"
+	"github.com/rechedev9/cliphub/internal/generateintent"
+	"github.com/rechedev9/cliphub/internal/httpapi"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/workers"
+	"github.com/rechedev9/cliphub/internal/youtubetrends"
 )
 
 type orchestratorStreamJobRepository interface {
@@ -118,7 +118,7 @@ func run() error {
 		streamRepo = sqliteStreamRepo
 		log.Printf("jobs: using sqlite repository at %s", path)
 	default:
-		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: tickcut desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
+		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: cliphub desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
 	}
 
 	// Reconcile durable state whose process-local work vanished with the previous

@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/pathguard"
-	"github.com/rechedev9/tickcut/internal/tactical"
-	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/tactical"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 type analysisTacticalResult struct {

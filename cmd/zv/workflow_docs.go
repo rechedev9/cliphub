@@ -3,28 +3,6 @@ package main
 func workflowDocs() []workflowDoc {
 	return []workflowDoc{
 		{
-			Path: "PRODUCT.md",
-			Required: []string{
-				"./bin/zv faceit index",
-				"./bin/zv demo parse",
-				"./bin/zv demo players",
-				"./bin/zv demo probe",
-				"./bin/zv record",
-				"./bin/zv compose final",
-				"./bin/zv music analyze",
-				"./bin/zv shorts render",
-				"./bin/zv stream variants",
-				"./bin/zv stream plan",
-				"./bin/zv stream render",
-				"./bin/zv analysis tactical",
-				"./bin/zv analysis rounds",
-				"./bin/zv analysis tendencies",
-				"./bin/zv presets",
-				"./bin/zv check",
-				"./bin/zv serve",
-			},
-		},
-		{
 			Path: "scripts/smoke-real.ps1",
 			Required: []string{
 				`bin\zv serve`,
@@ -71,7 +49,7 @@ func workflowDocs() []workflowDoc {
 		{
 			Path: "scripts/check-codex-harness.sh",
 			Required: []string{
-				"== TickCut workflow contract ==",
+				"== ClipHub workflow contract ==",
 				"go run ./cmd/zv check",
 			},
 		},

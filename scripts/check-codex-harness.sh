@@ -39,10 +39,10 @@ if ! codex --cd "$root" debug prompt-input "harness smoke test" > "$tmp" 2> "$er
   exit 1
 fi
 
-grep -q "TickCut is a Windows-local, deterministic CS2 demo/stream-to-video pipeline" "$tmp"
+grep -q "ClipHub is a Windows-local, deterministic CS2 demo/stream-to-video pipeline" "$tmp"
 grep -q "AGENTS.md" "$tmp"
 
-echo "== TickCut workflow contract =="
+echo "== ClipHub workflow contract =="
 go run ./cmd/zv check
 
 echo "OK: Codex harness is wired"

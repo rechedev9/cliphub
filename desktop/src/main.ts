@@ -1,4 +1,4 @@
-// TickCut Studio - Electron main process.
+// ClipHub Studio - Electron main process.
 //
 // This is the desktop wrapper around Local Studio: it boots the same two
 // processes the local-studio.ps1 launcher does (the Go orchestrator and the
@@ -58,7 +58,7 @@ import {
 } from './studio-settings-ipc';
 import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboard-ipc';
 
-// TickCut reads XAI_API_KEY nowhere: no model provider is part of the
+// ClipHub reads XAI_API_KEY nowhere: no model provider is part of the
 // product. An operator's own key can still reach this process by ordinary
 // environment inheritance, so delete the name before anything is spawned —
 // every child (the Next.js server, zv-orchestrator, and the PowerShell that
@@ -200,7 +200,7 @@ const allowedInternalUrls = new Set<string>();
 // sandboxed preload exposes only the Studio settings bridge, so
 // the static error page still uses a plain <a href> intercepted by
 // will-navigate to request a retry; Chromium never actually resolves this host.
-const RETRY_URL = 'https://retry.tickcut.invalid/';
+const RETRY_URL = 'https://retry.cliphub.invalid/';
 
 const windowFile = path.join(app.getPath('userData'), 'window.json');
 
@@ -251,7 +251,7 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     ...bounds,
     backgroundColor: '#0a0a0a',
-    title: 'TickCut Studio',
+    title: 'ClipHub Studio',
     webPreferences: {
       // Keep Chromium's timer and compositor throttling enabled whenever the
       // window is hidden or occluded. This is explicit because disabling it on
@@ -268,7 +268,7 @@ function createWindow(): BrowserWindow {
     },
   });
   mainWindow = win;
-  // The embedded web UI titles itself "TickCut" (the shared browser
+  // The embedded web UI titles itself "ClipHub" (the shared browser
   // product); the native window keeps the desktop product name instead of
   // adopting whatever document.title the page sets.
   win.on('page-title-updated', (event) => event.preventDefault());
@@ -337,7 +337,7 @@ function createWindow(): BrowserWindow {
     showErrorScreen(
       `La interfaz se ha bloqueado repetidamente (motivo: ${details.reason}).`,
       'La interfaz se ha bloqueado repetidamente',
-      'Cierra TickCut Studio y vuelve a abrirlo. Si el problema persiste, revisa el registro.',
+      'Cierra ClipHub Studio y vuelve a abrirlo. Si el problema persiste, revisa el registro.',
     );
   });
 
@@ -364,9 +364,9 @@ function showErrorScreen(err: unknown, title?: string, hint?: string): void {
   loadingScreenShowing = false;
   const win = aliveWindow();
   if (win === null) return;
-  const defaultTitle = 'TickCut Studio no pudo arrancar';
+  const defaultTitle = 'ClipHub Studio no pudo arrancar';
   const defaultHint =
-    'Si un antivirus ha bloqueado o puesto en cuarentena archivos de TickCut, restáuralos y vuelve a abrir la app.';
+    'Si un antivirus ha bloqueado o puesto en cuarentena archivos de ClipHub, restáuralos y vuelve a abrir la app.';
   const html = `<!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
     <style>
@@ -555,7 +555,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     ORCHESTRATOR_URL: orchestratorUrl,
     NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
     ...webSecurityEnvironment(security),
-    // TickCut never reads this key, but the desktop process can inherit an
+    // ClipHub never reads this key, but the desktop process can inherit an
     // operator's own. The orchestrator unsets it itself; nothing scrubs the
     // Next child, so remove it here instead of passing it on by inheritance.
     XAI_API_KEY: undefined,
@@ -577,7 +577,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     attempt.processes.watchUnexpectedExit(child, (err: unknown) => {
       if (quitting || activeBootAttempt !== attempt) return;
       failBootAttempt(attempt, err, {
-        title: 'TickCut Studio se ha detenido',
+        title: 'ClipHub Studio se ha detenido',
         hint: 'El backend se detuvo de forma inesperada. Cierra y vuelve a abrir la app.',
         logLabel: 'post-boot crash',
       });

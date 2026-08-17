@@ -15,7 +15,7 @@ import (
 )
 
 // PlayabilitySchemaVersion is the JSON schema id of playability.json.
-const PlayabilitySchemaVersion = "tickcut.playability/v1"
+const PlayabilitySchemaVersion = "cliphub.playability/v1"
 
 // FirstPacketWatch records the first full-snapshot tick seen on a live parser.
 type FirstPacketWatch struct {

@@ -126,7 +126,7 @@ test('the dossier is fetched per player and carries its reporting policy', async
       confidence: 0.9,
       markdown: '# expediente',
       channels: [],
-      policy: { summary: 's', rules: [], rejected: 'TickCut no envía denuncias automáticamente' },
+      policy: { summary: 's', rules: [], rejected: 'ClipHub no envía denuncias automáticamente' },
     }),
   );
   try {

@@ -16,11 +16,11 @@
 const path = require('node:path');
 const { app } = require('electron');
 
-const userData = process.env.TICKCUT_E2E_USER_DATA;
+const userData = process.env.CLIPHUB_E2E_USER_DATA;
 if (!userData || !path.isAbsolute(userData)) {
-  throw new Error('TICKCUT_E2E_USER_DATA must be an absolute disposable profile path');
+  throw new Error('CLIPHUB_E2E_USER_DATA must be an absolute disposable profile path');
 }
 app.setPath('userData', userData);
-delete process.env.TICKCUT_E2E_USER_DATA;
+delete process.env.CLIPHUB_E2E_USER_DATA;
 
 require(path.join(__dirname, '..', 'dist', 'main.js'));

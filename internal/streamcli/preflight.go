@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/pathguard"
 )
 
 type streamInputPath struct {

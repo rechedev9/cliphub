@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/anticheat"
+	"github.com/rechedev9/cliphub/internal/anticheat"
 )
 
 func runAnticheat(t *testing.T, args ...string) (int, string, string) {

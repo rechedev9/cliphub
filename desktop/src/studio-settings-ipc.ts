@@ -1,4 +1,4 @@
-export const STUDIO_SETTINGS_CHANNEL = 'tickcut:studio-settings';
+export const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
 
 export const STUDIO_SETTINGS_ACTION = {
   appInfo: 'app-info',

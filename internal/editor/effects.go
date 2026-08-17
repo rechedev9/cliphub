@@ -16,8 +16,8 @@ import (
 	"github.com/yuin/gopher-lua/ast"
 	"github.com/yuin/gopher-lua/parse"
 
-	"github.com/rechedev9/tickcut/internal/keydropbanner"
-	"github.com/rechedev9/tickcut/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/keydropbanner"
+	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
 var effectsEvaluationTimeout = 500 * time.Millisecond
@@ -522,12 +522,12 @@ func introText(short ShortEdit) string {
 }
 
 // outroText resolves the outro card's text: the custom text set on the
-// request, or the "TickCut" default.
+// request, or the "ClipHub" default.
 func outroText(short ShortEdit) string {
 	if text := strings.TrimSpace(short.OutroText); text != "" {
 		return text
 	}
-	return "TickCut"
+	return "ClipHub"
 }
 
 // titleFontSize picks a hook/intro title size that fits within the frame's

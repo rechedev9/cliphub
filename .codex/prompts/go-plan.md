@@ -1,4 +1,4 @@
-# Go planning playbook for TickCut
+# Go planning playbook for ClipHub
 
 Follow `AGENTS.md`.
 

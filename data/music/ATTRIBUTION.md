@@ -1,13 +1,16 @@
 # Music Attribution
 
 This catalog contains royalty-free / open-license instrumental tracks used as
-background music for TickCut highlight reels. All tracks permit redistribution
+background music for ClipHub highlight reels. All tracks permit redistribution
 and use in user-generated videos.
+
+The project was named TickCut when the dated entries below were recorded, and
+FragForge before that; the generating and owning entity is unchanged.
 
 Three license families are present:
 
 - **AI-generated**: tracks generated in-house with Google Gemini music
-  generation for TickCut. No attribution required.
+  generation for ClipHub. No attribution required.
 - **CC0** (Creative Commons Zero / public domain): no attribution required.
 - **CC-BY-4.0** (Creative Commons Attribution 4.0): attribution **required**
   whenever the track is published in a video. Use the exact credit line given
@@ -17,7 +20,7 @@ Three license families are present:
 
 ## AI-generated tracks (no attribution required)
 
-Generated with Google Gemini music generation (2026-07-02) from TickCut's
+Generated with Google Gemini music generation (2026-07-02) from ClipHub's
 viral CS2 phonk prompt templates. Owned by this project; no credit line needed.
 
 | id                   | title                | genre           | license      |
@@ -28,7 +31,7 @@ viral CS2 phonk prompt templates. Owned by this project; no credit line needed.
 | late-winter-latitude | Late Winter Latitude | phonk           | AI-generated |
 | concrete-tamborzao   | Concrete Tamborzão   | brazilian-phonk | AI-generated |
 
-Generated with Suno (2026-08-05) for TickCut. Owned by this project; no credit
+Generated with Suno (2026-08-05) for ClipHub. Owned by this project; no credit
 line needed.
 
 | id                  | title              | genre     | license      |

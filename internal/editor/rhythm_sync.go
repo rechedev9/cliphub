@@ -6,8 +6,8 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/rhythm"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rhythm"
 )
 
 func loadRhythmSync(path string) (map[string]rhythm.SegmentSync, error) {

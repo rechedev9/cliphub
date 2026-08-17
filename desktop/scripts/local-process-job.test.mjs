@@ -32,14 +32,14 @@ test('Local Studio assigns suspended services before resuming them', () => {
   assert.ok(resumedAt > handleAcquiredAt);
   assert.ok(resumedAt > assignedAt);
   assert.equal(
-    launcher.match(/\[TickCut\.LocalProcessJob\]::StartInJob\(/g)?.length,
+    launcher.match(/\[ClipHub\.LocalProcessJob\]::StartInJob\(/g)?.length,
     2,
   );
   assert.doesNotMatch(launcher, /LocalProcessJob\]::AddProcess/);
 });
 
 winTest('a returned short-lived process remains waitable with its exit code', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-local-job-exit-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-local-job-exit-'));
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
   const harnessPath = join(testRoot, 'harness.ps1');
 
@@ -51,10 +51,10 @@ param(
 $ErrorActionPreference = "Stop"
 . $HelperPath
 $command = (Get-Command cmd.exe -ErrorAction Stop).Source
-$job = [TickCut.LocalProcessJob]::CreateKillOnClose()
+$job = [ClipHub.LocalProcessJob]::CreateKillOnClose()
 $process = $null
 try {
-    $process = [TickCut.LocalProcessJob]::StartInJob(
+    $process = [ClipHub.LocalProcessJob]::StartInJob(
         $job,
         $command,
         "/d /c exit 37",
@@ -76,7 +76,7 @@ try {
     }
 } finally {
     if ($null -ne $process) { $process.Dispose() }
-    [TickCut.LocalProcessJob]::Close($job)
+    [ClipHub.LocalProcessJob]::Close($job)
 }
 `, 'utf8');
 
@@ -99,7 +99,7 @@ try {
 });
 
 winTest('closing the Local Studio job kills a service and its descendant', (t) => {
-  const testRoot = mkdtempSync(join(tmpdir(), 'tickcut-local-job-'));
+  const testRoot = mkdtempSync(join(tmpdir(), 'cliphub-local-job-'));
   t.after(() => rmSync(testRoot, { recursive: true, force: true }));
   const grandchildPath = join(testRoot, 'grandchild.ps1');
   const servicePath = join(testRoot, 'service.ps1');
@@ -141,9 +141,9 @@ for ($iteration = 0; $iteration -lt 10; $iteration++) {
     Copy-Item -LiteralPath (Join-Path $RunRoot "service.ps1") -Destination $iterationRoot
     $serviceScript = Join-Path $iterationRoot "service.ps1"
     $arguments = '-NoProfile -NonInteractive -File "' + $serviceScript + '" "' + $iterationRoot + '"'
-    $job = [TickCut.LocalProcessJob]::CreateKillOnClose()
+    $job = [ClipHub.LocalProcessJob]::CreateKillOnClose()
     try {
-        [void][TickCut.LocalProcessJob]::StartInJob(
+        [void][ClipHub.LocalProcessJob]::StartInJob(
             $job,
             $powershell,
             $arguments,
@@ -158,7 +158,7 @@ for ($iteration = 0; $iteration -lt 10; $iteration++) {
         $servicePid = [int](Get-Content (Join-Path $iterationRoot "service.pid"))
         $childPid = [int](Get-Content (Join-Path $iterationRoot "child.pid"))
     } finally {
-        [TickCut.LocalProcessJob]::Close($job)
+        [ClipHub.LocalProcessJob]::Close($job)
     }
 
     $deadline = [DateTime]::UtcNow.AddSeconds(5)

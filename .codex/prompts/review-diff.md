@@ -1,4 +1,4 @@
-# Review current diff for TickCut
+# Review current diff for ClipHub
 
 Follow `AGENTS.md`.
 

@@ -31,9 +31,9 @@ func TestListIndexAt(t *testing.T) {
 }
 
 func TestTabAtX(t *testing.T) {
-	// Zones track titleStyle("TickCut") + gap; compute the same base the
+	// Zones track titleStyle("ClipHub") + gap; compute the same base the
 	// production helper uses so a brand rename does not hard-code widths.
-	base := lipgloss.Width(titleStyle.Render("TickCut")) + 2
+	base := lipgloss.Width(titleStyle.Render("ClipHub")) + 2
 	demosW := lipgloss.Width(tabInactive.Render("Demos → Reel"))
 	streamsStart := base + demosW + 1
 	tests := []struct {

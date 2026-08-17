@@ -340,7 +340,7 @@ func TestDownload_RejectsNonVideoURL(t *testing.T) {
 	runner := &fakeRunner{}
 	f := Fetcher{Runner: runner}
 
-	_, err := f.Download(context.Background(), "http://167.233.55.246/root/uploads/TickCut_Studio_ao6vfNGPXa.png", dest)
+	_, err := f.Download(context.Background(), "http://167.233.55.246/root/uploads/ClipHub_Studio_ao6vfNGPXa.png", dest)
 	if err == nil {
 		t.Fatal("Download() error = nil, want non-nil")
 	}
@@ -441,7 +441,7 @@ func TestClassifySource(t *testing.T) {
 			// clip field. It is an image, not a video, so it must be rejected
 			// before a doomed yt-dlp job is enqueued.
 			name:    "png image url rejected",
-			url:     "http://167.233.55.246/root/uploads/TickCut_Studio_ao6vfNGPXa.png",
+			url:     "http://167.233.55.246/root/uploads/ClipHub_Studio_ao6vfNGPXa.png",
 			wantErr: true,
 		},
 		{

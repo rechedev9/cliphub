@@ -9,7 +9,7 @@ export default function SettingsPage(): ReactNode {
     <div className="flex flex-col gap-8">
       <StudioPageHeader
         title="CONFIGURACIÓN"
-        description="Consulta la versión instalada de TickCut Studio."
+        description="Consulta la versión instalada de ClipHub Studio."
       />
       {/*
         A single spec sheet, bounded like the shared empty state rather than

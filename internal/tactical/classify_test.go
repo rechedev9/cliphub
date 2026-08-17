@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 const testTickrate = 64.0

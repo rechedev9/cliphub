@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
 const (
@@ -54,8 +54,8 @@ const (
 var renderVariantPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 var sha256HexPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-const generateIntentHeader = "tickcut-generate-intent"
-const streamRenderIntentHeader = "tickcut-stream-render-intent"
+const generateIntentHeader = "cliphub-generate-intent"
+const streamRenderIntentHeader = "cliphub-stream-render-intent"
 
 // ParseDemoPayload carries the inputs the worker needs to fetch from the DB.
 type ParseDemoPayload struct {

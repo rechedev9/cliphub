@@ -13,13 +13,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/obs"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 // seedJob inserts and returns a job in the given status.
@@ -151,7 +151,7 @@ func readSweepFixture(t *testing.T, store storage.Storage, key string, dst any) 
 func interruptedObsCount(rec *obs.Recorder, stage string) int64 {
 	var count int64
 	for _, metric := range rec.Snapshot() {
-		if metric.Name == "TICKCUT_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == interruptedClass {
+		if metric.Name == "CLIPHUB_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == interruptedClass {
 			count += metric.Value
 		}
 	}
@@ -236,7 +236,7 @@ func TestSweepInterruptedJobsFailsOnlyNonresumableStates(t *testing.T) {
 			// Each swept failure is recorded once through obs (class=interrupted).
 			var interruptErrors int64
 			for _, m := range rec.Snapshot() {
-				if m.Name == "TICKCUT_errors_total" && m.Labels["class"] == interruptedClass {
+				if m.Name == "CLIPHUB_errors_total" && m.Labels["class"] == interruptedClass {
 					interruptErrors += m.Value
 				}
 			}

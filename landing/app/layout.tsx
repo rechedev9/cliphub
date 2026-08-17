@@ -18,15 +18,15 @@ const shareTechMono = Share_Tech_Mono({
   display: "swap",
 });
 
-const SOCIAL_TITLE = "Your CS2 frags, ready to post | TickCut";
+const SOCIAL_TITLE = "Your CS2 frags, ready to post | ClipHub";
 const SITE_DESCRIPTION =
   "Turn CS2 demos and stream moments into polished vertical Shorts with local capture and ready-to-post edits.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://tickcut.gravityroom.app"),
+  metadataBase: new URL("https://cliphub.gravityroom.app"),
   title: SOCIAL_TITLE,
   description: SITE_DESCRIPTION,
-  applicationName: "TickCut Studio",
+  applicationName: "ClipHub Studio",
   keywords: [
     "CS2",
     "Counter-Strike 2",
@@ -38,17 +38,17 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    siteName: "TickCut Studio",
+    siteName: "ClipHub Studio",
     title: SOCIAL_TITLE,
     description: SITE_DESCRIPTION,
     url: "/",
-    // Query busts Discord/Slack OG caches after the TickCut rebrand.
+    // Query busts Discord/Slack OG caches after the ClipHub rebrand.
     images: [
       {
-        url: "/opengraph-image?v=tickcut-1",
+        url: "/opengraph-image?v=cliphub-1",
         width: 1200,
         height: 630,
-        alt: "TickCut — Your best CS2 frags, ready to post",
+        alt: "ClipHub — Your best CS2 frags, ready to post",
       },
     ],
   },
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SOCIAL_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/opengraph-image?v=tickcut-1"],
+    images: ["/opengraph-image?v=cliphub-1"],
   },
 };
 

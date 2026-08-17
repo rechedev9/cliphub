@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove TickCut Studio's embedded assistant, the typed operation gateway that served it, and the headless Codex worker that proposed publish text, leaving Studio a pure GUI.
+**Goal:** Remove ClipHub Studio's embedded assistant, the typed operation gateway that served it, and the headless Codex worker that proposed publish text, leaving Studio a pure GUI.
 
 **Architecture:** Three independent removals plus a documentation pass. The Go side goes first because the desktop surface-coverage test asserts the operation catalog against `internal/httpapi/routes.go`; with the routes gone first, that test's deletion is obviously correct rather than a silent weakening. Unlike the previous removal in this repository, each task leaves the module building, so each task commits on its own.
 
@@ -126,8 +126,8 @@ Remove the embedded assistant, the typed operation gateway, and every IPC channe
 
 **Interfaces:**
 - Consumes: the routes removed in Task 1 — the surface-coverage test asserted against them, which is why it is deleted here rather than updated.
-- Produces: a preload surface with no `TICKCUTAssistant` bridge, and a main process with no assistant controller, no operation gateway and no orchestrator client.
-  Task 3 relies on `window.TICKCUTAssistant` no longer existing.
+- Produces: a preload surface with no `CLIPHUBAssistant` bridge, and a main process with no assistant controller, no operation gateway and no orchestrator client.
+  Task 3 relies on `window.CLIPHUBAssistant` no longer existing.
 
 Read `desktop/GUIDE.md` before starting.
 
@@ -151,7 +151,7 @@ The assistant workspace directory under `app.getPath('userData')` is created by 
 
 - [ ] **Step 3: Narrow the preload surface**
 
-In `desktop/src/preload.ts`, delete the `ASSISTANT_CHANNEL` and `ASSISTANT_EVENT_CHANNEL` constants and the whole `contextBridge.exposeInMainWorld('TICKCUTAssistant', { ... })` block with its `status`, `wake`, `send`, `cancel`, `approve` and `reject` methods.
+In `desktop/src/preload.ts`, delete the `ASSISTANT_CHANNEL` and `ASSISTANT_EVENT_CHANNEL` constants and the whole `contextBridge.exposeInMainWorld('CLIPHUBAssistant', { ... })` block with its `status`, `wake`, `send`, `cancel`, `approve` and `reject` methods.
 
 Leave every other exposed bridge intact.
 
@@ -192,7 +192,7 @@ Remove the assistant from the app shell and give its width back to the content c
 - Modify: `web/app/(app)/layout.tsx`, `web/components/shell/command-strip.tsx`, `web/components/shell/shell-cookies.ts`, `web/app/(app)/settings/page.tsx`, and any render view offering candidate generation
 
 **Interfaces:**
-- Consumes: the preload surface from Task 2 — nothing may still call `window.TICKCUTAssistant`.
+- Consumes: the preload surface from Task 2 — nothing may still call `window.CLIPHUBAssistant`.
 - Produces: a two-column shell.
 
 Read `web/CLAUDE.md` before starting, and `web/design.md` before touching layout.
@@ -221,7 +221,7 @@ In `web/components/shell/command-strip.tsx`, delete the `toggleAssistant` import
 
 - [ ] **Step 4: Remove the remaining agent-facing copy and controls**
 
-In `web/app/(app)/settings/page.tsx`, the page description reads "Consulta la versión instalada de TickCut Studio. El agente integrado usa tu sesión personal de Codex." Drop the second sentence.
+In `web/app/(app)/settings/page.tsx`, the page description reads "Consulta la versión instalada de ClipHub Studio. El agente integrado usa tu sesión personal de Codex." Drop the second sentence.
 
 Search `web/` for any control that starts caption, title or hashtag candidate generation, or that renders their results, and remove it. It called routes deleted in Task 1, so it is dead either way.
 
@@ -259,7 +259,7 @@ Stop documenting an assistant the product no longer ships.
 
 - [ ] **Step 1: Update `CLAUDE.md`**
 
-Two known claims stop being true, at roughly lines 50 and 141: that TickCut Agent is the only assistant surface shipped in Studio, and that Studio adds a separate approval of the exact costly or destructive operation preview. Delete both, along with the instruction to use the integrated typed operation gateway.
+Two known claims stop being true, at roughly lines 50 and 141: that ClipHub Agent is the only assistant surface shipped in Studio, and that Studio adds a separate approval of the exact costly or destructive operation preview. Delete both, along with the instruction to use the integrated typed operation gateway.
 
 The sentence about not resurrecting the retired external MCP server can go with them — with no gateway at all, the distinction it drew no longer means anything. Say in your report if you disagree and left it.
 
@@ -297,7 +297,7 @@ Prove the removal, and leave a future maintainer the one pointer that makes it r
 - [ ] **Step 1: Confirm nothing survives**
 
 ```powershell
-git grep -n -E -i "TICKCUTAssistant|AssistantController|OperationGateway|studio-operations|src/mcp|TypeCodexAgent|AgentKindCaptionCandidates|ZV_CODEX_PATH|ZV_DISCOVERY_SECRET" -- ":!data" ":!docs/superpowers" ":!web/.next" ":!desktop/build-resources" ":!desktop/dist-installer" ":!.codex" ":!scripts"
+git grep -n -E -i "CLIPHUBAssistant|AssistantController|OperationGateway|studio-operations|src/mcp|TypeCodexAgent|AgentKindCaptionCandidates|ZV_CODEX_PATH|ZV_DISCOVERY_SECRET" -- ":!data" ":!docs/superpowers" ":!web/.next" ":!desktop/build-resources" ":!desktop/dist-installer" ":!.codex" ":!scripts"
 ```
 
 Expected: no hits. A hit under `.codex/` or `scripts/` would be the development harness, which is why both are excluded — but read any such hit before dismissing it.

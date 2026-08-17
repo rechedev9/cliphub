@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/tickcut/internal/storage"
+	"github.com/rechedev9/cliphub/internal/storage"
 )
 
 func TestStoreSaveGetOpenAndDelete(t *testing.T) {

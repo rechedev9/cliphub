@@ -118,7 +118,7 @@ func (h *Handlers) requireMutationToken(next http.Handler) http.Handler {
 // tokenMatches reports whether the request carries the configured mutation
 // token, using a constant-time comparison to avoid leaking it via timing.
 func (h *Handlers) tokenMatches(r *http.Request) bool {
-	return subtle.ConstantTimeCompare([]byte(r.Header.Get("X-TickCut-Token")), []byte(h.mutationToken)) == 1
+	return subtle.ConstantTimeCompare([]byte(r.Header.Get("X-ClipHub-Token")), []byte(h.mutationToken)) == 1
 }
 
 func isMutationMethod(method string) bool {

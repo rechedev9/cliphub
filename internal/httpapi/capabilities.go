@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"os/exec"
 
-	"github.com/rechedev9/tickcut/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/capturetools"
 )
 
 // CaptureTool is one external tool the media pipeline needs. Configured means a

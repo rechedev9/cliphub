@@ -22,18 +22,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/composition"
-	"github.com/rechedev9/tickcut/internal/editor"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/moments"
-	"github.com/rechedev9/tickcut/internal/recording"
-	"github.com/rechedev9/tickcut/internal/renderplan"
-	"github.com/rechedev9/tickcut/internal/rules"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // fakeRepo implements JobRepository for tests.
@@ -748,12 +748,12 @@ func TestWorkbenchServesLocalApp(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rw.Code)
 	}
 	body := rw.Body.String()
-	for _, want := range []string{"TickCut Workbench", "Mutation token", "workbench-shell", "HTMX", `hx-post="/ui/jobs"`, `hx-get="/ui/jobs"`, `hx-get="/ui/workspace"`} {
+	for _, want := range []string{"ClipHub Workbench", "Mutation token", "workbench-shell", "HTMX", `hx-post="/ui/jobs"`, `hx-get="/ui/jobs"`, `hx-get="/ui/workspace"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("workbench missing %q", want)
 		}
 	}
-	if !strings.Contains(body, `"X-TickCut-Token"`) {
+	if !strings.Contains(body, `"X-ClipHub-Token"`) {
 		t.Fatalf("workbench missing mutation token header")
 	}
 	if strings.Contains(body, "X-ZackVideo-Token") {
@@ -3809,7 +3809,7 @@ func TestWorkbenchLocalProductFlowEndToEnd(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 		}
 		if token {
-			req.Header.Set("X-TickCut-Token", "secret")
+			req.Header.Set("X-ClipHub-Token", "secret")
 		}
 		rw := httptest.NewRecorder()
 		r.ServeHTTP(rw, req)
@@ -3823,7 +3823,7 @@ func TestWorkbenchLocalProductFlowEndToEnd(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/", "TickCut Workbench"},
+		{"/", "ClipHub Workbench"},
 		{"/api/jobs", j.ID.String()},
 		{"/api/loadouts", editor.PresetViral60Clean},
 		{"/api/jobs/" + j.ID.String() + "/moments", "MartinezSa"},

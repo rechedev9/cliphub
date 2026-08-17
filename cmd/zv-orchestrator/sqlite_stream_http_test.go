@@ -11,13 +11,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/httpapi"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/httpapi"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 // TestPostStreamJobsUnderSQLiteMode is the regression test for the desktop
-// bug: TickCut Studio runs the orchestrator with ZV_DATABASE_URL=sqlite,
+// bug: ClipHub Studio runs the orchestrator with ZV_DATABASE_URL=sqlite,
 // and main.go's sqlite branch left streamRepo nil (only the memory and
 // postgres branches assigned it), so POST /api/stream-jobs 500'd for every
 // desktop user. This assembles the same building blocks as that sqlite

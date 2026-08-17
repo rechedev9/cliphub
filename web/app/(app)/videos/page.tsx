@@ -258,7 +258,7 @@ function LibraryUnavailable({ offline, onRetry }: { offline: boolean; onRetry: (
         title={offline ? 'Servicio local sin responder' : 'No se pudo cargar la biblioteca'}
         description={
           offline
-            ? 'TickCut no ha podido contactar con el servicio de análisis local. Arráncalo y reintenta: tus reels siguen en el disco.'
+            ? 'ClipHub no ha podido contactar con el servicio de análisis local. Arráncalo y reintenta: tus reels siguen en el disco.'
             : 'La biblioteca no respondió. Reintenta; si sigue fallando, revisa el servicio local.'
         }
         compact
@@ -324,7 +324,7 @@ function EmptyState() {
     <StudioEmptyState
       icon={Film}
       title="Todavía no hay reels"
-      description="Elige una jugada y TickCut seguirá la captura, la edición y el render desde esta biblioteca."
+      description="Elige una jugada y ClipHub seguirá la captura, la edición y el render desde esta biblioteca."
       compact
       actions={
         <Button asChild variant="hero">

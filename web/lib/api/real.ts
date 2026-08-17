@@ -120,7 +120,7 @@ async function readJson<T>(res: Response): Promise<T> {
  * bookend text keys the orchestrator expects (snake_case, unlike the rest of
  * this camelCase struct - see internal/renderplan.EditRequest). Only sent when
  * its toggle is on and the trimmed text is non-empty; otherwise the backend
- * default applies (the generated headline for intro, "TickCut" for outro).
+ * default applies (the generated headline for intro, "ClipHub" for outro).
  */
 type EditRequestBody = {
   format: EditConfig['format'];

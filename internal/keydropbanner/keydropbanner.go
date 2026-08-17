@@ -175,7 +175,7 @@ func Materialize(styleID string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("materialize keydrop banner: no user cache or temp directory available")
 	}
-	dir := filepath.Join(root, "TickCut", "keydrop-banner", Version)
+	dir := filepath.Join(root, "ClipHub", "keydrop-banner", Version)
 	return materializeAt(dir, style)
 }
 
@@ -231,7 +231,7 @@ func materializeAt(dir string, style Style) (string, error) {
 }
 
 func fileMatchesSHA(path, wantSHA string) (bool, error) {
-	// #nosec G304 -- path is under TickCut's fixed cache root and a bundled filename.
+	// #nosec G304 -- path is under ClipHub's fixed cache root and a bundled filename.
 	f, err := os.Open(path)
 	if err != nil {
 		return false, err

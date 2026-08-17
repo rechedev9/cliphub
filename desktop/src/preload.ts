@@ -2,8 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 // Keep this preload self-contained: sandboxed Electron preloads can import the
 // electron module, but must not depend on local CommonJS modules at runtime.
-const STUDIO_SETTINGS_CHANNEL = 'tickcut:studio-settings';
-const STUDIO_CLIPBOARD_CHANNEL = 'tickcut:clipboard-write';
+const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
+const STUDIO_CLIPBOARD_CHANNEL = 'cliphub:clipboard-write';
 
 interface PreloadBrowserScope {
   navigator?: {
@@ -13,11 +13,11 @@ interface PreloadBrowserScope {
   };
 }
 
-contextBridge.exposeInMainWorld('tickcutSettings', {
+contextBridge.exposeInMainWorld('cliphubSettings', {
   getAppInfo: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'app-info' }),
 });
 
-contextBridge.exposeInMainWorld('tickcutClipboard', {
+contextBridge.exposeInMainWorld('cliphubClipboard', {
   writeText: (text: unknown): Promise<void> => {
     const browserScope = globalThis as unknown as PreloadBrowserScope;
     if (browserScope.navigator?.userActivation?.isActive !== true) {

@@ -18,14 +18,14 @@ test('creates distinct per-boot capabilities and keeps each child environment mi
   });
 
   assert.deepEqual(orchestratorSecurityEnvironment(capabilities), {
-    TICKCUT_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    TICKCUT_PROXY_MUTATION_CAPABILITY: undefined,
+    CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
+    CLIPHUB_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
     ZV_MUTATION_TOKEN: '1'.repeat(64),
   });
   assert.deepEqual(webSecurityEnvironment(capabilities), {
-    TICKCUT_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    TICKCUT_PROXY_MUTATION_CAPABILITY: '2'.repeat(64),
+    CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
+    CLIPHUB_PROXY_MUTATION_CAPABILITY: '2'.repeat(64),
     ORCHESTRATOR_TOKEN: '1'.repeat(64),
     ZV_MUTATION_TOKEN: undefined,
   });

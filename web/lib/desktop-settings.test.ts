@@ -11,16 +11,16 @@ function bridge(): DesktopSettingsBridge {
 test('returns null outside Electron instead of falling back to HTTP', () => {
   assert.equal(getDesktopSettingsBridge({}), null);
   assert.equal(getDesktopSettingsBridge(null), null);
-  assert.equal(getDesktopSettingsBridge({ tickcutSettings: {} }), null);
+  assert.equal(getDesktopSettingsBridge({ cliphubSettings: {} }), null);
 });
 
 test('rejects a preload surface without the app info call', () => {
-  assert.equal(getDesktopSettingsBridge({ tickcutSettings: { getAppInfo: 'nope' } }), null);
+  assert.equal(getDesktopSettingsBridge({ cliphubSettings: { getAppInfo: 'nope' } }), null);
 });
 
 test('returns the complete narrow preload bridge', async () => {
   const expected = bridge();
-  const got = getDesktopSettingsBridge({ tickcutSettings: expected });
+  const got = getDesktopSettingsBridge({ cliphubSettings: expected });
 
   assert.equal(got, expected);
   if (got === null) throw new Error('expected the desktop settings bridge');

@@ -73,7 +73,7 @@ const RUNTIME_TOOLS: Record<RuntimeToolName, RuntimeToolSpec> = {
   },
   ffmpeg: {
     version: 'n8.1.2-30-g45f1910444-20260723',
-    url: 'https://github.com/rechedev9/tickcut/releases/download/v2.2.12/ffmpeg-n8.1-win64-gpl-shared.zip',
+    url: 'https://github.com/rechedev9/cliphub/releases/download/v2.2.12/ffmpeg-n8.1-win64-gpl-shared.zip',
     sha256: 'c22260c1b2d5f2e499e5bb9c5ab32224ff6bf3da79beb7543a955b4b31a4c03c',
     treeSha256: '8f5c301e5f090feee829b23b0ba1bb478d6377f7d8778e38f50b50f613bfa53e',
     kind: 'zip',
@@ -99,7 +99,7 @@ export const RUNTIME_TOOL_LABELS: Record<RuntimeToolName, string> = {
   ytdlp: 'yt-dlp',
 };
 
-const INSTALL_MARKER = '.tickcut-install.json';
+const INSTALL_MARKER = '.cliphub-install.json';
 const INSTALL_MARKER_SCHEMA_VERSION = 2;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROGRESS_REPORT_MIN_INTERVAL_MS = 1000;

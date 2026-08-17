@@ -4,8 +4,8 @@ package editor
 import (
 	"image"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 const (
@@ -62,7 +62,7 @@ type Config struct {
 	Intro               bool
 	Outro               bool
 	// IntroText and OutroText customize the intro/outro overlay card text;
-	// empty falls back to the generated headline (intro) or "TickCut"
+	// empty falls back to the generated headline (intro) or "ClipHub"
 	// (outro). Neither auto-enables its bookend.
 	IntroText string
 	OutroText string

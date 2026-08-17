@@ -15,9 +15,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/moments"
-	"github.com/rechedev9/tickcut/internal/recording"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 const SchemaVersion = "1.1"

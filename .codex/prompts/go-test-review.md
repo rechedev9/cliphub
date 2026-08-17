@@ -1,4 +1,4 @@
-# Go test review for TickCut
+# Go test review for ClipHub
 
 Follow `AGENTS.md`.
 

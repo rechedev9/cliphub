@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { downloadFile } from './http-download.ts';
 
 test('downloads through a redirect, reports progress, and returns the SHA-256', async (t) => {
-  const content = Buffer.from('tickcut runtime asset');
+  const content = Buffer.from('cliphub runtime asset');
   const server = http.createServer((request, response) => {
     if (request.url === '/redirect') {
       response.writeHead(302, { location: '/asset' });
@@ -22,7 +22,7 @@ test('downloads through a redirect, reports progress, and returns the SHA-256', 
   await listen(server);
   t.after(() => server.close());
 
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-download-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-download-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const destination = path.join(directory, 'asset.bin');
   const progress: Array<[number, number | undefined]> = [];
@@ -48,7 +48,7 @@ test('rejects an unsuccessful response without publishing a destination', async 
   await listen(server);
   t.after(() => server.close());
 
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tickcut-download-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-download-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const destination = path.join(directory, 'asset.bin');
   fs.writeFileSync(`${destination}.tmp`, 'stale partial download');

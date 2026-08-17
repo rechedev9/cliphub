@@ -1,7 +1,7 @@
-# TickCut — CS2 demo & stream reels, cut on your PC
+# ClipHub — CS2 demo & stream reels, cut on your PC
 
 <p align="center">
-  <img src="web/public/brand/tickcut-mark.svg" alt="TickCut" width="120" height="120">
+  <img src="web/public/brand/cliphub-mark.svg" alt="ClipHub" width="120" height="120">
 </p>
 
 <p align="center">
@@ -10,18 +10,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rechedev9/tickcut/releases"><img src="https://img.shields.io/github/v/release/rechedev9/tickcut?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
-  <a href="https://tickcut.gravityroom.app/"><img src="https://img.shields.io/badge/Website-tickcut.gravityroom.app-22d9ee?style=for-the-badge" alt="Website"></a>
+  <a href="https://github.com/rechedev9/cliphub/releases"><img src="https://img.shields.io/github/v/release/rechedev9/cliphub?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
+  <a href="https://cliphub.gravityroom.app/"><img src="https://img.shields.io/badge/Website-cliphub.gravityroom.app-22d9ee?style=for-the-badge" alt="Website"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-see%20repo-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-**TickCut** is a Windows-local, deterministic pipeline that turns CS2 demos (and stream VODs) into vertical Shorts ready to post.
+**ClipHub** is a Windows-local, deterministic pipeline that turns CS2 demos (and stream VODs) into vertical Shorts ready to post.
 
-The **demo is the source of truth**. TickCut does not invent kills from pixels or “AI vibes”; every recording decision comes from the `.dem` (or a persisted stream edit plan). Capture and render stay on your machine — there is no hosted SaaS backend to sign up for.
+The **demo is the source of truth**. ClipHub does not invent kills from pixels or “AI vibes”; every recording decision comes from the `.dem` (or a persisted stream edit plan). Capture and render stay on your machine — there is no hosted SaaS backend to sign up for.
 
 If you want a local creator rig for CS2 highlights that feels like a production tool, this is it.
 
-[Website](https://tickcut.gravityroom.app/) · [Releases](https://github.com/rechedev9/tickcut/releases) · [Product](PRODUCT.md) · [Desktop](desktop/GUIDE.md) · [Web](web/GUIDE.md) · [FACEIT](FACEIT_GUIDE.md)
+[Website](https://cliphub.gravityroom.app/) · [Releases](https://github.com/rechedev9/cliphub/releases) · [Desktop](desktop/GUIDE.md) · [Web](web/GUIDE.md) · [Agents](CLAUDE.md)
 
 ---
 
@@ -31,10 +31,10 @@ Runtime for packaging: **Windows 10/11**, **Go 1.26+**, **Node 24**, **pnpm 11.9
 
 ### End users (Studio)
 
-Download the latest installer from [GitHub Releases](https://github.com/rechedev9/tickcut/releases):
+Download the latest installer from [GitHub Releases](https://github.com/rechedev9/cliphub/releases):
 
 ```text
-TickCut.Studio.Setup.<version>.exe
+ClipHub.Studio.Setup.<version>.exe
 ```
 
 Verify checksums with `SHA256SUMS.txt` in the same release. The installer is not code-signed yet — Windows SmartScreen may require **More info → Run anyway**.
@@ -42,8 +42,8 @@ Verify checksums with `SHA256SUMS.txt` in the same release. The installer is not
 ### From source (developers)
 
 ```powershell
-git clone https://github.com/rechedev9/tickcut.git
-cd tickcut
+git clone https://github.com/rechedev9/cliphub.git
+cd cliphub
 
 # Go runtimes (zv, orchestrator, recorder, editor, …)
 .\scripts\build.ps1
@@ -66,7 +66,7 @@ pnpm --dir desktop run dist   # rebuilds Go, assembles, writes SHA256SUMS
 
 ### Studio
 
-1. Install **TickCut Studio** (or run `.\scripts\local-studio.ps1`).
+1. Install **ClipHub Studio** (or run `.\scripts\local-studio.ps1`).
 2. Point Studio at CS2 + HLAE (auto-detect under `C:\HLAE-*\HLAE.exe`; never use `C:\HLAE\HLAE.exe` for capture).
 3. Upload a `.dem` → pick a player → forge a reel.
 4. Approve the creative brief (HUD, effects, music, covers).
@@ -149,11 +149,11 @@ Public preset catalog exposes `viral-60-clean` (death notices + `viral-ultra-cle
 
 | Goal | Doc |
 |------|-----|
-| Product intent & `zv short` | [PRODUCT.md](PRODUCT.md) |
 | Agent / contributor rules | [CLAUDE.md](CLAUDE.md) · [AGENTS.md](AGENTS.md) |
+| CLI command contract | [.codex/GUIDE.md](.codex/GUIDE.md) |
 | Desktop packaging & HLAE | [desktop/GUIDE.md](desktop/GUIDE.md) |
 | Web / Studio UI | [web/GUIDE.md](web/GUIDE.md) · [web/design.md](web/design.md) |
-| FACEIT indexing | [FACEIT_GUIDE.md](FACEIT_GUIDE.md) |
+| Operator workflow | [docs/cli-operator-workflow.md](docs/cli-operator-workflow.md) |
 
 ---
 
@@ -170,7 +170,7 @@ scripts/             build.ps1, local-studio.ps1, gates
 data/                local artifacts (music catalog, …) — not source of truth
 ```
 
-Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/tickcut`), **pnpm 11.9** / **Node 24** per package.
+Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/cliphub`), **pnpm 11.9** / **Node 24** per package.
 
 There is **no hosted CI**. [`.githooks/pre-commit`](.githooks/pre-commit) is the only automated gate — skip it and the change was never checked.
 
@@ -200,7 +200,7 @@ pnpm --dir desktop run test:unit
 
 Discover flags with `.\bin\zv.exe … --help` and `flows show`, not from prose alone.
 
-Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) — do not invent version numbers or use `C:\HLAE\HLAE.exe` for TickCut capture.
+Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) — do not invent version numbers or use `C:\HLAE\HLAE.exe` for ClipHub capture.
 
 ---
 
@@ -208,7 +208,7 @@ Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) —
 
 - No hosted backend for Studio; orchestrator binds loopback.
 - FACEIT credentials only in env / server-side secrets — never commit keys.
-- **CheaterDetect** is a screening report with limitations; Valve decides bans. TickCut never auto-submits reports or mass-report helpers.
+- **CheaterDetect** is a screening report with limitations; Valve decides bans. ClipHub never auto-submits reports or mass-report helpers.
 - Capture is Windows-local; treat demos as sensitive match data.
 - Effects scripts are sandboxed (no filesystem or process access).
 
@@ -216,30 +216,30 @@ Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) —
 
 ## Releases
 
-Versioned installers + `SHA256SUMS.txt` → [GitHub Releases](https://github.com/rechedev9/tickcut/releases).
+Versioned installers + `SHA256SUMS.txt` → [GitHub Releases](https://github.com/rechedev9/cliphub/releases).
 
-Landing download URL is updated per release at [tickcut.gravityroom.app](https://tickcut.gravityroom.app/).
+Landing download URL is updated per release at [cliphub.gravityroom.app](https://cliphub.gravityroom.app/).
 
 ```powershell
 pnpm --dir desktop run dist
 pnpm --dir desktop run verify:dist-integrity
 ```
 
-Publish flow: ship assets to `rechedev9/tickcut` Releases → update landing download URL → deploy Vercel project `tickcut-landing` (root `landing/`).
+Publish flow: ship assets to `rechedev9/cliphub` Releases → update landing download URL → deploy Vercel project `cliphub-landing` (root `landing/`).
 
 ---
 
 ## Brand
 
-**TickCut** — demo **ticks** cut into publish-ready reels.
+**ClipHub** — demo **ticks** cut into publish-ready reels.
 
-Canonical product surfaces: GitHub `rechedev9/tickcut`, site [tickcut.gravityroom.app](https://tickcut.gravityroom.app/).
+Canonical product surfaces: GitHub `rechedev9/cliphub`, site [cliphub.gravityroom.app](https://cliphub.gravityroom.app/).
 
 ---
 
 ## Community
 
-Issues and discussion: [github.com/rechedev9/tickcut](https://github.com/rechedev9/tickcut).
+Issues and discussion: [github.com/rechedev9/cliphub](https://github.com/rechedev9/cliphub).
 
 PRs should stay on product scope: deterministic pipeline, Studio/CLI contract, and Windows capture safety. Prefer tests and the pre-commit gate over “looks good” claims.
 

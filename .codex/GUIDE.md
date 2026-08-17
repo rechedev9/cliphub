@@ -1,6 +1,6 @@
 # Codex App And CLI Guide
 
-Repo-local harness for using Codex Desktop or Codex CLI safely on TickCut.
+Repo-local harness for using Codex Desktop or Codex CLI safely on ClipHub.
 
 Codex should automatically load `AGENTS.md` from the repo root. That file holds
 project boundaries, Go style, safety rules, and verification expectations.
@@ -9,7 +9,7 @@ project boundaries, Go style, safety rules, and verification expectations.
 
 The unified Windows CLI is the primary interface. Open
 `C:\Users\reche\Documents\zackvideo` as a folder in Codex Desktop, select
-Codex, and ask for the desired TickCut result. Studio is not a prerequisite.
+Codex, and ask for the desired ClipHub result. Studio is not a prerequisite.
 Codex follows this machine-readable loop:
 
 ```powershell
@@ -69,9 +69,9 @@ must keep it aligned with the latest official AdvancedFX release.
 The `output.publish_dir` field points to the required upload-ready
 `<run>\shortslistosparasubir` folder; `output.shorts_dir` contains intermediates.
 
-The former external TickCut MCP registration has been removed. Use the
+The former external ClipHub MCP registration has been removed. Use the
 unified `zv` CLI for repository workflows, or drive Studio through its own
-interface; `.codex/config.toml` must not register a TickCut MCP server.
+interface; `.codex/config.toml` must not register a ClipHub MCP server.
 
 ## Common commands
 
@@ -267,6 +267,7 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv capabilities --format json
 ./bin/zv demo parse --demo testdata/foo.dem --steamid 76561198000000000 --out plan.json
 ./bin/zv demo players --demo testdata/foo.dem
+./bin/zv demo probe --demo testdata/foo.dem --out data/runs/agent-doc/playability.json --format json --dry-run
 ./bin/zv demo moments --killplan testdata/agent-killplan.json --format json
 ./bin/zv demo select --killplan testdata/agent-killplan.json --segments seg-001 --out data/runs/agent-doc/selected-plan.json --dry-run --format json
 ./bin/zv utility audit --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv
@@ -342,7 +343,7 @@ is intentionally outside that claim.
 ## Verify AGENTS.md loading
 
 ```bash
-codex --cd . debug prompt-input "test" | grep -i TickCut
+codex --cd . debug prompt-input "test" | grep -i ClipHub
 ```
 
 Or run:

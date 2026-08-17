@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/pathguard"
 )
 
 func TestValidateCompositionOutputsRejectsRecordingResultAlias(t *testing.T) {

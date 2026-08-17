@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rechedev9/tickcut/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
 // effectColorPattern matches the FFmpeg colour forms accepted from Lua presets:

@@ -1,4 +1,4 @@
-module github.com/rechedev9/tickcut
+module github.com/rechedev9/cliphub
 
 go 1.26.5
 

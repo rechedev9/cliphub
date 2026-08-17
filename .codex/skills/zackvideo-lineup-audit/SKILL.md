@@ -1,9 +1,9 @@
 ---
 name: zackvideo-lineup-audit
-description: "Review and correct TickCut CS2 utility destination labels using utility-audit CSV output and manual lineup catalog JSON files."
+description: "Review and correct ClipHub CS2 utility destination labels using utility-audit CSV output and manual lineup catalog JSON files."
 ---
 
-# TickCut Lineup Audit
+# ClipHub Lineup Audit
 
 Use this skill when utility clips have wrong smoke/flash/molotov destinations or the user asks to make destination detection deterministic.
 

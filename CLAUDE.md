@@ -1,14 +1,14 @@
-# TickCut Agent Instructions
+# ClipHub Agent Instructions
 
 `AGENTS.md` is a tracked symbolic link to this file.
 Edit `CLAUDE.md` only, and never replace the `AGENTS.md` symlink with a regular file.
 The pre-commit hook rejects a broken link and commits made outside `main`.
 On Windows a clone with `core.symlinks=false` materializes `AGENTS.md` as a regular 9-byte file whose contents are the text `CLAUDE.md`, and `git status` stays clean because a symlink's blob is its target. That silently fails the hook and every `zv check` rule that reads `AGENTS.md`. Repair it with `git config core.symlinks true` followed by deleting the file and `git checkout -- AGENTS.md` (needs Developer Mode or an elevated shell); never "fix" it by pasting the guide's text into the file.
-The root `README.md` is the public product entrypoint (GitHub + onboarding). Prefer purpose-specific names such as `PRODUCT.md`, `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md` for operational detail.
+The root `README.md` is the public product entrypoint (GitHub + onboarding). Prefer purpose-specific names such as `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md` for operational detail.
 
 ## Product
 
-TickCut is a Windows-local, deterministic CS2 demo/stream-to-video pipeline written primarily in Go.
+ClipHub is a Windows-local, deterministic CS2 demo/stream-to-video pipeline written primarily in Go.
 The demo is the source of truth for player, camera, tick ranges, kills, and utility; never infer recording decisions from rendered video.
 
 ```text
@@ -68,7 +68,7 @@ Calibration uses a median and a MAD-derived spread and counts each demo once by 
 The composite blends the strongest of the information and aim clusters with the overall mean, because a plain mean across every metric cannot flag a single-kind cheat: a wall-only user maxes the information metrics and sits at the median on aim.
 
 The output is an anomaly report, never a verdict of guilt, and every surface must keep saying so: the report carries its own `limitations`, and the score is a prompt to review the listed ticks by hand.
-TickCut prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
+ClipHub prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
 Valve decides cheating bans from its own detection, not from report volume, and coordinated mass reporting is both ineffective and against the Steam Subscriber Agreement.
 Do not add a feature that files reports on the user's behalf, and do not weaken the `insufficient_data` and confidence gates that stop a thin sample from producing a verdict.
 
@@ -94,7 +94,7 @@ For third-party music, persist the source URL, creator, license, downloaded-file
 
 Do not launch HLAE, CS2, a long FFmpeg render, or paid/cloud media work without an explicit request; prefer the CLI preflight.
 Host capture auto-detects the highest installed HLAE version under `C:\HLAE-*\HLAE.exe`; before a real run, compare it with the latest official HLAE release.
-Never use `C:\HLAE\HLAE.exe` for TickCut capture.
+Never use `C:\HLAE\HLAE.exe` for ClipHub capture.
 Packaged Studio instead uses the SHA-256-pinned archive in `desktop/src/hlae-tool.json`; do not copy a version number into instructions or silently replace the manifest asset.
 CS2 must launch through HLAE with `-windowed`; fullscreen and borderless capture are unsupported.
 After final media is validated and no recapture/reparse is needed, send used extracted `.dem` files to the Windows Recycle Bin, but keep the original archive unless asked to remove it.
@@ -168,10 +168,10 @@ Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hoo
 - Do not push from execution slots. Integrate and push only from the canonical checkout, and continue to require explicit user approval before every commit or push.
 - `/home/reche/projects/fragforge-tactical` is a legacy worktree outside the five-workspace pool. Do not remove or modify it unless the user explicitly assigns work there or requests migration or cleanup.
 
-TickCut has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
+ClipHub has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
 Every desktop distribution must rebuild all Go runtime executables in the same `dist` invocation before `assemble` stages `bin/`; an existing executable is not proof that it matches the current source. Keep the guarded `scripts/build.ps1` step in `desktop/scripts/dist.mjs`, and never publish an installer produced from a manually staged or pre-existing `bin/`.
 **Never code-sign the desktop app or installer** (no Authenticode, no `signtool`, no cert/PIN signing, no EV/OV cert purchase or CI signing setup). Shipping stays unsigned on purpose: integrity is the GitHub Release asset plus `SHA256SUMS.txt`, not a publisher signature. Do not treat SmartScreen "unknown publisher" as a release blocker, and do not add signing steps to release docs or automation.
-Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/tickcut`, update the landing download URL, then deploy Vercel project `tickcut-landing` with root `landing/` to `https://tickcut.gravityroom.app/`.
+Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/cliphub`, update the landing download URL, then deploy Vercel project `cliphub-landing` with root `landing/` to `https://cliphub.gravityroom.app/`.
 Do not use the retired VPS landing path.
 
 ## Codex Harness

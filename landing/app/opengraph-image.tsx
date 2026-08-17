@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const alt = "TickCut — Your best CS2 frags, ready to post";
+export const alt = "ClipHub — Your best CS2 frags, ready to post";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -18,7 +18,7 @@ export default async function OpengraphImage() {
   const heroSource = `data:image/jpeg;base64,${heroImage.toString("base64")}`;
 
   const markSvg = await readFile(
-    path.join(process.cwd(), "public", "brand", "tickcut-mark.svg"),
+    path.join(process.cwd(), "public", "brand", "cliphub-mark.svg"),
     "utf8",
   );
   const markSource = `data:image/svg+xml;base64,${Buffer.from(markSvg).toString("base64")}`;
@@ -118,8 +118,8 @@ export default async function OpengraphImage() {
                   letterSpacing: "0.04em",
                 }}
               >
-                <span style={{ color: WHITE }}>Tick</span>
-                <span style={{ color: CYAN }}>Cut</span>
+                <span style={{ color: WHITE }}>Clip</span>
+                <span style={{ color: CYAN }}>Hub</span>
               </div>
             </div>
 
@@ -194,7 +194,7 @@ export default async function OpengraphImage() {
             <span>•</span>
             <span>NO ACCOUNT</span>
             <span>•</span>
-            <span style={{ color: CYAN }}>TICKCUT.GRAVITYROOM.APP</span>
+            <span style={{ color: CYAN }}>CLIPHUB.GRAVITYROOM.APP</span>
             <span
               style={{
                 marginLeft: 8,

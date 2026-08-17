@@ -5,7 +5,7 @@ import { writeClipboardText } from './clipboard-write.ts';
 test('prefers the desktop clipboard bridge', async () => {
   const calls: string[] = [];
   await writeClipboardText('desktop', {
-    tickcutClipboard: { writeText: async (value: string) => { calls.push(`bridge:${value}`); } },
+    cliphubClipboard: { writeText: async (value: string) => { calls.push(`bridge:${value}`); } },
     navigator: { clipboard: { writeText: async (value: string) => { calls.push(`browser:${value}`); } } },
   });
   assert.deepEqual(calls, ['bridge:desktop']);

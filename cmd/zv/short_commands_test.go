@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/tickcut/internal/capturetools"
-	"github.com/rechedev9/tickcut/internal/editor"
+	"github.com/rechedev9/cliphub/internal/capturetools"
+	"github.com/rechedev9/cliphub/internal/editor"
 )
 
 // multiRunner records every delegated call and can fail a specific stage. It

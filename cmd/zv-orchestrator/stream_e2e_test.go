@@ -21,11 +21,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rechedev9/tickcut/internal/httpapi"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/streamclips"
-	"github.com/rechedev9/tickcut/internal/tasks"
-	"github.com/rechedev9/tickcut/internal/workers"
+	"github.com/rechedev9/cliphub/internal/httpapi"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
+	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/workers"
 )
 
 // TestStreamRenderE2E drives the stream-clips vertical layout pipeline the

@@ -178,22 +178,22 @@ func TestRunWorkflowsCheckRejectsLegacyWorkflowDocs(t *testing.T) {
 		{
 			name:    "parser",
 			command: "./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000",
-			want:    "PRODUCT.md: documents legacy direct command ./bin/zv-parser",
+			want:    ".codex/GUIDE.md: documents legacy direct command ./bin/zv-parser",
 		},
 		{
 			name:    "demo players",
 			command: "./bin/zv-demo-players --demo demo.dem",
-			want:    "PRODUCT.md: documents legacy direct command ./bin/zv-demo-players",
+			want:    ".codex/GUIDE.md: documents legacy direct command ./bin/zv-demo-players",
 		},
 		{
 			name:    "analysis viewer",
 			command: "./bin/zv-analysis-viewer --input data/analysis.json",
-			want:    "PRODUCT.md: documents legacy direct command ./bin/zv-analysis-viewer",
+			want:    ".codex/GUIDE.md: documents legacy direct command ./bin/zv-analysis-viewer",
 		},
 		{
 			name:    "windows bin path",
 			command: `bin\zv-recorder --killplan plan.json --demo demo.dem --out recording`,
-			want:    `PRODUCT.md: documents legacy direct command bin\zv-recorder`,
+			want:    `.codex/GUIDE.md: documents legacy direct command bin\zv-recorder`,
 		},
 	}
 	for _, tt := range tests {
@@ -211,7 +211,7 @@ func TestRunWorkflowsCheckRejectsLegacyWorkflowDocs(t *testing.T) {
 				"",
 			}, "\n"))
 			writeWorkflowDocs(t, tempDir)
-			appendFile(t, filepath.Join(tempDir, "PRODUCT.md"), "\n"+tt.command+"\n")
+			appendFile(t, filepath.Join(tempDir, ".codex", "GUIDE.md"), "\n"+tt.command+"\n")
 			withWorkingDir(t, tempDir)
 
 			var stdout, stderr strings.Builder
@@ -321,7 +321,7 @@ func TestRunWorkflowsCheckRejectsDiscoveredLegacyCommandEntrypoint(t *testing.T)
 		`}`,
 		"",
 	}, "\n"))
-	appendFile(t, filepath.Join(tempDir, "PRODUCT.md"), "\n./bin/zv-new-flow --demo demo.dem\n")
+	appendFile(t, filepath.Join(tempDir, ".codex", "GUIDE.md"), "\n./bin/zv-new-flow --demo demo.dem\n")
 	withWorkingDir(t, tempDir)
 
 	var stdout, stderr strings.Builder
@@ -330,7 +330,7 @@ func TestRunWorkflowsCheckRejectsDiscoveredLegacyCommandEntrypoint(t *testing.T)
 	if got, want := code, exitInvalidArgs; got != want {
 		t.Fatalf("code = %d, want %d", got, want)
 	}
-	if want := "PRODUCT.md: documents legacy direct command ./bin/zv-new-flow"; !strings.Contains(stderr.String(), want) {
+	if want := ".codex/GUIDE.md: documents legacy direct command ./bin/zv-new-flow"; !strings.Contains(stderr.String(), want) {
 		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
@@ -349,7 +349,7 @@ func TestRunWorkflowsCheckRejectsNonCanonicalWorkflowDocCommands(t *testing.T) {
 		"",
 	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
-	appendFile(t, filepath.Join(tempDir, "PRODUCT.md"), strings.Join([]string{
+	appendFile(t, filepath.Join(tempDir, ".codex", "GUIDE.md"), strings.Join([]string{
 		"",
 		"```bash",
 		"./bin/zv parser parse --demo demo.dem --steamid 76561198000000000",
@@ -364,7 +364,7 @@ func TestRunWorkflowsCheckRejectsNonCanonicalWorkflowDocCommands(t *testing.T) {
 	if got, want := code, exitInvalidArgs; got != want {
 		t.Fatalf("code = %d, want %d", got, want)
 	}
-	if !strings.Contains(stderr.String(), `PRODUCT.md: uses non-standard zv command "parser"`) {
+	if !strings.Contains(stderr.String(), `.codex/GUIDE.md: uses non-standard zv command "parser"`) {
 		t.Fatalf("stderr = %q, want noncanonical doc command error", stderr.String())
 	}
 }
@@ -1004,7 +1004,7 @@ func TestRunWorkflowsCheckJSONReportsIssues(t *testing.T) {
 		"",
 	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
-	appendFile(t, filepath.Join(tempDir, "PRODUCT.md"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
+	appendFile(t, filepath.Join(tempDir, ".codex", "GUIDE.md"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
 	withWorkingDir(t, tempDir)
 
 	var stdout, stderr strings.Builder
@@ -1988,7 +1988,7 @@ func TestValidateSkillWorkflowRequirementSkillsRejectsMissingSkill(t *testing.T)
 	}
 }
 
-func TestValidateSkillWorkflowRequirementSkillsRejectsTickCutSkillWithoutRequirements(t *testing.T) {
+func TestValidateSkillWorkflowRequirementSkillsRejectsClipHubSkillWithoutRequirements(t *testing.T) {
 	skills := []skillInfo{
 		{Name: "zackvideo-new-skill"},
 		{Name: "zackvideo-cs2-utility-shorts"},

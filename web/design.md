@@ -1,11 +1,11 @@
-# TickCut Studio — design system v4
+# ClipHub Studio — design system v4
 
 This file is the presentation contract for `web/`.
 The typed API layer, polling, local/cloud routing, and the demo-to-render state machines are not part of the visual system and must remain stable during UI work.
 
 ## Product idea
 
-TickCut is a local-first replay workstation: a focused CS2 production tool, not a generic SaaS dashboard and not a decorative cyberpunk HUD.
+ClipHub is a local-first replay workstation: a focused CS2 production tool, not a generic SaaS dashboard and not a decorative cyberpunk HUD.
 The interface should feel like a calm broadcast control room: technical, dense where data is useful, and quiet around the current action.
 
 The visual identity is:

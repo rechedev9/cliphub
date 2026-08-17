@@ -10,13 +10,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/rechedev9/tickcut/internal/artifacts"
-	"github.com/rechedev9/tickcut/internal/job"
-	"github.com/rechedev9/tickcut/internal/radarmap"
-	"github.com/rechedev9/tickcut/internal/storage"
-	"github.com/rechedev9/tickcut/internal/tactical"
-	"github.com/rechedev9/tickcut/internal/tacticalplan"
-	"github.com/rechedev9/tickcut/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/radarmap"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/tactical"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // tacticalFixture builds a two-round document plus the position blob it

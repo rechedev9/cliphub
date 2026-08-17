@@ -12,9 +12,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/rechedev9/tickcut/internal/pathguard"
-	"github.com/rechedev9/tickcut/internal/tactical"
-	"github.com/rechedev9/tickcut/internal/tacticalplan"
+	"github.com/rechedev9/cliphub/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/tactical"
+	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 type frame struct {

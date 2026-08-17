@@ -13,8 +13,8 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 	dp "github.com/markus-wa/godispatch"
 
-	"github.com/rechedev9/tickcut/internal/killplan"
-	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 // loadRosterDemo reads the demo the roster scan runs against, mirroring the

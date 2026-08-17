@@ -1,5 +1,5 @@
-# Creates a dated TickCut output run and prints the paths to pass to zv.
-# Root: %USERPROFILE%\Videos\TickCut\{ready,runs}
+# Creates a dated ClipHub output run and prints the paths to pass to zv.
+# Root: %USERPROFILE%\Videos\ClipHub\{ready,runs}
 # Usage:
 #   .\scripts\new-run.ps1 mahar-anubis
 #   .\scripts\new-run.ps1 -Name fut-mirage-xertion
@@ -10,7 +10,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = Join-Path $env:USERPROFILE 'Videos\TickCut'
+$root = Join-Path $env:USERPROFILE 'Videos\ClipHub'
 $ready = Join-Path $root 'ready'
 $runs = Join-Path $root 'runs'
 $slug = ($Name.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')

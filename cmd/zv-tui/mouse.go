@@ -115,7 +115,7 @@ func (m model) clickListRow(y int) (tea.Model, tea.Cmd) {
 // 1 = streams), or -1. Both tab styles pad identically, so the zones do not
 // depend on which tab is active.
 func tabAtX(x int) int {
-	base := lipgloss.Width(titleStyle.Render("TickCut")) + 2
+	base := lipgloss.Width(titleStyle.Render("ClipHub")) + 2
 	demosW := lipgloss.Width(tabInactive.Render("Demos → Reel"))
 	streamsW := lipgloss.Width(tabInactive.Render("Stream Clips"))
 	switch {

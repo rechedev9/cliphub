@@ -1,8 +1,8 @@
-# CLI-First TickCut Operator Workflow
+# CLI-First ClipHub Operator Workflow
 
 | Field | Value |
 | --- | --- |
-| Title | CLI-first TickCut operator workflow (no desktop app) |
+| Title | CLI-first ClipHub operator workflow (no desktop app) |
 | Author | (design; not yet assigned) |
 | Date | 2026-08-14 |
 | Status | Draft (revised 2026-08-14; Q1/Q2 answered) |
@@ -13,7 +13,7 @@
 
 ## Overview
 
-TickCut already has a complete Windows-local pipeline behind `.\bin\zv.exe`. Studio is a GUI over that pipeline, not a prerequisite. This design makes the operator loop **CLI-only**: one run directory, explicit HLAE pin, a cheap playability screen before any CS2 launch, human gates as persisted files, and a PowerShell/`cmd.exe` cookbook that does not trip `--`.
+ClipHub already has a complete Windows-local pipeline behind `.\bin\zv.exe`. Studio is a GUI over that pipeline, not a prerequisite. This design makes the operator loop **CLI-only**: one run directory, explicit HLAE pin, a cheap playability screen before any CS2 launch, human gates as persisted files, and a PowerShell/`cmd.exe` cookbook that does not trip `--`.
 
 The default path is the **staged demo flow** from `zv flows show demo`, with a cheap probe inserted after ingest and **before** any CS2 launch:
 
@@ -23,7 +23,7 @@ Probe is serial and HLAE-free. `players` / `parse` / `moments` may run in any or
 
 `zv short` / `zv workflows run short` is the fast path **only** when the SteamID64 and selection policy are already complete **and** the demo is classified playable. It is not the daily driver for unknown rosters, HLTV parts, or FACEIT second halves.
 
-This is not a request to delete `web/` or `desktop/`. It is a request to stop depending on `zv serve`, the Next proxy, and the `X-TickCut-Token` surface for production work.
+This is not a request to delete `web/` or `desktop/`. It is a request to stop depending on `zv serve`, the Next proxy, and the `X-ClipHub-Token` surface for production work.
 
 ---
 
@@ -31,14 +31,14 @@ This is not a request to delete `web/` or `desktop/`. It is a request to stop de
 
 ### Current state
 
-The product contract is already CLI-first (`CLAUDE.md`, `PRODUCT.md`, `cmd/zv/flow_commands.go`):
+The product contract is already CLI-first (`CLAUDE.md`, `.codex/GUIDE.md`, `cmd/zv/flow_commands.go`):
 
 ```text
 .dem -> parse/score -> selected kill plan -> HLAE/CS2 capture -> FFmpeg/Lua render -> publish pack
 stream video -> persisted edit plan -> render -> publish pack
 ```
 
-Studio (`zv serve` + Next + Electron) adds token-gated HTTP, SQLite jobs, an inline one-worker capture lane, and a series UI. That UI is the source of several open product wounds ([issue #61](https://github.com/rechedev9/tickcut/issues/61): HLTV `-pN.dem` parts counted as separate maps; Partidas does not rediscover a series that exists via a direct path). None of those wounds exist if the operator never starts the API.
+Studio (`zv serve` + Next + Electron) adds token-gated HTTP, SQLite jobs, an inline one-worker capture lane, and a series UI. That UI is the source of several open product wounds ([issue #61](https://github.com/rechedev9/cliphub/issues/61): HLTV `-pN.dem` parts counted as separate maps; Partidas does not rediscover a series that exists via a direct path). None of those wounds exist if the operator never starts the API.
 
 The 2026-08-14 session on this machine proved the CLI path works and proved a class of demo that Studio (and a naive `zv record`) will burn 15–45 minutes on:
 
@@ -52,7 +52,7 @@ Parse success is not playability. The current recorder collapses that crash into
 ### Pain points this design removes
 
 1. **Studio as a hidden dependency.** Token, proxy, SQLite job ids, and `series_id` HTTP grouping are irrelevant to producing a pack.
-2. **Wrong HLAE on this PC.** `internal/capturetools.detectHLAE` picks the highest `C:\HLAE-*\HLAE.exe`. This machine has `C:\HLAE-2.191.1`. Packaged Studio HLAE is **2.192.1** at `%APPDATA%\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`. Autodetect here is a downgrade.
+2. **Wrong HLAE on this PC.** `internal/capturetools.detectHLAE` picks the highest `C:\HLAE-*\HLAE.exe`. This machine has `C:\HLAE-2.191.1`. Packaged Studio HLAE is **2.192.1** at `%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe`. Autodetect here is a downgrade.
 3. **Launching CS2 on unplayable mid-start demos.** Fifteen minutes of HLAE for a crash that a 200 ms packet walk can predict.
 4. **PowerShell eating `--`.** `zv workflows run` *requires* `--` before forwarded args (`cmd/zv/workflows_commands.go`). pwsh consumes a bare `--`. The operator has already been bitten.
 5. **HLTV parts treated as maps.** `-p1.dem` / `-p2.dem` are one logical map (`web/lib/series-grouping.ts`). The CLI has no `series_id`; the run directory must do that grouping.
@@ -90,8 +90,8 @@ Parse success is not playability. The current recorder collapses that crash into
 ## Key Decisions
 
 1. **Default path is staged, not `short`.** Contract order is ingest → group → **probe** (serial, no CS2) → then `demo players` / `parse` / `moments` in any order → brief → select → record → shorts render. Use `zv short` only when SteamID64 + selection policy are complete **and** that part's `playability.json` says `playable`.
-2. **Studio is out of the loop.** No `zv serve`, no Next proxy, no `X-TickCut-Token`, no SQLite job id as the unit of work. The run directory is the unit of work.
-3. **HLAE is allow-listed, not denylisted.** The pin identity is the unpacked path `%APPDATA%\tickcut-studio\tools\hlae\2.192.1\HLAE.exe` plus `Test-Path`. Do **not** `Get-FileHash` that exe against `desktop/src/hlae-tool.json`. That JSON has two different digests: `sha256` (`08ae68bb1c42c99bcd441f688d17e24bc52faed27eac07ebea5fc7c98e34b465`) is `hlae_2_192_1.zip`; `treeSha256` (`fc5bc770e8492d779fc9599838eab09e781be993de6683872578ddd0660cee54`) is Studio's custom sorted-tree hash of the unpacked install — neither is `Get-FileHash HLAE.exe`. v1 omits a content belt (Studio already verified the tree at provision time). An optional later check hashes the **zip** against `sha256`, never the exe. Pass `--hlae` on every live `record` / `short`. `ZV_HLAE_PATH` is belt-and-suspenders. Never `C:\HLAE\HLAE.exe`. Do not treat “not 2.191.1” as the pin — any other `C:\HLAE-*` is also wrong. `zv capabilities` reports paths; it does not refuse a version.
+2. **Studio is out of the loop.** No `zv serve`, no Next proxy, no `X-ClipHub-Token`, no SQLite job id as the unit of work. The run directory is the unit of work.
+3. **HLAE is allow-listed, not denylisted.** The pin identity is the unpacked path `%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe` plus `Test-Path`. Do **not** `Get-FileHash` that exe against `desktop/src/hlae-tool.json`. That JSON has two different digests: `sha256` (`08ae68bb1c42c99bcd441f688d17e24bc52faed27eac07ebea5fc7c98e34b465`) is `hlae_2_192_1.zip`; `treeSha256` (`fc5bc770e8492d779fc9599838eab09e781be993de6683872578ddd0660cee54`) is Studio's custom sorted-tree hash of the unpacked install — neither is `Get-FileHash HLAE.exe`. v1 omits a content belt (Studio already verified the tree at provision time). An optional later check hashes the **zip** against `sha256`, never the exe. Pass `--hlae` on every live `record` / `short`. `ZV_HLAE_PATH` is belt-and-suspenders. Never `C:\HLAE\HLAE.exe`. Do not treat “not 2.191.1” as the pin — any other `C:\HLAE-*` is also wrong. `zv capabilities` reports paths; it does not refuse a version.
 4. **Playability is a new cheap preflight, not a CS2 launch.** One measured field: `IngameTick()` at the first `CSVCMsg_PacketEntities` after `ParseHeader`. Probe classes: `playable` | `unplayable_start` | `corrupt` | `unknown`. Parse emits the same tick on `killplan.Demo` as a warning/diagnostic; `playability.json` remains the classifier. Recorder classes stay separate: exit 7 `demo_incompatible` (network parse, CS2 already up) and exit 8 `unplayable_start` (tick-0 crash with Breakpad evidence). Do not launch HLAE for probe. Do not make vanilla `playdemo` the default. `zv record` does not refuse on probe class in v1.
 5. **Creative brief is a file, not a chat vibe.** `brief.json` stores the approved answers and the exact argv. `go` / `hazlo` / `dale` / `ok` are not approval.
 6. **Every approved boolean is written on the argv.** Including `--hook=false`, `--kill-counter=false`, `--covers=false`, `--intro=false`, `--outro=false`. Never rely on a preset default to preserve an `off` choice. `zv short` currently defaults `--hook` / `--kill-counter` / `--covers` to **true**.
@@ -161,7 +161,7 @@ scripts\zv.cmd capabilities --format json
 
 | Check | How |
 | --- | --- |
-| HLAE | Find the tool with `name == "ZV_HLAE_PATH"`. `path` must equal `%APPDATA%\tickcut-studio\tools\hlae\2.192.1\HLAE.exe` and that file must exist (`Test-Path`). The session script allow-lists this exact path. Do not hash `HLAE.exe` against `hlae-tool.json`. `source` should be `env` after the pin. `accessible` must be true. |
+| HLAE | Find the tool with `name == "ZV_HLAE_PATH"`. `path` must equal `%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe` and that file must exist (`Test-Path`). The session script allow-lists this exact path. Do not hash `HLAE.exe` against `hlae-tool.json`. `source` should be `env` after the pin. `accessible` must be true. |
 | CS2 | Find `name == "ZV_CS2_PATH"`. `accessible` must be true. |
 | Groups | `record.ready`, `compose.ready`, `render.ready` must be true. |
 | FACEIT download | `faceit.automated_download_ready` is always false; ignore. |
@@ -170,7 +170,7 @@ scripts\zv.cmd capabilities --format json
 Session pin (PowerShell, once). This script **allow-lists** the packaged unpack. It does not denylist 2.191.1 and hope the rest is fine — any other `C:\HLAE-*` is also rejected because it is not the allow-listed path.
 
 ```powershell
-$pin = Join-Path $env:APPDATA 'tickcut-studio\tools\hlae\2.192.1\HLAE.exe'
+$pin = Join-Path $env:APPDATA 'cliphub-studio\tools\hlae\2.192.1\HLAE.exe'
 if (-not (Test-Path -LiteralPath $pin)) { throw "HLAE pin missing: $pin" }
 # v1: path + Test-Path is the pin. Do not Get-FileHash $pin.
 # hlae-tool.json sha256 is the zip (hlae_2_192_1.zip), treeSha256 is Studio's
@@ -192,7 +192,7 @@ Rebuild if `bin\zv.exe` is missing or stale: `.\scripts\build.ps1`.
 
 ### Ingest (manual FACEIT / HLTV)
 
-FACEIT Data API is approved for indexing. FACEIT Download API is **not**. Demos arrive through FACEIT's authenticated room/Watch download or another user-authorized source (`FACEIT_GUIDE.md`).
+FACEIT Data API is approved for indexing. FACEIT Download API is **not**. Demos arrive through FACEIT's authenticated room/Watch download or another user-authorized source.
 
 Index (optional triage; no HLAE, no `.dem` download):
 
@@ -251,7 +251,7 @@ The `.dem` itself stays under `ingest/extracted/` (or a hardlink). Commands take
 
 ```json
 {
-  "schema": "tickcut.operator-series/v1",
+  "schema": "cliphub.operator-series/v1",
   "id": "2026-08-14-donk666-faceit-mirage",
   "player_steamid64": "7656…",
   "maps": [
@@ -323,7 +323,7 @@ JSON sketch:
 ```json
 {
   "ok": true,
-  "schema_version": "tickcut.playability/v1",
+  "schema_version": "cliphub.playability/v1",
   "demo": "C:\\…\\p2.dem",
   "sha256": "…",
   "bytes": 69206016,
@@ -407,7 +407,7 @@ Write `brief.json` **before** removing `--dry-run` from record/render:
 
 ```json
 {
-  "schema": "tickcut.operator-brief/v1",
+  "schema": "cliphub.operator-brief/v1",
   "approved_at": "2026-08-14T21:00:00Z",
   "approved_by": "operator",
   "preset": "viral-60-clean",
@@ -428,7 +428,7 @@ Write `brief.json` **before** removing `--dry-run` from record/render:
     "--killplan", "maps/m1-mirage/p1/selected-plan.json",
     "--demo", "ingest/extracted/…-m1-mirage-p1.dem",
     "--out", "maps/m1-mirage/p1/recording",
-    "--hlae", "C:\\Users\\reche\\AppData\\Roaming\\tickcut-studio\\tools\\hlae\\2.192.1\\HLAE.exe",
+    "--hlae", "C:\\Users\\reche\\AppData\\Roaming\\cliphub-studio\\tools\\hlae\\2.192.1\\HLAE.exe",
     "--cs2", "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\bin\\win64\\cs2.exe",
     "--hud", "deathnotices",
     "--portrait-safe-killfeed=true",
@@ -465,10 +465,10 @@ Select, then capture preflight, then capture:
 scripts\zv.cmd demo select --killplan <map>\<part>\killplan.json --segments seg-001,seg-003 --out <map>\<part>\selected-plan.json --dry-run --format json
 scripts\zv.cmd demo select --killplan <map>\<part>\killplan.json --segments seg-001,seg-003 --out <map>\<part>\selected-plan.json --format json
 
-scripts\zv.cmd record --killplan <map>\<part>\selected-plan.json --demo <part.dem> --out <map>\<part>\recording --hud deathnotices --portrait-safe-killfeed=true --hlae "%APPDATA%\tickcut-studio\tools\hlae\2.192.1\HLAE.exe" --cs2 "%ZV_CS2_PATH%" --dry-run --format json
+scripts\zv.cmd record --killplan <map>\<part>\selected-plan.json --demo <part.dem> --out <map>\<part>\recording --hud deathnotices --portrait-safe-killfeed=true --hlae "%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe" --cs2 "%ZV_CS2_PATH%" --dry-run --format json
 
 REM real capture: one cs2.exe, windowed, no second lane; always pass --hlae and --cs2
-scripts\zv.cmd record --killplan <map>\<part>\selected-plan.json --demo <part.dem> --out <map>\<part>\recording --hud deathnotices --portrait-safe-killfeed=true --hlae "%APPDATA%\tickcut-studio\tools\hlae\2.192.1\HLAE.exe" --cs2 "%ZV_CS2_PATH%" --format json
+scripts\zv.cmd record --killplan <map>\<part>\selected-plan.json --demo <part.dem> --out <map>\<part>\recording --hud deathnotices --portrait-safe-killfeed=true --hlae "%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe" --cs2 "%ZV_CS2_PATH%" --format json
 ```
 
 CS2 must be `-windowed`. The recorder adds that flag; do not fight it with fullscreen. Default recorder timeout is 15 minutes (`cmd/zv-recorder`); raise `--timeout` above that 15m default for long all-kills plans. After **any** failed or partial capture, the next launch must use a new `--out` (`recording-2/`, …). Do not re-use `<part>\recording` — `validateFreshOutputNamespace` errors on leftover `seg-*.mp4` / `console.log`.
@@ -529,7 +529,7 @@ Issue #61's Studio bugs (Partidas rediscovery, half-translated preset, polling 4
 
 These never change the production status of a map directory. A failed screen does not make a healthy pack look broken.
 
-**Anticheat** (`zv demo anticheat`): one deterministic parser pass, no CS2, no network. Output is an anomaly report, never a verdict of guilt. Optional `--dossier <SteamID64>` builds an evidence pack with official channels. TickCut never submits a report.
+**Anticheat** (`zv demo anticheat`): one deterministic parser pass, no CS2, no network. Output is an anomaly report, never a verdict of guilt. Optional `--dossier <SteamID64>` builds an evidence pack with official channels. ClipHub never submits a report.
 
 ```bat
 scripts\zv.cmd demo anticheat --demo <part.dem> --out <map>\<part>\anticheat.json --format json
@@ -834,8 +834,7 @@ Rollback: stop using probe/wrapper; staged `zv` commands remain. Recorder exit 8
 ## References
 
 - `CLAUDE.md` — product contract, gates, HLAE rules, MaxRetry(0), FACEIT limits
-- `PRODUCT.md` — `zv short`, staged commands, capabilities
-- `FACEIT_GUIDE.md` — index then manual room download
+- `.codex/GUIDE.md` — workflow command surface, staged commands, capabilities
 - `cmd/zv/flow_commands.go` — canonical demo/stream phases
 - `cmd/zv/workflow_catalog.go` — workflow list (`short`, analysis, gallery-open, flows-run, serve, …)
 - `cmd/zv/workflows_commands.go` — `--` separator on `workflows run`
@@ -848,7 +847,7 @@ Rollback: stop using probe/wrapper; staged `zv` commands remain. Recorder exit 8
 - `internal/killplan/types.go` — plan schema 1.2 (additive `Demo` fields allowed; consumers reject unknown version strings)
 - `web/lib/series-grouping.ts` — `-pN` / `mN` grouping
 - `desktop/src/hlae-tool.json` — packaged HLAE 2.192.1: `sha256` = zip, `treeSha256` = unpacked-tree digest; operator pin is the unpacked `HLAE.exe` path
-- [Issue #61](https://github.com/rechedev9/tickcut/issues/61) — series as the work unit
+- [Issue #61](https://github.com/rechedev9/cliphub/issues/61) — series as the work unit
 - Session evidence 2026-08-14: tick 5328 first packet, crash with and without HLAE, sibling ~194 MB first half succeeded via `zv workflows run short`
 
 ---
@@ -860,9 +859,9 @@ This repository integrates on **`main`**. There are no GitHub pull requests for 
 ### Slice 1 — Operator wrapper and session pin (process unblocked today)
 
 - **title:** Add `scripts/zv.cmd` and an HLAE 2.192.1 session pin helper
-- **files:** `scripts/zv.cmd`, `scripts/operator-session.ps1` (new, tiny), optionally a short pointer in `PRODUCT.md` only if we are asked to document it later
+- **files:** `scripts/zv.cmd`, `scripts/operator-session.ps1` (new, tiny), optionally a short pointer in `.codex/GUIDE.md` only if we are asked to document it later
 - **dependencies:** none
-- **description:** `zv.cmd` forwards `%*` to `bin\zv.exe` for cmd.exe quoting and direct commands. It is not a pwsh `--` fix. `operator-session.ps1` allow-lists `%APPDATA%\tickcut-studio\tools\hlae\2.192.1\HLAE.exe` with `Test-Path` only. It must not `Get-FileHash` the exe against `hlae-tool.json` `sha256` (that digest is `hlae_2_192_1.zip`) or `treeSha256` (Studio's unpacked-tree hash). Sets `ZV_HLAE_PATH`, runs `zv capabilities --format json`, and prints `Get-Process cs2`. It does not denylist 2.191.1 as a substitute for the allow-list. No Go. Operator can follow the rest of this design immediately.
+- **description:** `zv.cmd` forwards `%*` to `bin\zv.exe` for cmd.exe quoting and direct commands. It is not a pwsh `--` fix. `operator-session.ps1` allow-lists `%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe` with `Test-Path` only. It must not `Get-FileHash` the exe against `hlae-tool.json` `sha256` (that digest is `hlae_2_192_1.zip`) or `treeSha256` (Studio's unpacked-tree hash). Sets `ZV_HLAE_PATH`, runs `zv capabilities --format json`, and prints `Get-Process cs2`. It does not denylist 2.191.1 as a substitute for the allow-list. No Go. Operator can follow the rest of this design immediately.
 
 ### Slice 2 — `zv demo probe`
 

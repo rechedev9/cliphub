@@ -1,9 +1,9 @@
 ---
 name: zackvideo-stream-clips
-description: "Create upload-ready TickCut stream clips from recorded stream VODs: pick a layout variant, plan the edit, and render vertical or landscape packs after the user approves the creative brief."
+description: "Create upload-ready ClipHub stream clips from recorded stream VODs: pick a layout variant, plan the edit, and render vertical or landscape packs after the user approves the creative brief."
 ---
 
-# TickCut Stream Clips
+# ClipHub Stream Clips
 
 Use this skill when the user wants clips from a recorded stream VOD (Twitch/YouTube/local MP4), especially vertical facecam-over-gameplay Shorts or landscape long-form cuts.
 
