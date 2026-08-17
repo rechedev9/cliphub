@@ -105,8 +105,8 @@ func TestListSongsShippedCatalogIncludesSunoPack(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	songs := decodeSongs(t, rec.Body.Bytes())
-	if len(catalog.Tracks) != 10 {
-		t.Fatalf("shipped catalog has %d tracks, want the 10 Suno tracks", len(catalog.Tracks))
+	if len(catalog.Tracks) != 15 {
+		t.Fatalf("shipped catalog has %d tracks, want the 15 Suno tracks", len(catalog.Tracks))
 	}
 	if len(songs) != len(catalog.Tracks) {
 		t.Fatalf("songs = %d, want all %d shipped tracks", len(songs), len(catalog.Tracks))
@@ -127,6 +127,11 @@ func TestListSongsShippedCatalogIncludesSunoPack(t *testing.T) {
 		"tropa-na-bruma",
 		"pacto-de-ferro",
 		"pressao-do-grave",
+		"crumble-on-the-landing",
+		"tearing-down-the-walls",
+		"sleeping-stone",
+		"gravity-has-teeth",
+		"pegate-sin-miedo",
 	}
 	for _, id := range sunoIDs {
 		if !got[id] {

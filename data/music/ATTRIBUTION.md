@@ -22,3 +22,8 @@ line needed.
 | tropa-na-bruma      | Tropa na Bruma      | brazilian-phonk | AI-generated |
 | pacto-de-ferro      | Pacto de Ferro      | brazilian-phonk | AI-generated |
 | pressao-do-grave    | Pressão do Grave    | brazilian-phonk | AI-generated |
+| crumble-on-the-landing | Crumble on the Landing | rock         | AI-generated |
+| tearing-down-the-walls | Tearing Down the Walls | rock         | AI-generated |
+| sleeping-stone      | Sleeping Stone      | rock            | AI-generated |
+| gravity-has-teeth   | Gravity Has Teeth   | rock            | AI-generated |
+| pegate-sin-miedo    | Pégate Sin Miedo    | reggaeton       | AI-generated |

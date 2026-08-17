@@ -18,6 +18,11 @@ const SUNO_TRACK_IDS = [
   'tropa-na-bruma',
   'pacto-de-ferro',
   'pressao-do-grave',
+  'crumble-on-the-landing',
+  'tearing-down-the-walls',
+  'sleeping-stone',
+  'gravity-has-teeth',
+  'pegate-sin-miedo',
 ] as const;
 
 function sha256(value: string): string {

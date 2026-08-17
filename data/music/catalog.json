@@ -99,6 +99,56 @@
       "ext": "mp3",
       "license": "AI-generated",
       "attributionRequired": false
+    },
+    {
+      "id": "crumble-on-the-landing",
+      "title": "Crumble on the Landing",
+      "artist": "ClipHub (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "tearing-down-the-walls",
+      "title": "Tearing Down the Walls",
+      "artist": "ClipHub (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "sleeping-stone",
+      "title": "Sleeping Stone",
+      "artist": "ClipHub (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "gravity-has-teeth",
+      "title": "Gravity Has Teeth",
+      "artist": "ClipHub (Suno)",
+      "genre": "rock",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
+    },
+    {
+      "id": "pegate-sin-miedo",
+      "title": "Pégate Sin Miedo",
+      "artist": "ClipHub (Suno)",
+      "genre": "reggaeton",
+      "durationSec": 31,
+      "ext": "mp3",
+      "license": "AI-generated",
+      "attributionRequired": false
     }
   ]
 }
