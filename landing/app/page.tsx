@@ -26,11 +26,9 @@ import HeroReel from "@/components/hero-reel";
 import KillfeedReel from "@/components/killfeed-reel";
 import Reveal from "@/components/reveal";
 
-// The pre-rebrand filename is deliberate: a published Release asset cannot be
-// renamed, so only the repo path moves until a ClipHub-named installer ships.
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/cliphub/releases/download/v2.4.21/TickCut.Studio.Setup.2.4.21.exe";
-const RELEASE_VERSION = "v2.4.21";
+  "https://github.com/rechedev9/cliphub/releases/download/v2.4.22/ClipHub.Studio.Setup.2.4.22.exe";
+const RELEASE_VERSION = "v2.4.22";
 const REPO_URL = "https://github.com/rechedev9/cliphub";
 
 function Corners() {
