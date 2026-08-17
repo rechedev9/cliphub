@@ -1,6 +1,6 @@
 # design-sync notes — ClipHub web DS (cs2video-web)
 
-Repo-specific gotchas for syncing `web/` (Next.js 15 + React 19 + shadcn/ui +
+Repo-specific gotchas for syncing `web/` (Next.js 16 + React 19 + shadcn/ui +
 Tailwind v4) to claude.ai/design. Read this before re-syncing.
 
 ## Source shape: synth-entry (no build)

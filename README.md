@@ -160,12 +160,12 @@ Public preset catalog exposes `viral-60-clean` (death notices + `viral-ultra-cle
 ## Layout
 
 ```text
-cmd/                 thin CLI entrypoints (zv, zv-orchestrator, zv-recorder, …)
+cmd/                 CLI binaries (zv, zv-orchestrator, zv-recorder, …)
 internal/            parser, killplan, recording, editor, workers, httpapi, …
 effects/             sandboxed gopher-lua effects (no FS / process)
-web/                 Next.js 15 Studio UI
+web/                 Next.js 16 Studio UI
 desktop/             Electron shell + installer
-landing/             marketing site (Vercel)
+landing/             marketing site (Vercel, Next.js 15)
 scripts/             build.ps1, local-studio.ps1, gates
 data/                local artifacts (music catalog, …) — not source of truth
 ```

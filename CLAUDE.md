@@ -16,15 +16,28 @@ The demo is the source of truth for player, camera, tick ranges, kills, and util
 stream video -> persisted edit plan -> render -> publish pack
 ```
 
-- `cmd/` contains thin entrypoints; business logic belongs under `internal/`.
+- `cmd/` is thin flags + `os.Exit`; domain stays in `internal/`. Recorder launch, orchestrator SQLite/queue, analysis-viewer, and demo-players roster parse already leak — see `cmd/AGENTS.md`. Do not copy that pattern.
 - `internal/parser`, `internal/killplan`, and `internal/moments` own the durable plan passed to every later demo stage.
 - `internal/recording` owns HLAE/CS2 scripts and capture validation; `internal/editor`, `internal/renderplan`, and `internal/composition` own post-capture effects, variants, QA, and FFmpeg composition.
 - `effects/` contains sandboxed `gopher-lua` scripts with no filesystem or process access.
 - `internal/httpapi` and `internal/workers` implement the local API and jobs; the inline queue has a dedicated one-worker capture lane because all captures contend for one `cs2.exe`.
 - Workers skip completed durable artifacts on retry, but recording is enqueued with `MaxRetry(0)`; a `demo_incompatible:` failure is deterministic and must not be retried against the same CS2 build.
 - Series jobs share a client-minted `series_id`; roster choice is aggregated across maps, and HLTV `-pN.dem` parts are one logical map.
-- `web/` is the Next.js 15/React 19 local UI, `desktop/` packages it with the Go services in Electron, and `landing/` is the only hosted application.
+- `web/` is the Next.js 16 / React 19 local Studio UI. `desktop/` packages it with the Go services in Electron (no React in `desktop/src`). `landing/` is the only hosted app (Next.js 15; pre-commit runs `build` only).
 - `data/`, `bin/`, capture output, and generated media are artifacts, not source, unless a task explicitly targets fixtures or cleanup.
+
+## Where To Look
+
+| Task | Location |
+|------|----------|
+| Go package map | `internal/AGENTS.md` |
+| 12 binaries / cmd leaks | `cmd/AGENTS.md` |
+| `zv` CLI surface | `cmd/zv/AGENTS.md`; contract is `zv flows show` / `workflows show` |
+| Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `web/design.md` |
+| Electron / installer | `desktop/GUIDE.md` |
+| Testdata / goldens | `testdata/GUIDE.md` |
+| HLAE experiments | `scripts/hlae/` — not product capture |
+| HyperFrames probe | `overlays/hyperframes/` — not the FFmpeg/Lua pipeline |
 
 ## Codex Desktop: CLI-first
 
@@ -105,6 +118,7 @@ Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageMana
 There is no hosted CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
 Nothing re-checks the work on GitHub, so a gate skipped locally is a gate that never runs.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
+Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser Playwright is removed; landing has no lint/test scripts.
 
 ```powershell
 .\scripts\build.ps1
@@ -119,8 +133,9 @@ go test ./... -count=1 -timeout 3m
 - Bare `bash` is a broken WSL shim on this machine; invoke shell gates through `C:\Program Files\Git\bin\bash.exe`.
 - `scripts/go-gate.sh` formats changed Go files by default, then runs tests, vet, `zv check`, and optional `staticcheck`; use `--no-format` in a dirty worktree and add `--build` for the full Go gate.
 - Add `--race` for shared-state/concurrency changes and `--security` for filesystem, subprocess, auth, or dependency-sensitive changes.
+- Table-driven tests are required wherever the pattern fits; near-duplicate test clones are a review finding.
 - Real-demo worker tests skip without `TEST_DEMO_PATH`; parser-only and pure unit tests must not launch HLAE/CS2 or long renders.
-- Real `.dem` and generated `*.expected.json` golden files stay local; `testdata/*.rules.json` may be committed when they are reference inputs.
+- Real `.dem` and generated `*.expected.json` golden files stay local; `testdata/*.rules.json` may be committed when they are reference inputs. Fixture convention: `testdata/GUIDE.md`.
 
 Run package gates in the pre-commit order:
 
@@ -163,6 +178,7 @@ Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hoo
 ### Parallel Workspaces
 
 - Keep five long-lived, isolated workspaces for parallel implementation: `/home/reche/projects/fragforge` is the canonical integration checkout, and `/home/reche/projects/fragforge-slot-1` through `/home/reche/projects/fragforge-slot-4` are execution slots. Use independent full clones for these five workspaces; each must keep its own `.git` directory and must not use shared object alternates.
+- This Windows checkout (`tickcut`) is outside that Linux pool. Do not treat it as a slot or apply slot push/reuse rules here.
 - Keep every long-lived checkout on `main` and assign at most one writer or task to each slot. Before reusing a clean slot, synchronize it with `origin/main` using fast-forward-only operations; never discard uncommitted work to make a slot reusable.
 - Git worktrees are allowed for temporary review, inspection, or verification tasks and do not count toward the five long-lived workspaces. Agents may create and remove clean temporary review worktrees as needed; never remove or repurpose one that contains uncommitted work.
 - Do not push from execution slots. Integrate and push only from the canonical checkout, and continue to require explicit user approval before every commit or push.

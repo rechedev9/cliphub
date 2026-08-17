@@ -43,7 +43,7 @@ overlays/**/render/
 overlays/**/renders/
 overlays/**/out/
 
-# Local demos and goldens (per testdata/README.md)
+# Local demos and goldens (per testdata/GUIDE.md)
 /testdata/*.dem
 /testdata/*.expected.json
 
@@ -89,3 +89,4 @@ web/playwright-report/
 # Local Pi runtime state
 .atl/
 .omo/
+.vercel

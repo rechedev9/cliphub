@@ -4,7 +4,7 @@ This file is loaded when working under `web/`; the repo-wide rules live in the r
 
 ## Web frontend (web/)
 
-`web/` is a standalone Next.js app (App Router, React 19, Tailwind 4): the no-login `/upload` entry, match/clip/video views, and a typed API client under `web/lib/api`.
+`web/` is a standalone Next.js 16 app (App Router, React 19, Tailwind 4): the no-login `/upload` entry, match/clip/video/stream/tactical views, and a typed API client under `web/lib/api`.
 It is local-first and stateless: it talks only to the orchestrator (`zv serve`) through same-origin proxy route handlers under `web/app/api/demos/*`, which forward `.dem` uploads and job calls while keeping the orchestrator URL and token server-side.
 `web/lib/api` always uses the real typed client; same-origin route handlers keep the orchestrator URL and token server-side.
 
@@ -21,7 +21,7 @@ Real `.dem` files are never committed, so the fixture stays local.
 
 ## TypeScript style (web/)
 
-Applies to everything under `web/` (Next.js App Router, React 19, Tailwind 4).
+Applies to everything under `web/` (Next.js 16 App Router, React 19, Tailwind 4).
 Adapted from the jvidalv/berrus agent guidelines.
 Same priorities as the Go rules: clarity, simplicity, concision, maintainability, and repo consistency, in that order.
 
@@ -57,6 +57,12 @@ No magic strings:
 
 - A string literal that crosses a boundary or repeats (an error code, a status value, a query param, a storage key) must be a named `const`, ideally an `as const` map with a derived union type, imported at every use site.
   `SERVICE_UNAVAILABLE_CODE` is the house example; inline duplicates of such strings are a review finding.
+
+Comments:
+
+- A comment is at most 2 lines, and a changed file carries at most 1 comment line per 5 code lines.
+  The code is typed: delete comments that restate a name, a type, or the line below; keep only a non-obvious why.
+- Enforced at commit time by the global `committer` comment gates (`~/.local/bin/check-comment-{length,density}.ts`), scoped to `.ts/.tsx` files changed on the branch; bypass with `committer --no-verify`.
 
 Async:
 

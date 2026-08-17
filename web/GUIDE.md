@@ -1,6 +1,6 @@
 # ClipHub Web UI Guide
 
-`web/` is the Next.js UI shipped inside the ClipHub Windows desktop app. The
+`web/` is the Next.js 16 UI shipped inside the ClipHub Windows desktop app. The
 desktop process starts this app as a standalone Next.js server alongside the
 local Go orchestrator, then opens it in an Electron window. It is not a hosted
 web application.
@@ -97,17 +97,24 @@ architecture.
 
 ```text
 web/
+  proxy.ts                     # Next 16 request guard (not middleware.ts)
   app/                         # App Router pages and same-origin API routes
     api/demos/                 # server-side proxy to the local orchestrator
+    api/streams/               # same contract for VOD jobs
     upload/page.tsx            # no-login demo upload flow
-    (app)/matches/             # match and clip selection views
+    (app)/matches/             # match and clip selection
     (app)/videos/              # local reel library
-    (app)/feed/                # feed view
+    (app)/streams/             # VOD editor
+    (app)/tactical/            # tactical replay
+    (app)/series/              # multi-map series
+    (app)/cheaters/            # CheaterDetect UI
+    (app)/feed/ news/ settings/
   components/
     ui/                        # shadcn/ui primitives
+    studio/                    # shared kit (header, empty, StatusTag, …)
     brand/                     # ClipHub presentation components
     shell/                     # app shell and capture readiness
-    matches/ clips/ videos/    # feature components
+    matches/ clips/ videos/ streams/ tactical/
   lib/
     api/                       # typed clients, contracts, stores, and fixtures
     format.ts                  # shared display formatting
