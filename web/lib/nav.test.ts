@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_SECTIONS, navSection } from './nav.ts';
 
-test('nav: exactly 10 sections', () => {
-  assert.equal(NAV_SECTIONS.length, 10);
+test('nav: exactly 11 sections', () => {
+  assert.equal(NAV_SECTIONS.length, 11);
 });
 
 test('nav: numbers are zero-padded and sequential from 01', () => {
@@ -19,7 +19,7 @@ test('nav: hrefs are unique', () => {
 
 test('navSection: returns the entry for a known href', () => {
   const entry = navSection('/videos');
-  assert.equal(entry.number, '08');
+  assert.equal(entry.number, '09');
   assert.equal(entry.label, 'Biblioteca');
 });
 

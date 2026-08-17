@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-37 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
+40 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
 
 ## WHERE TO LOOK
 
@@ -17,6 +17,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | 9:16 shorts + pack | `editor`, `renderplan` | Public CLI preset is only `viral-60-clean` |
 | Kill→beat sync | `rhythm` | Editor applies it; workers do not call it |
 | Stream/VOD plan + render | `streamclips`, `streamcli`, `vodfetch` | Persisted `EditPlan` is canonical |
+| Multitrack editor | `mediaassets`, `timelineplan`, `timelinerender` | Persisted `timelineplan.Document` is canonical; preview evaluates the same stack FFmpeg composites |
 | Local API | `httpapi` | Plus HTMX workbench assets |
 | Job handlers | `workers`, `tasks`, `job` | One capture lane. Record `MaxRetry(0)` |
 | Guided generate state | `generateintent` | Shared HTTP+worker store; record task gets an immutable copy |
@@ -37,7 +38,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 ## CONVENTIONS
 
 - No nested Go packages. One directory = one package.
-- Durable docs (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan.Document`) are the contracts later stages must honor.
+- Durable docs (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan.Document`, `timelineplan.Document`) are the contracts later stages must honor.
 - `cmd/zv-orchestrator` owns SQLite repos + inline queue; those types do not live here.
 
 ## ANTI-PATTERNS

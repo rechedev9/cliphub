@@ -9,8 +9,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Large uploads validate the same guard inside their route handler before
-  // reading the body. Keeping them out of the proxy avoids Next cloning and
-  // buffering a multi-gigabyte request before the streaming proxy can cap it.
-  matcher: '/api/((?!demos/scan/?$|streams/?$|session/bootstrap/?$).*)',
+  // Large uploads check the guard in-handler so Next does not buffer the body.
+  matcher: '/api/((?!demos/scan/?$|streams/?$|editor/assets/?$|session/bootstrap/?$).*)',
 };

@@ -7,9 +7,10 @@ export const NAV_SECTIONS = [
   { number: '05', label: 'Jugadores', href: '/players' },
   { number: '06', label: 'Clips de stream', href: '/streams' },
   { number: '07', label: 'Noticias', href: '/news' },
-  { number: '08', label: 'Biblioteca', href: '/videos' },
-  { number: '09', label: 'Feed', href: '/feed' },
-  { number: '10', label: 'Ajustes', href: '/settings' },
+  { number: '08', label: 'Editor', href: '/editor' },
+  { number: '09', label: 'Biblioteca', href: '/videos' },
+  { number: '10', label: 'Feed', href: '/feed' },
+  { number: '11', label: 'Ajustes', href: '/settings' },
 ] as const;
 
 export type NavSection = (typeof NAV_SECTIONS)[number];

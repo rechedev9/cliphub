@@ -47,6 +47,9 @@ const (
 	// video by URL (the AcquireWorker), so they are distinguishable from the
 	// rest of the "worker" stage in the journal and metrics.
 	StageStreamAcquire = "stream_acquire"
+
+	// StageEditor labels failures of the multitrack editor render.
+	StageEditor = "editor"
 )
 
 // Metric names. HELP text for each lives in metricHelp.

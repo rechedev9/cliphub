@@ -34,12 +34,14 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/timelineplan"
 	"github.com/rechedev9/cliphub/internal/voiceprofile"
 )
 
@@ -75,6 +77,21 @@ type StreamJobRepository interface {
 	SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error
 }
 
+type EditorAssetRepository interface {
+	Create(ctx context.Context, a *mediaassets.Asset) error
+	Get(ctx context.Context, id uuid.UUID) (mediaassets.Asset, error)
+	GetBySHA256(ctx context.Context, sha256 string) (mediaassets.Asset, error)
+	List(ctx context.Context, limit int) ([]mediaassets.Asset, error)
+}
+
+type EditorProjectRepository interface {
+	Create(ctx context.Context, p *timelineplan.Project) error
+	Get(ctx context.Context, id uuid.UUID) (timelineplan.Project, error)
+	List(ctx context.Context, limit int) ([]timelineplan.Project, error)
+	UpdateStatus(ctx context.Context, id uuid.UUID, s timelineplan.Status, failureReason string) error
+	SetPlan(ctx context.Context, id uuid.UUID, plan timelineplan.Document) error
+}
+
 // Enqueuer is the desktop queue contract used by handlers. A transition runs
 // inside the queue's admission boundary before accepted work becomes visible;
 // accepted pending work receives a later non-nil transition if shutdown
@@ -88,7 +105,10 @@ type Enqueuer interface {
 type Handlers struct {
 	repo              JobRepository
 	streamRepo        StreamJobRepository
+	editorAssets      EditorAssetRepository
+	editorProjects    EditorProjectRepository
 	streamPlanMu      sync.Mutex
+	editorPlanMu      sync.Mutex
 	renderStateMu     sync.Mutex
 	anticheatJobLocks *anticheat.JobLocks
 	streamJobLocks    *streamclips.JobLocks
@@ -148,6 +168,13 @@ func WithRateLimit(rps float64, burst int) Option {
 func WithStreamRepository(repo StreamJobRepository) Option {
 	return func(h *Handlers) {
 		h.streamRepo = repo
+	}
+}
+
+func WithEditorRepositories(assets EditorAssetRepository, projects EditorProjectRepository) Option {
+	return func(h *Handlers) {
+		h.editorAssets = assets
+		h.editorProjects = projects
 	}
 }
 

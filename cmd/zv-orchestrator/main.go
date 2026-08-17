@@ -113,10 +113,14 @@ func run() error {
 
 	var repo orchestratorJobRepository
 	var streamRepo orchestratorStreamJobRepository
+	var editorAssets httpapi.EditorAssetRepository
+	var editorProjects httpapi.EditorProjectRepository
 	switch {
 	case cfg.DatabaseURL == databaseURLMemory:
 		repo = newMemoryJobRepository()
 		streamRepo = newMemoryStreamJobRepository()
+		editorAssets = newMemoryEditorAssetRepository()
+		editorProjects = newMemoryEditorProjectRepository()
 		log.Printf("jobs: using in-memory repository (state resets on restart)")
 	case cfg.DatabaseURL == databaseURLSQLite || strings.HasPrefix(cfg.DatabaseURL, databaseURLSQLite+":"):
 		path := sqlitePath(cfg.DatabaseURL, cfg.DataDir)
@@ -131,6 +135,16 @@ func run() error {
 			return fmt.Errorf("sqlite stream jobs: %w", err)
 		}
 		streamRepo = sqliteStreamRepo
+		sqliteAssets, err := newSQLiteEditorAssetRepository(sqliteRepo.db)
+		if err != nil {
+			return fmt.Errorf("sqlite editor assets: %w", err)
+		}
+		sqliteProjects, err := newSQLiteEditorProjectRepository(sqliteRepo.db)
+		if err != nil {
+			return fmt.Errorf("sqlite editor projects: %w", err)
+		}
+		editorAssets = sqliteAssets
+		editorProjects = sqliteProjects
 		log.Printf("jobs: using sqlite repository at %s", path)
 	default:
 		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: cliphub desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
@@ -226,6 +240,17 @@ func run() error {
 		taskHandlers[tasks.TypeStreamAcquire] = acquireWorker.HandleStreamAcquire
 		log.Printf("worker: stream acquire enabled")
 	}
+	if cfg.streamRenderWorkerEnabled() && editorProjects != nil && editorAssets != nil {
+		timelineWorker := workers.NewTimelineRenderWorker(editorProjects, store, workers.TimelineRenderWorkerConfig{
+			WorkDir:     cfg.MediaWorkDir,
+			FFmpegPath:  cfg.FFmpegPath,
+			Timeout:     cfg.RenderTimeout,
+			MusicDir:    cfg.MusicDir,
+			AssetLookup: editorAssets,
+		})
+		taskHandlers[tasks.TypeRenderTimeline] = timelineWorker.HandleRenderTimeline
+		log.Printf("worker: timeline render enabled")
+	}
 
 	var queue httpapi.Enqueuer
 	inline := newInlineQueue(taskHandlers, cfg.WorkerConcurrency)
@@ -245,6 +270,7 @@ func run() error {
 		httpapi.WithRateLimit(0, 0),
 		httpapi.WithUploadConcurrency(2),
 		httpapi.WithStreamRepository(streamRepo),
+		httpapi.WithEditorRepositories(editorAssets, editorProjects),
 		httpapi.WithStreamJobLocks(streamJobLocks),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: cfg.FFprobePath}),
 		httpapi.WithMusicDir(cfg.MusicDir),

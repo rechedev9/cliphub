@@ -92,6 +92,21 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/stream-jobs/{id}/renders/{variant}/gallery", h.GetStreamGallery)
 	r.Get("/api/stream-jobs/{id}/renders/{variant}/videos/{clip_id}", h.GetStreamVideo)
 	r.Get("/api/stream-jobs/{id}/renders/{variant}/delivery/{name}", h.GetStreamDeliveryArtifact)
+	r.Post("/api/editor/assets", h.CreateEditorAsset)
+	r.Get("/api/editor/assets", h.ListEditorAssets)
+	r.Post("/api/editor/assets/import", h.ImportEditorAsset)
+	r.Get("/api/editor/assets/{id}", h.GetEditorAsset)
+	r.Get("/api/editor/assets/{id}/media", h.GetEditorAssetMedia)
+	r.Post("/api/editor/projects", h.CreateEditorProject)
+	r.Get("/api/editor/projects", h.ListEditorProjects)
+	r.Get("/api/editor/projects/{id}", h.GetEditorProject)
+	r.Get("/api/editor/projects/{id}/plan", h.GetEditorPlan)
+	r.Put("/api/editor/projects/{id}/plan", h.PutEditorPlan)
+	r.Post("/api/editor/projects/{id}/preview", h.PreviewEditorPlan)
+	r.Post("/api/editor/projects/{id}/render", h.StartEditorRender)
+	r.Get("/api/editor/projects/{id}/render", h.GetEditorRender)
+	r.Get("/api/editor/projects/{id}/render/video", h.GetEditorRenderVideo)
+	r.Get("/api/editor/projects/{id}/render/cover", h.GetEditorRenderCover)
 	return r
 }
 

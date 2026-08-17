@@ -49,6 +49,10 @@ const (
 	// source video from a URL (Twitch clip/VOD or any yt-dlp-supported site)
 	// before it can be edited and rendered.
 	TypeStreamAcquire = "stream:acquire"
+
+	// TypeRenderTimeline is the Asynq task type for rendering a multitrack
+	// editor project into one delivery MP4.
+	TypeRenderTimeline = "render:timeline"
 )
 
 var renderVariantPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
@@ -140,6 +144,11 @@ func (i StreamRenderIntent) Validate() error {
 // instead of a possibly-stale copy.
 type StreamAcquirePayload struct {
 	JobID uuid.UUID `json:"job_id"`
+}
+
+type RenderTimelinePayload struct {
+	ProjectID   uuid.UUID `json:"project_id"`
+	Fingerprint string    `json:"fingerprint"`
 }
 
 // NewParseDemoTask returns an Asynq task that, when consumed, processes the
@@ -343,4 +352,15 @@ func NewStreamAcquireTask(id uuid.UUID) (*asynq.Task, error) {
 		return nil, err
 	}
 	return asynq.NewTask(TypeStreamAcquire, payload), nil
+}
+
+func NewRenderTimelineTask(id uuid.UUID, fingerprint string) (*asynq.Task, error) {
+	if !sha256HexPattern.MatchString(fingerprint) {
+		return nil, fmt.Errorf("timeline fingerprint must be a sha256 hex digest")
+	}
+	payload, err := json.Marshal(RenderTimelinePayload{ProjectID: id, Fingerprint: fingerprint})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TypeRenderTimeline, payload), nil
 }

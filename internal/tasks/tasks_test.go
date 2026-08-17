@@ -58,6 +58,28 @@ func TestBoundStreamRenderTaskKeepsUniquePayloadAndCarriesIntent(t *testing.T) {
 	}
 }
 
+func TestNewRenderTimelineTaskRoundtrip(t *testing.T) {
+	id := uuid.New()
+	fp := strings.Repeat("ab", 32)
+	tk, err := NewRenderTimelineTask(id, fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tk.Type() != TypeRenderTimeline {
+		t.Fatalf("type = %q", tk.Type())
+	}
+	var payload RenderTimelinePayload
+	if err := json.Unmarshal(tk.Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.ProjectID != id || payload.Fingerprint != fp {
+		t.Fatalf("payload = %+v", payload)
+	}
+	if _, err := NewRenderTimelineTask(id, "nope"); err == nil {
+		t.Fatal("expected invalid fingerprint")
+	}
+}
+
 func TestNewScanRosterTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
 	tk, err := NewScanRosterTask(id)
