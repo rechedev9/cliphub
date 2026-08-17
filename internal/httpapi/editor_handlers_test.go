@@ -169,6 +169,9 @@ func TestEditorProjectPlanAndRenderAdmission(t *testing.T) {
 	if created.Plan.Canvas.Width != 1080 {
 		t.Fatalf("default canvas = %+v", created.Plan.Canvas)
 	}
+	if len(created.Plan.Tracks) == 0 || created.Plan.Tracks[0].Items == nil {
+		t.Fatalf("default plan items must be an empty array, got %+v", created.Plan.Tracks)
+	}
 
 	assetID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	plan := timelineplan.DefaultDocument()
@@ -301,6 +304,43 @@ func TestStartEditorRenderDoesNotMarkRenderingWhenEnqueueFails(t *testing.T) {
 	}
 	if got.Status == timelineplan.StatusRendering {
 		t.Fatalf("status = %s after enqueue failure, want draft", got.Status)
+	}
+}
+
+func TestGetEditorProjectCoercesNullItems(t *testing.T) {
+	t.Parallel()
+	projects := newFakeEditorProjects()
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithEditorRepositories(newFakeEditorAssets(), projects))
+	srv := httptest.NewServer(Routes(h))
+	t.Cleanup(srv.Close)
+
+	p := &timelineplan.Project{
+		Title:  "legacy",
+		Status: timelineplan.StatusDraft,
+		Plan:   []byte(`{"schema_version":"1.0","canvas":{"width":1080,"height":1920,"fps":60},"tracks":[{"id":"v1","kind":"video","items":null}]}`),
+	}
+	if err := projects.Create(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := srv.Client().Get(srv.URL + "/api/editor/projects/" + p.ID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body bytes.Buffer
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatal(err)
+	}
+	got := body.String()
+	if strings.Contains(got, `"items":null`) {
+		t.Fatalf("GET still serializes null items: %s", got)
+	}
+	if !strings.Contains(got, `"items":[]`) {
+		t.Fatalf("GET missing empty items array: %s", got)
 	}
 }
 

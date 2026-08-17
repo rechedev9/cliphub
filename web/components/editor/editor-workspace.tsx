@@ -9,6 +9,7 @@ import {
   evaluateTimeline,
   itemOutputDuration,
   itemTimelineEnd,
+  normalizeDocument,
   type EditorDocument,
   type EditorItem,
 } from '@/lib/editor/evaluate';
@@ -35,7 +36,7 @@ export function EditorWorkspace({ projectId }: EditorWorkspaceProps): ReactEleme
       .then(([project, list, state]) => {
         if (cancelled) return;
         setTitle(project.title);
-        if (project.plan !== undefined) setDoc(project.plan);
+        if (project.plan !== undefined) setDoc(normalizeDocument(project.plan));
         setAssets(list);
         setRender(state);
       })

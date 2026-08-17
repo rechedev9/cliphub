@@ -50,9 +50,9 @@ func Normalize(doc Document) Document {
 	for i := range doc.Tracks {
 		doc.Tracks[i].ID = strings.TrimSpace(doc.Tracks[i].ID)
 		doc.Tracks[i].Kind = TrackKind(strings.TrimSpace(string(doc.Tracks[i].Kind)))
-		if len(doc.Tracks[i].Items) > 0 {
-			doc.Tracks[i].Items = append([]Item(nil), doc.Tracks[i].Items...)
-		}
+		items := make([]Item, len(doc.Tracks[i].Items))
+		copy(items, doc.Tracks[i].Items)
+		doc.Tracks[i].Items = items
 		for j := range doc.Tracks[i].Items {
 			doc.Tracks[i].Items[j] = normalizeItem(doc.Tracks[i].Items[j])
 		}

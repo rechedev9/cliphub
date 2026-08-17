@@ -90,10 +90,21 @@ export function itemTimelineEnd(item: EditorItem): number {
   return item.timeline_start + itemOutputDuration(item);
 }
 
+export function normalizeDocument(doc: EditorDocument): EditorDocument {
+  return {
+    ...doc,
+    tracks: (doc.tracks ?? []).map((track) => ({
+      ...track,
+      items: Array.isArray(track.items) ? track.items : [],
+    })),
+    overlays: Array.isArray(doc.overlays) ? doc.overlays : [],
+  };
+}
+
 export function documentDuration(doc: EditorDocument): number {
   let end = 0;
-  for (const track of doc.tracks) {
-    for (const item of track.items) {
+  for (const track of doc.tracks ?? []) {
+    for (const item of track.items ?? []) {
       const itemEnd = itemTimelineEnd(item);
       if (itemEnd > end) end = itemEnd;
     }
@@ -127,9 +138,9 @@ export function evaluateTimeline(doc: EditorDocument, time: number): EditorSampl
   const duration = documentDuration(doc);
   const sample: EditorSample = { time, duration, layers: [], texts: [] };
   if (time < 0 || time > duration) return sample;
-  for (const track of doc.tracks) {
+  for (const track of doc.tracks ?? []) {
     if (track.kind !== EDITOR_TRACK_KINDS.video) continue;
-    for (const item of track.items) {
+    for (const item of track.items ?? []) {
       if (time < item.timeline_start || time >= itemTimelineEnd(item)) continue;
       const local = time - item.timeline_start;
       const base = resolvedTransform(item);

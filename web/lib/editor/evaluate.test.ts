@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateTimeline, type EditorDocument } from './evaluate.ts';
+import { evaluateTimeline, normalizeDocument, type EditorDocument } from './evaluate.ts';
 
 const doc: EditorDocument = {
   schema_version: '1.0',
@@ -58,4 +58,22 @@ test('evaluate: after pip ends', () => {
   const sample = evaluateTimeline(doc, 1.6);
   assert.equal(sample.layers.length, 1);
   assert.equal(sample.layers[0]?.item_id, 'base');
+});
+
+test('normalize: null or missing items become arrays', () => {
+  const cases: { name: string; raw: string }[] = [
+    {
+      name: 'null items',
+      raw: '{"schema_version":"1.0","canvas":{"width":1080,"height":1920,"fps":60},"tracks":[{"id":"v1","kind":"video","items":null}]}',
+    },
+    {
+      name: 'missing items',
+      raw: '{"schema_version":"1.0","canvas":{"width":1080,"height":1920,"fps":60},"tracks":[{"id":"v1","kind":"video"}]}',
+    },
+  ];
+  for (const tc of cases) {
+    const got = normalizeDocument(JSON.parse(tc.raw) as EditorDocument);
+    assert.deepEqual(got.tracks[0]?.items, [], tc.name);
+    assert.doesNotThrow(() => evaluateTimeline(got, 0), tc.name);
+  }
 });

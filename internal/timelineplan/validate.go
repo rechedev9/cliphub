@@ -18,7 +18,7 @@ func DefaultDocument() Document {
 	return Document{
 		SchemaVersion: SchemaVersion,
 		Canvas:        Canvas{Width: CanvasPortraitWidth, Height: CanvasPortraitHeight, FPS: DefaultFPS},
-		Tracks:        []Track{{ID: "v1", Kind: KindVideo}},
+		Tracks:        []Track{{ID: "v1", Kind: KindVideo, Items: []Item{}}},
 	}
 }
 
