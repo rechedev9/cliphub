@@ -16,6 +16,10 @@ const (
 
 	// PresetFullHUD60 keeps the full in-game CS2 HUD visible over the edit.
 	PresetFullHUD60 = "full-hud-60"
+
+	// PresetViralAggressive60 is the public aggressive TikTok look: same
+	// deathnotices HUD as viral-60-clean, with the viral-aggressive grade.
+	PresetViralAggressive60 = "viral-aggressive-60"
 )
 
 // RenderPreset is one declarative entry in the render preset registry.
@@ -78,6 +82,23 @@ var renderPresets = []RenderPreset{
 		VideoCRF:       StandardVideoCRF,
 		VideoPreset:    StandardVideoPreset,
 		EffectsPreset:  EffectsPresetViralUltraClean,
+		HQFilters:      true,
+		AudioNormalize: true,
+		QualityChecks:  true,
+		CoverSheets:    true,
+		KillfeedSource: true,
+		HUDMode:        "deathnotices",
+	},
+	{
+		Name:           PresetViralAggressive60,
+		Label:          "Viral Aggressive",
+		Description:    "aggressive TikTok edit: HUD-less 60fps POV that keeps the kill feed, with a saturated grade and headshot chroma pulses",
+		FPS:            60,
+		Width:          1080,
+		Height:         1920,
+		VideoCRF:       StandardVideoCRF,
+		VideoPreset:    StandardVideoPreset,
+		EffectsPreset:  EffectsPresetViralAggressive,
 		HQFilters:      true,
 		AudioNormalize: true,
 		QualityChecks:  true,

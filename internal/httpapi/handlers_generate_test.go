@@ -467,7 +467,7 @@ func TestStartGenerateRejectsInvalidEdit(t *testing.T) {
 	repo.jobs[j.ID] = j
 	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 
-	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","edit":{"killEffect":"glitch"}}`)
+	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","edit":{"killEffect":"explode"}}`)
 
 	if rw.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())

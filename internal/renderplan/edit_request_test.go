@@ -41,7 +41,7 @@ func TestEditRequestValidateRejectsUnknownFields(t *testing.T) {
 		want string
 	}{
 		{name: "format", req: EditRequest{Format: "square", KillEffect: KillEffectPunchIn, Transition: TransitionFlash}, want: "unknown render format"},
-		{name: "effect", req: EditRequest{Format: FormatShort9x16, KillEffect: "glitch", Transition: TransitionFlash}, want: "unknown kill effect"},
+		{name: "effect", req: EditRequest{Format: FormatShort9x16, KillEffect: "explode", Transition: TransitionFlash}, want: "unknown kill effect"},
 		{name: "transition", req: EditRequest{Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: "spin"}, want: "unknown transition"},
 		{name: "cover strategy", req: EditRequest{Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash, CoverStrategy: "uploaded"}, want: "unknown cover strategy"},
 		{
@@ -71,6 +71,18 @@ func TestEditRequestValidateRejectsUnknownFields(t *testing.T) {
 				t.Fatalf("error = %q, want %q", err.Error(), tc.want)
 			}
 		})
+	}
+}
+
+func TestEditRequestValidateAcceptsViralStyles(t *testing.T) {
+	cases := []EditRequest{
+		{Format: FormatShort9x16, KillEffect: KillEffectShake, Transition: TransitionGlitch},
+		{Format: FormatLandscape16x9, KillEffect: KillEffectGlitch, Transition: TransitionZoomWhip},
+	}
+	for _, req := range cases {
+		if err := req.Validate(); err != nil {
+			t.Fatalf("Validate(%#v) = %v, want nil", req, err)
+		}
 	}
 }
 

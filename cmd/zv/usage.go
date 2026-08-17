@@ -75,8 +75,8 @@ Flags:
   --cs2 <cs2.exe>            CS2 path; defaults to env or Steam autodetection
   --from-recording <json>    existing recording-result.json; skips parse and record
   --output-format <format>   short-9x16 (TikTok/Shorts) or landscape-16x9 (YouTube)
-  --kill-effect <style>      clean, punch-in, velocity, or freeze-flash
-  --transition <style>       cut, flash, whip, or dip
+  --kill-effect <style>      clean, punch-in, velocity, freeze-flash, shake, or glitch
+  --transition <style>       cut, flash, whip, dip, glitch, or zoom-whip
   --intro / --outro          add professional title bookends
   --cover-first-frame        freeze the cover frame over the first frames so
                              YouTube's Shorts thumbnail selector can pick it

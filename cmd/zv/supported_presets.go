@@ -3,13 +3,15 @@ package main
 import "github.com/rechedev9/cliphub/internal/editor"
 
 func supportedPresetNames() []string {
-	return []string{editor.DefaultPreset().Name}
+	return []string{editor.PresetViral60Clean, editor.PresetViralAggressive60}
 }
 
 func supportedPresetByName(name string) (editor.RenderPreset, bool) {
-	preset := editor.DefaultPreset()
-	if name != preset.Name {
-		return editor.RenderPreset{}, false
+	for _, supported := range supportedPresetNames() {
+		if name != supported {
+			continue
+		}
+		return editor.PresetByName(name)
 	}
-	return preset, true
+	return editor.RenderPreset{}, false
 }

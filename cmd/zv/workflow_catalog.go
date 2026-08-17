@@ -289,8 +289,8 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 		return []workflowValueConstraint{
 			constraint("--preset", editor.DefaultPreset().Name, "zv presets --format json", supportedPresetNames()...),
 			constraint("--output-format", editor.OutputFormatShort9x16, "", editor.OutputFormatShort9x16, editor.OutputFormatLandscape16x9),
-			constraint("--kill-effect", editor.KillEffectPunchIn, "", editor.KillEffectClean, editor.KillEffectPunchIn, editor.KillEffectVelocity, editor.KillEffectFreezeFlash),
-			constraint("--transition", editor.TransitionFlash, "", editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip),
+			constraint("--kill-effect", editor.KillEffectPunchIn, "", editor.KillEffectClean, editor.KillEffectPunchIn, editor.KillEffectVelocity, editor.KillEffectFreezeFlash, editor.KillEffectShake, editor.KillEffectGlitch),
+			constraint("--transition", editor.TransitionFlash, "", editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip, editor.TransitionGlitch, editor.TransitionZoomWhip),
 			constraint("--format", "text", "", "text", "json"),
 		}
 	case "demo-parse":
@@ -312,10 +312,10 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 		defaultPreset := editor.DefaultPreset()
 		return []workflowValueConstraint{
 			constraint("--preset", defaultPreset.Name, "zv presets --format json", supportedPresetNames()...),
-			constraint("--effects-preset", defaultPreset.EffectsPreset, "", editor.EffectsPresetViralUltraClean),
+			constraint("--effects-preset", defaultPreset.EffectsPreset, "", editor.EffectsPresetViralUltraClean, editor.EffectsPresetViralAggressive),
 			constraint("--output-format", editor.OutputFormatShort9x16, "", editor.OutputFormatShort9x16, editor.OutputFormatLandscape16x9),
-			constraint("--kill-effect", editor.KillEffectPunchIn, "", editor.KillEffectClean, editor.KillEffectPunchIn, editor.KillEffectVelocity, editor.KillEffectFreezeFlash),
-			constraint("--transition", editor.TransitionFlash, "", editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip),
+			constraint("--kill-effect", editor.KillEffectPunchIn, "", editor.KillEffectClean, editor.KillEffectPunchIn, editor.KillEffectVelocity, editor.KillEffectFreezeFlash, editor.KillEffectShake, editor.KillEffectGlitch),
+			constraint("--transition", editor.TransitionFlash, "", editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip, editor.TransitionGlitch, editor.TransitionZoomWhip),
 			constraint("--video-preset", defaultPreset.VideoPreset, "",
 				"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"),
 			constraint("--format", "text", "", "text", "json"),

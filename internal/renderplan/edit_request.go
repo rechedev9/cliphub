@@ -16,10 +16,14 @@ const (
 	KillEffectPunchIn      = "punch-in"
 	KillEffectVelocity     = "velocity"
 	KillEffectFreezeFlash  = "freeze-flash"
+	KillEffectShake        = "shake"
+	KillEffectGlitch       = "glitch"
 	TransitionCut          = "cut"
 	TransitionFlash        = "flash"
 	TransitionWhip         = "whip"
 	TransitionDip          = "dip"
+	TransitionGlitch       = "glitch"
+	TransitionZoomWhip     = "zoom-whip"
 	CoverStrategyGenerated = "generated-gameplay"
 	CoverStrategyNone      = "no-cover"
 )
@@ -94,12 +98,12 @@ func (r EditRequest) Validate() error {
 		return fmt.Errorf("unknown render format %q", r.Format)
 	}
 	switch r.KillEffect {
-	case KillEffectClean, KillEffectPunchIn, KillEffectVelocity, KillEffectFreezeFlash:
+	case KillEffectClean, KillEffectPunchIn, KillEffectVelocity, KillEffectFreezeFlash, KillEffectShake, KillEffectGlitch:
 	default:
 		return fmt.Errorf("unknown kill effect %q", r.KillEffect)
 	}
 	switch r.Transition {
-	case TransitionCut, TransitionFlash, TransitionWhip, TransitionDip:
+	case TransitionCut, TransitionFlash, TransitionWhip, TransitionDip, TransitionGlitch, TransitionZoomWhip:
 	default:
 		return fmt.Errorf("unknown transition %q", r.Transition)
 	}

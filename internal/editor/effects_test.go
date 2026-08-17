@@ -1037,3 +1037,174 @@ func TestGeneratedKillfeedEffects(t *testing.T) {
 		t.Fatalf("effects without kills = %#v, want none", got)
 	}
 }
+
+func TestEvaluateEffectsShakeChromaGlitch(t *testing.T) {
+	source := effectsSource{
+		Preset: EffectsPresetExternal,
+		Script: `
+on_kill(function(k)
+  shake({ amplitude = 16, frequency = 18, at = k.time, pre = 0.04, post = 0.36 })
+  chroma({ intensity = 10, at = k.time, pre = 0.04, post = 0.18 })
+  glitch({ intensity = 12, at = k.time, pre = 0.02, post = 0.12 })
+end)
+`,
+	}
+	short := ShortEdit{
+		SegmentID:       "seg-001",
+		Preset:          PresetViral60Clean,
+		DurationSeconds: 5,
+		Kills:           []KillCue{{Tick: 100, TimeSeconds: 1, Weapon: "AWP", Headshot: true}},
+	}
+	effects, warnings, err := evaluateEffects(source, short)
+	if err != nil {
+		t.Fatalf("evaluateEffects error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v", warnings)
+	}
+	if len(effects) != 3 {
+		t.Fatalf("effects len = %d, want 3: %#v", len(effects), effects)
+	}
+	if effects[0].Type != EffectShake || effects[0].Amplitude != 16 || effects[0].Frequency != 18 {
+		t.Fatalf("shake = %#v", effects[0])
+	}
+	if effects[0].StartSeconds != 0.96 || effects[0].EndSeconds != 1.36 {
+		t.Fatalf("shake window = %.3f..%.3f", effects[0].StartSeconds, effects[0].EndSeconds)
+	}
+	if effects[1].Type != EffectChroma || effects[1].Amplitude != 10 {
+		t.Fatalf("chroma = %#v", effects[1])
+	}
+	if effects[2].Type != EffectGlitch || effects[2].Amplitude != 12 {
+		t.Fatalf("glitch = %#v", effects[2])
+	}
+	again, _, err := evaluateEffects(source, short)
+	if err != nil {
+		t.Fatalf("second evaluateEffects error = %v", err)
+	}
+	if len(again) != len(effects) || again[0] != effects[0] || again[1] != effects[1] || again[2] != effects[2] {
+		t.Fatalf("effects are not deterministic:\n%#v\n%#v", effects, again)
+	}
+}
+
+func TestEvaluateEffectsRejectsInvalidMotionFields(t *testing.T) {
+	cases := []struct {
+		name   string
+		script string
+		want   string
+	}{
+		{
+			name:   "shake amplitude",
+			script: `on_segment(function(s) shake({ amplitude = 99, start = 0, duration = 0.2 }) end)`,
+			want:   "amplitude",
+		},
+		{
+			name:   "shake frequency",
+			script: `on_segment(function(s) shake({ frequency = 1, start = 0, duration = 0.2 }) end)`,
+			want:   "frequency",
+		},
+		{
+			name:   "chroma intensity",
+			script: `on_segment(function(s) chroma({ intensity = 40, start = 0, duration = 0.2 }) end)`,
+			want:   "intensity",
+		},
+		{
+			name:   "glitch intensity",
+			script: `on_segment(function(s) glitch({ intensity = 0, start = 0, duration = 0.2 }) end)`,
+			want:   "intensity",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := evaluateEffects(effectsSource{Preset: EffectsPresetExternal, Script: tc.script}, ShortEdit{
+				SegmentID:       "seg-001",
+				Preset:          PresetViral60Clean,
+				DurationSeconds: 5,
+			})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("evaluateEffects error = %v, want %s validation", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestGeneratedKillAndTransitionEffects(t *testing.T) {
+	short := ShortEdit{
+		DurationSeconds: 6,
+		Kills:           []KillCue{{Tick: 200, TimeSeconds: 2, Weapon: "AK-47", Headshot: true}},
+	}
+	cases := []struct {
+		name       string
+		killEffect string
+		transition string
+		wantTypes  []EffectType
+	}{
+		{name: "shake kill", killEffect: KillEffectShake, wantTypes: []EffectType{EffectZoom, EffectShake}},
+		{name: "glitch kill", killEffect: KillEffectGlitch, wantTypes: []EffectType{EffectZoom, EffectGlitch, EffectFlash}},
+		{name: "glitch transition", transition: TransitionGlitch, wantTypes: []EffectType{EffectGlitch, EffectFlash, EffectGlitch, EffectFlash}},
+		{name: "zoom-whip transition", transition: TransitionZoomWhip, wantTypes: []EffectType{EffectZoom, EffectFlash}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			edit := short
+			edit.KillEffect = tc.killEffect
+			edit.Transition = tc.transition
+			var got []Effect
+			if tc.killEffect != "" {
+				got = generatedKillEffects(edit)
+			} else {
+				got = generatedTransitionEffects(edit)
+			}
+			if len(got) != len(tc.wantTypes) {
+				t.Fatalf("effects = %#v, want %d", got, len(tc.wantTypes))
+			}
+			for i, typ := range tc.wantTypes {
+				if got[i].Type != typ {
+					t.Fatalf("effects[%d].Type = %q, want %q", i, got[i].Type, typ)
+				}
+				if got[i].Source != "edit-request" {
+					t.Fatalf("effects[%d].Source = %q, want edit-request", i, got[i].Source)
+				}
+			}
+		})
+	}
+}
+
+func TestViralAggressiveEmitsGradeAndHeadshotChroma(t *testing.T) {
+	source, err := loadEffectsSource("", EffectsPresetViralAggressive)
+	if err != nil {
+		t.Fatalf("loadEffectsSource error = %v", err)
+	}
+	short := ShortEdit{
+		SegmentID:       "seg-001",
+		Preset:          PresetViralAggressive60,
+		DurationSeconds: 8,
+		Kills: []KillCue{
+			{Tick: 100, TimeSeconds: 1, Weapon: "AWP", Headshot: true},
+			{Tick: 200, TimeSeconds: 3, Weapon: "AK-47", Wallbang: true},
+			{Tick: 300, TimeSeconds: 5, Weapon: "M4A1"},
+		},
+	}
+	effects, _, err := evaluateEffects(source, short)
+	if err != nil {
+		t.Fatalf("evaluateEffects error = %v", err)
+	}
+	var grades, chromas, flashes int
+	for _, effect := range effects {
+		switch effect.Type {
+		case EffectGrade:
+			grades++
+			if effect.Contrast != 1.25 || effect.Saturation != 1.45 {
+				t.Fatalf("grade = %#v", effect)
+			}
+		case EffectChroma:
+			chromas++
+		case EffectFlash:
+			flashes++
+		default:
+			t.Fatalf("unexpected effect type %q", effect.Type)
+		}
+	}
+	if grades != 1 || chromas != 2 || flashes != 1 {
+		t.Fatalf("counts grade=%d chroma=%d flash=%d, want 1/2/1 from %#v", grades, chromas, flashes, effects)
+	}
+}

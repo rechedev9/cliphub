@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	// EffectsPresetViralUltraClean is the effects pack bundled into the sole
-	// public render preset, viral-60-clean.
+	// EffectsPresetViralUltraClean is the effects pack bundled into viral-60-clean.
 	EffectsPresetViralUltraClean = "viral-ultra-clean"
+
+	// EffectsPresetViralAggressive is the saturated grade + headshot chroma pack.
+	EffectsPresetViralAggressive = "viral-aggressive"
 
 	// EffectsPresetExternal marks manifests rendered from a user script path.
 	EffectsPresetExternal = "external"
@@ -39,11 +41,15 @@ const (
 	KillEffectPunchIn     = "punch-in"
 	KillEffectVelocity    = "velocity"
 	KillEffectFreezeFlash = "freeze-flash"
+	KillEffectShake       = "shake"
+	KillEffectGlitch      = "glitch"
 
-	TransitionCut   = "cut"
-	TransitionFlash = "flash"
-	TransitionWhip  = "whip"
-	TransitionDip   = "dip"
+	TransitionCut      = "cut"
+	TransitionFlash    = "flash"
+	TransitionWhip     = "whip"
+	TransitionDip      = "dip"
+	TransitionGlitch   = "glitch"
+	TransitionZoomWhip = "zoom-whip"
 )
 
 type Config struct {
@@ -267,33 +273,33 @@ type ShortEdit struct {
 	TemporalSmoothing bool    `json:"temporal_smoothing,omitempty"`
 	// KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
-	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
-	KeyDropCode         string   `json:"keydrop_code,omitempty"`
-	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
-	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
-	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
-	KeyDropImagePath    string   `json:"keydrop_image_path,omitempty"`
-	CaptionPath         string   `json:"caption_path"`
-	CoverPath         string      `json:"cover_path,omitempty"`
-	CoverSheetPath    string      `json:"cover_sheet_path,omitempty"`
-	CoverTimeSeconds  float64     `json:"cover_time_seconds"`
-	CoverFirstFrame   bool        `json:"cover_first_frame,omitempty"`
-	DurationSeconds   float64     `json:"duration_seconds,omitempty"`
-	Label             string      `json:"label"`
-	Title             string      `json:"title"`
-	Headline          string      `json:"headline"`
-	Caption           string      `json:"caption"`
-	Hashtags          []string    `json:"hashtags,omitempty"`
-	Kills             []KillCue   `json:"kills,omitempty"`
-	Smokes            []SmokeCue  `json:"smokes,omitempty"`
-	Parts             []ShortPart `json:"parts,omitempty"`
-	Effects           []Effect    `json:"effects,omitempty"`
-	FFmpegCommand     []string    `json:"ffmpeg_command"`
-	CoverCommand      []string    `json:"cover_command,omitempty"`
-	CoverSheetCommand []string    `json:"cover_sheet_command,omitempty"`
-	QualityCommand    []string    `json:"quality_command,omitempty"`
-	RenderLogPath     string      `json:"render_log_path,omitempty"`
-	QualityLogPath    string      `json:"quality_log_path,omitempty"`
+	KeyDropStyle        string      `json:"keydrop_style,omitempty"`
+	KeyDropCode         string      `json:"keydrop_code,omitempty"`
+	KeyDropPositionY    *float64    `json:"keydrop_position_y,omitempty"`
+	KeyDropStartSeconds *float64    `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds   *float64    `json:"keydrop_end_seconds,omitempty"`
+	KeyDropImagePath    string      `json:"keydrop_image_path,omitempty"`
+	CaptionPath         string      `json:"caption_path"`
+	CoverPath           string      `json:"cover_path,omitempty"`
+	CoverSheetPath      string      `json:"cover_sheet_path,omitempty"`
+	CoverTimeSeconds    float64     `json:"cover_time_seconds"`
+	CoverFirstFrame     bool        `json:"cover_first_frame,omitempty"`
+	DurationSeconds     float64     `json:"duration_seconds,omitempty"`
+	Label               string      `json:"label"`
+	Title               string      `json:"title"`
+	Headline            string      `json:"headline"`
+	Caption             string      `json:"caption"`
+	Hashtags            []string    `json:"hashtags,omitempty"`
+	Kills               []KillCue   `json:"kills,omitempty"`
+	Smokes              []SmokeCue  `json:"smokes,omitempty"`
+	Parts               []ShortPart `json:"parts,omitempty"`
+	Effects             []Effect    `json:"effects,omitempty"`
+	FFmpegCommand       []string    `json:"ffmpeg_command"`
+	CoverCommand        []string    `json:"cover_command,omitempty"`
+	CoverSheetCommand   []string    `json:"cover_sheet_command,omitempty"`
+	QualityCommand      []string    `json:"quality_command,omitempty"`
+	RenderLogPath       string      `json:"render_log_path,omitempty"`
+	QualityLogPath      string      `json:"quality_log_path,omitempty"`
 }
 
 type ShortPart struct {
@@ -540,6 +546,9 @@ const (
 	EffectGrade    EffectType = "grade"
 	EffectImage    EffectType = "image"
 	EffectKillfeed EffectType = "killfeed"
+	EffectShake    EffectType = "shake"
+	EffectChroma   EffectType = "chroma"
+	EffectGlitch   EffectType = "glitch"
 )
 
 type Effect struct {
@@ -576,6 +585,8 @@ type Effect struct {
 	Contrast           float64    `json:"contrast,omitempty"`
 	Saturation         float64    `json:"saturation,omitempty"`
 	Gamma              float64    `json:"gamma,omitempty"`
+	Amplitude          float64    `json:"amplitude,omitempty"`
+	Frequency          float64    `json:"frequency,omitempty"`
 	Source             string     `json:"source,omitempty"`
 	SourceIndex        int        `json:"source_index,omitempty"`
 	SourceSegmentID    string     `json:"source_segment_id,omitempty"`

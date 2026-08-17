@@ -141,7 +141,7 @@ Also: **series jobs** (shared roster across maps), **FACEIT Data API** indexing 
 
 Default kill/highlight deliverable: **one compiled vertical video** per player/game with all selected kills — not one file per kill.
 
-Public preset catalog exposes `viral-60-clean` (death notices + `viral-ultra-clean` effects). HUD mode is a **recording-stage** choice; changing it after capture requires recapture.
+Public preset catalog exposes `viral-60-clean` (death notices + `viral-ultra-clean` effects) and `viral-aggressive-60` (same HUD + `viral-aggressive` grade). HUD mode is a **recording-stage** choice; changing it after capture requires recapture.
 
 ---
 

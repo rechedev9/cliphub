@@ -98,8 +98,8 @@ Do not add a feature that files reports on the user's behalf, and do not weaken 
 - `--covers=false` removes the thumbnail gate.
 - Changing a stream plan invalidates its creative brief; settle the brief again before the next non-dry-run render.
 
-The editor registry in `internal/editor/preset.go` retains the capture-mode profiles, but the public unified `zv` preset catalog intentionally exposes only `viral-60-clean`; discover the supported CLI values with `.\bin\zv.exe presets --format json`.
-`viral-60-clean` records death notices and uses `viral-ultra-clean` effects. `clean-pov-60` and `full-hud-60` remain internal capture profiles and are not selectable through the unified CLI without a future product decision.
+The editor registry in `internal/editor/preset.go` retains the capture-mode profiles, but the public unified `zv` preset catalog exposes `viral-60-clean` and `viral-aggressive-60`; discover the supported CLI values with `.\bin\zv.exe presets --format json`.
+`viral-60-clean` records death notices and uses `viral-ultra-clean` effects. `viral-aggressive-60` records the same death notices HUD with the `viral-aggressive` grade and headshot chroma pulses. `clean-pov-60` and `full-hud-60` remain internal capture profiles and are not selectable through the unified CLI without a future product decision.
 HUD mode is a recording-stage choice, so changing it after capture requires recapture rather than a render-only change.
 The default kill/highlight deliverable is one compiled vertical video per player/game containing all selected kills, not one upload-ready file per kill.
 Put every final MP4, cover, caption, manifest, and review gallery under the run's `shortslistosparasubir/` directory, and point the user there when delivering media.

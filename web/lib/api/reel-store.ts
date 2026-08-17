@@ -1,17 +1,9 @@
 import type { EditConfig, RenderMode } from './types';
 
-// Mirrors types.BOOKEND_TEXT_MAX_LENGTH. Duplicated (not imported) so this module
-// stays a type-only consumer of ./types: Node's native TS loader (which runs
-// reel-store.test.ts) erases the type-only import and never has to resolve
-// ./types at runtime.
+// Mirrors types.BOOKEND_TEXT_MAX_LENGTH; duplicated so Node's TS loader stays type-only.
 const BOOKEND_TEXT_MAX_LENGTH = 80;
 
-/**
- * A reel the user asked for — the durable fact, persisted to localStorage so the
- * Library survives a hard reload / direct visit. Status, downloadUrl, and failure
- * reason are NOT stored: they are derived live from the orchestrator on each poll
- * (see reel-reconcile), which is the single source of truth.
- */
+/** Persisted reel request. Live status comes from the orchestrator, not storage. */
 export type ReelIntent = {
   videoId: string; // `${jobId}__${segmentIds.join('_')}`
   jobId: string;
@@ -22,20 +14,14 @@ export type ReelIntent = {
   variant?: string;
   editConfig: EditConfig;
   songId?: string;
-  /**
-   * Music track volume in (0,1]; only meaningful with a songId. Absent means the
-   * default full volume (1.0), which renders byte-identically to a legacy reel.
-   */
+  /** Music gain in (0,1]; absent means full volume (1.0). */
   musicVolume?: number;
   title: string;
   map: string;
   score: string;
   /** Display name for the selected SteamID; optional for migrated intents. */
   targetName?: string;
-  /**
-   * Cover basename the user approved after candidates exist. Absent means the
-   * thumbnail second gate is still open (when covers are generated).
-   */
+  /** Approved cover basename; absent means the thumbnail gate is still open. */
   selectedCoverName?: string;
   createdAt: number;
 };
@@ -46,12 +32,7 @@ const LEGACY_STORE_KEY = 'fragforge.reels.v1';
 /** Keep localStorage bounded; newest intents win. */
 const MAX_INTENTS = 50;
 
-/**
- * Default render variant. Also the migration target for intents persisted before
- * preset selection existed: those reels were recorded with the orchestrator's
- * default HUD, which is exactly this preset's HUD, so defaulting them to it (not
- * leaving variant undefined) keeps a later retry's re-record visually identical.
- */
+/** Default variant and migration target for pre-preset intents. */
 export const DEFAULT_VARIANT = 'viral-60-clean';
 
 export const DEFAULT_EDIT_CONFIG: EditConfig = {
@@ -95,10 +76,7 @@ export function saveReelIntents(list: ReelIntent[]): void {
   }
 }
 
-/**
- * Validates parsed JSON into well-formed intents, dropping anything malformed and
- * defaulting soft fields. Pure (no window) and unit-tested in reel-store.test.ts.
- */
+/** Drop malformed parsed JSON; default soft fields. Pure and unit-tested. */
 export function coerceIntents(parsed: unknown): ReelIntent[] {
   if (!Array.isArray(parsed)) return [];
   const out: ReelIntent[] = [];
@@ -131,12 +109,7 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
   return out;
 }
 
-/**
- * Reads segment ids off a parsed intent: the current `segmentIds` array, or
- * (for reels persisted before multi-select) the legacy singular `segmentId`
- * string wrapped into a one-element array. Non-string entries are dropped
- * rather than coerced, so a corrupt array never smuggles a non-id through.
- */
+/** Current segmentIds, or a legacy singular segmentId. Drops non-strings. */
 function coerceSegmentIds(r: Record<string, unknown>): string[] {
   if (Array.isArray(r.segmentIds)) {
     return r.segmentIds.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
@@ -182,11 +155,7 @@ export function coerceEditConfig(value: unknown): EditConfig {
   return cfg;
 }
 
-/**
- * Music volume must be a real number in (0,1]; anything else (out of range, NaN,
- * a stringified number) collapses to undefined so the reel renders at the default
- * full volume rather than smuggling a bad value into the render request.
- */
+/** Accept only a real number in (0,1]; anything else becomes undefined. */
 function coerceMusicVolume(value: unknown): number | undefined {
   return typeof value === 'number' && value > 0 && value <= 1 ? value : undefined;
 }
@@ -196,9 +165,23 @@ function coerceBookendText(value: unknown): string {
 }
 
 function isKillEffect(value: unknown): value is EditConfig['killEffect'] {
-  return value === 'clean' || value === 'punch-in' || value === 'velocity' || value === 'freeze-flash';
+  return (
+    value === 'clean' ||
+    value === 'punch-in' ||
+    value === 'velocity' ||
+    value === 'freeze-flash' ||
+    value === 'shake' ||
+    value === 'glitch'
+  );
 }
 
 function isTransition(value: unknown): value is EditConfig['transition'] {
-  return value === 'cut' || value === 'flash' || value === 'whip' || value === 'dip';
+  return (
+    value === 'cut' ||
+    value === 'flash' ||
+    value === 'whip' ||
+    value === 'dip' ||
+    value === 'glitch' ||
+    value === 'zoom-whip'
+  );
 }

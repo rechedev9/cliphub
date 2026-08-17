@@ -62,7 +62,7 @@ func TestDefaultPresetIsViral60Clean(t *testing.T) {
 }
 
 func TestRegisteredPresets(t *testing.T) {
-	want := []string{PresetViral60Clean, PresetCleanPOV60, PresetFullHUD60}
+	want := []string{PresetViral60Clean, PresetViralAggressive60, PresetCleanPOV60, PresetFullHUD60}
 	names := PresetNames()
 	if len(names) != len(want) {
 		t.Fatalf("PresetNames = %v, want %v", names, want)
@@ -83,6 +83,22 @@ func TestEveryPresetHasLabel(t *testing.T) {
 		if preset.Label == "" {
 			t.Errorf("preset %q has no Label (the UI picker shows it)", name)
 		}
+	}
+}
+
+func TestViralAggressive60UsesAggressiveEffects(t *testing.T) {
+	preset, ok := PresetByName(PresetViralAggressive60)
+	if !ok {
+		t.Fatalf("PresetByName(%q) ok = false, want true", PresetViralAggressive60)
+	}
+	if got, want := preset.HUDMode, "deathnotices"; got != want {
+		t.Fatalf("hud mode = %q, want %q", got, want)
+	}
+	if preset.EffectsPreset != EffectsPresetViralAggressive {
+		t.Fatalf("effects preset = %q, want %q", preset.EffectsPreset, EffectsPresetViralAggressive)
+	}
+	if !preset.KillfeedSource {
+		t.Fatal("viral-aggressive-60 should keep the kill feed")
 	}
 }
 
@@ -107,9 +123,10 @@ func TestPresetHUDModes(t *testing.T) {
 	// difference is what the user picks ("Kill Feed" vs "Clean POV" vs "Full
 	// HUD"). The render path is otherwise identical across presets.
 	want := map[string]string{
-		PresetViral60Clean: "deathnotices",
-		PresetCleanPOV60:   "clean",
-		PresetFullHUD60:    "gameplay",
+		PresetViral60Clean:      "deathnotices",
+		PresetViralAggressive60: "deathnotices",
+		PresetCleanPOV60:        "clean",
+		PresetFullHUD60:         "gameplay",
 	}
 	valid := map[string]bool{"gameplay": true, "clean": true, "deathnotices": true}
 	for _, name := range PresetNames() {

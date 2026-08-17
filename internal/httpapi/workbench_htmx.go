@@ -1057,6 +1057,8 @@ const workbenchJobTemplate = `
             <option value="punch-in" {{ if eq $.SelectedEdit.KillEffect "punch-in" }}selected{{ end }}>Punch-in</option>
             <option value="velocity" {{ if eq $.SelectedEdit.KillEffect "velocity" }}selected{{ end }}>Velocity</option>
             <option value="freeze-flash" {{ if eq $.SelectedEdit.KillEffect "freeze-flash" }}selected{{ end }}>Freeze flash</option>
+            <option value="shake" {{ if eq $.SelectedEdit.KillEffect "shake" }}selected{{ end }}>Shake</option>
+            <option value="glitch" {{ if eq $.SelectedEdit.KillEffect "glitch" }}selected{{ end }}>Glitch</option>
           </select>
         </label>
         <label class="field">
@@ -1066,6 +1068,8 @@ const workbenchJobTemplate = `
             <option value="flash" {{ if eq $.SelectedEdit.Transition "flash" }}selected{{ end }}>Flash</option>
             <option value="whip" {{ if eq $.SelectedEdit.Transition "whip" }}selected{{ end }}>Whip</option>
             <option value="dip" {{ if eq $.SelectedEdit.Transition "dip" }}selected{{ end }}>Dip</option>
+            <option value="glitch" {{ if eq $.SelectedEdit.Transition "glitch" }}selected{{ end }}>Glitch</option>
+            <option value="zoom-whip" {{ if eq $.SelectedEdit.Transition "zoom-whip" }}selected{{ end }}>Zoom-whip</option>
           </select>
         </label>
         <label class="field">

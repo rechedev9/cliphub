@@ -25,10 +25,7 @@ import {
   SAMPLE_REEL_URL,
 } from './fixtures.ts';
 
-/**
- * Mutable in-memory state at module scope so a single browser session keeps its
- * progress across navigations (the module is a singleton via lib/api/index).
- */
+/** In-memory session singleton so navigations keep mock progress. */
 const session: Session = {
   user: null,
   slots: { ...fixtureSlots },
@@ -138,37 +135,20 @@ function mockPublishAssistant(video: Video): PublishAssistant {
 /** Set by pairPc so the next getPcStatus reports the PC as paired. */
 let pcPaired = false;
 
-/**
- * Uploaded demos, parsed on the fly. They are not Steam matches (the demo may
- * belong to anyone) so they live apart from fixtureMatches, but getMatch /
- * findClips / createVideo resolve them too, letting an upload reuse the same
- * highlight → render pipeline.
- */
+/** Uploaded demos live apart from Steam fixtures but share the render pipeline. */
 const uploadedMatches: Match[] = [];
 const uploadedPlays = new Map<string, Play[]>();
 let uploadSeq = 0;
 
-/**
- * Scans awaiting a target pick: scanDemo mints a jobId and stashes the file name
- * + roster so parseDemo can resolve it. In-memory only (a scan that is never
- * parsed costs nothing); not persisted, since the picker resolves it in one go.
- */
+/** In-memory scans awaiting a target pick; not persisted. */
 type PendingScan = { fileName: string; seq: number; players: DemoPlayer[]; match: RosterMatch };
 const pendingScans = new Map<string, PendingScan>();
 
-/**
- * Demos recorded per bulk series id by scanDemo, in upload order, so getSeries
- * can synthesize a plausible series without a real orchestrator. In-memory only,
- * like pendingScans: a series that is never listed costs nothing.
- */
+/** In-memory demos per bulk series id, in upload order. */
 type SeriesScan = { jobId: string; fileName: string; match: RosterMatch };
 const seriesScans = new Map<string, SeriesScan[]>();
 
-/**
- * Uploaded demos persist to sessionStorage so the bookmarkable /matches/[id]
- * URL still resolves after a reload or a direct visit, matching the Steam path.
- * Guarded for SSR (no window) and tolerant of corrupt / over-quota storage.
- */
+/** sessionStorage key so /matches/[id] survives reload. SSR/quota safe. */
 const UPLOAD_STORE_KEY = 'cliphub.uploads.v1';
 
 function saveUploads(): void {
@@ -200,11 +180,7 @@ function loadUploads(): void {
 
 loadUploads();
 
-/**
- * The auth session persists to sessionStorage too, so a page reload keeps the
- * user signed in (and slots/pairing state) instead of silently logging out.
- * Same SSR/quota guards as the upload store.
- */
+/** sessionStorage key for auth/slots/pairing across reloads. */
 const SESSION_STORE_KEY = 'cliphub.session.v1';
 
 function saveSession(): void {
@@ -241,12 +217,7 @@ function delay(): Promise<void> {
 
 const THUMB_BASE = 'https://picsum.photos/seed';
 
-/**
- * Recomputes a video's status from how long ago it was created, so the UI can
- * poll and watch progress without any timers running in the mock:
- *   <2s queued, <6s recording, <10s composing, else ready.
- * Pre-ready videos keep their stored status (already-ready seeds stay ready).
- */
+/** Project mock status from createdAt: <2s queued, <6s recording, <10s composing. */
 function project(video: Video): Video {
   if (video.status === 'failed') return video;
 
@@ -412,6 +383,7 @@ export class MockApiClient implements ApiClient {
     await delay();
     return [
       { name: 'viral-60-clean', label: 'Killfeed', description: 'POV sin HUD que conserva el killfeed del juego, con punch-ins y contador de kills', hudMode: 'deathnotices', default: true },
+      { name: 'viral-aggressive-60', label: 'Viral agresivo', description: 'Edición TikTok agresiva con grade saturado y pulsos de croma en headshots', hudMode: 'deathnotices' },
       { name: 'clean-pov-60', label: 'POV limpio', description: 'POV cinemático en primera persona, sin HUD ni killfeed del juego', hudMode: 'clean' },
       { name: 'full-hud-60', label: 'HUD completo', description: 'Conserva el HUD completo de CS2: vida, munición y radar visibles', hudMode: 'gameplay' },
     ];

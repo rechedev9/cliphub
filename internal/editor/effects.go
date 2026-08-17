@@ -46,6 +46,25 @@ on_segment(function(s)
 end)
 `
 
+const viralAggressiveEffectsScript = `
+on_segment(function(s)
+  grade({
+    contrast = 1.25,
+    saturation = 1.45,
+    gamma = 1.04
+  })
+end)
+on_kill(function(k)
+  if k.headshot then
+    chroma({ intensity = 10, pre = 0.04, post = 0.18 })
+    flash({ color = "#00ffff", opacity = 0.18, duration = 0.06 })
+  end
+  if k.wallbang then
+    chroma({ intensity = 7, pre = 0.02, post = 0.14 })
+  end
+end)
+`
+
 type effectsSource struct {
 	Path   string
 	Preset string
@@ -93,6 +112,8 @@ func loadEffectsSource(path, preset string) (effectsSource, error) {
 	switch preset {
 	case EffectsPresetViralUltraClean:
 		return effectsSource{Preset: preset, Script: viralUltraCleanEffectsScript}, nil
+	case EffectsPresetViralAggressive:
+		return effectsSource{Preset: preset, Script: viralAggressiveEffectsScript}, nil
 	default:
 		return effectsSource{}, fmt.Errorf("unknown effects preset %q", preset)
 	}
@@ -430,6 +451,53 @@ func generatedKillEffects(short ShortEdit) []Effect {
 					Source:       "edit-request",
 				},
 			)
+		case KillEffectShake:
+			effects = append(effects,
+				Effect{
+					Type:         EffectZoom,
+					StartSeconds: clampSeconds(kill.TimeSeconds-0.16, 0, short.DurationSeconds),
+					EndSeconds:   clampSeconds(kill.TimeSeconds+0.42, 0, short.DurationSeconds),
+					AtSeconds:    kill.TimeSeconds,
+					Scale:        1.15,
+					Source:       "edit-request",
+				},
+				Effect{
+					Type:         EffectShake,
+					StartSeconds: clampSeconds(kill.TimeSeconds-0.02, 0, short.DurationSeconds),
+					EndSeconds:   clampSeconds(kill.TimeSeconds+0.38, 0, short.DurationSeconds),
+					AtSeconds:    kill.TimeSeconds,
+					Amplitude:    16,
+					Frequency:    18,
+					Source:       "edit-request",
+				},
+			)
+		case KillEffectGlitch:
+			effects = append(effects,
+				Effect{
+					Type:         EffectZoom,
+					StartSeconds: clampSeconds(kill.TimeSeconds-0.10, 0, short.DurationSeconds),
+					EndSeconds:   clampSeconds(kill.TimeSeconds+0.28, 0, short.DurationSeconds),
+					AtSeconds:    kill.TimeSeconds,
+					Scale:        1.12,
+					Source:       "edit-request",
+				},
+				Effect{
+					Type:         EffectGlitch,
+					StartSeconds: clampSeconds(kill.TimeSeconds-0.02, 0, short.DurationSeconds),
+					EndSeconds:   clampSeconds(kill.TimeSeconds+0.14, 0, short.DurationSeconds),
+					AtSeconds:    kill.TimeSeconds,
+					Amplitude:    12,
+					Source:       "edit-request",
+				},
+				Effect{
+					Type:         EffectFlash,
+					StartSeconds: clampSeconds(kill.TimeSeconds-0.01, 0, short.DurationSeconds),
+					EndSeconds:   clampSeconds(kill.TimeSeconds+0.06, 0, short.DurationSeconds),
+					Color:        "#00ffff",
+					Opacity:      0.22,
+					Source:       "edit-request",
+				},
+			)
 		}
 	}
 	return effects
@@ -453,6 +521,18 @@ func generatedTransitionEffects(short ShortEdit) []Effect {
 		return []Effect{
 			{Type: EffectFlash, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.18), Color: "black", Opacity: 0.32, Source: "edit-request"},
 			{Type: EffectFlash, StartSeconds: transitionStart(short, 0.22), EndSeconds: short.DurationSeconds, Color: "black", Opacity: 0.34, Source: "edit-request"},
+		}
+	case TransitionGlitch:
+		return []Effect{
+			{Type: EffectGlitch, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.16), AtSeconds: 0, Amplitude: 10, Source: "edit-request"},
+			{Type: EffectFlash, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.10), Color: "#00ffff", Opacity: 0.16, Source: "edit-request"},
+			{Type: EffectGlitch, StartSeconds: transitionStart(short, 0.14), EndSeconds: short.DurationSeconds, AtSeconds: transitionStart(short, 0.14), Amplitude: 10, Source: "edit-request"},
+			{Type: EffectFlash, StartSeconds: transitionStart(short, 0.12), EndSeconds: short.DurationSeconds, Color: "#00ffff", Opacity: 0.14, Source: "edit-request"},
+		}
+	case TransitionZoomWhip:
+		return []Effect{
+			{Type: EffectZoom, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.28), AtSeconds: 0.02, Scale: 1.55, Source: "edit-request"},
+			{Type: EffectFlash, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.10), Color: "white", Opacity: 0.14, Source: "edit-request"},
 		}
 	default:
 		return nil
@@ -910,6 +990,18 @@ func registerEffectsAPI(L *lua.LState, ctx *effectEvalContext) {
 		ctx.addEffectFromTable(L, EffectGrade)
 		return 0
 	}))
+	L.SetGlobal("shake", L.NewFunction(func(L *lua.LState) int {
+		ctx.addEffectFromTable(L, EffectShake)
+		return 0
+	}))
+	L.SetGlobal("chroma", L.NewFunction(func(L *lua.LState) int {
+		ctx.addEffectFromTable(L, EffectChroma)
+		return 0
+	}))
+	L.SetGlobal("glitch", L.NewFunction(func(L *lua.LState) int {
+		ctx.addEffectFromTable(L, EffectGlitch)
+		return 0
+	}))
 }
 
 func callCallbacks(L *lua.LState, callbacks []lua.LValue, arg lua.LValue, label string, ctx *effectEvalContext) error {
@@ -1110,6 +1202,28 @@ func (ctx *effectEvalContext) effectFromTable(tb *lua.LTable, typ EffectType) (E
 		if err := setEffectFades(tb, &e); err != nil {
 			return e, err
 		}
+	case EffectShake:
+		e.Amplitude = tableFloat(tb, "amplitude", 14)
+		if e.Amplitude < 2 || e.Amplitude > 32 {
+			return e, fmt.Errorf("amplitude %.3f outside range 2..32", e.Amplitude)
+		}
+		e.Frequency = tableFloat(tb, "frequency", 16)
+		if e.Frequency < 4 || e.Frequency > 40 {
+			return e, fmt.Errorf("frequency %.3f outside range 4..40", e.Frequency)
+		}
+		e.StartSeconds, e.EndSeconds, e.AtSeconds = effectWindow(tb, defaultEventTime(ctx), 0.04, 0.36, 0.40, ctx.short.DurationSeconds)
+	case EffectChroma:
+		e.Amplitude = tableFloat(tb, "intensity", 8)
+		if e.Amplitude < 1 || e.Amplitude > 24 {
+			return e, fmt.Errorf("intensity %.3f outside range 1..24", e.Amplitude)
+		}
+		e.StartSeconds, e.EndSeconds, e.AtSeconds = effectWindow(tb, defaultEventTime(ctx), 0.04, 0.16, 0.20, ctx.short.DurationSeconds)
+	case EffectGlitch:
+		e.Amplitude = tableFloat(tb, "intensity", 10)
+		if e.Amplitude < 1 || e.Amplitude > 24 {
+			return e, fmt.Errorf("intensity %.3f outside range 1..24", e.Amplitude)
+		}
+		e.StartSeconds, e.EndSeconds, e.AtSeconds = effectWindow(tb, defaultEventTime(ctx), 0.02, 0.12, 0.14, ctx.short.DurationSeconds)
 	default:
 		return e, fmt.Errorf("unknown effect type %q", typ)
 	}

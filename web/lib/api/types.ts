@@ -15,8 +15,8 @@ export type PlayKind = 'clean' | 'highlight';
 export type Play = { id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number; weapon?: string; thumbnailUrl?: string };
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
-export type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash';
-export type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip';
+export type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
+export type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
 export type CoverStrategy = 'generated-gameplay' | 'no-cover';
 /** Max length (trimmed) for the intro/outro bookend text, enforced client-side via `maxLength`. */
 export const BOOKEND_TEXT_MAX_LENGTH = 80;

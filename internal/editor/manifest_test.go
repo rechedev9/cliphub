@@ -286,6 +286,30 @@ func TestVideoFilterEscapesDrawtextAndBuildsPunchIns(t *testing.T) {
 	}
 }
 
+func TestVideoFilterEmitsShakeChromaGlitch(t *testing.T) {
+	short := ShortEdit{
+		DurationSeconds: 4,
+		Effects: []Effect{
+			{Type: EffectShake, StartSeconds: 1, EndSeconds: 1.4, AtSeconds: 1.05, Amplitude: 16, Frequency: 18},
+			{Type: EffectChroma, StartSeconds: 1, EndSeconds: 1.2, Amplitude: 10},
+			{Type: EffectGlitch, StartSeconds: 2, EndSeconds: 2.14, Amplitude: 12},
+		},
+	}
+	filter := VideoFilter(short)
+	for _, want := range []string{
+		"crop=w=iw-56:h=ih-56:x=",
+		"scale=1080:1920:flags=lanczos",
+		"chromashift=cbh=10:crh=-10:enable='between(t\\,1.000\\,1.200)'",
+		"chromashift=cbh=12:crh=-12:enable='between(t\\,2.000\\,2.140)'",
+		"sin(6.283185*18.000",
+		"mod(floor((t-2.000)*30.000)",
+	} {
+		if !strings.Contains(filter, want) {
+			t.Fatalf("filter missing %q:\n%s", want, filter)
+		}
+	}
+}
+
 func TestVideoFilterFadesLuaText(t *testing.T) {
 	filter := VideoFilter(ShortEdit{
 		Effects: []Effect{

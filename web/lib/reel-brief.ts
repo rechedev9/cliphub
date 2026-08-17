@@ -49,6 +49,8 @@ const EFFECT_LABEL: Record<EditConfig['killEffect'], string> = {
   'punch-in': 'Impacto / punch-in',
   velocity: 'Velocidad',
   'freeze-flash': 'Congelado con flash',
+  shake: 'Terremoto',
+  glitch: 'Glitch',
 };
 
 const TRANSITION_LABEL: Record<EditConfig['transition'], string> = {
@@ -56,6 +58,8 @@ const TRANSITION_LABEL: Record<EditConfig['transition'], string> = {
   flash: 'Destello',
   whip: 'Barrido',
   dip: 'Fundido',
+  glitch: 'Glitch',
+  'zoom-whip': 'Zoom-whip',
 };
 
 const HUD_LABEL: Record<string, string> = {

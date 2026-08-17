@@ -63,7 +63,7 @@ func VideoFilter(short ShortEdit) string {
 		fpsFilter(short),
 	}
 	filters = appendTemporalSmoothingFilter(filters, short)
-	filters = appendEffectFilters(filters, short.Effects)
+	filters = appendEffectFilters(filters, short)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }
@@ -79,7 +79,7 @@ func FullFrameVideoFilter(short ShortEdit) string {
 		fpsFilter(short),
 	)
 	filters = appendTemporalSmoothingFilter(filters, short)
-	filters = appendEffectFilters(filters, short.Effects)
+	filters = appendEffectFilters(filters, short)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }
@@ -316,8 +316,11 @@ func smoothZoomRampExpression(start, end, from, to float64) string {
 	return fmt.Sprintf("(%.3f+(%.3f-%.3f)*(%s*%s*(3-2*%s)))", from, to, from, t, t, t)
 }
 
-func appendEffectFilters(filters []string, effects []Effect) []string {
+func appendEffectFilters(filters []string, short ShortEdit) []string {
+	effects := short.Effects
 	filters = append(filters, gradeFilters(effects)...)
+	filters = appendMotionCropFilters(filters, effects, short)
+	filters = append(filters, chromaShiftFilters(effects)...)
 	for _, effect := range effects {
 		if effect.Type != EffectFlash {
 			continue
@@ -376,6 +379,139 @@ func appendEffectFilters(filters []string, effects []Effect) []string {
 		styled.BoxColor = boxColor
 		styled.BoxBorder = boxBorder
 		filters = append(filters, drawTextEffect(styled))
+	}
+	return filters
+}
+
+func effectAmplitude(effect Effect, fallback float64) float64 {
+	if effect.Amplitude > 0 {
+		return effect.Amplitude
+	}
+	return fallback
+}
+
+func effectFrequency(effect Effect, fallback float64) float64 {
+	if effect.Frequency > 0 {
+		return effect.Frequency
+	}
+	return fallback
+}
+
+func motionPadAmplitude(effects []Effect) int {
+	pad := 0.0
+	for _, effect := range effects {
+		switch effect.Type {
+		case EffectShake:
+			pad += effectAmplitude(effect, 14)
+		case EffectGlitch:
+			pad += effectAmplitude(effect, 10)
+		}
+	}
+	return int(math.Ceil(pad))
+}
+
+func shakeOffsetTerm(effect Effect, axis string) string {
+	amp := effectAmplitude(effect, 14)
+	freq := effectFrequency(effect, 16)
+	phase := 0.0
+	if axis == "y" {
+		freq *= 0.73
+		phase = 1.885
+	}
+	start := effect.StartSeconds
+	end := effect.EndSeconds
+	at := effect.AtSeconds
+	if at <= start || at >= end {
+		at = start + (end-start)/2
+	}
+	rise := at - start
+	if rise < 0.001 {
+		rise = 0.001
+	}
+	fall := end - at
+	if fall < 0.001 {
+		fall = 0.001
+	}
+	env := fmt.Sprintf("if(lt(t\\,%.3f)\\,((t-%.3f)/%.3f)\\,max(0\\,(1-((t-%.3f)/%.3f))))", at, start, rise, at, fall)
+	return fmt.Sprintf("if(%s\\,%.3f*(%s)*sin(6.283185*%.3f*(t-%.3f)+%.3f)\\,0)", betweenExpression(start, end), amp, env, freq, start, phase)
+}
+
+func glitchOffsetTerm(effect Effect, axis string) string {
+	amp := effectAmplitude(effect, 10)
+	rate := 30.0
+	if axis == "y" {
+		rate = 20
+		amp *= 0.6
+	}
+	return fmt.Sprintf(
+		"if(%s\\,%.3f*if(eq(mod(floor((t-%.3f)*%.3f)\\,2)\\,0)\\,1\\,-1)\\,0)",
+		betweenExpression(effect.StartSeconds, effect.EndSeconds),
+		amp,
+		effect.StartSeconds,
+		rate,
+	)
+}
+
+func motionOffsetExpression(effects []Effect, axis string) string {
+	var terms []string
+	for _, effect := range effects {
+		switch effect.Type {
+		case EffectShake:
+			terms = append(terms, shakeOffsetTerm(effect, axis))
+		case EffectGlitch:
+			terms = append(terms, glitchOffsetTerm(effect, axis))
+		}
+	}
+	if len(terms) == 0 {
+		return ""
+	}
+	combined := terms[0]
+	for _, term := range terms[1:] {
+		combined = fmt.Sprintf("(%s+%s)", combined, term)
+	}
+	return combined
+}
+
+func appendMotionCropFilters(filters []string, effects []Effect, short ShortEdit) []string {
+	pad := motionPadAmplitude(effects)
+	if pad <= 0 {
+		return filters
+	}
+	offsetX := motionOffsetExpression(effects, "x")
+	offsetY := motionOffsetExpression(effects, "y")
+	if offsetX == "" || offsetY == "" {
+		return filters
+	}
+	width, height := outputDimensions(short)
+	x := fmt.Sprintf("max(0\\,min(%d\\,%d+(%s)))", 2*pad, pad, offsetX)
+	y := fmt.Sprintf("max(0\\,min(%d\\,%d+(%s)))", 2*pad, pad, offsetY)
+	return append(filters,
+		fmt.Sprintf("crop=w=iw-%d:h=ih-%d:x='%s':y='%s'", 2*pad, 2*pad, x, y),
+		fmt.Sprintf("scale=%d:%d:flags=lanczos", width, height),
+	)
+}
+
+func chromaShiftFilters(effects []Effect) []string {
+	filters := []string{}
+	for _, effect := range effects {
+		shift := 0
+		switch effect.Type {
+		case EffectChroma:
+			shift = int(math.Round(effectAmplitude(effect, 8)))
+		case EffectGlitch:
+			shift = int(math.Round(effectAmplitude(effect, 10)))
+		default:
+			continue
+		}
+		if shift < 1 {
+			shift = 1
+		}
+		filters = append(filters, fmt.Sprintf(
+			"chromashift=cbh=%d:crh=%d:enable='%s'",
+			shift,
+			-shift,
+			betweenExpression(effect.StartSeconds, effect.EndSeconds),
+		))
 	}
 	return filters
 }
@@ -496,6 +632,8 @@ func ffmpegColor(raw string) string {
 		return "0x00ff00"
 	case "magenta":
 		return "0xff00ff"
+	case "cyan":
+		return "0x00ffff"
 	default:
 		return raw
 	}

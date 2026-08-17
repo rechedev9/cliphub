@@ -363,7 +363,7 @@ func compilationPostConcatFilter(short ShortEdit) string {
 	if zoomHeightExpression(short.Effects, height) != "" {
 		return VideoFilter(short)
 	}
-	filters := appendEffectFilters([]string{}, short.Effects)
+	filters := appendEffectFilters([]string{}, short)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }

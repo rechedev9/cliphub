@@ -231,8 +231,8 @@ func parseShortArgs(args []string) (shortOptions, error) {
 	fs.StringVar(&opts.FromRecording, "from-recording", "", "existing recording-result.json; skips the parse and record stages")
 	fs.StringVar(&opts.Format, "format", "text", "output format for --dry-run: text or json")
 	fs.StringVar(&opts.OutputFormat, "output-format", "", "short-9x16 or landscape-16x9; defaults from prompt or short-9x16")
-	fs.StringVar(&opts.KillEffect, "kill-effect", editor.KillEffectPunchIn, "clean, punch-in, velocity, or freeze-flash")
-	fs.StringVar(&opts.Transition, "transition", editor.TransitionFlash, "cut, flash, whip, or dip")
+	fs.StringVar(&opts.KillEffect, "kill-effect", editor.KillEffectPunchIn, "clean, punch-in, velocity, freeze-flash, shake, or glitch")
+	fs.StringVar(&opts.Transition, "transition", editor.TransitionFlash, "cut, flash, whip, dip, glitch, or zoom-whip")
 	fs.BoolVar(&opts.Intro, "intro", false, "add a professional intro title overlay")
 	fs.BoolVar(&opts.Outro, "outro", false, "add a professional outro title overlay")
 	fs.BoolVar(&opts.Hook, "hook", true, "draw the generated headline as a hook over the first ~2s")
@@ -262,10 +262,10 @@ func parseShortArgs(args []string) (shortOptions, error) {
 	if opts.OutputFormat != "" && opts.OutputFormat != editor.OutputFormatShort9x16 && opts.OutputFormat != editor.OutputFormatLandscape16x9 {
 		return shortOptions{}, fmt.Errorf("unsupported output format %q", opts.OutputFormat)
 	}
-	if !containsString([]string{editor.KillEffectClean, editor.KillEffectPunchIn, editor.KillEffectVelocity, editor.KillEffectFreezeFlash}, opts.KillEffect) {
+	if !containsString([]string{editor.KillEffectClean, editor.KillEffectPunchIn, editor.KillEffectVelocity, editor.KillEffectFreezeFlash, editor.KillEffectShake, editor.KillEffectGlitch}, opts.KillEffect) {
 		return shortOptions{}, fmt.Errorf("unsupported kill effect %q", opts.KillEffect)
 	}
-	if !containsString([]string{editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip}, opts.Transition) {
+	if !containsString([]string{editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip, editor.TransitionGlitch, editor.TransitionZoomWhip}, opts.Transition) {
 		return shortOptions{}, fmt.Errorf("unsupported transition %q", opts.Transition)
 	}
 	return opts, nil

@@ -23,6 +23,8 @@ const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
   { value: 'clean', label: 'Limpio' },
   { value: 'velocity', label: 'Velocidad' },
   { value: 'freeze-flash', label: 'Congelado' },
+  { value: 'shake', label: 'Terremoto' },
+  { value: 'glitch', label: 'Glitch' },
 ];
 
 const transitionItems: Array<{ value: EditConfig['transition']; label: string }> = [
@@ -30,12 +32,11 @@ const transitionItems: Array<{ value: EditConfig['transition']; label: string }>
   { value: 'cut', label: 'Corte' },
   { value: 'whip', label: 'Barrido' },
   { value: 'dip', label: 'Fundido' },
+  { value: 'glitch', label: 'Glitch' },
+  { value: 'zoom-whip', label: 'Zoom-whip' },
 ];
 
-/**
- * Kill-effect, transition, and bookend controls. The 9:16/16:9 aspect toggle
- * lives in the CreateReelBar (the mockup's bottom REEL bar), not here.
- */
+/** Kill-effect, transition, and bookend controls. Aspect lives in CreateReelBar. */
 export function EditOptions({ value, onChange, disabled = false }: EditOptionsProps) {
   return (
     <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>

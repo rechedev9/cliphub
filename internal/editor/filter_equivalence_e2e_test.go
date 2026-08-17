@@ -213,3 +213,68 @@ func TestKillfeedCropFilterPixelEquivalence(t *testing.T) {
 		})
 	}
 }
+
+func TestViralMotionFiltersRenderWithFFmpeg(t *testing.T) {
+	ffmpeg := ffmpegForEquivalence(t)
+	source := normalizedSource(t, ffmpeg, t.TempDir(), 1080, 1920, 60)
+	cases := []struct {
+		name  string
+		short ShortEdit
+	}{
+		{
+			name: "shake kill",
+			short: ShortEdit{
+				Preset: PresetViral60Clean, DurationSeconds: 1, OutputFPS: 60,
+				KillEffect: KillEffectShake,
+				Kills:      []KillCue{{TimeSeconds: 0.4}},
+			},
+		},
+		{
+			name: "glitch kill",
+			short: ShortEdit{
+				Preset: PresetViral60Clean, DurationSeconds: 1, OutputFPS: 60,
+				KillEffect: KillEffectGlitch,
+				Kills:      []KillCue{{TimeSeconds: 0.4}},
+			},
+		},
+		{
+			name: "glitch transition",
+			short: ShortEdit{
+				Preset: PresetViral60Clean, DurationSeconds: 1, OutputFPS: 60,
+				Transition: TransitionGlitch,
+			},
+		},
+		{
+			name: "zoom-whip transition",
+			short: ShortEdit{
+				Preset: PresetViral60Clean, DurationSeconds: 1, OutputFPS: 60,
+				Transition: TransitionZoomWhip,
+			},
+		},
+		{
+			name: "aggressive headshot chroma",
+			short: ShortEdit{
+				Preset: PresetViralAggressive60, DurationSeconds: 1, OutputFPS: 60,
+				Effects: []Effect{
+					{Type: EffectGrade, Contrast: 1.25, Saturation: 1.45, Gamma: 1.04},
+					{Type: EffectChroma, StartSeconds: 0.3, EndSeconds: 0.5, Amplitude: 10},
+					{Type: EffectFlash, StartSeconds: 0.3, EndSeconds: 0.36, Color: "#00ffff", Opacity: 0.18},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.short.Effects) == 0 {
+				tc.short.Effects = generatedEditEffects(tc.short)
+			}
+			filter := VideoFilter(tc.short)
+			if filter == "" {
+				t.Fatal("empty video filter")
+			}
+			if hash := filteredFrameHash(t, ffmpeg, source, filter); hash == "" {
+				t.Fatal("ffmpeg produced an empty hash")
+			}
+		})
+	}
+}

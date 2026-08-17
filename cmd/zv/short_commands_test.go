@@ -1052,7 +1052,7 @@ func TestValidateSkillCommandShort(t *testing.T) {
 		{
 			name:    "shorts render retired preset",
 			command: []string{"shorts", "render", "--recording-result", "recording-result.json", "--out", "shorts", "--preset", editor.PresetFullHUD60},
-			want:    `unsupported preset "full-hud-60" for "shorts render"; supported presets: viral-60-clean`,
+			want:    fmt.Sprintf(`unsupported preset "full-hud-60" for "shorts render"; supported presets: %s`, strings.Join(supportedPresetNames(), ", ")),
 		},
 	}
 	for _, tt := range tests {

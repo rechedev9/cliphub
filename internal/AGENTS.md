@@ -14,7 +14,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Score / select plays | `moments` | Default variant `viral-60-clean` |
 | HLAE/CS2 scripts + validate | `recording` | HUD is capture-time. Contract `observer-steamid-input-v2`; V1 read-only |
 | Concat captured clips | `composition` | No re-edit; assumes `recording.SegmentClip` |
-| 9:16 shorts + pack | `editor`, `renderplan` | Public CLI preset is only `viral-60-clean` |
+| 9:16 shorts + pack | `editor`, `renderplan` | Public CLI presets: `viral-60-clean`, `viral-aggressive-60` |
 | Kill→beat sync | `rhythm` | Editor applies it; workers do not call it |
 | Stream/VOD plan + render | `streamclips`, `streamcli`, `vodfetch` | Persisted `EditPlan` is canonical |
 | Multitrack editor | `mediaassets`, `timelineplan`, `timelinerender` | Persisted `timelineplan.Document` is canonical; preview evaluates the same stack FFmpeg composites |

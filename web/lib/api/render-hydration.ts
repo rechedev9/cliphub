@@ -5,17 +5,13 @@ export type EffectiveRenderMusic =
   | { mode: 'clean' }
   | { mode: 'music'; songId: string; musicVolume: number };
 
-/**
- * Parses the orchestrator edit wire. Go uses mixed tags intentionally
- * (`killEffect` camelCase alongside snake_case booleans like `hook_text`);
- * accept both spellings for kill effect so server→client hydration works.
- */
+/** Parses the orchestrator edit wire; accepts both killEffect and kill_effect. */
 export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const edit = value as Record<string, unknown>;
   const formats = new Set<EditConfig['format']>(['short-9x16', 'landscape-16x9']);
-  const killEffects = new Set<EditConfig['killEffect']>(['clean', 'punch-in', 'velocity', 'freeze-flash']);
-  const transitions = new Set<EditConfig['transition']>(['cut', 'flash', 'whip', 'dip']);
+  const killEffects = new Set<EditConfig['killEffect']>(['clean', 'punch-in', 'velocity', 'freeze-flash', 'shake', 'glitch']);
+  const transitions = new Set<EditConfig['transition']>(['cut', 'flash', 'whip', 'dip', 'glitch', 'zoom-whip']);
   const covers = new Set<EditConfig['coverStrategy']>(['generated-gameplay', 'no-cover']);
   let killEffectRaw: string | undefined;
   if (typeof edit.killEffect === 'string') {

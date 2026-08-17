@@ -1162,7 +1162,7 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 		t.Fatalf("short safety = %#v, want mutating long-running workflow with dry-run", short.Safety)
 	}
 	shortPreset := workflowValueConstraintForFlag(t, short, "--preset")
-	if got, want := strings.Join(shortPreset.AllowedValues, " "), "viral-60-clean"; got != want {
+	if got, want := strings.Join(shortPreset.AllowedValues, " "), strings.Join(supportedPresetNames(), " "); got != want {
 		t.Fatalf("short preset values = %q, want %q", got, want)
 	}
 	if shortPreset.Default != "viral-60-clean" || shortPreset.DiscoveryCommand != "zv presets --format json" {

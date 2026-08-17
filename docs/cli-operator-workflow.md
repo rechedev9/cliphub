@@ -80,7 +80,7 @@ Parse success is not playability. The current recorder collapses that crash into
 - Resurrecting the retired external MCP server.
 - FACEIT Download API, YouTube OAuth, LLM titles/captions, or any hosted backend.
 - New `util` / `common` / `helper` / `manager` packages.
-- New public CLI presets. The public catalog remains `viral-60-clean` only (`cmd/zv/supported_presets.go`). `clean-pov-60` and `full-hud-60` stay internal capture profiles.
+- New public CLI presets beyond `viral-60-clean` and `viral-aggressive-60` (`cmd/zv/supported_presets.go`). `clean-pov-60` and `full-hud-60` stay internal capture profiles.
 - Changing HUD after capture without recapture. HUD is a recording-stage choice (`RenderPreset.HUDMode` travels to `zv-recorder --hud` only).
 - Making `zv flows run` execute real capture. It is dry-run only (`cmd/zv/flow_run.go`).
 - Starting a second `cs2.exe`. One capture lane, always.
@@ -695,7 +695,7 @@ zv demo probe --demo <match.dem> [--out <playability.json>] [--format text|json]
 
 - `zv flows show demo` / `stream` remain the phase list.
 - `zv record` still requires `--killplan --demo --out`; `--hlae --cs2` required unless `--dry-run`.
-- Public preset list remains one name: `viral-60-clean`.
+- Public preset list remains `viral-60-clean` and `viral-aggressive-60`.
 - `zv workflows run` still requires `--` immediately after the workflow name.
 
 ---

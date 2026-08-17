@@ -168,11 +168,11 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		HookText:            cfg.HookText,
 		KillCounter:         cfg.KillCounter,
 		KillfeedOverlay:     cfg.KillfeedOverlay,
-		KeyDropStyle:         cfg.KeyDropStyle,
-		KeyDropCode:          cfg.KeyDropCode,
-		KeyDropPositionY:     cfg.KeyDropPositionY,
-		KeyDropStartSeconds:  cfg.KeyDropStartSeconds,
-		KeyDropEndSeconds:    cfg.KeyDropEndSeconds,
+		KeyDropStyle:        cfg.KeyDropStyle,
+		KeyDropCode:         cfg.KeyDropCode,
+		KeyDropPositionY:    cfg.KeyDropPositionY,
+		KeyDropStartSeconds: cfg.KeyDropStartSeconds,
+		KeyDropEndSeconds:   cfg.KeyDropEndSeconds,
 		TailTrimSeconds:     cfg.TailTrimSeconds,
 		OutputFPS:           cfg.OutputFPS,
 		CompileSegments:     cfg.CompileSegments,
@@ -317,7 +317,7 @@ func (c Config) validate() error {
 	}
 	if c.EffectsPath == "" && c.EffectsPreset != "" {
 		switch c.EffectsPreset {
-		case EffectsPresetViralUltraClean:
+		case EffectsPresetViralUltraClean, EffectsPresetViralAggressive:
 		default:
 			return fmt.Errorf("unknown effects preset %q", c.EffectsPreset)
 		}
