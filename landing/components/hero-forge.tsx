@@ -1,36 +1,7 @@
-"use client";
-
 import Image from "next/image";
-import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 
-const ForgeCanvas = dynamic(() => import("./forge-canvas"), { ssr: false });
-
+// Static server-rendered backdrop; the animated centerpiece lives in HeroReel.
 export default function HeroForge() {
-  const [mounted, setMounted] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(true);
-  const [config, setConfig] = useState<{ count: number; dpr: [number, number] }>({
-    count: 10000,
-    dpr: [1, 2],
-  });
-
-  useEffect(() => {
-    setMounted(true);
-    const isSmall = window.innerWidth < 768;
-    setConfig({
-      count: isSmall ? 4500 : 10000,
-      dpr: isSmall ? [1, 1.5] : [1, 2],
-    });
-
-    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mql.matches);
-    const onChange = (event: MediaQueryListEvent) => setReducedMotion(event.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-
-  const showCanvas = mounted && !reducedMotion;
-
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#050812]" data-testid="hero-forge">
       <Image
@@ -46,11 +17,6 @@ export default function HeroForge() {
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#050812]/35 via-transparent to-[#050812]/95" />
       <div aria-hidden="true" className="absolute -right-32 top-1/4 size-[540px] animate-pulse rounded-full bg-orange-400/10 blur-[100px] motion-reduce:animate-none" />
       <div aria-hidden="true" className="absolute right-[10%] top-[15%] size-3 animate-ping bg-violet-500 shadow-[0_0_28px_rgba(139,92,246,0.8)] motion-reduce:animate-none" />
-      {showCanvas && (
-        <div className="absolute inset-0 opacity-70 mix-blend-screen">
-          <ForgeCanvas count={config.count} dpr={config.dpr} />
-        </div>
-      )}
       <div aria-hidden="true" className="absolute inset-0 opacity-[0.055] mix-blend-screen [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px)] [background-size:100%_4px]" />
     </div>
   );

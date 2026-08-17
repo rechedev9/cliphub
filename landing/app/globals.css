@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+/* HeroReel forge-pass loop (~9s): killfeed entries slide in and hold, the
+   render bar fills, the scanline sweeps top-to-bottom. Referenced via
+   Tailwind arbitrary animate-[...] values in components/hero-reel.tsx. */
+
+@keyframes reel-kill {
+  0% { transform: translateX(130%); opacity: 0; }
+  4% { transform: translateX(0); opacity: 1; }
+  78% { transform: translateX(0); opacity: 1; }
+  88% { opacity: 0; }
+  100% { transform: translateX(130%); opacity: 0; }
+}
+
+@keyframes reel-chip {
+  0%, 52% { transform: translateY(10px); opacity: 0; }
+  58% { transform: translateY(0); opacity: 1; }
+  86% { transform: translateY(0); opacity: 1; }
+  94%, 100% { opacity: 0; }
+}
+
+@keyframes reel-render {
+  0% { transform: scaleX(0); }
+  92% { transform: scaleX(1); }
+  100% { transform: scaleX(1); }
+}
+
+/* 640px clears the tallest frame (340px wide -> ~604px tall); on the smaller
+   frame the band simply exits a beat early. */
+@keyframes reel-scan {
+  0% { transform: translateY(-4rem); }
+  100% { transform: translateY(640px); }
+}

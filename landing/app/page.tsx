@@ -14,7 +14,6 @@ import {
   LockKeyhole,
   MonitorCheck,
   Music,
-  Play,
   ScanSearch,
   ShieldCheck,
   Sparkles,
@@ -23,14 +22,11 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import HeroForge from "@/components/hero-forge";
+import HeroReel from "@/components/hero-reel";
 import Reveal from "@/components/reveal";
 
-// Point at a published GitHub Release asset only. 2.4.21 bundles ten new music
-// tracks and stops music provisioning from deleting a track it cannot hash.
-// The asset filename is deliberately pre-rebrand: v2.4.21 was published as
-// TickCut.Studio.Setup.2.4.21.exe and a released asset cannot be renamed
-// retroactively. Only the repo path moves. Update the filename once a
-// ClipHub-named installer ships.
+// The pre-rebrand filename is deliberate: a published Release asset cannot be
+// renamed, so only the repo path moves until a ClipHub-named installer ships.
 const DOWNLOAD_URL =
   "https://github.com/rechedev9/cliphub/releases/download/v2.4.21/TickCut.Studio.Setup.2.4.21.exe";
 const RELEASE_VERSION = "v2.4.21";
@@ -197,32 +193,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="pointer-events-none relative hidden min-h-[600px] lg:block" aria-hidden="true">
-            <div className="absolute right-[7%] top-[10%] w-64 animate-pulse border border-orange-400/30 bg-slate-950/65 p-4 shadow-[0_0_50px_rgba(251,146,60,0.16)] backdrop-blur-xl motion-reduce:animate-none">
-              <Corners />
-              <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">
-                <span>Live analysis</span><span className="text-emerald-400">Ready</span>
-              </div>
-              <div className="mt-4 flex items-end justify-between">
-                <div>
-                  <p className="text-3xl font-bold text-white">5K</p>
-                  <p className="mt-1 font-mono text-xs text-orange-400">ROUND 09 · INFERNO</p>
-                </div>
-                <Target className="size-9 text-orange-400" strokeWidth={1.5} />
-              </div>
-            </div>
-
-            <div className="absolute bottom-[12%] right-[2%] w-72 border border-white/15 bg-slate-950/70 p-4 backdrop-blur-xl">
-              <div className="flex items-center gap-3">
-                <span className="grid size-10 place-items-center bg-violet-500/15 text-violet-400"><Play className="size-5 fill-current" /></span>
-                <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">Output forged</p>
-                  <p className="mt-1 font-semibold text-white">1080 × 1920 · 60 FPS</p>
-                </div>
-              </div>
-              <div className="mt-4 h-1 overflow-hidden bg-white/10"><div className="h-full w-full bg-gradient-to-r from-orange-400 to-violet-500" /></div>
-            </div>
-          </div>
+          <HeroReel />
         </div>
 
         <a href="#what-it-does" aria-label="Explore the ClipHub engine" className="absolute bottom-7 left-1/2 z-30 hidden -translate-x-1/2 flex-col items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400 transition hover:text-orange-400 lg:flex">
