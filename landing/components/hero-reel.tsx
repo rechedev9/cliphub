@@ -6,12 +6,11 @@ import { Crosshair, Play, Skull, Target } from "lucide-react";
 // The <video> is optional: while /video/hero-loop.webm is absent it errors out
 // silently and the still carries the frame. Motion is CSS (see globals.css).
 
+// Mirrors the 2K the reel actually shows; only drawn when the video is absent,
+// so it never doubles up with the real killfeed burned into the footage.
 const KILLFEED = [
-  { victim: "dev1ce", weapon: "AK-47", headshot: true, delay: "0s" },
-  { victim: "s1mple", weapon: "AK-47", headshot: true, delay: "1.1s" },
-  { victim: "ZywOo", weapon: "Deagle", headshot: false, delay: "2.3s" },
-  { victim: "NiKo", weapon: "AK-47", headshot: true, delay: "3.4s" },
-  { victim: "ropz", weapon: "AWP", headshot: false, delay: "4.6s" },
+  { victim: "Na0w", weapon: "AK-47", headshot: true, delay: "0s" },
+  { victim: "743RO", weapon: "AK-47", headshot: true, delay: "1.1s" },
 ] as const;
 
 function FrameCorners() {
@@ -56,7 +55,8 @@ export default function HeroReel() {
           {/* Scanline sweep */}
           <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-orange-400/12 to-transparent motion-safe:animate-[reel-scan_5s_linear_infinite]" />
 
-          {/* Killfeed */}
+          {/* Killfeed: stand-in for the burned-in one, only while the video is out */}
+          {videoBroken && (
           <div className="absolute right-2.5 top-2.5 flex flex-col items-end gap-1.5">
             {KILLFEED.map(({ victim, weapon, headshot, delay }) => (
               <div
@@ -71,19 +71,22 @@ export default function HeroReel() {
               </div>
             ))}
           </div>
+          )}
 
-          {/* Ace chip */}
+          {/* Multi-kill chip */}
           <div className="absolute left-2.5 top-[38%] border border-orange-400/35 bg-slate-950/75 px-2.5 py-2 backdrop-blur-sm motion-safe:animate-[reel-chip_9s_ease-out_infinite]">
             <p className="font-mono text-[8px] uppercase tracking-[0.22em] text-slate-400">Live analysis</p>
             <div className="mt-1 flex items-center gap-2">
-              <p className="text-xl font-bold leading-none text-white">5K</p>
+              <p className="text-xl font-bold leading-none text-white">2K</p>
               <Target className="size-4 text-orange-400" strokeWidth={1.8} />
             </div>
-            <p className="mt-1 font-mono text-[8px] text-orange-400">ROUND 09 · INFERNO</p>
+            <p className="mt-1 font-mono text-[8px] text-orange-400">ROUND 06 · DUST II</p>
           </div>
 
-          {/* Crosshair pulse at frame center */}
-          <Crosshair className="absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-1/2 text-orange-400/70 motion-safe:animate-pulse" strokeWidth={1.4} />
+          {/* Crosshair: the footage already has the real one at frame center */}
+          {videoBroken && (
+            <Crosshair className="absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-1/2 text-orange-400/70 motion-safe:animate-pulse" strokeWidth={1.4} />
+          )}
 
           {/* Bottom render bar */}
           <div className="absolute inset-x-2.5 bottom-2.5 border border-white/12 bg-slate-950/85 p-2.5 backdrop-blur-sm">
