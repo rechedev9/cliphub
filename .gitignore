@@ -30,6 +30,10 @@
 *.aac
 *.tga
 *.exr
+
+# Landing assets are shipped source, not pipeline output: Vercel serves them
+# straight from the repo, so an ignored file never reaches production.
+!landing/public/video/*.webm
 *.y4m
 *.yuv
 frames/
