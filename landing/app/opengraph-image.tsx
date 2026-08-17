@@ -6,10 +6,10 @@ export const alt = "ClipHub — Your best CS2 frags, ready to post";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const CYAN = "#22d9ee";
+const BRAND = "#fb923c";
 const WHITE = "#f2fbff";
-const PINK = "#ec4899";
-const RED = "#ff493d";
+const BRAND_DEEP = "#8b5cf6";
+const EMBER = "#f97316";
 
 export default async function OpengraphImage() {
   const heroImage = await readFile(
@@ -76,7 +76,7 @@ export default async function OpengraphImage() {
             width: 10,
             height: "100%",
             display: "flex",
-            background: `linear-gradient(180deg, ${CYAN}, ${PINK})`,
+            background: `linear-gradient(180deg, ${BRAND}, ${BRAND_DEEP})`,
           }}
         />
 
@@ -106,7 +106,7 @@ export default async function OpengraphImage() {
                   width: 52,
                   height: 52,
                   borderRadius: 12,
-                  border: `2px solid ${CYAN}`,
+                  border: `2px solid ${BRAND}`,
                 }}
               />
               <div
@@ -119,7 +119,7 @@ export default async function OpengraphImage() {
                 }}
               >
                 <span style={{ color: WHITE }}>Clip</span>
-                <span style={{ color: CYAN }}>Hub</span>
+                <span style={{ color: BRAND }}>Hub</span>
               </div>
             </div>
 
@@ -143,7 +143,7 @@ export default async function OpengraphImage() {
             style={{
               display: "flex",
               marginTop: 74,
-              color: CYAN,
+              color: BRAND,
               fontSize: 21,
               fontWeight: 700,
               letterSpacing: "0.16em",
@@ -165,7 +165,7 @@ export default async function OpengraphImage() {
             }}
           >
             <span>YOUR BEST FRAGS.</span>
-            <span style={{ color: CYAN }}>READY TO POST.</span>
+            <span style={{ color: BRAND }}>READY TO POST.</span>
           </div>
 
           <div
@@ -190,18 +190,18 @@ export default async function OpengraphImage() {
               letterSpacing: "0.04em",
             }}
           >
-            <span style={{ color: CYAN, fontWeight: 700 }}>LOCAL CAPTURE</span>
+            <span style={{ color: BRAND, fontWeight: 700 }}>LOCAL CAPTURE</span>
             <span>•</span>
             <span>NO ACCOUNT</span>
             <span>•</span>
-            <span style={{ color: CYAN }}>CLIPHUB.GRAVITYROOM.APP</span>
+            <span style={{ color: BRAND }}>CLIPHUB.GRAVITYROOM.APP</span>
             <span
               style={{
                 marginLeft: 8,
                 width: 10,
                 height: 10,
                 borderRadius: 2,
-                backgroundColor: RED,
+                backgroundColor: EMBER,
               }}
             />
           </div>

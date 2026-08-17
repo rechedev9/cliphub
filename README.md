@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/rechedev9/cliphub/releases"><img src="https://img.shields.io/github/v/release/rechedev9/cliphub?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
-  <a href="https://cliphub.gravityroom.app/"><img src="https://img.shields.io/badge/Website-cliphub.gravityroom.app-22d9ee?style=for-the-badge" alt="Website"></a>
+  <a href="https://cliphub.gravityroom.app/"><img src="https://img.shields.io/badge/Website-cliphub.gravityroom.app-fb923c?style=for-the-badge" alt="Website"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-see%20repo-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
