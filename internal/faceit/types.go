@@ -18,6 +18,8 @@ var (
 	ErrRateLimited     = errors.New("FACEIT Data API rate limited")
 	ErrUnavailable     = errors.New("FACEIT Data API unavailable")
 	ErrInvalidResponse = errors.New("FACEIT Data API response is invalid")
+	ErrPlayerNotFound  = errors.New("FACEIT player not found")
+	ErrFollowLimit     = errors.New("followed FACEIT player limit reached")
 )
 
 // Options supplies the FACEIT credential and protocol seams. APIKey is kept in
@@ -54,12 +56,23 @@ type Index struct {
 type Player struct {
 	ID         string `json:"id"`
 	Nickname   string `json:"nickname"`
+	Avatar     string `json:"avatar,omitempty"`
 	SteamID64  string `json:"steam_id64,omitempty"`
 	ProfileURL string `json:"profile_url"`
 	Country    string `json:"country,omitempty"`
 	Region     string `json:"region,omitempty"`
 	SkillLevel int    `json:"skill_level,omitempty"`
 	ELO        int    `json:"elo,omitempty"`
+}
+
+type RecentMatch struct {
+	ID          string      `json:"id"`
+	RoomURL     string      `json:"room_url"`
+	StartedAt   time.Time   `json:"started_at,omitempty"`
+	FinishedAt  time.Time   `json:"finished_at,omitempty"`
+	Competition string      `json:"competition,omitempty"`
+	Score       MatchScore  `json:"score"`
+	Stats       *MatchStats `json:"stats,omitempty"`
 }
 
 type DateRange struct {

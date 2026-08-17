@@ -2,7 +2,7 @@
 // (Spanish NEON HUD skin). Run: node --test "lib/**/*.test.ts"
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { timeAgo, matchDateLabel, playsSelectionLabel, formatKd, ratingBarClass, ratingBarPct, prettyMapName } from './format.ts';
+import { timeAgo, matchDateLabel, playsSelectionLabel, formatKd, ratingBarClass, ratingBarPct, prettyMapName, formatShortDate } from './format.ts';
 import type { Play } from './api/types.ts';
 
 function play(overrides: Partial<Play>): Play {
@@ -89,6 +89,24 @@ test('prettyMapName strips the de_/cs_ prefix and capitalizes', () => {
 test('prettyMapName passes through an unprefixed name, capitalizing it', () => {
   assert.equal(prettyMapName('ancient'), 'Ancient');
   assert.equal(prettyMapName(''), '');
+});
+
+test('formatShortDate uses a calendar day, not a relative phrase', () => {
+  const cases: Array<{ iso: string; wantDay: string; wantMonth: string }> = [
+    { iso: '2026-08-17T12:00:00Z', wantDay: '17', wantMonth: 'ago' },
+    { iso: '2026-01-03T12:00:00Z', wantDay: '3', wantMonth: 'ene' },
+    { iso: '2024-12-25T12:00:00Z', wantDay: '25', wantMonth: 'dic' },
+  ];
+  for (const tc of cases) {
+    const got = formatShortDate(tc.iso);
+    assert.match(got, new RegExp(tc.wantDay), tc.iso);
+    assert.match(got, new RegExp(tc.wantMonth, 'i'), tc.iso);
+    assert.doesNotMatch(got, /hace /);
+  }
+});
+
+test('formatShortDate rejects unparseable input', () => {
+  assert.equal(formatShortDate('not-a-date'), '—');
 });
 
 test('ratingBarClass matches ratingClass band boundaries', () => {

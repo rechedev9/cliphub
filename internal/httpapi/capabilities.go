@@ -29,10 +29,11 @@ type Capabilities struct {
 	RenderEnabled  bool
 	// YtdlpEnabled reports whether acquisition-by-URL (POST /api/stream-jobs
 	// with a source_url) can run: a yt-dlp binary is configured.
-	YtdlpEnabled bool
-	RecordTools  []CaptureTool // recorder, HLAE, CS2
-	RenderTools  []CaptureTool // editor, ffmpeg
-	StreamTools  []CaptureTool // yt-dlp
+	YtdlpEnabled  bool
+	RecordTools   []CaptureTool // recorder, HLAE, CS2
+	RenderTools   []CaptureTool // editor, ffmpeg
+	StreamTools   []CaptureTool // yt-dlp
+	FaceitEnabled bool
 }
 
 // GetCapabilities handles GET /api/capabilities. It is read-only: the web UI
@@ -51,6 +52,7 @@ func (h *Handlers) GetCapabilities(w http.ResponseWriter, _ *http.Request) {
 			"ytdlp_enabled": c.YtdlpEnabled,
 			"tools":         resolveTools(c.StreamTools),
 		},
+		"faceit": map[string]any{"enabled": c.FaceitEnabled},
 	})
 }
 

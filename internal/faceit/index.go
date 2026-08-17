@@ -213,7 +213,7 @@ func (c *Client) Index(ctx context.Context, request IndexRequest) (Index, error)
 		return Index{}, fmt.Errorf("fetch FACEIT match statistics: %w", err)
 	}
 
-	index := buildIndex(c.now().UTC(), player, from, to, history, stats)
+	index := buildIndex(c.now().UTC(), playerFromAPI(player), from, to, history, stats)
 	if err := c.resolveDemos(ctx, index.Matches); err != nil {
 		return Index{}, fmt.Errorf("resolve FACEIT demo availability: %w", err)
 	}
@@ -222,6 +222,70 @@ func (c *Client) Index(ctx context.Context, request IndexRequest) (Index, error)
 		return Index{}, ErrInvalidResponse
 	}
 	return index, nil
+}
+
+func (c *Client) LookupPlayer(ctx context.Context, profile string) (Player, error) {
+	if c == nil || c.apiKey == "" {
+		return Player{}, ErrNotConfigured
+	}
+	nickname, err := ParseProfile(profile)
+	if err != nil {
+		return Player{}, err
+	}
+	raw, err := c.fetchPlayer(ctx, nickname)
+	if err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return Player{}, ErrPlayerNotFound
+		}
+		return Player{}, fmt.Errorf("look up FACEIT player: %w", err)
+	}
+	player := playerFromAPI(raw)
+	if !ValidPlayerID(player.ID) || player.Nickname == "" {
+		return Player{}, ErrInvalidResponse
+	}
+	if playerContainsCredential(player, c.apiKey) {
+		return Player{}, ErrInvalidResponse
+	}
+	return player, nil
+}
+
+const (
+	defaultRecentMatchLimit = 10
+	maxRecentMatchLimit     = 20
+)
+
+func clampRecentMatchLimit(limit int) int {
+	if limit <= 0 {
+		return defaultRecentMatchLimit
+	}
+	if limit > maxRecentMatchLimit {
+		return maxRecentMatchLimit
+	}
+	return limit
+}
+
+func (c *Client) RecentMatches(ctx context.Context, playerID string, limit int) ([]RecentMatch, error) {
+	if c == nil || c.apiKey == "" {
+		return nil, ErrNotConfigured
+	}
+	if !ValidPlayerID(playerID) {
+		return nil, fmt.Errorf("FACEIT player id is invalid")
+	}
+	limit = clampRecentMatchLimit(limit)
+	history, err := c.fetchRecentHistory(ctx, playerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("fetch FACEIT match history: %w", err)
+	}
+	stats, err := c.fetchRecentStats(ctx, playerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("fetch FACEIT match statistics: %w", err)
+	}
+	matches := buildRecentMatches(playerID, history, stats, limit)
+	if recentMatchesContainCredential(matches, c.apiKey) {
+		return nil, ErrInvalidResponse
+	}
+	return matches, nil
 }
 
 func (c *Client) fetchPlayer(ctx context.Context, nickname string) (apiPlayer, error) {
@@ -350,23 +414,13 @@ func monthlyIntervals(from, to time.Time) []timeInterval {
 	return intervals
 }
 
-func buildIndex(generatedAt time.Time, player apiPlayer, from, to time.Time, history []apiHistoryItem, stats []apiMatchStats) Index {
-	game := player.Games["cs2"]
+func buildIndex(generatedAt time.Time, player Player, from, to time.Time, history []apiHistoryItem, stats []apiMatchStats) Index {
 	index := Index{
 		SchemaVersion: SchemaVersion,
 		GeneratedAt:   generatedAt,
 		Source:        "FACEIT Data API v4",
-		Player: Player{
-			ID:         player.PlayerID,
-			Nickname:   player.Nickname,
-			SteamID64:  firstNonEmpty(player.SteamID64, game.GamePlayerID),
-			ProfileURL: canonicalProfileURL(player.Nickname),
-			Country:    player.Country,
-			Region:     game.Region,
-			SkillLevel: game.SkillLevel,
-			ELO:        game.FaceitELO,
-		},
-		Range: DateRange{From: from, To: to},
+		Player:        player,
+		Range:         DateRange{From: from, To: to},
 		Acquisition: Acquisition{
 			Mode:                         "manual_faceit_room",
 			Instructions:                 "Open room_url and use FACEIT's Watch/Demo download until Download API access is approved.",
@@ -380,7 +434,7 @@ func buildIndex(generatedAt time.Time, player apiPlayer, from, to time.Time, his
 		statsByMatch[item.MatchID.string()] = item
 	}
 	for _, item := range history {
-		match := historyMatch(player.PlayerID, item)
+		match := historyMatch(player.ID, item)
 		if raw, ok := statsByMatch[item.MatchID]; ok {
 			converted := convertStats(raw)
 			match.Stats = &converted
@@ -665,6 +719,143 @@ func finalizeIndex(index *Index) {
 	for _, match := range candidates {
 		index.HighlightMatchIDs = append(index.HighlightMatchIDs, match.ID)
 	}
+}
+
+func (c *Client) fetchRecentHistory(ctx context.Context, playerID string, limit int) ([]apiHistoryItem, error) {
+	query := url.Values{
+		"game":   {"cs2"},
+		"offset": {"0"},
+		"limit":  {strconv.Itoa(limit)},
+	}
+	var page apiHistoryResponse
+	endpoint := "/players/" + url.PathEscape(playerID) + "/history"
+	if err := c.getJSON(ctx, endpoint, query, &page); err != nil {
+		return nil, err
+	}
+	items := make([]apiHistoryItem, 0, len(page.Items))
+	for _, item := range page.Items {
+		if !validIdentifier(item.MatchID) {
+			return nil, ErrInvalidResponse
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (c *Client) fetchRecentStats(ctx context.Context, playerID string, limit int) ([]apiMatchStats, error) {
+	query := url.Values{
+		"offset": {"0"},
+		"limit":  {strconv.Itoa(limit)},
+	}
+	var page apiStatsResponse
+	endpoint := "/players/" + url.PathEscape(playerID) + "/games/cs2/stats"
+	if err := c.getJSON(ctx, endpoint, query, &page); err != nil {
+		return nil, err
+	}
+	items := make([]apiMatchStats, 0, len(page.Items))
+	for _, item := range page.Items {
+		if validIdentifier(item.Stats.MatchID.string()) {
+			items = append(items, item.Stats)
+		}
+	}
+	return items, nil
+}
+
+func playerFromAPI(player apiPlayer) Player {
+	game := player.Games["cs2"]
+	return Player{
+		ID:         player.PlayerID,
+		Nickname:   player.Nickname,
+		Avatar:     cleanAvatarURL(player.Avatar),
+		SteamID64:  firstNonEmpty(player.SteamID64, game.GamePlayerID),
+		ProfileURL: canonicalProfileURL(player.Nickname),
+		Country:    player.Country,
+		Region:     game.Region,
+		SkillLevel: game.SkillLevel,
+		ELO:        game.FaceitELO,
+	}
+}
+
+func buildRecentMatches(playerID string, history []apiHistoryItem, stats []apiMatchStats, limit int) []RecentMatch {
+	statsByMatch := make(map[string]apiMatchStats, len(stats))
+	for _, item := range stats {
+		statsByMatch[item.MatchID.string()] = item
+	}
+	matches := make([]RecentMatch, 0, len(history))
+	for _, item := range history {
+		full := historyMatch(playerID, item)
+		match := RecentMatch{
+			ID:          full.ID,
+			RoomURL:     full.RoomURL,
+			StartedAt:   full.StartedAt,
+			FinishedAt:  full.FinishedAt,
+			Competition: full.Competition,
+			Score:       full.Score,
+		}
+		if raw, ok := statsByMatch[item.MatchID]; ok {
+			converted := convertStats(raw)
+			match.Stats = &converted
+			if match.FinishedAt.IsZero() {
+				match.FinishedAt = statFinishedAt(raw.MatchFinishedAt)
+			}
+		}
+		if match.Stats == nil {
+			match.Stats = &MatchStats{Result: resultFromScore(match.Score)}
+		} else if match.Stats.Result == "unknown" {
+			if derived := resultFromScore(match.Score); derived != "unknown" {
+				match.Stats.Result = derived
+			}
+		}
+		matches = append(matches, match)
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		if !matches[i].FinishedAt.Equal(matches[j].FinishedAt) {
+			return matches[i].FinishedAt.After(matches[j].FinishedAt)
+		}
+		return matches[i].ID < matches[j].ID
+	})
+	if len(matches) > limit {
+		matches = matches[:limit]
+	}
+	return matches
+}
+
+func resultFromScore(score MatchScore) string {
+	if score.PlayerTeam == "" || score.WinnerTeam == "" {
+		return "unknown"
+	}
+	if score.PlayerTeam == score.WinnerTeam {
+		return "win"
+	}
+	return "loss"
+}
+
+func cleanAvatarURL(raw string) string {
+	cleaned, ok := cleanDemoResourceURL(raw)
+	if !ok {
+		return ""
+	}
+	return cleaned
+}
+
+func playerContainsCredential(player Player, credential string) bool {
+	if credential == "" {
+		return false
+	}
+	body, err := json.Marshal(player)
+	return err != nil || bytes.Contains(body, []byte(credential))
+}
+
+func recentMatchesContainCredential(matches []RecentMatch, credential string) bool {
+	if credential == "" {
+		return false
+	}
+	body, err := json.Marshal(matches)
+	return err != nil || bytes.Contains(body, []byte(credential))
+}
+
+func ValidPlayerID(value string) bool {
+	return validIdentifier(value)
 }
 
 func validIdentifier(value string) bool {

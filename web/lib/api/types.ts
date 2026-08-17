@@ -5,7 +5,6 @@ export type MatchStats = {
   assists: number;
   mvps: number;
   kd: number;
-  /** Scoreboard extras from the enriched scan; absent on mock/seed matches. */
   rating?: number;
   adr?: number;
   kast?: number;
@@ -33,26 +32,16 @@ export type EditConfig = {
   hookText: boolean;
   killCounter: boolean;
   coverStrategy: CoverStrategy;
-  /** Optional intro headline override, shown only while `intro` is on; empty = generated headline. */
   introText?: string;
-  /** Optional outro text override, shown only while `outro` is on; empty = "ClipHub". */
   outroText?: string;
-  /** KeyDrop plate style; empty/undefined leaves the reel without a sponsor banner. */
   keyDropStyle?: KeyDropStyle | '';
-  /** Sponsor code burned onto the plate; empty defaults to ZACKCSGO when style is set. */
   keyDropCode?: string;
-  /** Vertical center of the plate (0.025–0.975); undefined uses the default bottom-safe position. */
   keyDropPositionY?: number;
-  /** Seconds from reel start when the plate appears; default 0. */
   keyDropStartSeconds?: number;
-  /** Seconds from reel start when the plate disappears; default full duration. */
   keyDropEndSeconds?: number;
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };
-/**
- * A user-selectable reel preset. `name` is the render variant; picking it sets
- * both the recording HUD and the render style. `hudMode` is shown for context.
- */
+/** User-selectable reel preset; `name` is the render variant. */
 export type Preset = { name: string; label: string; description: string; hudMode?: string; default?: boolean };
 export type VideoStatus =
   | 'queued'
@@ -88,11 +77,7 @@ export type Video = {
   /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */
   reviewArtifactPrefix?: string;
   captureProgress?: CaptureProgress;
-  /**
-   * Cover candidate basenames from the orchestrator (no extension path). Present
-   * when the render produced thumbnails; the Library thumbnail gate requires an
-   * explicit selection among these (or no-cover strategy) before publish.
-   */
+  /** Cover candidate basenames; the Library thumbnail gate picks among these. */
   coverCandidates?: string[];
   /** Basename the user approved as the canonical cover; unset until the second gate. */
   selectedCoverName?: string;
@@ -102,11 +87,7 @@ export type Video = {
 export type Slots = { used: number; total: number };
 export type FeedItem = { id: string; author: string; authorAvatarUrl: string; title: string; map: string; thumbnailUrl: string; likes: number; createdAt: number; videoUrl: string };
 export type Session = { user: SteamUser | null; slots: Slots; pcPaired: boolean; matchHistoryLinked: boolean };
-/**
- * One player from a roster scan of an uploaded demo; the user picks who to clip.
- * The scoreboard fields (headshots..rating) come from the enriched parser scan;
- * they default to 0 on the fallback paths that predate the richer scan.
- */
+/** Roster-scan player; scoreboard extras default to 0 on older artifacts. */
 export type DemoPlayer = {
   steamId: string;
   name: string;
@@ -121,22 +102,14 @@ export type DemoPlayer = {
   hsPct: number;
   kast: number;
   rating: number;
-  /**
-   * Multi-kill round counts from the enriched scan. Optional and absent on
-   * artifacts recorded before this field existed, so callers must tolerate
-   * `undefined` (treat as 0) rather than assume every player carries them.
-   */
+  /** Multi-kill round counts; absent on older artifacts, treat as 0. */
   rounds2k?: number;
   rounds3k?: number;
   rounds4k?: number;
   rounds5k?: number;
 };
 
-/**
- * Match-level context for the roster scoreboard header (map, final score,
- * rounds played). Optional on the scan response; absent on artifacts that
- * predate this field or when the parser could not determine it.
- */
+/** Roster header context; optional on older or incomplete scans. */
 export type RosterMatch = {
   map: string;
   scoreCt: number;
@@ -144,11 +117,7 @@ export type RosterMatch = {
   rounds: number;
 };
 
-/**
- * One demo of a bulk-uploaded series (bo3/bo5), as surfaced by the series proxy
- * route. `match` is filled best-effort from the demo's roster scan once it has
- * one, so a still-scanning or failed demo simply carries no match.
- */
+/** One demo of a bulk series; `match` is filled once the roster scan exists. */
 export type SeriesDemo = {
   jobId: string;
   fileName?: string;
@@ -157,27 +126,14 @@ export type SeriesDemo = {
   match?: RosterMatch;
 };
 
-/**
- * A player's scoreboard aggregated across every map of a series. It is a
- * DemoPlayer whose counting stats are summed and whose rate stats are
- * round-weighted, plus `mapsPresent`: how many maps the player appeared in.
- */
+/** Series scoreboard: counted stats summed, rates round-weighted. */
 export type AggregatedSeriesPlayer = DemoPlayer & { mapsPresent: number };
 
-/**
- * Stable error code returned by the /api/demos/* proxy routes when the local
- * analysis service (the orchestrator) is unreachable, and the code the client
- * branches on to tell "backend offline" apart from "bad demo". Shared so server
- * and client agree on one string instead of sniffing messages.
- */
+/** Proxy code when the local orchestrator is unreachable. */
 export const SERVICE_UNAVAILABLE_CODE = 'service_unavailable';
+export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
 
-/**
- * Job statuses at or past which the kill plan exists and stays available. Once a
- * job is parsed it keeps its plan through recording and render, so every caller
- * that reads the plan (match detail, series forge links) must treat all of these
- * as ready. The one canonical set, shared instead of re-declared per module.
- */
+/** Statuses at or past which the kill plan exists and stays available. */
 export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set([
   'parsed',
   'recording',
@@ -187,11 +143,7 @@ export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set([
   'done',
 ]);
 
-/**
- * One external capture tool (recorder/HLAE/CS2) and its readiness on this PC.
- * `source` is how the path was resolved: 'detected' (auto-found on the machine),
- * 'env' (set explicitly), or 'none' (not found - the user must install/set it).
- */
+/** One capture tool and how its path was resolved. */
 export type CaptureTool = {
   name: string;
   path?: string;
@@ -200,13 +152,7 @@ export type CaptureTool = {
   accessible: boolean;
 };
 
-/**
- * Whether gameplay capture (HLAE + CS2 recording) is set up on the local machine.
- * - ready: the record worker is enabled and every tool path exists.
- * - warning: enabled but a configured path is missing (e.g. the wrong HLAE install).
- * - unconfigured: the record worker is off (no tool paths set).
- * - offline: the local orchestrator could not be reached.
- */
+/** Gameplay-capture readiness on this machine. */
 export type CaptureStatus = 'ready' | 'warning' | 'unconfigured' | 'offline';
 export type CaptureReadiness = {
   recordEnabled: boolean;

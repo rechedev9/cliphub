@@ -38,19 +38,10 @@ import { PlayerPicker } from '@/components/upload/player-picker';
 
 const NAV = navSection('/upload');
 
-/**
- * The pipeline stage the upload flow is in. `scanning`/`parsing` render either a
- * single centered spinner (one demo) or a per-map row list (a series); the
- * `seriesMode` flag, not the stage, decides which.
- */
+/** Upload pipeline stage; seriesMode, not the stage, picks the spinner layout. */
 type Stage = 'idle' | 'scanning' | 'picking' | 'parsing';
 
-/**
- * One dropped demo's roster-scan state; scanned rows carry the job + roster. An
- * error row may carry a `reason`: a specific hint (e.g. a demo that scanned but
- * yielded zero players) shown in place of the generic "Error" so the user can
- * tell a bad demo apart from a transient failure.
- */
+/** One dropped demo's roster-scan state. */
 type ScanRow =
   | { fileName: string; status: 'scanning' }
   | { fileName: string; status: 'scanned'; jobId: string; players: DemoPlayer[]; match?: RosterMatch }
@@ -59,11 +50,7 @@ type ScanRow =
 /** One scanned demo's parse state after the player is picked (series mode). */
 type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error' };
 
-/**
- * Hint for a demo that scanned without errors yet yielded an empty roster (e.g.
- * a Source-1 demo that passes the header checks but parses to zero players), so
- * its error row reads as "wrong demo" rather than a transient failure.
- */
+/** Empty-roster scan: treat as a bad demo, not a transient failure. */
 const ZERO_PLAYERS_HINT = 'Sin jugadores — ¿seguro que es una demo de CS2?';
 
 /** True when an API error means the local analysis service is unreachable. */
@@ -76,12 +63,7 @@ function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
   return row.match ? prettyMapName(row.match.map) : row.fileName;
 }
 
-/**
- * The three pipeline steps under the dropzone: static copy, no per-item colour.
- * v3 gave every entry the same `accent`/`badge` strings and injected them through
- * a template literal, i.e. two constants pretending to be data. The receding rail
- * above each card is the only thing that differs, and it is positional.
- */
+/** Static dropzone pipeline copy; rail colour is positional. */
 const PIPELINE_STEPS = [
   {
     n: '01',
@@ -93,8 +75,6 @@ const PIPELINE_STEPS = [
     n: '02',
     icon: ListChecks,
     title: 'ELIGES LAS JUGADAS',
-    // The selector is a vertical list of plays (design.md: the horizontal
-    // filmstrip contract is retired); the copy has to describe what ships.
     copy: 'Repasas la lista de jugadas detectadas y marcas las que entran en el reel.',
   },
   {
@@ -108,13 +88,7 @@ const PIPELINE_STEPS = [
 /** The pipeline rail recedes step by step, so the row reads left-to-right. */
 const STEP_RAIL_CLASS = ['bg-primary', 'bg-primary/55', 'bg-primary/25'] as const;
 
-/**
- * Upload flow (/upload) — the no-login entry. Drop one .dem (yours or someone
- * else's) or several at once for a whole bo3/bo5 series. We scan every roster,
- * let you pick whose POV to clip (aggregated across maps for a series), then
- * parse that player on each map. A single demo routes into its match; a series
- * routes into the series view. Renders on the root layout (no sidebar).
- */
+/** No-login upload: one demo or a bo3/bo5 series, then pick whose POV to clip. */
 export default function UploadPage() {
   const router = useRouter();
   const homeHref = '/matches';
@@ -131,9 +105,6 @@ export default function UploadPage() {
   const [scanRows, setScanRows] = useState<ScanRow[]>([]);
   const [parseRows, setParseRows] = useState<ParseRow[]>([]);
 
-  // Series mode is fully derived from the scan rows: a series scan seeds them
-  // (2+ demos), the single-demo path never does, and reset clears them. There is
-  // no independent flag to drift out of sync with the rows.
   const seriesMode = scanRows.length > 0;
 
   const [error, setError] = useState<string | null>(null);
@@ -163,10 +134,6 @@ export default function UploadPage() {
       try {
         const scan = await api.scanDemo(file);
         if (scan.players.length === 0) {
-          // A demo can scan "successfully" yet yield an empty roster (e.g. a
-          // Source-1 demo: CS:GO/TF2 carry the HL2DEMO magic and pass the header
-          // checks, then parse to zero players). Without this guard the flow
-          // advances to the picker over an empty card and strands the user.
           reset(
             'El escaneo no encontró jugadores en esa demo. ¿Seguro que es una demo de CS2? Prueba con otro archivo .dem.',
           );
@@ -299,9 +266,6 @@ export default function UploadPage() {
         }),
       );
 
-      // Navigate regardless of per-map failures: the series view shows each
-      // demo's status (ready / failed) and lets the user forge the ones that
-      // parsed.
       router.push('/series/' + seriesId);
     },
     [stage, seriesMode, seriesId, scannedRows, router],
@@ -474,7 +438,7 @@ export default function UploadPage() {
           </span>
           <span className="inline-flex items-center gap-3">
             <Info className="size-4" />
-            Formato: .dem
+            Formato: .dem / .dem.zst
             <span aria-hidden className="h-3 w-px bg-border-strong" />
             Máx. 10 demos
           </span>
@@ -484,10 +448,7 @@ export default function UploadPage() {
   );
 }
 
-/**
- * "Cómo funciona" — three panels sharing a receding cyan rail, with a chevron in
- * the gutter once the column is wide enough to read as one left-to-right run.
- */
+/** Three "cómo funciona" panels on a receding rail. */
 function PipelineSteps(): ReactNode {
   return (
     <ol aria-label="Cómo funciona" className="mt-2 grid gap-4 @[52rem]/upload:grid-cols-3">

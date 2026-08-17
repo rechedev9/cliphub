@@ -36,6 +36,7 @@ type config struct {
 	MutationToken     string
 	YtdlpPath         string
 	FirecrawlAPIKey   string
+	FaceitAPIKey      string
 }
 
 const (
@@ -44,6 +45,8 @@ const (
 	mutationTokenEnvironmentVariable = "ZV_MUTATION_TOKEN"
 	// #nosec G101 -- these are environment-variable names, never credential values.
 	firecrawlAPIKeyEnvironmentVariable = "FIRECRAWL_API_KEY"
+	// #nosec G101 -- these are environment-variable names, never credential values.
+	faceitAPIKeyEnvironmentVariable = "FACEIT_API_KEY"
 	// #nosec G101 -- these are environment-variable names, never credential values.
 	legacyGroqAPIKeyVariable = "GROQ_API_KEY"
 	// #nosec G101 -- these are environment-variable names, never credential values.
@@ -87,6 +90,7 @@ func loadConfig() (config, error) {
 		// Firecrawl enriches strategy suggestions with public CS2 trend
 		// references. It is optional and never sent to the web renderer.
 		FirecrawlAPIKey: os.Getenv(firecrawlAPIKeyEnvironmentVariable),
+		FaceitAPIKey:    faceitAPIKeyFromConfigSources(),
 	}
 	// The music library defaults to <DataDir>/music, where the repo keeps the
 	// catalog and scripts/fetch-music.sh downloads the audio, so an unset
@@ -175,7 +179,10 @@ func clearSubprocessCredentialEnvironment() error {
 	if err := clearEnvironmentVariable(mutationTokenEnvironmentVariable); err != nil {
 		return err
 	}
-	return clearEnvironmentVariable(firecrawlAPIKeyEnvironmentVariable)
+	if err := clearEnvironmentVariable(firecrawlAPIKeyEnvironmentVariable); err != nil {
+		return err
+	}
+	return clearEnvironmentVariable(faceitAPIKeyEnvironmentVariable)
 }
 
 func clearEnvironmentVariable(variable string) error {
@@ -226,6 +233,17 @@ func (c config) firecrawlEnabled() bool {
 	return c.FirecrawlAPIKey != ""
 }
 
+func (c config) faceitEnabled() bool {
+	return strings.TrimSpace(c.FaceitAPIKey) != ""
+}
+
+func faceitAPIKeyFromConfigSources() string {
+	if value := strings.TrimSpace(os.Getenv(faceitAPIKeyEnvironmentVariable)); value != "" {
+		return value
+	}
+	return strings.TrimSpace(embeddedFaceitAPIKey)
+}
+
 // streamAcquireWorkerEnabled reports whether the acquire-by-URL worker can
 // run. It only needs yt-dlp; stream rendering (ffmpeg) is gated separately by
 // streamRenderWorkerEnabled.
@@ -258,6 +276,7 @@ func (c config) captureCapabilities(src captureToolSource) httpapi.Capabilities 
 		StreamTools: []httpapi.CaptureTool{
 			tool("ZV_YTDLP_PATH", c.YtdlpPath),
 		},
+		FaceitEnabled: c.faceitEnabled(),
 	}
 }
 

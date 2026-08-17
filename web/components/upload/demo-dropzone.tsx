@@ -10,25 +10,17 @@ export type DemoDropzoneProps = {
 };
 
 const DEM_EXT = '.dem';
+const DEM_ZST_EXT = '.dem.zst';
+
+function isDemoFileName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(DEM_EXT) || lower.endsWith(DEM_ZST_EXT);
+}
 
 /** Most demos we ever record for one series is a bo5 (5 maps); 10 leaves slack. */
 const MAX_FILES = 10;
 
-/**
- * A drop zone + file picker for CS2 .dem files, styled as a restrained
- * workstation target with a dashed cyan inset and a dedicated trust rail. It
- * accepts a single demo or several at once — a whole bo3/bo5 series — up to
- * {@link MAX_FILES}. The clickable area is a <label> bound to the file input, so
- * the OS file dialog opens natively on click (no JS .click() that can be flaky
- * with hidden inputs). Drag-and-drop and keyboard both work; every file's
- * extension is validated before handing the list up.
- *
- * Depth: the label is a perspective box and the badge stack is a 3D plane, so
- * dragging a demo over it physically lifts the glowing icon off the dashed sheet
- * and drops a contact shadow onto it. Both the lift and the shadow are scaled by
- * `--shell-depth`, so the efficiency profile, an inactive window, reduced motion
- * and forced colours all flatten them to nothing without a second rule here.
- */
+/** Drop zone for .dem / .dem.zst; the label opens the native file dialog. */
 export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
@@ -42,9 +34,9 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
         setError(`Máximo ${MAX_FILES} demos por serie. Has soltado ${files.length}.`);
         return;
       }
-      const bad = files.find((f) => !f.name.toLowerCase().endsWith(DEM_EXT));
+      const bad = files.find((f) => !isDemoFileName(f.name));
       if (bad) {
-        setError(`"${bad.name}" no es una demo .dem.`);
+        setError(`"${bad.name}" no es una demo .dem o .dem.zst.`);
         return;
       }
       setError(null);
@@ -134,7 +126,7 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
           SUELTA UN .DEM AQUÍ
         </span>
         <span className="relative z-10 mt-2 max-w-lg text-body text-fg-2">
-          Arrastra una demo — o varias, una serie bo3/bo5 completa
+          Arrastra una demo .dem o .dem.zst — o varias, una serie bo3/bo5 completa
         </span>
         <span className="relative z-10 mt-5 inline-flex min-h-11 items-center justify-center border border-primary/65 bg-primary/8 px-8 font-display text-body-sm font-semibold uppercase tracking-wide text-primary transition-colors duration-(--dur-fast) ease-standard group-hover:border-primary group-hover:bg-primary/14">
           explora tus archivos
@@ -159,11 +151,7 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
           id={inputId}
           type="file"
           multiple
-          // No `accept` filter: on Windows the ".dem" filter hid every file in
-          // folders without a .dem, so the dialog looked empty/broken. Show all
-          // files; the extension check below rejects non-.dem with a message.
           className="sr-only"
-          // Reset so picking the same file again still fires onChange.
           onClick={(e) => {
             e.currentTarget.value = '';
           }}

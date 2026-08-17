@@ -31,6 +31,11 @@ test('treats the .dem extension and part suffix as optional and case-insensitive
     mapOrder: null,
     part: 1,
   });
+  assert.deepEqual(parseSeriesFileName('1-abcd-m1-inferno-p2.dem.zst'), {
+    base: '1-abcd-m1-inferno',
+    mapOrder: 1,
+    part: 2,
+  });
 });
 
 test('groups shuffled parts into ordered map cards (the 3dmax bo3 case)', () => {

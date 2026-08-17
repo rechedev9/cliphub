@@ -45,6 +45,20 @@ export function timeAgo(value: string | number): string {
   return `hace ${days} d`;
 }
 
+export function formatShortDate(value: string | number): string {
+  const date = typeof value === 'number' ? new Date(value) : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const now = new Date();
+  const madridYear = new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Europe/Madrid' });
+  const sameYear = madridYear.format(date) === madridYear.format(now);
+  return new Intl.DateTimeFormat('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+    timeZone: 'Europe/Madrid',
+  }).format(date);
+}
+
 /** Imported demos expose their import timestamp, not a fabricated play time. */
 export function matchDateLabel(match: Pick<Match, 'playedAt' | 'source'>): string {
   if (match.source !== 'upload') return timeAgo(match.playedAt);
@@ -68,13 +82,7 @@ export function formatCountdown(sec: number): string {
   return `${hours}h ${minutes}m`;
 }
 
-/**
- * Selection summary for a set of picked highlights, in the order given (the
- * caller passes plan order, not click order). One pick reuses its own label
- * ("1K · Ronda 1"); 2+ picks summarize as a count plus the distinct rounds in
- * ascending order ("3 jugadas · Rondas 1, 6, 9"). Used by both the sticky
- * create-reel bar and the stored reel title so they read identically.
- */
+/** Plan-order selection summary; one pick keeps its label, 2+ list distinct rounds. */
 export function playsSelectionLabel(plays: Play[]): string | null {
   if (plays.length === 0) return null;
   if (plays.length === 1) return plays[0].label;
@@ -82,13 +90,7 @@ export function playsSelectionLabel(plays: Play[]): string | null {
   return `${plays.length} jugadas · Rondas ${rounds.join(', ')}`;
 }
 
-/**
- * Product-facing label for a render status, in Spanish. The pipeline's
- * internal stages collapse into the words users see: Capturando, Editando,
- * Listo, Fallido — `queued` also reads "Editando" (queued and composing are
- * both "still processing" from the viewer's point of view; the Biblioteca
- * grid distinguishes them visually via PipelineSteps instead).
- */
+/** Spanish render status; queued/composing both read Editando. */
 export function productStatusLabel(status: VideoStatus): string {
   switch (status) {
     case 'recording':

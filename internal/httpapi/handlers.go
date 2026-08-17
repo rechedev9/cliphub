@@ -29,7 +29,9 @@ import (
 	"github.com/rechedev9/cliphub/internal/anticheat"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/demozstd"
 	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/moments"
@@ -103,6 +105,9 @@ type Handlers struct {
 	capabilities      Capabilities
 	youtubeTrends     YouTubeTrends
 	publishAssistant  *publishAssistantCache
+	faceit            *faceit.Client
+	faceitFollows     *faceit.FollowStore
+	faceitCache       faceitResponseCache
 }
 
 type Option func(*Handlers)
@@ -190,6 +195,13 @@ func WithPublishAssistantTrends(trends YouTubeTrends) Option {
 	}
 }
 
+func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
+	return func(h *Handlers) {
+		h.faceit = client
+		h.faceitFollows = follows
+	}
+}
+
 // NewHandlers constructs an HTTP handler set.
 func NewHandlers(repo JobRepository, store storage.Storage, queue Enqueuer, opts ...Option) *Handlers {
 	h := &Handlers{
@@ -273,11 +285,17 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	if fileHeader != nil {
 		demoFileName = sanitizeDemoFileName(fileHeader.Filename)
 	}
+	demoSrc, demoFileName, err := demozstd.Open(file, demoFileName, maxDemoBytes)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not read uploaded demo")
+		return
+	}
+	defer demoSrc.Close()
 
 	// Peek the demo magic bytes before persisting so non-demo uploads are
 	// rejected at the door. io.ReadFull tolerates a short read via ErrUnexpectedEOF.
 	var header [8]byte
-	n, err := io.ReadFull(file, header[:])
+	n, err := io.ReadFull(demoSrc, header[:])
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 		internalError(w, "read demo header", err)
 		return
@@ -288,7 +306,7 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 	// Stitch the peeked bytes back ahead of the remaining stream so the upload is
 	// neither truncated nor read twice.
-	demo := io.MultiReader(bytes.NewReader(header[:n]), file)
+	demo := io.MultiReader(bytes.NewReader(header[:n]), demoSrc)
 
 	var cfg createJobConfig
 	if raw := r.FormValue("config"); raw != "" {
@@ -1037,17 +1055,17 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 // renderEditRequest preserves JSON field presence so review corrections can
 // update one choice without resetting the rest of the approved edit contract.
 type renderEditRequest struct {
-	Format           *string  `json:"format"`
-	KillEffect       *string  `json:"killEffect"`
-	Transition       *string  `json:"transition"`
-	Intro            *bool    `json:"intro"`
-	Outro            *bool    `json:"outro"`
-	HookText         *bool    `json:"hook_text"`
-	KillCounter      *bool    `json:"kill_counter"`
-	CoverStrategy    *string  `json:"cover_strategy"`
-	CoverFirstFrame  *bool    `json:"cover_first_frame"`
-	IntroText        *string  `json:"intro_text"`
-	OutroText        *string  `json:"outro_text"`
+	Format              *string  `json:"format"`
+	KillEffect          *string  `json:"killEffect"`
+	Transition          *string  `json:"transition"`
+	Intro               *bool    `json:"intro"`
+	Outro               *bool    `json:"outro"`
+	HookText            *bool    `json:"hook_text"`
+	KillCounter         *bool    `json:"kill_counter"`
+	CoverStrategy       *string  `json:"cover_strategy"`
+	CoverFirstFrame     *bool    `json:"cover_first_frame"`
+	IntroText           *string  `json:"intro_text"`
+	OutroText           *string  `json:"outro_text"`
 	KeyDropStyle        *string  `json:"keydrop_style"`
 	KeyDropCode         *string  `json:"keydrop_code"`
 	KeyDropPositionY    *float64 `json:"keydrop_position_y"`

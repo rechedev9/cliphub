@@ -1,5 +1,15 @@
 $ErrorActionPreference = "Stop"
 
+function Get-FaceitEmbedKey {
+    foreach ($scope in @("Process", "User")) {
+        $value = [Environment]::GetEnvironmentVariable("FACEIT_API_KEY", $scope)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value.Trim()
+        }
+    }
+    return ""
+}
+
 $commands = @(
     "zv",
     "zv-parser",
@@ -30,11 +40,21 @@ try {
     $publicationLock = Enter-BuildPublicationLock -BinDir $binDir
     Recover-BuildPublication -BinDir $binDir -PublicationLock $publicationLock
     [void](New-Item -ItemType Directory -Path $stagingDir)
+    $faceitEmbedKey = Get-FaceitEmbedKey
+    if ($faceitEmbedKey -ne "" -and $faceitEmbedKey -notmatch '^[A-Za-z0-9._-]+$') {
+        throw "FACEIT_API_KEY contains unsupported characters for binary embedding"
+    }
+
     foreach ($name in $commands) {
         $out = Join-Path $stagingDir "$name.exe"
         $pkg = "./cmd/$name"
-        Write-Host "go build -o $out $pkg"
-        & go build -o $out $pkg
+        if ($name -eq "zv-orchestrator" -and $faceitEmbedKey -ne "") {
+            Write-Host "go build -ldflags [faceit-embed] -o $out $pkg"
+            & go build -ldflags "-X main.embeddedFaceitAPIKey=$faceitEmbedKey" -o $out $pkg
+        } else {
+            Write-Host "go build -o $out $pkg"
+            & go build -o $out $pkg
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "go build failed for $pkg"
         }

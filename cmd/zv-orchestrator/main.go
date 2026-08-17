@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/obs"
@@ -95,6 +97,19 @@ func run() error {
 		return fmt.Errorf("youtube trends client: %w", err)
 	}
 	log.Printf("publish assistant: firecrawl trends enabled=%v", cfg.firecrawlEnabled())
+	log.Printf("faceit: data api enabled=%v", cfg.faceitEnabled())
+
+	var faceitClient *faceit.Client
+	if cfg.faceitEnabled() {
+		faceitClient, err = faceit.New(faceit.Options{APIKey: cfg.FaceitAPIKey})
+		if err != nil {
+			return fmt.Errorf("faceit client: %w", err)
+		}
+	}
+	faceitFollows, err := faceit.NewFollowStore(filepath.Join(cfg.DataDir, "faceit", "followed.json"), time.Now)
+	if err != nil {
+		return fmt.Errorf("faceit follow store: %w", err)
+	}
 
 	var repo orchestratorJobRepository
 	var streamRepo orchestratorStreamJobRepository
@@ -236,6 +251,7 @@ func run() error {
 		httpapi.WithCapabilities(cfg.captureCapabilities(captureSource)),
 		httpapi.WithGenerateIntentStore(generateIntents),
 		httpapi.WithPublishAssistantTrends(youtubeTrends),
+		httpapi.WithFaceit(faceitClient, faceitFollows),
 	)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)

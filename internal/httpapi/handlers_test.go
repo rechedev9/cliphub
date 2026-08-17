@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
@@ -1117,6 +1118,102 @@ func TestPostJobsValidatesDemoMagicBytes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPostJobsAcceptsZstdDemos(t *testing.T) {
+	plain := []byte("PBDEMS2\x00rest-of-demo")
+	tests := []struct {
+		name       string
+		filename   string
+		payload    []byte
+		wantStatus int
+		wantStored []byte
+		wantName   string
+	}{
+		{
+			name:       "faceit zst",
+			filename:   "1-b5604ae7-c676-454b-901a-0b02014abd94-1-2.dem.zst",
+			payload:    zstdDemoBytes(t, plain),
+			wantStatus: http.StatusCreated,
+			wantStored: plain,
+			wantName:   "1-b5604ae7-c676-454b-901a-0b02014abd94-1-2.dem",
+		},
+		{
+			name:       "zst wrapping garbage",
+			filename:   "junk.dem.zst",
+			payload:    zstdDemoBytes(t, []byte("just some bytes")),
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			h := NewHandlers(repo, store, &fakeQueue{})
+			body, ct := multipartBodyNamed(t, test.filename, test.payload, `{"target_steamid":"76561198000000000"}`)
+			req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
+			req.Header.Set("Content-Type", ct)
+			rw := httptest.NewRecorder()
+			h.CreateJob(rw, req)
+			if rw.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d body=%s", rw.Code, test.wantStatus, rw.Body.String())
+			}
+			if test.wantStatus != http.StatusCreated {
+				if len(store.puts) != 0 {
+					t.Fatalf("storage puts = %d, want 0", len(store.puts))
+				}
+				return
+			}
+			var stored []byte
+			for _, value := range store.puts {
+				stored = value
+			}
+			if !bytes.Equal(stored, test.wantStored) {
+				t.Fatalf("stored = %q, want decompressed demo", stored)
+			}
+			for _, job := range repo.jobs {
+				if job.DemoFileName != test.wantName {
+					t.Fatalf("DemoFileName = %q, want %q", job.DemoFileName, test.wantName)
+				}
+			}
+		})
+	}
+}
+
+func multipartBodyNamed(t *testing.T, filename string, demoBytes []byte, configJSON string) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	demoPart, err := mw.CreateFormFile("demo", filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := demoPart.Write(demoBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.WriteField("config", configJSON); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return body, mw.FormDataContentType()
+}
+
+func zstdDemoBytes(t *testing.T, plain []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	enc, err := zstd.NewWriter(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := enc.Write(plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := enc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func TestPostJobsWithTargetEnqueuesParse(t *testing.T) {

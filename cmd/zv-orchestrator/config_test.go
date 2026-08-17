@@ -91,6 +91,7 @@ func TestClearSubprocessCredentialEnvironmentKeepsLoadedConfigOnlyInMemory(t *te
 	t.Setenv("ZV_DATABASE_URL", "memory")
 	t.Setenv(mutationTokenEnvironmentVariable, strings.Repeat("b", 64))
 	t.Setenv(firecrawlAPIKeyEnvironmentVariable, "firecrawl-secret")
+	t.Setenv(faceitAPIKeyEnvironmentVariable, "faceit-secret")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -99,12 +100,12 @@ func TestClearSubprocessCredentialEnvironmentKeepsLoadedConfigOnlyInMemory(t *te
 	if err := clearSubprocessCredentialEnvironment(); err != nil {
 		t.Fatalf("clearSubprocessCredentialEnvironment error = %v", err)
 	}
-	if cfg.MutationToken == "" || cfg.FirecrawlAPIKey == "" {
+	if cfg.MutationToken == "" || cfg.FirecrawlAPIKey == "" || cfg.FaceitAPIKey == "" {
 		t.Fatal("loaded config lost a credential after environment cleanup")
 	}
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
-		if strings.EqualFold(name, mutationTokenEnvironmentVariable) || strings.EqualFold(name, firecrawlAPIKeyEnvironmentVariable) {
+		if strings.EqualFold(name, mutationTokenEnvironmentVariable) || strings.EqualFold(name, firecrawlAPIKeyEnvironmentVariable) || strings.EqualFold(name, faceitAPIKeyEnvironmentVariable) {
 			t.Fatalf("environment still contains %q after credential cleanup", name)
 		}
 	}
@@ -340,6 +341,52 @@ func TestClearLegacyCaptionCredentialsEnvironment(t *testing.T) {
 	}
 }
 
+func TestLoadConfigFaceitAPIKey(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("ZV_DATABASE_URL", "memory")
+	t.Setenv("FACEIT_API_KEY", "faceit-test-secret")
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig error = %v", err)
+	}
+	if cfg.FaceitAPIKey != "faceit-test-secret" || !cfg.faceitEnabled() {
+		t.Fatalf("faceit config = %q enabled=%v", cfg.FaceitAPIKey, cfg.faceitEnabled())
+	}
+}
+
+func TestLoadConfigPrefersEnvFaceitKeyOverEmbedded(t *testing.T) {
+	previous := embeddedFaceitAPIKey
+	embeddedFaceitAPIKey = "embedded-faceit-secret"
+	t.Cleanup(func() { embeddedFaceitAPIKey = previous })
+
+	clearConfigEnv(t)
+	t.Setenv("ZV_DATABASE_URL", "memory")
+	t.Setenv("FACEIT_API_KEY", "env-faceit-secret")
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig error = %v", err)
+	}
+	if cfg.FaceitAPIKey != "env-faceit-secret" {
+		t.Fatalf("FaceitAPIKey = %q, want env override", cfg.FaceitAPIKey)
+	}
+}
+
+func TestLoadConfigUsesEmbeddedFaceitKeyWhenEnvEmpty(t *testing.T) {
+	previous := embeddedFaceitAPIKey
+	embeddedFaceitAPIKey = "embedded-faceit-secret"
+	t.Cleanup(func() { embeddedFaceitAPIKey = previous })
+
+	clearConfigEnv(t)
+	t.Setenv("ZV_DATABASE_URL", "memory")
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig error = %v", err)
+	}
+	if cfg.FaceitAPIKey != "embedded-faceit-secret" || !cfg.faceitEnabled() {
+		t.Fatalf("faceit embed = %q enabled=%v", cfg.FaceitAPIKey, cfg.faceitEnabled())
+	}
+}
+
 func TestLoadConfigFirecrawlAPIKey(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("ZV_DATABASE_URL", "memory")
@@ -427,6 +474,7 @@ func clearConfigEnv(t *testing.T) {
 		"GROQ_API_KEY",
 		"ZV_GROQ_API_KEY",
 		"FIRECRAWL_API_KEY",
+		"FACEIT_API_KEY",
 	} {
 		t.Setenv(key, "")
 	}
