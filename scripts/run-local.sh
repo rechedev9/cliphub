@@ -39,8 +39,8 @@ for c in zv-orchestrator zv-recorder zv-editor zv-composer; do
   go build -o "$BIN/$c.exe" "./cmd/$c"
 done
 
-# Provision the curated open-source music catalog (CC0 / CC-BY, see
-# data/music/ATTRIBUTION.md) into $MUSIC so the UI song picker has real tracks.
+# Provision the shipped Suno music catalog (see data/music/ATTRIBUTION.md)
+# into $MUSIC so the UI song picker has real tracks.
 # Idempotent: skips tracks already downloaded. The orchestrator's /api/songs
 # reads $MUSIC/catalog.json for the metadata it serves the web app.
 ZV_MUSIC_DIR="$MUSIC" ZV_FFPROBE_PATH="$FFPROBE" bash "$ROOT/scripts/fetch-music.sh" || \

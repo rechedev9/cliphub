@@ -7,20 +7,17 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { provisionMusicLibrary } from './music-library.ts';
 
-const VIRAL_CC0_TRACK_IDS = [
-  'pop-hook',
-  'club-jump-beat',
-  'dark-electroshuffle',
-  'percussive-party',
-  'hard-rap-loop',
-  'acid-beat',
-  'urban-funk',
-  'retro-fireworks',
-  'latin-1',
-  'ragga-1',
-  'house-3',
-  'techno-1',
-  'trap-5',
+const SUNO_TRACK_IDS = [
+  'reggaeton-1',
+  'pase-directo',
+  'el-leon-en-la-pista',
+  'render-distance',
+  'absolute-zenith',
+  'pura-presion',
+  'fracture-the-frame',
+  'tropa-na-bruma',
+  'pacto-de-ferro',
+  'pressao-do-grave',
 ] as const;
 
 function sha256(value: string): string {
@@ -239,7 +236,7 @@ test('rejects a remote track without a valid sha256 and removes an unverified ca
   assert.deepEqual(logs, ['[music] skip remote: remote track has no valid sha256\n']);
 });
 
-test('every remote track in the shipped catalog has a lowercase sha256', () => {
+test('the shipped catalog has no remote tracks', () => {
   const sourceFile = fileURLToPath(import.meta.url);
   const catalogPath = path.join(path.dirname(sourceFile), '..', '..', 'data', 'music', 'catalog.json');
   const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as { tracks?: unknown[] };
@@ -249,28 +246,26 @@ test('every remote track in the shipped catalog has a lowercase sha256', () => {
       && typeof track.downloadUrl === 'string' && track.downloadUrl !== '',
   );
 
-  assert.ok(remoteTracks.length > 0);
-  for (const track of remoteTracks) {
-    assert.match(typeof track.sha256 === 'string' ? track.sha256 : '', /^[a-f0-9]{64}$/, String(track.id));
-  }
+  assert.equal(remoteTracks.length, 0);
 });
 
-test('the shipped catalog includes the verified viral CC0 pack', () => {
+test('the shipped catalog is the Suno pack only', () => {
   const sourceFile = fileURLToPath(import.meta.url);
   const catalogPath = path.join(path.dirname(sourceFile), '..', '..', 'data', 'music', 'catalog.json');
   const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as { tracks?: unknown[] };
   const tracks = catalog.tracks ?? [];
 
-  for (const id of VIRAL_CC0_TRACK_IDS) {
+  assert.equal(tracks.length, SUNO_TRACK_IDS.length);
+  for (const id of SUNO_TRACK_IDS) {
     const track = tracks.find((candidate): candidate is Record<string, unknown> =>
       typeof candidate === 'object' && candidate !== null && 'id' in candidate && candidate.id === id,
     );
-    assert.ok(track, `missing viral track ${id}`);
-    assert.equal(track.license, 'CC0', `${id} license`);
+    assert.ok(track, `missing Suno track ${id}`);
+    assert.equal(track.artist, 'ClipHub (Suno)', `${id} artist`);
+    assert.equal(track.license, 'AI-generated', `${id} license`);
     assert.equal(track.attributionRequired, false, `${id} attributionRequired`);
     assert.equal(track.ext, 'mp3', `${id} ext`);
-    assert.match(String(track.downloadUrl), /^https:\/\/archive\.org\/download\/freepd\//, `${id} downloadUrl`);
-    assert.match(String(track.sha256), /^[a-f0-9]{64}$/, `${id} sha256`);
+    assert.equal(track.downloadUrl, undefined, `${id} downloadUrl`);
   }
 });
 

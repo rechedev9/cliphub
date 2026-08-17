@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision the curated open-source music catalog into ZV_MUSIC_DIR.
+# Provision the shipped music catalog into ZV_MUSIC_DIR.
 #
 # Remote catalog tracks must supply a SHA-256. Existing cache entries are
 # reverified; downloads are validated in a temporary file and atomically

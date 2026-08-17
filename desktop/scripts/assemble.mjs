@@ -104,9 +104,7 @@ await stageBundledHLAE({
   destinationDirectory: join(out, 'hlae'),
 });
 
-// Music: catalog.json plus any local-only audio (tracks without a downloadUrl,
-// e.g. the AI-generated ones). Remote CC0/CC-BY tracks are still downloaded by
-// main.js on first boot, keeping the installer small.
+// Music: catalog.json plus local-only Suno audio (tracks without a downloadUrl).
 mkdirSync(join(out, 'music'), { recursive: true });
 const musicSrc = join(repo, 'data', 'music');
 cpSync(join(musicSrc, 'catalog.json'), join(out, 'music', 'catalog.json'));
