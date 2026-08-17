@@ -583,6 +583,8 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 		baseDir := filepath.Dir(filepath.Dir(galleryPath))
 		planPath := writeDemoReviewPlan(t, baseDir)
 		return []string{"--", "--killplan", planPath, "--segments", "seg-001", "--out", filepath.Join(baseDir, "selected-plan.json"), "--dry-run"}
+	case "demo-probe":
+		return []string{"--", "--demo", "inferno.dem", "--out", "run/playability.json", "--dry-run"}
 	case "utility-audit":
 		return []string{"--", "--plan", "run/plan.json", "--lineup-catalog", "data/lineups", "--out", "run/utility-audit.csv"}
 	case "record":
@@ -981,7 +983,7 @@ func workflowDelegatesExternally(workflow workflowInfo) bool {
 		return false
 	}
 	switch workflow.Name {
-	case "demo-moments", "demo-select", "analysis-tactical", "analysis-rounds", "analysis-tendencies":
+	case "demo-moments", "demo-select", "demo-probe", "analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		// These run in-process inside zv itself; they never spawn a subcommand.
 		return false
 	}
@@ -1111,6 +1113,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv faceit index --profile m0NESY --out data/faceit/m0nesy-2026.json --dry-run --format json",
 		"./bin/zv demo parse --demo testdata/foo.dem --steamid 76561198000000000 --out plan.json",
 		"./bin/zv demo players --demo testdata/foo.dem",
+		"./bin/zv demo probe --demo testdata/foo.dem --out playability.json",
 		"./bin/zv utility audit --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv",
 		"./bin/zv record --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording",
 		"./bin/zv compose final --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",
@@ -1142,6 +1145,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show faceit-index --format json",
 		"./bin/zv workflows show demo-players",
 		"./bin/zv workflows show demo-players --format json",
+		"./bin/zv workflows show demo-probe",
+		"./bin/zv workflows show demo-probe --format json",
 		"./bin/zv workflows show utility-audit",
 		"./bin/zv workflows show utility-audit --format json",
 		"./bin/zv workflows show record",
@@ -1181,6 +1186,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run demo-parse -- --demo testdata/foo.dem --steamid 76561198000000000 --out plan.json",
 		"./bin/zv workflows run faceit-index -- --profile m0NESY --out data/faceit/m0nesy-2026.json --dry-run --format json",
 		"./bin/zv workflows run demo-players -- --demo testdata/foo.dem",
+		"./bin/zv workflows run demo-probe -- --demo testdata/foo.dem --out data/runs/run-004/playability.json --dry-run",
 		"./bin/zv workflows run utility-audit -- --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv",
 		"./bin/zv workflows run record -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording",
 		"./bin/zv workflows run compose-final -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",
@@ -1346,6 +1352,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show faceit-index --format json",
 		"./bin/zv workflows show demo-players",
 		"./bin/zv workflows show demo-players --format json",
+		"./bin/zv workflows show demo-probe",
+		"./bin/zv workflows show demo-probe --format json",
 		"./bin/zv workflows show utility-audit",
 		"./bin/zv workflows show utility-audit --format json",
 		"./bin/zv workflows show record",
@@ -1403,6 +1411,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run demo-parse -- --demo testdata/foo.dem --steamid 76561198000000000 --out plan.json",
 		"./bin/zv workflows run faceit-index -- --profile m0NESY --out data/faceit/m0nesy-2026.json --dry-run --format json",
 		"./bin/zv workflows run demo-players -- --demo testdata/foo.dem",
+		"./bin/zv workflows run demo-probe -- --demo testdata/foo.dem --out data/runs/run-004/playability.json --dry-run",
 		"./bin/zv workflows run utility-audit -- --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv",
 		"./bin/zv workflows run record -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording",
 		"./bin/zv workflows run compose-final -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",

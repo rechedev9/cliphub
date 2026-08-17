@@ -131,7 +131,7 @@ func workflowDelegatedCommand(args []string) string {
 			return "zv-parser"
 		case "players":
 			return "zv-demo-players"
-		case "moments", "select":
+		case "moments", "select", "probe":
 			return "zv"
 		}
 	case "utility":

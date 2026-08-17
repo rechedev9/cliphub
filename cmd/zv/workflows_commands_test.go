@@ -1859,7 +1859,7 @@ func TestValidateWorkflowCatalogRejectsNonCanonicalCommands(t *testing.T) {
 
 	issues := validateWorkflowCatalog(workflows)
 	for _, want := range []string{
-		`workflow:demo-parse: workflow command is not canonical: uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", or "demo anticheat"`,
+		`workflow:demo-parse: workflow command is not canonical: uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", or "demo probe"`,
 		`workflow:demo-parse: workflow run command must be "zv workflows run demo-parse"`,
 		"workflow:demo-parse: duplicate workflow name",
 		`workflow:missing-description: workflow run command must be "zv workflows run missing-description"`,

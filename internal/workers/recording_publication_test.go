@@ -392,11 +392,11 @@ func TestRecordingPublicationLeavesCanonicalResultPendingWhenCommitFails(t *test
 		t.Fatal("canonical recording result is ready after clip overwrite and failed commit")
 	}
 	expected := expectedRecordingPlan(t, repo.jobs[id].KillPlan, "seg-001")
-	ready, _, readyErr := recordingOutputsReady(base, id, []string{"seg-001"}, expected)
+	missing, _, readyErr := recordingOutputsReady(base, id, []string{"seg-001"}, expected)
 	if readyErr != nil {
 		t.Fatal(readyErr)
 	}
-	if ready {
+	if len(missing) == 0 {
 		t.Fatal("pending canonical recording result was reported ready")
 	}
 	if _, readErr := readStoredRecordingResult(base, id); readErr == nil {
@@ -470,11 +470,11 @@ func TestRecordingPublicationRestoresPreviousCommitWhenOnlyNewClipKeysChanged(t 
 		t.Fatalf("restored previous commit validation: %v", err)
 	}
 	expected := expectedRecordingPlan(t, repo.jobs[id].KillPlan, "seg-001")
-	ready, _, readyErr := recordingOutputsReady(base, id, []string{"seg-001"}, expected)
+	missing, _, readyErr := recordingOutputsReady(base, id, []string{"seg-001"}, expected)
 	if readyErr != nil {
 		t.Fatal(readyErr)
 	}
-	if !ready {
+	if len(missing) != 0 {
 		t.Fatal("previous segment was not reusable after a failed new-segment commit")
 	}
 	if got := string(base.files[mustSegmentClipKey(t, id, "seg-002")]); got != "new-seg-002" {
@@ -522,12 +522,12 @@ func TestRecordingPublicationRetryCommitsAndPreservesCompatibleSegments(t *testi
 	}
 	for _, segmentID := range []string{"seg-001", "seg-002"} {
 		expected := expectedRecordingPlan(t, repo.jobs[id].KillPlan, segmentID)
-		ready, _, err := recordingOutputsReady(base, id, []string{segmentID}, expected)
+		missing, _, err := recordingOutputsReady(base, id, []string{segmentID}, expected)
 		if err != nil {
 			t.Fatalf("recordingOutputsReady(%s): %v", segmentID, err)
 		}
-		if !ready {
-			t.Fatalf("recordingOutputsReady(%s) = false after successful retry", segmentID)
+		if len(missing) != 0 {
+			t.Fatalf("recordingOutputsReady(%s) missing = %v after successful retry", segmentID, missing)
 		}
 	}
 }

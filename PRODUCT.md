@@ -128,6 +128,8 @@ For a reviewable demo journey, use the granular commands instead of asking an
 agent to guess across decision boundaries:
 
 ```powershell
+./bin/zv demo probe --demo match.dem --out data/runs/match/playability.json --dry-run --format json
+zv demo probe --demo match.dem --out data\runs\match\playability.json --dry-run --format json
 zv demo players --demo match.dem --format json --out data\runs\match\players.json
 zv demo parse --demo match.dem --steamid 76561198148986856 --out data\runs\match\plan.json
 zv demo moments --killplan data\runs\match\plan.json --top 10 --format json --out data\runs\match\moments.json

@@ -185,15 +185,16 @@ func runFlowsRun(args []string, stdout, stderr io.Writer, stdin io.Reader, runne
 	return exitSuccess
 }
 
-// demoFlowRunSteps mirrors the demo journey's chain: parse (skipped when a kill
-// plan is supplied), moments, the creative-brief gate, select (every segment in
-// plan order, the documented dry-run default), the capture and render dry runs,
-// and the thumbnail gate.
+// demoFlowRunSteps mirrors the demo journey's chain: playability probe, parse
+// (skipped when a kill plan is supplied), moments, the creative-brief gate,
+// select (every segment in plan order, the documented dry-run default), the
+// capture and render dry runs, and the thumbnail gate.
 func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep {
 	killplanPath := killplanFlag
 	if strings.TrimSpace(killplanPath) == "" {
 		killplanPath = filepath.Join(runDir, "killplan.json")
 	}
+	playabilityPath := filepath.Join(runDir, "playability.json")
 	momentsPath := filepath.Join(runDir, "moments.json")
 	selectedPath := filepath.Join(runDir, "selected-plan.json")
 	recordingDir := filepath.Join(runDir, "recording")
@@ -202,6 +203,14 @@ func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep 
 	publishDir := filepath.Join(runDir, "shortslistosparasubir")
 
 	return []flowRunStep{
+		{id: "probe", build: func() (flowRunAction, error) {
+			if err := validateFlowInputFile("--demo", demo); err != nil {
+				return flowRunAction{}, err
+			}
+			return flowRunAction{
+				argv: []string{"demo", "probe", "--demo", demo, "--out", playabilityPath, "--format", "json"},
+			}, nil
+		}},
 		{id: "parse", build: func() (flowRunAction, error) {
 			if err := validateFlowInputFile("--demo", demo); err != nil {
 				return flowRunAction{}, err

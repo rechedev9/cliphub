@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rechedev9/tickcut/internal/recording"
@@ -122,6 +123,73 @@ func TestValidatedExistingArtifactRequiresMatchingProducerContract(t *testing.T)
 				t.Fatalf("%s reused after compiled producer changed to %v", role.name, changedCommand)
 			}
 		}
+	}
+}
+
+// TestPublishShortReusesOutputProbeInsteadOfReprobing is B5(a): publishShort
+// hardlinks (or byte-copies) short.Output to short.PublishPath, so the
+// published file is byte-identical to what renderShort already probed. This
+// points FFprobePath at a binary that does not exist; if publishShort still
+// tried to re-probe the published file, that exec would fail and land in
+// PublishArtifact.ProbeError. It must instead reuse renderShort's artifact
+// (repointed at the publish path/role) and never touch ffprobe again.
+func TestPublishShortReusesOutputProbeInsteadOfReprobing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "output.mp4")
+	publishPath := filepath.Join(dir, "publish.mp4")
+	content := []byte("fake video bytes")
+	if err := os.WriteFile(outputPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := &Manifest{Shorts: []ShortEdit{{
+		SegmentID:   "seg-001",
+		Output:      outputPath,
+		PublishPath: publishPath,
+	}}}
+	result := &Result{Shorts: []ShortResult{{
+		SegmentID: "seg-001",
+		OutputArtifact: recording.RecordingArtifact{
+			SegmentID:       "seg-001",
+			Role:            "short",
+			Type:            "video",
+			Path:            outputPath,
+			SizeBytes:       int64(len(content)),
+			DurationSeconds: 3.2,
+			Codec:           "h264",
+			Width:           1080,
+			Height:          1920,
+			FrameRate:       "30/1",
+		},
+	}}}
+	p := &shortPackRenderer{
+		manifest: manifest,
+		result:   result,
+		opts:     shortPackOptions{FFprobePath: filepath.Join(dir, "missing-ffprobe-must-not-run")},
+		shortMu:  make([]sync.Mutex, 1),
+	}
+
+	var warn []string
+	if err := p.publishShort(context.Background(), 0, &manifest.Shorts[0], &warn); err != nil {
+		t.Fatalf("publishShort error = %v", err)
+	}
+
+	got := result.Shorts[0].PublishArtifact
+	if got.ProbeError != "" {
+		t.Fatalf("PublishArtifact.ProbeError = %q, want empty: publish re-ran ffprobe instead of reusing the output probe", got.ProbeError)
+	}
+	if got.Role != "publish" || got.Path != publishPath {
+		t.Fatalf("PublishArtifact role/path = %q/%q, want publish/%q", got.Role, got.Path, publishPath)
+	}
+	if got.Codec != "h264" || got.DurationSeconds != 3.2 || got.Width != 1080 || got.Height != 1920 || got.FrameRate != "30/1" {
+		t.Fatalf("PublishArtifact = %#v, want probe fields copied from the output artifact", got)
+	}
+	if got.SizeBytes != int64(len(content)) {
+		t.Fatalf("PublishArtifact.SizeBytes = %d, want %d (stat of the published path)", got.SizeBytes, len(content))
+	}
+	if !reflect.DeepEqual(manifest.Shorts[0].PublishArtifact, got) {
+		t.Fatalf("manifest PublishArtifact = %#v, want %#v (same as result)", manifest.Shorts[0].PublishArtifact, got)
 	}
 }
 

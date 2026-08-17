@@ -2,7 +2,7 @@
 // Run: node --test failure-reason.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEMO_INCOMPATIBLE_PREFIX, parseFailureReason } from './failure-reason.ts';
+import { DEMO_INCOMPATIBLE_PREFIX, UNPLAYABLE_START_PREFIX, parseFailureReason } from './failure-reason.ts';
 
 test('demo-incompatible reason with a captured clause yields counts and no retry', () => {
   const reason =
@@ -70,4 +70,13 @@ test('undefined and empty reasons fall back to a generic retryable message', () 
 
 test('the exported prefix is the exact orchestrator token', () => {
   assert.equal(DEMO_INCOMPATIBLE_PREFIX, 'demo_incompatible:');
+  assert.equal(UNPLAYABLE_START_PREFIX, 'unplayable_start:');
+});
+
+test('unplayable-start is not retryable and tells the user not to relaunch CS2', () => {
+  const result = parseFailureReason('unplayable_start: CS2 crashed rewinding playdemo to tick 0');
+  assert.equal(result.kind, 'unplayable-start');
+  assert.equal(result.retryCanHelp, false);
+  assert.match(result.message, /No relances CS2/);
+  assert.match(result.message, /tick 0/);
 });

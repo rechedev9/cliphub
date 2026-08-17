@@ -16,12 +16,13 @@ Usage:
   zv demo select --killplan <plan.json> --segments <ids> --out <selected-plan.json> [--dry-run] [--format text|json]
   zv demo anticheat --demo <match.dem> [--baseline <baseline.json>] [--out <anticheat.json>] [--dossier <SteamID64>] [--dry-run] [--format text|json]
   zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]
+  zv demo probe --demo <match.dem> --out <playability.json> [--dry-run] [--format text|json]
   zv utility audit [zv-parser utility-audit flags]
   zv record [zv-recorder flags]
   zv compose final [zv-composer flags]
   zv shorts render [zv-editor flags]
   zv stream variants [--format text|json]
-  zv stream plan --input <stream.mp4> --out <edit-plan.json> [--dry-run] [--format text|json]
+  zv stream plan --input <stream.mp4> --out <edit-plan.json> [--variant <name>] [--dry-run] [--format text|json]
   zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir> [--dry-run] [--format text|json]
   zv music analyze [zv-rhythm analyze flags]
   zv analysis tactical --demo <match.dem> --out <tactical.json> [--positions <positions.zvpos>] [--hz <n>] [--cell-size <n>] [--dry-run] [--format text|json]
@@ -145,7 +146,7 @@ const errorsUsage = `usage: zv errors [--obs-dir <dir>] [--tail <n>] [--json] [-
 Summarize the local error journal. --clear truncates it (use between fix-loop runs).
 `
 
-const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags] | zv demo anticheat [flags]
+const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags] | zv demo anticheat [flags] | zv demo probe [flags]
 `
 
 const demoAnticheatUsage = `usage: zv demo anticheat --demo <match.dem> [--baseline <baseline.json>] [--out <anticheat.json>] [--dossier <SteamID64>] [--dry-run] [--format text|json]
@@ -165,6 +166,13 @@ const demoAnticheatCalibrateUsage = `usage: zv demo anticheat calibrate --demos 
 Measure a baseline from a directory of demos that are known to contain
 professional play, replacing the shipped distribution. Metrics without
 enough samples keep the estimate and are named in the baseline description.
+`
+
+const demoProbeUsage = `usage: zv demo probe --demo <match.dem> --out <playability.json> [--dry-run] [--format text|json]
+
+Classify whether CS2 can start this demo without crashing on the playdemo
+rewind to tick 0. Does not launch CS2 or HLAE. --dry-run validates flags
+and skips the walk and write.
 `
 
 const demoMomentsUsage = `usage: zv demo moments --killplan <plan.json> [--top <n>] [--out <moments.json>] [--dry-run] [--format text|json]

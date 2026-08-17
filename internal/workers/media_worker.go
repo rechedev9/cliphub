@@ -568,10 +568,10 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if len(requested) == 0 {
 		requested = killPlanSegmentIDs(j.KillPlan)
 	}
-	// Scope the plan handed to the recorder, so everything downstream (HLAE script,
-	// take mapping, recording result, render) derives from the chosen segments
-	// alone. j is a value copy, so j.KillPlan stays the full plan for ordering.
-	recordPlan, err := filterKillPlanSegments(j.KillPlan, requested)
+	// requestedPlan scopes only the identity/profile computation below; the
+	// plan actually handed to the recorder is narrowed further to the missing
+	// subset once readiness is known.
+	requestedPlan, err := filterKillPlanSegments(j.KillPlan, requested)
 	if err != nil {
 		return err
 	}
@@ -581,21 +581,31 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if hudMode != "" {
 		cfg.HUDMode = hudMode
 	}
-	expectedStream, err := normalizedRecordingStream(recordPlan, cfg.HUDMode, portraitSafeKillfeed)
+	expectedStream, err := normalizedRecordingStream(requestedPlan, cfg.HUDMode, portraitSafeKillfeed)
 	if err != nil {
 		return fmt.Errorf("build recording profile: %w", err)
 	}
-	expectedProfile, err := recording.NewPlanFromKillPlan(*recordPlan, "profile.dem", "profile", expectedStream)
+	expectedProfile, err := recording.NewPlanFromKillPlan(*requestedPlan, "profile.dem", "profile", expectedStream)
 	if err != nil {
 		return fmt.Errorf("build expected recording identity: %w", err)
 	}
-	ready, keys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedProfile)
+	missing, reusedKeys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedProfile)
 	if err != nil {
 		return err
 	}
-	if ready {
-		logWorkerSkip(j.ID, tasks.TypeRecordDemo, keys)
+	if len(missing) == 0 {
+		logWorkerSkip(j.ID, tasks.TypeRecordDemo, reusedKeys)
 		return nil
+	}
+	// Capture only the segments that still lack a compatible durable clip.
+	// Segments already covered by a compatible previous run merge back in via
+	// mergeRecordingResults below instead of recapturing the whole selection.
+	// Scope the plan handed to the recorder, so everything downstream (HLAE script,
+	// take mapping, recording result, render) derives from the chosen segments
+	// alone. j is a value copy, so j.KillPlan stays the full plan for ordering.
+	recordPlan, err := filterKillPlanSegments(j.KillPlan, missing)
+	if err != nil {
+		return err
 	}
 
 	// Establish whether an earlier recording is a complete durable commit before
@@ -667,7 +677,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	demoPath := filepath.Join(workDir, "demo.dem")
 	killPlanPath := filepath.Join(workDir, "killplan.json")
 	outDir := filepath.Join(workDir, "out")
-	if err := copyStorageToFile(w.storage, j.DemoPath, demoPath); err != nil {
+	if err := materializeStorageFile(w.storage, j.DemoPath, demoPath); err != nil {
 		return fmt.Errorf("materialize demo: %w", err)
 	}
 	if err := writeJSONFile(killPlanPath, recordPlan); err != nil {
@@ -748,7 +758,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		return fmt.Errorf("write recording revision: %w", err)
 	}
 	uploadEntered = true
-	keys, err = uploadRecordingOutputs(w.storage, j.ID, outDir, resultPath, result, durable, prev, hasPrev)
+	keys, err := uploadRecordingOutputs(w.storage, j.ID, outDir, resultPath, result, durable, prev, hasPrev)
 	if err != nil {
 		return err
 	}
@@ -1222,7 +1232,7 @@ func (w *StreamRenderWorker) render(
 	}
 
 	sourcePath := filepath.Join(workDir, "source.mp4")
-	if err := copyStorageToFile(w.storage, j.SourcePath, sourcePath); err != nil {
+	if err := materializeStorageFile(w.storage, j.SourcePath, sourcePath); err != nil {
 		return fmt.Errorf("materialize stream source: %w", err)
 	}
 	outDir := filepath.Join(workDir, "out", "shortslistosparasubir")
@@ -2432,6 +2442,39 @@ func copyStorageToFile(store storage.Storage, key, path string) error {
 	return err
 }
 
+// storagePathResolver is satisfied by storage.Local (storage.Local.ResolvePath),
+// used to materialize an artifact without copying its bytes.
+type storagePathResolver interface {
+	ResolvePath(key string) (string, error)
+}
+
+// materializeStorageFile places the artifact at key at path so an external
+// tool (HLAE/CS2, ffmpeg) can read it as a plain file. When storage resolves
+// to a real local path (storage.Local), this hardlinks path straight to the
+// storage-owned file instead of copying multi-gigabyte demos/clips; it falls
+// back to copyStorageToFile for other storage backends or when linking fails
+// (e.g. path and the storage root are on different volumes).
+//
+// A hardlink shares its inode with the durable artifact in storage: every
+// caller must treat path as read-only from here on. Nothing downstream of
+// record/compose writes in place to a materialized demo, stream source, or
+// segment clip - each stage always writes a new output file - so this holds
+// today, but it must keep holding for any future writer of these paths.
+func materializeStorageFile(store storage.Storage, key, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	if resolver, ok := store.(storagePathResolver); ok {
+		if src, err := resolver.ResolvePath(key); err == nil {
+			_ = os.Remove(path)
+			if linkErr := os.Link(src, path); linkErr == nil {
+				return nil
+			}
+		}
+	}
+	return copyStorageToFile(store, key, path)
+}
+
 func uploadFile(store storage.Storage, key, path string) error {
 	// #nosec G304 -- path is produced by recorder/composer stage outputs before upload.
 	f, err := os.Open(path)
@@ -2953,33 +2996,46 @@ func putRecordingResult(store storage.Storage, id uuid.UUID, result recording.Re
 	return store.Put(recording.ResultArtifactKey(id), bytes.NewReader(b))
 }
 
-// recordingOutputsReady reports whether the recorder can be skipped because
-// every requested segment's clip is already present. Callers resolve the
-// effective segment ids (whole-demo mode passes every plan segment), so a reel
-// scoped to one clip is never wrongly skipped against the job-level result.json,
-// which holds only the last run's segments until the accumulate step unions it.
-func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan) (bool, []string, error) {
+// recordingOutputsReady reports which of requested's segments still lack a
+// durable, profile-compatible clip and therefore need (re)capture. Callers
+// resolve the effective segment ids (whole-demo mode passes every plan
+// segment), so a reel scoped to one clip is never wrongly considered ready
+// against the job-level result.json, which holds only the last run's
+// segments until the accumulate step unions it.
+//
+// An empty return means every requested segment can be skipped entirely; a
+// non-empty return is the subset the caller must actually record. Recapture
+// is all-or-nothing only when the stored result itself is unusable as a base
+// (missing, failed, pending publication, invalid, or built under an
+// incompatible capture profile) - in that case every requested segment is
+// returned as missing, since there is nothing per-segment left to trust.
+// captureProfilesCompatible and the per-segment reflect.DeepEqual comparison
+// stay authoritative: a clip is only reused when it was captured under the
+// exact same profile and segment definition, so HUD modes are never mixed
+// within one reel.
+func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan) ([]string, []string, error) {
 	if len(requested) == 0 {
-		return false, nil, nil
+		return nil, nil, nil
 	}
+	needAll := append([]string(nil), requested...)
 	resultKey := recording.ResultArtifactKey(id)
 	exists, err := store.Exists(resultKey)
 	if err != nil || !exists {
-		return false, nil, err
+		return needAll, nil, err
 	}
 	result, err := decodeStoredRecordingResult(store, id)
 	if err != nil || result.Error != "" {
-		return false, nil, err
+		return needAll, nil, err
 	}
 	if result.PublicationPending {
-		return false, nil, nil
+		return needAll, nil, nil
 	}
 	if err := recording.ValidateRunResult(result); err != nil {
-		return false, nil, nil
+		return needAll, nil, nil
 	}
 	if !captureProfilesCompatible(result.Plan, expectedPlan) &&
 		!legacyCaptureProfileCompatible(result.Plan, expectedPlan) {
-		return false, nil, nil
+		return needAll, nil, nil
 	}
 
 	recorded := make(map[string]bool)
@@ -2994,33 +3050,37 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 	}
 	scriptKey := recording.ScriptArtifactKey(id)
 	if ok, err := store.Exists(scriptKey); err != nil || !ok {
-		return false, nil, err
+		return needAll, nil, err
 	}
 	keys := []string{resultKey, scriptKey}
 	expectedSegments := make(map[string]recording.RecordingSegment, len(expectedPlan.Segments))
 	for _, segment := range expectedPlan.Segments {
 		expectedSegments[segment.ID] = segment
 	}
+
+	var missing []string
 	for _, segID := range requested {
-		if !recorded[segID] {
-			return false, nil, nil
-		}
 		storedSegment, stored := recordedSegments[segID]
 		expectedSegment, expected := expectedSegments[segID]
-		if !stored || !expected || !reflect.DeepEqual(storedSegment, expectedSegment) {
-			return false, nil, nil
+		if !recorded[segID] || !stored || !expected || !reflect.DeepEqual(storedSegment, expectedSegment) {
+			missing = append(missing, segID)
+			continue
 		}
 		clipKey, err := recording.SegmentClipArtifactKey(id, segID)
 		if err != nil {
-			return false, nil, err
+			return needAll, nil, err
 		}
 		ok, err := store.Exists(clipKey)
-		if err != nil || !ok {
-			return false, nil, err
+		if err != nil {
+			return needAll, nil, err
+		}
+		if !ok {
+			missing = append(missing, segID)
+			continue
 		}
 		keys = append(keys, clipKey)
 	}
-	return true, keys, nil
+	return missing, keys, nil
 }
 
 func compositionOutputsReady(store storage.Storage, id uuid.UUID) (bool, bool, []string, error) {
@@ -3272,7 +3332,7 @@ func localizeSegmentClips(store storage.Storage, id uuid.UUID, workDir string, r
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			if copyErr := copyStorageToFile(store, localization.Key, localization.LocalPath); copyErr != nil {
+			if copyErr := materializeStorageFile(store, localization.Key, localization.LocalPath); copyErr != nil {
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = fmt.Errorf("localize segment %s: %w", localization.SegmentID, copyErr)

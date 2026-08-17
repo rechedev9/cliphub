@@ -186,6 +186,7 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 			flow:  "demo",
 			steps: demoFlowRunSteps("run", "match.dem", "76561198000000000", ""),
 			runnerPhase: map[string]string{
+				"probe":               "probe",
 				"parse":               "parse",
 				"moments":             "moments",
 				"creative-brief":      "creative-brief",
@@ -360,6 +361,10 @@ func TestFlowsRunDryRunStopsAtInvalidSuppliedKillPlan(t *testing.T) {
 		t.Fatalf("report.OK = true, want false: %#v", report)
 	}
 
+	probe, _ := phaseByName(report, "probe")
+	if !probe.OK || !probe.DryRun || probe.Executed {
+		t.Fatalf("probe = %#v, want successful read-only preflight before the supplied-plan check", probe)
+	}
 	parse, _ := phaseByName(report, "parse")
 	if parse.OK || parse.Skipped || !strings.Contains(parse.Reason, "read kill plan") {
 		t.Fatalf("parse = %#v, want supplied-plan preflight failure", parse)
@@ -390,7 +395,7 @@ func TestFlowsRunDryRunRejectsMissingSourceFiles(t *testing.T) {
 		{
 			name:      "demo",
 			args:      []string{"demo", "--demo", filepath.Join(ws, "missing.dem"), "--steamid", "76561198377256168"},
-			phase:     "parse",
+			phase:     "probe",
 			wantError: "validate --demo",
 		},
 		{
@@ -453,6 +458,10 @@ func TestFlowsRunDemoDryRunMarksGeneratedKillPlanDependenciesUnvalidated(t *test
 	if code != exitUnexpected || report.OK {
 		t.Fatalf("code = %d, report = %#v, want incomplete dry-run", code, report)
 	}
+	probe, _ := phaseByName(report, "probe")
+	if !probe.OK || !probe.DryRun || probe.Executed {
+		t.Fatalf("probe = %#v, want successful read-only preflight", probe)
+	}
 	parse, _ := phaseByName(report, "parse")
 	if !parse.OK || !parse.DryRun || parse.Executed {
 		t.Fatalf("parse = %#v, want successful read-only preflight", parse)
@@ -501,6 +510,10 @@ func TestFlowsRunDemoDryRunReportsUnmaterializedCaptureDependencies(t *testing.T
 		t.Fatalf("report.OK = true, want incomplete dependency report: %s", stdout.String())
 	}
 
+	probe, _ := phaseByName(report, "probe")
+	if !probe.OK || !probe.DryRun || probe.Executed {
+		t.Fatalf("probe phase = %#v, want a successful read-only preflight", probe)
+	}
 	for _, id := range []string{"moments", "select"} {
 		phase, _ := phaseByName(report, id)
 		if !phase.OK || !phase.DryRun || phase.Executed {

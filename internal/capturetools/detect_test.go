@@ -106,11 +106,80 @@ func TestSelectHLAEPrefersLatestInstalledVersion(t *testing.T) {
 			matches: []string{`C:\HLAE-latest\HLAE.exe`, `C:\HLAE-2.191.1\HLAE.exe`},
 			want:    `C:\HLAE-2.191.1\HLAE.exe`,
 		},
+		{
+			name: "packaged studio pin beats older C-drive release",
+			matches: []string{
+				`C:\HLAE-2.191.1\HLAE.exe`,
+				`C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`,
+			},
+			want: `C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`,
+		},
+		{
+			name:    "numeric studio dir without HLAE- prefix is comparable",
+			matches: []string{`C:\HLAE-2.190.1\HLAE.exe`, `D:\tickcut-studio\tools\hlae\2.191.1\HLAE.exe`},
+			want:    `D:\tickcut-studio\tools\hlae\2.191.1\HLAE.exe`,
+		},
+		{
+			name:    "unrelated versioned folder is ignored",
+			matches: []string{`C:\tools\2.192.1\HLAE.exe`, `C:\HLAE-2.191.1\HLAE.exe`},
+			want:    `C:\HLAE-2.191.1\HLAE.exe`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := selectHLAE(tt.matches); got != tt.want {
 				t.Fatalf("selectHLAE() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHLAESearchGlobsIncludePackagedStudioPin(t *testing.T) {
+	t.Setenv("APPDATA", `C:\Users\reche\AppData\Roaming`)
+	got := hlaeSearchGlobs()
+	wantStudio := filepath.Join(`C:\Users\reche\AppData\Roaming`, "tickcut-studio", "tools", "hlae", "*", "HLAE.exe")
+	foundDrive, foundStudio := false, false
+	for _, pattern := range got {
+		if pattern == `C:\HLAE-*\HLAE.exe` {
+			foundDrive = true
+		}
+		if pattern == wantStudio {
+			foundStudio = true
+		}
+	}
+	if !foundDrive || !foundStudio {
+		t.Fatalf("hlaeSearchGlobs() = %#v, want C:\\HLAE-* and packaged studio glob %q", got, wantStudio)
+	}
+}
+
+func TestHLAEVersionAcceptsPackagedStudioPath(t *testing.T) {
+	tests := []struct {
+		path string
+		ok   bool
+		want []int
+	}{
+		{path: `C:\HLAE-2.191.1\HLAE.exe`, ok: true, want: []int{2, 191, 1}},
+		{path: `C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1\HLAE.exe`, ok: true, want: []int{2, 192, 1}},
+		{path: `C:\Users\reche\AppData\Roaming\tickcut-studio\tools\hlae\2.192.1-pre\HLAE.exe`, ok: true, want: []int{2, 192, 1}},
+		{path: `C:\tools\2.192.1\HLAE.exe`, ok: false},
+		{path: `C:\HLAE-latest\HLAE.exe`, ok: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got, ok := hlaeVersion(tt.path)
+			if ok != tt.ok {
+				t.Fatalf("hlaeVersion(%q) ok = %v, want %v", tt.path, ok, tt.ok)
+			}
+			if !tt.ok {
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("hlaeVersion(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("hlaeVersion(%q) = %v, want %v", tt.path, got, tt.want)
+				}
 			}
 		})
 	}

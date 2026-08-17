@@ -5,6 +5,7 @@ package main
 import (
 	"os/exec"
 	"testing"
+	"time"
 )
 
 func TestCaptureJobKillsAssignedProcessOnClose(t *testing.T) {
@@ -29,10 +30,17 @@ func TestCaptureJobKillsAssignedProcessOnClose(t *testing.T) {
 		t.Fatalf("close job: %v", err)
 	}
 
-	// Kill-on-close must have terminated the child: Wait reaps a forcibly
-	// terminated process with a non-nil error, never a clean exit.
-	if err := child.Wait(); err == nil {
-		t.Fatal("child exited cleanly after job close; want forced kill-on-close termination")
+	// Kill-on-close terminates the job's members as if TerminateJobObject had
+	// been called with exit code 0, so the child's exit status is
+	// indistinguishable from a clean exit and cannot prove anything. The proof
+	// is timing: the child would otherwise run for ~30s, so a Wait that returns
+	// promptly means the job tore it down. The threshold is deliberately far
+	// above the observed sub-millisecond teardown and far below the child's own
+	// runtime, so the test cannot flake on a loaded machine.
+	waitStarted := time.Now()
+	_ = child.Wait()
+	if elapsed := time.Since(waitStarted); elapsed > 10*time.Second {
+		t.Fatalf("child outlived the job by %s; want prompt kill-on-close termination", elapsed)
 	}
 }
 

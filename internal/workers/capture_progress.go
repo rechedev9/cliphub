@@ -15,7 +15,11 @@ import (
 	"github.com/rechedev9/tickcut/internal/storage"
 )
 
-const captureProgressPollInterval = 250 * time.Millisecond
+// captureProgressPollInterval bounds how often the watcher re-stats segment
+// clips and writes the capture-progress artifact while a capture is running.
+// 1s is frequent enough for UI-visible progress without competing with the
+// single cs2.exe process and the encoder for I/O during the capture.
+const captureProgressPollInterval = time.Second
 
 type captureProgressReporter struct {
 	store      storage.Storage

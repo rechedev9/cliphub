@@ -3,6 +3,7 @@
 `AGENTS.md` is a tracked symbolic link to this file.
 Edit `CLAUDE.md` only, and never replace the `AGENTS.md` symlink with a regular file.
 The pre-commit hook rejects a broken link and commits made outside `main`.
+On Windows a clone with `core.symlinks=false` materializes `AGENTS.md` as a regular 9-byte file whose contents are the text `CLAUDE.md`, and `git status` stays clean because a symlink's blob is its target. That silently fails the hook and every `zv check` rule that reads `AGENTS.md`. Repair it with `git config core.symlinks true` followed by deleting the file and `git checkout -- AGENTS.md` (needs Developer Mode or an elevated shell); never "fix" it by pasting the guide's text into the file.
 The root `README.md` is the public product entrypoint (GitHub + onboarding). Prefer purpose-specific names such as `PRODUCT.md`, `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md` for operational detail.
 
 ## Product

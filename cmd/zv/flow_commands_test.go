@@ -28,6 +28,7 @@ func TestRunFlowsShowDemoJSONIsCompleteAgentJourney(t *testing.T) {
 	}
 	body := stdout.String()
 	for _, want := range []string{
+		"zv demo probe",
 		"zv demo players",
 		"zv demo moments",
 		"zv demo select",

@@ -83,6 +83,12 @@ func buildWorkflowCatalog() []workflowInfo {
 			RunArgs:     []string{"demo", "select"},
 		},
 		{
+			Name:        "demo-probe",
+			Description: "Classify whether CS2 can start a demo without the tick-0 playdemo crash.",
+			Command:     "zv demo probe --demo <demo.dem> --out <playability.json>",
+			RunArgs:     []string{"demo", "probe"},
+		},
+		{
 			Name:        "utility-audit",
 			Description: "Audit utility destinations/actions against the lineup catalog.",
 			Command:     "zv utility audit --plan <plan-utility.json> --lineup-catalog data/lineups --out <utility-audit.csv>",
@@ -323,7 +329,7 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 			constraint("--variant", streamclips.DefaultVariant().Name, "zv stream variants --format json", streamclips.VariantNames()...),
 			constraint("--format", "text", "", "text", "json"),
 		}
-	case "faceit-index", "stream-render", "stream-variants", "demo-players", "demo-moments", "demo-select", "flows-run",
+	case "faceit-index", "stream-render", "stream-variants", "demo-players", "demo-moments", "demo-select", "demo-probe", "flows-run",
 		"analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		return []workflowValueConstraint{
 			constraint("--format", "text", "", "text", "json"),

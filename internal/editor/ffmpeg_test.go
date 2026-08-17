@@ -232,7 +232,7 @@ func TestBuildCompilationFFmpegCommandCoverFirstFrame(t *testing.T) {
 			t.Fatalf("command = %q, want it to contain %q", command, want)
 		}
 	}
-	if strings.Contains(command, "[catv]format") {
+	if strings.Contains(command, "[catv]format=yuv420p[v]") {
 		t.Fatalf("command = %q, want the base filter routed through [vbase]", command)
 	}
 }
@@ -269,5 +269,61 @@ func TestBuildCompilationFFmpegCommandTailTrimsPartInputs(t *testing.T) {
 	}
 	if strings.Contains(command, "-t 5.000") {
 		t.Fatalf("command = %q, want no trim on the kill-less part", command)
+	}
+}
+
+func TestCompilationPostConcatFilter(t *testing.T) {
+	base := ShortEdit{
+		Preset:          PresetViral60Clean,
+		OutputFPS:       60,
+		DurationSeconds: 10,
+	}
+	tests := []struct {
+		name        string
+		effects     []Effect
+		wantContain []string
+		// wantFullChain asserts the geometry/fps chain from VideoFilter runs
+		// again post-concat (only expected when a zoom effect is present).
+		wantFullChain bool
+	}{
+		{
+			name:        "no effects skips the geometry chain already applied per part",
+			wantContain: []string{"format=yuv420p"},
+		},
+		{
+			name: "grade effect applies without re-scaling/re-cropping",
+			effects: []Effect{
+				{Type: EffectGrade, Contrast: 1.1, Saturation: 1.05, Gamma: 1},
+			},
+			wantContain: []string{"eq=contrast=1.100:saturation=1.050:gamma=1.000", "format=yuv420p"},
+		},
+		{
+			name: "zoom effect needs the dynamic scale, keeps the full chain",
+			effects: []Effect{
+				{Type: EffectZoom, StartSeconds: 1, EndSeconds: 2, AtSeconds: 1.5, Scale: 1.2},
+			},
+			wantFullChain: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			short := base
+			short.Effects = tt.effects
+			got := compilationPostConcatFilter(short)
+			if tt.wantFullChain {
+				if want := VideoFilter(short); got != want {
+					t.Fatalf("compilationPostConcatFilter() = %q, want the full VideoFilter chain %q", got, want)
+				}
+				return
+			}
+			if strings.Contains(got, "scale=") || strings.Contains(got, "crop=") || strings.Contains(got, "fps=") {
+				t.Fatalf("compilationPostConcatFilter() = %q, want no re-applied geometry/fps chain", got)
+			}
+			for _, want := range tt.wantContain {
+				if !strings.Contains(got, want) {
+					t.Fatalf("compilationPostConcatFilter() = %q, want it to contain %q", got, want)
+				}
+			}
+		})
 	}
 }

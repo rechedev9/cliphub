@@ -46,6 +46,11 @@ type shortPackRenderer struct {
 	result   *Result
 	opts     shortPackOptions
 	previous *Result
+	// shortMu guards p.result.Shorts[i]/p.manifest.Shorts[i] for each short
+	// index i: renderOne's publish/quality/cover goroutines can write
+	// different fields of the same struct concurrently, which the race
+	// detector (rightly) treats as unsafe without this.
+	shortMu []sync.Mutex
 }
 
 // normalizeRenderJobs resolves the configured concurrency: 0 means automatic.
@@ -70,6 +75,7 @@ func (p *shortPackRenderer) render(ctx context.Context) error {
 	jobs := normalizeRenderJobs(p.opts.RenderJobs)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	p.shortMu = make([]sync.Mutex, len(p.manifest.Shorts))
 
 	// Each short writes only its own index in result.Shorts/manifest.Shorts;
 	// warnings are collected per short and merged in segment order afterwards
@@ -105,18 +111,57 @@ func (p *shortPackRenderer) render(ctx context.Context) error {
 	return firstErr
 }
 
+// renderOne renders one short's video, then fans the independent post-encode
+// work out to sibling goroutines instead of chaining it: publish (hardlink),
+// quality check, and cover/cover-sheet all only read the already-written
+// short.Output, so none waits on the others. Each goroutine collects its own
+// warnings in a private slice; renderOne merges them back into *warn in a
+// fixed publish -> quality -> cover -> cover-sheet order once every goroutine
+// has finished, so the result stays deterministic regardless of which
+// goroutine actually finishes first. p.shortMu[i] serializes the handful of
+// p.result.Shorts[i]/p.manifest.Shorts[i] field writes these goroutines make,
+// since a struct is not otherwise safe to write from more than one goroutine
+// at a time even when the fields touched differ.
 func (p *shortPackRenderer) renderOne(ctx context.Context, i int, warn *[]string) error {
 	short := &p.manifest.Shorts[i]
 	if err := p.renderShort(ctx, i, short, warn); err != nil {
 		return err
 	}
-	if err := p.publishShort(ctx, i, short, warn); err != nil {
-		return err
-	}
-	p.runQualityCheck(ctx, short, warn)
+
+	var (
+		publishWarn, qaWarn, coverWarn []string
+		publishErr                     error
+		wg                             sync.WaitGroup
+	)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		publishErr = p.publishShort(ctx, i, short, &publishWarn)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		p.runQualityCheck(ctx, short, &qaWarn)
+	}()
+
 	if p.opts.CoversEnabled {
-		p.renderCover(ctx, i, short, warn)
-		p.renderCoverSheet(ctx, i, short, warn)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.renderCover(ctx, i, short, &coverWarn)
+			p.renderCoverSheet(ctx, i, short, &coverWarn)
+		}()
+	}
+
+	wg.Wait()
+	*warn = append(*warn, publishWarn...)
+	*warn = append(*warn, qaWarn...)
+	*warn = append(*warn, coverWarn...)
+
+	if publishErr != nil {
+		return publishErr
 	}
 	return nil
 }
@@ -139,17 +184,43 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 	return nil
 }
 
+// publishShort hardlinks (or, on a cross-device fallback, byte-copies) the
+// rendered short to its publish path: same bytes, same inode when hardlinked.
+// A second ffprobe over that identical content would only ever re-derive
+// what renderShort's probe of short.Output already measured, so this reuses
+// that artifact and just repoints it at the publish path and role instead of
+// spawning another ffprobe process.
 func (p *shortPackRenderer) publishShort(ctx context.Context, i int, short *ShortEdit, warn *[]string) error {
 	if err := publishShort(*short); err != nil {
 		return err
 	}
-	artifact := p.probeArtifact(ctx, short.SegmentID, "publish", "video", short.PublishPath)
+	p.shortMu[i].Lock()
+	source := p.result.Shorts[i].OutputArtifact
+	p.shortMu[i].Unlock()
+	artifact := p.derivedArtifact(source, "publish", short.PublishPath)
+	p.shortMu[i].Lock()
 	p.result.Shorts[i].PublishArtifact = artifact
 	p.manifest.Shorts[i].PublishArtifact = artifact
+	p.shortMu[i].Unlock()
 	if p.opts.ValidateVideos {
 		*warn = append(*warn, validateShortArtifact(artifact, outputFPS(*short), short.OutputFormat)...)
 	}
 	return nil
+}
+
+// derivedArtifact repoints an already-probed artifact at a different role and
+// path that is known to hold identical bytes (a hardlink or byte-for-byte
+// copy of the original), re-statting only the size at the new path instead of
+// re-running ffprobe.
+func (p *shortPackRenderer) derivedArtifact(base recording.RecordingArtifact, role, path string) recording.RecordingArtifact {
+	artifact := base
+	artifact.Role = role
+	artifact.Path = path
+	artifact.SizeBytes = 0
+	if info, err := os.Stat(path); err == nil {
+		artifact.SizeBytes = info.Size()
+	}
+	return artifact
 }
 
 func (p *shortPackRenderer) runQualityCheck(ctx context.Context, short *ShortEdit, warn *[]string) {
@@ -170,32 +241,50 @@ func (p *shortPackRenderer) runQualityCheck(ctx context.Context, short *ShortEdi
 }
 
 func (p *shortPackRenderer) renderCover(ctx context.Context, i int, short *ShortEdit, warn *[]string) {
-	if validatedExistingArtifact(p.previous, p.result.Shorts[i], short.CoverPath, "cover") {
+	p.shortMu[i].Lock()
+	current := p.result.Shorts[i]
+	p.shortMu[i].Unlock()
+	if validatedExistingArtifact(p.previous, current, short.CoverPath, "cover") {
+		artifact := p.probeCover(ctx, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
+		p.shortMu[i].Lock()
 		p.result.Shorts[i].CoverSkipped = true
-		p.result.Shorts[i].CoverArtifact = p.probeCover(ctx, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
+		p.result.Shorts[i].CoverArtifact = artifact
+		p.shortMu[i].Unlock()
 		return
 	}
 	if err := runFFmpegAtomic(ctx, short.CoverCommand, "cover extract", "", short.CoverPath); err != nil {
 		*warn = append(*warn, fmt.Sprintf("cover %s: %v", short.SegmentID, err))
 		return
 	}
-	p.result.Shorts[i].CoverArtifact = p.probeCover(ctx, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
+	artifact := p.probeCover(ctx, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
+	p.shortMu[i].Lock()
+	p.result.Shorts[i].CoverArtifact = artifact
+	p.shortMu[i].Unlock()
 }
 
 func (p *shortPackRenderer) renderCoverSheet(ctx context.Context, i int, short *ShortEdit, warn *[]string) {
 	if short.CoverSheetPath == "" {
 		return
 	}
-	if validatedExistingArtifact(p.previous, p.result.Shorts[i], short.CoverSheetPath, "cover-sheet") {
+	p.shortMu[i].Lock()
+	current := p.result.Shorts[i]
+	p.shortMu[i].Unlock()
+	if validatedExistingArtifact(p.previous, current, short.CoverSheetPath, "cover-sheet") {
+		artifact := p.probeCover(ctx, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
+		p.shortMu[i].Lock()
 		p.result.Shorts[i].CoverSheetSkipped = true
-		p.result.Shorts[i].CoverSheetArtifact = p.probeCover(ctx, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
+		p.result.Shorts[i].CoverSheetArtifact = artifact
+		p.shortMu[i].Unlock()
 		return
 	}
 	if err := runFFmpegAtomic(ctx, short.CoverSheetCommand, "cover sheet", "", short.CoverSheetPath); err != nil {
 		*warn = append(*warn, fmt.Sprintf("cover sheet %s: %v", short.SegmentID, err))
 		return
 	}
-	p.result.Shorts[i].CoverSheetArtifact = p.probeCover(ctx, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
+	artifact := p.probeCover(ctx, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
+	p.shortMu[i].Lock()
+	p.result.Shorts[i].CoverSheetArtifact = artifact
+	p.shortMu[i].Unlock()
 }
 
 func (p *shortPackRenderer) probeCover(ctx context.Context, segmentID, role, path, outputFormat string, warn *[]string) recording.RecordingArtifact {

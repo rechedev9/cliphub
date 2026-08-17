@@ -1137,7 +1137,7 @@ func TestZVBinaryCurrentDirectDocExamplesEndToEnd(t *testing.T) {
 		case "flows":
 			// `flows run --dry-run` is a pure in-process plan.
 		case "demo":
-			if len(command) < 2 || (command[1] != "moments" && command[1] != "select") {
+			if len(command) < 2 || (command[1] != "moments" && command[1] != "select" && command[1] != "probe") {
 				wantSubcommandCalls++
 			}
 		case "analysis":

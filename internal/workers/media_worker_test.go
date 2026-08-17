@@ -27,6 +27,7 @@ import (
 	"github.com/rechedev9/tickcut/internal/recording"
 	"github.com/rechedev9/tickcut/internal/renderplan"
 	"github.com/rechedev9/tickcut/internal/rules"
+	"github.com/rechedev9/tickcut/internal/storage"
 	"github.com/rechedev9/tickcut/internal/tasks"
 )
 
@@ -267,6 +268,81 @@ func TestPrepareStageDirKeepsExplicitWorkDir(t *testing.T) {
 	if _, err := os.Stat(dir); err != nil {
 		t.Fatalf("explicit work dir removed, err=%v", err)
 	}
+}
+
+// TestMaterializeStorageFile is the B4 regression: materializing an artifact
+// out of storage.Local must hardlink instead of copying its bytes, while any
+// other Storage implementation (no ResolvePath) keeps the byte-copy fallback.
+func TestMaterializeStorageFile(t *testing.T) {
+	t.Run("hardlinks a real local storage artifact instead of copying it", func(t *testing.T) {
+		local, err := storage.NewLocal(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		const key = "demos/test.dem"
+		if err := local.Put(key, bytes.NewReader([]byte("demo bytes"))); err != nil {
+			t.Fatal(err)
+		}
+		srcPath, err := local.ResolvePath(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		destPath := filepath.Join(t.TempDir(), "nested", "demo.dem")
+		if err := materializeStorageFile(local, key, destPath); err != nil {
+			t.Fatalf("materializeStorageFile error = %v", err)
+		}
+
+		srcInfo, err := os.Stat(srcPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		destInfo, err := os.Stat(destPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !os.SameFile(srcInfo, destInfo) {
+			t.Fatal("materialized file is not a hardlink to the storage-owned file (byte copy happened)")
+		}
+		got, err := os.ReadFile(destPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "demo bytes" {
+			t.Fatalf("materialized content = %q, want %q", got, "demo bytes")
+		}
+	})
+
+	t.Run("falls back to a byte copy for storage without a resolvable local path", func(t *testing.T) {
+		store := newFakeStorage()
+		const key = "demos/test.dem"
+		if err := store.Put(key, bytes.NewReader([]byte("demo bytes"))); err != nil {
+			t.Fatal(err)
+		}
+		destPath := filepath.Join(t.TempDir(), "demo.dem")
+
+		if err := materializeStorageFile(store, key, destPath); err != nil {
+			t.Fatalf("materializeStorageFile error = %v", err)
+		}
+		got, err := os.ReadFile(destPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "demo bytes" {
+			t.Fatalf("materialized content = %q, want %q", got, "demo bytes")
+		}
+	})
+
+	t.Run("propagates the underlying error when the source is missing", func(t *testing.T) {
+		local, err := storage.NewLocal(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		destPath := filepath.Join(t.TempDir(), "demo.dem")
+		if err := materializeStorageFile(local, "demos/missing.dem", destPath); err == nil {
+			t.Fatal("materializeStorageFile did not error for a missing source artifact")
+		}
+	})
 }
 
 func TestComposeWorkerLocalizesSegmentsAndStoresFinal(t *testing.T) {

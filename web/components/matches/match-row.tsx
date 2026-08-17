@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ReelCover } from '@/components/brand/reel-cover';
+import { MapCover } from '@/components/brand/map-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { ScoreBar } from '@/components/brand/score-bar';
 import { StatMono } from '@/components/brand/stat-mono';
@@ -31,17 +31,15 @@ export type MatchRowProps = {
 };
 
 /**
- * The map still. `Match.thumbnailUrl` is optional and the jobs index does not
- * carry one, so the frame paints the seeded `ReelCover` plate and only layers a
- * real image over it when the API supplied one — the image is the top layer, so
- * a URL that never resolves (the app's CSP is `img-src 'self' data: blob:`,
- * which blocks any off-origin cover outright) degrades to the plate instead of a
- * broken box. Nothing here invents media that the API did not report.
+ * The map still. Uploaded jobs rarely carry a thumbnail, so the frame paints a
+ * map-specific plate (palette + silhouette) and only layers a real image when
+ * the API supplied one. A URL that never resolves (CSP is `img-src 'self'
+ * data: blob:`) unmounts and leaves the plate, not a broken box.
  */
 function MatchThumb({ match }: { match: Match }) {
   return (
-    <span className="relative hidden aspect-video w-[5.5rem] shrink-0 self-center overflow-hidden border border-border-subtle bg-surface-0 @[42rem]/content:block">
-      <ReelCover seed={match.id} plain className="absolute inset-0" />
+    <span className="relative hidden aspect-video w-28 shrink-0 self-center overflow-hidden border border-border-subtle bg-surface-0 @[42rem]/content:block">
+      <MapCover map={match.map} className="absolute inset-0" />
       <CoverImage src={match.thumbnailUrl} className="absolute inset-0" />
     </span>
   );

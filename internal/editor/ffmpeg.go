@@ -267,7 +267,10 @@ func CompilationFilter(short ShortEdit) string {
 			gapDuration := float64(gapFrames) / float64(fps)
 			clauses = append(clauses,
 				fmt.Sprintf(
-					"[%d:v]%s,trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
+					// trim to a single source frame before VideoFilter: only
+					// that frame survives, so filtering the rest of the part
+					// just to discard it is wasted work.
+					"[%d:v]trim=end_frame=1,%s,loop=loop=-1:size=1:start=0,setpts=N/%d/TB,trim=end_frame=%d[%s]",
 					i, VideoFilter(partShort), fps, gapFrames, gapV,
 				),
 				fmt.Sprintf("anullsrc=channel_layout=stereo:sample_rate=48000:d=%.6f[%s]", gapDuration, gapA),
@@ -290,9 +293,9 @@ func CompilationFilter(short ShortEdit) string {
 	images := imageEffects(short.Effects)
 	killfeeds := killfeedEffects(short.Effects)
 	if len(images) == 0 && len(killfeeds) == 0 && !short.CoverFirstFrame {
-		clauses = append(clauses, fmt.Sprintf("[catv]%s[v]", VideoFilter(short)))
+		clauses = append(clauses, fmt.Sprintf("[catv]%s[v]", compilationPostConcatFilter(short)))
 	} else {
-		clauses = append(clauses, fmt.Sprintf("[catv]%s[vbase]", VideoFilter(short)))
+		clauses = append(clauses, fmt.Sprintf("[catv]%s[vbase]", compilationPostConcatFilter(short)))
 		current := "vbase"
 		for i, effect := range killfeeds {
 			partIndex, sampleSeconds := killfeedSamplePart(&short, effect)
@@ -341,6 +344,30 @@ func CompilationFilter(short ShortEdit) string {
 	return strings.Join(clauses, ";")
 }
 
+// compilationPostConcatFilter builds the video filter applied to [catv],
+// the concatenated program feed. Every part already ran through
+// VideoFilter(partShort) using the short-level dimensions/fps/preset
+// (partShort only strips Effects and Parts, see CompilationFilter), so
+// scale/crop/setsar/fps/temporal-smoothing already sit on every frame
+// reaching [catv]; re-running that whole chain here would just repeat the
+// same per-frame work for no visible change.
+//
+// The one exception is an active zoom effect: it drives the scale height by
+// timeline position (zoomHeightExpression), and that dynamic scale can only
+// be computed once the compiled short's effect timing is known — a part
+// filtered alone (Effects stripped) has no such timing. So a zoom effect
+// keeps the full VideoFilter chain here, crop/setsar/fps included, since the
+// scaled frame size changes with it.
+func compilationPostConcatFilter(short ShortEdit) string {
+	_, height := outputDimensions(short)
+	if zoomHeightExpression(short.Effects, height) != "" {
+		return VideoFilter(short)
+	}
+	filters := appendEffectFilters([]string{}, short.Effects)
+	filters = append(filters, "format=yuv420p")
+	return strings.Join(filters, ",")
+}
+
 // compilationPartIndexAt finds the part whose compiled-timeline window covers
 // the killfeed effect, so the overlay crops death notices from the source
 // footage that is actually on screen. Falls back to the last part started
@@ -374,10 +401,13 @@ func killfeedCropFilter(effect Effect, short ShortEdit, sampleSeconds float64) s
 		cropHeight = 110
 	}
 	filters := []string{
+		// trim first: only the sampled frame needs to survive scale/crop/lanczos
+		// below, so trimming before those per-frame filters skips re-scaling
+		// every discarded frame from t=0 to the sample point.
+		fmt.Sprintf("trim=start=%.3f:duration=0.050", sampleSeconds),
 		scaleFilter("1080", short),
 		fmt.Sprintf("crop=%d:%d:%d:%d", cropWidth, cropHeight, effect.CropX, effect.CropY),
 		sourceCropScaleFilter(effect),
-		fmt.Sprintf("trim=start=%.3f:duration=0.050", sampleSeconds),
 		"loop=loop=-1:size=1:start=0",
 		fmt.Sprintf("setpts=N/%d/TB", outputFPS(short)),
 	}

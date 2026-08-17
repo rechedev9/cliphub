@@ -50,6 +50,12 @@ func TestRecordFailureReason(t *testing.T) {
 			want:      "demo_incompatible: cs2 cannot replay this demo (it was recorded on an older cs2 build)",
 		},
 		{
+			name:      "unplayable start prefix wins over last error line",
+			err:       errors.New("zv-recorder.exe failed: exit status 8: error: unplayable_start: CS2 crashed rewinding playdemo to tick 0; check CS2 console log \"c:\\\\game\\\\csgo\\\\console.log\""),
+			requested: []string{"seg-001"},
+			want:      "unplayable_start: CS2 crashed rewinding playdemo to tick 0",
+		},
+		{
 			name:      "generic failure uses last error line",
 			err:       errors.New("zv-recorder.exe failed: exit status 1: some noise\nerror: first problem\nmore noise\nerror: hlae launch failed"),
 			requested: []string{"seg-001"},

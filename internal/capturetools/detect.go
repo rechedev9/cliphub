@@ -123,12 +123,27 @@ func detectSibling(name string) string {
 
 // detectHLAE deliberately ignores the known-wrong bare C:\HLAE install. The
 // highest installed versioned release always wins so CS2 signature updates do
-// not leave capture pinned to an older AfxHookSource2 build.
+// not leave capture pinned to an older AfxHookSource2 build. Packaged Studio
+// unpacks under %APPDATA%\tickcut-studio\tools\hlae\<version>\HLAE.exe and
+// must compete with C:\HLAE-* so a newer pin is not shadowed by an older
+// C-drive folder.
 func detectHLAE() string {
 	if runtime.GOOS != "windows" {
 		return ""
 	}
-	return selectHLAE(keepExisting(globNoErr(`C:\HLAE-*\HLAE.exe`)))
+	var matches []string
+	for _, pattern := range hlaeSearchGlobs() {
+		matches = append(matches, keepExisting(globNoErr(pattern))...)
+	}
+	return selectHLAE(matches)
+}
+
+func hlaeSearchGlobs() []string {
+	globs := []string{`C:\HLAE-*\HLAE.exe`}
+	if appData := os.Getenv("APPDATA"); appData != "" {
+		globs = append(globs, filepath.Join(appData, `tickcut-studio`, "tools", "hlae", "*", "HLAE.exe"))
+	}
+	return globs
 }
 
 func selectHLAE(matches []string) string {
@@ -160,12 +175,28 @@ func hlaeVersion(path string) ([]int, bool) {
 	}
 	parent := strings.TrimRight(normalized[:separator], "/")
 	separator = strings.LastIndexByte(parent, '/')
-	dir := parent[separator+1:]
+	dir := parent
+	grandparent := ""
+	if separator >= 0 {
+		dir = parent[separator+1:]
+		grandparentPath := strings.TrimRight(parent[:separator], "/")
+		if gpSep := strings.LastIndexByte(grandparentPath, '/'); gpSep >= 0 {
+			grandparent = grandparentPath[gpSep+1:]
+		} else {
+			grandparent = grandparentPath
+		}
+	}
 	const prefix = "HLAE-"
-	if len(dir) <= len(prefix) || !strings.EqualFold(dir[:len(prefix)], prefix) {
+	var raw string
+	switch {
+	case len(dir) > len(prefix) && strings.EqualFold(dir[:len(prefix)], prefix):
+		raw = dir[len(prefix):]
+	case strings.EqualFold(grandparent, "hlae"):
+		// Packaged Studio pin: ...\tickcut-studio\tools\hlae\2.192.1\HLAE.exe
+		raw = dir
+	default:
 		return nil, false
 	}
-	raw := dir[len(prefix):]
 	end := 0
 	for end < len(raw) && ((raw[end] >= '0' && raw[end] <= '9') || raw[end] == '.') {
 		end++

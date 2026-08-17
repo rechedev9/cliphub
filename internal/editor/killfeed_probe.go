@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"os/exec"
+	"sync"
 )
 
 const (
@@ -47,7 +48,19 @@ const (
 	// its pixels may fill: a 2px border ring fills ~13% of its bbox, while
 	// solid scene red fills ~100%, so anything over half is rejected as a blob.
 	killfeedMaxHighlightFill = 0.5
+	// killfeedSampleMaxCount bounds the total number of frames probed per
+	// killfeed effect (forward window plus any backward fallback samples),
+	// matching the historical up-to-8-samples budget.
+	killfeedSampleMaxCount = 8
 )
+
+// killfeedProbeResult is the outcome of measuring one effect: whether to keep
+// it (mutated, if kept) and at most one warning to surface.
+type killfeedProbeResult struct {
+	keep    bool
+	effect  Effect
+	warning string
+}
 
 // refineKillfeedEffects replaces the static killfeed crop defaults with a
 // per-kill measurement: it samples source frames in a short window after each
@@ -57,81 +70,140 @@ const (
 // freeze uses the same winning frame. Probe errors on one sample continue the
 // window; exhausting the window with no highlight drops generated
 // ("edit-request") overlays and keeps script-authored crops with a warning.
+//
+// Each killfeed effect is measured in its own goroutine, bounded by the same
+// sem/WaitGroup pattern shortPackRenderer.render uses: a kill's own sample
+// window is walked in series (the first hit wins, so within-effect
+// parallelism buys nothing), but a short with several kills probes them
+// concurrently. Effects are read into local copies before any goroutine
+// starts, and results land in a slice indexed by the effect's original
+// position, so the final filter-and-merge stays single-threaded and the
+// returned warnings keep the original effect order regardless of which
+// goroutine finished first.
 func refineKillfeedEffects(short *ShortEdit, probe func(input string, atSeconds float64) (image.Image, error)) []string {
 	if probe == nil {
 		return nil
 	}
+	results := make([]killfeedProbeResult, len(short.Effects))
+	jobs := normalizeRenderJobs(0)
+	sem := make(chan struct{}, jobs)
+	var wg sync.WaitGroup
+	for i, effect := range short.Effects {
+		if effect.Type != EffectKillfeed {
+			results[i] = killfeedProbeResult{keep: true, effect: effect}
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, effect Effect) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = probeKillfeedEffect(short, effect, probe)
+		}(i, effect)
+	}
+	wg.Wait()
+
 	var warnings []string
 	kept := short.Effects[:0]
-	for i := range short.Effects {
-		effect := &short.Effects[i]
-		if effect.Type != EffectKillfeed {
-			kept = append(kept, *effect)
-			continue
+	for _, result := range results {
+		if result.warning != "" {
+			warnings = append(warnings, result.warning)
 		}
-		input, samples := killfeedSampleTimes(short, *effect)
-		if input == "" || len(samples) == 0 {
-			warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no source input to probe; keeping default crop", effect.StartSeconds))
-			kept = append(kept, *effect)
-			continue
+		if result.keep {
+			kept = append(kept, result.effect)
 		}
-
-		var (
-			lastErr     error
-			sawEmpty    bool
-			found       bool
-			foundSample float64
-			rect        image.Rectangle
-		)
-		for _, sampleAt := range samples {
-			frame, err := probe(input, sampleAt)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-			r, ok := detectKillfeedHighlight(frame)
-			if !ok {
-				sawEmpty = true
-				continue
-			}
-			rect = r
-			foundSample = sampleAt
-			found = true
-			break
-		}
-		if !found {
-			switch {
-			case lastErr != nil && !sawEmpty:
-				// Every sample failed to extract a frame: keep defaults.
-				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: %v; keeping default crop", effect.StartSeconds, lastErr))
-				kept = append(kept, *effect)
-			case effect.Source == "edit-request":
-				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; dropping overlay", effect.StartSeconds, input))
-			default:
-				warnings = append(warnings, fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; keeping default crop", effect.StartSeconds, input))
-				kept = append(kept, *effect)
-			}
-			continue
-		}
-
-		effect.CropX = rect.Min.X
-		effect.CropY = rect.Min.Y
-		effect.CropWidth = rect.Dx()
-		effect.CropHeight = rect.Dy()
-		effect.Width = int(float64(rect.Dx())*killfeedOverlayScale + 0.5)
-		// Retime so killfeedSamplePart (FFmpeg freeze) resolves to foundSample:
-		// sample = AtSeconds - timelineStart + delay  =>  At = sample + timelineStart - delay.
-		effect.AtSeconds = killfeedAtSecondsForSample(short, *effect, foundSample)
-		kept = append(kept, *effect)
 	}
 	short.Effects = kept
 	return warnings
 }
 
-// killfeedSampleTimes returns the source path and ascending in-source timestamps
-// to probe for a killfeed effect. The first time is the legacy kill+0.35s
-// sample; later times walk a fixed window so late-painted death notices still
-// measure. Times are clamped to the owning part (or short) duration.
+// probeKillfeedEffect walks the sample window for a single killfeed effect
+// and reports whether to keep it (with the measured crop, if any) and a
+// warning to surface. It only reads short (Input/Parts/DurationSeconds),
+// never mutates it, so it is safe to call concurrently across effects.
+func probeKillfeedEffect(short *ShortEdit, effect Effect, probe func(input string, atSeconds float64) (image.Image, error)) killfeedProbeResult {
+	input, samples := killfeedSampleTimes(short, effect)
+	if input == "" || len(samples) == 0 {
+		return killfeedProbeResult{
+			keep:    true,
+			effect:  effect,
+			warning: fmt.Sprintf("killfeed crop at %.2fs: no source input to probe; keeping default crop", effect.StartSeconds),
+		}
+	}
+
+	var (
+		lastErr     error
+		sawEmpty    bool
+		found       bool
+		foundSample float64
+		rect        image.Rectangle
+	)
+	for _, sampleAt := range samples {
+		frame, err := probe(input, sampleAt)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		r, ok := detectKillfeedHighlight(frame)
+		if !ok {
+			sawEmpty = true
+			continue
+		}
+		rect = r
+		foundSample = sampleAt
+		found = true
+		break
+	}
+	if !found {
+		switch {
+		case lastErr != nil && !sawEmpty:
+			// Every sample failed to extract a frame: keep defaults.
+			return killfeedProbeResult{
+				keep:    true,
+				effect:  effect,
+				warning: fmt.Sprintf("killfeed crop at %.2fs: %v; keeping default crop", effect.StartSeconds, lastErr),
+			}
+		case effect.Source == "edit-request":
+			return killfeedProbeResult{
+				keep:    false,
+				warning: fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; dropping overlay", effect.StartSeconds, input),
+			}
+		default:
+			return killfeedProbeResult{
+				keep:    true,
+				effect:  effect,
+				warning: fmt.Sprintf("killfeed crop at %.2fs: no highlighted kill notice detected in %s; keeping default crop", effect.StartSeconds, input),
+			}
+		}
+	}
+
+	effect.CropX = rect.Min.X
+	effect.CropY = rect.Min.Y
+	effect.CropWidth = rect.Dx()
+	effect.CropHeight = rect.Dy()
+	effect.Width = int(float64(rect.Dx())*killfeedOverlayScale + 0.5)
+	// Retime so killfeedSamplePart (FFmpeg freeze) resolves to foundSample:
+	// sample = AtSeconds - timelineStart + delay  =>  At = sample + timelineStart - delay.
+	effect.AtSeconds = killfeedAtSecondsForSample(short, effect, foundSample)
+	return killfeedProbeResult{keep: true, effect: effect}
+}
+
+// killfeedSampleTimes returns the source path and the in-source timestamps to
+// probe for a killfeed effect, in preference order. The first time is the
+// legacy kill+0.35s sample; later times walk a fixed forward window so
+// late-painted death notices still measure. Times are clamped to the owning
+// part (or short) duration.
+//
+// A kill with little post-roll (typically the last kill in a clip) has that
+// entire forward window clamp to the same last-available frame, collapsing
+// the window to a single sample; if the notice is not painted yet on that one
+// frame, refineKillfeedEffects has nothing else to try and drops the overlay.
+// When that happens, this also probes backward from the last available frame
+// (still no earlier than the kill itself) so the sample set spans several
+// distinct frames instead of repeating one. Backward samples are appended
+// after the forward ones, so the existing late-offset preference order (and
+// therefore the result for every clip where the forward window already fits)
+// is unchanged.
 func killfeedSampleTimes(short *ShortEdit, effect Effect) (string, []float64) {
 	partIndex, first := killfeedSamplePart(short, effect)
 	input := short.Input
@@ -175,7 +247,35 @@ func killfeedSampleTimes(short *ShortEdit, effect Effect) (string, []float64) {
 	if len(times) == 0 {
 		appendUnique(first)
 	}
+	if maxDuration > 0 && len(times) <= 1 {
+		times = appendBackwardKillfeedSamples(times, killInSource)
+	}
 	return input, times
+}
+
+// appendBackwardKillfeedSamples extends a forward sample window that
+// collapsed to a single frame (short post-roll clamped every forward offset
+// to the clip's last frame) by walking backward from that frame in
+// killfeedSampleStepSeconds strides, never going earlier than killInSource
+// (the highlight cannot appear before the kill itself) or below zero, up to
+// killfeedSampleMaxCount total samples.
+func appendBackwardKillfeedSamples(times []float64, killInSource float64) []float64 {
+	last := times[len(times)-1]
+	floor := killInSource
+	if floor < 0 {
+		floor = 0
+	}
+	for offset := killfeedSampleStepSeconds; len(times) < killfeedSampleMaxCount; offset += killfeedSampleStepSeconds {
+		at := last - offset
+		if at < floor-1e-9 {
+			break
+		}
+		if at < 0 {
+			at = 0
+		}
+		times = append(times, at)
+	}
+	return times
 }
 
 // killfeedAtSecondsForSample chooses AtSeconds so killfeedSamplePart returns sample.

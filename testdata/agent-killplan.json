@@ -3,7 +3,7 @@
   "generated_at": "2026-07-16T00:00:00Z",
   "demo": {
     "path": "testdata/agent-demo.fixture",
-    "sha256": "510ff2592d03aaab90c029900bfd68eb12b29988143045f8fbafe073b8da11dd",
+    "sha256": "0f4d3f620f4c7c9ba416a1432fb44a1c6926b82b7a765465b645b5487d9b8aea",
     "map": "de_nuke",
     "tickrate": 64,
     "duration_ticks": 640

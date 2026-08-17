@@ -407,11 +407,12 @@ func TestCompilationFilterOverlaysKillfeedFromSourcePart(t *testing.T) {
 	filter := CompilationFilter(short)
 	for _, want := range []string{
 		"[1:v]",
+		// the notice is frozen at the probed frame so its translucent
+		// background does not carry moving source footage into the overlay;
+		// trim runs first so only the sampled frame is scaled/cropped
+		"trim=start=3.900:duration=0.050",
 		"crop=360:110:1558:64",
 		"scale=w=430:h=-1:flags=lanczos",
-		// the notice is frozen at the probed frame so its translucent
-		// background does not carry moving source footage into the overlay
-		"trim=start=3.900:duration=0.050",
 		"loop=loop=-1:size=1:start=0",
 		"setpts=N/60/TB",
 		// shadow crush flattens the world baked into the translucent notice
@@ -700,7 +701,10 @@ func TestBuildFFmpegCommandForCompilationShort(t *testing.T) {
 	for _, want := range []string{
 		"[0:v]",
 		"[1:v]",
-		"trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/24/TB,trim=end_frame=12[gapv0]",
+		// trim to a single source frame runs before VideoFilter, so scale/crop
+		// only process the frame that survives into the gap freeze
+		"[0:v]trim=end_frame=1,scale=",
+		"loop=loop=-1:size=1:start=0,setpts=N/24/TB,trim=end_frame=12[gapv0]",
 		"anullsrc=channel_layout=stereo:sample_rate=48000:d=0.500000",
 		"trim=end_frame=96,setpts=PTS-STARTPTS[pv0]",
 		"atrim=duration=4.000000,asetpts=PTS-STARTPTS[pa0]",

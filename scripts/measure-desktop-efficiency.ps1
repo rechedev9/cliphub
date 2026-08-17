@@ -143,11 +143,48 @@ for ($sampleIndex = 0; $sampleIndex -le $Seconds; $sampleIndex += 1) {
 
 $measured = if ($samples.Count -gt 1) { @($samples | Select-Object -Skip 1) } else { @($samples) }
 $elapsedSeconds = if ($measured.Count -gt 0) { [double]$measured[-1].offset_seconds } else { 0.0 }
+
+$roleNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($sample in $measured) {
+    if ($null -eq $sample.roles) { continue }
+    foreach ($roleName in @($sample.roles.Keys)) {
+        [void]$roleNames.Add([string]$roleName)
+    }
+}
+$rolesDocument = [ordered]@{}
+foreach ($roleName in ($roleNames | Sort-Object)) {
+    $roleCpu = [System.Collections.Generic.List[double]]::new()
+    $roleWorkingSet = [System.Collections.Generic.List[long]]::new()
+    $rolePrivate = [System.Collections.Generic.List[long]]::new()
+    $roleGpu = [System.Collections.Generic.List[double]]::new()
+    $roleGpuMemory = [System.Collections.Generic.List[long]]::new()
+    $roleCount = [System.Collections.Generic.List[int]]::new()
+    foreach ($sample in $measured) {
+        if (-not $sample.roles.ContainsKey($roleName)) { continue }
+        $row = $sample.roles[$roleName]
+        $roleCpu.Add([double]$row.cpu_percent)
+        $roleWorkingSet.Add([long]$row.working_set_bytes)
+        $rolePrivate.Add([long]$row.private_bytes)
+        $roleGpu.Add([double]$row.gpu_percent)
+        $roleGpuMemory.Add([long]$row.gpu_memory_bytes)
+        $roleCount.Add([int]$row.process_count)
+    }
+    $rolesDocument[$roleName] = [ordered]@{
+        cpu_p95_percent = Get-Percentile -Values @($roleCpu) -Percentile 95
+        gpu_p95_percent = Get-Percentile -Values @($roleGpu) -Percentile 95
+        working_set_peak_bytes = [long](Get-NumberOrZero ($roleWorkingSet | Measure-Object -Maximum).Maximum)
+        private_bytes_peak = [long](Get-NumberOrZero ($rolePrivate | Measure-Object -Maximum).Maximum)
+        gpu_memory_peak_bytes = [long](Get-NumberOrZero ($roleGpuMemory | Measure-Object -Maximum).Maximum)
+        process_count_peak = [int](Get-NumberOrZero ($roleCount | Measure-Object -Maximum).Maximum)
+    }
+}
+
 $document = [ordered]@{
     schema_version = 1
     scenario = $Scenario
     root_pid = $RootPid
     started_at = $startedAt.ToString("O")
+    duration_seconds = $Seconds
     target_sample_interval_seconds = $sampleIntervalSeconds
     sample_count = $measured.Count
     elapsed_seconds = $elapsedSeconds
@@ -158,7 +195,10 @@ $document = [ordered]@{
         private_bytes_peak = [long](Get-NumberOrZero ($measured.private_bytes | Measure-Object -Maximum).Maximum)
         gpu_memory_peak_bytes = [long](Get-NumberOrZero ($measured.gpu_memory_bytes | Measure-Object -Maximum).Maximum)
     }
+    roles = $rolesDocument
     samples = $measured
 }
-$document | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedOutput -Encoding utf8
+$json = $document | ConvertTo-Json -Depth 8
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[System.IO.File]::WriteAllText($resolvedOutput, $json, $utf8NoBom)
 Write-Output $resolvedOutput

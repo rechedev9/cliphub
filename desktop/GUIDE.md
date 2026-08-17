@@ -151,8 +151,13 @@ pnpm run test:e2e:ui
 
 ## Measure desktop efficiency
 
-After Studio is open, capture a 1 Hz process-tree sample without persisting
-command lines or environment data:
+After Studio is open, capture a 1 Hz process-tree sample of the Electron tree
+and its owned children. Do not launch HLAE, CS2, capture, or a long
+FFmpeg/render job for this measurement. The sampler does not persist command
+lines or environment data.
+
+Named scenarios: `foreground-idle`, `background-idle`, `stream-static`,
+`stream-playback`.
 
 ```powershell
 .\scripts\measure-desktop-efficiency.ps1 -RootPid <electron-main-pid> -Scenario foreground-idle
@@ -161,10 +166,31 @@ command lines or environment data:
 .\scripts\measure-desktop-efficiency.ps1 -RootPid <electron-main-pid> -Scenario stream-playback
 ```
 
-Each run writes schema-versioned JSON under `desktop/e2e/artifacts/` with CPU,
-working/private memory, GPU utilization, GPU process memory, and aggregate
-roles. Use the same machine, source MP4, editor state, and 15-second duration
-when comparing builds.
+Each run writes schema-versioned JSON under `desktop/e2e/artifacts/` with
+`schema_version`, the requested `duration_seconds`, summary percentiles/peaks
+(`cpu_p95_percent`, `working_set_peak_bytes`, `private_bytes_peak`, plus
+informational GPU fields), and a top-level `roles` breakdown.
+
+Iterate only on raw-process wins, same scenario and duration, same machine
+assumptions:
+
+1. Measure and persist a baseline (`-OutputPath desktop\e2e\artifacts\efficiency-<scenario>-baseline.json`).
+2. Change code or config. Do not recapture or rerender.
+3. Remeasure the same scenario and `-Seconds` onto a candidate path.
+4. Compare with the shipped rule:
+
+```powershell
+node desktop\scripts\compare-efficiency.mjs --baseline desktop\e2e\artifacts\efficiency-foreground-idle-baseline.json --candidate desktop\e2e\artifacts\efficiency-foreground-idle-candidate.json
+```
+
+Accept only when `accept` is true (`verdict=improve`): every comparable
+summary (`cpu_p95_percent`, `working_set_peak_bytes`, `private_bytes_peak`)
+is no worse than the baseline and at least one is strictly better. A mixed
+result is a regress. Different scenario, duration, or schema is
+incomparable. `gpu_p95_percent` may be 0 and never decides accept/reject.
+
+The Grok workflow `.grok/workflows/desktop-efficiency.rhai` orchestrates the
+same loop (`measure` → persist baseline → change → remasure → compare).
 
 ## How it works
 

@@ -6,6 +6,9 @@
  */
 export const DEMO_INCOMPATIBLE_PREFIX = 'demo_incompatible:' as const;
 
+/** Stable prefix when CS2 crashes rewinding playdemo to demo tick 0. */
+export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
+
 /** Stable prefix the orchestrator stamps when a stored capture must be re-recorded. */
 export const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
@@ -35,7 +38,7 @@ export type CapturedCounts = { captured: number; requested: number };
 
 /** Parsed classification of a reel's `failureReason` string. */
 export type FailureReason = {
-  kind: 'demo-incompatible' | 'recording-not-reusable' | 'generic';
+  kind: 'demo-incompatible' | 'unplayable-start' | 'recording-not-reusable' | 'generic';
   /** Spanish message the failed-reel card should surface to the user. */
   message: string;
   /** Whether a retry could plausibly resolve the failure. */
@@ -49,6 +52,10 @@ const GENERIC_MESSAGE = 'El reel falló en tu equipo.';
 const DEMO_INCOMPATIBLE_MESSAGE =
   'Esta demo se grabó en una versión antigua de CS2 y el cliente actual no puede reproducirla. ' +
   'Reintentar no lo arreglará: usa una demo jugada después del último parche.';
+
+const UNPLAYABLE_START_MESSAGE =
+  'Esta demo empieza a mitad y CS2 crashea al rebobinar a tick 0. ' +
+  'No relances CS2: no es un fallo de POV ni de HLAE.';
 
 const RECORDING_NOT_REUSABLE_MESSAGE =
   'La captura guardada no es reutilizable con esta versión de TickCut. ' +
@@ -73,6 +80,10 @@ function capturedSentence(counts: CapturedCounts): string {
 export function parseFailureReason(reason: string | undefined): FailureReason {
   if (reason === undefined || reason.trim() === '') {
     return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
+  }
+
+  if (reason.startsWith(UNPLAYABLE_START_PREFIX)) {
+    return { kind: 'unplayable-start', message: UNPLAYABLE_START_MESSAGE, retryCanHelp: false };
   }
 
   if (reason.startsWith(DEMO_INCOMPATIBLE_PREFIX)) {

@@ -34,6 +34,11 @@ func runDemo(args []string, stdout, stderr io.Writer, stdin io.Reader, runner co
 			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
 		}
 		return runDemoAnticheat(args[1:], stdout, stderr)
+	case "probe":
+		if issue := validateSkillCommand(append([]string{"demo"}, args...)); issue != "" {
+			return writeCanonicalValidationError(args[1:], issue, stdout, stderr)
+		}
+		return runDemoProbe(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown demo command %q\n%s", args[0], demoUsage)
 		return exitInvalidArgs

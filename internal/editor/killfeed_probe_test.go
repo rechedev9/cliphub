@@ -411,6 +411,157 @@ func TestKillfeedSampleTimesCoversDemoTickLag(t *testing.T) {
 	}
 }
 
+// TestKillfeedSampleTimesBackfillsShortPostRoll is B5b: a kill with little
+// post-roll left in its part/short (typically the last kill in a clip) has
+// every forward offset clamp to the same last-available frame, collapsing the
+// window to one sample. killfeedSampleTimes must then also probe backward
+// from that last frame so the window still reaches several distinct frames
+// instead of repeating the same one, without ever probing before the kill
+// itself or changing the first (legacy, late-offset-preferred) sample for
+// clips where the forward window already fits.
+func TestKillfeedSampleTimesBackfillsShortPostRoll(t *testing.T) {
+	tests := []struct {
+		name          string
+		short         ShortEdit
+		effect        Effect
+		wantInput     string
+		wantFirst     float64
+		wantMinTimes  int
+		wantFloorAtLE float64
+	}{
+		{
+			name: "single-clip short with little post-roll backfills backward",
+			short: ShortEdit{
+				Input:           "only.mp4",
+				DurationSeconds: 5.3,
+			},
+			effect:        Effect{Type: EffectKillfeed, AtSeconds: 5.0, StartSeconds: 4.65},
+			wantInput:     "only.mp4",
+			wantFirst:     5.3,
+			wantMinTimes:  2,
+			wantFloorAtLE: 5.0,
+		},
+		{
+			name: "compilation part with little post-roll backfills backward",
+			short: ShortEdit{
+				Parts: []ShortPart{
+					{SegmentID: "seg-001", Input: "a.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 0},
+					{SegmentID: "seg-002", Input: "b.mp4", DurationSeconds: 0.3, TimelineStartSeconds: 2.5},
+				},
+			},
+			effect:        Effect{Type: EffectKillfeed, AtSeconds: 2.5, StartSeconds: 2.15},
+			wantInput:     "b.mp4",
+			wantFirst:     0.3,
+			wantMinTimes:  2,
+			wantFloorAtLE: 0.0,
+		},
+		{
+			name: "zero post-roll cannot backfill beyond the single last frame",
+			short: ShortEdit{
+				Input:           "only.mp4",
+				DurationSeconds: 5.0,
+			},
+			effect:        Effect{Type: EffectKillfeed, AtSeconds: 5.0, StartSeconds: 4.65},
+			wantInput:     "only.mp4",
+			wantFirst:     5.0,
+			wantMinTimes:  1,
+			wantFloorAtLE: 5.0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input, times := killfeedSampleTimes(&tt.short, tt.effect)
+			if input != tt.wantInput {
+				t.Fatalf("input = %q, want %q", input, tt.wantInput)
+			}
+			if len(times) == 0 {
+				t.Fatal("sample times empty")
+			}
+			if math.Abs(times[0]-tt.wantFirst) > 1e-9 {
+				t.Fatalf("first sample = %.3f, want legacy late-offset preference %.3f (unchanged)", times[0], tt.wantFirst)
+			}
+			if len(times) < tt.wantMinTimes {
+				t.Fatalf("times = %v, want at least %d distinct samples", times, tt.wantMinTimes)
+			}
+			seen := make(map[string]bool, len(times))
+			for _, at := range times {
+				key := fmt.Sprintf("%.6f", at)
+				if seen[key] {
+					t.Fatalf("times = %v, want every sample distinct", times)
+				}
+				seen[key] = true
+				if at < tt.wantFloorAtLE-1e-9 {
+					t.Fatalf("sample %.3f probes before the kill itself (floor %.3f): %v", at, tt.wantFloorAtLE, times)
+				}
+			}
+		})
+	}
+}
+
+// TestRefineKillfeedEffectsKeepsOverlayNearClipEnd is the end-to-end B5b
+// regression: a generated ("edit-request") killfeed overlay for the last kill
+// in a clip, where post-roll leaves the forward sample window almost no room.
+// Before the backward-fill fix, killfeedSampleTimes would hand back a single
+// sample (the clip's last frame) and, since the highlight is not painted on
+// that exact frame, refineKillfeedEffects would silently drop the overlay.
+// With the fix, the backward samples reach the frame where the highlight is
+// actually painted and the overlay survives with its measured crop.
+func TestRefineKillfeedEffectsKeepsOverlayNearClipEnd(t *testing.T) {
+	notice := image.Rect(1700, 90, 1910, 126)
+	const paintedAt = 5.1 // only reachable by probing backward from the clip end
+
+	var probed []float64
+	probe := func(input string, atSeconds float64) (image.Image, error) {
+		if input != "only.mp4" {
+			t.Fatalf("probe input = %q, want only.mp4", input)
+		}
+		probed = append(probed, atSeconds)
+		if math.Abs(atSeconds-paintedAt) > 1e-9 {
+			return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+		}
+		return killfeedTestFrame(t, notice), nil
+	}
+
+	short := ShortEdit{
+		Input:           "only.mp4",
+		DurationSeconds: 5.3,
+		Effects: []Effect{
+			{
+				Type:         EffectKillfeed,
+				StartSeconds: 4.65,
+				EndSeconds:   5.3,
+				AtSeconds:    5.0,
+				Width:        430,
+				CropX:        1558,
+				CropY:        64,
+				CropWidth:    360,
+				CropHeight:   110,
+				Source:       "edit-request",
+			},
+		},
+	}
+
+	warnings := refineKillfeedEffects(&short, probe)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none: the backward sample should find the notice", warnings)
+	}
+	if len(short.Effects) != 1 {
+		t.Fatalf("effects = %#v, want the generated overlay kept, not dropped", short.Effects)
+	}
+	if len(probed) < 2 {
+		t.Fatalf("probe calls = %v, want more than the single collapsed forward sample", probed)
+	}
+	if !sampleTimesContain(probed, paintedAt) {
+		t.Fatalf("probe calls = %v, never reached the backward sample at %.3f", probed, paintedAt)
+	}
+
+	effect := short.Effects[0]
+	crop := image.Rect(effect.CropX, effect.CropY, effect.CropX+effect.CropWidth, effect.CropY+effect.CropHeight)
+	if crop.Min.X > notice.Min.X || crop.Min.Y > notice.Min.Y || crop.Max.X < notice.Max.X || crop.Max.Y < notice.Max.Y {
+		t.Fatalf("crop = %v, want it to cover the notice %v", crop, notice)
+	}
+}
+
 func sampleTimesContain(times []float64, want float64) bool {
 	for _, at := range times {
 		if math.Abs(at-want) <= 1e-9 {

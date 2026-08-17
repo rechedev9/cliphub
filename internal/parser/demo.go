@@ -68,14 +68,24 @@ func RunWithContext(ctx context.Context, p demoinfocs.Parser, target string, r r
 }
 
 func RunWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, opts RunOptions) (killplan.Plan, error) {
+	watch := TrackFirstPacketTick(p)
+	var plan killplan.Plan
+	var err error
 	switch opts.SegmentMode {
 	case "", SegmentModeKills:
-		return runKills(p, target, r, m)
+		plan, err = runKills(p, target, r, m)
 	case SegmentModeSmokes:
-		return runSmokes(p, target, r, m)
+		plan, err = runSmokes(p, target, r, m)
 	case SegmentModeUtility:
-		return runUtility(p, target, r, m)
+		plan, err = runUtility(p, target, r, m)
 	default:
 		return killplan.Plan{}, fmt.Errorf("unknown segment mode %q", opts.SegmentMode)
 	}
+	if err != nil {
+		return plan, err
+	}
+	if tick, seen := watch.Snapshot(); seen {
+		plan.Demo.FirstFullPacketTick = &tick
+	}
+	return plan, nil
 }

@@ -31,6 +31,9 @@ type Demo struct {
 	Map           string `json:"map"`
 	Tickrate      int    `json:"tickrate"`
 	DurationTicks int    `json:"duration_ticks"`
+	// FirstFullPacketTick is the first full-snapshot tick (diagnostic).
+	// It is not a playability class; zv demo probe owns that verdict.
+	FirstFullPacketTick *int `json:"first_full_packet_tick,omitempty"`
 }
 
 // Target identifies the player whose kills the plan is built around.

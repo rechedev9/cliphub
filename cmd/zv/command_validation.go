@@ -36,8 +36,8 @@ func validateSkillCommand(command []string) string {
 			return issue
 		}
 	case "demo":
-		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "anticheat") {
-			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", or "demo anticheat"`
+		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "anticheat" && command[1] != "probe") {
+			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", or "demo probe"`
 		}
 		switch command[1] {
 		case "parse":
@@ -48,6 +48,8 @@ func validateSkillCommand(command []string) string {
 			return validateRequiredFlags(`"demo moments"`, command[2:], requiredFlagsForRunArgs("demo", "moments")...)
 		case "select":
 			return validateDemoSelectCommand(command[2:])
+		case "probe":
+			return validateRequiredFlags(`"demo probe"`, command[2:], requiredFlagsForRunArgs("demo", "probe")...)
 		case "anticheat":
 			// The screening pass has no workflow entry, so its required flags
 			// are stated here rather than derived from the catalog. Without
@@ -578,6 +580,8 @@ func commandValueFlags(commandName string, required []string) []string {
 		flags = append(flags, "--out", "--top", "--format")
 	case `"demo select"`:
 		flags = append(flags, "--segments", "--top", "--format")
+	case `"demo probe"`:
+		flags = append(flags, "--format")
 	case `"demo anticheat"`:
 		flags = append(flags, "--baseline", "--out", "--dossier", "--format")
 	case `"demo anticheat calibrate"`:
@@ -676,6 +680,8 @@ func commandBoolFlags(commandName string) []string {
 	case `"faceit index"`:
 		return []string{"--dry-run"}
 	case `"demo moments"`:
+		return []string{"--dry-run"}
+	case `"demo probe"`:
 		return []string{"--dry-run"}
 	case `"demo select"`, `"demo anticheat"`, `"demo anticheat calibrate"`:
 		return []string{"--dry-run"}

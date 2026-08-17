@@ -47,6 +47,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(exitDemoIncompatible)
 	}
+	var startErr *unplayableStartError
+	if errors.As(err, &startErr) {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(exitUnplayableStart)
+	}
 	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	os.Exit(1)
 }
@@ -763,14 +768,17 @@ func cs2ConsoleLogPath(cs2Exe string) string {
 const demoParseFailureMarker = "NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR"
 
 type cs2ConsoleLogMonitor struct {
-	path            string
-	offset          int64
-	tail            string
-	lineTail        string
-	trace           *performanceTrace
-	captureVerified bool
-	failedMarker    string
-	verifiedMarker  string
+	path             string
+	offset           int64
+	tail             string
+	lineTail         string
+	trace            *performanceTrace
+	captureVerified  bool
+	failedMarker     string
+	verifiedMarker   string
+	armedAtZero      bool
+	sawSeekLanded    bool
+	sawResetBreakpad bool
 }
 
 func prepareCS2ConsoleLog(path string) error {
@@ -824,6 +832,7 @@ func (m *cs2ConsoleLogMonitor) failure() error {
 
 	content := m.tail + string(data)
 	m.consumePerformanceMarkers(string(data))
+	m.consumePlayabilitySignals(content)
 	if strings.Contains(content, m.failedMarker) {
 		return &captureVerificationError{path: m.path, reason: "HLAE runtime rejected the observer POV"}
 	}
@@ -850,10 +859,40 @@ func (m *cs2ConsoleLogMonitor) requireCaptureVerified() error {
 	if m.captureVerified {
 		return nil
 	}
+	if m.unplayableStart() {
+		return &unplayableStartError{path: m.path}
+	}
 	return &captureVerificationError{
 		path:   m.path,
 		reason: "CS2 exited without the completed POV verification marker",
 	}
+}
+
+func (m *cs2ConsoleLogMonitor) consumePlayabilitySignals(chunk string) {
+	if strings.Contains(chunk, "ResetBreakpadAppId") {
+		m.sawResetBreakpad = true
+	}
+	if strings.Contains(chunk, "[zackvideo] seek-landed") {
+		m.sawSeekLanded = true
+	}
+	for _, line := range strings.Split(chunk, "\n") {
+		match := armedMarker.FindStringSubmatch(strings.TrimSpace(line))
+		if match != nil && match[1] == "0" {
+			m.armedAtZero = true
+		}
+	}
+}
+
+func (m *cs2ConsoleLogMonitor) unplayableStart() bool {
+	return m.armedAtZero && !m.sawSeekLanded && m.sawResetBreakpad
+}
+
+type unplayableStartError struct {
+	path string
+}
+
+func (e *unplayableStartError) Error() string {
+	return fmt.Sprintf("unplayable_start: CS2 crashed rewinding playdemo to tick 0; check CS2 console log %q", e.path)
 }
 
 type captureVerificationError struct {
@@ -934,6 +973,9 @@ func validateCaptureResult(result recording.RecordingResult, cs2Exe string) erro
 	if err := recording.ValidateUploadResult(result); err != nil {
 		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
 	}
+	if err := recording.ValidateCaptureCoverage(result.Plan, result.Artifacts); err != nil {
+		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
+	}
 	return nil
 }
 
@@ -982,7 +1024,17 @@ func locateHookDLL(hlaeExe string) (string, error) {
 // until the recorder's global timeout fires.
 const captureCloseGracePeriod = 15 * time.Second
 
+// windowTitlePollInterval bounds how often waitForWindowsProcessRunAndExit
+// shells out to the expensive `tasklist /V` window-title lookup. The cheap
+// `tasklist` (no /V) liveness check still runs on every pollInterval tick;
+// only the verbose title lookup used to detect the "Error - Afx*" hook-crash
+// dialog is throttled, since `/V` enumerates every windowed process on the
+// system and otherwise runs ~2000 times per capture in contention with the
+// single cs2.exe process and the encoder.
+const windowTitlePollInterval = 5 * time.Second
+
 func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleLog *cs2ConsoleLogMonitor) error {
+	titlePoller := newWindowTitlePoller(windowTitlePollInterval, nil, nil, nil)
 	return waitForWindowsProcessRunAndExitWith(
 		ctx,
 		image,
@@ -991,7 +1043,7 @@ func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleL
 		captureCloseGracePeriod,
 		func() bool { return consoleLog != nil && consoleLog.captureVerified },
 		func(image string) (bool, string, error) {
-			running, title, err := tasklistWindowTitle(image)
+			running, title, err := titlePoller.status(image)
 			if err != nil {
 				return running, title, err
 			}
@@ -1004,6 +1056,62 @@ func waitForWindowsProcessRunAndExit(ctx context.Context, image string, consoleL
 		},
 		terminateWindowsProcess,
 	)
+}
+
+// windowTitlePoller throttles tasklistWindowTitle's `/V` window-title lookup
+// to titleInterval, falling back to the cheap processRunning liveness check
+// (no `/V`, no title) on the ticks in between. status() reports an empty
+// title on the cheap ticks, so a hook-crash dialog is detected on the next
+// slow tick rather than immediately; that trades up to titleInterval of
+// detection latency for far fewer `tasklist /V` invocations per capture.
+type windowTitlePoller struct {
+	titleInterval time.Duration
+	now           func() time.Time
+	titleStatus   func(string) (bool, string, error)
+	cheapStatus   func(string) (bool, error)
+	lastChecked   time.Time
+	haveChecked   bool
+}
+
+// newWindowTitlePoller builds a windowTitlePoller. titleStatus and
+// cheapStatus default to tasklistWindowTitle and processRunning respectively
+// when nil, and now defaults to time.Now; tests inject fakes for all three so
+// the throttling cadence is verifiable without shelling out or sleeping.
+func newWindowTitlePoller(
+	titleInterval time.Duration,
+	now func() time.Time,
+	titleStatus func(string) (bool, string, error),
+	cheapStatus func(string) (bool, error),
+) *windowTitlePoller {
+	if now == nil {
+		now = time.Now
+	}
+	if titleStatus == nil {
+		titleStatus = tasklistWindowTitle
+	}
+	if cheapStatus == nil {
+		cheapStatus = processRunning
+	}
+	return &windowTitlePoller{
+		titleInterval: titleInterval,
+		now:           now,
+		titleStatus:   titleStatus,
+		cheapStatus:   cheapStatus,
+	}
+}
+
+func (p *windowTitlePoller) status(image string) (running bool, title string, err error) {
+	if !p.haveChecked || p.now().Sub(p.lastChecked) >= p.titleInterval {
+		running, title, err = p.titleStatus(image)
+		if err != nil {
+			return running, title, err
+		}
+		p.haveChecked = true
+		p.lastChecked = p.now()
+		return running, title, nil
+	}
+	running, err = p.cheapStatus(image)
+	return running, "", err
 }
 
 func waitForWindowsProcessRunAndExitWith(
@@ -1184,6 +1292,11 @@ const exitHookIncompatible = 6
 // shortStageClass, which maps this code to the "demo_incompatible"
 // observability class.
 const exitDemoIncompatible = 7
+
+// exitUnplayableStart is used when CS2 crashes on the playdemo rewind to
+// demo tick 0 (armed@0, no seek-landed, ResetBreakpadAppId). Keep in sync
+// with cmd/zv/obs_record.go shortStageClass.
+const exitUnplayableStart = 8
 
 // hookErrorWindowTitlePattern matches the native MessageBox titles
 // advancedfx's hook modules (AfxHookSource2, AfxHookSource, ...) use when a

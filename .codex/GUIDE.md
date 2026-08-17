@@ -218,6 +218,8 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows show demo-moments --format json
 ./bin/zv workflows show demo-select
 ./bin/zv workflows show demo-select --format json
+./bin/zv workflows show demo-probe
+./bin/zv workflows show demo-probe --format json
 ./bin/zv workflows show utility-audit
 ./bin/zv workflows show utility-audit --format json
 ./bin/zv workflows show record
@@ -297,6 +299,7 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows run demo-players -- --demo testdata/foo.dem
 ./bin/zv workflows run demo-moments -- --killplan testdata/agent-killplan.json --format json
 ./bin/zv workflows run demo-select -- --killplan testdata/agent-killplan.json --segments seg-001 --out data/runs/agent-doc/selected-plan.json --dry-run --format json
+./bin/zv workflows run demo-probe -- --demo testdata/foo.dem --out data/runs/agent-doc/playability.json --dry-run --format json
 ./bin/zv workflows run utility-audit -- --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv
 ./bin/zv workflows run record -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording
 ./bin/zv workflows run compose-final -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4

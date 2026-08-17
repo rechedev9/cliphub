@@ -12,6 +12,11 @@ import (
 // build. Keep it exactly in sync with the frontend.
 const demoIncompatiblePrefix = "demo_incompatible:"
 
+// unplayableStartPrefix is the stable marker for a CS2 playdemo tick-0 crash.
+const unplayableStartPrefix = "unplayable_start:"
+
+const resetBreakpadMarker = "ResetBreakpadAppId"
+
 // networkDisconnectMarker is the CS2 playback error substring that is stable
 // across both the old and the new zv-recorder wording.
 const networkDisconnectMarker = "NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR"
@@ -44,6 +49,13 @@ func recordFailureReason(runErr error, result recording.RecordingResult, request
 	text := runErr.Error()
 	if strings.Contains(text, networkDisconnectMarker) {
 		reason := demoIncompatiblePrefix + " cs2 cannot replay this demo (it was recorded on an older cs2 build)"
+		if captured := capturedSegmentCount(result); captured > 0 {
+			reason += fmt.Sprintf("; captured %d/%d segments before the failure", captured, len(requested))
+		}
+		return reason
+	}
+	if strings.Contains(text, unplayableStartPrefix) || strings.Contains(text, resetBreakpadMarker) {
+		reason := unplayableStartPrefix + " CS2 crashed rewinding playdemo to tick 0"
 		if captured := capturedSegmentCount(result); captured > 0 {
 			reason += fmt.Sprintf("; captured %d/%d segments before the failure", captured, len(requested))
 		}

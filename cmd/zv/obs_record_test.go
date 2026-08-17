@@ -20,6 +20,7 @@ func TestShortStageClass(t *testing.T) {
 		{"zv-recorder", 1, obs.StageRecord, "record_failed"},
 		{"zv-recorder", 6, obs.StageRecord, "capture_incompatible"},
 		{"zv-recorder", 7, obs.StageRecord, "demo_incompatible"},
+		{"zv-recorder", 8, obs.StageRecord, "unplayable_start"},
 		{"zv-rhythm", 1, obs.StageRender, "rhythm_failed"},
 		{"zv-editor", 1, obs.StageRender, "render_failed"},
 		{"unknown-bin", 1, "short", "stage_failed"},

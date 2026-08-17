@@ -50,6 +50,10 @@ func shortStageClass(binary string, code int) (stage, class string) {
 		if code == 7 {
 			return obs.StageRecord, "demo_incompatible"
 		}
+		// Exit code 8 is cmd/zv-recorder's exitUnplayableStart.
+		if code == 8 {
+			return obs.StageRecord, "unplayable_start"
+		}
 		return obs.StageRecord, "record_failed"
 	case "zv-rhythm":
 		return obs.StageRender, "rhythm_failed"

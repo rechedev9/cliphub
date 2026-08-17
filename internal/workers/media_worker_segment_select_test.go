@@ -229,6 +229,55 @@ func TestRecordWorkerRerecordsAndAccumulatesAcrossReels(t *testing.T) {
 	}
 }
 
+// TestRecordWorkerCapturesOnlyMissingSegmentsWithinReelSelection is the B1
+// regression: a reel selection that partially overlaps an already-recorded,
+// profile-compatible capture must send the recorder only the segments still
+// missing a clip, not the whole selection. mergeRecordingResults folds the
+// reused segment back into the durable result untouched.
+func TestRecordWorkerCapturesOnlyMissingSegmentsWithinReelSelection(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := multiSegmentKillPlan("seg-001", "seg-002", "seg-003")
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusParsed, DemoPath: "demos/test.dem", Rules: rules.Default(), KillPlan: &plan}
+	_ = store.Put("demos/test.dem", bytes.NewReader([]byte("demo")))
+
+	var seen []string
+	w := newRecordWorkerForTest(repo, store, t)
+	w.runner = planRecorderRunner(t, &seen)
+
+	// A first reel already captured seg-001.
+	if err := w.HandleRecordDemo(context.Background(), recordTaskFor(t, id, []string{"seg-001"})); err != nil {
+		t.Fatalf("first record error = %v", err)
+	}
+	if len(seen) != 1 || seen[0] != "seg-001" {
+		t.Fatalf("recorder saw %v after first reel, want [seg-001]", seen)
+	}
+
+	// A later reel selects all three segments. Only seg-002 and seg-003 lack a
+	// compatible durable clip, so the recorder must be handed only those two.
+	seen = nil
+	if err := w.HandleRecordDemo(context.Background(), recordTaskFor(t, id, []string{"seg-001", "seg-002", "seg-003"})); err != nil {
+		t.Fatalf("second record error = %v", err)
+	}
+	if want := []string{"seg-002", "seg-003"}; len(seen) != 2 || seen[0] != want[0] || seen[1] != want[1] {
+		t.Fatalf("recorder saw %v for the partially-covered selection, want %v (only the missing subset)", seen, want)
+	}
+
+	result := storedRecordingResult(t, store, id)
+	if got := recording.SegmentIDs(result); len(got) != 3 || got[0] != "seg-001" || got[1] != "seg-002" || got[2] != "seg-003" {
+		t.Fatalf("stored result segments = %v, want all three merged", got)
+	}
+	if err := result.Plan.Validate(); err != nil {
+		t.Fatalf("merged plan is invalid: %v", err)
+	}
+	for _, sid := range []string{"seg-001", "seg-002", "seg-003"} {
+		if _, ok := store.files[mustSegmentClipKey(t, id, sid)]; !ok {
+			t.Fatalf("storage missing %s clip after incremental capture", sid)
+		}
+	}
+}
+
 func TestRecordWorkerSkipsWhenSelectedSegmentAlreadyRecorded(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
@@ -459,11 +508,11 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 		t.Fatal(err)
 	}
 
-	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ready {
+	if len(missing) == 0 {
 		t.Fatal("capture without observer-SteamID verification was reused")
 	}
 
@@ -477,11 +526,11 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	if err := putRecordingResult(store, id, legacy); err != nil {
 		t.Fatal(err)
 	}
-	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ready {
+	if len(missing) != 0 {
 		t.Fatal("verified durable V1 capture was stranded after the V2 upgrade")
 	}
 
@@ -491,11 +540,11 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	if err := putRecordingResult(store, id, result); err != nil {
 		t.Fatal(err)
 	}
-	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ready {
+	if len(missing) != 0 {
 		t.Fatal("capture with current observer-SteamID contract was not reusable")
 	}
 
@@ -506,11 +555,11 @@ func TestRecordingOutputsReadyRejectsCapturesWithoutVerifiedPOVContract(t *testi
 	if err := putRecordingResult(store, id, result); err != nil {
 		t.Fatal(err)
 	}
-	ready, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err = recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ready {
+	if len(missing) == 0 {
 		t.Fatal("capture with stale segment bounds was reused")
 	}
 }
@@ -552,12 +601,82 @@ func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ready, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	missing, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ready {
+	if len(missing) == 0 {
 		t.Fatal("Full HUD capture with global safe-zone compression was reused")
+	}
+}
+
+// TestRecordingOutputsReadyReturnsOnlyTheMissingSubset is the B1 unit-level
+// regression: recordingOutputsReady must report exactly which requested
+// segments still lack a durable, profile-compatible clip instead of an
+// all-or-nothing readiness bit.
+func TestRecordingOutputsReadyReturnsOnlyTheMissingSubset(t *testing.T) {
+	plan := multiSegmentKillPlan("seg-001", "seg-002", "seg-003")
+	stream := recording.DefaultStreamConfig()
+	expectedPlan, err := recording.NewPlanFromKillPlan(plan, "profile.dem", "profile", stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A prior compatible run recorded seg-001 and seg-002 only; seg-003 was
+	// never captured.
+	recordedPlan := expectedPlan
+	recordedPlan.Segments = expectedPlan.Segments[:2]
+	recordedPlan.EditorialSegmentIDs = expectedPlan.EditorialSegmentIDs[:2]
+	result := recording.RecordingResult{
+		Plan: recordedPlan,
+		Artifacts: []recording.RecordingArtifact{
+			{SegmentID: "seg-001", Role: "segment", Type: "video"},
+			{SegmentID: "seg-002", Role: "segment", Type: "video"},
+		},
+		CaptureMode:     recording.CaptureModeReal,
+		CaptureVerified: true,
+	}
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
+
+	cases := []struct {
+		name      string
+		requested []string
+		want      []string
+	}{
+		{name: "fully covered selection reports nothing missing", requested: []string{"seg-001"}, want: nil},
+		{name: "fully covered multi-segment selection reports nothing missing", requested: []string{"seg-001", "seg-002"}, want: nil},
+		{name: "partially covered selection reports only the uncaptured segment", requested: []string{"seg-001", "seg-002", "seg-003"}, want: []string{"seg-003"}},
+		{name: "fully uncovered selection reports the whole selection", requested: []string{"seg-003"}, want: []string{"seg-003"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStorage()
+			id := uuid.New()
+			if err := putRecordingResult(store, id, result); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Put(recording.ScriptArtifactKey(id), bytes.NewReader([]byte("script"))); err != nil {
+				t.Fatal(err)
+			}
+			for _, sid := range []string{"seg-001", "seg-002"} {
+				if err := store.Put(mustSegmentClipKey(t, id, sid), bytes.NewReader([]byte("clip"))); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			missing, _, err := recordingOutputsReady(store, id, tc.requested, expectedPlan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(missing) != len(tc.want) {
+				t.Fatalf("missing = %v, want %v", missing, tc.want)
+			}
+			for i, sid := range tc.want {
+				if missing[i] != sid {
+					t.Fatalf("missing = %v, want %v", missing, tc.want)
+				}
+			}
+		})
 	}
 }
 

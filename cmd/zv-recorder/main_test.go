@@ -34,11 +34,20 @@ func TestCS2LaunchCommandLineUsesWindowedMode(t *testing.T) {
 
 	got := cs2LaunchCommandLine(plan, `C:\runs\recording.js`)
 
-	if !strings.Contains(got, "-windowed") {
-		t.Fatalf("cs2LaunchCommandLine() = %q, want -windowed", got)
+	cases := []struct {
+		name string
+		ok   bool
+	}{
+		{name: "windowed flag", ok: strings.Contains(got, "-windowed")},
+		{name: "windowed before resolution", ok: strings.Index(got, "-windowed") < strings.Index(got, "-w 1920")},
+		{name: "playdemo path", ok: strings.Contains(got, `+playdemo "C:\demos\match.dem"`)},
 	}
-	if strings.Index(got, "-windowed") > strings.Index(got, "-w 1920") {
-		t.Fatalf("cs2LaunchCommandLine() = %q, want -windowed before resolution flags", got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !tc.ok {
+				t.Fatalf("cs2LaunchCommandLine() = %q", got)
+			}
+		})
 	}
 }
 
@@ -892,6 +901,75 @@ func TestCS2ConsoleLogMonitorAttestsCompletedPOVVerification(t *testing.T) {
 	}
 }
 
+func TestCS2ConsoleLogMonitorClassifiesUnplayableStart(t *testing.T) {
+	cases := []struct {
+		name       string
+		console    string
+		verified   bool
+		wantUnplay bool
+	}{
+		{
+			name:       "armed zero no seek breakpad",
+			console:    "[zackvideo] armed at tick 0\nResetBreakpadAppId: Universe is 1\n",
+			wantUnplay: true,
+		},
+		{
+			name:    "seek landed is not unplayable",
+			console: "[zackvideo] armed at tick 0\n[zackvideo] seek-landed -> 2863 (at 2863)\nResetBreakpadAppId: Universe is 1\n",
+		},
+		{
+			name:    "timeout without breakpad stays generic",
+			console: "[zackvideo] armed at tick 0\n",
+		},
+		{
+			name:     "verified wins even with breakpad",
+			console:  "[zackvideo] armed at tick 0\nResetBreakpadAppId: Universe is 1\n",
+			verified: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "console.log")
+			if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
+			body := tc.console
+			if tc.verified {
+				body += recording.CaptureVerifiedAttestation(testCaptureAttestation()) + "\n"
+			}
+			appendConsoleLog(t, path, body)
+			if err := monitor.failure(); err != nil {
+				t.Fatalf("failure() = %v", err)
+			}
+			err := monitor.requireCaptureVerified()
+			if tc.verified {
+				if err != nil {
+					t.Fatalf("requireCaptureVerified() = %v, want nil", err)
+				}
+				return
+			}
+			var startErr *unplayableStartError
+			if tc.wantUnplay {
+				if !errors.As(err, &startErr) {
+					t.Fatalf("requireCaptureVerified() = %v, want *unplayableStartError", err)
+				}
+				if !strings.Contains(err.Error(), "unplayable_start:") {
+					t.Fatalf("Error() = %q, want prefix unplayable_start:", err.Error())
+				}
+				return
+			}
+			if errors.As(err, &startErr) {
+				t.Fatalf("requireCaptureVerified() = %v, want generic capture error", err)
+			}
+			var verifyErr *captureVerificationError
+			if !errors.As(err, &verifyErr) {
+				t.Fatalf("requireCaptureVerified() = %v, want *captureVerificationError", err)
+			}
+		})
+	}
+}
+
 func TestCS2ConsoleLogMonitorRejectsMarkerFromAnotherRun(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "console.log")
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
@@ -1078,5 +1156,122 @@ func TestSteamRootFromCS2Path(t *testing.T) {
 	}
 	if got := steamRootFromCS2Path(filepath.FromSlash("C:/tools/cs2.exe")); got != "" {
 		t.Errorf("steamRootFromCS2Path outside steamapps = %q, want empty", got)
+	}
+}
+
+// fakeWindowTitlePollerClock lets tests advance a windowTitlePoller's notion
+// of "now" deterministically instead of sleeping, so the 5s throttling
+// cadence is verifiable in milliseconds.
+type fakeWindowTitlePollerClock struct {
+	current time.Time
+}
+
+func (c *fakeWindowTitlePollerClock) now() time.Time { return c.current }
+
+func (c *fakeWindowTitlePollerClock) advance(d time.Duration) { c.current = c.current.Add(d) }
+
+func TestWindowTitlePollerThrottlesExpensiveTitleLookup(t *testing.T) {
+	clock := &fakeWindowTitlePollerClock{current: time.Unix(0, 0)}
+	var titleCalls, cheapCalls int
+	poller := newWindowTitlePoller(
+		5*time.Second,
+		clock.now,
+		func(string) (bool, string, error) {
+			titleCalls++
+			return true, "cs2", nil
+		},
+		func(string) (bool, error) {
+			cheapCalls++
+			return true, nil
+		},
+	)
+
+	steps := []struct {
+		name           string
+		advance        time.Duration
+		wantTitleCalls int
+		wantCheapCalls int
+	}{
+		{name: "first call always does the slow lookup", advance: 0, wantTitleCalls: 1, wantCheapCalls: 0},
+		{name: "next tick well inside the interval stays cheap", advance: 500 * time.Millisecond, wantTitleCalls: 1, wantCheapCalls: 1},
+		{name: "still inside the interval stays cheap", advance: 4 * time.Second, wantTitleCalls: 1, wantCheapCalls: 2},
+		{name: "crossing the interval re-does the slow lookup", advance: 600 * time.Millisecond, wantTitleCalls: 2, wantCheapCalls: 2},
+		{name: "interval resets after the slow lookup", advance: 500 * time.Millisecond, wantTitleCalls: 2, wantCheapCalls: 3},
+	}
+	for _, step := range steps {
+		t.Run(step.name, func(t *testing.T) {
+			clock.advance(step.advance)
+			if _, _, err := poller.status("cs2.exe"); err != nil {
+				t.Fatalf("status() error = %v", err)
+			}
+			if titleCalls != step.wantTitleCalls {
+				t.Errorf("titleCalls = %d, want %d", titleCalls, step.wantTitleCalls)
+			}
+			if cheapCalls != step.wantCheapCalls {
+				t.Errorf("cheapCalls = %d, want %d", cheapCalls, step.wantCheapCalls)
+			}
+		})
+	}
+}
+
+func TestWindowTitlePollerDetectsHookErrorWithinTitleInterval(t *testing.T) {
+	clock := &fakeWindowTitlePollerClock{current: time.Unix(0, 0)}
+	const titleInterval = 5 * time.Second
+	poller := newWindowTitlePoller(
+		titleInterval,
+		clock.now,
+		func(string) (bool, string, error) { return true, "Error - AfxHookSource2", nil },
+		func(string) (bool, error) { return true, nil },
+	)
+
+	// Simulate the recorder's 500ms poll ticks: the cheap ticks in between
+	// report no title, but the next slow tick at or after titleInterval must
+	// still surface the hook-error dialog title well inside the accepted
+	// <10s detection budget.
+	elapsed := time.Duration(0)
+	var lastTitle string
+	for elapsed <= 2*titleInterval {
+		_, title, err := poller.status("cs2.exe")
+		if err != nil {
+			t.Fatalf("status() error = %v", err)
+		}
+		if title != "" {
+			lastTitle = title
+			break
+		}
+		clock.advance(500 * time.Millisecond)
+		elapsed += 500 * time.Millisecond
+	}
+	if !isHookErrorWindowTitle(lastTitle) {
+		t.Fatalf("hook error title not detected within %s, got %q at elapsed=%s", 2*titleInterval, lastTitle, elapsed)
+	}
+	if elapsed > titleInterval {
+		t.Fatalf("hook error detected after %s, want within titleInterval %s", elapsed, titleInterval)
+	}
+}
+
+func TestWindowTitlePollerPropagatesTitleLookupError(t *testing.T) {
+	wantErr := errors.New("tasklist unavailable")
+	poller := newWindowTitlePoller(
+		5*time.Second,
+		func() time.Time { return time.Unix(0, 0) },
+		func(string) (bool, string, error) { return false, "", wantErr },
+		func(string) (bool, error) {
+			t.Fatal("cheap status should not run when the slow lookup fails")
+			return false, nil
+		},
+	)
+	if _, _, err := poller.status("cs2.exe"); !errors.Is(err, wantErr) {
+		t.Fatalf("status() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestWindowTitlePollerDefaultsToRealStatusFunctions(t *testing.T) {
+	poller := newWindowTitlePoller(5*time.Second, nil, nil, nil)
+	if poller.now == nil {
+		t.Fatal("now defaults to a non-nil clock")
+	}
+	if poller.titleStatus == nil || poller.cheapStatus == nil {
+		t.Fatal("titleStatus and cheapStatus default to non-nil implementations")
 	}
 }

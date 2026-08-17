@@ -147,6 +147,7 @@ func productionFlows() []productionFlow {
 			Outputs: append([]flowOutput(nil), demoOutputs...),
 			Phases: []flowPhase{
 				{ID: "doctor", Goal: "verify local parser, HLAE, CS2, FFmpeg, and editor readiness", Command: "zv capabilities --format json", ReadOnly: true},
+				{ID: "probe", Goal: "classify playdemo tick-0 safety without launching CS2", Command: "zv demo probe --demo <match.dem> --out <run>/playability.json --format json", Decision: "playable or stop", ReadOnly: false},
 				{ID: "players", Goal: "inspect the roster and choose the POV SteamID64", Command: "zv demo players --demo <match.dem> --format json", Decision: "target player", ReadOnly: true},
 				{ID: "parse-preflight", Goal: "validate the demo, target, and output path without parsing", Command: "zv demo parse --demo <match.dem> --steamid <SteamID64> --out <run>/killplan.json --dry-run", Decision: "approve deterministic parse inputs", ReadOnly: true},
 				{ID: "parse", Goal: "derive a deterministic kill plan from the demo", Command: "zv demo parse --demo <match.dem> --steamid <SteamID64> --out <run>/killplan.json", Produces: "killplan.json"},
