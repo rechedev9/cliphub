@@ -389,7 +389,7 @@ export class MockApiClient implements ApiClient {
     ];
   }
 
-  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
+  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
     await delay();
     const match = uploadedMatches.find((m) => m.id === input.matchId) ?? fixtureMatches.find((m) => m.id === input.matchId);
     const plays = uploadedPlays.get(input.matchId) ?? playsForMatch(input.matchId);
@@ -409,6 +409,8 @@ export class MockApiClient implements ApiClient {
       mode: input.mode,
       variant: input.variant,
       songId: input.songId,
+      musicVolume: input.songId ? input.musicVolume : undefined,
+      gameVolume: input.songId ? input.gameVolume : undefined,
       editConfig: input.editConfig ?? DEFAULT_EDIT_CONFIG,
       status: 'queued',
       createdAt: Date.now(),
@@ -476,19 +478,21 @@ export class MockApiClient implements ApiClient {
     if (!video) throw new Error(`video not found: ${id}`);
     if (video.status !== 'ready') throw new Error('video is not ready');
     const next: MusicChoice = choice.songId
-      ? { songId: choice.songId, musicVolume: choice.musicVolume }
+      ? { songId: choice.songId, musicVolume: choice.musicVolume, gameVolume: choice.gameVolume }
       : {};
-    if (musicChoicesEqual({ songId: video.songId, musicVolume: video.musicVolume }, next)) {
+    if (musicChoicesEqual({ songId: video.songId, musicVolume: video.musicVolume, gameVolume: video.gameVolume }, next)) {
       throw new Error('music choice is unchanged');
     }
     if (next.songId) {
       video.mode = 'music';
       video.songId = next.songId;
       video.musicVolume = next.musicVolume;
+      video.gameVolume = next.gameVolume;
     } else {
       video.mode = 'clean';
       delete video.songId;
       delete video.musicVolume;
+      delete video.gameVolume;
     }
     video.status = 'queued';
     video.createdAt = Date.now();

@@ -34,6 +34,8 @@ func run() error {
 		musicPath           = flag.String("music", "", "optional external music file to mix into rendered shorts")
 		voiceDir            = flag.String("voice-dir", "", "optional directory of POV-team Ogg tracks from zv demo voice --extract")
 		musicVolume         = flag.Float64("music-volume", 1.0, "music track gain in (0,1]; higher is louder")
+		gameVolume          = flag.Float64("game-volume", -1, "game-audio gain in [0,1] when mixing music; <0 keeps the historical 0.20 duck")
+		voiceVolume         = flag.Float64("voice-volume", -1, "team-comms gain in [0,1]; <0 keeps the historical 0.85 gain")
 		rhythmPath          = flag.String("rhythm", "", "optional rhythm JSON with segment_sync entries for compiled shorts")
 		outputFormat        = flag.String("output-format", editor.OutputFormatShort9x16, "output format: short-9x16 or landscape-16x9")
 		killEffect          = flag.String("kill-effect", editor.KillEffectPunchIn, "kill effect: clean, punch-in, velocity, freeze-flash, shake, glitch")
@@ -91,6 +93,12 @@ func run() error {
 	if err := validateMusicVolume(*musicVolume); err != nil {
 		return err
 	}
+	if err := validateOptionalMixVolume("game-volume", *gameVolume); err != nil {
+		return err
+	}
+	if err := validateOptionalMixVolume("voice-volume", *voiceVolume); err != nil {
+		return err
+	}
 	coverSheetsSet := false
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "cover-sheets" {
@@ -126,6 +134,8 @@ func run() error {
 		EffectsPreset:       *effectsPreset,
 		MusicPath:           *musicPath,
 		MusicVolume:         *musicVolume,
+		GameVolume:          optionalMixVolume(*gameVolume),
+		VoiceVolume:         optionalMixVolume(*voiceVolume),
 		VoiceDir:            *voiceDir,
 		RhythmPath:          *rhythmPath,
 		OutputFormat:        *outputFormat,
@@ -221,6 +231,24 @@ func validateMusicVolume(v float64) error {
 		return fmt.Errorf("--music-volume must be greater than 0 and at most 1, got %v", v)
 	}
 	return nil
+}
+
+// validateOptionalMixVolume accepts the unset sentinel (<0) or a gain in [0,1].
+func validateOptionalMixVolume(name string, v float64) error {
+	if v < 0 {
+		return nil
+	}
+	if v > 1 {
+		return fmt.Errorf("--%s must be between 0 and 1, got %v", name, v)
+	}
+	return nil
+}
+
+func optionalMixVolume(v float64) *float64 {
+	if v < 0 {
+		return nil
+	}
+	return &v
 }
 
 func parseSegments(raw string) ([]string, error) {

@@ -97,6 +97,39 @@ func TestEditRequestValidateAcceptsViralStyles(t *testing.T) {
 	}
 }
 
+func TestEditRequestValidateVoiceVolume(t *testing.T) {
+	ok := 0.85
+	bad := 1.5
+	neg := -0.1
+	mute := 0.0
+	tests := []struct {
+		name    string
+		volume  *float64
+		wantErr string
+	}{
+		{name: "unset", volume: nil},
+		{name: "default", volume: &ok},
+		{name: "mute", volume: &mute},
+		{name: "above one", volume: &bad, wantErr: "voice volume must be between 0 and 1"},
+		{name: "negative", volume: &neg, wantErr: "voice volume must be between 0 and 1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := EditRequest{Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash, VoiceVolume: tt.volume}
+			err := req.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestEditRequestValidateAcceptsTextAtMaxLength(t *testing.T) {
 	req := EditRequest{
 		Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash,

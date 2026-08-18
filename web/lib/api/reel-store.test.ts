@@ -62,6 +62,14 @@ test('keeps a valid music volume and drops out-of-range or mistyped ones', () =>
   assert.equal(coerceIntents([base])[0]?.musicVolume, undefined);
 });
 
+test('keeps a valid game volume including mute and drops out-of-range ones', () => {
+  const base = { videoId: 'v', jobId: 'j', segmentIds: ['s'], mode: 'music' as const, songId: 's1' };
+  assert.equal(coerceIntents([{ ...base, gameVolume: 0.2 }])[0]?.gameVolume, 0.2);
+  assert.equal(coerceIntents([{ ...base, gameVolume: 0 }])[0]?.gameVolume, 0);
+  assert.equal(coerceIntents([{ ...base, gameVolume: 1.5 }])[0]?.gameVolume, undefined);
+  assert.equal(coerceIntents([base])[0]?.gameVolume, undefined);
+});
+
 test('ignores the legacy fake published flag instead of treating it as a real upload', () => {
   assert.deepEqual(coerceIntents([{ ...valid, published: true }]), [valid]);
 });
@@ -123,6 +131,9 @@ test('automatic text controls preserve only explicit true values', () => {
   assert.equal(coerceEditConfig({}).matchRecap, false);
   assert.equal(coerceEditConfig({}).voiceComms, false);
   assert.equal(coerceEditConfig({}).nativeHud, false);
+  assert.equal(coerceEditConfig({ voiceVolume: 0.4 }).voiceVolume, 0.4);
+  assert.equal(coerceEditConfig({ voiceVolume: 0 }).voiceVolume, 0);
+  assert.equal(coerceEditConfig({ voiceVolume: 1.5 }).voiceVolume, undefined);
 });
 
 test('truncates bookend text to the 80-char limit and drops non-string values', () => {

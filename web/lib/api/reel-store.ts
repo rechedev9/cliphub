@@ -16,6 +16,8 @@ export type ReelIntent = {
   songId?: string;
   /** Music gain in (0,1]; absent means full volume (1.0). */
   musicVolume?: number;
+  /** Game-audio gain in [0,1] when music is mixed; absent keeps the 0.20 duck. */
+  gameVolume?: number;
   title: string;
   map: string;
   score: string;
@@ -104,6 +106,8 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
       targetName: typeof r.targetName === 'string' && r.targetName.trim() !== '' ? r.targetName.trim() : undefined,
       createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
     };
+    const gameVolume = coerceUnitVolume(r.gameVolume);
+    if (gameVolume !== undefined) intent.gameVolume = gameVolume;
     if (typeof r.selectedCoverName === 'string' && r.selectedCoverName.trim() !== '') {
       intent.selectedCoverName = r.selectedCoverName.trim();
     }
@@ -139,6 +143,8 @@ export function coerceEditConfig(value: unknown): EditConfig {
     introText: coerceBookendText(raw.introText),
     outroText: coerceBookendText(raw.outroText),
   };
+  const voiceVolume = coerceUnitVolume(raw.voiceVolume);
+  if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
   if (raw.keyDropStyle === 'operator' || raw.keyDropStyle === 'classic') {
     cfg.keyDropStyle = raw.keyDropStyle;
   }
@@ -164,6 +170,10 @@ export function coerceEditConfig(value: unknown): EditConfig {
 /** Accept only a real number in (0,1]; anything else becomes undefined. */
 function coerceMusicVolume(value: unknown): number | undefined {
   return typeof value === 'number' && value > 0 && value <= 1 ? value : undefined;
+}
+
+function coerceUnitVolume(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1 ? value : undefined;
 }
 
 function coerceBookendText(value: unknown): string {

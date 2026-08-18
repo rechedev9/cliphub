@@ -116,6 +116,12 @@ type Config struct {
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
+	// GameVolume is the gain applied to captured game audio when music is
+	// mixed, in [0,1]. Nil keeps the historical 0.20 duck.
+	GameVolume *float64
+	// VoiceVolume is the gain applied to each POV-team comms track, in [0,1].
+	// Nil keeps the historical 0.85 gain.
+	VoiceVolume *float64
 	// VoiceDir holds POV-team Ogg tracks from `zv demo voice --extract`.
 	VoiceDir string
 	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
@@ -171,6 +177,12 @@ type ManifestOptions struct {
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
+	// GameVolume is the gain applied to captured game audio when music is
+	// mixed, in [0,1]. Nil keeps the historical 0.20 duck.
+	GameVolume *float64
+	// VoiceVolume is the gain applied to each POV-team comms track, in [0,1].
+	// Nil keeps the historical 0.85 gain.
+	VoiceVolume *float64
 	VoiceDir    string
 	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
 	KeyDropStyle string
@@ -206,6 +218,8 @@ type Manifest struct {
 	EffectsPreset     string      `json:"effects_preset,omitempty"`
 	MusicPath         string      `json:"music_path,omitempty"`
 	MusicVolume       float64     `json:"music_volume,omitempty"`
+	GameVolume        *float64    `json:"game_volume,omitempty"`
+	VoiceVolume       *float64    `json:"voice_volume,omitempty"`
 	VoiceDir          string      `json:"voice_dir,omitempty"`
 	RhythmPath        string      `json:"rhythm_path,omitempty"`
 	OutputFormat      string      `json:"output_format,omitempty"`
@@ -256,9 +270,15 @@ type ShortEdit struct {
 	MusicPath       string                      `json:"music_path,omitempty"`
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
-	MusicVolume       float64  `json:"music_volume,omitempty"`
-	VoiceTracks       []string `json:"voice_tracks,omitempty"`
-	VoiceTickrate     int      `json:"voice_tickrate,omitempty"`
+	MusicVolume float64 `json:"music_volume,omitempty"`
+	// GameVolume is the gain applied to captured game audio when music is
+	// mixed, in [0,1]. Nil keeps the historical 0.20 duck.
+	GameVolume *float64 `json:"game_volume,omitempty"`
+	// VoiceVolume is the gain applied to each POV-team comms track, in [0,1].
+	// Nil keeps the historical 0.85 gain.
+	VoiceVolume   *float64 `json:"voice_volume,omitempty"`
+	VoiceTracks   []string `json:"voice_tracks,omitempty"`
+	VoiceTickrate int      `json:"voice_tickrate,omitempty"`
 	RhythmPath        string   `json:"rhythm_path,omitempty"`
 	OutputFormat      string   `json:"output_format,omitempty"`
 	KillEffect        string   `json:"kill_effect,omitempty"`

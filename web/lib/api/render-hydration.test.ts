@@ -31,6 +31,10 @@ test('effective music parser distinguishes explicit clean from legacy unknown', 
     parseEffectiveRenderMusic({ key: 'phonk-01', volume: 0.35 }),
     { mode: 'music', songId: 'phonk-01', musicVolume: 0.35 },
   );
+  assert.deepEqual(
+    parseEffectiveRenderMusic({ key: 'phonk-01', volume: 0.35, game_volume: 0.2 }),
+    { mode: 'music', songId: 'phonk-01', musicVolume: 0.35, gameVolume: 0.2 },
+  );
   assert.equal(parseEffectiveRenderMusic(undefined), undefined);
   assert.equal(parseEffectiveRenderMusic({ key: 'phonk-01', volume: 0 }), undefined);
   assert.equal(parseEffectiveRenderMusic({ key: '', volume: 1 }), undefined);
@@ -47,8 +51,9 @@ test('effective edit parser reads the Go mixed wire fields', () => {
     hookText: true,
     killCounter: false,
     matchRecap: false,
-    voiceComms: false,
-    nativeHud: false,
+      voiceComms: true,
+      voiceVolume: 0.4,
+      nativeHud: false,
     introText: 'Watch this',
   };
   // Live orchestrator wire: killEffect camelCase + snake_case booleans.
@@ -62,6 +67,8 @@ test('effective edit parser reads the Go mixed wire fields', () => {
       outro: false,
       hook_text: true,
       kill_counter: false,
+      voice_comms: true,
+      voice_volume: 0.4,
       intro_text: 'Watch this',
     }),
     expected,
@@ -77,6 +84,8 @@ test('effective edit parser reads the Go mixed wire fields', () => {
       outro: false,
       hook_text: true,
       kill_counter: false,
+      voice_comms: true,
+      voice_volume: 0.4,
       intro_text: 'Watch this',
     }),
     expected,

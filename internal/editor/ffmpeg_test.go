@@ -339,9 +339,97 @@ func TestBuildCompilationFFmpegCommandMixesVoiceTracks(t *testing.T) {
 		},
 	}
 	command := strings.Join(BuildCompilationFFmpegCommand("ffmpeg", short), " ")
-	for _, want := range []string{"-i a.ogg", "-i b.ogg", "atrim=start=12.000000:end=20.000000", "amix=inputs=2:duration=first", "[pav0]"} {
+	for _, want := range []string{"-i a.ogg", "-i b.ogg", "atrim=start=12.000000:end=20.000000", "volume=0.85", "amix=inputs=2:duration=first", "[pav0]"} {
 		if !strings.Contains(command, want) {
 			t.Fatalf("command = %q, missing %q", command, want)
 		}
+	}
+}
+
+func TestAudioMixVolumes(t *testing.T) {
+	gameHalf := 0.50
+	gameMute := 0.0
+	voiceFull := 1.00
+	voiceLow := 0.40
+	part := []ShortPart{{SegmentID: "seg-001", Input: "p1.mp4", DurationSeconds: 2, TickStart: 640, TickEnd: 1280, CaptureTickStart: 768, CaptureTickEnd: 1280}}
+	tests := []struct {
+		name    string
+		short   ShortEdit
+		want    []string
+		notWant []string
+	}{
+		{
+			name: "single-clip custom game volume",
+			short: ShortEdit{
+				Input: "in.mp4", Output: "out.mp4", MusicPath: "music.mp3",
+				GameVolume: &gameHalf, DurationSeconds: 2,
+			},
+			want:    []string{"[0:a]volume=0.50[game]", "[1:a]volume=1.00[music]"},
+			notWant: []string{"[0:a]volume=0.20[game]"},
+		},
+		{
+			name: "single-clip muted game audio",
+			short: ShortEdit{
+				Input: "in.mp4", Output: "out.mp4", MusicPath: "music.mp3",
+				GameVolume: &gameMute, DurationSeconds: 2,
+			},
+			want: []string{"[0:a]volume=0.00[game]"},
+		},
+		{
+			name: "compilation custom game volume without voice",
+			short: ShortEdit{
+				Output: "out.mp4", MusicPath: "music.mp3", GameVolume: &gameHalf, Parts: part,
+			},
+			want:    []string{"[gamea]volume=0.50[game]"},
+			notWant: []string{"[gamea]volume=0.20[game]", "[gamea]anull[game]"},
+		},
+		{
+			name: "legacy music plus voice stays coupled",
+			short: ShortEdit{
+				Output: "out.mp4", MusicPath: "music.mp3",
+				VoiceTracks: []string{"a.ogg"}, VoiceTickrate: 64, Parts: part,
+			},
+			want:    []string{"volume=0.85", "[gamea]volume=0.20[game]", "[pa0][vmix0]amix="},
+			notWant: []string{"[gamea]anull[game]", "[pa0]volume="},
+		},
+		{
+			name: "explicit volumes decouple voice from game duck",
+			short: ShortEdit{
+				Output: "out.mp4", MusicPath: "music.mp3",
+				GameVolume: &gameHalf, VoiceVolume: &voiceFull,
+				VoiceTracks: []string{"a.ogg"}, VoiceTickrate: 64, Parts: part,
+			},
+			want:    []string{"volume=1.00[vt0_0]", "[pa0]volume=0.50[pag0]", "[pag0][vmix0]amix=", "[gamea]anull[game]"},
+			notWant: []string{"volume=0.85", "[gamea]volume=0.20[game]", "[gamea]volume=0.50[game]"},
+		},
+		{
+			name: "custom voice volume without music",
+			short: ShortEdit{
+				Output: "out.mp4", VoiceVolume: &voiceLow,
+				VoiceTracks: []string{"a.ogg"}, VoiceTickrate: 64, Parts: part,
+			},
+			want:    []string{"volume=0.40[vt0_0]"},
+			notWant: []string{"volume=0.85", "[pa0]volume="},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var command string
+			if len(tt.short.Parts) > 0 {
+				command = strings.Join(BuildCompilationFFmpegCommand("ffmpeg", tt.short), " ")
+			} else {
+				command = strings.Join(BuildFFmpegCommand("ffmpeg", tt.short), " ")
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(command, want) {
+					t.Fatalf("command = %q, missing %q", command, want)
+				}
+			}
+			for _, notWant := range tt.notWant {
+				if strings.Contains(command, notWant) {
+					t.Fatalf("command = %q, unexpectedly contains %q", command, notWant)
+				}
+			}
+		})
 	}
 }

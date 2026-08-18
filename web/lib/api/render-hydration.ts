@@ -3,7 +3,7 @@ import type { EditConfig, Video } from './types';
 
 export type EffectiveRenderMusic =
   | { mode: 'clean' }
-  | { mode: 'music'; songId: string; musicVolume: number };
+  | { mode: 'music'; songId: string; musicVolume: number; gameVolume?: number };
 
 /** Parses the orchestrator edit wire; accepts both killEffect and kill_effect. */
 export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined {
@@ -48,6 +48,14 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
     voiceComms: edit.voice_comms === true,
     nativeHud: edit.native_hud === true,
   };
+  if (
+    typeof edit.voice_volume === 'number' &&
+    Number.isFinite(edit.voice_volume) &&
+    edit.voice_volume >= 0 &&
+    edit.voice_volume <= 1
+  ) {
+    parsed.voiceVolume = edit.voice_volume;
+  }
   if (typeof edit.intro_text === 'string') parsed.introText = edit.intro_text;
   if (typeof edit.outro_text === 'string') parsed.outroText = edit.outro_text;
   if (edit.keydrop_style === 'operator' || edit.keydrop_style === 'classic') {
@@ -71,7 +79,20 @@ export function parseEffectiveRenderMusic(value: unknown): EffectiveRenderMusic 
   }
   if (music.key === '' && music.volume === 0) return { mode: 'clean' };
   if (music.key === '' || music.volume <= 0 || music.volume > 1) return undefined;
-  return { mode: 'music', songId: music.key, musicVolume: music.volume };
+  const parsed: Extract<EffectiveRenderMusic, { mode: 'music' }> = {
+    mode: 'music',
+    songId: music.key,
+    musicVolume: music.volume,
+  };
+  if (
+    typeof music.game_volume === 'number' &&
+    Number.isFinite(music.game_volume) &&
+    music.game_volume >= 0 &&
+    music.game_volume <= 1
+  ) {
+    parsed.gameVolume = music.game_volume;
+  }
+  return parsed;
 }
 
 /** Applies server-confirmed music to the durable local intent. */
@@ -80,20 +101,28 @@ export function applyEffectiveRenderMusic(intent: ReelIntent, music: EffectiveRe
     const changed =
       intent.mode !== 'clean' ||
       intent.songId !== undefined ||
-      intent.musicVolume !== undefined;
+      intent.musicVolume !== undefined ||
+      intent.gameVolume !== undefined;
     intent.mode = 'clean';
     delete intent.songId;
     delete intent.musicVolume;
+    delete intent.gameVolume;
     return changed;
   }
 
   const changed =
     intent.mode !== 'music' ||
     intent.songId !== music.songId ||
-    intent.musicVolume !== music.musicVolume;
+    intent.musicVolume !== music.musicVolume ||
+    intent.gameVolume !== music.gameVolume;
   intent.mode = 'music';
   intent.songId = music.songId;
   intent.musicVolume = music.musicVolume;
+  if (music.gameVolume !== undefined) {
+    intent.gameVolume = music.gameVolume;
+  } else {
+    delete intent.gameVolume;
+  }
   return changed;
 }
 
@@ -104,6 +133,7 @@ export function hydrateVideoFromIntent(video: Video, intent: ReelIntent): Video 
     mode: intent.mode,
     songId: intent.songId,
     musicVolume: intent.musicVolume,
+    gameVolume: intent.gameVolume,
     editConfig: intent.editConfig,
   };
   if (intent.selectedCoverName) {

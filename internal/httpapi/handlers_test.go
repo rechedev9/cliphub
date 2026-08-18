@@ -1991,6 +1991,59 @@ func TestStartRenderVariantThreadsMusicVolume(t *testing.T) {
 	}
 }
 
+func TestStartRenderVariantThreadsGameAndVoiceVolume(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue)
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	body := `{"music":{"key":"track01","volume":0.8,"game_volume":0.2},"edit":{"voice_comms":true,"voice_volume":0.85}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.GameVolume == nil || *payload.GameVolume != 0.2 {
+		t.Fatalf("game volume = %v, want 0.2", payload.GameVolume)
+	}
+	if !payload.Edit.VoiceComms || payload.Edit.VoiceVolume == nil || *payload.Edit.VoiceVolume != 0.85 {
+		t.Fatalf("voice = comms=%v volume=%v, want true/0.85", payload.Edit.VoiceComms, payload.Edit.VoiceVolume)
+	}
+}
+
+func TestStartRenderVariantRejectsOutOfRangeGameVolume(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue)
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	body := `{"music":{"key":"track01","game_volume":1.5}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 0 {
+		t.Fatalf("enqueued = %d, want 0 for rejected game volume", len(queue.enqueued))
+	}
+}
+
 func TestStartRenderVariantRejectsWhileGuidedGenerateIsActive(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()

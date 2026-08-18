@@ -49,7 +49,7 @@ func TestSuccessfulRenderVariantRerenderKeepsPreviousAndWinningRevisionsReadable
 
 	run := func(edit renderplan.EditRequest) {
 		t.Helper()
-		task, err := tasks.NewRenderVariantTask(jobID, editor.PresetViral60Clean, "", 0, edit)
+		task, err := tasks.NewRenderVariantTask(jobID, editor.PresetViral60Clean, "", 0, nil, edit)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -33,6 +33,7 @@ export type EditConfig = {
   killCounter: boolean;
   matchRecap: boolean;
   voiceComms: boolean;
+  voiceVolume?: number;
   nativeHud: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
@@ -68,6 +69,7 @@ export type Video = {
   variant?: string;
   songId?: string;
   musicVolume?: number;
+  gameVolume?: number;
   editConfig?: EditConfig;
   status: VideoStatus;
   createdAt: number;

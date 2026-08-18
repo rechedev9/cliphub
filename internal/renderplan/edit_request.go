@@ -41,7 +41,10 @@ type EditRequest struct {
 	KillCounter     bool   `json:"kill_counter"`
 	MatchRecap      bool   `json:"match_recap"`
 	VoiceComms      bool   `json:"voice_comms"`
-	NativeHUD       bool   `json:"native_hud"`
+	// VoiceVolume is the gain applied to each POV-team comms track, in [0,1].
+	// Nil keeps the historical 0.85 gain when VoiceComms is on.
+	VoiceVolume *float64 `json:"voice_volume,omitempty"`
+	NativeHUD   bool     `json:"native_hud"`
 	CoverStrategy   string `json:"cover_strategy"`
 	CoverFirstFrame bool   `json:"cover_first_frame"`
 	// IntroText and OutroText customize the intro/outro overlay card text.
@@ -153,6 +156,9 @@ func (r EditRequest) Validate() error {
 	}
 	if r.KeyDropStartSeconds != nil && r.KeyDropEndSeconds != nil && *r.KeyDropEndSeconds <= *r.KeyDropStartSeconds {
 		return fmt.Errorf("keydrop end_seconds must be greater than start_seconds")
+	}
+	if v := r.VoiceVolume; v != nil && (*v < 0 || *v > 1) {
+		return fmt.Errorf("voice volume must be between 0 and 1")
 	}
 	return nil
 }

@@ -30,8 +30,9 @@ type EditDocument struct {
 // An empty snapshot means the render is explicitly music-free; a nil pointer
 // identifies legacy edit documents that predate this durable fact.
 type MusicSnapshot struct {
-	Key    string  `json:"key"`
-	Volume float64 `json:"volume"`
+	Key        string   `json:"key"`
+	Volume     float64  `json:"volume"`
+	GameVolume *float64 `json:"game_volume,omitempty"`
 }
 
 type Source struct {

@@ -922,7 +922,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	// Build the render task now so an invalid music key fails fast here rather
 	// than silently dropping the chained render later in the record worker.
-	if _, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, intent.MusicKey, 0, intent.Edit); err != nil {
+	if _, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, intent.MusicKey, 0, nil, intent.Edit); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1040,13 +1040,15 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderMusicRequest is the "music" field of a render request. It accepts
-// either a bare track key ("phonk-01") or an object {"key","volume"} so a
-// client can also set the music mix gain. Volume is in (0,1]; 0 means the
-// render default. Accepting both keeps older string-only clients working.
+// either a bare track key ("phonk-01") or an object {"key","volume","game_volume"}
+// so a client can set mix gains. Volume is in (0,1]; 0 means the render
+// default. GameVolume is in [0,1]; nil keeps the historical 0.20 duck.
+// Accepting a bare string keeps older clients working.
 type renderMusicRequest struct {
-	Key    string
-	Volume float64
-	set    bool
+	Key        string
+	Volume     float64
+	GameVolume *float64
+	set        bool
 }
 
 func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
@@ -1059,8 +1061,9 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 		return json.Unmarshal(trimmed, &m.Key)
 	}
 	var obj struct {
-		Key    string  `json:"key"`
-		Volume float64 `json:"volume"`
+		Key        string   `json:"key"`
+		Volume     float64  `json:"volume"`
+		GameVolume *float64 `json:"game_volume"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(trimmed))
 	decoder.DisallowUnknownFields()
@@ -1076,6 +1079,7 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 	}
 	m.Key = obj.Key
 	m.Volume = obj.Volume
+	m.GameVolume = obj.GameVolume
 	return nil
 }
 
@@ -1091,6 +1095,7 @@ type renderEditRequest struct {
 	KillCounter         *bool    `json:"kill_counter"`
 	MatchRecap          *bool    `json:"match_recap"`
 	VoiceComms          *bool    `json:"voice_comms"`
+	VoiceVolume         *float64 `json:"voice_volume"`
 	NativeHUD           *bool    `json:"native_hud"`
 	CoverStrategy       *string  `json:"cover_strategy"`
 	CoverFirstFrame     *bool    `json:"cover_first_frame"`
@@ -1130,6 +1135,10 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.VoiceComms != nil {
 		base.VoiceComms = *r.VoiceComms
+	}
+	if r.VoiceVolume != nil {
+		v := *r.VoiceVolume
+		base.VoiceVolume = &v
 	}
 	if r.NativeHUD != nil {
 		base.NativeHUD = *r.NativeHUD
@@ -1200,8 +1209,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Optional JSON body { "music": "<track-key>", "edit": {...} } selects a
-	// track to mix in. "music" also accepts an object {"key","volume"} so the
-	// client can set the music gain; volume is in (0,1], 0 means the default.
+	// track to mix in. "music" also accepts an object
+	// {"key","volume","game_volume"} so the client can set mix gains; volume
+	// is in (0,1], 0 means the default. game_volume is in [0,1]; omitted keeps
+	// the historical 0.20 duck.
 	var musicRequest renderMusicRequest
 	var editPatch renderEditRequest
 	var expectedArtifactPrefix string
@@ -1219,6 +1230,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			editPatch = req.Edit
 			if musicRequest.Volume < 0 || musicRequest.Volume > 1 {
 				writeError(w, http.StatusBadRequest, "music volume must be between 0 and 1")
+				return
+			}
+			if musicRequest.GameVolume != nil && (*musicRequest.GameVolume < 0 || *musicRequest.GameVolume > 1) {
+				writeError(w, http.StatusBadRequest, "game volume must be between 0 and 1")
 				return
 			}
 			expectedArtifactPrefix = req.ExpectedArtifactPrefix
@@ -1249,6 +1264,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	editRequest := renderplan.DefaultEditRequest()
 	var musicKey string
 	var musicVolume float64
+	var gameVolume *float64
 	if reviewReplacement {
 		document, err := h.readRenderVariantDocument(previous.EditDocumentKey)
 		if err != nil {
@@ -1265,6 +1281,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			if document.Music != nil {
 				musicKey = document.Music.Key
 				musicVolume = document.Music.Volume
+				gameVolume = document.Music.GameVolume
 			} else if !musicRequest.set {
 				writeError(w, http.StatusConflict, "the reviewed render does not record its effective music choice; submit music explicitly")
 				return
@@ -1279,8 +1296,9 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	if musicRequest.set {
 		musicKey = musicRequest.Key
 		musicVolume = musicRequest.Volume
+		gameVolume = musicRequest.GameVolume
 	}
-	task, err := tasks.NewRenderVariantTask(j.ID, variant, musicKey, musicVolume, editRequest)
+	task, err := tasks.NewRenderVariantTask(j.ID, variant, musicKey, musicVolume, gameVolume, editRequest)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

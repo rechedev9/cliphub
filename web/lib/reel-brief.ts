@@ -8,7 +8,7 @@ export type CreativeBriefItem = {
 export type MusicBrief =
   | { status: 'pending' }
   | { status: 'none' }
-  | { status: 'track'; title: string; volumePercent: number };
+  | { status: 'track'; title: string; volumePercent: number; gameVolumePercent: number };
 
 export function canForgeReel({
   briefApproved,
@@ -76,7 +76,7 @@ function bookendLabel(enabled: boolean, text: string | undefined, generatedFallb
 export function musicBriefValue(music: MusicBrief): string {
   if (music.status === 'pending') return 'Pendiente de decisión';
   if (music.status === 'none') return 'Sin música';
-  return `${music.title} · ${music.volumePercent}%`;
+  return `${music.title} · música ${music.volumePercent}% · juego ${music.gameVolumePercent}%`;
 }
 
 /** Exact, reviewable values that must be approved before capture or render. */
@@ -94,7 +94,12 @@ export function reelCreativeBrief(
   return [
     { label: 'Formato', value: FORMAT_LABEL[edit.format] },
     { label: 'Entrega', value: edit.matchRecap ? 'Resumen de partida (rondas completas)' : 'Compilado de jugadas' },
-    { label: 'Comms', value: edit.voiceComms ? 'Mezclar comms del equipo' : 'Sin comms' },
+    {
+      label: 'Comms',
+      value: edit.voiceComms
+        ? `Mezclar comms del equipo · ${Math.round((edit.voiceVolume ?? 0.85) * 100)}%`
+        : 'Sin comms',
+    },
     { label: 'HUD / killfeed', value: hud },
     { label: 'Efecto de kill', value: EFFECT_LABEL[edit.killEffect] },
     { label: 'Transición', value: TRANSITION_LABEL[edit.transition] },

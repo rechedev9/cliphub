@@ -3,6 +3,8 @@ import test from 'node:test';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import {
   applyMusicChoice,
+  gameVolumePercentToRequest,
+  gameVolumeRequestToPercent,
   musicChoicesEqual,
   musicVolumePercentToRequest,
   musicVolumeRequestToPercent,
@@ -32,6 +34,8 @@ test('music choices treat missing volume as full volume and ignore volume withou
   assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'b' }), false);
   assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'a', musicVolume: 0.35 }), false);
   assert.equal(musicChoicesEqual({}, { songId: 'a' }), false);
+  assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'a', gameVolume: 0.2 }), true);
+  assert.equal(musicChoicesEqual({ songId: 'a', gameVolume: 0.2 }, { songId: 'a', gameVolume: 0.5 }), false);
 });
 
 test('volume percent conversion keeps full volume unset', () => {
@@ -39,23 +43,30 @@ test('volume percent conversion keeps full volume unset', () => {
   assert.equal(musicVolumePercentToRequest(35), 0.35);
   assert.equal(musicVolumeRequestToPercent(undefined), 100);
   assert.equal(musicVolumeRequestToPercent(0.35), 35);
+  assert.equal(gameVolumePercentToRequest(20), 0.2);
+  assert.equal(gameVolumePercentToRequest(0), 0);
+  assert.equal(gameVolumeRequestToPercent(undefined), 20);
+  assert.equal(gameVolumeRequestToPercent(0.5), 50);
 });
 
 test('applying music writes mode and clears the approved cover', () => {
   const reel = intent({ selectedCoverName: 'cover-1.jpg' });
-  applyMusicChoice(reel, { songId: 'phonk-01', musicVolume: 0.35 });
+  applyMusicChoice(reel, { songId: 'phonk-01', musicVolume: 0.35, gameVolume: 0.2 });
   assert.equal(reel.mode, 'music');
   assert.equal(reel.songId, 'phonk-01');
   assert.equal(reel.musicVolume, 0.35);
+  assert.equal(reel.gameVolume, 0.2);
   assert.equal(reel.selectedCoverName, undefined);
 
   applyMusicChoice(reel, { songId: 'phonk-01' });
   assert.equal(reel.musicVolume, undefined);
+  assert.equal(reel.gameVolume, undefined);
 
   applyMusicChoice(reel, {});
   assert.equal(reel.mode, 'clean');
   assert.equal(reel.songId, undefined);
   assert.equal(reel.musicVolume, undefined);
+  assert.equal(reel.gameVolume, undefined);
 });
 
 test('title suffix flips between clean and music without rewriting the selection label', () => {

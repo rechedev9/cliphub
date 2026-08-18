@@ -157,6 +157,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		EffectsPreset:       cfg.EffectsPreset,
 		MusicPath:           musicPath,
 		MusicVolume:         cfg.MusicVolume,
+		GameVolume:          cfg.GameVolume,
+		VoiceVolume:         cfg.VoiceVolume,
 		VoiceDir:            cfg.VoiceDir,
 		RhythmPath:          rhythmPath,
 		OutputFormat:        cfg.OutputFormat,

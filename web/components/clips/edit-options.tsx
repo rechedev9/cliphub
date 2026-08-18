@@ -73,6 +73,27 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
             HUD nativo
           </ToggleGroupItem>
         </ToggleGroup>
+        {value.voiceComms ? (
+          <div className="flex items-center gap-4 pt-1">
+            <label
+              htmlFor="voice-volume"
+              className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+            >
+              COMMS <span className="text-stream-text">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
+            </label>
+            <input
+              id="voice-volume"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round((value.voiceVolume ?? 0.85) * 100)}
+              disabled={disabled}
+              onChange={(e) => onChange({ ...value, voiceVolume: Number(e.target.value) / 100 })}
+              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+        ) : null}
       </OptionBlock>
 
       <OptionBlock label="EFECTO DE KILL">

@@ -124,6 +124,7 @@ type EditRequestBody = {
   kill_counter: boolean;
   match_recap: boolean;
   voice_comms: boolean;
+  voice_volume?: number;
   native_hud: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
@@ -149,6 +150,9 @@ function buildEditRequest(edit: EditConfig): EditRequestBody {
     native_hud: edit.nativeHud,
     cover_strategy: edit.coverStrategy,
   };
+  if (edit.voiceComms) {
+    body.voice_volume = edit.voiceVolume ?? 0.85;
+  }
   const introText = edit.introText?.trim();
   if (edit.intro && introText) body.intro_text = introText;
   const outroText = edit.outroText?.trim();
@@ -171,13 +175,19 @@ function buildEditRequest(edit: EditConfig): EditRequestBody {
   return body;
 }
 
-/** Bare song key at full volume; `{ key, volume }` only when volume is reduced. */
-function buildMusicRequest(intent: ReelIntent): string | { key: string; volume: number } | undefined {
+/** Bare song key at full default mix; object when music or game gain is set. */
+function buildMusicRequest(
+  intent: ReelIntent,
+): string | { key: string; volume?: number; game_volume?: number } | undefined {
   if (intent.mode !== 'music' || !intent.songId) return undefined;
-  if (intent.musicVolume !== undefined && intent.musicVolume < 1) {
-    return { key: intent.songId, volume: intent.musicVolume };
-  }
-  return intent.songId;
+  const volume = intent.musicVolume !== undefined && intent.musicVolume < 1 ? intent.musicVolume : undefined;
+  const gameVolume = intent.gameVolume;
+  if (volume === undefined && gameVolume === undefined) return intent.songId;
+  return {
+    key: intent.songId,
+    ...(volume !== undefined ? { volume } : {}),
+    ...(gameVolume !== undefined ? { game_volume: gameVolume } : {}),
+  };
 }
 
 function editConfigsEqual(left: EditConfig, right: EditConfig): boolean {
@@ -197,6 +207,7 @@ function videoFromIntent(intent: ReelIntent): Video {
     variant: intent.variant,
     songId: intent.songId,
     musicVolume: intent.musicVolume,
+    gameVolume: intent.gameVolume,
     editConfig: intent.editConfig,
     status: 'queued',
     createdAt: intent.createdAt,
@@ -378,7 +389,7 @@ export class RealApiClient implements ApiClient {
   }
 
   /** Register a durable reel intent; reconcile drives record→render. */
-  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
+  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
     if (!isJobId(input.matchId)) return this.fallback.createVideo(input);
 
     const videoId = `${input.matchId}__${reelName(input.playIds)}`;
@@ -400,6 +411,7 @@ export class RealApiClient implements ApiClient {
       songId: input.songId,
       // Volume only rides along with a chosen song; without one it is meaningless.
       musicVolume: input.songId ? input.musicVolume : undefined,
+      gameVolume: input.songId ? input.gameVolume : undefined,
       title: `${playsSelectionLabel(pickedPlays) ?? 'Highlight'} - ${suffix}`,
       map: match?.map ?? 'Unknown',
       score: match?.score ?? '',
@@ -554,9 +566,9 @@ export class RealApiClient implements ApiClient {
       throw new Error('Este reel ya no se puede volver a renderizar.');
     }
     const nextChoice: MusicChoice = choice.songId
-      ? { songId: choice.songId, musicVolume: choice.musicVolume }
+      ? { songId: choice.songId, musicVolume: choice.musicVolume, gameVolume: choice.gameVolume }
       : {};
-    if (musicChoicesEqual({ songId: intent.songId, musicVolume: intent.musicVolume }, nextChoice)) {
+    if (musicChoicesEqual({ songId: intent.songId, musicVolume: intent.musicVolume, gameVolume: intent.gameVolume }, nextChoice)) {
       throw new Error('Elige una pista o un volumen distinto al actual.');
     }
     if (this.driving.has(intent.videoId)) {

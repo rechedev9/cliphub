@@ -6,10 +6,16 @@ import { api } from '@/lib/api';
 import type { Preset, Song, Video } from '@/lib/api/types';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import {
+  GAME_VOLUME_DEFAULT_PERCENT,
+  GAME_VOLUME_MAX_PERCENT,
+  GAME_VOLUME_MIN_PERCENT,
+  GAME_VOLUME_STEP_PERCENT,
   MUSIC_VOLUME_DEFAULT_PERCENT,
   MUSIC_VOLUME_MAX_PERCENT,
   MUSIC_VOLUME_MIN_PERCENT,
   MUSIC_VOLUME_STEP_PERCENT,
+  gameVolumePercentToRequest,
+  gameVolumeRequestToPercent,
   musicChoicesEqual,
   musicVolumePercentToRequest,
   musicVolumeRequestToPercent,
@@ -40,6 +46,7 @@ export function LibraryMusicDialog({
   const original = currentMusicChoice(video);
   const [song, setSong] = useState<Song | null>(null);
   const [volumePercent, setVolumePercent] = useState(MUSIC_VOLUME_DEFAULT_PERCENT);
+  const [gameVolumePercent, setGameVolumePercent] = useState(GAME_VOLUME_DEFAULT_PERCENT);
   const [preset, setPreset] = useState<Preset | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,11 +57,12 @@ export function LibraryMusicDialog({
     if (open && !wasOpen.current) {
       setSong(video.songId ? { id: video.songId, title: video.songId, artist: '', genre: '', previewUrl: '', durationSec: 0 } : null);
       setVolumePercent(musicVolumeRequestToPercent(video.musicVolume));
+      setGameVolumePercent(gameVolumeRequestToPercent(video.gameVolume));
       setBriefApproved(false);
       setError(null);
     }
     wasOpen.current = open;
-  }, [open, video.songId, video.musicVolume]);
+  }, [open, video.songId, video.musicVolume, video.gameVolume]);
 
   useEffect(() => {
     if (!open || !video.songId) return;
@@ -85,17 +93,21 @@ export function LibraryMusicDialog({
 
   useEffect(() => {
     setBriefApproved(false);
-  }, [song?.id, volumePercent]);
+  }, [song?.id, volumePercent, gameVolumePercent]);
 
   const draft: MusicChoice = song
-    ? { songId: song.id, musicVolume: musicVolumePercentToRequest(volumePercent) }
+    ? {
+        songId: song.id,
+        musicVolume: musicVolumePercentToRequest(volumePercent),
+        gameVolume: gameVolumePercentToRequest(gameVolumePercent),
+      }
     : {};
   const musicChanged = !musicChoicesEqual(original, draft);
   const briefItems = reelCreativeBrief(
     video.editConfig ?? DEFAULT_EDIT_CONFIG,
     preset,
     song
-      ? { status: 'track', title: song.title, volumePercent }
+      ? { status: 'track', title: song.title, volumePercent, gameVolumePercent }
       : { status: 'none' },
   );
   const ready = canRerenderWithMusic({ briefApproved, busy, musicChanged });
@@ -132,24 +144,45 @@ export function LibraryMusicDialog({
         />
 
         {song ? (
-          <div className="flex items-center gap-4 border border-border px-4 py-3">
-            <label
-              htmlFor={`library-music-volume-${video.id}`}
-              className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
-            >
-              VOLUMEN <span className="text-stream-text">· {volumePercent}%</span>
-            </label>
-            <input
-              id={`library-music-volume-${video.id}`}
-              type="range"
-              min={MUSIC_VOLUME_MIN_PERCENT}
-              max={MUSIC_VOLUME_MAX_PERCENT}
-              step={MUSIC_VOLUME_STEP_PERCENT}
-              value={volumePercent}
-              disabled={busy}
-              onChange={(event) => setVolumePercent(Number(event.target.value))}
-              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
-            />
+          <div className="flex flex-col gap-3 border border-border px-4 py-3">
+            <div className="flex items-center gap-4">
+              <label
+                htmlFor={`library-music-volume-${video.id}`}
+                className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+              >
+                MÚSICA <span className="text-stream-text">· {volumePercent}%</span>
+              </label>
+              <input
+                id={`library-music-volume-${video.id}`}
+                type="range"
+                min={MUSIC_VOLUME_MIN_PERCENT}
+                max={MUSIC_VOLUME_MAX_PERCENT}
+                step={MUSIC_VOLUME_STEP_PERCENT}
+                value={volumePercent}
+                disabled={busy}
+                onChange={(event) => setVolumePercent(Number(event.target.value))}
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <label
+                htmlFor={`library-game-volume-${video.id}`}
+                className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+              >
+                JUEGO <span className="text-stream-text">· {gameVolumePercent}%</span>
+              </label>
+              <input
+                id={`library-game-volume-${video.id}`}
+                type="range"
+                min={GAME_VOLUME_MIN_PERCENT}
+                max={GAME_VOLUME_MAX_PERCENT}
+                step={GAME_VOLUME_STEP_PERCENT}
+                value={gameVolumePercent}
+                disabled={busy}
+                onChange={(event) => setGameVolumePercent(Number(event.target.value))}
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
           </div>
         ) : null}
 
@@ -162,6 +195,7 @@ export function LibraryMusicDialog({
             onClick={() => {
               setSong(null);
               setVolumePercent(MUSIC_VOLUME_DEFAULT_PERCENT);
+              setGameVolumePercent(GAME_VOLUME_DEFAULT_PERCENT);
             }}
           >
             Quitar música
@@ -215,6 +249,6 @@ export function LibraryMusicDialog({
 
 function currentMusicChoice(video: Video): MusicChoice {
   return video.songId
-    ? { songId: video.songId, musicVolume: video.musicVolume }
+    ? { songId: video.songId, musicVolume: video.musicVolume, gameVolume: video.gameVolume }
     : {};
 }

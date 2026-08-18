@@ -796,7 +796,7 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 		t.Fatal(err)
 	}
 	edit := renderplan.DefaultEditRequest()
-	fingerprint, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "", "", 0, edit)
+	fingerprint, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "", "", 0, nil, edit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -813,13 +813,13 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 
 	recaptured := rec
 	recaptured.CaptureRevision = "capture-2"
-	changedCapture, err := renderInputFingerprint(recaptured, &plan, editor.PresetViral60Clean, "", "", 0, edit)
+	changedCapture, err := renderInputFingerprint(recaptured, &plan, editor.PresetViral60Clean, "", "", 0, nil, edit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	changedEdit := edit
 	changedEdit.Transition = renderplan.TransitionWhip
-	changedTreatment, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "", "", 0, changedEdit)
+	changedTreatment, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "", "", 0, nil, changedEdit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -827,26 +827,44 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 	if err := os.WriteFile(musicPath, []byte("music-v1"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	changedMusic, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0, edit)
+	changedMusic, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0, nil, edit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(musicPath, []byte("music-v2"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	changedMusicContent, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0, edit)
+	changedMusicContent, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0, nil, edit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if changedMusic == changedMusicContent {
 		t.Fatal("music content change did not change render fingerprint")
 	}
-	changedMusicVolume, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0.5, edit)
+	changedMusicVolume, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0.5, nil, edit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if changedMusicVolume == changedMusicContent {
 		t.Fatal("music volume change did not change render fingerprint")
+	}
+	gameVol := 0.2
+	changedGameVolume, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0.5, &gameVol, edit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedGameVolume == changedMusicVolume {
+		t.Fatal("game volume change did not change render fingerprint")
+	}
+	voiceEdit := edit
+	voice := 0.85
+	voiceEdit.VoiceVolume = &voice
+	changedVoiceVolume, err := renderInputFingerprint(rec, &plan, editor.PresetViral60Clean, "phonk", musicPath, 0.5, nil, voiceEdit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedVoiceVolume == changedMusicVolume {
+		t.Fatal("voice volume change did not change render fingerprint")
 	}
 
 	for name, candidate := range map[string]string{
@@ -855,6 +873,8 @@ func TestRenderVariantOutputsReadyRequiresMatchingInputFingerprint(t *testing.T)
 		"music":            changedMusic,
 		"music content":    changedMusicContent,
 		"music volume":     changedMusicVolume,
+		"game volume":      changedGameVolume,
+		"voice volume":     changedVoiceVolume,
 		"legacy empty":     "",
 	} {
 		t.Run(name, func(t *testing.T) {

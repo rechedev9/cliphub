@@ -377,7 +377,7 @@ function ReviewResolutionDialog({
   const brief = [
     `Formato: ${draft.format}`,
     `Entrega: ${draft.matchRecap ? 'resumen de partida' : 'compilado de jugadas'}`,
-    `Comms: ${draft.voiceComms ? 'equipo del POV' : 'no'}`,
+    `Comms: ${draft.voiceComms ? `equipo del POV · ${Math.round((draft.voiceVolume ?? 0.85) * 100)}%` : 'no'}`,
     `HUD/captura: ${draft.nativeHud ? 'nativo gameplay' : (video.variant ?? 'viral-60-clean')} (no cambia sin recaptura)`,
     `Efecto de kill: ${draft.killEffect}`,
     `Transición: ${draft.transition}`,

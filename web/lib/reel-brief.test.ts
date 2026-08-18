@@ -31,7 +31,10 @@ test('forging stays blocked until the exact brief is approved', () => {
 test('music brief distinguishes pending from an explicit no-music choice', () => {
   assert.equal(musicBriefValue({ status: 'pending' }), 'Pendiente de decisión');
   assert.equal(musicBriefValue({ status: 'none' }), 'Sin música');
-  assert.equal(musicBriefValue({ status: 'track', title: 'Tema CC0', volumePercent: 35 }), 'Tema CC0 · 35%');
+  assert.equal(
+    musicBriefValue({ status: 'track', title: 'Tema CC0', volumePercent: 35, gameVolumePercent: 20 }),
+    'Tema CC0 · música 35% · juego 20%',
+  );
 });
 
 test('creative brief resolves every required production choice', () => {
@@ -51,7 +54,7 @@ test('creative brief resolves every required production choice', () => {
     outroText: '',
   };
 
-  assert.deepEqual(reelCreativeBrief(edit, PRESET, { status: 'track', title: 'Tema CC0', volumePercent: 35 }), [
+  assert.deepEqual(reelCreativeBrief(edit, PRESET, { status: 'track', title: 'Tema CC0', volumePercent: 35, gameVolumePercent: 20 }), [
     { label: 'Formato', value: 'Vertical 9:16 · 1080×1920' },
     { label: 'Entrega', value: 'Compilado de jugadas' },
     { label: 'Comms', value: 'Sin comms' },
@@ -62,7 +65,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Intro', value: 'Sí · “Entrada”' },
     { label: 'Outro', value: 'No' },
     { label: 'KeyDrop', value: 'No' },
-    { label: 'Música', value: 'Tema CC0 · 35%' },
+    { label: 'Música', value: 'Tema CC0 · música 35% · juego 20%' },
     { label: 'Portada', value: 'Generar candidatos de gameplay para revisión' },
   ]);
 });
@@ -112,6 +115,6 @@ test('creative brief names the optional recap extras when they are on', () => {
   };
   const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
   assert.equal(brief['Entrega'], 'Resumen de partida (rondas completas)');
-  assert.equal(brief['Comms'], 'Mezclar comms del equipo');
+  assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
   assert.equal(brief['HUD / killfeed'], 'HUD completo con killfeed');
 });

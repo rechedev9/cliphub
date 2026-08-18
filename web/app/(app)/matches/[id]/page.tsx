@@ -35,6 +35,8 @@ const VOLUME_MIN = 5;
 const VOLUME_MAX = 100;
 const VOLUME_STEP = 5;
 const VOLUME_DEFAULT = 100;
+const GAME_VOLUME_MIN = 0;
+const GAME_VOLUME_DEFAULT = 20;
 
 export default function FindHighlightsPage({
   params,
@@ -44,9 +46,7 @@ export default function FindHighlightsPage({
   searchParams: Promise<{ series?: string | string[] }>;
 }) {
   const { id } = use(params);
-  // Set when the picker was entered from a series map card: creating a reel
-  // then returns to the series so the user can queue the remaining maps,
-  // instead of dead-ending in the Library with the rest of the series lost.
+  // From a series map card: forging returns to the series instead of Library.
   const { series } = use(searchParams);
   const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
   const router = useRouter();
@@ -64,6 +64,7 @@ export default function FindHighlightsPage({
   const [songTitle, setSongTitle] = useState<string | null>(null);
   const [musicDecided, setMusicDecided] = useState(false);
   const [musicVolume, setMusicVolume] = useState<number>(VOLUME_DEFAULT);
+  const [gameVolume, setGameVolume] = useState<number>(GAME_VOLUME_DEFAULT);
   const [editConfig, setEditConfig] = useState<EditConfig>(DEFAULT_EDIT_CONFIG);
   const [songOpen, setSongOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -72,7 +73,7 @@ export default function FindHighlightsPage({
 
   useEffect(() => {
     setBriefApproved(false);
-  }, [selectedIds, variant, songId, musicDecided, musicVolume, editConfig]);
+  }, [selectedIds, variant, songId, musicDecided, musicVolume, gameVolume, editConfig]);
 
   useEffect(() => {
     let active = true;
@@ -117,9 +118,7 @@ export default function FindHighlightsPage({
     };
   }, []);
 
-  // Plan order (the order plays appear in the list), not click order — the
-  // Set only tracks membership, so the source of truth for order is always
-  // the filter below.
+  // Plan order, not click order: the Set is membership only.
   const selectedPlays = (plays ?? []).filter((p) => selectedIds.has(p.id));
   const selectionLabel = playsSelectionLabel(selectedPlays);
   const selectedPreset = presets?.find((p) => p.name === variant) ?? null;
@@ -127,7 +126,7 @@ export default function FindHighlightsPage({
   const briefItems = reelCreativeBrief(
     editConfig,
     selectedPreset,
-    musicBriefFor(musicDecided, songTitle, musicVolume),
+    musicBriefFor(musicDecided, songTitle, musicVolume, gameVolume),
   );
   const busy = creating;
 
@@ -173,6 +172,11 @@ export default function FindHighlightsPage({
     setMusicVolume(nextVolume);
   }
 
+  function changeGameVolume(nextVolume: number) {
+    revokeBriefApproval();
+    setGameVolume(nextVolume);
+  }
+
   async function onCreate() {
     if (!canForgeReel({ briefApproved, creating: busy, hasPreset: variant !== null, selectionCount: selectedPlays.length, musicDecided })) return;
     setCreating(true);
@@ -185,6 +189,7 @@ export default function FindHighlightsPage({
         songId: songId ?? undefined,
         // Only a reduced volume travels; full volume stays the legacy default.
         musicVolume: songId && musicVolume < VOLUME_MAX ? musicVolume / 100 : undefined,
+        gameVolume: songId ? gameVolume / 100 : undefined,
         variant: variant ?? undefined,
         editConfig,
       });
@@ -208,6 +213,7 @@ export default function FindHighlightsPage({
     setSongId(null);
     setSongTitle(null);
     setMusicVolume(VOLUME_DEFAULT);
+    setGameVolume(GAME_VOLUME_DEFAULT);
     setMusicDecided(true);
   }
 
@@ -216,6 +222,7 @@ export default function FindHighlightsPage({
     setSongId(null);
     setSongTitle(null);
     setMusicVolume(VOLUME_DEFAULT);
+    setGameVolume(GAME_VOLUME_DEFAULT);
     setMusicDecided(false);
   }
 
@@ -350,12 +357,7 @@ export default function FindHighlightsPage({
           actions={<Button onClick={() => router.push(backHref)}>VOLVER A {backLabel}</Button>}
         />
       ) : (
-        /*
-          Two panes keyed to the content container: the vertical selector on the
-          left and the reel build column sticky on the right, so the choices that
-          define the output stay visible while the list scrolls. Below the
-          threshold the build column simply stacks under the list.
-        */
+        /* List left, sticky build column right; stacks below the container query. */
         <div className="grid items-start gap-7 @[64rem]/content:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.85fr)]">
           <section className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
@@ -391,11 +393,13 @@ export default function FindHighlightsPage({
                 decided={musicDecided}
                 songTitle={songTitle}
                 musicVolume={musicVolume}
+                gameVolume={gameVolume}
                 busy={busy}
                 onOpenPicker={() => setSongOpen(true)}
                 onChooseNone={chooseNoMusic}
                 onClear={clearMusicDecision}
                 onVolumeChange={changeMusicVolume}
+                onGameVolumeChange={changeGameVolume}
               />
             </section>
 
@@ -442,9 +446,14 @@ export default function FindHighlightsPage({
   );
 }
 
-function musicBriefFor(decided: boolean, songTitle: string | null, volumePercent: number): MusicBrief {
+function musicBriefFor(
+  decided: boolean,
+  songTitle: string | null,
+  volumePercent: number,
+  gameVolumePercent: number,
+): MusicBrief {
   if (!decided) return { status: 'pending' };
-  if (songTitle) return { status: 'track', title: songTitle, volumePercent };
+  if (songTitle) return { status: 'track', title: songTitle, volumePercent, gameVolumePercent };
   return { status: 'none' };
 }
 
@@ -452,20 +461,24 @@ function MusicDecisionPanel({
   decided,
   songTitle,
   musicVolume,
+  gameVolume,
   busy,
   onOpenPicker,
   onChooseNone,
   onClear,
   onVolumeChange,
+  onGameVolumeChange,
 }: {
   decided: boolean;
   songTitle: string | null;
   musicVolume: number;
+  gameVolume: number;
   busy: boolean;
   onOpenPicker: () => void;
   onChooseNone: () => void;
   onClear: () => void;
   onVolumeChange: (volume: number) => void;
+  onGameVolumeChange: (volume: number) => void;
 }): ReactNode {
   if (decided && songTitle) {
     return (
@@ -487,24 +500,45 @@ function MusicDecisionPanel({
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-4 border-t border-border-subtle px-4 py-3">
-          <label
-            htmlFor="music-volume"
-            className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
-          >
-            VOLUMEN <span className="text-stream-text">· {musicVolume}%</span>
-          </label>
-          <input
-            id="music-volume"
-            type="range"
-            min={VOLUME_MIN}
-            max={VOLUME_MAX}
-            step={VOLUME_STEP}
-            value={musicVolume}
-            disabled={busy}
-            onChange={(e) => onVolumeChange(Number(e.target.value))}
-            className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
-          />
+        <div className="flex flex-col gap-3 border-t border-border-subtle px-4 py-3">
+          <div className="flex items-center gap-4">
+            <label
+              htmlFor="music-volume"
+              className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+            >
+              MÚSICA <span className="text-stream-text">· {musicVolume}%</span>
+            </label>
+            <input
+              id="music-volume"
+              type="range"
+              min={VOLUME_MIN}
+              max={VOLUME_MAX}
+              step={VOLUME_STEP}
+              value={musicVolume}
+              disabled={busy}
+              onChange={(e) => onVolumeChange(Number(e.target.value))}
+              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label
+              htmlFor="game-volume"
+              className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+            >
+              JUEGO <span className="text-stream-text">· {gameVolume}%</span>
+            </label>
+            <input
+              id="game-volume"
+              type="range"
+              min={GAME_VOLUME_MIN}
+              max={VOLUME_MAX}
+              step={VOLUME_STEP}
+              value={gameVolume}
+              disabled={busy}
+              onChange={(e) => onGameVolumeChange(Number(e.target.value))}
+              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
         </div>
       </div>
     );

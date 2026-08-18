@@ -55,6 +55,11 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	return append(command, short.Output)
 }
 
+const (
+	defaultGameMixVolume  = 0.20
+	defaultVoiceMixVolume = 0.85
+)
+
 // musicMixVolume is the gain applied to the looped music track. Zero means
 // unset, which keeps the historical 1.00 balance so existing renders are
 // unchanged; a value in (0,1] overrides it.
@@ -63,6 +68,30 @@ func musicMixVolume(short ShortEdit) float64 {
 		return short.MusicVolume
 	}
 	return 1.0
+}
+
+func gameMixVolume(short ShortEdit) float64 {
+	if short.GameVolume != nil {
+		return *short.GameVolume
+	}
+	return defaultGameMixVolume
+}
+
+func voiceMixVolume(short ShortEdit) float64 {
+	if short.VoiceVolume != nil {
+		return *short.VoiceVolume
+	}
+	return defaultVoiceMixVolume
+}
+
+func musicGameVolumeFilter(short ShortEdit) string {
+	if short.GameVolume != nil && len(short.VoiceTracks) > 0 {
+		return "[gamea]anull[game]"
+	}
+	if short.GameVolume != nil {
+		return fmt.Sprintf("[gamea]volume=%.2f[game]", gameMixVolume(short))
+	}
+	return "[gamea]volume=0.20[game]"
 }
 
 func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
@@ -78,9 +107,14 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame {
 		videoClauses = singleClipVideoClauses(short, killfeeds)
 	}
+	gameVol := "0.20"
+	if short.GameVolume != nil {
+		gameVol = fmt.Sprintf("%.2f", *short.GameVolume)
+	}
 	filter := fmt.Sprintf(
-		"%s;[0:a]volume=0.20[game];[1:a]volume=%.2f[music];%s",
+		"%s;[0:a]volume=%s[game];[1:a]volume=%.2f[music];%s",
 		strings.Join(videoClauses, ";"),
+		gameVol,
 		musicMixVolume(short),
 		audioOut,
 	)
@@ -339,7 +373,7 @@ func CompilationFilter(short ShortEdit) string {
 	}
 	if short.MusicPath != "" {
 		musicInput := len(short.Parts)
-		audio := fmt.Sprintf("[%d:a]volume=%.2f[music];[gamea]volume=0.20[game];[game][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,aresample=48000", musicInput, musicMixVolume(short))
+		audio := fmt.Sprintf("[%d:a]volume=%.2f[music];%s;[game][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,aresample=48000", musicInput, musicMixVolume(short), musicGameVolumeFilter(short))
 		if short.AudioNormalize {
 			audio += ",loudnorm=I=-16:TP=-1.5:LRA=11"
 		}
@@ -563,11 +597,15 @@ func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel stri
 	base := voiceInputStart(short)
 	var clauses []string
 	var labels []string
+	voiceVol := "0.85"
+	if short.VoiceVolume != nil {
+		voiceVol = fmt.Sprintf("%.2f", voiceMixVolume(short))
+	}
 	for i := range short.VoiceTracks {
 		lab := fmt.Sprintf("vt%d_%d", partIdx, i)
 		clauses = append(clauses, fmt.Sprintf(
-			"[%d:a]atrim=start=%.6f:end=%.6f,asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,aresample=48000,volume=0.85[%s]",
-			base+i, start, end, lab,
+			"[%d:a]atrim=start=%.6f:end=%.6f,asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,aresample=48000,volume=%s[%s]",
+			base+i, start, end, voiceVol, lab,
 		))
 		labels = append(labels, "["+lab+"]")
 	}
@@ -577,7 +615,13 @@ func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel stri
 	} else {
 		clauses = append(clauses, fmt.Sprintf("%samix=inputs=%d:duration=longest:dropout_transition=0:normalize=0[%s]", strings.Join(labels, ""), len(labels), voiceLab))
 	}
-	clauses = append(clauses, fmt.Sprintf("[%s][%s]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[pav%d]", gameLabel, voiceLab, partIdx))
+	mixGame := gameLabel
+	if short.MusicPath != "" && short.GameVolume != nil {
+		ducked := fmt.Sprintf("pag%d", partIdx)
+		clauses = append(clauses, fmt.Sprintf("[%s]volume=%.2f[%s]", gameLabel, *short.GameVolume, ducked))
+		mixGame = ducked
+	}
+	clauses = append(clauses, fmt.Sprintf("[%s][%s]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[pav%d]", mixGame, voiceLab, partIdx))
 	return strings.Join(clauses, ";")
 }
 

@@ -248,7 +248,7 @@ func TestNewComposeFinalTaskRoundtrip(t *testing.T) {
 func TestNewRenderVariantTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
 	edit := renderplan.EditRequest{Format: renderplan.FormatLandscape16x9, KillEffect: renderplan.KillEffectVelocity, Transition: renderplan.TransitionWhip, Intro: true, HookText: true, KillCounter: true, CoverStrategy: renderplan.CoverStrategyNone}
-	tk, err := NewRenderVariantTask(id, testRenderVariant, "concrete-teeth", 0.35, edit)
+	tk, err := NewRenderVariantTask(id, testRenderVariant, "concrete-teeth", 0.35, nil, edit)
 	if err != nil {
 		t.Fatalf("NewRenderVariantTask error = %v", err)
 	}
@@ -283,7 +283,7 @@ func TestNewRenderVariantTaskRoundtrip(t *testing.T) {
 func TestNewRenderVariantTaskRejectsUnsafeVariant(t *testing.T) {
 	id := uuid.New()
 	for _, variant := range []string{"", "../x", "x/y", `x\y`, "-bad", "x.mp4"} {
-		if _, err := NewRenderVariantTask(id, variant, "", 0, renderplan.EditRequest{}); err == nil {
+		if _, err := NewRenderVariantTask(id, variant, "", 0, nil, renderplan.EditRequest{}); err == nil {
 			t.Fatalf("NewRenderVariantTask(%q) error = nil, want error", variant)
 		}
 	}
@@ -292,8 +292,18 @@ func TestNewRenderVariantTaskRejectsUnsafeVariant(t *testing.T) {
 func TestNewRenderVariantTaskRejectsOutOfRangeMusicVolume(t *testing.T) {
 	id := uuid.New()
 	for _, volume := range []float64{-0.1, 1.5} {
-		if _, err := NewRenderVariantTask(id, testRenderVariant, "", volume, renderplan.EditRequest{}); err == nil {
+		if _, err := NewRenderVariantTask(id, testRenderVariant, "", volume, nil, renderplan.EditRequest{}); err == nil {
 			t.Fatalf("NewRenderVariantTask(volume=%v) error = nil, want error", volume)
+		}
+	}
+}
+
+func TestNewRenderVariantTaskRejectsOutOfRangeGameVolume(t *testing.T) {
+	id := uuid.New()
+	for _, volume := range []float64{-0.1, 1.5} {
+		v := volume
+		if _, err := NewRenderVariantTask(id, testRenderVariant, "track01", 1, &v, renderplan.EditRequest{}); err == nil {
+			t.Fatalf("NewRenderVariantTask(gameVolume=%v) error = nil, want error", volume)
 		}
 	}
 }
