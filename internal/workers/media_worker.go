@@ -2890,7 +2890,7 @@ func captureProfilesCompatible(a, b recording.RecordingPlan) bool {
 		a.TargetAccountID == b.TargetAccountID &&
 		a.Tickrate == b.Tickrate &&
 		a.Stream == b.Stream &&
-		a.Runtime == b.Runtime
+		a.Runtime.Normalized() == b.Runtime.Normalized()
 }
 
 func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) bool {
@@ -2902,7 +2902,7 @@ func legacyCaptureProfileCompatible(legacy, current recording.RecordingPlan) boo
 		legacy.TargetAccountID == current.TargetAccountID &&
 		legacy.Tickrate == current.Tickrate &&
 		legacy.Stream == current.Stream &&
-		legacy.Runtime == current.Runtime
+		legacy.Runtime.Normalized() == current.Runtime.Normalized()
 }
 
 // mergeRecordingResults unions a freshly recorded result over a previously

@@ -106,10 +106,26 @@ type StreamConfig struct {
 	DeathnoticeLifetime  float64    `json:"deathnotice_lifetime_seconds,omitempty"`
 }
 
+// DefaultPlaybackTimescale speeds unrecorded demo gaps when PlaybackTimescale is 0.
+// Set PlaybackTimescale to 1 to disable.
+const DefaultPlaybackTimescale = 8
+
 // RuntimeConfig captures HLAE runtime toggles that affect timing.
 type RuntimeConfig struct {
-	HostTimescale float64 `json:"host_timescale,omitempty"`
-	QuitTickPad   int     `json:"quit_tick_pad,omitempty"`
+	// PlaybackTimescale is the demo_timescale used between record windows.
+	// Recording itself always runs at 1. Zero means DefaultPlaybackTimescale;
+	// 1 disables the speedup.
+	PlaybackTimescale float64 `json:"playback_timescale,omitempty"`
+	QuitTickPad       int     `json:"quit_tick_pad,omitempty"`
+}
+
+// Normalized fills default playback speed so a persisted 0 matches the current
+// default. Gap speedup does not change recorded pixels.
+func (c RuntimeConfig) Normalized() RuntimeConfig {
+	if c.PlaybackTimescale == 0 {
+		c.PlaybackTimescale = DefaultPlaybackTimescale
+	}
+	return c
 }
 
 // RecordingPlan is the lowest-level input to script generation.
@@ -256,7 +272,8 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 		Tickrate:              plan.Demo.Tickrate,
 		Stream:                stream,
 		Runtime: RuntimeConfig{
-			QuitTickPad: 200,
+			PlaybackTimescale: DefaultPlaybackTimescale,
+			QuitTickPad:       200,
 		},
 	}
 	for _, s := range plan.Segments {

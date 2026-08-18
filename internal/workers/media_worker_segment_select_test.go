@@ -610,6 +610,46 @@ func TestRecordingOutputsReadyRejectsCenteredFullHUDProfile(t *testing.T) {
 	}
 }
 
+func TestRecordingOutputsReadyReusesLegacyZeroPlaybackTimescale(t *testing.T) {
+	store := newFakeStorage()
+	id := uuid.New()
+	stream := recording.DefaultStreamConfig()
+	expectedPlan, err := recording.NewPlanFromKillPlan(minimalKillPlan(), "profile.dem", "profile", stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := expectedPlan
+	stored.Runtime.PlaybackTimescale = 0
+	result := recording.RecordingResult{
+		Plan: stored,
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID: "seg-001",
+			Role:      "segment",
+			Type:      "video",
+		}},
+		CaptureMode:     recording.CaptureModeReal,
+		CaptureVerified: true,
+	}
+	result.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(result.Plan)
+	if err := putRecordingResult(store, id, result); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(recording.ScriptArtifactKey(id), bytes.NewReader([]byte("script"))); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip"))); err != nil {
+		t.Fatal(err)
+	}
+
+	missing, _, err := recordingOutputsReady(store, id, []string{"seg-001"}, expectedPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 0 {
+		t.Fatalf("stored playback_timescale 0 was treated as incompatible: missing %v", missing)
+	}
+}
+
 // TestRecordingOutputsReadyReturnsOnlyTheMissingSubset is the B1 unit-level
 // regression: recordingOutputsReady must report exactly which requested
 // segments still lack a durable, profile-compatible clip instead of an

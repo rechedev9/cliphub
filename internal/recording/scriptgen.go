@@ -35,9 +35,10 @@ type captureWindow struct {
 }
 
 const (
-	minimumDemoSeekGapSeconds = 30
-	maxUnknownObserverFrames  = 3
-	demoEndedGraceFrames      = 30
+	minimumDemoSeekGapSeconds      = 30
+	playbackTimescaleSettleSeconds = 2
+	maxUnknownObserverFrames       = 3
+	demoEndedGraceFrames           = 30
 	// softQuitClientFrames delays quit after disconnect. disconnect ends demo
 	// playback so ticks stop; quit must be driven by client frames, not the
 	// tick schedule. Same-frame disconnect+quit hard-crashes CS2/AfxHookSource2.
@@ -414,26 +415,10 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 			)
 		}
 
-		if plan.Runtime.HostTimescale > 0 && plan.Runtime.HostTimescale != 1 {
-			commands = append(commands,
-				scheduledCommand{
-					Tick:     max(1, recordStart-6),
-					Key:      "timescale-up-" + s.ID,
-					Commands: []string{fmt.Sprintf("host_timescale %s", formatFloat(plan.Runtime.HostTimescale))},
-				},
-			)
-		}
-
 		commands = append(commands,
 			scheduledCommand{Tick: recordStart, Key: "record-start-" + s.ID, Commands: []string{"mirv_streams record start"}},
 			scheduledCommand{Tick: recordEnd, Key: "record-end-" + s.ID, Commands: []string{"mirv_streams record end"}},
 		)
-
-		if plan.Runtime.HostTimescale > 0 && plan.Runtime.HostTimescale != 1 {
-			commands = append(commands,
-				scheduledCommand{Tick: recordEnd + 4, Key: "timescale-reset-" + s.ID, Commands: []string{"host_timescale 1"}},
-			)
-		}
 	}
 
 	lastEnd := EffectiveRecordEndTick(plan.Segments[len(plan.Segments)-1], plan)
@@ -442,6 +427,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		pad = 200
 	}
 	shutdownTick := lastEnd + max(8, pad/2)
+	commands = append(commands, playbackTimescaleCommands(plan, windows, shutdownTick)...)
 	for i, cmd := range hudCleanupCommands(plan.Stream) {
 		commands = append(commands, scheduledCommand{
 			Tick:     shutdownTick - 4,
@@ -456,6 +442,86 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		scheduledCommand{Tick: shutdownTick, Key: "shutdown", Commands: []string{}},
 	)
 	return commands, seeks, windows
+}
+
+func playbackTimescaleEnabled(plan RecordingPlan) bool {
+	return plan.Runtime.Normalized().PlaybackTimescale != 1
+}
+
+func playbackTimescaleCommand(scale float64) string {
+	return "demo_timescale " + formatFloat(scale)
+}
+
+// playbackTimescaleCommands speed unrecorded gaps and restore 1x before every
+// record window. Commands are never scheduled inside [recordStart, recordEnd].
+func playbackTimescaleCommands(plan RecordingPlan, windows []captureWindow, shutdownTick int) []scheduledCommand {
+	if !playbackTimescaleEnabled(plan) || len(windows) == 0 {
+		return nil
+	}
+	speed := playbackTimescaleCommand(plan.Runtime.Normalized().PlaybackTimescale)
+	reset := playbackTimescaleCommand(1)
+	commands := []scheduledCommand{}
+	resetTicks := make([]int, len(windows))
+	settleTicks := plan.Tickrate * playbackTimescaleSettleSeconds
+	if settleTicks < 1 {
+		settleTicks = 1
+	}
+	for i, window := range windows {
+		resetTick := window.RecordStart - settleTicks
+		if i > 0 {
+			minReset := windows[i-1].RecordEnd + 1
+			if resetTick < minReset {
+				resetTick = minReset
+			}
+		}
+		if resetTick < 1 {
+			resetTick = 1
+		}
+		if resetTick >= window.RecordStart {
+			resetTicks[i] = 0
+			continue
+		}
+		resetTicks[i] = resetTick
+		commands = append(commands, scheduledCommand{
+			Tick:     resetTick,
+			Key:      "timescale-reset-" + window.SegmentID,
+			Commands: []string{reset},
+		})
+	}
+	if firstReset := resetTicks[0]; firstReset > 50 {
+		commands = append(commands, scheduledCommand{
+			Tick:     50,
+			Key:      "timescale-up-preamble",
+			Commands: []string{speed},
+		})
+	}
+	for i, window := range windows {
+		upTick := window.RecordEnd + 4
+		nextBound := shutdownTick
+		if i+1 < len(windows) {
+			nextBound = windows[i+1].RecordStart
+			if resetTicks[i+1] > 0 && resetTicks[i+1] < nextBound {
+				nextBound = resetTicks[i+1]
+			}
+		}
+		if upTick >= nextBound {
+			continue
+		}
+		commands = append(commands, scheduledCommand{
+			Tick:     upTick,
+			Key:      "timescale-up-" + window.SegmentID,
+			Commands: []string{speed},
+		})
+	}
+	lastEnd := windows[len(windows)-1].RecordEnd
+	if shutdownReset := shutdownTick - 4; shutdownReset > lastEnd {
+		commands = append(commands, scheduledCommand{
+			Tick:     shutdownReset,
+			Key:      "timescale-reset-shutdown",
+			Commands: []string{reset},
+		})
+	}
+	return commands
 }
 
 func quoteConsoleArg(value string) string {

@@ -676,15 +676,124 @@ func TestGenerateHLAEJavaScriptEscapesCommandsViaJSON(t *testing.T) {
 	}
 }
 
-func TestGenerateHLAEJavaScriptTimescale(t *testing.T) {
-	p := testPlan()
-	p.Runtime.HostTimescale = 2
-	js, err := GenerateHLAEJavaScript(p)
-	if err != nil {
-		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+func TestPlaybackTimescaleSchedule(t *testing.T) {
+	type wantCmd struct {
+		key      string
+		tick     int
+		command  string
+		optional bool
 	}
-	if !strings.Contains(js, `host_timescale 2`) || !strings.Contains(js, `host_timescale 1`) {
-		t.Errorf("generated JS missing host_timescale wrapper:\n%s", js)
+	for _, tt := range []struct {
+		name      string
+		timescale float64
+		segments  []RecordingSegment
+		want      []wantCmd
+		forbid    []string
+	}{
+		{
+			name:      "zero uses default speed",
+			timescale: 0,
+			want: []wantCmd{
+				{key: "timescale-up-preamble", tick: 50, command: "demo_timescale 8"},
+				{key: "timescale-reset-seg-001", command: "demo_timescale 1"},
+				{key: "timescale-up-seg-001", command: "demo_timescale 8"},
+				{key: "timescale-reset-seg-002", command: "demo_timescale 1"},
+				{key: "timescale-up-seg-002", command: "demo_timescale 8"},
+				{key: "timescale-reset-shutdown", command: "demo_timescale 1"},
+			},
+			forbid: []string{"host_timescale"},
+		},
+		{
+			name:      "disabled one",
+			timescale: 1,
+			forbid:    []string{"demo_timescale", "host_timescale"},
+		},
+		{
+			name:      "speeds gaps and resets before each record",
+			timescale: 8,
+			want: []wantCmd{
+				{key: "timescale-up-preamble", tick: 50, command: "demo_timescale 8"},
+				{key: "timescale-reset-seg-001", command: "demo_timescale 1"},
+				{key: "timescale-up-seg-001", command: "demo_timescale 8"},
+				{key: "timescale-reset-seg-002", command: "demo_timescale 1"},
+				{key: "timescale-up-seg-002", command: "demo_timescale 8"},
+				{key: "timescale-reset-shutdown", command: "demo_timescale 1"},
+			},
+			forbid: []string{"host_timescale"},
+		},
+		{
+			name:      "nearby segments skip inter-window speedup",
+			timescale: 8,
+			segments: []RecordingSegment{
+				{ID: "seg-001", TickStart: 2000, TickEnd: 2400},
+				{ID: "seg-002", TickStart: 2432, TickEnd: 2800},
+			},
+			want: []wantCmd{
+				{key: "timescale-up-preamble", tick: 50, command: "demo_timescale 8"},
+				{key: "timescale-reset-seg-001", command: "demo_timescale 1"},
+				{key: "timescale-reset-seg-002", command: "demo_timescale 1"},
+				{key: "timescale-reset-shutdown", command: "demo_timescale 1"},
+			},
+			forbid: []string{"timescale-up-seg-001", "host_timescale"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := testPlan()
+			plan.Runtime.PlaybackTimescale = tt.timescale
+			if tt.segments != nil {
+				plan.Segments = tt.segments
+			}
+			commands, _, windows := buildRuntimeSchedule(plan)
+			byKey := map[string]scheduledCommand{}
+			for _, cmd := range commands {
+				if _, exists := byKey[cmd.Key]; exists {
+					t.Fatalf("duplicate schedule key %q", cmd.Key)
+				}
+				byKey[cmd.Key] = cmd
+			}
+			for _, want := range tt.want {
+				got, ok := byKey[want.key]
+				if !ok {
+					if want.optional {
+						continue
+					}
+					t.Fatalf("missing %q in %v", want.key, commandKeys(commands))
+				}
+				if want.tick != 0 && got.Tick != want.tick {
+					t.Errorf("%s tick = %d, want %d", want.key, got.Tick, want.tick)
+				}
+				if want.command != "" && (len(got.Commands) != 1 || got.Commands[0] != want.command) {
+					t.Errorf("%s commands = %v, want [%q]", want.key, got.Commands, want.command)
+				}
+			}
+			for _, ban := range tt.forbid {
+				for _, cmd := range commands {
+					if cmd.Key == ban || strings.Contains(strings.Join(cmd.Commands, " "), ban) {
+						t.Fatalf("forbidden %q in %s: %v", ban, cmd.Key, cmd.Commands)
+					}
+				}
+			}
+			if tt.timescale == 1 {
+				return
+			}
+			for i, window := range windows {
+				minReset := window.RecordStart - plan.Tickrate*playbackTimescaleSettleSeconds
+				if i > 0 && windows[i-1].RecordEnd+1 > minReset {
+					minReset = windows[i-1].RecordEnd + 1
+				}
+				for _, cmd := range commands {
+					if !strings.HasPrefix(cmd.Key, "timescale-") {
+						continue
+					}
+					if cmd.Tick >= window.RecordStart && cmd.Tick <= window.RecordEnd {
+						t.Fatalf("%s tick %d is inside record window [%d, %d]", cmd.Key, cmd.Tick, window.RecordStart, window.RecordEnd)
+					}
+					if strings.HasPrefix(cmd.Key, "timescale-reset-"+window.SegmentID) && (cmd.Tick < minReset || cmd.Tick >= window.RecordStart) {
+						t.Fatalf("%s tick %d want in [%d, %d)", cmd.Key, cmd.Tick, minReset, window.RecordStart)
+					}
+				}
+			}
+		})
 	}
 }
 

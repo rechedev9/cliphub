@@ -51,6 +51,34 @@ func TestNewPlanFromKillPlan(t *testing.T) {
 	if plan.Stream.HUDMode != HUDModeGameplay {
 		t.Errorf("Stream.HUDMode = %q, want %q", plan.Stream.HUDMode, HUDModeGameplay)
 	}
+	if plan.Runtime.PlaybackTimescale != DefaultPlaybackTimescale {
+		t.Errorf("PlaybackTimescale = %v, want %v", plan.Runtime.PlaybackTimescale, DefaultPlaybackTimescale)
+	}
+}
+
+func TestRuntimeConfigNormalizedTreatsZeroAsDefault(t *testing.T) {
+	for _, tt := range []struct {
+		in   float64
+		want float64
+	}{
+		{in: 0, want: DefaultPlaybackTimescale},
+		{in: DefaultPlaybackTimescale, want: DefaultPlaybackTimescale},
+		{in: 1, want: 1},
+		{in: 4, want: 4},
+	} {
+		got := RuntimeConfig{PlaybackTimescale: tt.in, QuitTickPad: 200}.Normalized()
+		if got.PlaybackTimescale != tt.want {
+			t.Errorf("Normalized(%v) = %v, want %v", tt.in, got.PlaybackTimescale, tt.want)
+		}
+		if got.QuitTickPad != 200 {
+			t.Errorf("Normalized(%v) QuitTickPad = %d, want 200", tt.in, got.QuitTickPad)
+		}
+	}
+	zero := RuntimeConfig{QuitTickPad: 200}
+	explicit := RuntimeConfig{PlaybackTimescale: DefaultPlaybackTimescale, QuitTickPad: 200}
+	if zero.Normalized() != explicit.Normalized() {
+		t.Fatalf("zero and default runtime should compare equal after Normalized")
+	}
 }
 
 func TestNewPlanFromKillPlanSeparatesEditorialAndCaptureOrder(t *testing.T) {
