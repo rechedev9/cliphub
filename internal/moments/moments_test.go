@@ -102,6 +102,44 @@ func TestBuildDerivesUtilityLineupReasons(t *testing.T) {
 	}
 }
 
+func TestReasonCodesForMultiKillMilestones(t *testing.T) {
+	tests := []struct {
+		name    string
+		kills   int
+		want    []string
+		missing []string
+	}{
+		{name: "single", kills: 1, missing: []string{"multi_kill", "quad", "ace"}},
+		{name: "double", kills: 2, want: []string{"multi_kill"}, missing: []string{"quad", "ace"}},
+		{name: "quad", kills: 4, want: []string{"multi_kill", "quad"}, missing: []string{"ace"}},
+		{name: "ace", kills: 5, want: []string{"multi_kill", "quad", "ace"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kills := make([]killplan.Kill, tt.kills)
+			for i := range kills {
+				kills[i] = killplan.Kill{Tick: 100 + i}
+			}
+			plan := killplan.NewPlan()
+			plan.Demo.Tickrate = 64
+			plan.Segments = []killplan.Segment{{
+				ID: "seg-001", TickStart: 0, TickEnd: 640, Kills: kills,
+			}}
+			got := Rank(plan)[0].ReasonCodes
+			for _, want := range tt.want {
+				if !hasReason(got, want) {
+					t.Fatalf("reasons = %v, missing %q", got, want)
+				}
+			}
+			for _, missing := range tt.missing {
+				if hasReason(got, missing) {
+					t.Fatalf("reasons = %v, unexpected %q", got, missing)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildWarnsOnInvalidSegments(t *testing.T) {
 	plan := killplan.NewPlan()
 	plan.Segments = []killplan.Segment{{}}

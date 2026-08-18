@@ -24,6 +24,8 @@ type shortIntent struct {
 	// OutputFormat selects a 16:9 long-form render when the prompt names an
 	// unambiguous landscape format. Empty keeps the vertical product default.
 	OutputFormat string
+	// Recap selects one segment per action round instead of 8-second bursts.
+	Recap bool
 }
 
 var (
@@ -55,6 +57,10 @@ var shortLandscapeKeywords = []string{
 	"16:9", "16x9", "landscape", "horizontal", "video largo", "vídeo largo", "long video", "youtube long",
 }
 
+var shortRecapKeywords = []string{
+	"resumen", "recap", "match summary", "video resumen", "vídeo resumen",
+}
+
 // interpretShortPrompt maps a free-form prompt to a deterministic intent.
 func interpretShortPrompt(prompt string) shortIntent {
 	lowered := strings.ToLower(prompt)
@@ -66,6 +72,12 @@ func interpretShortPrompt(prompt string) shortIntent {
 	}
 	if containsAnyKeyword(lowered, shortLandscapeKeywords) {
 		intent.OutputFormat = editor.OutputFormatLandscape16x9
+	}
+	if containsAnyKeyword(lowered, shortRecapKeywords) {
+		intent.Recap = true
+		if intent.OutputFormat == "" {
+			intent.OutputFormat = editor.OutputFormatLandscape16x9
+		}
 	}
 	intent.TargetName = promptTargetName(lowered)
 	return intent

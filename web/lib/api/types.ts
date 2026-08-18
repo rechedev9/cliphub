@@ -31,6 +31,9 @@ export type EditConfig = {
   outro: boolean;
   hookText: boolean;
   killCounter: boolean;
+  matchRecap: boolean;
+  voiceComms: boolean;
+  nativeHud: boolean;
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;

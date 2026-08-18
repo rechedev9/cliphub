@@ -39,6 +39,9 @@ type EditRequest struct {
 	Outro           bool   `json:"outro"`
 	HookText        bool   `json:"hook_text"`
 	KillCounter     bool   `json:"kill_counter"`
+	MatchRecap      bool   `json:"match_recap"`
+	VoiceComms      bool   `json:"voice_comms"`
+	NativeHUD       bool   `json:"native_hud"`
 	CoverStrategy   string `json:"cover_strategy"`
 	CoverFirstFrame bool   `json:"cover_first_frame"`
 	// IntroText and OutroText customize the intro/outro overlay card text.

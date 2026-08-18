@@ -85,9 +85,16 @@ export function reelCreativeBrief(
   preset: Preset | null,
   music: MusicBrief,
 ): CreativeBriefItem[] {
-  const hud = preset?.hudMode ? (HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`) : 'Pendiente de preset';
+  let hud = 'Pendiente de preset';
+  if (edit.nativeHud) {
+    hud = HUD_LABEL.gameplay;
+  } else if (preset?.hudMode) {
+    hud = HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`;
+  }
   return [
     { label: 'Formato', value: FORMAT_LABEL[edit.format] },
+    { label: 'Entrega', value: edit.matchRecap ? 'Resumen de partida (rondas completas)' : 'Compilado de jugadas' },
+    { label: 'Comms', value: edit.voiceComms ? 'Mezclar comms del equipo' : 'Sin comms' },
     { label: 'HUD / killfeed', value: hud },
     { label: 'Efecto de kill', value: EFFECT_LABEL[edit.killEffect] },
     { label: 'Transición', value: TRANSITION_LABEL[edit.transition] },

@@ -1951,6 +1951,167 @@ func TestRenderWorkerPassesMusicVolume(t *testing.T) {
 	}
 }
 
+func TestRenderWorkerPassesVoiceDir(t *testing.T) {
+	const steamID = "76561197960265729"
+	const demoKey = "demos/test.dem"
+	cases := []struct {
+		name        string
+		voiceComms  bool
+		steamID     string
+		demoKey     string
+		putDemo     bool
+		tracks      int
+		extractErr  error
+		wantDir     bool
+		wantExtract bool
+		wantErr     string
+	}{
+		{name: "off skips extract"},
+		{
+			name:        "on with tracks",
+			voiceComms:  true,
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			tracks:      2,
+			wantDir:     true,
+			wantExtract: true,
+		},
+		{
+			name:        "on without tracks",
+			voiceComms:  true,
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			wantExtract: true,
+		},
+		{
+			name:        "on extract fails",
+			voiceComms:  true,
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			extractErr:  errors.New("no opus"),
+			wantExtract: true,
+			wantErr:     "extract voice",
+		},
+		{
+			name:       "on missing steamid",
+			voiceComms: true,
+			demoKey:    demoKey,
+			putDemo:    true,
+			wantErr:    "target steamid",
+		},
+		{
+			name:       "on missing demo",
+			voiceComms: true,
+			steamID:    steamID,
+			wantErr:    "no demo",
+		},
+		{
+			name:       "on missing demo file",
+			voiceComms: true,
+			steamID:    steamID,
+			demoKey:    "demos/missing.dem",
+			wantErr:    "materialize demo",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := minimalKillPlan()
+			repo.jobs[id] = &job.Job{
+				ID:            id,
+				Status:        job.StatusRecorded,
+				DemoPath:      tc.demoKey,
+				TargetSteamID: tc.steamID,
+				Rules:         rules.Default(),
+				KillPlan:      &plan,
+			}
+			putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+			_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+			if tc.putDemo {
+				if err := store.Put(tc.demoKey, bytes.NewReader([]byte("demo"))); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			var extracted bool
+			var gotTarget string
+			var gotDemo string
+			var gotArgs []string
+			stop := errors.New("stop after args")
+			w := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:    t.TempDir(),
+				EditorPath: "zv-editor",
+			})
+			w.voiceExtract = func(demoPath, target, dir string) (int, error) {
+				extracted = true
+				gotDemo = demoPath
+				gotTarget = target
+				if tc.extractErr != nil {
+					return 0, tc.extractErr
+				}
+				if tc.tracks > 0 {
+					if err := os.MkdirAll(dir, 0o700); err != nil {
+						return 0, err
+					}
+					if err := os.WriteFile(filepath.Join(dir, "track.ogg"), []byte("ogg"), 0o600); err != nil {
+						return 0, err
+					}
+				}
+				return tc.tracks, nil
+			}
+			w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				gotArgs = append([]string(nil), args...)
+				return nil, stop
+			}}
+
+			edit := renderplan.DefaultEditRequest()
+			edit.VoiceComms = tc.voiceComms
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "", 0, edit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = w.HandleRenderVariant(context.Background(), task)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("HandleRenderVariant error = %v, want %q", err, tc.wantErr)
+				}
+				if extracted != tc.wantExtract {
+					t.Fatalf("extract called = %v, want %v", extracted, tc.wantExtract)
+				}
+				return
+			}
+			if !errors.Is(err, stop) {
+				t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
+			}
+			if extracted != tc.wantExtract {
+				t.Fatalf("extract called = %v, want %v", extracted, tc.wantExtract)
+			}
+			if tc.wantExtract {
+				if _, statErr := os.Stat(gotDemo); statErr != nil {
+					t.Fatalf("materialized demo = %v", statErr)
+				}
+				if gotTarget != tc.steamID {
+					t.Fatalf("extract target = %q, want %q", gotTarget, tc.steamID)
+				}
+			}
+			if got := hasArg(gotArgs, "--voice-dir"); got != tc.wantDir {
+				t.Fatalf("--voice-dir present = %v, want %v: %#v", got, tc.wantDir, gotArgs)
+			}
+			if tc.wantDir {
+				voiceDir := argValue(gotArgs, "--voice-dir")
+				if !strings.HasSuffix(filepath.Clean(voiceDir), "voice") {
+					t.Fatalf("--voice-dir = %q, want .../voice", voiceDir)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderWorkerTreatsDefaultAndUnityMusicVolumeAsSameCacheIdentity(t *testing.T) {
 	tests := []struct {
 		name         string

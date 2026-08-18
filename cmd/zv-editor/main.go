@@ -32,6 +32,7 @@ func run() error {
 		effectsPath         = flag.String("effects", "", "optional Lua effects script; overrides --effects-preset")
 		effectsPreset       = flag.String("effects-preset", "", "effects preset: viral-ultra-clean, viral-aggressive; defaults by preset")
 		musicPath           = flag.String("music", "", "optional external music file to mix into rendered shorts")
+		voiceDir            = flag.String("voice-dir", "", "optional directory of POV-team Ogg tracks from zv demo voice --extract")
 		musicVolume         = flag.Float64("music-volume", 1.0, "music track gain in (0,1]; higher is louder")
 		rhythmPath          = flag.String("rhythm", "", "optional rhythm JSON with segment_sync entries for compiled shorts")
 		outputFormat        = flag.String("output-format", editor.OutputFormatShort9x16, "output format: short-9x16 or landscape-16x9")
@@ -125,6 +126,7 @@ func run() error {
 		EffectsPreset:       *effectsPreset,
 		MusicPath:           *musicPath,
 		MusicVolume:         *musicVolume,
+		VoiceDir:            *voiceDir,
 		RhythmPath:          *rhythmPath,
 		OutputFormat:        *outputFormat,
 		KillEffect:          *killEffect,

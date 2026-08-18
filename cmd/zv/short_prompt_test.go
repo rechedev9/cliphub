@@ -63,6 +63,21 @@ func TestInterpretShortPrompt(t *testing.T) {
 			prompt: "haz un short con todas las kills de la partida",
 			want:   shortIntent{},
 		},
+		{
+			name:   "spanish match recap defaults to landscape",
+			prompt: "resumen de la partida 76561198000000000",
+			want:   shortIntent{TargetSteamID: "76561198000000000", Recap: true, OutputFormat: "landscape-16x9"},
+		},
+		{
+			name:   "english recap",
+			prompt: "match recap of 76561198000000000",
+			want:   shortIntent{TargetSteamID: "76561198000000000", Recap: true, OutputFormat: "landscape-16x9"},
+		},
+		{
+			name:   "landscape without recap",
+			prompt: "video largo 16:9 de 76561198000000000",
+			want:   shortIntent{TargetSteamID: "76561198000000000", OutputFormat: "landscape-16x9"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

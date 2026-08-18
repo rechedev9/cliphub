@@ -43,6 +43,10 @@ func utilityTypeFromEquipment(eq *common.Equipment) string {
 		return MolotovType
 	case common.EqIncendiary:
 		return IncendiaryGrenadeType
+	case common.EqHE:
+		return HeGrenadeType
+	case common.EqDecoy:
+		return DecoyType
 	default:
 		return weaponName(eq)
 	}
@@ -302,6 +306,7 @@ func applyThrowState(u *RawUtilityThrow, p *common.Player, tick int, source stri
 	speed := safePlayerSpeed2D(p)
 	movement := movementLabel(speed, walking)
 	action := throwActionLabel(stance, movement, onGround)
+	click := throwClickFromButtons(safePressing(p, common.ButtonAttack), safePressing(p, common.ButtonAttack2))
 
 	// Prefer the projectile-created tick over weapon_fire when it proves the
 	// throw was airborne; later pop/landing events must not rewrite action.
@@ -317,6 +322,69 @@ func applyThrowState(u *RawUtilityThrow, p *common.Player, tick int, source stri
 	u.Speed2D = math.Round(speed*10) / 10
 	u.Movement = movement
 	u.ThrowAction = action
+	if click != "" {
+		u.ThrowClick = click
+	}
+	if yaw, pitch, ok := safeViewAngles(p); ok {
+		u.ViewYaw = yaw
+		u.ViewPitch = pitch
+	}
+	if eyes, ok := safeEyePosition(p); ok {
+		u.ThrowEyePos = eyes
+	}
+}
+
+func throwClickFromButtons(left, right bool) string {
+	switch {
+	case left && right:
+		return "both"
+	case left:
+		return "left"
+	case right:
+		return "right"
+	default:
+		return ""
+	}
+}
+
+func safePressing(p *common.Player, button common.ButtonBitMask) (out bool) {
+	if p == nil {
+		return false
+	}
+	defer func() {
+		if recover() != nil {
+			out = false
+		}
+	}()
+	return p.IsPressingButton(button)
+}
+
+func safeViewAngles(p *common.Player) (yaw, pitch float64, ok bool) {
+	if p == nil {
+		return 0, 0, false
+	}
+	defer func() {
+		if recover() != nil {
+			yaw, pitch, ok = 0, 0, false
+		}
+	}()
+	return float64(p.ViewDirectionX()), float64(p.ViewDirectionY()), true
+}
+
+func safeEyePosition(p *common.Player) (out [3]float64, ok bool) {
+	if p == nil {
+		return [3]float64{}, false
+	}
+	defer func() {
+		if recover() != nil {
+			out, ok = [3]float64{}, false
+		}
+	}()
+	pos, found := p.PositionEyes()
+	if !found {
+		return [3]float64{}, false
+	}
+	return [3]float64{pos.X, pos.Y, pos.Z}, true
 }
 
 func safePlayerStance(p *common.Player) (out string) {

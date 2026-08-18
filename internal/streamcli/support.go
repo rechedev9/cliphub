@@ -51,7 +51,20 @@ func writeJSON(w io.Writer, value any) error {
 	return enc.Encode(value)
 }
 
-const streamUsage = `usage: zv-stream variants [--format text|json] | zv-stream plan [flags] | zv-stream render [flags]
+const streamUsage = `usage: zv-stream fetch [flags] | zv-stream variants [--format text|json] | zv-stream plan [flags] | zv-stream render [flags]
+`
+
+const streamFetchUsage = `usage: zv stream fetch --url <https://...> --out <stream.mp4> [flags]
+
+Downloads an allowlisted Twitch or YouTube clip/VOD to a local MP4. The
+destination is left untouched on --dry-run. Existing files are reused.
+
+Flags:
+  --max-bytes <n>              download size ceiling (default 8589934592)
+  --ytdlp <path>               yt-dlp path; defaults to ZV_YTDLP_PATH or PATH
+  --timeout <duration>         download timeout (default 20m)
+  --dry-run                    validate the URL and destination without downloading
+  --format <text|json>         output format (default text)
 `
 
 const streamVariantsUsage = `usage: zv stream variants [--format text|json]

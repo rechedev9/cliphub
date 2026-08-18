@@ -14,7 +14,7 @@ Unified CLI. Feature binaries remain behavioral owners; `zv` is the stable comma
 | Claude/Codex perms | `check_config.go` |
 | Anticheat CLI | `anticheat_commands.go` → `internal/anticheat` |
 | FACEIT index | `faceit_command.go` → `internal/faceit` |
-| Demo review | `demo_review_commands.go`, `demo_probe.go` |
+| Demo review | `demo_review_commands.go`, `demo_probe.go`, `voice_commands.go` |
 | Tactical CLI | `analysis_commands.go` |
 | Record / stream wrappers | `record_command.go`, `stream_commands.go` |
 | Public presets | `supported_presets.go`, `presets_command.go` |

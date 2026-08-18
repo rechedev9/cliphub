@@ -791,6 +791,53 @@ func TestRunShortDryRunResolvesLandscapeAndEditorialChoices(t *testing.T) {
 	}
 }
 
+func TestRunShortDryRunRecapSelectsRoundSegmentsAndLandscape(t *testing.T) {
+	setShortCaptureEnv(t)
+	var stdout, stderr strings.Builder
+	code := Run([]string{
+		"zv", "short", "inferno.dem",
+		"--prompt", "resumen de la partida 76561198000000000",
+		"--dry-run", "--format", "json",
+	}, &stdout, &stderr, nil, &multiRunner{})
+	if code != exitSuccess || stderr.Len() != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, stderr.String())
+	}
+	var result shortDryRunResult
+	if err := json.Unmarshal([]byte(stdout.String()), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Selection != "match recap (full rounds, native HUD)" {
+		t.Fatalf("selection = %q", result.Selection)
+	}
+	if result.Edit.OutputFormat != editor.OutputFormatLandscape16x9 {
+		t.Fatalf("output format = %q", result.Edit.OutputFormat)
+	}
+	parseArgs := strings.Join(result.Stages[0].Args, " ")
+	if !strings.Contains(parseArgs, "--segment-mode recap") {
+		t.Fatalf("parse args = %q, missing recap mode", parseArgs)
+	}
+	if got, want := len(result.Stages), 4; got != want {
+		t.Fatalf("stages len = %d, want %d", got, want)
+	}
+	voiceArgs := strings.Join(result.Stages[1].Args, " ")
+	if !strings.Contains(voiceArgs, "demo voice") || !strings.Contains(voiceArgs, "--extract") {
+		t.Fatalf("voice stage args = %q", voiceArgs)
+	}
+	recordArgs := strings.Join(result.Stages[2].Args, " ")
+	for _, want := range []string{"--hud gameplay", "--timeout 90m"} {
+		if !strings.Contains(recordArgs, want) {
+			t.Fatalf("record args = %q, missing %q", recordArgs, want)
+		}
+	}
+	if strings.Contains(recordArgs, "--portrait-safe-killfeed") {
+		t.Fatalf("record args = %q, landscape recap must keep native HUD", recordArgs)
+	}
+	renderArgs := strings.Join(result.Stages[len(result.Stages)-1].Args, " ")
+	if !strings.Contains(renderArgs, "--output-format landscape-16x9") || !strings.Contains(renderArgs, "--voice-dir") {
+		t.Fatalf("render args = %q, missing landscape or voice-dir", renderArgs)
+	}
+}
+
 func TestRunShortRejectsJSONForRealExecution(t *testing.T) {
 	setShortCaptureEnv(t)
 	runner := &multiRunner{}

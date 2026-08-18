@@ -234,6 +234,225 @@ func TestSegmentClippedAtRoundEndWhenGroupSpansRounds(t *testing.T) {
 	}
 }
 
+func TestSegmentRecap(t *testing.T) {
+	tests := []struct {
+		name        string
+		kills       []RawKill
+		roundStarts []RoundStart
+		roundEnds   []RoundEnd
+		rules       func() rules.Rules
+		wantSegs    int
+		wantRound   int
+		wantKills   int
+		checkRange  bool
+		wantStart   int
+		wantEnd     int
+	}{
+		{
+			name:     "empty",
+			wantSegs: 0,
+		},
+		{
+			name: "same-round kills far apart merge",
+			kills: []RawKill{
+				mkKill(10000, 5, "awp"),
+				mkKill(10000+20*testTickrate, 5, "ak47"),
+			},
+			wantSegs:   1,
+			wantRound:  5,
+			wantKills:  2,
+			checkRange: true,
+			wantStart:  10000 - 3*testTickrate,
+			wantEnd:    10000 + 20*testTickrate + 5*testTickrate,
+		},
+		{
+			name: "full live round uses start and end ticks",
+			kills: []RawKill{
+				mkKill(10000, 5, "awp"),
+				mkKill(10000+20*testTickrate, 5, "ak47"),
+			},
+			roundStarts: []RoundStart{{Round: 5, Tick: 9000}},
+			roundEnds:   []RoundEnd{{Round: 5, Tick: 14000}},
+			wantSegs:    1,
+			wantRound:   5,
+			wantKills:   2,
+			checkRange:  true,
+			wantStart:   9000,
+			wantEnd:     14000,
+		},
+		{
+			name:        "zero-kill round is kept when bounds exist",
+			roundStarts: []RoundStart{{Round: 3, Tick: 4000}},
+			roundEnds:   []RoundEnd{{Round: 3, Tick: 7000}},
+			wantSegs:    1,
+			wantRound:   3,
+			wantKills:   0,
+			checkRange:  true,
+			wantStart:   4000,
+			wantEnd:     7000,
+		},
+		{
+			name: "different rounds stay separate",
+			kills: []RawKill{
+				mkKill(10000, 5, "awp"),
+				mkKill(20000, 6, "awp"),
+			},
+			wantSegs: 2,
+		},
+		{
+			name: "clips at the ending round",
+			kills: []RawKill{
+				mkKill(10000, 5, "awp"),
+				mkKill(10200, 5, "ak47"),
+			},
+			roundEnds:  []RoundEnd{{Round: 5, Tick: 10300}},
+			wantSegs:   1,
+			wantRound:  5,
+			wantKills:  2,
+			checkRange: true,
+			wantStart:  10000 - 3*testTickrate,
+			wantEnd:    10300,
+		},
+		{
+			name: "min kills drops a lone-kill round",
+			kills: []RawKill{
+				mkKill(10000, 5, "awp"),
+				mkKill(20000, 6, "awp"),
+				mkKill(20100, 6, "ak47"),
+			},
+			rules: func() rules.Rules {
+				r := defaultTestRules()
+				r.MinKillsInWindow = 2
+				return r
+			},
+			wantSegs:  1,
+			wantRound: 6,
+			wantKills: 2,
+		},
+		{
+			name:       "pre-roll clamps to first playable tick",
+			kills:      []RawKill{mkKill(100, 1, "awp")},
+			wantSegs:   1,
+			wantRound:  1,
+			wantKills:  1,
+			checkRange: true,
+			wantStart:  1,
+			wantEnd:    100 + 5*testTickrate,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := defaultTestRules()
+			if tt.rules != nil {
+				r = tt.rules()
+			}
+			got := SegmentRecap(tt.kills, nil, tt.roundStarts, tt.roundEnds, r, testTickrate)
+			if len(got) != tt.wantSegs {
+				t.Fatalf("segments = %d, want %d", len(got), tt.wantSegs)
+			}
+			if tt.wantSegs == 0 {
+				return
+			}
+			if tt.wantRound != 0 && got[0].Round != tt.wantRound {
+				t.Errorf("Round = %d, want %d", got[0].Round, tt.wantRound)
+			}
+			if tt.wantKills != 0 && len(got[0].Kills) != tt.wantKills {
+				t.Errorf("Kills = %d, want %d", len(got[0].Kills), tt.wantKills)
+			}
+			if tt.checkRange && got[0].TickStart != tt.wantStart {
+				t.Errorf("TickStart = %d, want %d", got[0].TickStart, tt.wantStart)
+			}
+			if tt.checkRange && got[0].TickEnd != tt.wantEnd {
+				t.Errorf("TickEnd = %d, want %d", got[0].TickEnd, tt.wantEnd)
+			}
+		})
+	}
+}
+
+func TestSegmentRecapUtilityDoesNotMoveKnownRoundStart(t *testing.T) {
+	got := SegmentRecap(
+		[]RawKill{mkKill(400, 1, "ak47")},
+		[]RawUtilityThrow{{Type: SmokeGrenadeType, Round: 1, ThrowTick: 800, PopTick: 900}},
+		[]RoundStart{{Round: 1, Tick: 1}},
+		[]RoundEnd{{Round: 1, Tick: 1000}},
+		defaultTestRules(),
+		testTickrate,
+	)
+	if len(got) != 1 {
+		t.Fatalf("segments = %d, want 1", len(got))
+	}
+	if got[0].TickStart != 1 {
+		t.Fatalf("TickStart = %d, want 1 (round start kept)", got[0].TickStart)
+	}
+	if got[0].TickEnd != 1000 {
+		t.Fatalf("TickEnd = %d, want 1000 (round end cap)", got[0].TickEnd)
+	}
+}
+
+func TestSegmentRecapAttachesUtilityFacts(t *testing.T) {
+	kills := []RawKill{mkKill(10000, 5, "ak47")}
+	utility := []RawUtilityThrow{{
+		Type:          SmokeGrenadeType,
+		Round:         5,
+		ThrowTick:     9400,
+		PopTick:       11000,
+		ThrowPos:      [3]float64{1, 2, 3},
+		LandingPos:    [3]float64{10, 20, 30},
+		ThrowAction:   "jumpthrow",
+		ThrowClick:    "left",
+		ViewYaw:       45,
+		ViewPitch:     -12,
+		ThrowEyePos:   [3]float64{1, 2, 64},
+		ThrowPlace:    "TSpawn",
+		LandingSource: "smoke_start",
+	}}
+	got := SegmentRecap(kills, utility, []RoundStart{{Round: 5, Tick: 9000}}, []RoundEnd{{Round: 5, Tick: 14000}}, defaultTestRules(), testTickrate)
+	if len(got) != 1 {
+		t.Fatalf("segments = %d, want 1", len(got))
+	}
+	if got[0].TickStart != 9000 || got[0].TickEnd != 14000 {
+		t.Fatalf("window = %d-%d, want full round", got[0].TickStart, got[0].TickEnd)
+	}
+	if len(got[0].Utility) != 1 {
+		t.Fatalf("utility = %d, want 1", len(got[0].Utility))
+	}
+	u := got[0].Utility[0]
+	if u.ThrowAction != "jumpthrow" || u.ThrowClick != "left" || u.ThrowPlace != "TSpawn" {
+		t.Fatalf("utility labels = %+v", u)
+	}
+	if u.ThrowPos != [3]float64{1, 2, 3} || u.LandingPos != [3]float64{10, 20, 30} || u.ThrowEyePos != [3]float64{1, 2, 64} {
+		t.Fatalf("utility positions = throw=%v land=%v eyes=%v", u.ThrowPos, u.LandingPos, u.ThrowEyePos)
+	}
+	if u.ViewYaw != 45 || u.ViewPitch != -12 || u.LandingSource != "smoke_start" {
+		t.Fatalf("utility aim/source = %+v", u)
+	}
+}
+
+func TestThrowClickFromButtons(t *testing.T) {
+	tests := []struct {
+		left, right bool
+		want        string
+	}{
+		{false, false, ""},
+		{true, false, "left"},
+		{false, true, "right"},
+		{true, true, "both"},
+	}
+	for _, tt := range tests {
+		if got := throwClickFromButtons(tt.left, tt.right); got != tt.want {
+			t.Fatalf("throwClickFromButtons(%v,%v) = %q, want %q", tt.left, tt.right, got, tt.want)
+		}
+	}
+}
+
+func TestTrackedUtilityTypesIncludeExplosiveAndDecoy(t *testing.T) {
+	for _, typ := range []string{SmokeGrenadeType, FlashbangType, MolotovType, IncendiaryGrenadeType, HeGrenadeType, DecoyType} {
+		if !isTrackedUtilityType(typ) {
+			t.Fatalf("%s should be tracked", typ)
+		}
+	}
+}
+
 func TestSegmentRoundIsFirstKillsRound(t *testing.T) {
 	// Edge case: two kills span a round boundary (unusual but possible if a
 	// kill counted at the end of one round and the next sits at the very start).

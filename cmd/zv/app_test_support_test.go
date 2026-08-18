@@ -585,6 +585,8 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 		return []string{"--", "--killplan", planPath, "--segments", "seg-001", "--out", filepath.Join(baseDir, "selected-plan.json"), "--dry-run"}
 	case "demo-probe":
 		return []string{"--", "--demo", "inferno.dem", "--out", "run/playability.json", "--dry-run"}
+	case "demo-voice":
+		return []string{"--", "--demo", "inferno.dem", "--steamid", "76561198000000000", "--out", "run/voice-probe.json", "--dry-run"}
 	case "utility-audit":
 		return []string{"--", "--plan", "run/plan.json", "--lineup-catalog", "data/lineups", "--out", "run/utility-audit.csv"}
 	case "record":
@@ -595,6 +597,8 @@ func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, gallery
 		return []string{"--", "--recording-result", "run/recording/recording-result.json", "--out", "run/shorts"}
 	case "stream-variants":
 		return nil
+	case "stream-fetch":
+		return []string{"--", "--url", "https://www.twitch.tv/videos/123456789", "--out", "run/stream.mp4", "--dry-run"}
 	case "stream-plan":
 		return []string{"--", "--input", "stream.mp4", "--out", "run/stream-edit-plan.json", "--dry-run"}
 	case "stream-render":
@@ -983,7 +987,7 @@ func workflowDelegatesExternally(workflow workflowInfo) bool {
 		return false
 	}
 	switch workflow.Name {
-	case "demo-moments", "demo-select", "demo-probe", "analysis-tactical", "analysis-rounds", "analysis-tendencies":
+	case "demo-moments", "demo-select", "demo-probe", "demo-voice", "analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		// These run in-process inside zv itself; they never spawn a subcommand.
 		return false
 	}
@@ -1119,6 +1123,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv compose final --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",
 		"./bin/zv music analyze --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv shorts render --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
+		"./bin/zv stream fetch --url https://www.twitch.tv/videos/123456789 --out data/runs/stream/source.mp4 --dry-run",
 		"./bin/zv stream variants",
 		"./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
@@ -1147,6 +1152,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show demo-players --format json",
 		"./bin/zv workflows show demo-probe",
 		"./bin/zv workflows show demo-probe --format json",
+		"./bin/zv workflows show demo-voice",
+		"./bin/zv workflows show demo-voice --format json",
 		"./bin/zv workflows show utility-audit",
 		"./bin/zv workflows show utility-audit --format json",
 		"./bin/zv workflows show record",
@@ -1157,6 +1164,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show music-analyze --format json",
 		"./bin/zv workflows show shorts-render",
 		"./bin/zv workflows show shorts-render --format json",
+		"./bin/zv workflows show stream-fetch",
+		"./bin/zv workflows show stream-fetch --format json",
 		"./bin/zv workflows show stream-variants",
 		"./bin/zv workflows show stream-variants --format json",
 		"./bin/zv workflows show stream-plan",
@@ -1187,11 +1196,13 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run faceit-index -- --profile m0NESY --out data/faceit/m0nesy-2026.json --dry-run --format json",
 		"./bin/zv workflows run demo-players -- --demo testdata/foo.dem",
 		"./bin/zv workflows run demo-probe -- --demo testdata/foo.dem --out data/runs/run-004/playability.json --dry-run",
+		"./bin/zv workflows run demo-voice -- --demo testdata/foo.dem --steamid 76561198000000000 --out data/runs/run-004/voice-probe.json --dry-run",
 		"./bin/zv workflows run utility-audit -- --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv",
 		"./bin/zv workflows run record -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording",
 		"./bin/zv workflows run compose-final -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",
 		"./bin/zv workflows run music-analyze -- --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv workflows run shorts-render -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
+		"./bin/zv workflows run stream-fetch -- --url https://www.twitch.tv/videos/123456789 --out data/runs/stream/source.mp4 --dry-run",
 		"./bin/zv workflows run stream-variants",
 		"./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
@@ -1353,6 +1364,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show demo-players --format json",
 		"./bin/zv workflows show demo-probe",
 		"./bin/zv workflows show demo-probe --format json",
+		"./bin/zv workflows show demo-voice",
+		"./bin/zv workflows show demo-voice --format json",
 		"./bin/zv workflows show utility-audit",
 		"./bin/zv workflows show utility-audit --format json",
 		"./bin/zv workflows show record",
@@ -1363,6 +1376,8 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows show music-analyze --format json",
 		"./bin/zv workflows show shorts-render",
 		"./bin/zv workflows show shorts-render --format json",
+		"./bin/zv workflows show stream-fetch",
+		"./bin/zv workflows show stream-fetch --format json",
 		"./bin/zv workflows show stream-variants",
 		"./bin/zv workflows show stream-variants --format json",
 		"./bin/zv workflows show stream-plan",
@@ -1397,6 +1412,7 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv compose final --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",
 		"./bin/zv music analyze --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv shorts render --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
+		"./bin/zv stream fetch --url https://www.twitch.tv/videos/123456789 --out data/runs/stream/source.mp4 --dry-run",
 		"./bin/zv stream variants",
 		"./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv stream render --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",
@@ -1411,11 +1427,13 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"./bin/zv workflows run faceit-index -- --profile m0NESY --out data/faceit/m0nesy-2026.json --dry-run --format json",
 		"./bin/zv workflows run demo-players -- --demo testdata/foo.dem",
 		"./bin/zv workflows run demo-probe -- --demo testdata/foo.dem --out data/runs/run-004/playability.json --dry-run",
+		"./bin/zv workflows run demo-voice -- --demo testdata/foo.dem --steamid 76561198000000000 --out data/runs/run-004/voice-probe.json --dry-run",
 		"./bin/zv workflows run utility-audit -- --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv",
 		"./bin/zv workflows run record -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording",
 		"./bin/zv workflows run compose-final -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4",
 		"./bin/zv workflows run music-analyze -- --input data/music/track.mp4 --out data/runs/run-004/rhythm.json",
 		"./bin/zv workflows run shorts-render -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir",
+		"./bin/zv workflows run stream-fetch -- --url https://www.twitch.tv/videos/123456789 --out data/runs/stream/source.mp4 --dry-run",
 		"./bin/zv workflows run stream-variants",
 		"./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run",
 		"./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run",

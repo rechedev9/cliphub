@@ -105,7 +105,7 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 	var pa parseArgs
 	fs.StringVar(&pa.demo, "demo", "", "path to .dem file")
 	fs.StringVar(&pa.steamid, "steamid", "", "target SteamID64")
-	fs.StringVar(&pa.segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, or utility")
+	fs.StringVar(&pa.segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, utility, or recap")
 	fs.StringVar(&pa.rules, "rules", "", "optional JSON rules file")
 	fs.StringVar(&pa.out, "out", "-", "output path or \"-\" for stdout")
 	fs.BoolVar(&pa.dryRun, "dry-run", false, "validate inputs and the output path without parsing or writing")
@@ -128,8 +128,8 @@ func runParse(args []string, stdout, stderr io.Writer) int {
 		return exitInvalidArgs
 	}
 	mode := parser.SegmentMode(pa.segmentMode)
-	if mode != parser.SegmentModeKills && mode != parser.SegmentModeSmokes && mode != parser.SegmentModeUtility {
-		fmt.Fprintf(stderr, "error: --segment-mode must be %q, %q, or %q\n", parser.SegmentModeKills, parser.SegmentModeSmokes, parser.SegmentModeUtility)
+	if !parser.ValidSegmentMode(mode) {
+		fmt.Fprintf(stderr, "error: --segment-mode must be one of %s\n", joinSegmentModes())
 		return exitInvalidArgs
 	}
 	if pa.out != "-" {
@@ -369,6 +369,15 @@ func outputCreatable(out string) error {
 		}
 		dir = parent
 	}
+}
+
+func joinSegmentModes() string {
+	modes := parser.KnownSegmentModes()
+	names := make([]string, len(modes))
+	for i, mode := range modes {
+		names[i] = strconv.Quote(string(mode))
+	}
+	return strings.Join(names, ", ")
 }
 
 func sha256Hex(r io.Reader) (string, error) {

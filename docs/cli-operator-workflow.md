@@ -555,7 +555,8 @@ No HLAE. Persisted edit plan is canonical. Changing the plan invalidates the bri
 
 ```mermaid
 flowchart LR
-  v[zv stream variants] --> p[zv stream plan]
+  f[zv stream fetch] --> v[zv stream variants]
+  v --> p[zv stream plan]
   p --> r[human review of edit-plan.json]
   r --> pre[zv stream render --dry-run]
   pre --> rend[zv stream render]
@@ -563,6 +564,7 @@ flowchart LR
 ```
 
 ```bat
+scripts\zv.cmd stream fetch --url <https://www.twitch.tv/videos/...> --out <stream>\source.mp4 --dry-run --format json
 scripts\zv.cmd stream variants --format json
 scripts\zv.cmd stream plan --input <vod.mp4> --out <stream>\edit-plan.json --variant streamer-vertical-stack-40-60 --dry-run --format json
 scripts\zv.cmd stream plan --input <vod.mp4> --out <stream>\edit-plan.json --variant streamer-vertical-stack-40-60 --format json

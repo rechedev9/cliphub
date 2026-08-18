@@ -309,7 +309,9 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 	plan.publishDir = filepath.Join(plan.outDir, "shortslistosparasubir")
 	plan.player = "from existing recording"
 	plan.selection = "all kills (one compiled short)"
-	if intent.BestMoments {
+	if intent.Recap {
+		plan.selection = "match recap (full rounds, native HUD)"
+	} else if intent.BestMoments {
 		plan.selection = fmt.Sprintf("best moments (top %d segments)", shortBestMomentsLimit)
 	}
 
@@ -329,11 +331,35 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 		recordingDir := filepath.Join(plan.outDir, "recording")
 		plan.stageDirs = append(plan.stageDirs, recordingDir)
 		recordingResult = filepath.Join(recordingDir, "recording-result.json")
+		parseArgs := []string{"parse", "--demo", opts.DemoPath, "--steamid", steamID, "--out", parsedKillPlanPath}
+		if intent.Recap {
+			parseArgs = append(parseArgs, "--segment-mode", "recap")
+		}
 		plan.stages = append(plan.stages, shortStage{
 			label:  "parsing demo",
 			binary: "zv-parser",
-			args:   []string{"parse", "--demo", opts.DemoPath, "--steamid", steamID, "--out", parsedKillPlanPath},
+			args:   parseArgs,
 		})
+		if intent.Recap {
+			selfExecutable, err := os.Executable()
+			if err != nil {
+				return shortPlan{}, fmt.Errorf("resolve current zv executable: %w", err)
+			}
+			voiceDir := filepath.Join(plan.outDir, "voice")
+			plan.stageDirs = append(plan.stageDirs, voiceDir)
+			plan.stages = append(plan.stages, shortStage{
+				label:  "extracting team voice comms",
+				binary: selfExecutable,
+				args: []string{
+					"demo", "voice",
+					"--demo", opts.DemoPath,
+					"--steamid", steamID,
+					"--out", filepath.Join(plan.outDir, "voice-probe.json"),
+					"--extract", voiceDir,
+					"--format", "json",
+				},
+			})
+		}
 		if intent.BestMoments {
 			selfExecutable, err := os.Executable()
 			if err != nil {
@@ -360,10 +386,15 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 			"--cs2", cs2,
 			"--fps", strconv.Itoa(preset.FPS),
 		}
-		if preset.HUDMode != "" {
-			recorderArgs = append(recorderArgs, "--hud", preset.HUDMode)
+		hud := preset.HUDMode
+		if intent.Recap {
+			hud = "gameplay"
+			recorderArgs = append(recorderArgs, "--timeout", "90m")
 		}
-		if preset.HUDMode == "deathnotices" {
+		if hud != "" {
+			recorderArgs = append(recorderArgs, "--hud", hud)
+		}
+		if hud == "deathnotices" {
 			recorderArgs = append(recorderArgs, "--portrait-safe-killfeed")
 		}
 		plan.stages = append(plan.stages,
@@ -511,6 +542,9 @@ func shortRenderArgs(opts shortOptions, plan shortPlan, killPlanPath, recordingR
 	if rhythmPath != "" {
 		args = append(args, "--rhythm", rhythmPath)
 	}
+	if plan.intent.Recap {
+		args = append(args, "--voice-dir", filepath.Join(plan.outDir, "voice"))
+	}
 	// One upload-ready Short: compile all selected segments into a single
 	// vertical video. Fresh best-moment runs already persist an explicitly
 	// ranked kill plan before capture; resumed recordings rank their embedded
@@ -533,7 +567,9 @@ func shortOutDir(opts shortOptions, intent shortIntent, targetSteamID string) (s
 	sourceKind := "recording"
 	sourcePath := opts.FromRecording
 	selection := "all"
-	if intent.BestMoments {
+	if intent.Recap {
+		selection = "recap"
+	} else if intent.BestMoments {
 		selection = fmt.Sprintf("best-%d", shortBestMomentsLimit)
 	}
 	if opts.DemoPath != "" {

@@ -11,7 +11,7 @@ const valid: ReelIntent = {
   segmentIds: ['seg-001'],
   mode: 'music',
   variant: 'clean-pov-60',
-  editConfig: { format: 'landscape-16x9', killEffect: 'velocity', transition: 'whip', intro: true, outro: false, hookText: true, killCounter: false, coverStrategy: 'no-cover', introText: 'GG WP', outroText: '' },
+  editConfig: { format: 'landscape-16x9', killEffect: 'velocity', transition: 'whip', intro: true, outro: false, hookText: true, killCounter: false, matchRecap: false, voiceComms: false, nativeHud: false, coverStrategy: 'no-cover', introText: 'GG WP', outroText: '' },
   songId: 's1',
   musicVolume: 0.35,
   title: 'Ace',
@@ -81,6 +81,9 @@ test('coerces edit config independently', () => {
       outro: true,
       hookText: true,
       killCounter: true,
+      matchRecap: true,
+      voiceComms: true,
+      nativeHud: true,
       coverStrategy: 'no-cover',
       introText: 'GG WP',
       outroText: '@handle',
@@ -93,6 +96,9 @@ test('coerces edit config independently', () => {
       outro: true,
       hookText: true,
       killCounter: true,
+      matchRecap: true,
+      voiceComms: true,
+      nativeHud: true,
       coverStrategy: 'no-cover',
       introText: 'GG WP',
       outroText: '@handle',
@@ -104,10 +110,19 @@ test('coerces edit config independently', () => {
 test('automatic text controls preserve only explicit true values', () => {
   assert.equal(coerceEditConfig({ hookText: true, killCounter: true }).hookText, true);
   assert.equal(coerceEditConfig({ hookText: true, killCounter: true }).killCounter, true);
+  assert.equal(coerceEditConfig({ matchRecap: true, voiceComms: true, nativeHud: true }).matchRecap, true);
+  assert.equal(coerceEditConfig({ matchRecap: true, voiceComms: true, nativeHud: true }).voiceComms, true);
+  assert.equal(coerceEditConfig({ matchRecap: true, voiceComms: true, nativeHud: true }).nativeHud, true);
   assert.equal(coerceEditConfig({ hookText: 'true', killCounter: 1 }).hookText, false);
   assert.equal(coerceEditConfig({ hookText: 'true', killCounter: 1 }).killCounter, false);
+  assert.equal(coerceEditConfig({ matchRecap: 'true', voiceComms: 1, nativeHud: 'yes' }).matchRecap, false);
+  assert.equal(coerceEditConfig({ matchRecap: 'true', voiceComms: 1, nativeHud: 'yes' }).voiceComms, false);
+  assert.equal(coerceEditConfig({ matchRecap: 'true', voiceComms: 1, nativeHud: 'yes' }).nativeHud, false);
   assert.equal(coerceEditConfig({}).hookText, false);
   assert.equal(coerceEditConfig({}).killCounter, false);
+  assert.equal(coerceEditConfig({}).matchRecap, false);
+  assert.equal(coerceEditConfig({}).voiceComms, false);
+  assert.equal(coerceEditConfig({}).nativeHud, false);
 });
 
 test('truncates bookend text to the 80-char limit and drops non-string values', () => {

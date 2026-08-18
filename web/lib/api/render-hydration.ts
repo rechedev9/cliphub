@@ -44,6 +44,9 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
     outro: edit.outro,
     hookText: edit.hook_text,
     killCounter: edit.kill_counter,
+    matchRecap: edit.match_recap === true,
+    voiceComms: edit.voice_comms === true,
+    nativeHud: edit.native_hud === true,
   };
   if (typeof edit.intro_text === 'string') parsed.introText = edit.intro_text;
   if (typeof edit.outro_text === 'string') parsed.outroText = edit.outro_text;

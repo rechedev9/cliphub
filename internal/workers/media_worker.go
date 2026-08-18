@@ -36,6 +36,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
+	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
 const defaultMediaWorkerTimeout = "20m"
@@ -975,19 +976,23 @@ func (c ComposeWorkerConfig) validate() error {
 }
 
 // RenderWorker handles the "render:variant" Asynq task.
+type voiceExtractFunc func(demoPath, target, dir string) (int, error)
+
 type RenderWorker struct {
-	repo    StatusRepository
-	storage storage.Storage
-	cfg     RenderWorkerConfig
-	runner  commandRunner
+	repo         StatusRepository
+	storage      storage.Storage
+	cfg          RenderWorkerConfig
+	runner       commandRunner
+	voiceExtract voiceExtractFunc
 }
 
 func NewRenderWorker(repo StatusRepository, store storage.Storage, cfg RenderWorkerConfig) *RenderWorker {
 	return &RenderWorker{
-		repo:    repo,
-		storage: store,
-		cfg:     cfg,
-		runner:  execCommandRunner{},
+		repo:         repo,
+		storage:      store,
+		cfg:          cfg,
+		runner:       execCommandRunner{},
+		voiceExtract: extractVoiceTracks,
 	}
 }
 
@@ -1850,6 +1855,15 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		// Requested music is unavailable; render without it rather than fail.
 		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("music %q not found in %q; rendering without music", musicKey, cfg.MusicDir))
 	}
+	if edit.VoiceComms {
+		voiceDir, err := w.prepareVoiceDir(j, workDir)
+		if err != nil {
+			return err
+		}
+		if voiceDir != "" {
+			args = append(args, "--voice-dir", voiceDir)
+		}
+	}
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
@@ -2465,6 +2479,41 @@ type storagePathResolver interface {
 // record/compose writes in place to a materialized demo, stream source, or
 // segment clip - each stage always writes a new output file - so this holds
 // today, but it must keep holding for any future writer of these paths.
+func extractVoiceTracks(demoPath, target, dir string) (int, error) {
+	index, _, err := voicecomms.ExtractFile(demoPath, target, dir)
+	if err != nil {
+		return 0, err
+	}
+	return len(index.Tracks), nil
+}
+
+func (w *RenderWorker) prepareVoiceDir(j job.Job, workDir string) (string, error) {
+	target := strings.TrimSpace(j.TargetSteamID)
+	if target == "" {
+		return "", fmt.Errorf("voice comms requested but job %s has no target steamid", j.ID)
+	}
+	if strings.TrimSpace(j.DemoPath) == "" {
+		return "", fmt.Errorf("voice comms requested but job %s has no demo", j.ID)
+	}
+	demoPath := filepath.Join(workDir, "demo.dem")
+	if err := materializeStorageFile(w.storage, j.DemoPath, demoPath); err != nil {
+		return "", fmt.Errorf("materialize demo: %w", err)
+	}
+	voiceDir := filepath.Join(workDir, "voice")
+	extract := w.voiceExtract
+	if extract == nil {
+		extract = extractVoiceTracks
+	}
+	tracks, err := extract(demoPath, target, voiceDir)
+	if err != nil {
+		return "", fmt.Errorf("extract voice: %w", err)
+	}
+	if tracks == 0 {
+		return "", nil
+	}
+	return voiceDir, nil
+}
+
 func materializeStorageFile(store storage.Storage, key, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err

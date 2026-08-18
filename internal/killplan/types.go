@@ -83,6 +83,10 @@ type UtilityThrow struct {
 	ThrowStateTick   int          `json:"throw_state_tick,omitempty"`
 	ThrowStateSource string       `json:"throw_state_source,omitempty"`
 	ThrowAction      string       `json:"throw_action,omitempty"`
+	ThrowClick       string       `json:"throw_click,omitempty"`
+	ViewYaw          float64      `json:"view_yaw,omitempty"`
+	ViewPitch        float64      `json:"view_pitch,omitempty"`
+	ThrowEyePos      [3]float64   `json:"throw_eye_pos,omitempty"`
 	Stance           string       `json:"stance,omitempty"`
 	Movement         string       `json:"movement,omitempty"`
 	Speed2D          float64      `json:"speed_2d"`

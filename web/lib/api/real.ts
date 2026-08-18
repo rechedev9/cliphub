@@ -105,9 +105,7 @@ async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     const message = body && typeof body.error === 'string' ? body.error : `request failed (${res.status})`;
-    // Carry the backend's stable `code` (e.g. SERVICE_UNAVAILABLE_CODE) onto the
-    // thrown error so callers can branch deterministically instead of sniffing
-    // the message string.
+    // Carry the backend's stable `code` so callers do not sniff the message.
     const err = new Error(message) as Error & { code?: string };
     if (body && typeof body.code === 'string') err.code = body.code;
     throw err;
@@ -115,13 +113,7 @@ async function readJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-/**
- * The render-variant POST body shape for `edit`: the bool switches plus the
- * bookend text keys the orchestrator expects (snake_case, unlike the rest of
- * this camelCase struct - see internal/renderplan.EditRequest). Only sent when
- * its toggle is on and the trimmed text is non-empty; otherwise the backend
- * default applies (the generated headline for intro, "ClipHub" for outro).
- */
+/** Orchestrator edit wire: camelCase plus snake_case bookend/bool keys. */
 type EditRequestBody = {
   format: EditConfig['format'];
   killEffect: EditConfig['killEffect'];
@@ -130,6 +122,9 @@ type EditRequestBody = {
   outro: boolean;
   hook_text: boolean;
   kill_counter: boolean;
+  match_recap: boolean;
+  voice_comms: boolean;
+  native_hud: boolean;
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
@@ -149,6 +144,9 @@ function buildEditRequest(edit: EditConfig): EditRequestBody {
     outro: edit.outro,
     hook_text: edit.hookText,
     kill_counter: edit.killCounter,
+    match_recap: edit.matchRecap,
+    voice_comms: edit.voiceComms,
+    native_hud: edit.nativeHud,
     cover_strategy: edit.coverStrategy,
   };
   const introText = edit.introText?.trim();
@@ -173,12 +171,7 @@ function buildEditRequest(edit: EditConfig): EditRequestBody {
   return body;
 }
 
-/**
- * The render request's `music` field. A reel with no music sends nothing; a reel
- * at default full volume sends the bare song key (byte-identical to legacy reels
- * that predate volume); only a reduced volume upgrades to the `{ key, volume }`
- * object the orchestrator accepts (volume in (0,1]).
- */
+/** Bare song key at full volume; `{ key, volume }` only when volume is reduced. */
 function buildMusicRequest(intent: ReelIntent): string | { key: string; volume: number } | undefined {
   if (intent.mode !== 'music' || !intent.songId) return undefined;
   if (intent.musicVolume !== undefined && intent.musicVolume < 1) {
@@ -211,17 +204,7 @@ function videoFromIntent(intent: ReelIntent): Video {
   };
 }
 
-/**
- * RealApiClient drives the whole upload→parse→record→render pipeline against
- * the local orchestrator bundled with the desktop app, reached through the
- * same-origin /api/demos/* proxy routes (see lib/api/dataplane). The
- * orchestrator is the source of truth: the client persists only lightweight
- * reel INTENTS (reel-store) and derives each reel's live status by
- * reconciling against it on every poll (reel-reconcile), driving
- * record→render idempotently. A hard reload re-reads server state and
- * resumes exactly where it left off. Everything outside the upload→reel path
- * (library seeds, feed) delegates to a MockApiClient.
- */
+/** Local orchestrator client: persist intents, reconcile live status via proxy. */
 export class RealApiClient implements ApiClient {
   private readonly fallback = new MockApiClient();
   /** Live, derived view of each tracked reel (status/downloadUrl/failureReason). */
@@ -235,16 +218,11 @@ export class RealApiClient implements ApiClient {
   private readonly jobGoneTicks = new Map<string, number>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[] }>();
-  /**
-   * Cached per-job series match (map/score), keyed by jobId. A match is
-   * immutable once a job has one, and this client is a module singleton, so
-   * getSeries reads a cached hit instead of refetching the roster every poll.
-   */
+  /** Cached per-job series match (map/score); immutable once a job has one. */
   private readonly seriesMatches = new Map<string, RosterMatch>();
 
   constructor() {
-    // Rehydrate the reels the user asked for so the Library survives a hard reload
-    // or a direct visit; their live status is filled on the first reconcile tick.
+    // Rehydrate persisted intents so the Library survives a hard reload.
     for (const intent of loadReelIntents()) {
       this.intents.set(intent.videoId, intent);
       this.reels.set(intent.videoId, videoFromIntent(intent));
@@ -256,10 +234,7 @@ export class RealApiClient implements ApiClient {
     return dataPlane();
   }
 
-  /**
-   * Issues one data-plane request. `build` receives the DataPlane and returns
-   * a URL plus optional init; send() merges the transport's headers on top.
-   */
+  /** One data-plane request; merges transport headers onto the built init. */
   private async send(build: (dp: DataPlane) => { url: string; init?: RequestInit }): Promise<Response> {
     const dp = this.dp();
     const { url, init } = build(dp);
@@ -276,8 +251,7 @@ export class RealApiClient implements ApiClient {
     const dp = this.dp();
     const form = new FormData();
     form.append(dp.scanField, file);
-    // Tag the upload as one demo of a bulk series; the scan proxy streams the
-    // multipart body straight through, so the orchestrator reads series_id.
+    // series_id rides the multipart body so the orchestrator groups the scan.
     if (opts?.seriesId) form.append(dp.scanSeriesField, opts.seriesId);
     const scanned = await readJson<unknown>(
       await this.send((d) => ({ url: d.scanUrl, init: { method: 'POST', body: form } })),
@@ -290,12 +264,7 @@ export class RealApiClient implements ApiClient {
     return { jobId, players: roster.players.map(toDemoPlayer), match: toRosterMatch(roster.match) };
   }
 
-  /**
-   * Lists the demos uploaded under one bulk series, in upload order, then
-   * best-effort enriches each demo that has a roster with its map/score. A
-   * single demo's roster failure (still scanning → 409, or transient) leaves
-   * that demo's match undefined and never rejects the whole call.
-   */
+  /** Series demos in upload order; a roster miss leaves that map unmatched. */
   async getSeries(seriesId: string): Promise<SeriesDemo[]> {
     type ProxyDemo = { jobId: string; status: string; failureReason?: string; fileName?: string };
     const body = await readJson<{ demos: ProxyDemo[] }>(await this.send((dp) => ({ url: dp.seriesUrl(seriesId) })));
@@ -360,12 +329,7 @@ export class RealApiClient implements ApiClient {
     return planToMatch(id, plan, await this.summaryPlayer(id, plan));
   }
 
-  /**
-   * Picks the player whose stats head the match summary. Prefers the roster row
-   * for the plan's target (else the top fragger); if the job has no roster
-   * (e.g. a job parsed via a directly-supplied target), falls back to the plan's
-   * own target with kills from stats. Roster fetch is best-effort, never fatal.
-   */
+  /** Plan target from roster when present; otherwise the plan's own target. */
   private async summaryPlayer(jobId: string, plan: KillPlan): Promise<DemoPlayer> {
     try {
       const { players } = await readJson<RosterResponse>(await this.send((dp) => ({ url: dp.rosterUrl(jobId) })));
@@ -413,14 +377,7 @@ export class RealApiClient implements ApiClient {
     throw new Error(`timed out waiting for ${want}`);
   }
 
-  /**
-   * For an uploaded job (matchId = job UUID, playIds = the segment ids picked,
-   * in plan order), registers a durable reel intent and returns immediately
-   * with a queued Video. 2+ ids render as one concatenated reel. The reconcile
-   * loop (driven by listVideos polling) advances it record→render; this is safe
-   * across reloads because every step is derived from the orchestrator's state.
-   * Mock matches delegate to the fallback.
-   */
+  /** Register a durable reel intent; reconcile drives record→render. */
   async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
     if (!isJobId(input.matchId)) return this.fallback.createVideo(input);
 
@@ -487,20 +444,12 @@ export class RealApiClient implements ApiClient {
     return parsePublishAssistant(raw);
   }
 
-  /**
-   * Re-drives a failed reel from where it failed. A failed job re-records (the
-   * orchestrator allows record from failed once a kill plan exists); a recorded
-   * job whose render failed re-renders. Clearing the local 'failed' status lets
-   * the reconcile loop pick the reel back up and carry it to ready.
-   */
+  /** Re-drive a failed reel: re-record a failed job, else re-render. */
   async retryVideo(id: string): Promise<Video> {
     const intent = this.intents.get(id);
     if (!intent) return this.fallback.retryVideo(id);
 
-    // An unrecoverable reel (its orchestrator job is gone) can never be re-driven:
-    // record and render both need the vanished job, so retry is a no-op that
-    // returns the reel unchanged. The card hides Retry for these, but guard here
-    // too so a stale caller can never re-mark it failed with the same reason.
+    // Gone jobs cannot be re-driven; return the latch instead of re-failing.
     const current = this.reels.get(id);
     if (current?.unrecoverable) return { ...current };
 
@@ -512,8 +461,7 @@ export class RealApiClient implements ApiClient {
     if (job && job.status === 'failed') {
       await this.drive(intent, 'record');
     } else if (render.status === 'failed') {
-      // Non-reusable capture (e.g. pre-2.4.6 result missing capture_mode):
-      // re-render cannot fix it; re-record under the current contract.
+      // Pre-2.4.6 captures missing capture_mode need recapture, not re-render.
       if (requiresRecapture(render.failureReason)) {
         await this.drive(intent, 'record');
       } else {
@@ -541,10 +489,7 @@ export class RealApiClient implements ApiClient {
       }
       this.driving.add(intent.videoId);
       try {
-        // Persist the new intent only after the server admits the render. If the
-        // POST fails, the Library must keep describing the revision on screen so
-        // the user can retry the same correction instead of inheriting an edit
-        // configuration that was never rendered.
+        // Persist the new edit only after the server admits this render.
         await readJson<unknown>(
           await this.send((dp) => ({
             url: dp.renderUrl(intent.jobId, variantOf(intent)),
@@ -597,12 +542,7 @@ export class RealApiClient implements ApiClient {
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
 
-  /**
-   * Re-renders a ready reel with a different music mix. Capture stays put; the
-   * orchestrator writes a new revision. The intent is persisted only after the
-   * POST is accepted so a rejected request cannot leave the Library describing
-   * a soundtrack that was never rendered.
-   */
+  /** Re-render a ready reel with a new mix; persist only after POST accepts. */
   async rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video> {
     const intent = this.intents.get(id);
     if (!intent) return this.fallback.rerenderVideoMusic(id, choice);
@@ -667,12 +607,6 @@ export class RealApiClient implements ApiClient {
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
   }
 
-  /**
-   * Removes a reel from the library. The orchestrator delete (video + cover +
-   * caption artifacts, freeing disk) is best-effort: the local intent is
-   * dropped regardless so the reel disappears even when the orchestrator is
-   * unreachable, matching the user's intent to clear it.
-   */
   async selectVideoCover(id: string, coverName: string): Promise<Video> {
     const intent = this.intents.get(id);
     if (!intent) throw new Error('Reel desconocido.');
@@ -701,14 +635,12 @@ export class RealApiClient implements ApiClient {
     try {
       const variant = variantOf(intent);
       const name = await this.resolveArtifactName(intent, variant);
-      // No name means nothing was ever rendered for this reel, so there is no
-      // artifact to delete - just drop it locally below.
+      // Nothing rendered yet: drop the local intent below.
       if (name) {
         await this.send((dp) => ({ url: dp.videoUrl(intent.jobId, variant, name), init: { method: 'DELETE' } }));
       }
     } catch {
-      // Orchestrator offline: the artifacts stay on disk, but the reel still
-      // leaves the library. A future render of the same job overwrites them.
+      // Offline: drop the library row; a later render overwrites leftovers.
     }
     this.artifactNames.delete(id);
     this.intents.delete(id);
@@ -716,30 +648,15 @@ export class RealApiClient implements ApiClient {
     saveReelIntents(Array.from(this.intents.values()));
   }
 
-  /**
-   * Deletes a demo job (match) and every server-side artifact behind it (the
-   * orchestrator wipes rendered videos, covers, and the demo copy). A 404 means
-   * it was already gone, which is still success; a 409 (the job is still
-   * queued/scanning/parsing/recording/composing) or a 503 (orchestrator offline)
-   * throws with the body's error/code so the UI can message it. On success the
-   * local reels forged from this job are pruned so the Library never keeps a
-   * reel whose demo no longer exists.
-   */
+  /** Delete the job and its artifacts; 404 is success, 409/503 throw. */
   async deleteMatch(jobId: string): Promise<void> {
     const res = await this.send((dp) => ({ url: dp.jobDeleteUrl(jobId), init: { method: 'DELETE' } }));
-    // 404 = already gone (success). Any other non-2xx (409 busy, 503 offline,
-    // 500) throws here, carrying the backend's error message and stable code.
+    // 404 is already-gone success; any other non-2xx throws with the body.
     if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
     this.pruneJob(jobId);
   }
 
-  /**
-   * Deletes every demo of a bulk series, one at a time via the same per-job
-   * delete. The series' jobIds come from the existing series listing; a member
-   * that is already gone (404) is tolerated by deleteMatch, while a still-busy
-   * member (409) surfaces so the UI can explain the wait. Local reels for each
-   * deleted member are pruned as part of deleteMatch.
-   */
+  /** Delete every demo in the series; a busy member surfaces as 409. */
   async deleteSeries(seriesId: string): Promise<void> {
     const demos = await this.getSeries(seriesId);
     for (const demo of demos) {
@@ -747,13 +664,7 @@ export class RealApiClient implements ApiClient {
     }
   }
 
-  /**
-   * Drops every locally tracked reel forged from a deleted job: its intents,
-   * derived live views, cached artifact names, and cached series match, then
-   * persists the surviving intents. Deleting from a Map while iterating its
-   * entries is safe (each key is visited once), and reels/artifactNames are
-   * keyed by the same videoIds the intents carry.
-   */
+  /** Drop local intents/views for a deleted job, then persist survivors. */
   private pruneJob(jobId: string): void {
     for (const [videoId, intent] of this.intents) {
       if (intent.jobId !== jobId) continue;
@@ -766,12 +677,7 @@ export class RealApiClient implements ApiClient {
     saveReelIntents(Array.from(this.intents.values()));
   }
 
-  /**
-   * Reconciles every non-terminal tracked reel against the orchestrator and drives
-   * its next step. Idempotent and resumable: it reads server truth each tick, so a
-   * reload simply reattaches. Reel-local failures stay isolated; an all-reel
-   * service outage still reaches the page-level offline state.
-   */
+  /** Reconcile non-terminal reels against the orchestrator and drive the next step. */
   private async reconcile(): Promise<void> {
     const active = Array.from(this.intents.values()).filter((intent) => {
       const v = this.reels.get(intent.videoId);
@@ -786,11 +692,7 @@ export class RealApiClient implements ApiClient {
       this.hydrateIntentTarget(intent),
     ]);
     if (job === null) {
-      // Memory-mode orchestrator restart drops jobs; the reel is unrecoverable
-      // (retry can never re-drive a job that no longer exists). A single 404
-      // can also be spurious (a wrong orchestrator briefly answering), so the
-      // latch needs consecutive 404 ticks: below the threshold the view stays
-      // untouched and the reel remains in the active set for the next tick.
+      // Consecutive 404s latch the reel; one tick can be a spurious miss.
       const strikes = (this.jobGoneTicks.get(intent.videoId) ?? 0) + 1;
       this.jobGoneTicks.set(intent.videoId, strikes);
       const gone = viewForJobGone(strikes);
@@ -798,10 +700,7 @@ export class RealApiClient implements ApiClient {
       return;
     }
     this.jobGoneTicks.delete(intent.videoId);
-    // The render variant only exists once a render POST has been driven (at/after
-    // 'recorded'); before that the GET is a guaranteed 404 that floods the browser
-    // network console the whole recording phase, so gate the call on the job status
-    // and use 'none' — the same value the GET would map a 404 to — otherwise.
+    // Skip render GET until recorded; earlier it is a guaranteed 404.
     const render: {
       status: RenderStatus;
       failureReason?: string;
@@ -816,8 +715,7 @@ export class RealApiClient implements ApiClient {
       canHaveRenderState(job.status)
         ? await this.fetchRenderStatus(intent.jobId, variantOf(intent))
         : { status: 'none' };
-    // Capture the server's real artifact names so applyView addresses the reel
-    // by the editor's file names instead of guessing from segment ids.
+    // Use the editor's real artifact names instead of guessing from segment ids.
     if (render.videoName) {
       const names: { video: string; cover?: string; covers?: string[] } = { video: render.videoName };
       if (render.coverNames && render.coverNames.length > 0) {
@@ -856,8 +754,7 @@ export class RealApiClient implements ApiClient {
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
   private applyView(intent: ReelIntent, view: ReelView): void {
     const base = this.reels.get(intent.videoId) ?? videoFromIntent(intent);
-    // captureProgress is present only while recording (view carries it through);
-    // any other status clears it so a stale percent never lingers on the card.
+    // captureProgress only belongs on a recording view.
     const next = hydrateVideoFromIntent({
       ...base,
       status: view.status,
@@ -867,17 +764,10 @@ export class RealApiClient implements ApiClient {
       captureProgress: view.captureProgress,
     }, intent);
     if (intent.targetName) next.targetName = intent.targetName;
-    // The unrecoverable flag is a latch: once the job is authoritatively gone it
-    // stays gone, so a racing plain-failed view (e.g. an in-flight drive() error
-    // landing after the latch) must not clear it. Written by presence, never as
-    // an explicit undefined key, to match the view layer's encoding.
+    // Latch stays set: a later plain-failed view must not clear it.
     delete next.unrecoverable;
     if (view.unrecoverable || base.unrecoverable) next.unrecoverable = true;
-    // The server-reported artifact names are present once the render is ready
-    // or awaiting warning review
-    // (fetchRenderStatus fills them). If a tick sees ready before the names are
-    // known, leave the URLs unset so the card keeps its placeholder until the
-    // next tick resolves them - the same not-yet-ready handling as before.
+    // Ready without names yet: keep placeholder URLs until the next tick.
     const names = this.artifactNames.get(intent.videoId);
     if ((view.status === 'ready' || view.status === 'review_required') && names) {
       // Same-origin proxy URLs the browser can hand straight to <video>/<img>.
@@ -902,11 +792,7 @@ export class RealApiClient implements ApiClient {
     this.reels.set(intent.videoId, next);
   }
 
-  /**
-   * Migrates a persisted reel intent that predates target display by reading the
-   * immutable target from its kill plan. Failure is best-effort: the next poll
-   * retries, while normal reconciliation continues from server truth.
-   */
+  /** Fill a legacy intent's target name from the kill plan; miss is retried. */
   private async hydrateIntentTarget(intent: ReelIntent): Promise<void> {
     if (intent.targetName) return;
     try {
@@ -930,11 +816,7 @@ export class RealApiClient implements ApiClient {
     try {
       const res =
         action === 'record'
-          ? // The preset (Clean POV / Full HUD / Kill Feed) sets the recording HUD;
-            // segment_ids scopes the capture to exactly the selected clips (in plan
-            // order) instead of recording the whole demo. 2+ ids render as one
-            // concatenated reel.
-            await this.send((dp) => ({
+          ? await this.send((dp) => ({
               url: dp.recordUrl(intent.jobId),
               init: {
                 method: 'POST',
@@ -959,23 +841,14 @@ export class RealApiClient implements ApiClient {
             }));
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-        // A 503 means the orchestrator is momentarily unreachable; let the next
-        // reconcile tick retry instead of permanently failing the reel.
+        // 503 is transient; the next reconcile tick retries.
         if (body.code === SERVICE_UNAVAILABLE_CODE) return;
-        // A 404 means the job the POST addressed no longer exists (orchestrator
-        // restarted between the dispatching tick and this response): latch the
-        // reel unrecoverable directly, because a plain failed view here would be
-        // skipped by the reconcile loop and never re-checked, leaving a live
-        // Retry button for a gone job.
+        // Job vanished mid-POST: latch unrecoverable so Retry cannot spin.
         if (res.status === 404) {
           this.applyView(intent, unrecoverableJobGoneView());
           return;
         }
-        // Anything else is durable (e.g. the 409 "recording is not configured on
-        // this machine; set ZV_RECORDER_PATH, ZV_HLAE_PATH and ZV_CS2_PATH and
-        // restart the orchestrator"): surface it so the Library shows why the reel
-        // stalled instead of spinning at QUEUED forever. The reconcile loop skips
-        // failed reels, and Retry re-drives once capture is configured.
+        // Durable failure (e.g. capture unconfigured): surface it on the card.
         this.applyView(intent, {
           status: 'failed',
           action: 'none',
@@ -989,12 +862,7 @@ export class RealApiClient implements ApiClient {
     }
   }
 
-  /**
-   * The reel's real artifact name for delete: the cached server name when the
-   * reel has been reconciled this session, else fetched fresh (a delete right
-   * after a hard reload has no cached name yet). Undefined when nothing was
-   * rendered, so there is no artifact to remove.
-   */
+  /** Cached editor artifact name, or a fresh fetch after reload. */
   private async resolveArtifactName(intent: ReelIntent, variant: string): Promise<string | undefined> {
     const cached = this.artifactNames.get(intent.videoId);
     if (cached) return cached.video;
@@ -1002,10 +870,7 @@ export class RealApiClient implements ApiClient {
     return render.videoName;
   }
 
-  /**
-   * Reads job status + failure reason (+ live capture progress while recording);
-   * null when the job is unknown (404).
-   */
+  /** Job status, failure, and capture progress; null on 404. */
   private async fetchStatusFull(
     jobId: string,
   ): Promise<{ status: string; failureReason?: string; captureProgress?: CaptureProgress } | null> {
@@ -1033,13 +898,7 @@ export class RealApiClient implements ApiClient {
     return full ? full.status : null;
   }
 
-  /**
-   * Reads the reel render-variant state; 'none' when the render has not started.
-   * The orchestrator reports the reel's real artifact file names (videos[0]/
-   * covers[0]) so the client addresses the mp4/cover by the name the editor
-   * actually wrote (e.g. "demo-compilation") instead of guessing it from the
-   * segment ids. They are absent until the render is ready.
-   */
+  /** Render-variant state; 'none' until started. Artifact names arrive when ready. */
   private async fetchRenderStatus(
     jobId: string,
     variant: string,
@@ -1102,22 +961,12 @@ export class RealApiClient implements ApiClient {
     };
   }
 
-  // --- everything below is outside the upload→reel path: capture readiness is
-  // real, the rest delegates to (or stubs out) the mock fallback ---
-
-  /**
-   * Reads capture readiness from the local orchestrator (/api/capabilities): is
-   * the record worker enabled and are HLAE/CS2/recorder reachable. A 503 maps to
-   * 'offline' (orchestrator down) rather than 'unconfigured', so the UI can tell
-   * "start your orchestrator" apart from "set your tool paths".
-   */
+  /** Capture readiness from /api/capabilities; 503 is offline, not unconfigured. */
   async getCaptureReadiness(): Promise<CaptureReadiness> {
     try {
       const res = await this.send((dp) => ({ url: dp.capabilitiesUrl, init: { cache: 'no-store' } }));
       if (!res.ok) {
-        // Any non-ok here is a transport/backend problem (the orchestrator reports
-        // "unconfigured" via a 200 with record.enabled=false), so treat it as
-        // offline rather than blaming the user's tool paths.
+        // Non-ok is transport; unconfigured arrives as 200 with record.enabled=false.
         return { recordEnabled: false, status: 'offline', tools: [], reason: 'local analysis service offline' };
       }
       const data = (await res.json()) as { record?: { enabled?: boolean; tools?: CaptureTool[] } };
@@ -1137,25 +986,13 @@ export class RealApiClient implements ApiClient {
       return { recordEnabled: false, status: 'offline', tools: [] };
     }
   }
-  /**
-   * Rediscovers the demos uploaded on this PC by listing the orchestrator's
-   * persisted jobs, so Partidas is populated after an app restart instead of
-   * only being reachable by a kept URL. Only jobs past a roster scan list; each
-   * lists as one Match per demo (a series still yields one entry per map, the
-   * Partidas model), best-effort enriched from its roster in parallel with
-   * per-job failures tolerated, newest first.
-   */
+  /** Persisted jobs as Partidas rows; roster enrichment is best-effort. */
   async listMatches(): Promise<Match[]> {
     const jobs = await this.fetchJobs();
     return Promise.all(listableJobs(jobs).map((job) => this.jobToMatchEnriched(job)));
   }
 
-  /**
-   * One summary per uploaded series, derived from the same jobs listing, so
-   * Partidas can offer a way into each series even when its maps list
-   * individually below. Series with maps still scanning are included so a fresh
-   * bulk upload is discoverable immediately.
-   */
+  /** One series row per bulk upload, including maps still scanning. */
   async listSeriesSummaries(): Promise<SeriesSummary[]> {
     return summarizeSeries(await this.fetchJobs());
   }
@@ -1166,12 +1003,7 @@ export class RealApiClient implements ApiClient {
     return body.jobs;
   }
 
-  /**
-   * One job → its Match, best-effort enriched from the roster: the demo's map
-   * and, when the job's target is in the roster, that player's scoreboard. A
-   * roster that is not ready (still scanning) or a transient failure leaves a
-   * filename-titled, zeroed entry rather than rejecting the whole list.
-   */
+  /** Job to Match; a missing roster still lists a zeroed filename row. */
   private async jobToMatchEnriched(job: IndexedJob): Promise<Match> {
     try {
       const roster = await this.fetchRoster(job.jobId);

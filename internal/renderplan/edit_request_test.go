@@ -20,6 +20,17 @@ func TestEditRequestSerializesAutomaticTextControls(t *testing.T) {
 	}
 }
 
+func TestEditRequestSerializesOptionalRecapControls(t *testing.T) {
+	b, err := json.Marshal(EditRequest{MatchRecap: true, VoiceComms: true, NativeHUD: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	if !strings.Contains(got, `"match_recap":true`) || !strings.Contains(got, `"voice_comms":true`) || !strings.Contains(got, `"native_hud":false`) {
+		t.Fatalf("EditRequest JSON = %s, want explicit recap extras", got)
+	}
+}
+
 func TestNormalizeEditRequestDefaultsUnsetFields(t *testing.T) {
 	got := NormalizeEditRequest(EditRequest{Intro: true})
 	want := EditRequest{

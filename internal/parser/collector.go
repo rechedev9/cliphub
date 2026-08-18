@@ -19,11 +19,17 @@ type Collector struct {
 	target string
 	rules  rules.Rules
 
-	kills     []RawKill
-	roundEnds []RoundEnd
+	kills       []RawKill
+	utility     []RawUtilityThrow
+	roundStarts []RoundStart
+	roundEnds   []RoundEnd
 
-	totalKillsTarget  int
-	killsAfterFilters int
+	totalKillsTarget    int
+	killsAfterFilters   int
+	totalUtilityTarget  int
+	utilityAfterFilters int
+	totalSmokesTarget   int
+	smokesAfterFilters  int
 
 	targetName        string
 	targetTeamAtStart string
@@ -52,9 +58,15 @@ func NewCollector(target string, r rules.Rules) *Collector {
 // without that event retain the documented collect-from-first-event fallback.
 func (c *Collector) resetForMatchStart() {
 	c.kills = nil
+	c.utility = nil
+	c.roundStarts = nil
 	c.roundEnds = nil
 	c.totalKillsTarget = 0
 	c.killsAfterFilters = 0
+	c.totalUtilityTarget = 0
+	c.utilityAfterFilters = 0
+	c.totalSmokesTarget = 0
+	c.smokesAfterFilters = 0
 	// Keep warmup identity as fallback for matches where the target has no live
 	// events, but let the first live observation replace its provisional values.
 	c.identityCaptured = false
@@ -93,8 +105,31 @@ func (c *Collector) RecordKill(k RawKill) {
 	c.killsAfterFilters++
 }
 
+func (c *Collector) RecordUtility(u RawUtilityThrow) {
+	if !isTrackedUtilityType(u.Type) {
+		return
+	}
+	c.totalUtilityTarget++
+	if u.Type == SmokeGrenadeType {
+		c.totalSmokesTarget++
+	}
+	if !c.rules.AllowsRound(u.Round) {
+		return
+	}
+	c.utility = append(c.utility, u)
+	c.utilityAfterFilters++
+	if u.Type == SmokeGrenadeType {
+		c.smokesAfterFilters++
+	}
+}
+
+func (c *Collector) RecordRoundStart(rs RoundStart) {
+	c.roundStarts = append(c.roundStarts, rs)
+}
+
 // RecordRoundEnd remembers the tick at which a given round ended; used by
-// segmentation to clip a segment's post-roll if the round ends inside it.
+// segmentation to clip a segment's TickEnd if the post-roll would otherwise
+// extend past the end of the round.
 func (c *Collector) RecordRoundEnd(re RoundEnd) {
 	c.roundEnds = append(c.roundEnds, re)
 }
@@ -110,6 +145,10 @@ func (c *Collector) KillsAfterFilters() int { return c.killsAfterFilters }
 // Build assembles the final kill plan. It returns an error if the target
 // player was never observed in the demo.
 func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
+	return c.build(m, SegmentModeKills)
+}
+
+func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	if !c.targetSeen {
 		return killplan.Plan{}, fmt.Errorf("target steamid %q: %w", c.target, ErrTargetNotFound)
 	}
@@ -118,8 +157,20 @@ func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
 	}
 
 	sortRawKillsByTick(c.kills)
+	sortUtilityThrowsByThrowTick(c.utility)
+	for i := range c.utility {
+		if c.utility[i].ID == "" {
+			c.utility[i].ID = utilityOrdinalID(utilityIDPrefix(c.utility[i].Type), i+1)
+		}
+	}
 
-	segs := Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
+	var segs []killplan.Segment
+	switch mode {
+	case SegmentModeRecap:
+		segs = SegmentRecap(c.kills, c.utility, c.roundStarts, c.roundEnds, c.rules, m.Tickrate)
+	default:
+		segs = Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
+	}
 	segs = clampSegmentsToDuration(segs, m.DurationTicks, m.Tickrate)
 	if segs == nil {
 		segs = []killplan.Segment{}
@@ -143,6 +194,10 @@ func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
 	plan.Stats = killplan.Stats{
 		TotalKillsTarget:     c.totalKillsTarget,
 		KillsAfterFilters:    c.killsAfterFilters,
+		TotalUtilityTarget:   c.totalUtilityTarget,
+		UtilityAfterFilters:  c.utilityAfterFilters,
+		TotalSmokesTarget:    c.totalSmokesTarget,
+		SmokesAfterFilters:   c.smokesAfterFilters,
 		SegmentsCreated:      len(segs),
 		DurationSecondsTotal: totalSegmentSeconds(segs, m.Tickrate),
 	}

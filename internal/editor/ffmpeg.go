@@ -225,6 +225,9 @@ func BuildCompilationFFmpegCommand(ffmpegPath string, short ShortEdit) []string 
 	if short.MusicPath != "" {
 		command = append(command, "-stream_loop", "-1", "-i", short.MusicPath)
 	}
+	for _, track := range short.VoiceTracks {
+		command = append(command, "-i", track)
+	}
 	for _, effect := range imageEffects(short.Effects) {
 		command = append(command, "-i", effect.Path)
 	}
@@ -285,6 +288,10 @@ func CompilationFilter(short ShortEdit) string {
 			fmt.Sprintf("[%d:v]%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, VideoFilter(partShort), partFrames, videoLabel),
 			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, partDuration, audioLabel),
 		)
+		if voice := voiceMixFilter(short, i, part, audioLabel); voice != "" {
+			clauses = append(clauses, voice)
+			audioLabel = fmt.Sprintf("pav%d", i)
+		}
 		concatLabels = append(concatLabels, "["+videoLabel+"]["+audioLabel+"]")
 		concatCount++
 		cursorFrame = partStartFrame + partFrames
@@ -322,6 +329,7 @@ func CompilationFilter(short ShortEdit) string {
 			if short.MusicPath != "" {
 				imageInputStart++
 			}
+			imageInputStart += len(short.VoiceTracks)
 			clauses = appendImageOverlayClauses(clauses, current, imageInputStart, images, short, "vimages")
 			current = "vimages"
 		}
@@ -526,6 +534,51 @@ func runFFmpegOutput(ctx context.Context, command []string, label string) (strin
 		return output, fmt.Errorf("ffmpeg %s: %w", label, err)
 	}
 	return output, nil
+}
+
+func voiceInputStart(short ShortEdit) int {
+	n := len(short.Parts)
+	if short.MusicPath != "" {
+		n++
+	}
+	return n
+}
+
+func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel string) string {
+	startTick, endTick := part.TickStart, part.TickEnd
+	if part.CaptureTickStart > 0 {
+		startTick = part.CaptureTickStart
+	}
+	if part.CaptureTickEnd > 0 {
+		endTick = part.CaptureTickEnd
+	}
+	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || endTick <= startTick {
+		return ""
+	}
+	start := float64(startTick) / float64(short.VoiceTickrate)
+	end := float64(endTick) / float64(short.VoiceTickrate)
+	if end <= start {
+		return ""
+	}
+	base := voiceInputStart(short)
+	var clauses []string
+	var labels []string
+	for i := range short.VoiceTracks {
+		lab := fmt.Sprintf("vt%d_%d", partIdx, i)
+		clauses = append(clauses, fmt.Sprintf(
+			"[%d:a]atrim=start=%.6f:end=%.6f,asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,aresample=48000,volume=0.85[%s]",
+			base+i, start, end, lab,
+		))
+		labels = append(labels, "["+lab+"]")
+	}
+	voiceLab := fmt.Sprintf("vmix%d", partIdx)
+	if len(labels) == 1 {
+		clauses = append(clauses, fmt.Sprintf("%sanull[%s]", labels[0], voiceLab))
+	} else {
+		clauses = append(clauses, fmt.Sprintf("%samix=inputs=%d:duration=longest:dropout_transition=0:normalize=0[%s]", strings.Join(labels, ""), len(labels), voiceLab))
+	}
+	clauses = append(clauses, fmt.Sprintf("[%s][%s]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[pav%d]", gameLabel, voiceLab, partIdx))
+	return strings.Join(clauses, ";")
 }
 
 func commandWithFilterComplexScript(command []string) ([]string, func(), error) {

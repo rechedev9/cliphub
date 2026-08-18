@@ -41,6 +41,9 @@ test('creative brief resolves every required production choice', () => {
     transition: 'flash',
     hookText: true,
     killCounter: true,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
     coverStrategy: 'generated-gameplay',
     intro: true,
     introText: 'Entrada',
@@ -50,6 +53,8 @@ test('creative brief resolves every required production choice', () => {
 
   assert.deepEqual(reelCreativeBrief(edit, PRESET, { status: 'track', title: 'Tema CC0', volumePercent: 35 }), [
     { label: 'Formato', value: 'Vertical 9:16 · 1080×1920' },
+    { label: 'Entrega', value: 'Compilado de jugadas' },
+    { label: 'Comms', value: 'Sin comms' },
     { label: 'HUD / killfeed', value: 'Sin HUD, conserva killfeed' },
     { label: 'Efecto de kill', value: 'Impacto / punch-in' },
     { label: 'Transición', value: 'Destello' },
@@ -69,6 +74,9 @@ test('creative brief makes disabled options and missing preset explicit', () => 
     transition: 'cut',
     hookText: false,
     killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
     coverStrategy: 'no-cover',
     intro: false,
     outro: true,
@@ -77,6 +85,8 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   };
   const brief = Object.fromEntries(reelCreativeBrief(edit, null, { status: 'none' }).map((item) => [item.label, item.value]));
   assert.equal(brief['Formato'], 'Horizontal 16:9 · 1920×1080');
+  assert.equal(brief['Entrega'], 'Compilado de jugadas');
+  assert.equal(brief['Comms'], 'Sin comms');
   assert.equal(brief['HUD / killfeed'], 'Pendiente de preset');
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');
   assert.equal(brief['Intro'], 'No');
@@ -84,4 +94,24 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['KeyDrop'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');
+});
+
+test('creative brief names the optional recap extras when they are on', () => {
+  const edit: EditConfig = {
+    format: 'landscape-16x9',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: true,
+    voiceComms: true,
+    nativeHud: true,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+  };
+  const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
+  assert.equal(brief['Entrega'], 'Resumen de partida (rondas completas)');
+  assert.equal(brief['Comms'], 'Mezclar comms del equipo');
+  assert.equal(brief['HUD / killfeed'], 'HUD completo con killfeed');
 });

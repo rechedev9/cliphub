@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"sort"
+
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
@@ -25,6 +27,13 @@ type RawKill struct {
 // these to clip a segment's TickEnd if the post-roll would otherwise extend
 // past the end of the round.
 type RoundEnd struct {
+	Round int
+	Tick  int
+}
+
+// RoundStart marks the tick at which a given round began. Recap segmentation
+// uses these to record the full live round instead of an 8-second kill burst.
+type RoundStart struct {
 	Round int
 	Tick  int
 }
@@ -81,6 +90,160 @@ func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int)
 			Kills:     buildKillPlanKills(g),
 		}
 		out = append(out, seg)
+	}
+	return out
+}
+
+// SegmentRecap records each live round from freeze/start to round end so a
+// landscape match recap can keep native HUD, radar, and economy context.
+// Rounds without target kills are kept when their boundaries are known.
+func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []RoundStart, roundEnds []RoundEnd, r rules.Rules, tickrate int) []killplan.Segment {
+	if tickrate <= 0 {
+		return nil
+	}
+
+	preRollTicks := r.PreRollSeconds * tickrate
+	postRollTicks := r.PostRollSeconds * tickrate
+	startByRound := indexRoundStarts(roundStarts)
+	endByRound := indexRoundEnds(roundEnds)
+	killsByRound := map[int][]RawKill{}
+	for _, kill := range kills {
+		killsByRound[kill.Round] = append(killsByRound[kill.Round], kill)
+	}
+	utilityByRound := map[int][]killplan.UtilityThrow{}
+	for _, u := range utility {
+		if !r.AllowsRound(u.Round) || !isTrackedUtilityType(u.Type) {
+			continue
+		}
+		utilityByRound[u.Round] = append(utilityByRound[u.Round], buildUtilityThrow(u))
+	}
+
+	rounds := recapRounds(killsByRound, utilityByRound, startByRound, endByRound)
+	if len(rounds) == 0 {
+		return nil
+	}
+
+	out := make([]killplan.Segment, 0, len(rounds))
+	previousEnd := 0
+	for _, round := range rounds {
+		if !r.AllowsRound(round) {
+			continue
+		}
+		g := killsByRound[round]
+		if len(g) > 0 && len(g) < r.MinKillsInWindow {
+			continue
+		}
+		tickStart, tickEnd := recapRoundWindow(round, g, startByRound, endByRound, previousEnd, preRollTicks, postRollTicks)
+		roundEnd := 0
+		if end, ok := endByRound[round]; ok {
+			roundEnd = end
+		}
+		tickStart, tickEnd = expandRecapWindowForUtility(tickStart, tickEnd, utilityByRound[round], preRollTicks, postRollTicks, roundEnd)
+		if tickEnd <= tickStart {
+			continue
+		}
+		out = append(out, killplan.Segment{
+			ID:        killplan.FormatSegmentID(len(out) + 1),
+			Round:     round,
+			TickStart: tickStart,
+			TickEnd:   tickEnd,
+			Kills:     buildKillPlanKills(g),
+			Utility:   utilityByRound[round],
+		})
+		previousEnd = tickEnd
+	}
+	return out
+}
+
+func recapRounds(killsByRound map[int][]RawKill, utilityByRound map[int][]killplan.UtilityThrow, startByRound, endByRound map[int]int) []int {
+	seen := map[int]struct{}{}
+	add := func(round int) {
+		if round <= 0 {
+			return
+		}
+		seen[round] = struct{}{}
+	}
+	for round := range killsByRound {
+		add(round)
+	}
+	for round := range utilityByRound {
+		add(round)
+	}
+	for round := range startByRound {
+		add(round)
+	}
+	for round := range endByRound {
+		add(round)
+	}
+	out := make([]int, 0, len(seen))
+	for round := range seen {
+		out = append(out, round)
+	}
+	sort.Ints(out)
+	return out
+}
+
+func expandRecapWindowForUtility(tickStart, tickEnd int, utility []killplan.UtilityThrow, preRollTicks, postRollTicks, roundEnd int) (int, int) {
+	for _, u := range utility {
+		start := u.ThrowTick - preRollTicks
+		if start < 1 {
+			start = 1
+		}
+		if start < tickStart {
+			tickStart = start
+		}
+		end := u.ThrowTick + postRollTicks
+		if u.PopTick > 0 {
+			end = u.PopTick + postRollTicks
+		}
+		if end > tickEnd {
+			tickEnd = end
+		}
+	}
+	if roundEnd > 0 && tickEnd > roundEnd {
+		tickEnd = roundEnd
+	}
+	return tickStart, tickEnd
+}
+
+func recapRoundWindow(round int, kills []RawKill, startByRound, endByRound map[int]int, previousEnd, preRollTicks, postRollTicks int) (int, int) {
+	tickStart := 1
+	if start, ok := startByRound[round]; ok && start > 0 {
+		tickStart = start
+	} else if len(kills) > 0 {
+		tickStart = kills[0].Tick - preRollTicks
+	} else if previousEnd > 0 {
+		tickStart = previousEnd + 1
+	}
+	if tickStart < 1 {
+		tickStart = 1
+	}
+
+	tickEnd := 0
+	if end, ok := endByRound[round]; ok {
+		tickEnd = end
+	}
+	if len(kills) > 0 {
+		fallbackEnd := kills[len(kills)-1].Tick + postRollTicks
+		if tickEnd <= 0 || (tickEnd < kills[len(kills)-1].Tick) {
+			tickEnd = fallbackEnd
+		}
+	}
+	if tickEnd < tickStart {
+		return tickStart, tickStart
+	}
+	return tickStart, tickEnd
+}
+
+func indexRoundStarts(roundStarts []RoundStart) map[int]int {
+	if len(roundStarts) == 0 {
+		return nil
+	}
+	out := make(map[int]int, len(roundStarts))
+	for _, rs := range roundStarts {
+		if _, ok := out[rs.Round]; !ok {
+			out[rs.Round] = rs.Tick
+		}
 	}
 	return out
 }

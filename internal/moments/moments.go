@@ -206,6 +206,12 @@ func reasonCodes(segment killplan.Segment, events Events) []string {
 	if events.Kills >= 2 {
 		reasons["multi_kill"] = true
 	}
+	if events.Kills >= 4 {
+		reasons["quad"] = true
+	}
+	if events.Kills >= 5 {
+		reasons["ace"] = true
+	}
 	if events.Headshots > 0 {
 		reasons["headshot"] = true
 	}

@@ -7,7 +7,7 @@ description: "Create upload-ready ClipHub stream clips from recorded stream VODs
 
 Use this skill when the user wants clips from a recorded stream VOD (Twitch/YouTube/local MP4), especially vertical facecam-over-gameplay Shorts or landscape long-form cuts.
 
-The journey is `stream variants -> stream plan -> stream render`.
+The journey is `stream fetch -> stream variants -> stream plan -> stream render`. A local MP4 skips fetch.
 
 ## Creative Brief Gate
 
@@ -36,13 +36,24 @@ Antes de renderizar dime/confirmame:
 
 ## Workflow
 
-1. Discover layout variants and default geometry:
+1. Download a Twitch or YouTube source when the input is a URL:
+
+```powershell
+.\bin\zv.exe workflows run stream-fetch -- `
+  --url <https://www.twitch.tv/videos/...> `
+  --out <run>\source.mp4 `
+  --dry-run --format json
+```
+
+Remove `--dry-run` only after the URL and destination are approved. Raise `--max-bytes` for multi-hour VODs.
+
+2. Discover layout variants and default geometry:
 
 ```powershell
 .\bin\zv.exe workflows run stream-variants -- --format json
 ```
 
-2. Plan the edit for the chosen variant and clip boundaries:
+3. Plan the edit for the chosen variant and clip boundaries:
 
 ```powershell
 .\bin\zv.exe workflows run stream-plan -- `
@@ -57,7 +68,7 @@ Antes de renderizar dime/confirmame:
 
 Use `--dry-run` first when iterating on crops or clip boundaries.
 
-3. Render the approved plan:
+4. Render the approved plan:
 
 ```powershell
 .\bin\zv.exe workflows run stream-render -- `

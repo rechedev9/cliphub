@@ -23,7 +23,23 @@ const (
 	SegmentModeKills   SegmentMode = "kills"
 	SegmentModeSmokes  SegmentMode = "smokes"
 	SegmentModeUtility SegmentMode = "utility"
+	SegmentModeRecap   SegmentMode = "recap"
 )
+
+// KnownSegmentModes is the public CLI allowlist, in catalog order.
+func KnownSegmentModes() []SegmentMode {
+	return []SegmentMode{SegmentModeKills, SegmentModeSmokes, SegmentModeUtility, SegmentModeRecap}
+}
+
+// ValidSegmentMode reports whether mode is a known public segment mode.
+func ValidSegmentMode(mode SegmentMode) bool {
+	switch mode {
+	case SegmentModeKills, SegmentModeSmokes, SegmentModeUtility, SegmentModeRecap:
+		return true
+	default:
+		return false
+	}
+}
 
 type RunOptions struct {
 	SegmentMode SegmentMode
@@ -78,6 +94,8 @@ func RunWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m PlanMet
 		plan, err = runSmokes(p, target, r, m)
 	case SegmentModeUtility:
 		plan, err = runUtility(p, target, r, m)
+	case SegmentModeRecap:
+		plan, err = runRecap(p, target, r, m)
 	default:
 		return killplan.Plan{}, fmt.Errorf("unknown segment mode %q", opts.SegmentMode)
 	}

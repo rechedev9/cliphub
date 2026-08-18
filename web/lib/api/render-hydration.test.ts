@@ -46,6 +46,9 @@ test('effective edit parser reads the Go mixed wire fields', () => {
     outro: false,
     hookText: true,
     killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
     introText: 'Watch this',
   };
   // Live orchestrator wire: killEffect camelCase + snake_case booleans.

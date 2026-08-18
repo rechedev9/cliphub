@@ -36,8 +36,8 @@ func validateSkillCommand(command []string) string {
 			return issue
 		}
 	case "demo":
-		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "anticheat" && command[1] != "probe") {
-			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", or "demo probe"`
+		if len(command) < 2 || (command[1] != "parse" && command[1] != "players" && command[1] != "moments" && command[1] != "select" && command[1] != "anticheat" && command[1] != "probe" && command[1] != "voice") {
+			return `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", "demo probe", or "demo voice"`
 		}
 		switch command[1] {
 		case "parse":
@@ -50,6 +50,8 @@ func validateSkillCommand(command []string) string {
 			return validateDemoSelectCommand(command[2:])
 		case "probe":
 			return validateRequiredFlags(`"demo probe"`, command[2:], requiredFlagsForRunArgs("demo", "probe")...)
+		case "voice":
+			return validateRequiredFlags(`"demo voice"`, command[2:], requiredFlagsForRunArgs("demo", "voice")...)
 		case "anticheat":
 			// The screening pass has no workflow entry, so its required flags
 			// are stated here rather than derived from the catalog. Without
@@ -82,12 +84,14 @@ func validateSkillCommand(command []string) string {
 		}
 		return ""
 	case "stream":
-		if len(command) < 2 || (command[1] != "variants" && command[1] != "plan" && command[1] != "render") {
-			return `uses non-standard zv command "stream"; expected "stream variants", "stream plan", or "stream render"`
+		if len(command) < 2 || (command[1] != "fetch" && command[1] != "variants" && command[1] != "plan" && command[1] != "render") {
+			return `uses non-standard zv command "stream"; expected "stream fetch", "stream variants", "stream plan", or "stream render"`
 		}
 		switch command[1] {
 		case "variants":
 			return validateFormattedCommand("stream variants", command[2:])
+		case "fetch":
+			return validateRequiredFlags(`"stream fetch"`, command[2:], requiredFlagsForRunArgs("stream", "fetch")...)
 		case "plan":
 			return validateRequiredFlags(`"stream plan"`, command[2:], requiredFlagsForRunArgs("stream", "plan")...)
 		case "render":
@@ -582,6 +586,8 @@ func commandValueFlags(commandName string, required []string) []string {
 		flags = append(flags, "--segments", "--top", "--format")
 	case `"demo probe"`:
 		flags = append(flags, "--format")
+	case `"demo voice"`:
+		flags = append(flags, "--format", "--extract")
 	case `"demo anticheat"`:
 		flags = append(flags, "--baseline", "--out", "--dossier", "--format")
 	case `"demo anticheat calibrate"`:
@@ -603,6 +609,7 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--effects-preset",
 			"--music",
 			"--music-volume",
+			"--voice-dir",
 			"--rhythm",
 			"--output-format",
 			"--kill-effect",
@@ -621,6 +628,8 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--ffprobe",
 			"--format",
 		)
+	case `"stream fetch"`:
+		flags = append(flags, "--max-bytes", "--ytdlp", "--timeout", "--format")
 	case `"stream plan"`:
 		flags = append(flags,
 			"--variant",
@@ -683,6 +692,8 @@ func commandBoolFlags(commandName string) []string {
 		return []string{"--dry-run"}
 	case `"demo probe"`:
 		return []string{"--dry-run"}
+	case `"demo voice"`:
+		return []string{"--dry-run"}
 	case `"demo select"`, `"demo anticheat"`, `"demo anticheat calibrate"`:
 		return []string{"--dry-run"}
 	case `"short"`:
@@ -712,7 +723,7 @@ func commandBoolFlags(commandName string) []string {
 			"--temporal-smoothing",
 			"--compile-segments",
 		}
-	case `"stream plan"`, `"stream render"`:
+	case `"stream fetch"`, `"stream plan"`, `"stream render"`:
 		return []string{"--dry-run"}
 	case `"music analyze"`:
 		return []string{"--rank-moments"}

@@ -119,6 +119,8 @@ func runStreamWithService(args []string, stdout, stderr io.Writer, service strea
 		return exitSuccess
 	}
 	switch args[0] {
+	case "fetch":
+		return runStreamFetch(args[1:], stdout, stderr, nil)
 	case "variants":
 		return runStreamVariants(args[1:], stdout, stderr)
 	case "plan":

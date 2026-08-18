@@ -116,6 +116,8 @@ type Config struct {
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
+	// VoiceDir holds POV-team Ogg tracks from `zv demo voice --extract`.
+	VoiceDir string
 	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
 	KeyDropStyle string
 	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
@@ -169,6 +171,7 @@ type ManifestOptions struct {
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
+	VoiceDir    string
 	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
 	KeyDropStyle string
 	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
@@ -203,6 +206,7 @@ type Manifest struct {
 	EffectsPreset     string      `json:"effects_preset,omitempty"`
 	MusicPath         string      `json:"music_path,omitempty"`
 	MusicVolume       float64     `json:"music_volume,omitempty"`
+	VoiceDir          string      `json:"voice_dir,omitempty"`
 	RhythmPath        string      `json:"rhythm_path,omitempty"`
 	OutputFormat      string      `json:"output_format,omitempty"`
 	KillEffect        string      `json:"kill_effect,omitempty"`
@@ -252,25 +256,27 @@ type ShortEdit struct {
 	MusicPath       string                      `json:"music_path,omitempty"`
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
-	MusicVolume       float64 `json:"music_volume,omitempty"`
-	RhythmPath        string  `json:"rhythm_path,omitempty"`
-	OutputFormat      string  `json:"output_format,omitempty"`
-	KillEffect        string  `json:"kill_effect,omitempty"`
-	Transition        string  `json:"transition,omitempty"`
-	Intro             bool    `json:"intro,omitempty"`
-	Outro             bool    `json:"outro,omitempty"`
-	IntroText         string  `json:"intro_text,omitempty"`
-	OutroText         string  `json:"outro_text,omitempty"`
-	HookText          bool    `json:"hook_text,omitempty"`
-	KillCounter       bool    `json:"kill_counter,omitempty"`
-	KillfeedOverlay   bool    `json:"killfeed_overlay,omitempty"`
-	TailTrimSeconds   float64 `json:"tail_trim_seconds,omitempty"`
-	OutputFPS         int     `json:"output_fps,omitempty"`
-	VideoCRF          int     `json:"video_crf,omitempty"`
-	VideoPreset       string  `json:"video_preset,omitempty"`
-	HQFilters         bool    `json:"hq_filters,omitempty"`
-	AudioNormalize    bool    `json:"audio_normalize,omitempty"`
-	TemporalSmoothing bool    `json:"temporal_smoothing,omitempty"`
+	MusicVolume       float64  `json:"music_volume,omitempty"`
+	VoiceTracks       []string `json:"voice_tracks,omitempty"`
+	VoiceTickrate     int      `json:"voice_tickrate,omitempty"`
+	RhythmPath        string   `json:"rhythm_path,omitempty"`
+	OutputFormat      string   `json:"output_format,omitempty"`
+	KillEffect        string   `json:"kill_effect,omitempty"`
+	Transition        string   `json:"transition,omitempty"`
+	Intro             bool     `json:"intro,omitempty"`
+	Outro             bool     `json:"outro,omitempty"`
+	IntroText         string   `json:"intro_text,omitempty"`
+	OutroText         string   `json:"outro_text,omitempty"`
+	HookText          bool     `json:"hook_text,omitempty"`
+	KillCounter       bool     `json:"kill_counter,omitempty"`
+	KillfeedOverlay   bool     `json:"killfeed_overlay,omitempty"`
+	TailTrimSeconds   float64  `json:"tail_trim_seconds,omitempty"`
+	OutputFPS         int      `json:"output_fps,omitempty"`
+	VideoCRF          int      `json:"video_crf,omitempty"`
+	VideoPreset       string   `json:"video_preset,omitempty"`
+	HQFilters         bool     `json:"hq_filters,omitempty"`
+	AudioNormalize    bool     `json:"audio_normalize,omitempty"`
+	TemporalSmoothing bool     `json:"temporal_smoothing,omitempty"`
 	// KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
 	KeyDropStyle        string      `json:"keydrop_style,omitempty"`
@@ -309,6 +315,10 @@ type ShortPart struct {
 	DurationSeconds      float64                     `json:"duration_seconds,omitempty"`
 	TimelineStartSeconds float64                     `json:"timeline_start_seconds,omitempty"`
 	GapBeforeSeconds     float64                     `json:"gap_before_seconds,omitempty"`
+	TickStart            int                         `json:"tick_start,omitempty"`
+	TickEnd              int                         `json:"tick_end,omitempty"`
+	CaptureTickStart     int                         `json:"capture_tick_start,omitempty"`
+	CaptureTickEnd       int                         `json:"capture_tick_end,omitempty"`
 	Kills                []KillCue                   `json:"kills,omitempty"`
 }
 
@@ -332,6 +342,10 @@ type SmokeCue struct {
 	PopTimeSeconds  float64    `json:"pop_time_seconds,omitempty"`
 	ThrowPlace      string     `json:"throw_place,omitempty"`
 	ThrowAction     string     `json:"throw_action,omitempty"`
+	ThrowClick      string     `json:"throw_click,omitempty"`
+	ViewYaw         float64    `json:"view_yaw,omitempty"`
+	ViewPitch       float64    `json:"view_pitch,omitempty"`
+	ThrowEyePos     [3]float64 `json:"throw_eye_pos,omitempty"`
 	Stance          string     `json:"stance,omitempty"`
 	Movement        string     `json:"movement,omitempty"`
 	Speed2D         float64    `json:"speed_2d,omitempty"`

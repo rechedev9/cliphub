@@ -1089,6 +1089,9 @@ type renderEditRequest struct {
 	Outro               *bool    `json:"outro"`
 	HookText            *bool    `json:"hook_text"`
 	KillCounter         *bool    `json:"kill_counter"`
+	MatchRecap          *bool    `json:"match_recap"`
+	VoiceComms          *bool    `json:"voice_comms"`
+	NativeHUD           *bool    `json:"native_hud"`
 	CoverStrategy       *string  `json:"cover_strategy"`
 	CoverFirstFrame     *bool    `json:"cover_first_frame"`
 	IntroText           *string  `json:"intro_text"`
@@ -1121,6 +1124,15 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.KillCounter != nil {
 		base.KillCounter = *r.KillCounter
+	}
+	if r.MatchRecap != nil {
+		base.MatchRecap = *r.MatchRecap
+	}
+	if r.VoiceComms != nil {
+		base.VoiceComms = *r.VoiceComms
+	}
+	if r.NativeHUD != nil {
+		base.NativeHUD = *r.NativeHUD
 	}
 	if r.CoverStrategy != nil {
 		base.CoverStrategy = *r.CoverStrategy

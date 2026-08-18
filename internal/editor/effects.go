@@ -1528,6 +1528,9 @@ func smokeLuaTable(L *lua.LState, short ShortEdit, smoke SmokeCue) *lua.LTable {
 	tb.RawSetString("pop_time", lua.LNumber(smoke.PopTimeSeconds))
 	tb.RawSetString("throw_place", lua.LString(smoke.ThrowPlace))
 	tb.RawSetString("throw_action", lua.LString(smoke.ThrowAction))
+	tb.RawSetString("throw_click", lua.LString(smoke.ThrowClick))
+	tb.RawSetString("view_yaw", lua.LNumber(smoke.ViewYaw))
+	tb.RawSetString("view_pitch", lua.LNumber(smoke.ViewPitch))
 	tb.RawSetString("stance", lua.LString(smoke.Stance))
 	tb.RawSetString("movement", lua.LString(smoke.Movement))
 	tb.RawSetString("speed_2d", lua.LNumber(smoke.Speed2D))
@@ -1546,6 +1549,9 @@ func smokeLuaTable(L *lua.LState, short ShortEdit, smoke SmokeCue) *lua.LTable {
 	tb.RawSetString("throw_x", lua.LNumber(smoke.ThrowPos[0]))
 	tb.RawSetString("throw_y", lua.LNumber(smoke.ThrowPos[1]))
 	tb.RawSetString("throw_z", lua.LNumber(smoke.ThrowPos[2]))
+	tb.RawSetString("throw_eye_x", lua.LNumber(smoke.ThrowEyePos[0]))
+	tb.RawSetString("throw_eye_y", lua.LNumber(smoke.ThrowEyePos[1]))
+	tb.RawSetString("throw_eye_z", lua.LNumber(smoke.ThrowEyePos[2]))
 	tb.RawSetString("matched", lua.LBool(smoke.Matched))
 	return tb
 }

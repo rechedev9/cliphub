@@ -51,7 +51,7 @@ func runBatch(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&outDir, "out", "", "optional directory to write each kill plan into")
 	fs.StringVar(&obsDir, "obs-dir", obs.DefaultDir(), "observability directory for the error journal and metrics")
 	fs.IntVar(&jobs, "jobs", 0, "max concurrent demos; 0 picks a CPU-based default")
-	fs.StringVar(&segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, or utility")
+	fs.StringVar(&segmentMode, "segment-mode", string(parser.SegmentModeKills), "segment mode: kills, smokes, utility, or recap")
 	fs.StringVar(&format, "format", "text", "summary format: text or json")
 	fs.StringVar(&report, "report", "", "optional path to write the JSON summary report")
 	if err := fs.Parse(args); err != nil {
@@ -67,8 +67,8 @@ func runBatch(args []string, stdout, stderr io.Writer) int {
 		return exitInvalidArgs
 	}
 	mode := parser.SegmentMode(segmentMode)
-	if mode != parser.SegmentModeKills && mode != parser.SegmentModeSmokes && mode != parser.SegmentModeUtility {
-		fmt.Fprintf(stderr, "error: --segment-mode must be %q, %q, or %q\n", parser.SegmentModeKills, parser.SegmentModeSmokes, parser.SegmentModeUtility)
+	if !parser.ValidSegmentMode(mode) {
+		fmt.Fprintf(stderr, "error: --segment-mode must be one of %s\n", quotedSegmentModes())
 		return exitInvalidArgs
 	}
 	if format != "text" && format != "json" {
@@ -275,6 +275,15 @@ func readEvents(path string) ([]obs.Event, error) {
 		events = append(events, ev)
 	}
 	return events, sc.Err()
+}
+
+func quotedSegmentModes() string {
+	modes := parser.KnownSegmentModes()
+	names := make([]string, len(modes))
+	for i, mode := range modes {
+		names[i] = fmt.Sprintf("%q", mode)
+	}
+	return strings.Join(names, ", ")
 }
 
 func baseName(p string) string {

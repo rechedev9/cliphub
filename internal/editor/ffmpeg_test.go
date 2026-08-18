@@ -327,3 +327,21 @@ func TestCompilationPostConcatFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildCompilationFFmpegCommandMixesVoiceTracks(t *testing.T) {
+	short := ShortEdit{
+		Preset:        PresetViral60Clean,
+		Output:        "out.mp4",
+		VoiceTracks:   []string{"a.ogg", "b.ogg"},
+		VoiceTickrate: 64,
+		Parts: []ShortPart{
+			{SegmentID: "seg-001", Input: "p1.mp4", DurationSeconds: 2, TickStart: 640, TickEnd: 1280, CaptureTickStart: 768, CaptureTickEnd: 1280},
+		},
+	}
+	command := strings.Join(BuildCompilationFFmpegCommand("ffmpeg", short), " ")
+	for _, want := range []string{"-i a.ogg", "-i b.ogg", "atrim=start=12.000000:end=20.000000", "amix=inputs=2:duration=first", "[pav0]"} {
+		if !strings.Contains(command, want) {
+			t.Fatalf("command = %q, missing %q", command, want)
+		}
+	}
+}

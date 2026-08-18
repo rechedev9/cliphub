@@ -89,6 +89,12 @@ func buildWorkflowCatalog() []workflowInfo {
 			RunArgs:     []string{"demo", "probe"},
 		},
 		{
+			Name:        "demo-voice",
+			Description: "Probe whether a demo carries voice-comms packets for the POV team.",
+			Command:     "zv demo voice --demo <demo.dem> --steamid <SteamID64> --out <voice-probe.json>",
+			RunArgs:     []string{"demo", "voice"},
+		},
+		{
 			Name:        "utility-audit",
 			Description: "Audit utility destinations/actions against the lineup catalog.",
 			Command:     "zv utility audit --plan <plan-utility.json> --lineup-catalog data/lineups --out <utility-audit.csv>",
@@ -117,6 +123,12 @@ func buildWorkflowCatalog() []workflowInfo {
 			Description: "Render vertical or landscape videos; the upload-ready pack defaults to <shorts-dir>/shortslistosparasubir.",
 			Command:     "zv shorts render --recording-result <recording-result.json> --out <shorts-dir>",
 			RunArgs:     []string{"shorts", "render"},
+		},
+		{
+			Name:        "stream-fetch",
+			Description: "Download an allowlisted Twitch or YouTube clip/VOD to a local MP4.",
+			Command:     "zv stream fetch --url <https://...> --out <stream.mp4>",
+			RunArgs:     []string{"stream", "fetch"},
 		},
 		{
 			Name:        "stream-variants",
@@ -296,7 +308,7 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 	case "demo-parse":
 		return []workflowValueConstraint{
 			constraint("--segment-mode", string(parser.SegmentModeKills), "",
-				string(parser.SegmentModeKills), string(parser.SegmentModeSmokes), string(parser.SegmentModeUtility)),
+				string(parser.SegmentModeKills), string(parser.SegmentModeSmokes), string(parser.SegmentModeUtility), string(parser.SegmentModeRecap)),
 		}
 	case "utility-audit":
 		return []workflowValueConstraint{
@@ -329,7 +341,11 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 			constraint("--variant", streamclips.DefaultVariant().Name, "zv stream variants --format json", streamclips.VariantNames()...),
 			constraint("--format", "text", "", "text", "json"),
 		}
-	case "faceit-index", "stream-render", "stream-variants", "demo-players", "demo-moments", "demo-select", "demo-probe", "flows-run",
+	case "stream-fetch":
+		return []workflowValueConstraint{
+			constraint("--format", "text", "", "text", "json"),
+		}
+	case "faceit-index", "stream-render", "stream-variants", "demo-players", "demo-moments", "demo-select", "demo-probe", "demo-voice", "flows-run",
 		"analysis-tactical", "analysis-rounds", "analysis-tendencies":
 		return []workflowValueConstraint{
 			constraint("--format", "text", "", "text", "json"),
@@ -364,8 +380,8 @@ func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) 
 
 	longRunning := false
 	switch workflow.Name {
-	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-render", "analysis-viewer", "serve", "flows-run",
-		"analysis-tactical":
+	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-fetch", "stream-render", "analysis-viewer", "serve", "flows-run",
+		"analysis-tactical", "demo-voice":
 		// flows-run really parses demos and probes media across a whole journey,
 		// and analysis-tactical parses a whole demo before it writes anything.
 		longRunning = true

@@ -155,6 +155,14 @@ func playerPosition(p *common.Player) [3]float64 {
 }
 
 func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
+	return collectKills(p, target, r, m, SegmentModeKills)
+}
+
+func runRecap(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
+	return collectKills(p, target, r, m, SegmentModeRecap)
+}
+
+func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	targetID, err := strconv.ParseUint(target, 10, 64)
 	if err != nil {
 		return killplan.Plan{}, fmt.Errorf("invalid target steamid %q: %w", target, err)
@@ -163,6 +171,10 @@ func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (ki
 	c := NewCollector(target, r)
 	var mapName string
 	var maxTick int
+	var watch *utilityWatch
+	if mode == SegmentModeRecap {
+		watch = newUtilityWatch(targetID, target, &maxTick, c.RecordTargetIdentity)
+	}
 
 	p.RegisterNetMessageHandler(func(info *msg.CSVCMsg_ServerInfo) {
 		if name := info.GetMapName(); name != "" {
@@ -195,6 +207,22 @@ func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (ki
 		c.RecordKill(rk)
 	})
 
+	if watch != nil {
+		watch.bind(p)
+	}
+
+	p.RegisterEventHandler(func(events.RoundStart) {
+		gs := p.GameState()
+		tick := gs.IngameTick()
+		if tick > maxTick {
+			maxTick = tick
+		}
+		if tick < 1 {
+			tick = 1
+		}
+		c.RecordRoundStart(RoundStart{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
+	})
+
 	p.RegisterEventHandler(func(events.RoundEnd) {
 		gs := p.GameState()
 		tick := gs.IngameTick()
@@ -218,7 +246,14 @@ func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (ki
 		m.DurationTicks = maxTick
 	}
 
-	plan, err := c.Build(m)
+	if watch != nil {
+		for _, u := range watch.flush() {
+			annotateUtilityDestination(u, m.Map)
+			c.RecordUtility(*u)
+		}
+	}
+
+	plan, err := c.build(m, mode)
 	if err != nil {
 		// Translate the collector's "target not seen" error into the sentinel
 		// so the CLI can map it to its exit code.

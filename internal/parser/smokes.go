@@ -11,6 +11,8 @@ const SmokeGrenadeType = "smokegrenade"
 const FlashbangType = "flashbang"
 const MolotovType = "molotov"
 const IncendiaryGrenadeType = "incgrenade"
+const HeGrenadeType = "hegrenade"
+const DecoyType = "decoy"
 
 // RawUtilityThrow is the normalized representation of a target-player utility
 // throw produced by the demo reader and consumed by the utility segmenter.
@@ -29,6 +31,10 @@ type RawUtilityThrow struct {
 	ThrowStateTick   int
 	ThrowStateSource string
 	ThrowAction      string
+	ThrowClick       string
+	ViewYaw          float64
+	ViewPitch        float64
+	ThrowEyePos      [3]float64
 	Stance           string
 	Movement         string
 	Speed2D          float64
@@ -192,6 +198,10 @@ func buildUtilityThrow(in RawUtilityThrow) killplan.UtilityThrow {
 		ThrowStateTick:   in.ThrowStateTick,
 		ThrowStateSource: in.ThrowStateSource,
 		ThrowAction:      in.ThrowAction,
+		ThrowClick:       in.ThrowClick,
+		ViewYaw:          in.ViewYaw,
+		ViewPitch:        in.ViewPitch,
+		ThrowEyePos:      in.ThrowEyePos,
 		Stance:           in.Stance,
 		Movement:         in.Movement,
 		Speed2D:          in.Speed2D,
@@ -204,7 +214,7 @@ func buildUtilityThrow(in RawUtilityThrow) killplan.UtilityThrow {
 
 func isTrackedUtilityType(typ string) bool {
 	switch typ {
-	case SmokeGrenadeType, FlashbangType, MolotovType, IncendiaryGrenadeType:
+	case SmokeGrenadeType, FlashbangType, MolotovType, IncendiaryGrenadeType, HeGrenadeType, DecoyType:
 		return true
 	default:
 		return false
@@ -213,7 +223,7 @@ func isTrackedUtilityType(typ string) bool {
 
 func utilityFallbackTicks(typ string, tickrate int) int {
 	switch typ {
-	case FlashbangType:
+	case FlashbangType, HeGrenadeType:
 		return 4 * tickrate
 	case MolotovType, IncendiaryGrenadeType:
 		return 9 * tickrate
@@ -230,6 +240,10 @@ func utilityIDPrefix(typ string) string {
 		return "molotov"
 	case IncendiaryGrenadeType:
 		return "incgrenade"
+	case HeGrenadeType:
+		return "he"
+	case DecoyType:
+		return "decoy"
 	default:
 		return "smoke"
 	}

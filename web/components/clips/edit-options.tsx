@@ -1,6 +1,6 @@
 'use client';
 
-import { Gift, ImageIcon, ListOrdered, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
+import { Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
 import { BOOKEND_TEXT_MAX_LENGTH, type EditConfig, type KeyDropStyle } from '@/lib/api/types';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,41 @@ const transitionItems: Array<{ value: EditConfig['transition']; label: string }>
 export function EditOptions({ value, onChange, disabled = false }: EditOptionsProps) {
   return (
     <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>
+      <OptionBlock label="ENTREGA OPCIONAL" className="md:col-span-2">
+        <ToggleGroup
+          type="multiple"
+          value={[
+            value.matchRecap ? 'match-recap' : '',
+            value.voiceComms ? 'voice-comms' : '',
+            value.nativeHud ? 'native-hud' : '',
+          ].filter(Boolean)}
+          onValueChange={(items) =>
+            onChange({
+              ...value,
+              matchRecap: items.includes('match-recap'),
+              voiceComms: items.includes('voice-comms'),
+              nativeHud: items.includes('native-hud'),
+            })
+          }
+          disabled={disabled}
+          variant="outline"
+          className="flex-wrap"
+        >
+          <ToggleGroupItem value="match-recap" aria-label="Resumen de partida">
+            <Film className="size-4" />
+            Resumen de partida
+          </ToggleGroupItem>
+          <ToggleGroupItem value="voice-comms" aria-label="Comms del equipo">
+            <Headphones className="size-4" />
+            Comms del equipo
+          </ToggleGroupItem>
+          <ToggleGroupItem value="native-hud" aria-label="HUD nativo">
+            <Monitor className="size-4" />
+            HUD nativo
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </OptionBlock>
+
       <OptionBlock label="EFECTO DE KILL">
         <ToggleGroup
           type="single"

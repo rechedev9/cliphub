@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-40 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
+41 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
 
 ## WHERE TO LOOK
 
@@ -32,6 +32,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Sponsor plate / font | `keydropbanner`, `mediafont` | Stream schema revalidates banner codes; do not import assets into it |
 | Publish copy / trends | `youtubeinsights`, `youtubetrends` | Madrid TZ. Trends key redacted. No popularity claim |
 | Voice refs | `voiceprofile` | HTTP only; no narration worker |
+| Demo voice probe | `voicecomms` | Reads `svc_VoiceData`. Lists POV team only; others aggregated |
 | Path / CLI safety | `pathguard` | Blocks `--out` aliasing inputs |
 | TUI DTOs | `tuiclient` | No parser/editor import |
 

@@ -17,10 +17,12 @@ Usage:
   zv demo anticheat --demo <match.dem> [--baseline <baseline.json>] [--out <anticheat.json>] [--dossier <SteamID64>] [--dry-run] [--format text|json]
   zv demo anticheat calibrate --demos <dir> --id <name> --out <baseline.json> [--dry-run] [--format text|json]
   zv demo probe --demo <match.dem> --out <playability.json> [--dry-run] [--format text|json]
+  zv demo voice --demo <match.dem> --steamid <SteamID64> --out <voice-probe.json> [--extract <dir>] [--dry-run] [--format text|json]
   zv utility audit [zv-parser utility-audit flags]
   zv record [zv-recorder flags]
   zv compose final [zv-composer flags]
   zv shorts render [zv-editor flags]
+  zv stream fetch --url <https://...> --out <stream.mp4> [--max-bytes <n>] [--dry-run] [--format text|json]
   zv stream variants [--format text|json]
   zv stream plan --input <stream.mp4> --out <edit-plan.json> [--variant <name>] [--dry-run] [--format text|json]
   zv stream render --input <stream.mp4> --plan <edit-plan.json> --out <run-dir> [--dry-run] [--format text|json]
@@ -146,7 +148,7 @@ const errorsUsage = `usage: zv errors [--obs-dir <dir>] [--tail <n>] [--json] [-
 Summarize the local error journal. --clear truncates it (use between fix-loop runs).
 `
 
-const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags] | zv demo anticheat [flags] | zv demo probe [flags]
+const demoUsage = `usage: zv demo parse [zv-parser parse flags] | zv demo players [zv-demo-players flags] | zv demo moments [flags] | zv demo select [flags] | zv demo anticheat [flags] | zv demo probe [flags] | zv demo voice [flags]
 `
 
 const demoAnticheatUsage = `usage: zv demo anticheat --demo <match.dem> [--baseline <baseline.json>] [--out <anticheat.json>] [--dossier <SteamID64>] [--dry-run] [--format text|json]
@@ -166,6 +168,13 @@ const demoAnticheatCalibrateUsage = `usage: zv demo anticheat calibrate --demos 
 Measure a baseline from a directory of demos that are known to contain
 professional play, replacing the shipped distribution. Metrics without
 enough samples keep the estimate and are named in the baseline description.
+`
+
+const demoVoiceUsage = `usage: zv demo voice --demo <match.dem> --steamid <SteamID64> --out <voice-probe.json> [--extract <dir>] [--dry-run] [--format text|json]
+
+Probe whether a CS2 demo carries svc_VoiceData packets. Lists the POV and
+their teammates; other speakers are aggregated. --extract writes Ogg Opus
+tracks for the POV team. --dry-run validates flags without parsing.
 `
 
 const demoProbeUsage = `usage: zv demo probe --demo <match.dem> --out <playability.json> [--dry-run] [--format text|json]
@@ -200,7 +209,7 @@ const composeUsage = `usage: zv compose final [zv-composer flags]
 const shortsUsage = `usage: zv shorts render [zv-editor flags]
 `
 
-const streamUsage = `usage: zv stream variants [--format text|json] | zv stream plan [flags] | zv stream render [flags]
+const streamUsage = `usage: zv stream fetch [flags] | zv stream variants [--format text|json] | zv stream plan [flags] | zv stream render [flags]
 
 Local CLI-first stream workflow. Generate an edit plan, review its clip ranges
 and crops, then render production artifacts directly under

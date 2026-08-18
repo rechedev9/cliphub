@@ -475,7 +475,7 @@ func TestRunSkillsCheckRejectsNonCanonicalNestedWorkflowCommand(t *testing.T) {
 		{
 			name:    "demo",
 			line:    `.\bin\zv.exe demo inspect --demo demo.dem`,
-			wantErr: `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", or "demo probe"`,
+			wantErr: `uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", "demo probe", or "demo voice"`,
 		},
 		{
 			name:    "shorts",
@@ -822,6 +822,7 @@ func TestRunSkillsCheckCreativeBriefGate(t *testing.T) {
 	}
 	streamRuns := []string{
 		"```powershell",
+		`.\bin\zv.exe workflows run stream-fetch -- --url https://www.twitch.tv/videos/123456789 --out stream.mp4 --dry-run`,
 		`.\bin\zv.exe workflows run stream-variants -- --format json`,
 		`.\bin\zv.exe workflows run stream-plan -- --input stream.mp4 --out edit-plan.json`,
 		`.\bin\zv.exe workflows run stream-render -- --input stream.mp4 --plan edit-plan.json --out run --dry-run`,

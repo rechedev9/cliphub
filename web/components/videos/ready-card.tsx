@@ -26,16 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { CoverImage } from '@/components/studio/cover-image';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 
-/**
- * A finished, downloadable reel. The card is the shared `ReelCard` in its payoff
- * state: raised off the grid, cyan-edged, its cover finally rendered at the
- * format it was actually made in, and its stage track filled to LISTO.
- *
- * Hovering (or focusing, or touching) the frame surfaces Ver/Compartir. There is
- * no thumbnail-duration data, so the corner tag shows the render format and
- * nothing else — the shape of the frame now carries most of that information
- * anyway. Ver plays the reel inline in a dialog.
- */
+/** Finished reel card: format-aware cover, LISTO track, inline play. */
 export function ReadyCard({
   video,
   onChange,
@@ -79,10 +70,7 @@ export function ReadyCard({
     }
   };
 
-  // In cloud mode the reel's media is a DOM object URL (blob:) fetched through the
-  // Bearer-gated loopback: it lives and dies with this tab, so there is no
-  // persistent URL to share. Hide Share entirely there rather than copy a link
-  // that dies with the tab. Download and inline playback still work with blob:.
+  // blob: URLs die with the tab, so Share stays hidden in cloud mode.
   const canShare = video.downloadUrl != null && !video.downloadUrl.startsWith('blob:');
 
   const handleShare = async () => {
@@ -388,7 +376,9 @@ function ReviewResolutionDialog({
 
   const brief = [
     `Formato: ${draft.format}`,
-    `HUD/captura: ${video.variant ?? 'viral-60-clean'} (no cambia sin recaptura)`,
+    `Entrega: ${draft.matchRecap ? 'resumen de partida' : 'compilado de jugadas'}`,
+    `Comms: ${draft.voiceComms ? 'equipo del POV' : 'no'}`,
+    `HUD/captura: ${draft.nativeHud ? 'nativo gameplay' : (video.variant ?? 'viral-60-clean')} (no cambia sin recaptura)`,
     `Efecto de kill: ${draft.killEffect}`,
     `Transición: ${draft.transition}`,
     `Contador: ${draft.killCounter ? 'sí' : 'no'}`,

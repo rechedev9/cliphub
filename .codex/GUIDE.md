@@ -49,7 +49,7 @@ granular workflows and QA.
 safe/dry-run command, expensive stage, artifact, and both delivery profiles.
 For demos where the user chooses plays, use `demo players -> demo parse -> demo
 moments -> demo select -> record -> shorts render`. For streams use `stream
-variants -> stream plan -> review -> stream render`.
+	fetch -> stream variants -> stream plan -> review -> stream render`. A local MP4 skips fetch.
 Do not skip the selection/review boundary before HLAE or an expensive render
 pass.
 
@@ -220,6 +220,8 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows show demo-select --format json
 ./bin/zv workflows show demo-probe
 ./bin/zv workflows show demo-probe --format json
+./bin/zv workflows show demo-voice
+./bin/zv workflows show demo-voice --format json
 ./bin/zv workflows show utility-audit
 ./bin/zv workflows show utility-audit --format json
 ./bin/zv workflows show record
@@ -230,6 +232,8 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows show music-analyze --format json
 ./bin/zv workflows show shorts-render
 ./bin/zv workflows show shorts-render --format json
+./bin/zv workflows show stream-fetch
+./bin/zv workflows show stream-fetch --format json
 ./bin/zv workflows show stream-variants
 ./bin/zv workflows show stream-variants --format json
 ./bin/zv workflows show stream-plan
@@ -268,6 +272,7 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv demo parse --demo testdata/foo.dem --steamid 76561198000000000 --out plan.json
 ./bin/zv demo players --demo testdata/foo.dem
 ./bin/zv demo probe --demo testdata/foo.dem --out data/runs/agent-doc/playability.json --format json --dry-run
+./bin/zv demo voice --demo testdata/foo.dem --steamid 76561198000000000 --out data/runs/agent-doc/voice-probe.json --format json --dry-run
 ./bin/zv demo moments --killplan testdata/agent-killplan.json --format json
 ./bin/zv demo select --killplan testdata/agent-killplan.json --segments seg-001 --out data/runs/agent-doc/selected-plan.json --dry-run --format json
 ./bin/zv utility audit --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv
@@ -275,6 +280,7 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv compose final --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4
 ./bin/zv music analyze --input data/music/track.mp4 --out data/runs/run-004/rhythm.json
 ./bin/zv shorts render --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir
+./bin/zv stream fetch --url https://www.twitch.tv/videos/123456789 --out data/runs/stream/source.mp4 --dry-run
 ./bin/zv stream variants
 # Independent preflight examples; these do not create their --out artifacts.
 ./bin/zv stream plan --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run
@@ -301,11 +307,13 @@ The unified CLI can discover the same repo-local skills:
 ./bin/zv workflows run demo-moments -- --killplan testdata/agent-killplan.json --format json
 ./bin/zv workflows run demo-select -- --killplan testdata/agent-killplan.json --segments seg-001 --out data/runs/agent-doc/selected-plan.json --dry-run --format json
 ./bin/zv workflows run demo-probe -- --demo testdata/foo.dem --out data/runs/agent-doc/playability.json --dry-run --format json
+./bin/zv workflows run demo-voice -- --demo testdata/foo.dem --steamid 76561198000000000 --out data/runs/agent-doc/voice-probe.json --dry-run --format json
 ./bin/zv workflows run utility-audit -- --plan plan-utility.json --lineup-catalog data/lineups --out utility-audit.csv
 ./bin/zv workflows run record -- --killplan plan.json --demo testdata/foo.dem --out data/runs/run-004/recording
 ./bin/zv workflows run compose-final -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/final.mp4
 ./bin/zv workflows run music-analyze -- --input data/music/track.mp4 --out data/runs/run-004/rhythm.json
 ./bin/zv workflows run shorts-render -- --recording-result data/runs/run-004/recording/recording-result.json --out data/runs/run-004/shorts --publish-dir data/runs/run-004/shortslistosparasubir
+./bin/zv workflows run stream-fetch -- --url https://www.twitch.tv/videos/123456789 --out data/runs/stream/source.mp4 --dry-run
 ./bin/zv workflows run stream-variants
 ./bin/zv workflows run stream-plan -- --input stream.mp4 --out data/runs/stream/edit-plan.json --dry-run
 ./bin/zv workflows run stream-render -- --input stream.mp4 --plan data/runs/stream/edit-plan.json --out data/runs/stream --dry-run

@@ -1,7 +1,9 @@
 package editor
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/rhythm"
+	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
 func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Manifest, error) {
@@ -111,6 +114,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		EffectsPreset:     effectsSource.Preset,
 		MusicPath:         opts.MusicPath,
 		MusicVolume:       opts.MusicVolume,
+		VoiceDir:          opts.VoiceDir,
 		RhythmPath:        opts.RhythmPath,
 		OutputFormat:      outputFormat,
 		KillEffect:        killEffect,
@@ -175,6 +179,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		if err != nil {
 			return manifest, err
 		}
+		voiceTracks, voiceTickrate := loadVoiceTracks(opts.VoiceDir)
 		compiled, err := buildCompiledShort(result, opts, compiledShortOptions{
 			BaseDir:           baseDir,
 			PromptDir:         promptDir,
@@ -205,6 +210,8 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			CoverSheets:       coverSheets,
 			CoverFirstFrame:   opts.CoverFirstFrame,
 			QualityChecks:     qualityChecks,
+			VoiceTracks:       voiceTracks,
+			VoiceTickrate:     voiceTickrate,
 		})
 		if err != nil {
 			return manifest, err
@@ -396,6 +403,8 @@ type compiledShortOptions struct {
 	CoverSheets       bool
 	CoverFirstFrame   bool
 	QualityChecks     bool
+	VoiceTracks       []string
+	VoiceTickrate     int
 }
 
 func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, c compiledShortOptions) (ShortEdit, error) {
@@ -446,6 +455,11 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 			kills = append(kills, kill)
 		}
 		allKills = append(allKills, segment.Kills...)
+		recSeg := recording.RecordingSegment{
+			ID: segment.ID, Round: segment.Round,
+			TickStart: segment.TickStart, TickEnd: segment.TickEnd,
+			Kills: segment.Kills, Utility: segment.Utility,
+		}
 		parts = append(parts, ShortPart{
 			SegmentID:            segment.ID,
 			Input:                resolvePath(c.BaseDir, clip.Path),
@@ -453,6 +467,10 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 			DurationSeconds:      duration,
 			TimelineStartSeconds: partStart,
 			GapBeforeSeconds:     gapBefore,
+			TickStart:            segment.TickStart,
+			TickEnd:              segment.TickEnd,
+			CaptureTickStart:     recording.EffectiveRecordStartTick(recSeg, result.Plan.Tickrate),
+			CaptureTickEnd:       recording.EffectiveRecordEndTick(recSeg, result.Plan),
 			Kills:                partKills,
 		})
 		cursor = partStart + duration
@@ -482,6 +500,8 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		PublishPath:         filepath.Join(opts.PublishDir, publishBase+".mp4"),
 		MusicPath:           opts.MusicPath,
 		MusicVolume:         opts.MusicVolume,
+		VoiceTracks:         append([]string(nil), c.VoiceTracks...),
+		VoiceTickrate:       c.VoiceTickrate,
 		RhythmPath:          opts.RhythmPath,
 		OutputFormat:        c.OutputFormat,
 		KillEffect:          c.KillEffect,
@@ -771,6 +791,10 @@ func smokeCues(segment recording.RecordingSegment, tickrate int, mapName string,
 			TimeSeconds: roundMillis(float64(smoke.ThrowTick-recordStart) / float64(tickrate)),
 			ThrowPlace:  smoke.ThrowPlace,
 			ThrowAction: smoke.ThrowAction,
+			ThrowClick:  smoke.ThrowClick,
+			ViewYaw:     smoke.ViewYaw,
+			ViewPitch:   smoke.ViewPitch,
+			ThrowEyePos: smoke.ThrowEyePos,
 			Stance:      smoke.Stance,
 			Movement:    smoke.Movement,
 			Speed2D:     smoke.Speed2D,
@@ -1058,4 +1082,25 @@ func formatWeapon(raw string) string {
 		}
 		return strings.Join(parts, " ")
 	}
+}
+
+func loadVoiceTracks(dir string) ([]string, int) {
+	if strings.TrimSpace(dir) == "" {
+		return nil, 0
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "voice-index.json"))
+	if err != nil {
+		return nil, 0
+	}
+	var index voicecomms.Index
+	if err := json.Unmarshal(body, &index); err != nil {
+		return nil, 0
+	}
+	paths := make([]string, 0, len(index.Tracks))
+	for _, track := range index.Tracks {
+		if track.Path != "" {
+			paths = append(paths, track.Path)
+		}
+	}
+	return paths, index.Tickrate
 }

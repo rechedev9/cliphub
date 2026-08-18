@@ -1190,8 +1190,8 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 		t.Fatalf("demo-parse safety = %#v, want short mutating workflow with dry-run", parse.Safety)
 	}
 	segmentMode := workflowValueConstraintForFlag(t, parse, "--segment-mode")
-	if got, want := strings.Join(segmentMode.AllowedValues, " "), "kills smokes utility"; got != want || segmentMode.Default != "kills" {
-		t.Fatalf("demo-parse segment mode metadata = %#v, want kills/smokes/utility with kills default", segmentMode)
+	if got, want := strings.Join(segmentMode.AllowedValues, " "), "kills smokes utility recap"; got != want || segmentMode.Default != "kills" {
+		t.Fatalf("demo-parse segment mode metadata = %#v, want kills/smokes/utility/recap with kills default", segmentMode)
 	}
 
 	moments, ok := findWorkflow("demo-moments")
@@ -1381,7 +1381,7 @@ func TestRunWorkflowsValidateRejectsUnknownConstrainedValueWithoutExecuting(t *t
 	if result.OK || result.Executed {
 		t.Fatalf("result = %#v, want invalid unexecuted preflight", result)
 	}
-	if got, want := result.Error, `invalid value "banana" for flag --segment-mode in workflow "demo-parse"; allowed values: kills, smokes, utility`; got != want {
+	if got, want := result.Error, `invalid value "banana" for flag --segment-mode in workflow "demo-parse"; allowed values: kills, smokes, utility, recap`; got != want {
 		t.Fatalf("error = %q, want %q", got, want)
 	}
 }
@@ -1859,7 +1859,7 @@ func TestValidateWorkflowCatalogRejectsNonCanonicalCommands(t *testing.T) {
 
 	issues := validateWorkflowCatalog(workflows)
 	for _, want := range []string{
-		`workflow:demo-parse: workflow command is not canonical: uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", or "demo probe"`,
+		`workflow:demo-parse: workflow command is not canonical: uses non-standard zv command "demo"; expected "demo parse", "demo players", "demo moments", "demo select", "demo anticheat", "demo probe", or "demo voice"`,
 		`workflow:demo-parse: workflow run command must be "zv workflows run demo-parse"`,
 		"workflow:demo-parse: duplicate workflow name",
 		`workflow:missing-description: workflow run command must be "zv workflows run missing-description"`,
