@@ -288,7 +288,7 @@ export default function UploadPage() {
   const mapCount = logicalMapGroups.length;
   let headerTitle = 'ANALIZA CUALQUIER DEMO';
   let headerDescription: ReactNode = (
-    <>Suelta un .dem — o varios, una serie bo3/bo5 completa — y forja las mejores jugadas en un reel. Sin login.</>
+    <>Suelta un .dem, un .rar/.zip o varios — una serie bo3/bo5 completa — y forja las mejores jugadas en un reel. Sin login.</>
   );
   if (seriesMode) {
     if (stage === 'scanning') {
@@ -438,7 +438,7 @@ export default function UploadPage() {
           </span>
           <span className="inline-flex items-center gap-3">
             <Info className="size-4" />
-            Formato: .dem / .dem.zst
+            Formato: .dem / .dem.zst / .rar / .zip
             <span aria-hidden className="h-3 w-px bg-border-strong" />
             Máx. 10 demos
           </span>

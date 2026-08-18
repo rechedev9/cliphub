@@ -2,6 +2,8 @@
 
 import { useCallback, useId, useState } from 'react';
 import { AlertTriangle, CloudUpload, LockKeyhole, UserRoundX } from 'lucide-react';
+import { MAX_DEMO_FILES } from '@/lib/upload/demo-names';
+import { expandDemoUploads } from '@/lib/upload/expand-archives';
 import { cn } from '@/lib/utils';
 
 export type DemoDropzoneProps = {
@@ -9,40 +11,30 @@ export type DemoDropzoneProps = {
   onFiles: (files: File[]) => void;
 };
 
-const DEM_EXT = '.dem';
-const DEM_ZST_EXT = '.dem.zst';
-
-function isDemoFileName(name: string): boolean {
-  const lower = name.toLowerCase();
-  return lower.endsWith(DEM_EXT) || lower.endsWith(DEM_ZST_EXT);
-}
-
-/** Most demos we ever record for one series is a bo5 (5 maps); 10 leaves slack. */
-const MAX_FILES = 10;
-
-/** Drop zone for .dem / .dem.zst; the label opens the native file dialog. */
+/** Drop zone for .dem / archives; the label opens the native file dialog. */
 export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const accept = useCallback(
     (fileList: FileList | null | undefined) => {
       const files = fileList ? Array.from(fileList) : [];
-      if (files.length === 0) return;
-      if (files.length > MAX_FILES) {
-        setError(`Máximo ${MAX_FILES} demos por serie. Has soltado ${files.length}.`);
-        return;
-      }
-      const bad = files.find((f) => !isDemoFileName(f.name));
-      if (bad) {
-        setError(`"${bad.name}" no es una demo .dem o .dem.zst.`);
-        return;
-      }
+      if (files.length === 0 || extracting) return;
       setError(null);
-      onFiles(files);
+      setExtracting(true);
+      void expandDemoUploads(files)
+        .then((result) => {
+          if (!result.ok) {
+            setError(result.error);
+            return;
+          }
+          onFiles(result.files);
+        })
+        .finally(() => setExtracting(false));
     },
-    [onFiles],
+    [extracting, onFiles],
   );
 
   return (
@@ -58,10 +50,12 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          accept(e.dataTransfer.files);
+          if (!extracting) accept(e.dataTransfer.files);
         }}
+        aria-busy={extracting || undefined}
         className={cn(
           'studio-panel studio-panel-raised group relative isolate flex min-h-[24rem] cursor-pointer flex-col items-center justify-center overflow-hidden px-6 pt-10 pb-32 text-center',
+          extracting && 'pointer-events-none cursor-wait',
           '[perspective:var(--perspective)] [perspective-origin:50%_40%]',
           'transition-[border-color,box-shadow,transform] duration-(--dur-base) ease-standard',
           '@[40rem]/upload:min-h-[22rem] @[40rem]/upload:px-10 @[40rem]/upload:pt-12 @[40rem]/upload:pb-20',
@@ -126,7 +120,9 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
           SUELTA UN .DEM AQUÍ
         </span>
         <span className="relative z-10 mt-2 max-w-lg text-body text-fg-2">
-          Arrastra una demo .dem o .dem.zst — o varias, una serie bo3/bo5 completa
+          {extracting
+            ? 'Extrayendo archivo…'
+            : 'Arrastra una demo .dem, .dem.zst o un .rar/.zip de la serie'}
         </span>
         <span className="relative z-10 mt-5 inline-flex min-h-11 items-center justify-center border border-primary/65 bg-primary/8 px-8 font-display text-body-sm font-semibold uppercase tracking-wide text-primary transition-colors duration-(--dur-fast) ease-standard group-hover:border-primary group-hover:bg-primary/14">
           explora tus archivos
@@ -138,7 +134,7 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
             Sin login
           </span>
           <span className="inline-flex items-center justify-center gap-2 @[40rem]/upload:border-r @[40rem]/upload:border-border">
-            <span className="tabular-nums text-primary">{MAX_FILES}</span>
+            <span className="tabular-nums text-primary">{MAX_DEMO_FILES}</span>
             demos máximo
           </span>
           <span className="inline-flex items-center justify-center gap-2">
@@ -151,6 +147,8 @@ export function DemoDropzone({ onFiles }: DemoDropzoneProps) {
           id={inputId}
           type="file"
           multiple
+          accept=".dem,.zst,.rar,.zip"
+          disabled={extracting}
           className="sr-only"
           onClick={(e) => {
             e.currentTarget.value = '';

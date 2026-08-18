@@ -1,14 +1,17 @@
+import { copyFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
+// Same-origin fetch for browser unrar; copied so it tracks the npm package version.
+copyFileSync(join(here, 'node_modules/node-unrar-js/esm/js/unrar.wasm'), join(here, 'public/unrar.wasm'));
 
 const securityHeaders = [
   {
     key: 'Content-Security-Policy',
     // Next's runtime and CSS-in-JS output contain inline bootstrap/style data.
     // Keep this compatible baseline until those assets are nonce/hash based.
-    value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:",
+    value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:",
   },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
