@@ -467,6 +467,50 @@ type streamerBannerStyle struct {
 	glyph       string
 }
 
+// kickMarkRows is the official Kick "K" on an 8×9 pixel grid. Spaces are holes.
+var kickMarkRows = []string{
+	"XXX  XXX",
+	"XXX XXXX",
+	"XXXXXXXX",
+	"XXXXXXX ",
+	"XXXXXX  ",
+	"XXXXXXX ",
+	"XXXXXXXX",
+	"XXX XXXX",
+	"XXX  XXX",
+}
+
+const (
+	kickMarkCell    = 8
+	kickMarkOriginX = 26 // (116-8*8)/2
+	kickMarkOriginY = 12 // (96-9*8)/2
+)
+
+func kickMarkGlyph(color string) string {
+	var b strings.Builder
+	for y, row := range kickMarkRows {
+		x := 0
+		for x < len(row) {
+			if row[x] != 'X' {
+				x++
+				continue
+			}
+			start := x
+			for x < len(row) && row[x] == 'X' {
+				x++
+			}
+			fmt.Fprintf(&b, "drawbox=x=%d:y=%d:w=%d:h=%d:color=%s:t=fill,",
+				kickMarkOriginX+start*kickMarkCell,
+				kickMarkOriginY+y*kickMarkCell,
+				(x-start)*kickMarkCell,
+				kickMarkCell,
+				color,
+			)
+		}
+	}
+	return b.String()
+}
+
 func streamerBannerLook(platform string) streamerBannerStyle {
 	if platform == StreamerBannerPlatformKick {
 		return streamerBannerStyle{
@@ -474,12 +518,7 @@ func streamerBannerLook(platform string) streamerBannerStyle {
 			accent:      kickBannerAccent,
 			fontColor:   "black",
 			borderColor: kickBannerAccent,
-			glyph: "drawbox=x=38:y=22:w=12:h=52:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=50:y=22:w=14:h=12:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=60:y=28:w=14:h=12:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=50:y=42:w=12:h=12:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=50:y=52:w=14:h=12:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=60:y=58:w=14:h=16:color=" + kickBannerColor + ":t=fill,",
+			glyph:       kickMarkGlyph(kickBannerColor),
 		}
 	}
 	return streamerBannerStyle{

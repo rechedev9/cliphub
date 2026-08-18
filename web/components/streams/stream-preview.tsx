@@ -356,13 +356,8 @@ export function StreamPreview({
 
 function KickMark(): ReactNode {
   return (
-    <span className="relative block h-full w-full" aria-hidden>
-      <span className="absolute top-[22.9%] left-[32.8%] h-[54.2%] w-[10.3%] bg-[#53fc18]" />
-      <span className="absolute top-[22.9%] left-[43.1%] h-[12.5%] w-[12.1%] bg-[#53fc18]" />
-      <span className="absolute top-[29.2%] left-[51.7%] h-[12.5%] w-[12.1%] bg-[#53fc18]" />
-      <span className="absolute top-[43.8%] left-[43.1%] h-[12.5%] w-[10.3%] bg-[#53fc18]" />
-      <span className="absolute top-[54.2%] left-[43.1%] h-[12.5%] w-[12.1%] bg-[#53fc18]" />
-      <span className="absolute top-[60.4%] left-[51.7%] h-[16.7%] w-[12.1%] bg-[#53fc18]" />
-    </span>
+    <svg viewBox="0 0 8 9" className="h-[75%] w-auto" shapeRendering="crispEdges" aria-hidden>
+      <path fill="currentColor" d="M0 0h3v2h1V1h1V0h3v3H7v1H6v1h1v1h1v3H5V8H4V7H3v2H0z" />
+    </svg>
   );
 }

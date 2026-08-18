@@ -601,6 +601,47 @@ func TestEditPlanValidationRejectsBadMusic(t *testing.T) {
 	}
 }
 
+func TestKickMarkGlyphUsesOfficialGrid(t *testing.T) {
+	if len(kickMarkRows) != 9 {
+		t.Fatalf("kickMarkRows rows = %d, want 9", len(kickMarkRows))
+	}
+	for i, row := range kickMarkRows {
+		if len(row) != 8 {
+			t.Fatalf("kickMarkRows[%d] = %q (len %d), want 8", i, row, len(row))
+		}
+	}
+
+	glyph := kickMarkGlyph(kickBannerColor)
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "top stem", want: "drawbox=x=26:y=12:w=24:h=8:color=0x53fc18:t=fill"},
+		{name: "top arm", want: "drawbox=x=66:y=12:w=24:h=8:color=0x53fc18:t=fill"},
+		{name: "row1 arm", want: "drawbox=x=58:y=20:w=32:h=8:color=0x53fc18:t=fill"},
+		{name: "full bar", want: "drawbox=x=26:y=28:w=64:h=8:color=0x53fc18:t=fill"},
+		{name: "waist", want: "drawbox=x=26:y=44:w=48:h=8:color=0x53fc18:t=fill"},
+		{name: "bottom arm", want: "drawbox=x=66:y=76:w=24:h=8:color=0x53fc18:t=fill"},
+		{name: "bottom stem", want: "drawbox=x=26:y=76:w=24:h=8:color=0x53fc18:t=fill"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(glyph, tt.want) {
+				t.Fatalf("glyph missing %s %q:\n%s", tt.name, tt.want, glyph)
+			}
+		})
+	}
+	for _, old := range []string{
+		"drawbox=x=38:y=22:w=12:h=52",
+		"drawbox=x=60:y=28:w=14:h=12",
+		"drawbox=x=60:y=58:w=14:h=16",
+	} {
+		if strings.Contains(glyph, old) {
+			t.Fatalf("glyph still has broken Kick boxes %q:\n%s", old, glyph)
+		}
+	}
+}
+
 func TestBuildFFmpegArgsUsesKickBannerPalette(t *testing.T) {
 	plan := DefaultEditPlan()
 	plan.StreamerBanner = StreamerBannerPlan{Nick: "aimagia", Platform: StreamerBannerPlatformKick}
@@ -618,9 +659,10 @@ func TestBuildFFmpegArgsUsesKickBannerPalette(t *testing.T) {
 	for _, want := range []string{
 		"color=c=0x53fc18:s=1080x96:r=60:d=5.000",
 		"drawbox=x=0:y=0:w=116:h=96:color=0x0d0d0d:t=fill",
-		"drawbox=x=38:y=22:w=12:h=52:color=0x53fc18:t=fill",
-		"drawbox=x=60:y=28:w=14:h=12:color=0x53fc18:t=fill",
-		"drawbox=x=60:y=58:w=14:h=16:color=0x53fc18:t=fill",
+		"drawbox=x=26:y=12:w=24:h=8:color=0x53fc18:t=fill",
+		"drawbox=x=66:y=12:w=24:h=8:color=0x53fc18:t=fill",
+		"drawbox=x=26:y=44:w=48:h=8:color=0x53fc18:t=fill",
+		"drawbox=x=66:y=76:w=24:h=8:color=0x53fc18:t=fill",
 		"fontcolor=black",
 		"text='aimagia'",
 	} {
