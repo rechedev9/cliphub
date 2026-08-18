@@ -74,6 +74,7 @@ test('normalize: null or missing items become arrays', () => {
   for (const tc of cases) {
     const got = normalizeDocument(JSON.parse(tc.raw) as EditorDocument);
     assert.deepEqual(got.tracks[0]?.items, [], tc.name);
+    assert.deepEqual(got.transitions, [], tc.name);
     assert.doesNotThrow(() => evaluateTimeline(got, 0), tc.name);
   }
 });

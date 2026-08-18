@@ -66,6 +66,21 @@ export class RealEditorApiClient {
     return readJson<EditorAsset>(await fetch('/api/editor/assets', { method: 'POST', body: form }));
   }
 
+  async importAsset(input: {
+    source: 'demo' | 'stream';
+    job_id: string;
+    variant?: string;
+    name?: string;
+  }): Promise<EditorAsset> {
+    return readJson<EditorAsset>(
+      await fetch('/api/editor/assets/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      }),
+    );
+  }
+
   assetMediaUrl(id: string): string {
     return `/api/editor/assets/${id}/media`;
   }

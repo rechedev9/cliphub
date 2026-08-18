@@ -1,6 +1,7 @@
 export const EDITOR_SCHEMA_VERSION = '1.0' as const;
 export const EDITOR_FILTERS = { none: '', grade: 'grade' } as const;
 export const EDITOR_TRACK_KINDS = { video: 'video', audio: 'audio' } as const;
+export const EDITOR_TRANSITIONS = { cut: 'cut', crossfade: 'crossfade' } as const;
 export const EDITOR_CANVAS = {
   portrait: { width: 1080, height: 1920, fps: 60 },
   landscape: { width: 1920, height: 1080, fps: 60 },
@@ -8,6 +9,7 @@ export const EDITOR_CANVAS = {
 
 export type EditorFilter = (typeof EDITOR_FILTERS)[keyof typeof EDITOR_FILTERS];
 export type EditorTrackKind = (typeof EDITOR_TRACK_KINDS)[keyof typeof EDITOR_TRACK_KINDS];
+export type EditorTransitionKind = (typeof EDITOR_TRANSITIONS)[keyof typeof EDITOR_TRANSITIONS];
 
 export type EditorTransform = {
   x: number;
@@ -46,11 +48,19 @@ export type EditorTextOverlay = {
   font_size?: number;
 };
 
+export type EditorTransition = {
+  id: string;
+  kind: EditorTransitionKind;
+  after_item: string;
+  duration?: number;
+};
+
 export type EditorDocument = {
   schema_version: string;
   canvas: { width: number; height: number; fps: number };
   tracks: EditorTrack[];
   overlays?: EditorTextOverlay[];
+  transitions?: EditorTransition[];
   music?: { key?: string; volume?: number };
 };
 
@@ -98,6 +108,7 @@ export function normalizeDocument(doc: EditorDocument): EditorDocument {
       items: Array.isArray(track.items) ? track.items : [],
     })),
     overlays: Array.isArray(doc.overlays) ? doc.overlays : [],
+    transitions: Array.isArray(doc.transitions) ? doc.transitions : [],
   };
 }
 
@@ -176,5 +187,6 @@ export function defaultEditorDocument(): EditorDocument {
     canvas: { ...EDITOR_CANVAS.portrait },
     tracks: [{ id: 'v1', kind: EDITOR_TRACK_KINDS.video, items: [] }],
     overlays: [],
+    transitions: [],
   };
 }

@@ -14,7 +14,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
 )
@@ -352,5 +354,115 @@ func TestEditorNotConfigured(t *testing.T) {
 	Routes(h).ServeHTTP(rw, req)
 	if rw.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501", rw.Code)
+	}
+}
+
+func TestImportEditorAsset(t *testing.T) {
+	t.Parallel()
+	jobID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	demoKey, err := artifacts.RenderVariantVideoKey(jobID, "viral-60-clean", "ace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamKey, err := streamclips.RenderVideoKey(jobID, streamclips.VariantStreamer4060, "clip-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name       string
+		configure  bool
+		seedKey    string
+		body       string
+		wantStatus int
+		wantSubstr string
+		wantOrigin mediaassets.Origin
+	}{
+		{
+			name:       "not configured",
+			body:       `{"source":"demo","job_id":"` + jobID.String() + `"}`,
+			wantStatus: http.StatusNotImplemented,
+		},
+		{
+			name:       "invalid json",
+			configure:  true,
+			body:       `{`,
+			wantStatus: http.StatusBadRequest,
+			wantSubstr: "invalid import JSON",
+		},
+		{
+			name:       "invalid job id",
+			configure:  true,
+			body:       `{"source":"demo","job_id":"nope"}`,
+			wantStatus: http.StatusBadRequest,
+			wantSubstr: "invalid job id",
+		},
+		{
+			name:       "invalid source",
+			configure:  true,
+			body:       `{"source":"upload","job_id":"` + jobID.String() + `"}`,
+			wantStatus: http.StatusBadRequest,
+			wantSubstr: "source must be demo or stream",
+		},
+		{
+			name:       "missing demo video",
+			configure:  true,
+			body:       `{"source":"demo","job_id":"` + jobID.String() + `","variant":"viral-60-clean","name":"ace"}`,
+			wantStatus: http.StatusNotFound,
+			wantSubstr: "source video not found",
+		},
+		{
+			name:       "imports demo render",
+			configure:  true,
+			seedKey:    demoKey,
+			body:       `{"source":"demo","job_id":"` + jobID.String() + `","variant":"viral-60-clean","name":"ace"}`,
+			wantStatus: http.StatusCreated,
+			wantOrigin: mediaassets.OriginDemoRender,
+		},
+		{
+			name:       "imports stream render",
+			configure:  true,
+			seedKey:    streamKey,
+			body:       `{"source":"stream","job_id":"` + jobID.String() + `","variant":"` + streamclips.VariantStreamer4060 + `","name":"clip-1"}`,
+			wantStatus: http.StatusCreated,
+			wantOrigin: mediaassets.OriginStreamRender,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := newFakeStorage()
+			if tc.seedKey != "" {
+				if err := store.Put(tc.seedKey, strings.NewReader("fake-mp4")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var opts []Option
+			if tc.configure {
+				opts = append(opts, WithEditorRepositories(newFakeEditorAssets(), newFakeEditorProjects()))
+			}
+			h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, opts...)
+			req := httptest.NewRequest(http.MethodPost, "/api/editor/assets/import", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, req)
+			if rw.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantStatus, rw.Body.String())
+			}
+			if tc.wantSubstr != "" && !strings.Contains(rw.Body.String(), tc.wantSubstr) {
+				t.Fatalf("body = %s, want substring %q", rw.Body.String(), tc.wantSubstr)
+			}
+			if tc.wantStatus != http.StatusCreated {
+				return
+			}
+			var asset mediaassets.Asset
+			if err := json.Unmarshal(rw.Body.Bytes(), &asset); err != nil {
+				t.Fatal(err)
+			}
+			if asset.Origin != tc.wantOrigin {
+				t.Fatalf("origin = %s, want %s", asset.Origin, tc.wantOrigin)
+			}
+		})
 	}
 }
