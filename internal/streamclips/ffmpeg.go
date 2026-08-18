@@ -474,10 +474,12 @@ func streamerBannerLook(platform string) streamerBannerStyle {
 			accent:      kickBannerAccent,
 			fontColor:   "black",
 			borderColor: kickBannerAccent,
-			glyph: "drawbox=x=42:y=24:w=10:h=48:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=52:y=42:w=18:h=10:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=64:y=24:w=10:h=20:color=" + kickBannerColor + ":t=fill," +
-				"drawbox=x=64:y=52:w=10:h=20:color=" + kickBannerColor + ":t=fill,",
+			glyph: "drawbox=x=38:y=22:w=12:h=52:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=50:y=22:w=14:h=12:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=60:y=28:w=14:h=12:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=50:y=42:w=12:h=12:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=50:y=52:w=14:h=12:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=60:y=58:w=14:h=16:color=" + kickBannerColor + ":t=fill,",
 		}
 	}
 	return streamerBannerStyle{

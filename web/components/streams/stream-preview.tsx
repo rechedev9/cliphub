@@ -270,7 +270,7 @@ export function StreamPreview({
               }`}
             >
               {streamerPlatform === 'kick' ? (
-                <KickMark className="h-[62%] w-[62%]" />
+                <KickMark />
               ) : (
                 <Twitch className="h-[62%] w-[62%]" strokeWidth={2.6} aria-hidden />
               )}
@@ -354,10 +354,15 @@ export function StreamPreview({
   );
 }
 
-function KickMark({ className }: { className?: string }): ReactNode {
+function KickMark(): ReactNode {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path fill="currentColor" d="M4 3h6v7.2L16.2 3H22l-8 9 8 9h-5.8L10 13.8V21H4z" />
-    </svg>
+    <span className="relative block h-full w-full" aria-hidden>
+      <span className="absolute top-[22.9%] left-[32.8%] h-[54.2%] w-[10.3%] bg-[#53fc18]" />
+      <span className="absolute top-[22.9%] left-[43.1%] h-[12.5%] w-[12.1%] bg-[#53fc18]" />
+      <span className="absolute top-[29.2%] left-[51.7%] h-[12.5%] w-[12.1%] bg-[#53fc18]" />
+      <span className="absolute top-[43.8%] left-[43.1%] h-[12.5%] w-[10.3%] bg-[#53fc18]" />
+      <span className="absolute top-[54.2%] left-[43.1%] h-[12.5%] w-[12.1%] bg-[#53fc18]" />
+      <span className="absolute top-[60.4%] left-[51.7%] h-[16.7%] w-[12.1%] bg-[#53fc18]" />
+    </span>
   );
 }

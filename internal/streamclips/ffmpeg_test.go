@@ -618,6 +618,9 @@ func TestBuildFFmpegArgsUsesKickBannerPalette(t *testing.T) {
 	for _, want := range []string{
 		"color=c=0x53fc18:s=1080x96:r=60:d=5.000",
 		"drawbox=x=0:y=0:w=116:h=96:color=0x0d0d0d:t=fill",
+		"drawbox=x=38:y=22:w=12:h=52:color=0x53fc18:t=fill",
+		"drawbox=x=60:y=28:w=14:h=12:color=0x53fc18:t=fill",
+		"drawbox=x=60:y=58:w=14:h=16:color=0x53fc18:t=fill",
 		"fontcolor=black",
 		"text='aimagia'",
 	} {
