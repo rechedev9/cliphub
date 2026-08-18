@@ -23,10 +23,16 @@ test('stream creative brief lists every production decision', () => {
   assert.equal(byLabel.Layout, 'Facecam 40');
   assert.equal(byLabel.Facecam, 'Recorte confirmado');
   assert.match(byLabel.Clips, /1 clip/);
-  assert.equal(byLabel.Banner, 'pro_player · slide');
+  assert.equal(byLabel.Banner, 'pro_player · Twitch · slide');
   assert.equal(byLabel.KeyDrop, 'No');
   assert.equal(byLabel.Música, 'phonk-01 · 25%');
   assert.equal(byLabel.Grade, 'Sí');
+});
+
+test('stream creative brief names Kick when the banner platform is kick', () => {
+  const items = streamCreativeBrief(plan({ streamer_banner: { nick: 'aimagia', platform: 'kick' } }));
+  const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
+  assert.equal(byLabel.Banner, 'aimagia · Kick');
 });
 
 test('stream creative brief lists KeyDrop when enabled', () => {

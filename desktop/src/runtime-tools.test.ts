@@ -55,7 +55,7 @@ test('reuses complete cached installations without download work', async (t) => 
       'bin',
       'ffmpeg.exe',
     ),
-    ytdlp: path.join(toolsDir, 'ytdlp', '2026.06.09', 'yt-dlp.exe'),
+    ytdlp: path.join(toolsDir, 'ytdlp', '2026.07.04', 'yt-dlp.exe'),
   };
   for (const executable of Object.values(paths)) {
     fs.mkdirSync(path.dirname(executable), { recursive: true });
@@ -65,8 +65,8 @@ test('reuses complete cached installations without download work', async (t) => 
   fs.writeFileSync(ffprobe, 'cached');
   writeCompleteMarker(path.join(toolsDir, 'hlae', '2.192.1'), 'hlae');
   writeCompleteMarker(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723'), 'ffmpeg');
-  writeCompleteMarker(path.join(toolsDir, 'ytdlp', '2026.06.09'), 'ytdlp');
-  const staleStaging = path.join(toolsDir, 'ytdlp', '2026.06.09.installing');
+  writeCompleteMarker(path.join(toolsDir, 'ytdlp', '2026.07.04'), 'ytdlp');
+  const staleStaging = path.join(toolsDir, 'ytdlp', '2026.07.04.installing');
   fs.mkdirSync(staleStaging, { recursive: true });
   fs.writeFileSync(path.join(staleStaging, 'partial'), 'stale');
   const logs: string[] = [];
@@ -87,7 +87,7 @@ test('reuses complete cached installations without download work', async (t) => 
   assert.deepEqual(statuses, []);
   assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.192.1', '.cliphub-install.json')), true);
   assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.cliphub-install.json')), true);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.cliphub-install.json')), true);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.07.04', '.cliphub-install.json')), true);
   assert.equal(fs.existsSync(staleStaging), false);
 });
 
@@ -116,7 +116,7 @@ test('retires markerless legacy tools instead of using them after a failed refre
   assert.deepEqual(statuses.sort(), ['ffmpeg', 'hlae', 'ytdlp']);
   assert.equal(fs.existsSync(path.join(toolsDir, 'hlae', '2.192.1', '.cliphub-install.json')), false);
   assert.equal(fs.existsSync(path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723', '.cliphub-install.json')), false);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09', '.cliphub-install.json')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.07.04', '.cliphub-install.json')), false);
   assert.equal(logs.filter((line) => line.includes('no valid per-file digest manifest')).length, 3);
   assert.equal(logs.filter((line) => line.includes('feature stays unconfigured')).length, 3);
 });
@@ -175,7 +175,7 @@ test('installs uncached tools through staging and publishes only complete versio
     statuses.filter((status) => status.endsWith(':start')).sort(),
     ['ffmpeg:start', 'hlae:start', 'ytdlp:start'],
   );
-  const versions = { hlae: '2.192.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.06.09' };
+  const versions = { hlae: '2.192.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.07.04' };
   for (const [name, version] of Object.entries(versions)) {
     const installDir = path.join(toolsDir, name, version);
     assert.equal(fs.existsSync(`${installDir}.installing`), false);
@@ -195,7 +195,7 @@ test('rehashes every cached file and refuses a modified executable when refresh 
   seedCompleteFFmpeg(toolsDir);
   seedCompleteYtdlp(toolsDir);
   const trustedTrees = fixtureTreeSha256(toolsDir);
-  const ytdlp = path.join(toolsDir, 'ytdlp', '2026.06.09', 'yt-dlp.exe');
+  const ytdlp = path.join(toolsDir, 'ytdlp', '2026.07.04', 'yt-dlp.exe');
   fs.writeFileSync(ytdlp, 'tampered after installation');
   // Simulate an attacker updating the writable marker to match the replacement.
   // The code-pinned tree digest, not this marker, remains the root of trust.
@@ -223,10 +223,10 @@ test('migrates a legacy archive-only marker only through a fresh pinned installa
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
   seedLegacyYtdlp(toolsDir);
-  const installDir = path.join(toolsDir, 'ytdlp', '2026.06.09');
+  const installDir = path.join(toolsDir, 'ytdlp', '2026.07.04');
   fs.writeFileSync(path.join(installDir, '.cliphub-install.json'), JSON.stringify({
-    version: '2026.06.09',
-    sha256: '3a48cb955d55c8821b60ccbdbbc6f61bc958f2f3d3b7ad5eaf3d83a543293a27',
+    version: '2026.07.04',
+    sha256: '52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8',
   }));
 
   const env = await provisionRuntimeTools(withFixtureTrust({
@@ -235,7 +235,7 @@ test('migrates a legacy archive-only marker only through a fresh pinned installa
     platform: 'win32',
     download: async (_url, destination) => {
       fs.writeFileSync(destination, 'fresh pinned ytdlp');
-      return '3a48cb955d55c8821b60ccbdbbc6f61bc958f2f3d3b7ad5eaf3d83a543293a27';
+      return '52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8';
     },
   }, {
     ytdlp: fixtureTreeDigest({ 'yt-dlp.exe': 'fresh pinned ytdlp' }),
@@ -292,7 +292,7 @@ test('rejects a hash mismatch without publishing the failed tool', async (t) => 
   assert.equal(env.ZV_YTDLP_PATH, undefined);
   assert.equal(typeof env.ZV_HLAE_PATH, 'string');
   assert.equal(typeof env.ZV_FFMPEG_PATH, 'string');
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.07.04')), false);
   assert.match(logs.join(''), /sha256 mismatch/);
 });
 
@@ -351,7 +351,7 @@ test('aborts and cleans an installation that exceeds its time budget', async (t)
   }));
 
   assert.equal(env.ZV_YTDLP_PATH, undefined);
-  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.06.09.installing')), false);
+  assert.equal(fs.existsSync(path.join(toolsDir, 'ytdlp', '2026.07.04.installing')), false);
   assert.match(logs.join(''), /timed out after 5ms/);
 });
 
@@ -385,7 +385,7 @@ test('caller cancellation aborts work instead of activating legacy fallbacks', a
   controller.abort();
 
   await assert.rejects(provisioning, /runtime tool provisioning aborted/);
-  for (const [name, version] of Object.entries({ hlae: '2.192.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.06.09' })) {
+  for (const [name, version] of Object.entries({ hlae: '2.192.1', ffmpeg: 'n8.1.2-30-g45f1910444-20260723', ytdlp: '2026.07.04' })) {
     assert.equal(fs.existsSync(path.join(toolsDir, name, `${version}.installing`)), false);
   }
 });
@@ -395,7 +395,7 @@ test('restores an install interrupted during atomic publication', async (t) => {
   t.after(() => fs.rmSync(toolsDir, { recursive: true, force: true }));
   seedCompleteHLAE(toolsDir);
   seedCompleteFFmpeg(toolsDir);
-  const installDir = path.join(toolsDir, 'ytdlp', '2026.06.09');
+  const installDir = path.join(toolsDir, 'ytdlp', '2026.07.04');
   const previousDir = `${installDir}.previous`;
   fs.mkdirSync(previousDir, { recursive: true });
   fs.writeFileSync(path.join(previousDir, 'yt-dlp.exe'), 'previous working install');
@@ -424,7 +424,7 @@ function digestFor(url: string): string {
   if (url.includes('ffmpeg-n8.1-win64-gpl-shared')) {
     return 'c22260c1b2d5f2e499e5bb9c5ab32224ff6bf3da79beb7543a955b4b31a4c03c';
   }
-  return '3a48cb955d55c8821b60ccbdbbc6f61bc958f2f3d3b7ad5eaf3d83a543293a27';
+  return '52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8';
 }
 
 function seedLegacyHLAE(toolsDir: string): void {
@@ -457,7 +457,7 @@ function seedCompleteFFmpeg(toolsDir: string): void {
 }
 
 function seedLegacyYtdlp(toolsDir: string): void {
-  const executable = path.join(toolsDir, 'ytdlp', '2026.06.09', 'yt-dlp.exe');
+  const executable = path.join(toolsDir, 'ytdlp', '2026.07.04', 'yt-dlp.exe');
   fs.mkdirSync(path.dirname(executable), { recursive: true });
   fs.writeFileSync(executable, 'cached');
 }
@@ -465,7 +465,7 @@ function seedLegacyYtdlp(toolsDir: string): void {
 
 function seedCompleteYtdlp(toolsDir: string): void {
   seedLegacyYtdlp(toolsDir);
-  writeCompleteMarker(path.join(toolsDir, 'ytdlp', '2026.06.09'), 'ytdlp');
+  writeCompleteMarker(path.join(toolsDir, 'ytdlp', '2026.07.04'), 'ytdlp');
 }
 
 const MARKERS = {
@@ -478,8 +478,8 @@ const MARKERS = {
     sha256: 'c22260c1b2d5f2e499e5bb9c5ab32224ff6bf3da79beb7543a955b4b31a4c03c',
   },
   ytdlp: {
-    version: '2026.06.09',
-    sha256: '3a48cb955d55c8821b60ccbdbbc6f61bc958f2f3d3b7ad5eaf3d83a543293a27',
+    version: '2026.07.04',
+    sha256: '52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8',
   },
 } as const;
 
@@ -531,7 +531,7 @@ function fixtureTreeSha256(toolsDir: string): Partial<Record<RuntimeToolName, st
   const directories: Record<RuntimeToolName, string> = {
     hlae: path.join(toolsDir, 'hlae', '2.192.1'),
     ffmpeg: path.join(toolsDir, 'ffmpeg', 'n8.1.2-30-g45f1910444-20260723'),
-    ytdlp: path.join(toolsDir, 'ytdlp', '2026.06.09'),
+    ytdlp: path.join(toolsDir, 'ytdlp', '2026.07.04'),
   };
   const result: Partial<Record<RuntimeToolName, string>> = {};
   for (const [name, directory] of Object.entries(directories) as [RuntimeToolName, string][]) {

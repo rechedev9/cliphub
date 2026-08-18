@@ -2,20 +2,13 @@
 
 import type { RefObject, ReactNode } from 'react';
 import { Pause, Play } from 'lucide-react';
-import type { NormalizedRect, StreamClipRange, StreamVariant } from '@/lib/api/streams';
+import type { NormalizedRect, StreamClipRange, StreamerBannerPlatform, StreamVariant } from '@/lib/api/streams';
 import { formatStreamTimestamp } from '@/lib/streams/plan';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { StreamPreview } from '@/components/streams/stream-preview';
 
-/**
- * The 9:16 monitor: the vertical frame the render will produce and the montage
- * transport that plays the selected ranges in order.
- *
- * It sticks to the top of the viewport on wide layouts because every control in
- * the left column is judged against it — scrolling the editor away from its own
- * output was the reason the crop pickers felt blind.
- */
+/** Sticky 9:16 monitor plus montage transport for the selected ranges. */
 export function StreamPreviewColumn({
   variant,
   faceCrop,
@@ -24,6 +17,7 @@ export function StreamPreviewColumn({
   frameSeconds,
   sourceDuration,
   streamerNick,
+  streamerPlatform,
   streamerPositionY,
   streamerSlideEnabled,
   keyDropStyle,
@@ -53,6 +47,7 @@ export function StreamPreviewColumn({
   frameSeconds: number;
   sourceDuration: number;
   streamerNick?: string;
+  streamerPlatform?: StreamerBannerPlatform;
   streamerPositionY?: number;
   streamerSlideEnabled?: boolean;
   keyDropStyle?: import('@/lib/api/streams').KeyDropBannerStyle | '';
@@ -91,6 +86,7 @@ export function StreamPreviewColumn({
         clips={clips}
         frameSeconds={frameSeconds}
         streamerNick={streamerNick}
+        streamerPlatform={streamerPlatform}
         streamerPositionY={streamerPositionY}
         streamerSlideEnabled={streamerSlideEnabled}
         keyDropStyle={keyDropStyle}

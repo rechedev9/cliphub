@@ -61,6 +61,11 @@ func TestPublicSourceURLRemovesPrivateURLParts(t *testing.T) {
 	if got != want {
 		t.Fatalf("publicSourceURL(non-youtube suffix) = %q, want %q", got, want)
 	}
+	got = publicSourceURL("https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7&utm_source=chat#watch")
+	want = "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7"
+	if got != want {
+		t.Fatalf("publicSourceURL(kick clip) = %q, want %q", got, want)
+	}
 }
 
 // fakeStreamRepo implements StreamRenderRepository and StreamAcquireRepository
@@ -191,6 +196,59 @@ func TestAcquireWorkerDownloadsProbesAndMarksReady(t *testing.T) {
 	}
 }
 
+func TestAcquireWorkerSeedsKickBannerPlatform(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		wantPlat string
+	}{
+		{
+			name:     "kick clip path",
+			url:      "https://kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+			wantPlat: streamclips.StreamerBannerPlatformKick,
+		},
+		{
+			name:     "kick clip query",
+			url:      "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+			wantPlat: streamclips.StreamerBannerPlatformKick,
+		},
+		{
+			name:     "kick vod",
+			url:      "https://kick.com/xqc/videos/5c697a87-afce-4256-b01f-3c8fe71ef5cb",
+			wantPlat: streamclips.StreamerBannerPlatformKick,
+		},
+		{
+			name:     "twitch clip stays default",
+			url:      "https://clips.twitch.tv/SomeSlug",
+			wantPlat: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := uuid.New()
+			repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: tt.url})
+			store := newFakeStorage()
+			w := NewAcquireWorker(repo, store, AcquireWorkerConfig{WorkDir: t.TempDir()})
+			w.fetcher = vodfetch.Fetcher{Runner: &fakeVodfetchRunner{content: "fake-mp4-bytes"}}
+			w.prober = fakeProber{probe: streamclips.SourceProbe{Width: 1920, Height: 1080, DurationSeconds: 8}}
+			if err := w.HandleStreamAcquire(context.Background(), streamAcquireTask(t, id)); err != nil {
+				t.Fatalf("HandleStreamAcquire error = %v", err)
+			}
+			raw, ok := store.files[streamclips.EditPlanKey(id)]
+			if !ok {
+				t.Fatal("storage missing default edit plan artifact")
+			}
+			var plan streamclips.EditPlan
+			if err := json.Unmarshal(raw, &plan); err != nil {
+				t.Fatalf("decode edit plan: %v", err)
+			}
+			if plan.StreamerBanner.Platform != tt.wantPlat {
+				t.Fatalf("platform = %q, want %q", plan.StreamerBanner.Platform, tt.wantPlat)
+			}
+		})
+	}
+}
+
 func TestAcquireWorkerFailureRecordsReasonAndObs(t *testing.T) {
 	id := uuid.New()
 	repo := newFakeStreamRepo(streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourceURL: "https://clips.twitch.tv/SomeSlug"})
@@ -218,6 +276,32 @@ func TestAcquireWorkerFailureRecordsReasonAndObs(t *testing.T) {
 	}
 	if strings.Contains(got.FailureReason, "HTTP Error 404") {
 		t.Fatalf("failure reason = %q, leaked the raw yt-dlp stderr", got.FailureReason)
+	}
+}
+
+func TestAcquireFailureClassAndFriendlyReason(t *testing.T) {
+	tests := []struct {
+		err       error
+		wantClass string
+		wantText  string
+	}{
+		{err: vodfetch.ErrNotFound, wantClass: "not_found", wantText: "No encontramos un vídeo"},
+		{err: vodfetch.ErrAuthRequired, wantClass: "auth_required", wantText: "inicio de sesión"},
+		{err: vodfetch.ErrUnavailable, wantClass: "unavailable", wantText: "no está disponible"},
+		{err: vodfetch.ErrBlocked, wantClass: "blocked", wantText: "protección anti-bots"},
+		{err: vodfetch.ErrTooLarge, wantClass: "too_large", wantText: "límite máximo"},
+		{err: errors.New("boom"), wantClass: "error", wantText: "clip o VOD público"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.wantClass, func(t *testing.T) {
+			if got := acquireFailureClass(tt.err); got != tt.wantClass {
+				t.Fatalf("acquireFailureClass() = %q, want %q", got, tt.wantClass)
+			}
+			reason := friendlyAcquireReason(tt.err)
+			if !strings.Contains(reason, tt.wantText) {
+				t.Fatalf("friendlyAcquireReason() = %q, want substring %q", reason, tt.wantText)
+			}
+		})
 	}
 }
 

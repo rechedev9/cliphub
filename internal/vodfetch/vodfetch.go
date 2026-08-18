@@ -1,5 +1,5 @@
-// Package vodfetch downloads an allowlisted Twitch or YouTube clip/VOD to a
-// local MP4 using an external yt-dlp binary. It is a standalone
+// Package vodfetch downloads an allowlisted Twitch, YouTube, or Kick clip/VOD
+// to a local MP4 using an external yt-dlp binary. It is a standalone
 // building block for the streamclips pipeline: it does not know about jobs,
 // workers, or storage, only how to fetch one URL to one destination path.
 package vodfetch
@@ -36,6 +36,9 @@ var (
 	// ErrUnavailable means the source exists but cannot currently be
 	// downloaded (geo-restricted, expired, private).
 	ErrUnavailable = errors.New("vodfetch: source unavailable")
+	// ErrBlocked means the provider's WAF or bot policy rejected the request
+	// (HTTP 403, "blocked by security policy"). Often transient.
+	ErrBlocked = errors.New("vodfetch: request blocked by source security policy")
 	// ErrTooLarge means the source exceeds the configured download ceiling.
 	ErrTooLarge = errors.New("vodfetch: source exceeds maximum size")
 )
@@ -45,13 +48,18 @@ type SourceKind int
 
 const (
 	// SourceOther is an allowlisted provider URL that is not a recognized
-	// Twitch clip or VOD URL (currently YouTube and Twitch channel URLs).
+	// Twitch/Kick clip or VOD URL (currently YouTube).
 	SourceOther SourceKind = iota
 	// SourceTwitchClip is a clips.twitch.tv/<slug> or
 	// www.twitch.tv/<channel>/clip/<slug> URL.
 	SourceTwitchClip
 	// SourceTwitchVOD is a www.twitch.tv/videos/<id> URL.
 	SourceTwitchVOD
+	// SourceKickClip is a kick.com/<channel>/clips/<slug> or
+	// kick.com/<channel>?clip=<slug> URL.
+	SourceKickClip
+	// SourceKickVOD is a kick.com/<channel>/videos/<uuid> URL.
+	SourceKickVOD
 )
 
 func (k SourceKind) String() string {
@@ -60,6 +68,10 @@ func (k SourceKind) String() string {
 		return "twitch_clip"
 	case SourceTwitchVOD:
 		return "twitch_vod"
+	case SourceKickClip:
+		return "kick_clip"
+	case SourceKickVOD:
+		return "kick_vod"
 	default:
 		return "other"
 	}
@@ -69,6 +81,10 @@ var twitchVODPath = regexp.MustCompile(`^/videos/\d+/?$`)
 var twitchClipPath = regexp.MustCompile(`^/[A-Za-z0-9_]{1,25}/clip/[A-Za-z0-9_-]{1,128}/?$`)
 var twitchClipSlugPath = regexp.MustCompile(`^/[A-Za-z0-9_-]{1,128}/?$`)
 var youtubeVideoPath = regexp.MustCompile(`^/(?:shorts|live|embed)/([A-Za-z0-9_-]{1,64})/?$`)
+var kickClipPath = regexp.MustCompile(`^/[A-Za-z0-9_-]{1,25}/clips/[A-Za-z0-9_-]{1,128}/?$`)
+var kickVODPath = regexp.MustCompile(`^/[A-Za-z0-9_-]{1,25}/videos/[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}/?$`)
+var kickChannelPath = regexp.MustCompile(`^/[A-Za-z0-9_-]{1,25}/?$`)
+var kickClipSlugPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 var reflectedURLPattern = regexp.MustCompile(`https?://[^\s<>"']+`)
 var youtubeVideoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
@@ -82,6 +98,8 @@ var allowedProviderHosts = map[string]struct{}{
 	"www.youtube.com":   {},
 	"youtu.be":          {},
 	"youtube.com":       {},
+	"kick.com":          {},
+	"www.kick.com":      {},
 }
 
 // nonVideoExts are file extensions whose URLs are direct links to a non-video
@@ -113,8 +131,8 @@ type Source struct {
 	PublicURL      string
 }
 
-// ValidateSource accepts only HTTPS URLs on the exact Twitch and YouTube
-// provider allowlist. Exact provider ownership is the SSRF boundary: yt-dlp
+// ValidateSource accepts only HTTPS URLs on the exact Twitch, YouTube, and
+// Kick provider allowlist. Exact provider ownership is the SSRF boundary: yt-dlp
 // owns its HTTP transport, redirects, and DNS lookups, so arbitrary public
 // hostnames cannot be made safe against rebinding by a one-time Go DNS check.
 func ValidateSource(rawURL string) (Source, error) {
@@ -141,10 +159,10 @@ func ValidateSource(rawURL string) (Source, error) {
 	}
 	host := strings.ToLower(u.Hostname())
 	if _, ok := allowedProviderHosts[host]; !ok {
-		return Source{}, errors.New("source provider is not supported; use a Twitch or YouTube URL")
+		return Source{}, errors.New("source provider is not supported; use a Twitch, YouTube or Kick URL")
 	}
 	if ext := strings.ToLower(path.Ext(u.Path)); ext != "" && nonVideoExts[ext] {
-		return Source{}, fmt.Errorf("url points to a %s file, not a video; paste a twitch or youtube clip or vod link", ext)
+		return Source{}, fmt.Errorf("url points to a %s file, not a video; paste a twitch, youtube or kick clip or vod link", ext)
 	}
 
 	kind := SourceOther
@@ -162,6 +180,17 @@ func ValidateSource(rawURL string) (Source, error) {
 			kind = SourceTwitchClip
 		default:
 			return Source{}, errors.New("unsupported twitch video url")
+		}
+	case "kick.com", "www.kick.com":
+		switch {
+		case kickClipPath.MatchString(u.Path):
+			kind = SourceKickClip
+		case kickChannelPath.MatchString(u.Path) && kickClipSlugPattern.MatchString(u.Query().Get("clip")):
+			kind = SourceKickClip
+		case kickVODPath.MatchString(u.Path):
+			kind = SourceKickVOD
+		default:
+			return Source{}, errors.New("unsupported kick video url")
 		}
 	case "youtu.be":
 		if !twitchClipSlugPath.MatchString(u.Path) {
@@ -205,11 +234,20 @@ func publicProviderURL(source *url.URL) string {
 	public.ForceQuery = false
 	public.Fragment = ""
 	public.RawFragment = ""
-	if strings.HasSuffix(public.Hostname(), "youtube.com") && public.Path == "/watch" {
+	host := public.Hostname()
+	if strings.HasSuffix(host, "youtube.com") && public.Path == "/watch" {
 		videoID := source.Query().Get("v")
 		if youtubeVideoIDPattern.MatchString(videoID) {
 			query := make(url.Values)
 			query.Set("v", videoID)
+			public.RawQuery = query.Encode()
+		}
+	}
+	if host == "kick.com" || host == "www.kick.com" {
+		clipID := source.Query().Get("clip")
+		if kickClipSlugPattern.MatchString(clipID) {
+			query := make(url.Values)
+			query.Set("clip", clipID)
 			public.RawQuery = query.Encode()
 		}
 	}
@@ -408,6 +446,8 @@ func classifyError(rawURL, stderr string, runErr error) error {
 		return fmt.Errorf("download %s: %w: %s", source, ErrAuthRequired, line)
 	case strings.Contains(text, "geo") || strings.Contains(text, "expired") || strings.Contains(text, "unavailable") || strings.Contains(text, "private"):
 		return fmt.Errorf("download %s: %w: %s", source, ErrUnavailable, line)
+	case strings.Contains(text, "403") || strings.Contains(text, "blocked by security") || strings.Contains(text, "security policy"):
+		return fmt.Errorf("download %s: %w: %s", source, ErrBlocked, line)
 	}
 
 	if trimmed := strings.TrimSpace(stderr); trimmed != "" {

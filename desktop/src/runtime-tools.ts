@@ -63,9 +63,7 @@ const FFMPEG_RELEASE_DIR = 'ffmpeg-n8.1-latest-win64-gpl-shared-8.1';
 const FFMPEG_EXE = path.join(FFMPEG_RELEASE_DIR, 'bin', 'ffmpeg.exe');
 const FFPROBE_EXE = path.join(FFMPEG_RELEASE_DIR, 'bin', 'ffprobe.exe');
 
-// Runtime tools are pinned and installed below userData. HLAE is sourced from
-// the installer bundle when present; larger tools retain verified downloads.
-// Explicit paths keep the desktop boot boundary independent from host PATH.
+// Pinned under userData. HLAE comes from the installer bundle when present.
 const RUNTIME_TOOLS: Record<RuntimeToolName, RuntimeToolSpec> = {
   hlae: {
     ...PINNED_HLAE_TOOL,
@@ -82,10 +80,10 @@ const RUNTIME_TOOLS: Record<RuntimeToolName, RuntimeToolSpec> = {
     timeoutMs: 300_000,
   },
   ytdlp: {
-    version: '2026.06.09',
-    url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp.exe',
-    sha256: '3a48cb955d55c8821b60ccbdbbc6f61bc958f2f3d3b7ad5eaf3d83a543293a27',
-    treeSha256: 'ebfc17314ddb5f84e52a223824c5659e92afa6c3934dfc8fdaea5d17c2303397',
+    version: '2026.07.04',
+    url: 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.07.04/yt-dlp.exe',
+    sha256: '52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8',
+    treeSha256: 'ba256e47ee3dc013f9e5cc32a50da23cc769bd0b07854a1360e55811d5ac311c',
     kind: 'exe',
     exeRel: 'yt-dlp.exe',
     requiredRel: ['yt-dlp.exe'],
@@ -104,11 +102,7 @@ const INSTALL_MARKER_SCHEMA_VERSION = 2;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROGRESS_REPORT_MIN_INTERVAL_MS = 1000;
 
-/**
- * Installs every required runtime tool concurrently and returns the environment
- * variables understood by zv-orchestrator. Cached installations do no network
- * work; failed installations are omitted so the orchestrator can auto-detect.
- */
+/** Installs pinned tools concurrently; cache hits skip the network. */
 export async function provisionRuntimeTools(
   options: RuntimeToolProvisioningOptions,
   onStatus?: RuntimeToolStatusReporter,

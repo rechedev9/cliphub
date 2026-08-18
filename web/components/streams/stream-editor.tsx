@@ -8,6 +8,7 @@ import {
   type NormalizedRect,
   type StreamClipRange,
   type StreamEditPlan,
+  type StreamerBannerPlatform,
   type StreamJob,
   type StreamRenderState,
   type StreamVariant,
@@ -28,6 +29,7 @@ import {
   DEFAULT_KEYDROP_START_SECONDS,
   STREAMER_NICK_RE,
   planFingerprint,
+  resolveStreamerBannerPlatform,
 } from '@/lib/streams/plan';
 import { streamCreativeBrief } from '@/lib/streams/brief';
 import { StreamFrameSession } from '@/components/streams/stream-frame-session';
@@ -46,14 +48,7 @@ import { StreamRenderResults } from '@/components/streams/render-results';
 import { StreamPreviewColumn } from '@/components/streams/preview-column';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
 
-/**
- * The stream edit workspace: one persisted plan, the panels that write to it,
- * and a live 9:16 monitor that reads it.
- *
- * This component owns the plan setters; the panels are presentational and
- * receive exactly what they render. The plan is canonical for ranges, order,
- * crop, audio, fades, text and music volume — nothing here reaches around it.
- */
+/** Stream edit workspace: plan setters plus the 9:16 monitor that reads them. */
 export function StreamEditor({
   job,
   plan,
@@ -160,20 +155,23 @@ export function StreamEditor({
   const confirmFaceCrop = () => onPlanChange({ ...plan, face_crop_reviewed: true });
 
   const bannerPosition = resolveStreamerBannerPosition(plan.variant, plan.streamer_banner?.position_y);
+  const bannerPlatform = resolveStreamerBannerPlatform(plan.streamer_banner?.platform, job.source_url);
   const keyDropPosition = resolveKeyDropBannerPosition(plan.keydrop_banner?.position_y);
   const setStreamerNick = (nick: string) =>
-    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, nick } });
+    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, nick, platform: bannerPlatform } });
+  const setStreamerPlatform = (platform: StreamerBannerPlatform) =>
+    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, platform } });
   const setStreamerPosition = (position: number) =>
     onPlanChange({
       ...plan,
-      streamer_banner: { ...plan.streamer_banner, position_y: clampStreamerBannerPosition(position) },
+      streamer_banner: { ...plan.streamer_banner, position_y: clampStreamerBannerPosition(position), platform: bannerPlatform },
     });
   const resetStreamerPosition = () => {
     const { position_y: _position, ...banner } = plan.streamer_banner ?? {};
-    onPlanChange({ ...plan, streamer_banner: banner });
+    onPlanChange({ ...plan, streamer_banner: { ...banner, platform: bannerPlatform } });
   };
   const setStreamerSlide = (slideEnabled: boolean) =>
-    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, slide_enabled: slideEnabled } });
+    onPlanChange({ ...plan, streamer_banner: { ...plan.streamer_banner, slide_enabled: slideEnabled, platform: bannerPlatform } });
 
   const longestClipSeconds = Math.max(
     0,
@@ -301,11 +299,13 @@ export function StreamEditor({
             <StreamBannerControls
               nick={plan.streamer_banner?.nick ?? ''}
               nickValid={STREAMER_NICK_RE.test(plan.streamer_banner?.nick?.trim() ?? '')}
+              platform={bannerPlatform}
               position={bannerPosition}
               hasExplicitPosition={plan.streamer_banner?.position_y !== undefined}
               slideEnabled={plan.streamer_banner?.slide_enabled ?? false}
               busy={busy}
               onNickChange={setStreamerNick}
+              onPlatformChange={setStreamerPlatform}
               onPositionChange={setStreamerPosition}
               onResetPosition={resetStreamerPosition}
               onSlideChange={setStreamerSlide}
@@ -399,6 +399,7 @@ export function StreamEditor({
           frameSeconds={previewSeconds}
           sourceDuration={sourceDuration}
           streamerNick={plan.streamer_banner?.nick?.trim()}
+          streamerPlatform={bannerPlatform}
           streamerPositionY={plan.streamer_banner?.position_y}
           streamerSlideEnabled={plan.streamer_banner?.slide_enabled}
           keyDropStyle={(plan.keydrop_banner?.style as KeyDropBannerStyle | '') ?? ''}

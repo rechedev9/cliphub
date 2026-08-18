@@ -16,6 +16,7 @@ import {
   overlayMarkerGeometry,
   planFingerprint,
   pruneClipEdit,
+  resolveStreamerBannerPlatform,
   streamSourceLabel,
   STREAM_INVALID_URL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
@@ -47,9 +48,20 @@ test('non-video URLs are rejected by extension, videos and junk are left to the 
 test('the source label names the Twitch channel when the clip URL carries one', () => {
   assert.equal(streamSourceLabel('https://www.twitch.tv/zacketizor/clip/AbcDef'), 'Twitch · zacketizor');
   assert.equal(streamSourceLabel('https://clips.twitch.tv/AbcDef'), 'Twitch');
+  assert.equal(streamSourceLabel('https://kick.com/aimagia/clips/clip_01abc'), 'Kick · aimagia');
+  assert.equal(streamSourceLabel('https://www.kick.com/aimagia?clip=clip_01abc'), 'Kick · aimagia');
+  assert.equal(streamSourceLabel('https://kick.com/xqc/videos/5c697a87-afce-4256-b01f-3c8fe71ef5cb'), 'Kick · xqc');
   assert.equal(streamSourceLabel('https://youtu.be/abc'), 'YouTube');
   assert.equal(streamSourceLabel('https://vod.example.com/a.mp4'), 'vod.example.com');
   assert.equal(streamSourceLabel(undefined), null);
+});
+
+test('banner platform is explicit when set and otherwise follows the source host', () => {
+  assert.equal(resolveStreamerBannerPlatform('kick'), 'kick');
+  assert.equal(resolveStreamerBannerPlatform('twitch', 'https://kick.com/aimagia/clips/x'), 'twitch');
+  assert.equal(resolveStreamerBannerPlatform(undefined, 'https://kick.com/aimagia/clips/x'), 'kick');
+  assert.equal(resolveStreamerBannerPlatform(undefined, 'https://clips.twitch.tv/Abc'), 'twitch');
+  assert.equal(resolveStreamerBannerPlatform(undefined), 'twitch');
 });
 
 test('an offline code wins over the generic fallback message', () => {
@@ -130,6 +142,14 @@ test('the fingerprint moves when a rendered field changes and not when updated_a
   assert.notEqual(
     planFingerprint(base),
     planFingerprint({ ...base, clips: [clip({ title: 'clutch' })] }),
+  );
+  assert.notEqual(
+    planFingerprint({ ...base, streamer_banner: { nick: 'aimagia' } }),
+    planFingerprint({ ...base, streamer_banner: { nick: 'aimagia', platform: 'kick' } }),
+  );
+  assert.equal(
+    planFingerprint({ ...base, streamer_banner: { nick: 'aimagia' } }),
+    planFingerprint({ ...base, streamer_banner: { nick: 'aimagia', platform: 'twitch' } }),
   );
 });
 

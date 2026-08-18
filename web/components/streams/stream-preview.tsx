@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, type ReactNode } from 'react';
 import { Twitch } from 'lucide-react';
-import type { NormalizedRect, StreamClipRange, StreamVariant } from '@/lib/api/streams';
+import type { NormalizedRect, StreamClipRange, StreamerBannerPlatform, StreamVariant } from '@/lib/api/streams';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '@/lib/clip-edit';
 import { StreamFrameCanvas } from '@/components/streams/stream-frame-session';
 import {
@@ -41,11 +41,7 @@ const PREVIEW_LAYOUTS: Record<
   },
 };
 
-/**
- * Renders one output band with the same geometry as FFmpeg: crop the source
- * rect, scale it proportionally until it covers the band, then center-crop the
- * excess. The video element itself always keeps the source aspect ratio.
- */
+/** One preview band using the same cover-crop geometry as the FFmpeg render. */
 function CroppedFrame({
   rect,
   output,
@@ -70,11 +66,7 @@ function CroppedFrame({
   );
 }
 
-/**
- * Live 9:16 preview: facecam over gameplay for stack variants, or gameplay
- * only for the no-facecam variant. Band sizes and crop geometry mirror the
- * render variant registry in internal/streamclips.
- */
+/** Live 9:16 preview; band sizes mirror internal/streamclips variants. */
 export function StreamPreview({
   variant,
   faceCrop,
@@ -82,6 +74,7 @@ export function StreamPreview({
   clips = EMPTY_CLIPS,
   frameSeconds,
   streamerNick,
+  streamerPlatform = 'twitch',
   streamerPositionY,
   streamerSlideEnabled = false,
   onStreamerPositionChange,
@@ -100,6 +93,7 @@ export function StreamPreview({
   clips?: StreamClipRange[];
   frameSeconds: number;
   streamerNick?: string;
+  streamerPlatform?: StreamerBannerPlatform;
   streamerPositionY?: number;
   streamerSlideEnabled?: boolean;
   onStreamerPositionChange?: (position: number) => void;
@@ -265,9 +259,21 @@ export function StreamPreview({
           className={`absolute left-0 h-[5%] w-full -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-60' : 'cursor-ns-resize'}`}
           style={{ top: `${bannerPosition * 100}%` }}
         >
-          <div className={`flex h-full w-full items-center bg-[#9146ff] text-white shadow-sm ${streamerSlideEnabled ? 'streamer-banner-slide-preview' : ''}`}>
-            <span className="flex h-full w-[11%] shrink-0 items-center justify-center bg-[#5b1ba9]">
-              <Twitch className="h-[62%] w-[62%]" strokeWidth={2.6} aria-hidden />
+          <div
+            className={`flex h-full w-full items-center shadow-sm ${streamerSlideEnabled ? 'streamer-banner-slide-preview' : ''} ${
+              streamerPlatform === 'kick' ? 'bg-[#53fc18] text-black' : 'bg-[#9146ff] text-white'
+            }`}
+          >
+            <span
+              className={`flex h-full w-[11%] shrink-0 items-center justify-center ${
+                streamerPlatform === 'kick' ? 'bg-[#0d0d0d] text-[#53fc18]' : 'bg-[#5b1ba9]'
+              }`}
+            >
+              {streamerPlatform === 'kick' ? (
+                <KickMark className="h-[62%] w-[62%]" />
+              ) : (
+                <Twitch className="h-[62%] w-[62%]" strokeWidth={2.6} aria-hidden />
+              )}
             </span>
             <span className="truncate px-[3%] font-[family-name:var(--font-display)] text-[clamp(7px,3.2vw,12px)] font-black leading-none tracking-[0.02em]">
               {streamerNick}
@@ -294,11 +300,7 @@ export function StreamPreview({
           className={`absolute left-1/2 w-[55%] -translate-x-1/2 -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-90' : 'cursor-ns-resize'}`}
           style={{ top: `${keyDropPosition * 100}%` }}
         >
-          {/*
-            Same plates the Go renderer embeds under internal/keydropbanner.
-            The plate has an empty code bay; the live sponsor code is drawn on
-            top so the preview tracks the editable plan field.
-          */}
+          {/* Same plates the Go renderer embeds; live code is drawn on top. */}
           <div className={`relative w-full ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}>
             <img
               src={
@@ -349,5 +351,13 @@ export function StreamPreview({
         }
       `}</style>
     </div>
+  );
+}
+
+function KickMark({ className }: { className?: string }): ReactNode {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path fill="currentColor" d="M4 3h6v7.2L16.2 3H22l-8 9 8 9h-5.8L10 13.8V21H4z" />
+    </svg>
   );
 }

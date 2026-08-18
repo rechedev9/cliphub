@@ -162,6 +162,9 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 	// Seed the default edit plan artifact so GetStreamEditPlan has something
 	// to serve immediately, mirroring the multipart upload path.
 	plan := streamclips.DefaultEditPlan()
+	if kind, err := vodfetch.ClassifySource(j.SourceURL); err == nil && (kind == vodfetch.SourceKickClip || kind == vodfetch.SourceKickVOD) {
+		plan.StreamerBanner.Platform = streamclips.StreamerBannerPlatformKick
+	}
 	if err := writeStreamEditPlanArtifact(w.storage, j.ID, plan); err != nil {
 		return fmt.Errorf("write default stream edit plan: %w", err)
 	}
@@ -228,6 +231,8 @@ func acquireFailureClass(err error) string {
 		return "auth_required"
 	case errors.Is(err, vodfetch.ErrUnavailable):
 		return "unavailable"
+	case errors.Is(err, vodfetch.ErrBlocked):
+		return "blocked"
 	case errors.Is(err, vodfetch.ErrTooLarge):
 		return "too_large"
 	default:
@@ -250,10 +255,12 @@ func friendlyAcquireReason(err error) string {
 		return "Ese vídeo necesita inicio de sesión o suscripción; no podemos descargarlo."
 	case errors.Is(err, vodfetch.ErrUnavailable):
 		return "Ese vídeo no está disponible ahora mismo (privado, caducado o restringido por región)."
+	case errors.Is(err, vodfetch.ErrBlocked):
+		return "El origen bloqueó la descarga (protección anti-bots). Espera un momento y vuelve a intentarlo."
 	case errors.Is(err, vodfetch.ErrTooLarge):
 		return "Ese vídeo supera el límite máximo de descarga permitido."
 	default:
-		return "No pudimos preparar un vídeo a partir de esa URL. Asegúrate de que es un clip o VOD público de Twitch o YouTube."
+		return "No pudimos preparar un vídeo a partir de esa URL. Asegúrate de que es un clip o VOD público de Twitch, YouTube o Kick."
 	}
 }
 

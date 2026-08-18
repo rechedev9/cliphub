@@ -260,6 +260,16 @@ func TestDownload_StderrClassification(t *testing.T) {
 			stderr:  "ERROR: This content is not available in your geo region",
 			wantErr: ErrUnavailable,
 		},
+		{
+			name:    "http 403",
+			stderr:  "ERROR: [kick:clips] clip_01abc: Unable to download JSON metadata: HTTP Error 403: Forbidden",
+			wantErr: ErrBlocked,
+		},
+		{
+			name:    "security policy",
+			stderr:  `ERROR: Request blocked by security policy.`,
+			wantErr: ErrBlocked,
+		},
 	}
 
 	for _, tt := range tests {
@@ -293,7 +303,7 @@ func TestDownload_GenericFailureWraps(t *testing.T) {
 	if err == nil {
 		t.Fatal("Download() error = nil, want non-nil")
 	}
-	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrAuthRequired) || errors.Is(err, ErrUnavailable) {
+	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrAuthRequired) || errors.Is(err, ErrUnavailable) || errors.Is(err, ErrBlocked) {
 		t.Errorf("Download() error = %v, want no sentinel match", err)
 	}
 	if !strings.Contains(err.Error(), "something unexpected broke") {
@@ -534,6 +544,51 @@ func TestClassifySource(t *testing.T) {
 			url:     "https://www.youtube.com:8443/watch?v=abc123",
 			wantErr: true,
 		},
+		{
+			name: "kick clip path",
+			url:  "https://kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+			want: SourceKickClip,
+		},
+		{
+			name: "kick clip www path",
+			url:  "https://www.kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+			want: SourceKickClip,
+		},
+		{
+			name: "kick clip query",
+			url:  "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+			want: SourceKickClip,
+		},
+		{
+			name:    "kick channel homepage rejected",
+			url:     "https://kick.com/aimagia",
+			wantErr: true,
+		},
+		{
+			name: "kick vod path",
+			url:  "https://kick.com/xqc/videos/5c697a87-afce-4256-b01f-3c8fe71ef5cb",
+			want: SourceKickVOD,
+		},
+		{
+			name: "kick vod www path",
+			url:  "https://www.kick.com/xqc/videos/5c697a87-afce-4256-b01f-3c8fe71ef5cb",
+			want: SourceKickVOD,
+		},
+		{
+			name:    "kick video-without-channel rejected",
+			url:     "https://kick.com/video/01234567-89ab-cdef-0123-456789abcdef",
+			wantErr: true,
+		},
+		{
+			name:    "kick vod missing uuid rejected",
+			url:     "https://kick.com/xqc/videos/",
+			wantErr: true,
+		},
+		{
+			name:    "kick clip query without slug rejected",
+			url:     "https://kick.com/aimagia?clip=",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -572,6 +627,34 @@ func TestValidateSourceSeparatesPrivateAndPublicURLs(t *testing.T) {
 	}
 }
 
+func TestValidateSourcePreservesKickClipQuery(t *testing.T) {
+	const raw = "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7&utm_source=chat#watch"
+	source, err := ValidateSource(raw)
+	if err != nil {
+		t.Fatalf("ValidateSource() error = %v", err)
+	}
+	if source.Kind != SourceKickClip {
+		t.Fatalf("Kind = %v, want %v", source.Kind, SourceKickClip)
+	}
+	if !strings.Contains(source.AcquisitionURL, "utm_source=chat") {
+		t.Fatalf("acquisition URL lost provider query material: %q", source.AcquisitionURL)
+	}
+	if got, want := source.PublicURL, "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7"; got != want {
+		t.Fatalf("PublicURL = %q, want %q", got, want)
+	}
+}
+
+func TestValidateSourceKickPathDropsQuery(t *testing.T) {
+	const raw = "https://kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7?utm_source=chat"
+	source, err := ValidateSource(raw)
+	if err != nil {
+		t.Fatalf("ValidateSource() error = %v", err)
+	}
+	if got, want := source.PublicURL, "https://kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7"; got != want {
+		t.Fatalf("PublicURL = %q, want %q", got, want)
+	}
+}
+
 func TestSourceKind_String(t *testing.T) {
 	tests := []struct {
 		k    SourceKind
@@ -579,6 +662,8 @@ func TestSourceKind_String(t *testing.T) {
 	}{
 		{SourceTwitchClip, "twitch_clip"},
 		{SourceTwitchVOD, "twitch_vod"},
+		{SourceKickClip, "kick_clip"},
+		{SourceKickVOD, "kick_vod"},
 		{SourceOther, "other"},
 	}
 	for _, tt := range tests {

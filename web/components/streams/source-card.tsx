@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, type ReactNode } from 'react';
-import { Film, Link2, MonitorPlay, ShieldCheck, Sparkles, Twitch, UploadCloud } from 'lucide-react';
+import { Film, Link2, MonitorPlay, ShieldCheck, Sparkles, UploadCloud } from 'lucide-react';
 import type { StreamJob } from '@/lib/api/streams';
 import { isStreamURLValidationError } from '@/lib/streams/plan';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
@@ -12,18 +12,11 @@ import { Label } from '@/components/ui/label';
 import { StreamOutputAside } from '@/components/streams/output-aside';
 
 const OUTPUT_NOTES = [
-  { icon: Twitch, text: 'Twitch y YouTube compatibles', tone: 'stream' as const },
+  { icon: Link2, text: 'Twitch, YouTube y Kick', tone: 'stream' as const },
   { icon: ShieldCheck, text: 'Procesado en este PC', tone: 'success' as const },
 ];
 
-/**
- * Stage 1: where a Twitch/YouTube URL or a local MP4 becomes a stream job, plus
- * the recoverable drafts from previous sessions.
- *
- * The `#stream-url` id, the `aria-invalid` flag it raises for a rejected URL,
- * the "TRAER CLIP" label and the exact "CONTINUAR BORRADOR" draft text are read
- * by the packaged release E2E; they are contract, not styling.
- */
+/** Stage 1: URL/file ingest plus recoverable drafts. E2E reads #stream-url. */
 export function StreamSourceCard({
   sourceUrl,
   title,
@@ -75,14 +68,14 @@ export function StreamSourceCard({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="stream-url" className="text-label text-fg-2">
-                URL de clip o VOD de Twitch o YouTube
+                URL de clip o VOD de Twitch, YouTube o Kick
               </Label>
               <div className="flex flex-col gap-3 @[30rem]/source:flex-row">
                 <div className="relative flex-1">
                   <Link2 className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-fg-3" />
                   <Input
                     id="stream-url"
-                    placeholder="https://clips.twitch.tv/…"
+                    placeholder="https://kick.com/canal/clips/…"
                     value={sourceUrl}
                     disabled={submitting}
                     aria-invalid={urlError !== null || undefined}

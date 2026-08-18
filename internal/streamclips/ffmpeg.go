@@ -22,6 +22,8 @@ const (
 	bannerSlideSeconds    = 0.35
 	bannerColor           = "0x9146ff"
 	bannerAccentColor     = "0x5b1ba9"
+	kickBannerColor       = "0x53fc18"
+	kickBannerAccent      = "0x0d0d0d"
 	landscapeBannerWidth  = 520
 	landscapeBannerHeight = 64
 	landscapeBannerX      = 32
@@ -403,23 +405,20 @@ func streamerBannerFilter(layout LayoutVariant, banner StreamerBannerPlan, fontP
 		)
 	}
 
+	look := streamerBannerLook(banner.ResolvedPlatform())
 	return fmt.Sprintf(
 		"color=c=%s:s=%dx%d:r=%d:d=%s,"+
 			"setpts=PTS-STARTPTS,"+
 			"drawbox=x=0:y=0:w=116:h=%d:color=%s:t=fill,"+
-			"drawbox=x=34:y=27:w=48:h=36:color=white:t=fill,"+
-			"drawbox=x=41:y=34:w=34:h=22:color=%s:t=fill,"+
-			"drawbox=x=43:y=61:w=11:h=9:color=white:t=fill,"+
-			"drawbox=x=50:y=38:w=5:h=12:color=white:t=fill,"+
-			"drawbox=x=64:y=38:w=5:h=12:color=white:t=fill,"+
-			"drawtext=fontfile='%s':text='%s':fontcolor=white:fontsize=52:borderw=1:bordercolor=%s:"+
+			"%s"+
+			"drawtext=fontfile='%s':text='%s':fontcolor=%s:fontsize=52:borderw=1:bordercolor=%s:"+
 			"shadowcolor=black@0.35:shadowx=2:shadowy=2:x=140:y=(%d-text_h)/2[banner];"+
 			"[content]setpts=PTS-STARTPTS[contentpts];"+
 			"[contentpts][banner]overlay=x='%s':y=%d:eval=frame:eof_action=pass:shortest=0[bannered]",
-		bannerColor, layout.OutputWidth, bannerHeight, outputFPS, secondsArg(duration),
-		bannerHeight, bannerAccentColor,
-		bannerAccentColor,
-		ffmpegFilterPath(fontPath), ffmpegDrawtextText(banner.Nick), bannerAccentColor, bannerHeight,
+		look.color, layout.OutputWidth, bannerHeight, outputFPS, secondsArg(duration),
+		bannerHeight, look.accent,
+		look.glyph,
+		ffmpegFilterPath(fontPath), ffmpegDrawtextText(banner.Nick), look.fontColor, look.borderColor, bannerHeight,
 		x, top,
 	)
 }
@@ -444,6 +443,7 @@ func landscapeStreamerBannerFilter(layout LayoutVariant, banner StreamerBannerPl
 			landscapeBannerX, floatArg(exitStart), floatArg(phase),
 		)
 	}
+	look := streamerBannerLook(banner.ResolvedPlatform())
 	return fmt.Sprintf(
 		"color=c=0x111319:s=%dx%d:r=%d:d=%s,"+
 			"setpts=PTS-STARTPTS,"+
@@ -453,10 +453,44 @@ func landscapeStreamerBannerFilter(layout LayoutVariant, banner StreamerBannerPl
 			"[content]setpts=PTS-STARTPTS[contentpts];"+
 			"[contentpts][banner]overlay=x='%s':y=%d:eval=frame:eof_action=pass:shortest=0[bannered]",
 		landscapeBannerWidth, landscapeBannerHeight, outputFPS, secondsArg(duration),
-		landscapeBannerHeight, bannerColor,
+		landscapeBannerHeight, look.color,
 		ffmpegFilterPath(fontPath), ffmpegDrawtextText(banner.Nick), landscapeBannerHeight,
 		x, top,
 	)
+}
+
+type streamerBannerStyle struct {
+	color       string
+	accent      string
+	fontColor   string
+	borderColor string
+	glyph       string
+}
+
+func streamerBannerLook(platform string) streamerBannerStyle {
+	if platform == StreamerBannerPlatformKick {
+		return streamerBannerStyle{
+			color:       kickBannerColor,
+			accent:      kickBannerAccent,
+			fontColor:   "black",
+			borderColor: kickBannerAccent,
+			glyph: "drawbox=x=42:y=24:w=10:h=48:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=52:y=42:w=18:h=10:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=64:y=24:w=10:h=20:color=" + kickBannerColor + ":t=fill," +
+				"drawbox=x=64:y=52:w=10:h=20:color=" + kickBannerColor + ":t=fill,",
+		}
+	}
+	return streamerBannerStyle{
+		color:       bannerColor,
+		accent:      bannerAccentColor,
+		fontColor:   "white",
+		borderColor: bannerAccentColor,
+		glyph: "drawbox=x=34:y=27:w=48:h=36:color=white:t=fill," +
+			"drawbox=x=41:y=34:w=34:h=22:color=" + bannerAccentColor + ":t=fill," +
+			"drawbox=x=43:y=61:w=11:h=9:color=white:t=fill," +
+			"drawbox=x=50:y=38:w=5:h=12:color=white:t=fill," +
+			"drawbox=x=64:y=38:w=5:h=12:color=white:t=fill,",
+	}
 }
 
 // FindBannerFont prefers the bundled Montserrat ExtraBold used across all

@@ -601,6 +601,87 @@ func TestEditPlanValidationRejectsBadMusic(t *testing.T) {
 	}
 }
 
+func TestBuildFFmpegArgsUsesKickBannerPalette(t *testing.T) {
+	plan := DefaultEditPlan()
+	plan.StreamerBanner = StreamerBannerPlan{Nick: "aimagia", Platform: StreamerBannerPlatformKick}
+	plan.Clips = []ClipRange{{ID: "clip-001", StartSeconds: 0, EndSeconds: 5}}
+
+	args, err := BuildFFmpegArgs(FFmpegInputs{
+		SourcePath:     "source.mp4",
+		OutputPath:     "out.mp4",
+		BannerFontPath: "font.ttf",
+	}, plan, plan.Clips[0])
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	joined := strings.Join(args, " ")
+	for _, want := range []string{
+		"color=c=0x53fc18:s=1080x96:r=60:d=5.000",
+		"drawbox=x=0:y=0:w=116:h=96:color=0x0d0d0d:t=fill",
+		"fontcolor=black",
+		"text='aimagia'",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("args missing %q: %s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "color=c=0x9146ff") {
+		t.Fatalf("kick banner still uses twitch purple: %s", joined)
+	}
+}
+
+func TestBuildFFmpegArgsLandscapeKickUsesGreenAccent(t *testing.T) {
+	layout, ok := VariantByName(VariantStreamerLandscape16x9)
+	if !ok {
+		t.Fatal("landscape layout is not registered")
+	}
+	plan := EditPlan{
+		Variant:        layout.Name,
+		GameplayCrop:   layout.DefaultGameplayCrop,
+		StreamerBanner: StreamerBannerPlan{Nick: "aimagia", Platform: StreamerBannerPlatformKick},
+	}
+	clip := ClipRange{ID: "clip-001", StartSeconds: 0, EndSeconds: 5}
+	args, err := BuildFFmpegArgs(FFmpegInputs{
+		SourcePath:     "source.mp4",
+		OutputPath:     "out.mp4",
+		BannerFontPath: "font.ttf",
+	}, plan, clip)
+	if err != nil {
+		t.Fatalf("BuildFFmpegArgs error = %v", err)
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "drawbox=x=0:y=0:w=8:h=64:color=0x53fc18:t=fill") {
+		t.Fatalf("landscape kick args missing green accent: %s", joined)
+	}
+}
+
+func TestEditPlanValidatesStreamerBannerPlatform(t *testing.T) {
+	tests := []struct {
+		platform string
+		wantErr  bool
+	}{
+		{platform: ""},
+		{platform: StreamerBannerPlatformTwitch},
+		{platform: StreamerBannerPlatformKick},
+		{platform: "Kick"},
+		{platform: "youtube", wantErr: true},
+		{platform: "kick-clip", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.platform, func(t *testing.T) {
+			plan := DefaultEditPlan()
+			plan.StreamerBanner = StreamerBannerPlan{Nick: "aimagia", Platform: tt.platform}
+			err := plan.Validate()
+			if tt.wantErr && (err == nil || !strings.Contains(err.Error(), "platform")) {
+				t.Fatalf("Validate error = %v, want platform error", err)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("Validate error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestEditPlanNormalizesAndValidatesStreamerBannerNick(t *testing.T) {
 	plan := DefaultEditPlan()
 	plan.StreamerBanner = StreamerBannerPlan{Nick: "  zacketizorcs2  "}

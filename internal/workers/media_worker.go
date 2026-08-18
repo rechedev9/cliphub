@@ -1488,6 +1488,11 @@ func publicSourceURL(raw string) string {
 			}
 		}
 	}
+	if host == "kick.com" {
+		for _, value := range query["clip"] {
+			publicQuery.Add("clip", value)
+		}
+	}
 	parsed.RawQuery = publicQuery.Encode()
 	parsed.ForceQuery = false
 	parsed.Fragment = ""

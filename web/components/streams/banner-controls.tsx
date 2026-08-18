@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import type { StreamerBannerPlatform } from '@/lib/api/streams';
 import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/lib/stream-preview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,30 +10,30 @@ import { Label } from '@/components/ui/label';
 /** Magenta accent for every range input in the stream editor. */
 export const STREAM_SLIDER_CLASS = 'min-h-10 w-full accent-stream disabled:opacity-50';
 
-/**
- * The optional streamer banner: nick, vertical placement and the slide-in.
- * Position is expressed twice on purpose — a slider for coarse placement and a
- * mono percentage for the exact value that goes into the plan.
- */
+/** Optional streamer banner: nick, platform, position slider, and slide-in. */
 export function StreamBannerControls({
   nick,
   nickValid,
+  platform,
   position,
   hasExplicitPosition,
   slideEnabled,
   busy,
   onNickChange,
+  onPlatformChange,
   onPositionChange,
   onResetPosition,
   onSlideChange,
 }: {
   nick: string;
   nickValid: boolean;
+  platform: StreamerBannerPlatform;
   position: number;
   hasExplicitPosition: boolean;
   slideEnabled: boolean;
   busy: boolean;
   onNickChange: (nick: string) => void;
+  onPlatformChange: (platform: StreamerBannerPlatform) => void;
   onPositionChange: (position: number) => void;
   onResetPosition: () => void;
   onSlideChange: (slideEnabled: boolean) => void;
@@ -44,8 +45,31 @@ export function StreamBannerControls({
           Banner del streamer (opcional)
         </Label>
         <p className="text-body-sm text-fg-3">
-          Añade una franja morada con el nick sobre la unión entre facecam y gameplay.
+          Añade una franja con el nick sobre la unión entre facecam y gameplay.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant={platform === 'twitch' ? 'default' : 'outline'}
+          size="sm"
+          disabled={busy}
+          aria-pressed={platform === 'twitch'}
+          onClick={() => onPlatformChange('twitch')}
+        >
+          Twitch
+        </Button>
+        <Button
+          type="button"
+          variant={platform === 'kick' ? 'default' : 'outline'}
+          size="sm"
+          disabled={busy}
+          aria-pressed={platform === 'kick'}
+          onClick={() => onPlatformChange('kick')}
+        >
+          Kick
+        </Button>
       </div>
 
       <Input

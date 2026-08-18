@@ -176,6 +176,38 @@ func TestStreamRenderE2E(t *testing.T) {
 		}
 	})
 
+	t.Run("kick banner uses green chrome", func(t *testing.T) {
+		t.Parallel()
+		if streamclips.FindBannerFont() == "" {
+			t.Skip("supported bold system font not found, skipping real banner e2e")
+		}
+		id := uploadStreamSource(t, client, srv.URL, sourcePath)
+		positionY := 0.7
+		plan := streamclips.EditPlan{
+			Variant:          streamclips.VariantStreamer4060,
+			FaceCrop:         streamclips.CropRect{X: 0, Y: 0, Width: 0.25, Height: 0.25},
+			FaceCropReviewed: true,
+			GameplayCrop:     streamclips.CropRect{X: 0.25, Y: 0.25, Width: 0.75, Height: 0.75},
+			Clips:            []streamclips.ClipRange{{ID: "clip-1", StartSeconds: 0.5, EndSeconds: 3.5}},
+			StreamerBanner: streamclips.StreamerBannerPlan{
+				Nick:      "aimagia",
+				Platform:  streamclips.StreamerBannerPlatformKick,
+				PositionY: &positionY,
+			},
+		}
+		putStreamEditPlan(t, client, srv.URL, id, plan)
+
+		clipID := startAndAwaitStreamRender(t, client, srv.URL, id, streamclips.VariantStreamer4060)
+		outPath := downloadStreamVideo(t, client, srv.URL, id, streamclips.VariantStreamer4060, clipID)
+
+		const bannerCenterY = 1344
+		midPixel := readPixel(t, extractFramePNG(t, ffmpegPath, outPath, 1.5), 540, bannerCenterY)
+		t.Logf("kick banner pixel = %+v", midPixel)
+		if !isPredominantlyGreen(midPixel) {
+			t.Fatalf("kick banner-center pixel = %+v, want green banner", midPixel)
+		}
+	})
+
 	t.Run("unknown variant returns 400 listing valid variants", func(t *testing.T) {
 		t.Parallel()
 		id := uploadStreamSource(t, client, srv.URL, sourcePath)
@@ -561,4 +593,8 @@ func isPredominantlyBlue(c color.RGBA) bool {
 
 func isPredominantlyPurple(c color.RGBA) bool {
 	return c.R > 100 && c.G < 120 && c.B > 150
+}
+
+func isPredominantlyGreen(c color.RGBA) bool {
+	return c.G > 150 && c.G > c.R && c.G > c.B
 }

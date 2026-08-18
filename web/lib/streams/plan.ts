@@ -4,17 +4,13 @@ import {
   type StreamClipEdit,
   type StreamClipRange,
   type StreamEditPlan,
+  type StreamerBannerPlatform,
   type StreamTextOverlay,
   type StreamVariant,
 } from '../api/streams.ts';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '../clip-edit.ts';
 
-/**
- * Pure helpers behind the Clips de stream editor: source validation, plan
- * construction, the render fingerprint, and the geometry the timeline draws
- * from. Everything here is deterministic and free of React, the DOM and
- * `streamsApi`, so `plan.test.ts` can pin the behaviour the screen depends on.
- */
+/** Deterministic stream-plan helpers: validation, fingerprint, timeline geometry. */
 
 /** Schema the editor writes; mirrors streamclips.EditPlan. */
 export const EDIT_PLAN_SCHEMA_VERSION = '1.1';
@@ -53,7 +49,7 @@ export const MUSIC_VOLUMES: readonly { value: number; label: string }[] = [
 export const STREAM_OFFLINE_MESSAGE =
   'El servicio de Clips de stream está offline. Arráncalo y vuelve a intentarlo.';
 export const STREAM_INVALID_URL_MESSAGE =
-  'Esa URL no es un clip o VOD compatible. Usa un enlace HTTPS de Twitch o YouTube sin credenciales ni redirecciones.';
+  'Esa URL no es un clip o VOD compatible. Usa un enlace HTTPS de Twitch, YouTube o Kick sin credenciales ni redirecciones.';
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -92,14 +88,7 @@ export function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-/**
- * Extensions of URLs that are a direct link to a non-video asset (an image
- * pasted from a clipboard uploader like ShareX, a document, an archive, an
- * audio-only file). yt-dlp cannot turn these into an MP4, so we reject them
- * instantly with a localized message instead of round-tripping to a doomed
- * acquire job. The server guards the same set (vodfetch.ClassifySource) for
- * direct API callers; this is the fast, in-language UX path.
- */
+/** Non-video URL extensions rejected before enqueueing a doomed acquire job. */
 const NON_VIDEO_EXT_RE =
   /\.(png|jpe?g|gif|webp|bmp|svg|ico|tiff?|heic|avif|pdf|txt|md|csv|json|xml|html?|zip|rar|7z|gz|tar|mp3|wav|flac|ogg|m4a|docx?|xlsx?)$/i;
 
@@ -107,10 +96,7 @@ export function isStreamURLValidationError(message: string | null): message is s
   return message?.startsWith('Pega una URL') === true || message?.startsWith('Esa URL') === true;
 }
 
-/**
- * The extension (without the dot, lowercased) if `raw` clearly points to a
- * non-video file, else null. Unparseable input is left for the server.
- */
+/** Lowercased non-video extension, or null if the URL is not a file link. */
 export function nonVideoExtension(raw: string): string | null {
   try {
     const match = new URL(raw).pathname.match(NON_VIDEO_EXT_RE);
@@ -124,22 +110,43 @@ export function streamSourceLabel(sourceUrl?: string): string | null {
   if (!sourceUrl) return null;
   try {
     const url = new URL(sourceUrl);
-    if (url.hostname.endsWith('twitch.tv')) {
+    const host = url.hostname.toLowerCase();
+    if (host.endsWith('twitch.tv')) {
       const parts = url.pathname.split('/').filter(Boolean);
       const channel = parts.length === 3 && parts[1] === 'clip' ? parts[0] : null;
       return channel ? `Twitch · ${channel}` : 'Twitch';
     }
-    if (url.hostname.endsWith('youtube.com') || url.hostname === 'youtu.be') return 'YouTube';
+    if (host === 'kick.com' || host === 'www.kick.com') {
+      const channel = url.pathname.split('/').filter(Boolean)[0];
+      return channel && channel !== 'video' ? `Kick · ${channel}` : 'Kick';
+    }
+    if (host.endsWith('youtube.com') || host === 'youtu.be') return 'YouTube';
     return url.hostname;
   } catch {
     return null;
   }
 }
 
-/**
- * The endpoint a fresh range gets: the historical fixed 20 seconds, shortened
- * when the probed source is itself shorter.
- */
+export function streamerBannerPlatformFromSourceURL(sourceUrl?: string): StreamerBannerPlatform {
+  if (!sourceUrl) return 'twitch';
+  try {
+    const host = new URL(sourceUrl).hostname.toLowerCase();
+    if (host === 'kick.com' || host === 'www.kick.com') return 'kick';
+  } catch {
+    return 'twitch';
+  }
+  return 'twitch';
+}
+
+export function resolveStreamerBannerPlatform(
+  platform: string | undefined,
+  sourceUrl?: string,
+): StreamerBannerPlatform {
+  if (platform === 'twitch' || platform === 'kick') return platform;
+  return streamerBannerPlatformFromSourceURL(sourceUrl);
+}
+
+/** Default clip end: 20s, or the probed duration when shorter. */
 function initialStreamClipEnd(durationSeconds: number): number {
   return Number.isFinite(durationSeconds) && durationSeconds > 0
     ? Math.min(durationSeconds, 20)
@@ -172,12 +179,7 @@ export function blankPlan(
   };
 }
 
-/**
- * Upgrades the plan's schema version and fits only the historical fixed
- * 20-second endpoint to a shorter probed source. Custom overruns stay unchanged
- * so the backend can report them instead of the editor silently rewriting
- * user-authored ranges, and a legacy clip wholly beyond EOF is dropped.
- */
+/** Upgrade schema and clamp only the legacy 20s endpoint to a shorter source. */
 export function fitPlanToSourceDuration(
   plan: StreamEditPlan,
   durationSeconds: number,
@@ -206,12 +208,7 @@ export function formatStreamTimestamp(seconds: number): string {
   return `${minutes}:${remainder.toFixed(2).padStart(5, '0')}`;
 }
 
-/**
- * Canonical fingerprint of everything a render consumes from the plan, so the
- * UI can tell whether the shown Shorts still match the current edits. Fields
- * are listed explicitly (not JSON.stringify of the object) so key order and
- * volatile fields like updated_at can never cause a false mismatch.
- */
+/** Render-affecting plan fingerprint; updated_at is excluded on purpose. */
 export function planFingerprint(plan: StreamEditPlan): string {
   const rect = (r?: NormalizedRect) => (r ? [r.x, r.y, r.width, r.height] : null);
   const overlay = (o: StreamTextOverlay) => [
@@ -237,6 +234,7 @@ export function planFingerprint(plan: StreamEditPlan): string {
     game: rect(plan.gameplay_crop),
     clips: plan.clips.map((c) => [c.id, c.start_seconds, c.end_seconds, c.title ?? '', edit(c.edit)]),
     streamerNick: plan.streamer_banner?.nick?.trim() ?? '',
+    streamerPlatform: plan.streamer_banner?.platform === 'kick' ? 'kick' : 'twitch',
     streamerPosition: plan.streamer_banner?.position_y ?? null,
     streamerSlide: plan.streamer_banner?.slide_enabled ?? false,
     // KeyDrop is burn-in on every clip: style, code, placement, slide, and the
@@ -252,10 +250,7 @@ export function planFingerprint(plan: StreamEditPlan): string {
   });
 }
 
-/**
- * Drops default-valued fields so an untouched edit keeps the plan (and the
- * render fingerprint) identical to a plan without an `edit` object at all.
- */
+/** Drop all-default edit fields so the fingerprint stays unchanged. */
 export function pruneClipEdit(edit: StreamClipEdit): StreamClipEdit | undefined {
   const next: StreamClipEdit = {};
   if (edit.speed !== undefined && edit.speed !== 1) next.speed = edit.speed;
@@ -288,11 +283,7 @@ export type ClipTimelineGeometry = {
   fadeOutPercent: number;
 };
 
-/**
- * The clip band drawn over the source timeline. Returns null when the probe has
- * not reported a duration yet — the editor must not invent a scale for a video
- * whose length it does not know.
- */
+/** Clip band on the source timeline; null until the probe reports a duration. */
 export function clipTimelineGeometry(
   clip: StreamClipRange,
   sourceDuration: number,
@@ -317,11 +308,7 @@ export function clipTimelineGeometry(
 
 export type OverlayMarkerGeometry = { startPercent: number; widthPercent: number };
 
-/**
- * Where a text overlay sits inside its clip, as percentages of the clip band.
- * An absent bound extends to the corresponding clip edge, exactly as the render
- * treats it.
- */
+/** Overlay placement inside its clip band; missing bounds extend to the edge. */
 export function overlayMarkerGeometry(
   overlay: StreamTextOverlay,
   clipDuration: number,

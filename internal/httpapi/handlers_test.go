@@ -4621,6 +4621,60 @@ func TestCreateStreamJobFromURLAcquiresAndEnqueues(t *testing.T) {
 	}
 }
 
+func TestCreateStreamJobFromURLAcceptsKickClip(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		wantPub string
+	}{
+		{
+			name:    "path",
+			raw:     "https://kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+			wantPub: "https://kick.com/aimagia/clips/clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+		},
+		{
+			name:    "query",
+			raw:     "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7&utm_source=chat",
+			wantPub: "https://kick.com/aimagia?clip=clip_01K8TRRRRPK5NL1N1FFFZ7C7",
+		},
+		{
+			name:    "vod",
+			raw:     "https://kick.com/xqc/videos/5c697a87-afce-4256-b01f-3c8fe71ef5cb",
+			wantPub: "https://kick.com/xqc/videos/5c697a87-afce-4256-b01f-3c8fe71ef5cb",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streamRepo := newFakeStreamRepo()
+			queue := &fakeQueue{}
+			h := NewHandlers(newFakeRepo(), newFakeStorage(), queue,
+				WithStreamRepository(streamRepo),
+				WithCapabilities(Capabilities{YtdlpEnabled: true}),
+			)
+			r := Routes(h)
+			body, err := json.Marshal(map[string]string{"source_url": tt.raw})
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/stream-jobs", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+			if rw.Code != http.StatusAccepted {
+				t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+			}
+			for _, job := range streamRepo.jobs {
+				if job.SourceURL == "" {
+					t.Fatal("source url not stored")
+				}
+				if job.PublicSourceURL != tt.wantPub {
+					t.Fatalf("public source url = %q, want %q", job.PublicSourceURL, tt.wantPub)
+				}
+			}
+		})
+	}
+}
+
 func TestStreamJobAPINeverReturnsPrivateAcquisitionURL(t *testing.T) {
 	streamRepo := newFakeStreamRepo()
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{},
@@ -4702,6 +4756,8 @@ func TestCreateStreamJobFromURLRejectsInvalidURL(t *testing.T) {
 		"https://www.youtube.com/redirect/private-token",
 		"https://user:password@www.youtube.com/watch?v=abc123",
 		"https://www.youtube.com:8443/watch?v=abc123",
+		"https://kick.com/aimagia",
+		"https://kick.com/video/01234567-89ab-cdef-0123-456789abcdef",
 	}
 	for _, sourceURL := range urls {
 		t.Run(sourceURL, func(t *testing.T) {

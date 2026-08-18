@@ -43,7 +43,9 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
   }
   let banner = 'Sin nick';
   if (nick) {
-    banner = plan.streamer_banner?.slide_enabled ? `${nick} · slide` : nick;
+    const platform = plan.streamer_banner?.platform === 'kick' ? 'Kick' : 'Twitch';
+    const labeled = `${nick} · ${platform}`;
+    banner = plan.streamer_banner?.slide_enabled ? `${labeled} · slide` : labeled;
   }
   const kdStyle = plan.keydrop_banner?.style?.trim() ?? '';
   const kdCode = (plan.keydrop_banner?.code?.trim() || 'ZACKCSGO').toUpperCase();

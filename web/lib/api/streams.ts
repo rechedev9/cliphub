@@ -1,12 +1,6 @@
 import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 
-/**
- * Stream Clips: turn a Twitch clip/VOD (or an uploaded MP4) into vertical
- * Shorts with the streamer's facecam stacked over gameplay. This client mirrors
- * the shape of RealApiClient in this directory but is kept separate from the
- * demo->reel ApiClient since it talks to an unrelated orchestrator surface
- * (/api/stream-jobs), not /api/jobs.
- */
+/** Stream-jobs client; separate from the demo /api/jobs surface. */
 
 export type StreamJobStatus = 'acquiring' | 'uploaded' | 'ready' | 'rendering' | 'rendered' | 'failed';
 
@@ -28,11 +22,7 @@ export const STREAM_VARIANTS: { value: StreamVariant; label: string; subtitle: s
   { value: 'streamer-fullframe-nocam', label: 'Full-frame', subtitle: 'Sin facecam', needsFaceCrop: false },
 ];
 
-/**
- * One burned-in text line, mirroring streamclips.TextOverlay. Times are
- * relative to the clip start in source seconds; missing bounds extend to the
- * clip edges. `position_y` is the normalized vertical center (0.025..0.975).
- */
+/** Burned-in text line; times are source seconds from clip start. */
 export type StreamTextOverlay = {
   text: string;
   position_y: number;
@@ -42,12 +32,7 @@ export type StreamTextOverlay = {
   font_size?: number;
 };
 
-/**
- * Optional per-clip edit options, mirroring streamclips.ClipEdit. An absent
- * object renders the clip untouched. `speed` is the playback rate (0.25..3),
- * `source_volume` scales the original audio (0 mutes, up to 2), and the fades
- * are measured in output (post-speed) seconds.
- */
+/** Optional per-clip edit; absent means the clip is rendered untouched. */
 export type StreamClipEdit = {
   speed?: number;
   source_volume?: number;
@@ -70,8 +55,16 @@ export type StreamMusic = { key?: string; volume?: number };
 /** Light post effects; grade is the mild viral contrast/saturation lift. */
 export type StreamEffects = { grade?: boolean };
 
+export const STREAMER_BANNER_PLATFORMS = ['twitch', 'kick'] as const;
+export type StreamerBannerPlatform = (typeof STREAMER_BANNER_PLATFORMS)[number];
+
 /** Optional branded strip rendered over the stream output. */
-export type StreamerBanner = { nick?: string; position_y?: number; slide_enabled?: boolean };
+export type StreamerBanner = {
+  nick?: string;
+  platform?: StreamerBannerPlatform;
+  position_y?: number;
+  slide_enabled?: boolean;
+};
 
 /** KeyDrop sponsor plate; empty style disables the overlay. */
 export type KeyDropBannerStyle = 'operator' | 'classic';

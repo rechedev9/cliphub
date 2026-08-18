@@ -42,16 +42,7 @@ import { StreamSourceCard } from '@/components/streams/source-card';
 
 type Stage = 'idle' | 'submitting' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed';
 
-/**
- * Stream Clips (/streams) — paste a Twitch clip/VOD URL or upload an MP4, then
- * lay out the facecam over gameplay and cut clip ranges before rendering
- * vertical Shorts. Mirrors /upload's stage machine (submit → wait → edit) but
- * against the /api/streams/* proxy, which forwards to the orchestrator's
- * stream-jobs pipeline (acquire/probe → edit plan → render).
- *
- * This file owns the stage machine, the polling loops and the autosave chain
- * only; every surface it dispatches to lives in `components/streams/`.
- */
+/** Stage machine for /streams; UI lives in components/streams. */
 export default function StreamsPage() {
   return <LocalStreamsPage />;
 }
@@ -163,13 +154,13 @@ function LocalStreamsPage() {
   const submitUrl = useCallback(async () => {
     const trimmed = sourceUrl.trim();
     if (!trimmed) {
-      setError('Pega una URL de clip o VOD de Twitch o YouTube. Para un archivo local, usa un MP4.');
+      setError('Pega una URL de clip o VOD de Twitch, YouTube o Kick. Para un archivo local, usa un MP4.');
       return;
     }
     const badExt = nonVideoExtension(trimmed);
     if (badExt) {
       setError(
-        `Esa URL apunta a un archivo .${badExt}, no a un vídeo. Pega el enlace de un clip o VOD de Twitch o YouTube, o usa “Subir un MP4”.`,
+        `Esa URL apunta a un archivo .${badExt}, no a un vídeo. Pega el enlace de un clip o VOD de Twitch, YouTube o Kick, o usa “Subir un MP4”.`,
       );
       return;
     }
@@ -467,7 +458,7 @@ function LocalStreamsPage() {
         title="DE STREAM A SHORT"
         description={
           <p>
-            Pega un clip de Twitch o YouTube, o sube un MP4. Córtalo en vertical con tu facecam,
+            Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Córtalo en vertical con tu facecam,
             ajusta el encuadre y añade música antes de renderizar.
           </p>
         }

@@ -175,12 +175,26 @@ type EditPlan struct {
 
 const EditPlanSchemaVersion = "1.1"
 
+const (
+	StreamerBannerPlatformTwitch = "twitch"
+	StreamerBannerPlatformKick   = "kick"
+)
+
 // StreamerBannerPlan adds an optional branded separator to the rendered
 // vertical clip. An empty Nick keeps the render visually unchanged.
+// Platform selects Twitch or Kick chrome; empty means Twitch.
 type StreamerBannerPlan struct {
 	Nick         string   `json:"nick,omitempty"`
+	Platform     string   `json:"platform,omitempty"`
 	PositionY    *float64 `json:"position_y,omitempty"`
 	SlideEnabled bool     `json:"slide_enabled,omitempty"`
+}
+
+func (p StreamerBannerPlan) ResolvedPlatform() string {
+	if strings.EqualFold(strings.TrimSpace(p.Platform), StreamerBannerPlatformKick) {
+		return StreamerBannerPlatformKick
+	}
+	return StreamerBannerPlatformTwitch
 }
 
 // KeyDropBannerPlan overlays the optional KeyDrop sponsor plate. An empty
@@ -403,6 +417,11 @@ func (p EditPlan) Validate() error {
 	}
 	if p.StreamerBanner.Nick != "" && !streamerNickPattern.MatchString(p.StreamerBanner.Nick) {
 		return fmt.Errorf("streamer banner nick must use 1-25 letters, numbers, or underscores")
+	}
+	switch strings.ToLower(strings.TrimSpace(p.StreamerBanner.Platform)) {
+	case "", StreamerBannerPlatformTwitch, StreamerBannerPlatformKick:
+	default:
+		return fmt.Errorf("streamer banner platform must be twitch or kick")
 	}
 	if positionY := p.StreamerBanner.PositionY; positionY != nil {
 		if math.IsNaN(*positionY) || math.IsInf(*positionY, 0) || *positionY < minVerticalPositionY || *positionY > maxVerticalPositionY {
@@ -682,6 +701,7 @@ func NormalizeEditPlan(plan EditPlan) EditPlan {
 		plan.Clips[i].ID = strings.TrimSpace(plan.Clips[i].ID)
 	}
 	plan.StreamerBanner.Nick = strings.TrimSpace(plan.StreamerBanner.Nick)
+	plan.StreamerBanner.Platform = strings.ToLower(strings.TrimSpace(plan.StreamerBanner.Platform))
 	plan.KeyDropBanner.Style = strings.ToLower(strings.TrimSpace(plan.KeyDropBanner.Style))
 	plan.KeyDropBanner.Code = strings.ToUpper(strings.TrimSpace(plan.KeyDropBanner.Code))
 	plan.Music.Key = strings.TrimSpace(plan.Music.Key)
