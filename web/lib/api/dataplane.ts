@@ -1,16 +1,6 @@
-/**
- * Client-side data-plane addressing. ClipHub processes every media byte on
- * the user's own PC: the browser reaches the bundled orchestrator through
- * same-origin Next route handlers under /api/demos/*, which proxy to the
- * orchestrator running on this machine. No token travels to the browser.
- * This pure builder is the single source of truth for that URL/field-name
- * mapping, shared by RealApiClient and its tests.
- */
+/** Same-origin /api/demos/* addressing. No token travels to the browser. */
 
-/**
- * The addressing surface for the local same-origin proxy transport. `headers`
- * is always empty (no auth token crosses the proxy boundary).
- */
+/** Local proxy transport; headers stay empty so no auth crosses the boundary. */
 export type DataPlane = {
   headers: Record<string, string>;
   scanUrl: string;
@@ -31,6 +21,7 @@ export type DataPlane = {
   /** Parse request body. */
   parseBody(steamId: string): Record<string, string>;
   planUrl(jobId: string): string;
+  recapPlanUrl(jobId: string): string;
   recordUrl(jobId: string): string;
   renderUrl(jobId: string, variant: string): string;
   renderReviewUrl(jobId: string, variant: string): string;
@@ -45,10 +36,7 @@ function str(body: unknown, key: string): string {
   return typeof v === 'string' ? v : '';
 }
 
-/**
- * Builds the local same-origin proxy data plane. The paths match the
- * /api/demos/* proxy routes exactly.
- */
+/** Same-origin /api/demos/* paths used by RealApiClient. */
 export function dataPlane(): DataPlane {
   return {
     headers: {},
@@ -64,6 +52,7 @@ export function dataPlane(): DataPlane {
     parseUrl: (jobId) => `/api/demos/${jobId}/parse`,
     parseBody: (steamId) => ({ steamId }),
     planUrl: (jobId) => `/api/demos/${jobId}/plan`,
+    recapPlanUrl: (jobId) => `/api/demos/${jobId}/recap-plan`,
     recordUrl: (jobId) => `/api/demos/${jobId}/record`,
     renderUrl: (jobId, variant) => `/api/demos/${jobId}/renders/${variant}`,
     renderReviewUrl: (jobId, variant) => `/api/demos/${jobId}/renders/${variant}/review`,

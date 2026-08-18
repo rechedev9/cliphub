@@ -1,10 +1,12 @@
 // Unit tests for the pure reel-reconcile core. Run: node --test reel-reconcile.test.ts
-// Type-checked TypeScript run directly by Node's native type stripping, so the
-// reconcile state machine is testable with zero new dependencies (Node 24 node:test).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canHaveRenderState, deriveReelView, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, deriveReelView, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
 import type { ReconcileInput } from './reel-reconcile.ts';
+import type { EditConfig } from './types.ts';
+import type { MusicChoice } from './reel-music.ts';
+import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
+import { FULL_DEMO_EDIT } from '../full-demo.ts';
 
 /** deriveReelView with sane defaults so each case states only what it varies. */
 function view(over: Partial<ReconcileInput>) {
@@ -205,9 +207,7 @@ test('unrecoverableJobGoneView: failed + unrecoverable with a failure reason', (
 });
 
 test('viewForJobGone: latches only after consecutive 404 ticks', () => {
-  // One spurious 404 (wrong orchestrator briefly answering) must not brand the
-  // reel unrecoverable — the card's advice (delete + re-forge) destroys the
-  // rendered artifact, so a single bad poll leaves the view untouched.
+  // One 404 must not latch: delete+re-forge would destroy the artifact.
   const cases: Array<{ strikes: number; latched: boolean }> = [
     { strikes: 0, latched: false },
     { strikes: 1, latched: false },
@@ -249,5 +249,137 @@ test('canHaveRenderState: includes failed (a render can be ready before the job 
 test('canHaveRenderState: false for every pre-recorded status (skip the guaranteed 404)', () => {
   for (const s of ['queued', 'scanning', 'scanned', 'parsing', 'parsed', 'recording', 'wat']) {
     assert.equal(canHaveRenderState(s), false, `${s} must not issue a render GET`);
+  }
+});
+
+test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () => {
+  const shortsEdit: EditConfig = { ...DEFAULT_EDIT_CONFIG };
+  const cases: Array<{
+    name: string;
+    jobStatus: string;
+    renderStatus: ReconcileInput['renderStatus'];
+    intentEdit: EditConfig;
+    renderEdit?: EditConfig;
+    intentMusic?: MusicChoice;
+    renderMusic?: MusicChoice;
+    wantAction: 'record' | 'render' | 'none';
+    wantStatus: string;
+    wantAdopt: boolean;
+  }> = [
+    {
+      name: 'full demo + recorded + ready shorts → record, do not adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      renderEdit: shortsEdit,
+      wantAction: 'record',
+      wantStatus: 'queued',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + done + ready shorts → record, do not adopt',
+      jobStatus: 'done',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      renderEdit: shortsEdit,
+      wantAction: 'record',
+      wantStatus: 'queued',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + ready without render edit → record (legacy shorts)',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      wantAction: 'record',
+      wantStatus: 'queued',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + recorded + matching recap render → ready, adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      renderEdit: { ...FULL_DEMO_EDIT },
+      wantAction: 'none',
+      wantStatus: 'ready',
+      wantAdopt: true,
+    },
+    {
+      name: 'shorts + recorded + ready shorts → ready, adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: shortsEdit,
+      renderEdit: shortsEdit,
+      wantAction: 'none',
+      wantStatus: 'ready',
+      wantAdopt: true,
+    },
+    {
+      name: 'full demo + parsed + no render → record',
+      jobStatus: 'parsed',
+      renderStatus: 'none',
+      intentEdit: FULL_DEMO_EDIT,
+      wantAction: 'record',
+      wantStatus: 'queued',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + recording + ready shorts → wait, do not adopt',
+      jobStatus: 'recording',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      renderEdit: shortsEdit,
+      wantAction: 'none',
+      wantStatus: 'recording',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + recorded + ready recap + different song → render, do not adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      renderEdit: { ...FULL_DEMO_EDIT },
+      intentMusic: { songId: 'phonk-01', musicVolume: 1 },
+      renderMusic: {},
+      wantAction: 'render',
+      wantStatus: 'composing',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + recorded + ready recap + different edit → render, do not adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: { ...FULL_DEMO_EDIT, killEffect: 'punch-in' },
+      renderEdit: { ...FULL_DEMO_EDIT },
+      wantAction: 'render',
+      wantStatus: 'composing',
+      wantAdopt: false,
+    },
+    {
+      name: 'full demo + recorded + ready recap + same song → ready, adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: FULL_DEMO_EDIT,
+      renderEdit: { ...FULL_DEMO_EDIT },
+      intentMusic: { songId: 'phonk-01', musicVolume: 0.8, gameVolume: 0.2 },
+      renderMusic: { songId: 'phonk-01', musicVolume: 0.8, gameVolume: 0.2 },
+      wantAction: 'none',
+      wantStatus: 'ready',
+      wantAdopt: true,
+    },
+  ];
+  for (const tc of cases) {
+    const got = decideReelReconcile({
+      jobStatus: tc.jobStatus,
+      renderStatus: tc.renderStatus,
+      intentEdit: tc.intentEdit,
+      renderEdit: tc.renderEdit,
+      intentMusic: tc.intentMusic,
+      renderMusic: tc.renderMusic,
+    });
+    assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
+    assert.equal(got.view.status, tc.wantStatus, `${tc.name} status`);
+    assert.equal(got.adoptEffective, tc.wantAdopt, `${tc.name} adopt`);
   }
 });

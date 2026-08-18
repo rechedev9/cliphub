@@ -43,6 +43,15 @@ func ValidSegmentMode(mode SegmentMode) bool {
 
 type RunOptions struct {
 	SegmentMode SegmentMode
+	// AlsoRecap, when set with SegmentModeKills, also builds the full-round
+	// recap plan from the same collector pass so Studio can store both.
+	AlsoRecap bool
+}
+
+// DualPlan is a kill-burst plan plus the sidecar recap plan from one parse.
+type DualPlan struct {
+	Kills killplan.Plan
+	Recap killplan.Plan
 }
 
 // Run wires kill event handlers on p, drives the parser to completion, and
@@ -84,26 +93,63 @@ func RunWithContext(ctx context.Context, p demoinfocs.Parser, target string, r r
 }
 
 func RunWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, opts RunOptions) (killplan.Plan, error) {
+	dual, err := RunDualWithOptions(p, target, r, m, opts)
+	return dual.Kills, err
+}
+
+// RunDualWithOptions is RunWithOptions plus the optional recap sidecar.
+func RunDualWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, opts RunOptions) (DualPlan, error) {
 	watch := TrackFirstPacketTick(p)
-	var plan killplan.Plan
+	var dual DualPlan
 	var err error
 	switch opts.SegmentMode {
 	case "", SegmentModeKills:
-		plan, err = runKills(p, target, r, m)
+		if opts.AlsoRecap {
+			dual.Kills, dual.Recap, err = runKillsAndRecap(p, target, r, m)
+		} else {
+			dual.Kills, err = runKills(p, target, r, m)
+		}
 	case SegmentModeSmokes:
-		plan, err = runSmokes(p, target, r, m)
+		dual.Kills, err = runSmokes(p, target, r, m)
 	case SegmentModeUtility:
-		plan, err = runUtility(p, target, r, m)
+		dual.Kills, err = runUtility(p, target, r, m)
 	case SegmentModeRecap:
-		plan, err = runRecap(p, target, r, m)
+		dual.Kills, err = runRecap(p, target, r, m)
+		dual.Recap = dual.Kills
 	default:
-		return killplan.Plan{}, fmt.Errorf("unknown segment mode %q", opts.SegmentMode)
+		return DualPlan{}, fmt.Errorf("unknown segment mode %q", opts.SegmentMode)
 	}
 	if err != nil {
-		return plan, err
+		return dual, err
 	}
 	if tick, seen := watch.Snapshot(); seen {
-		plan.Demo.FirstFullPacketTick = &tick
+		dual.Kills.Demo.FirstFullPacketTick = &tick
+		if len(dual.Recap.Segments) > 0 || dual.Recap.Demo.Tickrate > 0 {
+			dual.Recap.Demo.FirstFullPacketTick = &tick
+		}
 	}
-	return plan, nil
+	return dual, nil
+}
+
+// RunKillsAndRecapWithContext parses once and returns kill bursts plus recap rounds.
+func RunKillsAndRecapWithContext(ctx context.Context, p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (DualPlan, error) {
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		select {
+		case <-ctx.Done():
+			p.Cancel()
+		case <-stop:
+		}
+	})
+	defer func() {
+		close(stop)
+		wg.Wait()
+	}()
+
+	dual, err := RunDualWithOptions(p, target, r, m, RunOptions{SegmentMode: SegmentModeKills, AlsoRecap: true})
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return DualPlan{}, fmt.Errorf("parse demo: %w", ctxErr)
+	}
+	return dual, err
 }

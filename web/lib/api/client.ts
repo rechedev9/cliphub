@@ -20,6 +20,7 @@ export type VideoReviewResolution =
 export interface ApiClient {
   getCaptureReadiness(): Promise<CaptureReadiness>;
   listMatches(): Promise<Match[]>;
+  listPlanReadyMatches(): Promise<Match[]>;
   listSeriesSummaries(): Promise<SeriesSummary[]>;
   getMatch(id: string): Promise<Match | null>;
   /** @deprecated Superseded by scanDemo + parseDemo. */
@@ -29,6 +30,7 @@ export interface ApiClient {
   getSeries(seriesId: string): Promise<SeriesDemo[]>;
   parseDemo(input: { jobId: string; steamId: string }): Promise<Match>;
   findClips(matchId: string): Promise<Play[]>;
+  findRecapClips(matchId: string): Promise<Play[]>;
   listSongs(): Promise<Song[]>;
   listPresets(): Promise<Preset[]>;
   /** playIds must be in plan order, not click order. */

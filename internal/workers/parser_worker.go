@@ -22,6 +22,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
@@ -138,14 +139,17 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 		DemoPath: j.DemoPath,
 		SHA256:   j.DemoSHA256,
 	}
-	plan, err := parser.RunWithContext(ctx, p, j.TargetSteamID, j.Rules, meta, parser.RunOptions{SegmentMode: parser.SegmentModeKills})
+	dual, err := parser.RunKillsAndRecapWithContext(ctx, p, j.TargetSteamID, j.Rules, meta)
 	if err != nil {
 		if errors.Is(err, parser.ErrTargetNotFound) {
 			return killplan.Plan{}, fmt.Errorf("target steamid %s not found in demo", j.TargetSteamID)
 		}
 		return killplan.Plan{}, err
 	}
-	return plan, nil
+	if err := recapplan.Store(w.storage, j.ID, dual.Recap); err != nil {
+		return killplan.Plan{}, err
+	}
+	return dual.Kills, nil
 }
 
 func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error) {

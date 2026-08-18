@@ -35,7 +35,7 @@ before(async () => {
   });
   page = await app.firstWindow();
   page.on('pageerror', (error) => pageErrors.push({ url: page.url(), message: String(error), stack: error.stack }));
-  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, {
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/onboarding/, {
     timeout: E2E_BOOT_DEADLINE_MS,
   });
   origin = new URL(page.url()).origin;
@@ -88,7 +88,7 @@ test('installed release exposes version-only desktop settings with no MCP surfac
   });
   try {
     const installedPage = await installedApp.firstWindow();
-    await installedPage.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/matches/, {
+    await installedPage.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/onboarding/, {
       timeout: E2E_BOOT_DEADLINE_MS,
     });
     const installedOrigin = new URL(installedPage.url()).origin;

@@ -155,24 +155,30 @@ func playerPosition(p *common.Player) [3]float64 {
 }
 
 func runKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
-	return collectKills(p, target, r, m, SegmentModeKills)
+	kills, _, err := collectKills(p, target, r, m, SegmentModeKills, false)
+	return kills, err
 }
 
 func runRecap(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
-	return collectKills(p, target, r, m, SegmentModeRecap)
+	kills, _, err := collectKills(p, target, r, m, SegmentModeRecap, false)
+	return kills, err
 }
 
-func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
+func runKillsAndRecap(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, killplan.Plan, error) {
+	return collectKills(p, target, r, m, SegmentModeKills, true)
+}
+
+func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode, alsoRecap bool) (killplan.Plan, killplan.Plan, error) {
 	targetID, err := strconv.ParseUint(target, 10, 64)
 	if err != nil {
-		return killplan.Plan{}, fmt.Errorf("invalid target steamid %q: %w", target, err)
+		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("invalid target steamid %q: %w", target, err)
 	}
 
 	c := NewCollector(target, r)
 	var mapName string
 	var maxTick int
 	var watch *utilityWatch
-	if mode == SegmentModeRecap {
+	if mode == SegmentModeRecap || alsoRecap {
 		watch = newUtilityWatch(targetID, target, &maxTick, c.RecordTargetIdentity)
 	}
 
@@ -233,7 +239,7 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	})
 
 	if err := parseToEnd(p); err != nil {
-		return killplan.Plan{}, fmt.Errorf("parsing demo: %w", err)
+		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("parsing demo: %w", err)
 	}
 
 	if m.Tickrate <= 0 {
@@ -258,9 +264,19 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		// Translate the collector's "target not seen" error into the sentinel
 		// so the CLI can map it to its exit code.
 		if errors.Is(err, ErrTargetNotFound) {
-			return killplan.Plan{}, ErrTargetNotFound
+			return killplan.Plan{}, killplan.Plan{}, ErrTargetNotFound
 		}
-		return killplan.Plan{}, err
+		return killplan.Plan{}, killplan.Plan{}, err
 	}
-	return plan, nil
+	if !alsoRecap || mode == SegmentModeRecap {
+		return plan, killplan.Plan{}, nil
+	}
+	recap, err := c.build(m, SegmentModeRecap)
+	if err != nil {
+		if errors.Is(err, ErrTargetNotFound) {
+			return killplan.Plan{}, killplan.Plan{}, ErrTargetNotFound
+		}
+		return plan, killplan.Plan{}, err
+	}
+	return plan, recap, nil
 }

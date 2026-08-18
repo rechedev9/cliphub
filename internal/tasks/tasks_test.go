@@ -151,6 +151,30 @@ func TestNewRecordDemoTaskRoundtrip(t *testing.T) {
 	if payload.SegmentIDs != nil {
 		t.Errorf("SegmentIDs = %v, want nil", payload.SegmentIDs)
 	}
+	if payload.UseRecapPlan {
+		t.Error("UseRecapPlan = true, want false")
+	}
+}
+
+func TestNewRecordDemoTaskWithRecapRoundtrip(t *testing.T) {
+	id := uuid.New()
+	tk, err := NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
+	if err != nil {
+		t.Fatalf("NewRecordDemoTaskWithRecap error = %v", err)
+	}
+	if !strings.Contains(string(tk.Payload()), `"use_recap_plan":true`) {
+		t.Errorf("payload missing use_recap_plan: %s", tk.Payload())
+	}
+	var payload RecordDemoPayload
+	if err := json.Unmarshal(tk.Payload(), &payload); err != nil {
+		t.Fatalf("Unmarshal payload error = %v", err)
+	}
+	if !payload.UseRecapPlan {
+		t.Error("UseRecapPlan = false, want true")
+	}
+	if payload.HUDMode != "gameplay" {
+		t.Errorf("HUDMode = %q, want gameplay", payload.HUDMode)
+	}
 }
 
 func TestNewRecordDemoTaskRoundtripWithSegmentIDs(t *testing.T) {

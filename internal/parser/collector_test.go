@@ -305,6 +305,32 @@ func TestBuildPlanAssemblesSegments(t *testing.T) {
 	}
 }
 
+func TestCollectorBuildEmitsWiderRecapWindows(t *testing.T) {
+	c := NewCollector(targetID, defaultTestRules())
+	c.RecordTargetIdentity("MARTINEZSA", "CT")
+	c.RecordRoundStart(RoundStart{Round: 5, Tick: 8000})
+	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: "awp"})
+	c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 14000})
+
+	kills, err := c.build(meta(), SegmentModeKills)
+	if err != nil {
+		t.Fatalf("kills build: %v", err)
+	}
+	recap, err := c.build(meta(), SegmentModeRecap)
+	if err != nil {
+		t.Fatalf("recap build: %v", err)
+	}
+	if len(kills.Segments) != 1 || len(recap.Segments) != 1 {
+		t.Fatalf("segments kills=%d recap=%d, want 1 and 1", len(kills.Segments), len(recap.Segments))
+	}
+	if recap.Segments[0].TickStart >= kills.Segments[0].TickStart {
+		t.Fatalf("recap start %d, want earlier than kill burst %d", recap.Segments[0].TickStart, kills.Segments[0].TickStart)
+	}
+	if recap.Segments[0].TickEnd <= kills.Segments[0].TickEnd {
+		t.Fatalf("recap end %d, want later than kill burst %d", recap.Segments[0].TickEnd, kills.Segments[0].TickEnd)
+	}
+}
+
 func TestBuildPlanRoundEndClipping(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	c.RecordTargetIdentity("MARTINEZSA", "CT")

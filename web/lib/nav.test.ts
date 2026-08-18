@@ -2,19 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_SECTIONS, navSection } from './nav.ts';
 
-test('nav: the entry section plus eleven numbered destinations', () => {
-  assert.equal(NAV_SECTIONS.length, 12);
+test('nav: the entry section plus twelve numbered destinations', () => {
+  assert.equal(NAV_SECTIONS.length, 13);
 });
 
-test('nav: Inicio is 00 so the eleven destinations keep their numbers', () => {
-  // The numbers are spoken in the command strip and in the design handoff's own
-  // piece codes, so seating Inicio must not renumber anything below it.
-  const [entry, ...destinations] = NAV_SECTIONS;
-  assert.equal(entry.number, '00');
-  assert.equal(entry.href, '/onboarding');
-  destinations.forEach((section, index) => {
-    assert.equal(section.number, String(index + 1).padStart(2, '0'));
-  });
+test('nav: Inicio is 00 and 01-11 stay put when Full demo is added', () => {
+  const byHref = Object.fromEntries(NAV_SECTIONS.map((section) => [section.href, section.number]));
+  assert.equal(byHref['/onboarding'], '00');
+  assert.equal(byHref['/matches'], '01');
+  assert.equal(byHref['/upload'], '02');
+  assert.equal(byHref['/full-demo'], '12');
+  assert.equal(byHref['/tactical'], '03');
+  assert.equal(byHref['/settings'], '11');
 });
 
 test('nav: hrefs are unique', () => {
@@ -38,4 +37,10 @@ test('navSection: CheaterDetect sits with the demo-analysis sections', () => {
   const entry = navSection('/cheaters');
   assert.equal(entry.number, '04');
   assert.equal(entry.label, 'CheaterDetect');
+});
+
+test('navSection: Full demo to video sits with the demo production sections', () => {
+  const entry = navSection('/full-demo');
+  assert.equal(entry.number, '12');
+  assert.equal(entry.label, 'Full demo to video');
 });

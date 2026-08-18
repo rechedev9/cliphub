@@ -1,18 +1,11 @@
-import type { VideoStatus, CaptureProgress } from './types';
+import type { EditConfig, VideoStatus, CaptureProgress } from './types';
 import { requiresRecapture } from './failure-reason.ts';
+import { editConfigsEqual } from './edit-request.ts';
+import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
 
 export { requiresRecapture } from './failure-reason.ts';
 
-/**
- * Reel reconcile core — pure, framework-free, the testable heart of the durable
- * upload→reel path. Given the orchestrator's truth for a reel (its job status and
- * the render-variant status), it returns the UI status to show plus the single,
- * idempotent step to drive next. The caller (RealApiClient) performs `action` and
- * relies entirely on this mapping, so a page reload that re-reads server state
- * resumes exactly where it left off and never double-drives a stage.
- *
- * Unit-tested in reel-reconcile.test.ts (node:test).
- */
+/** Pure reel next-step: job + render status → UI view and one idempotent action. */
 
 /** Render-variant lifecycle as the orchestrator reports it; 'none' = not started. */
 export type RenderStatus =
@@ -26,25 +19,10 @@ export type RenderStatus =
 /** The one pipeline step to issue this tick (idempotent against server state). */
 export type ReelAction = 'record' | 'render' | 'none';
 
-/**
- * Job statuses at which a render variant can already exist on the orchestrator, so
- * the render-status GET is worth issuing. A render POST is only ever driven at or
- * after 'recorded' — deriveReelView returns the 'render' action from 'recorded'
- * onward — so for every earlier status ('queued'/'scanning'/'scanned'/'parsing'/
- * 'parsed'/'recording') the GET is a guaranteed 404 and can be skipped; that 404 is
- * what floods the browser DevTools network console during the whole recording phase.
- * 'failed' is included because a render can reach 'ready' before the job later flags
- * an error, and deriveReelView must still surface that reel as ready (a finished
- * render wins over a failed job); skipping the GET for a failed job would wrongly
- * downgrade an already-rendered reel to failed.
- */
+/** Statuses that may already have render state. Earlier ones are a guaranteed 404. */
 const RENDER_STATE_STATUSES = new Set<string>(['recorded', 'composing', 'composed', 'review_required', 'done', 'failed']);
 
-/**
- * Whether a job's render variant can possibly exist yet, i.e. whether issuing the
- * render-status GET can return anything but a 404. Gate the network call on this so
- * a pending render stops spamming the DevTools console with expected 404s.
- */
+/** True once a render GET can return something other than 404. */
 export function canHaveRenderState(status: string): boolean {
   return RENDER_STATE_STATUSES.has(status);
 }
@@ -76,49 +54,23 @@ export type ReelView = {
   reviewArtifactPrefix?: string;
   /** Set only when status is 'recording' and the orchestrator reported progress. */
   captureProgress?: CaptureProgress;
-  /**
-   * Set only when the failure can never be retried: the orchestrator job the
-   * reel was forged from no longer exists, so neither re-record nor re-render
-   * can bring it back. The UI hides Retry for these and tells the user to
-   * delete and re-forge from the match instead.
-   */
+  /** Job is gone; Retry cannot re-drive it. */
   unrecoverable?: true;
 };
 
-/**
- * Failure reason for a reel whose orchestrator job has vanished (a 404 on the
- * status poll). In sqlite/memory mode an orchestrator restart prunes finished
- * jobs, so the source of truth for the reel is gone; retry could never succeed.
- */
+/** Status-poll 404: the orchestrator no longer has this job. */
 const ORCHESTRATOR_JOB_GONE_REASON =
   'job no longer available (the local orchestrator may have restarted)';
 
-/**
- * The view for a reel whose orchestrator job is gone (the status poll returned
- * an authoritative 404). It is failed AND unrecoverable: no retry can re-drive
- * it because record and render both need the job that no longer exists. The
- * caller must not attempt to re-drive it, and the card hides Retry accordingly.
- */
+/** Failed + unrecoverable view when the job 404s. Hide Retry. */
 export function unrecoverableJobGoneView(): ReelView {
   return { ...failed(ORCHESTRATOR_JOB_GONE_REASON), unrecoverable: true };
 }
 
-/**
- * Consecutive 404 status polls required before a reel is latched unrecoverable.
- * A single 404 can be spurious (the web app briefly reaching a different or
- * misconfigured orchestrator that does not know an existing job), and the
- * unrecoverable card steers the user to delete the reel — which destroys the
- * rendered artifact — so one bad poll must never be enough.
- */
+/** Consecutive 404s before latching unrecoverable. One miss can be spurious. */
 const JOB_GONE_LATCH_TICKS = 2;
 
-/**
- * The view to apply after `consecutive404s` back-to-back 404 status polls, or
- * null to leave the reel's current view untouched so the next reconcile tick
- * re-checks. Below the latch threshold nothing changes (a transient wrong
- * answer self-heals invisibly); at the threshold the job is authoritatively
- * gone and the reel latches failed + unrecoverable.
- */
+/** Latch unrecoverable after enough 404s; below that leave the current view. */
 export function viewForJobGone(consecutive404s: number): ReelView | null {
   return consecutive404s >= JOB_GONE_LATCH_TICKS ? unrecoverableJobGoneView() : null;
 }
@@ -127,6 +79,64 @@ function failed(reason?: string): ReelView {
   return reason
     ? { status: 'failed', action: 'none', failureReason: reason }
     : { status: 'failed', action: 'none' };
+}
+
+/** Capture-time bits: a ready render that disagrees must not be this reel. */
+export function captureContractMatches(intentEdit: EditConfig, renderEdit: EditConfig | undefined): boolean {
+  if (!renderEdit) return false;
+  return intentEdit.matchRecap === renderEdit.matchRecap && intentEdit.nativeHud === renderEdit.nativeHud;
+}
+
+/** Render-time mix: same capture can still need a new encode. */
+export function renderDeliveryMatches(
+  intentEdit: EditConfig,
+  renderEdit: EditConfig | undefined,
+  intentMusic: MusicChoice,
+  renderMusic: MusicChoice | undefined,
+): boolean {
+  if (!renderEdit || !editConfigsEqual(intentEdit, renderEdit)) return false;
+  if (!renderMusic) return !intentMusic.songId;
+  return musicChoicesEqual(intentMusic, renderMusic);
+}
+
+export type ReelReconcileDecision = {
+  view: ReelView;
+  adoptEffective: boolean;
+};
+
+export type DecideReelReconcileInput = ReconcileInput & {
+  intentEdit: EditConfig;
+  renderEdit?: EditConfig;
+  intentMusic?: MusicChoice;
+  renderMusic?: MusicChoice;
+};
+
+/** Shorts pack on this variant is not Full Demo; same capture + new mix re-renders. */
+export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconcileDecision {
+  const ours = captureContractMatches(input.intentEdit, input.renderEdit);
+  const readyOrReview = input.renderStatus === 'ready' || input.renderStatus === 'review_required';
+  if (!ours && readyOrReview) {
+    if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
+      return { view: deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
+    }
+    return { view: { status: 'queued', action: 'record' }, adoptEffective: false };
+  }
+  const delivery = renderDeliveryMatches(
+    input.intentEdit,
+    input.renderEdit,
+    input.intentMusic ?? {},
+    input.renderMusic,
+  );
+  if (ours && readyOrReview && !delivery) {
+    if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
+      return { view: deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
+    }
+    return { view: { status: 'composing', action: 'render' }, adoptEffective: false };
+  }
+  return {
+    view: deriveReelView(input),
+    adoptEffective: ours && delivery && readyOrReview,
+  };
 }
 
 export function deriveReelView(input: ReconcileInput): ReelView {
@@ -140,9 +150,7 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     captureProgress,
   } = input;
 
-  // A finished render is always terminal — even if the job later flags an
-  // error. Warnings remain a distinct state because publication must stay
-  // blocked until a human resolves them.
+  // A finished render is terminal even if the job later fails.
   if (renderStatus === 'ready') return { status: 'ready', action: 'none' };
   if (renderStatus === 'review_required') {
     return {
@@ -153,17 +161,14 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     };
   }
   if (jobStatus === 'failed') {
-    // A failed job whose reason is a non-reusable capture still needs record,
-    // same as a plain capture failure. Retry and reconcile both re-drive record.
+    // Non-reusable capture: re-drive record instead of staying failed.
     if (requiresRecapture(jobFailureReason)) {
       return { status: 'queued', action: 'record' };
     }
     return failed(jobFailureReason);
   }
   if (renderStatus === 'failed') {
-    // Stale capture under the current contract: re-record instead of looping on
-    // render. After a successful re-record the worker clears this failed state
-    // so the next tick sees render "none" and drives render.
+    // Stale capture: re-record. The worker clears this failed state after recapture.
     if (requiresRecapture(renderFailureReason)) {
       return { status: 'queued', action: 'record' };
     }
@@ -176,9 +181,7 @@ export function deriveReelView(input: ReconcileInput): ReelView {
   // renderStatus === 'none': decide the next step from the job's own progress.
   switch (jobStatus) {
     case 'recording':
-      // Carry through the real segments-done/total so the card can show a
-      // percent; omit the key entirely when the poll reported no progress yet,
-      // so the card keeps its indeterminate rendering.
+      // Omit captureProgress when the poll has not reported segments yet.
       return captureProgress
         ? { status: 'recording', action: 'none', captureProgress }
         : { status: 'recording', action: 'none' };

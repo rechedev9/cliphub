@@ -1,10 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/**
- * The desktop build has no marketing/login landing: ClipHub only ever runs
- * against its own bundled orchestrator in local mode, so the root route is
- * just the dashboard entry.
- */
+/** Local Studio has no marketing root: open Inicio. */
 export default function RootPage(): never {
-  redirect('/matches');
+  redirect('/onboarding');
 }

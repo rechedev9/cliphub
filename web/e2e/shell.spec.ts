@@ -86,8 +86,8 @@ test.describe('navigation state', () => {
     await expect(page.locator('header.shell-strip')).toHaveCount(0);
   });
 
-  test('the root route lands on the Studio inbox', async ({ page }) => {
+  test('the root route lands on Inicio', async ({ page }) => {
     await gotoStudio(page, '/');
-    await expect(page).toHaveURL(/\/matches$/);
+    await expect(page).toHaveURL(/\/onboarding$/);
   });
 });

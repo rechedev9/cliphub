@@ -38,7 +38,7 @@ not a rotating `latest` autobuild URL.
 HLAE is available offline; the remaining downloads are best-effort and retry on the next launch.
 After the current HLAE package is verified, Studio removes older versioned HLAE caches.
 The packaged HLAE version is intentionally fixed by the manifest so every desktop build is reproducible.
-The window lands on `/matches` because Studio has both the demo-upload path and the Twitch stream-clips path.
+The window lands on `/onboarding` (Inicio), the first-run door into demo, stream, and player entry.
 
 Capture still needs CS2 installed on the machine (Windows + GPU); Studio installs
 HLAE automatically. Job data (demos, artifacts) is written under the per-user
@@ -220,7 +220,7 @@ same loop (`measure` → persist baseline → change → remasure → compare).
 4. Spawns the Next standalone `server.js` via `ELECTRON_RUN_AS_NODE`
    (`ORCHESTRATOR_URL` pointing at the orchestrator, `PORT=<webPort>`).
 5. Waits for `/healthz` and the web root.
-6. Loads `/matches` in the window.
+6. Loads `/onboarding` in the window.
 7. Kills the orchestrator and web children on quit. Packaged builds acquire
    Electron's OS-backed single-instance lock under canonical `appData` before
    restoring any explicit profile, so changing `--user-data-dir` cannot bypass

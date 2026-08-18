@@ -2,15 +2,12 @@
 
 import type { RenderFormat } from '@/lib/api/types';
 import { canForgeReel, type CreativeBriefItem } from '@/lib/reel-brief';
+import { lockedFormatLabel, REEL_FORMAT_ITEMS } from '@/lib/reel-format';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export type CreateReelBarProps = {
-  /**
-   * Selection summary, or null when nothing is picked. One highlight reuses
-   * its own label ("1K · Ronda 1"); 2+ summarize as a count plus rounds
-   * ("3 jugadas · Rondas 1, 6, 9") — see lib/format#playsSelectionLabel.
-   */
+  /** Selection summary, or null when nothing is picked. */
   selectionLabel: string | null;
   /** Label of the chosen preset, or null when none chosen. */
   presetLabel: string | null;
@@ -21,6 +18,7 @@ export type CreateReelBarProps = {
   /** Reel aspect (the mockup's 9:16 / 16:9 segmented toggle). */
   format: RenderFormat;
   onFormatChange: (format: RenderFormat) => void;
+  formatLocked?: boolean;
   /** Whether a render is in flight (spinner + disabled). */
   creating: boolean;
   briefItems: CreativeBriefItem[];
@@ -29,27 +27,9 @@ export type CreateReelBarProps = {
   onCreate: () => void;
 };
 
-const FORMAT_ITEMS: Array<{ value: RenderFormat; label: string }> = [
-  { value: 'short-9x16', label: '9:16' },
-  { value: 'landscape-16x9', label: '16:9' },
-];
 
-/**
- * CreateReelBar — the sticky bottom action bar: the mono REEL summary, the exact
- * creative brief with its approval gate, the 9:16/16:9 aspect toggle and the
- * notched cyan FORJAR REEL CTA. Enabled once at least one highlight and a preset
- * are chosen and music is decided; 2+ selected highlights render as one concatenated reel.
- *
- * The brief and its checkbox stay inside this bar on purpose: the approval gate
- * is a product contract ("approval must answer a shown brief"), so the thing
- * being approved has to travel with the button that acts on it.
- *
- * It bleeds to the shell gutter with `-mx-(--shell-gutter)`, matching `<main>`'s
- * padding token exactly — the old `-mx-4 md:-mx-8` matched the layout at no
- * breakpoint once the gutter became fluid. No backdrop blur: a full-width sticky
- * strip re-reads its backdrop on every scroll frame, which is the one blur cost
- * the performance budget rules out outright.
- */
+
+/** Sticky forge bar: brief, format, and FORJAR. Approval must answer the shown brief. */
 export function CreateReelBar({
   selectionLabel,
   presetLabel,
@@ -57,6 +37,7 @@ export function CreateReelBar({
   musicDecided,
   format,
   onFormatChange,
+  formatLocked = false,
   creating,
   briefItems,
   briefApproved,
@@ -119,31 +100,40 @@ export function CreateReelBar({
             )}
           </div>
 
-          <div
-            role="group"
-            aria-label="Formato del reel"
-            className="flex shrink-0 font-mono text-label tracking-wider"
-          >
-            {FORMAT_ITEMS.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                aria-pressed={format === item.value}
-                disabled={creating}
-                onClick={() => onFormatChange(item.value)}
-                className={cn(
-                  'inline-flex min-h-11 items-center px-5 transition-colors duration-(--dur-fast) ease-standard',
-                  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-                  'disabled:pointer-events-none disabled:opacity-50',
-                  format === item.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'border border-border-strong text-fg-2 hover:border-primary/55 hover:text-fg-1',
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          {formatLocked ? (
+            <p
+              className="shrink-0 font-mono text-label tracking-wider text-fg-2"
+              aria-label="Formato del reel"
+            >
+              {lockedFormatLabel(format)}
+            </p>
+          ) : (
+            <div
+              role="group"
+              aria-label="Formato del reel"
+              className="flex shrink-0 font-mono text-label tracking-wider"
+            >
+              {REEL_FORMAT_ITEMS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  aria-pressed={format === item.value}
+                  disabled={creating}
+                  onClick={() => onFormatChange(item.value)}
+                  className={cn(
+                    'inline-flex min-h-11 items-center px-5 transition-colors duration-(--dur-fast) ease-standard',
+                    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                    'disabled:pointer-events-none disabled:opacity-50',
+                    format === item.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border-strong text-fg-2 hover:border-primary/55 hover:text-fg-1',
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* A clipped CTA cannot paint an outer ring beyond its polygon, so the
               focus outline is pulled inside the notch. */}

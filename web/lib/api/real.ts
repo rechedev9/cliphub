@@ -9,8 +9,10 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
 import { planToMatch, planToPlays, type KillPlan } from './map';
-import { canHaveRenderState, deriveReelView, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
+import { canHaveRenderState, decideReelReconcile, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store';
+import { buildEditRequest, editConfigsEqual } from './edit-request';
+import { reelContractMatches, reelIdentity } from './reel-identity';
 import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
@@ -24,6 +26,7 @@ import { parsePublishAssistant, type PublishAssistant } from './publish-assistan
 import {
   ROSTER_READY,
   listableJobs,
+  planReadyJobs,
   summarizeSeries,
   jobToMatch,
   type IndexedJob,
@@ -31,11 +34,6 @@ import {
 } from './jobs-index';
 import { reconcileReels } from './reconcile-batch';
 import { playsSelectionLabel } from '@/lib/format';
-
-/** Segment ids joined into the stable local id for a reel (not an artifact path). */
-function reelName(segmentIds: string[]): string {
-  return segmentIds.join('_');
-}
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -113,67 +111,7 @@ async function readJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Orchestrator edit wire: camelCase plus snake_case bookend/bool keys. */
-type EditRequestBody = {
-  format: EditConfig['format'];
-  killEffect: EditConfig['killEffect'];
-  transition: EditConfig['transition'];
-  intro: boolean;
-  outro: boolean;
-  hook_text: boolean;
-  kill_counter: boolean;
-  match_recap: boolean;
-  voice_comms: boolean;
-  voice_volume?: number;
-  native_hud: boolean;
-  cover_strategy: EditConfig['coverStrategy'];
-  intro_text?: string;
-  outro_text?: string;
-  keydrop_style?: string;
-  keydrop_code?: string;
-  keydrop_position_y?: number;
-  keydrop_start_seconds?: number;
-  keydrop_end_seconds?: number;
-};
 
-function buildEditRequest(edit: EditConfig): EditRequestBody {
-  const body: EditRequestBody = {
-    format: edit.format,
-    killEffect: edit.killEffect,
-    transition: edit.transition,
-    intro: edit.intro,
-    outro: edit.outro,
-    hook_text: edit.hookText,
-    kill_counter: edit.killCounter,
-    match_recap: edit.matchRecap,
-    voice_comms: edit.voiceComms,
-    native_hud: edit.nativeHud,
-    cover_strategy: edit.coverStrategy,
-  };
-  if (edit.voiceComms) {
-    body.voice_volume = edit.voiceVolume ?? 0.85;
-  }
-  const introText = edit.introText?.trim();
-  if (edit.intro && introText) body.intro_text = introText;
-  const outroText = edit.outroText?.trim();
-  if (edit.outro && outroText) body.outro_text = outroText;
-  const keyDropStyle = edit.keyDropStyle?.trim();
-  if (keyDropStyle) {
-    body.keydrop_style = keyDropStyle;
-    const code = edit.keyDropCode?.trim();
-    if (code) body.keydrop_code = code.toUpperCase();
-    if (typeof edit.keyDropPositionY === 'number') {
-      body.keydrop_position_y = edit.keyDropPositionY;
-    }
-    if (typeof edit.keyDropStartSeconds === 'number' && Number.isFinite(edit.keyDropStartSeconds)) {
-      body.keydrop_start_seconds = edit.keyDropStartSeconds;
-    }
-    if (typeof edit.keyDropEndSeconds === 'number' && Number.isFinite(edit.keyDropEndSeconds)) {
-      body.keydrop_end_seconds = edit.keyDropEndSeconds;
-    }
-  }
-  return body;
-}
 
 /** Bare song key at full default mix; object when music or game gain is set. */
 function buildMusicRequest(
@@ -190,9 +128,13 @@ function buildMusicRequest(
   };
 }
 
-function editConfigsEqual(left: EditConfig, right: EditConfig): boolean {
-  return JSON.stringify(buildEditRequest(left)) === JSON.stringify(buildEditRequest(right));
+function musicChoiceFromEffective(music: EffectiveRenderMusic | undefined): MusicChoice | undefined {
+  if (!music) return undefined;
+  if (music.mode === 'clean') return {};
+  return { songId: music.songId, musicVolume: music.musicVolume, gameVolume: music.gameVolume };
 }
+
+
 
 /** A queued placeholder Video for an intent; its live status is filled by reconcile. */
 function videoFromIntent(intent: ReelIntent): Video {
@@ -377,6 +319,18 @@ export class RealApiClient implements ApiClient {
     return planToPlays(matchId, plan);
   }
 
+  async findRecapClips(matchId: string): Promise<Play[]> {
+    if (!isJobId(matchId)) return this.fallback.findRecapClips(matchId);
+
+    const status = await this.fetchStatus(matchId);
+    if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
+
+    const res = await this.send((dp) => ({ url: dp.recapPlanUrl(matchId) }));
+    if (res.status === 409) return [];
+    const plan = await readJson<KillPlan>(res);
+    return planToPlays(matchId, plan);
+  }
+
   /** Polls /status until it reaches `want`; throws on `failed` or timeout. */
   private async waitForStatus(jobId: string, want: string, maxAttempts = 240): Promise<void> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -392,19 +346,36 @@ export class RealApiClient implements ApiClient {
   async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
     if (!isJobId(input.matchId)) return this.fallback.createVideo(input);
 
-    const videoId = `${input.matchId}__${reelName(input.playIds)}`;
+    const videoId = reelIdentity(input);
     const existing = this.reels.get(videoId);
-    if (existing && existing.status !== 'failed') return { ...existing };
+    const existingIntent = this.intents.get(videoId);
+    if (
+      existing &&
+      existing.status !== 'failed' &&
+      existingIntent &&
+      reelContractMatches(existingIntent, { ...input, mode: input.mode })
+    ) {
+      return { ...existing };
+    }
 
-    const [plays, match] = await Promise.all([this.findClips(input.matchId), this.getMatch(input.matchId)]);
-    // Preserve the caller's (plan) order rather than the plays array's order.
-    const pickedPlays = input.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
+    const recap = input.editConfig?.matchRecap === true;
+    const [plays, match] = await Promise.all([
+      recap ? this.findRecapClips(input.matchId) : this.findClips(input.matchId),
+      this.getMatch(input.matchId),
+    ]);
+    // Recap records every stored round. Shorts keep the caller's plan order.
+    const pickedPlays = recap
+      ? plays
+      : input.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
     const variant = input.variant ?? REEL_VARIANT;
     const suffix = input.songId ? `${variantLabel(variant)} + Music` : variantLabel(variant);
+    const selectionTitle = recap
+      ? `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`
+      : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
     const intent: ReelIntent = {
       videoId,
       jobId: input.matchId,
-      segmentIds: pickedPlays.map((p) => p.id),
+      segmentIds: recap ? [] : pickedPlays.map((p) => p.id),
       mode: input.mode,
       variant,
       editConfig: input.editConfig ?? DEFAULT_EDIT_CONFIG,
@@ -412,7 +383,7 @@ export class RealApiClient implements ApiClient {
       // Volume only rides along with a chosen song; without one it is meaningless.
       musicVolume: input.songId ? input.musicVolume : undefined,
       gameVolume: input.songId ? input.gameVolume : undefined,
-      title: `${playsSelectionLabel(pickedPlays) ?? 'Highlight'} - ${suffix}`,
+      title: `${selectionTitle} - ${suffix}`,
       map: match?.map ?? 'Unknown',
       score: match?.score ?? '',
       targetName: match?.player,
@@ -739,7 +710,24 @@ export class RealApiClient implements ApiClient {
       }
       this.artifactNames.set(intent.videoId, names);
     }
-    if (render.status === 'ready' || render.status === 'review_required') {
+    const decision = decideReelReconcile({
+      jobStatus: job.status,
+      jobFailureReason: job.failureReason,
+      renderStatus: render.status,
+      renderFailureReason: render.failureReason,
+      renderWarnings: render.warnings,
+      renderArtifactPrefix: render.artifactPrefix,
+      captureProgress: job.captureProgress,
+      intentEdit: intent.editConfig,
+      renderEdit: render.editConfig,
+      intentMusic: {
+        songId: intent.songId,
+        musicVolume: intent.musicVolume,
+        gameVolume: intent.gameVolume,
+      },
+      renderMusic: musicChoiceFromEffective(render.effectiveMusic),
+    });
+    if (decision.adoptEffective && (render.status === 'ready' || render.status === 'review_required')) {
       let intentChanged = false;
       if (render.editConfig && !editConfigsEqual(intent.editConfig, render.editConfig)) {
         intent.editConfig = render.editConfig;
@@ -750,17 +738,8 @@ export class RealApiClient implements ApiClient {
       }
       if (intentChanged) saveReelIntents(Array.from(this.intents.values()));
     }
-    const view = deriveReelView({
-      jobStatus: job.status,
-      jobFailureReason: job.failureReason,
-      renderStatus: render.status,
-      renderFailureReason: render.failureReason,
-      renderWarnings: render.warnings,
-      renderArtifactPrefix: render.artifactPrefix,
-      captureProgress: job.captureProgress,
-    });
-    this.applyView(intent, view);
-    if (view.action !== 'none') void this.drive(intent, view.action);
+    this.applyView(intent, decision.view);
+    if (decision.view.action !== 'none') void this.drive(intent, decision.view.action);
   }
 
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
@@ -1002,6 +981,11 @@ export class RealApiClient implements ApiClient {
   async listMatches(): Promise<Match[]> {
     const jobs = await this.fetchJobs();
     return Promise.all(listableJobs(jobs).map((job) => this.jobToMatchEnriched(job)));
+  }
+
+  async listPlanReadyMatches(): Promise<Match[]> {
+    const jobs = await this.fetchJobs();
+    return Promise.all(planReadyJobs(jobs).map((job) => this.jobToMatchEnriched(job)));
   }
 
   /** One series row per bulk upload, including maps still scanning. */

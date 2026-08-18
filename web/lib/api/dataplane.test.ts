@@ -20,6 +20,7 @@ test('targets the same-origin /api/demos proxy with no auth header', () => {
   assert.equal(dp.seriesUrl(SERIES), `/api/demos/series/${SERIES}`);
   assert.equal(dp.parseUrl(JOB), `/api/demos/${JOB}/parse`);
   assert.equal(dp.planUrl(JOB), `/api/demos/${JOB}/plan`);
+  assert.equal(dp.recapPlanUrl(JOB), `/api/demos/${JOB}/recap-plan`);
   assert.equal(dp.recordUrl(JOB), `/api/demos/${JOB}/record`);
   assert.equal(dp.renderUrl(JOB, 'viral-60-clean'), `/api/demos/${JOB}/renders/viral-60-clean`);
   assert.equal(dp.renderReviewUrl(JOB, 'viral-60-clean'), `/api/demos/${JOB}/renders/viral-60-clean/review`);

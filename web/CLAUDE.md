@@ -32,6 +32,7 @@ Share codes: `web/lib/sharecode.ts` validates SHAPE only — 25 characters over 
 `matchId` and `outcomeId` cross the `/api/steam/sharecode` boundary as **strings**, because they exceed 2^53 and `Number()` silently corrupts them. Keep them strings everywhere, tests included.
 A `decoded` response is a success, not a failure: it means the code is valid but the Game Coordinator has not returned a demo URL. Download is `POST /api/steam/import` (same job pipeline as `/upload`). `409 steam_credentials_required` opens the login dialog; that password is not persisted. Only `service_unavailable` means the local service is down, and the UI must keep those two apart.
 Ajustes stores the revocable authentication code, SteamID and Web API key through `/api/steam/account`. It never writes a Steam password.
+`/full-demo` is the Full demo to video section: landscape recap, native HUD, team comms. It does not share the Shorts brief.
 
 ## TypeScript style (web/)
 

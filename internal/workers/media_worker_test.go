@@ -24,6 +24,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
@@ -174,6 +175,106 @@ func TestRecordWorkerHUDFromPayloadOverridesDefault(t *testing.T) {
 			}
 			if got := hasArg(runner.calls[0].args, "--portrait-safe-killfeed"); got != tc.wantPortraitFlag {
 				t.Fatalf("--portrait-safe-killfeed present = %v, want %v", got, tc.wantPortraitFlag)
+			}
+		})
+	}
+}
+
+func TestRecordSourcePlanUsesRecapWindows(t *testing.T) {
+	id := uuid.New()
+	kills := minimalKillPlan()
+	kills.Segments[0].TickStart = 64
+	kills.Segments[0].TickEnd = 128
+	recap := killplan.NewPlan()
+	recap.Demo = kills.Demo
+	recap.Target = kills.Target
+	recap.Segments = []killplan.Segment{{
+		ID:        "recap-001",
+		Round:     1,
+		TickStart: 1,
+		TickEnd:   6400,
+	}}
+	j := job.Job{ID: id, KillPlan: &kills}
+
+	tests := []struct {
+		name      string
+		useRecap  bool
+		store     bool
+		empty     bool
+		wantStart int
+		wantEnd   int
+		wantErr   bool
+	}{
+		{name: "kills burst", wantStart: 64, wantEnd: 128},
+		{name: "recap rounds", useRecap: true, store: true, wantStart: 1, wantEnd: 6400},
+		{name: "recap missing", useRecap: true, wantErr: true},
+		{name: "recap empty", useRecap: true, store: true, empty: true, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStorage()
+			if tc.store {
+				toStore := recap
+				if tc.empty {
+					toStore.Segments = nil
+				}
+				if err := recapplan.Store(store, id, toStore); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := recordSourcePlan(store, j, tc.useRecap)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("error = nil, want missing recap plan")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Segments) != 1 || got.Segments[0].TickStart != tc.wantStart || got.Segments[0].TickEnd != tc.wantEnd {
+				t.Fatalf("window = %d-%d, want %d-%d", got.Segments[0].TickStart, got.Segments[0].TickEnd, tc.wantStart, tc.wantEnd)
+			}
+		})
+	}
+}
+
+func TestInvalidateReadyRendersDropsReadyShortsState(t *testing.T) {
+	id := uuid.New()
+	store := newFakeStorage()
+	w := NewRecordWorker(newFakeRepo(), store, RecordWorkerConfig{WorkDir: t.TempDir()})
+	key, err := renderplan.RenderVariantStateKey(id, editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		{name: "ready shorts pack", status: renderplan.RenderVariantStatusReady, want: false},
+		{name: "review shorts pack", status: renderplan.RenderVariantStatusReview, want: false},
+		{name: "failed render stays", status: renderplan.RenderVariantStatusFailed, want: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			state := renderplan.RenderVariantState{JobID: id, Variant: editor.PresetViral60Clean, Status: tc.status}
+			raw, err := json.Marshal(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Put(key, bytes.NewReader(raw)); err != nil {
+				t.Fatal(err)
+			}
+			if err := w.invalidateReadyRenders(id); err != nil {
+				t.Fatal(err)
+			}
+			exists, err := store.Exists(key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if exists != tc.want {
+				t.Fatalf("exists = %t, want %t", exists, tc.want)
 			}
 		})
 	}

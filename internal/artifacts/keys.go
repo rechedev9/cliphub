@@ -64,6 +64,13 @@ func RosterKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "roster.json")
 }
 
+// RecapPlanKey is the sidecar full-round plan used when match_recap is on.
+// The job kill plan stays the Shorts burst windows; this artifact is the
+// landscape recap ranges captured by HLAE.
+func RecapPlanKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "recap-plan.json")
+}
+
 // AnticheatKey is the storage key for a job's CheaterDetect analysis. The
 // analysis is a side lane on the same demo: it never advances the job status,
 // so its progress lives entirely inside this document.

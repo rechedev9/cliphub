@@ -322,8 +322,8 @@ interface BootFailureDetails {
 
 let activeBootAttempt: BootAttempt | null = null;
 
-/** Sends the window to the app shell once boot is done. */
-async function loadMatches(webPort: number, proxyMutationCapability: string): Promise<void> {
+/** Inicio is the first-run door; /matches is no longer the shell entry. */
+async function loadStudio(webPort: number, proxyMutationCapability: string): Promise<void> {
   loadingScreenShowing = false;
   const win = aliveWindow();
   if (win === null) throw new Error('main window is unavailable');
@@ -333,7 +333,7 @@ async function loadMatches(webPort: number, proxyMutationCapability: string): Pr
     webOrigin,
     proxyMutationCapability,
   );
-  const requestedURL = `${webOrigin}/matches`;
+  const requestedURL = `${webOrigin}/onboarding`;
   let observedReplacement: SuccessfulNavigationEvidence | null = null;
   let resolveReplacement: ((evidence: SuccessfulNavigationEvidence) => void) | undefined;
   const replacementCompleted = new Promise<SuccessfulNavigationEvidence>((resolve) => {
@@ -503,7 +503,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
 
   setLoadingStatus('Abriendo la interfaz…');
   allowedInternalUrls.clear();
-  await loadMatches(webPort, security.proxyMutationCapability);
+  await loadStudio(webPort, security.proxyMutationCapability);
   assertBootAttemptActive(attempt);
 }
 

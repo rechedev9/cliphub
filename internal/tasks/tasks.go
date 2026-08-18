@@ -88,14 +88,17 @@ type AnalyzeTacticalPayload struct {
 // RecordDemoPayload carries the job id for a Windows recording worker.
 // HUDMode, when set, overrides the recorder's default in-game HUD for this
 // capture (one of "gameplay", "clean", "deathnotices"); empty keeps the default.
-// SegmentIDs, when non-empty, scopes the capture to those kill-plan segments so
+// SegmentIDs, when non-empty, scopes the capture to those plan segments so
 // a reel records only the user-selected clip instead of the whole demo; empty
 // records every segment (the CLI all-kills default).
+// UseRecapPlan swaps the Shorts kill-burst plan for the recap-plan sidecar
+// so capture windows are full live rounds, not 8-second bursts.
 type RecordDemoPayload struct {
 	JobID                uuid.UUID `json:"job_id"`
 	HUDMode              string    `json:"hud_mode,omitempty"`
 	SegmentIDs           []string  `json:"segment_ids,omitempty"`
 	PortraitSafeKillfeed bool      `json:"portrait_safe_killfeed,omitempty"`
+	UseRecapPlan         bool      `json:"use_recap_plan,omitempty"`
 }
 
 // ComposeFinalPayload carries the job id for the composition worker.
@@ -199,13 +202,22 @@ func NewAnalyzeTacticalTask(id uuid.UUID, sampleHZ float64) (*asynq.Task, error)
 // job's kill plan); empty records every segment. Because the ids are part of the
 // payload, asynq dedup treats a task for one segment as distinct from another.
 func NewRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) (*asynq.Task, error) {
-	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, nil)
+	return NewRecordDemoTaskWithRecap(id, hudMode, segmentIDs, portraitSafeKillfeed, false)
+}
+
+// NewRecordDemoTaskWithRecap is NewRecordDemoTask with an explicit recap-plan switch.
+func NewRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool) (*asynq.Task, error) {
+	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, nil)
 }
 
 // NewGenerateRecordDemoTask returns a record task carrying the immutable render
 // intent for that capture. The intent lives in task headers so uniqueness stays
 // keyed by the capture payload (job, HUD, segments, and killfeed geometry).
 func NewGenerateRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool, intent renderplan.GenerateIntent) (*asynq.Task, error) {
+	return NewGenerateRecordDemoTaskWithRecap(id, hudMode, segmentIDs, portraitSafeKillfeed, false, intent)
+}
+
+func NewGenerateRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, intent renderplan.GenerateIntent) (*asynq.Task, error) {
 	intent = intent.Normalize()
 	if err := intent.Validate(); err != nil {
 		return nil, err
@@ -214,12 +226,12 @@ func NewGenerateRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string
 	if err != nil {
 		return nil, err
 	}
-	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, map[string]string{
+	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, map[string]string{
 		generateIntentHeader: string(b),
 	})
 }
 
-func newRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool, headers map[string]string) (*asynq.Task, error) {
+func newRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, headers map[string]string) (*asynq.Task, error) {
 	switch hudMode {
 	case "", "gameplay", "clean", "deathnotices":
 	default:
@@ -230,6 +242,7 @@ func newRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portra
 		HUDMode:              hudMode,
 		SegmentIDs:           segmentIDs,
 		PortraitSafeKillfeed: portraitSafeKillfeed,
+		UseRecapPlan:         useRecapPlan,
 	})
 	if err != nil {
 		return nil, err

@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
@@ -1645,6 +1646,128 @@ func TestStartRecordingAppliesPresetCaptureHUD(t *testing.T) {
 				t.Fatalf("PortraitSafeKillfeed = %t, want %t", payload.PortraitSafeKillfeed, tc.wantPortraitSafeKillfeed)
 			}
 		})
+	}
+}
+
+func TestStartRecordingNativeHUDAndRecap(t *testing.T) {
+	// Locked Full Demo wire: landscape recap + native HUD + comms on viral-60-clean.
+	const fullDemoEdit = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"}`
+	tests := []struct {
+		name       string
+		body       string
+		storeRecap bool
+		emptyRecap bool
+		wantHUD    string
+		wantRecap  bool
+		wantCode   int
+	}{
+		{
+			name:     "native HUD overrides killfeed preset",
+			body:     `{"preset":"viral-60-clean","edit":{"format":"landscape-16x9","native_hud":true}}`,
+			wantHUD:  "gameplay",
+			wantCode: http.StatusAccepted,
+		},
+		{
+			name:       "locked full demo recap ignores kill-burst ids",
+			body:       `{"preset":"viral-60-clean","segment_ids":["seg-001"],"edit":` + fullDemoEdit + `}`,
+			storeRecap: true,
+			wantHUD:    "gameplay",
+			wantRecap:  true,
+			wantCode:   http.StatusAccepted,
+		},
+		{
+			name:     "match recap without sidecar is conflict",
+			body:     `{"preset":"viral-60-clean","segment_ids":["seg-001"],"edit":` + fullDemoEdit + `}`,
+			wantCode: http.StatusConflict,
+		},
+		{
+			name:       "match recap with empty sidecar is conflict",
+			body:       `{"preset":"viral-60-clean","edit":` + fullDemoEdit + `}`,
+			storeRecap: true,
+			emptyRecap: true,
+			wantCode:   http.StatusConflict,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			queue := &fakeQueue{}
+			store := newFakeStorage()
+			plan := killplan.NewPlan()
+			plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
+			j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+			repo.jobs[j.ID] = j
+			if tc.storeRecap {
+				recap := killplan.NewPlan()
+				if !tc.emptyRecap {
+					recap.Segments = []killplan.Segment{{ID: "recap-001", Round: 1, TickStart: 1, TickEnd: 9000}}
+				}
+				if err := recapplan.Store(store, j.ID, recap); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/record", h.StartRecording)
+			req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", strings.NewReader(tc.body))
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			if rw.Code != tc.wantCode {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantCode, rw.Body.String())
+			}
+			if tc.wantCode != http.StatusAccepted {
+				if len(queue.enqueued) != 0 {
+					t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
+				}
+				return
+			}
+			var payload tasks.RecordDemoPayload
+			if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+				t.Fatalf("unmarshal record payload: %v", err)
+			}
+			if payload.HUDMode != tc.wantHUD {
+				t.Fatalf("HUDMode = %q, want %q", payload.HUDMode, tc.wantHUD)
+			}
+			if payload.UseRecapPlan != tc.wantRecap {
+				t.Fatalf("UseRecapPlan = %t, want %t", payload.UseRecapPlan, tc.wantRecap)
+			}
+			if tc.wantRecap && len(payload.SegmentIDs) != 0 {
+				t.Fatalf("SegmentIDs = %v, want empty so recap records every round", payload.SegmentIDs)
+			}
+		})
+	}
+}
+
+func TestGetRecapPlanReturnsStoredRounds(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	recap := killplan.NewPlan()
+	recap.Segments = []killplan.Segment{{ID: "recap-001", Round: 4, TickStart: 10, TickEnd: 4000}}
+	if err := recapplan.Store(store, j.ID, recap); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+
+	r := chi.NewRouter()
+	r.Get("/api/jobs/{id}/recap-plan", h.GetRecapPlan)
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/recap-plan", nil)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	var got killplan.Plan
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Segments) != 1 || got.Segments[0].Round != 4 || got.Segments[0].TickStart != 10 {
+		t.Fatalf("recap = %#v, want stored full-round window", got.Segments)
 	}
 }
 

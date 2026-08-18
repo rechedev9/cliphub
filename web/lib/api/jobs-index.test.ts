@@ -7,6 +7,7 @@ import {
   jobHasRoster,
   jobCreatedAtMs,
   listableJobs,
+  planReadyJobs,
   summarizeSeries,
   statsFromPlayer,
   jobToMatch,
@@ -65,6 +66,20 @@ test('listableJobs keeps only roster-ready jobs, newest first', () => {
   ];
   assert.deepEqual(
     listableJobs(jobs).map((j) => j.jobId),
+    ['d', 'e', 'a'],
+  );
+});
+
+test('planReadyJobs keeps only parsed-or-later jobs, newest first', () => {
+  const jobs = [
+    job({ jobId: 'a', status: 'done', createdAt: '2026-07-10T10:00:00Z' }),
+    job({ jobId: 'b', status: 'scanned', createdAt: '2026-07-16T10:00:00Z' }),
+    job({ jobId: 'c', status: 'parsing', createdAt: '2026-07-15T10:00:00Z' }),
+    job({ jobId: 'd', status: 'parsed', createdAt: '2026-07-14T10:00:00Z' }),
+    job({ jobId: 'e', status: 'recording', createdAt: '2026-07-13T10:00:00Z' }),
+  ];
+  assert.deepEqual(
+    planReadyJobs(jobs).map((j) => j.jobId),
     ['d', 'e', 'a'],
   );
 });

@@ -31,6 +31,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -363,7 +364,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
 
-	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed); err != nil {
+	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed, payload.UseRecapPlan); err != nil {
 		return err
 	}
 	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecorded, ""); err != nil {
@@ -375,6 +376,11 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	// Studio client re-drives render instead of looping on re-record forever.
 	if err := w.clearNotReusableRenderFailures(j.ID); err != nil {
 		logWorkerError(j.ID, "clear not-reusable render failures", err)
+	}
+	if payload.UseRecapPlan {
+		if err := w.invalidateReadyRenders(j.ID); err != nil {
+			logWorkerError(j.ID, "invalidate ready renders after recap capture", err)
+		}
 	}
 	// A guided generate task carries its own immutable render intent, so another
 	// accepted capture cannot change the treatment this capture chains. A
@@ -553,9 +559,42 @@ func (w *RecordWorker) clearNotReusableRenderFailures(id uuid.UUID) error {
 	return errors.Join(errs...)
 }
 
-func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) (retErr error) {
-	if j.KillPlan == nil {
-		return fmt.Errorf("job %s has no kill plan", j.ID)
+// invalidateReadyRenders drops ready/review render status after a recap
+// recapture so Studio does not treat the previous Shorts pack as this reel.
+func (w *RecordWorker) invalidateReadyRenders(id uuid.UUID) error {
+	deleter, ok := w.storage.(interface{ Delete(string) error })
+	if !ok {
+		return fmt.Errorf("storage cannot delete ready renders")
+	}
+	var errs []error
+	for _, variant := range editor.PresetNames() {
+		state, exists, err := w.readRenderVariantState(id, variant)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("read render state %q: %w", variant, err))
+			continue
+		}
+		if !exists {
+			continue
+		}
+		if state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview {
+			continue
+		}
+		key, err := renderplan.RenderVariantStateKey(id, variant)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("render state key %q: %w", variant, err))
+			continue
+		}
+		if err := deleter.Delete(key); err != nil {
+			errs = append(errs, fmt.Errorf("delete render state %q: %w", variant, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool) (retErr error) {
+	sourcePlan, err := recordSourcePlan(w.storage, j, useRecapPlan)
+	if err != nil {
+		return err
 	}
 	// Serialize recording per job: two reels for the same job (each a distinct,
 	// non-deduped task with different segment ids) must not launch the recorder
@@ -563,16 +602,17 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	defer w.lockJob(j.ID)()
 
 	// A reel records only its selected segment(s); an empty selection means the
-	// whole kill plan (the CLI all-kills default). Resolve to concrete ids so
-	// readiness, plan filtering, and accumulation all agree on the same set.
+	// whole source plan (the CLI all-kills default, or every recap round).
+	// Resolve to concrete ids so readiness, plan filtering, and accumulation
+	// all agree on the same set.
 	requested := segmentIDs
 	if len(requested) == 0 {
-		requested = killPlanSegmentIDs(j.KillPlan)
+		requested = killPlanSegmentIDs(sourcePlan)
 	}
 	// requestedPlan scopes only the identity/profile computation below; the
 	// plan actually handed to the recorder is narrowed further to the missing
 	// subset once readiness is known.
-	requestedPlan, err := filterKillPlanSegments(j.KillPlan, requested)
+	requestedPlan, err := filterKillPlanSegments(sourcePlan, requested)
 	if err != nil {
 		return err
 	}
@@ -604,7 +644,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	// Scope the plan handed to the recorder, so everything downstream (HLAE script,
 	// take mapping, recording result, render) derives from the chosen segments
 	// alone. j is a value copy, so j.KillPlan stays the full plan for ordering.
-	recordPlan, err := filterKillPlanSegments(j.KillPlan, missing)
+	recordPlan, err := filterKillPlanSegments(sourcePlan, missing)
 	if err != nil {
 		return err
 	}
@@ -749,7 +789,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	result.CaptureRevision = uuid.NewString()
 	durable := result
 	if hasPrev && recordingProfilesCompatible(prev, result) {
-		durable, err = mergeRecordingResults(prev, result, j.KillPlan)
+		durable, err = mergeRecordingResults(prev, result, sourcePlan)
 		if err != nil {
 			return err
 		}
@@ -2858,6 +2898,26 @@ func putCaptureSelection(store storage.Storage, id uuid.UUID, segmentIDs []strin
 		return err
 	}
 	return store.Put(artifacts.CaptureSelectionKey(id), bytes.NewReader(b))
+}
+
+func recordSourcePlan(store storage.Storage, j job.Job, useRecapPlan bool) (*killplan.Plan, error) {
+	if !useRecapPlan {
+		if j.KillPlan == nil {
+			return nil, fmt.Errorf("job %s has no kill plan", j.ID)
+		}
+		return j.KillPlan, nil
+	}
+	recap, ok, err := recapplan.Load(store, j.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("job %s has no recap plan", j.ID)
+	}
+	if len(recap.Segments) == 0 {
+		return nil, fmt.Errorf("job %s recap plan has no rounds", j.ID)
+	}
+	return &recap, nil
 }
 
 // killPlanSegmentIDs lists every segment id in the plan, in plan order.

@@ -1,0 +1,38 @@
+import type { EditConfig, RenderMode } from './types.ts';
+import { DEFAULT_EDIT_CONFIG, DEFAULT_VARIANT, type ReelIntent } from './reel-store.ts';
+import { editConfigsEqual } from './edit-request.ts';
+
+export const FULL_DEMO_REEL_SUFFIX = 'full-demo' as const;
+
+export type ReelIdentityInput = {
+  matchId: string;
+  playIds: string[];
+  variant?: string;
+  songId?: string;
+  musicVolume?: number;
+  gameVolume?: number;
+  editConfig?: EditConfig;
+};
+
+export function reelIdentity(input: ReelIdentityInput): string {
+  if (input.editConfig?.matchRecap) {
+    return `${input.matchId}__${FULL_DEMO_REEL_SUFFIX}`;
+  }
+  return `${input.matchId}__${input.playIds.join('_')}`;
+}
+
+export function reelContractMatches(
+  existing: Pick<ReelIntent, 'variant' | 'songId' | 'musicVolume' | 'gameVolume' | 'editConfig' | 'mode'>,
+  input: ReelIdentityInput & { mode: RenderMode },
+): boolean {
+  const variant = input.variant ?? DEFAULT_VARIANT;
+  const edit = input.editConfig ?? DEFAULT_EDIT_CONFIG;
+  return (
+    (existing.variant ?? DEFAULT_VARIANT) === variant &&
+    (existing.songId ?? undefined) === (input.songId ?? undefined) &&
+    existing.musicVolume === (input.songId ? input.musicVolume : undefined) &&
+    existing.gameVolume === (input.songId ? input.gameVolume : undefined) &&
+    existing.mode === input.mode &&
+    editConfigsEqual(existing.editConfig, edit)
+  );
+}

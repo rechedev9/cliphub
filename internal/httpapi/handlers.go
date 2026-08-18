@@ -36,6 +36,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/steamresolve"
@@ -642,6 +643,28 @@ func (h *Handlers) GetPlan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, j.KillPlan)
 }
 
+// GetRecapPlan handles GET /api/jobs/{id}/recap-plan.
+func (h *Handlers) GetRecapPlan(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadJob(w, r)
+	if !ok {
+		return
+	}
+	if j.KillPlan == nil {
+		writeError(w, http.StatusConflict, fmt.Sprintf("job not ready (status=%s)", j.Status))
+		return
+	}
+	plan, found, err := recapplan.Load(h.storage, j.ID)
+	if err != nil {
+		internalError(w, "load recap plan", err)
+		return
+	}
+	if !found {
+		writeError(w, http.StatusConflict, "recap plan not ready")
+		return
+	}
+	writeJSON(w, http.StatusOK, plan)
+}
+
 // GetMoments handles GET /api/jobs/{id}/moments.
 func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadJob(w, r)
@@ -822,6 +845,30 @@ func validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string) bo
 	return true
 }
 
+func applyCaptureOverrides(hudMode string, edit renderplan.EditRequest) (string, bool) {
+	if edit.NativeHUD {
+		hudMode = "gameplay"
+	}
+	return hudMode, edit.MatchRecap
+}
+
+func (h *Handlers) requireRecapPlan(w http.ResponseWriter, j job.Job) bool {
+	plan, found, err := recapplan.Load(h.storage, j.ID)
+	if err != nil {
+		internalError(w, "load recap plan", err)
+		return false
+	}
+	if !found {
+		writeError(w, http.StatusConflict, "recap plan not ready")
+		return false
+	}
+	if len(plan.Segments) == 0 {
+		writeError(w, http.StatusConflict, "recap plan has no rounds")
+		return false
+	}
+	return true
+}
+
 // StartRecording handles POST /api/jobs/{id}/record.
 func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadJob(w, r)
@@ -845,6 +892,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	var hudMode string
 	var segmentIDs []string
 	var portraitSafeKillfeed bool
+	var useRecapPlan bool
 	if r.Body != nil {
 		var req struct {
 			Preset     string                 `json:"preset"`
@@ -853,6 +901,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		}
 		switch err := decodeSingleJSONBody(w, r, &req, false); {
 		case err == nil, errors.Is(err, io.EOF):
+			edit := renderplan.NormalizeEditRequest(req.Edit)
 			if req.Preset != "" {
 				preset, ok := editor.PresetByName(req.Preset)
 				if !ok {
@@ -860,23 +909,30 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				hudMode = preset.HUDMode
-				edit := renderplan.NormalizeEditRequest(req.Edit)
 				if err := edit.Validate(); err != nil {
 					writeError(w, http.StatusBadRequest, err.Error())
 					return
 				}
 				portraitSafeKillfeed = preset.KillfeedSource && edit.Format == renderplan.FormatShort9x16
 			}
-			if !validateSegmentSelection(w, j, req.SegmentIDs) {
-				return
+			hudMode, useRecapPlan = applyCaptureOverrides(hudMode, edit)
+			if useRecapPlan {
+				if !h.requireRecapPlan(w, j) {
+					return
+				}
+				segmentIDs = nil
+			} else {
+				if !validateSegmentSelection(w, j, req.SegmentIDs) {
+					return
+				}
+				segmentIDs = req.SegmentIDs
 			}
-			segmentIDs = req.SegmentIDs
 		default:
 			writeError(w, http.StatusBadRequest, "invalid record request JSON")
 			return
 		}
 	}
-	task, err := tasks.NewRecordDemoTask(j.ID, hudMode, segmentIDs, portraitSafeKillfeed)
+	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)
 	if err != nil {
 		internalError(w, "build record task", err)
 		return
@@ -942,9 +998,6 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("unknown preset %q", req.Preset))
 		return
 	}
-	if !validateSegmentSelection(w, j, req.SegmentIDs) {
-		return
-	}
 	intent := renderplan.GenerateIntent{
 		Variant:     preset.Name,
 		MusicKey:    req.Music,
@@ -962,8 +1015,18 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	hudMode, useRecapPlan := applyCaptureOverrides(preset.HUDMode, intent.Edit)
+	segmentIDs := req.SegmentIDs
+	if useRecapPlan {
+		if !h.requireRecapPlan(w, j) {
+			return
+		}
+		segmentIDs = nil
+	} else if !validateSegmentSelection(w, j, segmentIDs) {
+		return
+	}
 	portraitSafeKillfeed := preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16
-	recordTask, err := tasks.NewGenerateRecordDemoTask(j.ID, preset.HUDMode, req.SegmentIDs, portraitSafeKillfeed, intent)
+	recordTask, err := tasks.NewGenerateRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, intent)
 	if err != nil {
 		internalError(w, "build record task", err)
 		return

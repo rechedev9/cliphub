@@ -291,6 +291,10 @@ export class MockApiClient implements ApiClient {
     return fixtureMatches.map((m) => ({ ...m, stats: { ...m.stats } }));
   }
 
+  listPlanReadyMatches(): Promise<Match[]> {
+    return this.listMatches();
+  }
+
   // The offline/dev mock has no persisted orchestrator jobs to rediscover, so it
   // surfaces no series; the /matches series section stays empty here.
   listSeriesSummaries(): Promise<SeriesSummary[]> {
@@ -372,6 +376,10 @@ export class MockApiClient implements ApiClient {
     const uploaded = uploadedPlays.get(matchId);
     if (uploaded) return uploaded.map((p) => ({ ...p }));
     return playsForMatch(matchId);
+  }
+
+  findRecapClips(matchId: string): Promise<Play[]> {
+    return this.findClips(matchId);
   }
 
   async listSongs(): Promise<Song[]> {
