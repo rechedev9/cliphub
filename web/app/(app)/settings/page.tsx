@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StudioInfo } from '@/components/settings/studio-info';
+import { SteamAccount } from '@/components/settings/steam-account';
 
 
 /** Desktop-only application settings. */
@@ -9,15 +10,12 @@ export default function SettingsPage(): ReactNode {
     <div className="flex flex-col gap-8">
       <StudioPageHeader
         title="CONFIGURACIÓN"
-        description="Consulta la versión instalada de ClipHub Studio."
+        description="Consulta la versión instalada y conecta la cuenta de Steam con la que juegas."
       />
-      {/*
-        A single spec sheet, bounded like the shared empty state rather than
-        stretched across the full content column: a four-row `<dl>` at 1440px
-        would be a band of whitespace with four labels floating in it.
-      */}
-      <div className="max-w-2xl">
+      {/* Bound like the empty state; a full-width dl would be a band of labels. */}
+      <div className="flex max-w-2xl flex-col gap-8">
         <StudioInfo />
+        <SteamAccount />
       </div>
     </div>
   );

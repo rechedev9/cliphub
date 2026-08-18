@@ -33,7 +33,7 @@ stream video -> persisted edit plan -> render -> publish pack
 | Go package map | `internal/AGENTS.md` |
 | 12 binaries / cmd leaks | `cmd/AGENTS.md` |
 | `zv` CLI surface | `cmd/zv/AGENTS.md`; contract is `zv flows show` / `workflows show` |
-| Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `web/design.md` |
+| Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `web/design.md` + `frontend-design` skill |
 | Electron / installer | `desktop/GUIDE.md` |
 | Testdata / goldens | `testdata/GUIDE.md` |
 | HLAE experiments | `scripts/hlae/` — not product capture |
@@ -57,7 +57,7 @@ If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
 - Treat `flows show` and `workflows show` as the executable command contract; do not guess flags from prose.
 - Validate the exact argv first, retain `--dry-run --format json` until real media work is approved, and preserve the approved argv when executing.
 - Use `demo players -> demo parse -> demo moments -> demo select -> record -> shorts render` when the player, plays, or order still need review; use `short` only when target and selection policy are complete.
-- Use `stream variants -> stream plan -> human review -> stream render` for VODs.
+- Use `stream fetch -> stream variants -> stream plan -> human review -> stream render` for VODs; skip fetch when the source is already a local MP4.
 - A stream dry-run does not create its `--out` artifact; persist each approved plan before invoking a dependent stage.
 - The persisted stream edit plan is canonical for ranges, order, crop, audio, fades, text, and `music.volume`; do not bolt ad hoc FFmpeg flags around it.
 - Discover task-specific guidance with `.\bin\zv.exe skills list --format json` rather than duplicating skill tutorials here.
@@ -84,6 +84,22 @@ The output is an anomaly report, never a verdict of guilt, and every surface mus
 ClipHub prepares a report dossier and links the official channels; it must never submit a report, automate a submission, or help produce several reports against one account.
 Valve decides cheating bans from its own detection, not from report volume, and coordinated mass reporting is both ineffective and against the Steam Subscriber Agreement.
 Do not add a feature that files reports on the user's behalf, and do not weaken the `insufficient_data` and confidence gates that stop a thin sample from producing a verdict.
+
+## Share Codes And Steam
+
+A CS2 match sharing code (`CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx`) is bijective base-57 over a 57-character dictionary; `internal/sharecode` decodes it to `matchid`, `outcomeid` and `tokenid` with pure arithmetic, no network and no credentials. `web/lib/sharecode.ts` validates shape only — never port the base-57 decode to TypeScript, because two implementations of one bijection is how they start disagreeing.
+
+Listing recent matches is a different, cheaper capability: Valve's `ICSGOPlayers_730/GetNextMatchSharingCode` walks share codes from a known starting code. It needs the player's SteamID64, the revocable authentication code from `help.steampowered.com` (`appid=730&issueid=128`), and that player's Steam Web API key. Those three live in `<dataDir>/steam/account.json`. They are not a password.
+
+Turning a share code into a downloadable `.dem` still needs a logged-in CS2 Game Coordinator session. `internal/steamgc` owns the wire format (`k_EMsgGCCStrike15_v2_MatchListRequestFullGameInfo` 9147 out, `k_EMsgGCCStrike15_v2_MatchList` 9139 back; the demo URL arrives as the `map` field of the last `roundstatsall` entry). `internal/steamresolve` owns decode, history, and fetch. `internal/steamclient` is the go-steam session; httpapi must not import it.
+
+- Ajustes collects SteamID + authentication code + Web API key. Never persist `ZV_STEAM_USERNAME` / `ZV_STEAM_PASSWORD` / `ZV_STEAM_GUARD`. Password is prompted on the first download, held in process memory, or read from those env vars. Never log it, never echo it into an error.
+- The account to connect is **the one the user plays on**. The match history lives in that account, so a secondary bot account enumerates nothing.
+- Steam allows one CS2 session per account, so opening the GC disconnects a live match. Touch the GC **only on an explicit user action**, keep the session short, and disconnect when done. Never poll it, never open it at startup, and keep saying so in the UI.
+- Decoding must keep working when Steam is not configured: "we know which match this is, we just cannot fetch it" is a real answer and returns `status: "decoded"`, not an error. Download is `POST /api/steam/import` and ends in the same `CreateJob` path as `/upload`.
+- The two ids exceed 2^53, so they cross the HTTP boundary as strings. Parsing them as JavaScript numbers silently corrupts them.
+- `go-steam` and `demoinfocs-golang` both register protobuf extension 50000. `internal/allowproto` must stay imported by the orchestrator so the second registration is ignored. `internal/steamclient` cannot be imported from `httpapi`.
+- `internal/steamclient` cannot be exercised by the test suite: it needs real credentials. Treat it as unverified until someone runs it against a live account.
 
 ## Approval And Media
 
@@ -118,7 +134,7 @@ Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageMana
 There is no hosted CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
 Nothing re-checks the work on GitHub, so a gate skipped locally is a gate that never runs.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
-Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser Playwright is removed; landing has no lint/test scripts.
+Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser E2E is Playwright in `web/e2e/`, run out of the pre-commit gate with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
 
 ```powershell
 .\scripts\build.ps1
@@ -152,7 +168,7 @@ pnpm --dir landing run build
 ```
 
 The Electron UI E2E is manual and expensive: build, run `pnpm --dir desktop run assemble`, then `pnpm --dir desktop run test:e2e:ui` only when that product flow needs end-to-end verification.
-Before frontend work, read `web/CLAUDE.md`; before visual work, also read `web/design.md`.
+Before frontend work, read `web/CLAUDE.md`; before visual work, load the `frontend-design` skill and read `web/design.md`.
 All browser API access must remain same-origin through server proxy routes, keep orchestrator URLs/tokens server-side, validate IDs before upstream URL construction, and preserve `503 {code: "service_unavailable"}`.
 Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` and keep renderer access behind preload/IPC.
 

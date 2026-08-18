@@ -11,6 +11,7 @@ import {
   Layers,
   Newspaper,
   Radar,
+  Rocket,
   Settings,
   ShieldAlert,
   UploadCloud,
@@ -43,8 +44,9 @@ const NAV_GROUPS = [
 
 type NavGroupId = (typeof NAV_GROUPS)[number]['id'];
 
-/** Icons and phase grouping; chrome docks to the footer. */
-const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroupId | 'chrome'; stream?: boolean }> = {
+/** Icons and grouping. `entry` has no heading; `chrome` docks to the footer. */
+const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroupId | 'chrome' | 'entry'; stream?: boolean }> = {
+  '/onboarding': { icon: Rocket, group: 'entry' },
   '/matches': { icon: Crosshair, group: 'production' },
   '/upload': { icon: UploadCloud, group: 'production' },
   '/tactical': { icon: Radar, group: 'production' },
@@ -58,6 +60,7 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroupId | 'chrome'
   '/settings': { icon: Settings, group: 'chrome' },
 };
 
+const ENTRY_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'entry');
 const CHROME_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'chrome');
 
 /** A nav href is active for its exact page and any nested route under it. */
@@ -85,6 +88,14 @@ export function AppSidebar(): ReactElement {
       </SidebarHeader>
 
       <SidebarContent className="gap-0 pt-5">
+        <SidebarGroup className="gap-1.5 p-0 pb-4">
+          <SidebarMenu className="gap-0.5">
+            {ENTRY_SECTIONS.map((section) => (
+              <NavRow key={section.href} section={section} pathname={pathname} />
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.id} className="gap-1.5 p-0 pb-4">
             {/* [font-size:…] rather than `text-meta`: tailwind-merge files an

@@ -14,10 +14,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/allowproto"
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/steamclient"
+	"github.com/rechedev9/cliphub/internal/steamresolve"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -109,6 +112,20 @@ func run() error {
 	faceitFollows, err := faceit.NewFollowStore(filepath.Join(cfg.DataDir, "faceit", "followed.json"), time.Now)
 	if err != nil {
 		return fmt.Errorf("faceit follow store: %w", err)
+	}
+	steamAccounts, err := steamresolve.NewAccountStore(filepath.Join(cfg.DataDir, "steam", "account.json"), time.Now)
+	if err != nil {
+		return fmt.Errorf("steam account store: %w", err)
+	}
+	_ = allowproto.Loaded
+	steamFactory := func(session steamresolve.Session) steamresolve.Transport {
+		return steamclient.New(session)
+	}
+	var steamResolver *steamresolve.Service
+	if session := steamresolve.SessionFromEnv(); session.Complete() {
+		steamResolver = steamresolve.NewService(steamFactory(session))
+	} else {
+		steamResolver = steamresolve.NewService(nil)
 	}
 
 	var repo orchestratorJobRepository
@@ -278,6 +295,9 @@ func run() error {
 		httpapi.WithGenerateIntentStore(generateIntents),
 		httpapi.WithPublishAssistantTrends(youtubeTrends),
 		httpapi.WithFaceit(faceitClient, faceitFollows),
+		httpapi.WithSteamResolver(steamResolver),
+		httpapi.WithSteamTransportFactory(steamFactory),
+		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
 	)
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)

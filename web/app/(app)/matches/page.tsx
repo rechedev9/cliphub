@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Clapperboard, Layers, Swords, UploadCloud } from 'lucide-react';
+import { ChevronRight, Layers, Rocket, Swords } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import type { Match } from '@/lib/api/types';
@@ -27,13 +27,7 @@ function isServiceUnavailable(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
 }
 
-/**
- * Landing state when there are no matches and no series at all (not merely
- * filtered out): the dashboard is the first screen, so it must route into both
- * content flows instead of showing the filter-oriented empty state. When the
- * local analysis service is offline it says so — and carries a status tag, so
- * "the service is down" is not communicated by a sentence alone.
- */
+/** Empty Partidas state: Inicio is the only first-run door. */
 function NoMatchesYet({ offline }: { offline: boolean }) {
   return (
     <StudioEmptyState
@@ -41,41 +35,24 @@ function NoMatchesYet({ offline }: { offline: boolean }) {
       title="Aún no hay partidas"
       description={
         offline
-          ? 'No se pudo contactar con el servicio de análisis local. Arráncalo y recarga, o analiza una demo para empezar.'
-          : 'Analiza una demo de CS2 o corta clips de un stream para empezar.'
+          ? 'No se pudo contactar con el servicio de análisis local. Arráncalo y recarga, o empieza en Inicio.'
+          : 'Todavía no has analizado nada. Inicio explica las tres formas de empezar y cuál te conviene.'
       }
       compact
       note={offline ? <StatusTag tone="danger" dot>Servicio local sin conexión</StatusTag> : undefined}
       actions={
-        <>
-          <Button asChild variant="hero">
-            <Link href="/upload">
-              <UploadCloud aria-hidden />
-              ANALIZAR UNA DEMO
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="font-display uppercase tracking-wide">
-            <Link href="/streams">
-              <Clapperboard aria-hidden />
-              CLIPS DE STREAM
-            </Link>
-          </Button>
-        </>
+        <Button asChild variant="hero">
+          <Link href="/onboarding">
+            <Rocket aria-hidden />
+            EMPIEZA AQUÍ
+          </Link>
+        </Button>
       }
     />
   );
 }
 
-/**
- * The SERIES section above the matches list: one compact row per uploaded
- * bo3/bo5 series, linking into its /series/{id} view. The maps of a series still
- * list individually below (that is the Partidas model); this row is the way to
- * reach the series as a whole after a restart.
- *
- * It uses `studio-panel`'s own radius rather than the `rounded-xl` it used to
- * override it with, so a series row and the match rows directly beneath it stop
- * being two different card languages on one page.
- */
+/** Compact series rows; member maps still list individually below. */
 function SeriesSection({
   series,
   onDelete,
@@ -144,9 +121,7 @@ export default function MatchesPage() {
     void load();
   }, [load]);
 
-  // A match delete throws (409 busy / 503 offline) so the row surfaces it; a
-  // success re-fetches both lists so the deleted entry drops (and a deleted
-  // series' member matches vanish, since the server is the source of truth).
+  // Deletes throw so the row can surface 409/503; success re-fetches both lists.
   const deleteMatch = useCallback((jobId: string) => api.deleteMatch(jobId), []);
   const deleteSeries = useCallback((seriesId: string) => api.deleteSeries(seriesId), []);
   const refresh = useCallback(() => {

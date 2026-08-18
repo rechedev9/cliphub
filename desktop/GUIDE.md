@@ -79,6 +79,12 @@ Studio never reads the value it removes.
 Packaging still strips `XAI_API_KEY` from the build, web, and electron-builder environments, and the installer manifest contains no credential resource.
 That scrub is defence in depth against an operator's unrelated key leaking into a build, not a feature: nothing in ClipHub reads the value.
 
+The optional Steam login (`ZV_STEAM_USERNAME`, `ZV_STEAM_PASSWORD`, `ZV_STEAM_GUARD`) is the only credential Studio forwards from the host environment, and only because nothing else can supply a Game Coordinator session.
+`createOrchestratorEnvironment` deliberately builds a closed environment instead of spreading `process.env`, so those three are copied across explicitly by `steamEnvironment()` (`desktop/src/steam-environment.ts`).
+Without that hop a packaged Studio would tell the user to set three variables and then ignore all three, because the orchestrator would never see them.
+Only non-empty values are forwarded, so an unset variable stays absent rather than arriving as an empty string that reads as configured.
+The authentication code, SteamID and Web API key are not env vars: Ajustes writes them to `<userData>/data/steam/account.json` through the orchestrator. A password typed at first download stays in orchestrator memory and is never written to disk.
+
 ## Build the installer (on Windows)
 
 Prerequisites: Go 1.26+, Node.js + pnpm, and the web deps installed.

@@ -38,6 +38,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/steamresolve"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -128,6 +129,14 @@ type Handlers struct {
 	faceit            *faceit.Client
 	faceitFollows     *faceit.FollowStore
 	faceitCache       faceitResponseCache
+	steamResolver     *steamresolve.Service
+	steamTransport    steamresolve.Transport
+	steamFactory      func(steamresolve.Session) steamresolve.Transport
+	steamAccounts     *steamresolve.AccountStore
+	steamHistory      *steamresolve.HistoryClient
+	steamFetcher      *steamresolve.Fetcher
+	steamSessionMu    sync.Mutex
+	steamSessionCache steamresolve.Session
 }
 
 type Option func(*Handlers)
@@ -226,6 +235,31 @@ func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
 	return func(h *Handlers) {
 		h.faceit = client
 		h.faceitFollows = follows
+	}
+}
+
+// WithSteamAccount wires the revocable history account (auth code + Web API key).
+func WithSteamAccount(store *steamresolve.AccountStore, history *steamresolve.HistoryClient, fetcher *steamresolve.Fetcher) Option {
+	return func(h *Handlers) {
+		h.steamAccounts = store
+		h.steamHistory = history
+		h.steamFetcher = fetcher
+	}
+}
+
+// WithSteamTransport injects a Game Coordinator transport. Tests use it so
+// import/resolve never open a real Steam session.
+func WithSteamTransport(t steamresolve.Transport) Option {
+	return func(h *Handlers) {
+		h.steamTransport = t
+	}
+}
+
+// WithSteamTransportFactory builds a short-lived GC transport from a session.
+// The orchestrator supplies steamclient.New here so httpapi never imports go-steam.
+func WithSteamTransportFactory(f func(steamresolve.Session) steamresolve.Transport) Option {
+	return func(h *Handlers) {
+		h.steamFactory = f
 	}
 }
 
@@ -373,33 +407,41 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 		seriesID = parsed.String()
 	}
 
+	created, err := h.persistAndEnqueueDemo(r.Context(), demo, demoFileName, cfg.TargetSteamID, seriesID, effectiveRules)
+	if err != nil {
+		internalError(w, "admit uploaded demo", err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":     created.ID,
+		"status": created.Status,
+	})
+}
+
+// persistAndEnqueueDemo stores a validated demo stream and queues parse or roster scan.
+func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fileName, targetSteamID, seriesID string, effectiveRules rules.Rules) (*job.Job, error) {
 	j := &job.Job{
 		ID:            uuid.New(),
 		Status:        job.StatusQueued,
 		SeriesID:      seriesID,
-		DemoFileName:  demoFileName,
-		TargetSteamID: cfg.TargetSteamID,
+		DemoFileName:  fileName,
+		TargetSteamID: targetSteamID,
 		Rules:         effectiveRules,
 	}
 	key := fmt.Sprintf("demos/%s.dem", j.ID)
 	j.DemoPath = key
 
-	// Stream upload to storage while hashing in one pass.
 	h256 := sha256.New()
 	tee := io.TeeReader(demo, h256)
 	if err := h.storage.Put(key, tee); err != nil {
-		internalError(w, "store demo", err)
-		return
+		return nil, fmt.Errorf("store demo: %w", err)
 	}
 	j.DemoSHA256 = hex.EncodeToString(h256.Sum(nil))
 
-	if err := h.repo.Create(r.Context(), j); err != nil {
-		internalError(w, "create job", err)
-		return
+	if err := h.repo.Create(ctx, j); err != nil {
+		return nil, fmt.Errorf("create job: %w", err)
 	}
 
-	// With a target the job parses immediately; without one it scans the roster
-	// so the user can pick a target before the full parse.
 	taskKind := "parse"
 	build := tasks.NewParseDemoTask
 	if j.TargetSteamID == "" {
@@ -408,20 +450,14 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 	task, err := build(j.ID)
 	if err != nil {
-		internalError(w, "build "+taskKind+" task", err)
-		return
+		return nil, fmt.Errorf("build %s task: %w", taskKind, err)
 	}
 	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
 		return h.persistJobQueueDecision(j.ID, taskKind, decision)
 	}); err != nil {
-		internalError(w, "enqueue "+taskKind+" task", err)
-		return
+		return nil, fmt.Errorf("enqueue %s task: %w", taskKind, err)
 	}
-
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":     j.ID,
-		"status": j.Status,
-	})
+	return j, nil
 }
 
 // ListJobs handles GET /api/jobs. With ?series_id=<uuid> it returns only that

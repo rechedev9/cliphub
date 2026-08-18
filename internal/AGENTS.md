@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-41 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
+43 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
 
 ## WHERE TO LOOK
 
@@ -27,6 +27,11 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Pipeline errors | `obs` | Journal is authoritative; do not mutate in-memory counters |
 | CheaterDetect | `anticheat` | No parser import. Anomaly report, never guilt |
 | FACEIT index | `faceit` | CLI only. Key never serializes. Stats ≠ clip source |
+| CS2 share code | `sharecode` | Offline decode only. Shape check in `web/lib/sharecode.ts` |
+| CS2 Game Coordinator wire | `steamgc` | Encode/decode only. No Steam session, no network |
+| Share code, history, fetch | `steamresolve` | Auth-code account + Web API walk + Valve CDN download. No go-steam |
+| go-steam GC session | `steamclient` | Orchestrator only. Do not import from `httpapi` |
+| Proto registration clash | `allowproto` | First internal import in `zv-orchestrator` |
 | Tactical scan | `tactical`, `tacticalplan`, `radarmap` | `tacticalplan` must not import a parser |
 | Smoke catalog | `lineups`, `utilityaudit` | Audit is CLI-only |
 | Sponsor plate / font | `keydropbanner`, `mediafont` | Stream schema revalidates banner codes; do not import assets into it |

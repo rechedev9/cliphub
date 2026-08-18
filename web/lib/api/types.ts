@@ -137,6 +137,14 @@ export type AggregatedSeriesPlayer = DemoPlayer & { mapsPresent: number };
 /** Proxy code when the local orchestrator is unreachable. */
 export const SERVICE_UNAVAILABLE_CODE = 'service_unavailable';
 export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
+export const STEAM_CODES = {
+  credentialsRequired: 'steam_credentials_required',
+  historyNotConfigured: 'history_not_configured',
+  needKnownCode: 'need_known_code',
+  demoUnavailable: 'demo_unavailable',
+  accountInvalid: 'steam_account_invalid',
+  invalidShareCode: 'invalid_share_code',
+} as const;
 
 /** Statuses at or past which the kill plan exists and stays available. */
 export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set([

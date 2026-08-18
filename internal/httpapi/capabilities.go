@@ -53,7 +53,17 @@ func (h *Handlers) GetCapabilities(w http.ResponseWriter, _ *http.Request) {
 			"tools":         resolveTools(c.StreamTools),
 		},
 		"faceit": map[string]any{"enabled": c.FaceitEnabled},
+		"steam": map[string]any{
+			"enabled":           h.gcConfigured(),
+			"gcConfigured":      h.gcConfigured(),
+			"historyConfigured": h.historyConfigured(),
+		},
 	})
+}
+
+func (h *Handlers) historyConfigured() bool {
+	acc, err := h.loadSteamAccount()
+	return err == nil && acc.HistoryConfigured()
 }
 
 // resolveTools fills Configured/Accessible from the current PATH and disk state.

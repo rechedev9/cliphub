@@ -2,12 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_SECTIONS, navSection } from './nav.ts';
 
-test('nav: exactly 11 sections', () => {
-  assert.equal(NAV_SECTIONS.length, 11);
+test('nav: the entry section plus eleven numbered destinations', () => {
+  assert.equal(NAV_SECTIONS.length, 12);
 });
 
-test('nav: numbers are zero-padded and sequential from 01', () => {
-  NAV_SECTIONS.forEach((section, index) => {
+test('nav: Inicio is 00 so the eleven destinations keep their numbers', () => {
+  // The numbers are spoken in the command strip and in the design handoff's own
+  // piece codes, so seating Inicio must not renumber anything below it.
+  const [entry, ...destinations] = NAV_SECTIONS;
+  assert.equal(entry.number, '00');
+  assert.equal(entry.href, '/onboarding');
+  destinations.forEach((section, index) => {
     assert.equal(section.number, String(index + 1).padStart(2, '0'));
   });
 });

@@ -2,6 +2,15 @@
 
 This file is loaded when working under `web/`; the repo-wide rules live in the root `CLAUDE.md`.
 
+## Visual work
+
+Before any CSS, component chrome, layout, or user-visible copy:
+
+1. Load the `frontend-design` skill (`.claude/skills/frontend-design/SKILL.md`).
+2. Read `design.md` and follow it exactly.
+
+Do not introduce a parallel token set.
+
 ## Web frontend (web/)
 
 `web/` is a standalone Next.js 16 app (App Router, React 19, Tailwind 4): the no-login `/upload` entry, match/clip/video/stream/tactical views, and a typed API client under `web/lib/api`.
@@ -18,6 +27,11 @@ When the orchestrator is unreachable the route returns `503 {code: "service_unav
 Keep that contract when adding `/api/demos/*` routes; do not let a bare `fetch` throw into a code-less 500.
 
 Real `.dem` files are never committed, so the fixture stays local.
+
+Share codes: `web/lib/sharecode.ts` validates SHAPE only — 25 characters over the 57-character dictionary. The base-57 decode lives in the Go package `internal/sharecode` and must never be ported here; two implementations of one bijection is how they start disagreeing.
+`matchId` and `outcomeId` cross the `/api/steam/sharecode` boundary as **strings**, because they exceed 2^53 and `Number()` silently corrupts them. Keep them strings everywhere, tests included.
+A `decoded` response is a success, not a failure: it means the code is valid but the Game Coordinator has not returned a demo URL. Download is `POST /api/steam/import` (same job pipeline as `/upload`). `409 steam_credentials_required` opens the login dialog; that password is not persisted. Only `service_unavailable` means the local service is down, and the UI must keep those two apart.
+Ajustes stores the revocable authentication code, SteamID and Web API key through `/api/steam/account`. It never writes a Steam password.
 
 ## TypeScript style (web/)
 
@@ -84,6 +98,9 @@ React:
 Testing:
 
 - Unit tests are `lib/**/*.test.ts` on `node:test`, run with `pnpm run test:unit` (Node strips types natively; relative imports keep the `.ts` extension, allowed by `allowImportingTsExtensions`).
-- Browser E2E/Playwright was removed by project policy; integration coverage lives in Go HTTP/worker tests and targeted manual smoke commands such as `scripts/smoke-real.ps1`.
+- Browser E2E is Playwright under `e2e/`, run with `pnpm run test:e2e` (the `playwright test` CLI). It verifies the `design.md` presentation contract — token ramps, the type scale, shell geometry, focus and target sizes, the `--shell-depth` gates, and zero horizontal overflow at the six validation widths — plus the `/upload` roster flow with the three `/api/demos/*` proxy calls stubbed at the network boundary.
+- The suite drives a **production build** (`next build && next start`), not `next dev`: the dev server's HMR client never completes its handshake under Playwright and the app-router bootstrap stalls behind it, so React creates the root container and never attaches the tree — every interaction test would see server HTML with no handlers. Pass `E2E_SKIP_BUILD=1` to reuse an existing `.next`.
+- Assert tokens through the parsers in `e2e/contract.ts`, never as literal strings: the production minifier rewrites `oklch(0.128 0.02 264)` to `oklch(12.8% .02 264)` and `380ms` to `.38s`, so a text comparison pins the minifier instead of the contract and passes in dev while failing in the build that ships.
+- E2E is not in the pre-commit gate — it needs a build and a server. Run it by hand when the shell, tokens, or the upload flow change. Deeper integration coverage still lives in Go HTTP/worker tests and `scripts/smoke-real.ps1`.
 - A test double for an external client (e.g. a fake `SupabaseClient`) types only the call surface it fakes and is cast once at creation with `as unknown as <ClientType>` plus a comment; that is the sole sanctioned use of a double cast.
 - Bug fixes need a regression test, same as Go.

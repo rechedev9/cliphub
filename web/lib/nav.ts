@@ -1,5 +1,6 @@
-/** Numbered Studio nav; sidebar grouping lives in NAV_META, not here. */
+/** Numbered Studio nav. Inicio is `00` so the other section numbers stay put. */
 export const NAV_SECTIONS = [
+  { number: '00', label: 'Inicio', href: '/onboarding' },
   { number: '01', label: 'Partidas', href: '/matches' },
   { number: '02', label: 'Subir demo', href: '/upload' },
   { number: '03', label: 'Táctica', href: '/tactical' },

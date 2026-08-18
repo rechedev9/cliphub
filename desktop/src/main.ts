@@ -1,14 +1,4 @@
-// ClipHub Studio - Electron main process.
-//
-// This is the desktop wrapper around Local Studio: it boots the same two
-// processes the local-studio.ps1 launcher does (the Go orchestrator and the
-// Next.js server in local mode), then shows the web UI in a native window.
-// Capture (HLAE/CS2) is driven by the orchestrator exactly as before; Electron
-// only replaces the "install Node, run a script, open a browser" friction.
-//
-// Both children bind loopback on per-install ports persisted in user data. The
-// ports stay stable across launches when available and are reallocated if a
-// stray process has claimed one.
+// Desktop wrapper: boot the orchestrator and Next server, then show Studio.
 
 import {
   app,
@@ -44,6 +34,7 @@ import {
 } from './window-state';
 import { lastLines } from './log-tail';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
+import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
 import { ProcessSession, type LaunchedProcess } from './process-session';
@@ -58,48 +49,29 @@ import {
 } from './studio-settings-ipc';
 import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboard-ipc';
 
-// ClipHub reads XAI_API_KEY nowhere: no model provider is part of the
-// product. An operator's own key can still reach this process by ordinary
-// environment inheritance, so delete the name before anything is spawned —
-// every child (the Next.js server, zv-orchestrator, and the PowerShell that
-// expands runtime-tool archives) inherits process.env, and none of them has any
-// business receiving it.
+// ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
 
-// Every loopback server and health check binds/targets this host; named once so
-// the value that couples all the URLs below is not a scattered magic string.
+// Every loopback bind and health check uses this host.
 const LOOPBACK_HOST = '127.0.0.1';
 
-// Electron's lock is OS-backed, but its namespace comes from userData. Acquire
-// the packaged lock under canonical appData before restoring any explicit
-// profile; dev/e2e remains profile-scoped so isolated tests can run together.
+// Packaged lock is under canonical appData; dev/e2e stays profile-scoped.
 const ownsElectronInstance = requestCanonicalSingleInstanceLock(app);
 if (!ownsElectronInstance) {
   app.quit();
   process.exit(0);
 }
 
-// main.ts compiles to dist/main.js, so __dirname is <app>/dist at runtime while
-// loading.html and (in dev) build-resources still live one level up at the app
-// root. appRoot restores the original main.js-at-root resolution, so every
-// bundled-file path below stays exactly what it was before the TS move.
+// Compiled to dist/main.js; bundled files still live one level up.
 const appRoot = path.join(__dirname, '..');
 
-/**
- * Resolves a bundled resource for both the packaged app and `electron .` (dev).
- * Both read the same assembled layout: packaged from process.resourcesPath, dev
- * from ./build-resources (run `npm run assemble` first to produce it), so the
- * Next server always has its .next/static staged next to server.js.
- */
+/** Packaged: process.resourcesPath. Dev: ./build-resources after assemble. */
 function resourcePath(...parts: string[]): string {
   const base = app.isPackaged ? process.resourcesPath : path.join(appRoot, 'build-resources');
   return path.join(base, ...parts);
 }
 
-// Spawn zv-orchestrator directly instead of `zv serve`: zv only delegates to
-// the orchestrator binary next to it, and killing the zv intermediary on app
-// quit would leave the real server running as an orphan (holding its port and
-// the SQLite job db) since child.kill() does not reach grandchildren.
+// Spawn the orchestrator directly: killing `zv serve` would orphan the real server.
 const orchestratorExe = resourcePath(
   'bin',
   process.platform === 'win32' ? 'zv-orchestrator.exe' : 'zv-orchestrator',
@@ -112,24 +84,18 @@ const nextServer = resourcePath('web', 'server.js');
 const dataDir = path.join(app.getPath('userData'), 'data');
 const musicDir = path.join(dataDir, 'music');
 
-// All child output is mirrored to this file so a failed boot is diagnosable
-// from a user report: the packaged app has no console, so stdout alone is
-// invisible. The error screen shows its tail.
+// Packaged stdout is invisible; the error screen shows the tail of this log.
 const logFile = path.join(app.getPath('userData'), 'studio.log');
 let logStream: fs.WriteStream | null = null;
 function logLine(text: string): void {
   process.stdout.write(text);
   try {
     if (!logStream) {
-      // Rotate rather than truncate: a crash right before this run's launch
-      // (e.g. an install that never got past its previous boot) would
-      // otherwise vanish the moment this run's first line is written, so
-      // keep one previous run's log around for a bug report.
+      // Keep one previous log so a crash on the last boot is still reportable.
       try {
         fs.renameSync(logFile, `${logFile}.1`);
       } catch {
-        // no previous log (first launch ever) or rename failed; either way
-        // this run's log still gets written below
+        // First launch or rename failed; this run's log is still written below.
       }
       logStream = fs.createWriteStream(logFile, { flags: 'w' });
     }
@@ -153,22 +119,12 @@ function logTail(maxLines = 40): string {
 let mainWindow: BrowserWindow | null = null;
 let activeWebOrigin: string | null = null;
 
-/**
- * Returns the main window only if it exists and Electron hasn't torn it down
- * yet, otherwise null. The window can disappear out from under any async
- * continuation (boot() awaits ports, downloads, child-process health checks;
- * the user can close the window, or a fatal renderer crash can destroy it, at
- * any point during those awaits), so every place that touches the window after
- * an await must go through this and bail on null instead of assuming it is
- * still there.
- */
+/** Null if the window was closed or destroyed during an await. */
 function aliveWindow(): BrowserWindow | null {
   return mainWindow !== null && !mainWindow.isDestroyed() ? mainWindow : null;
 }
 
-// Origins the window is allowed to navigate to on its own, populated once the
-// boot-time ports are known (see boot()). Referenced by the handlers below via
-// closure, so it is safe to register those handlers before the ports exist.
+// Loopback origins filled once boot() knows the ports.
 const allowedOrigins = new Set<string>();
 
 /** True if url's origin is one of the loopback servers we just spawned. */
@@ -183,23 +139,13 @@ function isLoopbackOrigin(url: string): boolean {
 // loading.html lives at the app root (one level up from dist/).
 const loadingHtmlPath = path.join(appRoot, 'loading.html');
 
-// The exact file:// URL for loading.html, computed once: the will-navigate
-// guard below allows navigating straight to this URL and nothing else under
-// file:/data:, so a page can never navigate the window to an arbitrary local
-// file or an attacker-crafted data: payload.
+// Only this file: URL is allowed under file:/ besides the error screen.
 const loadingFileUrl = pathToFileURL(loadingHtmlPath).href;
 
-// data: URLs the main process itself generated and is currently showing (only
-// showErrorScreen creates these). Cleared and repopulated with just the
-// latest one on every call, so at most one data: URL is ever "trusted" at a
-// time; that is the (b) half of the will-navigate allowlist alongside (a)
-// loadingFileUrl above.
+// At most one main-process data: URL is trusted at a time (the error screen).
 const allowedInternalUrls = new Set<string>();
 
-// Fake, unresolvable "URL" the error screen's retry button links to. The
-// sandboxed preload exposes only the Studio settings bridge, so
-// the static error page still uses a plain <a href> intercepted by
-// will-navigate to request a retry; Chromium never actually resolves this host.
+// Error-screen retry href; will-navigate intercepts it and never resolves it.
 const RETRY_URL = 'https://retry.cliphub.invalid/';
 
 const windowFile = path.join(app.getPath('userData'), 'window.json');
@@ -212,8 +158,7 @@ function loadWindowState(): WindowState {
       screen.getAllDisplays().map((display) => display.workArea),
     );
   } catch {
-    // Missing file or unparseable JSON; validateWindowState(undefined) returns
-    // the same fallback the inline check used.
+    // Missing or unparseable; validateWindowState(undefined) is the fallback.
     return fitWindowStateToWorkAreas(
       validateWindowState(undefined),
       screen.getAllDisplays().map((display) => display.workArea),
@@ -226,9 +171,7 @@ function saveWindowBounds(): void {
   const win = aliveWindow();
   if (win === null) return;
   try {
-    // getNormalBounds(), not getBounds(): while maximized, getBounds() would
-    // report the full-screen size, so un-maximizing next launch would
-    // restore into that instead of a sane windowed size.
+    // getNormalBounds: getBounds() while maximized would persist the full screen.
     const bounds = win.getNormalBounds();
     fs.writeFileSync(windowFile, JSON.stringify({ ...bounds, isMaximized: win.isMaximized() }));
   } catch (err) {
@@ -241,9 +184,7 @@ function saveWindowBounds(): void {
 let renderProcessGoneReloaded = false;
 let renderProcessGoneResetTimer: NodeJS.Timeout | null = null;
 
-// How long a reloaded page must stay up before an unrelated crash hours later
-// gets its own free reload again, instead of the stale flag from a long-past
-// crash sending it straight to the error screen.
+// After this, a later unrelated crash gets its own free reload.
 const RENDER_CRASH_RESET_DELAY_MS = 60_000;
 
 function createWindow(): BrowserWindow {
@@ -253,51 +194,34 @@ function createWindow(): BrowserWindow {
     backgroundColor: '#0a0a0a',
     title: 'ClipHub Studio',
     webPreferences: {
-      // Keep Chromium's timer and compositor throttling enabled whenever the
-      // window is hidden or occluded. This is explicit because disabling it on
-      // any future webContents would keep the GPU awake in the background.
+      // Leave throttling on when hidden so the GPU can sleep.
       backgroundThrottling: true,
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, 'preload.js'),
       sandbox: true,
-      // Packaged users have no menu and should never land in DevTools by
-      // accident; dev keeps it open for diagnosis (packaged-side diagnosis
-      // is the studio.log tail shown on the error screen instead).
+      // Packaged users have no menu; diagnosis is the studio.log tail.
       devTools: !app.isPackaged,
     },
   });
   mainWindow = win;
-  // The embedded web UI titles itself "ClipHub" (the shared browser
-  // product); the native window keeps the desktop product name instead of
-  // adopting whatever document.title the page sets.
+  // Keep the desktop product name; the page titles itself "ClipHub".
   win.on('page-title-updated', (event) => event.preventDefault());
   win.removeMenu();
   if (isMaximized) win.maximize();
   win.on('close', saveWindowBounds);
-  // The window can be destroyed (user closes it, or Chromium tears it down
-  // after a fatal render-process crash) while boot() or a post-boot watcher
-  // is mid-await; clearing the reference lets aliveWindow() catch every one
-  // of those spots instead of them throwing into a dead BrowserWindow.
+  // Clear the ref so aliveWindow() fails closed if boot() is still awaiting.
   win.on('closed', () => {
     mainWindow = null;
   });
 
-  // Deny every window.open (no popups in a kiosk-style desktop wrapper);
-  // an http(s) target that isn't our own loopback server is handed to the
-  // user's real browser instead of silently vanishing.
+  // No popups; non-loopback http(s) opens in the system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url) && !isLoopbackOrigin(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  // Same idea for in-window navigation: only our own orchestrator/web
-  // origins, the loading.html file, and the error screen's own current data:
-  // URL may navigate the window directly. Everything else - including any
-  // other data:/file: URL - is blocked and, if http(s), opened externally
-  // instead. The retry link on the error screen is a special case: it is
-  // intercepted here and turned into a real retryBoot() call rather than
-  // ever being allowed to "navigate" anywhere.
+  // Only loopback, loading.html, and the current error data: URL may navigate.
   win.webContents.on('will-navigate', (event, url) => {
     if (url === RETRY_URL) {
       event.preventDefault();
@@ -320,20 +244,14 @@ function createWindow(): BrowserWindow {
       renderProcessGoneReloaded = true;
       const alive = aliveWindow();
       if (alive !== null) alive.reload();
-      // Only treat the crash flag as "used up" for a while: once the reload
-      // has stood for RENDER_CRASH_RESET_DELAY_MS without a further crash,
-      // reset it so a later, unrelated crash still gets its own free reload
-      // instead of going straight to the error screen.
+      // Reset after the delay so a later unrelated crash still gets one reload.
       renderProcessGoneResetTimer = setTimeout(() => {
         renderProcessGoneReloaded = false;
         renderProcessGoneResetTimer = null;
       }, RENDER_CRASH_RESET_DELAY_MS);
       return;
     }
-    // A second crash within the window above means the reload didn't fix
-    // whatever is wrong (a fatal Chromium bug, a corrupted profile); show the
-    // error screen instead of silently reloading forever and leaving a dead
-    // window.
+    // Second crash in the window: reload did not help; stop looping.
     showErrorScreen(
       `La interfaz se ha bloqueado repetidamente (motivo: ${details.reason}).`,
       'La interfaz se ha bloqueado repetidamente',
@@ -514,9 +432,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   );
   assertBootAttemptActive(attempt);
 
-  // Probe immediately before launch. Runtime provisioning can take minutes on
-  // first boot, so selecting ports before it would leave a long window for an
-  // unrelated process to claim a released probe port.
+  // Probe ports after provisioning; first boot can take minutes.
   setLoadingStatus('Eligiendo puertos libres…');
   const security = createBootSecurityCapabilities();
   const { orchestrator: orchPort, web: webPort } = await allocateStableServicePorts({
@@ -543,6 +459,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
       recorderPath: recorderExe,
       securityEnvironment: orchestratorSecurityEnvironment(security),
       toolEnvironment: toolEnv,
+      steamEnvironment: steamEnvironment(process.env),
     }),
   );
 
@@ -555,9 +472,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     ORCHESTRATOR_URL: orchestratorUrl,
     NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
     ...webSecurityEnvironment(security),
-    // ClipHub never reads this key, but the desktop process can inherit an
-    // operator's own. The orchestrator unsets it itself; nothing scrubs the
-    // Next child, so remove it here instead of passing it on by inheritance.
+    // Orchestrator unsets this itself; the Next child would inherit it.
     XAI_API_KEY: undefined,
   });
 
@@ -705,9 +620,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
-  // The web permission surface stays closed. User-activated clipboard writes
-  // use the narrow preload IPC bridge, where the main process can authenticate
-  // the exact active top frame and validate a bounded text-only request.
+  // Keep web permissions closed; clipboard writes go through preload IPC.
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, _permission, callback) => callback(false),
   );

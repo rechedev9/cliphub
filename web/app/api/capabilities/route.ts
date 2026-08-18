@@ -15,6 +15,7 @@ export async function GET(): Promise<Response> {
     render?: { enabled?: boolean; tools?: UpstreamTool[] };
     compose?: { enabled?: boolean };
     faceit?: { enabled?: boolean };
+    steam?: { enabled?: boolean; gcConfigured?: boolean; historyConfigured?: boolean };
   };
   // Forward only the fields the UI uses; drop each tool's absolute disk `path` so
   // local filesystem layout never leaves the box, even if this bind is exposed.
@@ -26,6 +27,11 @@ export async function GET(): Promise<Response> {
       render: { enabled: Boolean(data.render?.enabled), tools: tools(data.render?.tools) },
       compose: { enabled: Boolean(data.compose?.enabled) },
       faceit: { enabled: Boolean(data.faceit?.enabled) },
+      steam: {
+        enabled: Boolean(data.steam?.enabled),
+        gcConfigured: Boolean(data.steam?.gcConfigured ?? data.steam?.enabled),
+        historyConfigured: Boolean(data.steam?.historyConfigured),
+      },
     },
     { headers: { 'cache-control': 'no-store' } },
   );

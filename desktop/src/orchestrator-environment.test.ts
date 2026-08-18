@@ -44,6 +44,7 @@ test('preserves the remaining orchestrator runtime environment', () => {
   assert.deepEqual(environment, {
     ZV_DATABASE_URL: 'sqlite',
     ZV_DATA_DIR: 'data',
+    GOLANG_PROTOBUF_REGISTRATION_CONFLICT: 'ignore',
     ZV_DISCOVERY_SECRET: 'discovery',
     ZV_HLAE_PATH: 'tools/HLAE.exe',
     ZV_HTTP_ADDR: '127.0.0.1:45975',
