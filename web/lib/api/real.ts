@@ -494,7 +494,7 @@ export class RealApiClient implements ApiClient {
           this.reels.set(intent.videoId, clearVideoArtifactUrls(previousRevision));
         }
         intent.editConfig = resolution.editConfig;
-        // New candidates will appear after re-render; reopen the thumbnail gate.
+        // New candidates will appear after re-render.
         delete intent.selectedCoverName;
         saveReelIntents(Array.from(this.intents.values()));
         this.applyView(intent, { status: 'queued', action: 'none' });

@@ -82,9 +82,9 @@ export type Video = {
   /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */
   reviewArtifactPrefix?: string;
   captureProgress?: CaptureProgress;
-  /** Cover candidate basenames; the Library thumbnail gate picks among these. */
+  /** Cover candidate basenames when the render produced JPGs. */
   coverCandidates?: string[];
-  /** Basename the user approved as the canonical cover; unset until the second gate. */
+  /** Basename previously stored as the canonical cover, if any. */
   selectedCoverName?: string;
   /** Set only on a failed reel whose orchestrator job is gone: retry can never succeed, so the card offers delete/re-forge instead. */
   unrecoverable?: true;

@@ -18,6 +18,7 @@ It is local-first and stateless: it talks only to the orchestrator (`zv serve`) 
 `web/lib/api` always uses the real typed client; same-origin route handlers keep the orchestrator URL and token server-side.
 
 Finished Library reels expose a manual publication assistant through the per-artifact `/api/demos/*/publish-assistant` proxy. It generates Madrid-time guidance and factual reel-derived metadata, lets the user download the MP4, and opens only `https://studio.youtube.com/` in the system browser. Account, audience, visibility, scheduling, and the official upload flow remain entirely in YouTube Studio; ClipHub has no Google account connection or direct publishing path.
+Library ready cards do not require a cover-candidate pick before MP4 download or PREPARAR PUBLICACIÓN; cover generation in the render pipeline is unchanged.
 
 Run it locally with the standard pnpm scripts in `web/package.json` (`dev`, `typecheck`, `lint`, `test:unit`).
 The dev server needs the orchestrator on `127.0.0.1:8080`; the desktop/local-studio path uses persistent SQLite plus the inline queue.
