@@ -109,9 +109,9 @@ Turning a share code into a downloadable `.dem` still needs a logged-in CS2 Game
 - A successful render is not final while QA has unresolved warnings. Inspect every warning at its exact interval; remove unintended frozen, post-death, or dead-air footage, or document why it is intentional, then rerun QA.
 - Any trim, reorder, or duration change invalidates existing rhythm timing. Regenerate or update the canonical rhythm plan and verify every selected kill against its assigned beat or onset before rerendering.
 - For streams, also settle clip bounds/title, crop/framing, and source-audio treatment.
-- Thumbnail approval is a second gate after candidates exist; require a selected candidate or explicit delegation before calling the pack upload-ready.
-- Before marking a pack upload-ready, verify that the canonical MP4, title, caption, hashtags, cover, cover timestamp, gallery, manifest paths, and artifact metadata describe the same facts and files. After thumbnail selection, replace the canonical cover and visually verify the gallery again.
-- `--covers=false` removes the thumbnail gate.
+- Thumbnail approval is a second gate for CLI/agent pack delivery after candidates exist; require a selected candidate or explicit delegation before calling that pack upload-ready. Studio Library does not use this gate: a ready reel's MP4 download and PREPARAR PUBLICACIÓN are enabled as soon as the video file exists. Cover JPGs may still be generated in the render pipeline; picking one is not required in the Library ready card.
+- Before marking a CLI pack upload-ready, verify that the canonical MP4, title, caption, hashtags, cover, cover timestamp, gallery, manifest paths, and artifact metadata describe the same facts and files. After thumbnail selection, replace the canonical cover and visually verify the gallery again.
+- `--covers=false` removes the CLI thumbnail gate.
 - Changing a stream plan invalidates its creative brief; settle the brief again before the next non-dry-run render.
 
 The editor registry in `internal/editor/preset.go` retains the capture-mode profiles, but the public unified `zv` preset catalog exposes `viral-60-clean` and `viral-aggressive-60`; discover the supported CLI values with `.\bin\zv.exe presets --format json`.
