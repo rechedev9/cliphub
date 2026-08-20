@@ -336,14 +336,20 @@ func TestSegmentRecap(t *testing.T) {
 			wantKills: 2,
 		},
 		{
-			name:       "kill-only without round bounds is not the 8s shorts burst",
+			name:       "kill-only without round bounds is 1s, not the 8s shorts burst",
 			kills:      []RawKill{mkKill(10000, 1, "awp")},
 			wantSegs:   1,
 			wantRound:  1,
 			wantKills:  1,
 			checkRange: true,
 			wantStart:  10000,
-			wantEnd:    10000,
+			wantEnd:    10000 + testTickrate,
+		},
+		{
+			name:        "zero-kill without round-end is unrecordable and dropped",
+			roundStarts: []RoundStart{{Round: 3, Tick: 4000}},
+			liveStarts:  []RoundLiveStart{{Round: 3, Tick: 4500}},
+			wantSegs:    0,
 		},
 	}
 	for _, tt := range tests {

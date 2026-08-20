@@ -149,8 +149,15 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 		if liveStart > 0 && tickStart < liveStart {
 			tickStart = liveStart
 		}
-		if tickEnd < tickStart {
-			continue
+		// Recording rejects TickEnd <= TickStart; kill-only fallbacks get 1s, not a Shorts post-roll.
+		if tickEnd <= tickStart {
+			if len(g) == 0 {
+				continue
+			}
+			tickEnd = g[len(g)-1].Tick + tickrate
+			if tickEnd <= tickStart {
+				tickEnd = tickStart + 1
+			}
 		}
 		out = append(out, killplan.Segment{
 			ID:        killplan.FormatSegmentID(len(out) + 1),
