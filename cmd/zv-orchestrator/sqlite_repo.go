@@ -18,8 +18,9 @@ import (
 
 // sqliteJobRepository persists jobs in a local SQLite file so job state survives
 // an orchestrator restart, unlike the in-memory repository. It is the default
-// for the local desktop studio, which has no Postgres: the whole job.Job is
-// stored as a JSON document keyed by id, with status/created_at/updated_at
+// for the local desktop studio, which has no Postgres: job metadata lives in
+// the `data` JSON document, and the kill plan is a sibling `kill_plan` blob so
+// GetMeta/List/UpdateStatus never parse it. status/created_at/updated_at are
 // mirrored into columns for List ordering. modernc.org/sqlite is a pure-Go
 // driver, so no CGO or C toolchain is needed on Windows or in the static build.
 type sqliteJobRepository struct {
@@ -49,6 +50,7 @@ func newSQLiteJobRepository(path string) (*sqliteJobRepository, error) {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS jobs (
 		id         TEXT PRIMARY KEY,
 		data       BLOB    NOT NULL,
+		kill_plan  BLOB,
 		status     TEXT    NOT NULL,
 		created_at INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL
@@ -56,7 +58,66 @@ func newSQLiteJobRepository(path string) (*sqliteJobRepository, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create jobs table: %w", err)
 	}
+	if err := ensureJobsKillPlanColumn(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := migrateEmbeddedKillPlans(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &sqliteJobRepository{db: db}, nil
+}
+
+func ensureJobsKillPlanColumn(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(jobs)`)
+	if err != nil {
+		return fmt.Errorf("inspect jobs columns: %w", err)
+	}
+	found := false
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan jobs column: %w", err)
+		}
+		found = found || name == "kill_plan"
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close jobs column rows: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate jobs columns: %w", err)
+	}
+	if found {
+		return nil
+	}
+	if _, err := db.Exec(`ALTER TABLE jobs ADD COLUMN kill_plan BLOB`); err != nil {
+		return fmt.Errorf("add jobs kill_plan: %w", err)
+	}
+	return nil
+}
+
+// migrateEmbeddedKillPlans moves a kill plan that still lives inside `data` into
+// the dedicated column and strips it from the document. Idempotent: rows that
+// already store the plan in the column keep that copy, and a second open is a
+// no-op once `data` has no `$.kill_plan`.
+func migrateEmbeddedKillPlans(db *sql.DB) error {
+	if _, err := db.Exec(`
+		UPDATE jobs
+		SET kill_plan = json_extract(data, '$.kill_plan')
+		WHERE kill_plan IS NULL AND json_type(data, '$.kill_plan') IS NOT NULL`); err != nil {
+		return fmt.Errorf("extract embedded kill plan: %w", err)
+	}
+	if _, err := db.Exec(`
+		UPDATE jobs
+		SET data = json_remove(data, '$.kill_plan')
+		WHERE json_type(data, '$.kill_plan') IS NOT NULL`); err != nil {
+		return fmt.Errorf("strip embedded kill plan: %w", err)
+	}
+	return nil
 }
 
 // Close releases the underlying database handle.
@@ -69,13 +130,13 @@ func (r *sqliteJobRepository) Create(ctx context.Context, j *job.Job) error {
 	now := time.Now().UTC()
 	j.CreatedAt = now
 	j.UpdatedAt = now
-	data, err := json.Marshal(j)
+	data, planJSON, err := marshalJobDocuments(j)
 	if err != nil {
-		return fmt.Errorf("marshal job: %w", err)
+		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO jobs (id, data, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		j.ID.String(), data, j.Status.String(), now.UnixNano(), now.UnixNano(),
+		`INSERT INTO jobs (id, data, kill_plan, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		j.ID.String(), data, nullableBlob(planJSON), j.Status.String(), now.UnixNano(), now.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("insert job: %w", err)
@@ -84,16 +145,16 @@ func (r *sqliteJobRepository) Create(ctx context.Context, j *job.Job) error {
 }
 
 func (r *sqliteJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
-	var data []byte
-	err := r.db.QueryRowContext(ctx, `SELECT data FROM jobs WHERE id = ?`, id.String()).Scan(&data)
+	var data, planJSON []byte
+	err := r.db.QueryRowContext(ctx, `SELECT data, kill_plan FROM jobs WHERE id = ?`, id.String()).Scan(&data, &planJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return job.Job{}, job.ErrNotFound
 	}
 	if err != nil {
 		return job.Job{}, fmt.Errorf("query job: %w", err)
 	}
-	var j job.Job
-	if err := json.Unmarshal(data, &j); err != nil {
+	j, err := decodeJobRow(data, planJSON)
+	if err != nil {
 		return job.Job{}, fmt.Errorf("unmarshal job: %w", err)
 	}
 	return j, nil
@@ -101,15 +162,15 @@ func (r *sqliteJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, e
 
 func (r *sqliteJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	var data []byte
-	err := r.db.QueryRowContext(ctx, `SELECT json_remove(data, '$.kill_plan') FROM jobs WHERE id = ?`, id.String()).Scan(&data)
+	err := r.db.QueryRowContext(ctx, `SELECT data FROM jobs WHERE id = ?`, id.String()).Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
 		return job.Job{}, job.ErrNotFound
 	}
 	if err != nil {
 		return job.Job{}, fmt.Errorf("query job metadata: %w", err)
 	}
-	var j job.Job
-	if err := json.Unmarshal(data, &j); err != nil {
+	j, err := decodeJobMeta(data)
+	if err != nil {
 		return job.Job{}, fmt.Errorf("unmarshal job metadata: %w", err)
 	}
 	return j, nil
@@ -121,7 +182,7 @@ func (r *sqliteJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.
 	err := r.db.QueryRowContext(ctx, `
 		SELECT status,
 		       CASE WHEN status = ? THEN COALESCE(json_extract(data, '$.failure_reason'), '') ELSE '' END,
-		       CASE WHEN status = ? THEN COALESCE(json_array_length(data, '$.kill_plan.segments'), 0) ELSE 0 END
+		       CASE WHEN status = ? THEN COALESCE(json_array_length(kill_plan, '$.segments'), 0) ELSE 0 END
 		FROM jobs WHERE id = ?`,
 		job.StatusFailed.String(), job.StatusRecording.String(), id.String(),
 	).Scan(&rawStatus, &failureReason, &segmentCount)
@@ -145,9 +206,33 @@ func (r *sqliteJobRepository) List(ctx context.Context, limit int) ([]job.Job, e
 	if limit > 100 {
 		limit = 100
 	}
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT json_remove(data, '$.kill_plan') FROM jobs ORDER BY updated_at DESC, created_at DESC LIMIT ?`, limit,
+	return r.scanJobs(ctx,
+		`SELECT data FROM jobs ORDER BY updated_at DESC, created_at DESC LIMIT ?`, limit,
 	)
+}
+
+// ListBySeries returns the metadata-only jobs of one upload series ordered by
+// creation time ascending, with the id as a deterministic tie-break when two
+// jobs share a created_at (the same ordering the memory repo uses). created_at
+// is the UnixNano mirror column. The kill plan is not selected and the result
+// is capped at 100 jobs, matching List: a series is a handful of demos, so the
+// cap only guards against a pathological document set.
+func (r *sqliteJobRepository) ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error) {
+	return r.scanJobs(ctx,
+		`SELECT data FROM jobs WHERE json_extract(data, '$.series_id') = ? ORDER BY created_at ASC, id ASC LIMIT 100`,
+		seriesID,
+	)
+}
+
+func (r *sqliteJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
+	return r.scanJobs(ctx,
+		`SELECT data FROM jobs WHERE status = ? ORDER BY updated_at DESC, created_at DESC`,
+		status.String(),
+	)
+}
+
+func (r *sqliteJobRepository) scanJobs(ctx context.Context, query string, args ...any) ([]job.Job, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query jobs: %w", err)
 	}
@@ -159,70 +244,8 @@ func (r *sqliteJobRepository) List(ctx context.Context, limit int) ([]job.Job, e
 		if err := rows.Scan(&data); err != nil {
 			return nil, fmt.Errorf("scan job: %w", err)
 		}
-		var j job.Job
-		if err := json.Unmarshal(data, &j); err != nil {
-			return nil, fmt.Errorf("unmarshal job: %w", err)
-		}
-		out = append(out, j)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate jobs: %w", err)
-	}
-	return out, nil
-}
-
-// ListBySeries returns the metadata-only jobs of one upload series ordered by
-// creation time ascending, with the id as a deterministic tie-break when two
-// jobs share a created_at (the same ordering the memory repo uses). created_at
-// is the UnixNano mirror column. The kill plan is stripped and the result is
-// capped at 100 jobs, matching List: a series is a handful of demos, so the cap
-// only guards against a pathological document set.
-func (r *sqliteJobRepository) ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT json_remove(data, '$.kill_plan') FROM jobs WHERE json_extract(data, '$.series_id') = ? ORDER BY created_at ASC, id ASC LIMIT 100`,
-		seriesID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("query jobs by series: %w", err)
-	}
-	defer rows.Close()
-
-	out := []job.Job{}
-	for rows.Next() {
-		var data []byte
-		if err := rows.Scan(&data); err != nil {
-			return nil, fmt.Errorf("scan job: %w", err)
-		}
-		var j job.Job
-		if err := json.Unmarshal(data, &j); err != nil {
-			return nil, fmt.Errorf("unmarshal job: %w", err)
-		}
-		out = append(out, j)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate jobs: %w", err)
-	}
-	return out, nil
-}
-
-func (r *sqliteJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT json_remove(data, '$.kill_plan') FROM jobs WHERE status = ? ORDER BY updated_at DESC, created_at DESC`,
-		status.String(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("query jobs by status: %w", err)
-	}
-	defer rows.Close()
-
-	out := []job.Job{}
-	for rows.Next() {
-		var data []byte
-		if err := rows.Scan(&data); err != nil {
-			return nil, fmt.Errorf("scan job: %w", err)
-		}
-		var j job.Job
-		if err := json.Unmarshal(data, &j); err != nil {
+		j, err := decodeJobMeta(data)
+		if err != nil {
 			return nil, fmt.Errorf("unmarshal job: %w", err)
 		}
 		out = append(out, j)
@@ -301,17 +324,38 @@ func (r *sqliteJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *sqliteJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, plan killplan.Plan) error {
-	return r.mutate(ctx, id, func(j *job.Job) error {
-		planCopy := plan
-		j.KillPlan = &planCopy
-		return nil
-	})
+	now := time.Now().UTC()
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		return fmt.Errorf("marshal kill plan: %w", err)
+	}
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE jobs
+		SET kill_plan = ?,
+		    data = json_set(data, '$.updated_at', ?),
+		    updated_at = ?
+		WHERE id = ?`,
+		planJSON, now.Format(time.RFC3339Nano), now.UnixNano(), id.String(),
+	)
+	if err != nil {
+		return fmt.Errorf("update kill plan: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count updated kill plans: %w", err)
+	}
+	if updated == 0 {
+		return job.ErrNotFound
+	}
+	return nil
 }
 
-// mutate loads a job inside a transaction, applies fn, bumps UpdatedAt, and
-// writes the whole document back. The single-connection pool serializes writers,
-// so the read-modify-write is race-free. fn's error (e.g. job.ErrConflict) is
-// returned verbatim so callers can errors.Is on it.
+// mutate loads job metadata inside a transaction, applies fn, bumps UpdatedAt,
+// and writes the metadata document back. The kill_plan column is not selected
+// or written: SetKillPlan is the only writer for that blob. The
+// single-connection pool serializes writers, so the read-modify-write is
+// race-free. fn's error (e.g. job.ErrConflict) is returned verbatim so callers
+// can errors.Is on it.
 func (r *sqliteJobRepository) mutate(ctx context.Context, id uuid.UUID, fn func(*job.Job) error) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -327,14 +371,15 @@ func (r *sqliteJobRepository) mutate(ctx context.Context, id uuid.UUID, fn func(
 	if err != nil {
 		return fmt.Errorf("query job: %w", err)
 	}
-	var j job.Job
-	if err := json.Unmarshal(data, &j); err != nil {
+	j, err := decodeJobMeta(data)
+	if err != nil {
 		return fmt.Errorf("unmarshal job: %w", err)
 	}
 	if err := fn(&j); err != nil {
 		return err
 	}
 	j.UpdatedAt = time.Now().UTC()
+	j.KillPlan = nil
 	updated, err := json.Marshal(&j)
 	if err != nil {
 		return fmt.Errorf("marshal job: %w", err)
@@ -346,4 +391,52 @@ func (r *sqliteJobRepository) mutate(ctx context.Context, id uuid.UUID, fn func(
 		return fmt.Errorf("update job: %w", err)
 	}
 	return tx.Commit()
+}
+
+func marshalJobDocuments(j *job.Job) (data, planJSON []byte, err error) {
+	if j.KillPlan != nil {
+		planJSON, err = json.Marshal(j.KillPlan)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal kill plan: %w", err)
+		}
+	}
+	meta := *j
+	meta.KillPlan = nil
+	data, err = json.Marshal(&meta)
+	if err != nil {
+		return nil, nil, fmt.Errorf("marshal job: %w", err)
+	}
+	return data, planJSON, nil
+}
+
+func decodeJobRow(data, planJSON []byte) (job.Job, error) {
+	var j job.Job
+	if err := json.Unmarshal(data, &j); err != nil {
+		return job.Job{}, err
+	}
+	if len(planJSON) == 0 {
+		return j, nil
+	}
+	var plan killplan.Plan
+	if err := json.Unmarshal(planJSON, &plan); err != nil {
+		return job.Job{}, err
+	}
+	j.KillPlan = &plan
+	return j, nil
+}
+
+func decodeJobMeta(data []byte) (job.Job, error) {
+	var j job.Job
+	if err := json.Unmarshal(data, &j); err != nil {
+		return job.Job{}, err
+	}
+	j.KillPlan = nil
+	return j, nil
+}
+
+func nullableBlob(b []byte) any {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
 }
