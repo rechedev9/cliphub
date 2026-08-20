@@ -3,10 +3,12 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   APP_UPDATE_STATE,
   AppUpdateController,
+  GITHUB_LATEST_RELEASE_URL,
   checksumForFile,
   compareVersions,
   digestMatches,
@@ -55,6 +57,21 @@ test('builds installer URLs only for the release contract', () => {
   assert.throws(
     () => releaseDownloadUrl('2.4.29', 'malware.exe'),
     /unexpected release asset/,
+  );
+});
+
+test('landing download URL matches desktop version and the updater always hits GitHub latest', () => {
+  const desktopDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const version = JSON.parse(fs.readFileSync(path.join(desktopDirectory, 'package.json'), 'utf8')).version;
+  assert.equal(typeof version, 'string');
+  const installer = installerAssetName(version);
+  const downloadUrl = releaseDownloadUrl(version, installer);
+  const landing = fs.readFileSync(path.join(desktopDirectory, '..', 'landing', 'app', 'page.tsx'), 'utf8');
+  assert.equal(landing.includes(downloadUrl), true, downloadUrl);
+  assert.equal(landing.includes(`const RELEASE_VERSION = "v${version}"`), true, version);
+  assert.equal(
+    GITHUB_LATEST_RELEASE_URL,
+    'https://api.github.com/repos/rechedev9/cliphub/releases/latest',
   );
 });
 
