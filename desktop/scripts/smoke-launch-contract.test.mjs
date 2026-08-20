@@ -254,10 +254,10 @@ test('Windows shell cleanup holds creation identity and refuses a reused wrapper
 
   const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8');
   const helperStart = source.indexOf('windows_taskkill_if_same()');
-  const helperEnd = source.indexOf('\n}\n\nprocess_belongs_to_launch()', helperStart);
   assert.notEqual(helperStart, -1);
+  const helperEnd = source.slice(helperStart).search(/\n}\r?\n\r?\nprocess_belongs_to_launch\(\)/);
   assert.notEqual(helperEnd, -1);
-  const helper = source.slice(helperStart, helperEnd);
+  const helper = source.slice(helperStart, helperStart + helperEnd);
   const powershell = helper.match(
     /powershell\.exe -NoProfile -NonInteractive -Command '\r?\n([\s\S]*?)\r?\n\s*' >\/dev\/null/,
   )?.[1];
