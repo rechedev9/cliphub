@@ -61,7 +61,7 @@ exact loopback origin before writing.
 ## No embedded assistant
 
 Studio ships no assistant surface.
-There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes only `cliphubSettings.getAppInfo`.
+There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes `cliphubSettings.getAppInfo`, the clipboard write, and `cliphubUpdate` for GitHub Release checks.
 The pipeline is driven through the interface itself and, for scripted work, the `zv` CLI in the repository build.
 No publish text is model-generated: the render writes each pack's title, caption, and hashtags deterministically from demo facts, and the publication assistant above offers factual, reel-derived metadata alternatives.
 
@@ -225,3 +225,18 @@ same loop (`measure` → persist baseline → change → remasure → compare).
    Electron's OS-backed single-instance lock under canonical `appData` before
    restoring any explicit profile, so changing `--user-data-dir` cannot bypass
    it; dev/E2E keeps profile-scoped isolation.
+
+## App updates
+
+Packaged Windows builds check [GitHub Releases](https://github.com/rechedev9/cliphub/releases)
+for a newer `ClipHub.Studio.Setup.<version>.exe` after the window loads, and
+again every six hours. The command strip shows an update control only when a
+newer stable tag exists, a download is in progress, or a verified installer is
+ready. Browser and unpackaged `pnpm start` sessions never show it.
+
+The download is the same NSIS artifact the release publishes. Studio fetches
+`SHA256SUMS.txt` from that tag, writes the installer under `<userData>/updates`,
+and refuses to run it unless the SHA-256 matches. Applying the update spawns
+the installer with `/S --updated` and quits so NSIS can replace the running
+files. Integrity remains the GitHub Release plus `SHA256SUMS.txt`; the updater
+does not code-sign.

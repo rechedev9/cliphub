@@ -11,6 +11,7 @@ import {
   type IpcMainInvokeEvent,
   type Event as ElectronEvent,
 } from 'electron';
+import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -48,6 +49,15 @@ import {
   STUDIO_SETTINGS_CHANNEL,
 } from './studio-settings-ipc';
 import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboard-ipc';
+import {
+  AppUpdateController,
+  createDefaultAppUpdateHost,
+} from './app-update';
+import {
+  APP_UPDATE_CHANNEL,
+  APP_UPDATE_STATUS_CHANNEL,
+  parseAppUpdateRequest,
+} from './app-update-ipc';
 
 // ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
@@ -118,6 +128,12 @@ function logTail(maxLines = 40): string {
 
 let mainWindow: BrowserWindow | null = null;
 let activeWebOrigin: string | null = null;
+let appUpdate: AppUpdateController | null = null;
+let appUpdateCheckTimer: NodeJS.Timeout | null = null;
+let appUpdateIntervalTimer: NodeJS.Timeout | null = null;
+
+const APP_UPDATE_START_DELAY_MS = 8_000;
+const APP_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 /** Null if the window was closed or destroyed during an await. */
 function aliveWindow(): BrowserWindow | null {
@@ -505,6 +521,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   allowedInternalUrls.clear();
   await loadStudio(webPort, security.proxyMutationCapability);
   assertBootAttemptActive(attempt);
+  scheduleAppUpdateChecks();
 }
 
 function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailureDetails = {}): void {
@@ -605,6 +622,81 @@ function registerStudioClipboardIPC(): void {
   });
 }
 
+function spawnVerifiedInstaller(installerPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(installerPath, ['/S', '--updated'], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+function registerAppUpdateIPC(): void {
+  const controller = new AppUpdateController(createDefaultAppUpdateHost({
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    updatesDirectory: path.join(app.getPath('userData'), 'updates'),
+    spawnInstaller: spawnVerifiedInstaller,
+    quitApp: () => app.quit(),
+    log: logLine,
+  }));
+  appUpdate = controller;
+  controller.subscribe((status) => {
+    const win = aliveWindow();
+    if (win === null) return;
+    win.webContents.send(APP_UPDATE_STATUS_CHANNEL, status);
+  });
+  ipcMain.handle(APP_UPDATE_CHANNEL, (event, value: unknown): unknown => {
+    if (!trustedSettingsSender(event)) return { ok: false, error: 'Solicitud de actualización rechazada.' };
+    try {
+      const request = parseAppUpdateRequest(value);
+      if (request.action === 'status') return controller.status();
+      if (request.action === 'check') {
+        void controller.check();
+        return { ok: true };
+      }
+      void controller.install();
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Solicitud de actualización no válida.' };
+    }
+  });
+}
+
+function scheduleAppUpdateChecks(): void {
+  if (appUpdate === null || !app.isPackaged) return;
+  if (appUpdateCheckTimer) clearTimeout(appUpdateCheckTimer);
+  if (appUpdateIntervalTimer) clearInterval(appUpdateIntervalTimer);
+  appUpdateCheckTimer = setTimeout(() => {
+    void appUpdate?.check({ quiet: true });
+  }, APP_UPDATE_START_DELAY_MS);
+  appUpdateIntervalTimer = setInterval(() => {
+    void appUpdate?.check({ quiet: true });
+  }, APP_UPDATE_INTERVAL_MS);
+  appUpdateCheckTimer.unref();
+  appUpdateIntervalTimer.unref();
+}
+
+function disposeAppUpdate(): void {
+  if (appUpdateCheckTimer) {
+    clearTimeout(appUpdateCheckTimer);
+    appUpdateCheckTimer = null;
+  }
+  if (appUpdateIntervalTimer) {
+    clearInterval(appUpdateIntervalTimer);
+    appUpdateIntervalTimer = null;
+  }
+  appUpdate?.dispose();
+  appUpdate = null;
+}
+
 // Prevent crash watchers and retries from fighting an intentional shutdown.
 let quitting = false;
 
@@ -627,12 +719,14 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false);
   registerStudioSettingsIPC();
   registerStudioClipboardIPC();
+  registerAppUpdateIPC();
   runBoot();
 });
 
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   quitting = true;
+  disposeAppUpdate();
   shutdown();
 });
 process.on('exit', shutdown);

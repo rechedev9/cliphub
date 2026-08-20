@@ -6,7 +6,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { downloadFile } from './http-download.ts';
+import { downloadFile, fetchText } from './http-download.ts';
 
 test('downloads through a redirect, reports progress, and returns the SHA-256', async (t) => {
   const content = Buffer.from('cliphub runtime asset');
@@ -56,6 +56,23 @@ test('rejects an unsuccessful response without publishing a destination', async 
   await assert.rejects(downloadFile(`${serverUrl(server)}/asset`, destination), /HTTP 503/);
   assert.equal(fs.existsSync(destination), false);
   assert.equal(fs.existsSync(`${destination}.tmp`), false);
+});
+
+test('reads a bounded text body and rejects oversized payloads', async (t) => {
+  const server = http.createServer((request, response) => {
+    if (request.url === '/small') {
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.end('ok-body');
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'text/plain' });
+    response.end('x'.repeat(64));
+  });
+  await listen(server);
+  t.after(() => server.close());
+
+  assert.equal(await fetchText(`${serverUrl(server)}/small`), 'ok-body');
+  await assert.rejects(fetchText(`${serverUrl(server)}/large`, { maxBytes: 8 }), /too large/);
 });
 
 function listen(server: http.Server): Promise<void> {

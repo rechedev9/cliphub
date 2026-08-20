@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { AppUpdateControl } from '@/components/shell/app-update-control';
 import { JobTransport } from '@/components/shell/job-transport';
 import {
   serverShellActivitySnapshot,
@@ -11,22 +12,7 @@ import {
 } from '@/lib/shell-activity';
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
 
-/**
- * The ceiling of the room: one 56px band across the full inset, above the
- * content column, at every width. It deliberately has no `max-w` and its own
- * `px-2 sm:px-3` rather than `--shell-gutter`, so it aligns with the content
- * column on neither edge — a ceiling spans the room, not the rug.
- *
- * It replaces the `md:hidden` header, which was the only chrome above 768px —
- * i.e. on desktop the app had a sidebar, a page, and nothing else: no location
- * cue, no sidebar toggle reachable with a mouse, and no indication that a
- * capture or render was running. The narrow layout is now the same component
- * with fewer slots rather than a separate bar with a different vocabulary.
- *
- * The surface is opaque `--surface-0`, not `backdrop-blur-md`: this is a
- * full-width sticky element, and a backdrop-filter re-reads and two-pass blurs
- * the entire band on every scroll frame.
- */
+// Full-inset 56px ceiling: own padding, no max-w, opaque --surface-0 (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
   const section = sectionForPath(pathname);
@@ -73,17 +59,13 @@ export function CommandStrip(): ReactElement {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <JobTransport />
         {activity.capturing ? <CapturePip /> : null}
+        <AppUpdateControl />
       </div>
     </header>
   );
 }
 
-/**
- * The GPU-contention pip. Magenta because design.md reserves it for REC, and a
- * capture is literally CS2 recording; it is also the visible counterpart of the
- * `data-capture-active` attribute that silences every ambient effect, so the
- * user can see why the shell just went quiet.
- */
+// Magenta REC pip: visible counterpart of data-capture-active silencing ambient GPU work.
 function CapturePip(): ReactElement {
   return (
     <span
@@ -105,11 +87,7 @@ function sectionForPath(pathname: string): NavSection | null {
   return null;
 }
 
-/**
- * The nested segment, when there is one. The shell has no way to know an
- * entity's name without fetching it, so it shows the identifier the URL already
- * carries rather than inventing a friendlier label for it.
- */
+// Nested URL segment as-is: the shell has no entity name without an extra fetch.
 function trailForPath(pathname: string, section: NavSection | null): string | null {
   if (section === null) return null;
   const rest = pathname.slice(section.href.length).replace(/^\/+|\/+$/g, '');

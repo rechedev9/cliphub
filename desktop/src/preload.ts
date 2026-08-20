@@ -4,6 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 // electron module, but must not depend on local CommonJS modules at runtime.
 const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
 const STUDIO_CLIPBOARD_CHANNEL = 'cliphub:clipboard-write';
+const STUDIO_UPDATE_CHANNEL = 'cliphub:app-update';
+const STUDIO_UPDATE_STATUS_CHANNEL = 'cliphub:app-update-status';
 
 interface PreloadBrowserScope {
   navigator?: {
@@ -15,6 +17,21 @@ interface PreloadBrowserScope {
 
 contextBridge.exposeInMainWorld('cliphubSettings', {
   getAppInfo: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'app-info' }),
+});
+
+contextBridge.exposeInMainWorld('cliphubUpdate', {
+  getStatus: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_UPDATE_CHANNEL, { action: 'status' }),
+  check: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_UPDATE_CHANNEL, { action: 'check' }),
+  install: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_UPDATE_CHANNEL, { action: 'install' }),
+  onStatus: (listener: (status: unknown) => void): (() => void) => {
+    const wrapped = (_event: unknown, status: unknown): void => {
+      listener(status);
+    };
+    ipcRenderer.on(STUDIO_UPDATE_STATUS_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(STUDIO_UPDATE_STATUS_CHANNEL, wrapped);
+    };
+  },
 });
 
 contextBridge.exposeInMainWorld('cliphubClipboard', {

@@ -91,3 +91,43 @@ test.describe('navigation state', () => {
     await expect(page).toHaveURL(/\/onboarding$/);
   });
 });
+
+test.describe('app updates', () => {
+  test('the command strip has no update control in the browser', async ({ page }) => {
+    await gotoStudio(page, '/onboarding');
+    await expect(page.getByTestId('app-update-control')).toHaveCount(0);
+  });
+
+  test('the command strip shows an update control when a release is available', async ({ page }) => {
+    await page.addInitScript(installUpdateBridge);
+    await gotoStudio(page, '/onboarding');
+    const control = page.getByTestId('app-update-control');
+    await expect(control).toBeVisible();
+    await expect(control).toContainText(/Actualizar/i);
+    const box = await control.boundingBox();
+    expect(box?.height, 'update control is below the 40px target').toBeGreaterThanOrEqual(40);
+  });
+
+  test('the update control stays visible at 390px without horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(installUpdateBridge);
+    await gotoStudio(page, '/onboarding');
+    await expect(page.getByTestId('app-update-control')).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, 'command strip overflow at 390px').toBe(0);
+  });
+});
+
+function installUpdateBridge(): void {
+  const status = { state: 'available', version: '2.4.29', currentVersion: '2.4.28' };
+  Object.defineProperty(window, 'cliphubUpdate', {
+    value: {
+      getStatus: async () => status,
+      check: async () => ({ ok: true }),
+      install: async () => ({ ok: true }),
+      onStatus: () => () => undefined,
+    },
+  });
+}
