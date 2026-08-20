@@ -20,9 +20,12 @@ test.describe('Full demo to video', () => {
 
   test('empty state uses the same demo drop as Subir demo', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
+    await expect(page.locator('p[role="alert"]')).toContainText(
+      /El servicio de análisis está offline|No se pudieron cargar las demos parseadas/,
+    );
     await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
-    await expect(page.locator('a[href="/onboarding"]')).toHaveCount(0);
+    await expect(page.locator('main a[href="/onboarding"]')).toHaveCount(0);
   });
 
   test('a missing job does not offer FORJAR', async ({ page }) => {

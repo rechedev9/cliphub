@@ -4,23 +4,17 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { AlertTriangle, FileVideo, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DemoPlayer, Match, RosterMatch } from '@/lib/api/types';
-import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
+import {
+  DEMO_EMPTY_ROSTER_HINT,
+  DEMO_SINGLE_FILE_HINT,
+  demoParseError,
+  demoScanError,
+} from '@/lib/demo-parse-flow';
 import { Card } from '@/components/ui/card';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
 
 type Stage = 'idle' | 'scanning' | 'picking' | 'parsing';
-
-const OFFLINE_HINT = 'El servicio de análisis está offline. Arráncalo y vuelve a intentarlo.';
-const SCAN_FAIL_HINT = 'No se pudo escanear esa demo. Prueba con otro archivo .dem.';
-const EMPTY_ROSTER_HINT =
-  'El escaneo no encontró jugadores en esa demo. ¿Seguro que es una demo de CS2? Prueba con otro archivo .dem.';
-const PARSE_FAIL_HINT = 'No se pudieron extraer los highlights de ese jugador. Elige otro.';
-const SINGLE_DEMO_HINT = 'Esta sección forja una partida. Suelta un solo .dem.';
-
-function isServiceUnavailable(err: unknown): boolean {
-  return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
-}
 
 export type SingleDemoParseProps = {
   onParsed: (match: Match) => void;
@@ -51,7 +45,7 @@ export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
       try {
         const scan = await api.scanDemo(file);
         if (scan.players.length === 0) {
-          reset(EMPTY_ROSTER_HINT);
+          reset(DEMO_EMPTY_ROSTER_HINT);
           return;
         }
         setJobId(scan.jobId);
@@ -59,7 +53,7 @@ export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
         setMatch(scan.match ?? null);
         setStage('picking');
       } catch (err) {
-        reset(isServiceUnavailable(err) ? OFFLINE_HINT : SCAN_FAIL_HINT);
+        reset(demoScanError(err));
       }
     },
     [reset],
@@ -73,10 +67,11 @@ export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
       try {
         onParsed(await api.parseDemo({ jobId, steamId }));
       } catch (err) {
-        reset(isServiceUnavailable(err) ? OFFLINE_HINT : PARSE_FAIL_HINT);
+        setError(demoParseError(err));
+        setStage('picking');
       }
     },
-    [stage, jobId, onParsed, reset],
+    [stage, jobId, onParsed],
   );
 
   const onFiles = useCallback(
@@ -84,7 +79,7 @@ export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
       if (stage !== 'idle' || files.length === 0) return;
       const file = files[0];
       if (files.length !== 1 || !file) {
-        setError(SINGLE_DEMO_HINT);
+        setError(DEMO_SINGLE_FILE_HINT);
         return;
       }
       void runScan(file);

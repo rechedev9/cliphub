@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match } from '@/lib/api/types';
+import { demoListLoadError } from '@/lib/demo-parse-flow';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SingleDemoParse } from '@/components/upload/single-demo-parse';
 import { matchDateLabel } from '@/lib/format';
@@ -14,12 +15,15 @@ import { FULL_DEMO_HREF } from '@/lib/full-demo';
 export function FullDemoPicker(): ReactNode {
   const router = useRouter();
   const [matches, setMatches] = useState<Match[] | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setMatches(await api.listPlanReadyMatches());
-    } catch {
+      setListError(null);
+    } catch (err) {
       setMatches([]);
+      setListError(demoListLoadError(err));
     }
   }, []);
 
@@ -39,11 +43,22 @@ export function FullDemoPicker(): ReactNode {
 
   if (matches.length === 0) {
     return (
-      <SingleDemoParse
-        onParsed={(match) => {
-          router.push(`${FULL_DEMO_HREF}/${match.id}`);
-        }}
-      />
+      <div className="flex flex-col gap-3">
+        {listError ? (
+          <p
+            role="alert"
+            className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive"
+          >
+            <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+            {listError}
+          </p>
+        ) : null}
+        <SingleDemoParse
+          onParsed={(match) => {
+            router.push(`${FULL_DEMO_HREF}/${match.id}`);
+          }}
+        />
+      </div>
     );
   }
 
