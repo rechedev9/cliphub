@@ -2,27 +2,24 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ChevronRight, MonitorPlay, Rocket } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match } from '@/lib/api/types';
-import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import { StudioEmptyState } from '@/components/studio/empty-state';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SingleDemoParse } from '@/components/upload/single-demo-parse';
 import { matchDateLabel } from '@/lib/format';
 import { FULL_DEMO_HREF } from '@/lib/full-demo';
 
 export function FullDemoPicker(): ReactNode {
+  const router = useRouter();
   const [matches, setMatches] = useState<Match[] | null>(null);
-  const [offline, setOffline] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setMatches(await api.listPlanReadyMatches());
-      setOffline(false);
-    } catch (error) {
+    } catch {
       setMatches([]);
-      setOffline((error as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE);
     }
   }, []);
 
@@ -42,23 +39,10 @@ export function FullDemoPicker(): ReactNode {
 
   if (matches.length === 0) {
     return (
-      <StudioEmptyState
-        icon={MonitorPlay}
-        title="No hay demos para forjar"
-        description={
-          offline
-            ? 'El servicio local no responde. Arráncalo y recarga.'
-            : 'Hace falta una demo parseada. Empieza por Inicio: pega un código o sube el archivo.'
-        }
-        compact
-        actions={
-          <Button asChild>
-            <Link href="/onboarding">
-              <Rocket aria-hidden />
-              IR A INICIO
-            </Link>
-          </Button>
-        }
+      <SingleDemoParse
+        onParsed={(match) => {
+          router.push(`${FULL_DEMO_HREF}/${match.id}`);
+        }}
       />
     );
   }

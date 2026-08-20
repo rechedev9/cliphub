@@ -8,7 +8,7 @@ export default function FullDemoIndexPage(): ReactNode {
     <div className="flex flex-col gap-8">
       <StudioPageHeader
         title="FULL DEMO TO VIDEO"
-        description="Una partida completa en 16:9: rondas enteras, HUD nativo y comms del equipo del POV. Elige una demo parseada; el brief de Shorts no aplica aquí."
+        description="Una partida completa en 16:9: rondas enteras, HUD nativo y comms del equipo del POV. Suelta una demo o elige una ya parseada; el brief de Shorts no aplica aquí."
       />
       <dl className="studio-panel grid gap-x-6 gap-y-2 px-4 py-4 text-body-sm sm:grid-cols-2">
         {FULL_DEMO_CONTRACT.map((row) => (

@@ -18,12 +18,11 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText('Horizontal 16:9 · 1920×1080')).toBeVisible();
   });
 
-  test('empty state hands back to Inicio, not a competing door', async ({ page }) => {
+  test('empty state uses the same demo drop as Subir demo', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
-    const empty = page.locator('section[aria-label="No hay demos para forjar"]');
-    await expect(empty).toBeVisible();
-    await expect(empty.locator('a')).toHaveCount(1);
-    await expect(empty.locator('a')).toHaveAttribute('href', '/onboarding');
+    await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toHaveCount(1);
+    await expect(page.locator('a[href="/onboarding"]')).toHaveCount(0);
   });
 
   test('a missing job does not offer FORJAR', async ({ page }) => {
