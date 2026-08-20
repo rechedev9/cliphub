@@ -116,6 +116,31 @@ func BenchmarkSQLiteListWithLargePlans(b *testing.B) {
 	}
 }
 
+func BenchmarkSQLiteListWithoutPlans(b *testing.B) {
+	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() { _ = repo.Close() })
+
+	for range 20 {
+		j := &job.Job{Status: job.StatusParsed}
+		if err := repo.Create(context.Background(), j); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		jobs, err := repo.List(context.Background(), 20)
+		if err != nil {
+			b.Fatal(err)
+		}
+		benchmarkJobList = jobs
+	}
+}
+
 func BenchmarkSQLiteUpdateStatusWithLargePlan(b *testing.B) {
 	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
 	if err != nil {

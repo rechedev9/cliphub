@@ -16,35 +16,52 @@ import (
 )
 
 func TestGetJobStatusOmitsKillPlanAndPreservesLifecycleFields(t *testing.T) {
-	repo := newFakeRepo()
-	id := uuid.New()
 	plan := killplan.NewPlan()
 	plan.Segments = []killplan.Segment{{ID: "seg-001"}}
-	repo.jobs[id] = job.Job{
-		ID:            id,
-		Status:        job.StatusFailed,
-		FailureReason: "capture failed",
-		KillPlan:      &plan,
+	cases := []struct {
+		name       string
+		status     job.Status
+		reason     string
+		wantReason string
+	}{
+		{name: "failed", status: job.StatusFailed, reason: "capture failed", wantReason: "capture failed"},
+		{name: "parsed_idle", status: job.StatusParsed},
+		{name: "recording_without_clips", status: job.StatusRecording},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			id := uuid.New()
+			repo.jobs[id] = job.Job{
+				ID:            id,
+				Status:        tc.status,
+				FailureReason: tc.reason,
+				KillPlan:      &plan,
+			}
 
-	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
-	router := chi.NewRouter()
-	router.Get("/api/jobs/{id}", h.GetJob)
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"?view=status", nil))
+			h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
+			router := chi.NewRouter()
+			router.Get("/api/jobs/{id}", h.GetJob)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"?view=status", nil))
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
-	}
-	if strings.Contains(response.Body.String(), "kill_plan") || strings.Contains(response.Body.String(), "seg-001") {
-		t.Fatalf("status response contains kill plan: %s", response.Body.String())
-	}
-	var got jobStatusResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
-		t.Fatalf("decode status response: %v", err)
-	}
-	if got.Status != job.StatusFailed || got.FailureReason != "capture failed" {
-		t.Fatalf("status response = %+v, want failed/capture failed", got)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+			}
+			if strings.Contains(response.Body.String(), "kill_plan") || strings.Contains(response.Body.String(), "seg-001") {
+				t.Fatalf("status response contains kill plan: %s", response.Body.String())
+			}
+			var got jobStatusResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+				t.Fatalf("decode status response: %v", err)
+			}
+			if got.Status != tc.status || got.FailureReason != tc.wantReason {
+				t.Fatalf("status response = %+v, want %s/%q", got, tc.status, tc.wantReason)
+			}
+			if got.Progress != nil {
+				t.Fatalf("status response included progress %+v", got.Progress)
+			}
+		})
 	}
 }
 

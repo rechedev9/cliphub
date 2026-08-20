@@ -150,6 +150,20 @@ func TestCaptureProgress(t *testing.T) {
 			wantOK: false,
 		},
 		{
+			name:   "parsed idle omits progress",
+			status: job.StatusParsed,
+			plan:   segmentPlan(4),
+			clips:  []string{"s1"},
+			wantOK: false,
+		},
+		{
+			name:   "failed omits progress",
+			status: job.StatusFailed,
+			plan:   segmentPlan(4),
+			clips:  []string{"s1", "s2"},
+			wantOK: false,
+		},
+		{
 			name:   "no kill plan omits progress",
 			status: job.StatusRecording,
 			plan:   nil,

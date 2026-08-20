@@ -19,10 +19,11 @@ import (
 // sqliteJobRepository persists jobs in a local SQLite file so job state survives
 // an orchestrator restart, unlike the in-memory repository. It is the default
 // for the local desktop studio, which has no Postgres: job metadata lives in
-// the `data` JSON document, and the kill plan is a sibling `kill_plan` blob so
-// GetMeta/List/UpdateStatus never parse it. status/created_at/updated_at are
-// mirrored into columns for List ordering. modernc.org/sqlite is a pure-Go
-// driver, so no CGO or C toolchain is needed on Windows or in the static build.
+// the `data` JSON document, and the kill plan is a sibling `job_kill_plans`
+// row so GetMeta/List/GetStatus/UpdateStatus never load it. status/created_at/
+// updated_at are mirrored into columns for List ordering. modernc.org/sqlite is
+// a pure-Go driver, so no CGO or C toolchain is needed on Windows or in the
+// static build.
 type sqliteJobRepository struct {
 	db *sql.DB
 }
@@ -50,7 +51,6 @@ func newSQLiteJobRepository(path string) (*sqliteJobRepository, error) {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS jobs (
 		id         TEXT PRIMARY KEY,
 		data       BLOB    NOT NULL,
-		kill_plan  BLOB,
 		status     TEXT    NOT NULL,
 		created_at INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL
@@ -58,57 +58,73 @@ func newSQLiteJobRepository(path string) (*sqliteJobRepository, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create jobs table: %w", err)
 	}
-	if err := ensureJobsKillPlanColumn(db); err != nil {
+	if err := ensureJobKillPlansTable(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	if err := migrateEmbeddedKillPlans(db); err != nil {
+	if err := migrateKillPlansOffJobsRow(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 	return &sqliteJobRepository{db: db}, nil
 }
 
-func ensureJobsKillPlanColumn(db *sql.DB) error {
+func ensureJobKillPlansTable(db *sql.DB) error {
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS job_kill_plans (
+		job_id TEXT PRIMARY KEY,
+		plan   BLOB NOT NULL
+	)`); err != nil {
+		return fmt.Errorf("create job_kill_plans: %w", err)
+	}
+	return nil
+}
+
+func jobsColumnExists(db *sql.DB, column string) (bool, error) {
 	rows, err := db.Query(`PRAGMA table_info(jobs)`)
 	if err != nil {
-		return fmt.Errorf("inspect jobs columns: %w", err)
+		return false, fmt.Errorf("inspect jobs columns: %w", err)
 	}
+	defer rows.Close()
 	found := false
 	for rows.Next() {
 		var cid, notNull, primaryKey int
 		var name, columnType string
 		var defaultValue any
 		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			_ = rows.Close()
-			return fmt.Errorf("scan jobs column: %w", err)
+			return false, fmt.Errorf("scan jobs column: %w", err)
 		}
-		found = found || name == "kill_plan"
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close jobs column rows: %w", err)
+		found = found || name == column
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate jobs columns: %w", err)
+		return false, fmt.Errorf("iterate jobs columns: %w", err)
 	}
-	if found {
-		return nil
-	}
-	if _, err := db.Exec(`ALTER TABLE jobs ADD COLUMN kill_plan BLOB`); err != nil {
-		return fmt.Errorf("add jobs kill_plan: %w", err)
-	}
-	return nil
+	return found, nil
 }
 
-// migrateEmbeddedKillPlans moves a kill plan that still lives inside `data` into
-// the dedicated column and strips it from the document. Idempotent: rows that
-// already store the plan in the column keep that copy, and a second open is a
-// no-op once `data` has no `$.kill_plan`.
-func migrateEmbeddedKillPlans(db *sql.DB) error {
+// migrateKillPlansOffJobsRow moves a kill plan out of the jobs row — from a
+// leftover `kill_plan` column or an embedded `data.kill_plan` — into
+// job_kill_plans, then strips both sources. Idempotent: a second open is a
+// no-op once the sibling table holds the plan and `data` has no `$.kill_plan`.
+func migrateKillPlansOffJobsRow(db *sql.DB) error {
+	hasColumn, err := jobsColumnExists(db, "kill_plan")
+	if err != nil {
+		return err
+	}
+	if hasColumn {
+		if _, err := db.Exec(`
+			INSERT INTO job_kill_plans (job_id, plan)
+			SELECT id, kill_plan FROM jobs
+			WHERE kill_plan IS NOT NULL
+			  AND id NOT IN (SELECT job_id FROM job_kill_plans)`); err != nil {
+			return fmt.Errorf("move kill_plan column: %w", err)
+		}
+	}
 	if _, err := db.Exec(`
-		UPDATE jobs
-		SET kill_plan = json_extract(data, '$.kill_plan')
-		WHERE kill_plan IS NULL AND json_type(data, '$.kill_plan') IS NOT NULL`); err != nil {
+		INSERT INTO job_kill_plans (job_id, plan)
+		SELECT id, json_extract(data, '$.kill_plan')
+		FROM jobs
+		WHERE json_type(data, '$.kill_plan') IS NOT NULL
+		  AND id NOT IN (SELECT job_id FROM job_kill_plans)`); err != nil {
 		return fmt.Errorf("extract embedded kill plan: %w", err)
 	}
 	if _, err := db.Exec(`
@@ -116,6 +132,11 @@ func migrateEmbeddedKillPlans(db *sql.DB) error {
 		SET data = json_remove(data, '$.kill_plan')
 		WHERE json_type(data, '$.kill_plan') IS NOT NULL`); err != nil {
 		return fmt.Errorf("strip embedded kill plan: %w", err)
+	}
+	if hasColumn {
+		if _, err := db.Exec(`UPDATE jobs SET kill_plan = NULL WHERE kill_plan IS NOT NULL`); err != nil {
+			return fmt.Errorf("clear jobs kill_plan column: %w", err)
+		}
 	}
 	return nil
 }
@@ -134,19 +155,38 @@ func (r *sqliteJobRepository) Create(ctx context.Context, j *job.Job) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO jobs (id, data, kill_plan, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		j.ID.String(), data, nullableBlob(planJSON), j.Status.String(), now.UnixNano(), now.UnixNano(),
-	)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		return fmt.Errorf("begin insert job: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO jobs (id, data, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		j.ID.String(), data, j.Status.String(), now.UnixNano(), now.UnixNano(),
+	); err != nil {
 		return fmt.Errorf("insert job: %w", err)
+	}
+	if len(planJSON) > 0 {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO job_kill_plans (job_id, plan) VALUES (?, ?)`,
+			j.ID.String(), planJSON,
+		); err != nil {
+			return fmt.Errorf("insert kill plan: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit insert job: %w", err)
 	}
 	return nil
 }
 
 func (r *sqliteJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	var data, planJSON []byte
-	err := r.db.QueryRowContext(ctx, `SELECT data, kill_plan FROM jobs WHERE id = ?`, id.String()).Scan(&data, &planJSON)
+	err := r.db.QueryRowContext(ctx, `
+		SELECT jobs.data, job_kill_plans.plan
+		FROM jobs
+		LEFT JOIN job_kill_plans ON job_kill_plans.job_id = jobs.id
+		WHERE jobs.id = ?`, id.String()).Scan(&data, &planJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return job.Job{}, job.ErrNotFound
 	}
@@ -182,7 +222,7 @@ func (r *sqliteJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.
 	err := r.db.QueryRowContext(ctx, `
 		SELECT status,
 		       CASE WHEN status = ? THEN COALESCE(json_extract(data, '$.failure_reason'), '') ELSE '' END,
-		       CASE WHEN status = ? THEN COALESCE(json_array_length(kill_plan, '$.segments'), 0) ELSE 0 END
+		       CASE WHEN status = ? THEN COALESCE((SELECT json_array_length(plan, '$.segments') FROM job_kill_plans WHERE job_id = jobs.id), 0) ELSE 0 END
 		FROM jobs WHERE id = ?`,
 		job.StatusFailed.String(), job.StatusRecording.String(), id.String(),
 	).Scan(&rawStatus, &failureReason, &segmentCount)
@@ -314,11 +354,22 @@ func (r *sqliteJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, 
 	})
 }
 
-// Delete removes the job row. A missing row is not an error, so deletes are
-// idempotent and safe to retry after a failed artifact cleanup.
+// Delete removes the job row and its kill plan. A missing row is not an error,
+// so deletes are idempotent and safe to retry after a failed artifact cleanup.
 func (r *sqliteJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, `DELETE FROM jobs WHERE id = ?`, id.String()); err != nil {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete job: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM job_kill_plans WHERE job_id = ?`, id.String()); err != nil {
+		return fmt.Errorf("delete kill plan: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM jobs WHERE id = ?`, id.String()); err != nil {
 		return fmt.Errorf("delete job: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete job: %w", err)
 	}
 	return nil
 }
@@ -329,13 +380,17 @@ func (r *sqliteJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, pla
 	if err != nil {
 		return fmt.Errorf("marshal kill plan: %w", err)
 	}
-	result, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin update kill plan: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `
 		UPDATE jobs
-		SET kill_plan = ?,
-		    data = json_set(data, '$.updated_at', ?),
+		SET data = json_set(data, '$.updated_at', ?),
 		    updated_at = ?
 		WHERE id = ?`,
-		planJSON, now.Format(time.RFC3339Nano), now.UnixNano(), id.String(),
+		now.Format(time.RFC3339Nano), now.UnixNano(), id.String(),
 	)
 	if err != nil {
 		return fmt.Errorf("update kill plan: %w", err)
@@ -347,15 +402,24 @@ func (r *sqliteJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, pla
 	if updated == 0 {
 		return job.ErrNotFound
 	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO job_kill_plans (job_id, plan) VALUES (?, ?)
+		ON CONFLICT(job_id) DO UPDATE SET plan = excluded.plan`,
+		id.String(), planJSON,
+	); err != nil {
+		return fmt.Errorf("upsert kill plan: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit update kill plan: %w", err)
+	}
 	return nil
 }
 
 // mutate loads job metadata inside a transaction, applies fn, bumps UpdatedAt,
-// and writes the metadata document back. The kill_plan column is not selected
-// or written: SetKillPlan is the only writer for that blob. The
-// single-connection pool serializes writers, so the read-modify-write is
-// race-free. fn's error (e.g. job.ErrConflict) is returned verbatim so callers
-// can errors.Is on it.
+// and writes the metadata document back. job_kill_plans is not selected or
+// written: SetKillPlan is the only writer for that blob. The single-connection
+// pool serializes writers, so the read-modify-write is race-free. fn's error
+// (e.g. job.ErrConflict) is returned verbatim so callers can errors.Is on it.
 func (r *sqliteJobRepository) mutate(ctx context.Context, id uuid.UUID, fn func(*job.Job) error) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -432,11 +496,4 @@ func decodeJobMeta(data []byte) (job.Job, error) {
 	}
 	j.KillPlan = nil
 	return j, nil
-}
-
-func nullableBlob(b []byte) any {
-	if len(b) == 0 {
-		return nil
-	}
-	return b
 }

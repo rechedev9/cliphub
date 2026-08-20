@@ -449,26 +449,68 @@ func TestPostJobsRemovesMultipartTempFiles(t *testing.T) {
 }
 
 func TestListJobsReturnsRecentJobsWithoutKillPlan(t *testing.T) {
-	repo := newFakeRepo()
-	id := uuid.New()
 	plan := killplan.NewPlan()
-	repo.jobs[id] = job.Job{ID: id, Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
-	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
-
-	r := chi.NewRouter()
-	r.Get("/api/jobs", h.ListJobs)
-	req := httptest.NewRequest(http.MethodGet, "/api/jobs?limit=10", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	plan.Segments = []killplan.Segment{{ID: "seg-001"}}
+	cases := []struct {
+		name       string
+		stored     job.Job
+		wantStatus job.Status
+		wantReason string
+	}{
+		{
+			name:       "parsed",
+			stored:     job.Job{Status: job.StatusParsed, DemoFileName: "a.dem", Rules: rules.Default(), KillPlan: &plan},
+			wantStatus: job.StatusParsed,
+		},
+		{
+			name:       "failed",
+			stored:     job.Job{Status: job.StatusFailed, FailureReason: "capture failed", DemoFileName: "b.dem", KillPlan: &plan},
+			wantStatus: job.StatusFailed,
+			wantReason: "capture failed",
+		},
+		{
+			name:       "recording",
+			stored:     job.Job{Status: job.StatusRecording, DemoFileName: "c.dem", KillPlan: &plan},
+			wantStatus: job.StatusRecording,
+		},
 	}
-	if !strings.Contains(rw.Body.String(), id.String()) {
-		t.Fatalf("body missing job id: %s", rw.Body.String())
-	}
-	if strings.Contains(rw.Body.String(), "kill_plan") {
-		t.Fatalf("list response should not include kill_plan: %s", rw.Body.String())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			id := uuid.New()
+			tc.stored.ID = id
+			repo.jobs[id] = tc.stored
+			h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
+
+			r := chi.NewRouter()
+			r.Get("/api/jobs", h.ListJobs)
+			req := httptest.NewRequest(http.MethodGet, "/api/jobs?limit=10", nil)
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			if rw.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+			}
+			if strings.Contains(rw.Body.String(), "kill_plan") || strings.Contains(rw.Body.String(), "seg-001") {
+				t.Fatalf("list response should not include kill_plan: %s", rw.Body.String())
+			}
+			var resp struct {
+				Jobs []job.Job `json:"jobs"`
+			}
+			if err := json.Unmarshal(rw.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("decode list: %v", err)
+			}
+			if len(resp.Jobs) != 1 {
+				t.Fatalf("listed %d jobs, want 1", len(resp.Jobs))
+			}
+			got := resp.Jobs[0]
+			if got.ID != id || got.Status != tc.wantStatus || got.FailureReason != tc.wantReason || got.DemoFileName != tc.stored.DemoFileName {
+				t.Fatalf("listed %+v, want id=%s status=%s reason=%q file=%q", got, id, tc.wantStatus, tc.wantReason, tc.stored.DemoFileName)
+			}
+			if got.KillPlan != nil {
+				t.Fatal("listed kill plan")
+			}
+		})
 	}
 }
 
