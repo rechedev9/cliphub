@@ -23,7 +23,7 @@ export type ReelIntent = {
   score: string;
   /** Display name for the selected SteamID; optional for migrated intents. */
   targetName?: string;
-  /** Approved cover basename; absent means the thumbnail gate is still open. */
+  /** Optional stored cover basename from older Library approvals. */
   selectedCoverName?: string;
   createdAt: number;
 };
