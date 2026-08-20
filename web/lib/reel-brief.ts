@@ -93,7 +93,7 @@ export function reelCreativeBrief(
   }
   return [
     { label: 'Formato', value: FORMAT_LABEL[edit.format] },
-    { label: 'Entrega', value: edit.matchRecap ? 'Resumen de partida (rondas completas)' : 'Compilado de jugadas' },
+    { label: 'Entrega', value: edit.matchRecap ? 'POV landscape · rondas en vivo (sin freeze)' : 'Compilado de jugadas' },
     {
       label: 'Comms',
       value: edit.voiceComms

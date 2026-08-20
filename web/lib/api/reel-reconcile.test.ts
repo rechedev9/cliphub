@@ -1,7 +1,7 @@
 // Unit tests for the pure reel-reconcile core. Run: node --test reel-reconcile.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canHaveRenderState, decideReelReconcile, deriveReelView, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, deriveReelView, requiresRecapture, retryReelAction, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, viewForRecordAdmission } from './reel-reconcile.ts';
 import type { ReconcileInput } from './reel-reconcile.ts';
 import type { EditConfig } from './types.ts';
 import type { MusicChoice } from './reel-music.ts';
@@ -335,6 +335,15 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       wantAdopt: false,
     },
     {
+      name: 'full demo + recording + no render → wait, not failed',
+      jobStatus: 'recording',
+      renderStatus: 'none',
+      intentEdit: FULL_DEMO_EDIT,
+      wantAction: 'none',
+      wantStatus: 'recording',
+      wantAdopt: false,
+    },
+    {
       name: 'full demo + recorded + ready recap + different song → render, do not adopt',
       jobStatus: 'recorded',
       renderStatus: 'ready',
@@ -381,5 +390,76 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
     assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
     assert.equal(got.view.status, tc.wantStatus, `${tc.name} status`);
     assert.equal(got.adoptEffective, tc.wantAdopt, `${tc.name} adopt`);
+    assert.notEqual(got.view.status, 'failed', `${tc.name} must not latch failed`);
+  }
+});
+
+test('retryReelAction does not re-drive record while the job is recording', () => {
+  const cases: Array<{
+    name: string;
+    jobStatus: string;
+    renderStatus: ReconcileInput['renderStatus'];
+    renderFailureReason?: string;
+    want: 'record' | 'render' | 'none';
+  }> = [
+    { name: 'full demo retry while recording', jobStatus: 'recording', renderStatus: 'none', want: 'none' },
+    { name: 'recording even with a failed shorts pack', jobStatus: 'recording', renderStatus: 'failed', want: 'none' },
+    { name: 'failed job still re-records', jobStatus: 'failed', renderStatus: 'none', want: 'record' },
+    { name: 'failed render re-renders', jobStatus: 'recorded', renderStatus: 'failed', want: 'render' },
+  ];
+  for (const tc of cases) {
+    assert.equal(
+      retryReelAction({
+        jobStatus: tc.jobStatus,
+        renderStatus: tc.renderStatus,
+        renderFailureReason: tc.renderFailureReason,
+      }),
+      tc.want,
+      tc.name,
+    );
+  }
+});
+
+test('viewForRecordAdmission treats in-flight capture as progress, not a failed reel', () => {
+  const cases: Array<{
+    name: string;
+    status: number;
+    body: { error?: string; code?: string };
+    wantStatus: string | null;
+    wantAction?: 'record' | 'render' | 'none';
+  }> = [
+    {
+      name: '409 recording is in-progress',
+      status: 409,
+      body: { error: 'job is not ready to record (status=recording)' },
+      wantStatus: 'recording',
+      wantAction: 'none',
+    },
+    {
+      name: '202 accepted leaves polling to reconcile',
+      status: 202,
+      body: {},
+      wantStatus: null,
+    },
+    {
+      name: 'durable capture error stays failed',
+      status: 409,
+      body: { error: 'recap plan not ready' },
+      wantStatus: 'failed',
+      wantAction: 'none',
+    },
+  ];
+  for (const tc of cases) {
+    const got = viewForRecordAdmission(tc.status, tc.body);
+    if (tc.wantStatus === null) {
+      assert.equal(got, null, tc.name);
+      continue;
+    }
+    assert.ok(got, tc.name);
+    assert.equal(got.status, tc.wantStatus, `${tc.name} status`);
+    assert.equal(got.action, tc.wantAction, `${tc.name} action`);
+    if (tc.wantStatus === 'recording') {
+      assert.equal('failureReason' in got, false, `${tc.name} must not carry the 409 as failureReason`);
+    }
   }
 });

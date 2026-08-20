@@ -22,6 +22,7 @@ type Collector struct {
 	kills       []RawKill
 	utility     []RawUtilityThrow
 	roundStarts []RoundStart
+	liveStarts  []RoundLiveStart
 	roundEnds   []RoundEnd
 
 	totalKillsTarget    int
@@ -60,6 +61,7 @@ func (c *Collector) resetForMatchStart() {
 	c.kills = nil
 	c.utility = nil
 	c.roundStarts = nil
+	c.liveStarts = nil
 	c.roundEnds = nil
 	c.totalKillsTarget = 0
 	c.killsAfterFilters = 0
@@ -127,6 +129,10 @@ func (c *Collector) RecordRoundStart(rs RoundStart) {
 	c.roundStarts = append(c.roundStarts, rs)
 }
 
+func (c *Collector) RecordRoundLiveStart(rs RoundLiveStart) {
+	c.liveStarts = append(c.liveStarts, rs)
+}
+
 // RecordRoundEnd remembers the tick at which a given round ended; used by
 // segmentation to clip a segment's TickEnd if the post-roll would otherwise
 // extend past the end of the round.
@@ -167,7 +173,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	var segs []killplan.Segment
 	switch mode {
 	case SegmentModeRecap:
-		segs = SegmentRecap(c.kills, c.utility, c.roundStarts, c.roundEnds, c.rules, m.Tickrate)
+		segs = SegmentRecap(c.kills, c.utility, c.roundStarts, c.liveStarts, c.roundEnds, c.rules, m.Tickrate)
 	default:
 		segs = Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
 	}

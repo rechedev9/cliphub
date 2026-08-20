@@ -394,6 +394,7 @@ export class MockApiClient implements ApiClient {
       { name: 'viral-aggressive-60', label: 'Viral agresivo', description: 'Edición TikTok agresiva con grade saturado y pulsos de croma en headshots', hudMode: 'deathnotices' },
       { name: 'clean-pov-60', label: 'POV limpio', description: 'POV cinemático en primera persona, sin HUD ni killfeed del juego', hudMode: 'clean' },
       { name: 'full-hud-60', label: 'HUD completo', description: 'Conserva el HUD completo de CS2: vida, munición y radar visibles', hudMode: 'gameplay' },
+      { name: 'gameplay-pov-60', label: 'POV nativo', description: 'POV de YouTube con HUD nativo de CS2; 1920×1080 a 60fps, sin grade viral', hudMode: 'gameplay' },
     ];
   }
 

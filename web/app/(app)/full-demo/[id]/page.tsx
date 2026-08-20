@@ -6,14 +6,14 @@ import { SearchX, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import { canForgeReel, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
-import { FULL_DEMO_EDIT, FULL_DEMO_HREF, FULL_DEMO_VARIANT } from '@/lib/full-demo';
+import { canForgeReel, reelCreativeBrief } from '@/lib/reel-brief';
+import { FullDemoStylePicker } from '@/components/full-demo/style-picker';
+import { FULL_DEMO_EDIT, FULL_DEMO_HREF, FULL_DEMO_PRESET, FULL_DEMO_VARIANT } from '@/lib/full-demo';
 import { Button } from '@/components/ui/button';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { CreateReelBar } from '@/components/clips/create-reel-bar';
-import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
 
 export default function FullDemoJobPage({ params }: { params: Promise<{ id: string }> }): ReactNode {
   const { id } = use(params);
@@ -22,17 +22,10 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [plays, setPlays] = useState<Play[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [musicDecided, setMusicDecided] = useState(false);
-  const [songId, setSongId] = useState<string | null>(null);
-  const [songTitle, setSongTitle] = useState<string | null>(null);
-  const [songOpen, setSongOpen] = useState(false);
+  const [variant, setVariant] = useState<string | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setBriefApproved(false);
-  }, [musicDecided, songId]);
 
   useEffect(() => {
     let active = true;
@@ -61,9 +54,9 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
       !canForgeReel({
         briefApproved,
         creating,
-        hasPreset: true,
+        hasPreset: variant === FULL_DEMO_VARIANT,
         selectionCount: plays.length,
-        musicDecided,
+        musicDecided: true,
       })
     ) {
       return;
@@ -74,8 +67,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
       await api.createVideo({
         matchId: id,
         playIds: plays.map((play) => play.id),
-        mode: songId ? 'music' : 'clean',
-        songId: songId ?? undefined,
+        mode: 'clean',
         variant: FULL_DEMO_VARIANT,
         editConfig: FULL_DEMO_EDIT,
       });
@@ -108,16 +100,11 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  let musicBrief: MusicBrief = { status: 'pending' };
-  if (musicDecided && songTitle) {
-    musicBrief = { status: 'track', title: songTitle, volumePercent: 100, gameVolumePercent: 20 };
-  } else if (musicDecided) {
-    musicBrief = { status: 'none' };
-  }
+  const selectedPreset = variant === FULL_DEMO_VARIANT ? FULL_DEMO_PRESET : null;
   const briefItems = reelCreativeBrief(
     FULL_DEMO_EDIT,
-    { name: FULL_DEMO_VARIANT, label: 'Viral 60 clean', description: '', hudMode: 'gameplay' },
-    musicBrief,
+    selectedPreset,
+    { status: 'none' },
   );
 
   return (
@@ -125,33 +112,8 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
       <StudioBackLink href={FULL_DEMO_HREF}>FULL DEMO TO VIDEO</StudioBackLink>
       <StudioPageHeader
         title={match.map.toUpperCase()}
-        description={`${match.player ? `${match.player} · ` : ''}Todas las rondas parseadas entran en el vídeo. El brief de Shorts está cerrado.`}
+        description={`${match.player ? `${match.player} · ` : ''}Rondas en vivo (sin freeze) con HUD nativo y comms. Sin música. El brief de Shorts está cerrado.`}
       />
-
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="secondary" disabled={creating} onClick={() => setSongOpen(true)}>
-          ELEGIR MÚSICA
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={creating}
-          onClick={() => {
-            setSongId(null);
-            setSongTitle(null);
-            setMusicDecided(true);
-          }}
-        >
-          SIN MÚSICA
-        </Button>
-        {musicDecided ? (
-          <p className="self-center text-body-sm text-fg-2">
-            {songTitle ?? 'Sin música de fondo'}
-          </p>
-        ) : (
-          <p className="self-center text-body-sm text-fg-3">Decide la música antes de forjar.</p>
-        )}
-      </div>
 
       {createError ? (
         <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
@@ -165,11 +127,17 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         </p>
       ) : null}
 
+      <FullDemoStylePicker
+        value={variant}
+        onChange={setVariant}
+        disabled={plays.length === 0 || creating}
+      />
+
       <CreateReelBar
         selectionLabel={plays.length === 0 ? null : `${plays.length} ${plays.length === 1 ? 'ronda' : 'rondas'}`}
-        presetLabel="Full demo to video"
-        songTitle={songTitle}
-        musicDecided={musicDecided}
+        presetLabel={selectedPreset?.label ?? null}
+        songTitle={null}
+        musicDecided
         format={FULL_DEMO_EDIT.format}
         onFormatChange={() => undefined}
         formatLocked
@@ -180,18 +148,6 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         onCreate={() => {
           void onCreate();
         }}
-      />
-
-      <SongPickerDialog
-        open={songOpen}
-        onOpenChange={setSongOpen}
-        onChoose={(chosenId, chosenTitle) => {
-          setSongId(chosenId);
-          setSongTitle(chosenTitle);
-          setMusicDecided(true);
-          setSongOpen(false);
-        }}
-        selectedSongId={songId}
       />
     </div>
   );

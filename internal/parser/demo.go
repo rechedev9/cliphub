@@ -43,8 +43,8 @@ func ValidSegmentMode(mode SegmentMode) bool {
 
 type RunOptions struct {
 	SegmentMode SegmentMode
-	// AlsoRecap, when set with SegmentModeKills, also builds the full-round
-	// recap plan from the same collector pass so Studio can store both.
+	// AlsoRecap, when set with SegmentModeKills, also builds the live-round
+	// recap plan (freeze-end to round-end) from the same collector pass.
 	AlsoRecap bool
 }
 

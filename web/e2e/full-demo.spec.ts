@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
+import { FULL_DEMO_CONTRACT } from '../lib/full-demo.ts';
 
 test.describe('Full demo to video', () => {
   test('is a numbered production section', async ({ page }) => {
@@ -10,12 +11,15 @@ test.describe('Full demo to video', () => {
     await expect(key).toContainText('Full demo to video');
   });
 
-  test('states the locked 16:9 recap contract', async ({ page }) => {
+  test('states the locked 16:9 recap contract from shipped constants', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
     await expect(page.getByRole('heading', { name: 'FULL DEMO TO VIDEO' })).toBeVisible();
-    await expect(page.getByText('Rondas completas')).toBeVisible();
-    await expect(page.getByText('Nativo CS2 (radar, vida, killfeed)')).toBeVisible();
-    await expect(page.getByText('Horizontal 16:9 · 1920×1080')).toBeVisible();
+    for (const row of FULL_DEMO_CONTRACT) {
+      await expect(page.getByText(row.value, { exact: true })).toBeVisible();
+    }
+    await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'SIN MÚSICA' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Preset (POV nativo|Native POV)/ })).toBeVisible();
   });
 
   test('empty state uses the same demo drop as Subir demo', async ({ page }) => {
@@ -28,9 +32,11 @@ test.describe('Full demo to video', () => {
     await expect(page.locator('main a[href="/onboarding"]')).toHaveCount(0);
   });
 
-  test('a missing job does not offer FORJAR', async ({ page }) => {
+  test('a missing job does not offer FORJAR or a music picker', async ({ page }) => {
     await gotoStudio(page, '/full-demo/11111111-1111-4111-8111-111111111111');
     await expect(page.getByText(/Servicio local sin conexión|Demo no encontrada/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'FORJAR REEL' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'AÑADIR MÚSICA' })).toHaveCount(0);
   });
 });

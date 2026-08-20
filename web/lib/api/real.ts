@@ -9,7 +9,7 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
 import { planToMatch, planToPlays, type KillPlan } from './map';
-import { canHaveRenderState, decideReelReconcile, requiresRecapture, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
+import { canHaveRenderState, decideReelReconcile, retryReelAction, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, viewForRecordAdmission, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store';
 import { buildEditRequest, editConfigsEqual } from './edit-request';
 import { reelContractMatches, reelIdentity } from './reel-identity';
@@ -85,6 +85,7 @@ const VARIANT_LABELS: Record<string, string> = {
   'viral-60-clean': 'Killfeed',
   'clean-pov-60': 'POV limpio',
   'full-hud-60': 'HUD completo',
+  'gameplay-pov-60': 'POV nativo',
 };
 
 function variantLabel(variant: string): string {
@@ -441,15 +442,13 @@ export class RealApiClient implements ApiClient {
       this.fetchStatusFull(intent.jobId),
       this.fetchRenderStatus(intent.jobId, variantOf(intent)),
     ]);
-    if (job && job.status === 'failed') {
-      await this.drive(intent, 'record');
-    } else if (render.status === 'failed') {
-      // Pre-2.4.6 captures missing capture_mode need recapture, not re-render.
-      if (requiresRecapture(render.failureReason)) {
-        await this.drive(intent, 'record');
-      } else {
-        await this.drive(intent, 'render');
-      }
+    const retryAction = retryReelAction({
+      jobStatus: job?.status ?? '',
+      renderStatus: render.status,
+      renderFailureReason: render.failureReason,
+    });
+    if (retryAction !== 'none') {
+      await this.drive(intent, retryAction);
     }
     await this.reconcile();
     return { ...(this.reels.get(id) ?? videoFromIntent(intent)) };
@@ -832,6 +831,12 @@ export class RealApiClient implements ApiClient {
             }));
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        if (action === 'record') {
+          const view = viewForRecordAdmission(res.status, body);
+          if (view === null) return;
+          this.applyView(intent, view);
+          return;
+        }
         // 503 is transient; the next reconcile tick retries.
         if (body.code === SERVICE_UNAVAILABLE_CODE) return;
         // Job vanished mid-POST: latch unrecoverable so Retry cannot spin.
@@ -843,7 +848,7 @@ export class RealApiClient implements ApiClient {
         this.applyView(intent, {
           status: 'failed',
           action: 'none',
-          failureReason: body.error || (action === 'record' ? 'failed to start recording' : 'failed to start rendering'),
+          failureReason: body.error || 'failed to start rendering',
         });
       }
     } catch {

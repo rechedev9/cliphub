@@ -27,11 +27,17 @@ func TestAllPresetsRenderVertical1080x1920At60FPS(t *testing.T) {
 	for _, name := range PresetNames() {
 		t.Run(name, func(t *testing.T) {
 			preset, _ := PresetByName(name)
-			if preset.Width != 1080 || preset.Height != 1920 {
-				t.Fatalf("resolution = %dx%d, want 1080x1920", preset.Width, preset.Height)
-			}
 			if preset.FPS != 60 {
 				t.Fatalf("fps = %d, want 60", preset.FPS)
+			}
+			if name == PresetGameplayPOV60 {
+				if preset.Width != 1920 || preset.Height != 1080 {
+					t.Fatalf("resolution = %dx%d, want 1920x1080", preset.Width, preset.Height)
+				}
+				return
+			}
+			if preset.Width != 1080 || preset.Height != 1920 {
+				t.Fatalf("resolution = %dx%d, want 1080x1920", preset.Width, preset.Height)
 			}
 		})
 	}
@@ -62,7 +68,7 @@ func TestDefaultPresetIsViral60Clean(t *testing.T) {
 }
 
 func TestRegisteredPresets(t *testing.T) {
-	want := []string{PresetViral60Clean, PresetViralAggressive60, PresetCleanPOV60, PresetFullHUD60}
+	want := []string{PresetViral60Clean, PresetViralAggressive60, PresetCleanPOV60, PresetFullHUD60, PresetGameplayPOV60}
 	names := PresetNames()
 	if len(names) != len(want) {
 		t.Fatalf("PresetNames = %v, want %v", names, want)
@@ -127,6 +133,7 @@ func TestPresetHUDModes(t *testing.T) {
 		PresetViralAggressive60: "deathnotices",
 		PresetCleanPOV60:        "clean",
 		PresetFullHUD60:         "gameplay",
+		PresetGameplayPOV60:       "gameplay",
 	}
 	valid := map[string]bool{"gameplay": true, "clean": true, "deathnotices": true}
 	for _, name := range PresetNames() {
@@ -137,6 +144,31 @@ func TestPresetHUDModes(t *testing.T) {
 			}
 			if w, ok := want[name]; ok && preset.HUDMode != w {
 				t.Fatalf("preset %q hud mode = %q, want %q", name, preset.HUDMode, w)
+			}
+		})
+	}
+}
+
+func TestGameplayPOV60IsNativeGameplayNotShorts(t *testing.T) {
+	preset, ok := PresetByName(PresetGameplayPOV60)
+	if !ok {
+		t.Fatalf("PresetByName(%q) ok = false, want true", PresetGameplayPOV60)
+	}
+	tests := []struct {
+		name string
+		got  any
+		want any
+	}{
+		{"hud", preset.HUDMode, "gameplay"},
+		{"effects", preset.EffectsPreset, EffectsPresetGameplayNative},
+		{"killfeed overlay source", preset.KillfeedSource, false},
+		{"width", preset.Width, 1920},
+		{"height", preset.Height, 1080},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.got != tc.want {
+				t.Fatalf("%s = %#v, want %#v", tc.name, tc.got, tc.want)
 			}
 		})
 	}

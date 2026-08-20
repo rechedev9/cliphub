@@ -320,7 +320,7 @@ func (c Config) validate() error {
 	}
 	if c.EffectsPath == "" && c.EffectsPreset != "" {
 		switch c.EffectsPreset {
-		case EffectsPresetViralUltraClean, EffectsPresetViralAggressive:
+		case EffectsPresetViralUltraClean, EffectsPresetViralAggressive, EffectsPresetGameplayNative:
 		default:
 			return fmt.Errorf("unknown effects preset %q", c.EffectsPreset)
 		}

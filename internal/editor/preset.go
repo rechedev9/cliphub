@@ -20,6 +20,10 @@ const (
 	// PresetViralAggressive60 is the public aggressive TikTok look: same
 	// deathnotices HUD as viral-60-clean, with the viral-aggressive grade.
 	PresetViralAggressive60 = "viral-aggressive-60"
+
+	// PresetGameplayPOV60 is the landscape YouTube POV: native CS2 HUD,
+	// no viral grade, no punch-in. Distinct from Shorts viral-60-clean.
+	PresetGameplayPOV60 = "gameplay-pov-60"
 )
 
 // RenderPreset is one declarative entry in the render preset registry.
@@ -137,6 +141,23 @@ var renderPresets = []RenderPreset{
 		QualityChecks:  true,
 		CoverSheets:    true,
 		KillfeedSource: true,
+		HUDMode:        "gameplay",
+	},
+	{
+		Name:           PresetGameplayPOV60,
+		Label:          "Native POV",
+		Description:    "YouTube POV with native CS2 HUD (radar, health, ammo, killfeed); 1920x1080 at 60fps with no viral grade",
+		FPS:            60,
+		Width:          1920,
+		Height:         1080,
+		VideoCRF:       StandardVideoCRF,
+		VideoPreset:    StandardVideoPreset,
+		EffectsPreset:  EffectsPresetGameplayNative,
+		HQFilters:      true,
+		AudioNormalize: true,
+		QualityChecks:  true,
+		CoverSheets:    true,
+		KillfeedSource: false,
 		HUDMode:        "gameplay",
 	},
 }

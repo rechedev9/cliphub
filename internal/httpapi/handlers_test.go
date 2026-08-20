@@ -1741,6 +1741,103 @@ func TestStartRecordingNativeHUDAndRecap(t *testing.T) {
 	}
 }
 
+func TestStartRecordingAdmissionByStatus(t *testing.T) {
+	const fullDemoEdit = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"}`
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
+
+	tests := []struct {
+		name        string
+		status      job.Status
+		body        string
+		storeRecap  bool
+		wantCode    int
+		wantEnqueue int
+		wantHUD     string
+		wantRecap   bool
+	}{
+		{
+			name:        "recording with kill plan is in-progress, no second enqueue",
+			status:      job.StatusRecording,
+			wantCode:    http.StatusAccepted,
+			wantEnqueue: 0,
+		},
+		{
+			name:        "parsed recap sidecar still admits use_recap_plan and gameplay HUD",
+			status:      job.StatusParsed,
+			body:        `{"preset":"viral-60-clean","segment_ids":["seg-001"],"edit":` + fullDemoEdit + `}`,
+			storeRecap:  true,
+			wantCode:    http.StatusAccepted,
+			wantEnqueue: 1,
+			wantHUD:     "gameplay",
+			wantRecap:   true,
+		},
+		{
+			name:        "scanning is still rejected",
+			status:      job.StatusScanning,
+			wantCode:    http.StatusConflict,
+			wantEnqueue: 0,
+		},
+		{
+			name:        "composing is still rejected",
+			status:      job.StatusComposing,
+			wantCode:    http.StatusConflict,
+			wantEnqueue: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			queue := &fakeQueue{}
+			store := newFakeStorage()
+			j := job.Job{ID: uuid.New(), Status: tc.status, Rules: rules.Default(), KillPlan: &plan}
+			repo.jobs[j.ID] = j
+			if tc.storeRecap {
+				recap := killplan.NewPlan()
+				recap.Segments = []killplan.Segment{{ID: "recap-001", Round: 1, TickStart: 1, TickEnd: 9000}}
+				if err := recapplan.Store(store, j.ID, recap); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/record", h.StartRecording)
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", body)
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			if rw.Code != tc.wantCode {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantCode, rw.Body.String())
+			}
+			if len(queue.enqueued) != tc.wantEnqueue {
+				t.Fatalf("enqueued = %d, want %d", len(queue.enqueued), tc.wantEnqueue)
+			}
+			if tc.wantEnqueue == 0 {
+				return
+			}
+			var payload tasks.RecordDemoPayload
+			if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+				t.Fatalf("unmarshal record payload: %v", err)
+			}
+			if payload.HUDMode != tc.wantHUD {
+				t.Fatalf("HUDMode = %q, want %q", payload.HUDMode, tc.wantHUD)
+			}
+			if payload.UseRecapPlan != tc.wantRecap {
+				t.Fatalf("UseRecapPlan = %t, want %t", payload.UseRecapPlan, tc.wantRecap)
+			}
+			if tc.wantRecap && len(payload.SegmentIDs) != 0 {
+				t.Fatalf("SegmentIDs = %v, want empty so recap records every round", payload.SegmentIDs)
+			}
+		})
+	}
+}
+
 func TestGetRecapPlanReturnsStoredRounds(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
