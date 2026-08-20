@@ -192,7 +192,7 @@ server.listen(port, '127.0.0.1', () => process.stdout.write('READY'));
 });
 
 test('shell smoke does not treat wrapper exit as listener startup failure', () => {
-  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8');
+  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8').replaceAll('\r\n', '\n');
   const waitStart = source.indexOf('for _ in $(seq 1 40); do');
   const waitEnd = source.indexOf('echo "→ started isolated smoke orchestrator', waitStart);
   const waitLoop = source.slice(waitStart, waitEnd);
@@ -223,7 +223,7 @@ test('Windows netstat listener selection ignores non-TCP and non-LISTENING rows'
     return;
   }
 
-  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8');
+  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8').replaceAll('\r\n', '\n');
   const filter = source.match(
     /awk -v suffix=":\$port" \\\r?\n\s*'([^']+)'/,
   )?.[1];
@@ -252,7 +252,7 @@ test('Windows shell cleanup holds creation identity and refuses a reused wrapper
     return;
   }
 
-  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8');
+  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8').replaceAll('\r\n', '\n');
   const helperStart = source.indexOf('windows_taskkill_if_same()');
   const helperEnd = source.indexOf('\n}\n\nprocess_belongs_to_launch()', helperStart);
   assert.notEqual(helperStart, -1);
@@ -303,7 +303,7 @@ test('Windows shell cleanup holds creation identity and refuses a reused wrapper
 });
 
 test('Windows listener ancestry rejects reused ancestor PIDs but permits an exited wrapper', () => {
-  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8');
+  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8').replaceAll('\r\n', '\n');
   const ancestryStart = source.indexOf('process_belongs_to_launch()');
   const ancestryEnd = source.indexOf('\n}\n\ncleanup()', ancestryStart);
   const ancestry = source.slice(ancestryStart, ancestryEnd);
@@ -331,7 +331,7 @@ test('Windows ancestry accepts a listener child after its short wrapper exits', 
     return;
   }
 
-  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8');
+  const source = readFileSync(join(repo, 'scripts', 'smoke.sh'), 'utf8').replaceAll('\r\n', '\n');
   const ancestryStart = source.indexOf('process_belongs_to_launch()');
   const ancestryEnd = source.indexOf('\n}\n\ncleanup()', ancestryStart);
   const ancestry = source.slice(ancestryStart, ancestryEnd);

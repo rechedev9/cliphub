@@ -237,6 +237,9 @@ ready. Browser and unpackaged `pnpm start` sessions never show it.
 The download is the same NSIS artifact the release publishes. Studio fetches
 `SHA256SUMS.txt` from that tag, writes the installer under `<userData>/updates`,
 and refuses to run it unless the SHA-256 matches. Applying the update spawns
-the installer with `/S --updated` and quits so NSIS can replace the running
-files. Integrity remains the GitHub Release plus `SHA256SUMS.txt`; the updater
-does not code-sign.
+the installer with `/S --updated --force-run` and quits so NSIS can replace the
+running files and relaunch Studio. Assisted silent installs skip the finish-page
+Run checkbox; `--force-run` is the electron-builder switch that starts the app
+after the replace. `build/installer.nsh` also relaunches on silent `--updated`
+when the running app is too old to pass `--force-run`. Integrity remains the
+GitHub Release plus `SHA256SUMS.txt`; the updater does not code-sign.

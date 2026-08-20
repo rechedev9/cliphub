@@ -12,6 +12,7 @@ import {
   checksumForFile,
   compareVersions,
   digestMatches,
+  INSTALLER_SPAWN_ARGS,
   installerAssetName,
   parseGithubLatestRelease,
   parseReleaseVersion,
@@ -41,6 +42,30 @@ test('parses and compares release versions', () => {
   ];
   for (const [left, right, want] of comparisons) {
     assert.equal(compareVersions(left, right), want, `${left} vs ${right}`);
+  }
+});
+
+test('silent NSIS apply asks electron-builder to relaunch after replace', () => {
+  const cases: Array<{ flag: string; reason: string }> = [
+    { flag: '/S', reason: 'silent so the wizard never appears' },
+    { flag: '--updated', reason: 'NSIS treats this as a replace of a running install' },
+    { flag: '--force-run', reason: 'assisted silent installs skip the finish-page Run checkbox' },
+  ];
+  assert.deepEqual([...INSTALLER_SPAWN_ARGS], cases.map((row) => row.flag));
+
+  const desktopDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(desktopDirectory, 'package.json'), 'utf8'));
+  assert.equal(manifest.build.nsis.include, 'build/installer.nsh');
+  const nsis = fs.readFileSync(path.join(desktopDirectory, 'build', 'installer.nsh'), 'utf8');
+  const required = [
+    '!macro customInstall',
+    '${isUpdated}',
+    '${Silent}',
+    '${isForceRun}',
+    '!insertmacro StartApp',
+  ];
+  for (const token of required) {
+    assert.equal(nsis.includes(token), true, token);
   }
 });
 
