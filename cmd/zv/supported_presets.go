@@ -3,7 +3,7 @@ package main
 import "github.com/rechedev9/cliphub/internal/editor"
 
 func supportedPresetNames() []string {
-	return []string{editor.PresetViral60Clean, editor.PresetViralAggressive60}
+	return []string{editor.PresetViral60Clean, editor.PresetViralAggressive60, editor.PresetGameplayPOV60}
 }
 
 func supportedPresetByName(name string) (editor.RenderPreset, bool) {

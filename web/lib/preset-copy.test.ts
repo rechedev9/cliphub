@@ -6,7 +6,7 @@ import { PRESET_DESCRIPTION_ES, presetDescription } from './preset-copy.ts';
 
 // The preset names registered in internal/editor/preset.go. Every override must
 // key on one of these; a stray key means a typo or a renamed/removed preset.
-const KNOWN_PRESET_NAMES = ['viral-60-clean', 'viral-aggressive-60', 'clean-pov-60', 'full-hud-60'] as const;
+const KNOWN_PRESET_NAMES = ['viral-60-clean', 'viral-aggressive-60', 'clean-pov-60', 'full-hud-60', 'gameplay-pov-60'] as const;
 
 // Exact English registry copy; an untranslated override must fail.
 const ENGLISH_DESCRIPTIONS: Record<(typeof KNOWN_PRESET_NAMES)[number], string> = {
@@ -18,6 +18,8 @@ const ENGLISH_DESCRIPTIONS: Record<(typeof KNOWN_PRESET_NAMES)[number], string> 
     'full in-game HUD POV: keeps the CS2 HUD, health, ammo, and radar visible over the viral edit',
   'viral-aggressive-60':
     'aggressive TikTok edit: HUD-less 60fps POV that keeps the kill feed, with a saturated grade and headshot chroma pulses',
+  'gameplay-pov-60':
+    'YouTube POV with native CS2 HUD (radar, health, ammo, killfeed); 1920x1080 at 60fps with no viral grade',
 };
 
 test('every override key is a known registry preset name', () => {

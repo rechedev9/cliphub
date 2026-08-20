@@ -46,6 +46,13 @@ on_segment(function(s)
 end)
 `
 
+// gameplayNativeEffectsScript is a no-op pack: the landscape native POV keeps
+// the captured CS2 HUD and colour as recorded, with no grade or punch-in.
+const gameplayNativeEffectsScript = `
+on_segment(function(s)
+end)
+`
+
 const viralAggressiveEffectsScript = `
 on_segment(function(s)
   grade({
@@ -114,6 +121,8 @@ func loadEffectsSource(path, preset string) (effectsSource, error) {
 		return effectsSource{Preset: preset, Script: viralUltraCleanEffectsScript}, nil
 	case EffectsPresetViralAggressive:
 		return effectsSource{Preset: preset, Script: viralAggressiveEffectsScript}, nil
+	case EffectsPresetGameplayNative:
+		return effectsSource{Preset: preset, Script: gameplayNativeEffectsScript}, nil
 	default:
 		return effectsSource{}, fmt.Errorf("unknown effects preset %q", preset)
 	}

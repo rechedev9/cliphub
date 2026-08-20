@@ -1,4 +1,4 @@
-import type { EditConfig, VideoStatus, CaptureProgress } from './types';
+import { SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
 import { requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
@@ -79,6 +79,36 @@ function failed(reason?: string): ReelView {
   return reason
     ? { status: 'failed', action: 'none', failureReason: reason }
     : { status: 'failed', action: 'none' };
+}
+
+const IN_FLIGHT_RECORD_CONFLICT = /^job is not ready to record \(status=recording\)$/;
+
+/** HTTP POST /record result → reel view. Null keeps the current poll (202/503). */
+export function viewForRecordAdmission(
+  httpStatus: number,
+  body: { error?: string; code?: string } = {},
+): ReelView | null {
+  if (httpStatus === 202 || httpStatus === 200) return null;
+  if (httpStatus === 503 || body.code === SERVICE_UNAVAILABLE_CODE) return null;
+  if (httpStatus === 404) return unrecoverableJobGoneView();
+  if (httpStatus === 409 && IN_FLIGHT_RECORD_CONFLICT.test(body.error ?? '')) {
+    return { status: 'recording', action: 'none' };
+  }
+  return failed(body.error || 'failed to start recording');
+}
+
+/** Retry drive: never re-POST record while capture is already running. */
+export function retryReelAction(input: {
+  jobStatus: string;
+  renderStatus: RenderStatus;
+  renderFailureReason?: string;
+}): ReelAction {
+  if (input.jobStatus === 'recording') return 'none';
+  if (input.jobStatus === 'failed') return 'record';
+  if (input.renderStatus === 'failed') {
+    return requiresRecapture(input.renderFailureReason) ? 'record' : 'render';
+  }
+  return 'none';
 }
 
 /** Capture-time bits: a ready render that disagrees must not be this reel. */

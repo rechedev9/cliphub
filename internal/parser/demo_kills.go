@@ -229,6 +229,18 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		c.RecordRoundStart(RoundStart{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
 	})
 
+	p.RegisterEventHandler(func(events.RoundFreezetimeEnd) {
+		gs := p.GameState()
+		tick := gs.IngameTick()
+		if tick > maxTick {
+			maxTick = tick
+		}
+		if tick < 1 {
+			tick = 1
+		}
+		c.RecordRoundLiveStart(RoundLiveStart{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
+	})
+
 	p.RegisterEventHandler(func(events.RoundEnd) {
 		gs := p.GameState()
 		tick := gs.IngameTick()

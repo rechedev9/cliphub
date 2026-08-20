@@ -186,6 +186,7 @@ export function ReadyCard({
               </Button>
             ) : (
               <>
+                {video.editConfig?.matchRecap ? null : (
                 <Button
                   type="button"
                   variant="outline"
@@ -195,6 +196,7 @@ export function ReadyCard({
                   <Music className="size-4 text-stream" aria-hidden />
                   {video.songId ? 'CAMBIAR MÚSICA' : 'AÑADIR MÚSICA'}
                 </Button>
+                )}
                 <Button
                   type="button"
                   variant="hero"

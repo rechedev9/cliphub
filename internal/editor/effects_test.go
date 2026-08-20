@@ -323,6 +323,32 @@ func TestViralUltraCleanEmitsOnlyColorGrade(t *testing.T) {
 	}
 }
 
+func TestGameplayNativeEmitsNoGrade(t *testing.T) {
+	short := ShortEdit{
+		SegmentID:       "seg-001",
+		Preset:          PresetGameplayPOV60,
+		DurationSeconds: 20,
+		Player:          "donk",
+		Map:             "de_anubis",
+		KillCount:       2,
+		Kills: []KillCue{
+			{Tick: 100, TimeSeconds: 1, Weapon: "AK-47", Headshot: true},
+			{Tick: 300, TimeSeconds: 6, Weapon: "AWP"},
+		},
+	}
+	source, err := loadEffectsSource("", EffectsPresetGameplayNative)
+	if err != nil {
+		t.Fatalf("loadEffectsSource error = %v", err)
+	}
+	effects, _, err := evaluateEffects(source, short)
+	if err != nil {
+		t.Fatalf("evaluateEffects error = %v", err)
+	}
+	if len(effects) != 0 {
+		t.Fatalf("gameplay-native effects = %#v, want none so CS2 HUD stays ungraded", effects)
+	}
+}
+
 func TestEvaluateEffectsRejectsInvalidFade(t *testing.T) {
 	_, _, err := evaluateEffects(effectsSource{
 		Preset: EffectsPresetExternal,

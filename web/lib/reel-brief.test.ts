@@ -114,7 +114,7 @@ test('creative brief names the optional recap extras when they are on', () => {
     outro: false,
   };
   const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
-  assert.equal(brief['Entrega'], 'Resumen de partida (rondas completas)');
+  assert.equal(brief['Entrega'], 'POV landscape · rondas en vivo (sin freeze)');
   assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
   assert.equal(brief['HUD / killfeed'], 'HUD completo con killfeed');
 });

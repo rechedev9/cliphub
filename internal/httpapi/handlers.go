@@ -879,7 +879,22 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	// failed capture can be retried in place (the .dem and kill plan are still
 	// there); the KillPlan==nil guard still rejects a job that failed before it
 	// was ever parsed.
-	if (j.Status != job.StatusParsed && j.Status != job.StatusRecorded && j.Status != job.StatusFailed) || j.KillPlan == nil {
+	if j.KillPlan == nil {
+		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to record (status=%s)", j.Status))
+		return
+	}
+	// The worker flips parsed→recording as soon as it dequeues, before HLAE
+	// launches. Reconcile re-POSTs in that window; treat it like a unique
+	// duplicate so the reel stays in progress instead of latching a 409.
+	if j.Status == job.StatusRecording {
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"id":        j.ID,
+			"task":      tasks.TypeRecordDemo,
+			"duplicate": true,
+		})
+		return
+	}
+	if j.Status != job.StatusParsed && j.Status != job.StatusRecorded && j.Status != job.StatusFailed {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to record (status=%s)", j.Status))
 		return
 	}

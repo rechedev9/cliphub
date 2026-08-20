@@ -31,9 +31,14 @@ type RoundEnd struct {
 	Tick  int
 }
 
-// RoundStart marks the tick at which a given round began. Recap segmentation
-// uses these to record the full live round instead of an 8-second kill burst.
+// RoundStart marks the tick at which a given round began (CS2 freeze start).
 type RoundStart struct {
+	Round int
+	Tick  int
+}
+
+// RoundLiveStart is freeze-end: the first live tick after buy time.
+type RoundLiveStart struct {
 	Round int
 	Tick  int
 }
@@ -94,10 +99,10 @@ func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int)
 	return out
 }
 
-// SegmentRecap records each live round from freeze/start to round end so a
-// landscape match recap can keep native HUD, radar, and economy context.
-// Rounds without target kills are kept when their boundaries are known.
-func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []RoundStart, roundEnds []RoundEnd, r rules.Rules, tickrate int) []killplan.Segment {
+// SegmentRecap records each live round from freeze-end to round end so a
+// landscape POV recap skips buy time and hard-cuts between rounds.
+// Rounds without target kills are kept when live bounds are known.
+func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []RoundStart, liveStarts []RoundLiveStart, roundEnds []RoundEnd, r rules.Rules, tickrate int) []killplan.Segment {
 	if tickrate <= 0 {
 		return nil
 	}
@@ -105,6 +110,7 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 	preRollTicks := r.PreRollSeconds * tickrate
 	postRollTicks := r.PostRollSeconds * tickrate
 	startByRound := indexRoundStarts(roundStarts)
+	liveByRound := indexRoundLiveStarts(liveStarts)
 	endByRound := indexRoundEnds(roundEnds)
 	killsByRound := map[int][]RawKill{}
 	for _, kill := range kills {
@@ -118,7 +124,7 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 		utilityByRound[u.Round] = append(utilityByRound[u.Round], buildUtilityThrow(u))
 	}
 
-	rounds := recapRounds(killsByRound, utilityByRound, startByRound, endByRound)
+	rounds := recapRounds(killsByRound, utilityByRound, startByRound, liveByRound, endByRound)
 	if len(rounds) == 0 {
 		return nil
 	}
@@ -133,14 +139,25 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 		if len(g) > 0 && len(g) < r.MinKillsInWindow {
 			continue
 		}
-		tickStart, tickEnd := recapRoundWindow(round, g, startByRound, endByRound, previousEnd, preRollTicks, postRollTicks)
+		liveStart := recapLiveStart(round, g, utilityByRound[round], liveByRound, startByRound, previousEnd)
+		tickStart, tickEnd := recapRoundWindow(round, g, utilityByRound[round], liveStart, endByRound)
 		roundEnd := 0
 		if end, ok := endByRound[round]; ok {
 			roundEnd = end
 		}
 		tickStart, tickEnd = expandRecapWindowForUtility(tickStart, tickEnd, utilityByRound[round], preRollTicks, postRollTicks, roundEnd)
+		if liveStart > 0 && tickStart < liveStart {
+			tickStart = liveStart
+		}
+		// Recording rejects TickEnd <= TickStart; kill-only fallbacks get 1s, not a Shorts post-roll.
 		if tickEnd <= tickStart {
-			continue
+			if len(g) == 0 {
+				continue
+			}
+			tickEnd = g[len(g)-1].Tick + tickrate
+			if tickEnd <= tickStart {
+				tickEnd = tickStart + 1
+			}
 		}
 		out = append(out, killplan.Segment{
 			ID:        killplan.FormatSegmentID(len(out) + 1),
@@ -155,7 +172,7 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 	return out
 }
 
-func recapRounds(killsByRound map[int][]RawKill, utilityByRound map[int][]killplan.UtilityThrow, startByRound, endByRound map[int]int) []int {
+func recapRounds(killsByRound map[int][]RawKill, utilityByRound map[int][]killplan.UtilityThrow, startByRound, liveByRound, endByRound map[int]int) []int {
 	seen := map[int]struct{}{}
 	add := func(round int) {
 		if round <= 0 {
@@ -170,6 +187,9 @@ func recapRounds(killsByRound map[int][]RawKill, utilityByRound map[int][]killpl
 		add(round)
 	}
 	for round := range startByRound {
+		add(round)
+	}
+	for round := range liveByRound {
 		add(round)
 	}
 	for round := range endByRound {
@@ -206,33 +226,72 @@ func expandRecapWindowForUtility(tickStart, tickEnd int, utility []killplan.Util
 	return tickStart, tickEnd
 }
 
-func recapRoundWindow(round int, kills []RawKill, startByRound, endByRound map[int]int, previousEnd, preRollTicks, postRollTicks int) (int, int) {
-	tickStart := 1
-	if start, ok := startByRound[round]; ok && start > 0 {
-		tickStart = start
-	} else if len(kills) > 0 {
-		tickStart = kills[0].Tick - preRollTicks
-	} else if previousEnd > 0 {
-		tickStart = previousEnd + 1
+func recapLiveStart(round int, kills []RawKill, utility []killplan.UtilityThrow, liveByRound, startByRound map[int]int, previousEnd int) int {
+	if tick, ok := liveByRound[round]; ok && tick > 0 {
+		return tick
 	}
+	if len(kills) > 0 {
+		return kills[0].Tick
+	}
+	earliest := 0
+	for _, u := range utility {
+		if u.ThrowTick > 0 && (earliest == 0 || u.ThrowTick < earliest) {
+			earliest = u.ThrowTick
+		}
+	}
+	if earliest > 0 {
+		return earliest
+	}
+	if start, ok := startByRound[round]; ok && start > 0 {
+		return start
+	}
+	if previousEnd > 0 {
+		return previousEnd + 1
+	}
+	return 1
+}
+
+func recapRoundWindow(round int, kills []RawKill, utility []killplan.UtilityThrow, liveStart int, endByRound map[int]int) (int, int) {
+	tickStart := liveStart
 	if tickStart < 1 {
 		tickStart = 1
 	}
 
 	tickEnd := 0
-	if end, ok := endByRound[round]; ok {
+	if end, ok := endByRound[round]; ok && end > 0 {
 		tickEnd = end
 	}
-	if len(kills) > 0 {
-		fallbackEnd := kills[len(kills)-1].Tick + postRollTicks
-		if tickEnd <= 0 || (tickEnd < kills[len(kills)-1].Tick) {
-			tickEnd = fallbackEnd
+	if tickEnd <= 0 {
+		if len(kills) > 0 {
+			tickEnd = kills[len(kills)-1].Tick
+		}
+		for _, u := range utility {
+			uEnd := u.ThrowTick
+			if u.PopTick > uEnd {
+				uEnd = u.PopTick
+			}
+			if uEnd > tickEnd {
+				tickEnd = uEnd
+			}
 		}
 	}
 	if tickEnd < tickStart {
 		return tickStart, tickStart
 	}
 	return tickStart, tickEnd
+}
+
+func indexRoundLiveStarts(liveStarts []RoundLiveStart) map[int]int {
+	if len(liveStarts) == 0 {
+		return nil
+	}
+	out := make(map[int]int, len(liveStarts))
+	for _, rs := range liveStarts {
+		if _, ok := out[rs.Round]; !ok {
+			out[rs.Round] = rs.Tick
+		}
+	}
+	return out
 }
 
 func indexRoundStarts(roundStarts []RoundStart) map[int]int {

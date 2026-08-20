@@ -1,6 +1,6 @@
 'use client';
 
-import { Clapperboard, Eye, Crosshair, Check, type LucideIcon } from 'lucide-react';
+import { Clapperboard, Eye, Crosshair, Check, Tv, type LucideIcon } from 'lucide-react';
 import type { Preset } from '@/lib/api/types';
 import { presetDescription } from '@/lib/preset-copy';
 import { IconTile } from '@/components/studio/icon-tile';
@@ -21,21 +21,10 @@ const PRESET_ICONS: Record<string, LucideIcon> = {
   'clean-pov-60': Eye,
   'viral-60-clean': Crosshair,
   'full-hud-60': Clapperboard,
+  'gameplay-pov-60': Tv,
 };
 
-/**
- * PresetCards — the reel style picker. Each preset is one choice that sets both
- * the recording HUD (Clean POV vs Full HUD vs Kill Feed) and the render style;
- * the list comes from the orchestrator's preset registry (/api/presets). The
- * active card carries the accent edge and a filled check; the registry default
- * is flagged so the user knows the safe pick.
- *
- * The grid is `auto-fit` against the picker's own container, not `sm:grid-cols-3`
- * against the viewport: the picker renders both full width and inside the ~21rem
- * build column, where three fixed columns gave each card ~100px and broke every
- * label onto its own line. It also stops hardcoding "the registry has exactly
- * three presets".
- */
+/** Registry-driven reel style picker; auto-fit so the grid survives the narrow build column. */
 export function PresetCards({ presets, value, onChange, disabled = false }: PresetCardsProps) {
   return (
     <div className="@container/presets">

@@ -309,6 +309,7 @@ func TestCollectorBuildEmitsWiderRecapWindows(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	c.RecordTargetIdentity("MARTINEZSA", "CT")
 	c.RecordRoundStart(RoundStart{Round: 5, Tick: 8000})
+	c.RecordRoundLiveStart(RoundLiveStart{Round: 5, Tick: 8500})
 	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: "awp"})
 	c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 14000})
 

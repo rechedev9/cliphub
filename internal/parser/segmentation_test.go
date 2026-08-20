@@ -235,10 +235,13 @@ func TestSegmentClippedAtRoundEndWhenGroupSpansRounds(t *testing.T) {
 }
 
 func TestSegmentRecap(t *testing.T) {
+	shortsPre := 3 * testTickrate
+	shortsPost := 5 * testTickrate
 	tests := []struct {
 		name        string
 		kills       []RawKill
 		roundStarts []RoundStart
+		liveStarts  []RoundLiveStart
 		roundEnds   []RoundEnd
 		rules       func() rules.Rules
 		wantSegs    int
@@ -253,7 +256,7 @@ func TestSegmentRecap(t *testing.T) {
 			wantSegs: 0,
 		},
 		{
-			name: "same-round kills far apart merge",
+			name: "same-round kills far apart are one live window, not the 8s shorts burst",
 			kills: []RawKill{
 				mkKill(10000, 5, "awp"),
 				mkKill(10000+20*testTickrate, 5, "ak47"),
@@ -262,33 +265,35 @@ func TestSegmentRecap(t *testing.T) {
 			wantRound:  5,
 			wantKills:  2,
 			checkRange: true,
-			wantStart:  10000 - 3*testTickrate,
-			wantEnd:    10000 + 20*testTickrate + 5*testTickrate,
+			wantStart:  10000,
+			wantEnd:    10000 + 20*testTickrate,
 		},
 		{
-			name: "full live round uses start and end ticks",
+			name: "freeze-end to round-end excludes freeze ticks",
 			kills: []RawKill{
 				mkKill(10000, 5, "awp"),
 				mkKill(10000+20*testTickrate, 5, "ak47"),
 			},
 			roundStarts: []RoundStart{{Round: 5, Tick: 9000}},
+			liveStarts:  []RoundLiveStart{{Round: 5, Tick: 9500}},
 			roundEnds:   []RoundEnd{{Round: 5, Tick: 14000}},
 			wantSegs:    1,
 			wantRound:   5,
 			wantKills:   2,
 			checkRange:  true,
-			wantStart:   9000,
+			wantStart:   9500,
 			wantEnd:     14000,
 		},
 		{
-			name:        "zero-kill round is kept when bounds exist",
+			name:        "zero-kill live round is kept when freeze-end and round-end exist",
 			roundStarts: []RoundStart{{Round: 3, Tick: 4000}},
+			liveStarts:  []RoundLiveStart{{Round: 3, Tick: 4500}},
 			roundEnds:   []RoundEnd{{Round: 3, Tick: 7000}},
 			wantSegs:    1,
 			wantRound:   3,
 			wantKills:   0,
 			checkRange:  true,
-			wantStart:   4000,
+			wantStart:   4500,
 			wantEnd:     7000,
 		},
 		{
@@ -300,18 +305,19 @@ func TestSegmentRecap(t *testing.T) {
 			wantSegs: 2,
 		},
 		{
-			name: "clips at the ending round",
+			name: "missing freeze-end falls back to first kill through round end, not shorts preroll",
 			kills: []RawKill{
 				mkKill(10000, 5, "awp"),
 				mkKill(10200, 5, "ak47"),
 			},
-			roundEnds:  []RoundEnd{{Round: 5, Tick: 10300}},
-			wantSegs:   1,
-			wantRound:  5,
-			wantKills:  2,
-			checkRange: true,
-			wantStart:  10000 - 3*testTickrate,
-			wantEnd:    10300,
+			roundStarts: []RoundStart{{Round: 5, Tick: 9000}},
+			roundEnds:   []RoundEnd{{Round: 5, Tick: 10300}},
+			wantSegs:    1,
+			wantRound:   5,
+			wantKills:   2,
+			checkRange:  true,
+			wantStart:   10000,
+			wantEnd:     10300,
 		},
 		{
 			name: "min kills drops a lone-kill round",
@@ -330,14 +336,20 @@ func TestSegmentRecap(t *testing.T) {
 			wantKills: 2,
 		},
 		{
-			name:       "pre-roll clamps to first playable tick",
-			kills:      []RawKill{mkKill(100, 1, "awp")},
+			name:       "kill-only without round bounds is 1s, not the 8s shorts burst",
+			kills:      []RawKill{mkKill(10000, 1, "awp")},
 			wantSegs:   1,
 			wantRound:  1,
 			wantKills:  1,
 			checkRange: true,
-			wantStart:  1,
-			wantEnd:    100 + 5*testTickrate,
+			wantStart:  10000,
+			wantEnd:    10000 + testTickrate,
+		},
+		{
+			name:        "zero-kill without round-end is unrecordable and dropped",
+			roundStarts: []RoundStart{{Round: 3, Tick: 4000}},
+			liveStarts:  []RoundLiveStart{{Round: 3, Tick: 4500}},
+			wantSegs:    0,
 		},
 	}
 	for _, tt := range tests {
@@ -346,7 +358,7 @@ func TestSegmentRecap(t *testing.T) {
 			if tt.rules != nil {
 				r = tt.rules()
 			}
-			got := SegmentRecap(tt.kills, nil, tt.roundStarts, tt.roundEnds, r, testTickrate)
+			got := SegmentRecap(tt.kills, nil, tt.roundStarts, tt.liveStarts, tt.roundEnds, r, testTickrate)
 			if len(got) != tt.wantSegs {
 				t.Fatalf("segments = %d, want %d", len(got), tt.wantSegs)
 			}
@@ -365,6 +377,16 @@ func TestSegmentRecap(t *testing.T) {
 			if tt.checkRange && got[0].TickEnd != tt.wantEnd {
 				t.Errorf("TickEnd = %d, want %d", got[0].TickEnd, tt.wantEnd)
 			}
+			if len(tt.kills) > 0 && tt.checkRange {
+				shortsStart := tt.kills[0].Tick - shortsPre
+				if shortsStart < 1 {
+					shortsStart = 1
+				}
+				shortsEnd := tt.kills[len(tt.kills)-1].Tick + shortsPost
+				if got[0].TickStart == shortsStart && got[0].TickEnd == shortsEnd {
+					t.Errorf("window collapsed to Shorts burst %d-%d", shortsStart, shortsEnd)
+				}
+			}
 		})
 	}
 }
@@ -374,6 +396,7 @@ func TestSegmentRecapUtilityDoesNotMoveKnownRoundStart(t *testing.T) {
 		[]RawKill{mkKill(400, 1, "ak47")},
 		[]RawUtilityThrow{{Type: SmokeGrenadeType, Round: 1, ThrowTick: 800, PopTick: 900}},
 		[]RoundStart{{Round: 1, Tick: 1}},
+		[]RoundLiveStart{{Round: 1, Tick: 50}},
 		[]RoundEnd{{Round: 1, Tick: 1000}},
 		defaultTestRules(),
 		testTickrate,
@@ -381,8 +404,8 @@ func TestSegmentRecapUtilityDoesNotMoveKnownRoundStart(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("segments = %d, want 1", len(got))
 	}
-	if got[0].TickStart != 1 {
-		t.Fatalf("TickStart = %d, want 1 (round start kept)", got[0].TickStart)
+	if got[0].TickStart != 50 {
+		t.Fatalf("TickStart = %d, want 50 (freeze-end kept; utility must not pull into freeze)", got[0].TickStart)
 	}
 	if got[0].TickEnd != 1000 {
 		t.Fatalf("TickEnd = %d, want 1000 (round end cap)", got[0].TickEnd)
@@ -406,12 +429,12 @@ func TestSegmentRecapAttachesUtilityFacts(t *testing.T) {
 		ThrowPlace:    "TSpawn",
 		LandingSource: "smoke_start",
 	}}
-	got := SegmentRecap(kills, utility, []RoundStart{{Round: 5, Tick: 9000}}, []RoundEnd{{Round: 5, Tick: 14000}}, defaultTestRules(), testTickrate)
+	got := SegmentRecap(kills, utility, []RoundStart{{Round: 5, Tick: 9000}}, []RoundLiveStart{{Round: 5, Tick: 9200}}, []RoundEnd{{Round: 5, Tick: 14000}}, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("segments = %d, want 1", len(got))
 	}
-	if got[0].TickStart != 9000 || got[0].TickEnd != 14000 {
-		t.Fatalf("window = %d-%d, want full round", got[0].TickStart, got[0].TickEnd)
+	if got[0].TickStart != 9200 || got[0].TickEnd != 14000 {
+		t.Fatalf("window = %d-%d, want live round (freeze excluded)", got[0].TickStart, got[0].TickEnd)
 	}
 	if len(got[0].Utility) != 1 {
 		t.Fatalf("utility = %d, want 1", len(got[0].Utility))

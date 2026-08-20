@@ -15,6 +15,10 @@ const (
 	// EffectsPresetViralAggressive is the saturated grade + headshot chroma pack.
 	EffectsPresetViralAggressive = "viral-aggressive"
 
+	// EffectsPresetGameplayNative leaves the captured CS2 frame ungraded so
+	// radar, health, ammo, and killfeed stay as the game drew them.
+	EffectsPresetGameplayNative = "gameplay-native"
+
 	// EffectsPresetExternal marks manifests rendered from a user script path.
 	EffectsPresetExternal = "external"
 )

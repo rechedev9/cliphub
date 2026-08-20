@@ -2058,6 +2058,8 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 	cases := []struct {
 		name        string
 		voiceComms  bool
+		fullDemo    bool
+		musicKey    string
 		steamID     string
 		demoKey     string
 		putDemo     bool
@@ -2065,6 +2067,7 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 		extractErr  error
 		wantDir     bool
 		wantExtract bool
+		wantMusic   bool
 		wantErr     string
 	}{
 		{name: "off skips extract"},
@@ -2081,6 +2084,39 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 		{
 			name:        "on without tracks",
 			voiceComms:  true,
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			wantExtract: true,
+		},
+		{
+			name:        "full demo with song mixes voice and music",
+			voiceComms:  true,
+			fullDemo:    true,
+			musicKey:    "phonk",
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			tracks:      2,
+			wantDir:     true,
+			wantExtract: true,
+			wantMusic:   true,
+		},
+		{
+			name:        "full demo without song still passes voice-dir",
+			voiceComms:  true,
+			fullDemo:    true,
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			tracks:      2,
+			wantDir:     true,
+			wantExtract: true,
+		},
+		{
+			name:        "full demo with zero extracted tracks does not fail",
+			voiceComms:  true,
+			fullDemo:    true,
 			steamID:     steamID,
 			demoKey:     demoKey,
 			putDemo:     true,
@@ -2144,10 +2180,17 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 			var gotDemo string
 			var gotArgs []string
 			stop := errors.New("stop after args")
-			w := NewRenderWorker(repo, store, RenderWorkerConfig{
+			cfg := RenderWorkerConfig{
 				WorkDir:    t.TempDir(),
 				EditorPath: "zv-editor",
-			})
+			}
+			if tc.wantMusic {
+				cfg.MusicDir = t.TempDir()
+				if err := os.WriteFile(filepath.Join(cfg.MusicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			w := NewRenderWorker(repo, store, cfg)
 			w.voiceExtract = func(demoPath, target, dir string) (int, error) {
 				extracted = true
 				gotDemo = demoPath
@@ -2172,7 +2215,15 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 
 			edit := renderplan.DefaultEditRequest()
 			edit.VoiceComms = tc.voiceComms
-			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "", 0, nil, edit)
+			if tc.fullDemo {
+				edit.MatchRecap = true
+				edit.NativeHUD = true
+				edit.Format = renderplan.FormatLandscape16x9
+				edit.KillEffect = renderplan.KillEffectClean
+				edit.Intro = false
+				edit.Outro = false
+			}
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, tc.musicKey, 0.8, nil, edit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2209,85 +2260,133 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 					t.Fatalf("--voice-dir = %q, want .../voice", voiceDir)
 				}
 			}
+			if got := hasArg(gotArgs, "--music"); got != tc.wantMusic {
+				t.Fatalf("--music present = %v, want %v: %#v", got, tc.wantMusic, gotArgs)
+			}
 		})
 	}
 }
 
 func TestRenderWorkerPassesGameAndVoiceVolume(t *testing.T) {
-	gameVol := 0.2
-	voiceVol := 0.85
-	repo := newFakeRepo()
-	store := newFakeStorage()
-	id := uuid.New()
-	plan := minimalKillPlan()
-	repo.jobs[id] = &job.Job{
-		ID:            id,
-		Status:        job.StatusRecorded,
-		DemoPath:      "demos/test.dem",
-		TargetSteamID: "76561197960265729",
-		Rules:         rules.Default(),
-		KillPlan:      &plan,
+	cases := []struct {
+		name       string
+		musicVol   float64
+		gameVol    float64
+		voiceVol   float64
+		fullDemo   bool
+		wantMusic  string
+		wantGame   string
+		wantVoice  string
+	}{
+		{
+			name:      "shorts duck game under music",
+			musicVol:  0.8,
+			gameVol:   0.2,
+			voiceVol:  0.85,
+			wantMusic: "0.8",
+			wantGame:  "0.2",
+			wantVoice: "0.85",
+		},
+		{
+			name:      "full demo mix keeps game above music",
+			musicVol:  0.32,
+			gameVol:   0.8,
+			voiceVol:  0.85,
+			fullDemo:  true,
+			wantMusic: "0.32",
+			wantGame:  "0.8",
+			wantVoice: "0.85",
+		},
 	}
-	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
-	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
-	if err := store.Put("demos/test.dem", bytes.NewReader([]byte("demo"))); err != nil {
-		t.Fatal(err)
-	}
-	musicDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(musicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := minimalKillPlan()
+			repo.jobs[id] = &job.Job{
+				ID:            id,
+				Status:        job.StatusRecorded,
+				DemoPath:      "demos/test.dem",
+				TargetSteamID: "76561197960265729",
+				Rules:         rules.Default(),
+				KillPlan:      &plan,
+			}
+			putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+			_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+			if err := store.Put("demos/test.dem", bytes.NewReader([]byte("demo"))); err != nil {
+				t.Fatal(err)
+			}
+			musicDir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(musicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
+				t.Fatal(err)
+			}
 
-	var gotArgs []string
-	var gotDocument renderplan.EditDocument
-	stop := errors.New("stop after args")
-	w := NewRenderWorker(repo, store, RenderWorkerConfig{
-		WorkDir:    t.TempDir(),
-		EditorPath: "zv-editor",
-		MusicDir:   musicDir,
-	})
-	w.voiceExtract = func(_, _, dir string) (int, error) {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return 0, err
-		}
-		if err := os.WriteFile(filepath.Join(dir, "track.ogg"), []byte("ogg"), 0o600); err != nil {
-			return 0, err
-		}
-		return 1, nil
-	}
-	w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		gotArgs = append([]string(nil), args...)
-		body, err := os.ReadFile(filepath.Join(argValue(args, "--out"), "edit-document.json"))
-		if err != nil {
-			t.Fatalf("read effective edit document: %v", err)
-		}
-		if err := json.Unmarshal(body, &gotDocument); err != nil {
-			t.Fatalf("decode effective edit document: %v", err)
-		}
-		return nil, stop
-	}}
+			var gotArgs []string
+			var gotDocument renderplan.EditDocument
+			stop := errors.New("stop after args")
+			w := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:    t.TempDir(),
+				EditorPath: "zv-editor",
+				MusicDir:   musicDir,
+			})
+			w.voiceExtract = func(_, _, dir string) (int, error) {
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					return 0, err
+				}
+				if err := os.WriteFile(filepath.Join(dir, "track.ogg"), []byte("ogg"), 0o600); err != nil {
+					return 0, err
+				}
+				return 1, nil
+			}
+			w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				gotArgs = append([]string(nil), args...)
+				body, err := os.ReadFile(filepath.Join(argValue(args, "--out"), "edit-document.json"))
+				if err != nil {
+					t.Fatalf("read effective edit document: %v", err)
+				}
+				if err := json.Unmarshal(body, &gotDocument); err != nil {
+					t.Fatalf("decode effective edit document: %v", err)
+				}
+				return nil, stop
+			}}
 
-	edit := renderplan.DefaultEditRequest()
-	edit.VoiceComms = true
-	edit.VoiceVolume = &voiceVol
-	task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "phonk", 0.8, &gameVol, edit)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := w.HandleRenderVariant(context.Background(), task); !errors.Is(err, stop) {
-		t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
-	}
-	if got := argValue(gotArgs, "--game-volume"); got != "0.2" {
-		t.Fatalf("--game-volume = %q, want 0.2", got)
-	}
-	if got := argValue(gotArgs, "--voice-volume"); got != "0.85" {
-		t.Fatalf("--voice-volume = %q, want 0.85", got)
-	}
-	if gotDocument.Music == nil || gotDocument.Music.GameVolume == nil || *gotDocument.Music.GameVolume != 0.2 {
-		t.Fatalf("music snapshot game volume = %#v, want 0.2", gotDocument.Music)
-	}
-	if gotDocument.Edit.VoiceVolume == nil || *gotDocument.Edit.VoiceVolume != 0.85 {
-		t.Fatalf("edit voice volume = %v, want 0.85", gotDocument.Edit.VoiceVolume)
+			edit := renderplan.DefaultEditRequest()
+			edit.VoiceComms = true
+			edit.VoiceVolume = &tc.voiceVol
+			if tc.fullDemo {
+				edit.MatchRecap = true
+				edit.NativeHUD = true
+				edit.Format = renderplan.FormatLandscape16x9
+				edit.KillEffect = renderplan.KillEffectClean
+			}
+			gameVol := tc.gameVol
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "phonk", tc.musicVol, &gameVol, edit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := w.HandleRenderVariant(context.Background(), task); !errors.Is(err, stop) {
+				t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
+			}
+			if got := argValue(gotArgs, "--music-volume"); got != tc.wantMusic {
+				t.Fatalf("--music-volume = %q, want %s", got, tc.wantMusic)
+			}
+			if got := argValue(gotArgs, "--game-volume"); got != tc.wantGame {
+				t.Fatalf("--game-volume = %q, want %s", got, tc.wantGame)
+			}
+			if got := argValue(gotArgs, "--voice-volume"); got != tc.wantVoice {
+				t.Fatalf("--voice-volume = %q, want %s", got, tc.wantVoice)
+			}
+			if got := hasArg(gotArgs, "--voice-dir"); !got {
+				t.Fatalf("missing --voice-dir: %#v", gotArgs)
+			}
+			if gotDocument.Music == nil || gotDocument.Music.GameVolume == nil || *gotDocument.Music.GameVolume != tc.gameVol {
+				t.Fatalf("music snapshot game volume = %#v, want %v", gotDocument.Music, tc.gameVol)
+			}
+			if gotDocument.Edit.VoiceVolume == nil || *gotDocument.Edit.VoiceVolume != tc.voiceVol {
+				t.Fatalf("edit voice volume = %v, want %v", gotDocument.Edit.VoiceVolume, tc.voiceVol)
+			}
+		})
 	}
 }
 
