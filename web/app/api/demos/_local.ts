@@ -11,6 +11,7 @@ import {
   TACTICAL_STATUS_KEYS,
   TACTICAL_TENDENCIES_KEYS,
 } from '@/lib/api/tactical';
+import { parseCaptureProgress } from '@/lib/capture-progress';
 import {
   orchestratorUrl,
   forwardError,
@@ -24,21 +25,12 @@ import {
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from './_lib';
 
-/**
- * Server-side `/api/demos/*` proxy handlers for the desktop-bundled local
- * orchestrator. The orchestrator owns the whole pipeline (scan, parse, HLAE/CS2
- * capture, render), while its URL and optional token stay out of the browser.
- */
+/** Same-origin `/api/demos/*` proxy to the local orchestrator. */
 
-// Matches the orchestrator's 700 MiB demo cap plus its 1 MiB allowance for
-// multipart boundaries and headers.
+// Orchestrator 700 MiB demo cap plus 1 MiB for multipart overhead.
 const MAX_DEMO_REQUEST_BYTES = 701 * 1024 * 1024;
 
-/**
- * POST /api/demos/scan (local) - accept a .dem upload and start a roster scan.
- * The orchestrator treats a job created with no target as a scan, so we forward
- * only the file under field name `demo`.
- */
+/** POST /api/demos/scan — forward the .dem as field `demo` to start a roster scan. */
 export async function localScan(request: Request): Promise<Response> {
   const localError = await localAPIRequestError(request.headers, request.method);
   if (localError !== undefined) return NextResponse.json({ error: localError }, { status: 403 });
@@ -78,28 +70,24 @@ export async function localStatus(jobId: string): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  // Forward only the known fields, never the raw upstream object. failure_reason
-  // is omitted by the orchestrator unless the job failed; progress is present
-  // only while capturing (segments done/total) so the library card can show a
-  // real percent. Both are forwarded only when the orchestrator sends them.
-  type CaptureProgress = { done: number; total: number };
-  const data = (await res.json()) as { status: string; failure_reason?: string; progress?: CaptureProgress };
-  const body: { status: string; failure_reason?: string; progress?: CaptureProgress } = { status: data.status };
+  // Whitelist status, failure_reason, and capture progress; drop anything else.
+  const data = (await res.json()) as {
+    status: string;
+    failure_reason?: string;
+    progress?: { done?: number; total?: number; percent?: number };
+  };
+  const body: {
+    status: string;
+    failure_reason?: string;
+    progress?: { done: number; total: number; percent?: number };
+  } = { status: data.status };
   if (data.failure_reason) body.failure_reason = data.failure_reason;
-  const p = data.progress;
-  if (p && typeof p.done === 'number' && typeof p.total === 'number' && p.total > 0) {
-    body.progress = { done: p.done, total: p.total };
-  }
+  const parsed = parseCaptureProgress(data.progress);
+  if (parsed) body.progress = parsed;
   return NextResponse.json(body);
 }
 
-/**
- * DELETE /api/demos/{jobId} (local) - delete a demo job (match) and its
- * server-side artifacts (rendered videos, covers, and the demo copy). Returns
- * 204 on success. The orchestrator answers 409 while the job is still
- * queued/scanning/parsing/recording/composing (its {error} body explains the
- * wait) and 404 for an unknown id; forwardError normalizes both.
- */
+/** DELETE /api/demos/{jobId} — 204, or 409 while the job is still running. */
 export async function localDeleteJob(jobId: string): Promise<Response> {
   const url = jobUrl(jobId);
   if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
@@ -110,11 +98,7 @@ export async function localDeleteJob(jobId: string): Promise<Response> {
   return new Response(null, { status: 204 });
 }
 
-/**
- * GET /api/demos/{jobId}/roster (local) - proxy the roster scan result. The
- * orchestrator already wraps it as { players: [...] } with steamid64 keys; the
- * client maps steamid64 → steamId, so this is a pass-through.
- */
+/** GET /api/demos/{jobId}/roster — pass through players and optional match. */
 export async function localRoster(jobId: string): Promise<Response> {
   const url = jobUrl(jobId, '/roster');
   if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
@@ -123,21 +107,14 @@ export async function localRoster(jobId: string): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  // Forward only the known top-level keys, never the raw upstream object. The
-  // real client's toRosterMatch reads match.{map,score_ct,score_t,rounds}, so
-  // match must survive the proxy; it is omitted when the scan produced none.
+  // Keep match for toRosterMatch; omit it when the scan produced none.
   const body = (await res.json()) as { players: unknown[]; match?: unknown };
   const out: { players: unknown[]; match?: unknown } = { players: body.players };
   if (body.match !== undefined) out.match = body.match;
   return NextResponse.json(out);
 }
 
-/**
- * GET /api/demos/series/{seriesId} (local) - list the demos uploaded under one
- * bulk series (bo3/bo5), in upload order. Forwards only a whitelisted per-demo
- * shape, never the raw upstream job objects: failure_reason and demo_file_name
- * are present only when the orchestrator sends them.
- */
+/** GET /api/demos/series/{seriesId} — whitelist per-demo fields in upload order. */
 export async function localSeries(seriesId: string): Promise<Response> {
   const url = seriesJobsUrl(seriesId);
   if (!url) return NextResponse.json({ error: 'invalid series id' }, { status: 400 });
@@ -165,13 +142,7 @@ export async function localSeries(seriesId: string): Promise<Response> {
   return NextResponse.json({ demos });
 }
 
-/**
- * GET /api/demos/jobs (local) - list the most recent demo jobs so Partidas can
- * rediscover uploads and series after the app restarts. Forwards only a
- * whitelisted per-job shape (snake_case → camelCase), never the raw upstream job
- * objects: failure_reason, demo_file_name, series_id and target_steamid survive
- * only when the orchestrator sends them, and the kill plan never leaves here.
- */
+/** GET /api/demos/jobs — whitelist recent jobs; never forward the kill plan. */
 export async function localJobs(): Promise<Response> {
   const res = await callOrchestrator(jobsListUrl());
   if (res === null) return serviceUnavailable();
@@ -207,11 +178,7 @@ export async function localJobs(): Promise<Response> {
   return NextResponse.json({ jobs });
 }
 
-/**
- * Forwards only the listed top-level keys of an upstream JSON object, so an
- * orchestrator shape change cannot leak new fields through the proxy. Nested
- * values pass through as-is, exactly like the roster and plan proxies.
- */
+/** Copy only listed top-level keys so new orchestrator fields cannot leak. */
 function forwardKeys(body: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of keys) {
@@ -235,21 +202,12 @@ async function forwardJson(url: string | null, keys: readonly string[], init?: R
 /** Rounds are 1-based and a match never reaches four digits. */
 const TACTICAL_ROUND_RE = /^[1-9][0-9]{0,2}$/;
 
-/**
- * GET /api/demos/{jobId}/tactical (local) - proxy the tactical analysis
- * document: the round index, its deterministic classification, the map geometry
- * derived from observed play, and the descriptor of the position sidecar.
- */
+/** GET /api/demos/{jobId}/tactical — proxy the analysis document. */
 export async function localTacticalDocument(jobId: string): Promise<Response> {
   return forwardJson(jobUrl(jobId, '/tactical'), TACTICAL_DOCUMENT_KEYS);
 }
 
-/**
- * POST /api/demos/{jobId}/tactical (local) - start the tactical analysis of a
- * parsed demo. The orchestrator answers 202 with the lifecycle state, and that
- * status code is preserved. The only accepted body field is the sampling rate,
- * validated here so an arbitrary JSON object never reaches the orchestrator.
- */
+/** POST /api/demos/{jobId}/tactical — start analysis; only sample Hz is accepted. */
 export async function localStartTactical(request: Request, jobId: string): Promise<Response> {
   const incoming = await readBoundedText(request);
   if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
@@ -282,11 +240,7 @@ export async function localTacticalStatus(jobId: string): Promise<Response> {
   return forwardJson(jobUrl(jobId, '/tactical/status'), TACTICAL_STATUS_KEYS);
 }
 
-/**
- * GET /api/demos/{jobId}/tactical/rounds/{round} (local) - proxy one round's
- * index entry and its decoded position frames. The round segment is validated
- * before it can reach the upstream URL.
- */
+/** GET tactical round — validate the round segment before building the URL. */
 export async function localTacticalRound(jobId: string, round: string): Promise<Response> {
   if (!TACTICAL_ROUND_RE.test(round)) {
     return NextResponse.json({ error: 'invalid round' }, { status: 400 });
@@ -294,11 +248,7 @@ export async function localTacticalRound(jobId: string, round: string): Promise<
   return forwardJson(jobUrl(jobId, `/tactical/rounds/${round}`), TACTICAL_ROUND_KEYS);
 }
 
-/**
- * GET /api/demos/{jobId}/tactical/aggregate (local) - proxy the tendencies
- * computed over the rounds a filter selects. Only the known filter parameters
- * are forwarded, so an arbitrary client query can never reach the orchestrator.
- */
+/** GET tactical aggregate — forward only known filter parameters. */
 export async function localTacticalAggregate(jobId: string, search: URLSearchParams): Promise<Response> {
   const filter = new URLSearchParams();
   for (const name of TACTICAL_FILTER_PARAM_NAMES) {
@@ -311,11 +261,7 @@ export async function localTacticalAggregate(jobId: string, search: URLSearchPar
   return forwardJson(url, TACTICAL_TENDENCIES_KEYS);
 }
 
-/**
- * GET /api/demos/{jobId}/tactical/positions (local) - stream the zvpos1 blob.
- * It is the largest artifact the feature produces, so it is streamed and its
- * Range support is preserved: a viewer fetches one round's bytes, not megabytes.
- */
+/** GET tactical positions — stream the zvpos1 blob and keep Range. */
 export async function localTacticalPositions(jobId: string, request: Request): Promise<Response> {
   const url = jobUrl(jobId, '/tactical/positions');
   if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
@@ -343,11 +289,7 @@ export async function localAnticheat(jobId: string): Promise<Response> {
   return forwardJson(jobUrl(jobId, '/anticheat'), ANTICHEAT_DOCUMENT_KEYS);
 }
 
-/**
- * GET /api/demos/{jobId}/anticheat/dossier/{steamId} (local) - proxy one
- * player's evidence pack. The SteamID64 is validated here so a malformed id
- * never reaches upstream URL construction.
- */
+/** GET anticheat dossier — validate SteamID64 before building the upstream URL. */
 export async function localAnticheatDossier(jobId: string, steamId: string): Promise<Response> {
   if (!STEAM_ID64_RE.test(steamId)) {
     return NextResponse.json({ error: 'invalid steam id' }, { status: 400 });

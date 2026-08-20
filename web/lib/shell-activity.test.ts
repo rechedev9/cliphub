@@ -65,18 +65,38 @@ test('jobs are ordered most-advanced first, then oldest first', () => {
 test('capture progress is carried only where the API reports it', () => {
   publishShellActivity(
     [
-      reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 8 } }),
+      reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 8, percent: 41 } }),
       reel({ id: 'b', status: 'composing', captureProgress: { done: 8, total: 8 } }),
       reel({ id: 'c', status: 'queued' }),
     ],
     10,
   );
   const [recording, composing, queued] = shellActivitySnapshot().jobs;
-  assert.deepEqual(recording?.progress, { done: 3, total: 8 });
+  assert.deepEqual(recording?.progress, { done: 3, total: 8, percent: 41 });
   // Composing has no segment counter of its own; a stale capture count there
   // would be fabricated progress.
   assert.equal(composing?.progress, null);
   assert.equal(queued?.progress, null);
+});
+
+test('a live percent change wakes subscribers even when the clip count does not', () => {
+  let notifications = 0;
+  const unsubscribe = subscribeToShellActivity(() => {
+    notifications += 1;
+  });
+
+  publishShellActivity(
+    [reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 4, percent: 75 } })],
+    10,
+  );
+  publishShellActivity(
+    [reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 4, percent: 82 } })],
+    20,
+  );
+  assert.equal(notifications, 2);
+  assert.equal(shellActivitySnapshot().jobs[0]?.progress?.percent, 82);
+
+  unsubscribe();
 });
 
 test('a zero-segment capture reports no progress instead of dividing by zero', () => {

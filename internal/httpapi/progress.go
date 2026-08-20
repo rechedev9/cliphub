@@ -17,8 +17,9 @@ import (
 // its selected segments already have a completed clip on disk. It is attached to
 // the job GET response only while it can be computed (see captureProgress).
 type captureProgressView struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Done    int `json:"done"`
+	Total   int `json:"total"`
+	Percent int `json:"percent"`
 }
 
 // captureProgress derives capture progress for a recording job from durable
@@ -97,7 +98,7 @@ func captureProgressWithTotal(store storage.Storage, id uuid.UUID, status job.St
 	if done > total {
 		done = total
 	}
-	return captureProgressView{Done: done, Total: total}, true
+	return captureProgressView{Done: done, Total: total, Percent: recording.CaptureWorkPercent(total, done, nil, 0)}, true
 }
 
 func captureProgressDocument(store storage.Storage, id uuid.UUID) (captureProgressView, bool) {
@@ -111,9 +112,23 @@ func captureProgressDocument(store storage.Storage, id uuid.UUID) (captureProgre
 		return captureProgressView{}, false
 	}
 	return captureProgressView{
-		Done:  len(progress.CompletedSegmentIDs),
-		Total: len(progress.SegmentIDs),
+		Done:    len(progress.CompletedSegmentIDs),
+		Total:   len(progress.SegmentIDs),
+		Percent: documentPercent(progress),
 	}, true
+}
+
+func documentPercent(p recording.CaptureProgress) int {
+	if p.Percent > 0 || len(p.CompletedSegmentIDs) == 0 {
+		if p.Percent < 0 {
+			return 0
+		}
+		if p.Percent > 100 {
+			return 100
+		}
+		return p.Percent
+	}
+	return recording.CaptureWorkPercent(len(p.SegmentIDs), len(p.CompletedSegmentIDs), nil, 0)
 }
 
 // readCaptureSelection reads the ordered segment ids the in-flight record run

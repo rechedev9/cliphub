@@ -764,6 +764,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		filepath.Join(outDir, "segments"),
 		killPlanSegmentIDs(recordPlan),
 	)
+	progress.outDir = outDir
+	progress.tickrate = recordPlan.Demo.Tickrate
+	progress.ticks = segmentTickWeights(recordPlan)
 	go func() {
 		defer close(progressDone)
 		progress.watch(progressCtx)
@@ -2921,6 +2924,18 @@ func recordSourcePlan(store storage.Storage, j job.Job, useRecapPlan bool) (*kil
 }
 
 // killPlanSegmentIDs lists every segment id in the plan, in plan order.
+func segmentTickWeights(plan *killplan.Plan) []int {
+	weights := make([]int, len(plan.Segments))
+	for i, s := range plan.Segments {
+		w := s.TickEnd - s.TickStart
+		if w < 0 {
+			w = 0
+		}
+		weights[i] = w
+	}
+	return weights
+}
+
 func killPlanSegmentIDs(plan *killplan.Plan) []string {
 	ids := make([]string, 0, len(plan.Segments))
 	for _, s := range plan.Segments {
