@@ -1,8 +1,8 @@
 {
   "name": "cliphub-studio",
-  "version": "2.4.27",
+  "version": "2.4.28",
   "private": true,
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@11.22.0",
   "description": "ClipHub Studio - desktop Local Studio: web UI + local HLAE/CS2 capture in one app",
   "author": "ClipHub",
   "main": "dist/main.js",

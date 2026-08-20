@@ -27,7 +27,7 @@ If you want a local creator rig for CS2 highlights that feels like a production 
 
 ## Install
 
-Runtime for packaging: **Windows 10/11**, **Go 1.26+**, **Node 24**, **pnpm 11.9**.
+Runtime for packaging: **Windows 10/11**, **Go 1.26+**, **Node 24**, **pnpm 11.22**.
 
 ### End users (Studio)
 
@@ -170,7 +170,7 @@ scripts/             build.ps1, local-studio.ps1, gates
 data/                local artifacts (music catalog, …) — not source of truth
 ```
 
-Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/cliphub`), **pnpm 11.9** / **Node 24** per package.
+Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/cliphub`), **pnpm 11.22** / **Node 24** per package.
 
 There is **no hosted CI**. [`.githooks/pre-commit`](.githooks/pre-commit) is the only automated gate — skip it and the change was never checked.
 

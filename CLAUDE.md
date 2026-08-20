@@ -130,7 +130,7 @@ After final media is validated and no recapture/reparse is needed, send used ext
 
 ## Development
 
-Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageManager` field (pnpm 11.9.0), and Node 24.
+Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageManager` field (pnpm 11.22.0), and Node 24.
 There is no hosted CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
 Nothing re-checks the work on GitHub, so a gate skipped locally is a gate that never runs.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.

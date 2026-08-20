@@ -2,7 +2,7 @@
   "name": "cliphub-landing",
   "version": "2.0.3",
   "private": true,
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
