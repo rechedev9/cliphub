@@ -52,6 +52,7 @@ import { parseClipboardWriteRequest, STUDIO_CLIPBOARD_CHANNEL } from './clipboar
 import {
   AppUpdateController,
   createDefaultAppUpdateHost,
+  INSTALLER_SPAWN_ARGS,
 } from './app-update';
 import {
   APP_UPDATE_CHANNEL,
@@ -624,7 +625,7 @@ function registerStudioClipboardIPC(): void {
 
 function spawnVerifiedInstaller(installerPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(installerPath, ['/S', '--updated'], {
+    const child = spawn(installerPath, [...INSTALLER_SPAWN_ARGS], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,

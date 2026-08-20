@@ -12,6 +12,7 @@ import {
   checksumForFile,
   compareVersions,
   digestMatches,
+  INSTALLER_SPAWN_ARGS,
   installerAssetName,
   parseGithubLatestRelease,
   parseReleaseVersion,
@@ -42,6 +43,46 @@ test('parses and compares release versions', () => {
   for (const [left, right, want] of comparisons) {
     assert.equal(compareVersions(left, right), want, `${left} vs ${right}`);
   }
+});
+
+test('silent NSIS apply asks electron-builder to relaunch after replace', () => {
+  const cases: Array<{ flag: string; reason: string }> = [
+    { flag: '/S', reason: 'silent so the wizard never appears' },
+    { flag: '--updated', reason: 'NSIS treats this as a replace of a running install' },
+    { flag: '--force-run', reason: 'assisted silent installs skip the finish-page Run checkbox' },
+  ];
+  assert.deepEqual([...INSTALLER_SPAWN_ARGS], cases.map((row) => row.flag));
+
+  const desktopDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(desktopDirectory, 'package.json'), 'utf8'));
+  assert.equal(manifest.build.nsis.include, 'build/installer.nsh');
+  const nsis = fs.readFileSync(path.join(desktopDirectory, 'build', 'installer.nsh'), 'utf8').replaceAll('\r\n', '\n');
+  const nsisLines = nsis.split('\n').map((line) => line.trim());
+  assert.equal(
+    nsisLines.some((line) => line.startsWith('!insertmacro StartApp')),
+    false,
+    'StartApp redeclares Var startAppArgs when installSection expands doStartApp',
+  );
+  const launch = '${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--updated"';
+  const required = [
+    '!macro customInstall',
+    '${if} ${isUpdated}',
+    '${andIf} ${Silent}',
+    '${ifNot} ${isForceRun}',
+    'HideWindow',
+    launch,
+  ];
+  for (const token of required) {
+    assert.equal(nsis.includes(token), true, token);
+  }
+  const forceRunAt = nsis.indexOf('${ifNot} ${isForceRun}');
+  const launchAt = nsis.indexOf(launch);
+  const endIfAt = nsis.indexOf('${endIf}', forceRunAt);
+  assert.notEqual(forceRunAt, -1);
+  assert.ok(launchAt > forceRunAt && launchAt < endIfAt, 'ExecShellAsUser must sit inside ifNot isForceRun');
+
+  const mainSource = fs.readFileSync(path.join(desktopDirectory, 'src', 'main.ts'), 'utf8');
+  assert.equal(mainSource.includes('spawn(installerPath, [...INSTALLER_SPAWN_ARGS]'), true);
 });
 
 test('builds installer URLs only for the release contract', () => {

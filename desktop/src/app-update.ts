@@ -75,6 +75,9 @@ export function installerAssetName(version: string): string {
   return `ClipHub.Studio.Setup.${parseReleaseVersion(version)}.exe`;
 }
 
+// Assisted silent NSIS skips the finish-page Run checkbox; `--force-run` starts the app after replace.
+export const INSTALLER_SPAWN_ARGS = ['/S', '--updated', '--force-run'] as const;
+
 export function releaseDownloadUrl(version: string, fileName: string): string {
   const normalized = parseReleaseVersion(version);
   if (fileName !== installerAssetName(normalized) && fileName !== 'SHA256SUMS.txt') {
