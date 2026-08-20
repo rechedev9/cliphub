@@ -2,7 +2,7 @@
 
 `AGENTS.md` is a tracked symbolic link to this file.
 Edit `CLAUDE.md` only, and never replace the `AGENTS.md` symlink with a regular file.
-The pre-commit hook rejects a broken link and commits made outside `main`.
+The pre-commit hook rejects a broken `AGENTS.md` symlink.
 On Windows a clone with `core.symlinks=false` materializes `AGENTS.md` as a regular 9-byte file whose contents are the text `CLAUDE.md`, and `git status` stays clean because a symlink's blob is its target. That silently fails the hook and every `zv check` rule that reads `AGENTS.md`. Repair it with `git config core.symlinks true` followed by deleting the file and `git checkout -- AGENTS.md` (needs Developer Mode or an elevated shell); never "fix" it by pasting the guide's text into the file.
 The root `README.md` is the public product entrypoint (GitHub + onboarding). Prefer purpose-specific names such as `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md` for operational detail.
 
@@ -185,9 +185,9 @@ Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` a
 
 ## Git And Release
 
-Work directly on `main`; committing or pushing still requires an explicit user request.
-`main` is unprotected and there are no required status checks, so a push lands immediately: never open a pull request for work that belongs on `main`.
-The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths, and it is now the only automated gate the repository has.
+Committing or pushing still requires an explicit user request.
+`main` is unprotected and has no required status checks, so a push lands immediately.
+The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths; it does not restrict the current branch. It is the only automated gate the repository has.
 Use the authorized global `committer` with explicit, quoted file lists; when a repository-owned `.githooks` directory exists, it activates that directory for the commit without writing persistent Git configuration.
 Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hooksPath` away from `.githooks`: with no CI behind it, a skipped hook means the change was never checked at all.
 

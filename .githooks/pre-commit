@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Keep repository invariants and direct-to-main changes green before a commit
-# becomes pushable. CLAUDE.md is the single source of truth for agent
-# instructions; edit it only.
+# Keep repository invariants green before a commit becomes pushable.
+# CLAUDE.md is the single source of truth for agent instructions; edit it only.
 set -eu
 
 root="$(git rev-parse --show-toplevel)"
@@ -9,12 +8,6 @@ cd "$root"
 
 if [ ! -L AGENTS.md ] || [ "$(readlink AGENTS.md)" != "CLAUDE.md" ]; then
   echo "pre-commit: AGENTS.md must be a symbolic link to CLAUDE.md" >&2
-  exit 1
-fi
-
-branch="$(git branch --show-current)"
-if [ "$branch" != "main" ]; then
-  echo "pre-commit: commits must be made directly on main (current: ${branch:-detached HEAD})" >&2
   exit 1
 fi
 
