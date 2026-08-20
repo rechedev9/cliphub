@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sort"
@@ -135,6 +137,55 @@ func TestSQLiteRepoGetStatusReturnsOnlyLifecycleSummary(t *testing.T) {
 
 	if _, _, _, err := repo.GetStatus(ctx, uuid.New()); !errors.Is(err, job.ErrNotFound) {
 		t.Fatalf("GetStatus unknown error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestSQLiteRepoLargePlanGetMetaStripsSegmentsGetStatusSkipsPlan(t *testing.T) {
+	repo := newTestSQLiteRepo(t)
+	ctx := context.Background()
+	plan := killplan.NewPlan()
+	plan.Segments = make([]killplan.Segment, 240)
+	for i := range plan.Segments {
+		plan.Segments[i].ID = killplan.FormatSegmentID(i + 1)
+		plan.Segments[i].Kills = make([]killplan.Kill, 8)
+		for k := range plan.Segments[i].Kills {
+			plan.Segments[i].Kills[k] = killplan.Kill{
+				Tick:   i*640 + k*64,
+				Weapon: "ak47",
+				Victim: killplan.Player{SteamID64: "76561198000000000", NameInDemo: "player", TeamAtKill: "CT"},
+			}
+		}
+	}
+	j := &job.Job{Status: job.StatusParsed, KillPlan: &plan}
+	if err := repo.Create(ctx, j); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	full, err := repo.Get(ctx, j.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if full.KillPlan == nil || len(full.KillPlan.Segments) != len(plan.Segments) {
+		t.Fatalf("Get segments = %v, want %d", full.KillPlan, len(plan.Segments))
+	}
+
+	meta, err := repo.GetMeta(ctx, j.ID)
+	if err != nil {
+		t.Fatalf("GetMeta: %v", err)
+	}
+	if meta.KillPlan != nil {
+		t.Fatal("GetMeta returned kill plan")
+	}
+	if meta.Status != job.StatusParsed || meta.ID != j.ID {
+		t.Fatalf("GetMeta = %+v, want parsed id=%s", meta, j.ID)
+	}
+
+	status, reason, segments, err := repo.GetStatus(ctx, j.ID)
+	if err != nil {
+		t.Fatalf("GetStatus: %v", err)
+	}
+	if status != job.StatusParsed || reason != "" || segments != 0 {
+		t.Fatalf("GetStatus parsed = %s/%q/%d, want parsed/empty/0 (segment count only while recording)", status, reason, segments)
 	}
 }
 
@@ -429,5 +480,166 @@ func TestSQLiteRepoPersistsAcrossReopen(t *testing.T) {
 	}
 	if got.KillPlan == nil {
 		t.Fatal("after reopen: want KillPlan persisted, got nil")
+	}
+}
+
+func TestSQLiteRepoStoresKillPlanOutsideJobDocument(t *testing.T) {
+	repo := newTestSQLiteRepo(t)
+	ctx := context.Background()
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 64, TickEnd: 128}}
+
+	cases := []struct {
+		name string
+		act  func(*job.Job)
+	}{
+		{
+			name: "create",
+			act:  func(*job.Job) {},
+		},
+		{
+			name: "update_status",
+			act: func(j *job.Job) {
+				if err := repo.UpdateStatus(ctx, j.ID, job.StatusFailed, "boom"); err != nil {
+					t.Fatalf("UpdateStatus: %v", err)
+				}
+			},
+		},
+		{
+			name: "set_kill_plan",
+			act: func(j *job.Job) {
+				next := killplan.NewPlan()
+				next.Segments = []killplan.Segment{{ID: "seg-002", TickStart: 128, TickEnd: 256}}
+				if err := repo.SetKillPlan(ctx, j.ID, next); err != nil {
+					t.Fatalf("SetKillPlan: %v", err)
+				}
+			},
+		},
+		{
+			name: "set_parse_inputs",
+			act: func(j *job.Job) {
+				if err := repo.UpdateStatus(ctx, j.ID, job.StatusParsed, ""); err != nil {
+					t.Fatalf("UpdateStatus parsed: %v", err)
+				}
+				if err := repo.SetParseInputs(ctx, j.ID, "76561198000000000", rules.Default()); err != nil {
+					t.Fatalf("SetParseInputs: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			j := &job.Job{Status: job.StatusParsed, KillPlan: &plan, DemoPath: "m.dem"}
+			if err := repo.Create(ctx, j); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			tc.act(j)
+			assertKillPlanOutsideData(t, repo, j.ID)
+			got, err := repo.Get(ctx, j.ID)
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			if got.KillPlan == nil || len(got.KillPlan.Segments) == 0 {
+				t.Fatalf("Get lost kill plan after %s: %#v", tc.name, got.KillPlan)
+			}
+		})
+	}
+}
+
+func TestSQLiteRepoMigratesLegacyEmbeddedKillPlan(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open legacy db: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE jobs (
+		id         TEXT PRIMARY KEY,
+		data       BLOB    NOT NULL,
+		status     TEXT    NOT NULL,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	)`); err != nil {
+		_ = db.Close()
+		t.Fatalf("create legacy table: %v", err)
+	}
+	id := uuid.New()
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-legacy", TickStart: 10, TickEnd: 20}}
+	now := time.Now().UTC()
+	legacy := job.Job{
+		ID:        id,
+		Status:    job.StatusParsed,
+		DemoPath:  "legacy.dem",
+		KillPlan:  &plan,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		_ = db.Close()
+		t.Fatalf("marshal legacy job: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO jobs (id, data, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		id.String(), data, job.StatusParsed.String(), now.UnixNano(), now.UnixNano()); err != nil {
+		_ = db.Close()
+		t.Fatalf("insert legacy job: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close legacy db: %v", err)
+	}
+
+	repo, err := newSQLiteJobRepository(path)
+	if err != nil {
+		t.Fatalf("open migrated repo: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+
+	got, err := repo.Get(ctx, id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.DemoPath != "legacy.dem" || got.KillPlan == nil || len(got.KillPlan.Segments) != 1 || got.KillPlan.Segments[0].ID != "seg-legacy" {
+		t.Fatalf("migrated Get = %#v, want legacy demo and seg-legacy", got)
+	}
+	assertKillPlanOutsideData(t, repo, id)
+
+	meta, err := repo.GetMeta(ctx, id)
+	if err != nil {
+		t.Fatalf("GetMeta: %v", err)
+	}
+	if meta.KillPlan != nil {
+		t.Fatal("GetMeta returned migrated kill plan")
+	}
+
+	if err := repo.UpdateStatus(ctx, id, job.StatusFailed, "after migrate"); err != nil {
+		t.Fatalf("UpdateStatus: %v", err)
+	}
+	got, err = repo.Get(ctx, id)
+	if err != nil {
+		t.Fatalf("Get after UpdateStatus: %v", err)
+	}
+	if got.Status != job.StatusFailed || got.KillPlan == nil || got.KillPlan.Segments[0].ID != "seg-legacy" {
+		t.Fatalf("post-migrate UpdateStatus dropped plan: %#v", got)
+	}
+	assertKillPlanOutsideData(t, repo, id)
+}
+
+func assertKillPlanOutsideData(t *testing.T, repo *sqliteJobRepository, id uuid.UUID) {
+	t.Helper()
+	var embedded sql.NullString
+	var planBytes []byte
+	if err := repo.db.QueryRow(`SELECT json_type(data, '$.kill_plan'), kill_plan FROM jobs WHERE id = ?`, id.String()).Scan(&embedded, &planBytes); err != nil {
+		t.Fatalf("inspect kill_plan storage: %v", err)
+	}
+	if embedded.Valid {
+		t.Fatalf("data still embeds kill_plan json_type=%q", embedded.String)
+	}
+	if len(planBytes) == 0 {
+		t.Fatal("kill_plan column is empty")
+	}
+	if !json.Valid(planBytes) {
+		t.Fatalf("kill_plan column is not JSON: %q", planBytes)
 	}
 }

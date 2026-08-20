@@ -34,6 +34,7 @@ func BenchmarkGetJobFullStatusPayload(b *testing.B) {
 		}
 		benchmarkStatusResponseSize = response.Body.Len()
 	}
+	b.ReportMetric(float64(benchmarkStatusResponseSize), "body-B")
 }
 
 func BenchmarkGetJobStatusMinimalPayload(b *testing.B) {
@@ -55,6 +56,7 @@ func BenchmarkGetJobStatusMinimalPayload(b *testing.B) {
 		}
 		benchmarkStatusResponseSize = response.Body.Len()
 	}
+	b.ReportMetric(float64(benchmarkStatusResponseSize), "body-B")
 }
 
 func benchmarkStatusJob() job.Job {

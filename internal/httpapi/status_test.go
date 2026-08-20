@@ -76,3 +76,32 @@ func TestGetJobStatusReportsCaptureSelectionProgressWithoutKillPlan(t *testing.T
 		t.Fatalf("progress = %+v, want 1/2", got.Progress)
 	}
 }
+
+func TestGetJobFullPayloadLargerThanStatusView(t *testing.T) {
+	repo := newFakeRepo()
+	j := benchmarkStatusJob()
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
+	router := chi.NewRouter()
+	router.Get("/api/jobs/{id}", h.GetJob)
+
+	full := httptest.NewRecorder()
+	router.ServeHTTP(full, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String(), nil))
+	status := httptest.NewRecorder()
+	router.ServeHTTP(status, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"?view=status", nil))
+
+	if full.Code != http.StatusOK || status.Code != http.StatusOK {
+		t.Fatalf("full=%d status=%d, want 200/200", full.Code, status.Code)
+	}
+	fullLen := full.Body.Len()
+	statusLen := status.Body.Len()
+	if fullLen <= statusLen {
+		t.Fatalf("full GET body %d bytes is not larger than ?view=status %d bytes", fullLen, statusLen)
+	}
+	if strings.Contains(status.Body.String(), "kill_plan") {
+		t.Fatalf("status view still embeds kill_plan: %s", status.Body.String())
+	}
+	if !strings.Contains(full.Body.String(), "kill_plan") {
+		t.Fatal("full GET omitted kill_plan")
+	}
+}
