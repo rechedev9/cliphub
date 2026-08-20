@@ -33,6 +33,7 @@ import {
   type SeriesSummary,
 } from './jobs-index';
 import { reconcileReels } from './reconcile-batch';
+import { parseCaptureProgress } from '@/lib/capture-progress';
 import { playsSelectionLabel } from '@/lib/format';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
@@ -875,16 +876,14 @@ export class RealApiClient implements ApiClient {
     const data = await readJson<{
       status: string;
       failure_reason?: string;
-      progress?: { done?: number; total?: number };
+      progress?: { done?: number; total?: number; percent?: number };
     }>(res);
     const full: { status: string; failureReason?: string; captureProgress?: CaptureProgress } = {
       status: data.status,
       failureReason: data.failure_reason,
     };
-    const p = data.progress;
-    if (p && typeof p.done === 'number' && typeof p.total === 'number' && p.total > 0) {
-      full.captureProgress = { done: p.done, total: p.total };
-    }
+    const parsed = parseCaptureProgress(data.progress);
+    if (parsed) full.captureProgress = parsed;
     return full;
   }
 

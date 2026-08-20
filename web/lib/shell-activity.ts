@@ -1,26 +1,6 @@
 import type { Video } from './api/types.ts';
 
-/**
- * The shell's view of what the machine is doing right now.
- *
- * ClipHub's whole premise is long-running local capture and render jobs, and
- * until this module existed the chrome never showed one: `videos/page.tsx`
- * computed `hasActiveReel` every 1.5s and threw it away, so navigating to Feed
- * mid-render told the user nothing, and the `html[data-capture-active]` gate in
- * globals.css had no writer at all.
- *
- * Two consumers, one store:
- *   - the command strip's transport renders the leading job;
- *   - `ShellActivityMonitor` mirrors `capturing` onto <html>, which is what
- *     stops every ambient effect from contending with cs2.exe for the GPU.
- *
- * PUSHING FROM A PAGE THAT ALREADY POLLS. Any page holding fresh `Video[]` from
- * `api.listVideos()` should call `publishShellActivity(videos, Date.now())`
- * right where it calls `setVideos(...)`. The monitor treats a recent push as
- * authoritative and skips its own fetch, so the Library's existing 1.5s loop is
- * reused rather than duplicated. Nothing breaks if a page never pushes — the
- * monitor just polls for itself.
- */
+/** Live jobs for the command-strip transport and the html capture-active gate. */
 
 /** Mirrors `capturing` onto <html>; the CSS depth/animation gates key off it. */
 export const CAPTURE_ACTIVE_ATTRIBUTE = 'data-capture-active';
@@ -37,13 +17,8 @@ export interface ShellJob {
   readonly stage: ShellJobStage;
   /** Epoch ms the reel was created — real API data, used for elapsed time. */
   readonly startedAt: number;
-  /**
-   * Real capture progress, or null. The orchestrator only reports segments
-   * while a reel is `recording`; every other stage is genuinely indeterminate
-   * and must render as such rather than as an invented percentage
-   * (design.md "Never fabricate progress").
-   */
-  readonly progress: { readonly done: number; readonly total: number } | null;
+  /** Capture done/total/percent while recording; null on every other stage. */
+  readonly progress: { readonly done: number; readonly total: number; readonly percent?: number } | null;
 }
 
 export interface ShellActivity {
@@ -70,9 +45,7 @@ export function publishShellActivity(videos: readonly Video[], now: number): voi
     jobs.length === current.jobs.length &&
     jobs.every((job, index) => sameJob(job, current.jobs[index]))
   ) {
-    // Identical payload: refresh the freshness stamp so the monitor keeps
-    // skipping its own fetch, but do not wake every subscriber 40 times a
-    // minute for a snapshot that renders the same pixels.
+    // Same pixels: refresh freshness so the monitor skips its fetch.
     current = { ...current, publishedAt: now };
     return;
   }
@@ -97,8 +70,7 @@ export function serverShellActivitySnapshot(): ShellActivity {
 }
 
 export function shellActivityIsStale(now: number): boolean {
-  // publishedAt 0 means nothing has ever pushed, which is stale by definition
-  // rather than by arithmetic — the monitor must fetch on its very first tick.
+  // publishedAt 0 is stale: the monitor must fetch on its first tick.
   if (current.publishedAt === 0) return true;
   return now - current.publishedAt >= SHELL_ACTIVITY_MAX_AGE_MS;
 }
@@ -112,10 +84,13 @@ function toShellJob(video: Video): ShellJob[] {
   const stage = toStage(video.status);
   if (stage === null) return [];
   const capture = video.captureProgress;
-  const progress =
-    stage === 'recording' && capture !== undefined && capture.total > 0
-      ? { done: capture.done, total: capture.total }
-      : null;
+  let progress: ShellJob['progress'] = null;
+  if (stage === 'recording' && capture !== undefined && capture.total > 0) {
+    progress = { done: capture.done, total: capture.total };
+    if (capture.percent !== undefined) {
+      progress = { ...progress, percent: capture.percent };
+    }
+  }
   return [{ id: video.id, title: video.title, stage, startedAt: video.createdAt, progress }];
 }
 
@@ -137,6 +112,7 @@ function sameJob(job: ShellJob, other: ShellJob | undefined): boolean {
     job.stage === other.stage &&
     job.title === other.title &&
     job.progress?.done === other.progress?.done &&
-    job.progress?.total === other.progress?.total
+    job.progress?.total === other.progress?.total &&
+    job.progress?.percent === other.progress?.percent
   );
 }

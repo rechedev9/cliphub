@@ -48,8 +48,8 @@ func TestCaptureProgressUsesNonCommittingAttemptDocument(t *testing.T) {
 	}
 
 	got, ok := captureProgressWithTotal(store, id, job.StatusRecording, 99)
-	if !ok || got.Done != 1 || got.Total != 3 {
-		t.Fatalf("captureProgressWithTotal = (%+v, %v), want 1/3", got, ok)
+	if !ok || got.Done != 1 || got.Total != 3 || got.Percent != 33 {
+		t.Fatalf("captureProgressWithTotal = (%+v, %v), want 1/3 33%%", got, ok)
 	}
 	clipKey, err := artifacts.SegmentClipKey(id, "s1")
 	if err != nil {
@@ -88,25 +88,52 @@ func writeCaptureSelection(t *testing.T, store storage.Storage, id uuid.UUID, se
 	}
 }
 
+func TestCaptureProgressDocumentUsesStoredLivePercent(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	progress, err := recording.NewCaptureProgress(uuid.New(), []string{"s1", "s2", "s3", "s4"}, []string{"s1", "s2", "s3"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress.Percent = 82
+	body, err := json.Marshal(progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.CaptureProgressKey(id), bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok := captureProgressWithTotal(store, id, job.StatusRecording, 99)
+	if !ok || got.Done != 3 || got.Total != 4 || got.Percent != 82 {
+		t.Fatalf("captureProgressWithTotal = (%+v, %v), want 3/4 82%%", got, ok)
+	}
+}
+
 func TestCaptureProgress(t *testing.T) {
 	tests := []struct {
-		name      string
-		status    job.Status
-		plan      *killplan.Plan
-		clips     []string
-		selection []string // nil = no selection artifact (fall back to full plan)
-		wantOK    bool
-		wantDone  int
-		wantTotal int
+		name        string
+		status      job.Status
+		plan        *killplan.Plan
+		clips       []string
+		selection   []string // nil = no selection artifact (fall back to full plan)
+		wantOK      bool
+		wantDone    int
+		wantTotal   int
+		wantPercent int
 	}{
 		{
-			name:      "two of four recorded",
-			status:    job.StatusRecording,
-			plan:      segmentPlan(4),
-			clips:     []string{"s1", "s2"},
-			wantOK:    true,
-			wantDone:  2,
-			wantTotal: 4,
+			name:        "two of four recorded",
+			status:      job.StatusRecording,
+			plan:        segmentPlan(4),
+			clips:       []string{"s1", "s2"},
+			wantOK:      true,
+			wantDone:    2,
+			wantTotal:   4,
+			wantPercent: 50,
 		},
 		{
 			name:   "no segments dir yet omits progress",
@@ -130,55 +157,60 @@ func TestCaptureProgress(t *testing.T) {
 			wantOK: false,
 		},
 		{
-			name:      "selection reports progress without loading kill plan",
-			status:    job.StatusRecording,
-			plan:      nil,
-			clips:     []string{"s2"},
-			selection: []string{"s2", "s3"},
-			wantOK:    true,
-			wantDone:  1,
-			wantTotal: 2,
+			name:        "selection reports progress without loading kill plan",
+			status:      job.StatusRecording,
+			plan:        nil,
+			clips:       []string{"s2"},
+			selection:   []string{"s2", "s3"},
+			wantOK:      true,
+			wantDone:    1,
+			wantTotal:   2,
+			wantPercent: 50,
 		},
 		{
-			name:      "extra clips clamp done to total",
-			status:    job.StatusRecording,
-			plan:      segmentPlan(2),
-			clips:     []string{"s1", "s2", "s3"},
-			wantOK:    true,
-			wantDone:  2,
-			wantTotal: 2,
+			name:        "extra clips clamp done to total",
+			status:      job.StatusRecording,
+			plan:        segmentPlan(2),
+			clips:       []string{"s1", "s2", "s3"},
+			wantOK:      true,
+			wantDone:    2,
+			wantTotal:   2,
+			wantPercent: 100,
 		},
 		{
-			name:      "all recorded reports full",
-			status:    job.StatusRecording,
-			plan:      segmentPlan(3),
-			clips:     []string{"s1", "s2", "s3"},
-			wantOK:    true,
-			wantDone:  3,
-			wantTotal: 3,
+			name:        "all recorded reports full",
+			status:      job.StatusRecording,
+			plan:        segmentPlan(3),
+			clips:       []string{"s1", "s2", "s3"},
+			wantOK:      true,
+			wantDone:    3,
+			wantTotal:   3,
+			wantPercent: 100,
 		},
 		{
 			// The reel selects s2,s3 out of a 4-segment plan; s1 is a stale clip
 			// from a previous reel and must not be counted, and total is the
 			// selection size (2), not the plan size (4).
-			name:      "selection scopes total and ignores stale clips",
-			status:    job.StatusRecording,
-			plan:      segmentPlan(4),
-			clips:     []string{"s1", "s2"},
-			selection: []string{"s2", "s3"},
-			wantOK:    true,
-			wantDone:  1,
-			wantTotal: 2,
+			name:        "selection scopes total and ignores stale clips",
+			status:      job.StatusRecording,
+			plan:        segmentPlan(4),
+			clips:       []string{"s1", "s2"},
+			selection:   []string{"s2", "s3"},
+			wantOK:      true,
+			wantDone:    1,
+			wantTotal:   2,
+			wantPercent: 50,
 		},
 		{
-			name:      "selection fully recorded reports full",
-			status:    job.StatusRecording,
-			plan:      segmentPlan(4),
-			clips:     []string{"s2", "s3"},
-			selection: []string{"s2", "s3"},
-			wantOK:    true,
-			wantDone:  2,
-			wantTotal: 2,
+			name:        "selection fully recorded reports full",
+			status:      job.StatusRecording,
+			plan:        segmentPlan(4),
+			clips:       []string{"s2", "s3"},
+			selection:   []string{"s2", "s3"},
+			wantOK:      true,
+			wantDone:    2,
+			wantTotal:   2,
+			wantPercent: 100,
 		},
 	}
 	for _, tt := range tests {
@@ -208,6 +240,9 @@ func TestCaptureProgress(t *testing.T) {
 			}
 			if got.Total != tt.wantTotal {
 				t.Errorf("total = %d, want %d", got.Total, tt.wantTotal)
+			}
+			if got.Percent != tt.wantPercent {
+				t.Errorf("percent = %d, want %d", got.Percent, tt.wantPercent)
 			}
 		})
 	}

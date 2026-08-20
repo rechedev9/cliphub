@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -104,6 +105,9 @@ func TestCaptureProgressReporterNeverPublishesPartialClips(t *testing.T) {
 	if progress.AttemptID != attemptID {
 		t.Fatalf("attempt id = %s, want %s", progress.AttemptID, attemptID)
 	}
+	if progress.Percent != 50 {
+		t.Fatalf("percent = %d, want 50", progress.Percent)
+	}
 	for _, segmentID := range []string{"s1", "s2"} {
 		key, err := recording.SegmentClipArtifactKey(jobID, segmentID)
 		if err != nil {
@@ -112,6 +116,56 @@ func TestCaptureProgressReporterNeverPublishesPartialClips(t *testing.T) {
 		if exists, err := store.Exists(key); err != nil || exists {
 			t.Fatalf("progress committed %s: exists=%v err=%v", segmentID, exists, err)
 		}
+	}
+}
+
+func TestCaptureProgressReporterIncludesLiveTakeElapsed(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+	segments := filepath.Join(outDir, "segments")
+	if err := os.MkdirAll(segments, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(segments, "s1.mp4"), []byte("clip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(segments, "s2.mp4"), []byte("clip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(segments, "s3.mp4"), []byte("clip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	take := filepath.Join(outDir, "take0003")
+	if err := os.MkdirAll(take, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(take, "video.mp4"), []byte("streaming"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	reporter := newCaptureProgressReporter(store, uuid.New(), uuid.New(), segments, []string{"s1", "s2", "s3", "s4"})
+	reporter.outDir = outDir
+	reporter.tickrate = 64
+	reporter.ticks = []int{640, 640, 640, 640}
+	reporter.takeSeen["take0003"] = now
+	reporter.now = func() time.Time { return now }
+	if err := reporter.report(); err != nil {
+		t.Fatal(err)
+	}
+	if got := storedCaptureProgress(t, store, reporter.jobID).Percent; got != 75 {
+		t.Fatalf("percent at take start = %d, want 75", got)
+	}
+
+	reporter.now = func() time.Time { return now.Add(5 * time.Second) }
+	if err := reporter.report(); err != nil {
+		t.Fatal(err)
+	}
+	if got := storedCaptureProgress(t, store, reporter.jobID).Percent; got != 88 {
+		t.Fatalf("percent after half take = %d, want 88", got)
 	}
 }
 

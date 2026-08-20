@@ -72,8 +72,8 @@ func TestGetJobStatusReportsCaptureSelectionProgressWithoutKillPlan(t *testing.T
 	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode status response: %v", err)
 	}
-	if got.Progress == nil || got.Progress.Done != 1 || got.Progress.Total != 2 {
-		t.Fatalf("progress = %+v, want 1/2", got.Progress)
+	if got.Progress == nil || got.Progress.Done != 1 || got.Progress.Total != 2 || got.Progress.Percent != 50 {
+		t.Fatalf("progress = %+v, want 1/2 50%%", got.Progress)
 	}
 }
 

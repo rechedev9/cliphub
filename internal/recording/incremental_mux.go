@@ -97,6 +97,16 @@ func finishedTakePairs(plan RecordingPlan) []finishedTake {
 
 // takeDirNames lists the takeNNNN directories directly under root, sorted by
 // take number. A missing root yields no names.
+// LiveTakeNames lists takeNNNN directories under a recorder output dir, in take order.
+func LiveTakeNames(root string) []string {
+	return takeDirNames(root)
+}
+
+// TakeIndex is the 0-based plan index encoded in a takeNNNN directory name.
+func TakeIndex(name string) (int, bool) {
+	return takeNumber(name)
+}
+
 func takeDirNames(root string) []string {
 	entries, err := os.ReadDir(root)
 	if err != nil {

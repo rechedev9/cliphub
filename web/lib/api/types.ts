@@ -54,8 +54,8 @@ export type VideoStatus =
   | 'ready'
   | 'review_required'
   | 'failed';
-/** Live capture progress (segments done/total); set only while status is 'recording'. */
-export type CaptureProgress = { done: number; total: number };
+/** Live capture progress; set only while status is 'recording'. percent is 0-100 of planned ticks. */
+export type CaptureProgress = { done: number; total: number; percent?: number };
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;
