@@ -187,6 +187,17 @@ func TestSQLiteRepoLargePlanGetMetaStripsSegmentsGetStatusSkipsPlan(t *testing.T
 	if status != job.StatusParsed || reason != "" || segments != 0 {
 		t.Fatalf("GetStatus parsed = %s/%q/%d, want parsed/empty/0 (segment count only while recording)", status, reason, segments)
 	}
+
+	list, err := repo.List(ctx, 10)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != j.ID || list[0].Status != job.StatusParsed {
+		t.Fatalf("List = %+v, want parsed id=%s", list, j.ID)
+	}
+	if list[0].KillPlan != nil {
+		t.Fatal("List returned kill plan")
+	}
 }
 
 func TestSQLiteRepoListOrdersByUpdatedThenLimits(t *testing.T) {
@@ -626,20 +637,171 @@ func TestSQLiteRepoMigratesLegacyEmbeddedKillPlan(t *testing.T) {
 	assertKillPlanOutsideData(t, repo, id)
 }
 
+func TestSQLiteRepoMigratesKillPlanColumnToSiblingTable(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open column-schema db: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE jobs (
+		id         TEXT PRIMARY KEY,
+		data       BLOB    NOT NULL,
+		kill_plan  BLOB,
+		status     TEXT    NOT NULL,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	)`); err != nil {
+		_ = db.Close()
+		t.Fatalf("create column-schema table: %v", err)
+	}
+	id := uuid.New()
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-column", TickStart: 10, TickEnd: 20}}
+	now := time.Now().UTC()
+	meta := job.Job{
+		ID:        id,
+		Status:    job.StatusParsed,
+		DemoPath:  "column.dem",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		_ = db.Close()
+		t.Fatalf("marshal job metadata: %v", err)
+	}
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		_ = db.Close()
+		t.Fatalf("marshal kill plan: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO jobs (id, data, kill_plan, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		id.String(), data, planJSON, job.StatusParsed.String(), now.UnixNano(), now.UnixNano()); err != nil {
+		_ = db.Close()
+		t.Fatalf("insert column-schema job: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close column-schema db: %v", err)
+	}
+
+	repo, err := newSQLiteJobRepository(path)
+	if err != nil {
+		t.Fatalf("open migrated repo: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+
+	got, err := repo.Get(ctx, id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.DemoPath != "column.dem" || got.KillPlan == nil || len(got.KillPlan.Segments) != 1 || got.KillPlan.Segments[0].ID != "seg-column" {
+		t.Fatalf("migrated Get = %#v, want column.dem and seg-column", got)
+	}
+	assertKillPlanOutsideData(t, repo, id)
+
+	list, err := repo.List(ctx, 10)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(list) != 1 || list[0].KillPlan != nil {
+		t.Fatalf("List after column migrate = %+v, want one metadata row", list)
+	}
+}
+
+func TestSQLiteRepoListAndStatusKeepLifecycleFieldsWithoutPlan(t *testing.T) {
+	repo := newTestSQLiteRepo(t)
+	ctx := context.Background()
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "s1"}, {ID: "s2"}}
+
+	cases := []struct {
+		name           string
+		status         job.Status
+		reason         string
+		wantSegments   int
+		wantListReason string
+	}{
+		{name: "parsed_idle", status: job.StatusParsed, wantSegments: 0},
+		{name: "recording", status: job.StatusRecording, wantSegments: 2},
+		{name: "failed", status: job.StatusFailed, reason: "capture failed", wantSegments: 0, wantListReason: "capture failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			j := &job.Job{
+				Status:        tc.status,
+				FailureReason: tc.reason,
+				DemoFileName:  "match.dem",
+				KillPlan:      &plan,
+			}
+			if err := repo.Create(ctx, j); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+
+			status, reason, segments, err := repo.GetStatus(ctx, j.ID)
+			if err != nil {
+				t.Fatalf("GetStatus: %v", err)
+			}
+			if status != tc.status || reason != tc.reason || segments != tc.wantSegments {
+				t.Fatalf("GetStatus = %s/%q/%d, want %s/%q/%d", status, reason, segments, tc.status, tc.reason, tc.wantSegments)
+			}
+
+			list, err := repo.List(ctx, 100)
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			var listed *job.Job
+			for i := range list {
+				if list[i].ID == j.ID {
+					listed = &list[i]
+					break
+				}
+			}
+			if listed == nil {
+				t.Fatalf("List missing job %s", j.ID)
+			}
+			if listed.KillPlan != nil {
+				t.Fatal("List returned kill plan")
+			}
+			if listed.Status != tc.status || listed.FailureReason != tc.wantListReason || listed.DemoFileName != "match.dem" {
+				t.Fatalf("List row = status=%s reason=%q file=%q, want %s/%q/match.dem", listed.Status, listed.FailureReason, listed.DemoFileName, tc.status, tc.wantListReason)
+			}
+			assertKillPlanOutsideData(t, repo, j.ID)
+		})
+	}
+}
+
 func assertKillPlanOutsideData(t *testing.T, repo *sqliteJobRepository, id uuid.UUID) {
 	t.Helper()
 	var embedded sql.NullString
-	var planBytes []byte
-	if err := repo.db.QueryRow(`SELECT json_type(data, '$.kill_plan'), kill_plan FROM jobs WHERE id = ?`, id.String()).Scan(&embedded, &planBytes); err != nil {
-		t.Fatalf("inspect kill_plan storage: %v", err)
+	if err := repo.db.QueryRow(`SELECT json_type(data, '$.kill_plan') FROM jobs WHERE id = ?`, id.String()).Scan(&embedded); err != nil {
+		t.Fatalf("inspect data kill_plan: %v", err)
 	}
 	if embedded.Valid {
 		t.Fatalf("data still embeds kill_plan json_type=%q", embedded.String)
 	}
+	var planBytes []byte
+	if err := repo.db.QueryRow(`SELECT plan FROM job_kill_plans WHERE job_id = ?`, id.String()).Scan(&planBytes); err != nil {
+		t.Fatalf("inspect job_kill_plans: %v", err)
+	}
 	if len(planBytes) == 0 {
-		t.Fatal("kill_plan column is empty")
+		t.Fatal("job_kill_plans row is empty")
 	}
 	if !json.Valid(planBytes) {
-		t.Fatalf("kill_plan column is not JSON: %q", planBytes)
+		t.Fatalf("job_kill_plans.plan is not JSON: %q", planBytes)
+	}
+	hasColumn, err := jobsColumnExists(repo.db, "kill_plan")
+	if err != nil {
+		t.Fatalf("inspect kill_plan column: %v", err)
+	}
+	if !hasColumn {
+		return
+	}
+	var leftover []byte
+	if err := repo.db.QueryRow(`SELECT kill_plan FROM jobs WHERE id = ?`, id.String()).Scan(&leftover); err != nil {
+		t.Fatalf("inspect jobs.kill_plan: %v", err)
+	}
+	if len(leftover) != 0 {
+		t.Fatalf("jobs.kill_plan still holds %d bytes", len(leftover))
 	}
 }
