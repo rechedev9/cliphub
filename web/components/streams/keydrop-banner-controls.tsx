@@ -8,22 +8,17 @@ import {
 } from '@/lib/stream-preview';
 import {
   DEFAULT_KEYDROP_CODE,
-  DEFAULT_KEYDROP_END_SECONDS,
-  DEFAULT_KEYDROP_START_SECONDS,
   KEYDROP_CODE_RE,
-  KEYDROP_STYLES,
-} from '@/lib/streams/plan';
+  KEYDROP_STYLE_CATALOG,
+  keyDropDisplayLabel,
+} from '@/lib/api/types';
+import { DEFAULT_KEYDROP_END_SECONDS, DEFAULT_KEYDROP_START_SECONDS } from '@/lib/streams/plan';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 
-/**
- * Optional KeyDrop sponsor plate: style, code, vertical placement, on-screen
- * time window, and slide. The plate only burns in between start and end so it
- * can pop for the code callout without covering the whole clip.
- */
 export function StreamKeyDropBannerControls({
   style,
   code,
@@ -51,7 +46,6 @@ export function StreamKeyDropBannerControls({
   slideEnabled: boolean;
   startSeconds: number;
   endSeconds: number;
-  /** Longest clip length used to clamp the time window; 0 = no clamp. */
   clipDurationSeconds: number;
   busy: boolean;
   onStyleChange: (style: KeyDropBannerStyle | '') => void;
@@ -86,15 +80,15 @@ export function StreamKeyDropBannerControls({
         >
           Sin KeyDrop
         </Button>
-        {KEYDROP_STYLES.map((entry) => (
+        {KEYDROP_STYLE_CATALOG.map((entry) => (
           <Button
-            key={entry.value}
+            key={entry.id}
             type="button"
             size="sm"
-            variant={style === entry.value ? 'default' : 'outline'}
+            variant={style === entry.id ? 'default' : 'outline'}
             disabled={busy}
-            aria-pressed={style === entry.value}
-            onClick={() => onStyleChange(entry.value)}
+            aria-pressed={style === entry.id}
+            onClick={() => onStyleChange(entry.id)}
           >
             {entry.label}
             <span className="ml-1.5 text-fg-3">{entry.subtitle}</span>
@@ -120,7 +114,7 @@ export function StreamKeyDropBannerControls({
             />
             {codeValid ? (
               <p className="text-body-sm text-fg-3">
-                Se renderiza como <span className="font-mono text-fg-1">CODE: {(code.trim() || DEFAULT_KEYDROP_CODE)}</span>
+                Se renderiza como <span className="font-mono text-fg-1">{keyDropDisplayLabel(style, code)}</span>
               </p>
             ) : (
               <p role="alert" className="text-body-sm text-destructive">
