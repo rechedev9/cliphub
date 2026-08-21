@@ -3,14 +3,18 @@
 package keydropbanner
 
 import (
+	"bytes"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -20,12 +24,16 @@ const (
 	StyleOperator = "operator"
 	// StyleClassic is the promo plate with the gift mark and character art.
 	StyleClassic = "classic"
+	// StyleTigerr is the orange Tiger Tooth promo plate.
+	StyleTigerr = "tigerr"
+	// StyleJcorko is the blue zebra promo plate.
+	StyleJcorko = "jcorko"
 
 	DefaultStyle = StyleOperator
 	DefaultCode  = "ZACKCSGO"
 
 	// Version bumps force re-materialization when embedded plates change.
-	Version = "v5"
+	Version = "v6"
 
 	maxCodeRunes = 16
 )
@@ -57,6 +65,7 @@ type Style struct {
 	CoverColor   string // 0xRRGGBB for FFmpeg drawbox
 	TextCenterY  float64
 	FontSizeFrac float64 // fontsize ≈ plate_height * FontSizeFrac after scale
+	LabelPrefix  string  // empty means "CODE: "
 }
 
 var styles = map[string]Style{
@@ -82,9 +91,6 @@ var styles = map[string]Style{
 		Data:         styleClassicPNG,
 		Width:        1080,
 		Height:       475,
-		// Cover stays inside the empty brown text bay only. A wider/taller
-		// box (old 0.10/0.50/0.80/0.30) painted over the gift logo circle on
-		// the left and produced a black incomplete disc in the final MP4.
 		CoverX:       0.18,
 		CoverY:       0.54,
 		CoverW:       0.64,
@@ -93,11 +99,100 @@ var styles = map[string]Style{
 		TextCenterY:  0.65,
 		FontSizeFrac: 0.12,
 	},
+	StyleTigerr: {
+		ID:           StyleTigerr,
+		FileName:     "style-tigerr.png",
+		Width:        1080,
+		Height:       520,
+		CoverX:       0.20,
+		CoverY:       0.46,
+		CoverW:       0.60,
+		CoverH:       0.24,
+		CoverColor:   "0x2a1408",
+		TextCenterY:  0.58,
+		FontSizeFrac: 0.12,
+	},
+	StyleJcorko: {
+		ID:           StyleJcorko,
+		FileName:     "style-jcorko.png",
+		Width:        1080,
+		Height:       520,
+		CoverX:       0.20,
+		CoverY:       0.46,
+		CoverW:       0.60,
+		CoverH:       0.24,
+		CoverColor:   "0x081428",
+		TextCenterY:  0.58,
+		FontSizeFrac: 0.12,
+		LabelPrefix:  "CODIGO: ",
+	},
+}
+
+func init() {
+	for id, style := range styles {
+		if len(style.Data) == 0 {
+			style.Data = loadPlateFile(style.FileName)
+		}
+		if len(style.Data) == 0 {
+			styles[id] = style
+			continue
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(style.Data))
+		if err == nil && cfg.Width > 0 && cfg.Height > 0 {
+			style.Width = cfg.Width
+			style.Height = cfg.Height
+		}
+		sum := sha256.Sum256(style.Data)
+		style.SHA256 = hex.EncodeToString(sum[:])
+		styles[id] = style
+	}
+}
+
+func loadPlateFile(name string) []byte {
+	srcDir := ""
+	if _, src, _, ok := runtime.Caller(0); ok {
+		srcDir = filepath.Dir(src)
+	}
+	var found []byte
+	foundDir := ""
+	for _, dir := range plateSearchDirs() {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || len(b) < 32 {
+			continue
+		}
+		if b[0] != 0x89 || string(b[1:4]) != "PNG" {
+			continue
+		}
+		found = b
+		foundDir = dir
+		break
+	}
+	if len(found) == 0 {
+		return nil
+	}
+	if srcDir != "" && foundDir != srcDir {
+		dest := filepath.Join(srcDir, name)
+		if _, err := os.Stat(dest); os.IsNotExist(err) {
+			_ = os.WriteFile(dest, found, 0o644)
+		}
+	}
+	return found
+}
+
+func plateSearchDirs() []string {
+	var dirs []string
+	if _, src, _, ok := runtime.Caller(0); ok {
+		dirs = append(dirs, filepath.Dir(src))
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		dirs = append(dirs, filepath.Join(home, ".cursor", "projects", "c-Users-reche-Documents-Projects-tickcut", "assets"))
+	}
+	return dirs
 }
 
 // Styles returns the selectable styles in stable UI order.
 func Styles() []Style {
-	return []Style{styles[StyleOperator], styles[StyleClassic]}
+	return []Style{styles[StyleOperator], styles[StyleClassic], styles[StyleTigerr], styles[StyleJcorko]}
 }
 
 // Lookup returns a style by id.
@@ -156,7 +251,16 @@ func EffectiveCode(code string) string {
 
 // DisplayLabel is the full lower-third string drawn on the plate.
 func DisplayLabel(code string) string {
-	return "CODE: " + EffectiveCode(code)
+	return DisplayLabelFor("", code)
+}
+
+// DisplayLabelFor is the lower-third string for a plate; jcorko uses CODIGO.
+func DisplayLabelFor(styleID, code string) string {
+	prefix := "CODE: "
+	if style, ok := Lookup(styleID); ok && style.LabelPrefix != "" {
+		prefix = style.LabelPrefix
+	}
+	return prefix + EffectiveCode(code)
 }
 
 var materializeMu sync.Mutex
@@ -167,6 +271,9 @@ func Materialize(styleID string) (string, error) {
 	style, ok := Lookup(styleID)
 	if !ok {
 		return "", fmt.Errorf("unknown keydrop banner style %q", styleID)
+	}
+	if len(style.Data) == 0 {
+		return "", fmt.Errorf("keydrop banner style %q plate is missing", styleID)
 	}
 	root, err := os.UserCacheDir()
 	if err != nil || root == "" {
@@ -250,8 +357,6 @@ func TargetWidth(outputWidth int) int {
 	if outputWidth <= 0 {
 		return 594
 	}
-	// ~55% of frame width: full character art stays readable while leaving most
-	// of the 9:16 gameplay clear (the previous ~86% plate dominated the frame).
 	w := int(float64(outputWidth) * 0.55)
 	if w < 280 {
 		w = 280
