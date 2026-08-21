@@ -110,8 +110,13 @@ func migrateKillPlansOffJobsRow(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin kill plan migrate: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
 	if hasColumn {
-		if _, err := db.Exec(`
+		if _, err := tx.Exec(`
 			INSERT INTO job_kill_plans (job_id, plan)
 			SELECT id, kill_plan FROM jobs
 			WHERE kill_plan IS NOT NULL
@@ -119,24 +124,27 @@ func migrateKillPlansOffJobsRow(db *sql.DB) error {
 			return fmt.Errorf("move kill_plan column: %w", err)
 		}
 	}
-	if _, err := db.Exec(`
+	if _, err := tx.Exec(`
 		INSERT INTO job_kill_plans (job_id, plan)
 		SELECT id, json_extract(data, '$.kill_plan')
 		FROM jobs
-		WHERE json_type(data, '$.kill_plan') IS NOT NULL
+		WHERE json_extract(data, '$.kill_plan') IS NOT NULL
 		  AND id NOT IN (SELECT job_id FROM job_kill_plans)`); err != nil {
 		return fmt.Errorf("extract embedded kill plan: %w", err)
 	}
-	if _, err := db.Exec(`
+	if _, err := tx.Exec(`
 		UPDATE jobs
 		SET data = json_remove(data, '$.kill_plan')
 		WHERE json_type(data, '$.kill_plan') IS NOT NULL`); err != nil {
 		return fmt.Errorf("strip embedded kill plan: %w", err)
 	}
 	if hasColumn {
-		if _, err := db.Exec(`UPDATE jobs SET kill_plan = NULL WHERE kill_plan IS NOT NULL`); err != nil {
+		if _, err := tx.Exec(`UPDATE jobs SET kill_plan = NULL WHERE kill_plan IS NOT NULL`); err != nil {
 			return fmt.Errorf("clear jobs kill_plan column: %w", err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit kill plan migrate: %w", err)
 	}
 	return nil
 }
