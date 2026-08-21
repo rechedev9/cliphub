@@ -247,12 +247,19 @@ func TestSQLiteRepoDelete(t *testing.T) {
 	if err := repo.Create(ctx, j); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
+	if err := repo.SetKillPlan(ctx, j.ID, killplan.NewPlan()); err != nil {
+		t.Fatalf("SetKillPlan: %v", err)
+	}
 
 	if err := repo.Delete(ctx, j.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	if _, err := repo.Get(ctx, j.ID); !errors.Is(err, job.ErrNotFound) {
 		t.Fatalf("Get after Delete: got %v, want ErrNotFound", err)
+	}
+	var leftover []byte
+	if err := repo.db.QueryRow(`SELECT plan FROM job_kill_plans WHERE job_id = ?`, j.ID.String()).Scan(&leftover); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("job_kill_plans after Delete: got %v/%q, want ErrNoRows", err, leftover)
 	}
 	got, err := repo.ListBySeries(ctx, series)
 	if err != nil {
@@ -706,6 +713,74 @@ func TestSQLiteRepoMigratesKillPlanColumnToSiblingTable(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].KillPlan != nil {
 		t.Fatalf("List after column migrate = %+v, want one metadata row", list)
+	}
+}
+
+func TestSQLiteRepoMigratesJSONNullKillPlanWithoutAbortingOpen(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open null-plan db: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE jobs (
+		id         TEXT PRIMARY KEY,
+		data       BLOB    NOT NULL,
+		status     TEXT    NOT NULL,
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	)`); err != nil {
+		_ = db.Close()
+		t.Fatalf("create jobs table: %v", err)
+	}
+	id := uuid.New()
+	now := time.Now().UTC()
+	data := []byte(`{"id":"` + id.String() + `","status":"parsed","demo_path":"null-plan.dem","kill_plan":null}`)
+	if _, err := db.Exec(`INSERT INTO jobs (id, data, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+		id.String(), data, job.StatusParsed.String(), now.UnixNano(), now.UnixNano()); err != nil {
+		_ = db.Close()
+		t.Fatalf("insert json-null kill_plan job: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close null-plan db: %v", err)
+	}
+
+	repo, err := newSQLiteJobRepository(path)
+	if err != nil {
+		t.Fatalf("open repo with json-null kill_plan: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+
+	got, err := repo.Get(ctx, id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.DemoPath != "null-plan.dem" || got.KillPlan != nil {
+		t.Fatalf("Get = %#v, want null-plan.dem and no kill plan", got)
+	}
+	var embedded sql.NullString
+	if err := repo.db.QueryRow(`SELECT json_type(data, '$.kill_plan') FROM jobs WHERE id = ?`, id.String()).Scan(&embedded); err != nil {
+		t.Fatalf("inspect data kill_plan: %v", err)
+	}
+	if embedded.Valid {
+		t.Fatalf("data still embeds kill_plan json_type=%q", embedded.String)
+	}
+	var planBytes []byte
+	if err := repo.db.QueryRow(`SELECT plan FROM job_kill_plans WHERE job_id = ?`, id.String()).Scan(&planBytes); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("job_kill_plans after json-null migrate: got %v/%q, want ErrNoRows", err, planBytes)
+	}
+}
+
+func TestSQLiteRepoSetKillPlanMissingID(t *testing.T) {
+	repo := newTestSQLiteRepo(t)
+	ctx := context.Background()
+	missing := uuid.New()
+	if err := repo.SetKillPlan(ctx, missing, killplan.NewPlan()); !errors.Is(err, job.ErrNotFound) {
+		t.Fatalf("SetKillPlan missing: got %v, want ErrNotFound", err)
+	}
+	var planBytes []byte
+	if err := repo.db.QueryRow(`SELECT plan FROM job_kill_plans WHERE job_id = ?`, missing.String()).Scan(&planBytes); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("orphan job_kill_plans row after missing SetKillPlan: %v/%q", err, planBytes)
 	}
 }
 
