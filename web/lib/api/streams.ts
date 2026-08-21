@@ -1,4 +1,4 @@
-import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { SERVICE_UNAVAILABLE_CODE, type KeyDropStyle } from './types.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -67,7 +67,7 @@ export type StreamerBanner = {
 };
 
 /** KeyDrop sponsor plate; empty style disables the overlay. */
-export type KeyDropBannerStyle = 'operator' | 'classic';
+export type KeyDropBannerStyle = KeyDropStyle;
 export type KeyDropBanner = {
   style?: KeyDropBannerStyle | '';
   code?: string;
