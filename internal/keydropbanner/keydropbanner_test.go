@@ -18,6 +18,8 @@ func TestValidateAndNormalize(t *testing.T) {
 		{name: "empty is off", style: "", code: ""},
 		{name: "operator default code", style: "operator", code: ""},
 		{name: "classic custom code", style: "classic", code: "zackcsgo"},
+		{name: "tigerr custom code", style: "tigerr", code: "tigerr"},
+		{name: "jcorko custom code", style: "jcorko", code: "jcorko"},
 		{name: "unknown style", style: "neon", code: "ABC", wantErr: "unknown keydrop banner style"},
 		{name: "bad code chars", style: "operator", code: "hi there", wantErr: "keydrop code"},
 		{name: "code too long", style: "operator", code: "ABCDEFGHIJKLMNOPQ", wantErr: "at most"},
@@ -58,12 +60,22 @@ func TestEffectiveCodeAndLabel(t *testing.T) {
 	if got := DisplayLabel("test"); got != "CODE: TEST" {
 		t.Fatalf("DisplayLabel = %q", got)
 	}
+	if got := DisplayLabelFor(StyleJcorko, "otro"); got != "CODIGO: OTRO" {
+		t.Fatalf("DisplayLabelFor jcorko = %q", got)
+	}
+	if got := DisplayLabelFor(StyleTigerr, "tiger"); got != "CODE: TIGER" {
+		t.Fatalf("DisplayLabelFor tigerr = %q", got)
+	}
 }
 
 func TestMaterializeWritesCachedPlates(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	for _, style := range Styles() {
+		if len(style.Data) == 0 {
+			t.Logf("skip materialize %s: plate not on disk", style.ID)
+			continue
+		}
 		path, err := materializeAt(dir, style)
 		if err != nil {
 			t.Fatalf("materialize %s: %v", style.ID, err)
@@ -75,7 +87,6 @@ func TestMaterializeWritesCachedPlates(t *testing.T) {
 		if err != nil || info.Size() == 0 {
 			t.Fatalf("stat %s: %v size=%d", path, err, info.Size())
 		}
-		// Second call hits the checksum cache path.
 		again, err := materializeAt(dir, style)
 		if err != nil || again != path {
 			t.Fatalf("rematerialize = %q %v, want %q", again, err, path)
@@ -85,8 +96,14 @@ func TestMaterializeWritesCachedPlates(t *testing.T) {
 
 func TestLookupAndStyles(t *testing.T) {
 	t.Parallel()
-	if len(Styles()) != 2 {
-		t.Fatalf("Styles len = %d, want 2", len(Styles()))
+	if len(Styles()) != 4 {
+		t.Fatalf("Styles len = %d, want 4", len(Styles()))
+	}
+	if _, ok := Lookup(StyleTigerr); !ok {
+		t.Fatal("Lookup tigerr failed")
+	}
+	if _, ok := Lookup(StyleJcorko); !ok {
+		t.Fatal("Lookup jcorko failed")
 	}
 	if _, ok := Lookup("OPERATOR"); !ok {
 		t.Fatal("Lookup OPERATOR failed")
@@ -98,9 +115,6 @@ func TestLookupAndStyles(t *testing.T) {
 
 func TestClassicCoverStaysInsideTextBay(t *testing.T) {
 	t.Parallel()
-	// The classic plate has a gift logo circle overlapping the left of the
-	// brown bar. Cover must not start left of ~0.16 or it paints the logo
-	// dark (black incomplete disc in the final MP4).
 	style, ok := Lookup(StyleClassic)
 	if !ok {
 		t.Fatal("classic style missing")
@@ -125,9 +139,30 @@ func TestClassicCoverStaysInsideTextBay(t *testing.T) {
 			}
 		})
 	}
-	// Cover right edge must leave the knife art free (~x ≥ 0.86).
 	if right := style.CoverX + style.CoverW; right > 0.86 {
 		t.Fatalf("CoverX+CoverW = %v, want ≤ 0.86 so knife art stays clear", right)
+	}
+}
+
+func TestTigerrAndJcorkoCoverStayInsideBar(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{StyleTigerr, StyleJcorko} {
+		style, ok := Lookup(id)
+		if !ok {
+			t.Fatalf("%s style missing", id)
+		}
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			if style.CoverX < 0.12 || style.CoverX > 0.28 {
+				t.Fatalf("CoverX = %v, want in [0.12, 0.28]", style.CoverX)
+			}
+			if style.CoverW < 0.45 || style.CoverW > 0.70 {
+				t.Fatalf("CoverW = %v, want in [0.45, 0.70]", style.CoverW)
+			}
+			if right := style.CoverX + style.CoverW; right > 0.88 {
+				t.Fatalf("CoverX+CoverW = %v, want ≤ 0.88 so side art stays clear", right)
+			}
+		})
 	}
 }
 

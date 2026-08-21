@@ -20,8 +20,60 @@ export type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoo
 export type CoverStrategy = 'generated-gameplay' | 'no-cover';
 /** Max length (trimmed) for the intro/outro bookend text, enforced client-side via `maxLength`. */
 export const BOOKEND_TEXT_MAX_LENGTH = 80;
-/** KeyDrop plate style for demo reels; empty/undefined disables the banner. */
-export type KeyDropStyle = 'operator' | 'classic';
+
+export const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
+export const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
+
+export const KEYDROP_STYLE_CATALOG = [
+  {
+    id: 'operator',
+    label: 'Operator',
+    subtitle: 'KeyDrop táctico',
+    preview: '/brand/keydrop/operator.png',
+    textClass: 'left-[28%] right-[10%] top-[44%] h-[15%]',
+    codePrefix: 'CODE: ',
+  },
+  {
+    id: 'classic',
+    label: 'Classic',
+    subtitle: 'Promo con regalo',
+    preview: '/brand/keydrop/classic.png',
+    textClass: 'left-[18%] right-[18%] top-[54%] h-[22%]',
+    codePrefix: 'CODE: ',
+  },
+  {
+    id: 'tigerr',
+    label: 'Tigerr',
+    subtitle: 'Tiger Tooth naranja',
+    preview: '/brand/keydrop/tigerr.png',
+    textClass: 'left-[20%] right-[20%] top-[48%] h-[24%]',
+    codePrefix: 'CODE: ',
+  },
+  {
+    id: 'jcorko',
+    label: 'Jcorko',
+    subtitle: 'Cebra azul',
+    preview: '/brand/keydrop/jcorko.png',
+    textClass: 'left-[20%] right-[20%] top-[48%] h-[24%]',
+    codePrefix: 'CODIGO: ',
+  },
+] as const;
+
+export type KeyDropStyle = (typeof KEYDROP_STYLE_CATALOG)[number]['id'];
+
+export function isKeyDropStyle(value: string): value is KeyDropStyle {
+  return KEYDROP_STYLE_CATALOG.some((entry) => entry.id === value);
+}
+
+export function keyDropStyleLabel(id: string): string {
+  return KEYDROP_STYLE_CATALOG.find((entry) => entry.id === id)?.label ?? id;
+}
+
+export function keyDropDisplayLabel(style: KeyDropStyle | '', code: string): string {
+  const prefix = KEYDROP_STYLE_CATALOG.find((entry) => entry.id === style)?.codePrefix ?? 'CODE: ';
+  const body = (code.trim() || DEFAULT_KEYDROP_CODE).toUpperCase();
+  return `${prefix}${body}`;
+}
 
 export type EditConfig = {
   format: RenderFormat;

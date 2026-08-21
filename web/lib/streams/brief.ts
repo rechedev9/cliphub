@@ -3,6 +3,7 @@ import {
   type StreamEditPlan,
   type StreamVariant,
 } from '../api/streams.ts';
+import { keyDropStyleLabel } from '../api/types.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
 import { clipOutputDuration } from './plan.ts';
 
@@ -51,7 +52,7 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
   const kdCode = (plan.keydrop_banner?.code?.trim() || 'ZACKCSGO').toUpperCase();
   let keydrop = 'No';
   if (kdStyle) {
-    const styleLabel = kdStyle === 'classic' ? 'Classic' : 'Operator';
+    const styleLabel = keyDropStyleLabel(kdStyle);
     const start = plan.keydrop_banner?.start_seconds;
     const end = plan.keydrop_banner?.end_seconds;
     const window =

@@ -3,6 +3,8 @@ package renderplan
 import (
 	"fmt"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/keydropbanner"
 )
 
 // maxBookendTextLength caps the intro/outro custom text length so an overlay
@@ -41,28 +43,15 @@ type EditRequest struct {
 	KillCounter     bool   `json:"kill_counter"`
 	MatchRecap      bool   `json:"match_recap"`
 	VoiceComms      bool   `json:"voice_comms"`
-	// VoiceVolume is the gain applied to each POV-team comms track, in [0,1].
-	// Nil keeps the historical 0.85 gain when VoiceComms is on.
 	VoiceVolume *float64 `json:"voice_volume,omitempty"`
 	NativeHUD   bool     `json:"native_hud"`
 	CoverStrategy   string `json:"cover_strategy"`
 	CoverFirstFrame bool   `json:"cover_first_frame"`
-	// IntroText and OutroText customize the intro/outro overlay card text.
-	// Setting either does not enable its bookend; Intro/Outro remain the
-	// switch, so a render can carry custom text while the bookend stays off.
 	IntroText string `json:"intro_text,omitempty"`
 	OutroText string `json:"outro_text,omitempty"`
-	// KeyDropStyle enables the sponsor plate when set to "operator" or
-	// "classic". Empty leaves the reel without a KeyDrop banner.
 	KeyDropStyle string `json:"keydrop_style,omitempty"`
-	// KeyDropCode is the sponsor code drawn on the plate; empty defaults to
-	// ZACKCSGO when KeyDropStyle is set.
 	KeyDropCode string `json:"keydrop_code,omitempty"`
-	// KeyDropPositionY is the plate center as a fraction of output height.
-	// Nil uses the shared default (bottom-safe ~0.86).
 	KeyDropPositionY *float64 `json:"keydrop_position_y,omitempty"`
-	// KeyDropStartSeconds / KeyDropEndSeconds bound when the plate is visible
-	// on the short timeline. Nil start = 0; nil end = full short duration.
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
 }
@@ -124,9 +113,8 @@ func (r EditRequest) Validate() error {
 	if len(strings.TrimSpace(r.OutroText)) > maxBookendTextLength {
 		return fmt.Errorf("outro text exceeds %d characters", maxBookendTextLength)
 	}
-	style := strings.ToLower(strings.TrimSpace(r.KeyDropStyle))
-	if style != "" && style != "operator" && style != "classic" {
-		return fmt.Errorf("unknown keydrop style %q", r.KeyDropStyle)
+	if err := keydropbanner.ValidateStyle(r.KeyDropStyle); err != nil {
+		return err
 	}
 	code := strings.ToUpper(strings.TrimSpace(r.KeyDropCode))
 	if code != "" {

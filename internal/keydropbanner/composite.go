@@ -47,7 +47,7 @@ func CompositeWithCode(ffmpegPath, styleID, code, fontPath, outPath string) erro
 	if textY < 0 {
 		textY = 0
 	}
-	label := DisplayLabel(code)
+	label := DisplayLabelFor(styleID, code)
 	vf := fmt.Sprintf(
 		"drawbox=x=%d:y=%d:w=%d:h=%d:color=%s@1:t=fill,"+
 			"drawtext=fontfile='%s':text='%s':fontcolor=white:fontsize=%d:"+
