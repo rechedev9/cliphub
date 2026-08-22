@@ -1,5 +1,5 @@
 import type { ReelIntent } from './reel-store';
-import type { EditConfig, Video } from './types';
+import { isKeyDropStyle, type EditConfig, type Video } from './types.ts';
 
 export type EffectiveRenderMusic =
   | { mode: 'clean' }
@@ -58,7 +58,7 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   }
   if (typeof edit.intro_text === 'string') parsed.introText = edit.intro_text;
   if (typeof edit.outro_text === 'string') parsed.outroText = edit.outro_text;
-  if (edit.keydrop_style === 'operator' || edit.keydrop_style === 'classic') {
+  if (typeof edit.keydrop_style === 'string' && isKeyDropStyle(edit.keydrop_style)) {
     parsed.keyDropStyle = edit.keydrop_style;
   }
   if (typeof edit.keydrop_code === 'string') {

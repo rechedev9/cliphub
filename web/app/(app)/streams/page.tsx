@@ -33,6 +33,7 @@ import {
   sleep,
   withDefaultStreamTitle,
 } from '@/lib/streams/plan';
+import { isKeyDropStyle, KEYDROP_STYLE_CATALOG } from '@/lib/api/types';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
@@ -280,8 +281,9 @@ function LocalStreamsPage() {
       return;
     }
     const keyDropStyle = fittedPlan.keydrop_banner?.style?.trim() ?? '';
-    if (keyDropStyle && keyDropStyle !== 'operator' && keyDropStyle !== 'classic') {
-      setError('Elige un estilo KeyDrop válido (Operator o Classic).');
+    if (keyDropStyle && !isKeyDropStyle(keyDropStyle)) {
+      const names = KEYDROP_STYLE_CATALOG.map((entry) => entry.label).join(', ');
+      setError(`Elige un estilo KeyDrop válido (${names}).`);
       return;
     }
     const keyDropCode = fittedPlan.keydrop_banner?.code?.trim() ?? '';

@@ -128,7 +128,7 @@ type Config struct {
 	VoiceVolume *float64
 	// VoiceDir holds POV-team Ogg tracks from `zv demo voice --extract`.
 	VoiceDir string
-	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
+	// KeyDropStyle enables the sponsor plate (operator, classic, tigerr, jcorko).
 	KeyDropStyle string
 	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
 	KeyDropCode string
@@ -188,7 +188,7 @@ type ManifestOptions struct {
 	// Nil keeps the historical 0.85 gain.
 	VoiceVolume *float64
 	VoiceDir    string
-	// KeyDropStyle enables the sponsor plate ("operator" or "classic").
+	// KeyDropStyle enables the sponsor plate (operator, classic, tigerr, jcorko).
 	KeyDropStyle string
 	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
 	KeyDropCode string

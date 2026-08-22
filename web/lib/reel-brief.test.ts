@@ -118,3 +118,33 @@ test('creative brief names the optional recap extras when they are on', () => {
   assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
   assert.equal(brief['HUD / killfeed'], 'HUD completo con killfeed');
 });
+
+test('creative brief names Tigerr and Jcorko KeyDrop styles', () => {
+  const base: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+    keyDropStartSeconds: 0,
+    keyDropEndSeconds: 4,
+  };
+  const tigerr = Object.fromEntries(
+    reelCreativeBrief({ ...base, keyDropStyle: 'tigerr', keyDropCode: 'tiger' }, PRESET, { status: 'none' }).map(
+      (item) => [item.label, item.value],
+    ),
+  );
+  const jcorko = Object.fromEntries(
+    reelCreativeBrief({ ...base, keyDropStyle: 'jcorko', keyDropCode: 'jcorko' }, PRESET, { status: 'none' }).map(
+      (item) => [item.label, item.value],
+    ),
+  );
+  assert.equal(tigerr.KeyDrop, 'Tigerr · TIGER · 0.0s–4.0s');
+  assert.equal(jcorko.KeyDrop, 'Jcorko · JCORKO · 0.0s–4.0s');
+});
