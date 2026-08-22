@@ -45,6 +45,23 @@ test('stream creative brief lists KeyDrop when enabled', () => {
   assert.equal(byLabel.KeyDrop, 'Classic · ZACKCSGO · slide');
 });
 
+test('stream creative brief names Tigerr and Jcorko KeyDrop styles', () => {
+  const tigerr = Object.fromEntries(
+    streamCreativeBrief(plan({ keydrop_banner: { style: 'tigerr', code: 'tiger' } })).map((item) => [
+      item.label,
+      item.value,
+    ]),
+  );
+  const jcorko = Object.fromEntries(
+    streamCreativeBrief(plan({ keydrop_banner: { style: 'jcorko', code: 'jcorko' } })).map((item) => [
+      item.label,
+      item.value,
+    ]),
+  );
+  assert.equal(tigerr.KeyDrop, 'Tigerr · TIGER');
+  assert.equal(jcorko.KeyDrop, 'Jcorko · JCORKO');
+});
+
 test('stream creative brief marks unreviewed facecam and empty music', () => {
   const items = streamCreativeBrief(
     plan({

@@ -24,11 +24,6 @@ export const STREAMER_NICK_RE = /^[A-Za-z0-9_]{0,25}$/;
 /** KeyDrop sponsor codes accepted by the Go validator. */
 export const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
 
-export const KEYDROP_STYLES = [
-  { value: 'operator' as const, label: 'Operator', subtitle: 'KeyDrop táctico' },
-  { value: 'classic' as const, label: 'Classic', subtitle: 'Promo con regalo' },
-];
-
 export const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
 
 /** Default on-screen window when enabling KeyDrop (seconds within each clip). */

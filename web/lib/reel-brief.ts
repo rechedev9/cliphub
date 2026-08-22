@@ -1,4 +1,4 @@
-import { keyDropStyleLabel, type EditConfig, type Preset } from './api/types';
+import { keyDropStyleLabel, type EditConfig, type Preset } from './api/types.ts';
 
 export type CreativeBriefItem = {
   label: string;

@@ -18,7 +18,7 @@ import {
   type FrameSize,
 } from '@/lib/stream-preview';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
-import { DEFAULT_KEYDROP_CODE } from '@/lib/streams/plan';
+import { KEYDROP_STYLE_CATALOG, keyDropDisplayLabel } from '@/lib/api/types';
 
 const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 const EMPTY_CLIPS: StreamClipRange[] = [];
@@ -118,7 +118,8 @@ export function StreamPreview({
     : 0;
   const bannerPosition = resolveStreamerBannerPosition(variant, streamerPositionY);
   const keyDropPosition = resolveKeyDropBannerPosition(keyDropPositionY);
-  const keyDropLabel = `CODE: ${(keyDropCode?.trim() || DEFAULT_KEYDROP_CODE).toUpperCase()}`;
+  const keyDropPlate = KEYDROP_STYLE_CATALOG.find((entry) => entry.id === keyDropStyle);
+  const keyDropLabel = keyDropDisplayLabel(keyDropStyle ?? '', keyDropCode ?? '');
   const activeOverlays = activeTextOverlays(clips, frameSeconds);
   // KeyDrop times are relative to each clip start (same as the FFmpeg enable window).
   const activeClip = clips.find(
@@ -303,22 +304,13 @@ export function StreamPreview({
           {/* Same plates the Go renderer embeds; live code is drawn on top. */}
           <div className={`relative w-full ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}>
             <img
-              src={
-                keyDropStyle === 'classic'
-                  ? '/brand/keydrop/classic.png'
-                  : '/brand/keydrop/operator.png'
-              }
+              src={keyDropPlate?.preview ?? '/brand/keydrop/operator.png'}
               alt=""
               draggable={false}
               className="pointer-events-none block h-auto w-full select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.55)]"
             />
             <span
-              className={
-                keyDropStyle === 'classic'
-                  ? // Match Go CoverX/CoverW/TextCenterY for classic (0.18 / 0.64 / 0.65).
-                    'pointer-events-none absolute left-[18%] right-[18%] top-[54%] flex h-[22%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-                  : 'pointer-events-none absolute left-[28%] right-[10%] top-[44%] flex h-[15%] items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.6vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]'
-              }
+              className={`pointer-events-none absolute flex items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] ${keyDropPlate?.textClass ?? 'left-[28%] right-[10%] top-[44%] h-[15%]'}`}
               aria-hidden
             >
               {keyDropLabel}

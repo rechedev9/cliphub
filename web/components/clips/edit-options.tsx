@@ -1,13 +1,18 @@
 'use client';
 
 import { Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
-import { BOOKEND_TEXT_MAX_LENGTH, type EditConfig, type KeyDropStyle } from '@/lib/api/types';
+import {
+  BOOKEND_TEXT_MAX_LENGTH,
+  DEFAULT_KEYDROP_CODE,
+  KEYDROP_CODE_RE,
+  KEYDROP_STYLE_CATALOG,
+  isKeyDropStyle,
+  keyDropDisplayLabel,
+  type EditConfig,
+} from '@/lib/api/types';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-
-const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
-const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
 
 /** Show the live character counter only once the input is getting close to the limit. */
 const COUNTER_THRESHOLD = BOOKEND_TEXT_MAX_LENGTH - 20;
@@ -234,9 +239,10 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
               onChange({ ...value, keyDropStyle: '', keyDropCode: value.keyDropCode });
               return;
             }
+            if (!isKeyDropStyle(next)) return;
             onChange({
               ...value,
-              keyDropStyle: next as KeyDropStyle,
+              keyDropStyle: next,
               keyDropStartSeconds: value.keyDropStartSeconds ?? 0,
               keyDropEndSeconds: value.keyDropEndSeconds ?? 4,
             });
@@ -248,14 +254,12 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
           <ToggleGroupItem value="off" aria-label="Sin banner KeyDrop">
             Sin KeyDrop
           </ToggleGroupItem>
-          <ToggleGroupItem value="operator" aria-label="Estilo Operator">
-            <Gift className="size-4" />
-            Operator
-          </ToggleGroupItem>
-          <ToggleGroupItem value="classic" aria-label="Estilo Classic">
-            <Gift className="size-4" />
-            Classic
-          </ToggleGroupItem>
+          {KEYDROP_STYLE_CATALOG.map((entry) => (
+            <ToggleGroupItem key={entry.id} value={entry.id} aria-label={`Estilo ${entry.label}`}>
+              <Gift className="size-4" />
+              {entry.label}
+            </ToggleGroupItem>
+          ))}
         </ToggleGroup>
         {value.keyDropStyle ? (
           <div className="flex max-w-md flex-col gap-3 pt-1">
@@ -279,7 +283,7 @@ export function EditOptions({ value, onChange, disabled = false }: EditOptionsPr
               <p className="text-body-sm text-fg-3">
                 Se renderiza como{' '}
                 <span className="font-mono text-fg-1">
-                  CODE: {(value.keyDropCode?.trim() || DEFAULT_KEYDROP_CODE)}
+                  {keyDropDisplayLabel(value.keyDropStyle ?? '', value.keyDropCode ?? '')}
                 </span>
               </p>
             </div>
