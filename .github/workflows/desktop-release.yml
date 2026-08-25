@@ -59,6 +59,15 @@ jobs:
           pnpm --dir web install --frozen-lockfile
           pnpm --dir desktop install --frozen-lockfile
 
+      - name: Cache bundled Suno music
+        uses: actions/cache@v4
+        with:
+          path: data/music/*.mp3
+          key: studio-suno-music-${{ hashFiles('data/music/catalog.json') }}
+
+      - name: Seed bundled music from the last published installer
+        run: node desktop/scripts/seed-bundled-music.mjs
+
       - name: Build unsigned Windows installer
         run: pnpm --dir desktop run dist
 

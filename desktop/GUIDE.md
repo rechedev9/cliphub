@@ -141,6 +141,8 @@ landing/Vercel deploy is not required.
 1. Set `desktop/package.json` `version` to the number the updater should see.
 2. Land that commit on `main`.
 3. Run **Desktop release** (`workflow_dispatch`) or push tag `v<version>`.
+   The job seeds gitignored Suno mp3s from the last published installer, then
+   runs `pnpm --dir desktop run dist`.
 4. Confirm `https://github.com/rechedev9/cliphub/releases/latest` is that tag
    and lists the three assets.
 

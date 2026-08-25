@@ -23,6 +23,7 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
     ['permissions:', 'GITHUB_TOKEN scope must be explicit'],
     ['contents: write', 'release asset upload needs contents: write'],
     ['CSC_IDENTITY_AUTO_DISCOVERY: \'false\'', 'CI must stay unsigned'],
+    ['node desktop/scripts/seed-bundled-music.mjs', 'CI must seed gitignored Suno audio from the last installer'],
     ['pnpm --dir desktop run dist', 'must reuse the existing dist entrypoint'],
     ['pnpm --dir desktop run verify:dist-integrity', 'must verify SHA256SUMS.txt before publish'],
     ['ClipHub.Studio.Setup.$version.exe', 'updater reads this installer name'],
