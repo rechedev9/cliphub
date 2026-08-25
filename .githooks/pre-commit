@@ -32,7 +32,7 @@ if grep -Eq '^web/' "$changed"; then
   pnpm --dir web run build
 fi
 
-if grep -Eq '^desktop/' "$changed"; then
+if grep -Eq '^desktop/|^\.github/workflows/desktop-release\.yml$' "$changed"; then
   pnpm --dir desktop install --frozen-lockfile
   pnpm --dir desktop run lint
   pnpm --dir desktop run typecheck
