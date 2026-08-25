@@ -37,6 +37,9 @@ const MAX_INTENTS = 50;
 /** Default variant and migration target for pre-preset intents. */
 export const DEFAULT_VARIANT = 'viral-60-clean';
 
+/** Full Demo reel id suffix. Recap records every stored round, so segmentIds may be empty. */
+export const FULL_DEMO_REEL_SUFFIX = 'full-demo' as const;
+
 export const DEFAULT_EDIT_CONFIG: EditConfig = {
   format: 'short-9x16',
   killEffect: 'punch-in',
@@ -90,14 +93,15 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
     const r = v as Record<string, unknown>;
     if (typeof r.videoId !== 'string' || typeof r.jobId !== 'string') continue;
     const segmentIds = coerceSegmentIds(r);
-    if (segmentIds.length === 0) continue;
+    const editConfig = coerceEditConfig(r.editConfig);
+    if (segmentIds.length === 0 && !isPersistedRecapIntent(r.videoId, editConfig)) continue;
     const intent: ReelIntent = {
       videoId: r.videoId,
       jobId: r.jobId,
       segmentIds,
       mode: r.mode === 'music' ? 'music' : 'clean',
       variant: typeof r.variant === 'string' ? r.variant : DEFAULT_VARIANT,
-      editConfig: coerceEditConfig(r.editConfig),
+      editConfig,
       songId: typeof r.songId === 'string' ? r.songId : undefined,
       musicVolume: coerceMusicVolume(r.musicVolume),
       title: typeof r.title === 'string' ? r.title : 'Highlight',
@@ -114,6 +118,10 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
     out.push(intent);
   }
   return out;
+}
+
+function isPersistedRecapIntent(videoId: string, edit: EditConfig): boolean {
+  return edit.matchRecap || videoId.endsWith(`__${FULL_DEMO_REEL_SUFFIX}`);
 }
 
 /** Current segmentIds, or a legacy singular segmentId. Drops non-strings. */

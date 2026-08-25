@@ -39,6 +39,40 @@ test('drops entries with no segment ids at all', () => {
   assert.deepEqual(coerceIntents([{ videoId: 'v', jobId: 'j' }, { videoId: 'v', jobId: 'j', segmentIds: [] }]), []);
 });
 
+test('keeps a Full Demo recap intent with empty segment ids', () => {
+  const recap = {
+    videoId: 'job__full-demo',
+    jobId: 'job',
+    segmentIds: [] as string[],
+    mode: 'clean' as const,
+    variant: 'gameplay-pov-60',
+    editConfig: {
+      format: 'landscape-16x9' as const,
+      killEffect: 'clean' as const,
+      transition: 'cut' as const,
+      intro: false,
+      outro: false,
+      hookText: false,
+      killCounter: false,
+      matchRecap: true,
+      voiceComms: true,
+      nativeHud: true,
+      coverStrategy: 'generated-gameplay' as const,
+      introText: '',
+      outroText: '',
+    },
+    title: '12 rondas - POV nativo',
+    map: 'Inferno',
+    score: '',
+    createdAt: 9,
+  };
+  const kept = coerceIntents([recap, { videoId: 'shorts', jobId: 'job', segmentIds: [] }]);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]?.videoId, 'job__full-demo');
+  assert.deepEqual(kept[0]?.segmentIds, []);
+  assert.equal(kept[0]?.editConfig.matchRecap, true);
+});
+
 test('defaults soft fields, normalizes mode, migrates missing variant', () => {
   assert.deepEqual(coerceIntents([{ videoId: 'v', jobId: 'j', segmentIds: ['s'], mode: 'weird' }]), [
     { videoId: 'v', jobId: 'j', segmentIds: ['s'], mode: 'clean', variant: 'viral-60-clean', editConfig: DEFAULT_EDIT_CONFIG, songId: undefined, musicVolume: undefined, title: 'Highlight', map: 'Unknown', score: '', targetName: undefined, createdAt: 0 },

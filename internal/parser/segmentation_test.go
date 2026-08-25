@@ -412,6 +412,30 @@ func TestSegmentRecapUtilityDoesNotMoveKnownRoundStart(t *testing.T) {
 	}
 }
 
+func TestSegmentRecapDropsUtilityThrownDuringFreeze(t *testing.T) {
+	got := SegmentRecap(
+		[]RawKill{mkKill(10000, 5, "ak47")},
+		[]RawUtilityThrow{
+			{Type: SmokeGrenadeType, Round: 5, ThrowTick: 9100, PopTick: 9300},
+			{Type: FlashbangType, Round: 5, ThrowTick: 11000, PopTick: 11100},
+		},
+		[]RoundStart{{Round: 5, Tick: 9000}},
+		[]RoundLiveStart{{Round: 5, Tick: 9200}},
+		[]RoundEnd{{Round: 5, Tick: 14000}},
+		defaultTestRules(),
+		testTickrate,
+	)
+	if len(got) != 1 {
+		t.Fatalf("segments = %d, want 1", len(got))
+	}
+	if got[0].TickStart != 9200 || got[0].TickEnd != 14000 {
+		t.Fatalf("window = %d-%d, want freeze-end 9200 to round-end 14000", got[0].TickStart, got[0].TickEnd)
+	}
+	if len(got[0].Utility) != 1 || got[0].Utility[0].ThrowTick != 11000 {
+		t.Fatalf("utility = %#v, want only the live-round flash", got[0].Utility)
+	}
+}
+
 func TestSegmentRecapAttachesUtilityFacts(t *testing.T) {
 	kills := []RawKill{mkKill(10000, 5, "ak47")}
 	utility := []RawUtilityThrow{{

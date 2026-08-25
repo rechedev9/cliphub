@@ -17,6 +17,88 @@ func TestAccountIDFromSteamID64(t *testing.T) {
 	}
 }
 
+func TestNewPlanFromKillPlanDropsRecapEventsOutsideLiveWindow(t *testing.T) {
+	// Full Demo recap starts at freeze-end. A sidecar can still list a buy-time
+	// smoke; Validate used to reject that and abort 16:9 capture.
+	tests := []struct {
+		name          string
+		tickStart     int
+		tickEnd       int
+		kills         []killplan.Kill
+		utility       []killplan.UtilityThrow
+		wantKills     int
+		wantUtility   int
+		wantThrowTick int
+	}{
+		{
+			name:      "freeze-time smoke is dropped",
+			tickStart: 9200,
+			tickEnd:   14000,
+			kills:     []killplan.Kill{{Tick: 10000, Weapon: "ak47"}},
+			utility: []killplan.UtilityThrow{
+				{Type: "smokegrenade", ThrowTick: 9100},
+				{Type: "flashbang", ThrowTick: 11000},
+			},
+			wantKills:     1,
+			wantUtility:   1,
+			wantThrowTick: 11000,
+		},
+		{
+			name:      "kill during freeze is dropped",
+			tickStart: 9200,
+			tickEnd:   14000,
+			kills: []killplan.Kill{
+				{Tick: 9000, Weapon: "usp_silencer"},
+				{Tick: 12000, Weapon: "ak47"},
+			},
+			wantKills: 1,
+		},
+		{
+			name:        "in-window events stay",
+			tickStart:   9200,
+			tickEnd:     14000,
+			kills:       []killplan.Kill{{Tick: 10000, Weapon: "ak47"}},
+			utility:     []killplan.UtilityThrow{{Type: "smokegrenade", ThrowTick: 9400}},
+			wantKills:   1,
+			wantUtility: 1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			kp := killplan.NewPlan()
+			kp.Demo.Tickrate = 64
+			kp.Demo.SHA256 = strings.Repeat("a", 64)
+			kp.Demo.DurationTicks = 20000
+			kp.Target.SteamID64 = "76561198148986856"
+			kp.Segments = []killplan.Segment{{
+				ID:        "seg-001",
+				Round:     5,
+				TickStart: tc.tickStart,
+				TickEnd:   tc.tickEnd,
+				Kills:     tc.kills,
+				Utility:   tc.utility,
+			}}
+			plan, err := NewPlanFromKillPlan(kp, "x.dem", "out", DefaultStreamConfig())
+			if err != nil {
+				t.Fatalf("NewPlanFromKillPlan error = %v", err)
+			}
+			if len(plan.Segments) != 1 {
+				t.Fatalf("segments = %d, want 1", len(plan.Segments))
+			}
+			got := plan.Segments[0]
+			if len(got.Kills) != tc.wantKills {
+				t.Fatalf("kills = %d, want %d: %#v", len(got.Kills), tc.wantKills, got.Kills)
+			}
+			if len(got.Utility) != tc.wantUtility {
+				t.Fatalf("utility = %d, want %d: %#v", len(got.Utility), tc.wantUtility, got.Utility)
+			}
+			if tc.wantThrowTick != 0 && (len(got.Utility) != 1 || got.Utility[0].ThrowTick != tc.wantThrowTick) {
+				t.Fatalf("kept throw = %#v, want tick %d", got.Utility, tc.wantThrowTick)
+			}
+		})
+	}
+}
+
 func TestNewPlanFromKillPlan(t *testing.T) {
 	kp := killplan.NewPlan()
 	kp.Demo.Map = "de_ancient"

@@ -283,8 +283,9 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 			Round:     s.Round,
 			TickStart: s.TickStart,
 			TickEnd:   s.TickEnd,
-			Kills:     s.Kills,
-			Utility:   s.Utility,
+			// Recap sidecars can list buy-time nades after the live window was clamped.
+			Kills:   killsInsideWindow(s.Kills, s.TickStart, s.TickEnd),
+			Utility: utilityInsideWindow(s.Utility, s.TickStart, s.TickEnd),
 		})
 	}
 	// Kill-plan order is editorial: a top-moments selection is deliberately
@@ -303,6 +304,32 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 		return RecordingPlan{}, err
 	}
 	return out, nil
+}
+
+func killsInsideWindow(kills []killplan.Kill, start, end int) []killplan.Kill {
+	if len(kills) == 0 {
+		return kills
+	}
+	var out []killplan.Kill
+	for _, kill := range kills {
+		if kill.Tick >= start && kill.Tick <= end {
+			out = append(out, kill)
+		}
+	}
+	return out
+}
+
+func utilityInsideWindow(utility []killplan.UtilityThrow, start, end int) []killplan.UtilityThrow {
+	if len(utility) == 0 {
+		return utility
+	}
+	var out []killplan.UtilityThrow
+	for _, throw := range utility {
+		if throw.ThrowTick >= start && throw.ThrowTick <= end {
+			out = append(out, throw)
+		}
+	}
+	return out
 }
 
 // ToKillPlan reconstructs the factual plan embedded in a recording result.
