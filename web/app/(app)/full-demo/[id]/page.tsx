@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { SearchX, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
-import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import { canForgeReel, reelCreativeBrief } from '@/lib/reel-brief';
 import { FullDemoStylePicker } from '@/components/full-demo/style-picker';
 import {
@@ -17,6 +16,9 @@ import {
   FULL_DEMO_RECAP_ERROR,
   FULL_DEMO_ROUNDS_PENDING,
   FULL_DEMO_VARIANT,
+  classifyFullDemoLoadFailure,
+  fullDemoEmptyState,
+  type FullDemoLoadFailure,
 } from '@/lib/full-demo';
 import { Button } from '@/components/ui/button';
 import { StudioBackLink } from '@/components/studio/back-link';
@@ -30,7 +32,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [offline, setOffline] = useState(false);
+  const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
   const [recapError, setRecapError] = useState(false);
   const [variant, setVariant] = useState<string | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
@@ -44,7 +46,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         const nextMatch = await api.getMatch(id);
         if (!active) return;
         setMatch(nextMatch);
-        setOffline(false);
+        setLoadFailure(null);
         try {
           const nextPlays = nextMatch ? await api.findRecapClips(id) : [];
           if (!active) return;
@@ -57,7 +59,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         }
       } catch (error) {
         if (!active) return;
-        setOffline((error as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE);
+        setLoadFailure(classifyFullDemoLoadFailure(error));
         setMatch(null);
         setPlays([]);
         setRecapError(false);
@@ -104,17 +106,14 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   }
 
   if (!match) {
+    const empty = fullDemoEmptyState(loadFailure);
     return (
       <div className="flex flex-col gap-8">
         <StudioBackLink href={FULL_DEMO_HREF}>FULL DEMO TO VIDEO</StudioBackLink>
         <StudioEmptyState
-          icon={offline ? Unplug : SearchX}
-          title={offline ? 'Servicio local sin conexión' : 'Demo no encontrada'}
-          description={
-            offline
-              ? 'Arranca ClipHub y vuelve a abrir esta partida.'
-              : 'Esta demo ya no está en el disco local.'
-          }
+          icon={loadFailure === null ? SearchX : Unplug}
+          title={empty.title}
+          description={empty.description}
           actions={<Button onClick={() => router.push(FULL_DEMO_HREF)}>VOLVER</Button>}
         />
       </div>

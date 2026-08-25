@@ -1,4 +1,4 @@
-import type { EditConfig, Preset } from './api/types';
+import { SERVICE_UNAVAILABLE_CODE, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
@@ -55,3 +55,32 @@ export const FULL_DEMO_CONTRACT = [
   { label: 'Efectos', value: 'Sin punch-in ni transiciones de Short' },
   { label: 'Mix', value: 'Comms + juego · sin música' },
 ] as const;
+
+/** null = getMatch returned empty (404 / not on disk); offline = 503; error = any other throw. */
+export type FullDemoLoadFailure = 'offline' | 'error' | null;
+
+export const FULL_DEMO_EMPTY = {
+  offline: {
+    title: 'Servicio local sin conexión',
+    description: 'Arranca ClipHub y vuelve a abrir esta partida.',
+  },
+  error: {
+    title: 'No se pudo cargar la demo',
+    description: 'Hubo un error al leer esta demo. Vuelve a intentarlo o elige otra.',
+  },
+  missing: {
+    title: 'Demo no encontrada',
+    description: 'Esta demo ya no está en el disco local.',
+  },
+} as const;
+
+export function classifyFullDemoLoadFailure(err: unknown): Exclude<FullDemoLoadFailure, null> {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return 'error';
+  return err.code === SERVICE_UNAVAILABLE_CODE ? 'offline' : 'error';
+}
+
+export function fullDemoEmptyState(failure: FullDemoLoadFailure): (typeof FULL_DEMO_EMPTY)[keyof typeof FULL_DEMO_EMPTY] {
+  if (failure === 'offline') return FULL_DEMO_EMPTY.offline;
+  if (failure === 'error') return FULL_DEMO_EMPTY.error;
+  return FULL_DEMO_EMPTY.missing;
+}
