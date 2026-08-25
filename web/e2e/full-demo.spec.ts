@@ -1,6 +1,53 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
 import { FULL_DEMO_CONTRACT } from '../lib/full-demo.ts';
+
+const PARSED_JOB_ID = '11111111-1111-4111-8111-111111111111';
+
+async function stubParsedInferno(page: Page): Promise<void> {
+  await page.route('**/api/demos/jobs', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jobs: [
+          {
+            jobId: PARSED_JOB_ID,
+            status: 'parsed',
+            fileName: 'inferno.dem',
+            createdAt: '2026-08-25T12:00:00Z',
+          },
+        ],
+      }),
+    });
+  });
+  await page.route(`**/api/demos/${PARSED_JOB_ID}/roster`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        players: [
+          {
+            steamid64: '76561198000000001',
+            name: 'player',
+            team: 'CT',
+            kills: 1,
+            deaths: 0,
+            assists: 0,
+            headshots: 0,
+            mvps: 0,
+            rounds: 1,
+            adr: 0,
+            hs_pct: 0,
+            kast: 0,
+            rating: 0,
+          },
+        ],
+        match: { map: 'de_inferno', score_team_a: 13, score_team_b: 9 },
+      }),
+    });
+  });
+}
 
 test.describe('Full demo to video', () => {
   test('is a numbered production section', async ({ page }) => {
@@ -30,6 +77,16 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
     await expect(page.locator('main a[href="/onboarding"]')).toHaveCount(0);
+  });
+
+  test('keeps the demo drop when a parsed match is already listed', async ({ page }) => {
+    await stubParsedInferno(page);
+    await gotoStudio(page, '/full-demo');
+    const listed = page.locator(`main a[href="/full-demo/${PARSED_JOB_ID}"]`);
+    await expect(listed).toBeVisible();
+    await expect(listed).toContainText(/Inferno/i);
+    await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toHaveCount(1);
   });
 
   test('a missing job does not offer FORJAR or a music picker', async ({ page }) => {

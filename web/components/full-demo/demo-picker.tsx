@@ -41,46 +41,43 @@ export function FullDemoPicker(): ReactNode {
     );
   }
 
-  if (matches.length === 0) {
-    return (
-      <div className="flex flex-col gap-3">
-        {listError ? (
-          <p
-            role="alert"
-            className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive"
-          >
-            <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {listError}
-          </p>
-        ) : null}
-        <SingleDemoParse
-          onParsed={(match) => {
-            router.push(`${FULL_DEMO_HREF}/${match.id}`);
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <section className="flex flex-col gap-3" aria-label="Demos para full demo to video">
-      {matches.map((match) => (
-        <Link
-          key={match.id}
-          href={`${FULL_DEMO_HREF}/${match.id}`}
-          className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 sm:px-5"
+    <div className="flex flex-col gap-3">
+      {listError ? (
+        <p
+          role="alert"
+          className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive"
         >
-          <div className="flex min-w-0 flex-col gap-1">
-            <span className="truncate font-display text-lg font-bold uppercase tracking-tight text-fg-1">
-              {match.map}
-            </span>
-            <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-              {[match.player, matchDateLabel(match)].filter(Boolean).join(' · ')}
-            </span>
-          </div>
-          <ChevronRight className="size-4 shrink-0 text-fg-3" aria-hidden />
-        </Link>
-      ))}
-    </section>
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+          {listError}
+        </p>
+      ) : null}
+      <SingleDemoParse
+        onParsed={(match) => {
+          router.push(`${FULL_DEMO_HREF}/${match.id}`);
+        }}
+      />
+      {matches.length > 0 ? (
+        <section className="flex flex-col gap-3" aria-label="Demos para full demo to video">
+          {matches.map((match) => (
+            <Link
+              key={match.id}
+              href={`${FULL_DEMO_HREF}/${match.id}`}
+              className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 sm:px-5"
+            >
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="truncate font-display text-lg font-bold uppercase tracking-tight text-fg-1">
+                  {match.map}
+                </span>
+                <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+                  {[match.player, matchDateLabel(match)].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-fg-3" aria-hidden />
+            </Link>
+          ))}
+        </section>
+      ) : null}
+    </div>
   );
 }
