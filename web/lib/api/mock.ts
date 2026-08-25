@@ -11,6 +11,7 @@ import {
   type PublishRecommendation,
 } from './publish-assistant.ts';
 import { playsSelectionLabel } from '../format.ts';
+import { constrainEditConfig } from '../reel-brief.ts';
 import {
   fixtureUser,
   fixtureSlots,
@@ -420,7 +421,7 @@ export class MockApiClient implements ApiClient {
       songId: input.songId,
       musicVolume: input.songId ? input.musicVolume : undefined,
       gameVolume: input.songId ? input.gameVolume : undefined,
-      editConfig: input.editConfig ?? DEFAULT_EDIT_CONFIG,
+      editConfig: constrainEditConfig(input.editConfig ?? DEFAULT_EDIT_CONFIG),
       status: 'queued',
       createdAt: Date.now(),
       availableForSec: 14 * 3600,

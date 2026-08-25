@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Video } from '@/lib/api/types';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
+import { constrainEditConfig, isLandscapeRecap } from '@/lib/reel-brief';
 import { writeClipboardText } from '@/lib/clipboard-write';
 import { formatCountdown } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
@@ -268,7 +269,7 @@ function ReviewResolutionDialog({
   );
 
   function changeDraft(next: EditConfig) {
-    setDraft(next);
+    setDraft(constrainEditConfig(next));
     setBriefApproved(false);
   }
 
@@ -302,7 +303,7 @@ function ReviewResolutionDialog({
 
   const brief = [
     `Formato: ${draft.format}`,
-    `Entrega: ${draft.matchRecap ? 'resumen de partida' : 'compilado de jugadas'}`,
+    `Entrega: ${isLandscapeRecap(draft) ? 'resumen de partida' : 'compilado de jugadas'}`,
     `Comms: ${draft.voiceComms ? `equipo del POV · ${Math.round((draft.voiceVolume ?? 0.85) * 100)}%` : 'no'}`,
     `HUD/captura: ${draft.nativeHud ? 'nativo gameplay' : (video.variant ?? 'viral-60-clean')} (no cambia sin recaptura)`,
     `Efecto de kill: ${draft.killEffect}`,
@@ -354,7 +355,12 @@ function ReviewResolutionDialog({
               <ToggleGroupItem value="landscape-16x9">Horizontal 16:9</ToggleGroupItem>
             </ToggleGroup>
           </div>
-          <EditOptions value={draft} onChange={changeDraft} disabled={busy !== null || reviewChanged} />
+          <EditOptions
+            value={draft}
+            onChange={changeDraft}
+            disabled={busy !== null || reviewChanged}
+            showFullDemoDelivery={isLandscapeRecap(original) && draft.format === 'landscape-16x9'}
+          />
           <div className="rounded-md bg-surface-2 p-3">
             <p className="mb-2 font-mono text-meta uppercase tracking-wider text-primary">Brief efectivo</p>
             <ul className="grid gap-1 text-body-sm text-fg-2 sm:grid-cols-2">

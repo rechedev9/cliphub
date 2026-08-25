@@ -21,6 +21,8 @@ export type EditOptionsProps = {
   value: EditConfig;
   onChange: (next: EditConfig) => void;
   disabled?: boolean;
+  /** Recap / comms / native HUD live on /full-demo, not the Shorts constructor. */
+  showFullDemoDelivery?: boolean;
 };
 
 const effectItems: Array<{ value: EditConfig['killEffect']; label: string }> = [
@@ -42,64 +44,71 @@ const transitionItems: Array<{ value: EditConfig['transition']; label: string }>
 ];
 
 /** Kill-effect, transition, and bookend controls. Aspect lives in CreateReelBar. */
-export function EditOptions({ value, onChange, disabled = false }: EditOptionsProps) {
+export function EditOptions({
+  value,
+  onChange,
+  disabled = false,
+  showFullDemoDelivery = false,
+}: EditOptionsProps) {
   return (
     <div className={cn('grid gap-4 md:grid-cols-[1fr_1fr]', disabled && 'opacity-60')}>
-      <OptionBlock label="ENTREGA OPCIONAL" className="md:col-span-2">
-        <ToggleGroup
-          type="multiple"
-          value={[
-            value.matchRecap ? 'match-recap' : '',
-            value.voiceComms ? 'voice-comms' : '',
-            value.nativeHud ? 'native-hud' : '',
-          ].filter(Boolean)}
-          onValueChange={(items) =>
-            onChange({
-              ...value,
-              matchRecap: items.includes('match-recap'),
-              voiceComms: items.includes('voice-comms'),
-              nativeHud: items.includes('native-hud'),
-            })
-          }
-          disabled={disabled}
-          variant="outline"
-          className="flex-wrap"
-        >
-          <ToggleGroupItem value="match-recap" aria-label="Resumen de partida">
-            <Film className="size-4" />
-            Resumen de partida
-          </ToggleGroupItem>
-          <ToggleGroupItem value="voice-comms" aria-label="Comms del equipo">
-            <Headphones className="size-4" />
-            Comms del equipo
-          </ToggleGroupItem>
-          <ToggleGroupItem value="native-hud" aria-label="HUD nativo">
-            <Monitor className="size-4" />
-            HUD nativo
-          </ToggleGroupItem>
-        </ToggleGroup>
-        {value.voiceComms ? (
-          <div className="flex items-center gap-4 pt-1">
-            <label
-              htmlFor="voice-volume"
-              className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
-            >
-              COMMS <span className="text-stream-text">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
-            </label>
-            <input
-              id="voice-volume"
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={Math.round((value.voiceVolume ?? 0.85) * 100)}
-              disabled={disabled}
-              onChange={(e) => onChange({ ...value, voiceVolume: Number(e.target.value) / 100 })}
-              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-        ) : null}
-      </OptionBlock>
+      {showFullDemoDelivery ? (
+        <OptionBlock label="ENTREGA OPCIONAL" className="md:col-span-2">
+          <ToggleGroup
+            type="multiple"
+            value={[
+              value.matchRecap ? 'match-recap' : '',
+              value.voiceComms ? 'voice-comms' : '',
+              value.nativeHud ? 'native-hud' : '',
+            ].filter(Boolean)}
+            onValueChange={(items) =>
+              onChange({
+                ...value,
+                matchRecap: items.includes('match-recap'),
+                voiceComms: items.includes('voice-comms'),
+                nativeHud: items.includes('native-hud'),
+              })
+            }
+            disabled={disabled}
+            variant="outline"
+            className="flex-wrap"
+          >
+            <ToggleGroupItem value="match-recap" aria-label="Resumen de partida">
+              <Film className="size-4" />
+              Resumen de partida
+            </ToggleGroupItem>
+            <ToggleGroupItem value="voice-comms" aria-label="Comms del equipo">
+              <Headphones className="size-4" />
+              Comms del equipo
+            </ToggleGroupItem>
+            <ToggleGroupItem value="native-hud" aria-label="HUD nativo">
+              <Monitor className="size-4" />
+              HUD nativo
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {value.voiceComms ? (
+            <div className="flex items-center gap-4 pt-1">
+              <label
+                htmlFor="voice-volume"
+                className="w-36 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2"
+              >
+                COMMS <span className="text-stream-text">· {Math.round((value.voiceVolume ?? 0.85) * 100)}%</span>
+              </label>
+              <input
+                id="voice-volume"
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={Math.round((value.voiceVolume ?? 0.85) * 100)}
+                disabled={disabled}
+                onChange={(e) => onChange({ ...value, voiceVolume: Number(e.target.value) / 100 })}
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+          ) : null}
+        </OptionBlock>
+      ) : null}
 
       <OptionBlock label="EFECTO DE KILL">
         <ToggleGroup
