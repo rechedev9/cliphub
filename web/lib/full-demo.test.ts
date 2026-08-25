@@ -5,7 +5,11 @@ import { reelIdentity } from './api/reel-identity.ts';
 import {
   FULL_DEMO_CONTRACT,
   FULL_DEMO_EDIT,
+  FULL_DEMO_FORGE_HINT_EMPTY,
+  FULL_DEMO_FORGE_HINT_ERROR,
   FULL_DEMO_PRESET,
+  FULL_DEMO_RECAP_ERROR,
+  FULL_DEMO_ROUNDS_PENDING,
   FULL_DEMO_VARIANT,
   FULL_DEMO_VOICE_VOLUME,
   resolveFullDemoPreset,
@@ -80,6 +84,16 @@ test('buildEditRequest is the native-HUD wire: recap, gameplay HUD, comms, no sh
   assert.equal(body.kill_counter, false);
   assert.equal('music' in body, false);
   assert.equal('song_id' in body, false);
+});
+
+test('recap-plan failure copy is an error, not a pending parse or Shorts empty state', () => {
+  assert.match(FULL_DEMO_RECAP_ERROR, /No se pudo cargar el plan de rondas/);
+  assert.equal(/todavía|parseo|Demo no encontrada|jugada/i.test(FULL_DEMO_RECAP_ERROR), false);
+  assert.match(FULL_DEMO_ROUNDS_PENDING, /rondas/);
+  assert.equal(/jugada/i.test(FULL_DEMO_ROUNDS_PENDING), false);
+  assert.notEqual(FULL_DEMO_RECAP_ERROR, FULL_DEMO_ROUNDS_PENDING);
+  assert.match(FULL_DEMO_FORGE_HINT_EMPTY, /rondas/);
+  assert.match(FULL_DEMO_FORGE_HINT_ERROR, /rondas/);
 });
 
 test('full-demo identity does not collapse into a Shorts reel', () => {

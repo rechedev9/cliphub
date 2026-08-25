@@ -1,6 +1,7 @@
 'use client';
 
 import type { RenderFormat } from '@/lib/api/types';
+import { forgeHint } from '@/lib/forge-hint';
 import { canForgeReel, type CreativeBriefItem } from '@/lib/reel-brief';
 import { lockedFormatLabel, REEL_FORMAT_ITEMS } from '@/lib/reel-format';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,8 @@ export type CreateReelBarProps = {
   briefApproved: boolean;
   onBriefApprovedChange: (approved: boolean) => void;
   onCreate: () => void;
+  /** Overrides the empty-selection hint. Full Demo talks about rondas, not jugadas. */
+  emptySelectionHint?: string;
 };
 
 
@@ -43,6 +46,7 @@ export function CreateReelBar({
   briefApproved,
   onBriefApprovedChange,
   onCreate,
+  emptySelectionHint,
 }: CreateReelBarProps) {
   const configured = selectionLabel != null && presetLabel != null && musicDecided;
   const ready = canForgeReel({
@@ -95,7 +99,7 @@ export function CreateReelBar({
               </p>
             ) : (
               <p className="mt-1 truncate text-body-sm text-fg-2">
-                {forgeHint(selectionLabel, presetLabel)}
+                {forgeHint(selectionLabel, presetLabel, emptySelectionHint)}
               </p>
             )}
           </div>
@@ -152,10 +156,4 @@ export function CreateReelBar({
       </div>
     </div>
   );
-}
-
-function forgeHint(selectionLabel: string | null, presetLabel: string | null): string {
-  if (selectionLabel == null) return 'Elige al menos una jugada para empezar.';
-  if (presetLabel == null) return 'Elige un preset para continuar.';
-  return 'Decide la música: un tema o sin música.';
 }
