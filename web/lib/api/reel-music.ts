@@ -5,7 +5,7 @@ export type MusicChoice = {
   songId?: string;
   /** Track gain in (0,1]. Absent keeps the historical full-volume mix. */
   musicVolume?: number;
-  /** Game-audio gain in [0,1] when music is mixed. Absent keeps the 0.20 duck. */
+  /** Game-audio gain in [0,1] when music is mixed. Absent keeps the 0.70 mix. */
   gameVolume?: number;
 };
 
@@ -17,7 +17,7 @@ export const MUSIC_VOLUME_DEFAULT_PERCENT = 100;
 export const GAME_VOLUME_MIN_PERCENT = 0;
 export const GAME_VOLUME_MAX_PERCENT = 100;
 export const GAME_VOLUME_STEP_PERCENT = 5;
-export const GAME_VOLUME_DEFAULT_PERCENT = 20;
+export const GAME_VOLUME_DEFAULT_PERCENT = 70;
 export const GAME_VOLUME_DEFAULT = GAME_VOLUME_DEFAULT_PERCENT / 100;
 
 /** True when both choices describe the same mix (including "no music"). */

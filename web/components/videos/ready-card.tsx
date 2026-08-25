@@ -179,7 +179,7 @@ export function ReadyCard({
       <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="truncate">{video.title}</DialogTitle>
+            <DialogTitle>{video.title}</DialogTitle>
             <DialogDescription className="font-mono tabular-nums">{meta}</DialogDescription>
           </DialogHeader>
           {video.downloadUrl ? (

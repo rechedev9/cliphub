@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { isSeriesId } from '@/lib/series-status';
 import { formatKd, matchDateLabel, playsSelectionLabel, ratingClass } from '@/lib/format';
+import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { canForgeReel, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ const VOLUME_MAX = 100;
 const VOLUME_STEP = 5;
 const VOLUME_DEFAULT = 100;
 const GAME_VOLUME_MIN = 0;
-const GAME_VOLUME_DEFAULT = 20;
+const GAME_VOLUME_DEFAULT = GAME_VOLUME_DEFAULT_PERCENT;
 
 export default function FindHighlightsPage({
   params,

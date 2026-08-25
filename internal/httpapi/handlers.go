@@ -1156,7 +1156,7 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 // renderMusicRequest is the "music" field of a render request. It accepts
 // either a bare track key ("phonk-01") or an object {"key","volume","game_volume"}
 // so a client can set mix gains. Volume is in (0,1]; 0 means the render
-// default. GameVolume is in [0,1]; nil keeps the historical 0.20 duck.
+// default. GameVolume is in [0,1]; nil keeps the 0.70 mix.
 // Accepting a bare string keeps older clients working.
 type renderMusicRequest struct {
 	Key        string
@@ -1326,7 +1326,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	// track to mix in. "music" also accepts an object
 	// {"key","volume","game_volume"} so the client can set mix gains; volume
 	// is in (0,1], 0 means the default. game_volume is in [0,1]; omitted keeps
-	// the historical 0.20 duck.
+	// the 0.70 mix.
 	var musicRequest renderMusicRequest
 	var editPatch renderEditRequest
 	var expectedArtifactPrefix string

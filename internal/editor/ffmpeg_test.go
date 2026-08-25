@@ -117,7 +117,7 @@ func TestBuildMusicFFmpegCommandKillfeedAndTailTrim(t *testing.T) {
 	joined := strings.Join(command, " ")
 	for _, want := range []string{
 		"split=2[main][kfsrc0]",
-		"[0:a]volume=0.20[game]",
+		"[0:a]volume=0.70[game]",
 		"[1:a]volume=1.00[music]",
 		"amix=inputs=2:duration=first:dropout_transition=0:normalize=0",
 		"-t 6.078",
@@ -365,7 +365,7 @@ func TestAudioMixVolumes(t *testing.T) {
 				GameVolume: &gameHalf, DurationSeconds: 2,
 			},
 			want:    []string{"[0:a]volume=0.50[game]", "[1:a]volume=1.00[music]"},
-			notWant: []string{"[0:a]volume=0.20[game]"},
+			notWant: []string{"[0:a]volume=0.70[game]"},
 		},
 		{
 			name: "single-clip muted game audio",
@@ -381,7 +381,7 @@ func TestAudioMixVolumes(t *testing.T) {
 				Output: "out.mp4", MusicPath: "music.mp3", GameVolume: &gameHalf, Parts: part,
 			},
 			want:    []string{"[gamea]volume=0.50[game]"},
-			notWant: []string{"[gamea]volume=0.20[game]", "[gamea]anull[game]"},
+			notWant: []string{"[gamea]volume=0.70[game]", "[gamea]anull[game]"},
 		},
 		{
 			name: "legacy music plus voice stays coupled",
@@ -389,7 +389,7 @@ func TestAudioMixVolumes(t *testing.T) {
 				Output: "out.mp4", MusicPath: "music.mp3",
 				VoiceTracks: []string{"a.ogg"}, VoiceTickrate: 64, Parts: part,
 			},
-			want:    []string{"volume=0.85", "[gamea]volume=0.20[game]", "[pa0][vmix0]amix="},
+			want:    []string{"volume=0.85", "[gamea]volume=0.70[game]", "[pa0][vmix0]amix="},
 			notWant: []string{"[gamea]anull[game]", "[pa0]volume="},
 		},
 		{
@@ -400,7 +400,7 @@ func TestAudioMixVolumes(t *testing.T) {
 				VoiceTracks: []string{"a.ogg"}, VoiceTickrate: 64, Parts: part,
 			},
 			want:    []string{"volume=1.00[vt0_0]", "[pa0]volume=0.50[pag0]", "[pag0][vmix0]amix=", "[gamea]anull[game]"},
-			notWant: []string{"volume=0.85", "[gamea]volume=0.20[game]", "[gamea]volume=0.50[game]"},
+			notWant: []string{"volume=0.85", "[gamea]volume=0.70[game]", "[gamea]volume=0.50[game]"},
 		},
 		{
 			name: "custom voice volume without music",

@@ -56,7 +56,7 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 }
 
 const (
-	defaultGameMixVolume  = 0.20
+	defaultGameMixVolume  = 0.70
 	defaultVoiceMixVolume = 0.85
 )
 
@@ -88,10 +88,7 @@ func musicGameVolumeFilter(short ShortEdit) string {
 	if short.GameVolume != nil && len(short.VoiceTracks) > 0 {
 		return "[gamea]anull[game]"
 	}
-	if short.GameVolume != nil {
-		return fmt.Sprintf("[gamea]volume=%.2f[game]", gameMixVolume(short))
-	}
-	return "[gamea]volume=0.20[game]"
+	return fmt.Sprintf("[gamea]volume=%.2f[game]", gameMixVolume(short))
 }
 
 func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
@@ -107,10 +104,7 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	if killfeeds := killfeedEffects(short.Effects); len(killfeeds) > 0 || short.CoverFirstFrame {
 		videoClauses = singleClipVideoClauses(short, killfeeds)
 	}
-	gameVol := "0.20"
-	if short.GameVolume != nil {
-		gameVol = fmt.Sprintf("%.2f", *short.GameVolume)
-	}
+	gameVol := fmt.Sprintf("%.2f", gameMixVolume(short))
 	filter := fmt.Sprintf(
 		"%s;[0:a]volume=%s[game];[1:a]volume=%.2f[music];%s",
 		strings.Join(videoClauses, ";"),

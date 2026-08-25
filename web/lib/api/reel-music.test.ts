@@ -3,6 +3,7 @@ import test from 'node:test';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import {
   applyMusicChoice,
+  GAME_VOLUME_DEFAULT_PERCENT,
   gameVolumePercentToRequest,
   gameVolumeRequestToPercent,
   musicChoicesEqual,
@@ -34,7 +35,8 @@ test('music choices treat missing volume as full volume and ignore volume withou
   assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'b' }), false);
   assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'a', musicVolume: 0.35 }), false);
   assert.equal(musicChoicesEqual({}, { songId: 'a' }), false);
-  assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'a', gameVolume: 0.2 }), true);
+  assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'a', gameVolume: 0.7 }), true);
+  assert.equal(musicChoicesEqual({ songId: 'a' }, { songId: 'a', gameVolume: 0.2 }), false);
   assert.equal(musicChoicesEqual({ songId: 'a', gameVolume: 0.2 }, { songId: 'a', gameVolume: 0.5 }), false);
 });
 
@@ -45,7 +47,8 @@ test('volume percent conversion keeps full volume unset', () => {
   assert.equal(musicVolumeRequestToPercent(0.35), 35);
   assert.equal(gameVolumePercentToRequest(20), 0.2);
   assert.equal(gameVolumePercentToRequest(0), 0);
-  assert.equal(gameVolumeRequestToPercent(undefined), 20);
+  assert.equal(gameVolumeRequestToPercent(undefined), GAME_VOLUME_DEFAULT_PERCENT);
+  assert.equal(gameVolumeRequestToPercent(0.2), 20);
   assert.equal(gameVolumeRequestToPercent(0.5), 50);
 });
 

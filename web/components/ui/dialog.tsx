@@ -60,13 +60,10 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        // No `animate-in`/`zoom-in-95` here: globals.css owns the entrance for
-        // [data-slot="dialog-content"] (ff-dialog-in / ff-dialog-out), which
-        // brings the panel forward in Z while the shell recedes behind it.
-        // The surface is --surface-4, not the canvas: a dialog that paints
-        // --background reads darker than the panel it floats over.
+        // Entrance lives in globals.css. Surface is --surface-4 so the panel
+        // stays lighter than the canvas behind it.
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-border bg-popover p-6 text-popover-foreground shadow-[var(--elev-5)] outline-none sm:max-w-lg",
+          "fixed top-[50%] left-[50%] z-50 grid w-full min-w-0 max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-border bg-popover p-6 text-popover-foreground shadow-[var(--elev-5)] outline-none sm:max-w-lg",
           className
         )}
         {...props}
@@ -94,7 +91,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      className={cn("flex min-w-0 flex-col gap-2 pr-10 text-center sm:text-left", className)}
       {...props}
     />
   )
@@ -135,7 +132,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "font-display text-title leading-none font-bold text-fg-1",
+        "min-w-0 break-words font-display text-title font-bold text-fg-1",
         className
       )}
       {...props}

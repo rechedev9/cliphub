@@ -110,7 +110,7 @@ type ComposeFinalPayload struct {
 // orchestrator. MusicKey, when set, names a music track the render worker mixes
 // into the reel (resolved from its music directory). MusicVolume is the music
 // gain in (0,1]; 0 means the render default. GameVolume is the captured-game
-// gain in [0,1] when music is mixed; nil keeps the historical 0.20 duck.
+// gain in [0,1] when music is mixed; nil keeps the 0.70 mix.
 type RenderVariantPayload struct {
 	JobID       uuid.UUID              `json:"job_id"`
 	Variant     string                 `json:"variant"`
@@ -285,7 +285,7 @@ func NewComposeFinalTask(id uuid.UUID) (*asynq.Task, error) {
 // variant for a job. musicKey is optional; when non-empty the render worker
 // mixes the named track into the reel. musicVolume is the music gain in (0,1];
 // 0 means the render default. gameVolume is the captured-game gain in [0,1]
-// when music is mixed; nil keeps the historical 0.20 duck.
+// when music is mixed; nil keeps the 0.70 mix.
 func NewRenderVariantTask(id uuid.UUID, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest) (*asynq.Task, error) {
 	if !renderVariantPattern.MatchString(variant) {
 		return nil, fmt.Errorf("invalid render variant %q", variant)

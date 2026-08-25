@@ -21,25 +21,11 @@ import { cn } from '@/lib/utils';
 
 export type FeedCardProps = {
   item: FeedItem;
-  /**
-   * 1-based position, set only while a ranked sort is active. It exists so the
-   * sort visibly does something: reordering identical cards was previously the
-   * only feedback that TOP SEMANA had been pressed.
-   */
+  /** 1-based rank while a sort is active, so TOP SEMANA visibly reorders cards. */
   rank?: number;
 };
 
-/**
- * One community reel. The play control is the card's dominant object — a raised,
- * cyan-rimmed disc with a real cast shadow, sitting over a portrait-biased frame
- * whose cover parallaxes under the pointer — and the like control drops to a
- * quiet ghost with a mono count. Magenta stays reserved for likes per the skin's
- * colour rule, so it never turns cyan even once liked.
- *
- * `FeedItem` carries neither a duration nor a render format, so the card shows
- * neither rather than a fabricated number; the 4:5 frame is a deliberate
- * portrait bias (community reels are shorts) and not a claim about the source.
- */
+/** One community reel. Play is the dominant control; likes stay magenta. */
 export function FeedCard({ item, rank }: FeedCardProps) {
   const [liked, setLiked] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -138,7 +124,7 @@ export function FeedCard({ item, rank }: FeedCardProps) {
       <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="truncate">{item.title}</DialogTitle>
+            <DialogTitle>{item.title}</DialogTitle>
             <DialogDescription>
               {item.author} · {item.map}
             </DialogDescription>
