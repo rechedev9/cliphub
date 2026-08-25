@@ -1,5 +1,5 @@
 import type { EditConfig, Preset } from './api/types';
-import { PRESET_DESCRIPTION_ES } from './preset-copy.ts';
+import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
 
@@ -49,7 +49,7 @@ export const FULL_DEMO_CONTRACT = [
   { label: 'Formato', value: 'Horizontal 16:9 · 1920×1080' },
   { label: 'Entrega', value: 'Rondas en vivo · sin freeze' },
   { label: 'Comms', value: 'Comms del equipo del POV · 85%' },
-  { label: 'HUD', value: 'Nativo CS2 (radar, vida, killfeed)' },
+  { label: 'HUD', value: NATIVE_HUD_LABEL },
   { label: 'Efectos', value: 'Sin punch-in ni transiciones de Short' },
   { label: 'Mix', value: 'Comms + juego · sin música' },
 ] as const;

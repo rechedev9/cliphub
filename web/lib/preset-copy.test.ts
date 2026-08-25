@@ -2,7 +2,7 @@
 // Run: node --test preset-copy.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESET_DESCRIPTION_ES, presetDescription } from './preset-copy.ts';
+import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES, presetDescription, presetHudChip } from './preset-copy.ts';
 
 // The preset names registered in internal/editor/preset.go. Every override must
 // key on one of these; a stray key means a typo or a renamed/removed preset.
@@ -46,4 +46,15 @@ test('presetDescription returns the Spanish override for a known preset', () => 
 test('presetDescription falls back to the API description for an unknown preset', () => {
   const preset = { name: 'some-future-preset', description: 'brand new registry copy' };
   assert.equal(presetDescription(preset), 'brand new registry copy');
+});
+
+test('presetHudChip names native CS2 HUD for gameplay-pov-60 and leaves Shorts enums', () => {
+  assert.equal(
+    presetHudChip({ name: 'gameplay-pov-60', hudMode: 'gameplay' }),
+    NATIVE_HUD_LABEL,
+  );
+  assert.equal(presetHudChip({ name: 'full-hud-60', hudMode: 'gameplay' }), 'gameplay');
+  assert.equal(presetHudChip({ name: 'viral-60-clean', hudMode: 'deathnotices' }), 'deathnotices');
+  assert.equal(presetHudChip({ name: 'clean-pov-60', hudMode: 'clean' }), 'clean');
+  assert.equal(presetHudChip({ name: 'viral-aggressive-60' }), undefined);
 });

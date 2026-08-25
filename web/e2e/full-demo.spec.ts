@@ -7,6 +7,7 @@ import {
   FULL_DEMO_RECAP_ERROR,
   FULL_DEMO_ROUNDS_PENDING,
 } from '../lib/full-demo.ts';
+import { NATIVE_HUD_LABEL } from '../lib/preset-copy.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 
@@ -94,6 +95,25 @@ async function stubParsedInferno(page: Page): Promise<void> {
   });
 }
 
+async function stubNativePovPreset(page: Page): Promise<void> {
+  await page.route('**/api/presets', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        presets: [
+          {
+            name: 'gameplay-pov-60',
+            label: 'POV nativo',
+            description: 'YouTube POV with native CS2 HUD',
+            hud_mode: 'gameplay',
+          },
+        ],
+      }),
+    });
+  });
+}
+
 test.describe('Full demo to video', () => {
   test('is a numbered production section', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
@@ -176,5 +196,20 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.locator('[aria-label="Formato del reel"]')).toHaveText('16:9');
+  });
+
+  test('job brief and POV chip name native CS2 HUD, not Shorts full-hud copy', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await stubNativePovPreset(page);
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    const preset = page.getByRole('button', { name: /Preset (POV nativo|Native POV)/ });
+    await preset.click();
+    await expect(preset).toContainText(`HUD · ${NATIVE_HUD_LABEL}`);
+    const brief = page.getByRole('region', { name: 'Brief creativo exacto' });
+    await expect(brief.getByText('HUD / killfeed:', { exact: true })).toBeVisible();
+    await expect(brief.getByText(NATIVE_HUD_LABEL, { exact: true })).toBeVisible();
+    await expect(page.getByText('HUD completo con killfeed')).toHaveCount(0);
+    await expect(page.getByText(/HUD · gameplay/i)).toHaveCount(0);
   });
 });

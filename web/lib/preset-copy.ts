@@ -1,5 +1,7 @@
 // Spanish picker copy; registry descriptions stay English. Unknown names fall back to the API string.
 
+export const NATIVE_HUD_LABEL = 'Nativo CS2 (radar, vida, killfeed)';
+
 /** Spanish registry descriptions keyed by preset name. Keep in sync with preset.go. */
 export const PRESET_DESCRIPTION_ES: Record<string, string> = {
   'viral-60-clean':
@@ -17,4 +19,9 @@ export const PRESET_DESCRIPTION_ES: Record<string, string> = {
 /** Localized description, or the API English string for unknown presets. */
 export function presetDescription(preset: { name: string; description: string }): string {
   return PRESET_DESCRIPTION_ES[preset.name] ?? preset.description;
+}
+
+export function presetHudChip(preset: { name: string; hudMode?: string }): string | undefined {
+  if (preset.name === 'gameplay-pov-60') return NATIVE_HUD_LABEL;
+  return preset.hudMode;
 }
