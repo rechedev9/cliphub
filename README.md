@@ -172,7 +172,7 @@ data/                local artifacts (music catalog, …) — not source of trut
 
 Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/cliphub`), **pnpm 11.22** / **Node 24** per package.
 
-There is **no hosted CI**. [`.githooks/pre-commit`](.githooks/pre-commit) is the only automated gate — skip it and the change was never checked.
+The quality gate is [`.githooks/pre-commit`](.githooks/pre-commit) — skip it and the change was never checked. The one hosted job is [Desktop release](.github/workflows/desktop-release.yml) on `windows-latest`, which publishes the unsigned installer.
 
 ```powershell
 .\scripts\build.ps1
@@ -216,16 +216,14 @@ Packaged Studio pins HLAE via `desktop/src/hlae-tool.json` (SHA-256 archive) —
 
 ## Releases
 
-Versioned installers + `SHA256SUMS.txt` → [GitHub Releases](https://github.com/rechedev9/cliphub/releases).
-
-Landing download URL is updated per release at [cliphub.gravityroom.app](https://cliphub.gravityroom.app/).
+Versioned installers + `SHA256SUMS.txt` → [GitHub Releases](https://github.com/rechedev9/cliphub/releases). Actualizar reads `releases/latest`.
 
 ```powershell
 pnpm --dir desktop run dist
 pnpm --dir desktop run verify:dist-integrity
 ```
 
-Publish flow: ship assets to `rechedev9/cliphub` Releases → update landing download URL → deploy Vercel project `cliphub-landing` (root `landing/`).
+Publish flow: bump `desktop/package.json`, land on `main`, then run **Desktop release** (`workflow_dispatch`) or push `v<version>`. Landing/Vercel is not required for the in-app updater.
 
 ---
 

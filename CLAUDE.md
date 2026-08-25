@@ -131,8 +131,9 @@ After final media is validated and no recapture/reparse is needed, send used ext
 ## Development
 
 Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageManager` field (pnpm 11.22.0), and Node 24.
-There is no hosted CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
-Nothing re-checks the work on GitHub, so a gate skipped locally is a gate that never runs.
+There is no hosted quality CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
+Nothing re-checks product quality on GitHub, so a gate skipped locally is a gate that never runs.
+The one hosted pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It does not replace the pre-commit hook and must stay the only release job.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
 Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser E2E is Playwright in `web/e2e/`, run out of the pre-commit gate with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
 
@@ -187,7 +188,7 @@ Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` a
 
 Committing or pushing still requires an explicit user request.
 `main` is unprotected and has no required status checks, so a push lands immediately.
-The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths; it does not restrict the current branch. It is the only automated gate the repository has.
+The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths; it does not restrict the current branch. It is the only automated quality gate the repository has. Unsigned Windows installers are cut by `.github/workflows/desktop-release.yml`.
 Use the authorized global `committer` with explicit, quoted file lists; when a repository-owned `.githooks` directory exists, it activates that directory for the commit without writing persistent Git configuration.
 Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hooksPath` away from `.githooks`: with no CI behind it, a skipped hook means the change was never checked at all.
 
@@ -200,10 +201,10 @@ Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hoo
 - Do not push from execution slots. Integrate and push only from the canonical checkout, and continue to require explicit user approval before every commit or push.
 - `/home/reche/projects/fragforge-tactical` is a legacy worktree outside the five-workspace pool. Do not remove or modify it unless the user explicitly assigns work there or requests migration or cleanup.
 
-ClipHub has no hosted backend; the desktop release command is `pnpm --dir desktop run dist`, which verifies the bundled HLAE and emits installer checksums.
+ClipHub has no hosted backend; the desktop release command is `pnpm --dir desktop run dist` on Windows, or the `Desktop release` GitHub Action on `windows-latest`.
 Every desktop distribution must rebuild all Go runtime executables in the same `dist` invocation before `assemble` stages `bin/`; an existing executable is not proof that it matches the current source. Keep the guarded `scripts/build.ps1` step in `desktop/scripts/dist.mjs`, and never publish an installer produced from a manually staged or pre-existing `bin/`.
 **Never code-sign the desktop app or installer** (no Authenticode, no `signtool`, no cert/PIN signing, no EV/OV cert purchase or CI signing setup). Shipping stays unsigned on purpose: integrity is the GitHub Release asset plus `SHA256SUMS.txt`, not a publisher signature. Do not treat SmartScreen "unknown publisher" as a release blocker, and do not add signing steps to release docs or automation.
-Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/cliphub`, update the landing download URL, then deploy Vercel project `cliphub-landing` with root `landing/` to `https://cliphub.gravityroom.app/`.
+Publish versioned installer assets and `SHA256SUMS.txt` to GitHub Releases in `rechedev9/cliphub`. Actualizar reads `releases/latest`; a landing/Vercel deploy is not required for the in-app updater.
 Do not use the retired VPS landing path.
 
 ## Codex Harness

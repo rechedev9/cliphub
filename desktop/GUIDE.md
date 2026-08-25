@@ -130,6 +130,24 @@ GitHub Release asset plus `SHA256SUMS.txt`. Windows SmartScreen may show an
 "unknown publisher" prompt on first run — choose "More info" then "Run anyway".
 Do not add code signing as a release step or treat SmartScreen as a blocker.
 
+## Cut a release without a Windows PC
+
+`.github/workflows/desktop-release.yml` is the only hosted release pipeline. It
+runs the same `pnpm --dir desktop run dist` on `windows-latest` and publishes
+`ClipHub.Studio.Setup.<version>.exe`, the blockmap, and `SHA256SUMS.txt` as a
+stable GitHub Release (`releases/latest`). Actualizar reads that endpoint; a
+landing/Vercel deploy is not required.
+
+1. Set `desktop/package.json` `version` to the number the updater should see.
+2. Land that commit on `main`.
+3. Run **Desktop release** (`workflow_dispatch`) or push tag `v<version>`.
+4. Confirm `https://github.com/rechedev9/cliphub/releases/latest` is that tag
+   and lists the three assets.
+
+`GITHUB_TOKEN` needs `contents: write` to create the release and upload assets.
+A 403 on upload means that permission is missing under repo Settings → Actions
+→ General → Workflow permissions. Do not add a second workflow.
+
 ## Run without packaging (dev)
 
 ```powershell

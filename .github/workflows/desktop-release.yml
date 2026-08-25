@@ -1,0 +1,108 @@
+# The only hosted ClipHub pipeline: unsigned Windows Studio installer.
+# Quality still lives in .githooks/pre-commit. Do not add a second release job.
+name: Desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: Optional release notes. Empty uses the unsigned-installer default.
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Creating the GitHub Release and uploading assets needs contents: write.
+# A 403 on asset upload means this permission is missing for GITHUB_TOKEN
+# (repo Settings → Actions → General → Workflow permissions).
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            web/pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
+
+      - name: Install web and desktop dependencies
+        run: |
+          pnpm --dir web install --frozen-lockfile
+          pnpm --dir desktop install --frozen-lockfile
+
+      - name: Build unsigned Windows installer
+        run: pnpm --dir desktop run dist
+
+      - name: Verify release checksums
+        run: pnpm --dir desktop run verify:dist-integrity
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: ${{ github.event.inputs.notes || '' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content -Raw desktop/package.json | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "invalid desktop version: $version"
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "tag $($env:GITHUB_REF_NAME) does not match desktop/package.json $version"
+          }
+
+          $exe = "desktop/dist-installer/ClipHub.Studio.Setup.$version.exe"
+          $blockmap = "$exe.blockmap"
+          $sums = 'desktop/dist-installer/SHA256SUMS.txt'
+          foreach ($path in @($exe, $blockmap, $sums)) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "missing release asset: $path" }
+            if ((Get-Item -LiteralPath $path).Length -le 0) { throw "empty release asset: $path" }
+          }
+
+          $notes = $env:RELEASE_NOTES
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+            $notes = "Studio $version is the unsigned Windows installer built by this repository's windows-latest job.`n`nUnsigned by policy; verify SHA256SUMS.txt."
+          }
+
+          $tag = "v$version"
+          $assets = @($exe, $blockmap, $sums)
+          $PSNativeCommandUseErrorActionPreference = $false
+          gh release view $tag --json tagName >$null 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit $LASTEXITCODE" }
+            gh release edit $tag --title "ClipHub Studio $version" --notes $notes --latest --draft=false --prerelease=false
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit $LASTEXITCODE" }
+          } else {
+            gh release create $tag @assets --title "ClipHub Studio $version" --notes $notes --latest --target $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit $LASTEXITCODE" }
+          }
