@@ -8,7 +8,16 @@ import type { Match, Play } from '@/lib/api/types';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import { canForgeReel, reelCreativeBrief } from '@/lib/reel-brief';
 import { FullDemoStylePicker } from '@/components/full-demo/style-picker';
-import { FULL_DEMO_EDIT, FULL_DEMO_HREF, FULL_DEMO_PRESET, FULL_DEMO_VARIANT } from '@/lib/full-demo';
+import {
+  FULL_DEMO_EDIT,
+  FULL_DEMO_FORGE_HINT_EMPTY,
+  FULL_DEMO_FORGE_HINT_ERROR,
+  FULL_DEMO_HREF,
+  FULL_DEMO_PRESET,
+  FULL_DEMO_RECAP_ERROR,
+  FULL_DEMO_ROUNDS_PENDING,
+  FULL_DEMO_VARIANT,
+} from '@/lib/full-demo';
 import { Button } from '@/components/ui/button';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
@@ -22,6 +31,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [plays, setPlays] = useState<Play[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [recapError, setRecapError] = useState(false);
   const [variant, setVariant] = useState<string | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -36,15 +46,21 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         setMatch(nextMatch);
         setOffline(false);
         try {
-          setPlays(nextMatch ? await api.findRecapClips(id) : []);
+          const nextPlays = nextMatch ? await api.findRecapClips(id) : [];
+          if (!active) return;
+          setPlays(nextPlays);
+          setRecapError(false);
         } catch {
-          if (active) setPlays([]);
+          if (!active) return;
+          setPlays([]);
+          setRecapError(true);
         }
       } catch (error) {
         if (!active) return;
         setOffline((error as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE);
         setMatch(null);
         setPlays([]);
+        setRecapError(false);
       } finally {
         if (active) setLoaded(true);
       }
@@ -126,10 +142,13 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         </p>
       ) : null}
 
-      {plays.length === 0 ? (
-        <p className="text-body-sm text-fg-2">
-          Esta demo no tiene plan de rondas todavía. Espera a que termine el parseo o elige otra.
+      {recapError ? (
+        <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
+          {FULL_DEMO_RECAP_ERROR}
         </p>
+      ) : null}
+      {!recapError && plays.length === 0 ? (
+        <p className="text-body-sm text-fg-2">{FULL_DEMO_ROUNDS_PENDING}</p>
       ) : null}
 
       <FullDemoStylePicker
@@ -140,6 +159,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
 
       <CreateReelBar
         selectionLabel={plays.length === 0 ? null : `${plays.length} ${plays.length === 1 ? 'ronda' : 'rondas'}`}
+        emptySelectionHint={recapError ? FULL_DEMO_FORGE_HINT_ERROR : FULL_DEMO_FORGE_HINT_EMPTY}
         presetLabel={selectedPreset?.label ?? null}
         songTitle={null}
         musicDecided

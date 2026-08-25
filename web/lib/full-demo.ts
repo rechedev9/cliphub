@@ -3,6 +3,16 @@ import { PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
 
+export const FULL_DEMO_ROUNDS_PENDING =
+  'Esta demo no tiene plan de rondas todavía. Espera a que termine el parseo o elige otra.';
+
+export const FULL_DEMO_RECAP_ERROR =
+  'No se pudo cargar el plan de rondas de esta partida. Recarga o elige otra demo.';
+
+export const FULL_DEMO_FORGE_HINT_EMPTY = 'Espera el plan de rondas para empezar.';
+
+export const FULL_DEMO_FORGE_HINT_ERROR = 'No se pudo cargar el plan de rondas.';
+
 export const FULL_DEMO_VARIANT = 'gameplay-pov-60';
 
 /** Locked mix: team comms in front of full game audio. No music bed. */

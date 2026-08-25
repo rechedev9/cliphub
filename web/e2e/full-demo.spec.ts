@@ -1,6 +1,51 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
-import { FULL_DEMO_CONTRACT } from '../lib/full-demo.ts';
+import {
+  FULL_DEMO_CONTRACT,
+  FULL_DEMO_FORGE_HINT_EMPTY,
+  FULL_DEMO_FORGE_HINT_ERROR,
+  FULL_DEMO_RECAP_ERROR,
+  FULL_DEMO_ROUNDS_PENDING,
+} from '../lib/full-demo.ts';
+
+const JOB = '11111111-1111-4111-8111-111111111111';
+
+const PLAN = {
+  demo: { map: 'de_inferno' },
+  target: { steamid64: '76561198000000001', name_in_demo: 'ropz', team_at_start: 'CT' },
+  stats: { total_kills_target: 24 },
+  segments: [{ id: 'r1', round: 1, tick_start: 100, tick_end: 200, kills: [{ weapon: 'ak47' }] }],
+};
+
+const ROSTER = {
+  players: [
+    {
+      steamid64: '76561198000000001',
+      name: 'ropz',
+      team: 'CT',
+      kills: 24,
+      deaths: 14,
+      assists: 4,
+    },
+  ],
+};
+
+async function fulfillJson(page: Page, path: string, status: number, body: unknown): Promise<void> {
+  await page.route(`**/api/demos/${JOB}${path}`, async (route) => {
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+}
+
+async function stubParsedMatch(page: Page, recap: { status: number; body: unknown }): Promise<void> {
+  await fulfillJson(page, '/status', 200, { status: 'parsed' });
+  await fulfillJson(page, '/plan', 200, PLAN);
+  await fulfillJson(page, '/roster', 200, ROSTER);
+  await fulfillJson(page, '/recap-plan', recap.status, recap.body);
+}
 
 test.describe('Full demo to video', () => {
   test('is a numbered production section', async ({ page }) => {
@@ -33,10 +78,46 @@ test.describe('Full demo to video', () => {
   });
 
   test('a missing job does not offer FORJAR or a music picker', async ({ page }) => {
-    await gotoStudio(page, '/full-demo/11111111-1111-4111-8111-111111111111');
+    await gotoStudio(page, `/full-demo/${JOB}`);
     await expect(page.getByText(/Servicio local sin conexión|Demo no encontrada/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'FORJAR REEL' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'AÑADIR MÚSICA' })).toHaveCount(0);
+  });
+
+  test('a recap-plan 500 is an error, not a pending parse or Shorts empty state', async ({ page }) => {
+    await stubParsedMatch(page, { status: 500, body: { error: 'upstream error' } });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText(FULL_DEMO_RECAP_ERROR);
+    await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
+    await expect(page.getByText('Demo no encontrada')).toHaveCount(0);
+    await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
+    await expect(page.getByText(FULL_DEMO_FORGE_HINT_ERROR)).toBeVisible();
+    await expect(page.locator('[aria-label="Formato del reel"]')).toHaveText('16:9');
+    await expect(page.getByRole('button', { name: 'FORJAR REEL' })).toBeDisabled();
+  });
+
+  test('a recap-plan 409 talks about rondas, not Shorts jugadas', async ({ page }) => {
+    await stubParsedMatch(page, { status: 409, body: { error: 'recap plan not ready' } });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
+    await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
+    await expect(page.getByText(FULL_DEMO_FORGE_HINT_EMPTY)).toBeVisible();
+    await expect(page.locator('[aria-label="Formato del reel"]')).toHaveText('16:9');
+    await expect(page.getByRole('button', { name: 'FORJAR REEL' })).toBeDisabled();
+  });
+
+  test('a ready recap-plan names rondas and keeps 16:9', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await expect(page.getByText('Elige un preset para continuar.')).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
+    await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
+    await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
+    await expect(page.locator('[aria-label="Formato del reel"]')).toHaveText('16:9');
   });
 });
