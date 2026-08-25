@@ -1,5 +1,6 @@
 import { keyDropStyleLabel, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
+import { resolvedReelFormat } from './reel-format.ts';
 
 export type CreativeBriefItem = {
   label: string;
@@ -104,7 +105,7 @@ export function reelCreativeBrief(
     hud = HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`;
   }
   return [
-    { label: 'Formato', value: FORMAT_LABEL[edit.format] },
+    { label: 'Formato', value: FORMAT_LABEL[resolvedReelFormat(edit.format, preset)] },
     { label: 'Entrega', value: isLandscapeRecap(edit) ? 'POV landscape · rondas en vivo (sin freeze)' : 'Compilado de jugadas' },
     {
       label: 'Comms',

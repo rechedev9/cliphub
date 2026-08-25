@@ -391,11 +391,11 @@ export class MockApiClient implements ApiClient {
   async listPresets(): Promise<Preset[]> {
     await delay();
     return [
-      { name: 'viral-60-clean', label: 'Killfeed', description: 'POV sin HUD que conserva el killfeed del juego, con punch-ins y contador de kills', hudMode: 'deathnotices', default: true },
-      { name: 'viral-aggressive-60', label: 'Viral agresivo', description: 'Edición TikTok agresiva con grade saturado y pulsos de croma en headshots', hudMode: 'deathnotices' },
-      { name: 'clean-pov-60', label: 'POV limpio', description: 'POV cinemático en primera persona, sin HUD ni killfeed del juego', hudMode: 'clean' },
-      { name: 'full-hud-60', label: 'HUD completo', description: 'Conserva el HUD completo de CS2: vida, munición y radar visibles', hudMode: 'gameplay' },
-      { name: 'gameplay-pov-60', label: 'POV nativo', description: 'POV de YouTube con HUD nativo de CS2; 1920×1080 a 60fps, sin grade viral', hudMode: 'gameplay' },
+      { name: 'viral-60-clean', label: 'Killfeed', description: 'POV sin HUD que conserva el killfeed del juego, con punch-ins y contador de kills', hudMode: 'deathnotices', default: true, width: 1080, height: 1920 },
+      { name: 'viral-aggressive-60', label: 'Viral agresivo', description: 'Edición TikTok agresiva con grade saturado y pulsos de croma en headshots', hudMode: 'deathnotices', width: 1080, height: 1920 },
+      { name: 'clean-pov-60', label: 'POV limpio', description: 'POV cinemático en primera persona, sin HUD ni killfeed del juego', hudMode: 'clean', width: 1080, height: 1920 },
+      { name: 'full-hud-60', label: 'HUD completo', description: 'Conserva el HUD completo de CS2: vida, munición y radar visibles', hudMode: 'gameplay', width: 1080, height: 1920 },
+      { name: 'gameplay-pov-60', label: 'POV nativo', description: 'POV de YouTube con HUD nativo de CS2; 1920×1080 a 60fps, sin grade viral', hudMode: 'gameplay', width: 1920, height: 1080 },
     ];
   }
 

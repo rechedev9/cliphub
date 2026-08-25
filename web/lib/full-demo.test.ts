@@ -34,6 +34,8 @@ test('full-demo edit is landscape recap with comms and native HUD', () => {
   assert.equal(FULL_DEMO_PRESET.name, 'gameplay-pov-60');
   assert.equal(FULL_DEMO_PRESET.label, 'POV nativo');
   assert.equal(FULL_DEMO_PRESET.hudMode, 'gameplay');
+  assert.equal(FULL_DEMO_PRESET.width, 1920);
+  assert.equal(FULL_DEMO_PRESET.height, 1080);
 });
 
 test('resolveFullDemoPreset prefers the registry card and falls back to the locked native POV', () => {

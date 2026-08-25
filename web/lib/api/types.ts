@@ -98,7 +98,15 @@ export type EditConfig = {
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };
 /** User-selectable reel preset; `name` is the render variant. */
-export type Preset = { name: string; label: string; description: string; hudMode?: string; default?: boolean };
+export type Preset = {
+  name: string;
+  label: string;
+  description: string;
+  hudMode?: string;
+  default?: boolean;
+  width?: number;
+  height?: number;
+};
 export type VideoStatus =
   | 'queued'
   | 'recording'

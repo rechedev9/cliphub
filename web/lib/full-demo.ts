@@ -38,6 +38,8 @@ export const FULL_DEMO_PRESET: Preset = {
   label: 'POV nativo',
   description: PRESET_DESCRIPTION_ES['gameplay-pov-60'],
   hudMode: 'gameplay',
+  width: 1920,
+  height: 1080,
 };
 
 /** Prefer the live registry card; keep a clickable fallback if the orchestrator is stale. */

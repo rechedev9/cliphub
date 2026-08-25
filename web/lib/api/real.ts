@@ -1051,7 +1051,15 @@ export class RealApiClient implements ApiClient {
       const res = await fetch('/api/presets', { cache: 'no-store' });
       const data = await readJson<{
         default?: string;
-        presets: Array<{ name: string; label?: string; description?: string; hud_mode?: string; default?: boolean }>;
+        presets: Array<{
+          name: string;
+          label?: string;
+          description?: string;
+          hud_mode?: string;
+          default?: boolean;
+          width?: number;
+          height?: number;
+        }>;
       }>(res);
       return data.presets.map((p) => ({
         name: p.name,
@@ -1059,6 +1067,8 @@ export class RealApiClient implements ApiClient {
         description: p.description ?? '',
         hudMode: p.hud_mode,
         default: p.default,
+        width: typeof p.width === 'number' && p.width > 0 ? p.width : undefined,
+        height: typeof p.height === 'number' && p.height > 0 ? p.height : undefined,
       }));
     } catch {
       return this.fallback.listPresets();
