@@ -31,15 +31,20 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     let active = true;
     void (async () => {
       try {
-        const [nextMatch, nextPlays] = await Promise.all([api.getMatch(id), api.findRecapClips(id)]);
+        const nextMatch = await api.getMatch(id);
         if (!active) return;
         setMatch(nextMatch);
-        setPlays(nextPlays);
         setOffline(false);
+        try {
+          setPlays(nextMatch ? await api.findRecapClips(id) : []);
+        } catch {
+          if (active) setPlays([]);
+        }
       } catch (error) {
         if (!active) return;
         setOffline((error as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE);
         setMatch(null);
+        setPlays([]);
       } finally {
         if (active) setLoaded(true);
       }

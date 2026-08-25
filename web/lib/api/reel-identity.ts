@@ -1,8 +1,6 @@
 import type { EditConfig, RenderMode } from './types.ts';
-import { DEFAULT_EDIT_CONFIG, DEFAULT_VARIANT, type ReelIntent } from './reel-store.ts';
+import { DEFAULT_EDIT_CONFIG, DEFAULT_VARIANT, FULL_DEMO_REEL_SUFFIX, type ReelIntent } from './reel-store.ts';
 import { editConfigsEqual } from './edit-request.ts';
-
-export const FULL_DEMO_REEL_SUFFIX = 'full-demo' as const;
 
 export type ReelIdentityInput = {
   matchId: string;

@@ -164,10 +164,36 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 			Round:     round,
 			TickStart: tickStart,
 			TickEnd:   tickEnd,
-			Kills:     buildKillPlanKills(g),
-			Utility:   utilityByRound[round],
+			Kills:     killsInRecapWindow(buildKillPlanKills(g), tickStart, tickEnd),
+			Utility:   utilityInRecapWindow(utilityByRound[round], tickStart, tickEnd),
 		})
 		previousEnd = tickEnd
+	}
+	return out
+}
+
+func killsInRecapWindow(kills []killplan.Kill, start, end int) []killplan.Kill {
+	if len(kills) == 0 {
+		return kills
+	}
+	var out []killplan.Kill
+	for _, kill := range kills {
+		if kill.Tick >= start && kill.Tick <= end {
+			out = append(out, kill)
+		}
+	}
+	return out
+}
+
+func utilityInRecapWindow(utility []killplan.UtilityThrow, start, end int) []killplan.UtilityThrow {
+	if len(utility) == 0 {
+		return utility
+	}
+	var out []killplan.UtilityThrow
+	for _, throw := range utility {
+		if throw.ThrowTick >= start && throw.ThrowTick <= end {
+			out = append(out, throw)
+		}
 	}
 	return out
 }
