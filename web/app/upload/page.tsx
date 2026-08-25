@@ -37,6 +37,7 @@ import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
 
 const NAV = navSection('/upload');
+const HOME = navSection('/onboarding');
 
 /** Upload pipeline stage; seriesMode, not the stage, picks the spinner layout. */
 type Stage = 'idle' | 'scanning' | 'picking' | 'parsing';
@@ -91,7 +92,6 @@ const STEP_RAIL_CLASS = ['bg-primary', 'bg-primary/55', 'bg-primary/25'] as cons
 /** No-login upload: one demo or a bo3/bo5 series, then pick whose POV to clip. */
 export default function UploadPage() {
   const router = useRouter();
-  const homeHref = '/matches';
   const [stage, setStage] = useState<Stage>('idle');
   const [seriesId, setSeriesId] = useState<string | null>(null);
 
@@ -364,7 +364,7 @@ export default function UploadPage() {
       */}
       <div className="@container/upload relative mx-auto flex min-h-screen w-full max-w-[1536px] flex-col px-4 sm:px-6 lg:px-12">
         <header className="relative flex min-h-[68px] items-center justify-between border-b border-border py-3">
-          <Link href={homeHref} aria-label="Inicio de ClipHub" className="inline-flex min-h-11 items-center">
+          <Link href={HOME.href} aria-label="Inicio de ClipHub" className="inline-flex min-h-11 items-center">
             <Wordmark />
           </Link>
           <div
@@ -375,7 +375,7 @@ export default function UploadPage() {
             {NAV.number} — {NAV.label}
           </div>
           <Button variant="ghost" size="sm" asChild>
-            <Link href={homeHref}>
+            <Link href={HOME.href}>
               <ArrowLeft className="size-4" />
               Volver
             </Link>
