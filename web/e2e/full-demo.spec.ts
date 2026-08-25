@@ -82,7 +82,9 @@ test.describe('Full demo to video', () => {
   test('keeps the demo drop when a parsed match is already listed', async ({ page }) => {
     await stubParsedInferno(page);
     await gotoStudio(page, '/full-demo');
-    await expect(page.getByRole('link', { name: /INFERNO/ })).toBeVisible();
+    const listed = page.locator(`main a[href="/full-demo/${PARSED_JOB_ID}"]`);
+    await expect(listed).toBeVisible();
+    await expect(listed).toContainText(/Inferno/i);
     await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
   });
