@@ -1,4 +1,5 @@
 import { keyDropStyleLabel, type EditConfig, type Preset } from './api/types.ts';
+import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 
 export type CreativeBriefItem = {
   label: string;
@@ -87,7 +88,7 @@ export function reelCreativeBrief(
 ): CreativeBriefItem[] {
   let hud = 'Pendiente de preset';
   if (edit.nativeHud) {
-    hud = HUD_LABEL.gameplay;
+    hud = NATIVE_HUD_LABEL;
   } else if (preset?.hudMode) {
     hud = HUD_LABEL[preset.hudMode] ?? `Modo ${preset.hudMode}`;
   }

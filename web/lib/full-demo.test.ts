@@ -14,6 +14,7 @@ import {
   FULL_DEMO_VOICE_VOLUME,
   resolveFullDemoPreset,
 } from './full-demo.ts';
+import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 
@@ -60,7 +61,7 @@ test('full-demo contract names live rounds, not freeze-to-end dumps', () => {
   assert.equal(byLabel.Formato, 'Horizontal 16:9 · 1920×1080');
   assert.equal(byLabel.Entrega, 'Rondas en vivo · sin freeze');
   assert.match(byLabel.Comms, /comms/i);
-  assert.match(byLabel.HUD, /Nativo CS2/);
+  assert.equal(byLabel.HUD, NATIVE_HUD_LABEL);
   assert.match(byLabel.Efectos, /punch-in/i);
   assert.equal(byLabel.Mix, 'Comms + juego · sin música');
   for (const row of FULL_DEMO_CONTRACT) {

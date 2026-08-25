@@ -2,7 +2,7 @@
 
 import { Clapperboard, Eye, Crosshair, Check, Tv, type LucideIcon } from 'lucide-react';
 import type { Preset } from '@/lib/api/types';
-import { presetDescription } from '@/lib/preset-copy';
+import { presetDescription, presetHudChip } from '@/lib/preset-copy';
 import { IconTile } from '@/components/studio/icon-tile';
 import { SelectableCard } from '@/components/studio/selectable-card';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -35,7 +35,7 @@ export function PresetCards({ presets, value, onChange, disabled = false }: Pres
             icon={PRESET_ICONS[preset.name] ?? Clapperboard}
             title={preset.label}
             pitch={presetDescription(preset)}
-            hud={preset.hudMode}
+            hud={presetHudChip(preset)}
             isDefault={Boolean(preset.default)}
             selected={value === preset.name}
             disabled={disabled}

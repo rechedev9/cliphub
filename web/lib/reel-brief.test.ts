@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { canForgeReel, canRerenderWithMusic, musicBriefValue, reelCreativeBrief } from './reel-brief.ts';
 import type { EditConfig, Preset } from './api/types.ts';
+import { FULL_DEMO_EDIT, FULL_DEMO_PRESET } from './full-demo.ts';
+import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 
 const PRESET: Preset = {
   name: 'viral-60-clean',
@@ -116,6 +118,39 @@ test('creative brief names the optional recap extras when they are on', () => {
   const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
   assert.equal(brief['Entrega'], 'POV landscape · rondas en vivo (sin freeze)');
   assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
+  assert.equal(brief['HUD / killfeed'], NATIVE_HUD_LABEL);
+});
+
+test('full-demo locked edit names native CS2 HUD, not Shorts full-hud copy', () => {
+  const brief = Object.fromEntries(
+    reelCreativeBrief(FULL_DEMO_EDIT, FULL_DEMO_PRESET, { status: 'none' }).map((item) => [item.label, item.value]),
+  );
+  assert.equal(brief['HUD / killfeed'], NATIVE_HUD_LABEL);
+  assert.notEqual(brief['HUD / killfeed'], 'HUD completo con killfeed');
+});
+
+test('shorts full-hud-60 brief keeps HUD completo when nativeHud is off', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'punch-in',
+    transition: 'flash',
+    hookText: true,
+    killCounter: true,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
+    coverStrategy: 'generated-gameplay',
+    intro: false,
+    outro: false,
+  };
+  const preset: Preset = {
+    name: 'full-hud-60',
+    label: 'HUD completo',
+    description: 'test',
+    hudMode: 'gameplay',
+  };
+  const brief = Object.fromEntries(reelCreativeBrief(edit, preset, { status: 'none' }).map((item) => [item.label, item.value]));
+  assert.equal(brief['Formato'], 'Vertical 9:16 · 1080×1920');
   assert.equal(brief['HUD / killfeed'], 'HUD completo con killfeed');
 });
 
