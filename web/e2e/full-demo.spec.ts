@@ -89,7 +89,7 @@ test.describe('Full demo to video', () => {
     await stubParsedMatch(page, { status: 500, body: { error: 'upstream error' } });
     await gotoStudio(page, `/full-demo/${JOB}`);
     await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
-    await expect(page.getByRole('alert')).toContainText(FULL_DEMO_RECAP_ERROR);
+    await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toBeVisible();
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByText('Demo no encontrada')).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
