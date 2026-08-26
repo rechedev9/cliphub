@@ -213,7 +213,7 @@ html[data-capture-active="true"] {
   --text-body-sm: 0.875rem;
   --text-body-sm--line-height: 1.45;
   --text-body: 0.9375rem;
-  --text-body--line-height: 1.6; /* 15/24 — design.md:66 */
+  --text-body--line-height: 1.6; /* 15/24 */
   --text-body-lg: 1.0625rem;
   --text-body-lg--line-height: 1.5;
   --text-title: 1.25rem;
@@ -352,7 +352,7 @@ html[data-capture-active="true"] {
     @apply border-border outline-ring/50;
   }
 
-  /* design.md:80 — one visible 2px cyan ring with a dark offset, as a real
+  /* One visible 2px cyan ring with a dark offset, as a real
    * base rule. Without it the UA `outline: auto` fallback was doing the work
    * and every primitive that forgot `focus-visible:` had no indicator. */
   *:focus-visible {
@@ -789,6 +789,32 @@ html[data-capture-active="true"] {
   .neon-glow {
     box-shadow: var(--glow-primary-md);
   }
+
+  /* ── Restyled moments (indexes → product tokens) ─────────────────────────
+   * Amplitude and blur multiply by --shell-depth so efficiency, capture,
+   * reduced-motion and an inactive window snap to the end state. */
+  .studio-shake {
+    animation: studio-shake var(--dur-base) var(--ease-standard) 1;
+  }
+
+  .studio-reveal {
+    animation: studio-reveal var(--dur-base) var(--ease-entrance) both;
+  }
+
+  .studio-indeterminate {
+    animation: studio-indeterminate calc(var(--dur-data) * 2) var(--ease-standard) infinite;
+  }
+
+  .studio-op-check-path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    stroke-dasharray: 24;
+    stroke-dashoffset: 0;
+    animation: studio-check-draw var(--dur-base) var(--ease-entrance) both;
+  }
 }
 
 /* ── Overlay depth ─────────────────────────────────────────────────────────
@@ -848,6 +874,59 @@ html:has([data-slot="sidebar-inset"][data-dialog-open]) .ff-ambient-layer {
 
   to {
     transform: translateX(300%);
+  }
+}
+
+@keyframes studio-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(calc(6px * var(--shell-depth)));
+  }
+
+  40% {
+    transform: translateX(calc(-5px * var(--shell-depth)));
+  }
+
+  60% {
+    transform: translateX(calc(4px * var(--shell-depth)));
+  }
+
+  80% {
+    transform: translateX(calc(-2px * var(--shell-depth)));
+  }
+}
+
+@keyframes studio-reveal {
+  from {
+    opacity: calc(1 - 0.28 * var(--shell-depth));
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes studio-indeterminate {
+  from {
+    transform: translateX(-120%);
+  }
+
+  to {
+    transform: translateX(280%);
+  }
+}
+
+@keyframes studio-check-draw {
+  from {
+    stroke-dashoffset: calc(24 * var(--shell-depth));
+  }
+
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
@@ -949,7 +1028,15 @@ html[data-runtime="desktop"][data-performance-profile="efficiency"] [data-slot="
  * multi-minute local renders — so it only slows down. */
 html[data-capture-active="true"] .ff-equalizer-bar,
 html[data-runtime="desktop"][data-performance-profile="efficiency"] .animate-pulse,
-html[data-capture-active="true"] .animate-pulse {
+html[data-capture-active="true"] .animate-pulse,
+html[data-runtime="desktop"][data-performance-profile="efficiency"] .studio-indeterminate,
+html[data-capture-active="true"] .studio-indeterminate,
+html[data-runtime="desktop"][data-performance-profile="efficiency"] .studio-shake,
+html[data-capture-active="true"] .studio-shake,
+html[data-runtime="desktop"][data-performance-profile="efficiency"] .studio-reveal,
+html[data-capture-active="true"] .studio-reveal,
+html[data-runtime="desktop"][data-performance-profile="efficiency"] .studio-op-check-path,
+html[data-capture-active="true"] .studio-op-check-path {
   animation: none;
 }
 

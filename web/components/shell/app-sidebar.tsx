@@ -10,7 +10,6 @@ import {
   Film,
   Layers,
   MonitorPlay,
-  Newspaper,
   Radar,
   Rocket,
   Settings,
@@ -36,10 +35,9 @@ import { CaptureReadiness } from '@/components/shell/capture-readiness';
 import { NAV_SECTIONS, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
-/** The three phases of the Studio flow, in rail order. */
+/** The two phases of the Studio flow, in rail order. */
 const NAV_GROUPS = [
   { id: 'production', label: 'Producción' },
-  { id: 'signal', label: 'Señal' },
   { id: 'output', label: 'Salida' },
 ] as const;
 
@@ -55,7 +53,6 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroupId | 'chrome'
   '/cheaters': { icon: ShieldAlert, group: 'production' },
   '/players': { icon: Users, group: 'production' },
   '/streams': { icon: Clapperboard, group: 'production', stream: true },
-  '/news': { icon: Newspaper, group: 'signal' },
   '/editor': { icon: Layers, group: 'output' },
   '/videos': { icon: Film, group: 'output' },
   '/feed': { icon: Compass, group: 'output' },

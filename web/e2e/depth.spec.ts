@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { gotoStudio, parseMs, parseNumber, rootToken, squash } from './contract.ts';
 
-/** design.md:106 — every depth effect must collapse with `--shell-depth`. */
+/** Every depth effect must collapse with `--shell-depth`. */
 const HTML_GATES = [
   { name: 'an active capture', attributes: { 'data-capture-active': 'true' } },
   { name: 'an inactive window', attributes: { 'data-window-activity': 'inactive' } },

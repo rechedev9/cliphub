@@ -7,7 +7,7 @@ export const NAV_ROUTES = NAV_SECTIONS.map((section) => ({
   href: section.href,
 }));
 
-/** design.md:145 — the widths the layout is contractually validated at. */
+/** Widths the layout is contractually validated at. */
 export const VALIDATION_WIDTHS = [390, 768, 1024, 1280, 1440, 1920] as const;
 
 /** Parse tokens; the production minifier rewrites oklch/duration text. */
@@ -50,7 +50,7 @@ export const SIGNAL_TOKENS = [
   { token: '--destructive-solid', value: okl(0.485, 0.195, 22) },
 ] as const;
 
-/** design.md:76 — every step, with 12px as the hard floor. */
+/** Type scale steps, with 12px as the hard floor. */
 export const TYPE_SCALE = [
   { step: 'text-meta', px: 12, lineHeight: 1.25, tracking: 0.14 },
   { step: 'text-label', px: 13, lineHeight: 1.3, tracking: 0.08 },
@@ -65,7 +65,7 @@ export const TYPE_SCALE = [
   { step: 'text-stat', px: 28, lineHeight: 1, tracking: 0.01 },
 ] as const;
 
-/** design.md:84 — the motion vocabulary; an ad-hoc duration is a contract break. */
+/** Motion vocabulary; an ad-hoc duration is a contract break. */
 export const DURATION_TOKENS = [
   { token: '--dur-instant', ms: 80 },
   { token: '--dur-fast', ms: 140 },

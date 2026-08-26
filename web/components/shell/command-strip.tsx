@@ -24,7 +24,10 @@ export function CommandStrip(): ReactElement {
   );
 
   return (
-    <header className="shell-strip sticky top-0 z-30 flex h-(--shell-strip-height) shrink-0 items-center gap-2 px-2 sm:gap-3 sm:px-3">
+    <header
+      data-slot="shell-strip"
+      className="shell-strip sticky top-0 z-30 flex h-(--shell-strip-height) shrink-0 items-center gap-2 px-2 sm:gap-3 sm:px-3"
+    >
       <SidebarTrigger
         className="size-10 shrink-0 text-fg-2 hover:text-fg-1"
         title="Barra lateral · Ctrl/⌘ B"

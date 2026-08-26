@@ -1,14 +1,13 @@
-/** Numbered Studio nav. Inicio is `00` so the other section numbers stay put. */
+/** Numbered Studio nav. The index is the rail order, padded to two digits. */
 export const NAV_SECTIONS = [
   { number: '00', label: 'Inicio', href: '/onboarding' },
   { number: '01', label: 'Partidas', href: '/matches' },
   { number: '02', label: 'Subir demo', href: '/upload' },
-  { number: '12', label: 'Full demo to video', href: '/full-demo' },
-  { number: '03', label: 'Táctica', href: '/tactical' },
-  { number: '04', label: 'CheaterDetect', href: '/cheaters' },
-  { number: '05', label: 'Jugadores', href: '/players' },
-  { number: '06', label: 'Clips de stream', href: '/streams' },
-  { number: '07', label: 'Noticias', href: '/news' },
+  { number: '03', label: 'Full demo to video', href: '/full-demo' },
+  { number: '04', label: 'Táctica', href: '/tactical' },
+  { number: '05', label: 'CheaterDetect', href: '/cheaters' },
+  { number: '06', label: 'Jugadores', href: '/players' },
+  { number: '07', label: 'Clips de stream', href: '/streams' },
   { number: '08', label: 'Editor', href: '/editor' },
   { number: '09', label: 'Biblioteca', href: '/videos' },
   { number: '10', label: 'Feed', href: '/feed' },

@@ -152,7 +152,7 @@ Public preset catalog exposes `viral-60-clean` (death notices + `viral-ultra-cle
 | Agent / contributor rules | [CLAUDE.md](CLAUDE.md) · [AGENTS.md](AGENTS.md) |
 | CLI command contract | [.codex/GUIDE.md](.codex/GUIDE.md) |
 | Desktop packaging & HLAE | [desktop/GUIDE.md](desktop/GUIDE.md) |
-| Web / Studio UI | [web/GUIDE.md](web/GUIDE.md) · [web/design.md](web/design.md) |
+| Web / Studio UI | [web/GUIDE.md](web/GUIDE.md) · tokens in [web/app/globals.css](web/app/globals.css) |
 | Operator workflow | [docs/cli-operator-workflow.md](docs/cli-operator-workflow.md) |
 
 ---

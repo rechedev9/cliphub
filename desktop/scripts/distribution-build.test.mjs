@@ -34,6 +34,7 @@ test('rebuilds Go runtimes before desktop build and resource assembly', () => {
     'Bypass',
     '-File',
     join(repo, 'scripts', 'build.ps1'),
+    '-RequireFaceitEmbed',
   ]);
   for (const call of calls) {
     assert.equal(call.options.env, environment);
@@ -47,7 +48,7 @@ test('rebuilds Go runtimes before desktop build and resource assembly', () => {
 test('distribution entrypoint cannot package before the guarded runtime rebuild', () => {
   const source = readFileSync(new URL('./dist.mjs', import.meta.url), 'utf8');
   const rebuild = source.indexOf(
-    'runDistributionBuildSteps({ repo, desktop, environment: sanitizedEnvironment });',
+    'runDistributionBuildSteps({ repo, desktop, environment: goEnvironment });',
   );
   const packageInstaller = source.indexOf("join(desktop, 'node_modules', 'electron-builder', 'cli.js')");
 
@@ -65,7 +66,7 @@ test('distribution entrypoint locks and recovers before starting a rebuild', () 
     'recoverInterruptedPublication(canonicalRelease.directory);',
   );
   const rebuild = source.indexOf(
-    'runDistributionBuildSteps({ repo, desktop, environment: sanitizedEnvironment });',
+    'runDistributionBuildSteps({ repo, desktop, environment: goEnvironment });',
   );
   const commit = source.indexOf(
     'commitPublishedDirectory(canonicalRelease.directory);',

@@ -14,12 +14,7 @@ export type StudioEmptyStateProps = {
   className?: string;
 };
 
-/**
- * Actionable, bounded empty state shared by dashboard destinations. Centered
- * inside the remaining content area so an empty page reads as an intentional
- * state instead of content stranded in a large void, and capped at the 760px
- * design.md bound rather than stretching across the workspace.
- */
+/** Bounded empty panel: 760px max, centered in the remaining content area. */
 export function StudioEmptyState({
   icon,
   title,
@@ -31,9 +26,10 @@ export function StudioEmptyState({
   className,
 }: StudioEmptyStateProps): ReactNode {
   return (
-    <div className="flex min-h-[45vh] w-full items-center justify-center sm:min-h-[55vh]">
+    <div className="studio-reveal flex min-h-[45vh] w-full items-center justify-center sm:min-h-[55vh]">
       <section
         aria-label={title}
+        data-slot="empty"
         className={cn(
           'studio-panel studio-panel-raised flex w-full max-w-[47.5rem] flex-col items-center px-6 text-center sm:px-10',
           compact ? 'py-10' : 'py-14 sm:py-16',

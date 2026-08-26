@@ -1,13 +1,33 @@
+# ClipHub Go runtime build. -RequireFaceitEmbed is the installer path: dist
+# must fail rather than ship zv-orchestrator.exe without a FACEIT Data API key.
+param(
+    [switch]$RequireFaceitEmbed
+)
+
 $ErrorActionPreference = "Stop"
 
 function Get-FaceitEmbedKey {
-    foreach ($scope in @("Process", "User")) {
+    foreach ($scope in @("Process", "User", "Machine")) {
         $value = [Environment]::GetEnvironmentVariable("FACEIT_API_KEY", $scope)
         if (-not [string]::IsNullOrWhiteSpace($value)) {
             return $value.Trim()
         }
     }
     return ""
+}
+
+function Assert-FaceitKeyEmbedded {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$Key
+    )
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $hay = [System.Text.Encoding]::UTF8.GetString($bytes)
+    if ($hay.IndexOf($Key, [StringComparison]::Ordinal) -lt 0) {
+        throw "zv-orchestrator.exe is missing the embedded FACEIT Data API key"
+    }
 }
 
 $commands = @(
@@ -41,6 +61,9 @@ try {
     Recover-BuildPublication -BinDir $binDir -PublicationLock $publicationLock
     [void](New-Item -ItemType Directory -Path $stagingDir)
     $faceitEmbedKey = Get-FaceitEmbedKey
+    if ($RequireFaceitEmbed -and $faceitEmbedKey -eq "") {
+        throw "FACEIT_API_KEY is required to embed in zv-orchestrator.exe for the installer"
+    }
     if ($faceitEmbedKey -ne "" -and $faceitEmbedKey -notmatch '^[A-Za-z0-9._-]+$') {
         throw "FACEIT_API_KEY contains unsupported characters for binary embedding"
     }
@@ -59,10 +82,12 @@ try {
             throw "go build failed for $pkg"
         }
         $artifact = Get-Item -LiteralPath $out
-        if (-not $artifact.PSIsContainer -and $artifact.Length -gt 0) {
-            continue
+        if ($artifact.PSIsContainer -or $artifact.Length -le 0) {
+            throw "go build produced an invalid artifact for $pkg"
         }
-        throw "go build produced an invalid artifact for $pkg"
+        if ($name -eq "zv-orchestrator" -and $faceitEmbedKey -ne "") {
+            Assert-FaceitKeyEmbedded -Path $out -Key $faceitEmbedKey
+        }
     }
 
     # Publish only after the complete runtime set exists. The helper is a

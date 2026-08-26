@@ -834,7 +834,7 @@ func (m *cs2ConsoleLogMonitor) failure() error {
 	m.consumePerformanceMarkers(string(data))
 	m.consumePlayabilitySignals(content)
 	if strings.Contains(content, m.failedMarker) {
-		return &captureVerificationError{path: m.path, reason: "HLAE runtime rejected the observer POV"}
+		return &captureVerificationError{path: m.path, reason: m.failedReason(content)}
 	}
 	if strings.Contains(content, m.verifiedMarker) {
 		m.captureVerified = true
@@ -853,6 +853,16 @@ func (m *cs2ConsoleLogMonitor) failure() error {
 		m.tail = content
 	}
 	return nil
+}
+
+// failedReason returns the reason from the "[zackvideo] capture_failed:" line
+// in content, falling back to the generic HLAE rejection message when the
+// script's reason line is missing from the log.
+func (m *cs2ConsoleLogMonitor) failedReason(content string) string {
+	if match := captureFailedPattern.FindStringSubmatch(content); match != nil {
+		return strings.TrimSpace(match[1])
+	}
+	return "HLAE runtime rejected the observer POV"
 }
 
 func (m *cs2ConsoleLogMonitor) requireCaptureVerified() error {
@@ -905,10 +915,11 @@ func (e *captureVerificationError) Error() string {
 }
 
 var (
-	armedMarker      = regexp.MustCompile(`^\[zackvideo\] armed at tick (\d+)$`)
-	seekMarker       = regexp.MustCompile(`^\[zackvideo\] seek \d+ -> (\d+) attempt \d+ \(at (\d+)\)$`)
-	seekLandedMarker = regexp.MustCompile(`^\[zackvideo\] seek-landed -> (\d+) \(at (\d+)\)$`)
-	recordMarker     = regexp.MustCompile(`^\[zackvideo\] record-(start|end)-(.+): mirv_streams record (start|end)$`)
+	armedMarker           = regexp.MustCompile(`^\[zackvideo\] armed at tick (\d+)$`)
+	seekMarker            = regexp.MustCompile(`^\[zackvideo\] seek \d+ -> (\d+) attempt \d+ \(at (\d+)\)$`)
+	seekLandedMarker      = regexp.MustCompile(`^\[zackvideo\] seek-landed -> (\d+) \(at (\d+)\)$`)
+	recordMarker          = regexp.MustCompile(`^\[zackvideo\] record-(start|end)-(.+): mirv_streams record (start|end)$`)
+	captureFailedPattern  = regexp.MustCompile(`(?m)\[zackvideo\] capture_failed:\s*(.*?)\s*(?:\\n|$)`)
 )
 
 type performanceTrace struct {

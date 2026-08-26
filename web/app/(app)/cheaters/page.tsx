@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { Loader2, RefreshCw, ShieldAlert, UploadCloud } from 'lucide-react';
+import { AlertTriangle, FileVideo, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match } from '@/lib/api/types';
 import {
@@ -18,8 +17,11 @@ import { DossierDialog } from '@/components/cheaters/dossier-dialog';
 import { PlayerDetail, PlayerSummaryRow } from '@/components/cheaters/player-detail';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
+import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { matchFromScan, pickCheaterDetectDemo } from '@/lib/cheater-detect-ingest';
+import { DEMO_EMPTY_ROSTER_HINT, demoListLoadError, demoScanError } from '@/lib/demo-parse-flow';
 import { matchDateLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -219,6 +221,37 @@ function AnalysisPanel({
   );
 }
 
+function IngestStatus({ fileName }: { fileName: string | null }): ReactNode {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="studio-panel flex min-h-24 flex-col items-center justify-center gap-2 px-4 py-5 text-center"
+    >
+      <Loader2 className="size-5 animate-spin text-primary" />
+      <p className="font-display text-body-sm font-bold uppercase text-fg-1">Escaneando el roster…</p>
+      {fileName ? (
+        <p className="inline-flex max-w-full items-center gap-2 font-mono text-meta text-fg-3">
+          <FileVideo aria-hidden className="size-4 shrink-0" />
+          <span className="truncate">{fileName}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function IngestError({ message }: { message: string }): ReactNode {
+  return (
+    <p
+      role="alert"
+      className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive"
+    >
+      <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+      {message}
+    </p>
+  );
+}
+
 export default function CheatersPage(): ReactNode {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -232,6 +265,10 @@ export default function CheatersPage(): ReactNode {
   // A dossier that fails to load must not replace the report the user is
   // reading, so it carries its own error instead of the panel-level one.
   const [dossierError, setDossierError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [ingestError, setIngestError] = useState<string | null>(null);
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestName, setIngestName] = useState<string | null>(null);
 
   // The selected job is read inside the poll timer, which must not restart on
   // every render; a ref keeps the timer stable while still seeing the latest id.
@@ -240,6 +277,7 @@ export default function CheatersPage(): ReactNode {
   const analysisInFlight = useRef(0);
   const startRequest = useRef(0);
   const dossierRequest = useRef(0);
+  const autoStartRef = useRef<string | null>(null);
   selectedRef.current = selected;
 
   useEffect(() => {
@@ -247,11 +285,11 @@ export default function CheatersPage(): ReactNode {
       try {
         const rows = await api.listMatches();
         setMatches(rows);
+        setListError(null);
         setSelected((current) => current ?? rows[0]?.id ?? null);
-      } catch {
-        // A demo list that cannot load is an empty screen, never a crash; the
-        // empty state below already routes the user to the upload flow.
+      } catch (err) {
         setMatches([]);
+        setListError(demoListLoadError(err));
       }
     })();
   }, []);
@@ -354,30 +392,72 @@ export default function CheatersPage(): ReactNode {
     setExpanded((current) => (current === steamId ? null : steamId));
   }, []);
 
+  const ingest = useCallback(async (files: File[]) => {
+    const picked = pickCheaterDetectDemo(files);
+    if (!picked.ok) {
+      setIngestError(picked.error);
+      return;
+    }
+    setIngestError(null);
+    setIngestName(picked.file.name);
+    setIngesting(true);
+    try {
+      const scan = await api.scanDemo(picked.file);
+      if (scan.players.length === 0) {
+        setIngestError(DEMO_EMPTY_ROSTER_HINT);
+        return;
+      }
+      const next = matchFromScan({
+        jobId: scan.jobId,
+        fileName: picked.file.name,
+        roster: scan.match,
+      });
+      setMatches((current) => [next, ...(current ?? []).filter((row) => row.id !== next.id)]);
+      autoStartRef.current = scan.jobId;
+      setSelected(scan.jobId);
+    } catch (err) {
+      setIngestError(demoScanError(err));
+    } finally {
+      setIngesting(false);
+    }
+  }, []);
+
+  // Selecting a just-ingested job retriggers load(); start after that fetch
+  // settles so the generation counters do not discard the screening POST.
+  useEffect(() => {
+    if (autoStartRef.current === null || autoStartRef.current !== selected) return;
+    if (loading || starting || error !== null) return;
+    if (document !== null) {
+      autoStartRef.current = null;
+      return;
+    }
+    autoStartRef.current = null;
+    void start();
+  }, [selected, loading, document, error, starting, start]);
+
+  const dropzone = (
+    <DemoDropzone compact={Boolean(matches && matches.length > 0)} disabled={ingesting} onFiles={(files) => void ingest(files)} />
+  );
+
   let body: ReactNode;
   if (matches === null) {
     body = <Skeleton className="h-64 w-full rounded-xl" />;
   } else if (matches.length === 0) {
     body = (
-      <StudioEmptyState
-        icon={ShieldAlert}
-        title="No hay demos que analizar"
-        description="Sube una demo de CS2 y podrás pasarla por CheaterDetect sin abrir el juego."
-        compact
-        actions={
-          <Button asChild className="font-[family-name:var(--font-display)] tracking-[0.06em]">
-            <Link href="/upload">
-              <UploadCloud aria-hidden />
-              SUBIR UNA DEMO
-            </Link>
-          </Button>
-        }
-      />
+      <div className="@container/upload flex flex-col gap-3">
+        {listError ? <IngestError message={listError} /> : null}
+        {ingestError ? <IngestError message={ingestError} /> : null}
+        {ingesting ? <IngestStatus fileName={ingestName} /> : dropzone}
+      </div>
     );
   } else {
     body = (
       <div className="grid gap-8 lg:grid-cols-[minmax(200px,260px)_1fr] lg:gap-10">
-        <DemoPicker matches={matches} selected={selected} onSelect={setSelected} />
+        <div className="flex flex-col gap-3">
+          {ingestError ? <IngestError message={ingestError} /> : null}
+          {ingesting ? <IngestStatus fileName={ingestName} /> : dropzone}
+          <DemoPicker matches={matches} selected={selected} onSelect={setSelected} />
+        </div>
         <AnalysisPanel
           document={document}
           loading={loading}

@@ -6,8 +6,9 @@ This file is loaded when working under `web/`; the repo-wide rules live in the r
 
 Before any CSS, component chrome, layout, or user-visible copy:
 
-1. Load the `frontend-design` skill (`.claude/skills/frontend-design/SKILL.md`).
-2. Read `design.md` and follow it exactly.
+1. Read `~/.grok/design.md` (shared method + component sources).
+2. Load the `frontend-design` skill (`.claude/skills/frontend-design/SKILL.md`).
+3. Restyle onto tokens in `app/globals.css`. There is no product `design.md`.
 
 Do not introduce a parallel token set.
 
@@ -100,7 +101,7 @@ React:
 Testing:
 
 - Unit tests are `lib/**/*.test.ts` on `node:test`, run with `pnpm run test:unit` (Node strips types natively; relative imports keep the `.ts` extension, allowed by `allowImportingTsExtensions`).
-- Browser E2E is Playwright under `e2e/`, run with `pnpm run test:e2e` (the `playwright test` CLI). It verifies the `design.md` presentation contract — token ramps, the type scale, shell geometry, focus and target sizes, the `--shell-depth` gates, and zero horizontal overflow at the six validation widths — plus the `/upload` roster flow with the three `/api/demos/*` proxy calls stubbed at the network boundary.
+- Browser E2E is Playwright under `e2e/`, run with `pnpm run test:e2e` (the `playwright test` CLI). It verifies the presentation contract in `e2e/contract.ts` against `app/globals.css` — token ramps, the type scale, shell geometry, focus and target sizes, the `--shell-depth` gates, and zero horizontal overflow at the six validation widths — plus the `/upload` roster flow with the three `/api/demos/*` proxy calls stubbed at the network boundary.
 - The suite drives a **production build** (`next build && next start`), not `next dev`: the dev server's HMR client never completes its handshake under Playwright and the app-router bootstrap stalls behind it, so React creates the root container and never attaches the tree — every interaction test would see server HTML with no handlers. Pass `E2E_SKIP_BUILD=1` to reuse an existing `.next`.
 - Assert tokens through the parsers in `e2e/contract.ts`, never as literal strings: the production minifier rewrites `oklch(0.128 0.02 264)` to `oklch(12.8% .02 264)` and `380ms` to `.38s`, so a text comparison pins the minifier instead of the contract and passes in dev while failing in the build that ships.
 - E2E is not in the pre-commit gate — it needs a build and a server. Run it by hand when the shell, tokens, or the upload flow change. Deeper integration coverage still lives in Go HTTP/worker tests and `scripts/smoke-real.ps1`.

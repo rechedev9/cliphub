@@ -311,7 +311,7 @@ export default function FindHighlightsPage({
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-9rem)] flex-col gap-7">
+    <div className="studio-reveal flex min-h-[calc(100vh-9rem)] flex-col gap-7">
       <StudioBackLink onClick={() => router.push(backHref)}>{backLabel}</StudioBackLink>
 
       {/* Match summary — accent bar + map title + mono meta, score, stat strip. */}

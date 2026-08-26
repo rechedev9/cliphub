@@ -1004,11 +1004,13 @@ func TestNewCaptureAttestationTokenIsRandomAndStrong(t *testing.T) {
 
 func TestCS2ConsoleLogMonitorRejectsFailedOrMissingPOVVerification(t *testing.T) {
 	for _, tt := range []struct {
-		name    string
-		content string
-		poll    bool
+		name       string
+		content    string
+		poll       bool
+		wantReason string
 	}{
-		{name: "runtime failure marker", content: recording.CaptureFailedMarker, poll: true},
+		{name: "runtime failure marker", content: "[zackvideo] capture_failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-003\\n" + recording.CaptureFailedAttestation(testCaptureAttestation()) + "\n", poll: true, wantReason: "observer target 76561198000000000 drifted from 76561198000000001 during seg-003"},
+		{name: "runtime failure marker without reason line", content: recording.CaptureFailedAttestation(testCaptureAttestation()) + "\n", poll: true, wantReason: "HLAE runtime rejected the observer POV"},
 		{name: "missing completion marker"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1018,7 +1020,7 @@ func TestCS2ConsoleLogMonitorRejectsFailedOrMissingPOVVerification(t *testing.T)
 			}
 			monitor := newCS2ConsoleLogMonitor(path, testCaptureAttestation())
 			if tt.content != "" {
-				appendConsoleLog(t, path, recording.CaptureFailedAttestation(testCaptureAttestation())+"\n")
+				appendConsoleLog(t, path, tt.content)
 			}
 			var err error
 			if tt.poll {
@@ -1029,6 +1031,9 @@ func TestCS2ConsoleLogMonitorRejectsFailedOrMissingPOVVerification(t *testing.T)
 			var verificationErr *captureVerificationError
 			if !errors.As(err, &verificationErr) {
 				t.Fatalf("error = %v, want *captureVerificationError", err)
+			}
+			if tt.wantReason != "" && verificationErr.reason != tt.wantReason {
+				t.Fatalf("reason = %q, want %q", verificationErr.reason, tt.wantReason)
 			}
 		})
 	}

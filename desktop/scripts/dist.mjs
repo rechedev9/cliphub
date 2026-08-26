@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  goRuntimeBuildEnvironment,
   releaseBuildEnvironment,
 } from './build-environment.mjs';
 import {
@@ -33,6 +34,7 @@ if (process.argv.length > 2) {
   process.exit(1);
 }
 const sanitizedEnvironment = releaseBuildEnvironment();
+const goEnvironment = goRuntimeBuildEnvironment();
 
 let failed = false;
 let published = false;
@@ -42,7 +44,7 @@ try {
   // commit. A concurrent dist must never mistake this live journal for a crash.
   releasePublicationLock = await acquirePublicationLock(canonicalRelease.directory);
   recoverInterruptedPublication(canonicalRelease.directory);
-  runDistributionBuildSteps({ repo, desktop, environment: sanitizedEnvironment });
+  runDistributionBuildSteps({ repo, desktop, environment: goEnvironment });
   execFileSync(process.execPath, [
     join(desktop, 'node_modules', 'electron-builder', 'cli.js'),
     '--win',

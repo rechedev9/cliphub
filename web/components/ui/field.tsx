@@ -5,12 +5,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 
-/**
- * The props a `Field` hands back to its control. Spread them onto `Input`,
- * `SelectTrigger`, a textarea — anything that takes native form attributes — so
- * the label association, the hint/error description and the invalid state are
- * wired once instead of by hand in every form.
- */
+/** Control wiring: id, describedby, invalid. Spread onto Input/Select/textarea. */
 export interface FieldControlProps {
   id: string
   "aria-describedby": string | undefined
@@ -49,7 +44,10 @@ function Field({
     .join(" ")
 
   return (
-    <div data-slot="field" className={cn("flex w-full flex-col gap-2", className)}>
+    <div
+      data-slot="field"
+      className={cn("flex w-full flex-col gap-2", hasError && "studio-shake", className)}
+    >
       <Label htmlFor={id} className="text-label tracking-wide text-fg-2 uppercase">
         {label}
         {required ? (

@@ -157,7 +157,7 @@ test.describe('share code door', () => {
 
   for (const width of VALIDATION_WIDTHS) {
     test(`stays usable without overflow at ${width}px`, async ({ page }) => {
-      // design.md:145 — the form works at every validated width with no x-scroll.
+      // The form works at every validated width with no x-scroll.
       await page.setViewportSize({ width, height: 900 });
       await gotoStudio(page, '/onboarding');
       await expect(page.getByLabel('Código de partida')).toBeVisible();

@@ -15,14 +15,7 @@ export type MatchListProps = {
   onDeleted?: () => void;
 };
 
-/**
- * The scoreboard: one MatchRow per match (the first one featured), or an empty
- * state when filtered out.
- *
- * The list — not the row — owns the pointer tracking that drives every row's
- * lift and specular sweep, so a forty-match inbox still installs exactly one
- * `pointermove` listener and one rAF loop.
- */
+/** Scoreboard list. Owns the single pointer/rAF loop that drives every row's lift. */
 export function MatchList({ matches, onDelete, onDeleted }: MatchListProps) {
   // React 19 runs the returned function as the ref cleanup, so the listener is
   // detached on unmount without a separate effect.
@@ -43,7 +36,7 @@ export function MatchList({ matches, onDelete, onDeleted }: MatchListProps) {
   }
 
   return (
-    <section ref={trackPointer} className="flex flex-col gap-3" aria-label="Partidas disponibles">
+    <section ref={trackPointer} className="studio-reveal flex flex-col gap-3" aria-label="Partidas disponibles">
       {matches.map((match, index) => (
         <MatchRow key={match.id} match={match} featured={index === 0} onDelete={onDelete} onDeleted={onDeleted} />
       ))}

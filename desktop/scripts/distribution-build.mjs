@@ -22,6 +22,7 @@ export function runDistributionBuildSteps({
       'Bypass',
       '-File',
       join(repo, 'scripts', 'build.ps1'),
+      '-RequireFaceitEmbed',
     ],
     { cwd: repo, env: environment, stdio: 'inherit' },
   );

@@ -2,18 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_SECTIONS, navSection } from './nav.ts';
 
-test('nav: the entry section plus twelve numbered destinations', () => {
-  assert.equal(NAV_SECTIONS.length, 13);
+/** Rail order: the number is the padded index, not a historical slot. */
+const RAIL = [
+  ['00', 'Inicio', '/onboarding'],
+  ['01', 'Partidas', '/matches'],
+  ['02', 'Subir demo', '/upload'],
+  ['03', 'Full demo to video', '/full-demo'],
+  ['04', 'Táctica', '/tactical'],
+  ['05', 'CheaterDetect', '/cheaters'],
+  ['06', 'Jugadores', '/players'],
+  ['07', 'Clips de stream', '/streams'],
+  ['08', 'Editor', '/editor'],
+  ['09', 'Biblioteca', '/videos'],
+  ['10', 'Feed', '/feed'],
+  ['11', 'Ajustes', '/settings'],
+] as const;
+
+test('nav: numbers follow rail order', () => {
+  assert.deepEqual(
+    NAV_SECTIONS.map((section) => [section.number, section.label, section.href]),
+    RAIL,
+  );
 });
 
-test('nav: Inicio is 00 and 01-11 stay put when Full demo is added', () => {
-  const byHref = Object.fromEntries(NAV_SECTIONS.map((section) => [section.href, section.number]));
-  assert.equal(byHref['/onboarding'], '00');
-  assert.equal(byHref['/matches'], '01');
-  assert.equal(byHref['/upload'], '02');
-  assert.equal(byHref['/full-demo'], '12');
-  assert.equal(byHref['/tactical'], '03');
-  assert.equal(byHref['/settings'], '11');
+test('nav: numbers are unique and sequential from 00', () => {
+  const numbers = NAV_SECTIONS.map((section) => section.number);
+  assert.equal(new Set(numbers).size, numbers.length);
+  for (const [i, number] of numbers.entries()) {
+    assert.equal(number, String(i).padStart(2, '0'));
+  }
 });
 
 test('nav: hrefs are unique', () => {
@@ -21,26 +38,10 @@ test('nav: hrefs are unique', () => {
   assert.equal(new Set(hrefs).size, hrefs.length);
 });
 
-test('navSection: returns the entry for a known href', () => {
-  const entry = navSection('/videos');
-  assert.equal(entry.number, '09');
-  assert.equal(entry.label, 'Biblioteca');
-});
-
-test('navSection: tactical sits with the demo-derived sections', () => {
-  const entry = navSection('/tactical');
-  assert.equal(entry.number, '03');
-  assert.equal(entry.label, 'Táctica');
-});
-
-test('navSection: CheaterDetect sits with the demo-analysis sections', () => {
-  const entry = navSection('/cheaters');
-  assert.equal(entry.number, '04');
-  assert.equal(entry.label, 'CheaterDetect');
-});
-
-test('navSection: Full demo to video sits with the demo production sections', () => {
-  const entry = navSection('/full-demo');
-  assert.equal(entry.number, '12');
-  assert.equal(entry.label, 'Full demo to video');
-});
+for (const [number, label, href] of RAIL) {
+  test(`navSection: ${href} is ${number} ${label}`, () => {
+    const entry = navSection(href);
+    assert.equal(entry.number, number);
+    assert.equal(entry.label, label);
+  });
+}

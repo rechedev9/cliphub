@@ -80,3 +80,25 @@ export function releaseBuildEnvironment(environment = process.env) {
   sanitized.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
   return sanitized;
 }
+
+/** FACEIT Data API key for ldflags embed. Empty string if unset. */
+export function faceitAPIKeyFromEnvironment(environment = process.env) {
+  for (const [name, value] of Object.entries(environment)) {
+    if (name.toUpperCase() === 'FACEIT_API_KEY' && value !== undefined && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+/**
+ * Go rebuild env for `scripts/build.ps1`. Same host allowlist as the installer
+ * packager, plus FACEIT_API_KEY so zv-orchestrator.exe can embed the Data API
+ * key. electron-builder still uses `releaseBuildEnvironment`.
+ */
+export function goRuntimeBuildEnvironment(environment = process.env) {
+  const sanitized = releaseBuildEnvironment(environment);
+  const key = faceitAPIKeyFromEnvironment(environment);
+  if (key !== '') sanitized.FACEIT_API_KEY = key;
+  return sanitized;
+}

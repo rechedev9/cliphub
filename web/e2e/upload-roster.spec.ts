@@ -116,7 +116,7 @@ test.describe('scan failure states', () => {
       buffer: Buffer.from('HL2DEMO\0empty'),
     });
 
-    // design.md:198 — state is never colour alone, so the failure has to be text
+    // State is never colour alone, so the failure has to be text
     // in a live region rather than a red edge on a still-spinning dropzone.
     await expect(page.locator('[role="alert"]').first()).toBeVisible();
     await expect(page.locator('[data-testid="player-avatar"]')).toHaveCount(0);

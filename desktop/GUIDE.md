@@ -96,15 +96,18 @@ pnpm --dir desktop install
 pnpm --dir desktop run dist
 ```
 
-`pnpm run dist` first runs the root `scripts/build.ps1` so every Go runtime is
-rebuilt from the current source in the same distribution invocation. It then
+`pnpm run dist` first runs the root `scripts/build.ps1 -RequireFaceitEmbed` so
+every Go runtime is rebuilt from the current source and `zv-orchestrator.exe`
+embeds `FACEIT_API_KEY` (User or Process env). Dist fails if that key is
+missing or if the compiled orchestrator does not contain it. It then
 runs `scripts/assemble.mjs` (builds the web in local mode and
 stages `zv-orchestrator.exe`, `zv-editor.exe`, `zv-recorder.exe`, and the
 standalone server into `build-resources/`), then `electron-builder` produces the
 installer under `dist-installer/` (`ClipHub Studio Setup <version>.exe`,
 where `<version>` is the `version` field in `desktop/package.json`). The
 distribution command verifies the packaged HLAE archive, installer, blockmap,
-and checksums before returning success.
+and checksums before returning success. The FACEIT key is inside the
+orchestrator binary, not a file in the installer.
 The app icon lives at `build/icon.ico`, which electron-builder picks up
 automatically;
 `assemble.mjs` fails fast if it's missing. `zv-orchestrator.exe`,
@@ -115,8 +118,9 @@ installer.
 
 The build has one distribution target, `pnpm run dist`. It rejects unsupported
 arguments, rebuilds the Go runtime binaries before staging, removes
-`XAI_API_KEY` from every child build environment, and cannot stage or declare a
-credential resource. Never publish from an existing `bin/` or from a manually
+`XAI_API_KEY` from every child build environment, forwards only `FACEIT_API_KEY`
+into the Go rebuild so Jugadores works on a machine that never set the env var,
+and cannot stage or declare a credential resource file. Never publish from an existing `bin/` or from a manually
 assembled resource tree. The installed app needs no credential of its own.
 
 The distribution command also creates `dist-installer/SHA256SUMS.txt` for the

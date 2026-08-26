@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { NAV_ROUTES, VALIDATION_WIDTHS, gotoStudio } from './contract.ts';
 
-/** design.md:147 — measure horizontal overflow at every contract width. */
+/** Measure horizontal overflow at every contract width. */
 test.describe('horizontal overflow', () => {
   for (const width of VALIDATION_WIDTHS) {
     for (const { name, href } of NAV_ROUTES) {
@@ -54,7 +54,7 @@ test.describe('container-keyed breakpoints', () => {
       .evaluate((node) => getComputedStyle(node).containerType);
     expect(containerType).not.toBe('normal');
 
-    // design.md:143 — content width is not the viewport; do not key on xl:.
+    // Content width is not the viewport; do not key on xl:.
     const contentBox = await page
       .locator('main.\\@container\\/content')
       .first()

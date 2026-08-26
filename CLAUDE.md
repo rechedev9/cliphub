@@ -33,7 +33,7 @@ stream video -> persisted edit plan -> render -> publish pack
 | Go package map | `internal/AGENTS.md` |
 | 12 binaries / cmd leaks | `cmd/AGENTS.md` |
 | `zv` CLI surface | `cmd/zv/AGENTS.md`; contract is `zv flows show` / `workflows show` |
-| Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `web/design.md` + `frontend-design` skill |
+| Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `~/.grok/design.md` then `web/app/globals.css` + `frontend-design` skill |
 | Electron / installer | `desktop/GUIDE.md` |
 | Testdata / goldens | `testdata/GUIDE.md` |
 | HLAE experiments | `scripts/hlae/` — not product capture |
@@ -169,7 +169,7 @@ pnpm --dir landing run build
 ```
 
 The Electron UI E2E is manual and expensive: build, run `pnpm --dir desktop run assemble`, then `pnpm --dir desktop run test:e2e:ui` only when that product flow needs end-to-end verification.
-Before frontend work, read `web/CLAUDE.md`; before visual work, load the `frontend-design` skill and read `web/design.md`.
+Before frontend work, read `web/CLAUDE.md`; before visual work, read `~/.grok/design.md`, then load the `frontend-design` skill and restyle onto `web/app/globals.css`.
 All browser API access must remain same-origin through server proxy routes, keep orchestrator URLs/tokens server-side, validate IDs before upstream URL construction, and preserve `503 {code: "service_unavailable"}`.
 Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` and keep renderer access behind preload/IPC.
 

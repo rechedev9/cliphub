@@ -119,7 +119,7 @@ test.describe('Full demo to video', () => {
     await gotoStudio(page, '/full-demo');
     const key = page.locator('[data-slot="sidebar"] a[href="/full-demo"]');
     await expect(key).toBeVisible();
-    await expect(key).toContainText('12');
+    await expect(key).toContainText('03');
     await expect(key).toContainText('Full demo to video');
   });
 

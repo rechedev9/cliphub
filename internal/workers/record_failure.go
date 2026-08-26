@@ -21,6 +21,12 @@ const resetBreakpadMarker = "ResetBreakpadAppId"
 // across both the old and the new zv-recorder wording.
 const networkDisconnectMarker = "NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR"
 
+// playbackEndedMarker is the recorder failure reason when demo playback ended
+// before every protected segment could be recorded. Like the network parse
+// marker it is deterministic in the demo itself, so retrying against the same
+// CS2 build cannot resolve it.
+const playbackEndedMarker = "demo playback ended before every protected segment completed"
+
 // recordFailure carries a concise, user-facing job failure reason while still
 // wrapping the original noisy recorder error so logs and tests can unwrap the
 // full chain.
@@ -47,8 +53,8 @@ func newRecordFailure(runErr error, result recording.RecordingResult, requested 
 // original text when there is none.
 func recordFailureReason(runErr error, result recording.RecordingResult, requested []string) string {
 	text := runErr.Error()
-	if strings.Contains(text, networkDisconnectMarker) {
-		reason := demoIncompatiblePrefix + " cs2 cannot replay this demo (it was recorded on an older cs2 build)"
+	if strings.Contains(text, networkDisconnectMarker) || strings.Contains(text, playbackEndedMarker) {
+		reason := demoIncompatiblePrefix + demoIncompatibleMessage(text)
 		if captured := capturedSegmentCount(result); captured > 0 {
 			reason += fmt.Sprintf("; captured %d/%d segments before the failure", captured, len(requested))
 		}
@@ -65,6 +71,17 @@ func recordFailureReason(runErr error, result recording.RecordingResult, request
 		return "recorder failed: " + line
 	}
 	return text
+}
+
+// demoIncompatibleMessage selects the explanation for a deterministic demo
+// replay failure: the network parse marker means an older CS2 build recorded
+// the demo, while a playback-ended failure means the demo stops before every
+// protected segment could be recorded.
+func demoIncompatibleMessage(text string) string {
+	if strings.Contains(text, playbackEndedMarker) {
+		return " cs2 cannot replay this demo to the end (playback stops before every protected segment completes)"
+	}
+	return " cs2 cannot replay this demo (it was recorded on an older cs2 build)"
 }
 
 // capturedSegmentCount counts the distinct segment ids that produced a segment

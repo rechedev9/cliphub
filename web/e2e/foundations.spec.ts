@@ -44,7 +44,7 @@ test.describe('foundations', () => {
       expect(parsed[i].l, `surface-${i} must sit above surface-${i - 1}`).toBeGreaterThan(parsed[i - 1].l);
     }
     expect(new Set(parsed.map((step) => step.h)).size, 'the ramp is a single hue').toBe(1);
-    // design.md:41 — alpha is never used to fake a layer. Compositing a panel
+    // Alpha is never used to fake a layer. Compositing a panel
     // over the canvas at 94% is what made v3's panels measure 1.023:1.
     expect(parsed.every((step) => step.a === 1), 'a surface step carries alpha').toBe(true);
   });

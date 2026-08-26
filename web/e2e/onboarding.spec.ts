@@ -54,7 +54,7 @@ test.describe('Inicio', () => {
     const glowing = await doors.evaluateAll((nodes) =>
       nodes.filter((node) => getComputedStyle(node).boxShadow.includes('0px 0px 26px')).length,
     );
-    // design.md — brand emphasis is one restrained moment, not a row of them.
+    // Brand emphasis is one restrained moment, not a row of them.
     expect(glowing).toBe(1);
   });
 

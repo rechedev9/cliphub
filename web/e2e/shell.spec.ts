@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { NAV_ROUTES, gotoStudio, parseNumber, rootToken, squash } from './contract.ts';
 
-/** `/upload` is deliberately outside the authenticated group (design.md:137), so
+/** `/upload` is deliberately outside the authenticated group, so
  *  it has a compact standalone bar instead of the sidebar and command strip. */
 const SHELL_ROUTES = NAV_ROUTES.filter((route) => route.href !== '/upload');
 

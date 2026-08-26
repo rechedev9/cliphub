@@ -980,6 +980,9 @@ test('build entrypoint delegates publication and never removes the recovery back
 
   assert.match(buildScript, /build-publication\.ps1/);
   assert.match(buildScript, /Publish-BuildArtifacts/);
+  assert.match(buildScript, /RequireFaceitEmbed/);
+  assert.match(buildScript, /Assert-FaceitKeyEmbedded/);
+  assert.match(buildScript, /-X main\.embeddedFaceitAPIKey=/);
   assert.match(buildScript, /Enter-BuildPublicationLock/);
   assert.ok(
     buildScript.indexOf('Recover-BuildPublication') < buildScript.indexOf('& go build'),

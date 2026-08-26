@@ -24,6 +24,18 @@ test('demo-incompatible reason without a captured clause has no counts', () => {
   assert.doesNotMatch(result.message, /Se capturaron/);
 });
 
+test('playback-ended demo is demo-incompatible with its own message', () => {
+  const reason =
+    'demo_incompatible: cs2 cannot replay this demo to the end (playback stops before every protected segment completes); captured 3/16 segments before the failure';
+  const result = parseFailureReason(reason);
+  assert.equal(result.kind, 'demo-incompatible');
+  assert.equal(result.retryCanHelp, false);
+  assert.deepEqual(result.counts, { captured: 3, requested: 16 });
+  assert.match(result.message, /La demo termina antes/);
+  assert.doesNotMatch(result.message, /versión antigua de CS2/);
+  assert.match(result.message, /Se capturaron 3 de 16 jugadas/);
+});
+
 test('a generic reason stays generic and retryable', () => {
   const reason = 'ffmpeg exited with code 1';
   const result = parseFailureReason(reason);

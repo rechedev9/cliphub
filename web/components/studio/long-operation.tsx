@@ -13,11 +13,7 @@ const TONE_FILL_CLASS = {
   stream: 'bg-stream',
 } as const satisfies Record<LongOperationTone, string>;
 
-/**
- * Stopwatch shape, not the remaining-availability shape. `formatCountdown` in
- * lib/format renders "14h 3m", which reads as a deadline; an operation that has
- * been running for ninety seconds has to read as 01:30.
- */
+/** Elapsed clock (01:30), not `formatCountdown`'s remaining-availability shape. */
 function formatElapsed(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);
@@ -31,10 +27,7 @@ export type LongOperationProps = {
   stage: string;
   /** Secondary fact, e.g. "SEGMENTOS 2/4" or "CORTES + RITMO". */
   detail?: ReactNode;
-  /**
-   * Real progress, 0-100. Leave it out when the stage reports none: the bar goes
-   * indeterminate rather than showing a number the pipeline never produced.
-   */
+  /** 0-100 from the pipeline. Omit when the stage reports none. */
   percent?: number;
   /** Seconds the operation has been running. The caller owns the clock. */
   elapsedSec?: number;
@@ -42,12 +35,7 @@ export type LongOperationProps = {
   className?: string;
 };
 
-/**
- * The shared "something slow is happening" surface for capture, render and
- * stream jobs: stage, determinate or indeterminate progress, and elapsed time in
- * tabular figures. Announced through `aria-live="polite"` because a local render
- * can run for minutes with no other feedback.
- */
+/** Shared capture/render/stream progress: stage, bar, elapsed. `aria-live="polite"`. */
 export function LongOperation({
   stage,
   detail,
@@ -58,13 +46,26 @@ export function LongOperation({
 }: LongOperationProps): ReactNode {
   const pct = percent === undefined ? undefined : Math.min(100, Math.max(0, Math.round(percent)));
   const determinate = pct !== undefined;
+  const complete = pct === 100;
 
   return (
-    <div role="status" aria-live="polite" className={cn('flex flex-col gap-2', className)}>
+    <div
+      role="status"
+      aria-live="polite"
+      data-complete={complete ? 'true' : undefined}
+      className={cn('flex flex-col gap-2', className)}
+    >
       <div className="flex items-baseline justify-between gap-3">
         {/* Template literal, not cn(): tailwind-merge reads a custom `--text-*`
             key as a colour and would drop `text-meta` behind the tone class. */}
-        <span className={`min-w-0 truncate font-mono text-meta uppercase ${TONE_TEXT_CLASS[tone]}`}>{stage}</span>
+        <span className={`flex min-w-0 items-center gap-2 font-mono text-meta uppercase ${TONE_TEXT_CLASS[tone]}`}>
+          {complete ? (
+            <svg viewBox="0 0 16 16" className="size-3 shrink-0" aria-hidden>
+              <path className="studio-op-check-path" d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+            </svg>
+          ) : null}
+          <span className="min-w-0 truncate">{stage}</span>
+        </span>
         <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-meta tabular-nums">
           {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span> : null}
           {elapsedSec !== undefined ? <span className="text-fg-3">{formatElapsed(elapsedSec)}</span> : null}
@@ -85,10 +86,7 @@ export function LongOperation({
             style={{ width: `${pct}%` }}
           />
         ) : (
-          // animate-pulse is the only zero-CSS indeterminate available today; it
-          // is not covered by the efficiency profile. See the CSS request in the
-          // kit report for the `.studio-indeterminate` sweep that replaces it.
-          <span className={cn('block h-full w-2/5 animate-pulse', TONE_FILL_CLASS[tone])} />
+          <span className={cn('studio-indeterminate block h-full w-2/5', TONE_FILL_CLASS[tone])} />
         )}
       </div>
 

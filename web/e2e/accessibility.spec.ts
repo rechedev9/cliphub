@@ -32,7 +32,7 @@ test.describe('focus', () => {
       expect(focus.outlineWidth).toBe('2px');
       expect(focus.outlineOffset).toBe('2px');
       // A ring would paint a solid offset colour and halo every control inside
-      // a panel; design.md:94 is explicit that this must stay an outline.
+      // a panel; this must stay an outline.
       const colour = parseOklch(focus.outlineColor);
       expect(colour.l).toBeCloseTo(0.811, 3);
       expect(colour.c).toBeCloseTo(0.135, 3);
@@ -112,7 +112,7 @@ test.describe('names and live regions', () => {
 });
 
 test.describe('preserved E2E hooks', () => {
-  // design.md:206 — the /upload file input is contract, not incidental markup.
+  // The /upload file input is contract, not incidental markup.
   // The hooks that only exist once a roster arrives live in upload-roster.spec.
   test('the upload flow keeps its file input', async ({ page }) => {
     await gotoStudio(page, '/upload');

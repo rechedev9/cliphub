@@ -47,11 +47,11 @@ capability in a URL or renderer JavaScript.
 
 ## Design
 
-The look and feel is the v2 "replay studio" identity: a left-sidebar shell,
-acid-lime signal color on charcoal, and monospace tabular numbers for every
-stat. The design contract lives in [`design.md`](./design.md). Read it before
-changing anything visual; it defines the palette, fonts, sidebar information
-architecture, and signature components.
+The look and feel is the broadcast control-room identity: navy surfaces, cyan
+action, Chakra Petch / Share Tech Mono, and monospace tabular numbers for every
+stat. Tokens live in [`app/globals.css`](./app/globals.css). Method:
+`~/.grok/design.md`. Product rules: `.claude/skills/frontend-design/SKILL.md`.
+Read those before changing anything visual.
 
 UI primitives come from shadcn/ui (`components/ui/*`, configured in
 `components.json`). Brand-specific pieces live in `components/brand/*`.
@@ -99,6 +99,7 @@ architecture.
 web/
   proxy.ts                     # Next 16 request guard (not middleware.ts)
   app/                         # App Router pages and same-origin API routes
+    globals.css                # presentation tokens (source of truth)
     api/demos/                 # server-side proxy to the local orchestrator
     api/streams/               # same contract for VOD jobs
     upload/page.tsx            # no-login demo upload flow
@@ -108,7 +109,7 @@ web/
     (app)/tactical/            # tactical replay
     (app)/series/              # multi-map series
     (app)/cheaters/            # CheaterDetect UI
-    (app)/feed/ news/ settings/
+    (app)/feed/ settings/
   components/
     ui/                        # shadcn/ui primitives
     studio/                    # shared kit (header, empty, StatusTag, …)
@@ -118,5 +119,4 @@ web/
   lib/
     api/                       # typed clients, contracts, stores, and fixtures
     format.ts                  # shared display formatting
-  design.md                    # v2 visual design contract
 ```

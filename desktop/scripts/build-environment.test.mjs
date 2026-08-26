@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import {
   environmentWithoutCodeSigningCredentials,
   environmentWithoutXAIAPIKey,
+  faceitAPIKeyFromEnvironment,
+  goRuntimeBuildEnvironment,
   releaseBuildEnvironment,
 } from './build-environment.mjs';
 
@@ -88,4 +90,38 @@ test('release build environment is an allowlist, not a credential denylist', () 
     CSC_IDENTITY_AUTO_DISCOVERY: 'false',
   });
   assert.equal(original.GH_TOKEN, 'fixture');
+});
+
+test('FACEIT_API_KEY is not an electron-builder allowlist member', () => {
+  const original = {
+    Path: 'C:\\tools',
+    FACEIT_API_KEY: 'faceit-installer-secret',
+    FIRECRAWL_API_KEY: 'fixture',
+  };
+  const sanitized = releaseBuildEnvironment(original);
+  assert.equal(Object.keys(sanitized).some((name) => name.toUpperCase() === 'FACEIT_API_KEY'), false);
+});
+
+test('go runtime rebuild receives FACEIT_API_KEY for ldflags embed', () => {
+  const cases = [
+    { FACEIT_API_KEY: 'faceit-installer-secret', Path: 'C:\\tools' },
+    { faceit_api_key: 'faceit-lower-secret', Path: 'C:\\tools' },
+    { Path: 'C:\\tools' },
+  ];
+  const expected = [
+    'faceit-installer-secret',
+    'faceit-lower-secret',
+    '',
+  ];
+  for (const [i, original] of cases.entries()) {
+    assert.equal(faceitAPIKeyFromEnvironment(original), expected[i]);
+    const goEnv = goRuntimeBuildEnvironment(original);
+    if (expected[i] === '') {
+      assert.equal(Object.keys(goEnv).some((name) => name.toUpperCase() === 'FACEIT_API_KEY'), false);
+    } else {
+      assert.equal(goEnv.FACEIT_API_KEY, expected[i]);
+    }
+    assert.equal(goEnv.CSC_IDENTITY_AUTO_DISCOVERY, 'false');
+    assert.equal(goEnv.Path, 'C:\\tools');
+  }
 });

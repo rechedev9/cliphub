@@ -8,11 +8,7 @@ import { MediaFrame, type MediaFrameAspect } from '@/components/studio/media-fra
 import { TiltSurface } from '@/components/studio/tilt-surface';
 import { ReelStageTrack } from '@/components/videos/reel-stage-track';
 
-/**
- * The reel's real shape. A shorts tool whose Library center-crops every 9:16
- * reel into a landscape frame is showing the user something it did not make, so
- * the frame is driven by the render format and not by a hardcoded `aspect-video`.
- */
+/** Frame aspect follows the render format, not a hardcoded landscape box. */
 const FORMAT_ASPECT = {
   'short-9x16': '9:16',
   'landscape-16x9': '16:9',
@@ -23,12 +19,7 @@ const FORMAT_LABEL = {
   'landscape-16x9': '16:9',
 } as const satisfies Record<RenderFormat, string>;
 
-/**
- * Frame shape for a reel whose `editConfig` is missing (mock/seed reels that
- * predate it). Landscape is the neutral choice; `reelFormatLabel` returns
- * undefined for the same input, so the card never *claims* a format it does not
- * have — it just has to pick a box to draw.
- */
+/** Neutral box when `editConfig` is missing. Label stays undefined for the same input. */
 const UNKNOWN_FORMAT_ASPECT: MediaFrameAspect = '16:9';
 
 export function reelAspect(config: EditConfig | undefined): MediaFrameAspect {
@@ -41,11 +32,7 @@ export function reelFormatLabel(config: EditConfig | undefined): string | undefi
 
 export type ReelCardTone = 'neutral' | 'primary' | 'stream' | 'danger';
 
-/**
- * Utilities beat `.studio-panel-raised`'s border-color because Tailwind's
- * utility layer is emitted after the components layer, so a tone always wins
- * over the raised recipe's accent edge.
- */
+/** Utility layer wins over `.studio-panel-raised` border-color. */
 const TONE_BORDER_CLASS = {
   neutral: 'border-border',
   primary: 'border-primary/45',
@@ -67,10 +54,7 @@ export type ReelCardProps = {
   frameActions?: ReactNode;
   /** Dim/desaturate the cover while the reel has no finished frame yet. */
   coverClassName?: string;
-  /**
-   * Drop the decorative crosshair on the fallback plate. Processing cards use
-   * this so the centered mark is not read as a spinner while capture/edit runs.
-   */
+  /** Hide the fallback-plate crosshair so processing is not read as a spinner. */
   plainCover?: boolean;
   /** Stage tint painted over the cover, inside the parallax plane. */
   coverTintClassName?: string;
@@ -84,26 +68,7 @@ export type ReelCardProps = {
   footer?: ReactNode;
 };
 
-/**
- * The one reel card. `ReadyCard`, `RenderingCard` and `FailedCard` were three
- * card languages for one object, with a duplicated format map, a duplicated meta
- * line and a `-mt-2` hack cancelling half a flex gap; they are now thin state
- * wrappers over this shell.
- *
- * Structure, top to bottom: media → title/meta → state block → stage track →
- * actions. The media is the only part that moves. It sits inside a
- * `<TiltSurface>` whose plane is the *cover*, overscaled just enough that a 6°
- * rotation never exposes the frame behind it, so the picture parallaxes inside a
- * fixed box while every metric outside the frame stays nailed down. The tilt
- * ceiling is `--tilt-max`, so the whole effect flattens through the single
- * `--shell-depth` scalar under reduced motion, forced colours, an inactive
- * window, the efficiency profile and an active capture.
- *
- * `overflow-hidden` is not cosmetic: `.studio-panel` rounds the card to
- * `var(--radius)` and the flush media child used to clip to its own square box,
- * so every cover in the Library had two squared-off top corners overhanging the
- * panel.
- */
+/** Shared reel shell. Tilt lives on the overscaled cover; `--shell-depth` flattens it. */
 export function ReelCard({
   video,
   tone = 'neutral',
@@ -123,17 +88,7 @@ export function ReelCard({
   const matchMeta = video.score ? `${map} · ${video.score}` : map;
   const meta = video.targetName ? `POV ${video.targetName} · ${matchMeta}` : matchMeta;
 
-  /*
-   * The generated plate is painted underneath rather than chosen instead of the
-   * cover: an unreachable URL must degrade to brand art, and a bare <img> that
-   * fails paints Chrome's broken-image glyph stretched to `object-cover` — a
-   * 260px ring across the frame, which is exactly what the Library was showing.
-   * `CoverImage` unmounts on the first error so the plate is what remains.
-   *
-   * No `label` on the plate: the map is printed directly under the frame, and the
-   * cover's own corner label sits 10px off the bottom edge, which the parallax
-   * overscale pushes out of the frame.
-   */
+  /* Plate under CoverImage: a failed <img> would show Chrome's broken-image glyph. */
   const cover = (
     <>
       <ReelCover
@@ -149,7 +104,7 @@ export function ReelCard({
     <article
       data-slot="card"
       className={cn(
-        'studio-panel studio-panel-interactive studio-defer-render flex flex-col overflow-hidden',
+        'studio-panel studio-panel-interactive studio-defer-render studio-reveal flex flex-col overflow-hidden',
         raised && 'studio-panel-raised',
         TONE_BORDER_CLASS[tone],
       )}
