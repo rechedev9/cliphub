@@ -69,6 +69,8 @@ jobs:
         run: node desktop/scripts/seed-bundled-music.mjs
 
       - name: Build unsigned Windows installer
+        env:
+          FACEIT_API_KEY: ${{ secrets.FACEIT_API_KEY }}
         run: pnpm --dir desktop run dist
 
       - name: Verify release checksums

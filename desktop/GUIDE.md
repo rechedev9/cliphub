@@ -146,7 +146,8 @@ landing/Vercel deploy is not required.
 2. Land that commit on `main`.
 3. Run **Desktop release** (`workflow_dispatch`) or push tag `v<version>`.
    The job seeds gitignored Suno mp3s from the last published installer, then
-   runs `pnpm --dir desktop run dist`.
+   runs `pnpm --dir desktop run dist`. Repo secret `FACEIT_API_KEY` is required
+   so `-RequireFaceitEmbed` can stamp the orchestrator.
 4. Confirm `https://github.com/rechedev9/cliphub/releases/latest` is that tag
    and lists the three assets.
 

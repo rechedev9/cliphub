@@ -25,6 +25,7 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
     ['CSC_IDENTITY_AUTO_DISCOVERY: \'false\'', 'CI must stay unsigned'],
     ['node desktop/scripts/seed-bundled-music.mjs', 'CI must seed gitignored Suno audio from the last installer'],
     ['pnpm --dir desktop run dist', 'must reuse the existing dist entrypoint'],
+    ['FACEIT_API_KEY: ${{ secrets.FACEIT_API_KEY }}', 'CI must embed FACEIT in zv-orchestrator.exe'],
     ['pnpm --dir desktop run verify:dist-integrity', 'must verify SHA256SUMS.txt before publish'],
     ['ClipHub.Studio.Setup.$version.exe', 'updater reads this installer name'],
     ['SHA256SUMS.txt', 'updater verifies the installer digest'],
