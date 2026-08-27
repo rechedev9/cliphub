@@ -11,6 +11,7 @@ import { isSeriesId } from '@/lib/series-status';
 import { formatKd, matchDateLabel, playsSelectionLabel, ratingClass } from '@/lib/format';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
+import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -109,7 +110,7 @@ export default function FindHighlightsPage({
         const list = await api.listPresets();
         if (!active) return;
         setPresets(list);
-        setVariant((cur) => cur ?? (list.find((p) => p.default)?.name ?? list[0]?.name ?? null));
+        setVariant((cur) => selectShortsFormat(DEFAULT_EDIT_CONFIG.format, cur, list).variant);
       } catch {
         if (active) setPresets([]);
       }
@@ -122,7 +123,8 @@ export default function FindHighlightsPage({
   // Plan order, not click order: the Set is membership only.
   const selectedPlays = (plays ?? []).filter((p) => selectedIds.has(p.id));
   const selectionLabel = playsSelectionLabel(selectedPlays);
-  const selectedPreset = presets?.find((p) => p.name === variant) ?? null;
+  const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, editConfig.format);
+  const selectedPreset = visiblePresets?.find((p) => p.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
   const briefItems = reelCreativeBrief(
     editConfig,
@@ -160,11 +162,18 @@ export default function FindHighlightsPage({
 
   function chooseVariant(nextVariant: string) {
     revokeBriefApproval();
-    setVariant(nextVariant);
+    const next = selectShortsPreset(nextVariant, editConfig.format, presets ?? []);
+    setVariant(next.variant);
+    if (next.format !== editConfig.format) {
+      setEditConfig((cur) => constrainEditConfig({ ...cur, format: next.format }));
+    }
   }
 
   function changeEditConfig(nextConfig: EditConfig) {
     revokeBriefApproval();
+    if (nextConfig.format !== editConfig.format && presets) {
+      setVariant(selectShortsFormat(nextConfig.format, variant, presets).variant);
+    }
     setEditConfig(constrainEditConfig(nextConfig));
   }
 
@@ -285,7 +294,7 @@ export default function FindHighlightsPage({
   const hasRating = rating > 0;
 
   let presetContent: ReactNode;
-  if (presets === null) {
+  if (visiblePresets === null) {
     presetContent = (
       <div className="grid gap-4 @[30rem]/build:grid-cols-2">
         {[0, 1, 2].map((i) => (
@@ -293,7 +302,7 @@ export default function FindHighlightsPage({
         ))}
       </div>
     );
-  } else if (presets.length === 0) {
+  } else if (visiblePresets.length === 0) {
     presetContent = (
       <p role="alert" className="studio-panel px-5 py-6 text-center text-body-sm text-fg-2">
         No se pudieron cargar los presets. Recarga la página para reintentar.
@@ -302,7 +311,7 @@ export default function FindHighlightsPage({
   } else {
     presetContent = (
       <PresetCards
-        presets={presets}
+        presets={visiblePresets}
         value={variant}
         onChange={chooseVariant}
         disabled={selectedIds.size === 0 || busy}

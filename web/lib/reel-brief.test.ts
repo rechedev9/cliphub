@@ -157,8 +157,35 @@ test('full-demo locked edit names native CS2 HUD, not Shorts full-hud copy', () 
   const brief = Object.fromEntries(
     reelCreativeBrief(FULL_DEMO_EDIT, FULL_DEMO_PRESET, { status: 'none' }).map((item) => [item.label, item.value]),
   );
+  assert.equal(brief['Formato'], 'Horizontal 16:9 · 1920×1080');
   assert.equal(brief['HUD / killfeed'], NATIVE_HUD_LABEL);
   assert.notEqual(brief['HUD / killfeed'], 'HUD completo con killfeed');
+});
+
+test('shorts 9:16 brief names landscape geometry when POV nativo is selected', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: false,
+    voiceComms: false,
+    nativeHud: false,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+  };
+  const preset: Preset = {
+    name: 'gameplay-pov-60',
+    label: 'POV nativo',
+    description: '1920×1080 at 60fps',
+    hudMode: 'gameplay',
+    width: 1920,
+    height: 1080,
+  };
+  const brief = Object.fromEntries(reelCreativeBrief(edit, preset, { status: 'none' }).map((item) => [item.label, item.value]));
+  assert.equal(brief['Formato'], 'Horizontal 16:9 · 1920×1080');
 });
 
 test('shorts full-hud-60 brief keeps HUD completo when nativeHud is off', () => {
