@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEditRequest } from './api/edit-request.ts';
 import { reelIdentity } from './api/reel-identity.ts';
+import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
   FULL_DEMO_CONTRACT,
   FULL_DEMO_EDIT,
+  FULL_DEMO_EMPTY,
   FULL_DEMO_FORGE_HINT_EMPTY,
   FULL_DEMO_FORGE_HINT_ERROR,
   FULL_DEMO_PRESET,
@@ -12,6 +14,8 @@ import {
   FULL_DEMO_ROUNDS_PENDING,
   FULL_DEMO_VARIANT,
   FULL_DEMO_VOICE_VOLUME,
+  classifyFullDemoLoadFailure,
+  fullDemoEmptyState,
   resolveFullDemoPreset,
 } from './full-demo.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
@@ -104,4 +108,33 @@ test('full-demo identity does not collapse into a Shorts reel', () => {
   const full = reelIdentity({ matchId: JOB, playIds: ['seg-001', 'seg-002'], editConfig: FULL_DEMO_EDIT });
   assert.equal(full, `${JOB}__full-demo`);
   assert.notEqual(full, shorts);
+});
+
+test('classifyFullDemoLoadFailure keeps 503 offline and any other throw as a load error', () => {
+  const cases: { name: string; err: unknown; want: 'offline' | 'error' }[] = [
+    { name: 'service unavailable', err: { code: SERVICE_UNAVAILABLE_CODE }, want: 'offline' },
+    { name: 'error instance with code', err: Object.assign(new Error('down'), { code: SERVICE_UNAVAILABLE_CODE }), want: 'offline' },
+    { name: 'plan 500 without code', err: Object.assign(new Error('upstream error'), { status: 500 }), want: 'error' },
+    { name: 'plain error', err: new Error('upstream error'), want: 'error' },
+    { name: 'null', err: null, want: 'error' },
+    { name: 'string', err: 'boom', want: 'error' },
+  ];
+  for (const { name, err, want } of cases) {
+    assert.equal(classifyFullDemoLoadFailure(err), want, name);
+  }
+});
+
+test('fullDemoEmptyState keeps 404 missing and does not paint a plan 500 as gone from disk', () => {
+  const cases = [
+    { failure: 'offline' as const, empty: FULL_DEMO_EMPTY.offline },
+    { failure: 'error' as const, empty: FULL_DEMO_EMPTY.error },
+    { failure: null, empty: FULL_DEMO_EMPTY.missing },
+  ];
+  for (const { failure, empty } of cases) {
+    assert.deepEqual(fullDemoEmptyState(failure), empty);
+  }
+  assert.match(FULL_DEMO_EMPTY.error.title, /No se pudo cargar/);
+  assert.equal(FULL_DEMO_EMPTY.missing.title, 'Demo no encontrada');
+  assert.match(FULL_DEMO_EMPTY.missing.description, /ya no está en el disco/);
+  assert.equal(/disco/i.test(FULL_DEMO_EMPTY.error.description), false);
 });

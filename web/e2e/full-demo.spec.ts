@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
 import {
   FULL_DEMO_CONTRACT,
+  FULL_DEMO_EMPTY,
   FULL_DEMO_FORGE_HINT_EMPTY,
   FULL_DEMO_FORGE_HINT_ERROR,
   FULL_DEMO_RECAP_ERROR,
@@ -154,12 +155,45 @@ test.describe('Full demo to video', () => {
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
   });
 
+  test('a 404 job is a missing demo', async ({ page }) => {
+    await page.route(`**/api/demos/${JOB}/status`, async (route) => {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not found' }) });
+    });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: FULL_DEMO_EMPTY.missing.title })).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_EMPTY.missing.description)).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_EMPTY.error.title)).toHaveCount(0);
+  });
+
   test('a missing job does not offer FORJAR or a music picker', async ({ page }) => {
     await gotoStudio(page, `/full-demo/${JOB}`);
     await expect(page.getByText(/Servicio local sin conexión|Demo no encontrada/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'FORJAR REEL' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'AÑADIR MÚSICA' })).toHaveCount(0);
+  });
+
+  test('a 500 from /plan is a load error, not a missing demo', async ({ page }) => {
+    await page.route(`**/api/demos/${JOB}/status`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'parsed' }),
+      });
+    });
+    await page.route(`**/api/demos/${JOB}/plan`, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'upstream error' }),
+      });
+    });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: FULL_DEMO_EMPTY.error.title })).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_EMPTY.error.description)).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_EMPTY.missing.title)).toHaveCount(0);
+    await expect(page.getByText(FULL_DEMO_EMPTY.missing.description)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'FORJAR REEL' })).toHaveCount(0);
   });
 
   test('a recap-plan 500 is an error, not a pending parse or Shorts empty state', async ({ page }) => {
