@@ -76,6 +76,7 @@ web/playwright-report/
 
 # Next.js build output (also covered per-package, kept here as a safety net)
 **/.next/
+web/public/generated/
 
 # Firecrawl local cache / outputs
 /.firecrawl/

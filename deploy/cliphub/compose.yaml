@@ -1,0 +1,73 @@
+name: cliphub
+
+services:
+  control:
+    build:
+      context: ../..
+      dockerfile: deploy/cliphub/Dockerfile
+      target: control-runtime
+    restart: unless-stopped
+    environment:
+      CLIPHUB_CONTROL_ADDR: 0.0.0.0:8090
+      CLIPHUB_CONTROL_DB: /data/control-plane.db
+      CLIPHUB_PUBLIC_ORIGIN: ${CLIPHUB_PUBLIC_ORIGIN:?set CLIPHUB_PUBLIC_ORIGIN}
+    volumes:
+      - control-data:/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/zv-control-plane", "--healthcheck", "http://127.0.0.1:8090/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/cliphub/Dockerfile
+      target: web-runtime
+    restart: unless-stopped
+    environment:
+      CLIPHUB_WEB_MODE: hosted
+      CLIPHUB_CONTROL_PLANE_URL: http://control:8090
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      control:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:8091:3000
+    networks:
+      - private
+      - egress
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  private:
+    internal: true
+  egress:
+
+volumes:
+  control-data:

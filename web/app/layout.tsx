@@ -7,6 +7,8 @@ import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup'
 import { ShellCanvas } from '@/components/shell/shell-canvas';
 import { StudioAmbient } from '@/components/shell/studio-ambient';
 import { WindowActivityPolicy } from '@/components/shell/window-activity-policy';
+import { AgentTransportProvider } from '@/components/agent/agent-transport';
+import { isHostedWebMode } from '@/lib/hosted-mode';
 
 const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
@@ -30,6 +32,7 @@ export const metadata: Metadata = {
 const fontVars = `${chakraPetch.variable} ${shareTechMono.variable}`;
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
+  const hosted = isHostedWebMode();
   return (
     // The next/font variable classes live on <html> so the composed
     // --font-sans/--font-mono/--font-display tokens in globals.css resolve at
@@ -48,9 +51,9 @@ export default function RootLayout({ children }: { children: ReactNode }): React
         */}
         <StudioAmbient />
         <ShellCanvas />
-        <ServiceWorkerCleanup />
+        {hosted ? null : <ServiceWorkerCleanup />}
         <WindowActivityPolicy />
-        {children}
+        <AgentTransportProvider hosted={hosted}>{children}</AgentTransportProvider>
         <Toaster />
       </body>
     </html>

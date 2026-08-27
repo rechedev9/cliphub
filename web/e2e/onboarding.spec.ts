@@ -31,8 +31,8 @@ test.describe('Inicio', () => {
     // textContent, not innerText: the labels are uppercased in CSS, and reading
     // the rendered casing would assert the stylesheet instead of the nav model.
     const labels = await page.locator('[data-slot="sidebar-group-label"]').allTextContents();
-    // Three phases, and no fourth heading invented for the single entry key.
-    expect(labels.map((label) => label.trim())).toEqual(['Producción', 'Señal', 'Salida']);
+    // Two current phases, and no extra heading invented for the entry key.
+    expect(labels.map((label) => label.trim())).toEqual(['Producción', 'Salida']);
   });
 
   test('offers exactly three doors, each a whole-card link', async ({ page }) => {

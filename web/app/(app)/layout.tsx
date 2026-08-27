@@ -5,6 +5,8 @@ import { AppSidebar } from '@/components/shell/app-sidebar';
 import { CommandStrip } from '@/components/shell/command-strip';
 import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
+import { AgentGate } from '@/components/agent/agent-gate';
+import { isHostedWebMode } from '@/lib/hosted-mode';
 
 /** Typed rather than cast: CSSProperties has no index signature for custom
  *  properties, and `as React.CSSProperties` is exactly the silencing cast
@@ -24,7 +26,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
   const jar = await cookies();
   const sidebarOpen = jar.get(SIDEBAR_COOKIE_NAME)?.value !== 'false';
 
-  return (
+  const shell = (
     <SidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
       <ShellActivityMonitor />
       <AppSidebar />
@@ -52,4 +54,5 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
       </SidebarInset>
     </SidebarProvider>
   );
+  return <AgentGate required={isHostedWebMode()}>{shell}</AgentGate>;
 }

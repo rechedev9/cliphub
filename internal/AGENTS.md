@@ -19,6 +19,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Stream/VOD plan + render | `streamclips`, `streamcli`, `vodfetch` | Persisted `EditPlan` is canonical |
 | Multitrack editor | `mediaassets`, `timelineplan`, `timelinerender` | Persisted `timelineplan.Document` is canonical; preview evaluates the same stack FFmpeg composites |
 | Local API | `httpapi` | Plus HTMX workbench assets |
+| Hosted accounts / devices | `controlplane` | Metadata only; no demos or media |
 | Job handlers | `workers`, `tasks`, `job` | One capture lane. Record `MaxRetry(0)` |
 | Guided generate state | `generateintent` | Shared HTTP+worker store; record task gets an immutable copy |
 | Artifact keys / FS root | `artifacts`, `storage`, `filecommit` | Keys only in `artifacts`; no I/O there |

@@ -10,7 +10,7 @@ import {
 } from './boot-security.ts';
 
 test('creates distinct per-boot capabilities and keeps each child environment minimal', () => {
-  const values = ['1'.repeat(64), '2'.repeat(64)];
+  const values = ['1'.repeat(64), '2'.repeat(64), '3'.repeat(64)];
   const capabilities = createBootSecurityCapabilities(() => {
     const value = values.shift();
     if (value === undefined) throw new Error('unexpected capability request');
@@ -18,12 +18,16 @@ test('creates distinct per-boot capabilities and keeps each child environment mi
   });
 
   assert.deepEqual(orchestratorSecurityEnvironment(capabilities), {
+    CLIPHUB_HOSTED_BROWSER_CAPABILITY: undefined,
+    CLIPHUB_HOSTED_ORIGIN: undefined,
     CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     CLIPHUB_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
     ZV_MUTATION_TOKEN: '1'.repeat(64),
   });
   assert.deepEqual(webSecurityEnvironment(capabilities), {
+    CLIPHUB_HOSTED_BROWSER_CAPABILITY: '3'.repeat(64),
+    CLIPHUB_HOSTED_ORIGIN: undefined,
     CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     CLIPHUB_PROXY_MUTATION_CAPABILITY: '2'.repeat(64),
     ORCHESTRATOR_TOKEN: '1'.repeat(64),

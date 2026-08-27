@@ -5,13 +5,15 @@
   "packageManager": "pnpm@11.22.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build:worker": "tsc -p tsconfig.worker.json",
+    "dev": "pnpm run build:worker && next dev --webpack",
+    "build": "pnpm run build:worker && next build --webpack",
     "start": "next start",
     "lint": "oxlint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test:unit": "node --test --test-reporter=dot \"lib/**/*.test.ts\"",
     "test:e2e": "playwright test",
+    "test:e2e:hosted": "playwright test --config playwright.hosted.config.ts",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {

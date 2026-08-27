@@ -7,6 +7,9 @@ export const PROXY_MUTATION_CAPABILITY_COOKIE = 'cliphub_proxy_capability' as co
 export const MUTATION_CAPABILITY_ERROR = 'local API mutation capability required' as const;
 export const PROXY_BOOTSTRAP_CAPABILITY_ENV = 'CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY' as const;
 export const BOOTSTRAP_CAPABILITY_ERROR = 'local API bootstrap capability required' as const;
+export const HOSTED_ORIGIN_ENV = 'CLIPHUB_HOSTED_ORIGIN' as const;
+export const HOSTED_BROWSER_CAPABILITY_ENV = 'CLIPHUB_HOSTED_BROWSER_CAPABILITY' as const;
+export const HOSTED_BROWSER_CAPABILITY_ERROR = 'hosted browser capability required' as const;
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -26,12 +29,21 @@ export async function localAPIRequestError(headers: Headers, method = 'GET'): Pr
   if (localOrigin === undefined) return INVALID_HOST_ERROR;
   const host = new URL(localOrigin).host;
 
+  const origin = headers.get('origin');
+  if (origin !== null && origin === configuredHostedOrigin()) {
+    const supplied = bearerCapability(headers.get('authorization'));
+    const expected = process.env[HOSTED_BROWSER_CAPABILITY_ENV];
+    if (!expected || !supplied || !(await capabilityMatches(supplied, expected))) {
+      return HOSTED_BROWSER_CAPABILITY_ERROR;
+    }
+    return undefined;
+  }
+
   const fetchSite = headers.get('sec-fetch-site');
   if (fetchSite !== null && !ALLOWED_FETCH_SITES.has(fetchSite.toLowerCase())) {
     return CROSS_SITE_ERROR;
   }
 
-  const origin = headers.get('origin');
   if (origin !== null) {
     try {
       const parsed = new URL(origin);
@@ -58,6 +70,28 @@ export async function localAPIRequestError(headers: Headers, method = 'GET'): Pr
     return MUTATION_CAPABILITY_ERROR;
   }
   return undefined;
+}
+
+export function localAPICORSHeaders(headers: Headers): Headers | null {
+  const origin = headers.get('origin');
+  if (origin === null || origin !== configuredHostedOrigin()) return null;
+  return new Headers({
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Range',
+    'Access-Control-Allow-Private-Network': 'true',
+    'Access-Control-Expose-Headers': 'Accept-Ranges, Content-Length, Content-Range',
+    'Access-Control-Max-Age': '600',
+    Vary: 'Origin',
+  });
+}
+
+export function withLocalCORS(request: Request, response: Response): Response {
+  const cors = localAPICORSHeaders(request.headers);
+  if (cors === null) return response;
+  const headers = new Headers(response.headers);
+  cors.forEach((value, name) => headers.set(name, value));
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 /**
@@ -105,6 +139,24 @@ async function capabilityMatches(supplied: string, expected: string): Promise<bo
     difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
   }
   return difference === 0;
+}
+
+function configuredHostedOrigin(): string | null {
+  const raw = process.env[HOSTED_ORIGIN_ENV];
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'https:' || parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+function bearerCapability(value: string | null): string | null {
+  if (value === null || !value.startsWith('Bearer ')) return null;
+  const token = value.slice('Bearer '.length);
+  return /^[a-f0-9]{64}$/.test(token) ? token : null;
 }
 
 function cookieValue(headers: Headers, name: string): string | undefined {

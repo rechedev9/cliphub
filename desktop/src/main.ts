@@ -5,9 +5,13 @@ import {
   BrowserWindow,
   clipboard,
   ipcMain,
+  Menu,
+  nativeImage,
+  safeStorage,
   screen,
   shell,
   session,
+  Tray,
   type IpcMainInvokeEvent,
   type Event as ElectronEvent,
 } from 'electron';
@@ -15,6 +19,7 @@ import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import * as os from 'node:os';
 import { escapeHtml } from './escaping';
 import {
   createBootSecurityCapabilities,
@@ -59,12 +64,19 @@ import {
   APP_UPDATE_STATUS_CHANNEL,
   parseAppUpdateRequest,
 } from './app-update-ipc';
+import { loadOrCreateDeviceIdentity } from './device-identity';
+import { ControlPlaneClient } from './control-plane-client';
+import { buildHostedStudioURL, HostedAgentSession } from './hosted-agent-session';
 
 // ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
 
 // Every loopback bind and health check uses this host.
 const LOOPBACK_HOST = '127.0.0.1';
+const DEFAULT_HOSTED_WEB_ORIGIN = 'https://cliphub.gravityroom.app';
+const desktopMode = process.env.CLIPHUB_DESKTOP_MODE;
+const agentMode = desktopMode === 'agent' || (app.isPackaged && desktopMode !== 'studio');
+const hostedWebOrigin = configuredHostedWebOrigin(process.env.CLIPHUB_WEB_ORIGIN ?? DEFAULT_HOSTED_WEB_ORIGIN);
 
 // Packaged lock is under canonical appData; dev/e2e stays profile-scoped.
 const ownsElectronInstance = requestCanonicalSingleInstanceLock(app);
@@ -80,6 +92,14 @@ const appRoot = path.join(__dirname, '..');
 function resourcePath(...parts: string[]): string {
   const base = app.isPackaged ? process.resourcesPath : path.join(appRoot, 'build-resources');
   return path.join(base, ...parts);
+}
+
+function configuredHostedWebOrigin(raw: string): string {
+  const parsed = new URL(raw);
+  if (parsed.protocol !== 'https:' || parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') {
+    throw new Error('CLIPHUB_WEB_ORIGIN must be an HTTPS origin without a path');
+  }
+  return parsed.origin;
 }
 
 // Spawn the orchestrator directly: killing `zv serve` would orphan the real server.
@@ -132,6 +152,9 @@ let activeWebOrigin: string | null = null;
 let appUpdate: AppUpdateController | null = null;
 let appUpdateCheckTimer: NodeJS.Timeout | null = null;
 let appUpdateIntervalTimer: NodeJS.Timeout | null = null;
+let hostedAgentSession: HostedAgentSession | null = null;
+let agentTray: Tray | null = null;
+let hostedLaunchURL: string | null = null;
 
 const APP_UPDATE_START_DELAY_MS = 8_000;
 const APP_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -204,12 +227,13 @@ let renderProcessGoneResetTimer: NodeJS.Timeout | null = null;
 // After this, a later unrelated crash gets its own free reload.
 const RENDER_CRASH_RESET_DELAY_MS = 60_000;
 
-function createWindow(): BrowserWindow {
+function createWindow(show = true): BrowserWindow {
   const { bounds, isMaximized } = loadWindowState();
   const win = new BrowserWindow({
     ...bounds,
     backgroundColor: '#0a0a0a',
     title: 'ClipHub Studio',
+    show,
     webPreferences: {
       // Leave throttling on when hidden so the GPU can sleep.
       backgroundThrottling: true,
@@ -381,6 +405,55 @@ async function loadStudio(webPort: number, proxyMutationCapability: string): Pro
   }
 }
 
+async function startHostedAgent(webPort: number, browserCapability: string): Promise<void> {
+  hostedAgentSession?.stop();
+  const identity = loadOrCreateDeviceIdentity(
+    path.join(app.getPath('userData'), 'device-identity.json'),
+    safeStorage,
+  );
+  hostedLaunchURL = buildHostedStudioURL({
+    webOrigin: hostedWebOrigin,
+    localWebPort: webPort,
+    browserCapability,
+  });
+  const agent = new HostedAgentSession({
+    webOrigin: hostedWebOrigin,
+    localWebPort: webPort,
+    browserCapability,
+    registration: {
+      identity,
+      name: os.hostname(),
+      platform: `${process.platform}-${process.arch}`,
+      version: app.getVersion(),
+    },
+    client: new ControlPlaneClient(hostedWebOrigin),
+    openExternal: async (url) => shell.openExternal(url),
+    log: logLine,
+  });
+  hostedAgentSession = agent;
+  await agent.start();
+}
+
+function createAgentTray(): void {
+  if (agentTray !== null) return;
+  agentTray = new Tray(nativeImage.createFromPath(process.execPath));
+  agentTray.setToolTip('ClipHub Agent — procesamiento local activo');
+  agentTray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Abrir ClipHub', click: openHostedStudio },
+    { label: 'Buscar actualizaciones', click: () => { void appUpdate?.check(); } },
+    { type: 'separator' },
+    { label: 'Salir', click: () => app.quit() },
+  ]));
+  agentTray.on('double-click', openHostedStudio);
+}
+
+function openHostedStudio(): void {
+  if (hostedLaunchURL === null) return;
+  void shell.openExternal(hostedLaunchURL).catch((error: unknown) => {
+    logLine(`[agent] could not open hosted Studio: ${String(error)}\n`);
+  });
+}
+
 function waitForNavigationEvidence(
   evidence: Promise<SuccessfulNavigationEvidence>,
   timeoutMs: number,
@@ -419,7 +492,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   // Reuse the existing window on retry instead of opening another one over the
   // error screen from the failed attempt.
   const existing = aliveWindow();
-  const bootWindow = existing ?? createWindow();
+  const bootWindow = existing ?? createWindow(!agentMode);
   await bootWindow.loadFile(loadingHtmlPath);
   assertBootAttemptActive(attempt);
   loadingScreenShowing = true;
@@ -488,7 +561,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     HOSTNAME: LOOPBACK_HOST,
     ORCHESTRATOR_URL: orchestratorUrl,
     NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
-    ...webSecurityEnvironment(security),
+    ...webSecurityEnvironment(security, agentMode ? hostedWebOrigin : undefined),
     // Orchestrator unsets this itself; the Next child would inherit it.
     XAI_API_KEY: undefined,
   });
@@ -520,7 +593,13 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
 
   setLoadingStatus('Abriendo la interfaz…');
   allowedInternalUrls.clear();
-  await loadStudio(webPort, security.proxyMutationCapability);
+  if (agentMode) {
+    await startHostedAgent(webPort, security.hostedBrowserCapability);
+    bootWindow.hide();
+    createAgentTray();
+  } else {
+    await loadStudio(webPort, security.proxyMutationCapability);
+  }
   assertBootAttemptActive(attempt);
   scheduleAppUpdateChecks();
 }
@@ -544,6 +623,8 @@ function assertBootAttemptActive(attempt: BootAttempt): void {
 }
 
 function stopActiveBootAttempt(): boolean {
+  hostedAgentSession?.stop();
+  hostedAgentSession = null;
   const attempt = activeBootAttempt;
   allowedOrigins.clear();
   allowedInternalUrls.clear();
@@ -702,10 +783,16 @@ function disposeAppUpdate(): void {
 let quitting = false;
 
 function shutdown(): void {
+  hostedAgentSession?.stop();
+  hostedAgentSession = null;
   stopActiveBootAttempt();
 }
 
 app.on('second-instance', () => {
+  if (agentMode) {
+    openHostedStudio();
+    return;
+  }
   const win = aliveWindow();
   if (win === null) return;
   if (win.isMinimized()) win.restore();
@@ -724,9 +811,13 @@ app.whenReady().then(() => {
   runBoot();
 });
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => {
+  if (!agentMode) app.quit();
+});
 app.on('before-quit', () => {
   quitting = true;
+  agentTray?.destroy();
+  agentTray = null;
   disposeAppUpdate();
   shutdown();
 });

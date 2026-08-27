@@ -1,4 +1,5 @@
 import { SERVICE_UNAVAILABLE_CODE, type KeyDropStyle } from './types.ts';
+import { agentAwareFetch } from './agent-fetch.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -157,7 +158,7 @@ async function readJson<T>(res: Response): Promise<T> {
 export class RealStreamsApiClient implements StreamsApiClient {
   async createFromUrl(input: { sourceUrl: string; title?: string }): Promise<StreamJob> {
     return readJson<StreamJob>(
-      await fetch('/api/streams', {
+      await agentAwareFetch('/api/streams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_url: input.sourceUrl, title: input.title }),
@@ -169,7 +170,7 @@ export class RealStreamsApiClient implements StreamsApiClient {
     const form = new FormData();
     form.append('video', file, file.name);
     if (title) form.append('config', JSON.stringify({ title }));
-    return readJson<StreamJob>(await fetch('/api/streams', { method: 'POST', body: form }));
+    return readJson<StreamJob>(await agentAwareFetch('/api/streams', { method: 'POST', body: form }));
   }
 
   async listJobs(): Promise<StreamJob[]> {

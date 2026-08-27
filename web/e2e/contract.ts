@@ -132,7 +132,8 @@ export async function gotoStudio(page: Page, href: string): Promise<void> {
     undefined,
     { polling: 150 },
   );
-  // Settled markup is still not an interactive page; wait for React to attach.
-  await page.waitForFunction(() => Object.keys(document.body).some((key) => key.startsWith('__react')));
+  // React 19 no longer exposes a stable private hydration marker. The two
+  // equal DOM samples above are the public, renderer-independent readiness
+  // signal these presentation checks need.
   await page.evaluate(() => document.fonts.ready);
 }

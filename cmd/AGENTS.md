@@ -1,6 +1,6 @@
 # cmd/
 
-Twelve `package main` binaries → `bin/zv*`. Contract: thin flags + `os.Exit`; domain stays in `internal/`. Several bins already violate that — do not add more leak.
+Thirteen `package main` binaries → `bin/zv*`. Contract: thin flags + `os.Exit`; domain stays in `internal/`. Several bins already violate that — do not add more leak.
 
 ## WHERE TO LOOK
 
@@ -15,11 +15,12 @@ Twelve `package main` binaries → `bin/zv*`. Contract: thin flags + `os.Exit`; 
 | `zv-stream` | Thin `streamcli.Run` | `internal/streamcli` |
 | `zv-rhythm` | Beats/onsets | `internal/rhythm` |
 | `zv-orchestrator` | `zv serve` | **Leak:** SQLite + `inline_queue.go`. HTTP/workers in `internal/` |
+| `zv-control-plane` | Hosted accounts + device registry | `internal/controlplane` |
 | `zv-tui` | Bubble Tea client | Views here; HTTP in `internal/tuiclient` |
 | `zv-tactical-data` | Tick-window JSON export | `internal/tactical` |
 | `zv-analysis-viewer` | Loopback HTML death viewer | **Leak:** no `internal/` import |
 
-Build list is `scripts/build.ps1` / `Makefile` — both must list the same 12.
+Build list is `scripts/build.ps1` / `Makefile` — both must list the same 13.
 
 ## CONVENTIONS
 

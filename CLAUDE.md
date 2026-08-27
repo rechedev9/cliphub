@@ -31,7 +31,7 @@ stream video -> persisted edit plan -> render -> publish pack
 | Task | Location |
 |------|----------|
 | Go package map | `internal/AGENTS.md` |
-| 12 binaries / cmd leaks | `cmd/AGENTS.md` |
+| 13 binaries / cmd leaks | `cmd/AGENTS.md` |
 | `zv` CLI surface | `cmd/zv/AGENTS.md`; contract is `zv flows show` / `workflows show` |
 | Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `~/.grok/design.md` then `web/app/globals.css` + `frontend-design` skill |
 | Electron / installer | `desktop/GUIDE.md` |

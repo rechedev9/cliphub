@@ -4,6 +4,14 @@ A Windows desktop wrapper around Local Studio: one app that boots the Go
 orchestrator and the Next.js web UI (in local mode) and shows the flow in a
 native window, so an end user never touches Node, a terminal, or a browser.
 
+Packaged builds now default to **Agent mode**: the Electron window stays
+hidden, the local services remain in the tray, and ClipHub opens in the
+system Chrome browser at `https://cliphub.gravityroom.app`. Set
+`CLIPHUB_DESKTOP_MODE=studio` only for the legacy embedded-window fallback.
+The agent persists its device identity with Electron `safeStorage`, creates a
+fresh browser capability on every boot, and retries cloud registration without
+stopping local capture when the VPS is temporarily unavailable.
+
 It bundles the same pieces `scripts/local-studio.ps1` runs:
 
 - `zv-orchestrator.exe` - spawned directly (not via `zv serve`), so quitting

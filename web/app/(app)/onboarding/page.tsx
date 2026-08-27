@@ -4,9 +4,11 @@ import { StudioPageHeader } from '@/components/studio/page-header';
 import { GuideStage } from '@/components/onboarding/guide-stage';
 import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { RecentSteamMatches } from '@/components/onboarding/recent-matches';
+import { isHostedWebMode } from '@/lib/hosted-mode';
 
 /** Inicio (`00`): first-run screen inside the app shell, not beside it. */
 export default function OnboardingPage(): ReactNode {
+  const hosted = isHostedWebMode();
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
@@ -28,7 +30,7 @@ export default function OnboardingPage(): ReactNode {
         </li>
         <li className="inline-flex items-center gap-2">
           <Lock aria-hidden className="size-3.5 text-success" />
-          Sin login
+          {hosted ? 'Cuenta y dispositivo protegidos' : 'Sin login'}
         </li>
       </ul>
     </div>

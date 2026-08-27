@@ -47,6 +47,28 @@ test('proxy rejects cross-origin and DNS-rebound reads', async () => {
 
 test('proxy preserves the API matcher and streaming-route exclusions', () => {
   assert.deepEqual(config, {
-    matcher: '/api/((?!demos/scan/?$|streams/?$|editor/assets/?$|session/bootstrap/?$).*)',
+    matcher: [
+      '/((?!api/|_next/static|_next/image|favicon.ico).*)',
+      '/api/((?!demos/scan/?$|streams/?$|editor/assets/?$|session/bootstrap/?$).*)',
+    ],
   });
+});
+
+test('hosted proxy leaves account APIs public and refuses local APIs that escape the worker', async () => {
+  const previous = process.env.CLIPHUB_WEB_MODE;
+  process.env.CLIPHUB_WEB_MODE = 'hosted';
+  try {
+    const account = await proxy(new NextRequest('https://cliphub.example/api/account/session'));
+    assert.equal(account.headers.get('x-middleware-next'), '1');
+
+    const local = await proxy(new NextRequest('https://cliphub.example/api/demos/jobs'));
+    assert.equal(local.status, 503);
+    assert.deepEqual(await local.json(), {
+      code: 'agent_required',
+      error: 'Conecta ClipHub Agent para usar las herramientas locales.',
+    });
+  } finally {
+    if (previous === undefined) delete process.env.CLIPHUB_WEB_MODE;
+    else process.env.CLIPHUB_WEB_MODE = previous;
+  }
 });

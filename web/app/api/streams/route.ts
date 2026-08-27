@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { localAPIRequestError } from '@/lib/api/local-request-guard';
+import { localAPIRequestError, withLocalCORS } from '@/lib/api/local-request-guard';
 import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
 import {
   orchestratorUrl,
@@ -28,6 +28,10 @@ const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
  * unconfigured) passes through with its message so the UI can surface it.
  */
 export async function POST(request: Request): Promise<Response> {
+  return withLocalCORS(request, await post(request));
+}
+
+async function post(request: Request): Promise<Response> {
   const localError = await localAPIRequestError(request.headers, request.method);
   if (localError !== undefined) return NextResponse.json({ error: localError }, { status: 403 });
 
@@ -80,6 +84,10 @@ export async function POST(request: Request): Promise<Response> {
 
 /** GET /api/streams — list stream-clip jobs. */
 export async function GET(request: Request): Promise<Response> {
+  return withLocalCORS(request, await get(request));
+}
+
+async function get(request: Request): Promise<Response> {
   const localError = await localAPIRequestError(request.headers, request.method);
   if (localError !== undefined) return NextResponse.json({ error: localError }, { status: 403 });
 
@@ -88,4 +96,8 @@ export async function GET(request: Request): Promise<Response> {
   if (!res.ok) return forwardError(res);
 
   return NextResponse.json((await res.json()) as unknown);
+}
+
+export function OPTIONS(request: Request): Response {
+  return withLocalCORS(request, new Response(null, { status: 204 }));
 }

@@ -22,6 +22,7 @@ import {
   type EffectiveRenderMusic,
 } from './render-hydration';
 import { dataPlane, type DataPlane } from './dataplane';
+import { agentAwareFetch } from './agent-fetch';
 import { parsePublishAssistant, type PublishAssistant } from './publish-assistant';
 import {
   ROSTER_READY,
@@ -195,7 +196,7 @@ export class RealApiClient implements ApiClient {
     const dp = this.dp();
     const { url, init } = build(dp);
     const headers = { ...dp.headers, ...((init?.headers as Record<string, string> | undefined) ?? {}) };
-    return fetch(url, { ...init, headers });
+    return agentAwareFetch(url, { ...init, headers });
   }
 
   /** Reads a job's roster scan (players + optional match context) from the proxy. */

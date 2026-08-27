@@ -1,4 +1,5 @@
 import { localScan } from '../_local';
+import { withLocalCORS } from '@/lib/api/local-request-guard';
 
 export const runtime = 'nodejs';
 
@@ -9,5 +10,9 @@ export const runtime = 'nodejs';
  * the local server forwards the upload.
  */
 export async function POST(request: Request): Promise<Response> {
-  return localScan(request);
+  return withLocalCORS(request, await localScan(request));
+}
+
+export function OPTIONS(request: Request): Response {
+  return withLocalCORS(request, new Response(null, { status: 204 }));
 }

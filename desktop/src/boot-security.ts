@@ -8,6 +8,7 @@ export const PROXY_CAPABILITY_COOKIE = 'cliphub_proxy_capability';
 export interface BootSecurityCapabilities {
   mutationToken: string;
   proxyMutationCapability: string;
+  hostedBrowserCapability: string;
 }
 
 export interface CookieStore {
@@ -31,6 +32,7 @@ export function createBootSecurityCapabilities(
   const capabilities = {
     mutationToken: generate(),
     proxyMutationCapability: generate(),
+    hostedBrowserCapability: generate(),
   };
   const values = Object.values(capabilities);
   if (values.some((value) => !CAPABILITY_PATTERN.test(value))) {
@@ -46,6 +48,8 @@ export function orchestratorSecurityEnvironment(
   capabilities: BootSecurityCapabilities,
 ): NodeJS.ProcessEnv {
   return {
+    CLIPHUB_HOSTED_BROWSER_CAPABILITY: undefined,
+    CLIPHUB_HOSTED_ORIGIN: undefined,
     CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     CLIPHUB_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
@@ -55,8 +59,11 @@ export function orchestratorSecurityEnvironment(
 
 export function webSecurityEnvironment(
   capabilities: BootSecurityCapabilities,
+  hostedOrigin?: string,
 ): NodeJS.ProcessEnv {
   return {
+    CLIPHUB_HOSTED_BROWSER_CAPABILITY: capabilities.hostedBrowserCapability,
+    CLIPHUB_HOSTED_ORIGIN: hostedOrigin,
     CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
     CLIPHUB_PROXY_MUTATION_CAPABILITY: capabilities.proxyMutationCapability,
     ORCHESTRATOR_TOKEN: capabilities.mutationToken,

@@ -1,0 +1,17 @@
+.git
+.github
+.next
+**/.next
+**/node_modules
+bin
+data
+desktop/build-resources
+desktop/dist
+desktop/dist-installer
+web/playwright-report
+web/test-results
+*.dem
+*.mp4
+*.mov
+*.mkv
+*.log

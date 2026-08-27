@@ -82,6 +82,7 @@ $commands = @(
     "zv-parser",
     "zv-demo-players",
     "zv-orchestrator",
+    "zv-control-plane",
     "zv-recorder",
     "zv-composer",
     "zv-editor",

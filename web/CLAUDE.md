@@ -18,6 +18,14 @@ Do not introduce a parallel token set.
 It is local-first and stateless: it talks only to the orchestrator (`zv serve`) through same-origin proxy route handlers under `web/app/api/demos/*`, which forward `.dem` uploads and job calls while keeping the orchestrator URL and token server-side.
 `web/lib/api` always uses the real typed client; same-origin route handlers keep the orchestrator URL and token server-side.
 
+Hosted mode (`CLIPHUB_WEB_MODE=hosted`) adds accounts and device pairing while
+keeping the data plane local. A service worker forwards ordinary Studio API
+requests to the authenticated loopback gateway; multipart demo/VOD uploads go
+directly from Chrome to loopback because service-worker request streams require
+HTTP/2, while the agent intentionally serves HTTP/1.1 on `127.0.0.1`. Account,
+pairing, and installer routes remain on the hosted origin. Never proxy demos,
+media, Steam credentials, job SQLite, or render artifacts through the VPS.
+
 Finished Library reels expose a manual publication assistant through the per-artifact `/api/demos/*/publish-assistant` proxy. It generates Madrid-time guidance and factual reel-derived metadata, lets the user download the MP4, and opens only `https://studio.youtube.com/` in the system browser. Account, audience, visibility, scheduling, and the official upload flow remain entirely in YouTube Studio; ClipHub has no Google account connection or direct publishing path.
 Library ready cards do not require a cover-candidate pick before MP4 download or PREPARAR PUBLICACIÓN; cover generation in the render pipeline is unchanged.
 

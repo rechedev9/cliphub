@@ -1,4 +1,5 @@
 import type { EditorDocument, EditorSample } from '../editor/evaluate.ts';
+import { agentAwareFetch } from './agent-fetch.ts';
 
 export const EDITOR_STATUS = {
   draft: 'draft',
@@ -63,7 +64,7 @@ export class RealEditorApiClient {
   async uploadAsset(file: File): Promise<EditorAsset> {
     const form = new FormData();
     form.append('video', file, file.name);
-    return readJson<EditorAsset>(await fetch('/api/editor/assets', { method: 'POST', body: form }));
+    return readJson<EditorAsset>(await agentAwareFetch('/api/editor/assets', { method: 'POST', body: form }));
   }
 
   async importAsset(input: {

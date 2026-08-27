@@ -70,6 +70,11 @@ func checkCommandEntrypointCoverage(workflows []workflowInfo) ([]skillIssue, err
 	covered := map[string]struct{}{
 		"zv": {},
 	}
+	// Deployment daemons are built and operated directly; exposing them as a
+	// user workflow or legacy zv pass-through would make the CLI contract lie.
+	for _, command := range standaloneDeploymentEntrypoints() {
+		covered[command] = struct{}{}
+	}
 	for _, workflow := range workflows {
 		if command := workflowDelegatedCommand(workflow.RunArgs); command != "" {
 			covered[command] = struct{}{}
@@ -91,6 +96,10 @@ func checkCommandEntrypointCoverage(workflows []workflowInfo) ([]skillIssue, err
 	}
 	issues = append(issues, validateLegacyPassThroughEntrypoints(commands)...)
 	return issues, nil
+}
+
+func standaloneDeploymentEntrypoints() []string {
+	return []string{"zv-control-plane"}
 }
 
 func validateLegacyPassThroughEntrypoints(commands []string) []skillIssue {

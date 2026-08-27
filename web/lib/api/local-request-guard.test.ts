@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { localAPIBootstrapError, localAPIOrigin, localAPIRequestError } from './local-request-guard.ts';
+import {
+  HOSTED_BROWSER_CAPABILITY_ERROR,
+  localAPIBootstrapError,
+  localAPICORSHeaders,
+  localAPIOrigin,
+  localAPIRequestError,
+} from './local-request-guard.ts';
 
 function requestHeaders(values: Record<string, string>): Headers {
   return new Headers(values);
@@ -29,6 +35,39 @@ test('rejects cross-site browser requests to a loopback Host', async () => {
   }));
 
   assert.equal(error, 'cross-site request blocked');
+});
+
+test('allows only the configured hosted origin with its per-boot bearer capability', async () => {
+  const previousOrigin = process.env.CLIPHUB_HOSTED_ORIGIN;
+  const previousCapability = process.env.CLIPHUB_HOSTED_BROWSER_CAPABILITY;
+  process.env.CLIPHUB_HOSTED_ORIGIN = 'https://cliphub.example';
+  process.env.CLIPHUB_HOSTED_BROWSER_CAPABILITY = 'a'.repeat(64);
+  try {
+    const base = {
+      host: '127.0.0.1:43123',
+      origin: 'https://cliphub.example',
+      'sec-fetch-site': 'cross-site',
+    };
+    assert.equal(await localAPIRequestError(requestHeaders(base), 'GET'), HOSTED_BROWSER_CAPABILITY_ERROR);
+    assert.equal(await localAPIRequestError(requestHeaders({
+      ...base,
+      authorization: `Bearer ${'b'.repeat(64)}`,
+    }), 'POST'), HOSTED_BROWSER_CAPABILITY_ERROR);
+    assert.equal(await localAPIRequestError(requestHeaders({
+      ...base,
+      authorization: `Bearer ${'a'.repeat(64)}`,
+    }), 'POST'), undefined);
+
+    const cors = localAPICORSHeaders(requestHeaders(base));
+    assert.equal(cors?.get('access-control-allow-origin'), 'https://cliphub.example');
+    assert.match(cors?.get('access-control-allow-headers') ?? '', /Authorization/);
+    assert.equal(localAPICORSHeaders(requestHeaders({ origin: 'https://evil.example' })), null);
+  } finally {
+    if (previousOrigin === undefined) delete process.env.CLIPHUB_HOSTED_ORIGIN;
+    else process.env.CLIPHUB_HOSTED_ORIGIN = previousOrigin;
+    if (previousCapability === undefined) delete process.env.CLIPHUB_HOSTED_BROWSER_CAPABILITY;
+    else process.env.CLIPHUB_HOSTED_BROWSER_CAPABILITY = previousCapability;
+  }
 });
 
 test('rejects an Origin that does not match Host', async () => {
