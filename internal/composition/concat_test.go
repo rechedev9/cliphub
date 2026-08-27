@@ -138,6 +138,31 @@ func TestValidateFinalArtifactReportsBadShape(t *testing.T) {
 	}
 }
 
+func TestConcatArgBuilders(t *testing.T) {
+	list := "concat-list.txt"
+	out := "final.mp4"
+	copyJoin := strings.Join(copyConcatArgs(list, out), " ")
+	if !strings.Contains(copyJoin, "-c copy") {
+		t.Errorf("copyConcatArgs missing -c copy: %s", copyJoin)
+	}
+	if strings.Contains(copyJoin, "libx264") || strings.Contains(copyJoin, "-vf") {
+		t.Errorf("copyConcatArgs must not re-encode: %s", copyJoin)
+	}
+	reJoin := strings.Join(reencodeConcatArgs(list, out), " ")
+	for _, want := range []string{"-c:v libx264", "fps=60,format=yuv420p", "-vf"} {
+		if !strings.Contains(reJoin, want) {
+			t.Errorf("reencodeConcatArgs missing %q: %s", want, reJoin)
+		}
+	}
+	for _, join := range []string{copyJoin, reJoin} {
+		for _, want := range []string{"-f concat", "-safe 0", "-i " + list, "-movflags +faststart", out} {
+			if !strings.Contains(join, want) {
+				t.Errorf("concat args missing %q:\n%s", want, join)
+			}
+		}
+	}
+}
+
 func TestArtifactKeys(t *testing.T) {
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 

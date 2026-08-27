@@ -871,7 +871,7 @@ func TestFFmpegSettingsPerEncoder(t *testing.T) {
 	}
 }
 
-func TestGenerateHLAEJavaScriptDetectsSeekStall(t *testing.T) {
+func TestGenerateHLAEJavaScriptLogsSeekStallWithoutAborting(t *testing.T) {
 	js, err := GenerateHLAEJavaScript(testPlan())
 	if err != nil {
 		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
@@ -882,11 +882,23 @@ func TestGenerateHLAEJavaScriptDetectsSeekStall(t *testing.T) {
 		`let lastSeekTick = -1`,
 		`tick !== lastSeekTick`,
 		`seekStallFrames++`,
-		`seekStallFrames > maxSeekStallFrames`,
-		`stalled at target`,
+		`seekStallFrames === maxSeekStallFrames`,
+		`showed no tick progress for`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("generated JS missing %q\n%s", want, js)
+		}
+	}
+	// The stall detector is diagnostic-only: a healthy demo_gototick freezes the
+	// demo tick for the duration of its load and the client FPS is uncapped
+	// between record windows, so a frame-counted budget must never abort a
+	// capture. The hard bound stays maxSeekAttempts.
+	for _, banned := range []string{
+		`stalled at target`,
+		`capture_failed: seek`,
+	} {
+		if strings.Contains(js, banned) {
+			t.Errorf("generated JS still aborts on seek stall via %q", banned)
 		}
 	}
 }

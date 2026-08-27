@@ -41,33 +41,66 @@ func ComposeConcat(ctx context.Context, ffmpegPath, ffprobePath string, clips []
 	}
 
 	// When every clip is a lossless-copy-eligible constant frame rate H.264
-	// stream, concat with -c copy re-muxes without an extra re-encode pass.
-	// Otherwise fall back to the lossy re-encode path below.
-	var args []string
-	if CopyConcatEligible(clips) {
-		args = []string{
-			"-f", "concat",
-			"-safe", "0",
-			"-i", listPath,
-			"-c", "copy",
-			"-movflags", "+faststart",
-			attemptPath,
-		}
-	} else {
-		args = []string{
-			"-f", "concat",
-			"-safe", "0",
-			"-i", listPath,
-			"-vf", "fps=60,format=yuv420p",
-			"-c:v", "libx264",
-			"-preset", "fast",
-			"-crf", "18",
-			"-c:a", "aac",
-			"-b:a", "192k",
-			"-movflags", "+faststart",
-			attemptPath,
+	// stream, concat with -c copy re-muxes without an extra re-encode pass. A
+	// copy pass can still fail at mux time (for example mismatched audio
+	// timebases in a set that passes the metadata checks), so a failed copy
+	// retries once with the lossy re-encode path instead of failing the run.
+	copyOpt := CopyConcatEligible(clips)
+	args := reencodeConcatArgs(listPath, attemptPath)
+	if copyOpt {
+		args = copyConcatArgs(listPath, attemptPath)
+	}
+	if err := runConcat(ctx, ffmpegPath, args); err != nil {
+		if copyOpt {
+			if reErr := runConcat(ctx, ffmpegPath, reencodeConcatArgs(listPath, attemptPath)); reErr != nil {
+				return reErr
+			}
+		} else {
+			return err
 		}
 	}
+	if err := filecommit.Commit(attemptPath, outputPath); err != nil {
+		return fmt.Errorf("publish composition: %w", err)
+	}
+	return nil
+}
+
+// copyConcatArgs builds the lossless -c copy concat command line used when
+// every clip is CopyConcatEligible. The muxer re-times each input; no video or
+// audio payload is re-encoded.
+func copyConcatArgs(listPath, outputPath string) []string {
+	return []string{
+		"-f", "concat",
+		"-safe", "0",
+		"-i", listPath,
+		"-c", "copy",
+		"-movflags", "+faststart",
+		outputPath,
+	}
+}
+
+// reencodeConcatArgs builds the lossy re-encode concat command line, preserving
+// the historical zv-composer behavior for non-eligible sets and as the fallback
+// when a copy pass fails at mux time.
+func reencodeConcatArgs(listPath, outputPath string) []string {
+	return []string{
+		"-f", "concat",
+		"-safe", "0",
+		"-i", listPath,
+		"-vf", "fps=60,format=yuv420p",
+		"-c:v", "libx264",
+		"-preset", "fast",
+		"-crf", "18",
+		"-c:a", "aac",
+		"-b:a", "192k",
+		"-movflags", "+faststart",
+		outputPath,
+	}
+}
+
+// runConcat executes one ffmpeg concat command line and formats any failure
+// with the ffmpeg stderr detail.
+func runConcat(ctx context.Context, ffmpegPath string, args []string) error {
 	// #nosec G204 -- ffmpegPath is configured locally and args are not shell-interpolated.
 	cmd := exec.CommandContext(ctx, ffmpegPath, append([]string{"-y", "-v", "error"}, args...)...)
 	var stderr strings.Builder
@@ -77,9 +110,6 @@ func ComposeConcat(ctx context.Context, ffmpegPath, ffprobePath string, clips []
 			return fmt.Errorf("ffmpeg concat: %w: %s", err, msg)
 		}
 		return fmt.Errorf("ffmpeg concat: %w", err)
-	}
-	if err := filecommit.Commit(attemptPath, outputPath); err != nil {
-		return fmt.Errorf("publish composition: %w", err)
 	}
 	return nil
 }

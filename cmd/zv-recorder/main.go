@@ -235,6 +235,11 @@ func run() error {
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
+	if err := recording.CheckEncoderSupported(ffmpegPath, plan.Stream.Encoder); err != nil {
+		result.Error = err.Error()
+		_ = writeResult(plan.OutputDir, result)
+		return err
+	}
 
 	// CS2 must record in a real window: the player's own video settings
 	// (fullscreen / borderless) override the -windowed launch flag and turn the
