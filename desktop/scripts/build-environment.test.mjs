@@ -123,5 +123,28 @@ test('go runtime rebuild receives FACEIT_API_KEY for ldflags embed', () => {
     }
     assert.equal(goEnv.CSC_IDENTITY_AUTO_DISCOVERY, 'false');
     assert.equal(goEnv.Path, 'C:\\tools');
+    assert.equal(goEnv.GOTOOLCHAIN, 'local');
   }
+});
+
+test('go runtime rebuild forces GOTOOLCHAIN=local so a stale host cannot auto-download', () => {
+  const cases = [
+    { Path: 'C:\\tools' },
+    { Path: 'C:\\tools', GOTOOLCHAIN: 'auto' },
+    { Path: 'C:\\tools', GOTOOLCHAIN: 'go1.26.5' },
+  ];
+  for (const original of cases) {
+    const goEnv = goRuntimeBuildEnvironment(original);
+    assert.equal(goEnv.GOTOOLCHAIN, 'local');
+    assert.equal(goEnv.Path, 'C:\\tools');
+  }
+});
+
+test('release build environment preserves host GOTOOLCHAIN when present', () => {
+  const sanitized = releaseBuildEnvironment({
+    Path: 'C:\\tools',
+    GOTOOLCHAIN: 'local',
+  });
+  assert.equal(sanitized.GOTOOLCHAIN, 'local');
+  assert.equal(sanitized.Path, 'C:\\tools');
 });

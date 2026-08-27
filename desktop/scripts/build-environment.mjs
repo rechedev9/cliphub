@@ -40,6 +40,7 @@ const RELEASE_ENVIRONMENT_ALLOWLIST = new Set([
   'GOMODCACHE',
   'GOPATH',
   'GOROOT',
+  'GOTOOLCHAIN',
   'HOME',
   'HOMEDRIVE',
   'HOMEPATH',
@@ -100,5 +101,8 @@ export function goRuntimeBuildEnvironment(environment = process.env) {
   const sanitized = releaseBuildEnvironment(environment);
   const key = faceitAPIKeyFromEnvironment(environment);
   if (key !== '') sanitized.FACEIT_API_KEY = key;
+  // Installer rebuilds must use the host toolchain that setup-go / the
+  // official MSI installed. Auto-download would hide a stale patch.
+  sanitized.GOTOOLCHAIN = 'local';
   return sanitized;
 }

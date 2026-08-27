@@ -87,7 +87,18 @@ The authentication code, SteamID and Web API key are not env vars: Ajustes write
 
 ## Build the installer (on Windows)
 
-Prerequisites: Go 1.26+, Node.js + pnpm, and the web deps installed.
+Prerequisites: **Go 1.26.6**, Node.js + pnpm, and the web deps installed.
+`scripts/build.ps1` (and therefore `pnpm --dir desktop run dist`) bootstraps the
+official Windows Go 1.26.6 zip into `%LOCALAPPDATA%\ClipHub\toolchain` when PATH
+still has an older patch, verifies the SHA-256, and sets `GOTOOLCHAIN=local`.
+Pin and checksums live in `scripts/go-windows.json`:
+
+```text
+https://go.dev/dl/go1.26.6.windows-amd64.zip
+SHA-256: 5b6c5b556525810463b5c897b50dc7a82d6a3dc0bfaf55d990a7e9f31d6b2318
+https://go.dev/dl/go1.26.6.windows-amd64.msi
+SHA-256: 7c1390d3ab814753c3176bc0e0648ff70d3c2b4c3b22cced9c347f40dc920168
+```
 
 ```powershell
 # From the repo root:

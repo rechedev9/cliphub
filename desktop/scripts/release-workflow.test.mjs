@@ -23,6 +23,8 @@ test('desktop release workflow is the unsigned windows-latest publisher', () => 
     ['permissions:', 'GITHUB_TOKEN scope must be explicit'],
     ['contents: write', 'release asset upload needs contents: write'],
     ['CSC_IDENTITY_AUTO_DISCOVERY: \'false\'', 'CI must stay unsigned'],
+    ['go-version-file: go.mod', 'CI must install the go.mod toolchain for the NSIS rebuild'],
+    ['GOTOOLCHAIN: local', 'windows-latest must rebuild zv with the installed 1.26.6, not auto-download'],
     ['node desktop/scripts/seed-bundled-music.mjs', 'CI must seed gitignored Suno audio from the last installer'],
     ['pnpm --dir desktop run dist', 'must reuse the existing dist entrypoint'],
     ['FACEIT_API_KEY: ${{ secrets.FACEIT_API_KEY }}', 'CI must embed FACEIT in zv-orchestrator.exe'],

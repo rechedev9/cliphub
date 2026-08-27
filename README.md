@@ -27,7 +27,7 @@ If you want a local creator rig for CS2 highlights that feels like a production 
 
 ## Install
 
-Runtime for packaging: **Windows 10/11**, **Go 1.26+**, **Node 24**, **pnpm 11.22**.
+Runtime for packaging: **Windows 10/11**, **Go 1.26.6**, **Node 24**, **pnpm 11.22**.
 
 ### End users (Studio)
 

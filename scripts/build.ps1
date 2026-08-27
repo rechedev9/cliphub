@@ -6,6 +6,53 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "install-go-windows.ps1")
+
+function Get-GoModVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$GoModPath
+    )
+    $line = Get-Content -LiteralPath $GoModPath | Where-Object { $_ -match '^go\s+(\d+\.\d+(?:\.\d+)?)\s*$' } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($line)) {
+        throw "go.mod is missing a go version directive"
+    }
+    $raw = [regex]::Match($line, '^go\s+(\d+\.\d+(?:\.\d+)?)\s*$').Groups[1].Value
+    if ($raw -notmatch '^\d+\.\d+\.\d+$') {
+        $raw = "$raw.0"
+    }
+    return [version]$raw
+}
+
+function Get-InstalledGoVersion {
+    $output = & go version
+    if ($LASTEXITCODE -ne 0) {
+        throw "go version failed with exit $LASTEXITCODE"
+    }
+    $match = [regex]::Match([string]$output, 'go version go(\d+\.\d+(?:\.\d+)?)')
+    if (-not $match.Success) {
+        throw "unrecognized go version output: $output"
+    }
+    $raw = $match.Groups[1].Value
+    if ($raw -notmatch '^\d+\.\d+\.\d+$') {
+        $raw = "$raw.0"
+    }
+    return [version]$raw
+}
+
+function Assert-GoToolchainMatchesModule {
+    $goMod = Join-Path (Split-Path -Parent $PSScriptRoot) "go.mod"
+    $required = Get-GoModVersion -GoModPath $goMod
+    $pin = Read-PinnedWindowsGo
+    if ($pin.version -ne "$required") {
+        throw "scripts/go-windows.json version $($pin.version) does not match go.mod $required"
+    }
+    $installed = Get-InstalledGoVersion
+    if ($installed -lt $required) {
+        throw "Go $required or newer is required by go.mod; found $installed after Install-PinnedWindowsGo."
+    }
+}
+
 function Get-FaceitEmbedKey {
     foreach ($scope in @("Process", "User", "Machine")) {
         $value = [Environment]::GetEnvironmentVariable("FACEIT_API_KEY", $scope)
@@ -55,6 +102,8 @@ $backupDir = Join-Path $binDir ".backup-$transactionID"
 $publicationLock = $null
 
 try {
+    Install-PinnedWindowsGo
+    Assert-GoToolchainMatchesModule
     # Recover an interrupted publication before invoking any compiler, then keep
     # the same exclusive lease through the complete build and commit/rollback.
     $publicationLock = Enter-BuildPublicationLock -BinDir $binDir
