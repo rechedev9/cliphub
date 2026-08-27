@@ -23,6 +23,27 @@ test.describe('first run', () => {
     await expect(empty.locator('a[href="/streams"]')).toHaveCount(0);
   });
 
+  // Inicio → Sube una demo must not dump a first-run user on empty Partidas.
+  test('upload chrome returns to Inicio, not empty Partidas', async ({ page }) => {
+    await gotoStudio(page, '/onboarding');
+    await page.locator('main a[href="/upload"]').click();
+    await expect(page).toHaveURL(/\/upload$/);
+
+    const wordmark = page.getByRole('link', { name: 'Inicio de ClipHub' });
+    await expect(wordmark).toHaveAttribute('href', '/onboarding');
+    const back = page.getByRole('link', { name: 'Volver' });
+    await expect(back).toHaveAttribute('href', '/onboarding');
+
+    await wordmark.click();
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page.locator('section[aria-label="Aún no hay partidas"]')).toHaveCount(0);
+
+    await page.locator('main a[href="/upload"]').click();
+    await expect(page).toHaveURL(/\/upload$/);
+    await back.click();
+    await expect(page).toHaveURL(/\/onboarding$/);
+  });
+
   // Inicio keeps its three doors; no other screen lists all of them.
   test('Inicio is the only screen listing every door', async ({ page }) => {
     await gotoStudio(page, '/onboarding');
