@@ -16,7 +16,6 @@ import {
   FULL_DEMO_VOICE_VOLUME,
   classifyFullDemoLoadFailure,
   fullDemoEmptyState,
-  resolveFullDemoPreset,
 } from './full-demo.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 
@@ -40,18 +39,6 @@ test('full-demo edit is landscape recap with comms and native HUD', () => {
   assert.equal(FULL_DEMO_PRESET.hudMode, 'gameplay');
   assert.equal(FULL_DEMO_PRESET.width, 1920);
   assert.equal(FULL_DEMO_PRESET.height, 1080);
-});
-
-test('resolveFullDemoPreset prefers the registry card and falls back to the locked native POV', () => {
-  const fromApi = {
-    name: 'gameplay-pov-60',
-    label: 'POV nativo',
-    description: 'from orchestrator',
-    hudMode: 'gameplay',
-  };
-  assert.equal(resolveFullDemoPreset([fromApi]).description, 'from orchestrator');
-  assert.equal(resolveFullDemoPreset([]).name, FULL_DEMO_PRESET.name);
-  assert.equal(resolveFullDemoPreset([{ name: 'viral-60-clean', label: 'Killfeed', description: '' }]).name, FULL_DEMO_VARIANT);
 });
 
 test('full-demo mix is comms plus game with no music bed', () => {

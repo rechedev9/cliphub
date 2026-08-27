@@ -1,0 +1,87 @@
+'use client';
+
+import type { CreativeBriefItem } from '@/lib/reel-brief';
+import { Button } from '@/components/ui/button';
+
+export function FullDemoCaptureBar({
+  roundCount,
+  emptyHint,
+  creating,
+  briefItems,
+  briefApproved,
+  onBriefApprovedChange,
+  onCreate,
+}: {
+  roundCount: number;
+  emptyHint: string;
+  creating: boolean;
+  briefItems: CreativeBriefItem[];
+  briefApproved: boolean;
+  onBriefApprovedChange: (approved: boolean) => void;
+  onCreate: () => void;
+}) {
+  const configured = roundCount > 0;
+  const ready = configured && briefApproved && !creating;
+
+  return (
+    <div className="sticky bottom-0 z-20 -mx-(--shell-gutter) mt-2 border-t border-border-accent bg-surface-1 px-(--shell-gutter) py-4 shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)]">
+      <div className="flex flex-col gap-4">
+        <section className="studio-panel px-4 py-3" aria-labelledby="full-demo-brief-title">
+          <p id="full-demo-brief-title" className="font-mono text-meta uppercase tracking-wider text-primary">
+            Configuración exacta de captura
+          </p>
+          <dl className="mt-2.5 grid gap-x-6 gap-y-1.5 text-body-sm @[42rem]/content:grid-cols-2 @[70rem]/content:grid-cols-3">
+            {briefItems.map((item) => (
+              <div key={item.label} className="flex min-w-0 gap-1.5">
+                <dt className="shrink-0 text-fg-3">{item.label}:</dt>
+                <dd className="truncate text-fg-1" title={item.value}>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <label className="mt-3.5 flex min-h-10 items-center gap-2.5 text-body-sm text-fg-1">
+            <input
+              type="checkbox"
+              checked={briefApproved}
+              disabled={!configured || creating}
+              onChange={(event) => onBriefApprovedChange(event.target.checked)}
+              className="size-5 shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            Confirmo esta configuración para iniciar la captura local de la partida.
+          </label>
+        </section>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-meta uppercase tracking-widest text-fg-3">VÍDEO COMPLETO</p>
+            {configured ? (
+              <p className="mt-1 truncate font-mono text-body uppercase text-fg-1">
+                {roundCount} {roundCount === 1 ? 'ronda' : 'rondas'}
+                <span className="text-fg-3"> · </span>
+                <span className="text-primary">POV nativo</span>
+                <span className="text-fg-3"> · sin música</span>
+              </p>
+            ) : (
+              <p className="mt-1 truncate text-body-sm text-fg-2">{emptyHint}</p>
+            )}
+          </div>
+
+          <p className="shrink-0 font-mono text-label tracking-wider text-fg-2" aria-label="Formato del vídeo">
+            16:9
+          </p>
+
+          <Button
+            variant="hero"
+            size="lg"
+            disabled={!ready}
+            loading={creating}
+            loadingText="INICIANDO CAPTURA…"
+            onClick={onCreate}
+            className="neon-notch shrink-0 focus-visible:-outline-offset-4"
+          >
+            INICIAR CAPTURA
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

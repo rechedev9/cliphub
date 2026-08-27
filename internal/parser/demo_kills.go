@@ -34,6 +34,11 @@ func BuildRawKill(e events.Kill, gi gameInfo, targetID uint64, excludeTeamKills 
 	if e.Victim == nil {
 		return RawKill{}, false
 	}
+	// A suicide is a POV death boundary, never a target frag. Keep this
+	// invariant independent of the caller's team-kill preference.
+	if e.Killer.SteamID64 == e.Victim.SteamID64 {
+		return RawKill{}, false
+	}
 	if excludeTeamKills && e.Killer.Team == e.Victim.Team {
 		return RawKill{}, false
 	}
@@ -177,6 +182,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	c := NewCollector(target, r)
 	var mapName string
 	var maxTick int
+	var activeRound int
+	var roundLive bool
 	var watch *utilityWatch
 	if mode == SegmentModeRecap || alsoRecap {
 		watch = newUtilityWatch(targetID, target, &maxTick, c.RecordTargetIdentity)
@@ -189,6 +196,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	})
 	p.RegisterEventHandler(func(events.MatchStart) {
 		c.resetForMatchStart()
+		activeRound = 0
+		roundLive = false
 	})
 
 	p.RegisterEventHandler(func(e events.Kill) {
@@ -197,12 +206,25 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		if tick > maxTick {
 			maxTick = tick
 		}
-		gi := gameInfo{Tick: tick, Round: gs.TotalRoundsPlayed() + 1}
+		round := gs.TotalRoundsPlayed() + 1
+		if activeRound > 0 {
+			round = activeRound
+		}
+		gi := gameInfo{Tick: tick, Round: round}
 
+		targetDied := e.Victim != nil && e.Victim.SteamID64 == targetID
+		if targetDied {
+			c.RecordTargetIdentity(e.Victim.Name, teamLabel(e.Victim.Team))
+			// CS2 can emit cleanup deaths after RoundEnd, when the game-state
+			// counter already points at the next round. Only a live round owns a
+			// POV boundary; post-round events must not clip the following round.
+			if activeRound > 0 && roundLive {
+				c.RecordTargetDeath(TargetDeath{Round: activeRound, Tick: gi.Tick})
+			}
+		}
 		if e.Killer != nil && e.Killer.SteamID64 == targetID {
 			c.RecordTargetIdentity(e.Killer.Name, teamLabel(e.Killer.Team))
-		} else if e.Victim != nil && e.Victim.SteamID64 == targetID {
-			c.RecordTargetIdentity(e.Victim.Name, teamLabel(e.Victim.Team))
+		} else if targetDied {
 			return
 		}
 
@@ -226,7 +248,9 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		if tick < 1 {
 			tick = 1
 		}
-		c.RecordRoundStart(RoundStart{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
+		activeRound = gs.TotalRoundsPlayed() + 1
+		roundLive = false
+		c.RecordRoundStart(RoundStart{Round: activeRound, Tick: tick})
 	})
 
 	p.RegisterEventHandler(func(events.RoundFreezetimeEnd) {
@@ -238,7 +262,11 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		if tick < 1 {
 			tick = 1
 		}
-		c.RecordRoundLiveStart(RoundLiveStart{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
+		if activeRound == 0 {
+			activeRound = gs.TotalRoundsPlayed() + 1
+		}
+		roundLive = true
+		c.RecordRoundLiveStart(RoundLiveStart{Round: activeRound, Tick: tick})
 	})
 
 	p.RegisterEventHandler(func(events.RoundEnd) {
@@ -247,7 +275,13 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		if tick > maxTick {
 			maxTick = tick
 		}
-		c.RecordRoundEnd(RoundEnd{Round: gs.TotalRoundsPlayed() + 1, Tick: tick})
+		round := gs.TotalRoundsPlayed() + 1
+		if activeRound > 0 {
+			round = activeRound
+		}
+		c.RecordRoundEnd(RoundEnd{Round: round, Tick: tick})
+		activeRound = 0
+		roundLive = false
 	})
 
 	if err := parseToEnd(p); err != nil {

@@ -54,6 +54,25 @@ function Get-GoVersionFromOutput {
     return ConvertTo-GoVersion $match.Groups[1].Value
 }
 
+# Probe the executable that is actually installed on PATH. With Go's default
+# auto toolchain, a plain `go version` can report a downloaded toolchain newer
+# than the host binary; accepting that result makes the later local-only build
+# fail after the bootstrap has already returned.
+function Get-LocalGoVersion {
+    $hadPrevious = Test-Path Env:GOTOOLCHAIN
+    $previous = $env:GOTOOLCHAIN
+    try {
+        $env:GOTOOLCHAIN = "local"
+        return Get-GoVersionFromOutput (& go version 2>&1 | Select-Object -First 1)
+    } finally {
+        if ($hadPrevious) {
+            $env:GOTOOLCHAIN = $previous
+        } else {
+            [Environment]::SetEnvironmentVariable("GOTOOLCHAIN", $null, "Process")
+        }
+    }
+}
+
 function Get-Sha256Hex {
     param(
         [Parameter(Mandatory = $true)]
@@ -92,7 +111,7 @@ function Install-PinnedWindowsGo {
 
     $pathGo = Get-Command go -ErrorAction SilentlyContinue
     if ($null -ne $pathGo) {
-        $have = Get-GoVersionFromOutput (& go version 2>&1 | Select-Object -First 1)
+        $have = Get-LocalGoVersion
         if ($null -ne $have -and $have -ge $required) {
             $env:GOTOOLCHAIN = "local"
             return

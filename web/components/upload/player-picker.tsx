@@ -10,11 +10,7 @@ import { StudioDataRow } from '@/components/studio/data-row';
 import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 
-/**
- * A picker row is a scan's DemoPlayer, optionally carrying `mapsPresent` in
- * series mode (how many of the series' maps the player appeared in). It stays
- * optional so single-match callers pass a plain DemoPlayer unchanged.
- */
+// Series rows add mapsPresent; single-match callers keep plain DemoPlayer values.
 export type PickerPlayer = DemoPlayer & { mapsPresent?: number };
 
 export type PlayerPickerProps = {
@@ -24,12 +20,10 @@ export type PlayerPickerProps = {
   onPick: (steamId: string) => void;
   /** Match-level context (map, score, rounds) shown above the tables, when the scan has it. */
   match?: RosterMatch;
-  /**
-   * Total maps scanned in a bulk series. When 2+, the picker shows a series
-   * summary strip instead of the single-match header and flags players missing
-   * from some maps. Absent/1 keeps the plain single-match rendering.
-   */
+  /** Two or more maps switch the picker to its aggregated-series presentation. */
   seriesMapCount?: number;
+  /** Full-demo selects a continuous POV, while highlights optimizes for clip-worthy rounds. */
+  purpose?: 'highlights' | 'full-demo';
 };
 
 /** Tooltip copy for the abbreviated stat column headers. */
@@ -40,12 +34,7 @@ const STAT_TOOLTIPS: Record<string, string> = {
   hs: '% de kills por headshot',
 };
 
-/**
- * The HLTV-1.0 performance ramp, in tokens. `lib/format.ts` still maps the same
- * bands onto raw `emerald-400`/`amber-400`/`rose-400`, which neither track the
- * theme nor sit on the navy canvas' hue; the scoreboard keeps a token-mapped
- * copy of the bands until that shared helper is migrated.
- */
+// Token-mapped HLTV 1.0 bands keep the scoreboard aligned with the navy theme.
 const RATING_BANDS = [
   { min: 1.15, text: 'text-success', bar: 'bg-success' },
   { min: 0.95, text: 'text-fg-1', bar: 'bg-fg-2' },
@@ -62,10 +51,7 @@ function initials(name: string): string {
   return Array.from(name.trim()).slice(0, 2).join('').toUpperCase();
 }
 
-/**
- * Clip-worthiness score for the "Recommended" pick: multi-kill rounds are the
- * strongest signal a player's POV makes a good reel, weighted by kill count.
- */
+/** Clip-worthiness weights higher multi-kill rounds most strongly. */
 function clipScore(p: DemoPlayer): number {
   return 3 * (p.rounds5k ?? 0) + 2 * (p.rounds4k ?? 0) + 1 * (p.rounds3k ?? 0);
 }
@@ -77,6 +63,16 @@ function pickRecommended(players: DemoPlayer[]): DemoPlayer | undefined {
     const bestScore = clipScore(best);
     const score = clipScore(p);
     return score > bestScore || (score === bestScore && p.rating > best.rating) ? p : best;
+  }, undefined);
+}
+
+/** Highest match rating for a continuous full-demo POV, tiebroken by kills. */
+function pickPovRecommended(players: DemoPlayer[]): DemoPlayer | undefined {
+  return players.reduce<DemoPlayer | undefined>((best, player) => {
+    if (!best) return player;
+    return player.rating > best.rating || (player.rating === best.rating && player.kills > best.kills)
+      ? player
+      : best;
   }, undefined);
 }
 
@@ -150,11 +146,7 @@ function MatchHeader({ match }: { match: RosterMatch }) {
   );
 }
 
-/**
- * Compact series header shown above the roster in series mode: it replaces the
- * single-match score line (a series has no single map/score) with the map count
- * and roster size, so the user knows the scoreboard is aggregated across maps.
- */
+// Series has no single score, so its header shows map and roster counts instead.
 function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCount: number }) {
   return (
     <StudioDataRow
@@ -166,19 +158,10 @@ function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCoun
   );
 }
 
-/**
- * PlayerPicker — pick whose POV to clip after a roster scan, shown as a CS-style
- * scoreboard split by team (Terroristas / Antiterroristas), with a match header
- * (map, score, rounds) above it when the scan reports one. Each team is its own
- * table with column headers; rows carry HLTV rating, K/D/A, +/-, ADR, KAST, HS%
- * (and MVP when the demo reports it), plus a Highlights line of multi-kill chips
- * under the player name. The roster's clip-worthiest player (by multi-kill rounds,
- * the strongest signal for a good reel) is auto-highlighted and tagged
- * "Recomendado". Clicking a row changes the selection; the explicit continue
- * action confirms it.
- */
-export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerPickerProps) {
-  const recommended = pickRecommended(players);
+// CS-style roster picker: Highlights recommends multi-kill potential, while
+// Full Demo recommends the strongest match rating for a continuous POV.
+export function PlayerPicker({ players, onPick, match, seriesMapCount, purpose = 'highlights' }: PlayerPickerProps) {
+  const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
   const [selected, setSelected] = useState<string | null>(recommended?.steamId ?? players[0]?.steamId ?? null);
 
   useEffect(() => {
@@ -204,12 +187,8 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
     ...(showMvp ? [{ key: 'mvp', label: 'MVP', secondary: true, value: (p: DemoPlayer) => `${p.mvps}` }] : []),
   ];
 
-  // A fixed flexible player column plus one compact, tabular column per stat.
-  // A narrow content column (a snapped window, or the picker at mobile width)
-  // drops the secondary columns instead of letting the grid crush the player
-  // name to zero width, so the template switches on the same container step
-  // that hides the cells. Typed rather than cast: CSSProperties has no index
-  // signature for custom properties.
+  // Narrow containers hide secondary stats instead of crushing the player name.
+  // CSSProperties lacks an index signature for these custom grid variables.
   const coreCount = columns.filter((c) => !c.secondary).length;
   const gridStyle: CSSProperties & { '--pp-cols': string; '--pp-cols-wide': string } = {
     '--pp-cols': `minmax(0,1fr) repeat(${coreCount}, minmax(2.5rem,2.75rem))`,
@@ -267,9 +246,7 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                 const active = p.steamId === selected;
                 const isRecommended = p.steamId === recommended?.steamId;
                 const chips = highlightChips(p);
-                // Series mode: flag players who did not appear in every map. A
-                // player present everywhere (the common case) stays visually
-                // quiet — no chip at all.
+                // In series mode, flag only players missing from at least one map.
                 const showMapsChip =
                   isSeries && typeof p.mapsPresent === 'number' && p.mapsPresent < (seriesMapCount ?? 0);
                 const mapsChip = showMapsChip ? (
@@ -299,18 +276,11 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                     className={cn(
                       'grid w-full cursor-pointer items-center gap-x-1 border-b border-border-subtle px-3 py-2.5 text-left last:border-b-0',
                       'transition-[background-color,box-shadow] duration-(--dur-fast) ease-standard',
-                      // The row lives inside an `overflow-hidden` table, so the
-                      // ring is drawn INSIDE the row's own box: a positive
-                      // outline offset would be clipped away on the first and
-                      // last rows. v3 shipped `focus-visible:bg-primary/10`,
-                      // which measured ~1.3:1 against the row — no indicator at
-                      // all on the most keyboard-driven surface in the product.
+                      // Draw the focus ring inside the overflow-hidden table so edge rows keep it.
                       FOCUS_RING,
                       'focus-visible:-outline-offset-2',
                       gridClass,
-                      // The recommended row keeps a permanent left accent + tint so it reads at a
-                      // glance even when the user's mouse is elsewhere; the ring below layers on
-                      // top for whichever row is the current pick target (hover/keyboard focus).
+                      // Recommendation stays tinted; the ring marks the current pointer/focus target.
                       isRecommended && 'bg-primary/10 shadow-[inset_3px_0_0_0_var(--primary)]',
                       active
                         ? 'bg-primary/10 ring-1 ring-inset ring-primary/60'
@@ -339,7 +309,7 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
                       <span className="flex flex-wrap items-center gap-1.5 pl-[2.375rem]">
                         {isRecommended ? (
                           <Badge shape="square" className="min-h-7 px-2">
-                            Recomendado
+                            {purpose === 'full-demo' ? 'Mejor rendimiento' : 'Recomendado'}
                           </Badge>
                         ) : null}
                         {mapsChip}
@@ -377,7 +347,8 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
         <p className="min-w-0 text-body-sm text-fg-2">
           {selectedPlayer ? (
             <>
-              Vas a clipear a <strong className="font-semibold text-fg-1">{selectedPlayer.name}</strong>.
+              {purpose === 'full-demo' ? 'POV seleccionado: ' : 'Vas a clipear a '}
+              <strong className="font-semibold text-fg-1">{selectedPlayer.name}</strong>.
             </>
           ) : (
             'Selecciona un jugador y continúa cuando estés listo.'
@@ -389,7 +360,7 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount }: PlayerP
           disabled={selected === null}
           onClick={() => selected && onPick(selected)}
         >
-          CONTINUAR
+          {purpose === 'full-demo' ? 'REVISAR CAPTURA' : 'CONTINUAR'}
         </Button>
       </div>
     </div>

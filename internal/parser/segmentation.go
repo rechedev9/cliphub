@@ -43,6 +43,13 @@ type RoundLiveStart struct {
 	Tick  int
 }
 
+// TargetDeath marks the last live tick for the selected player's POV in a
+// round. A full-demo segment cannot legitimately continue on that POV after it.
+type TargetDeath struct {
+	Round int
+	Tick  int
+}
+
 // Segment groups a chronologically ordered list of kills into recording
 // segments according to the supplied rules and tickrate. The input slice
 // must be sorted by Tick ascending.
@@ -102,7 +109,7 @@ func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int)
 // SegmentRecap records each live round from freeze-end to round end so a
 // landscape POV recap skips buy time and hard-cuts between rounds.
 // Rounds without target kills are kept when live bounds are known.
-func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []RoundStart, liveStarts []RoundLiveStart, roundEnds []RoundEnd, r rules.Rules, tickrate int) []killplan.Segment {
+func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []RoundStart, liveStarts []RoundLiveStart, roundEnds []RoundEnd, targetDeaths []TargetDeath, r rules.Rules, tickrate int) []killplan.Segment {
 	if tickrate <= 0 {
 		return nil
 	}
@@ -112,6 +119,7 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 	startByRound := indexRoundStarts(roundStarts)
 	liveByRound := indexRoundLiveStarts(liveStarts)
 	endByRound := indexRoundEnds(roundEnds)
+	deathByRound := indexTargetDeaths(targetDeaths)
 	killsByRound := map[int][]RawKill{}
 	for _, kill := range kills {
 		killsByRound[kill.Round] = append(killsByRound[kill.Round], kill)
@@ -136,21 +144,29 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 			continue
 		}
 		g := killsByRound[round]
-		if len(g) > 0 && len(g) < r.MinKillsInWindow {
-			continue
-		}
 		liveStart := recapLiveStart(round, g, utilityByRound[round], liveByRound, startByRound, previousEnd)
 		tickStart, tickEnd := recapRoundWindow(round, g, utilityByRound[round], liveStart, endByRound)
-		roundEnd := 0
+		liveEnd := 0
+		hasLiveDeath := false
 		if end, ok := endByRound[round]; ok {
-			roundEnd = end
+			liveEnd = end
 		}
-		tickStart, tickEnd = expandRecapWindowForUtility(tickStart, tickEnd, utilityByRound[round], preRollTicks, postRollTicks, roundEnd)
+		if death, ok := firstTargetDeathInWindow(deathByRound[round], liveStart, liveEnd); ok {
+			liveEnd = death
+			hasLiveDeath = true
+		}
+		if liveEnd > 0 && (tickEnd <= liveStart || liveEnd < tickEnd) {
+			tickEnd = liveEnd
+		}
+		tickStart, tickEnd = expandRecapWindowForUtility(tickStart, tickEnd, utilityByRound[round], preRollTicks, postRollTicks, liveEnd)
 		if liveStart > 0 && tickStart < liveStart {
 			tickStart = liveStart
 		}
 		// Recording rejects TickEnd <= TickStart; kill-only fallbacks get 1s, not a Shorts post-roll.
 		if tickEnd <= tickStart {
+			if hasLiveDeath {
+				continue
+			}
 			if len(g) == 0 {
 				continue
 			}
@@ -359,6 +375,32 @@ func indexRoundEnds(roundEnds []RoundEnd) map[int]int {
 		}
 	}
 	return out
+}
+
+func indexTargetDeaths(deaths []TargetDeath) map[int][]int {
+	if len(deaths) == 0 {
+		return nil
+	}
+	out := make(map[int][]int, len(deaths))
+	for _, death := range deaths {
+		if death.Round > 0 && death.Tick > 0 {
+			out[death.Round] = append(out[death.Round], death.Tick)
+		}
+	}
+	return out
+}
+
+func firstTargetDeathInWindow(deaths []int, liveStart, liveEnd int) (int, bool) {
+	first := 0
+	for _, death := range deaths {
+		if death < liveStart || (liveEnd > 0 && death >= liveEnd) {
+			continue
+		}
+		if first == 0 || death < first {
+			first = death
+		}
+	}
+	return first, first > 0
 }
 
 func roundEndForRound(roundEndByRound map[int]int, round int) (int, bool) {

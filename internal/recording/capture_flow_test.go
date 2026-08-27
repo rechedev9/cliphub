@@ -113,9 +113,9 @@ func TestCaptureFlowDiversePlanShapes(t *testing.T) {
 			scriptMust:     []string{`record-start-smoke-a`, `record-end-smoke-a`},
 			check: func(t *testing.T, plan RecordingPlan, _ []scheduledCommand, _ []seekStep, windows []captureWindow, _ string) {
 				t.Helper()
-				// Kill-less segments verify POV through record end.
-				if windows[0].VerifyUntil != windows[0].RecordEnd {
-					t.Fatalf("utility-only VerifyUntil=%d RecordEnd=%d, want equal", windows[0].VerifyUntil, windows[0].RecordEnd)
+				// Verification stops before the record-end boundary is processed.
+				if windows[0].VerifyUntil != windows[0].RecordEnd-1 {
+					t.Fatalf("utility-only VerifyUntil=%d, want RecordEnd-1 (%d)", windows[0].VerifyUntil, windows[0].RecordEnd-1)
 				}
 				if EffectiveRecordStartTick(plan.Segments[0], plan.Tickrate) != plan.Segments[0].TickStart {
 					t.Fatalf("utility-only start should equal TickStart without kill settle")

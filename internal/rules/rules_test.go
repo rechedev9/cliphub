@@ -32,7 +32,7 @@ func TestDefaultRules(t *testing.T) {
 	if r.MaxRound != 0 {
 		t.Errorf("MaxRound default = %d, want 0 (no max)", r.MaxRound)
 	}
-	wantWeapons := []string{"awp", "deagle", "ak47", "m4a1", "m4a1_silencer", "usp_silencer", "glock", "hkp2000"}
+	wantWeapons := []string{AllWeapons}
 	if len(r.Weapons) != len(wantWeapons) {
 		t.Fatalf("Weapons default length = %d, want %d", len(r.Weapons), len(wantWeapons))
 	}
@@ -156,12 +156,26 @@ func TestLoadMaxRoundSetsValue(t *testing.T) {
 }
 
 func TestAllowsWeapon(t *testing.T) {
-	r := Default()
-	if !r.AllowsWeapon("awp") {
-		t.Errorf("AllowsWeapon(awp) = false, want true (in defaults)")
+	tests := []struct {
+		name   string
+		rules  Rules
+		weapon string
+		want   bool
+	}{
+		{name: "default rifle", rules: Default(), weapon: "awp", want: true},
+		{name: "default p90", rules: Default(), weapon: "p90", want: true},
+		{name: "default knife", rules: Default(), weapon: "knife", want: true},
+		{name: "default future weapon", rules: Default(), weapon: "future_cs2_weapon", want: true},
+		{name: "default empty weapon", rules: Default(), weapon: "", want: false},
+		{name: "custom allowed", rules: Rules{Weapons: []string{"awp"}}, weapon: "awp", want: true},
+		{name: "custom filtered", rules: Rules{Weapons: []string{"awp"}}, weapon: "p90", want: false},
 	}
-	if r.AllowsWeapon("knife") {
-		t.Errorf("AllowsWeapon(knife) = true, want false (not in defaults)")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.rules.AllowsWeapon(tt.weapon); got != tt.want {
+				t.Fatalf("AllowsWeapon(%q) = %v, want %v", tt.weapon, got, tt.want)
+			}
+		})
 	}
 }
 

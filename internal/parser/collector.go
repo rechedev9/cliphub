@@ -19,11 +19,13 @@ type Collector struct {
 	target string
 	rules  rules.Rules
 
-	kills       []RawKill
-	utility     []RawUtilityThrow
-	roundStarts []RoundStart
-	liveStarts  []RoundLiveStart
-	roundEnds   []RoundEnd
+	kills        []RawKill
+	allKills     []RawKill
+	utility      []RawUtilityThrow
+	roundStarts  []RoundStart
+	liveStarts   []RoundLiveStart
+	roundEnds    []RoundEnd
+	targetDeaths []TargetDeath
 
 	totalKillsTarget    int
 	killsAfterFilters   int
@@ -59,10 +61,12 @@ func NewCollector(target string, r rules.Rules) *Collector {
 // without that event retain the documented collect-from-first-event fallback.
 func (c *Collector) resetForMatchStart() {
 	c.kills = nil
+	c.allKills = nil
 	c.utility = nil
 	c.roundStarts = nil
 	c.liveStarts = nil
 	c.roundEnds = nil
+	c.targetDeaths = nil
 	c.totalKillsTarget = 0
 	c.killsAfterFilters = 0
 	c.totalUtilityTarget = 0
@@ -92,6 +96,7 @@ func (c *Collector) RecordTargetIdentity(name, teamAtStart string) {
 // only if it passes the configured filters.
 func (c *Collector) RecordKill(k RawKill) {
 	c.totalKillsTarget++
+	c.allKills = append(c.allKills, k)
 
 	if !c.rules.AllowsWeapon(k.Weapon) {
 		return
@@ -105,6 +110,13 @@ func (c *Collector) RecordKill(k RawKill) {
 
 	c.kills = append(c.kills, k)
 	c.killsAfterFilters++
+}
+
+// RecordTargetDeath remembers when the selected POV stops existing in a live
+// round. Full-demo capture must end there instead of drifting to a teammate or
+// requiring an observer target through the round-end transition.
+func (c *Collector) RecordTargetDeath(death TargetDeath) {
+	c.targetDeaths = append(c.targetDeaths, death)
 }
 
 func (c *Collector) RecordUtility(u RawUtilityThrow) {
@@ -163,6 +175,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	}
 
 	sortRawKillsByTick(c.kills)
+	sortRawKillsByTick(c.allKills)
 	sortUtilityThrowsByThrowTick(c.utility)
 	for i := range c.utility {
 		if c.utility[i].ID == "" {
@@ -170,10 +183,15 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		}
 	}
 
+	planRules := c.rules
+	planKillsAfterFilters := c.killsAfterFilters
 	var segs []killplan.Segment
 	switch mode {
 	case SegmentModeRecap:
-		segs = SegmentRecap(c.kills, c.utility, c.roundStarts, c.liveStarts, c.roundEnds, c.rules, m.Tickrate)
+		planRules = recapRules(c.rules)
+		recapKills := filterKillsForRules(c.allKills, planRules)
+		planKillsAfterFilters = len(recapKills)
+		segs = SegmentRecap(recapKills, c.utility, c.roundStarts, c.liveStarts, c.roundEnds, c.targetDeaths, planRules, m.Tickrate)
 	default:
 		segs = Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
 	}
@@ -195,11 +213,11 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		NameInDemo:  c.targetName,
 		TeamAtStart: c.targetTeamAtStart,
 	}
-	plan.Rules = c.rules
+	plan.Rules = planRules
 	plan.Segments = segs
 	plan.Stats = killplan.Stats{
 		TotalKillsTarget:     c.totalKillsTarget,
-		KillsAfterFilters:    c.killsAfterFilters,
+		KillsAfterFilters:    planKillsAfterFilters,
 		TotalUtilityTarget:   c.totalUtilityTarget,
 		UtilityAfterFilters:  c.utilityAfterFilters,
 		TotalSmokesTarget:    c.totalSmokesTarget,
@@ -208,6 +226,29 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		DurationSecondsTotal: totalSegmentSeconds(segs, m.Tickrate),
 	}
 	return plan, nil
+}
+
+func recapRules(r rules.Rules) rules.Rules {
+	r.Weapons = []string{rules.AllWeapons}
+	r.IncludeHeadshotOnly = false
+	r.MinKillsInWindow = 1
+	r.MinRound = 1
+	r.MaxRound = 0
+	return r
+}
+
+func filterKillsForRules(kills []RawKill, r rules.Rules) []RawKill {
+	filtered := make([]RawKill, 0, len(kills))
+	for _, kill := range kills {
+		if !r.AllowsWeapon(kill.Weapon) || !r.AllowsRound(kill.Round) {
+			continue
+		}
+		if r.IncludeHeadshotOnly && !kill.Headshot {
+			continue
+		}
+		filtered = append(filtered, kill)
+	}
+	return filtered
 }
 
 // demoEndSafetyMarginSeconds keeps segment ends away from CS2 demo EOF.

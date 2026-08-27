@@ -53,6 +53,7 @@ export function FullDemoPicker(): ReactNode {
         </p>
       ) : null}
       <SingleDemoParse
+        purpose="full-demo"
         onParsed={(match) => {
           router.push(`${FULL_DEMO_HREF}/${match.id}`);
         }}

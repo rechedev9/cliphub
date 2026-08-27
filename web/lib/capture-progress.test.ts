@@ -26,7 +26,7 @@ test('detail names the in-flight segment instead of only completed clips', () =>
     { progress: { done: 0, total: 4, percent: 0 }, want: 'Preparando captura local' },
     { progress: { done: 0, total: 4, percent: 8 }, want: 'Capturando 1/4' },
     { progress: { done: 3, total: 4, percent: 82 }, want: 'Capturando 4/4' },
-    { progress: { done: 4, total: 4, percent: 100 }, want: 'Segmentos 4/4' },
+    { progress: { done: 4, total: 4, percent: 100 }, want: 'Validando captura local' },
   ];
   for (const tt of cases) {
     assert.equal(captureProgressDetail(tt.progress), tt.want, JSON.stringify(tt.progress));

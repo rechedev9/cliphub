@@ -42,11 +42,6 @@ export const FULL_DEMO_PRESET: Preset = {
   height: 1080,
 };
 
-/** Prefer the live registry card; keep a clickable fallback if the orchestrator is stale. */
-export function resolveFullDemoPreset(presets: Preset[]): Preset {
-  return presets.find((preset) => preset.name === FULL_DEMO_VARIANT) ?? FULL_DEMO_PRESET;
-}
-
 export const FULL_DEMO_CONTRACT = [
   { label: 'Formato', value: 'Horizontal 16:9 · 1920×1080' },
   { label: 'Entrega', value: 'Rondas en vivo · sin freeze' },

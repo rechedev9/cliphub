@@ -6,7 +6,7 @@ import { SearchX, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { canForgeReel, reelCreativeBrief } from '@/lib/reel-brief';
-import { FullDemoStylePicker } from '@/components/full-demo/style-picker';
+import { FullDemoCaptureBar } from '@/components/full-demo/capture-bar';
 import {
   FULL_DEMO_EDIT,
   FULL_DEMO_FORGE_HINT_EMPTY,
@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
-import { CreateReelBar } from '@/components/clips/create-reel-bar';
 
 export default function FullDemoJobPage({ params }: { params: Promise<{ id: string }> }): ReactNode {
   const { id } = use(params);
@@ -34,7 +33,6 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [loaded, setLoaded] = useState(false);
   const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
   const [recapError, setRecapError] = useState(false);
-  const [variant, setVariant] = useState<string | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -77,7 +75,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
       !canForgeReel({
         briefApproved,
         creating,
-        hasPreset: variant === FULL_DEMO_VARIANT,
+        hasPreset: true,
         selectionCount: plays.length,
         musicDecided: true,
       })
@@ -120,10 +118,9 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const selectedPreset = variant === FULL_DEMO_VARIANT ? FULL_DEMO_PRESET : null;
   const briefItems = reelCreativeBrief(
     FULL_DEMO_EDIT,
-    selectedPreset,
+    FULL_DEMO_PRESET,
     { status: 'none' },
   );
 
@@ -132,7 +129,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
       <StudioBackLink href={FULL_DEMO_HREF}>FULL DEMO TO VIDEO</StudioBackLink>
       <StudioPageHeader
         title={match.map.toUpperCase()}
-        description={`${match.player ? `${match.player} · ` : ''}Rondas en vivo (sin freeze) con HUD nativo y comms. Sin música. El brief de Shorts está cerrado.`}
+        description={`${match.player ? `${match.player} · ` : ''}POV de todas sus rondas en vivo, desde el fin del freeze hasta su muerte o el final de ronda.`}
       />
 
       {createError ? (
@@ -150,21 +147,9 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         <p className="text-body-sm text-fg-2">{FULL_DEMO_ROUNDS_PENDING}</p>
       ) : null}
 
-      <FullDemoStylePicker
-        value={variant}
-        onChange={setVariant}
-        disabled={plays.length === 0 || creating}
-      />
-
-      <CreateReelBar
-        selectionLabel={plays.length === 0 ? null : `${plays.length} ${plays.length === 1 ? 'ronda' : 'rondas'}`}
-        emptySelectionHint={recapError ? FULL_DEMO_FORGE_HINT_ERROR : FULL_DEMO_FORGE_HINT_EMPTY}
-        presetLabel={selectedPreset?.label ?? null}
-        songTitle={null}
-        musicDecided
-        format={FULL_DEMO_EDIT.format}
-        onFormatChange={() => undefined}
-        formatLocked
+      <FullDemoCaptureBar
+        roundCount={plays.length}
+        emptyHint={recapError ? FULL_DEMO_FORGE_HINT_ERROR : FULL_DEMO_FORGE_HINT_EMPTY}
         creating={creating}
         briefItems={briefItems}
         briefApproved={briefApproved}

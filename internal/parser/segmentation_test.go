@@ -238,18 +238,19 @@ func TestSegmentRecap(t *testing.T) {
 	shortsPre := 3 * testTickrate
 	shortsPost := 5 * testTickrate
 	tests := []struct {
-		name        string
-		kills       []RawKill
-		roundStarts []RoundStart
-		liveStarts  []RoundLiveStart
-		roundEnds   []RoundEnd
-		rules       func() rules.Rules
-		wantSegs    int
-		wantRound   int
-		wantKills   int
-		checkRange  bool
-		wantStart   int
-		wantEnd     int
+		name         string
+		kills        []RawKill
+		roundStarts  []RoundStart
+		liveStarts   []RoundLiveStart
+		roundEnds    []RoundEnd
+		targetDeaths []TargetDeath
+		rules        func() rules.Rules
+		wantSegs     int
+		wantRound    int
+		wantKills    int
+		checkRange   bool
+		wantStart    int
+		wantEnd      int
 	}{
 		{
 			name:     "empty",
@@ -320,7 +321,7 @@ func TestSegmentRecap(t *testing.T) {
 			wantEnd:     10300,
 		},
 		{
-			name: "min kills drops a lone-kill round",
+			name: "shorts minimum does not drop a full-demo round",
 			kills: []RawKill{
 				mkKill(10000, 5, "awp"),
 				mkKill(20000, 6, "awp"),
@@ -331,9 +332,78 @@ func TestSegmentRecap(t *testing.T) {
 				r.MinKillsInWindow = 2
 				return r
 			},
-			wantSegs:  1,
-			wantRound: 6,
-			wantKills: 2,
+			wantSegs: 2,
+		},
+		{
+			name:         "target death ends the POV before round end",
+			kills:        []RawKill{mkKill(10000, 5, "p90")},
+			roundStarts:  []RoundStart{{Round: 5, Tick: 9000}},
+			liveStarts:   []RoundLiveStart{{Round: 5, Tick: 9500}},
+			roundEnds:    []RoundEnd{{Round: 5, Tick: 14000}},
+			targetDeaths: []TargetDeath{{Round: 5, Tick: 12000}},
+			wantSegs:     1,
+			wantRound:    5,
+			wantKills:    1,
+			checkRange:   true,
+			wantStart:    9500,
+			wantEnd:      12000,
+		},
+		{
+			name: "posthumous grenade kill is excluded from a death-bounded POV",
+			kills: []RawKill{
+				mkKill(10000, 5, "ak47"),
+				mkKill(12500, 5, "hegrenade"),
+			},
+			roundStarts:  []RoundStart{{Round: 5, Tick: 9000}},
+			liveStarts:   []RoundLiveStart{{Round: 5, Tick: 9500}},
+			roundEnds:    []RoundEnd{{Round: 5, Tick: 14000}},
+			targetDeaths: []TargetDeath{{Round: 5, Tick: 12000}},
+			wantSegs:     1,
+			wantRound:    5,
+			wantKills:    1,
+			checkRange:   true,
+			wantStart:    9500,
+			wantEnd:      12000,
+		},
+		{
+			name:         "zero-kill target death still produces a valid POV window",
+			roundStarts:  []RoundStart{{Round: 3, Tick: 4000}},
+			liveStarts:   []RoundLiveStart{{Round: 3, Tick: 4500}},
+			targetDeaths: []TargetDeath{{Round: 3, Tick: 6200}},
+			wantSegs:     1,
+			wantRound:    3,
+			checkRange:   true,
+			wantStart:    4500,
+			wantEnd:      6200,
+		},
+		{
+			name:         "stale post-round death does not clip the following live round",
+			roundStarts:  []RoundStart{{Round: 4, Tick: 7000}},
+			liveStarts:   []RoundLiveStart{{Round: 4, Tick: 7500}},
+			roundEnds:    []RoundEnd{{Round: 4, Tick: 10000}},
+			targetDeaths: []TargetDeath{{Round: 4, Tick: 6900}},
+			wantSegs:     1,
+			wantRound:    4,
+			checkRange:   true,
+			wantStart:    7500,
+			wantEnd:      10000,
+		},
+		{
+			name:         "stale pre-live death does not hide the actual live death",
+			roundStarts:  []RoundStart{{Round: 4, Tick: 7000}},
+			liveStarts:   []RoundLiveStart{{Round: 4, Tick: 7500}},
+			roundEnds:    []RoundEnd{{Round: 4, Tick: 10000}},
+			targetDeaths: []TargetDeath{{Round: 4, Tick: 6900}, {Round: 4, Tick: 8200}},
+			wantSegs:     1,
+			wantRound:    4,
+			checkRange:   true,
+			wantStart:    7500,
+			wantEnd:      8200,
+		},
+		{
+			name:         "death-only metadata cannot invent a recap round",
+			targetDeaths: []TargetDeath{{Round: 20, Tick: 108145}},
+			wantSegs:     0,
 		},
 		{
 			name:       "kill-only without round bounds is 1s, not the 8s shorts burst",
@@ -358,7 +428,7 @@ func TestSegmentRecap(t *testing.T) {
 			if tt.rules != nil {
 				r = tt.rules()
 			}
-			got := SegmentRecap(tt.kills, nil, tt.roundStarts, tt.liveStarts, tt.roundEnds, r, testTickrate)
+			got := SegmentRecap(tt.kills, nil, tt.roundStarts, tt.liveStarts, tt.roundEnds, tt.targetDeaths, r, testTickrate)
 			if len(got) != tt.wantSegs {
 				t.Fatalf("segments = %d, want %d", len(got), tt.wantSegs)
 			}
@@ -398,6 +468,7 @@ func TestSegmentRecapUtilityDoesNotMoveKnownRoundStart(t *testing.T) {
 		[]RoundStart{{Round: 1, Tick: 1}},
 		[]RoundLiveStart{{Round: 1, Tick: 50}},
 		[]RoundEnd{{Round: 1, Tick: 1000}},
+		nil,
 		defaultTestRules(),
 		testTickrate,
 	)
@@ -422,6 +493,7 @@ func TestSegmentRecapDropsUtilityThrownDuringFreeze(t *testing.T) {
 		[]RoundStart{{Round: 5, Tick: 9000}},
 		[]RoundLiveStart{{Round: 5, Tick: 9200}},
 		[]RoundEnd{{Round: 5, Tick: 14000}},
+		nil,
 		defaultTestRules(),
 		testTickrate,
 	)
@@ -453,7 +525,7 @@ func TestSegmentRecapAttachesUtilityFacts(t *testing.T) {
 		ThrowPlace:    "TSpawn",
 		LandingSource: "smoke_start",
 	}}
-	got := SegmentRecap(kills, utility, []RoundStart{{Round: 5, Tick: 9000}}, []RoundLiveStart{{Round: 5, Tick: 9200}}, []RoundEnd{{Round: 5, Tick: 14000}}, defaultTestRules(), testTickrate)
+	got := SegmentRecap(kills, utility, []RoundStart{{Round: 5, Tick: 9000}}, []RoundLiveStart{{Round: 5, Tick: 9200}}, []RoundEnd{{Round: 5, Tick: 14000}}, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("segments = %d, want 1", len(got))
 	}

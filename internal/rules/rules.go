@@ -24,13 +24,15 @@ type Rules struct {
 	MaxRound int `json:"max_round"`
 }
 
+// AllWeapons is the stable wildcard for every weapon reported by the demo.
+// It also covers weapons added by future CS2 updates without requiring a
+// ClipHub release just to extend a default allowlist.
+const AllWeapons = "*"
+
 // Default returns the canonical default rules.
 func Default() Rules {
 	return Rules{
-		Weapons: []string{
-			"awp", "deagle", "ak47", "m4a1",
-			"m4a1_silencer", "usp_silencer", "glock", "hkp2000",
-		},
+		Weapons:             []string{AllWeapons},
 		MinKillsInWindow:    1,
 		WindowSeconds:       8,
 		PreRollSeconds:      3,
@@ -140,7 +142,7 @@ func (r Rules) Validate() error {
 // AllowsWeapon reports whether weapon is in the allowed list.
 func (r Rules) AllowsWeapon(weapon string) bool {
 	for _, w := range r.Weapons {
-		if w == weapon {
+		if (w == AllWeapons && weapon != "") || w == weapon {
 			return true
 		}
 	}

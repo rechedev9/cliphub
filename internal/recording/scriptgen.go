@@ -399,12 +399,15 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		if cameraWarmupTick >= recordStart {
 			cameraWarmupTick = recordStart - max(2, plan.Tickrate/2)
 		}
-		verifyUntil := recordEnd
+		// Verification runs before scheduled commands at a tick. Stop one tick
+		// before record-end so a legitimate entity teardown at the boundary does
+		// not fail an otherwise complete capture.
+		verifyUntil := max(recordStart, recordEnd-1)
 		if lastKill := lastKillTick(s); lastKill > 0 {
 			// Once the final selected kill has happened, a spectator change can
 			// be CS2's legitimate death cam during post-roll. Keep recording the
 			// full segment, but stop treating that camera change as POV drift.
-			verifyUntil = min(recordEnd, max(recordStart, lastKill))
+			verifyUntil = min(verifyUntil, max(recordStart, lastKill))
 		}
 		windows = append(windows, captureWindow{
 			SegmentID:   s.ID,

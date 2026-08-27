@@ -10,28 +10,18 @@ import { StatusTag } from '@/components/studio/status-tag';
 import { DeleteVideoButton } from '@/components/videos/delete-video-button';
 import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
 
-/**
- * A reel whose pipeline failed on the rig. It is the same tile as every other
- * reel — same frame, same format-driven shape, same instrument strip — carrying
- * a destructive edge and an inline retry, instead of the full-width horizontal
- * row it used to be, which made the Library two unrelated component systems
- * stacked on top of each other.
- *
- * Retry re-drives the failed stage (re-record or re-render); on success the reel
- * rejoins the pipeline via the reconcile loop. When the reel is unrecoverable
- * (its orchestrator job is gone) Retry could never succeed, so the card hides it
- * and points the user at delete + re-forge.
- */
+// Failed reels keep the shared card system. Retry re-drives recoverable stages;
+// unrecoverable cards instead direct the user to delete and prepare again.
 export function FailedCard({ video, onChange }: { video: Video; onChange: () => void }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const unrecoverable = video.unrecoverable ?? false;
-  const failure = parseFailureReason(video.failureReason);
-  // A demo-incompatible failure is deterministic in the .dem itself: retry can
-  // never help, so we hide Retry and show the Spanish explanation. Unrecoverable
-  // reels keep their own branch.
+  const failure = parseFailureReason(video.failureReason, {
+    fullDemo: video.editConfig?.matchRecap === true,
+  });
+  // The classifier hides Retry for deterministic startup/demo/stale-plan failures.
   const demoIncompatible = !unrecoverable && failure.kind === 'demo-incompatible';
-  const canRetry = !unrecoverable && !demoIncompatible;
+  const canRetry = !unrecoverable && failure.retryCanHelp;
   const formatBadge = reelFormatLabel(video.editConfig);
 
   function footerHint(): string {
@@ -39,7 +29,11 @@ export function FailedCard({ video, onChange }: { video: Video; onChange: () => 
     if (demoIncompatible) {
       return 'Este fallo es determinista: reintentar no ayudará. Elimina la tarjeta o forja con una demo reciente.';
     }
-    return 'Reintenta para retomar desde la etapa que falló';
+    if (failure.kind === 'pov-verification') {
+      return 'Elimina esta tarjeta y vuelve a preparar la demo para regenerar el plan de rondas.';
+    }
+    if (!failure.retryCanHelp) return 'Reintentar el mismo trabajo no resolverá este fallo.';
+    return 'Reintenta para retomar desde la etapa que falló.';
   }
 
   async function onRetry() {
@@ -50,11 +44,9 @@ export function FailedCard({ video, onChange }: { video: Video; onChange: () => 
       await api.retryVideo(video.id);
       onChange();
     } catch (err) {
-      setRetryError(err instanceof Error ? err.message : 'No se pudo reintentar el reel.');
+      setRetryError(err instanceof Error ? err.message : 'No se pudo reintentar el vídeo.');
     } finally {
-      // Always re-arm the button: a retry can resolve while the reel stays
-      // failed (e.g. capture still unconfigured), and a card stuck at
-      // "Reintentando…" would need a reload to try again.
+      // Re-arm even if the reel stays failed, so another attempt needs no reload.
       setRetrying(false);
     }
   }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 const targetID = "76561198000000000"
@@ -33,7 +34,9 @@ func TestRecordKillAcceptedWeaponAdded(t *testing.T) {
 }
 
 func TestRecordKillRejectedWeaponNotAdded(t *testing.T) {
-	c := NewCollector(targetID, defaultTestRules())
+	r := defaultTestRules()
+	r.Weapons = []string{"awp"}
+	c := NewCollector(targetID, r)
 	c.RecordKill(RawKill{Tick: 1000, Round: 3, Weapon: "knife"})
 
 	if c.TotalKillsTarget() != 1 {
@@ -41,6 +44,111 @@ func TestRecordKillRejectedWeaponNotAdded(t *testing.T) {
 	}
 	if c.KillsAfterFilters() != 0 {
 		t.Errorf("KillsAfterFilters = %d, want 0 (filtered out)", c.KillsAfterFilters())
+	}
+}
+
+func TestCollectorRecapKeepsEveryWeaponDespiteShortsFilters(t *testing.T) {
+	tests := []struct {
+		name   string
+		weapon string
+	}{
+		{name: "p90", weapon: "p90"},
+		{name: "knife", weapon: "knife"},
+		{name: "zeus", weapon: "taser"},
+		{name: "future weapon", weapon: "future_cs2_weapon"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := defaultTestRules()
+			r.Weapons = []string{"awp"}
+			c := NewCollector(targetID, r)
+			c.RecordTargetIdentity("MARTINEZSA", "CT")
+			c.RecordRoundLiveStart(RoundLiveStart{Round: 5, Tick: 9000})
+			c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: tt.weapon})
+			c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 11000})
+
+			killBursts, err := c.Build(meta())
+			if err != nil {
+				t.Fatalf("Build kills: %v", err)
+			}
+			if len(killBursts.Segments) != 0 {
+				t.Fatalf("kill-burst segments = %d, want 0 for custom filter", len(killBursts.Segments))
+			}
+
+			recap, err := c.build(meta(), SegmentModeRecap)
+			if err != nil {
+				t.Fatalf("Build recap: %v", err)
+			}
+			if len(recap.Segments) != 1 || len(recap.Segments[0].Kills) != 1 {
+				t.Fatalf("recap segments = %+v, want one segment with one kill", recap.Segments)
+			}
+			if got := recap.Segments[0].Kills[0].Weapon; got != tt.weapon {
+				t.Fatalf("recap weapon = %q, want %q", got, tt.weapon)
+			}
+			recapRules, ok := recap.Rules.(rules.Rules)
+			if !ok {
+				t.Fatalf("recap rules type = %T, want rules.Rules", recap.Rules)
+			}
+			if got := recapRules.Weapons; len(got) != 1 || got[0] != rules.AllWeapons {
+				t.Fatalf("recap weapons rule = %v, want [%q]", got, rules.AllWeapons)
+			}
+			if got := recap.Stats.KillsAfterFilters; got != 1 {
+				t.Fatalf("recap KillsAfterFilters = %d, want 1", got)
+			}
+		})
+	}
+}
+
+func TestCollectorRecapRejectsAnEmptyWeaponName(t *testing.T) {
+	c := NewCollector(targetID, defaultTestRules())
+	c.RecordTargetIdentity("MARTINEZSA", "CT")
+	c.RecordRoundLiveStart(RoundLiveStart{Round: 5, Tick: 9000})
+	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: ""})
+	c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 11000})
+
+	recap, err := c.build(meta(), SegmentModeRecap)
+	if err != nil {
+		t.Fatalf("Build recap: %v", err)
+	}
+	if len(recap.Segments) != 1 || len(recap.Segments[0].Kills) != 0 {
+		t.Fatalf("recap segments = %+v, want the round without an unknown-weapon kill", recap.Segments)
+	}
+	if got := recap.Stats.KillsAfterFilters; got != 0 {
+		t.Fatalf("recap KillsAfterFilters = %d, want 0", got)
+	}
+}
+
+func TestCollectorRecapIgnoresShortsRoundRange(t *testing.T) {
+	r := defaultTestRules()
+	r.MinRound = 10
+	r.MaxRound = 12
+	c := NewCollector(targetID, r)
+	c.RecordTargetIdentity("MARTINEZSA", "CT")
+	c.RecordRoundLiveStart(RoundLiveStart{Round: 5, Tick: 9000})
+	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: "awp"})
+	c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 11000})
+
+	shorts, err := c.Build(meta())
+	if err != nil {
+		t.Fatalf("Build Shorts: %v", err)
+	}
+	if len(shorts.Segments) != 0 {
+		t.Fatalf("Shorts segments = %+v, want round 5 filtered out", shorts.Segments)
+	}
+
+	recap, err := c.build(meta(), SegmentModeRecap)
+	if err != nil {
+		t.Fatalf("Build recap: %v", err)
+	}
+	if len(recap.Segments) != 1 || len(recap.Segments[0].Kills) != 1 {
+		t.Fatalf("recap segments = %+v, want round 5 and its kill", recap.Segments)
+	}
+	recapRules, ok := recap.Rules.(rules.Rules)
+	if !ok {
+		t.Fatalf("recap rules type = %T, want rules.Rules", recap.Rules)
+	}
+	if recapRules.MinRound != 1 || recapRules.MaxRound != 0 {
+		t.Fatalf("recap round range = %d-%d, want all rounds", recapRules.MinRound, recapRules.MaxRound)
 	}
 }
 

@@ -25,7 +25,7 @@ export type CapturedCounts = { captured: number; requested: number };
 
 /** Parsed classification of a reel's `failureReason` string. */
 export type FailureReason = {
-  kind: 'demo-incompatible' | 'unplayable-start' | 'recording-not-reusable' | 'generic';
+  kind: 'demo-incompatible' | 'unplayable-start' | 'recording-not-reusable' | 'pov-verification' | 'generic';
   /** Spanish message the failed-reel card should surface to the user. */
   message: string;
   /** Whether a retry could plausibly resolve the failure. */
@@ -34,7 +34,13 @@ export type FailureReason = {
   counts?: CapturedCounts;
 };
 
-const GENERIC_MESSAGE = 'El reel falló en tu equipo.';
+export type FailureContext = {
+  /** Full Demo plans are regenerated rather than replayed after a stale POV boundary. */
+  fullDemo?: boolean;
+};
+
+const GENERIC_MESSAGE =
+  'No se pudo completar el vídeo en este equipo. Reintenta; si vuelve a fallar, comparte el diagnóstico desde Ajustes.';
 
 const DEMO_INCOMPATIBLE_MESSAGE =
   'Esta demo se grabó en una versión antigua de CS2 y el cliente actual no puede reproducirla. ' +
@@ -55,6 +61,10 @@ const RECORDING_NOT_REUSABLE_MESSAGE =
   'La captura guardada no es reutilizable con esta versión de ClipHub. ' +
   'Reintenta: se volverá a grabar la POV con el contrato actual.';
 
+const POV_VERIFICATION_MESSAGE =
+  'ClipHub perdió el POV al terminar una ronda. La demo sigue intacta, pero este plan no es reutilizable: ' +
+  'vuelve a preparar la demo para generar sus rondas con el contrato actual.';
+
 // Matches the orchestrator's "; captured N/M segments before the failure" clause.
 const CAPTURED_CLAUSE = /captured\s+(\d+)\/(\d+)\s+segments/i;
 
@@ -63,7 +73,7 @@ function capturedSentence(counts: CapturedCounts): string {
 }
 
 /** Classifies `failureReason` into a Spanish card message. Pure; the card does not parse the raw string. */
-export function parseFailureReason(reason: string | undefined): FailureReason {
+export function parseFailureReason(reason: string | undefined, context: FailureContext = {}): FailureReason {
   if (reason === undefined || reason.trim() === '') {
     return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
   }
@@ -94,5 +104,9 @@ export function parseFailureReason(reason: string | undefined): FailureReason {
     return { kind: 'recording-not-reusable', message: RECORDING_NOT_REUSABLE_MESSAGE, retryCanHelp: true };
   }
 
-  return { kind: 'generic', message: reason, retryCanHelp: true };
+  if (context.fullDemo && reason.includes('observer target remained unknown during')) {
+    return { kind: 'pov-verification', message: POV_VERIFICATION_MESSAGE, retryCanHelp: false };
+  }
+
+  return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
 }

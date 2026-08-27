@@ -13,7 +13,7 @@ export function captureProgressPercent(progress: CaptureProgress): number {
 export function captureProgressDetail(progress: CaptureProgress): string {
   if (progress.total <= 0) return 'Preparando captura local';
   if (progress.done >= progress.total) {
-    return `Segmentos ${progress.done}/${progress.total}`;
+    return 'Validando captura local';
   }
   if (captureProgressPercent(progress) === 0 && progress.done === 0) {
     return 'Preparando captura local';

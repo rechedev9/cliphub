@@ -19,25 +19,13 @@ import { FailedCard } from '@/components/videos/failed-card';
 import { VideoFilters, type VideoFormatFilter } from '@/components/videos/video-filters';
 
 
-// Poll fast while a reel is advancing through the pipeline; once every reel is
-// terminal (ready/review_required/failed) there is nothing to drive, so back off to an idle
-// cadence to stop hammering the orchestrator. A newly created reel resumes fast
-// polling on the next tick.
+// Poll active reels quickly, then back off once every reel is terminal.
+// A newly created reel resumes fast polling on the next tick.
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
 
-/**
- * One auto-fill grid for every reel, at every stage. The minimum track is the
- * narrowest card the four-segment stage track can hold without wrapping a label,
- * and the maximum is `1fr`, not a fixed 300px: capping it stranded 244px of dead
- * space at 1920 next to a `justify-start` row. Because the cards are now as tall
- * as their real format, the min is kept tight so a wide workspace answers with
- * more columns instead of taller 9:16 covers.
- *
- * `items-start` because a card's shape now follows the reel's render format, so
- * a 9:16 short and a 16:9 landscape genuinely are different heights and
- * stretching the shorter one would only open a void under its actions.
- */
+// Auto-fill keeps cards useful from narrow windows to 1920px; items-start
+// preserves each reel's real 9:16 or 16:9 height.
 const REEL_GRID_CLASS =
   'grid grid-cols-[repeat(auto-fill,minmax(min(100%,15.5rem),1fr))] items-start gap-5';
 
@@ -57,11 +45,7 @@ function matchesFormat(video: Video, filter: VideoFormatFilter): boolean {
   return video.editConfig?.format === filter;
 }
 
-/**
- * Failures first: they are the only cards in the grid that need a decision.
- * `Array.prototype.sort` is stable, so everything else keeps the API's
- * newest-first order.
- */
+// Failures need a decision, so stable-sort them first without reordering the rest.
 function byAttentionFirst(a: Video, b: Video): number {
   return Number(b.status === 'failed') - Number(a.status === 'failed');
 }
@@ -73,9 +57,7 @@ export default function VideosPage() {
   const [loadError, setLoadError] = useState<LoadError | null>(null);
   const [filter, setFilter] = useState<VideoFormatFilter>('all');
 
-  // Guards against overlapping listVideos() calls if a manual refresh is still
-  // in flight when the next poll tick fires (the poll loop itself never overlaps
-  // its own ticks).
+  // Avoid overlapping listVideos() calls when a manual refresh races a poll.
   const inFlight = useRef(false);
 
   const reload = useCallback(async (): Promise<Video[] | undefined> => {
@@ -88,12 +70,7 @@ export default function VideosPage() {
     }
   }, []);
 
-  /**
-   * The one place fresh reels land. It also pushes them to the shell: the same
-   * 1.5s loop that drives this grid tells the chrome what the machine is doing,
-   * so `html[data-capture-active]` stands the ambient GPU effects down while
-   * HLAE/CS2 owns the card — instead of a second poll loop doing it again.
-   */
+  // Reuse the grid poll to tell the shell when capture should suspend ambient effects.
   const accept = useCallback((next: Video[]) => {
     setVideos(next);
     setLoadError(null);
@@ -112,10 +89,7 @@ export default function VideosPage() {
   useEffect(() => {
     let active = true;
 
-    // A tick that throws (transient proxy/orchestrator hiccup) must not kill the
-    // loop and must not strand the page on a skeleton either: the rejection is
-    // recorded so the screen can say "offline" instead of pretending to load
-    // forever, and the cadence still backs off to idle exactly as before.
+    // A rejected tick records the offline state without killing the poll loop.
     const stop = startPollLoop({
       tick: async () => {
         try {
@@ -159,8 +133,8 @@ export default function VideosPage() {
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
-        title="TUS REELS"
-        description="Sigue cada captura desde la cola hasta el MP4 y publica solo lo que merece salir del rig."
+        title="TUS VÍDEOS"
+        description="Sigue cada captura desde la cola hasta el MP4: Shorts y partidas completas comparten el mismo estado local."
         actions={
           videos !== null && videos.length > 0 ? (
             <VideoFilters filter={filter} onFilterChange={setFilter} />
@@ -179,17 +153,7 @@ export default function VideosPage() {
   );
 }
 
-/**
- * Every reel, at every stage, in one grid. Queued/capturing/editing/ready/failed
- * cards sit side by side at equal width because each one already carries its own
- * stage treatment — an edge tone, a stage indicator over the cover and a filled
- * segment on its instrument strip — so a stage-grouping header on top of that
- * would repeat what the card already says.
- *
- * Failures used to live in a separate stack above the grid as full-width
- * horizontal rows, i.e. a second card system on the same page. They are now the
- * same tile with a destructive edge, sorted to the front.
- */
+// Every stage uses the same card grid; failures carry their own destructive treatment.
 function LibraryGrid({ videos, onChange }: { videos: Video[]; onChange(): void }) {
   const failedCount = videos.filter((v) => v.status === 'failed').length;
 
@@ -199,7 +163,7 @@ function LibraryGrid({ videos, onChange }: { videos: Video[]; onChange(): void }
     <div className="flex flex-col gap-5">
       {failedCount > 0 ? <AttentionStrip count={failedCount} /> : null}
 
-      <section className={REEL_GRID_CLASS} aria-label="Reels">
+      <section className={REEL_GRID_CLASS} aria-label="Vídeos">
         {videos.map((v) => {
           if (v.status === 'failed') return <FailedCard key={v.id} video={v} onChange={onChange} />;
           if (v.status === 'ready' || v.status === 'review_required') {
@@ -222,8 +186,8 @@ function AttentionStrip({ count }: { count: number }) {
       <IconTile icon={AlertTriangle} size="sm" tone="danger" depth="inset" />
       <p className="min-w-0 text-body-sm text-fg-2">
         <span className="font-mono text-body-lg tabular-nums text-destructive">{count}</span>{' '}
-        {count === 1 ? 'reel necesita atención' : 'reels necesitan atención'}. Reintenta o elimínalos
-        desde su tarjeta.
+        {count === 1 ? 'vídeo necesita atención' : 'vídeos necesitan atención'}.{' '}
+        {count === 1 ? 'Resuélvelo' : 'Resuélvelos'} desde {count === 1 ? 'su tarjeta' : 'sus tarjetas'}.
       </p>
     </div>
   );
@@ -235,7 +199,7 @@ function FilteredEmpty() {
       <IconTile icon={Film} size="sm" tone="primary" depth="inset" />
       <div className="min-w-0">
         <p className="font-display text-label font-bold uppercase text-fg-1">
-          No hay reels en este formato
+          No hay vídeos en este formato
         </p>
         <p className="mt-1 text-body-sm text-fg-2">
           Cambia el filtro para volver a ver el resto de la biblioteca.
@@ -245,11 +209,7 @@ function FilteredEmpty() {
   );
 }
 
-/**
- * A poll tick rejected before any reel ever arrived. The old page had no branch
- * for this at all: `videos` stayed null, the skeleton animated forever and the
- * rejection was swallowed.
- */
+// A first-load failure must replace the otherwise permanent loading skeleton.
 function LibraryUnavailable({ offline, onRetry }: { offline: boolean; onRetry: () => void }) {
   return (
     <div role="alert">
@@ -295,12 +255,7 @@ function StaleDataNotice({ offline, onRetry }: { offline: boolean; onRetry: () =
   );
 }
 
-/**
- * The placeholder mirrors the real card: media flush to the panel edges, then a
- * title, a meta line and the instrument strip. It draws a 9:16 frame because
- * that is the default render format and the product's default deliverable is a
- * vertical reel, so the common case does not jump when the data lands.
- */
+// Mirror the default 9:16 card so the common case does not jump when data lands.
 function LibrarySkeleton() {
   return (
     <div className={REEL_GRID_CLASS} role="status" aria-label="Cargando biblioteca">
@@ -323,8 +278,8 @@ function EmptyState() {
   return (
     <StudioEmptyState
       icon={Film}
-      title="Todavía no hay reels"
-      description="Elige una jugada y ClipHub seguirá la captura, la edición y el render desde esta biblioteca."
+      title="Todavía no hay vídeos"
+      description="Elige una jugada o prepara una demo completa; ClipHub seguirá la captura y el render desde esta biblioteca."
       compact
       actions={
         <Button asChild variant="hero">

@@ -27,8 +27,8 @@ import KillfeedReel from "@/components/killfeed-reel";
 import Reveal from "@/components/reveal";
 
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/cliphub/releases/download/v2.4.34/ClipHub.Studio.Setup.2.4.34.exe";
-const RELEASE_VERSION = "v2.4.34";
+  "https://github.com/rechedev9/cliphub/releases/download/v2.4.35/ClipHub.Studio.Setup.2.4.35.exe";
+const RELEASE_VERSION = "v2.4.35";
 const REPO_URL = "https://github.com/rechedev9/cliphub";
 
 function Corners() {

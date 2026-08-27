@@ -388,15 +388,15 @@ func TestBuildRuntimeScheduleRecordEndCoversUtilityInsideEOFMargin(t *testing.T)
 	}
 }
 
-func TestBuildRuntimeScheduleVerifiesPOVThroughRecordEndWithoutKills(t *testing.T) {
+func TestBuildRuntimeScheduleVerifiesPOVUntilRecordEndBoundaryWithoutKills(t *testing.T) {
 	plan := testPlan()
 	_, _, windows := buildRuntimeSchedule(plan)
 	if got, want := len(windows), len(plan.Segments); got != want {
 		t.Fatalf("capture window count = %d, want %d", got, want)
 	}
 	for i, window := range windows {
-		if got, want := window.VerifyUntil, plan.Segments[i].TickEnd; got != want {
-			t.Errorf("window %s verifyUntil = %d, want record end %d", window.SegmentID, got, want)
+		if got, want := window.VerifyUntil, plan.Segments[i].TickEnd-1; got != want {
+			t.Errorf("window %s verifyUntil = %d, want record end boundary %d", window.SegmentID, got, want)
 		}
 	}
 }

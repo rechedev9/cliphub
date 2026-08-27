@@ -18,9 +18,10 @@ type Stage = 'idle' | 'scanning' | 'picking' | 'parsing';
 
 export type SingleDemoParseProps = {
   onParsed: (match: Match) => void;
+  purpose?: 'highlights' | 'full-demo';
 };
 
-export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
+export function SingleDemoParse({ onParsed, purpose = 'highlights' }: SingleDemoParseProps): ReactNode {
   const [stage, setStage] = useState<Stage>('idle');
   const [fileName, setFileName] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -89,9 +90,9 @@ export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
 
   let card: ReactNode = null;
   if (stage === 'scanning' || stage === 'parsing') {
-    card = <ScanProgress stage={stage} fileName={fileName} />;
+    card = <ScanProgress stage={stage} fileName={fileName} purpose={purpose} />;
   } else if (stage === 'picking') {
-    card = <PlayerPicker players={players} onPick={onPick} match={match ?? undefined} />;
+    card = <PlayerPicker players={players} onPick={onPick} match={match ?? undefined} purpose={purpose} />;
   }
 
   return (
@@ -114,7 +115,20 @@ export function SingleDemoParse({ onParsed }: SingleDemoParseProps): ReactNode {
   );
 }
 
-function ScanProgress({ stage, fileName }: { stage: 'scanning' | 'parsing'; fileName: string | null }): ReactNode {
+function ScanProgress({
+  stage,
+  fileName,
+  purpose,
+}: {
+  stage: 'scanning' | 'parsing';
+  fileName: string | null;
+  purpose: 'highlights' | 'full-demo';
+}): ReactNode {
+  let statusLabel = 'Escaneando el roster…';
+  if (stage === 'parsing') {
+    statusLabel = purpose === 'full-demo' ? 'Preparando las rondas…' : 'Forjando highlights…';
+  }
+
   return (
     <div
       role="status"
@@ -126,7 +140,7 @@ function ScanProgress({ stage, fileName }: { stage: 'scanning' | 'parsing'; file
       </span>
       <div className="flex flex-col items-center gap-2">
         <p className="font-display text-title font-bold uppercase text-fg-1">
-          {stage === 'scanning' ? 'Escaneando el roster…' : 'Forjando highlights…'}
+          {statusLabel}
         </p>
         {fileName ? (
           <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">

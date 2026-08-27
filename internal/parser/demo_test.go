@@ -1,10 +1,13 @@
 package parser
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/events"
+
+	"github.com/rechedev9/cliphub/internal/rules"
 )
 
 const (
@@ -112,6 +115,23 @@ func TestBuildRawKillExcludesTeamKillsWhenRequested(t *testing.T) {
 	}
 }
 
+func TestBuildRawKillSkipsTargetSuicidesRegardlessOfTeamKillRule(t *testing.T) {
+	target := mkPlayer(killerID, "MARTINEZSA", common.TeamCounterTerrorists)
+	e := events.Kill{
+		Killer: target,
+		Victim: target,
+		Weapon: mkEquipment(common.EqHE, "weapon_hegrenade"),
+	}
+
+	for _, excludeTeamKills := range []bool{false, true} {
+		t.Run(fmt.Sprintf("exclude_team_kills_%t", excludeTeamKills), func(t *testing.T) {
+			if _, ok := BuildRawKill(e, gameInfo{Tick: 1, Round: 1}, killerID, excludeTeamKills); ok {
+				t.Fatal("BuildRawKill ok = true, want false for a target suicide")
+			}
+		})
+	}
+}
+
 func TestWeaponNameFromEquipmentUsesOriginalString(t *testing.T) {
 	// OriginalString takes precedence: "weapon_m4a1_silencer" → "m4a1_silencer"
 	w := mkEquipment(common.EqM4A1, "weapon_m4a1_silencer")
@@ -154,6 +174,17 @@ func TestWeaponNameFromEquipmentFallsBackWhenOriginalMissing(t *testing.T) {
 func TestWeaponNameNilEquipmentReturnsEmpty(t *testing.T) {
 	if got := weaponName(nil); got != "" {
 		t.Errorf("weaponName(nil) = %q, want empty", got)
+	}
+}
+
+func TestDefaultRulesAllowEveryMappedEquipment(t *testing.T) {
+	r := rules.Default()
+	for equipment, weapon := range equipmentNames {
+		t.Run(equipment.String(), func(t *testing.T) {
+			if !r.AllowsWeapon(weapon) {
+				t.Fatalf("default rules reject mapped weapon %q", weapon)
+			}
+		})
 	}
 }
 

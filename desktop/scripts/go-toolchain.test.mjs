@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,5 +116,39 @@ test('Windows installer rebuild pin agrees with go.mod 1.26.6', () => {
     for (const needle of spec.mustNot) {
       assert.equal(spec.body.includes(needle), false, `${spec.path} still mentions ${needle}`);
     }
+  }
+});
+
+test('Windows Go bootstrap probes the installed binary without auto toolchain substitution', {
+  skip: process.platform !== 'win32',
+}, () => {
+  const installer = join(repo, 'scripts', 'install-go-windows.ps1');
+  const cases = [
+    { name: 'unset toolchain', ambient: null },
+    { name: 'automatic toolchain', ambient: 'auto' },
+    { name: 'explicit newer toolchain', ambient: 'go1.26.6' },
+  ];
+
+  for (const spec of cases) {
+    const setAmbient = spec.ambient === null
+      ? '[Environment]::SetEnvironmentVariable("GOTOOLCHAIN", $null, "Process")'
+      : `$env:GOTOOLCHAIN = '${spec.ambient}'`;
+    const command = [
+      'function go {',
+      "  if ($env:GOTOOLCHAIN -eq 'local') { 'go version go1.26.3 windows/amd64' }",
+      "  else { 'go version go1.26.6 windows/amd64' }",
+      '}',
+      `. '${installer.replaceAll("'", "''")}'`,
+      setAmbient,
+      '$version = Get-LocalGoVersion',
+      '$restored = if (Test-Path Env:GOTOOLCHAIN) { $env:GOTOOLCHAIN } else { "<unset>" }',
+      'Write-Output "$version|$restored"',
+    ].join('; ');
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+      encoding: 'utf8',
+    });
+
+    assert.equal(result.status, 0, `${spec.name}: ${result.stderr}`);
+    assert.equal(result.stdout.trim(), `1.26.3|${spec.ambient ?? '<unset>'}`, spec.name);
   }
 });
