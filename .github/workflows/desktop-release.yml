@@ -1,5 +1,5 @@
 # The only hosted ClipHub pipeline: unsigned Windows Studio installer.
-# Quality still lives in .githooks/pre-commit. Do not add a second release job.
+# Product quality is verified locally. Do not add a second release job.
 name: Desktop release
 
 on:

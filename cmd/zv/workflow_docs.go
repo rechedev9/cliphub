@@ -100,11 +100,10 @@ func workflowDocs() []workflowDoc {
 		{
 			Path: "AGENTS.md",
 			Required: []string{
-				"scripts/codex-run.sh",
-				"scripts/codex-go-tdd.sh",
-				"scripts/codex-go-bugfix.sh",
-				"scripts/codex-go-pr-ready.sh",
-				"CODEX_DRY_RUN=1",
+				"scripts/codex-harness.ps1 -Action Doctor",
+				"scripts/codex-harness.ps1 -Action Preview",
+				"scripts/codex-harness.ps1 -Action Run",
+				"scripts/codex-harness.ps1 -Action Check",
 				"highest installed HLAE version",
 				"latest official HLAE release",
 				"creative brief gate",
@@ -118,11 +117,10 @@ func workflowDocs() []workflowDoc {
 		{
 			Path: "CLAUDE.md",
 			Required: []string{
-				"scripts/codex-run.sh",
-				"scripts/codex-go-tdd.sh",
-				"scripts/codex-go-bugfix.sh",
-				"scripts/codex-go-pr-ready.sh",
-				"CODEX_DRY_RUN=1",
+				"scripts/codex-harness.ps1 -Action Doctor",
+				"scripts/codex-harness.ps1 -Action Preview",
+				"scripts/codex-harness.ps1 -Action Run",
+				"scripts/codex-harness.ps1 -Action Check",
 				"highest installed HLAE version",
 				"latest official HLAE release",
 				"creative brief gate",

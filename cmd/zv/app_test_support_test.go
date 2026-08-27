@@ -1041,14 +1041,9 @@ func agentPromptWrapperFixtures() []string {
 func codexPromptWrapperFixtures() []codexPromptWrapperFixture {
 	return []codexPromptWrapperFixture{
 		{wrapper: "scripts/codex-go-bugfix.sh", prompt: ".codex/prompts/go-bugfix.md"},
-		{wrapper: "scripts/codex-go-concurrency-review.sh", prompt: ".codex/prompts/go-concurrency-review.md"},
 		{wrapper: "scripts/codex-go-pr-ready.sh", prompt: ".codex/prompts/go-pr-ready.md"},
-		{wrapper: "scripts/codex-go-readability-review.sh", prompt: ".codex/prompts/go-readability-review.md"},
-		{wrapper: "scripts/codex-go-security-review.sh", prompt: ".codex/prompts/go-security-review.md"},
 		{wrapper: "scripts/codex-go-tdd.sh", prompt: ".codex/prompts/go-tdd.md"},
-		{wrapper: "scripts/codex-go-test-review.sh", prompt: ".codex/prompts/go-test-review.md"},
 		{wrapper: "scripts/codex-plan.sh", prompt: ".codex/prompts/go-plan.md"},
-		{wrapper: "scripts/codex-review-diff.sh", prompt: ".codex/prompts/review-diff.md"},
 		{wrapper: "scripts/codex-spike.sh", prompt: ".codex/prompts/go-spike.md"},
 	}
 }
@@ -1072,10 +1067,6 @@ func codexPromptFixtureBody(prompt string) string {
 			"If security changed, run `scripts/go-gate.sh --security`.",
 			"",
 		}, "\n")
-	case ".codex/prompts/go-concurrency-review.md":
-		return "# Prompt\n\nRecommend `scripts/go-gate.sh --race --no-format`.\n"
-	case ".codex/prompts/go-security-review.md":
-		return "# Prompt\n\nRecommend `scripts/go-gate.sh --security`.\n"
 	default:
 		return "# " + prompt + "\n"
 	}
@@ -1317,6 +1308,14 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		`exec codex --cd "$(git rev-parse --show-toplevel)" exec - < "$prompt_file"`,
 		"",
 	}, "\n"))
+	writeFile(t, filepath.Join(root, "scripts", "codex-harness.ps1"), strings.Join([]string{
+		`[ValidateSet("Doctor", "Preview", "Run", "Check")]`,
+		`[string]$Action = "Preview"`,
+		`if ($Action -eq "Run") {`,
+		`    $arguments += "--execute"`,
+		`}`,
+		"",
+	}, "\n"))
 	for _, fixture := range codexPromptWrapperFixtures() {
 		writeFile(t, filepath.Join(root, filepath.FromSlash(fixture.prompt)), codexPromptFixtureBody(fixture.prompt))
 		writeFile(t, filepath.Join(root, filepath.FromSlash(fixture.wrapper)), strings.Join([]string{
@@ -1332,16 +1331,12 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"",
 		"```bash",
 		"scripts/codex-run.sh",
+		"scripts/codex-harness.ps1",
 		"scripts/codex-plan.sh",
 		"scripts/codex-go-tdd.sh",
 		"scripts/codex-go-bugfix.sh",
 		"scripts/codex-go-pr-ready.sh",
-		"scripts/codex-review-diff.sh",
 		"scripts/codex-spike.sh",
-		"scripts/codex-go-readability-review.sh",
-		"scripts/codex-go-test-review.sh",
-		"scripts/codex-go-concurrency-review.sh",
-		"scripts/codex-go-security-review.sh",
 		"```",
 		"",
 		"```bash",
@@ -1459,15 +1454,15 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"# Agents",
 		"",
 		"```bash",
-		`CODEX_DRY_RUN=1 scripts/codex-run.sh .codex/prompts/go-tdd.md "custom prompt run"`,
+		`scripts/codex-harness.ps1 -Action Doctor`,
+		`scripts/codex-harness.ps1 -Action Preview`,
+		`scripts/codex-harness.ps1 -Action Run`,
+		`scripts/codex-harness.ps1 -Action Check`,
 		`highest installed HLAE version`,
 		`latest official HLAE release`,
 		`creative brief gate`,
 		`Thumbnail approval is a second gate`,
 		`C:\HLAE\HLAE.exe`,
-		`scripts/codex-go-tdd.sh "implement a behavior change"`,
-		`scripts/codex-go-bugfix.sh "fix a bug with a regression test"`,
-		`scripts/codex-go-pr-ready.sh`,
 		`scripts/go-gate.sh --no-format`,
 		`scripts/go-gate.sh --race`,
 		`scripts/go-gate.sh --security`,
@@ -1493,15 +1488,15 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"Do not add generated video/audio/image artifacts to git.",
 		"",
 		"```bash",
-		`CODEX_DRY_RUN=1 scripts/codex-run.sh .codex/prompts/go-tdd.md "custom prompt run"`,
+		`scripts/codex-harness.ps1 -Action Doctor`,
+		`scripts/codex-harness.ps1 -Action Preview`,
+		`scripts/codex-harness.ps1 -Action Run`,
+		`scripts/codex-harness.ps1 -Action Check`,
 		`highest installed HLAE version`,
 		`latest official HLAE release`,
 		`creative brief gate`,
 		`Thumbnail approval is a second gate`,
 		`C:\HLAE\HLAE.exe`,
-		`scripts/codex-go-tdd.sh "implement a behavior change"`,
-		`scripts/codex-go-bugfix.sh "fix a bug with a regression test"`,
-		`scripts/codex-go-pr-ready.sh`,
 		`scripts/go-gate.sh --no-format`,
 		`scripts/go-gate.sh --race`,
 		`scripts/go-gate.sh --security`,
@@ -1951,7 +1946,7 @@ func runAgentWrapperDryRun(t *testing.T, root, wrapper string, env []string, tas
 	script.WriteString(shellQuote(filepath.ToSlash(wrapper)))
 	script.WriteString(" ")
 	script.WriteString(shellQuote(task))
-	cmd := exec.Command("bash", "-c", script.String())
+	cmd := exec.Command(testBashExecutable(), "-c", script.String())
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1962,7 +1957,7 @@ func runAgentWrapperDryRun(t *testing.T, root, wrapper string, env []string, tas
 
 func runAgentRunnerDryRunWithInput(t *testing.T, root, env, runner, prompt, task, input string) (string, string) {
 	t.Helper()
-	cmd := exec.Command("bash", "-c", env+" "+shellQuote(runner)+" "+shellQuote(prompt)+" "+shellQuote(task))
+	cmd := exec.Command(testBashExecutable(), "-c", env+" "+shellQuote(runner)+" "+shellQuote(prompt)+" "+shellQuote(task))
 	cmd.Dir = root
 	cmd.Stdin = strings.NewReader(input)
 	var stdout, stderr bytes.Buffer
@@ -2016,6 +2011,16 @@ func bashPath(path string) string {
 		return "/" + drive + "/" + rest + ":/mnt/" + drive + "/" + rest
 	}
 	return path
+}
+
+func testBashExecutable() string {
+	if runtime.GOOS == "windows" {
+		const gitBash = `C:\Program Files\Git\bin\bash.exe`
+		if _, err := os.Stat(gitBash); err == nil {
+			return gitBash
+		}
+	}
+	return "bash"
 }
 
 func findPowerShell() (string, bool) {

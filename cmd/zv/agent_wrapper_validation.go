@@ -50,6 +50,22 @@ func checkCodexPromptWrappers() (int, []skillIssue, error) {
 		}
 	}
 
+	harnessPath := filepath.Join(root, "scripts", "codex-harness.ps1")
+	relHarness := filepath.ToSlash(mustRel(root, harnessPath))
+	// #nosec G304 -- this is a fixed file under the checked repository root.
+	if b, err := os.ReadFile(harnessPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			issues = append(issues, skillIssue{Path: relHarness, Message: "missing Windows Codex harness"})
+		} else {
+			return 0, nil, fmt.Errorf("read %s: %w", relHarness, err)
+		}
+	} else {
+		issues = append(issues, validatePowerShellHarness(relHarness, string(b))...)
+		if !strings.Contains(guideBody, relHarness) {
+			issues = append(issues, skillIssue{Path: ".codex/GUIDE.md", Message: fmt.Sprintf("does not document harness %s", relHarness)})
+		}
+	}
+
 	wrappers, err := filepath.Glob(filepath.Join(root, "scripts", "codex*.sh"))
 	if err != nil {
 		return 0, nil, fmt.Errorf("glob codex wrappers: %w", err)
@@ -91,6 +107,25 @@ func checkCodexPromptWrappers() (int, []skillIssue, error) {
 		}
 	}
 	return checked, issues, nil
+}
+
+func validatePowerShellHarness(path, body string) []skillIssue {
+	requirements := []struct {
+		text    string
+		message string
+	}{
+		{text: `[ValidateSet("Doctor", "Preview", "Run", "Check")]`, message: "does not expose Doctor, Preview, Run, and Check actions"},
+		{text: `$Action = "Preview"`, message: "does not default to safe preview mode"},
+		{text: `if ($Action -eq "Run")`, message: "does not gate execution on the Run action"},
+		{text: `$arguments += "--execute"`, message: "does not explicitly enable runner execution"},
+	}
+	var issues []skillIssue
+	for _, requirement := range requirements {
+		if !strings.Contains(body, requirement.text) {
+			issues = append(issues, skillIssue{Path: path, Message: requirement.message})
+		}
+	}
+	return issues
 }
 
 func validateAgentShellScript(path, body string) []skillIssue {

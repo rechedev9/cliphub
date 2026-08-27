@@ -856,7 +856,7 @@ Rollback: stop using probe/wrapper; staged `zv` commands remain. Recorder exit 8
 
 ## PR Plan
 
-This repository integrates on **`main`**. There are no GitHub pull requests for this work. Each item below is a **commit/slice** to land on `main` in order, behind the pre-commit hook. Do not open a PR.
+This repository integrates on **`main`**. There are no GitHub pull requests for this work. Each item below is a **commit/slice** to land on `main` in order after its relevant local checks pass. Do not open a PR.
 
 ### Slice 1 — Operator wrapper and session pin (process unblocked today)
 

@@ -2,3 +2,6 @@
 # (agent-killplan.json binds its sha256); keep EOLs identical across platforms
 # so core.autocrlf cannot rewrite LF to CRLF and break the binding.
 testdata/*.fixture -text
+
+# Shell entrypoints run under Git Bash on Windows and require Unix line endings.
+*.sh text eol=lf

@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'USAGE'
-usage: scripts/codex-run.sh <prompt-file> [task text...]
+usage: scripts/codex-run.sh [--execute] <prompt-file> [task text...]
 
 Reads a prompt playbook, appends optional task text and optional stdin, then
 runs `codex exec` from the repository root.
@@ -16,11 +16,11 @@ Environment:
   CODEX_SEARCH=1                  enable Codex web search
   CODEX_EPHEMERAL=1               do not persist session files
   CODEX_OUTPUT_LAST_MESSAGE=path  save Codex final message
-  CODEX_DRY_RUN=1                 print command + final prompt, do not run
+  CODEX_DRY_RUN=1                 force preview mode
 
 Examples:
-  scripts/codex-run.sh .codex/prompts/go-tdd.md "add validation for ..."
-  CODEX_SANDBOX=read-only scripts/codex-run.sh .codex/prompts/review-diff.md
+  scripts/codex-run.sh .codex/prompts/go-tdd.md "preview validation task"
+  scripts/codex-run.sh --execute .codex/prompts/go-tdd.md "add validation for ..."
   printf 'long task...' | scripts/codex-run.sh .codex/prompts/go-plan.md
 USAGE
 }
@@ -31,6 +31,12 @@ is_true() {
     *) return 1 ;;
   esac
 }
+
+execute=false
+if [ "${1:-}" = "--execute" ]; then
+  execute=true
+  shift
+fi
 
 if [ "$#" -lt 1 ]; then
   usage
@@ -57,7 +63,7 @@ if [ ! -f "$prompt_file" ]; then
 fi
 
 sandbox="${CODEX_SANDBOX:-workspace-write}"
-approval="${CODEX_APPROVAL:-on-request}"
+approval="${CODEX_APPROVAL:-never}"
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
@@ -113,7 +119,7 @@ if [ -n "${CODEX_OUTPUT_LAST_MESSAGE:-}" ]; then
   exec_args+=(--output-last-message "$CODEX_OUTPUT_LAST_MESSAGE")
 fi
 
-if is_true "${CODEX_DRY_RUN:-}"; then
+if ! $execute || is_true "${CODEX_DRY_RUN:-}"; then
   echo "repo: $root"
   echo "prompt: $prompt_file"
   echo "sandbox: $sandbox"

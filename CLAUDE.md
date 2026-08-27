@@ -2,7 +2,7 @@
 
 `AGENTS.md` is a tracked symbolic link to this file.
 Edit `CLAUDE.md` only, and never replace the `AGENTS.md` symlink with a regular file.
-The pre-commit hook rejects a broken `AGENTS.md` symlink.
+`scripts/codex-harness.ps1 -Action Doctor` rejects a broken `AGENTS.md` symlink.
 On Windows a clone with `core.symlinks=false` materializes `AGENTS.md` as a regular 9-byte file whose contents are the text `CLAUDE.md`, and `git status` stays clean because a symlink's blob is its target. That silently fails the hook and every `zv check` rule that reads `AGENTS.md`. Repair it with `git config core.symlinks true` followed by deleting the file and `git checkout -- AGENTS.md` (needs Developer Mode or an elevated shell); never "fix" it by pasting the guide's text into the file.
 The root `README.md` is the public product entrypoint (GitHub + onboarding). Prefer purpose-specific names such as `GUIDE.md`, `RUNBOOK.md`, or `PROVENANCE.md` for operational detail.
 
@@ -23,7 +23,7 @@ stream video -> persisted edit plan -> render -> publish pack
 - `internal/httpapi` and `internal/workers` implement the local API and jobs; the inline queue has a dedicated one-worker capture lane because all captures contend for one `cs2.exe`.
 - Workers skip completed durable artifacts on retry, but recording is enqueued with `MaxRetry(0)`; a `demo_incompatible:` failure is deterministic and must not be retried against the same CS2 build.
 - Series jobs share a client-minted `series_id`; roster choice is aggregated across maps, and HLTV `-pN.dem` parts are one logical map.
-- `web/` is the Next.js 16 / React 19 local Studio UI. `desktop/` packages it with the Go services in Electron (no React in `desktop/src`). `landing/` is the only hosted app (Next.js 15; pre-commit runs `build` only).
+- `web/` is the Next.js 16 / React 19 local Studio UI. `desktop/` packages it with the Go services in Electron (no React in `desktop/src`). `landing/` is the only hosted app (Next.js 15; it has a build command but no lint/test scripts).
 - `data/`, `bin/`, capture output, and generated media are artifacts, not source, unless a task explicitly targets fixtures or cleanup.
 
 ## Where To Look
@@ -131,11 +131,10 @@ After final media is validated and no recapture/reparse is needed, send used ext
 ## Development
 
 Toolchain sources of truth are `go.mod` (Go 1.26.6), each package's `packageManager` field (pnpm 11.22.0), and Node 24.
-There is no hosted quality CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
-Nothing re-checks product quality on GitHub, so a gate skipped locally is a gate that never runs.
-The one hosted pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It does not replace the pre-commit hook and must stay the only release job.
+There is no hosted quality CI. Run the relevant local checks before committing or shipping; nothing re-checks product quality on GitHub.
+The one hosted pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It does not replace local verification and must stay the only release job.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
-Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser E2E is Playwright in `web/e2e/`, run out of the pre-commit gate with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
+Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser E2E is Playwright in `web/e2e/`, run explicitly with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
 
 ```powershell
 .\scripts\build.ps1
@@ -154,7 +153,7 @@ go test ./... -count=1 -timeout 3m
 - Real-demo worker tests skip without `TEST_DEMO_PATH`; parser-only and pure unit tests must not launch HLAE/CS2 or long renders.
 - Real `.dem` and generated `*.expected.json` golden files stay local; `testdata/*.rules.json` may be committed when they are reference inputs. Fixture convention: `testdata/GUIDE.md`.
 
-Run package gates in the pre-commit order:
+Run package checks in this order when their package is affected:
 
 ```powershell
 pnpm --dir web run lint
@@ -188,9 +187,8 @@ Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` a
 
 Committing or pushing still requires an explicit user request.
 `main` is unprotected and has no required status checks, so a push lands immediately.
-The change-aware `.githooks/pre-commit` gate runs project checks and package-specific lint/typecheck/test/build commands from staged paths; it does not restrict the current branch. It is the only automated quality gate the repository has. Unsigned Windows installers are cut by `.github/workflows/desktop-release.yml`.
-Use the authorized global `committer` with explicit, quoted file lists; when a repository-owned `.githooks` directory exists, it activates that directory for the commit without writing persistent Git configuration.
-Never bypass the gate with `--no-verify` or by clearing or redirecting `core.hooksPath` away from `.githooks`: with no CI behind it, a skipped hook means the change was never checked at all.
+There is no automatic commit-time quality gate. The agent must run focused tests plus the affected package checks before a requested commit. Unsigned Windows installers are cut by `.github/workflows/desktop-release.yml`.
+Use ordinary non-interactive Git commands for requested commits and stage only the explicit in-scope paths. Never disturb unrelated staged or unstaged work.
 
 ### Parallel Workspaces
 
@@ -210,10 +208,10 @@ Do not use the retired VPS landing path.
 ## Codex Harness
 
 ```bash
-CODEX_DRY_RUN=1 scripts/codex-run.sh .codex/prompts/go-tdd.md "preview"
-scripts/codex-go-tdd.sh "behavior change"
-scripts/codex-go-bugfix.sh "bug fix"
-scripts/codex-go-pr-ready.sh
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Doctor
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Preview -Playbook tdd "behavior change"
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Run -Playbook bugfix "bug fix"
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Check
 ```
 
 Review findings use `BLOCKER`, `WARNING`, or `NIT` and include file/path, problem, why it matters, and a practical fix; if clean, say `No blocking issues found.`

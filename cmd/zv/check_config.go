@@ -85,21 +85,6 @@ func codexPromptContentRules() []codexPromptContentRule {
 				"scripts/go-gate.sh --security",
 			},
 		},
-		{
-			Path: ".codex/prompts/go-concurrency-review.md",
-			Required: []string{
-				"scripts/go-gate.sh --race --no-format",
-			},
-			Forbidden: []string{
-				"`go test -race ./... -count=1`",
-			},
-		},
-		{
-			Path: ".codex/prompts/go-security-review.md",
-			Required: []string{
-				"scripts/go-gate.sh --security",
-			},
-		},
 	}
 }
 

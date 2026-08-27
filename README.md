@@ -172,7 +172,7 @@ data/                local artifacts (music catalog, …) — not source of trut
 
 Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/cliphub`), **pnpm 11.22** / **Node 24** per package.
 
-The quality gate is [`.githooks/pre-commit`](.githooks/pre-commit) — skip it and the change was never checked. The one hosted job is [Desktop release](.github/workflows/desktop-release.yml) on `windows-latest`, which publishes the unsigned installer.
+Quality checks are local and explicit; see [CLAUDE.md](CLAUDE.md) for the affected-package commands. The one hosted job is [Desktop release](.github/workflows/desktop-release.yml) on `windows-latest`, which publishes the unsigned installer.
 
 ```powershell
 .\scripts\build.ps1
@@ -239,6 +239,6 @@ Canonical product surfaces: GitHub `rechedev9/cliphub`, site [cliphub.gravityroo
 
 Issues and discussion: [github.com/rechedev9/cliphub](https://github.com/rechedev9/cliphub).
 
-PRs should stay on product scope: deterministic pipeline, Studio/CLI contract, and Windows capture safety. Prefer tests and the pre-commit gate over “looks good” claims.
+PRs should stay on product scope: deterministic pipeline, Studio/CLI contract, and Windows capture safety. Prefer tests and explicit package checks over “looks good” claims.
 
-Work lands on `main` (no PR required for product work on this repo). Never bypass the pre-commit hook with `--no-verify`.
+Work lands on `main` (no PR required for product work on this repo). Verify affected packages locally before committing.

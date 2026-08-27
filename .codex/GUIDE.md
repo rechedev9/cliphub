@@ -8,7 +8,7 @@ project boundaries, Go style, safety rules, and verification expectations.
 ## Product operation from Codex Desktop
 
 The unified Windows CLI is the primary interface. Open
-`C:\Users\reche\Documents\zackvideo` as a folder in Codex Desktop, select
+`C:\Users\reche\Documents\Projects\tickcut` as a folder in Codex Desktop, select
 Codex, and ask for the desired ClipHub result. Studio is not a prerequisite.
 Codex follows this machine-readable loop:
 
@@ -73,40 +73,42 @@ The former external ClipHub MCP registration has been removed. Use the
 unified `zv` CLI for repository workflows, or drive Studio through its own
 interface; `.codex/config.toml` must not register a ClipHub MCP server.
 
-## Common commands
+## Harness
 
-Run these wrappers from the repository root in Git Bash, not through the broken bare `bash` WSL shim:
+The Windows-native entrypoint is `scripts/codex-harness.ps1`. Preview is the
+default and never launches an agent. A real nested Codex run requires the
+explicit `Run` action:
 
-```bash
-scripts/codex-run.sh .codex/prompts/go-tdd.md "custom prompt run"
-scripts/codex-plan.sh "plan a small change"
-scripts/codex-go-tdd.sh "implement a behavior change"
-scripts/codex-go-bugfix.sh "fix a bug with a regression test"
-scripts/codex-review-diff.sh
-scripts/codex-go-pr-ready.sh
+```powershell
+.\scripts\codex-harness.ps1 -Action Doctor
+.\scripts\codex-harness.ps1 -Action Preview -Playbook tdd "implement validation"
+.\scripts\codex-harness.ps1 -Action Run -Playbook bugfix "fix parsing regression"
+.\scripts\codex-harness.ps1 -Action Check
 ```
 
-Focused read-only reviews:
+Available playbooks are `plan`, `tdd`, `bugfix`, `ready`, and `spike`. Reviews
+are performed by the active agent against the real source and test results;
+there is no mandatory nested reviewer.
+
+Linux and Git Bash automation can use `scripts/codex-run.sh`. It also previews
+by default and requires `--execute` for a real run:
 
 ```bash
-scripts/codex-go-readability-review.sh
-scripts/codex-go-test-review.sh
-scripts/codex-go-concurrency-review.sh
-scripts/codex-go-security-review.sh
+scripts/codex-run.sh .codex/prompts/go-plan.md "plan a small change"
+scripts/codex-run.sh --execute .codex/prompts/go-tdd.md "implement a behavior change"
 ```
 
-Uncertain work:
-
-```bash
-scripts/codex-spike.sh "test whether approach X works"
-```
+The small compatibility wrappers `scripts/codex-plan.sh`,
+`scripts/codex-go-tdd.sh`, `scripts/codex-go-bugfix.sh`,
+`scripts/codex-go-pr-ready.sh`, and `scripts/codex-spike.sh` select a playbook
+but retain the runner's preview-by-default behavior.
 
 ## Safety defaults
 
-- Write-oriented scripts use `workspace-write` sandbox and `on-request`
-  approvals.
-- Review and planning scripts use `read-only` sandbox and `never` approval by
-  default.
+- The harness passes an explicit sandbox and approval policy instead of relying
+  on ambient defaults. Override them only for a concrete task.
+- Preview is the default; launching a nested agent always requires `Run` or
+  `--execute`.
 - `scripts/go-gate.sh` formats changed Go files unless `--no-format` is passed.
   In a very dirty repo, use `--no-format` or format explicit files first.
 - `scripts/go-gate.sh` also runs `zv check`, so repo-local skills,
@@ -120,18 +122,17 @@ scripts/codex-spike.sh "test whether approach X works"
 ## Useful environment variables
 
 ```bash
-CODEX_MODEL=gpt-5.1-codex scripts/codex-go-tdd.sh "..."
-CODEX_PROFILE=work scripts/codex-go-tdd.sh "..."
-CODEX_SEARCH=1 scripts/codex-plan.sh "research-dependent task"
-CODEX_DRY_RUN=1 scripts/codex-go-tdd.sh "preview prompt only"
-CODEX_OUTPUT_LAST_MESSAGE=/tmp/codex-last.md scripts/codex-review-diff.sh
+CODEX_MODEL=gpt-5.6-sol scripts/codex-run.sh --execute .codex/prompts/go-tdd.md "..."
+CODEX_PROFILE=work scripts/codex-run.sh --execute .codex/prompts/go-tdd.md "..."
+CODEX_SEARCH=1 scripts/codex-run.sh --execute .codex/prompts/go-plan.md "research-dependent task"
+CODEX_OUTPUT_LAST_MESSAGE=/tmp/codex-last.md scripts/codex-run.sh --execute .codex/prompts/go-pr-ready.md
 ```
 
 Sandbox override examples:
 
 ```bash
-CODEX_SANDBOX=read-only scripts/codex-go-tdd.sh "inspect only"
-CODEX_SANDBOX=workspace-write CODEX_APPROVAL=on-request scripts/codex-spike.sh "..."
+CODEX_SANDBOX=read-only scripts/codex-run.sh --execute .codex/prompts/go-plan.md "inspect only"
+CODEX_SANDBOX=workspace-write CODEX_APPROVAL=on-request scripts/codex-run.sh --execute .codex/prompts/go-spike.md "..."
 ```
 
 Do not use `danger-full-access` unless you have an external sandbox or you are
@@ -159,11 +160,6 @@ scripts/go-gate.sh --race --security --build
 - `.codex/prompts/go-tdd.md`: behavior change with test first.
 - `.codex/prompts/go-bugfix.md`: regression-test bug fix.
 - `.codex/prompts/go-pr-ready.md`: final PR preparation.
-- `.codex/prompts/review-diff.md`: full diff review.
-- `.codex/prompts/go-readability-review.md`: Go readability review.
-- `.codex/prompts/go-test-review.md`: test quality review.
-- `.codex/prompts/go-concurrency-review.md`: race/leak/cancellation review.
-- `.codex/prompts/go-security-review.md`: filesystem/subprocess/security review.
 - `.codex/prompts/go-spike.md`: reversible experiment.
 
 ## Project skills

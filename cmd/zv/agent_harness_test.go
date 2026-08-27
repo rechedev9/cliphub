@@ -193,7 +193,7 @@ func TestCodexHarnessExecutesWorkflowContractEndToEnd(t *testing.T) {
 		t.Fatalf("chmod fake codex: %v", err)
 	}
 
-	cmd := exec.Command("bash", "-c", "export PATH="+shellQuote(bashPath(fakeBin))+":\"$PATH\"; scripts/check-codex-harness.sh")
+	cmd := exec.Command(testBashExecutable(), "-c", "export PATH="+shellQuote(bashPath(fakeBin))+":\"$PATH\"; scripts/check-codex-harness.sh")
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -202,9 +202,9 @@ func TestCodexHarnessExecutesWorkflowContractEndToEnd(t *testing.T) {
 	body := string(out)
 	for _, want := range []string{
 		"== shell syntax ==",
-		"== Codex sees AGENTS.md ==",
+		"== harness structure ==",
 		"== ClipHub workflow contract ==",
-		fmt.Sprintf("OK: 7 skills, %d workflows, 10 workflow docs, and 10 agent prompt wrappers checked", len(workflowCatalog())),
+		fmt.Sprintf("OK: 7 skills, %d workflows, 10 workflow docs, and %d agent prompt wrappers checked", len(workflowCatalog()), len(codexPromptWrapperFixtures())),
 		"OK: Codex harness is wired",
 	} {
 		if !strings.Contains(body, want) {
@@ -229,7 +229,7 @@ func TestRootShellScriptsParseEndToEnd(t *testing.T) {
 	if len(args) == 1 {
 		t.Fatalf("no root shell scripts found")
 	}
-	cmd := exec.Command("bash", args...)
+	cmd := exec.Command(testBashExecutable(), args...)
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -436,18 +436,6 @@ func TestCodexPromptsUseProjectGate(t *testing.T) {
 				"scripts/go-gate.sh",
 				"scripts/go-gate.sh --no-format",
 				"scripts/go-gate.sh --race",
-				"scripts/go-gate.sh --security",
-			},
-		},
-		{
-			path: filepath.Join(root, ".codex", "prompts", "go-concurrency-review.md"),
-			want: []string{
-				"scripts/go-gate.sh --race --no-format",
-			},
-		},
-		{
-			path: filepath.Join(root, ".codex", "prompts", "go-security-review.md"),
-			want: []string{
 				"scripts/go-gate.sh --security",
 			},
 		},
