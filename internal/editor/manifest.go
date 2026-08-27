@@ -1094,7 +1094,7 @@ func loadVoiceTracks(dir string) ([]string, int) {
 	if strings.TrimSpace(dir) == "" {
 		return nil, 0
 	}
-	body, err := os.ReadFile(filepath.Join(dir, "voice-index.json"))
+	body, err := os.ReadFile(filepath.Join(dir, "voice-index.json")) // #nosec G304 -- fixed filename inside the run directory
 	if err != nil {
 		return nil, 0
 	}

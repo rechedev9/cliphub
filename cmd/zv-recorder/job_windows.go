@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -37,6 +38,8 @@ func newCaptureJob() (*captureJob, error) {
 	if _, err := windows.SetInformationJobObject(
 		handle,
 		windows.JobObjectExtendedLimitInformation,
+		// #nosec G103 -- SetInformationJobObject requires a raw pointer to the
+		// JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct; there is no safe wrapper.
 		uintptr(unsafe.Pointer(&info)),
 		uint32(unsafe.Sizeof(info)),
 	); err != nil {
@@ -55,6 +58,11 @@ func (j *captureJob) assign(pid int) error {
 	if j == nil || j.handle == 0 {
 		return nil
 	}
+	if pid <= 0 || uint64(pid) > math.MaxUint32 {
+		return fmt.Errorf("invalid PID %d for capture job", pid)
+	}
+	// #nosec G115 -- pid is bounded to (0, math.MaxUint32] above, so the
+	// uint32 narrowing is lossless.
 	process, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(pid))
 	if err != nil {
 		return fmt.Errorf("open HLAE process %d for capture job: %w", pid, err)

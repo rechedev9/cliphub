@@ -73,6 +73,9 @@ func Encode(m Match) string {
 	var buf [byteLength]byte
 	binary.LittleEndian.PutUint64(buf[0:8], m.MatchID)
 	binary.LittleEndian.PutUint64(buf[8:16], m.OutcomeID)
+	// #nosec G115 -- the share-code wire format defines TokenID as the 16 bits
+	// at bytes 16..17 (Decode reads exactly that, see the known-good vector), so
+	// the uint16 narrowing is lossless by construction.
 	binary.LittleEndian.PutUint16(buf[16:18], uint16(m.TokenID))
 
 	acc := new(big.Int).SetBytes(buf[:])

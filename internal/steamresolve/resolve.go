@@ -24,6 +24,7 @@ var ErrInvalidCode = errors.New("invalid share code")
 // Environment variables holding the Steam session credentials.
 const (
 	EnvUsername = "ZV_STEAM_USERNAME"
+	// #nosec G101 -- environment variable names, never credential values.
 	EnvPassword = "ZV_STEAM_PASSWORD"
 	EnvGuard    = "ZV_STEAM_GUARD"
 )

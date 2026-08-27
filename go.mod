@@ -1,6 +1,6 @@
 module github.com/rechedev9/cliphub
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/Philipp15b/go-steam/v3 v3.0.0

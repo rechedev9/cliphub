@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	// #nosec G101 -- API status constants, never credentials.
 	steamCredentialsRequired  = "steam_credentials_required"
 	steamHistoryNotConfigured = "history_not_configured"
 	steamNeedKnownCode        = "need_known_code"
