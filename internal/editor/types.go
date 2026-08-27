@@ -96,10 +96,13 @@ type Config struct {
 	RankMoments       bool
 	VideoCRF          int
 	VideoPreset       string
-	HQFilters         bool
-	AudioNormalize    bool
-	QualityChecks     bool
-	CoverSheets       bool
+	// Threads caps the FFmpeg encoder threads for each render; 0 lets FFmpeg
+	// pick its own default.
+	Threads        int `json:"threads,omitempty"`
+	HQFilters      bool
+	AudioNormalize bool
+	QualityChecks  bool
+	CoverSheets    bool
 	// CoverSheetsSet distinguishes an explicit CLI decision from callers that
 	// leave this option to the selected render preset.
 	CoverSheetsSet bool
@@ -168,16 +171,19 @@ type ManifestOptions struct {
 	RankMoments         bool
 	VideoCRF            int
 	VideoPreset         string
-	HQFilters           bool
-	AudioNormalize      bool
-	QualityChecks       bool
-	CoverSheets         bool
-	CoverSheetsSet      bool
-	CoverFirstFrame     bool
-	TemporalSmoothing   bool
-	FFmpegPath          string
-	CoversEnabled       bool
-	SkipExisting        bool
+	// Threads caps the FFmpeg encoder threads for each render; 0 lets FFmpeg
+	// pick its own default.
+	Threads           int `json:"threads,omitempty"`
+	HQFilters         bool
+	AudioNormalize    bool
+	QualityChecks     bool
+	CoverSheets       bool
+	CoverSheetsSet    bool
+	CoverFirstFrame   bool
+	TemporalSmoothing bool
+	FFmpegPath        string
+	CoversEnabled     bool
+	SkipExisting      bool
 	// MusicVolume is the gain applied to the mixed music track, in (0,1];
 	// 0 means unset and keeps the default 1.0 balance.
 	MusicVolume float64
@@ -243,6 +249,7 @@ type Manifest struct {
 	UnmatchedSmokes   string      `json:"unmatched_smokes,omitempty"`
 	VideoCRF          int         `json:"video_crf,omitempty"`
 	VideoPreset       string      `json:"video_preset,omitempty"`
+	Threads           int         `json:"threads,omitempty"`
 	HQFilters         bool        `json:"hq_filters,omitempty"`
 	AudioNormalize    bool        `json:"audio_normalize,omitempty"`
 	QualityChecks     bool        `json:"quality_checks,omitempty"`
@@ -280,9 +287,9 @@ type ShortEdit struct {
 	GameVolume *float64 `json:"game_volume,omitempty"`
 	// VoiceVolume is the gain applied to each POV-team comms track, in [0,1].
 	// Nil keeps the historical 0.85 gain.
-	VoiceVolume   *float64 `json:"voice_volume,omitempty"`
-	VoiceTracks   []string `json:"voice_tracks,omitempty"`
-	VoiceTickrate int      `json:"voice_tickrate,omitempty"`
+	VoiceVolume       *float64 `json:"voice_volume,omitempty"`
+	VoiceTracks       []string `json:"voice_tracks,omitempty"`
+	VoiceTickrate     int      `json:"voice_tickrate,omitempty"`
 	RhythmPath        string   `json:"rhythm_path,omitempty"`
 	OutputFormat      string   `json:"output_format,omitempty"`
 	KillEffect        string   `json:"kill_effect,omitempty"`
@@ -298,6 +305,7 @@ type ShortEdit struct {
 	OutputFPS         int      `json:"output_fps,omitempty"`
 	VideoCRF          int      `json:"video_crf,omitempty"`
 	VideoPreset       string   `json:"video_preset,omitempty"`
+	Threads           int      `json:"threads,omitempty"`
 	HQFilters         bool     `json:"hq_filters,omitempty"`
 	AudioNormalize    bool     `json:"audio_normalize,omitempty"`
 	TemporalSmoothing bool     `json:"temporal_smoothing,omitempty"`
@@ -461,6 +469,7 @@ type ShortResult struct {
 	OutputFPS          int                         `json:"output_fps,omitempty"`
 	VideoCRF           int                         `json:"video_crf,omitempty"`
 	VideoPreset        string                      `json:"video_preset,omitempty"`
+	Threads            int                         `json:"threads,omitempty"`
 	HQFilters          bool                        `json:"hq_filters,omitempty"`
 	AudioNormalize     bool                        `json:"audio_normalize,omitempty"`
 	TemporalSmoothing  bool                        `json:"temporal_smoothing,omitempty"`

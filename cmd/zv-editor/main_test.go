@@ -25,6 +25,27 @@ func TestValidateMusicVolume(t *testing.T) {
 	}
 }
 
+func TestValidateThreads(t *testing.T) {
+	cases := []struct {
+		name    string
+		threads int
+		wantErr bool
+	}{
+		{"unset", 0, false},
+		{"single", 1, false},
+		{"multi", 8, false},
+		{"negative rejected", -1, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateThreads(tc.threads)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateThreads(%d) error = %v, wantErr %v", tc.threads, err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidateOptionalMixVolume(t *testing.T) {
 	cases := []struct {
 		name    string

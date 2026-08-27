@@ -140,24 +140,29 @@ func TestNewPlanFromKillPlan(t *testing.T) {
 
 func TestRuntimeConfigNormalizedTreatsZeroAsDefault(t *testing.T) {
 	for _, tt := range []struct {
-		in   float64
-		want float64
+		in      float64
+		want    float64
+		settle  float64
+		wantSet float64
 	}{
-		{in: 0, want: DefaultPlaybackTimescale},
-		{in: DefaultPlaybackTimescale, want: DefaultPlaybackTimescale},
-		{in: 1, want: 1},
-		{in: 4, want: 4},
+		{in: 0, want: DefaultPlaybackTimescale, settle: 0, wantSet: DefaultPlaybackSettleSeconds},
+		{in: DefaultPlaybackTimescale, want: DefaultPlaybackTimescale, settle: 0, wantSet: DefaultPlaybackSettleSeconds},
+		{in: 1, want: 1, settle: 4, wantSet: 4},
+		{in: 4, want: 4, settle: 0, wantSet: DefaultPlaybackSettleSeconds},
 	} {
-		got := RuntimeConfig{PlaybackTimescale: tt.in, QuitTickPad: 200}.Normalized()
+		got := RuntimeConfig{PlaybackTimescale: tt.in, PlaybackSettleSeconds: tt.settle, QuitTickPad: 200}.Normalized()
 		if got.PlaybackTimescale != tt.want {
-			t.Errorf("Normalized(%v) = %v, want %v", tt.in, got.PlaybackTimescale, tt.want)
+			t.Errorf("Normalized(%v).PlaybackTimescale = %v, want %v", tt.in, got.PlaybackTimescale, tt.want)
+		}
+		if got.PlaybackSettleSeconds != tt.wantSet {
+			t.Errorf("Normalized(%v).PlaybackSettleSeconds = %v, want %v", tt.settle, got.PlaybackSettleSeconds, tt.wantSet)
 		}
 		if got.QuitTickPad != 200 {
 			t.Errorf("Normalized(%v) QuitTickPad = %d, want 200", tt.in, got.QuitTickPad)
 		}
 	}
 	zero := RuntimeConfig{QuitTickPad: 200}
-	explicit := RuntimeConfig{PlaybackTimescale: DefaultPlaybackTimescale, QuitTickPad: 200}
+	explicit := RuntimeConfig{PlaybackTimescale: DefaultPlaybackTimescale, PlaybackSettleSeconds: DefaultPlaybackSettleSeconds, QuitTickPad: 200}
 	if zero.Normalized() != explicit.Normalized() {
 		t.Fatalf("zero and default runtime should compare equal after Normalized")
 	}
@@ -232,6 +237,54 @@ func TestValidateRejectsInvalidCRF(t *testing.T) {
 	p.Stream.CRF = 52
 	if err := p.Validate(); err == nil {
 		t.Fatal("Validate error = nil, want error")
+	}
+}
+
+func TestValidateRejectsUnknownEncoder(t *testing.T) {
+	p := testPlan()
+	p.Stream.Encoder = "vp9"
+	err := p.Validate()
+	if err == nil || !strings.Contains(err.Error(), "stream encoder") {
+		t.Fatalf("Validate error = %v, want stream encoder error listing valid encoders", err)
+	}
+	for _, want := range []string{"libx264", "nvenc-h264", "amf-h264", "qsv-h264"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("encoder error missing valid value %q: %v", want, err)
+		}
+	}
+	for _, valid := range []string{"", "libx264", "nvenc-h264", "amf-h264", "qsv-h264"} {
+		p := testPlan()
+		p.Stream.Encoder = valid
+		if err := p.Validate(); err != nil {
+			t.Errorf("Validate with encoder %q error = %v", valid, err)
+		}
+	}
+}
+
+func TestNewPlanFromKillPlanPreservesEncoder(t *testing.T) {
+	kp := killplan.NewPlan()
+	kp.Demo.Tickrate = 64
+	kp.Demo.SHA256 = strings.Repeat("a", 64)
+	kp.Demo.DurationTicks = 2000
+	kp.Target.SteamID64 = "76561198148986856"
+	kp.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
+
+	stream := DefaultStreamConfig()
+	stream.Encoder = EncoderNVENC
+	plan, err := NewPlanFromKillPlan(kp, "x.dem", "out", stream)
+	if err != nil {
+		t.Fatalf("NewPlanFromKillPlan error = %v", err)
+	}
+	if plan.Stream.Encoder != EncoderNVENC {
+		t.Fatalf("plan.Stream.Encoder = %q, want %q", plan.Stream.Encoder, EncoderNVENC)
+	}
+	// Default must stay the compatible empty encoder.
+	defaultPlan, err := NewPlanFromKillPlan(kp, "x.dem", "out", DefaultStreamConfig())
+	if err != nil {
+		t.Fatalf("NewPlanFromKillPlan(default) error = %v", err)
+	}
+	if defaultPlan.Stream.Encoder != "" {
+		t.Fatalf("default plan.Stream.Encoder = %q, want empty", defaultPlan.Stream.Encoder)
 	}
 }
 

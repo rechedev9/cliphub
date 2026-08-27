@@ -52,34 +52,50 @@ func VideoFilter(short ShortEdit) string {
 	if presetUsesFullFrame(short.Preset) {
 		return FullFrameVideoFilter(short)
 	}
-	scaleHeight := fmt.Sprintf("%d", height)
-	if expr := zoomHeightExpression(short.Effects, height); expr != "" {
-		scaleHeight = "'" + expr + "'"
+	scaleHeight, singleCrop := motionSingleCropHeight(short, height)
+	if scaleHeight == "" {
+		// No motion-without-zoom re-staging: fall back to the historical
+		// height, keeping a dynamic zoom height when a zoom effect is present.
+		scaleHeight = fmt.Sprintf("%d", height)
+		if expr := zoomHeightExpression(short.Effects, height); expr != "" {
+			scaleHeight = "'" + expr + "'"
+		}
 	}
 	filters := []string{
 		scaleFilter(scaleHeight, short),
-		fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height),
-		"setsar=1",
-		fpsFilter(short),
 	}
+	if !singleCrop {
+		filters = append(filters, fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height))
+	}
+	filters = append(filters, "setsar=1")
+	filters = append(filters, fpsFilter(short))
 	filters = appendTemporalSmoothingFilter(filters, short)
-	filters = appendEffectFilters(filters, short)
+	filters = appendEffectFilters(filters, short, singleCrop)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }
 
 func FullFrameVideoFilter(short ShortEdit) string {
 	width, height := outputDimensions(short)
+	heightExpr, singleCrop := motionSingleCropHeight(short, height)
+	if heightExpr == "" {
+		heightExpr = fmt.Sprintf("%d", height)
+		if expr := zoomHeightExpression(short.Effects, height); expr != "" {
+			heightExpr = "'" + expr + "'"
+		}
+	}
 	filters := []string{
-		fullFrameBackgroundScaleFilter(short),
-		fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height),
+		fullFrameBackgroundScaleFilter(short, heightExpr),
+	}
+	if !singleCrop {
+		filters = append(filters, fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height))
 	}
 	filters = append(filters, "setsar=1")
 	filters = append(filters,
 		fpsFilter(short),
 	)
 	filters = appendTemporalSmoothingFilter(filters, short)
-	filters = appendEffectFilters(filters, short)
+	filters = appendEffectFilters(filters, short, singleCrop)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }
@@ -217,11 +233,36 @@ func effectPosition(value, fallback string) string {
 }
 
 func scaleFilter(height string, short ShortEdit) string {
-	filter := fmt.Sprintf("scale=w=-2:h=%s:eval=frame", height)
+	filter := fmt.Sprintf("scale=w=-2:h=%s:%s", height, scaleEvalMode(height))
 	if short.HQFilters {
 		filter += ":flags=" + hqScaleFlags(short)
 	}
 	return filter
+}
+
+// scaleEvalMode selects how often FFmpeg evaluates the scale geometry. A plain
+// integer height is constant across the timeline, so eval=init lets FFmpeg
+// compute the scaled size once and reuse it; a zoom-driven height expression
+// depends on t and must be re-evaluated for every frame (eval=frame).
+func scaleEvalMode(height string) string {
+	if isPlainIntegerHeight(height) {
+		return "eval=init"
+	}
+	return "eval=frame"
+}
+
+// isPlainIntegerHeight reports whether a scale height argument is a constant
+// integer (e.g. "1920") rather than a quoted dynamic expression ("'if(…)'").
+func isPlainIntegerHeight(height string) bool {
+	if height == "" {
+		return false
+	}
+	for _, r := range height {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func fpsFilter(short ShortEdit) string {
@@ -235,13 +276,9 @@ func outputFPS(short ShortEdit) int {
 	return 60
 }
 
-func fullFrameBackgroundScaleFilter(short ShortEdit) string {
-	width, height := outputDimensions(short)
-	heightExpr := fmt.Sprintf("%d", height)
-	if expr := zoomHeightExpression(short.Effects, height); expr != "" {
-		heightExpr = "'" + expr + "'"
-	}
-	filter := fmt.Sprintf("scale=w=%d:h=%s:force_original_aspect_ratio=increase:eval=frame", width, heightExpr)
+func fullFrameBackgroundScaleFilter(short ShortEdit, heightExpr string) string {
+	width, _ := outputDimensions(short)
+	filter := fmt.Sprintf("scale=w=%d:h=%s:force_original_aspect_ratio=increase:%s", width, heightExpr, scaleEvalMode(heightExpr))
 	if short.HQFilters {
 		filter += ":flags=" + hqScaleFlags(short)
 	}
@@ -316,10 +353,10 @@ func smoothZoomRampExpression(start, end, from, to float64) string {
 	return fmt.Sprintf("(%.3f+(%.3f-%.3f)*(%s*%s*(3-2*%s)))", from, to, from, t, t, t)
 }
 
-func appendEffectFilters(filters []string, short ShortEdit) []string {
+func appendEffectFilters(filters []string, short ShortEdit, singleCrop bool) []string {
 	effects := short.Effects
 	filters = append(filters, gradeFilters(effects)...)
-	filters = appendMotionCropFilters(filters, effects, short)
+	filters = appendMotionCropFilters(filters, effects, short, singleCrop)
 	filters = append(filters, chromaShiftFilters(effects)...)
 	for _, effect := range effects {
 		if effect.Type != EffectFlash {
@@ -410,6 +447,30 @@ func motionPadAmplitude(effects []Effect) int {
 	return int(math.Ceil(pad))
 }
 
+// motionCropEnabled reports whether the motion crop chain will actually emit:
+// it needs at least one shake/glitch effect with offset expressions on both
+// the x and y axes.
+func motionCropEnabled(effects []Effect) bool {
+	if motionPadAmplitude(effects) <= 0 {
+		return false
+	}
+	return motionOffsetExpression(effects, "x") != "" && motionOffsetExpression(effects, "y") != ""
+}
+
+// motionSingleCropHeight returns the scale height (and the single-crop flag)
+// when the frame should be staged with a motion margin so the shake/glitch
+// window can pan without a second resample. That is only possible when motion
+// is active and there is no zoom: a dynamic zoom height (eval=frame) sizes the
+// frame per frame, so it cannot carry a fixed margin and must keep the legacy
+// crop+rescale chain in appendMotionCropFilters. The scaled height is the
+// final output height plus the 2*pad margin the pan range needs.
+func motionSingleCropHeight(short ShortEdit, height int) (string, bool) {
+	if !motionCropEnabled(short.Effects) || zoomHeightExpression(short.Effects, height) != "" {
+		return "", false
+	}
+	return fmt.Sprintf("%d", height+2*motionPadAmplitude(short.Effects)), true
+}
+
 func shakeOffsetTerm(effect Effect, axis string) string {
 	amp := effectAmplitude(effect, 14)
 	freq := effectFrequency(effect, 16)
@@ -472,7 +533,25 @@ func motionOffsetExpression(effects []Effect, axis string) string {
 	return combined
 }
 
-func appendMotionCropFilters(filters []string, effects []Effect, short ShortEdit) []string {
+// motionClampedOffset keeps the historical shake/glitch clamp: the window pans
+// within [0, 2*pad], centred on pad, so a neutral offset sits exactly in the
+// middle of the range.
+func motionClampedOffset(pad int, offset string) string {
+	return fmt.Sprintf("max(0\\,min(%d\\,%d+(%s)))", 2*pad, pad, offset)
+}
+
+// appendMotionCropFilters adds the shake/glitch pan chain after grading.
+//
+// singleCrop is the no-zoom path where VideoFilter already scaled the frame to
+// height+2*pad (see motionSingleCropHeight): one dynamic crop then selects the
+// final output window directly, skipping the second resample that the legacy
+// chain paid for sharpness. The window base is centred — ((iw-ow)/2, (ih-oh)/2)
+// with the pad offset folded in, which collapses to 0 on the axis that carries
+// exactly the 2*pad margin — and the outer clamp keeps the crop inside the
+// frame on axes where the source aspect leaves less margin (e.g. an already
+// portrait source). Amplitude and pan range are the same as before; only the
+// geometry differs.
+func appendMotionCropFilters(filters []string, effects []Effect, short ShortEdit, singleCrop bool) []string {
 	pad := motionPadAmplitude(effects)
 	if pad <= 0 {
 		return filters
@@ -483,8 +562,19 @@ func appendMotionCropFilters(filters []string, effects []Effect, short ShortEdit
 		return filters
 	}
 	width, height := outputDimensions(short)
-	x := fmt.Sprintf("max(0\\,min(%d\\,%d+(%s)))", 2*pad, pad, offsetX)
-	y := fmt.Sprintf("max(0\\,min(%d\\,%d+(%s)))", 2*pad, pad, offsetY)
+	x := motionClampedOffset(pad, offsetX)
+	y := motionClampedOffset(pad, offsetY)
+	if singleCrop {
+		baseX := fmt.Sprintf("((iw-ow)/2)-%d+(%s)", pad, x)
+		baseY := fmt.Sprintf("((ih-oh)/2)-%d+(%s)", pad, y)
+		cropX := fmt.Sprintf("max(0\\,min(iw-%d\\,%s))", width, baseX)
+		cropY := fmt.Sprintf("max(0\\,min(ih-%d\\,%s))", height, baseY)
+		return append(filters, fmt.Sprintf("crop=%d:%d:x='%s':y='%s'", width, height, cropX, cropY))
+	}
+	// Legacy zoom+motion (or post-concat) chain: the frame is the final output
+	// size, so the shake/glitch window must crop inside it and resample back
+	// to the output geometry. A dynamic zoom scale cannot carry a fixed
+	// margin, and a compiled short's concat output is already conformed.
 	return append(filters,
 		fmt.Sprintf("crop=w=iw-%d:h=ih-%d:x='%s':y='%s'", 2*pad, 2*pad, x, y),
 		fmt.Sprintf("scale=%d:%d:flags=lanczos", width, height),

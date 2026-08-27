@@ -17,6 +17,95 @@ func TestConcatListEscapesPaths(t *testing.T) {
 	}
 }
 
+func eligibleArtifact() recording.RecordingArtifact {
+	return recording.RecordingArtifact{
+		Codec:           "h264",
+		Width:           1920,
+		Height:          1080,
+		FrameRate:       "60/1",
+		FrameCount:      300,
+		DurationSeconds: 5,
+	}
+}
+
+func TestCopyConcatEligible(t *testing.T) {
+	good := eligibleArtifact()
+	tests := []struct {
+		name  string
+		clips []recording.SegmentClip
+		want  bool
+	}{
+		{
+			name:  "empty set falls back",
+			clips: nil,
+			want:  false,
+		},
+		{
+			name:  "single eligible clip",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Path: "s1.mp4", Artifact: good}},
+			want:  true,
+		},
+		{
+			name: "multiple eligible clips",
+			clips: []recording.SegmentClip{
+				{SegmentID: "s1", Artifact: good},
+				{SegmentID: "s2", Artifact: eligibleArtifact()},
+			},
+			want: true,
+		},
+		{
+			name:  "empty artifact metadata falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: recording.RecordingArtifact{}}},
+			want:  false,
+		},
+		{
+			name:  "wrong codec falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.Codec = "mpeg4"; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "wrong resolution falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.Width = 1280; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "non-60 frame rate falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameRate = "30000/1001"; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "zero frame count falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameCount = 0; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "frame count disagrees with duration falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameCount = 200; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "frame count within tolerance stays eligible",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameCount = 302; return a }()}},
+			want:  true,
+		},
+		{
+			name: "one ineligible clip disqualifies the group",
+			clips: []recording.SegmentClip{
+				{SegmentID: "s1", Artifact: good},
+				{SegmentID: "s2", Artifact: recording.RecordingArtifact{}},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CopyConcatEligible(tt.clips); got != tt.want {
+				t.Errorf("CopyConcatEligible = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateFinalArtifactAcceptsExpectedShape(t *testing.T) {
 	warnings := ValidateFinalArtifact(recording.RecordingArtifact{
 		Path:            "final.mp4",
@@ -45,6 +134,31 @@ func TestValidateFinalArtifactReportsBadShape(t *testing.T) {
 	for _, want := range []string{"missing or empty", "codec", "resolution", "frame_rate", "duration"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("warnings missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+func TestConcatArgBuilders(t *testing.T) {
+	list := "concat-list.txt"
+	out := "final.mp4"
+	copyJoin := strings.Join(copyConcatArgs(list, out), " ")
+	if !strings.Contains(copyJoin, "-c copy") {
+		t.Errorf("copyConcatArgs missing -c copy: %s", copyJoin)
+	}
+	if strings.Contains(copyJoin, "libx264") || strings.Contains(copyJoin, "-vf") {
+		t.Errorf("copyConcatArgs must not re-encode: %s", copyJoin)
+	}
+	reJoin := strings.Join(reencodeConcatArgs(list, out), " ")
+	for _, want := range []string{"-c:v libx264", "fps=60,format=yuv420p", "-vf"} {
+		if !strings.Contains(reJoin, want) {
+			t.Errorf("reencodeConcatArgs missing %q: %s", want, reJoin)
+		}
+	}
+	for _, join := range []string{copyJoin, reJoin} {
+		for _, want := range []string{"-f concat", "-safe 0", "-i " + list, "-movflags +faststart", out} {
+			if !strings.Contains(join, want) {
+				t.Errorf("concat args missing %q:\n%s", want, join)
+			}
 		}
 	}
 }

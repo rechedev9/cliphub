@@ -3,6 +3,7 @@ package recording
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -35,10 +36,9 @@ type captureWindow struct {
 }
 
 const (
-	minimumDemoSeekGapSeconds      = 30
-	playbackTimescaleSettleSeconds = 2
-	maxUnknownObserverFrames       = 3
-	demoEndedGraceFrames           = 30
+	minimumDemoSeekGapSeconds = 30
+	maxUnknownObserverFrames  = 3
+	demoEndedGraceFrames      = 30
 	// softQuitClientFrames delays quit after disconnect. disconnect ends demo
 	// playback so ticks stop; quit must be driven by client frames, not the
 	// tick schedule. Same-frame disconnect+quit hard-crashes CS2/AfxHookSource2.
@@ -117,6 +117,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    let lastSeekFrame = -999;\n")
 	sb.WriteString("    let seekAttempts = 0;\n")
 	sb.WriteString("    const maxSeekAttempts = 6000;\n")
+	sb.WriteString("    let seekStallFrames = 0;\n")
+	sb.WriteString("    let lastSeekTick = -1;\n")
+	sb.WriteString("    const maxSeekStallFrames = 1500;\n")
 	sb.WriteString("    let lastLockFrame = -999;\n")
 	sb.WriteString("    let activeSegment = null;\n")
 	sb.WriteString("    let unknownObserverFrames = 0;\n")
@@ -250,6 +253,22 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("            const s = seeks[seekIdx];\n")
 	sb.WriteString("            if (tick >= s.after) {\n")
 	sb.WriteString("                if (tick + 8 < s.target) {\n")
+	sb.WriteString("                    // Stall diagnostic: a healthy demo_gototick can freeze the demo tick\n")
+	sb.WriteString("                    // for the duration of its load, and the client FPS is uncapped between\n")
+	sb.WriteString("                    // record windows, so a frame-counted budget cannot tell a slow jump\n")
+	sb.WriteString("                    // from a wedged seek without a wall clock (HLAE's JS engine has no\n")
+	sb.WriteString("                    // reliable one). Never abort here; a truly stuck seek is still bounded\n")
+	sb.WriteString("                    // by maxSeekAttempts. Warn once at the budget so the console log\n")
+	sb.WriteString("                    // records that a seek showed no tick progress while still retrying.\n")
+	sb.WriteString("                    if (tick !== lastSeekTick) {\n")
+	sb.WriteString("                        lastSeekTick = tick;\n")
+	sb.WriteString("                        seekStallFrames = 0;\n")
+	sb.WriteString("                    } else {\n")
+	sb.WriteString("                        seekStallFrames++;\n")
+	sb.WriteString("                        if (seekStallFrames === maxSeekStallFrames) {\n")
+	sb.WriteString("                            mirv.warning(`[zackvideo] seek ${seekIdx + 1} -> ${s.target} showed no tick progress for ${maxSeekStallFrames} frames; still retrying\\n`);\n")
+	sb.WriteString("                        }\n")
+	sb.WriteString("                    }\n")
 	sb.WriteString("                    if (frame - lastSeekFrame >= 8) {\n")
 	sb.WriteString("                        seekAttempts++;\n")
 	sb.WriteString("                        if (seekAttempts > maxSeekAttempts) {\n")
@@ -267,6 +286,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                mirv.message(`[zackvideo] seek-landed -> ${s.target} (at ${tick})\\n`);\n")
 	sb.WriteString("                seekIdx++;\n")
 	sb.WriteString("                seekAttempts = 0;\n")
+	sb.WriteString("                seekStallFrames = 0;\n")
+	sb.WriteString("                lastSeekTick = -1;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("        const captureWindow = captureWindows.find((window) => tick >= window.lockFrom && tick <= window.verifyUntil);\n")
@@ -374,9 +395,6 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		leadTicks := plan.Tickrate * 5
 		seekTarget := max(1, s.TickStart-leadTicks)
 		cameraWarmupTick := seekTarget + max(1, plan.Tickrate/2)
-		cameraLead3Tick := recordStart - plan.Tickrate*3
-		cameraLead2Tick := recordStart - plan.Tickrate*2
-		cameraLead1Tick := recordStart - plan.Tickrate
 		cameraLockTick := recordStart - 1
 		if cameraWarmupTick >= recordStart {
 			cameraWarmupTick = recordStart - max(2, plan.Tickrate/2)
@@ -406,9 +424,6 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 
 		commands = append(commands,
 			scheduledCommand{Tick: max(seekTarget+1, cameraWarmupTick), Key: "camera-warmup-" + s.ID, Commands: camera},
-			scheduledCommand{Tick: max(seekTarget+2, cameraLead3Tick), Key: "camera-lead-3s-" + s.ID, Commands: camera},
-			scheduledCommand{Tick: max(seekTarget+3, cameraLead2Tick), Key: "camera-lead-2s-" + s.ID, Commands: camera},
-			scheduledCommand{Tick: max(seekTarget+4, cameraLead1Tick), Key: "camera-lead-1s-" + s.ID, Commands: camera},
 			scheduledCommand{Tick: max(seekTarget+5, cameraLockTick), Key: "camera-lock-" + s.ID, Commands: camera},
 			scheduledCommand{Tick: recordStart + max(1, plan.Tickrate/2), Key: "camera-relock-" + s.ID, Commands: camera},
 		)
@@ -461,11 +476,16 @@ func playbackTimescaleCommands(plan RecordingPlan, windows []captureWindow, shut
 	if !playbackTimescaleEnabled(plan) || len(windows) == 0 {
 		return nil
 	}
-	speed := playbackTimescaleCommand(plan.Runtime.Normalized().PlaybackTimescale)
+	normalized := plan.Runtime.Normalized()
+	speed := playbackTimescaleCommand(normalized.PlaybackTimescale)
 	reset := playbackTimescaleCommand(1)
 	commands := []scheduledCommand{}
 	resetTicks := make([]int, len(windows))
-	settleTicks := plan.Tickrate * playbackTimescaleSettleSeconds
+	settleSeconds := normalized.PlaybackSettleSeconds
+	if settleSeconds <= 0 {
+		settleSeconds = DefaultPlaybackSettleSeconds
+	}
+	settleTicks := int(math.Round(settleSeconds * float64(plan.Tickrate)))
 	if settleTicks < 1 {
 		settleTicks = 1
 	}
@@ -686,9 +706,9 @@ func streamSetupCommands(plan RecordingPlan) []string {
 	case StreamModeTGASequence:
 		commands = append(commands, "mirv_streams record screen settings afxClassic")
 	default:
-		settingName := ffmpegSettingName(plan.Stream.CRF)
+		settingName := ffmpegSettingName(plan.Stream.Encoder, plan.Stream.CRF)
 		commands = append(commands,
-			ffmpegSettingsCommand(settingName, plan.Stream.CRF),
+			ffmpegSettingsCommand(settingName, plan.Stream.CRF, plan.Stream.Encoder),
 			"mirv_streams record screen settings "+settingName,
 		)
 	}
@@ -713,15 +733,38 @@ func voiceRestoreCommands() []string {
 	}
 }
 
-func ffmpegSettingName(crf int) string {
-	return fmt.Sprintf("zvFfmpegYuv420pCrf%d", crf)
+// ffmpegSettingName derives a unique HLAE accumulator setting name per
+// (encoder, crf) so differently-configured captures never collide in HLAE's
+// keyed ffmpeg setting store.
+func ffmpegSettingName(encoder string, crf int) string {
+	switch encoder {
+	case EncoderNVENC:
+		return fmt.Sprintf("zvFfmpegNvencYuv420pCrf%d", crf)
+	case EncoderAMF:
+		return fmt.Sprintf("zvFfmpegAmfYuv420pCrf%d", crf)
+	case EncoderQSV:
+		return fmt.Sprintf("zvFfmpegQsvYuv420pCrf%d", crf)
+	default:
+		return fmt.Sprintf("zvFfmpegYuv420pCrf%d", crf)
+	}
 }
 
-func ffmpegSettingsCommand(name string, crf int) string {
+func ffmpegSettingsCommand(name string, crf int, encoder string) string {
+	var codec string
+	switch encoder {
+	case EncoderNVENC:
+		codec = fmt.Sprintf("-c:v h264_nvenc -preset p5 -rc vbr -b:v 0 -cq %d -pix_fmt yuv420p", crf)
+	case EncoderAMF:
+		codec = fmt.Sprintf("-c:v h264_amf -quality balanced -rc cqp -qp_i %d -qp_p %d -qp_b %d -pix_fmt yuv420p", crf, crf, crf)
+	case EncoderQSV:
+		codec = fmt.Sprintf("-c:v h264_qsv -global_quality %d -pix_fmt yuv420p", crf)
+	default:
+		codec = fmt.Sprintf("-c:v libx264 -preset fast -crf %d -pix_fmt yuv420p", crf)
+	}
 	return fmt.Sprintf(
-		`mirv_streams settings add ffmpeg %s "-c:v libx264 -preset fast -crf %d -pix_fmt yuv420p {QUOTE}{AFX_STREAM_PATH}\video.mp4{QUOTE}"`,
+		`mirv_streams settings add ffmpeg %s "%s {QUOTE}{AFX_STREAM_PATH}\video.mp4{QUOTE}"`,
 		name,
-		crf,
+		codec,
 	)
 }
 

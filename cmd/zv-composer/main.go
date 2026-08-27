@@ -143,7 +143,7 @@ func run() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	if err := composition.ComposeConcat(ctx, ffmpeg, clips, absOut, filepath.Dir(absOut)); err != nil {
+	if err := composition.ComposeConcat(ctx, ffmpeg, ffprobe, clips, absOut, filepath.Dir(absOut)); err != nil {
 		result.Error = err.Error()
 		_ = writeResult(resultPath, result)
 		return err

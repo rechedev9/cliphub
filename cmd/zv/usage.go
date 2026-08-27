@@ -82,6 +82,10 @@ Flags:
   --intro / --outro          add professional title bookends
   --cover-first-frame        freeze the cover frame over the first frames so
                              YouTube's Shorts thumbnail selector can pick it
+  --encoder <name>           capture encoder: nvenc-h264, amf-h264, qsv-h264, or libx264 (default)
+  --gap-timescale <n>        demo_timescale between record windows (0 = default 8, 1 = off)
+  --settle-seconds <n>       1x settle before each record window (0 = default 2)
+  --threads <n>              render encoder threads per short (0 = FFmpeg default)
   --dry-run                  print the resolved plan without launching HLAE/CS2 or FFmpeg
   --format <text|json>       dry-run plan format (default text; JSON requires --dry-run)
 

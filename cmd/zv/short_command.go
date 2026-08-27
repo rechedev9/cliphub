@@ -42,6 +42,20 @@ type shortOptions struct {
 	// rendered Short so YouTube's thumbnail frame selector can pick it.
 	CoverFirstFrame bool
 	DryRun          bool
+
+	// Encoder selects the capture encoder passed to zv-recorder: empty (or
+	// "libx264") uses the default x264 path; nvenc-h264, amf-h264, and qsv-h264
+	// select hardware encoders when the resolved FFmpeg supports them.
+	Encoder string
+	// GapTimescale speeds unrecorded demo gaps; 0 keeps the recorder default (8x)
+	// and 1 disables the speedup.
+	GapTimescale float64
+	// SettleSeconds is the 1x settle before each record window; 0 keeps the
+	// recorder default (2s).
+	SettleSeconds float64
+	// Threads caps the render encoder threads per short; 0 keeps the FFmpeg
+	// default.
+	Threads int
 }
 
 // shortStage is one delegated step of the resolved demo-to-Short plan.
@@ -241,6 +255,10 @@ func parseShortArgs(args []string) (shortOptions, error) {
 	fs.BoolVar(&opts.CoverSheets, "cover-sheets", true, "generate tiled cover contact sheets")
 	fs.BoolVar(&opts.CoverFirstFrame, "cover-first-frame", false, "freeze the cover frame over the first frames so YouTube's Shorts thumbnail selector can pick it")
 	fs.BoolVar(&opts.DryRun, "dry-run", false, "print the resolved plan without launching HLAE/CS2 or FFmpeg")
+	fs.StringVar(&opts.Encoder, "encoder", "", "capture encoder: nvenc-h264, amf-h264, qsv-h264, or libx264 (default)")
+	fs.Float64Var(&opts.GapTimescale, "gap-timescale", 0, "demo_timescale between record windows (0 = recorder default 8, 1 = off)")
+	fs.Float64Var(&opts.SettleSeconds, "settle-seconds", 0, "1x settle before each record window in seconds (0 = recorder default 2)")
+	fs.IntVar(&opts.Threads, "threads", 0, "render encoder threads per short (0 = FFmpeg default)")
 	if err := fs.Parse(args); err != nil {
 		return shortOptions{}, err
 	}
@@ -267,6 +285,15 @@ func parseShortArgs(args []string) (shortOptions, error) {
 	}
 	if !containsString([]string{editor.TransitionCut, editor.TransitionFlash, editor.TransitionWhip, editor.TransitionDip, editor.TransitionGlitch, editor.TransitionZoomWhip}, opts.Transition) {
 		return shortOptions{}, fmt.Errorf("unsupported transition %q", opts.Transition)
+	}
+	if opts.GapTimescale < 0 {
+		return shortOptions{}, fmt.Errorf("--gap-timescale must be >= 0")
+	}
+	if opts.SettleSeconds < 0 {
+		return shortOptions{}, fmt.Errorf("--settle-seconds must be >= 0")
+	}
+	if opts.Threads < 0 {
+		return shortOptions{}, fmt.Errorf("--threads must be >= 0")
 	}
 	return opts, nil
 }
@@ -396,6 +423,15 @@ func resolveShortPlan(opts shortOptions, capturePaths capturetools.Paths) (short
 		}
 		if hud == "deathnotices" {
 			recorderArgs = append(recorderArgs, "--portrait-safe-killfeed")
+		}
+		if opts.Encoder != "" {
+			recorderArgs = append(recorderArgs, "--encoder", opts.Encoder)
+		}
+		if opts.GapTimescale != 0 {
+			recorderArgs = append(recorderArgs, "--gap-timescale", strconv.FormatFloat(opts.GapTimescale, 'f', -1, 64))
+		}
+		if opts.SettleSeconds != 0 {
+			recorderArgs = append(recorderArgs, "--settle-seconds", strconv.FormatFloat(opts.SettleSeconds, 'f', -1, 64))
 		}
 		plan.stages = append(plan.stages,
 			shortStage{
@@ -553,6 +589,9 @@ func shortRenderArgs(opts shortOptions, plan shortPlan, killPlanPath, recordingR
 	if plan.intent.BestMoments && opts.FromRecording != "" {
 		args = append(args, "--rank-moments")
 		args = append(args, "--limit", strconv.Itoa(shortBestMomentsLimit))
+	}
+	if opts.Threads > 0 {
+		args = append(args, "--threads", strconv.Itoa(opts.Threads))
 	}
 	return args
 }
