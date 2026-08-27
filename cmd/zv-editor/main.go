@@ -61,6 +61,7 @@ func run() error {
 		rankMoments         = flag.Bool("rank-moments", false, "score and order embedded recording segments best-first before applying --limit")
 		videoCRF            = flag.Int("video-crf", 0, "x264 CRF quality from 1..51; lower is higher quality; defaults by preset")
 		videoPreset         = flag.String("video-preset", "", "x264 preset; defaults by preset")
+		threads             = flag.Int("threads", 0, "cap encoder threads per render; 0 lets FFmpeg pick its own default")
 		hqFilters           = flag.Bool("hq-filters", false, "use Lanczos scaling and square-pixel normalization")
 		audioNormalize      = flag.Bool("audio-normalize", false, "normalize audio with FFmpeg loudnorm")
 		qualityChecks       = flag.Bool("quality-checks", false, "run FFmpeg black/freeze/crop detection after rendering")
@@ -97,6 +98,9 @@ func run() error {
 		return err
 	}
 	if err := validateOptionalMixVolume("voice-volume", *voiceVolume); err != nil {
+		return err
+	}
+	if err := validateThreads(*threads); err != nil {
 		return err
 	}
 	coverSheetsSet := false
@@ -162,6 +166,7 @@ func run() error {
 		RankMoments:         *rankMoments,
 		VideoCRF:            *videoCRF,
 		VideoPreset:         *videoPreset,
+		Threads:             *threads,
 		HQFilters:           *hqFilters,
 		AudioNormalize:      *audioNormalize,
 		QualityChecks:       *qualityChecks,
@@ -240,6 +245,15 @@ func validateOptionalMixVolume(name string, v float64) error {
 	}
 	if v > 1 {
 		return fmt.Errorf("--%s must be between 0 and 1, got %v", name, v)
+	}
+	return nil
+}
+
+// validateThreads rejects a negative encoder thread count. 0 means unset and
+// lets FFmpeg pick its own default, so any explicit count must be >= 1.
+func validateThreads(v int) error {
+	if v < 0 {
+		return fmt.Errorf("--threads must be >= 0")
 	}
 	return nil
 }

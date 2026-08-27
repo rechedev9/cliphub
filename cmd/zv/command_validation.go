@@ -595,9 +595,9 @@ func commandValueFlags(commandName string, required []string) []string {
 	case `"utility audit"`:
 		flags = append(flags, "--format")
 	case `"short"`:
-		flags = append(flags, "--preset", "--out", "--music", "--target-steamid", "--hlae", "--cs2", "--from-recording", "--format", "--output-format", "--kill-effect", "--transition")
+		flags = append(flags, "--preset", "--out", "--music", "--target-steamid", "--hlae", "--cs2", "--from-recording", "--format", "--output-format", "--kill-effect", "--transition", "--encoder", "--gap-timescale", "--settle-seconds", "--threads")
 	case `"record"`:
-		flags = append(flags, "--hlae", "--cs2", "--hud", "--fps", "--video-crf", "--timeout", "--format")
+		flags = append(flags, "--hlae", "--cs2", "--hud", "--fps", "--video-crf", "--encoder", "--gap-timescale", "--settle-seconds", "--timeout", "--format")
 	case `"compose final"`:
 		flags = append(flags, "--ffmpeg", "--timeout", "--format")
 	case `"shorts render"`:
@@ -626,6 +626,7 @@ func commandValueFlags(commandName string, required []string) []string {
 			"--video-crf",
 			"--video-preset",
 			"--render-jobs",
+			"--threads",
 			"--ffmpeg",
 			"--ffprobe",
 			"--format",

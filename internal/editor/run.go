@@ -185,6 +185,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		RankMoments:         cfg.RankMoments,
 		VideoCRF:            videoCRF,
 		VideoPreset:         videoPreset,
+		Threads:             cfg.Threads,
 		HQFilters:           cfg.HQFilters,
 		AudioNormalize:      cfg.AudioNormalize,
 		QualityChecks:       cfg.QualityChecks,
@@ -278,6 +279,9 @@ func (c Config) validate() error {
 	}
 	if c.RenderJobs < 0 {
 		return fmt.Errorf("render jobs must be >= 0")
+	}
+	if c.Threads < 0 {
+		return fmt.Errorf("threads must be >= 0")
 	}
 	preset := c.Preset
 	if preset == "" {
@@ -446,6 +450,7 @@ func resultFromManifest(manifest Manifest, dryRun bool) Result {
 			OutputFPS:         short.OutputFPS,
 			VideoCRF:          short.VideoCRF,
 			VideoPreset:       short.VideoPreset,
+			Threads:           short.Threads,
 			HQFilters:         short.HQFilters,
 			AudioNormalize:    short.AudioNormalize,
 			TemporalSmoothing: short.TemporalSmoothing,

@@ -7,13 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
-func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.SegmentClip, outputPath, workDir string) error {
+func ComposeConcat(ctx context.Context, ffmpegPath, ffprobePath string, clips []recording.SegmentClip, outputPath, workDir string) error {
 	if ffmpegPath == "" {
 		return fmt.Errorf("ffmpeg path is required")
 	}
@@ -38,22 +39,37 @@ func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.Seg
 	if err := os.WriteFile(listPath, []byte(ConcatList(clips)), 0o600); err != nil {
 		return err
 	}
+
+	// When every clip is a lossless-copy-eligible constant frame rate H.264
+	// stream, concat with -c copy re-muxes without an extra re-encode pass.
+	// Otherwise fall back to the lossy re-encode path below.
+	var args []string
+	if CopyConcatEligible(clips) {
+		args = []string{
+			"-f", "concat",
+			"-safe", "0",
+			"-i", listPath,
+			"-c", "copy",
+			"-movflags", "+faststart",
+			attemptPath,
+		}
+	} else {
+		args = []string{
+			"-f", "concat",
+			"-safe", "0",
+			"-i", listPath,
+			"-vf", "fps=60,format=yuv420p",
+			"-c:v", "libx264",
+			"-preset", "fast",
+			"-crf", "18",
+			"-c:a", "aac",
+			"-b:a", "192k",
+			"-movflags", "+faststart",
+			attemptPath,
+		}
+	}
 	// #nosec G204 -- ffmpegPath is configured locally and args are not shell-interpolated.
-	cmd := exec.CommandContext(ctx, ffmpegPath,
-		"-y",
-		"-v", "error",
-		"-f", "concat",
-		"-safe", "0",
-		"-i", listPath,
-		"-vf", "fps=60,format=yuv420p",
-		"-c:v", "libx264",
-		"-preset", "fast",
-		"-crf", "18",
-		"-c:a", "aac",
-		"-b:a", "192k",
-		"-movflags", "+faststart",
-		attemptPath,
-	)
+	cmd := exec.CommandContext(ctx, ffmpegPath, append([]string{"-y", "-v", "error"}, args...)...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -66,6 +82,58 @@ func ComposeConcat(ctx context.Context, ffmpegPath string, clips []recording.Seg
 		return fmt.Errorf("publish composition: %w", err)
 	}
 	return nil
+}
+
+// CopyConcatEligible reports whether every clip is safe to concatenate with a
+// lossless -c copy pass: 60fps H.264 at 1920x1080, with probed frame counts
+// that agree with their durations (constant frame rate). Any clip with missing
+// or mismatched metadata disqualifies the whole group. An empty set and any
+// clip with empty metadata both report false so ffmpeg falls back to the
+// re-encode path rather than producing a desynced or non-CFR output.
+func CopyConcatEligible(clips []recording.SegmentClip) bool {
+	if len(clips) == 0 {
+		return false
+	}
+	for _, clip := range clips {
+		a := clip.Artifact
+		if a.Codec != "h264" || a.Width != 1920 || a.Height != 1080 {
+			return false
+		}
+		fps, ok := parseFrameRate(a.FrameRate)
+		if !ok || fps != 60 {
+			return false
+		}
+		if a.FrameCount <= 0 {
+			return false
+		}
+		if math.Abs(float64(a.FrameCount)-a.DurationSeconds*60) > 2 {
+			return false
+		}
+	}
+	return true
+}
+
+// parseFrameRate parses an ffprobe frame-rate string ("60/1", "30000/1001", or
+// a plain "60") into its numeric frames-per-second value. It reports false when
+// the value cannot be read.
+func parseFrameRate(raw string) (float64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+	if idx := strings.IndexByte(raw, '/'); idx >= 0 {
+		num, err1 := strconv.ParseFloat(strings.TrimSpace(raw[:idx]), 64)
+		den, err2 := strconv.ParseFloat(strings.TrimSpace(raw[idx+1:]), 64)
+		if err1 != nil || err2 != nil || den == 0 {
+			return 0, false
+		}
+		return num / den, true
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
 }
 
 func ConcatList(clips []recording.SegmentClip) string {

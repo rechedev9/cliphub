@@ -67,6 +67,9 @@ func run() error {
 		portraitSafeKillfeed = flag.Bool("portrait-safe-killfeed", false, "move filtered death notices into the 9:16 center-crop safe area")
 		fps                  = flag.Int("fps", 0, "recording FPS; defaults to recorder preset")
 		videoCRF             = flag.Int("video-crf", 0, "HLAE stream CRF; defaults to recorder preset")
+		encoder              = flag.String("encoder", "", "HLAE stream encoder: libx264, nvenc-h264, amf-h264, or qsv-h264 (empty = libx264)")
+		gapTimescale         = flag.Float64("gap-timescale", 0, "demo_timescale across unrecorded gaps; 0 = default 8, 1 = disable speedup")
+		settleSeconds        = flag.Float64("settle-seconds", 0, "seconds of 1x playback before each record window; 0 = default 2s")
 		dryRun               = flag.Bool("dry-run", false, "generate plan and script without launching HLAE")
 		format               = flag.String("format", "text", "result summary format: text or json")
 		fake                 = flag.Bool("fake", false, "generate placeholder segment clips instead of launching HLAE/CS2 (e2e/CI)")
@@ -127,6 +130,7 @@ func run() error {
 		}
 	}
 	stream := recording.DefaultStreamConfig()
+	stream.Encoder = *encoder
 	stream.HUDMode = recording.HUDMode(*hudMode)
 	stream.PortraitSafeKillfeed = *portraitSafeKillfeed
 	if *fps > 0 {
@@ -140,6 +144,9 @@ func run() error {
 	}
 	plan, err := recording.NewPlanFromKillPlan(kp, absDemoPath, absOutDir, stream)
 	if err != nil {
+		return err
+	}
+	if err := applyRuntimeFlags(&plan, *gapTimescale, *settleSeconds); err != nil {
 		return err
 	}
 	runStarted := time.Now()
@@ -327,6 +334,26 @@ func run() error {
 
 func elapsedMilliseconds(started time.Time) int64 {
 	return time.Since(started).Milliseconds()
+}
+
+// applyRuntimeFlags validates the --gap-timescale and --settle-seconds values
+// and overwrites the plan's runtime timing overrides. Zero means "keep the
+// default": the plan already normalized PlaybackTimescale to the default, and
+// PlaybackSettleSeconds stays 0 so Normalized() maps it to the default.
+func applyRuntimeFlags(plan *recording.RecordingPlan, gapTimescale, settleSeconds float64) error {
+	if gapTimescale < 0 {
+		return fmt.Errorf("--gap-timescale must be non-negative")
+	}
+	if settleSeconds < 0 {
+		return fmt.Errorf("--settle-seconds must be non-negative")
+	}
+	if gapTimescale > 0 {
+		plan.Runtime.PlaybackTimescale = gapTimescale
+	}
+	if settleSeconds > 0 {
+		plan.Runtime.PlaybackSettleSeconds = settleSeconds
+	}
+	return nil
 }
 
 func captureSegmentIDs(plan recording.RecordingPlan) []string {
@@ -1395,6 +1422,18 @@ type recordingSummary struct {
 	SegmentCount  int      `json:"segment_count"`
 	ArtifactCount int      `json:"artifact_count"`
 	Warnings      []string `json:"warnings"`
+
+	// Capture-run performance metrics (only when a run recorded them).
+	PrepareMS           int64     `json:"prepare_ms,omitempty"`
+	LaunchAndCaptureMS  int64     `json:"launch_and_capture_ms,omitempty"`
+	IncrementalMuxMS    int64     `json:"incremental_mux_ms,omitempty"`
+	ArtifactProbeMS     int64     `json:"artifact_probe_ms,omitempty"`
+	FinalMuxMS          int64     `json:"final_mux_ms,omitempty"`
+	ValidationMS        int64     `json:"validation_ms,omitempty"`
+	BeforeResultWriteMS int64     `json:"before_result_write_ms,omitempty"`
+	ObservedFPS         []float64 `json:"observed_fps,omitempty"`
+	SeekCount           int       `json:"seek_count,omitempty"`
+	SeekElapsedMS       int64     `json:"seek_elapsed_ms,omitempty"`
 }
 
 func writeResultAndReport(outDir string, result recording.RecordingResult, dryRun bool, format string, w io.Writer) error {
@@ -1411,6 +1450,20 @@ func writeResultAndReport(outDir string, result recording.RecordingResult, dryRu
 		ArtifactCount: len(result.Artifacts),
 		Warnings:      append([]string{}, result.Warnings...),
 	}
+	if result.Performance != nil && len(result.Performance.Runs) > 0 {
+		run := result.Performance.Runs[0]
+		summary.PrepareMS = run.PrepareMS
+		summary.LaunchAndCaptureMS = run.LaunchAndCaptureMS
+		summary.IncrementalMuxMS = run.IncrementalMuxMS
+		summary.ArtifactProbeMS = run.ArtifactProbeMS
+		summary.FinalMuxMS = run.FinalMuxMS
+		summary.ValidationMS = run.ValidationMS
+		summary.BeforeResultWriteMS = run.BeforeResultWriteMS
+		for _, segment := range run.Segments {
+			summary.ObservedFPS = append(summary.ObservedFPS, segment.ObservedFramesPerSecond)
+		}
+		summary.SeekCount, summary.SeekElapsedMS = aggregateSeekMetrics(run.Events)
+	}
 	if format == "json" {
 		encoder := json.NewEncoder(w)
 		encoder.SetEscapeHTML(false)
@@ -1422,5 +1475,37 @@ func writeResultAndReport(outDir string, result recording.RecordingResult, dryRu
 	fmt.Fprintf(w, "segments\t%d\n", summary.SegmentCount)
 	fmt.Fprintf(w, "artifacts\t%d\n", summary.ArtifactCount)
 	fmt.Fprintf(w, "dry_run\t%t\n", summary.DryRun)
+	if result.Performance != nil && len(result.Performance.Runs) > 0 {
+		fmt.Fprintf(w, "prepare_ms\t%d\n", summary.PrepareMS)
+		fmt.Fprintf(w, "launch_and_capture_ms\t%d\n", summary.LaunchAndCaptureMS)
+		fmt.Fprintf(w, "incremental_mux_ms\t%d\n", summary.IncrementalMuxMS)
+		fmt.Fprintf(w, "artifact_probe_ms\t%d\n", summary.ArtifactProbeMS)
+		fmt.Fprintf(w, "final_mux_ms\t%d\n", summary.FinalMuxMS)
+		fmt.Fprintf(w, "validation_ms\t%d\n", summary.ValidationMS)
+		fmt.Fprintf(w, "before_result_write_ms\t%d\n", summary.BeforeResultWriteMS)
+		fmt.Fprintf(w, "seek_count\t%d\n", summary.SeekCount)
+		fmt.Fprintf(w, "seek_elapsed_ms\t%d\n", summary.SeekElapsedMS)
+	}
 	return nil
+}
+
+// aggregateSeekMetrics reduces the observed seek events into a total issued
+// count and the summed wall-clock time from the last request for a target to
+// its landing. Re-issued attempts share a target, so each request overwrites
+// the pending timestamp and the final landed event consumes the last attempt.
+func aggregateSeekMetrics(events []recording.RecordingPerformanceEvent) (count int, elapsedMS int64) {
+	pending := map[int]int64{}
+	for _, e := range events {
+		switch e.Kind {
+		case "seek_requested_observed":
+			count++
+			pending[e.TargetTick] = e.ElapsedMS
+		case "seek_landed_observed":
+			if requested, ok := pending[e.TargetTick]; ok {
+				elapsedMS += e.ElapsedMS - requested
+			}
+			delete(pending, e.TargetTick)
+		}
+	}
+	return count, elapsedMS
 }

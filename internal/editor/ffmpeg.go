@@ -52,6 +52,7 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	command = appendAudioEncodeArgs(command, short)
 	command = append(command, "-movflags", "+faststart")
 	command = append(command, tailTrimArgs(short)...)
+	command = appendThreadArgs(command, short)
 	return append(command, short.Output)
 }
 
@@ -129,7 +130,18 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
 	command = append(command, tailTrimArgs(short)...)
+	command = appendThreadArgs(command, short)
 	return append(command, "-shortest", short.Output)
+}
+
+// appendThreadArgs adds the encoder thread cap right before the output file
+// whenever the short requested an explicit count. A zero Threads is left as
+// "unset" so FFmpeg keeps its own default, keeping historical commands intact.
+func appendThreadArgs(command []string, short ShortEdit) []string {
+	if short.Threads <= 0 {
+		return command
+	}
+	return append(command, "-threads", fmt.Sprintf("%d", short.Threads))
 }
 
 // tailTrimArgs bounds the output to the tail-trimmed duration. Emitted only
@@ -269,6 +281,7 @@ func BuildCompilationFFmpegCommand(ffmpegPath string, short ShortEdit) []string 
 	)
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
+	command = appendThreadArgs(command, short)
 	if short.MusicPath != "" {
 		command = append(command, "-shortest")
 	}
@@ -399,7 +412,7 @@ func compilationPostConcatFilter(short ShortEdit) string {
 	if zoomHeightExpression(short.Effects, height) != "" {
 		return VideoFilter(short)
 	}
-	filters := appendEffectFilters([]string{}, short)
+	filters := appendEffectFilters([]string{}, short, false)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }

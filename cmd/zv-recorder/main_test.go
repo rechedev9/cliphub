@@ -73,6 +73,143 @@ func TestWriteResultAndReportEmitsMachineReadableDryRunSummary(t *testing.T) {
 	}
 }
 
+func TestWriteResultAndReportEmitsPerformanceFields(t *testing.T) {
+	outDir := t.TempDir()
+	result := recording.RecordingResult{
+		Plan:   recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "seg-001"}, {ID: "seg-002"}}},
+		Script: filepath.Join(outDir, "recording.js"),
+		Performance: &recording.RecordingPerformance{
+			Version: 1,
+			Runs: []recording.RecordingRunPerformance{{
+				CaptureSegmentIDs:   []string{"seg-001", "seg-002"},
+				PrepareMS:           100,
+				LaunchAndCaptureMS:  200,
+				IncrementalMuxMS:    300,
+				ArtifactProbeMS:     400,
+				FinalMuxMS:          500,
+				ValidationMS:        600,
+				BeforeResultWriteMS: 700,
+				Segments: []recording.RecordingSegmentPerformance{
+					{SegmentID: "seg-001", ObservedFramesPerSecond: 59.5},
+					{SegmentID: "seg-002", ObservedFramesPerSecond: 60},
+				},
+				Events: []recording.RecordingPerformanceEvent{
+					{Kind: "seek_requested_observed", TargetTick: 1000, ElapsedMS: 100},
+					{Kind: "seek_landed_observed", TargetTick: 1000, ElapsedMS: 500},
+					{Kind: "seek_requested_observed", TargetTick: 3000, ElapsedMS: 700},
+				},
+			}},
+		},
+	}
+	var output bytes.Buffer
+	if err := writeResultAndReport(outDir, result, false, "json", &output); err != nil {
+		t.Fatal(err)
+	}
+	var got recordingSummary
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.PrepareMS != 100 || got.LaunchAndCaptureMS != 200 || got.IncrementalMuxMS != 300 ||
+		got.ArtifactProbeMS != 400 || got.FinalMuxMS != 500 || got.ValidationMS != 600 || got.BeforeResultWriteMS != 700 {
+		t.Fatalf("timing fields = %#v", got)
+	}
+	if len(got.ObservedFPS) != 2 || got.ObservedFPS[0] != 59.5 || got.ObservedFPS[1] != 60 {
+		t.Fatalf("observed_fps = %v, want [59.5 60]", got.ObservedFPS)
+	}
+	// 2 requests total; the landed 1000 pairs with its most recent request (400ms).
+	if got.SeekCount != 2 || got.SeekElapsedMS != 400 {
+		t.Fatalf("seek_count=%d seek_elapsed_ms=%d, want 2 / 400", got.SeekCount, got.SeekElapsedMS)
+	}
+
+	// The text form must carry the same headline numbers.
+	output.Reset()
+	if err := writeResultAndReport(outDir, result, false, "text", &output); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"prepare_ms\t100", "seek_count\t2", "seek_elapsed_ms\t400"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("text report missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestAggregateSeekMetrics(t *testing.T) {
+	tests := []struct {
+		name       string
+		events     []recording.RecordingPerformanceEvent
+		wantCount  int
+		wantElapse int64
+	}{
+		{name: "empty"},
+		{
+			name: "one request one land",
+			events: []recording.RecordingPerformanceEvent{
+				{Kind: "seek_requested_observed", TargetTick: 100, ElapsedMS: 10},
+				{Kind: "seek_landed_observed", TargetTick: 100, ElapsedMS: 50},
+			},
+			wantCount: 1, wantElapse: 40,
+		},
+		{
+			name: "re-issued attempts consume the last request",
+			events: []recording.RecordingPerformanceEvent{
+				{Kind: "seek_requested_observed", TargetTick: 200, ElapsedMS: 10},
+				{Kind: "seek_requested_observed", TargetTick: 200, ElapsedMS: 20},
+				{Kind: "seek_landed_observed", TargetTick: 200, ElapsedMS: 40},
+			},
+			wantCount: 2, wantElapse: 20,
+		},
+		{
+			name: "land without request is ignored",
+			events: []recording.RecordingPerformanceEvent{
+				{Kind: "seek_landed_observed", TargetTick: 300, ElapsedMS: 40},
+			},
+			wantCount: 0, wantElapse: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, elapsed := aggregateSeekMetrics(tt.events)
+			if count != tt.wantCount || elapsed != tt.wantElapse {
+				t.Errorf("aggregateSeekMetrics = (%d, %d), want (%d, %d)", count, elapsed, tt.wantCount, tt.wantElapse)
+			}
+		})
+	}
+}
+
+func TestApplyRuntimeFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		gap        float64
+		settle     float64
+		wantErr    bool
+		wantGap    float64
+		wantSettle float64
+	}{
+		{name: "zero keeps defaults", wantGap: 0, wantSettle: 0},
+		{name: "explicit values override", gap: 4, settle: 3, wantGap: 4, wantSettle: 3},
+		{name: "negative gap rejected", gap: -1, wantErr: true},
+		{name: "negative settle rejected", settle: -1, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := recording.RecordingPlan{}
+			err := applyRuntimeFlags(&plan, tt.gap, tt.settle)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("applyRuntimeFlags error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("applyRuntimeFlags error = %v", err)
+			}
+			if plan.Runtime.PlaybackTimescale != tt.wantGap || plan.Runtime.PlaybackSettleSeconds != tt.wantSettle {
+				t.Fatalf("plan runtime = %+v, want gap=%v settle=%v", plan.Runtime, tt.wantGap, tt.wantSettle)
+			}
+		})
+	}
+}
+
 func TestWriteResultOmitsAbsentPerformanceAndRoundTripsPresentPerformance(t *testing.T) {
 	outDir := t.TempDir()
 	result := recording.RecordingResult{Plan: recording.RecordingPlan{}, Script: "recording.js"}

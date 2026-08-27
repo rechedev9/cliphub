@@ -17,6 +17,95 @@ func TestConcatListEscapesPaths(t *testing.T) {
 	}
 }
 
+func eligibleArtifact() recording.RecordingArtifact {
+	return recording.RecordingArtifact{
+		Codec:           "h264",
+		Width:           1920,
+		Height:          1080,
+		FrameRate:       "60/1",
+		FrameCount:      300,
+		DurationSeconds: 5,
+	}
+}
+
+func TestCopyConcatEligible(t *testing.T) {
+	good := eligibleArtifact()
+	tests := []struct {
+		name  string
+		clips []recording.SegmentClip
+		want  bool
+	}{
+		{
+			name:  "empty set falls back",
+			clips: nil,
+			want:  false,
+		},
+		{
+			name:  "single eligible clip",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Path: "s1.mp4", Artifact: good}},
+			want:  true,
+		},
+		{
+			name: "multiple eligible clips",
+			clips: []recording.SegmentClip{
+				{SegmentID: "s1", Artifact: good},
+				{SegmentID: "s2", Artifact: eligibleArtifact()},
+			},
+			want: true,
+		},
+		{
+			name:  "empty artifact metadata falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: recording.RecordingArtifact{}}},
+			want:  false,
+		},
+		{
+			name:  "wrong codec falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.Codec = "mpeg4"; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "wrong resolution falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.Width = 1280; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "non-60 frame rate falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameRate = "30000/1001"; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "zero frame count falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameCount = 0; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "frame count disagrees with duration falls back",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameCount = 200; return a }()}},
+			want:  false,
+		},
+		{
+			name:  "frame count within tolerance stays eligible",
+			clips: []recording.SegmentClip{{SegmentID: "s1", Artifact: func() recording.RecordingArtifact { a := good; a.FrameCount = 302; return a }()}},
+			want:  true,
+		},
+		{
+			name: "one ineligible clip disqualifies the group",
+			clips: []recording.SegmentClip{
+				{SegmentID: "s1", Artifact: good},
+				{SegmentID: "s2", Artifact: recording.RecordingArtifact{}},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CopyConcatEligible(tt.clips); got != tt.want {
+				t.Errorf("CopyConcatEligible = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateFinalArtifactAcceptsExpectedShape(t *testing.T) {
 	warnings := ValidateFinalArtifact(recording.RecordingArtifact{
 		Path:            "final.mp4",

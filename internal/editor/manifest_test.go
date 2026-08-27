@@ -270,6 +270,7 @@ func TestVideoFilterEscapesDrawtextAndBuildsPunchIns(t *testing.T) {
 	filter := VideoFilter(short)
 	for _, want := range []string{
 		"scale=w=-2:h='if(between(t\\,0.720\\,1.220)",
+		"eval=frame",
 		"(1920.000+(1998.000-1920.000)",
 		"if(between(t\\,1.220\\,1.720)",
 		"(1998.000+(1920.000-1998.000)",
@@ -296,9 +297,12 @@ func TestVideoFilterEmitsShakeChromaGlitch(t *testing.T) {
 		},
 	}
 	filter := VideoFilter(short)
+	// Motion without zoom re-stages the frame to 1920+2*pad (56) and then does
+	// ONE dynamic crop to the final window, so there is no second resample.
 	for _, want := range []string{
-		"crop=w=iw-56:h=ih-56:x=",
-		"scale=1080:1920:flags=lanczos",
+		"scale=w=-2:h=1976:eval=init",
+		"crop=1080:1920:x='max(0\\,min(iw-1080\\,((iw-ow)/2)-28+(max(0\\,min(56\\,28+",
+		":y='max(0\\,min(ih-1920\\,((ih-oh)/2)-28+(max(0\\,min(56\\,28+",
 		"chromashift=cbh=10:crh=-10:enable='between(t\\,1.000\\,1.200)'",
 		"chromashift=cbh=12:crh=-12:enable='between(t\\,2.000\\,2.140)'",
 		"sin(6.283185*18.000",
@@ -307,6 +311,72 @@ func TestVideoFilterEmitsShakeChromaGlitch(t *testing.T) {
 		if !strings.Contains(filter, want) {
 			t.Fatalf("filter missing %q:\n%s", want, filter)
 		}
+	}
+	if strings.Contains(filter, "scale=1080:1920:flags=lanczos") {
+		t.Fatalf("filter still resamples a second time after the motion crop:\n%s", filter)
+	}
+}
+
+func TestScaleFilterEvalMode(t *testing.T) {
+	tests := []struct {
+		name   string
+		height string
+		want   string
+	}{
+		{
+			name:   "plain height uses eval=init",
+			height: "1920",
+			want:   "scale=w=-2:h=1920:eval=init",
+		},
+		{
+			name:   "motion margin height stays a plain integer, eval=init",
+			height: "1976",
+			want:   "scale=w=-2:h=1976:eval=init",
+		},
+		{
+			name:   "zoomed height expression keeps eval=frame",
+			height: "'if(between(t\\,0.000\\,1.000)\\,1920\\,2000)'",
+			want:   "scale=w=-2:h='if(between(t\\,0.000\\,1.000)\\,1920\\,2000)':eval=frame",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := scaleFilter(tc.height, ShortEdit{}); got != tc.want {
+				t.Fatalf("scaleFilter(%q) = %q, want %q", tc.height, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVideoFilterNoZoomUsesEvalInit(t *testing.T) {
+	filter := VideoFilter(ShortEdit{})
+	for _, want := range []string{"scale=w=-2:h=1920:eval=init", "crop=1080:1920:(iw-ow)/2:(ih-oh)/2"} {
+		if !strings.Contains(filter, want) {
+			t.Fatalf("plain filter missing %q:\n%s", want, filter)
+		}
+	}
+	if strings.Contains(filter, "eval=frame") {
+		t.Fatalf("plain filter should not force per-frame eval:\n%s", filter)
+	}
+}
+
+func TestVideoFilterZoomMotionKeepsLegacyCropAndRescale(t *testing.T) {
+	// Zoom + motion cannot carry a fixed motion margin (the zoom height is a
+	// per-frame expression), so the historical crop+rescale chain must stay.
+	short := ShortEdit{
+		Effects: []Effect{
+			{Type: EffectZoom, StartSeconds: 1, EndSeconds: 2, AtSeconds: 1.5, Scale: 1.2},
+			{Type: EffectShake, StartSeconds: 1, EndSeconds: 1.4, AtSeconds: 1.05, Amplitude: 16, Frequency: 18},
+		},
+	}
+	filter := VideoFilter(short)
+	for _, want := range []string{"eval=frame", "crop=w=iw-32:h=ih-32:x=", "scale=1080:1920:flags=lanczos"} {
+		if !strings.Contains(filter, want) {
+			t.Fatalf("zoom+motion filter missing %q:\n%s", want, filter)
+		}
+	}
+	if strings.Contains(filter, "eval=init") {
+		t.Fatalf("zoom+motion filter must keep per-frame eval:\n%s", filter)
 	}
 }
 
@@ -762,6 +832,28 @@ func TestBuildFFmpegCommandForCompilationShort(t *testing.T) {
 	}
 	if strings.Contains(customFilter, "[2:a]volume=1.00[music]") {
 		t.Fatalf("compilation filter kept default 1.00 music volume with a custom volume:\n%s", customFilter)
+	}
+}
+
+func TestBuildManifestWiresThreads(t *testing.T) {
+	dir := t.TempDir()
+	opts := testManifestOptions(dir, nil)
+	opts.Threads = 6
+
+	manifest := mustBuildManifest(t, testRecordingResult(dir), opts)
+	if manifest.Threads != 6 {
+		t.Fatalf("manifest threads = %d, want 6", manifest.Threads)
+	}
+	if len(manifest.Shorts) == 0 {
+		t.Fatal("manifest produced no shorts")
+	}
+	if manifest.Shorts[0].Threads != 6 {
+		t.Fatalf("short threads = %d, want 6", manifest.Shorts[0].Threads)
+	}
+
+	result := resultFromManifest(manifest, false)
+	if len(result.Shorts) == 0 || result.Shorts[0].Threads != 6 {
+		t.Fatalf("result short threads = %v, want 6", result.Shorts)
 	}
 }
 

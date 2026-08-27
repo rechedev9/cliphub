@@ -89,6 +89,27 @@ func (m HUDMode) Valid() bool {
 	return m == HUDModeGameplay || m == HUDModeClean || m == HUDModeDeathnotices
 }
 
+// Stream encoder names for the HLAE stream ffmpeg output. libx264 (the empty
+// default) is the software encoder; the others select hardware encoders by
+// driver. They map 1:1 to the ffmpeg lines emitted by scriptgen.
+const (
+	EncoderDefault string = ""        // libx264
+	EncoderLibx264 string = "libx264" // explicit software x264
+	EncoderNVENC   string = "nvenc-h264"
+	EncoderAMF     string = "amf-h264"
+	EncoderQSV     string = "qsv-h264"
+)
+
+// ValidEncoder reports whether encoder is one of the selectable stream
+// encoders (the empty default is valid and means libx264).
+func ValidEncoder(encoder string) bool {
+	switch encoder {
+	case EncoderDefault, EncoderLibx264, EncoderNVENC, EncoderAMF, EncoderQSV:
+		return true
+	}
+	return false
+}
+
 // StreamConfig describes how HLAE should emit raw recordings.
 // PortraitSafeKillfeed requests target-filtered notices for portrait delivery:
 // deathnotice-only capture moves them into the safe area, while gameplay
@@ -100,6 +121,7 @@ type StreamConfig struct {
 	Width                int        `json:"width"`
 	Height               int        `json:"height"`
 	CRF                  int        `json:"crf,omitempty"`
+	Encoder              string     `json:"encoder,omitempty"`
 	PortraitSafeKillfeed bool       `json:"portrait_safe_killfeed,omitempty"`
 	DeathnoticeSafeZoneX float64    `json:"deathnotice_safe_zone_x,omitempty"`
 	DeathnoticeSafeZoneY float64    `json:"deathnotice_safe_zone_y,omitempty"`
@@ -110,20 +132,31 @@ type StreamConfig struct {
 // Set PlaybackTimescale to 1 to disable.
 const DefaultPlaybackTimescale = 8
 
+// DefaultPlaybackSettleSeconds is the demo_timescale 1x settle applied before a
+// record window after a sped-up gap, when PlaybackSettleSeconds is 0.
+const DefaultPlaybackSettleSeconds = 2
+
 // RuntimeConfig captures HLAE runtime toggles that affect timing.
 type RuntimeConfig struct {
 	// PlaybackTimescale is the demo_timescale used between record windows.
 	// Recording itself always runs at 1. Zero means DefaultPlaybackTimescale;
 	// 1 disables the speedup.
 	PlaybackTimescale float64 `json:"playback_timescale,omitempty"`
-	QuitTickPad       int     `json:"quit_tick_pad,omitempty"`
+	// PlaybackSettleSeconds is how many seconds before a record window the
+	// demo_timescale is restored to 1x so the camera and demo settle. Zero
+	// means DefaultPlaybackSettleSeconds.
+	PlaybackSettleSeconds float64 `json:"playback_settle_seconds,omitempty"`
+	QuitTickPad           int     `json:"quit_tick_pad,omitempty"`
 }
 
-// Normalized fills default playback speed so a persisted 0 matches the current
-// default. Gap speedup does not change recorded pixels.
+// Normalized fills default playback speed and settle time so a persisted 0
+// matches the current defaults. Gap speedup does not change recorded pixels.
 func (c RuntimeConfig) Normalized() RuntimeConfig {
 	if c.PlaybackTimescale == 0 {
 		c.PlaybackTimescale = DefaultPlaybackTimescale
+	}
+	if c.PlaybackSettleSeconds == 0 {
+		c.PlaybackSettleSeconds = DefaultPlaybackSettleSeconds
 	}
 	return c
 }
@@ -474,6 +507,12 @@ func (p RecordingPlan) Validate() error {
 	}
 	if p.Stream.CRF < 1 || p.Stream.CRF > 51 {
 		return fmt.Errorf("stream crf must be between 1 and 51")
+	}
+	if !ValidEncoder(p.Stream.Encoder) {
+		return fmt.Errorf(
+			"stream encoder must be %q, %q, %q, %q, or %q",
+			EncoderDefault, EncoderLibx264, EncoderNVENC, EncoderAMF, EncoderQSV,
+		)
 	}
 	if p.Stream.DeathnoticeSafeZoneX < 0 || p.Stream.DeathnoticeSafeZoneX > 1 {
 		return fmt.Errorf("stream deathnotice_safe_zone_x must be between 0 and 1")

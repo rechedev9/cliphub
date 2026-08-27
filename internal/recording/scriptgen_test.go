@@ -70,9 +70,6 @@ func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 		`mirv_panorama panelstyle panelId=trueview_row opacity=0`,
 		`"commands": [`,
 		`camera-warmup-seg-001`,
-		`camera-lead-3s-seg-001`,
-		`camera-lead-2s-seg-001`,
-		`camera-lead-1s-seg-001`,
 		`camera-lock-seg-001`,
 		`camera-relock-seg-001`,
 		// Seeks are driven by the runtime (re-issued until they land), declared as
@@ -780,7 +777,7 @@ func TestPlaybackTimescaleSchedule(t *testing.T) {
 				return
 			}
 			for i, window := range windows {
-				minReset := window.RecordStart - plan.Tickrate*playbackTimescaleSettleSeconds
+				minReset := window.RecordStart - plan.Tickrate*DefaultPlaybackSettleSeconds
 				if i > 0 && windows[i-1].RecordEnd+1 > minReset {
 					minReset = windows[i-1].RecordEnd + 1
 				}
@@ -833,6 +830,103 @@ func commandKeys(commands []scheduledCommand) []string {
 		keys[i] = c.Key
 	}
 	return keys
+}
+
+func TestFFmpegSettingsPerEncoder(t *testing.T) {
+	tests := []struct {
+		name        string
+		encoder     string
+		wantSetting string
+		wantCodec   string
+	}{
+		{name: "default is libx264", encoder: "", wantSetting: "zvFfmpegYuv420pCrf18", wantCodec: "-c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p"},
+		{name: "explicit libx264", encoder: EncoderLibx264, wantSetting: "zvFfmpegYuv420pCrf18", wantCodec: "-c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p"},
+		{name: "nvenc", encoder: EncoderNVENC, wantSetting: "zvFfmpegNvencYuv420pCrf18", wantCodec: "-c:v h264_nvenc -preset p5 -rc vbr -b:v 0 -cq 18 -pix_fmt yuv420p"},
+		{name: "amf", encoder: EncoderAMF, wantSetting: "zvFfmpegAmfYuv420pCrf18", wantCodec: "-c:v h264_amf -quality balanced -rc cqp -qp_i 18 -qp_p 18 -qp_b 18 -pix_fmt yuv420p"},
+		{name: "qsv", encoder: EncoderQSV, wantSetting: "zvFfmpegQsvYuv420pCrf18", wantCodec: "-c:v h264_qsv -global_quality 18 -pix_fmt yuv420p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name := ffmpegSettingName(tt.encoder, 18)
+			if name != tt.wantSetting {
+				t.Errorf("setting name = %q, want %q", name, tt.wantSetting)
+			}
+			cmd := ffmpegSettingsCommand(name, 18, tt.encoder)
+			if !strings.Contains(cmd, tt.wantCodec) {
+				t.Errorf("command %q missing codec %q", cmd, tt.wantCodec)
+			}
+			if !strings.Contains(cmd, `{QUOTE}{AFX_STREAM_PATH}\video.mp4{QUOTE}`) {
+				t.Errorf("command %q missing the stream path suffix", cmd)
+			}
+			plan := testPlan()
+			plan.Stream.Encoder = tt.encoder
+			js, err := GenerateHLAEJavaScript(plan)
+			if err != nil {
+				t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+			}
+			if !strings.Contains(js, "mirv_streams record screen settings "+tt.wantSetting) {
+				t.Errorf("stream setup did not apply setting %q\n%s", tt.wantSetting, js)
+			}
+		})
+	}
+}
+
+func TestGenerateHLAEJavaScriptDetectsSeekStall(t *testing.T) {
+	js, err := GenerateHLAEJavaScript(testPlan())
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	for _, want := range []string{
+		`const maxSeekStallFrames = 1500`,
+		`let seekStallFrames = 0`,
+		`let lastSeekTick = -1`,
+		`tick !== lastSeekTick`,
+		`seekStallFrames++`,
+		`seekStallFrames > maxSeekStallFrames`,
+		`stalled at target`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("generated JS missing %q\n%s", want, js)
+		}
+	}
+}
+
+func TestBuildRuntimeScheduleOmitsRedundantCameraLeads(t *testing.T) {
+	commands, _, _ := buildRuntimeSchedule(testPlan())
+	for _, c := range commands {
+		if strings.Contains(c.Key, "camera-lead-") {
+			t.Fatalf("redundant camera-lead command still scheduled: %q", c.Key)
+		}
+	}
+	for _, want := range []string{"camera-warmup-", "camera-lock-", "camera-relock-"} {
+		found := false
+		for _, c := range commands {
+			if strings.HasPrefix(c.Key, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing required camera command prefix %q in %v", want, commandKeys(commands))
+		}
+	}
+}
+
+func TestPlaybackTimescaleScheduleUsesConfiguredSettle(t *testing.T) {
+	p := testPlan()
+	p.Runtime.PlaybackSettleSeconds = 4
+	commands, _, windows := buildRuntimeSchedule(p)
+	byKey := map[string]scheduledCommand{}
+	for _, c := range commands {
+		byKey[c.Key] = c
+	}
+	reset, ok := byKey["timescale-reset-"+windows[0].SegmentID]
+	if !ok {
+		t.Fatalf("missing timescale reset in %v", commandKeys(commands))
+	}
+	want := windows[0].RecordStart - 4*64
+	if reset.Tick != want {
+		t.Fatalf("reset tick = %d, want %d (4s settle)", reset.Tick, want)
+	}
 }
 
 // TestGenerateHLAEJavaScriptSoftQuitContract locks the runtime paths that used

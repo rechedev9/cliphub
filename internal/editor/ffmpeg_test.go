@@ -110,6 +110,57 @@ func TestBuildFFmpegCommandWithoutKillfeedKeepsVfPath(t *testing.T) {
 	}
 }
 
+func TestBuildFFmpegCommandThreads(t *testing.T) {
+	base := ShortEdit{
+		Preset:          PresetViral60Clean,
+		Input:           "in.mp4",
+		Output:          "out.mp4",
+		DurationSeconds: 2,
+	}
+
+	t.Run("zero emits no -threads", func(t *testing.T) {
+		command := BuildFFmpegCommand("ffmpeg", base)
+		for _, arg := range command {
+			if arg == "-threads" {
+				t.Fatalf("command with Threads=0 must not emit -threads: %v", command)
+			}
+		}
+	})
+
+	t.Run("explicit threads emitted before the output file", func(t *testing.T) {
+		short := base
+		short.Threads = 4
+		command := BuildFFmpegCommand("ffmpeg", short)
+		joined := strings.Join(command, " ")
+		if !strings.Contains(joined, "-threads 4") {
+			t.Fatalf("command missing -threads 4: %q", joined)
+		}
+		if n := len(command); command[n-1] != "out.mp4" || command[n-2] != "4" || command[n-3] != "-threads" {
+			t.Fatalf("command tail = %v, want -threads 4 immediately before the output", command[max(0, len(command)-3):])
+		}
+	})
+
+	t.Run("music builder honors threads", func(t *testing.T) {
+		short := base
+		short.MusicPath = "music.mp3"
+		short.Threads = 8
+		joined := strings.Join(BuildFFmpegCommand("ffmpeg", short), " ")
+		if !strings.Contains(joined, "-threads 8") {
+			t.Fatalf("music command missing -threads 8: %q", joined)
+		}
+	})
+
+	t.Run("compilation builder honors threads", func(t *testing.T) {
+		short := base
+		short.Threads = 2
+		short.Parts = []ShortPart{{SegmentID: "seg-001", Input: "p1.mp4", DurationSeconds: 2}}
+		joined := strings.Join(BuildFFmpegCommand("ffmpeg", short), " ")
+		if !strings.Contains(joined, "-threads 2") {
+			t.Fatalf("compilation command missing -threads 2: %q", joined)
+		}
+	})
+}
+
 func TestBuildMusicFFmpegCommandKillfeedAndTailTrim(t *testing.T) {
 	short := singleClipKillfeedShort()
 	short.MusicPath = "music.mp3"
