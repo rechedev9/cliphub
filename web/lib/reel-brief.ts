@@ -80,12 +80,23 @@ export function musicBriefValue(music: MusicBrief): string {
   return `${music.title} · música ${music.volumePercent}% · juego ${music.gameVolumePercent}%`;
 }
 
+export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>): boolean {
+  return edit.format === 'landscape-16x9' && edit.matchRecap;
+}
+
+export function constrainEditConfig(edit: EditConfig): EditConfig {
+  if (edit.format !== 'short-9x16') return edit;
+  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud) return edit;
+  return { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
+}
+
 /** Exact, reviewable values that must be approved before capture or render. */
 export function reelCreativeBrief(
-  edit: EditConfig,
+  raw: EditConfig,
   preset: Preset | null,
   music: MusicBrief,
 ): CreativeBriefItem[] {
+  const edit = constrainEditConfig(raw);
   let hud = 'Pendiente de preset';
   if (edit.nativeHud) {
     hud = NATIVE_HUD_LABEL;
@@ -94,7 +105,7 @@ export function reelCreativeBrief(
   }
   return [
     { label: 'Formato', value: FORMAT_LABEL[edit.format] },
-    { label: 'Entrega', value: edit.matchRecap ? 'POV landscape · rondas en vivo (sin freeze)' : 'Compilado de jugadas' },
+    { label: 'Entrega', value: isLandscapeRecap(edit) ? 'POV landscape · rondas en vivo (sin freeze)' : 'Compilado de jugadas' },
     {
       label: 'Comms',
       value: edit.voiceComms

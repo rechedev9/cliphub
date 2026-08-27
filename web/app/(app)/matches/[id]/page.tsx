@@ -10,7 +10,7 @@ import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { isSeriesId } from '@/lib/series-status';
 import { formatKd, matchDateLabel, playsSelectionLabel, ratingClass } from '@/lib/format';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
-import { canForgeReel, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
+import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -165,7 +165,7 @@ export default function FindHighlightsPage({
 
   function changeEditConfig(nextConfig: EditConfig) {
     revokeBriefApproval();
-    setEditConfig(nextConfig);
+    setEditConfig(constrainEditConfig(nextConfig));
   }
 
   function changeMusicVolume(nextVolume: number) {
@@ -192,7 +192,7 @@ export default function FindHighlightsPage({
         musicVolume: songId && musicVolume < VOLUME_MAX ? musicVolume / 100 : undefined,
         gameVolume: songId ? gameVolume / 100 : undefined,
         variant: variant ?? undefined,
-        editConfig,
+        editConfig: constrainEditConfig(editConfig),
       });
       router.push(seriesId ? `/series/${seriesId}` : '/videos');
     } catch (err) {

@@ -31,6 +31,15 @@ test('reelIdentity uses a distinct Full Demo slot', () => {
       input: { matchId: JOB, playIds: PLAYS, editConfig: FULL_DEMO_EDIT },
       want: `${JOB}__full-demo`,
     },
+    {
+      name: '9:16 plus recap flags stays a shorts identity',
+      input: {
+        matchId: JOB,
+        playIds: PLAYS,
+        editConfig: { ...DEFAULT_EDIT_CONFIG, matchRecap: true, voiceComms: true, nativeHud: true },
+      },
+      want: `${JOB}__seg-001_seg-002`,
+    },
   ];
   for (const tc of cases) {
     assert.equal(reelIdentity(tc.input), tc.want, tc.name);

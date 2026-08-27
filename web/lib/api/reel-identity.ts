@@ -1,6 +1,7 @@
 import type { EditConfig, RenderMode } from './types.ts';
 import { DEFAULT_EDIT_CONFIG, DEFAULT_VARIANT, FULL_DEMO_REEL_SUFFIX, type ReelIntent } from './reel-store.ts';
 import { editConfigsEqual } from './edit-request.ts';
+import { isLandscapeRecap } from '../reel-brief.ts';
 
 export type ReelIdentityInput = {
   matchId: string;
@@ -13,7 +14,7 @@ export type ReelIdentityInput = {
 };
 
 export function reelIdentity(input: ReelIdentityInput): string {
-  if (input.editConfig?.matchRecap) {
+  if (input.editConfig && isLandscapeRecap(input.editConfig)) {
     return `${input.matchId}__${FULL_DEMO_REEL_SUFFIX}`;
   }
   return `${input.matchId}__${input.playIds.join('_')}`;

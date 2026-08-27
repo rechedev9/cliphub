@@ -35,6 +35,7 @@ import {
 import { reconcileReels } from './reconcile-batch';
 import { parseCaptureProgress } from '@/lib/capture-progress';
 import { playsSelectionLabel } from '@/lib/format';
+import { constrainEditConfig, isLandscapeRecap } from '@/lib/reel-brief';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -348,19 +349,21 @@ export class RealApiClient implements ApiClient {
   async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
     if (!isJobId(input.matchId)) return this.fallback.createVideo(input);
 
-    const videoId = reelIdentity(input);
+    const editConfig = constrainEditConfig(input.editConfig ?? DEFAULT_EDIT_CONFIG);
+    const normalized = { ...input, editConfig };
+    const videoId = reelIdentity(normalized);
     const existing = this.reels.get(videoId);
     const existingIntent = this.intents.get(videoId);
     if (
       existing &&
       existing.status !== 'failed' &&
       existingIntent &&
-      reelContractMatches(existingIntent, { ...input, mode: input.mode })
+      reelContractMatches(existingIntent, { ...normalized, mode: input.mode })
     ) {
       return { ...existing };
     }
 
-    const recap = input.editConfig?.matchRecap === true;
+    const recap = isLandscapeRecap(editConfig);
     const [plays, match] = await Promise.all([
       recap ? this.findRecapClips(input.matchId) : this.findClips(input.matchId),
       this.getMatch(input.matchId),
@@ -380,7 +383,7 @@ export class RealApiClient implements ApiClient {
       segmentIds: recap ? [] : pickedPlays.map((p) => p.id),
       mode: input.mode,
       variant,
-      editConfig: input.editConfig ?? DEFAULT_EDIT_CONFIG,
+      editConfig,
       songId: input.songId,
       // Volume only rides along with a chosen song; without one it is meaningless.
       musicVolume: input.songId ? input.musicVolume : undefined,

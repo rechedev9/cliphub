@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canForgeReel, canRerenderWithMusic, musicBriefValue, reelCreativeBrief } from './reel-brief.ts';
+import {
+  canForgeReel,
+  canRerenderWithMusic,
+  constrainEditConfig,
+  isLandscapeRecap,
+  musicBriefValue,
+  reelCreativeBrief,
+} from './reel-brief.ts';
 import type { EditConfig, Preset } from './api/types.ts';
 import { FULL_DEMO_EDIT, FULL_DEMO_PRESET } from './full-demo.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
@@ -101,6 +108,29 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['Portada'], 'No generar portada');
 });
 
+test('9:16 shorts brief never claims a landscape recap even if those flags leak in', () => {
+  const edit: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'clean',
+    transition: 'cut',
+    hookText: false,
+    killCounter: false,
+    matchRecap: true,
+    voiceComms: true,
+    nativeHud: true,
+    coverStrategy: 'no-cover',
+    intro: false,
+    outro: false,
+  };
+  const brief = Object.fromEntries(reelCreativeBrief(edit, PRESET, { status: 'none' }).map((item) => [item.label, item.value]));
+  assert.equal(brief['Formato'], 'Vertical 9:16 · 1080×1920');
+  assert.equal(brief['Entrega'], 'Compilado de jugadas');
+  assert.equal(brief['Comms'], 'Sin comms');
+  assert.equal(brief['HUD / killfeed'], 'Sin HUD, conserva killfeed');
+  assert.equal(isLandscapeRecap(edit), false);
+  assert.deepEqual(constrainEditConfig(edit), { ...edit, matchRecap: false, voiceComms: false, nativeHud: false });
+});
+
 test('creative brief names the optional recap extras when they are on', () => {
   const edit: EditConfig = {
     format: 'landscape-16x9',
@@ -119,6 +149,8 @@ test('creative brief names the optional recap extras when they are on', () => {
   assert.equal(brief['Entrega'], 'POV landscape · rondas en vivo (sin freeze)');
   assert.equal(brief['Comms'], 'Mezclar comms del equipo · 85%');
   assert.equal(brief['HUD / killfeed'], NATIVE_HUD_LABEL);
+  assert.equal(isLandscapeRecap(edit), true);
+  assert.equal(constrainEditConfig(edit), edit);
 });
 
 test('full-demo locked edit names native CS2 HUD, not Shorts full-hud copy', () => {
