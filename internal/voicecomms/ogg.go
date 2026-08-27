@@ -49,7 +49,9 @@ func opusHead(sampleRate uint32) []byte {
 	copy(buf, "OpusHead")
 	buf[8] = 1
 	buf[9] = 1
-	binary.LittleEndian.PutUint16(buf[10:12], 3840)
+	// Pre-skip 0: these are remuxed CS2 frames, not libopus output.
+	// A fake encoder delay would make ffmpeg PTS lag the capture ticks.
+	binary.LittleEndian.PutUint16(buf[10:12], 0)
 	binary.LittleEndian.PutUint32(buf[12:16], sampleRate)
 	return buf
 }

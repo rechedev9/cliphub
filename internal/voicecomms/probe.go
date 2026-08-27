@@ -63,10 +63,7 @@ func Collect(p demoinfocs.Parser, target, demoPath string) (Report, []Packet, []
 		}
 		pkt := Packet{
 			XUID: m.GetXuid(),
-			Tick: int(m.GetTick()),
-		}
-		if pkt.Tick == 0 {
-			pkt.Tick = p.GameState().IngameTick()
+			Tick: packetTick(int(m.GetTick()), p.GameState().IngameTick()),
 		}
 		if pkt.Tick > maxTick {
 			maxTick = pkt.Tick
@@ -117,6 +114,18 @@ func snapshotPlaying(p demoinfocs.Parser) []Sighting {
 		})
 	}
 	return out
+}
+
+// packetTick prefers IngameTick (the recap/capture clock). VoiceData.tick is
+// 0 on current CS2 demos and can otherwise be a different net/match clock.
+func packetTick(protoTick, ingameTick int) int {
+	if ingameTick > 0 {
+		return ingameTick
+	}
+	if protoTick > 0 {
+		return protoTick
+	}
+	return 0
 }
 
 func teamLabel(t common.Team) string {

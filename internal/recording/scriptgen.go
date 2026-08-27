@@ -131,6 +131,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        // disconnect first; quit a few client frames later so CS2 can leave\n")
 	sb.WriteString("        // demo playback without the native Afx/CS2 hard-crash dialog.\n")
 	sb.WriteString("        if (pendingQuitFrames > 0) return;\n")
+	for _, cmd := range voiceRestoreCommands() {
+		sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", cmd))
+	}
 	sb.WriteString("        mirv.exec(\"disconnect\");\n")
 	sb.WriteString("        pendingQuitFrames = softQuitClientFrames;\n")
 	sb.WriteString("    };\n")
@@ -671,11 +674,14 @@ func streamSetupCommands(plan RecordingPlan) []string {
 	commands := []string{
 		"cl_demo_predict 0",
 		"cl_trueview_show_status 0",
+	}
+	commands = append(commands, voiceMuteCommands()...)
+	commands = append(commands,
 		"mirv_panorama panelstyle panelId=trueview_row opacity=0",
 		fmt.Sprintf("mirv_streams record name %s", quoteConsoleArg(recordName)),
 		recordFPS,
 		"mirv_streams record screen enabled 1",
-	}
+	)
 	switch plan.Stream.Mode {
 	case StreamModeTGASequence:
 		commands = append(commands, "mirv_streams record screen settings afxClassic")
@@ -687,6 +693,24 @@ func streamSetupCommands(plan RecordingPlan) []string {
 		)
 	}
 	return append(commands, hudSetupCommands(plan)...)
+}
+
+// voiceMuteCommands silence in-engine demo voice before HLAE records. CS2
+// playback relays both teams; the render mix is extracted POV-team tracks.
+func voiceMuteCommands() []string {
+	return []string{
+		"voice_enable 0",
+		"tv_listen_voice_indices 0",
+		"tv_listen_voice_indices_h 0",
+	}
+}
+
+func voiceRestoreCommands() []string {
+	return []string{
+		"voice_enable 1",
+		"tv_listen_voice_indices -1",
+		"tv_listen_voice_indices_h -1",
+	}
 }
 
 func ffmpegSettingName(crf int) string {
