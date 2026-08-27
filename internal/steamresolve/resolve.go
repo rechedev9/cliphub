@@ -72,14 +72,14 @@ func (s *Service) Resolve(ctx context.Context, code string) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("%w: %v", ErrInvalidCode, err)
 	}
-	res := Result{MatchID: m.MatchID, OutcomeID: m.OutcomeID, TokenID: m.TokenID}
+	res := Result{MatchID: m.MatchID, OutcomeID: m.OutcomeID, TokenID: uint32(m.TokenID)}
 	if s == nil || s.transport == nil {
 		return res, nil
 	}
 	matches, err := s.transport.RequestMatch(ctx, steamgc.Request{
 		MatchID:   m.MatchID,
 		OutcomeID: m.OutcomeID,
-		Token:     m.TokenID,
+		Token:     uint32(m.TokenID),
 	})
 	if err != nil {
 		// Deliberately omits the share code and credentials from the message.

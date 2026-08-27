@@ -2,6 +2,8 @@ package voicecomms
 
 import (
 	"bytes"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/voiceprofile"
@@ -59,6 +61,42 @@ func TestWriteOggOpusIsValidContainer(t *testing.T) {
 	}
 	if _, err := voiceprofile.ValidateAudio(bytes.NewReader(body)); err != nil {
 		t.Fatalf("ValidateAudio: %v", err)
+	}
+}
+
+func TestWriteOggPageRejectsNegativeGranule(t *testing.T) {
+	tests := []struct {
+		name    string
+		granule int64
+		wantErr string
+	}{
+		{name: "negative one", granule: -1, wantErr: "ogg page granule must be non-negative"},
+		{name: "min int64", granule: math.MinInt64, wantErr: "ogg page granule must be non-negative"},
+		{name: "zero", granule: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := writeOggPage(&buf, 0, tt.granule, 1, 0, [][]byte{{0xF8, 0xFF, 0xFE}})
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("writeOggPage(granule=%d) = %v, want nil", tt.granule, err)
+				}
+				if buf.Len() == 0 {
+					t.Fatal("writeOggPage wrote nothing")
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("writeOggPage(granule=%d) succeeded, want error containing %q", tt.granule, tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("writeOggPage(granule=%d) error = %q, want it to contain %q", tt.granule, err, tt.wantErr)
+			}
+			if buf.Len() != 0 {
+				t.Fatalf("writeOggPage wrote %d bytes on error", buf.Len())
+			}
+		})
 	}
 }
 
