@@ -59,6 +59,8 @@ func Render(ctx context.Context, ffmpegPath string, in Inputs, doc timelineplan.
 }
 
 func runFFmpeg(ctx context.Context, ffmpegPath string, args []string) ([]byte, error) {
+	// #nosec G204 -- ffmpegPath comes from local tool detection; args are built
+	// from the persisted timeline plan, never from remote input.
 	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf

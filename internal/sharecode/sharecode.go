@@ -25,10 +25,11 @@ const (
 )
 
 // Match holds the three integers packed into a share code.
+// TokenID is the 16-bit field at bytes 16..17 of the 18-byte payload.
 type Match struct {
 	MatchID   uint64
 	OutcomeID uint64
-	TokenID   uint32
+	TokenID   uint16
 }
 
 // Decode parses a share code, with or without the CSGO- prefix, into a Match.
@@ -64,7 +65,7 @@ func Decode(code string) (Match, error) {
 	return Match{
 		MatchID:   binary.LittleEndian.Uint64(buf[0:8]),
 		OutcomeID: binary.LittleEndian.Uint64(buf[8:16]),
-		TokenID:   uint32(binary.LittleEndian.Uint16(buf[16:18])),
+		TokenID:   binary.LittleEndian.Uint16(buf[16:18]),
 	}, nil
 }
 
@@ -73,7 +74,7 @@ func Encode(m Match) string {
 	var buf [byteLength]byte
 	binary.LittleEndian.PutUint64(buf[0:8], m.MatchID)
 	binary.LittleEndian.PutUint64(buf[8:16], m.OutcomeID)
-	binary.LittleEndian.PutUint16(buf[16:18], uint16(m.TokenID))
+	binary.LittleEndian.PutUint16(buf[16:18], m.TokenID)
 
 	acc := new(big.Int).SetBytes(buf[:])
 	base := big.NewInt(int64(len(dictionary)))

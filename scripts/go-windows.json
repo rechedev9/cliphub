@@ -1,0 +1,9 @@
+{
+  "version": "1.26.6",
+  "filename": "go1.26.6.windows-amd64.msi",
+  "url": "https://go.dev/dl/go1.26.6.windows-amd64.msi",
+  "sha256": "7c1390d3ab814753c3176bc0e0648ff70d3c2b4c3b22cced9c347f40dc920168",
+  "archiveFilename": "go1.26.6.windows-amd64.zip",
+  "archiveUrl": "https://go.dev/dl/go1.26.6.windows-amd64.zip",
+  "archiveSha256": "5b6c5b556525810463b5c897b50dc7a82d6a3dc0bfaf55d990a7e9f31d6b2318"
+}

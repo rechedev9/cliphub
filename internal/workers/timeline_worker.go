@@ -245,7 +245,7 @@ func (w *TimelineRenderWorker) materialize(key, dest string) (string, error) {
 		return "", fmt.Errorf("open asset %s: %w", key, err)
 	}
 	defer rc.Close()
-	f, err := os.Create(dest)
+	f, err := os.Create(dest) // #nosec G304 -- dest is the caller's resolved local run output path
 	if err != nil {
 		return "", err
 	}
@@ -260,7 +260,7 @@ func (w *TimelineRenderWorker) materialize(key, dest string) (string, error) {
 }
 
 func (w *TimelineRenderWorker) putFile(key, path string) error {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- path is a local run artifact path owned by this worker
 	if err != nil {
 		return err
 	}

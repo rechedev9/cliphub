@@ -198,6 +198,9 @@ func (s *AccountStore) loadLocked() (Account, error) {
 }
 
 func (s *AccountStore) writeLocked(acc Account) error {
+	// #nosec G117 -- account.json intentionally persists the revocable auth code
+	// and Web API key (documented design); writeLocked stores it via filecommit
+	// with 0600 permissions.
 	data, err := json.MarshalIndent(accountFile{
 		SchemaVersion: AccountSchemaVersion,
 		SteamID:       acc.SteamID,
@@ -313,7 +316,7 @@ func validateAuthCode(raw string) error {
 func validateAPIKey(raw string) error {
 	trimmed := strings.TrimSpace(raw)
 	if len(trimmed) < 8 || len(trimmed) > 64 {
-		return errors.New("Steam Web API key must be between 8 and 64 characters")
+		return errors.New("steam web api key must be between 8 and 64 characters")
 	}
 	return nil
 }

@@ -62,6 +62,8 @@ func (h *Handlers) CreateEditorAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxEditorMultipartBytes)
+	// #nosec G120 -- MaxBytesReader above caps the request body, so parsing
+	// cannot allocate unbounded memory.
 	if err := r.ParseMultipartForm(multipartMemBudget); err != nil {
 		writeError(w, http.StatusBadRequest, "parsing multipart form: "+err.Error())
 		return

@@ -1,0 +1,4 @@
+# The synthetic demo fixture is hashed byte-for-byte by the zv record tests
+# (agent-killplan.json binds its sha256); keep EOLs identical across platforms
+# so core.autocrlf cannot rewrite LF to CRLF and break the binding.
+testdata/*.fixture -text

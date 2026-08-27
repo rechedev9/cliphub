@@ -984,6 +984,17 @@ test('build entrypoint delegates publication and never removes the recovery back
   assert.match(buildScript, /Assert-FaceitKeyEmbedded/);
   assert.match(buildScript, /-X main\.embeddedFaceitAPIKey=/);
   assert.match(buildScript, /Enter-BuildPublicationLock/);
+  assert.match(buildScript, /install-go-windows\.ps1/);
+  assert.match(buildScript, /Install-PinnedWindowsGo/);
+  assert.match(buildScript, /Assert-GoToolchainMatchesModule/);
+  assert.ok(
+    buildScript.indexOf('Install-PinnedWindowsGo') < buildScript.indexOf('& go build'),
+    'Go 1.26.6 must be installed before the first compiler invocation',
+  );
+  assert.ok(
+    buildScript.indexOf('Assert-GoToolchainMatchesModule') < buildScript.indexOf('& go build'),
+    'Go 1.26.6+ must be verified before the first compiler invocation',
+  );
   assert.ok(
     buildScript.indexOf('Recover-BuildPublication') < buildScript.indexOf('& go build'),
     'recovery must run before the first compiler invocation',

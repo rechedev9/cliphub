@@ -41,8 +41,35 @@ function Test-ExecutablePath {
     return -not [string]::IsNullOrWhiteSpace($Path) -and (Test-Path -LiteralPath $Path -PathType Leaf)
 }
 
+. (Join-Path $PSScriptRoot "install-go-windows.ps1")
+try {
+    Install-PinnedWindowsGo
+} catch {
+    Write-Host "Go bootstrap: $($_.Exception.Message)"
+}
+
 $go = Resolve-CommandPath "go"
-Add-Check "Go" ($null -ne $go) $(if ($go) { $go } else { "go not found in PATH" })
+$goDetail = if ($go) { $go } else { "go not found in PATH" }
+$goOk = $null -ne $go
+if ($goOk) {
+    $goVersionOutput = & go version 2>&1 | Select-Object -First 1
+    $goDetail = "$go ($goVersionOutput)"
+    $goMod = Join-Path (Split-Path -Parent $PSScriptRoot) "go.mod"
+    $goModLine = Get-Content -LiteralPath $goMod | Where-Object { $_ -match '^go\s+(\d+\.\d+(?:\.\d+)?)\s*$' } | Select-Object -First 1
+    $requiredRaw = [regex]::Match([string]$goModLine, '^go\s+(\d+\.\d+(?:\.\d+)?)\s*$').Groups[1].Value
+    $installedMatch = [regex]::Match([string]$goVersionOutput, 'go version go(\d+\.\d+(?:\.\d+)?)')
+    if ($requiredRaw -ne "" -and $installedMatch.Success) {
+        $required = $requiredRaw
+        $installed = $installedMatch.Groups[1].Value
+        if ($required -notmatch '^\d+\.\d+\.\d+$') { $required = "$required.0" }
+        if ($installed -notmatch '^\d+\.\d+\.\d+$') { $installed = "$installed.0" }
+        if ([version]$installed -lt [version]$required) {
+            $goOk = $false
+            $goDetail = "found $installed, go.mod requires $required (https://go.dev/dl/go$required.windows-amd64.msi)"
+        }
+    }
+}
+Add-Check "Go" $goOk $goDetail
 
 $docker = Resolve-CommandPath "docker"
 Add-Check "Docker" ($null -ne $docker) $(if ($docker) { $docker } else { "docker not found in PATH" }) $false

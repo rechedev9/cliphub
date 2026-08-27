@@ -3,7 +3,9 @@
 package main
 
 import (
+	"math"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,6 +43,34 @@ func TestCaptureJobKillsAssignedProcessOnClose(t *testing.T) {
 	_ = child.Wait()
 	if elapsed := time.Since(waitStarted); elapsed > 10*time.Second {
 		t.Fatalf("child outlived the job by %s; want prompt kill-on-close termination", elapsed)
+	}
+}
+
+func TestCaptureJobAssignRejectsInvalidPID(t *testing.T) {
+	job, err := newCaptureJob()
+	if err != nil {
+		t.Fatalf("newCaptureJob: %v", err)
+	}
+	t.Cleanup(func() { _ = job.close() })
+
+	tests := []struct {
+		name string
+		pid  int
+	}{
+		{name: "zero", pid: 0},
+		{name: "negative", pid: -1},
+		{name: "above uint32", pid: int(uint64(math.MaxUint32) + 1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := job.assign(tt.pid)
+			if err == nil {
+				t.Fatalf("assign(%d) succeeded, want error", tt.pid)
+			}
+			if !strings.Contains(err.Error(), "invalid PID") {
+				t.Fatalf("assign(%d) error = %q, want it to contain %q", tt.pid, err, "invalid PID")
+			}
+		})
 	}
 }
 

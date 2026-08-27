@@ -58,7 +58,7 @@ func opusTags() []byte {
 	vendor := []byte("cliphub")
 	buf := make([]byte, 8+4+len(vendor)+4)
 	copy(buf, "OpusTags")
-	binary.LittleEndian.PutUint32(buf[8:12], uint32(len(vendor)))
+	binary.LittleEndian.PutUint32(buf[8:12], uint32(len(vendor))) // #nosec G115 -- vendor is the 7-byte "cliphub" literal
 	copy(buf[12:], vendor)
 	return buf
 }
@@ -73,7 +73,7 @@ func writeOggPage(w io.Writer, headerType byte, granule int64, serial, seq uint3
 			segs = append(segs, 255)
 			n -= 255
 		}
-		segs = append(segs, byte(n))
+		segs = append(segs, byte(n)) // #nosec G115 -- remainder n is < 255 after the 255-chunk loop
 	}
 	if len(segs) > 255 {
 		return fmt.Errorf("ogg page has too many segments")
@@ -81,10 +81,15 @@ func writeOggPage(w io.Writer, headerType byte, granule int64, serial, seq uint3
 	page := make([]byte, 27+len(segs)+len(body))
 	copy(page[0:4], "OggS")
 	page[5] = headerType
+	// A page granule is a sample position; negative values would serialize as a
+	// huge unsigned marker and poison the Ogg timestamp stream.
+	if granule < 0 {
+		return fmt.Errorf("ogg page granule must be non-negative: %d", granule)
+	}
 	binary.LittleEndian.PutUint64(page[6:14], uint64(granule))
 	binary.LittleEndian.PutUint32(page[14:18], serial)
 	binary.LittleEndian.PutUint32(page[18:22], seq)
-	page[26] = byte(len(segs))
+	page[26] = byte(len(segs)) // #nosec G115 -- len(segs) <= 255 enforced above
 	copy(page[27:], segs)
 	copy(page[27+len(segs):], body)
 	crc := oggCRC(page)

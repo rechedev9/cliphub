@@ -156,7 +156,7 @@ func loadPlateFile(name string) []byte {
 	var found []byte
 	foundDir := ""
 	for _, dir := range plateSearchDirs() {
-		b, err := os.ReadFile(filepath.Join(dir, name))
+		b, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- name is a compile-time style constant; dirs are fixed lookup paths
 		if err != nil || len(b) < 32 {
 			continue
 		}
@@ -173,7 +173,8 @@ func loadPlateFile(name string) []byte {
 	if srcDir != "" && foundDir != srcDir {
 		dest := filepath.Join(srcDir, name)
 		if _, err := os.Stat(dest); os.IsNotExist(err) {
-			_ = os.WriteFile(dest, found, 0o644)
+			// #nosec G703 -- style.FileName is a compile-time constant, never user input.
+			_ = os.WriteFile(dest, found, 0o600)
 		}
 	}
 	return found

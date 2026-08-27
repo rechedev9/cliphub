@@ -130,7 +130,7 @@ After final media is validated and no recapture/reparse is needed, send used ext
 
 ## Development
 
-Toolchain sources of truth are `go.mod` (Go 1.26.5), each package's `packageManager` field (pnpm 11.22.0), and Node 24.
+Toolchain sources of truth are `go.mod` (Go 1.26.6), each package's `packageManager` field (pnpm 11.22.0), and Node 24.
 There is no hosted quality CI: `.githooks/pre-commit` is the only gate, and it runs before the commit exists rather than after the push.
 Nothing re-checks product quality on GitHub, so a gate skipped locally is a gate that never runs.
 The one hosted pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It does not replace the pre-commit hook and must stay the only release job.
