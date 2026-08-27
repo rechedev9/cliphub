@@ -23,48 +23,8 @@ func TestFullDemoVoiceCaptureMutesBeforeRecord(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GenerateHLAEJavaScript: %v", err)
 			}
-			for _, want := range []string{
-				`"voice_enable 0"`,
-				`"tv_listen_voice_indices 0"`,
-				`"tv_listen_voice_indices_h 0"`,
-				`"voice_enable 1"`,
-				`"tv_listen_voice_indices -1"`,
-				`"tv_listen_voice_indices_h -1"`,
-				`"key": "voice-restore-01"`,
-			} {
-				if !strings.Contains(js, want) {
-					t.Fatalf("generated JS missing %q", want)
-				}
-			}
-			schedule, _, _ := buildRuntimeSchedule(plan)
-			muteTick, restoreTick, firstRecord, lastRecord := 0, 0, 0, 0
-			for _, item := range schedule {
-				for _, cmd := range item.Commands {
-					switch cmd {
-					case "voice_enable 0":
-						muteTick = item.Tick
-					case "voice_enable 1":
-						restoreTick = item.Tick
-					case "mirv_streams record start":
-						if firstRecord == 0 || item.Tick < firstRecord {
-							firstRecord = item.Tick
-						}
-					case "mirv_streams record end":
-						if item.Tick > lastRecord {
-							lastRecord = item.Tick
-						}
-					}
-				}
-			}
-			if muteTick == 0 || restoreTick == 0 || firstRecord == 0 || lastRecord == 0 {
-				t.Fatalf("mute=%d restore=%d record=%d..%d", muteTick, restoreTick, firstRecord, lastRecord)
-			}
-			if muteTick >= firstRecord {
-				t.Fatalf("demo voice muted at tick %d, after record-start %d", muteTick, firstRecord)
-			}
-			if restoreTick <= lastRecord {
-				t.Fatalf("demo voice restored at tick %d, before record-end %d", restoreTick, lastRecord)
-			}
+			assertDemoVoiceMutedBeforeRecord(t, plan, js)
+			assertDemoVoiceRestoredInSoftQuit(t, js)
 		})
 	}
 }
@@ -111,7 +71,70 @@ func TestFullDemoVoiceCaptureRestoresWhenGameplayHasNoHUDCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(js, `"key": "voice-restore-01"`) {
-		t.Fatal("gameplay capture dropped voice restore because HUD cleanup is empty")
+	assertDemoVoiceRestoredInSoftQuit(t, js)
+}
+
+func assertDemoVoiceMutedBeforeRecord(t *testing.T, plan RecordingPlan, js string) {
+	t.Helper()
+	for _, want := range []string{
+		`"voice_enable 0"`,
+		`"tv_listen_voice_indices 0"`,
+		`"tv_listen_voice_indices_h 0"`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Fatalf("generated JS missing mute %q", want)
+		}
+	}
+	if strings.Contains(js, `"key": "voice-restore-01"`) {
+		t.Fatal("voice restore is still on the tick schedule; failCapture and demo-EOF skip that schedule")
+	}
+	schedule, _, _ := buildRuntimeSchedule(plan)
+	muteTick, firstRecord := 0, 0
+	for _, item := range schedule {
+		for _, cmd := range item.Commands {
+			switch cmd {
+			case "voice_enable 0":
+				muteTick = item.Tick
+			case "voice_enable 1":
+				t.Fatalf("voice restore %q is still scheduled at tick %d", cmd, item.Tick)
+			case "mirv_streams record start":
+				if firstRecord == 0 || item.Tick < firstRecord {
+					firstRecord = item.Tick
+				}
+			}
+		}
+	}
+	if muteTick == 0 || firstRecord == 0 {
+		t.Fatalf("mute=%d record-start=%d", muteTick, firstRecord)
+	}
+	if muteTick >= firstRecord {
+		t.Fatalf("demo voice muted at tick %d, after record-start %d", muteTick, firstRecord)
+	}
+}
+
+func assertDemoVoiceRestoredInSoftQuit(t *testing.T, js string) {
+	t.Helper()
+	idx := strings.Index(js, "const beginSoftQuit = () => {")
+	if idx < 0 {
+		t.Fatal("beginSoftQuit definition missing")
+	}
+	rest := js[idx:]
+	end := strings.Index(rest, "};\n")
+	if end < 0 {
+		t.Fatal("beginSoftQuit body unterminated")
+	}
+	body := rest[:end]
+	restore := strings.Index(body, `mirv.exec("voice_enable 1")`)
+	mask := strings.Index(body, `mirv.exec("tv_listen_voice_indices -1")`)
+	maskH := strings.Index(body, `mirv.exec("tv_listen_voice_indices_h -1")`)
+	disc := strings.Index(body, `mirv.exec("disconnect")`)
+	if restore < 0 || mask < 0 || maskH < 0 {
+		t.Fatalf("beginSoftQuit missing voice restore:\n%s", body)
+	}
+	if disc < 0 {
+		t.Fatal("beginSoftQuit does not disconnect")
+	}
+	if restore > disc || mask > disc || maskH > disc {
+		t.Fatalf("voice restore must run before disconnect:\n%s", body)
 	}
 }

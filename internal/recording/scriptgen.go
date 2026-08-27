@@ -131,6 +131,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        // disconnect first; quit a few client frames later so CS2 can leave\n")
 	sb.WriteString("        // demo playback without the native Afx/CS2 hard-crash dialog.\n")
 	sb.WriteString("        if (pendingQuitFrames > 0) return;\n")
+	for _, cmd := range voiceRestoreCommands() {
+		sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", cmd))
+	}
 	sb.WriteString("        mirv.exec(\"disconnect\");\n")
 	sb.WriteString("        pendingQuitFrames = softQuitClientFrames;\n")
 	sb.WriteString("    };\n")
@@ -428,13 +431,6 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	}
 	shutdownTick := lastEnd + max(8, pad/2)
 	commands = append(commands, playbackTimescaleCommands(plan, windows, shutdownTick)...)
-	for i, cmd := range voiceRestoreCommands() {
-		commands = append(commands, scheduledCommand{
-			Tick:     shutdownTick - 4,
-			Key:      fmt.Sprintf("voice-restore-%02d", i+1),
-			Commands: []string{cmd},
-		})
-	}
 	for i, cmd := range hudCleanupCommands(plan.Stream) {
 		commands = append(commands, scheduledCommand{
 			Tick:     shutdownTick - 4,

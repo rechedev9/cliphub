@@ -2,6 +2,7 @@ package voicecomms
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
 	"strings"
 	"testing"
@@ -61,6 +62,51 @@ func TestWriteOggOpusIsValidContainer(t *testing.T) {
 	}
 	if _, err := voiceprofile.ValidateAudio(bytes.NewReader(body)); err != nil {
 		t.Fatalf("ValidateAudio: %v", err)
+	}
+}
+
+func TestOpusHeadHasNoEncoderPreSkip(t *testing.T) {
+	var buf bytes.Buffer
+	if err := WriteOggOpus(&buf, [][]byte{{0xF8, 0xFF, 0xFE}}, 48000, 1); err != nil {
+		t.Fatal(err)
+	}
+	i := bytes.Index(buf.Bytes(), []byte("OpusHead"))
+	if i < 0 || i+12 > buf.Len() {
+		t.Fatal("missing OpusHead")
+	}
+	preSkip := binary.LittleEndian.Uint16(buf.Bytes()[i+10 : i+12])
+	if preSkip != 0 {
+		t.Fatalf("pre-skip = %d samples, want 0 so overlay time matches capture ticks", preSkip)
+	}
+}
+
+func TestTimelineFramesAlignsPacketToTickTime(t *testing.T) {
+	pkt := []byte{0xF8, 0xFF, 0xFE}
+	tests := []struct {
+		name     string
+		tick     int
+		tickrate int
+		wantLead int
+	}{
+		{name: "one second at 64", tick: 64, tickrate: 64, wantLead: 50},
+		{name: "zero tick is immediate", tick: 0, tickrate: 64, wantLead: 0},
+		{name: "two seconds at 128", tick: 256, tickrate: 128, wantLead: 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frames := timelineFrames([]Packet{{Tick: tt.tick, Data: pkt}}, tt.tickrate, 0)
+			if len(frames) != tt.wantLead+1 {
+				t.Fatalf("len = %d, want %d silence + packet", len(frames), tt.wantLead+1)
+			}
+			for i := 0; i < tt.wantLead; i++ {
+				if !bytes.Equal(frames[i], opusSilence20ms) {
+					t.Fatalf("frame %d is not silence", i)
+				}
+			}
+			if !bytes.Equal(frames[tt.wantLead], pkt) {
+				t.Fatalf("packet was not placed at tick time")
+			}
+		})
 	}
 }
 

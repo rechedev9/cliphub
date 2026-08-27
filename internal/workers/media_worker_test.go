@@ -2055,19 +2055,23 @@ func TestRenderWorkerPassesMusicVolume(t *testing.T) {
 func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 	const steamID = "76561197960265729"
 	const demoKey = "demos/test.dem"
+	voice085 := 0.85
 	cases := []struct {
 		name        string
 		voiceComms  bool
 		fullDemo    bool
+		preset      string
 		musicKey    string
 		steamID     string
 		demoKey     string
 		putDemo     bool
 		tracks      int
 		extractErr  error
+		voiceVol    *float64
 		wantDir     bool
 		wantExtract bool
 		wantMusic   bool
+		wantVoice   string
 		wantErr     string
 	}{
 		{name: "off skips extract"},
@@ -2112,6 +2116,20 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 			tracks:      2,
 			wantDir:     true,
 			wantExtract: true,
+		},
+		{
+			name:        "native POV without song passes voice-dir at 85%",
+			voiceComms:  true,
+			fullDemo:    true,
+			preset:      editor.PresetGameplayPOV60,
+			steamID:     steamID,
+			demoKey:     demoKey,
+			putDemo:     true,
+			tracks:      2,
+			voiceVol:    &voice085,
+			wantDir:     true,
+			wantExtract: true,
+			wantVoice:   "0.85",
 		},
 		{
 			name:        "full demo with zero extracted tracks does not fail",
@@ -2215,6 +2233,7 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 
 			edit := renderplan.DefaultEditRequest()
 			edit.VoiceComms = tc.voiceComms
+			edit.VoiceVolume = tc.voiceVol
 			if tc.fullDemo {
 				edit.MatchRecap = true
 				edit.NativeHUD = true
@@ -2223,7 +2242,11 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 				edit.Intro = false
 				edit.Outro = false
 			}
-			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, tc.musicKey, 0.8, nil, edit)
+			preset := tc.preset
+			if preset == "" {
+				preset = editor.PresetViral60Clean
+			}
+			task, err := tasks.NewRenderVariantTask(id, preset, tc.musicKey, 0.8, nil, edit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2262,6 +2285,11 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 			}
 			if got := hasArg(gotArgs, "--music"); got != tc.wantMusic {
 				t.Fatalf("--music present = %v, want %v: %#v", got, tc.wantMusic, gotArgs)
+			}
+			if tc.wantVoice != "" {
+				if got := argValue(gotArgs, "--voice-volume"); got != tc.wantVoice {
+					t.Fatalf("--voice-volume = %q, want %s", got, tc.wantVoice)
+				}
 			}
 		})
 	}
