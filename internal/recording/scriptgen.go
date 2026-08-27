@@ -428,6 +428,13 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 	}
 	shutdownTick := lastEnd + max(8, pad/2)
 	commands = append(commands, playbackTimescaleCommands(plan, windows, shutdownTick)...)
+	for i, cmd := range voiceRestoreCommands() {
+		commands = append(commands, scheduledCommand{
+			Tick:     shutdownTick - 4,
+			Key:      fmt.Sprintf("voice-restore-%02d", i+1),
+			Commands: []string{cmd},
+		})
+	}
 	for i, cmd := range hudCleanupCommands(plan.Stream) {
 		commands = append(commands, scheduledCommand{
 			Tick:     shutdownTick - 4,
@@ -671,11 +678,14 @@ func streamSetupCommands(plan RecordingPlan) []string {
 	commands := []string{
 		"cl_demo_predict 0",
 		"cl_trueview_show_status 0",
+	}
+	commands = append(commands, voiceMuteCommands()...)
+	commands = append(commands,
 		"mirv_panorama panelstyle panelId=trueview_row opacity=0",
 		fmt.Sprintf("mirv_streams record name %s", quoteConsoleArg(recordName)),
 		recordFPS,
 		"mirv_streams record screen enabled 1",
-	}
+	)
 	switch plan.Stream.Mode {
 	case StreamModeTGASequence:
 		commands = append(commands, "mirv_streams record screen settings afxClassic")
@@ -687,6 +697,24 @@ func streamSetupCommands(plan RecordingPlan) []string {
 		)
 	}
 	return append(commands, hudSetupCommands(plan)...)
+}
+
+// voiceMuteCommands silence in-engine demo voice before HLAE records. CS2
+// playback relays both teams; the render mix is extracted POV-team tracks.
+func voiceMuteCommands() []string {
+	return []string{
+		"voice_enable 0",
+		"tv_listen_voice_indices 0",
+		"tv_listen_voice_indices_h 0",
+	}
+}
+
+func voiceRestoreCommands() []string {
+	return []string{
+		"voice_enable 1",
+		"tv_listen_voice_indices -1",
+		"tv_listen_voice_indices_h -1",
+	}
 }
 
 func ffmpegSettingName(crf int) string {

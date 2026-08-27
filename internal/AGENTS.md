@@ -12,7 +12,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 |------|---------|-------|
 | Parse `.dem` → plan | `parser`, `rules`, `killplan` | `killplan.SchemaVersion=1.2`; reject unknown versions |
 | Score / select plays | `moments` | Default variant `viral-60-clean` |
-| HLAE/CS2 scripts + validate | `recording` | HUD is capture-time. Contract `observer-steamid-input-v2`; V1 read-only |
+| HLAE/CS2 scripts + validate | `recording` | HUD is capture-time. Mutes demo voice (both teams on GOTV). Contract `observer-steamid-input-v2`; V1 read-only |
 | Concat captured clips | `composition` | No re-edit; assumes `recording.SegmentClip` |
 | 9:16 shorts + pack | `editor`, `renderplan` | Public CLI presets: `viral-60-clean`, `viral-aggressive-60` |
 | Kill→beat sync | `rhythm` | Editor applies it; workers do not call it |
@@ -37,7 +37,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Sponsor plate / font | `keydropbanner`, `mediafont` | Stream schema revalidates banner codes; do not import assets into it |
 | Publish copy / trends | `youtubeinsights`, `youtubetrends` | Madrid TZ. Trends key redacted. No popularity claim |
 | Voice refs | `voiceprofile` | HTTP only; no narration worker |
-| Demo voice probe | `voicecomms` | Reads `svc_VoiceData`. Lists POV team only; others aggregated |
+| Demo voice probe | `voicecomms` | Reads `svc_VoiceData`. Lists/extracts POV team only; overlay uses IngameTick |
 | Path / CLI safety | `pathguard` | Blocks `--out` aliasing inputs |
 | TUI DTOs | `tuiclient` | No parser/editor import |
 
