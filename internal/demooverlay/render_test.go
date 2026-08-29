@@ -43,4 +43,18 @@ func TestRenderPNGsWritesIntroAndOutroStills(t *testing.T) {
 			t.Fatalf("%s is not a PNG (%d bytes)", path, len(raw))
 		}
 	}
+	if dest := os.Getenv("FULL_DEMO_OVERLAY_OUT"); dest != "" {
+		if err := os.MkdirAll(dest, 0o750); err != nil {
+			t.Fatalf("evidence dir: %v", err)
+		}
+		for src, name := range map[string]string{intro: "intro-roster.png", outro: "outro-scoreboard.png"} {
+			raw, err := os.ReadFile(src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dest, name), raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 }
