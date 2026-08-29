@@ -50,6 +50,34 @@ func testPlan() RecordingPlan {
 	}
 }
 
+func TestGenerateHLAEJavaScriptLocksFirstPersonOnOneRecapWindow(t *testing.T) {
+	plan := testPlan()
+	plan.Segments = []RecordingSegment{
+		{ID: "seg-001", Round: 1, TickStart: 8000, TickEnd: 14768},
+	}
+	js, err := GenerateHLAEJavaScript(plan)
+	if err != nil {
+		t.Fatalf("GenerateHLAEJavaScript error = %v", err)
+	}
+	if !strings.Contains(js, `spec_mode 2`) {
+		t.Fatal("recap capture is not locked to first-person spec_mode 2")
+	}
+	if !strings.Contains(js, `spec_autodirector 0`) {
+		t.Fatal("recap capture left autodirector on (cinematic/deathcam)")
+	}
+	for _, banned := range []string{`spec_mode 5`, `spec_mode 4`, `spec_goto`, `deathcam`} {
+		if strings.Contains(strings.ToLower(js), banned) {
+			t.Fatalf("recap capture scheduled %q", banned)
+		}
+	}
+	if strings.Count(js, `record-start-seg-001`) != 1 || strings.Count(js, `record-end-seg-001`) != 1 {
+		t.Fatal("one live recap round must be one record window, not an intra-round jump-cut")
+	}
+	if strings.Contains(js, `record-start-seg-002`) {
+		t.Fatal("pistol recap gained a second capture window")
+	}
+}
+
 func TestGenerateHLAEJavaScriptUsesOneShotTickSchedule(t *testing.T) {
 	js, err := GenerateHLAEJavaScript(testPlan())
 	if err != nil {

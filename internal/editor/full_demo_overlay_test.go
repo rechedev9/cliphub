@@ -131,6 +131,16 @@ func TestBuildManifestShortsPathIgnoresFullDemoOverlay(t *testing.T) {
 		if strings.Contains(short.Title, "VOICECOMMS") {
 			t.Fatalf("shorts title used Full Demo copy: %q", short.Title)
 		}
+		if short.OutputFormat != OutputFormatShort9x16 {
+			t.Fatalf("shorts format = %q, want %q", short.OutputFormat, OutputFormatShort9x16)
+		}
+		command := strings.Join(short.FFmpegCommand, " ")
+		if !strings.Contains(command, "crop=1080:1920") {
+			t.Fatalf("shorts lost portrait crop:\n%s", command)
+		}
+		if strings.Contains(command, "fade=t=in:st=0") {
+			t.Fatalf("shorts gained Full Demo fade-from-black:\n%s", command)
+		}
 		for _, effect := range short.Effects {
 			if effect.Source == "full-demo-intro" || effect.Source == "full-demo-outro" {
 				t.Fatalf("shorts gained a Full Demo overlay: %#v", effect)

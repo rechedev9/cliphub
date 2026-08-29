@@ -417,6 +417,49 @@ func TestBuildPlanAssemblesSegments(t *testing.T) {
 	}
 }
 
+func TestCollectorRecapPistolRoundStaysOneContinuousLiveWindow(t *testing.T) {
+	c := NewCollector(targetID, defaultTestRules())
+	c.RecordTargetIdentity("MARTINEZSA", "CT")
+	c.RecordRoundStart(RoundStart{Round: 1, Tick: 8000})
+	c.RecordRoundLiveStart(RoundLiveStart{Round: 1, Tick: 9200})
+	c.RecordKill(RawKill{Tick: 9400, Round: 1, Weapon: "usp_silencer"})
+	c.RecordKill(RawKill{Tick: 9400 + 20*testTickrate, Round: 1, Weapon: "usp_silencer"})
+	c.RecordKill(RawKill{Tick: 9400 + 36*testTickrate, Round: 1, Weapon: "usp_silencer"})
+	c.RecordRoundEnd(RoundEnd{Round: 1, Tick: 14000})
+
+	shorts, err := c.build(meta(), SegmentModeKills)
+	if err != nil {
+		t.Fatalf("shorts build: %v", err)
+	}
+	recap, err := c.build(meta(), SegmentModeRecap)
+	if err != nil {
+		t.Fatalf("recap build: %v", err)
+	}
+	if len(shorts.Segments) != 3 {
+		t.Fatalf("shorts segments = %d, want 3 kill bursts", len(shorts.Segments))
+	}
+	if len(recap.Segments) != 1 {
+		t.Fatalf("recap segments = %d, want one live pistol round (not a jump-cut montage)", len(recap.Segments))
+	}
+	seg := recap.Segments[0]
+	if seg.TickStart >= 9200 {
+		t.Fatalf("intro freeze/buy countdown skipped: TickStart = %d", seg.TickStart)
+	}
+	if seg.TickStart < 8000 {
+		t.Fatalf("intro freeze pulled before round start: TickStart = %d", seg.TickStart)
+	}
+	wantEnd := 14000 + (OutroBannerSeconds+OutroScoreboardSeconds)*testTickrate
+	if seg.TickEnd != wantEnd {
+		t.Fatalf("TickEnd = %d, want %d (win banner then scoreboard)", seg.TickEnd, wantEnd)
+	}
+	if len(seg.Kills) != 3 {
+		t.Fatalf("recap kills = %d, want 3 in the same window", len(seg.Kills))
+	}
+	if len(seg.Utility) != 0 {
+		t.Fatalf("utility rewritten: %#v", seg.Utility)
+	}
+}
+
 func TestCollectorBuildEmitsWiderRecapWindows(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	c.RecordTargetIdentity("MARTINEZSA", "CT")

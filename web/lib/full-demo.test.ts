@@ -67,6 +67,7 @@ test('full-demo contract names live rounds, not freeze-to-end dumps', () => {
   for (const row of FULL_DEMO_CONTRACT) {
     assert.equal(/completas/i.test(row.value), false, `${row.label} still says completas`);
     assert.equal(/cama 32/i.test(row.value), false, `${row.label} still advertises a music bed`);
+    assert.equal(/montage|jump-?cut|stitch|subscribe|suscr[ií]b/i.test(row.value), false, `${row.label} advertises a stitch or CTA`);
   }
 });
 
