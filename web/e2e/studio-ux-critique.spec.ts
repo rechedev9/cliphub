@@ -95,7 +95,7 @@ test.describe('Library Full Demo identity', () => {
     );
     await gotoStudio(page, '/videos');
     await expect(page.getByRole('heading', { name: 'BIBLIOTECA' })).toBeVisible();
-    await expect(page.getByText('PARTIDA COMPLETA')).toBeVisible();
-    await expect(page.getByText('16:9')).toBeVisible();
+    await expect(page.getByLabel('Vídeos').getByText('PARTIDA COMPLETA')).toBeVisible();
+    await expect(page.getByLabel('Vídeos').getByText('16:9', { exact: true })).toBeVisible();
   });
 });
