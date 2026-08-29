@@ -166,6 +166,9 @@ func run() error {
 	default:
 		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: cliphub desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
 	}
+	if err := seedCaptureLabFromEnvironment(ctx, cfg, repo, store); err != nil {
+		return fmt.Errorf("capture lab seed: %w", err)
+	}
 
 	// Reconcile durable state whose process-local work vanished with the previous
 	// desktop process. Run every sweep before serving traffic so clients never
