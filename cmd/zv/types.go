@@ -47,6 +47,7 @@ type workflowInfo struct {
 	ValidateCommand string            `json:"validate_command"`
 	Arguments       workflowArguments `json:"arguments"`
 	Safety          workflowSafety    `json:"safety"`
+	Contract        workflowContract  `json:"contract"`
 	RunArgs         []string          `json:"-"`
 }
 
@@ -83,6 +84,15 @@ type workflowSafety struct {
 	ReadOnly       bool `json:"read_only"`
 	SupportsDryRun bool `json:"supports_dry_run"`
 	LongRunning    bool `json:"long_running"`
+}
+
+type workflowContract struct {
+	RequiredArtifacts    []string `json:"required_artifacts"`
+	ProducedArtifactKeys []string `json:"produced_artifact_keys"`
+	SafetyGates          []string `json:"safety_gates"`
+	DryRunBehavior       string   `json:"dry_run_behavior"`
+	LiveBehavior         string   `json:"live_behavior"`
+	ResumePolicy         string   `json:"resume_policy"`
 }
 
 type workflowValidationResult struct {

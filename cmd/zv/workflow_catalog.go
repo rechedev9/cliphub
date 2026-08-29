@@ -227,6 +227,7 @@ func withWorkflowRunCommands(workflows []workflowInfo) []workflowInfo {
 		}
 		workflows[i].Arguments = workflowArgumentMetadata(workflows[i])
 		workflows[i].Safety = workflowSafetyMetadata(workflows[i], workflows[i].Arguments)
+		workflows[i].Contract = workflowContractMetadata(workflows[i])
 	}
 	return workflows
 }
@@ -366,6 +367,118 @@ func workflowRequiredFlags(workflow workflowInfo) []string {
 	// requiredFlagsFromCommand already drops the boolean --dry-run that the
 	// flows-run Command documents, so only --run-dir remains required there.
 	return requiredFlagsFromCommand(workflow.Command)
+}
+
+func workflowContractMetadata(workflow workflowInfo) workflowContract {
+	contract := workflowContract{
+		RequiredArtifacts:    []string{},
+		ProducedArtifactKeys: []string{},
+		SafetyGates:          []string{},
+		DryRunBehavior:       "not supported; use the workflow validate command for argument-only preflight",
+		LiveBehavior:         "executes the documented command exactly as delegated by zv workflows run",
+		ResumePolicy:         "inspect command output and artifacts before rerun",
+	}
+	if workflow.Safety.SupportsDryRun {
+		contract.DryRunBehavior = "forward --dry-run in the workflow args to validate inputs without live media work when the command supports it"
+	}
+	if workflow.Safety.ReadOnly {
+		contract.LiveBehavior = "read-only inspection; no pipeline artifacts are written by the command contract"
+		contract.ResumePolicy = "safe to rerun; output is derived from current local state"
+	}
+	if workflow.Name == "record" {
+		contract.ResumePolicy = "recording uses a fresh output namespace after failed live capture; deterministic demo_incompatible failures are not retried"
+	} else if workflow.Name == "short" || workflow.Name == "flows-run" {
+		contract.ResumePolicy = "workers and staged runs skip completed durable artifacts when safe; live capture still requires explicit approval and a fresh failed-recording namespace"
+	} else if workflow.Name == "serve" {
+		contract.ResumePolicy = "long-running service; stop the owning process instead of starting duplicate orchestrators"
+	}
+
+	switch workflow.Name {
+	case "short":
+		contract.RequiredArtifacts = []string{"demo path or existing recording result"}
+		contract.ProducedArtifactKeys = []string{"killplan", "selected-plan", "recording-result", "publish-pack"}
+		contract.SafetyGates = []string{"creative brief approval", "live HLAE/CS2 capture approval", "long FFmpeg render approval", "thumbnail selection when covers are enabled"}
+		contract.LiveBehavior = "runs parse, capture, render, and publish-pack stages using explicit approved flags"
+	case "capabilities":
+		contract.ProducedArtifactKeys = []string{"tool-readiness-report"}
+	case "faceit-index":
+		contract.ProducedArtifactKeys = []string{"faceit-demo-index"}
+		contract.SafetyGates = []string{"FACEIT Data API credentials must remain in environment or server-side secret storage"}
+	case "demo-parse":
+		contract.RequiredArtifacts = []string{"demo"}
+		contract.ProducedArtifactKeys = []string{"killplan"}
+	case "demo-players":
+		contract.RequiredArtifacts = []string{"demo"}
+		contract.ProducedArtifactKeys = []string{"demo-roster"}
+	case "demo-moments":
+		contract.RequiredArtifacts = []string{"killplan"}
+		contract.ProducedArtifactKeys = []string{"moments"}
+	case "demo-select":
+		contract.RequiredArtifacts = []string{"killplan"}
+		contract.ProducedArtifactKeys = []string{"selected-plan"}
+	case "demo-probe":
+		contract.RequiredArtifacts = []string{"demo"}
+		contract.ProducedArtifactKeys = []string{"playability"}
+	case "demo-voice":
+		contract.RequiredArtifacts = []string{"demo", "SteamID64"}
+		contract.ProducedArtifactKeys = []string{"voice-probe"}
+	case "utility-audit":
+		contract.RequiredArtifacts = []string{"utility-plan", "lineup-catalog"}
+		contract.ProducedArtifactKeys = []string{"utility-audit"}
+	case "record":
+		contract.RequiredArtifacts = []string{"selected killplan", "demo"}
+		contract.ProducedArtifactKeys = []string{"recording-result", "capture-script", "segment-clips"}
+		contract.SafetyGates = []string{"creative brief HUD/killfeed choices", "live HLAE/CS2 capture approval"}
+		contract.LiveBehavior = "launches HLAE/CS2 and records selected POV ranges; all captures contend for one cs2.exe lane"
+	case "compose-final":
+		contract.RequiredArtifacts = []string{"recording-result"}
+		contract.ProducedArtifactKeys = []string{"final-mp4"}
+	case "music-analyze":
+		contract.RequiredArtifacts = []string{"audio-or-video"}
+		contract.ProducedArtifactKeys = []string{"rhythm-plan"}
+	case "shorts-render":
+		contract.RequiredArtifacts = []string{"recording-result"}
+		contract.ProducedArtifactKeys = []string{"render-manifest", "qa-report", "publish-pack"}
+		contract.SafetyGates = []string{"creative brief approval", "long FFmpeg render approval", "thumbnail selection when covers are enabled", "third-party music provenance when music is supplied"}
+		contract.LiveBehavior = "renders the approved recording result into a local publish pack and QA artifacts"
+	case "stream-fetch":
+		contract.RequiredArtifacts = []string{"allowlisted stream URL"}
+		contract.ProducedArtifactKeys = []string{"stream-mp4"}
+		contract.SafetyGates = []string{"network download approval for the requested URL"}
+	case "stream-variants":
+		contract.ProducedArtifactKeys = []string{"stream-variant-catalog"}
+	case "stream-plan":
+		contract.RequiredArtifacts = []string{"stream-mp4"}
+		contract.ProducedArtifactKeys = []string{"stream-edit-plan"}
+		contract.SafetyGates = []string{"stream bounds, crop/framing, title, audio, and music choices"}
+	case "stream-render":
+		contract.RequiredArtifacts = []string{"stream-mp4", "stream-edit-plan"}
+		contract.ProducedArtifactKeys = []string{"stream-render-manifest", "publish-pack"}
+		contract.SafetyGates = []string{"approved persisted edit plan", "long FFmpeg render approval", "third-party music provenance when music is supplied"}
+	case "analysis-tactical":
+		contract.RequiredArtifacts = []string{"demo"}
+		contract.ProducedArtifactKeys = []string{"tactical-document", "position-blob"}
+	case "analysis-rounds", "analysis-tendencies":
+		contract.RequiredArtifacts = []string{"tactical-document"}
+		contract.ProducedArtifactKeys = []string{"tactical-review"}
+	case "analysis-tactical-data":
+		contract.RequiredArtifacts = []string{"demo", "tick-window"}
+		contract.ProducedArtifactKeys = []string{"tactical-data-export"}
+	case "analysis-viewer":
+		contract.RequiredArtifacts = []string{"analysis-json"}
+	case "gallery-open":
+		contract.RequiredArtifacts = []string{"publish-gallery"}
+	case "flows-run":
+		contract.RequiredArtifacts = []string{"demo flow: demo or killplan", "stream flow: stream-mp4"}
+		contract.ProducedArtifactKeys = []string{"run-directory-plan"}
+		contract.SafetyGates = []string{"--dry-run is required for whole-flow planning"}
+		contract.LiveBehavior = "whole-flow execution remains dry-run only through this command contract"
+	case "serve":
+		contract.ProducedArtifactKeys = []string{"local-http-api", "worker-queue"}
+	case "skills-check", "workflows-check", "project-check":
+		contract.ProducedArtifactKeys = []string{"contract-check-report"}
+	}
+	return contract
 }
 
 func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) workflowSafety {

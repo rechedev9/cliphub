@@ -26,6 +26,12 @@ func TestRunFlowsShowDemoJSONIsCompleteAgentJourney(t *testing.T) {
 	if !result.OK || result.Flow.Name != "demo" || len(result.Flow.Phases) < 8 {
 		t.Fatalf("result = %#v", result)
 	}
+	if !containsString(result.Flow.ProducedArtifactKeys, "publish-pack") || !containsString(result.Flow.SafetyGates, "creative brief approval") {
+		t.Fatalf("demo flow contract = %#v, want publish pack and creative gate", result.Flow)
+	}
+	if !strings.Contains(result.Flow.ResumePolicy, "demo_incompatible") || !strings.Contains(result.Flow.DryRunBehavior, "flows run --dry-run") {
+		t.Fatalf("demo flow behavior = dry-run %q resume %q, want agent-safe policy", result.Flow.DryRunBehavior, result.Flow.ResumePolicy)
+	}
 	body := stdout.String()
 	for _, want := range []string{
 		"zv demo probe",
@@ -129,6 +135,12 @@ func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T)
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatal(err)
+	}
+	if !containsString(result.Flow.RequiredArtifacts, "persisted stream edit plan") || !containsString(result.Flow.ProducedArtifactKeys, "stream-edit-plan") {
+		t.Fatalf("stream flow contract = %#v, want persisted plan contract", result.Flow)
+	}
+	if !strings.Contains(result.Flow.DryRunBehavior, "do not create the --out edit plan artifact") || !strings.Contains(result.Flow.ResumePolicy, "invalidates the creative brief") {
+		t.Fatalf("stream flow behavior = dry-run %q resume %q, want plan caveats", result.Flow.DryRunBehavior, result.Flow.ResumePolicy)
 	}
 	commands := make(map[string]string, len(result.Flow.Phases))
 	for _, phase := range result.Flow.Phases {
