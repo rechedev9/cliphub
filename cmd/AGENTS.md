@@ -1,6 +1,6 @@
 # cmd/
 
-Twelve `package main` binaries → `bin/zv*`. Contract: thin flags + `os.Exit`; domain stays in `internal/`. Several bins already violate that — do not add more leak.
+Twelve `package main` binaries → `bin/zv*`. Contract: thin flags + `os.Exit`; domain stays in `internal/`. Several bins already violate that — do not add more leak. For the AI-agent-oriented target design, `cmd/` should expose discoverable contracts and delegate execution; it should not become an alternate orchestration/domain layer.
 
 ## WHERE TO LOOK
 
@@ -24,11 +24,13 @@ Build list is `scripts/build.ps1` / `Makefile` — both must list the same 12.
 ## CONVENTIONS
 
 - New surface: add a `zv` subcommand that delegates. Do not invent a 13th binary without a product decision.
+- Agent-facing surfaces must be discoverable through JSON commands (`capabilities`, `flows show`, `workflows show`, `presets`, `skills list`) before prose examples are updated.
 - Recorder: `--dry-run` never launches CS2; `--fake` writes placeholder MP4s. Never kill `cs2.exe` by image name.
 - Orchestrator: one-worker capture lane. Desktop packaged path starts `zv-orchestrator.exe` directly, not `zv serve`.
 
 ## ANTI-PATTERNS
 
 - Business rules in a new `cmd/` file when an `internal/` package already owns the type
+- Adding an agent/assistant shortcut that bypasses dry-run validation, approval gates, artifact contracts, or the `zv` catalog
 - Pass-through aliases that skip `zv` catalog/validation
 - Reusing a failed recording `--out` (fresh namespace required)

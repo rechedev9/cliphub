@@ -693,6 +693,9 @@ func assertWorkflowDiscoveryMatches(t *testing.T, source string, got workflowInf
 	if !reflect.DeepEqual(got.Safety, want.Safety) {
 		t.Fatalf("%s safety for %s = %#v, want %#v", source, want.Name, got.Safety, want.Safety)
 	}
+	if !reflect.DeepEqual(got.Contract, want.Contract) {
+		t.Fatalf("%s contract for %s = %#v, want %#v", source, want.Name, got.Contract, want.Contract)
+	}
 	if got.RunArgs != nil {
 		t.Fatalf("%s run args for %s = %#v, want omitted from json", source, want.Name, got.RunArgs)
 	}

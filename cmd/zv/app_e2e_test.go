@@ -1320,7 +1320,7 @@ func TestZVBinaryCurrentRepoPublicJSONSchemasEndToEnd(t *testing.T) {
 		t.Fatalf("workflows list json rows = %d, want %d", got, want)
 	}
 	for i, row := range workflowListRows {
-		assertJSONKeys(t, fmt.Sprintf("workflows list json row %d", i), row, "name", "description", "command", "run_command", "validate_command", "arguments", "safety")
+		assertJSONKeys(t, fmt.Sprintf("workflows list json row %d", i), row, "name", "description", "command", "run_command", "validate_command", "arguments", "safety", "contract")
 		var arguments map[string]json.RawMessage
 		if err := json.Unmarshal(row["arguments"], &arguments); err != nil {
 			t.Fatalf("unmarshal workflows list row %d arguments: %v", i, err)
@@ -1338,7 +1338,7 @@ func TestZVBinaryCurrentRepoPublicJSONSchemasEndToEnd(t *testing.T) {
 		if err := json.Unmarshal([]byte(showJSON), &showRow); err != nil {
 			t.Fatalf("unmarshal workflows show json schema for %s: %v\n%s", workflow.Name, err, showJSON)
 		}
-		assertJSONKeys(t, "workflows show json "+workflow.Name, showRow, "name", "description", "command", "run_command", "validate_command", "arguments", "safety")
+		assertJSONKeys(t, "workflows show json "+workflow.Name, showRow, "name", "description", "command", "run_command", "validate_command", "arguments", "safety", "contract")
 	}
 
 	for _, tt := range []struct {

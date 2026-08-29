@@ -25,6 +25,7 @@ stream video -> persisted edit plan -> render -> publish pack
 - Series jobs share a client-minted `series_id`; roster choice is aggregated across maps, and HLTV `-pN.dem` parts are one logical map.
 - `web/` is the Next.js 16 / React 19 local Studio UI. `desktop/` packages it with the Go services in Electron (no React in `desktop/src`). `landing/` is the only hosted app (Next.js 15; it has a build command but no lint/test scripts).
 - `data/`, `bin/`, capture output, and generated media are artifacts, not source, unless a task explicitly targets fixtures or cleanup.
+- Agent-oriented architecture guidance lives in `docs/AI_AGENT_ARCHITECTURE.md`: agents discover contracts, inspect durable artifacts, ask for unanswered gates, and execute only approved explicit commands. Do not convert that guidance into model-driven clip decisions.
 
 ## Where To Look
 
@@ -33,6 +34,7 @@ stream video -> persisted edit plan -> render -> publish pack
 | Go package map | `internal/AGENTS.md` |
 | 12 binaries / cmd leaks | `cmd/AGENTS.md` |
 | `zv` CLI surface | `cmd/zv/AGENTS.md`; contract is `zv flows show` / `workflows show` |
+| AI-agent system design | `docs/AI_AGENT_ARCHITECTURE.md` |
 | Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `~/.grok/design.md` then `web/app/globals.css` + `frontend-design` skill |
 | Electron / installer | `desktop/GUIDE.md` |
 | Testdata / goldens | `testdata/GUIDE.md` |
