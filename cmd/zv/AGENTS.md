@@ -1,6 +1,6 @@
 # cmd/zv
 
-Unified CLI. Feature binaries remain behavioral owners; `zv` is the stable command surface. ~70 files.
+Unified CLI. Feature binaries remain behavioral owners; `zv` is the stable command surface. ~70 files. AI/operator agents should treat this package's JSON discovery commands as the executable contract, not README prose.
 
 ## WHERE TO LOOK
 
@@ -25,6 +25,7 @@ Legacy pass-throughs (`parser`, `editor`, `recorder`, …) live in `check_config
 
 - Validate argv, keep `--dry-run --format json` until media is approved, then reuse that argv.
 - `workflows run` / `flows run` stay media-free unless the user explicitly approved a live capture/render.
+- Workflow/flow JSON should keep moving toward the agent-ready shape in `docs/AI_AGENT_ARCHITECTURE.md`: required artifacts, produced artifact keys, safety gates, dry-run/live behavior, and resume policy.
 - `short --format json` requires `--dry-run`.
 - Tests: `ZV_FAKE_SUBCOMMAND=1` stubs delegation; `--fake` is placeholder media; do not mix the two.
 

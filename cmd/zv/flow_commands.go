@@ -10,11 +10,17 @@ import (
 )
 
 type productionFlow struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Source      string       `json:"source"`
-	Outputs     []flowOutput `json:"outputs"`
-	Phases      []flowPhase  `json:"phases"`
+	Name                 string       `json:"name"`
+	Description          string       `json:"description"`
+	Source               string       `json:"source"`
+	RequiredArtifacts    []string     `json:"required_artifacts"`
+	ProducedArtifactKeys []string     `json:"produced_artifact_keys"`
+	SafetyGates          []string     `json:"safety_gates"`
+	DryRunBehavior       string       `json:"dry_run_behavior"`
+	LiveBehavior         string       `json:"live_behavior"`
+	ResumePolicy         string       `json:"resume_policy"`
+	Outputs              []flowOutput `json:"outputs"`
+	Phases               []flowPhase  `json:"phases"`
 }
 
 type flowOutput struct {
@@ -143,8 +149,16 @@ func productionFlows() []productionFlow {
 	}
 	return []productionFlow{
 		{
-			Name: "demo", Description: "CS2 demo to selected HLAE capture and upload-ready edit", Source: ".dem",
-			Outputs: append([]flowOutput(nil), demoOutputs...),
+			Name:                 "demo",
+			Description:          "CS2 demo to selected HLAE capture and upload-ready edit",
+			Source:               ".dem",
+			RequiredArtifacts:    []string{"demo path", "approved creative brief before live media work"},
+			ProducedArtifactKeys: []string{"playability", "demo-roster", "killplan", "moments", "selected-plan", "recording-result", "render-manifest", "qa-report", "publish-pack"},
+			SafetyGates:          []string{"target player selection", "creative brief approval", "live HLAE/CS2 capture approval", "long FFmpeg render approval", "thumbnail selection when covers are enabled"},
+			DryRunBehavior:       "use preflight phases and flows run --dry-run to plan commands without launching CS2 or rendering media",
+			LiveBehavior:         "runs parser-derived selected ranges through HLAE/CS2 capture and FFmpeg/Lua render into a local publish pack",
+			ResumePolicy:         "durable artifacts can be inspected and skipped on retry; failed live recording requires a fresh output namespace and demo_incompatible is not retried",
+			Outputs:              append([]flowOutput(nil), demoOutputs...),
 			Phases: []flowPhase{
 				{ID: "doctor", Goal: "verify local parser, HLAE, CS2, FFmpeg, and editor readiness", Command: "zv capabilities --format json", ReadOnly: true},
 				{ID: "probe", Goal: "classify playdemo tick-0 safety without launching CS2", Command: "zv demo probe --demo <match.dem> --out <run>/playability.json --format json", Decision: "playable or stop", ReadOnly: false},
@@ -165,8 +179,16 @@ func productionFlows() []productionFlow {
 			},
 		},
 		{
-			Name: "stream", Description: "stream/VOD clips", Source: "video",
-			Outputs: append([]flowOutput(nil), streamOutputs...),
+			Name:                 "stream",
+			Description:          "stream/VOD clips",
+			Source:               "video",
+			RequiredArtifacts:    []string{"local stream MP4 or approved fetch URL", "persisted stream edit plan"},
+			ProducedArtifactKeys: []string{"stream-mp4", "stream-variant-catalog", "stream-edit-plan", "stream-render-manifest", "publish-pack"},
+			SafetyGates:          []string{"clip bounds/title approval", "crop/framing approval", "source-audio treatment", "long FFmpeg render approval", "third-party music provenance when music is supplied"},
+			DryRunBehavior:       "stream dry-runs validate/probe but do not create the --out edit plan artifact; persist the approved plan before dependent render stages",
+			LiveBehavior:         "renders the persisted edit plan into a local upload-ready pack without ad hoc FFmpeg flags outside the plan",
+			ResumePolicy:         "changing the persisted stream plan invalidates the creative brief; settle the brief again before the next non-dry-run render",
+			Outputs:              append([]flowOutput(nil), streamOutputs...),
 			Phases: []flowPhase{
 				{ID: "doctor", Goal: "verify FFmpeg readiness", Command: "zv capabilities --format json", ReadOnly: true},
 				{ID: "layouts", Goal: "discover vertical and landscape output geometry", Command: "zv stream variants --format json", Decision: "layout and delivery format", ReadOnly: true},

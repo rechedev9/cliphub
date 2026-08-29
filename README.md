@@ -21,7 +21,7 @@ The **demo is the source of truth**. ClipHub does not invent kills from pixels o
 
 If you want a local creator rig for CS2 highlights that feels like a production tool, this is it.
 
-[Website](https://cliphub.gravityroom.app/) · [Releases](https://github.com/rechedev9/cliphub/releases) · [Desktop](desktop/GUIDE.md) · [Web](web/GUIDE.md) · [Agents](CLAUDE.md)
+[Website](https://cliphub.gravityroom.app/) · [Releases](https://github.com/rechedev9/cliphub/releases) · [Desktop](desktop/GUIDE.md) · [Web](web/GUIDE.md) · [Agents](CLAUDE.md) · [AI-agent architecture](docs/AI_AGENT_ARCHITECTURE.md)
 
 ---
 

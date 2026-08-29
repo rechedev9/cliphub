@@ -1125,6 +1125,18 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 		if workflow.Arguments.ConditionalRequirements == nil {
 			t.Fatalf("workflow %q conditional requirements are nil, want an empty array when absent", workflow.Name)
 		}
+		if workflow.Contract.RequiredArtifacts == nil {
+			t.Fatalf("workflow %q required artifacts are nil, want an empty array when absent", workflow.Name)
+		}
+		if workflow.Contract.ProducedArtifactKeys == nil {
+			t.Fatalf("workflow %q produced artifact keys are nil, want an empty array when absent", workflow.Name)
+		}
+		if workflow.Contract.SafetyGates == nil {
+			t.Fatalf("workflow %q safety gates are nil, want an empty array when absent", workflow.Name)
+		}
+		if workflow.Contract.DryRunBehavior == "" || workflow.Contract.LiveBehavior == "" || workflow.Contract.ResumePolicy == "" {
+			t.Fatalf("workflow %q contract = %#v, want behavior and resume text", workflow.Name, workflow.Contract)
+		}
 		for _, flag := range workflow.Arguments.RequiredFlags {
 			if containsString(workflow.Arguments.OptionalValueFlags, flag) {
 				t.Fatalf("workflow %q exposes required flag %q as optional", workflow.Name, flag)
@@ -1160,6 +1172,12 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 	}
 	if !short.Safety.SupportsDryRun || !short.Safety.LongRunning || short.Safety.ReadOnly {
 		t.Fatalf("short safety = %#v, want mutating long-running workflow with dry-run", short.Safety)
+	}
+	if got, want := strings.Join(short.Contract.SafetyGates, " | "), "creative brief approval | live HLAE/CS2 capture approval | long FFmpeg render approval | thumbnail selection when covers are enabled"; got != want {
+		t.Fatalf("short safety gates = %q, want %q", got, want)
+	}
+	if !containsString(short.Contract.ProducedArtifactKeys, "publish-pack") || !strings.Contains(short.Contract.ResumePolicy, "fresh failed-recording namespace") {
+		t.Fatalf("short contract = %#v, want publish pack and recording resume policy", short.Contract)
 	}
 	shortPreset := workflowValueConstraintForFlag(t, short, "--preset")
 	if got, want := strings.Join(shortPreset.AllowedValues, " "), strings.Join(supportedPresetNames(), " "); got != want {
@@ -1231,6 +1249,9 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 	if !record.Safety.SupportsDryRun || !record.Safety.LongRunning || record.Safety.ReadOnly {
 		t.Fatalf("record safety = %#v, want mutating long-running workflow with dry-run", record.Safety)
 	}
+	if !containsString(record.Contract.RequiredArtifacts, "selected killplan") || !containsString(record.Contract.ProducedArtifactKeys, "recording-result") || !strings.Contains(record.Contract.LiveBehavior, "HLAE/CS2") {
+		t.Fatalf("record contract = %#v, want capture artifacts and live behavior", record.Contract)
+	}
 	hud := workflowValueConstraintForFlag(t, record, "--hud")
 	if got, want := strings.Join(hud.AllowedValues, " "), "gameplay clean deathnotices"; got != want || hud.Default != "gameplay" {
 		t.Fatalf("record HUD metadata = %#v, want gameplay/clean/deathnotices with gameplay default", hud)
@@ -1256,6 +1277,9 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 	}
 	if !capabilities.Safety.ReadOnly || capabilities.Safety.LongRunning || capabilities.Safety.SupportsDryRun {
 		t.Fatalf("capabilities safety = %#v, want short read-only workflow", capabilities.Safety)
+	}
+	if capabilities.Contract.LiveBehavior != "read-only inspection; no pipeline artifacts are written by the command contract" {
+		t.Fatalf("capabilities contract = %#v, want read-only live behavior", capabilities.Contract)
 	}
 
 	serve, ok := findWorkflow("serve")

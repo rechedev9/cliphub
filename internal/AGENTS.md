@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-45 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
+44 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
 
 ## WHERE TO LOOK
 
@@ -46,7 +46,8 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 - No nested Go packages. One directory = one package.
 - Durable docs (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan.Document`, `timelineplan.Document`) are the contracts later stages must honor.
-- `cmd/zv-orchestrator` owns SQLite repos + inline queue; those types do not live here.
+- Agent-ready stage outputs should expose schema version, input refs, decision basis, effective config, safety gates, resume policy, QA status, and provenance when that stage is meant to be driven by CLI/API automation.
+- `cmd/zv-orchestrator` owns SQLite repos + inline queue today; moving those into a narrow internal owner is an accepted behavior-preserving refactor seam, but do not create vague service layers.
 
 ## ANTI-PATTERNS
 
