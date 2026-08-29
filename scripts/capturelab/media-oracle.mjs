@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 
 function parseArgs(args) {
@@ -374,7 +375,8 @@ export async function verifyMedia(options) {
   return report;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const invokedAsCLI = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (invokedAsCLI) {
   try {
     const options = parseArgs(process.argv.slice(2));
     const report = await verifyMedia(options);

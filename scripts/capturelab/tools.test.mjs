@@ -132,9 +132,12 @@ test('media oracle rejects frozen and silent synthetic evidence', async (t) => {
       duration_seconds: 2, event_offsets: [],
     }],
   }));
-  result = node('media-oracle.mjs', [
+  // Invoke by a relative path exactly as lab.mjs does. The entry-point check
+  // must normalize it to a file URL on both POSIX and Windows.
+  result = spawnSync(process.execPath, [
+    'scripts/capturelab/media-oracle.mjs',
     '--recording-result', recordingResult, '--instrumentation', instrumentation,
-  ]);
+  ], { cwd: root, encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 2, result.stderr || result.stdout);
   const report = JSON.parse(result.stdout);
   assert.ok(report.failures.some((failure) => failure.includes(':motion:')));
