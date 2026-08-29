@@ -29,10 +29,21 @@ func TestNewVideoEntryDerivesClipMetadata(t *testing.T) {
 	}
 }
 
+func TestNewVideoPerformanceMeasuresRealWork(t *testing.T) {
+	t.Parallel()
+	got := NewVideoPerformance(1500*time.Millisecond, 6, 42_000)
+	if got.RenderMS != 1500 || got.OutputBytes != 42_000 || got.MediaDurationSeconds != 6 {
+		t.Fatalf("performance = %#v", got)
+	}
+	if got.RenderSecondsPerMediaSecond != 0.25 {
+		t.Fatalf("seconds per media second = %v, want 0.25", got.RenderSecondsPerMediaSecond)
+	}
+}
+
 func TestNewRenderResultDerivesMetadataAndCopiesVideos(t *testing.T) {
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	renderedAt := time.Date(2026, 6, 12, 19, 30, 0, 0, time.FixedZone("CEST", 2*60*60))
-	videos := []VideoEntry{{ClipID: "clip-001", Key: "video-key"}}
+	videos := []VideoEntry{{ClipID: "clip-001", Key: "video-key", Performance: &VideoPerformance{RenderMS: 1200}}}
 
 	got, err := NewRenderResult(id, VariantStreamerVerticalStack, videos, renderedAt)
 	if err != nil {
@@ -50,8 +61,9 @@ func TestNewRenderResultDerivesMetadataAndCopiesVideos(t *testing.T) {
 	}
 
 	videos[0].ClipID = "changed"
-	if got.Clips[0].ClipID != "clip-001" {
-		t.Fatalf("NewRenderResult did not copy videos: %#v", got.Clips)
+	videos[0].Performance.RenderMS = 9999
+	if got.Clips[0].ClipID != "clip-001" || got.Clips[0].Performance.RenderMS != 1200 {
+		t.Fatalf("NewRenderResult did not deep-copy videos: %#v", got.Clips)
 	}
 }
 

@@ -8,19 +8,21 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
 )
 
 type Result struct {
-	OutputPath string
-	CoverPath  string
-	Duration   float64
-	Width      int
-	Height     int
-	Warnings   []string
-	Log        string
+	OutputPath  string
+	CoverPath   string
+	Duration    float64
+	Width       int
+	Height      int
+	Warnings    []string
+	Performance timelineplan.RenderPerformance
+	Log         string
 }
 
 func Render(ctx context.Context, ffmpegPath string, in Inputs, doc timelineplan.Document) (Result, error) {
@@ -34,27 +36,41 @@ func Render(ctx context.Context, ffmpegPath string, in Inputs, doc timelineplan.
 	if err := os.MkdirAll(filepath.Dir(in.OutputPath), 0o750); err != nil {
 		return Result{}, fmt.Errorf("create output directory: %w", err)
 	}
+	performance := timelineplan.RenderPerformance{MediaDurationSeconds: doc.DurationSeconds()}
+	renderStarted := time.Now()
 	logBuf, err := runFFmpeg(ctx, ffmpegPath, args)
+	performance.RenderMS = time.Since(renderStarted).Milliseconds()
 	if err != nil {
 		return Result{}, fmt.Errorf("render timeline: %w", err)
 	}
+	if info, statErr := os.Stat(in.OutputPath); statErr == nil {
+		performance.OutputBytes = info.Size()
+	}
+	if performance.RenderMS > 0 && performance.MediaDurationSeconds > 0 {
+		performance.RenderSecondsPerMediaSecond = float64(performance.RenderMS) / 1000 / performance.MediaDurationSeconds
+	}
 	coverPath := strings.TrimSuffix(in.OutputPath, filepath.Ext(in.OutputPath)) + ".jpg"
+	coverStarted := time.Now()
 	if err := extractCover(ctx, ffmpegPath, in.OutputPath, coverPath); err != nil {
 		return Result{}, err
 	}
+	performance.CoverMS = time.Since(coverStarted).Milliseconds()
+	qaStarted := time.Now()
 	qaLog, qaErr := runQA(ctx, ffmpegPath, in.OutputPath)
+	performance.QualityCheckMS = time.Since(qaStarted).Milliseconds()
 	warnings := editor.QualityWarningsFromFFmpegLog("timeline", string(qaLog))
 	if qaErr != nil && len(warnings) == 0 {
 		warnings = append(warnings, "quality timeline: qa probe failed")
 	}
 	return Result{
-		OutputPath: in.OutputPath,
-		CoverPath:  coverPath,
-		Duration:   doc.DurationSeconds(),
-		Width:      doc.Canvas.Width,
-		Height:     doc.Canvas.Height,
-		Warnings:   warnings,
-		Log:        string(logBuf),
+		OutputPath:  in.OutputPath,
+		CoverPath:   coverPath,
+		Duration:    doc.DurationSeconds(),
+		Width:       doc.Canvas.Width,
+		Height:      doc.Canvas.Height,
+		Warnings:    warnings,
+		Performance: performance,
+		Log:         string(logBuf),
 	}, nil
 }
 

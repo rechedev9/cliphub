@@ -1340,8 +1340,14 @@ func (w *StreamRenderWorker) render(
 		if err != nil {
 			return err
 		}
+		renderStarted := time.Now()
 		if _, err := w.runner.Run(runCtx, cfg.FFmpegPath, args...); err != nil {
 			return fmt.Errorf("render clip %s: %w", clip.ID, err)
+		}
+		renderElapsed := time.Since(renderStarted)
+		var outputBytes int64
+		if info, statErr := os.Stat(outPath); statErr == nil {
+			outputBytes = info.Size()
 		}
 
 		key, err := streamclips.RenderRevisionVideoKey(j.ID, variant, revisionID, clip.ID)
@@ -1359,7 +1365,9 @@ func (w *StreamRenderWorker) render(
 			firstRenderedVideo = outPath
 		}
 		delivery = append(delivery, streamclips.DeliveryEntry{Name: deliveryName, Kind: "video", Key: deliveryKey})
-		videos = append(videos, streamclips.NewVideoEntry(clip, key))
+		video := streamclips.NewVideoEntry(clip, key)
+		video.Performance = streamclips.NewVideoPerformance(renderElapsed, video.DurationSeconds, outputBytes)
+		videos = append(videos, video)
 	}
 
 	if len(videos) > 0 {

@@ -18,6 +18,7 @@ const (
 	defaultVideoCRF       = 18
 	defaultAACBitrate     = "192k"
 	defaultPreset         = "slow"
+	highQualityScaleFlags = "lanczos+accurate_rnd+full_chroma_int"
 	bannerHeight          = 96
 	bannerSlideSeconds    = 0.35
 	bannerColor           = "0x9146ff"
@@ -298,28 +299,32 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 	var content string
 	if layout.Name == VariantStreamerLandscape16x9 {
 		content = fmt.Sprintf(
-			"[0:v]%s,scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black%s",
+			"[0:v]%s,%s,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black%s",
 			cropFilter(plan.GameplayCrop),
-			layout.OutputWidth, layout.GameOutputHeight, layout.OutputWidth, layout.GameOutputHeight,
+			highQualityScaleFilter(layout.OutputWidth, layout.GameOutputHeight, "decrease"),
+			layout.OutputWidth, layout.GameOutputHeight,
 			outputLabel,
 		)
 	} else if layout.FullFrame {
 		content = fmt.Sprintf(
-			"[0:v]%s,scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d%s",
+			"[0:v]%s,%s,crop=%d:%d%s",
 			cropFilter(plan.GameplayCrop),
-			layout.OutputWidth, layout.GameOutputHeight, layout.OutputWidth, layout.GameOutputHeight,
+			highQualityScaleFilter(layout.OutputWidth, layout.GameOutputHeight, "increase"),
+			layout.OutputWidth, layout.GameOutputHeight,
 			outputLabel,
 		)
 	} else {
 		content = fmt.Sprintf(
 			"[0:v]split=2[facein][gamein];"+
-				"[facein]%s,scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d[face];"+
-				"[gamein]%s,scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d[game];"+
+				"[facein]%s,%s,crop=%d:%d[face];"+
+				"[gamein]%s,%s,crop=%d:%d[game];"+
 				"[face][game]vstack=inputs=2%s",
 			cropFilter(plan.FaceCrop),
-			layout.OutputWidth, layout.FaceOutputHeight, layout.OutputWidth, layout.FaceOutputHeight,
+			highQualityScaleFilter(layout.OutputWidth, layout.FaceOutputHeight, "increase"),
+			layout.OutputWidth, layout.FaceOutputHeight,
 			cropFilter(plan.GameplayCrop),
-			layout.OutputWidth, layout.GameOutputHeight, layout.OutputWidth, layout.GameOutputHeight,
+			highQualityScaleFilter(layout.OutputWidth, layout.GameOutputHeight, "increase"),
+			layout.OutputWidth, layout.GameOutputHeight,
 			outputLabel,
 		)
 	}
@@ -599,6 +604,13 @@ func ffmpegDrawtextText(value string) string {
 		`%`, `\%`,
 	)
 	return replacer.Replace(value)
+}
+
+func highQualityScaleFilter(width, height int, aspect string) string {
+	return fmt.Sprintf(
+		"scale=%d:%d:force_original_aspect_ratio=%s:flags=%s",
+		width, height, aspect, highQualityScaleFlags,
+	)
 }
 
 func cropFilter(c CropRect) string {

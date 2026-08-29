@@ -281,7 +281,7 @@ func TestBuildFFmpegArgsLandscapeUsesCompactLowerThird(t *testing.T) {
 	}
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
-		"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black[content]",
+		"scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos+accurate_rnd+full_chroma_int,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black[content]",
 		"color=c=0x111319:s=520x64:r=60:d=5.000",
 		"text='@zacketizorcs2'",
 		"overlay=x='32':y=983:eval=frame",
@@ -435,7 +435,7 @@ func TestBuildFFmpegArgsRejectsBannerWithoutFont(t *testing.T) {
 	}
 }
 
-func TestBuildFFmpegArgsLegacyVariantUnchanged(t *testing.T) {
+func TestBuildFFmpegArgsLegacyVariantUsesHighQualityScaling(t *testing.T) {
 	plan := EditPlan{
 		Variant:      VariantStreamerVerticalStack,
 		FaceCrop:     CropRect{X: 0, Y: 0, Width: 1, Height: 0.35},
@@ -452,8 +452,8 @@ func TestBuildFFmpegArgsLegacyVariantUnchanged(t *testing.T) {
 		"-ss 1.500000000",
 		"-t 2.750000000",
 		"split=2[facein][gamein]",
-		"scale=1080:520:force_original_aspect_ratio=increase,crop=1080:520[face]",
-		"scale=1080:1400:force_original_aspect_ratio=increase,crop=1080:1400[game]",
+		"scale=1080:520:force_original_aspect_ratio=increase:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:520[face]",
+		"scale=1080:1400:force_original_aspect_ratio=increase:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1400[game]",
 		"vstack=inputs=2",
 		"fps=60",
 		"-map 0:a?",
@@ -482,7 +482,7 @@ func TestBuildFFmpegArgsFullframeNoCamCommand(t *testing.T) {
 		t.Fatalf("fullframe-nocam args must not split or stack: %s", joined)
 	}
 	for _, want := range []string{
-		"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+		"scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos+accurate_rnd+full_chroma_int,crop=1080:1920",
 		"fps=60",
 		"-map 0:a?",
 	} {
@@ -506,7 +506,7 @@ func TestBuildFFmpegArgsLandscape16x9PreservesFullFrame(t *testing.T) {
 	if strings.Contains(joined, "vstack") {
 		t.Fatalf("landscape args must preserve the source frame without stacking: %s", joined)
 	}
-	if want := "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black"; !strings.Contains(joined, want) {
+	if want := "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos+accurate_rnd+full_chroma_int,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black"; !strings.Contains(joined, want) {
 		t.Fatalf("args missing %q: %s", want, joined)
 	}
 	if strings.Contains(joined, "force_original_aspect_ratio=increase,crop=1920:1080") {

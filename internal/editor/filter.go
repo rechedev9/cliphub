@@ -296,7 +296,7 @@ func fullFrameBackgroundScaleFilter(short ShortEdit, heightExpr string) string {
 }
 
 func hqScaleFlags(short ShortEdit) string {
-	return "lanczos"
+	return "lanczos+accurate_rnd+full_chroma_int"
 }
 
 func appendTemporalSmoothingFilter(filters []string, short ShortEdit) []string {

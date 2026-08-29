@@ -348,6 +348,14 @@ func TestScaleFilterEvalMode(t *testing.T) {
 	}
 }
 
+func TestScaleFilterHQUsesAccurateLanczosChromaInterpolation(t *testing.T) {
+	got := scaleFilter("1920", ShortEdit{HQFilters: true})
+	want := "flags=lanczos+accurate_rnd+full_chroma_int"
+	if !strings.Contains(got, want) {
+		t.Fatalf("HQ scale filter missing %q: %s", want, got)
+	}
+}
+
 func TestVideoFilterNoZoomUsesEvalInit(t *testing.T) {
 	filter := VideoFilter(ShortEdit{})
 	for _, want := range []string{"scale=w=-2:h=1920:eval=init", "crop=1080:1920:(iw-ow)/2:(ih-oh)/2"} {

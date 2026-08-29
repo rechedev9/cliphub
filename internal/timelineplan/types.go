@@ -161,16 +161,27 @@ type RenderState struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// RenderPerformance is a content-free measurement of one timeline render.
+type RenderPerformance struct {
+	RenderMS                    int64   `json:"render_ms,omitempty"`
+	CoverMS                     int64   `json:"cover_ms,omitempty"`
+	QualityCheckMS              int64   `json:"quality_check_ms,omitempty"`
+	OutputBytes                 int64   `json:"output_bytes,omitempty"`
+	MediaDurationSeconds        float64 `json:"media_duration_seconds,omitempty"`
+	RenderSecondsPerMediaSecond float64 `json:"render_seconds_per_media_second,omitempty"`
+}
+
 // RenderResult is the immutable record of one finished render.
 type RenderResult struct {
-	ProjectID   uuid.UUID `json:"project_id"`
-	AttemptID   uuid.UUID `json:"attempt_id"`
-	Fingerprint string    `json:"fingerprint"`
-	VideoKey    string    `json:"video_key"`
-	CoverKey    string    `json:"cover_key"`
-	Duration    float64   `json:"duration_seconds"`
-	Width       int       `json:"width"`
-	Height      int       `json:"height"`
-	Warnings    []string  `json:"warnings,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ProjectID   uuid.UUID         `json:"project_id"`
+	AttemptID   uuid.UUID         `json:"attempt_id"`
+	Fingerprint string            `json:"fingerprint"`
+	VideoKey    string            `json:"video_key"`
+	CoverKey    string            `json:"cover_key"`
+	Duration    float64           `json:"duration_seconds"`
+	Width       int               `json:"width"`
+	Height      int               `json:"height"`
+	Warnings    []string          `json:"warnings,omitempty"`
+	Performance RenderPerformance `json:"performance,omitzero"`
+	CreatedAt   time.Time         `json:"created_at"`
 }

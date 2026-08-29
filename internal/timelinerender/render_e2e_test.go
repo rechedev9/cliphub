@@ -90,6 +90,9 @@ func TestRenderMultitrackE2E(t *testing.T) {
 	if result.Width != 1080 || result.Height != 1920 {
 		t.Fatalf("size = %dx%d", result.Width, result.Height)
 	}
+	if result.Performance.RenderMS <= 0 || result.Performance.OutputBytes <= 0 || result.Performance.MediaDurationSeconds != doc.DurationSeconds() {
+		t.Fatalf("performance = %#v", result.Performance)
+	}
 	info, err := os.Stat(out)
 	if err != nil || info.Size() == 0 {
 		t.Fatalf("output missing: %v", err)
