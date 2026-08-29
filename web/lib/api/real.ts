@@ -278,11 +278,17 @@ export class RealApiClient implements ApiClient {
 
     const status = await this.fetchStatus(id);
     if (status === null) return null;
-    // The plan exists once parsing finishes and stays through record/render.
-    if (!PLAN_READY_STATUSES.has(status)) return null;
+    if (!ROSTER_READY.has(status)) return null;
+
+    // Parsing / scanned: listable in Partidas but no kill plan yet.
+    if (!PLAN_READY_STATUSES.has(status)) {
+      return this.jobToMatchEnriched({ jobId: id, status });
+    }
 
     const plan = await readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(id) })));
-    return planToMatch(id, plan, await this.summaryPlayer(id, plan));
+    const match = planToMatch(id, plan, await this.summaryPlayer(id, plan));
+    match.status = status;
+    return match;
   }
 
   /** Plan target from roster when present; otherwise the plan's own target. */

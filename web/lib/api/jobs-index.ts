@@ -117,6 +117,7 @@ export function jobToMatch(job: IndexedJob, enrichment?: { map?: string; player?
     stats: player ? statsFromPlayer(player) : { ...ZERO_STATS },
     decentPlays: 0,
     source: 'upload',
+    status: job.status,
   };
   // Name the row after the clipped/target player when the roster resolved them;
   // leave it off (no stray separator) for an unenriched or nameless entry.

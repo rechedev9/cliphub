@@ -141,6 +141,7 @@ test('jobToMatch enriches map (prettified) and the target player stats', () => {
   assert.equal(match.score, '');
   assert.equal(match.playedAt, '2026-07-16T10:00:00Z');
   assert.equal(match.source, 'upload');
+  assert.equal(match.status, 'done');
   assert.equal(match.decentPlays, 0);
   assert.equal(match.stats.kills, 20);
   assert.equal(match.stats.kd, 2);

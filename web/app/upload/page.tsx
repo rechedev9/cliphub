@@ -155,13 +155,15 @@ export default function UploadPage() {
   );
 
   const onPickSingle = useCallback(
-    async (steamId: string) => {
+    async (steamId: string, destination: 'highlights' | 'full-demo' = 'highlights') => {
       if (stage !== 'picking' || seriesMode || !jobId) return;
       setError(null);
       setStage('parsing');
       try {
         const parsed = await api.parseDemo({ jobId, steamId });
-        router.push('/matches/' + parsed.id);
+        router.push(
+          destination === 'full-demo' ? '/full-demo/' + parsed.id : '/matches/' + parsed.id,
+        );
       } catch (err) {
         reset(
           isServiceUnavailable(err)

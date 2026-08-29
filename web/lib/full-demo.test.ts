@@ -82,12 +82,16 @@ test('buildEditRequest is the native-HUD wire: recap, gameplay HUD, comms, no sh
 
 test('recap-plan failure copy is an error, not a pending parse or Shorts empty state', () => {
   assert.match(FULL_DEMO_RECAP_ERROR, /No se pudo cargar el plan de rondas/);
-  assert.equal(/todavía|parseo|Demo no encontrada|jugada/i.test(FULL_DEMO_RECAP_ERROR), false);
-  assert.match(FULL_DEMO_ROUNDS_PENDING, /rondas/);
-  assert.equal(/jugada/i.test(FULL_DEMO_ROUNDS_PENDING), false);
+  assert.equal(/todavía|parseo|Demo no encontrada|jugada|Generando/i.test(FULL_DEMO_RECAP_ERROR), false);
+  assert.match(FULL_DEMO_ROUNDS_PENDING, /Generando el plan de rondas/);
+  assert.equal(/jugada|elige otra/i.test(FULL_DEMO_ROUNDS_PENDING), false);
   assert.notEqual(FULL_DEMO_RECAP_ERROR, FULL_DEMO_ROUNDS_PENDING);
   assert.match(FULL_DEMO_FORGE_HINT_EMPTY, /rondas/);
   assert.match(FULL_DEMO_FORGE_HINT_ERROR, /rondas/);
+  // Offline recap stays in the empty-state vocabulary, never the plan-error string.
+  assert.notEqual(FULL_DEMO_EMPTY.offline.title, FULL_DEMO_RECAP_ERROR);
+  assert.equal(/plan de rondas/i.test(FULL_DEMO_EMPTY.offline.title), false);
+  assert.equal(/Demo no encontrada/i.test(FULL_DEMO_EMPTY.offline.title), false);
 });
 
 test('full-demo identity does not collapse into a Shorts reel', () => {

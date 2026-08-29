@@ -3,7 +3,7 @@ export const NAV_SECTIONS = [
   { number: '00', label: 'Inicio', href: '/onboarding' },
   { number: '01', label: 'Partidas', href: '/matches' },
   { number: '02', label: 'Subir demo', href: '/upload' },
-  { number: '03', label: 'Full demo to video', href: '/full-demo' },
+  { number: '03', label: 'Demo completa', href: '/full-demo' },
   { number: '04', label: 'Táctica', href: '/tactical' },
   { number: '05', label: 'CheaterDetect', href: '/cheaters' },
   { number: '06', label: 'Jugadores', href: '/players' },

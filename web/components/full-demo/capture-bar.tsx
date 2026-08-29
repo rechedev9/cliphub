@@ -58,16 +58,12 @@ export function FullDemoCaptureBar({
                 {roundCount} {roundCount === 1 ? 'ronda' : 'rondas'}
                 <span className="text-fg-3"> · </span>
                 <span className="text-primary">POV nativo</span>
-                <span className="text-fg-3"> · sin música</span>
+                <span className="text-fg-3"> · 16:9 · sin música</span>
               </p>
             ) : (
               <p className="mt-1 truncate text-body-sm text-fg-2">{emptyHint}</p>
             )}
           </div>
-
-          <p className="shrink-0 font-mono text-label tracking-wider text-fg-2" aria-label="Formato del vídeo">
-            16:9
-          </p>
 
           <Button
             variant="hero"

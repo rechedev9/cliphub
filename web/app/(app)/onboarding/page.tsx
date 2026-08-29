@@ -11,7 +11,7 @@ export default function OnboardingPage(): ReactNode {
     <div className="flex flex-col gap-8">
       <StudioPageHeader
         title="EMPIEZA AQUÍ"
-        description="ClipHub convierte una demo o un stream en un vídeo vertical listo para publicar, y lo hace entero en este PC. Elige por dónde entras."
+        description="ClipHub convierte una demo o un stream en un Short vertical o en un vídeo completo 16:9, y lo hace entero en este PC. Elige por dónde entras."
       />
 
       <GuideStage />
