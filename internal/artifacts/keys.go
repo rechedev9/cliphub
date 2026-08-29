@@ -71,6 +71,12 @@ func RecapPlanKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "recap-plan.json")
 }
 
+// FullDemoFaceitKey is optional FACEIT enrichment for Full Demo overlays.
+// Workers read it as demooverlay.Enrichment JSON and never invent numbers.
+func FullDemoFaceitKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "full-demo-faceit.json")
+}
+
 // AnticheatKey is the storage key for a job's CheaterDetect analysis. The
 // analysis is a side lane on the same demo: it never advances the job status,
 // so its progress lives entirely inside this document.

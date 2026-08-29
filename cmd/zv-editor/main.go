@@ -75,6 +75,7 @@ func run() error {
 		skipExisting        = flag.Bool("skip-existing", false, "reuse existing short and cover files instead of rerendering them")
 		renderJobs          = flag.Int("render-jobs", 0, "max shorts rendered concurrently; 0 selects an automatic CPU-based limit")
 		openGallery         = flag.Bool("open-gallery", false, "open the publish gallery after a successful run")
+		fullDemoOverlay     = flag.String("full-demo-overlay", "", "optional Full Demo intro/outro overlay JSON")
 		dryRun              = flag.Bool("dry-run", false, "write manifests and prompts without running FFmpeg")
 		format              = flag.String("format", "text", "result summary format: text or json")
 		listPresets         = flag.Bool("list-presets", false, "print supported preset names, one per line, and exit; used by zv short to detect stale binaries")
@@ -180,6 +181,7 @@ func run() error {
 		SkipExisting:        *skipExisting,
 		RenderJobs:          *renderJobs,
 		DryRun:              *dryRun,
+		FullDemoOverlayPath: *fullDemoOverlay,
 	})
 	if err != nil {
 		return err

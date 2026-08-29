@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -146,6 +147,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if !cfg.DryRun {
 		killfeedProbe = ffmpegFrameProbe(commandFFmpeg)
 	}
+	var fullDemoOverlay *demooverlay.Document
+	if path := strings.TrimSpace(cfg.FullDemoOverlayPath); path != "" {
+		doc, err := demooverlay.Load(path)
+		if err != nil {
+			return Result{}, err
+		}
+		fullDemoOverlay = &doc
+	}
 
 	manifest, err := buildManifest(recordingResult, ManifestOptions{
 		RecordingResultPath: recordingResultPath,
@@ -198,6 +207,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		SkipExisting:        cfg.SkipExisting,
 		KillPlan:            killPlan,
 		KillfeedFrameProbe:  killfeedProbe,
+		FullDemoOverlay:     fullDemoOverlay,
 	})
 	if err != nil {
 		return Result{}, err

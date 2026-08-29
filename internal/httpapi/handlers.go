@@ -928,6 +928,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				segmentIDs = nil
+				h.storeFullDemoFaceit(j)
 			} else {
 				if !validateSegmentSelection(w, j, req.SegmentIDs) {
 					return
@@ -1029,6 +1030,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		segmentIDs = nil
+		h.storeFullDemoFaceit(j)
 	} else if !validateSegmentSelection(w, j, segmentIDs) {
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
@@ -71,6 +72,7 @@ func VideoFilter(short ShortEdit) string {
 	filters = append(filters, fpsFilter(short))
 	filters = appendTemporalSmoothingFilter(filters, short)
 	filters = appendEffectFilters(filters, short, singleCrop)
+	filters = appendFullDemoFadeFromBlack(filters, short, short.Effects != nil)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }
@@ -96,8 +98,16 @@ func FullFrameVideoFilter(short ShortEdit) string {
 	)
 	filters = appendTemporalSmoothingFilter(filters, short)
 	filters = appendEffectFilters(filters, short, singleCrop)
+	filters = appendFullDemoFadeFromBlack(filters, short, short.Effects != nil)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
+}
+
+func appendFullDemoFadeFromBlack(filters []string, short ShortEdit, finalPass bool) []string {
+	if !finalPass || short.Preset != PresetGameplayPOV60 || short.OutputFormat != OutputFormatLandscape16x9 {
+		return filters
+	}
+	return append(filters, fmt.Sprintf("fade=t=in:st=0:d=%.3f", demooverlay.FadeFromBlackSeconds))
 }
 
 func imageEffects(effects []Effect) []Effect {

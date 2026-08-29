@@ -588,3 +588,132 @@ func TestSegmentRoundIsFirstKillsRound(t *testing.T) {
 		t.Errorf("Round = %d, want 5 (first kill's round)", got[0].Round)
 	}
 }
+
+func TestWithIntroFreezeKeepsFirstRoundBuyCountdown(t *testing.T) {
+	live := []killplan.Segment{
+		{ID: "seg-001", Round: 1, TickStart: 9500, TickEnd: 14000},
+		{ID: "seg-002", Round: 2, TickStart: 16000, TickEnd: 20000},
+	}
+	got := WithIntroFreeze(live, []RoundStart{{Round: 1, Tick: 8000}, {Round: 2, Tick: 15000}}, testTickrate)
+	if len(got) != 2 {
+		t.Fatalf("segments = %d", len(got))
+	}
+	wantFirst := 9500 - IntroFreezeSeconds*testTickrate
+	if wantFirst < 8000 {
+		wantFirst = 8000
+	}
+	if got[0].TickStart != wantFirst {
+		t.Fatalf("first TickStart = %d, want %d (freeze/buy countdown kept)", got[0].TickStart, wantFirst)
+	}
+	if got[0].TickStart >= 9500 {
+		t.Fatal("first-round freeze/buy countdown was skipped")
+	}
+	if got[1].TickStart != 16000 {
+		t.Fatalf("second TickStart = %d, want 16000 (later rounds stay freeze-end)", got[1].TickStart)
+	}
+	if len(got[0].Utility) != 0 {
+		t.Fatalf("utility rewritten: %#v", got[0].Utility)
+	}
+}
+
+func TestWithIntroFreezeDoesNotPullBuyTimeNadesIntoTheSegment(t *testing.T) {
+	live := SegmentRecap(
+		[]RawKill{mkKill(10000, 1, "ak47")},
+		[]RawUtilityThrow{{Type: SmokeGrenadeType, Round: 1, ThrowTick: 8200, PopTick: 8400}},
+		[]RoundStart{{Round: 1, Tick: 8000}},
+		[]RoundLiveStart{{Round: 1, Tick: 9200}},
+		[]RoundEnd{{Round: 1, Tick: 14000}},
+		nil,
+		defaultTestRules(),
+		testTickrate,
+	)
+	if len(live) != 1 || live[0].TickStart != 9200 {
+		t.Fatalf("live recap = %#v, want freeze-end 9200", live)
+	}
+	if len(live[0].Utility) != 0 {
+		t.Fatalf("live utility = %#v, want freeze nade dropped", live[0].Utility)
+	}
+	got := WithIntroFreeze(live, []RoundStart{{Round: 1, Tick: 8000}}, testTickrate)
+	if got[0].TickStart >= 9200 {
+		t.Fatalf("intro freeze missing: TickStart = %d", got[0].TickStart)
+	}
+	if len(got[0].Utility) != 0 {
+		t.Fatalf("buy-time nade attached after freeze prefix: %#v", got[0].Utility)
+	}
+}
+
+func TestWithOutroHoldKeepsWinBannerThenScoreboardAndSkipsDeathcam(t *testing.T) {
+	tests := []struct {
+		name          string
+		segs          []killplan.Segment
+		roundStarts   []RoundStart
+		deaths        []TargetDeath
+		wantLastEnd   int
+		wantUnchanged bool
+	}{
+		{
+			name: "alive through round end extends banner then scoreboard",
+			segs: []killplan.Segment{
+				{ID: "seg-001", Round: 1, TickStart: 9200, TickEnd: 14000},
+				{ID: "seg-002", Round: 2, TickStart: 16000, TickEnd: 22000},
+			},
+			roundStarts: []RoundStart{{Round: 1, Tick: 8000}, {Round: 2, Tick: 15000}},
+			wantLastEnd: 22000 + (OutroBannerSeconds+OutroScoreboardSeconds)*testTickrate,
+		},
+		{
+			name: "death-clipped last round is not extended into deathcam",
+			segs: []killplan.Segment{
+				{ID: "seg-001", Round: 1, TickStart: 9200, TickEnd: 11000},
+			},
+			roundStarts:   []RoundStart{{Round: 1, Tick: 8000}},
+			deaths:        []TargetDeath{{Round: 1, Tick: 11000}},
+			wantLastEnd:   11000,
+			wantUnchanged: true,
+		},
+		{
+			name: "hold stops before the next round start",
+			segs: []killplan.Segment{
+				{ID: "seg-001", Round: 1, TickStart: 9200, TickEnd: 14000},
+			},
+			roundStarts: []RoundStart{{Round: 1, Tick: 8000}, {Round: 2, Tick: 14500}},
+			wantLastEnd: 14499,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := WithOutroHold(tt.segs, tt.roundStarts, tt.deaths, testTickrate)
+			if len(got) != len(tt.segs) {
+				t.Fatalf("segments = %d", len(got))
+			}
+			last := got[len(got)-1]
+			if last.TickEnd != tt.wantLastEnd {
+				t.Fatalf("last TickEnd = %d, want %d", last.TickEnd, tt.wantLastEnd)
+			}
+			if tt.wantUnchanged && last.TickEnd != tt.segs[len(tt.segs)-1].TickEnd {
+				t.Fatalf("deathcam hold changed TickEnd to %d", last.TickEnd)
+			}
+			if len(last.Utility) != 0 {
+				t.Fatalf("utility rewritten: %#v", last.Utility)
+			}
+		})
+	}
+}
+
+func TestSegmentRecapIsOneContinuousLiveRoundNotAJumpCut(t *testing.T) {
+	got := SegmentRecap(
+		[]RawKill{mkKill(10000, 1, "ak47"), mkKill(12000, 1, "ak47")},
+		nil,
+		[]RoundStart{{Round: 1, Tick: 8000}},
+		[]RoundLiveStart{{Round: 1, Tick: 9200}},
+		[]RoundEnd{{Round: 1, Tick: 14000}},
+		nil,
+		defaultTestRules(),
+		testTickrate,
+	)
+	if len(got) != 1 {
+		t.Fatalf("segments = %d, want one continuous live round (not a stitch)", len(got))
+	}
+	if got[0].TickStart != 9200 || got[0].TickEnd != 14000 {
+		t.Fatalf("window = %d-%d, want freeze-end 9200 to round-end 14000", got[0].TickStart, got[0].TickEnd)
+	}
+}

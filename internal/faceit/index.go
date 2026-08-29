@@ -224,6 +224,33 @@ func (c *Client) Index(ctx context.Context, request IndexRequest) (Index, error)
 	return index, nil
 }
 
+func (c *Client) LookupBySteamID(ctx context.Context, steamID64 string) (Player, error) {
+	if c == nil || c.apiKey == "" {
+		return Player{}, ErrNotConfigured
+	}
+	steamID64 = strings.TrimSpace(steamID64)
+	if steamID64 == "" || !validIdentifier(steamID64) {
+		return Player{}, fmt.Errorf("SteamID64 is invalid")
+	}
+	query := url.Values{"game_player_id": {steamID64}, "game": {"cs2"}}
+	var raw apiPlayer
+	if err := c.getJSON(ctx, "/players", query, &raw); err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return Player{}, ErrPlayerNotFound
+		}
+		return Player{}, fmt.Errorf("look up FACEIT player by steamid: %w", err)
+	}
+	player := playerFromAPI(raw)
+	if !ValidPlayerID(player.ID) || player.Nickname == "" {
+		return Player{}, ErrInvalidResponse
+	}
+	if playerContainsCredential(player, c.apiKey) {
+		return Player{}, ErrInvalidResponse
+	}
+	return player, nil
+}
+
 func (c *Client) LookupPlayer(ctx context.Context, profile string) (Player, error) {
 	if c == nil || c.apiKey == "" {
 		return Player{}, ErrNotConfigured
@@ -818,6 +845,78 @@ func buildRecentMatches(playerID string, history []apiHistoryItem, stats []apiMa
 		matches = matches[:limit]
 	}
 	return matches
+}
+
+// Last20 is an honest aggregate of RecentMatches. Rating and swing are
+// omitted because FACEIT match stats do not provide those fields.
+type Last20 struct {
+	Matches *int
+	WinPct  *float64
+	Kills   *int
+	Deaths  *int
+	Assists *int
+	KD      *float64
+	KR      *float64
+	ADR     *float64
+}
+
+func AggregateLast20(matches []RecentMatch) Last20 {
+	if len(matches) == 0 {
+		return Last20{}
+	}
+	n := len(matches)
+	matchesN := n
+	out := Last20{Matches: &matchesN}
+	var wins, withResult, kills, deaths, assists, withKD, withKR, withADR int
+	var kdSum, krSum, adrSum float64
+	for _, match := range matches {
+		if match.Stats == nil {
+			continue
+		}
+		if match.Stats.Result == "win" || match.Stats.Result == "loss" {
+			withResult++
+			if match.Stats.Result == "win" {
+				wins++
+			}
+		}
+		kills += match.Stats.Kills
+		deaths += match.Stats.Deaths
+		assists += match.Stats.Assists
+		if match.Stats.KDRatio > 0 {
+			kdSum += match.Stats.KDRatio
+			withKD++
+		}
+		if match.Stats.KRRatio > 0 {
+			krSum += match.Stats.KRRatio
+			withKR++
+		}
+		if match.Stats.ADR > 0 {
+			adrSum += match.Stats.ADR
+			withADR++
+		}
+	}
+	if withResult > 0 {
+		pct := 100 * float64(wins) / float64(withResult)
+		out.WinPct = &pct
+	}
+	if kills > 0 || deaths > 0 || assists > 0 {
+		out.Kills = &kills
+		out.Deaths = &deaths
+		out.Assists = &assists
+	}
+	if withKD > 0 {
+		kd := kdSum / float64(withKD)
+		out.KD = &kd
+	}
+	if withKR > 0 {
+		kr := krSum / float64(withKR)
+		out.KR = &kr
+	}
+	if withADR > 0 {
+		adr := adrSum / float64(withADR)
+		out.ADR = &adr
+	}
+	return out
 }
 
 func resultFromScore(score MatchScore) string {

@@ -47,6 +47,13 @@ test('full-demo mix is comms plus game with no music bed', () => {
   assert.equal(mix?.value, 'Comms + juego · sin música');
 });
 
+test('full-demo has no YouTube subscribe CTA or Shorts hook copy', () => {
+  assert.equal(FULL_DEMO_EDIT.hookText, false);
+  for (const row of FULL_DEMO_CONTRACT) {
+    assert.equal(/subscribe|suscr[ií]b/i.test(row.value), false, `${row.label} has subscribe CTA`);
+  }
+});
+
 test('full-demo contract names live rounds, not freeze-to-end dumps', () => {
   const labels = FULL_DEMO_CONTRACT.map((row) => row.label);
   assert.deepEqual(labels, ['Formato', 'Entrega', 'Comms', 'HUD', 'Efectos', 'Mix']);
