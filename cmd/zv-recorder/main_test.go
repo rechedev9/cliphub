@@ -1417,3 +1417,72 @@ func TestWindowTitlePollerDefaultsToRealStatusFunctions(t *testing.T) {
 		t.Fatal("titleStatus and cheapStatus default to non-nil implementations")
 	}
 }
+
+func TestCaptureLabSegmentIdentityIsDeterministicAndDistinct(t *testing.T) {
+	t.Parallel()
+	first := captureLabSegmentIdentity("seg-001", 0)
+	if got := captureLabSegmentIdentity("seg-001", 0); got != first {
+		t.Fatalf("identity changed: first=%+v second=%+v", first, got)
+	}
+	second := captureLabSegmentIdentity("seg-002", 1)
+	if first == second {
+		t.Fatalf("distinct segment identities matched: %+v", first)
+	}
+	if len(first.ColorHex) != 6 || first.ToneHz < 300 || first.ToneHz >= 900 {
+		t.Fatalf("identity outside contract: %+v", first)
+	}
+}
+
+func TestCaptureLabEventOffsetsFollowProtectedCaptureWindow(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		demoDuration int
+		seg          recording.RecordingSegment
+		want         []float64
+	}{
+		{
+			name: "middle kill",
+			seg: recording.RecordingSegment{
+				TickStart: 100, TickEnd: 300,
+				Kills: []killplan.Kill{{Tick: 164}},
+			},
+			want: []float64{1.6},
+		},
+		{
+			name: "first kill settle advances record start",
+			seg: recording.RecordingSegment{
+				TickStart: 100, TickEnd: 700,
+				Kills: []killplan.Kill{{Tick: 500}},
+			},
+			want: []float64{float64(500-228) / float64(700-228) * 5},
+		},
+		{
+			name:         "near EOF end keeps clean tail",
+			demoDuration: 1_000,
+			seg: recording.RecordingSegment{
+				TickStart: 700, TickEnd: 950,
+				Kills: []killplan.Kill{{Tick: 900}},
+			},
+			want: []float64{float64(900-828) / float64(964-828) * 5},
+		},
+		{
+			name: "no events",
+			seg:  recording.RecordingSegment{TickStart: 100, TickEnd: 300},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			demoDuration := tt.demoDuration
+			if demoDuration == 0 {
+				demoDuration = 10_000
+			}
+			plan := recording.RecordingPlan{Tickrate: 64, DemoDurationTicks: demoDuration}
+			got := captureLabEventOffsets(tt.seg, plan, 5)
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Fatalf("event offsets = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

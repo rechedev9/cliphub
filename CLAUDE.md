@@ -151,6 +151,8 @@ go test ./... -count=1 -timeout 3m
 - Add `--race` for shared-state/concurrency changes and `--security` for filesystem, subprocess, auth, or dependency-sensitive changes.
 - Table-driven tests are required wherever the pattern fits; near-duplicate test clones are a review finding.
 - Real-demo worker tests skip without `TEST_DEMO_PATH`; parser-only and pure unit tests must not launch HLAE/CS2 or long renders.
+- For applicable demo/capture/render changes, read `docs/CAPTURE_LAB.md` and run the cheapest relevant Capture Lab level, escalating through `scripts/capture-lab.ps1 -Mode Full` when end-to-end behavior is in scope. Report the highest completed level and never describe L1-L4 simulation as current HLAE/CS2 certification.
+- The default Capture Lab never launches HLAE/CS2. Its Windows real canary remains an explicit, separately approved action and simulated `capture_mode: "fake"` evidence must never cross the production-real validation gate.
 - Real `.dem` and generated `*.expected.json` golden files stay local; `testdata/*.rules.json` may be committed when they are reference inputs. Fixture convention: `testdata/GUIDE.md`.
 
 Run package checks in this order when their package is affected:
