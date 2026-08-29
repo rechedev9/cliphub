@@ -3,9 +3,11 @@ import { MapCover } from '@/components/brand/map-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { ScoreBar } from '@/components/brand/score-bar';
 import { StatMono } from '@/components/brand/stat-mono';
+import { StatusTag } from '@/components/studio/status-tag';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { Button } from '@/components/ui/button';
 import { formatKd, matchDateLabel } from '@/lib/format';
+import { matchPlanReady } from '@/lib/match-plays-empty';
 import { cn } from '@/lib/utils';
 import type { Match } from '@/lib/api/types';
 import { isWin, MatchScore, parseScore } from './match-score';
@@ -65,15 +67,14 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
   const { stats } = match;
   const { ours, theirs } = parseScore(match.score);
   const hasScore = ours !== null && theirs !== null;
+  const analyzing = !matchPlanReady(match.status);
   // Lead the meta line with the clipped player when known ("<PLAYER> · HACE X"),
   // dropping it cleanly (no stray separator) when it is absent.
-  const meta = [
-    match.player,
-    matchDateLabel(match),
-    match.decentPlays > 0 ? `${match.decentPlays} ${match.decentPlays === 1 ? 'jugada' : 'jugadas'}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  let playsMeta: string | null = null;
+  if (!analyzing && match.decentPlays > 0) {
+    playsMeta = `${match.decentPlays} ${match.decentPlays === 1 ? 'jugada' : 'jugadas'}`;
+  }
+  const meta = [match.player, matchDateLabel(match), playsMeta].filter(Boolean).join(' · ');
 
   return (
     <article
@@ -118,7 +119,10 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
             )}
           >
             <div className="min-w-0">
-              <h2 className="truncate font-display text-title font-bold uppercase text-fg-1">{match.map}</h2>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h2 className="truncate font-display text-title font-bold uppercase text-fg-1">{match.map}</h2>
+                {analyzing ? <StatusTag tone="warning">Analizando</StatusTag> : null}
+              </div>
               <p className="mt-1 truncate font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</p>
             </div>
 
@@ -143,23 +147,7 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
             </div>
 
             <div className="col-span-full flex min-w-0 items-center justify-end gap-2 @[56rem]/content:col-span-1">
-              {featured ? (
-                <Button
-                  asChild
-                  variant="hero"
-                  className="neon-notch flex-1 rounded-none @[34rem]/content:flex-initial"
-                >
-                  <Link href={`/matches/${match.id}`}>FORJAR REEL</Link>
-                </Button>
-              ) : (
-                <Button
-                  asChild
-                  variant="outline"
-                  className="flex-1 font-mono text-meta uppercase tracking-wider text-fg-2 @[34rem]/content:flex-initial"
-                >
-                  <Link href={`/matches/${match.id}`}>VER PARTIDA</Link>
-                </Button>
-              )}
+              <MatchRowCta matchId={match.id} analyzing={analyzing} featured={featured} />
               {onDelete ? (
                 <DeleteMatchButton
                   label={match.map}
@@ -172,5 +160,47 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
         </div>
       </div>
     </article>
+  );
+}
+
+function MatchRowCta({
+  matchId,
+  analyzing,
+  featured,
+}: {
+  matchId: string;
+  analyzing: boolean;
+  featured: boolean;
+}) {
+  if (analyzing) {
+    return (
+      <Button
+        asChild
+        variant="outline"
+        className="flex-1 font-mono text-meta uppercase tracking-wider text-fg-3 @[34rem]/content:flex-initial"
+      >
+        <Link href={`/matches/${matchId}`}>VER ESTADO</Link>
+      </Button>
+    );
+  }
+  if (featured) {
+    return (
+      <Button
+        asChild
+        variant="hero"
+        className="neon-notch flex-1 rounded-none @[34rem]/content:flex-initial"
+      >
+        <Link href={`/matches/${matchId}`}>FORJAR REEL</Link>
+      </Button>
+    );
+  }
+  return (
+    <Button
+      asChild
+      variant="outline"
+      className="flex-1 font-mono text-meta uppercase tracking-wider text-fg-2 @[34rem]/content:flex-initial"
+    >
+      <Link href={`/matches/${matchId}`}>VER PARTIDA</Link>
+    </Button>
   );
 }

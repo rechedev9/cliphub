@@ -17,7 +17,7 @@ export type PlayerPickerProps = {
   /** Roster from the scan (single match) or aggregated across a series, sorted by kills desc. */
   players: PickerPlayer[];
   /** Fires when the user confirms the currently selected target. */
-  onPick: (steamId: string) => void;
+  onPick: (steamId: string, destination?: 'highlights' | 'full-demo') => void;
   /** Match-level context (map, score, rounds) shown above the tables, when the scan has it. */
   match?: RosterMatch;
   /** Two or more maps switch the picker to its aggregated-series presentation. */
@@ -354,14 +354,35 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount, purpose =
             'Selecciona un jugador y continúa cuando estés listo.'
           )}
         </p>
-        <Button
-          type="button"
-          variant="hero"
-          disabled={selected === null}
-          onClick={() => selected && onPick(selected)}
-        >
-          {purpose === 'full-demo' ? 'REVISAR CAPTURA' : 'CONTINUAR'}
-        </Button>
+        {purpose === 'highlights' && !isSeries ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline-primary"
+              disabled={selected === null}
+              onClick={() => selected && onPick(selected, 'full-demo')}
+            >
+              VÍDEO COMPLETO 16:9
+            </Button>
+            <Button
+              type="button"
+              variant="hero"
+              disabled={selected === null}
+              onClick={() => selected && onPick(selected, 'highlights')}
+            >
+              FORJAR HIGHLIGHTS
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="hero"
+            disabled={selected === null}
+            onClick={() => selected && onPick(selected, purpose)}
+          >
+            {purpose === 'full-demo' ? 'REVISAR CAPTURA' : 'CONTINUAR'}
+          </Button>
+        )}
       </div>
     </div>
   );

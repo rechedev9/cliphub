@@ -132,12 +132,12 @@ test.describe('Full demo to video', () => {
     const key = page.locator('[data-slot="sidebar"] a[href="/full-demo"]');
     await expect(key).toBeVisible();
     await expect(key).toContainText('03');
-    await expect(key).toContainText('Full demo to video');
+    await expect(key).toContainText('Demo completa');
   });
 
   test('states the locked 16:9 recap contract from shipped constants', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
-    await expect(page.getByRole('heading', { name: 'FULL DEMO TO VIDEO' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'DEMO COMPLETA A VÍDEO' })).toBeVisible();
     for (const row of FULL_DEMO_CONTRACT) {
       await expect(page.getByText(row.value, { exact: true })).toBeVisible();
     }
@@ -223,6 +223,24 @@ test.describe('Full demo to video', () => {
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toHaveCount(0);
   });
 
+  test('a recap-plan 503 is offline, not a plan error', async ({ page }) => {
+    await fulfillJson(page, '/status', 200, { status: 'parsed' });
+    await fulfillJson(page, '/plan', 200, PLAN);
+    await fulfillJson(page, '/roster', 200, ROSTER);
+    await page.route(`**/api/demos/${JOB}/recap-plan`, async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'service_unavailable', error: 'offline' }),
+      });
+    });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_EMPTY.offline.title)).toBeVisible();
+    await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
+    await expect(page.getByText('Demo no encontrada')).toHaveCount(0);
+  });
+
   test('a recap-plan 500 is an error, not a pending parse or Shorts empty state', async ({ page }) => {
     await stubParsedMatch(page, { status: 500, body: { error: 'upstream error' } });
     await gotoStudio(page, `/full-demo/${JOB}`);
@@ -232,7 +250,6 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText('Demo no encontrada')).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_FORGE_HINT_ERROR)).toBeVisible();
-    await expect(page.locator('[aria-label="Formato del vídeo"]')).toHaveText('16:9');
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
   });
 
@@ -244,7 +261,6 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_FORGE_HINT_EMPTY)).toBeVisible();
-    await expect(page.locator('[aria-label="Formato del vídeo"]')).toHaveText('16:9');
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
   });
 
@@ -252,11 +268,10 @@ test.describe('Full demo to video', () => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, `/full-demo/${JOB}`);
     await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
-    await expect(page.getByText('1 ronda · POV nativo · sin música')).toBeVisible();
+    await expect(page.getByText('1 ronda · POV nativo · 16:9 · sin música')).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
-    await expect(page.locator('[aria-label="Formato del vídeo"]')).toHaveText('16:9');
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
     await page.getByRole('checkbox', { name: /Confirmo esta configuración/ }).check();
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeEnabled();
@@ -268,7 +283,7 @@ test.describe('Full demo to video', () => {
     await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Preset (POV nativo|Native POV)/ })).toHaveCount(0);
     const brief = page.getByRole('region', { name: 'Configuración exacta de captura' });
-    await expect(brief.getByText('HUD / killfeed:', { exact: true })).toBeVisible();
+    await expect(brief.getByText('HUD:', { exact: true })).toBeVisible();
     await expect(brief.getByText(NATIVE_HUD_LABEL, { exact: true })).toBeVisible();
     await expect(page.getByText('HUD completo con killfeed')).toHaveCount(0);
     await expect(page.getByText(/HUD · gameplay/i)).toHaveCount(0);

@@ -7,7 +7,9 @@ import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match } from '@/lib/api/types';
 import { demoListLoadError } from '@/lib/demo-parse-flow';
+import { matchPlanReady } from '@/lib/match-plays-empty';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatusTag } from '@/components/studio/status-tag';
 import { SingleDemoParse } from '@/components/upload/single-demo-parse';
 import { matchDateLabel } from '@/lib/format';
 import { FULL_DEMO_HREF } from '@/lib/full-demo';
@@ -19,7 +21,8 @@ export function FullDemoPicker(): ReactNode {
 
   const load = useCallback(async () => {
     try {
-      setMatches(await api.listPlanReadyMatches());
+      // Roster-ready includes parsing jobs so they are not silently omitted.
+      setMatches(await api.listMatches());
       setListError(null);
     } catch (err) {
       setMatches([]);
@@ -59,24 +62,47 @@ export function FullDemoPicker(): ReactNode {
         }}
       />
       {matches.length > 0 ? (
-        <section className="flex flex-col gap-3" aria-label="Demos para full demo to video">
-          {matches.map((match) => (
-            <Link
-              key={match.id}
-              href={`${FULL_DEMO_HREF}/${match.id}`}
-              className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 sm:px-5"
-            >
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="truncate font-display text-lg font-bold uppercase tracking-tight text-fg-1">
-                  {match.map}
-                </span>
-                <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-                  {[match.player, matchDateLabel(match)].filter(Boolean).join(' · ')}
-                </span>
-              </div>
-              <ChevronRight className="size-4 shrink-0 text-fg-3" aria-hidden />
-            </Link>
-          ))}
+        <section className="flex flex-col gap-3" aria-label="Demos para demo completa a vídeo">
+          {matches.map((match) => {
+            const ready = matchPlanReady(match.status);
+            const meta = [match.player, matchDateLabel(match)].filter(Boolean).join(' · ');
+            if (!ready) {
+              return (
+                <div
+                  key={match.id}
+                  className="studio-panel flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 opacity-70 sm:px-5"
+                  aria-disabled
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate font-display text-lg font-bold uppercase tracking-tight text-fg-1">
+                      {match.map}
+                    </span>
+                    <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+                      {meta}
+                    </span>
+                  </div>
+                  <StatusTag tone="warning">Generando plan</StatusTag>
+                </div>
+              );
+            }
+            return (
+              <Link
+                key={match.id}
+                href={`${FULL_DEMO_HREF}/${match.id}`}
+                className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 sm:px-5"
+              >
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate font-display text-lg font-bold uppercase tracking-tight text-fg-1">
+                    {match.map}
+                  </span>
+                  <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+                    {meta}
+                  </span>
+                </div>
+                <ChevronRight className="size-4 shrink-0 text-fg-3" aria-hidden />
+              </Link>
+            );
+          })}
         </section>
       ) : null}
     </div>

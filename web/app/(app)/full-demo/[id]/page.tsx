@@ -1,22 +1,25 @@
 'use client';
 
 import { use, useEffect, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { SearchX, Unplug } from 'lucide-react';
+import { AlertTriangle, Loader2, SearchX, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
-import { canForgeReel, reelCreativeBrief } from '@/lib/reel-brief';
+import { canForgeReel } from '@/lib/reel-brief';
+import { startPollLoop } from '@/lib/poll-loop';
 import { FullDemoCaptureBar } from '@/components/full-demo/capture-bar';
 import {
   FULL_DEMO_EDIT,
+  FULL_DEMO_EMPTY,
   FULL_DEMO_FORGE_HINT_EMPTY,
   FULL_DEMO_FORGE_HINT_ERROR,
   FULL_DEMO_HREF,
-  FULL_DEMO_PRESET,
   FULL_DEMO_RECAP_ERROR,
   FULL_DEMO_ROUNDS_PENDING,
   FULL_DEMO_VARIANT,
   classifyFullDemoLoadFailure,
+  fullDemoBriefItems,
   fullDemoEmptyState,
   type FullDemoLoadFailure,
 } from '@/lib/full-demo';
@@ -25,6 +28,9 @@ import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 
+const FAST_POLL_MS = 1500;
+const IDLE_POLL_MS = 10000;
+
 export default function FullDemoJobPage({ params }: { params: Promise<{ id: string }> }): ReactNode {
   const { id } = use(params);
   const router = useRouter();
@@ -32,41 +38,56 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [plays, setPlays] = useState<Play[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
-  const [recapError, setRecapError] = useState(false);
+  const [recapFailure, setRecapFailure] = useState<Exclude<FullDemoLoadFailure, null> | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    void (async () => {
-      try {
-        const nextMatch = await api.getMatch(id);
-        if (!active) return;
-        setMatch(nextMatch);
-        setLoadFailure(null);
+    const stop = startPollLoop({
+      tick: async () => {
         try {
-          const nextPlays = nextMatch ? await api.findRecapClips(id) : [];
-          if (!active) return;
-          setPlays(nextPlays);
-          setRecapError(false);
-        } catch {
-          if (!active) return;
+          const nextMatch = await api.getMatch(id);
+          if (!active) return 'idle';
+          setMatch(nextMatch);
+          setLoadFailure(null);
+          if (!nextMatch) {
+            setPlays([]);
+            setRecapFailure(null);
+            setLoaded(true);
+            return 'idle';
+          }
+          try {
+            const nextPlays = await api.findRecapClips(id);
+            if (!active) return 'idle';
+            setPlays(nextPlays);
+            setRecapFailure(null);
+            setLoaded(true);
+            return nextPlays.length === 0 ? 'fast' : 'idle';
+          } catch (error) {
+            if (!active) return 'idle';
+            setPlays([]);
+            setRecapFailure(classifyFullDemoLoadFailure(error));
+            setLoaded(true);
+            return 'idle';
+          }
+        } catch (error) {
+          if (!active) return 'idle';
+          setLoadFailure(classifyFullDemoLoadFailure(error));
+          setMatch(null);
           setPlays([]);
-          setRecapError(true);
+          setRecapFailure(null);
+          setLoaded(true);
+          return 'idle';
         }
-      } catch (error) {
-        if (!active) return;
-        setLoadFailure(classifyFullDemoLoadFailure(error));
-        setMatch(null);
-        setPlays([]);
-        setRecapError(false);
-      } finally {
-        if (active) setLoaded(true);
-      }
-    })();
+      },
+      fastMs: FAST_POLL_MS,
+      idleMs: IDLE_POLL_MS,
+    });
     return () => {
       active = false;
+      stop();
     };
   }, [id]);
 
@@ -85,14 +106,14 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     setCreating(true);
     setCreateError(null);
     try {
-      await api.createVideo({
+      const video = await api.createVideo({
         matchId: id,
         playIds: plays.map((play) => play.id),
         mode: 'clean',
         variant: FULL_DEMO_VARIANT,
         editConfig: FULL_DEMO_EDIT,
       });
-      router.push('/videos');
+      router.push(`/videos?nuevo=${encodeURIComponent(video.id)}`);
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'No se pudo encolar la partida.');
       setCreating(false);
@@ -105,11 +126,14 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
 
   if (!match) {
     const empty = fullDemoEmptyState(loadFailure);
+    let emptyIcon = SearchX;
+    if (loadFailure === 'offline') emptyIcon = Unplug;
+    else if (loadFailure === 'error') emptyIcon = AlertTriangle;
     return (
       <div className="flex flex-col gap-8">
-        <StudioBackLink href={FULL_DEMO_HREF}>FULL DEMO TO VIDEO</StudioBackLink>
+        <StudioBackLink href={FULL_DEMO_HREF}>DEMO COMPLETA A VÍDEO</StudioBackLink>
         <StudioEmptyState
-          icon={loadFailure === null ? SearchX : Unplug}
+          icon={emptyIcon}
           title={empty.title}
           description={empty.description}
           actions={<Button onClick={() => router.push(FULL_DEMO_HREF)}>VOLVER</Button>}
@@ -118,19 +142,31 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const briefItems = reelCreativeBrief(
-    FULL_DEMO_EDIT,
-    FULL_DEMO_PRESET,
-    { status: 'none' },
-  );
+  const briefItems = fullDemoBriefItems();
+  const roundsPending = recapFailure === null && plays.length === 0;
+  const povLabel = match.player
+    ? `POV: ${match.player} · fijado al parsear · para otro jugador, vuelve a parsear la demo`
+    : 'POV sin resolver — recarga o re-parsea';
 
   return (
     <div className="flex flex-col gap-8">
-      <StudioBackLink href={FULL_DEMO_HREF}>FULL DEMO TO VIDEO</StudioBackLink>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <StudioBackLink href={FULL_DEMO_HREF}>DEMO COMPLETA A VÍDEO</StudioBackLink>
+        <Link
+          href={`/matches/${id}`}
+          className="font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors hover:text-primary"
+        >
+          Highlights 9:16 →
+        </Link>
+      </div>
       <StudioPageHeader
         title={match.map.toUpperCase()}
-        description={`${match.player ? `${match.player} · ` : ''}POV de todas sus rondas en vivo, desde el fin del freeze hasta su muerte o el final de ronda.`}
+        description="Rondas en vivo desde el fin del freeze hasta la muerte del POV o el final de ronda."
       />
+
+      <p className="font-mono text-body-sm text-fg-1" role="status">
+        {povLabel}
+      </p>
 
       {createError ? (
         <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
@@ -138,20 +174,28 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         </p>
       ) : null}
 
-      {recapError ? (
+      {recapFailure === 'offline' ? (
+        <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
+          {FULL_DEMO_EMPTY.offline.title}. {FULL_DEMO_EMPTY.offline.description}
+        </p>
+      ) : null}
+      {recapFailure === 'error' ? (
         <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
           {FULL_DEMO_RECAP_ERROR}
         </p>
       ) : null}
-      {!recapError && plays.length === 0 ? (
-        <p className="text-body-sm text-fg-2">{FULL_DEMO_ROUNDS_PENDING}</p>
+      {roundsPending ? (
+        <p className="flex items-center gap-2 text-body-sm text-fg-2" role="status" aria-live="polite">
+          <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden />
+          {FULL_DEMO_ROUNDS_PENDING}
+        </p>
       ) : null}
 
       <FullDemoCaptureBar
         roundCount={plays.length}
-        emptyHint={recapError ? FULL_DEMO_FORGE_HINT_ERROR : FULL_DEMO_FORGE_HINT_EMPTY}
+        emptyHint={recapFailure ? FULL_DEMO_FORGE_HINT_ERROR : FULL_DEMO_FORGE_HINT_EMPTY}
         creating={creating}
-        briefItems={briefItems}
+        briefItems={[...briefItems]}
         briefApproved={briefApproved}
         onBriefApprovedChange={setBriefApproved}
         onCreate={() => {

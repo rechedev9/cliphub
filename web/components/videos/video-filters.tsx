@@ -3,13 +3,14 @@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 /** The library's aspect-ratio views: everything, or one render format. */
-export type VideoFormatFilter = 'all' | 'short-9x16' | 'landscape-16x9';
+export type VideoFormatFilter = 'all' | 'short-9x16' | 'landscape-16x9' | 'full-demo';
 
 /** No magic strings at the call site: the value round-trips through this map. */
 const FORMAT_FILTERS = [
   { value: 'all', label: 'Todos', description: 'Todos los formatos' },
   { value: 'short-9x16', label: '9:16', description: 'Formato vertical 9:16' },
   { value: 'landscape-16x9', label: '16:9', description: 'Formato horizontal 16:9' },
+  { value: 'full-demo', label: 'Partidas completas', description: 'Partidas completas 16:9 con resumen' },
 ] as const satisfies readonly { value: VideoFormatFilter; label: string; description: string }[];
 
 function isFormatFilter(value: string): value is VideoFormatFilter {

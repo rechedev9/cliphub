@@ -10,7 +10,20 @@ export type MatchStats = {
   kast?: number;
   hsPct?: number;
 };
-export type Match = { id: string; map: string; score: string; playedAt: string; stats: MatchStats; decentPlays: number; thumbnailUrl?: string; source?: 'steam' | 'upload'; /** Display name of the clipped/target player, when known. */ player?: string };
+export type Match = {
+  id: string;
+  map: string;
+  score: string;
+  playedAt: string;
+  stats: MatchStats;
+  decentPlays: number;
+  thumbnailUrl?: string;
+  source?: 'steam' | 'upload';
+  /** Display name of the clipped/target player, when known. */
+  player?: string;
+  /** Orchestrator job status when known (Partidas / constructors). */
+  status?: string;
+};
 type PlayKind = 'clean' | 'highlight';
 export type Play = { id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number; weapon?: string; thumbnailUrl?: string };
 export type RenderMode = 'clean' | 'music';

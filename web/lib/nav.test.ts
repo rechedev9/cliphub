@@ -7,7 +7,7 @@ const RAIL = [
   ['00', 'Inicio', '/onboarding'],
   ['01', 'Partidas', '/matches'],
   ['02', 'Subir demo', '/upload'],
-  ['03', 'Full demo to video', '/full-demo'],
+  ['03', 'Demo completa', '/full-demo'],
   ['04', 'Táctica', '/tactical'],
   ['05', 'CheaterDetect', '/cheaters'],
   ['06', 'Jugadores', '/players'],

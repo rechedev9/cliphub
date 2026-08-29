@@ -3,8 +3,7 @@ import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
 
-export const FULL_DEMO_ROUNDS_PENDING =
-  'Esta demo no tiene plan de rondas todavía. Espera a que termine el parseo o elige otra.';
+export const FULL_DEMO_ROUNDS_PENDING = 'Generando el plan de rondas…';
 
 export const FULL_DEMO_RECAP_ERROR =
   'No se pudo cargar el plan de rondas de esta partida. Recarga o elige otra demo.';
@@ -12,6 +11,12 @@ export const FULL_DEMO_RECAP_ERROR =
 export const FULL_DEMO_FORGE_HINT_EMPTY = 'Espera el plan de rondas para empezar.';
 
 export const FULL_DEMO_FORGE_HINT_ERROR = 'No se pudo cargar el plan de rondas.';
+
+/** Collapsed Shorts-negative row for the Full Demo brief (wire stays FULL_DEMO_EDIT). */
+export const FULL_DEMO_SHORTS_EXTRAS = {
+  label: 'Extras de Short',
+  value: 'ninguno (sin efectos, transiciones, música, KeyDrop ni portada de reel)',
+} as const;
 
 export const FULL_DEMO_VARIANT = 'gameplay-pov-60';
 
@@ -50,6 +55,11 @@ export const FULL_DEMO_CONTRACT = [
   { label: 'Efectos', value: 'Sin punch-in ni transiciones de Short' },
   { label: 'Mix', value: 'Comms + juego · sin música' },
 ] as const;
+
+/** On-screen brief for /full-demo/[id]: contract facts + one Shorts-extras row. */
+export function fullDemoBriefItems(): ReadonlyArray<{ label: string; value: string }> {
+  return [...FULL_DEMO_CONTRACT, FULL_DEMO_SHORTS_EXTRAS];
+}
 
 /** null = getMatch returned empty (404 / not on disk); offline = 503; error = any other throw. */
 export type FullDemoLoadFailure = 'offline' | 'error' | null;

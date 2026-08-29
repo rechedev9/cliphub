@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Video } from '@/lib/api/types';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
-import { constrainEditConfig, isLandscapeRecap } from '@/lib/reel-brief';
+import { constrainEditConfig, isLandscapeRecap, reelCreativeBrief } from '@/lib/reel-brief';
+import { FULL_DEMO_CONTRACT, FULL_DEMO_PRESET } from '@/lib/full-demo';
 import { writeClipboardText } from '@/lib/clipboard-write';
 import { formatCountdown } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
@@ -21,10 +22,11 @@ import { Button } from '@/components/ui/button';
 import { StatusTag } from '@/components/studio/status-tag';
 import { DeleteVideoButton } from '@/components/videos/delete-video-button';
 import { PublishAssistantDialog } from '@/components/videos/publish-assistant-dialog';
-import { ReelCard, reelFormatLabel } from '@/components/videos/reel-card';
+import { ReelCard, reelAspect, reelFormatLabel } from '@/components/videos/reel-card';
 import { EditOptions } from '@/components/clips/edit-options';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
+import { cn } from '@/lib/utils';
 
 /** Finished reel card: format-aware cover, LISTO track, inline play. */
 export function ReadyCard({
@@ -70,6 +72,8 @@ export function ReadyCard({
   const matchMeta = video.score ? `${video.map} · ${video.score}` : video.map;
   const meta = video.targetName ? `POV ${video.targetName} · ${matchMeta}` : matchMeta;
   const formatBadge = reelFormatLabel(video.editConfig);
+  const fullDemo = video.editConfig != null && isLandscapeRecap(video.editConfig);
+  const landscapePlayer = reelAspect(video.editConfig) === '16:9';
 
   return (
     <>
@@ -78,7 +82,14 @@ export function ReadyCard({
         tone="primary"
         raised
         scrim
-        badge={formatBadge ? <StatusTag tone="primary">{formatBadge}</StatusTag> : undefined}
+        badge={
+          formatBadge || fullDemo ? (
+            <span className="flex flex-wrap items-center gap-1.5">
+              {formatBadge ? <StatusTag tone="primary">{formatBadge}</StatusTag> : null}
+              {fullDemo ? <StatusTag tone="primary">PARTIDA COMPLETA</StatusTag> : null}
+            </span>
+          ) : undefined
+        }
         frameActions={
           <>
             <Button
@@ -178,7 +189,7 @@ export function ReadyCard({
       </ReelCard>
 
       <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={cn(landscapePlayer ? 'sm:max-w-4xl' : 'max-w-md')}>
           <DialogHeader>
             <DialogTitle>{video.title}</DialogTitle>
             <DialogDescription className="font-mono tabular-nums">{meta}</DialogDescription>
@@ -262,6 +273,7 @@ function ReviewResolutionDialog({
     wasOpen.current = open;
   }, [open, original, video.reviewArtifactPrefix, video.warnings]);
 
+  const lockedFullDemo = isLandscapeRecap(original);
   const editChanged = JSON.stringify(draft) !== JSON.stringify(original);
   const reviewChanged = reviewSnapshot !== null && (
     reviewSnapshot.artifactPrefix !== video.reviewArtifactPrefix ||
@@ -269,6 +281,7 @@ function ReviewResolutionDialog({
   );
 
   function changeDraft(next: EditConfig) {
+    if (lockedFullDemo) return;
     setDraft(constrainEditConfig(next));
     setBriefApproved(false);
   }
@@ -301,19 +314,12 @@ function ReviewResolutionDialog({
     }
   }
 
-  const brief = [
-    `Formato: ${draft.format}`,
-    `Entrega: ${isLandscapeRecap(draft) ? 'resumen de partida' : 'compilado de jugadas'}`,
-    `Comms: ${draft.voiceComms ? `equipo del POV · ${Math.round((draft.voiceVolume ?? 0.85) * 100)}%` : 'no'}`,
-    `HUD/captura: ${draft.nativeHud ? 'nativo gameplay' : (video.variant ?? 'viral-60-clean')} (no cambia sin recaptura)`,
-    `Efecto de kill: ${draft.killEffect}`,
-    `Transición: ${draft.transition}`,
-    `Contador: ${draft.killCounter ? 'sí' : 'no'}`,
-    `Título automático: ${draft.hookText ? 'sí' : 'no'}`,
-    `Intro / outro: ${draft.intro ? 'sí' : 'no'} / ${draft.outro ? 'sí' : 'no'}`,
-    `Música: ${video.songId ?? 'sin música'}`,
-    `Portada: ${draft.coverStrategy}`,
-  ];
+  const musicBrief = video.songId
+    ? { status: 'track' as const, title: video.songId, volumePercent: 100, gameVolumePercent: 100 }
+    : { status: 'none' as const };
+  const briefLines = lockedFullDemo
+    ? FULL_DEMO_CONTRACT.map((row) => `${row.label}: ${row.value}`)
+    : reelCreativeBrief(draft, null, musicBrief).map((item) => `${item.label}: ${item.value}`);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -321,7 +327,9 @@ function ReviewResolutionDialog({
         <DialogHeader>
           <DialogTitle>Resolver revisión QA</DialogTitle>
           <DialogDescription>
-            Inspecciona cada aviso. Corrige la edición y vuelve a renderizar, o documenta por qué el resultado es intencional.
+            {lockedFullDemo
+              ? 'Inspecciona cada aviso. El contrato Full Demo es de solo lectura aquí; documenta por qué el resultado es intencional, o recaptura si hace falta cambiar el HUD.'
+              : 'Inspecciona cada aviso. Corrige la edición y vuelve a renderizar, o documenta por qué el resultado es intencional.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -337,57 +345,78 @@ function ReviewResolutionDialog({
           ) : null}
         </div>
 
-        <section className="space-y-4 rounded-md border border-border p-4">
-          <div>
-            <h3 className="font-display text-body uppercase tracking-wide">Corregir y volver a renderizar</h3>
-            <p className="text-body-sm text-fg-3">Debes cambiar al menos una opción y aprobar el brief completo.</p>
-          </div>
-          <div>
-            <p className="mb-2 font-mono text-meta uppercase tracking-wider text-fg-3">Formato</p>
-            <ToggleGroup
-              type="single"
-              value={draft.format}
-              onValueChange={(format) => format && changeDraft({ ...draft, format: format as EditConfig['format'] })}
-              disabled={busy !== null || reviewChanged}
-              variant="outline"
-            >
-              <ToggleGroupItem value="short-9x16">Vertical 9:16</ToggleGroupItem>
-              <ToggleGroupItem value="landscape-16x9">Horizontal 16:9</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          <EditOptions
-            value={draft}
-            onChange={changeDraft}
-            disabled={busy !== null || reviewChanged}
-            showFullDemoDelivery={isLandscapeRecap(original) && draft.format === 'landscape-16x9'}
-          />
-          <div className="rounded-md bg-surface-2 p-3">
-            <p className="mb-2 font-mono text-meta uppercase tracking-wider text-primary">Brief efectivo</p>
-            <ul className="grid gap-1 text-body-sm text-fg-2 sm:grid-cols-2">
-              {brief.map((item) => <li key={item}>• {item}</li>)}
-            </ul>
-          </div>
-          <label className="flex items-start gap-2 text-body-sm text-fg-2">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4 accent-primary"
-              checked={briefApproved}
-              onChange={(event) => setBriefApproved(event.target.checked)}
+        {lockedFullDemo ? (
+          <section className="space-y-3 rounded-md border border-border p-4">
+            <div>
+              <h3 className="font-display text-body uppercase tracking-wide">Contrato Full Demo</h3>
+              <p className="text-body-sm text-fg-3">
+                16:9, rondas en vivo, HUD nativo y comms: no se pueden convertir en un Short desde este diálogo.
+              </p>
+            </div>
+            <dl className="grid gap-1.5 text-body-sm text-fg-2 sm:grid-cols-2">
+              {FULL_DEMO_CONTRACT.map((row) => (
+                <div key={row.label} className="flex min-w-0 gap-1.5">
+                  <dt className="shrink-0 text-fg-3">{row.label}:</dt>
+                  <dd className="truncate text-fg-1">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="text-body-sm text-fg-3">
+              Preset de captura: {FULL_DEMO_PRESET.label} (no cambia sin recaptura).
+            </p>
+          </section>
+        ) : (
+          <section className="space-y-4 rounded-md border border-border p-4">
+            <div>
+              <h3 className="font-display text-body uppercase tracking-wide">Corregir y volver a renderizar</h3>
+              <p className="text-body-sm text-fg-3">Debes cambiar al menos una opción y aprobar el brief completo.</p>
+            </div>
+            <div>
+              <p className="mb-2 font-mono text-meta uppercase tracking-wider text-fg-3">Formato</p>
+              <ToggleGroup
+                type="single"
+                value={draft.format}
+                onValueChange={(format) => format && changeDraft({ ...draft, format: format as EditConfig['format'] })}
+                disabled={busy !== null || reviewChanged}
+                variant="outline"
+              >
+                <ToggleGroupItem value="short-9x16">Vertical 9:16</ToggleGroupItem>
+                <ToggleGroupItem value="landscape-16x9">Horizontal 16:9</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            <EditOptions
+              value={draft}
+              onChange={changeDraft}
               disabled={busy !== null || reviewChanged}
             />
-            Apruebo este brief exacto para el nuevo render.
-          </label>
-          <Button
-            type="button"
-            variant="hero"
-            className="w-full"
-            disabled={!editChanged || !briefApproved || reviewChanged}
-            loading={busy === 'rerender'} loadingText="RENDERIZANDO DE NUEVO…"
-            onClick={() => void resolveReview('rerender')}
-          >
-            <Settings2 className="size-4" aria-hidden /> VOLVER A RENDERIZAR
-          </Button>
-        </section>
+            <div className="rounded-md bg-surface-2 p-3">
+              <p className="mb-2 font-mono text-meta uppercase tracking-wider text-primary">Brief efectivo</p>
+              <ul className="grid gap-1 text-body-sm text-fg-2 sm:grid-cols-2">
+                {briefLines.map((item) => <li key={item}>• {item}</li>)}
+              </ul>
+            </div>
+            <label className="flex items-start gap-2 text-body-sm text-fg-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-primary"
+                checked={briefApproved}
+                onChange={(event) => setBriefApproved(event.target.checked)}
+                disabled={busy !== null || reviewChanged}
+              />
+              Apruebo este brief exacto para el nuevo render.
+            </label>
+            <Button
+              type="button"
+              variant="hero"
+              className="w-full"
+              disabled={!editChanged || !briefApproved || reviewChanged}
+              loading={busy === 'rerender'} loadingText="RENDERIZANDO DE NUEVO…"
+              onClick={() => void resolveReview('rerender')}
+            >
+              <Settings2 className="size-4" aria-hidden /> VOLVER A RENDERIZAR
+            </Button>
+          </section>
+        )}
 
         <section className="space-y-3 rounded-md border border-border p-4">
           <div>

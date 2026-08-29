@@ -10,7 +10,7 @@ const DOORS = [
     href: '/upload',
     icon: UploadCloud,
     title: 'Sube una demo',
-    description: 'Un .dem de CS2, o un .rar/.zip con la serie entera.',
+    description: 'Un .dem de CS2: forja Shorts 9:16 o un vídeo completo 16:9.',
     emphasis: 'primary',
   },
   {

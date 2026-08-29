@@ -1,8 +1,9 @@
 'use client';
 
 import { use, useEffect, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Music, SearchX, Unplug } from 'lucide-react';
+import { AlertTriangle, Loader2, Music, SearchX, Unplug } from 'lucide-react';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import { api } from '@/lib/api';
@@ -12,6 +13,17 @@ import { formatKd, matchDateLabel, playsSelectionLabel, ratingClass } from '@/li
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
 import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '@/lib/reel-format';
+import { startPollLoop } from '@/lib/poll-loop';
+import {
+  MATCH_PLAYS_ANALYZING_DESCRIPTION,
+  MATCH_PLAYS_ANALYZING_TITLE,
+  MATCH_PLAYS_EMPTY_DESCRIPTION,
+  MATCH_PLAYS_EMPTY_TITLE,
+  MATCH_PLAYS_ERROR_DESCRIPTION,
+  MATCH_PLAYS_ERROR_TITLE,
+  matchPlanReady,
+} from '@/lib/match-plays-empty';
+import { FULL_DEMO_HREF } from '@/lib/full-demo';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,6 +42,9 @@ import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
 function isServiceUnavailable(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
 }
+
+const FAST_POLL_MS = 1500;
+const IDLE_POLL_MS = 10000;
 
 // Music volume slider, in UI percent. Default 100 renders at full volume (the
 // legacy byte-identical form); only < 100 sends a reduced volume to the render.
@@ -55,6 +70,7 @@ export default function FindHighlightsPage({
 
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[] | null>(null);
+  const [playsError, setPlaysError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   /** null = ok/not-loaded; offline = 503; error = any other failure. */
   const [loadFailure, setLoadFailure] = useState<'offline' | 'error' | null>(null);
@@ -79,26 +95,55 @@ export default function FindHighlightsPage({
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const [m, p] = await Promise.all([api.getMatch(id), api.findClips(id)]);
-        if (!active) return;
-        setMatch(m);
-        setPlays(p);
-        setLoadFailure(null);
-      } catch (err) {
-        // 503 service_unavailable means the orchestrator is down; any other
-        // failure (404, 5xx, network) is a load error — not necessarily offline.
-        if (!active) return;
-        setMatch(null);
-        setPlays([]);
-        setLoadFailure(isServiceUnavailable(err) ? 'offline' : 'error');
-      } finally {
-        if (active) setLoaded(true);
-      }
-    })();
+    const stop = startPollLoop({
+      tick: async () => {
+        try {
+          const m = await api.getMatch(id);
+          if (!active) return 'idle';
+          setMatch(m);
+          setLoadFailure(null);
+          if (!m) {
+            setPlays([]);
+            setPlaysError(false);
+            setLoaded(true);
+            return 'idle';
+          }
+          if (!matchPlanReady(m.status)) {
+            setPlays([]);
+            setPlaysError(false);
+            setLoaded(true);
+            return 'fast';
+          }
+          try {
+            const p = await api.findClips(id);
+            if (!active) return 'idle';
+            setPlays(p);
+            setPlaysError(false);
+            setLoaded(true);
+            return 'idle';
+          } catch {
+            if (!active) return 'idle';
+            setPlays([]);
+            setPlaysError(true);
+            setLoaded(true);
+            return 'idle';
+          }
+        } catch (err) {
+          if (!active) return 'idle';
+          setMatch(null);
+          setPlays([]);
+          setPlaysError(false);
+          setLoadFailure(isServiceUnavailable(err) ? 'offline' : 'error');
+          setLoaded(true);
+          return 'idle';
+        }
+      },
+      fastMs: FAST_POLL_MS,
+      idleMs: IDLE_POLL_MS,
+    });
     return () => {
       active = false;
+      stop();
     };
   }, [id]);
 
@@ -192,7 +237,7 @@ export default function FindHighlightsPage({
     setCreating(true);
     setCreateError(null);
     try {
-      await api.createVideo({
+      const video = await api.createVideo({
         matchId: id,
         playIds: selectedPlays.map((p) => p.id),
         mode: songId ? 'music' : 'clean',
@@ -203,7 +248,11 @@ export default function FindHighlightsPage({
         variant: variant ?? undefined,
         editConfig: constrainEditConfig(editConfig),
       });
-      router.push(seriesId ? `/series/${seriesId}` : '/videos');
+      if (seriesId) {
+        router.push(`/series/${seriesId}`);
+      } else {
+        router.push(`/videos?nuevo=${encodeURIComponent(video.id)}`);
+      }
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'No se pudo crear el reel.');
       setCreating(false);
@@ -255,11 +304,14 @@ export default function FindHighlightsPage({
       emptyDescription =
         'Hubo un error al leer esta partida. Vuelve a intentarlo o regresa a la lista.';
     }
+    let emptyIcon = SearchX;
+    if (offline) emptyIcon = Unplug;
+    else if (errored) emptyIcon = AlertTriangle;
     return (
       <div className="flex flex-col gap-8">
         <StudioBackLink href="/matches">PARTIDAS</StudioBackLink>
         <StudioEmptyState
-          icon={offline || errored ? Unplug : SearchX}
+          icon={emptyIcon}
           title={emptyTitle}
           description={emptyDescription}
           actions={
@@ -272,6 +324,7 @@ export default function FindHighlightsPage({
 
   const playList = plays ?? [];
   const n = playList.length;
+  const analyzing = !matchPlanReady(match.status);
   const win = isWin(match.score);
   // Uploaded demos have no round score (the parser computes none): hide the
   // score block and let the mono meta line carry the play count instead.
@@ -285,7 +338,7 @@ export default function FindHighlightsPage({
   }
   const meta = [
     matchDateLabel(match),
-    `${n} ${n === 1 ? 'jugada' : 'jugadas'}`,
+    analyzing ? 'analizando' : `${n} ${n === 1 ? 'jugada' : 'jugadas'}`,
   ].join(' · ');
 
   // Scoreboard extras exist only on enriched (uploaded) matches; mock/seed
@@ -319,9 +372,49 @@ export default function FindHighlightsPage({
     );
   }
 
+  let emptyPlays: ReactNode = null;
+  if (analyzing) {
+    emptyPlays = (
+      <StudioEmptyState
+        icon={Loader2}
+        title={MATCH_PLAYS_ANALYZING_TITLE}
+        description={MATCH_PLAYS_ANALYZING_DESCRIPTION}
+        compact
+      />
+    );
+  } else if (playsError) {
+    emptyPlays = (
+      <StudioEmptyState
+        icon={AlertTriangle}
+        title={MATCH_PLAYS_ERROR_TITLE}
+        description={MATCH_PLAYS_ERROR_DESCRIPTION}
+        compact
+        actions={<Button onClick={() => router.push(backHref)}>VOLVER A {backLabel}</Button>}
+      />
+    );
+  } else if (n === 0) {
+    emptyPlays = (
+      <StudioEmptyState
+        icon={SearchX}
+        title={MATCH_PLAYS_EMPTY_TITLE}
+        description={MATCH_PLAYS_EMPTY_DESCRIPTION}
+        compact
+        actions={<Button onClick={() => router.push(backHref)}>VOLVER A {backLabel}</Button>}
+      />
+    );
+  }
+
   return (
     <div className="studio-reveal flex min-h-[calc(100vh-9rem)] flex-col gap-7">
-      <StudioBackLink onClick={() => router.push(backHref)}>{backLabel}</StudioBackLink>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <StudioBackLink onClick={() => router.push(backHref)}>{backLabel}</StudioBackLink>
+        <Link
+          href={`${FULL_DEMO_HREF}/${id}`}
+          className="font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors hover:text-primary"
+        >
+          Vídeo completo 16:9 →
+        </Link>
+      </div>
 
       {/* Match summary — accent bar + map title + mono meta, score, stat strip. */}
       <section className="flex flex-col gap-5 @[52rem]/content:flex-row @[52rem]/content:items-center @[52rem]/content:justify-between @[52rem]/content:gap-8">
@@ -358,15 +451,7 @@ export default function FindHighlightsPage({
         </div>
       </section>
 
-      {n === 0 ? (
-        <StudioEmptyState
-          icon={SearchX}
-          title="Sin jugadas destacables"
-          description="El análisis no encontró ninguna jugada digna de highlight en esta partida. Prueba con otra demo."
-          compact
-          actions={<Button onClick={() => router.push(backHref)}>VOLVER A {backLabel}</Button>}
-        />
-      ) : (
+      {emptyPlays ?? (
         /* List left, sticky build column right; stacks below the container query. */
         <div className="grid items-start gap-7 @[64rem]/content:grid-cols-[minmax(0,1.55fr)_minmax(21rem,0.85fr)]">
           <section className="flex flex-col gap-4">

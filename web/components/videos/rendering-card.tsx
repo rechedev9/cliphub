@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { Video } from '@/lib/api/types';
 import { captureProgressDetail, captureProgressPercent } from '@/lib/capture-progress';
+import { isLandscapeRecap } from '@/lib/reel-brief';
 import { RecDot } from '@/components/brand/rec-dot';
 import { StatusTag } from '@/components/studio/status-tag';
 import { ReelCard, reelFormatLabel, type ReelCardTone } from '@/components/videos/reel-card';
@@ -22,6 +23,7 @@ export function RenderingCard({ video }: { video: Video }) {
       : undefined;
 
   const formatBadge = reelFormatLabel(video.editConfig);
+  const fullDemo = video.editConfig != null && isLandscapeRecap(video.editConfig);
 
   let tone: ReelCardTone = 'neutral';
   let coverTint = 'bg-surface-0/55';
@@ -58,7 +60,14 @@ export function RenderingCard({ video }: { video: Video }) {
       plainCover
       coverClassName="opacity-55"
       coverTintClassName={coverTint}
-      badge={formatBadge ? <StatusTag>{formatBadge}</StatusTag> : undefined}
+      badge={
+        formatBadge || fullDemo ? (
+          <span className="flex flex-wrap items-center gap-1.5">
+            {formatBadge ? <StatusTag>{formatBadge}</StatusTag> : null}
+            {fullDemo ? <StatusTag tone="primary">PARTIDA COMPLETA</StatusTag> : null}
+          </span>
+        ) : undefined
+      }
       frameFooter={stageIndicator}
     >
       {/* Percent is aria-hidden: the stage track progressbar already announces it. */}
