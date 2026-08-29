@@ -8,12 +8,17 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/lineups"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/rhythm"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
+
+func isFullDemoNative(preset, outputFormat string, compile bool) bool {
+	return compile && preset == PresetGameplayPOV60 && outputFormat == OutputFormatLandscape16x9
+}
 
 func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Manifest, error) {
 	clips, warnings, clipErr := recording.ResolveSegmentClips(result)
@@ -143,6 +148,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		TemporalSmoothing: temporalSmoothing,
 		CoversEnabled:     opts.CoversEnabled,
 		Warnings:          warnings,
+		fullDemoOverlay:   opts.FullDemoOverlay,
 	}
 	if opts.LineupCatalogPath != "" {
 		manifest.UnmatchedSmokes = filepath.Join(opts.OutputDir, "unmatched-smokes.json")
@@ -488,65 +494,72 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 	primary := primaryWeapon(allKills)
 	killCount := len(allKills)
 	title, caption, hashtags := publishText(c.Player, c.MapName, killCount, primary)
+	if opts.FullDemoOverlay != nil && isFullDemoNative(c.Preset, c.OutputFormat, true) {
+		title = demooverlay.Title(*opts.FullDemoOverlay)
+		caption = demooverlay.Caption(*opts.FullDemoOverlay)
+		hashtags = demooverlay.Hashtags(*opts.FullDemoOverlay)
+	}
 	publishBase := publishCompiledFileBase(1, c.Player, c.MapName, killCount, primary)
 	duration := cursor
 	coverTime := coverTimeSeconds(kills, duration)
 	short := ShortEdit{
-		Index:               1,
-		SegmentID:           segmentID,
-		Preset:              c.Preset,
-		Player:              c.Player,
-		Map:                 c.MapName,
-		KillCount:           killCount,
-		PrimaryWeapon:       primary,
-		Input:               parts[0].Input,
-		Output:              filepath.Join(opts.OutputDir, "short-001-demo-compilation.mp4"),
-		SourceArtifact:      parts[0].SourceArtifact,
-		PromptPath:          filepath.Join(c.PromptDir, "short-001-demo-compilation-cover.md"),
-		PublishPath:         filepath.Join(opts.PublishDir, publishBase+".mp4"),
-		MusicPath:           opts.MusicPath,
-		MusicVolume:         opts.MusicVolume,
-		GameVolume:          opts.GameVolume,
-		VoiceVolume:         opts.VoiceVolume,
-		VoiceTracks:         append([]string(nil), c.VoiceTracks...),
-		VoiceTickrate:       c.VoiceTickrate,
-		RhythmPath:          opts.RhythmPath,
-		OutputFormat:        c.OutputFormat,
-		KillEffect:          c.KillEffect,
-		Transition:          c.Transition,
-		Intro:               opts.Intro,
-		Outro:               opts.Outro,
-		IntroText:           opts.IntroText,
-		OutroText:           opts.OutroText,
-		HookText:            c.HookText,
-		KillCounter:         c.KillCounter,
-		KillfeedOverlay:     c.KillfeedOverlay,
-		TailTrimSeconds:     tailTrimForRhythm(c),
-		OutputFPS:           c.OutputFPS,
-		VideoCRF:            c.VideoCRF,
-		VideoPreset:         c.VideoPreset,
-		Threads:             opts.Threads,
-		HQFilters:           c.HQFilters,
-		AudioNormalize:      c.AudioNormalize,
-		TemporalSmoothing:   c.TemporalSmoothing,
-		KeyDropStyle:        opts.KeyDropStyle,
-		KeyDropCode:         opts.KeyDropCode,
-		KeyDropPositionY:    opts.KeyDropPositionY,
-		KeyDropStartSeconds: opts.KeyDropStartSeconds,
-		KeyDropEndSeconds:   opts.KeyDropEndSeconds,
-		KeyDropImagePath:    opts.KeyDropImagePath,
-		CaptionPath:         filepath.Join(opts.PublishDir, publishBase+".caption.txt"),
-		CoverTimeSeconds:    coverTime,
-		CoverFirstFrame:     c.CoverFirstFrame,
-		DurationSeconds:     duration,
-		Label:               shortLabel(c.Player, c.MapName, killCount),
-		Title:               title,
-		Headline:            premiumHeadline(c.MapName, killCount, primary),
-		Caption:             caption,
-		Hashtags:            hashtags,
-		Kills:               kills,
-		Parts:               parts,
-		RenderLogPath:       filepath.Join(c.LogDir, "short-001-demo-compilation-render.log"),
+		Index:                  1,
+		SegmentID:              segmentID,
+		Preset:                 c.Preset,
+		Player:                 c.Player,
+		Map:                    c.MapName,
+		KillCount:              killCount,
+		PrimaryWeapon:          primary,
+		Input:                  parts[0].Input,
+		Output:                 filepath.Join(opts.OutputDir, "short-001-demo-compilation.mp4"),
+		SourceArtifact:         parts[0].SourceArtifact,
+		PromptPath:             filepath.Join(c.PromptDir, "short-001-demo-compilation-cover.md"),
+		PublishPath:            filepath.Join(opts.PublishDir, publishBase+".mp4"),
+		MusicPath:              opts.MusicPath,
+		MusicVolume:            opts.MusicVolume,
+		GameVolume:             opts.GameVolume,
+		VoiceVolume:            opts.VoiceVolume,
+		VoiceTracks:            append([]string(nil), c.VoiceTracks...),
+		VoiceTickrate:          c.VoiceTickrate,
+		RhythmPath:             opts.RhythmPath,
+		OutputFormat:           c.OutputFormat,
+		KillEffect:             c.KillEffect,
+		Transition:             c.Transition,
+		Intro:                  opts.Intro,
+		Outro:                  opts.Outro,
+		IntroText:              opts.IntroText,
+		OutroText:              opts.OutroText,
+		HookText:               c.HookText,
+		KillCounter:            c.KillCounter,
+		KillfeedOverlay:        c.KillfeedOverlay,
+		TailTrimSeconds:        tailTrimForRhythm(c),
+		OutputFPS:              c.OutputFPS,
+		VideoCRF:               c.VideoCRF,
+		VideoPreset:            c.VideoPreset,
+		Threads:                opts.Threads,
+		HQFilters:              c.HQFilters,
+		AudioNormalize:         c.AudioNormalize,
+		TemporalSmoothing:      c.TemporalSmoothing,
+		KeyDropStyle:           opts.KeyDropStyle,
+		KeyDropCode:            opts.KeyDropCode,
+		KeyDropPositionY:       opts.KeyDropPositionY,
+		KeyDropStartSeconds:    opts.KeyDropStartSeconds,
+		KeyDropEndSeconds:      opts.KeyDropEndSeconds,
+		KeyDropImagePath:       opts.KeyDropImagePath,
+		FullDemoIntroImagePath: opts.FullDemoIntroImagePath,
+		FullDemoOutroImagePath: opts.FullDemoOutroImagePath,
+		CaptionPath:            filepath.Join(opts.PublishDir, publishBase+".caption.txt"),
+		CoverTimeSeconds:       coverTime,
+		CoverFirstFrame:        c.CoverFirstFrame,
+		DurationSeconds:        duration,
+		Label:                  shortLabel(c.Player, c.MapName, killCount),
+		Title:                  title,
+		Headline:               premiumHeadline(c.MapName, killCount, primary),
+		Caption:                caption,
+		Hashtags:               hashtags,
+		Kills:                  kills,
+		Parts:                  parts,
+		RenderLogPath:          filepath.Join(c.LogDir, "short-001-demo-compilation-render.log"),
 	}
 	if opts.CoversEnabled {
 		short.CoverPath = filepath.Join(opts.PublishDir, publishBase+".cover.jpg")

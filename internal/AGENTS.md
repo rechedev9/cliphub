@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-43 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
+45 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`.
 
 ## WHERE TO LOOK
 
@@ -14,6 +14,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Score / select plays | `moments` | Default variant `viral-60-clean` |
 | HLAE/CS2 scripts + validate | `recording` | HUD is capture-time. Mutes demo voice (both teams on GOTV). Contract `observer-steamid-input-v2`; V1 read-only |
 | Concat captured clips | `composition` | No re-edit; assumes `recording.SegmentClip` |
+| Full Demo 16:9 overlays | `demooverlay` | Intro roster + outro scoreboard on native HUD; FACEIT optional |
 | 9:16 shorts + pack | `editor`, `renderplan` | Public CLI presets: `viral-60-clean`, `viral-aggressive-60` |
 | Kill→beat sync | `rhythm` | Editor applies it; workers do not call it |
 | Stream/VOD plan + render | `streamclips`, `streamcli`, `vodfetch` | Persisted `EditPlan` is canonical |

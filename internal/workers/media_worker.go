@@ -25,12 +25,14 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
@@ -1861,6 +1863,11 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	args = append(args, explicitCoverArgs(loadout, edit)...)
 	args = append(args, compileSegmentsArgs(recording.SegmentIDs(recordingResult))...)
+	if overlayPath, overlayErr := w.writeFullDemoOverlay(j, workDir, loadout.Preset, edit); overlayErr != nil {
+		return overlayErr
+	} else if overlayPath != "" {
+		args = append(args, "--full-demo-overlay", overlayPath)
+	}
 	if edit.IntroText != "" {
 		args = append(args, "--intro-text", edit.IntroText)
 	}
@@ -2839,6 +2846,46 @@ func readStoredRecordingResult(store storage.Storage, id uuid.UUID) (recording.R
 		return recording.RecordingResult{}, recording.MarkNotReusable(err)
 	}
 	return result, nil
+}
+
+func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, edit renderplan.EditRequest) (string, error) {
+	if !edit.MatchRecap || edit.Format != renderplan.FormatLandscape16x9 || preset != editor.PresetGameplayPOV60 {
+		return "", nil
+	}
+	rc, err := w.storage.Open(artifacts.RosterKey(j.ID))
+	if err != nil {
+		if storage.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("open roster for full-demo overlay: %w", err)
+	}
+	defer rc.Close()
+	var roster parser.RosterResult
+	if err := json.NewDecoder(rc).Decode(&roster); err != nil {
+		return "", fmt.Errorf("decode roster for full-demo overlay: %w", err)
+	}
+	target := ""
+	if j.KillPlan != nil {
+		target = j.KillPlan.Target.SteamID64
+	}
+	if target == "" {
+		target = j.TargetSteamID
+	}
+	faceit := map[string]demooverlay.Enrichment{}
+	if frc, ferr := w.storage.Open(artifacts.FullDemoFaceitKey(j.ID)); ferr == nil {
+		defer frc.Close()
+		if err := json.NewDecoder(frc).Decode(&faceit); err != nil {
+			return "", fmt.Errorf("decode full-demo FACEIT enrichment: %w", err)
+		}
+	} else if !storage.IsNotExist(ferr) {
+		return "", fmt.Errorf("open full-demo FACEIT enrichment: %w", ferr)
+	}
+	doc := demooverlay.Build(demooverlay.FromRosterScan(roster, target), faceit)
+	path := filepath.Join(workDir, "full-demo-overlay.json")
+	if err := demooverlay.Write(path, doc); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // compileSegmentsArgs returns the zv-editor flags that compile a render's

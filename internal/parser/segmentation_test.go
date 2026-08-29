@@ -588,3 +588,53 @@ func TestSegmentRoundIsFirstKillsRound(t *testing.T) {
 		t.Errorf("Round = %d, want 5 (first kill's round)", got[0].Round)
 	}
 }
+
+func TestWithIntroFreezeUsesAtMostEightSecondsOfFirstRoundFreeze(t *testing.T) {
+	live := []killplan.Segment{
+		{ID: "seg-001", Round: 1, TickStart: 9500, TickEnd: 14000},
+		{ID: "seg-002", Round: 2, TickStart: 16000, TickEnd: 20000},
+	}
+	got := WithIntroFreeze(live, []RoundStart{{Round: 1, Tick: 8000}, {Round: 2, Tick: 15000}}, testTickrate)
+	if len(got) != 2 {
+		t.Fatalf("segments = %d", len(got))
+	}
+	wantFirst := 9500 - IntroFreezeSeconds*testTickrate
+	if wantFirst < 8000 {
+		wantFirst = 8000
+	}
+	if got[0].TickStart != wantFirst {
+		t.Fatalf("first TickStart = %d, want %d (8s freeze prefix)", got[0].TickStart, wantFirst)
+	}
+	if got[1].TickStart != 16000 {
+		t.Fatalf("second TickStart = %d, want 16000 (later rounds stay freeze-end)", got[1].TickStart)
+	}
+	if len(got[0].Utility) != 0 {
+		t.Fatalf("utility rewritten: %#v", got[0].Utility)
+	}
+}
+
+func TestWithIntroFreezeDoesNotPullBuyTimeNadesIntoTheSegment(t *testing.T) {
+	live := SegmentRecap(
+		[]RawKill{mkKill(10000, 1, "ak47")},
+		[]RawUtilityThrow{{Type: SmokeGrenadeType, Round: 1, ThrowTick: 8200, PopTick: 8400}},
+		[]RoundStart{{Round: 1, Tick: 8000}},
+		[]RoundLiveStart{{Round: 1, Tick: 9200}},
+		[]RoundEnd{{Round: 1, Tick: 14000}},
+		nil,
+		defaultTestRules(),
+		testTickrate,
+	)
+	if len(live) != 1 || live[0].TickStart != 9200 {
+		t.Fatalf("live recap = %#v, want freeze-end 9200", live)
+	}
+	if len(live[0].Utility) != 0 {
+		t.Fatalf("live utility = %#v, want freeze nade dropped", live[0].Utility)
+	}
+	got := WithIntroFreeze(live, []RoundStart{{Round: 1, Tick: 8000}}, testTickrate)
+	if got[0].TickStart >= 9200 {
+		t.Fatalf("intro freeze missing: TickStart = %d", got[0].TickStart)
+	}
+	if len(got[0].Utility) != 0 {
+		t.Fatalf("buy-time nade attached after freeze prefix: %#v", got[0].Utility)
+	}
+}

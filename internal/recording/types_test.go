@@ -62,6 +62,16 @@ func TestNewPlanFromKillPlanDropsRecapEventsOutsideLiveWindow(t *testing.T) {
 			wantKills:   1,
 			wantUtility: 1,
 		},
+		{
+			name:          "intro freeze prefix keeps an in-window buy-time nade and still validates",
+			tickStart:     8000,
+			tickEnd:       14000,
+			kills:         []killplan.Kill{{Tick: 10000, Weapon: "ak47"}},
+			utility:       []killplan.UtilityThrow{{Type: "smokegrenade", ThrowTick: 8200}},
+			wantKills:     1,
+			wantUtility:   1,
+			wantThrowTick: 8200,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

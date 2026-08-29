@@ -4,6 +4,7 @@ package editor
 import (
 	"image"
 
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -140,6 +141,9 @@ type Config struct {
 	// KeyDropStartSeconds / KeyDropEndSeconds bound plate visibility on the short.
 	KeyDropStartSeconds *float64
 	KeyDropEndSeconds   *float64
+	// FullDemoOverlayPath is a demooverlay.Document JSON used only for the
+	// landscape native POV compilation.
+	FullDemoOverlayPath string
 }
 
 type ManifestOptions struct {
@@ -206,7 +210,11 @@ type ManifestOptions struct {
 	// KeyDropImagePath is a pre-composited plate PNG with the live code.
 	// Empty means the plate is materialized during effects evaluation.
 	KeyDropImagePath string
-	KillPlan         *killplan.Plan
+	// FullDemoOverlay attaches the landscape intro roster and outro scoreboard.
+	FullDemoOverlay        *demooverlay.Document
+	FullDemoIntroImagePath string
+	FullDemoOutroImagePath string
+	KillPlan               *killplan.Plan
 	// KillfeedFrameProbe loads a source frame for per-kill killfeed crop
 	// measurement; nil keeps the static crop defaults.
 	KillfeedFrameProbe func(input string, atSeconds float64) (image.Image, error)
@@ -259,6 +267,7 @@ type Manifest struct {
 	CoversEnabled     bool        `json:"covers_enabled"`
 	Shorts            []ShortEdit `json:"shorts"`
 	Warnings          []string    `json:"warnings,omitempty"`
+	fullDemoOverlay   *demooverlay.Document
 }
 
 type ShortEdit struct {
@@ -311,33 +320,35 @@ type ShortEdit struct {
 	TemporalSmoothing bool     `json:"temporal_smoothing,omitempty"`
 	// KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
-	KeyDropStyle        string      `json:"keydrop_style,omitempty"`
-	KeyDropCode         string      `json:"keydrop_code,omitempty"`
-	KeyDropPositionY    *float64    `json:"keydrop_position_y,omitempty"`
-	KeyDropStartSeconds *float64    `json:"keydrop_start_seconds,omitempty"`
-	KeyDropEndSeconds   *float64    `json:"keydrop_end_seconds,omitempty"`
-	KeyDropImagePath    string      `json:"keydrop_image_path,omitempty"`
-	CaptionPath         string      `json:"caption_path"`
-	CoverPath           string      `json:"cover_path,omitempty"`
-	CoverSheetPath      string      `json:"cover_sheet_path,omitempty"`
-	CoverTimeSeconds    float64     `json:"cover_time_seconds"`
-	CoverFirstFrame     bool        `json:"cover_first_frame,omitempty"`
-	DurationSeconds     float64     `json:"duration_seconds,omitempty"`
-	Label               string      `json:"label"`
-	Title               string      `json:"title"`
-	Headline            string      `json:"headline"`
-	Caption             string      `json:"caption"`
-	Hashtags            []string    `json:"hashtags,omitempty"`
-	Kills               []KillCue   `json:"kills,omitempty"`
-	Smokes              []SmokeCue  `json:"smokes,omitempty"`
-	Parts               []ShortPart `json:"parts,omitempty"`
-	Effects             []Effect    `json:"effects,omitempty"`
-	FFmpegCommand       []string    `json:"ffmpeg_command"`
-	CoverCommand        []string    `json:"cover_command,omitempty"`
-	CoverSheetCommand   []string    `json:"cover_sheet_command,omitempty"`
-	QualityCommand      []string    `json:"quality_command,omitempty"`
-	RenderLogPath       string      `json:"render_log_path,omitempty"`
-	QualityLogPath      string      `json:"quality_log_path,omitempty"`
+	KeyDropStyle           string      `json:"keydrop_style,omitempty"`
+	KeyDropCode            string      `json:"keydrop_code,omitempty"`
+	KeyDropPositionY       *float64    `json:"keydrop_position_y,omitempty"`
+	KeyDropStartSeconds    *float64    `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds      *float64    `json:"keydrop_end_seconds,omitempty"`
+	KeyDropImagePath       string      `json:"keydrop_image_path,omitempty"`
+	FullDemoIntroImagePath string      `json:"full_demo_intro_image_path,omitempty"`
+	FullDemoOutroImagePath string      `json:"full_demo_outro_image_path,omitempty"`
+	CaptionPath            string      `json:"caption_path"`
+	CoverPath              string      `json:"cover_path,omitempty"`
+	CoverSheetPath         string      `json:"cover_sheet_path,omitempty"`
+	CoverTimeSeconds       float64     `json:"cover_time_seconds"`
+	CoverFirstFrame        bool        `json:"cover_first_frame,omitempty"`
+	DurationSeconds        float64     `json:"duration_seconds,omitempty"`
+	Label                  string      `json:"label"`
+	Title                  string      `json:"title"`
+	Headline               string      `json:"headline"`
+	Caption                string      `json:"caption"`
+	Hashtags               []string    `json:"hashtags,omitempty"`
+	Kills                  []KillCue   `json:"kills,omitempty"`
+	Smokes                 []SmokeCue  `json:"smokes,omitempty"`
+	Parts                  []ShortPart `json:"parts,omitempty"`
+	Effects                []Effect    `json:"effects,omitempty"`
+	FFmpegCommand          []string    `json:"ffmpeg_command"`
+	CoverCommand           []string    `json:"cover_command,omitempty"`
+	CoverSheetCommand      []string    `json:"cover_sheet_command,omitempty"`
+	QualityCommand         []string    `json:"quality_command,omitempty"`
+	RenderLogPath          string      `json:"render_log_path,omitempty"`
+	QualityLogPath         string      `json:"quality_log_path,omitempty"`
 }
 
 type ShortPart struct {

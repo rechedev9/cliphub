@@ -2295,6 +2295,99 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 	}
 }
 
+func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
+	const steamID = "76561197960265729"
+	cases := []struct {
+		name      string
+		fullDemo  bool
+		preset    string
+		putRoster bool
+		wantFlag  bool
+	}{
+		{
+			name:      "native POV recap with roster",
+			fullDemo:  true,
+			preset:    editor.PresetGameplayPOV60,
+			putRoster: true,
+			wantFlag:  true,
+		},
+		{
+			name:     "native POV recap without roster skips overlay",
+			fullDemo: true,
+			preset:   editor.PresetGameplayPOV60,
+		},
+		{
+			name:      "shorts path ignores roster",
+			preset:    editor.PresetViral60Clean,
+			putRoster: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := minimalKillPlan()
+			repo.jobs[id] = &job.Job{
+				ID:            id,
+				Status:        job.StatusRecorded,
+				TargetSteamID: steamID,
+				Rules:         rules.Default(),
+				KillPlan:      &plan,
+			}
+			putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+			_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+			if tc.putRoster {
+				putJSON(t, store, artifacts.RosterKey(id), map[string]any{
+					"players": []map[string]any{
+						{"steamid64": steamID, "name": "donk666", "team": "CT", "kills": 23, "deaths": 14, "assists": 4},
+						{"steamid64": "76561198000000002", "name": "KingwayO", "team": "T", "kills": 18, "deaths": 16},
+					},
+					"match": map[string]any{"map": "de_mirage", "score_ct": 13, "score_t": 8},
+				})
+			}
+
+			var gotArgs []string
+			stop := errors.New("stop after args")
+			w := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:    t.TempDir(),
+				EditorPath: "zv-editor",
+			})
+			w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				gotArgs = append([]string(nil), args...)
+				return nil, stop
+			}}
+
+			edit := renderplan.DefaultEditRequest()
+			if tc.fullDemo {
+				edit.MatchRecap = true
+				edit.NativeHUD = true
+				edit.Format = renderplan.FormatLandscape16x9
+				edit.KillEffect = renderplan.KillEffectClean
+				edit.Intro = false
+				edit.Outro = false
+			}
+			task, err := tasks.NewRenderVariantTask(id, tc.preset, "", 0, nil, edit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = w.HandleRenderVariant(context.Background(), task)
+			if !errors.Is(err, stop) {
+				t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
+			}
+			if got := hasArg(gotArgs, "--full-demo-overlay"); got != tc.wantFlag {
+				t.Fatalf("--full-demo-overlay present = %v, want %v: %#v", got, tc.wantFlag, gotArgs)
+			}
+			if tc.wantFlag {
+				path := argValue(gotArgs, "--full-demo-overlay")
+				if path == "" || !strings.HasSuffix(filepath.Clean(path), "full-demo-overlay.json") {
+					t.Fatalf("--full-demo-overlay = %q", path)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderWorkerPassesGameAndVoiceVolume(t *testing.T) {
 	cases := []struct {
 		name      string

@@ -325,3 +325,57 @@ func TestRecentMatchesDerivesResultWithoutStats(t *testing.T) {
 		t.Fatalf("matches = %#v", matches)
 	}
 }
+
+func TestLookupBySteamIDReturnsProfile(t *testing.T) {
+	t.Parallel()
+	const apiKey = "faceit-steam-secret"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/players" {
+			http.NotFound(w, r)
+			return
+		}
+		assertQueryValue(t, r.URL.Query(), "game_player_id", "76561198000000001")
+		assertQueryValue(t, r.URL.Query(), "game", "cs2")
+		_, _ = w.Write([]byte(`{
+			"player_id":"player-1","nickname":"donk666","country":"ru",
+			"steam_id_64":"76561198000000001",
+			"games":{"cs2":{"skill_level":10,"faceit_elo":4370,"game_player_id":"76561198000000001"}}
+		}`))
+	}))
+	defer server.Close()
+	client, err := New(Options{APIKey: apiKey, BaseURL: server.URL, HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	player, err := client.LookupBySteamID(context.Background(), "76561198000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if player.Nickname != "donk666" || player.ELO != 4370 || player.SkillLevel != 10 {
+		t.Fatalf("player = %+v", player)
+	}
+}
+
+func TestAggregateLast20OmitsRatingAndSwing(t *testing.T) {
+	t.Parallel()
+	got := AggregateLast20([]RecentMatch{
+		{Stats: &MatchStats{Result: "win", Kills: 20, Deaths: 10, Assists: 4, KDRatio: 2, KRRatio: 1, ADR: 100}},
+		{Stats: &MatchStats{Result: "loss", Kills: 10, Deaths: 20, Assists: 2, KDRatio: 0.5, KRRatio: 0.5, ADR: 60}},
+	})
+	if got.Matches == nil || *got.Matches != 2 {
+		t.Fatalf("matches = %v", got.Matches)
+	}
+	if got.WinPct == nil || *got.WinPct != 50 {
+		t.Fatalf("winpct = %v", got.WinPct)
+	}
+	if got.Kills == nil || *got.Kills != 30 {
+		t.Fatalf("kills = %v", got.Kills)
+	}
+	if got.KD == nil || *got.KD != 1.25 {
+		t.Fatalf("kd = %v", got.KD)
+	}
+	empty := AggregateLast20(nil)
+	if empty.Matches != nil || empty.WinPct != nil {
+		t.Fatalf("empty aggregate invented values: %+v", empty)
+	}
+}

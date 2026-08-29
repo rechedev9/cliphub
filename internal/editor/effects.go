@@ -16,6 +16,7 @@ import (
 	"github.com/yuin/gopher-lua/ast"
 	"github.com/yuin/gopher-lua/parse"
 
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 )
@@ -142,6 +143,9 @@ func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath
 	if err := ensureKeyDropPlate(manifest, ffmpegPath); err != nil {
 		return err
 	}
+	if err := ensureFullDemoOverlays(manifest, ffmpegPath); err != nil {
+		return err
+	}
 	// Compile the effects script once and reuse the bytecode for every short.
 	// Re-parsing the same source per clip dominates a multi-clip render.
 	proto, err := compileEffectsScript(source)
@@ -212,7 +216,76 @@ func generatedEditEffects(short ShortEdit) []Effect {
 	effects = append(effects, generatedKillfeedEffects(short)...)
 	effects = append(effects, generatedBookendEffects(short)...)
 	effects = append(effects, generatedKeyDropEffect(short)...)
+	effects = append(effects, generatedFullDemoOverlayEffects(short)...)
 	return effects
+}
+
+func generatedFullDemoOverlayEffects(short ShortEdit) []Effect {
+	if short.OutputFormat != OutputFormatLandscape16x9 || short.Preset != PresetGameplayPOV60 {
+		return nil
+	}
+	introStart, introEnd, outroStart, outroEnd := demooverlay.OverlayWindows(short.DurationSeconds)
+	var effects []Effect
+	if path := strings.TrimSpace(short.FullDemoIntroImagePath); path != "" && introEnd > introStart {
+		effects = append(effects, Effect{
+			Type:         EffectImage,
+			Path:         path,
+			X:            "0",
+			Y:            "0",
+			Width:        demooverlay.FrameWidth,
+			Height:       demooverlay.FrameHeight,
+			StartSeconds: introStart,
+			EndSeconds:   introEnd,
+			Source:       "full-demo-intro",
+		})
+	}
+	if path := strings.TrimSpace(short.FullDemoOutroImagePath); path != "" && outroEnd > outroStart {
+		effects = append(effects, Effect{
+			Type:         EffectImage,
+			Path:         path,
+			X:            "0",
+			Y:            "0",
+			Width:        demooverlay.FrameWidth,
+			Height:       demooverlay.FrameHeight,
+			StartSeconds: outroStart,
+			EndSeconds:   outroEnd,
+			Source:       "full-demo-outro",
+		})
+	}
+	return effects
+}
+
+func ensureFullDemoOverlays(manifest *Manifest, ffmpegPath string) error {
+	if manifest == nil || len(manifest.Shorts) == 0 {
+		return nil
+	}
+	short := &manifest.Shorts[0]
+	if short.OutputFormat != OutputFormatLandscape16x9 || short.Preset != PresetGameplayPOV60 {
+		return nil
+	}
+	if strings.TrimSpace(short.FullDemoIntroImagePath) != "" && strings.TrimSpace(short.FullDemoOutroImagePath) != "" {
+		return nil
+	}
+	if manifest.fullDemoOverlay == nil {
+		return nil
+	}
+	fontPath, err := mediafont.Materialize()
+	if err != nil {
+		return fmt.Errorf("full-demo overlay font: %w", err)
+	}
+	introPath := filepath.Join(manifest.OutputDir, "full-demo-intro.png")
+	outroPath := filepath.Join(manifest.OutputDir, "full-demo-outro.png")
+	if err := demooverlay.RenderPNGs(ffmpegPath, fontPath, *manifest.fullDemoOverlay, introPath, outroPath); err != nil {
+		return err
+	}
+	for i := range manifest.Shorts {
+		if manifest.Shorts[i].OutputFormat != OutputFormatLandscape16x9 {
+			continue
+		}
+		manifest.Shorts[i].FullDemoIntroImagePath = introPath
+		manifest.Shorts[i].FullDemoOutroImagePath = outroPath
+	}
+	return nil
 }
 
 // generatedKeyDropEffect overlays the pre-composited KeyDrop plate for a

@@ -188,6 +188,39 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 	return out
 }
 
+// IntroFreezeSeconds is the native freeze prefix kept on the first live
+// recap round so the FACEIT roster overlay can sit on buy time.
+const IntroFreezeSeconds = 8
+
+// WithIntroFreeze pulls the first recap window back through at most 8s of
+// freeze. Later rounds stay freeze-end to round-end. Utility already listed
+// on the segment is left untouched so a buy-time nade cannot appear as a
+// new capture abort.
+func WithIntroFreeze(segs []killplan.Segment, roundStarts []RoundStart, tickrate int) []killplan.Segment {
+	if len(segs) == 0 || tickrate <= 0 {
+		return segs
+	}
+	startByRound := indexRoundStarts(roundStarts)
+	roundStart, ok := startByRound[segs[0].Round]
+	if !ok || roundStart <= 0 || roundStart >= segs[0].TickStart {
+		return segs
+	}
+	prefix := IntroFreezeSeconds * tickrate
+	want := segs[0].TickStart - prefix
+	if want < roundStart {
+		want = roundStart
+	}
+	if want < 1 {
+		want = 1
+	}
+	if want >= segs[0].TickStart {
+		return segs
+	}
+	out := append([]killplan.Segment(nil), segs...)
+	out[0].TickStart = want
+	return out
+}
+
 func killsInRecapWindow(kills []killplan.Kill, start, end int) []killplan.Kill {
 	if len(kills) == 0 {
 		return kills
