@@ -1,0 +1,39 @@
+[Unit]
+Description=ClipHub remote diagnostics collector
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cliphub-telemetry
+Group=cliphub-telemetry
+EnvironmentFile=/etc/cliphub-telemetry/collector.env
+Environment=CLIPHUB_TELEMETRY_PROXY_PROTOCOL=v2
+ExecStart=/opt/cliphub-telemetry/cliphub-telemetry
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectProc=invisible
+RestrictNamespaces=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+ReadWritePaths=/var/lib/cliphub-telemetry
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

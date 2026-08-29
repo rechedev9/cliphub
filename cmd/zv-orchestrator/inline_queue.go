@@ -13,6 +13,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -149,8 +150,9 @@ func (q *inlineTaskQueue) close() []inlineTask {
 }
 
 type inlineQueue struct {
-	handlers    map[string]taskHandler
-	concurrency int
+	handlers      map[string]taskHandler
+	concurrency   int
+	observability *obs.Recorder
 
 	ctx          context.Context
 	tasks        *inlineTaskQueue
@@ -186,6 +188,11 @@ func newInlineQueue(handlers map[string]taskHandler, concurrency int) *inlineQue
 		uniqueLocks:  make(map[inlineUniqueKey]inlineUniqueLock),
 		now:          time.Now,
 	}
+}
+
+func (q *inlineQueue) withObservability(rec *obs.Recorder) *inlineQueue {
+	q.observability = rec
+	return q
 }
 
 func (q *inlineQueue) Start(ctx context.Context) {
@@ -416,8 +423,10 @@ func (q *inlineQueue) handle(ctx context.Context, queued inlineTask, handler tas
 			attemptCtx, cancel = context.WithTimeout(attemptCtx, queued.policy.attemptTimeout)
 		}
 		handlerStarted = true
+		startedAt := time.Now()
 		err = handler(attemptCtx, queued.task)
 		cancel()
+		q.recordAttemptSpan(queued.task.Type(), err, time.Since(startedAt))
 		if err == nil {
 			return nil, handlerStarted
 		}
@@ -433,6 +442,27 @@ func (q *inlineQueue) handle(ctx context.Context, queued inlineTask, handler tas
 		)
 	}
 	return err, handlerStarted
+}
+
+func (q *inlineQueue) recordAttemptSpan(name string, err error, duration time.Duration) {
+	if q.observability == nil {
+		return
+	}
+	result := "ok"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		result = "timeout"
+	case errors.Is(err, context.Canceled):
+		result = "cancelled"
+	case err != nil:
+		result = "error"
+	}
+	_ = q.observability.RecordSpan(obs.Span{
+		Stage:      obs.StageWorker,
+		Name:       name,
+		Result:     result,
+		DurationMS: duration.Milliseconds(),
+	})
 }
 
 func (q *inlineQueue) compensateDiscarded(task inlineTask) {

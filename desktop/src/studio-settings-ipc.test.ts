@@ -10,6 +10,13 @@ test('parses only the narrow Studio settings action shape', () => {
   assert.deepEqual(parseStudioSettingsRequest({ action: 'app-info' }), {
     action: STUDIO_SETTINGS_ACTION.appInfo,
   });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'telemetry-status' }), {
+    action: STUDIO_SETTINGS_ACTION.telemetryStatus,
+  });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'telemetry-update', enabled: false }), {
+    action: STUDIO_SETTINGS_ACTION.telemetryUpdate,
+    enabled: false,
+  });
 
   for (const invalid of [
     null,
@@ -19,6 +26,9 @@ test('parses only the narrow Studio settings action shape', () => {
     { action: 'restart' },
     { action: 'save', apiKey: 'secret' },
     { action: 'app-info', extra: true },
+    { action: 'telemetry-update' },
+    { action: 'telemetry-update', enabled: 'yes' },
+    { action: 'telemetry-update', enabled: true, extra: true },
     Object.create({ action: STUDIO_SETTINGS_ACTION.appInfo }),
   ]) {
     assert.throws(() => parseStudioSettingsRequest(invalid), /invalid Studio settings request/);

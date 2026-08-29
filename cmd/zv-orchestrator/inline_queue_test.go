@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	tasktypes "github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -28,6 +32,29 @@ func startTestInlineQueue(t *testing.T, handlers map[string]taskHandler, concurr
 		queue.Shutdown(shutdownCtx)
 	})
 	return queue
+}
+
+func TestInlineQueueRecordsPrivacyBoundedAttemptSpan(t *testing.T) {
+	rec, err := obs.New(t.TempDir())
+	if err != nil {
+		t.Fatalf("obs.New: %v", err)
+	}
+	queue := newInlineQueue(nil, 1).withObservability(rec)
+	queue.recordAttemptSpan(tasktypes.TypeRenderVariant, errors.New("C:\\Users\\name\\demo.dem"), 1250*time.Millisecond)
+	b, err := os.ReadFile(rec.SpansPath())
+	if err != nil {
+		t.Fatalf("read spans: %v", err)
+	}
+	var span obs.Span
+	if err := json.Unmarshal([]byte(strings.TrimSpace(string(b))), &span); err != nil {
+		t.Fatalf("unmarshal span: %v", err)
+	}
+	if span.Name != tasktypes.TypeRenderVariant || span.Result != "error" || span.DurationMS != 1250 {
+		t.Fatalf("span = %+v", span)
+	}
+	if strings.Contains(string(b), "Users") || strings.Contains(string(b), "demo.dem") {
+		t.Fatalf("span leaked handler error: %s", b)
+	}
 }
 
 func TestDefaultInlineTaskPolicy(t *testing.T) {

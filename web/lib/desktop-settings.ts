@@ -13,8 +13,19 @@ export type StudioAppInfo = {
   chromiumVersion: string;
 };
 
+export type StudioTelemetryStatus = {
+  available: boolean;
+  enabled: boolean;
+  noticeAcknowledged: boolean;
+  supportCode: string;
+  retentionDays: 30;
+  performanceSamplePercent: 10;
+};
+
 export interface DesktopSettingsBridge {
   getAppInfo(): Promise<StudioAppInfo>;
+  getTelemetry(): Promise<StudioTelemetryStatus>;
+  updateTelemetry(enabled: boolean): Promise<StudioTelemetryStatus>;
 }
 
 /**
@@ -30,7 +41,9 @@ export function getDesktopSettingsBridge(scope: unknown = globalThis): DesktopSe
 
 function isDesktopSettingsBridge(value: unknown): value is DesktopSettingsBridge {
   if (!isRecord(value)) return false;
-  return typeof value.getAppInfo === 'function';
+  return typeof value.getAppInfo === 'function'
+    && typeof value.getTelemetry === 'function'
+    && typeof value.updateTelemetry === 'function';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

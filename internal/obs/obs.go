@@ -54,6 +54,9 @@ const (
 const (
 	metricStageRuns = "CLIPHUB_stage_runs_total"
 	metricErrors    = "CLIPHUB_errors_total"
+
+	maxSpansJournalBytes   = 8 << 20
+	spanJournalGenerations = 4
 )
 
 var metricHelp = map[string]string{
@@ -71,6 +74,17 @@ type Event struct {
 	Demo     string    `json:"demo,omitempty"`
 	Target   string    `json:"target_steamid,omitempty"`
 	ExitCode int       `json:"exit_code,omitempty"`
+}
+
+// Span is one local duration observation. Remote telemetry samples these at
+// the desktop boundary; the local journal remains complete and contains only
+// stable operation labels, outcomes, and durations.
+type Span struct {
+	Time       time.Time `json:"time"`
+	Stage      string    `json:"stage"`
+	Name       string    `json:"name"`
+	Result     string    `json:"result"`
+	DurationMS int64     `json:"duration_ms"`
 }
 
 // Recorder accumulates Prometheus-style counters and appends error events to a
@@ -149,6 +163,9 @@ func (r *Recorder) Reset() error {
 // JournalPath is the newline-delimited JSON error journal.
 func (r *Recorder) JournalPath() string { return filepath.Join(r.dir, "journal.jsonl") }
 
+// SpansPath is the newline-delimited local duration journal.
+func (r *Recorder) SpansPath() string { return filepath.Join(r.dir, "spans.jsonl") }
+
 // MetricsPromPath is the Prometheus text exposition snapshot.
 func (r *Recorder) MetricsPromPath() string { return filepath.Join(r.dir, "metrics.prom") }
 
@@ -180,12 +197,41 @@ func (r *Recorder) RecordError(ev Event) error {
 	// The journal is authoritative. Do not mutate derived in-memory counters
 	// until its event is durably appended, otherwise an append failure can be
 	// flushed later as a ghost error with no corresponding journal record.
-	if err := r.appendJournal(ev); err != nil {
-		return err
+	if err := appendJSONLine(r.JournalPath(), ev); err != nil {
+		return fmt.Errorf("append journal: %w", err)
 	}
 	r.inc(metricStageRuns, map[string]string{"stage": ev.Stage, "result": "error"})
 	r.inc(metricErrors, map[string]string{"stage": ev.Stage, "class": ev.Class})
 	return r.flushLocked()
+}
+
+// RecordSpan appends one complete local duration observation. It does not
+// change the pipeline counters because retries are spans, not logical runs.
+func (r *Recorder) RecordSpan(span Span) error {
+	if span.Time.IsZero() {
+		span.Time = time.Now().UTC()
+	}
+	if span.Stage == "" {
+		span.Stage = "unknown"
+	}
+	if span.Name == "" {
+		span.Name = "unknown"
+	}
+	if span.Result == "" {
+		span.Result = "unknown"
+	}
+	if span.DurationMS < 0 {
+		span.DurationMS = 0
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := rotateFileAtSize(r.SpansPath(), maxSpansJournalBytes); err != nil {
+		return fmt.Errorf("rotate spans journal: %w", err)
+	}
+	if err := appendJSONLine(r.SpansPath(), span); err != nil {
+		return fmt.Errorf("append spans journal: %w", err)
+	}
+	return nil
 }
 
 // Metric is a single counter series for export.
@@ -220,12 +266,38 @@ func (r *Recorder) inc(name string, labels map[string]string) {
 	r.counters[seriesKey(name, labels)]++
 }
 
-func (r *Recorder) appendJournal(ev Event) error {
-	b, err := json.Marshal(ev)
+func rotateFileAtSize(path string, maximum int64) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if info.Size() < maximum {
+		return nil
+	}
+	oldest := fmt.Sprintf("%s.%d", path, spanJournalGenerations)
+	if err := os.Remove(oldest); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for generation := spanJournalGenerations - 1; generation >= 1; generation-- {
+		from := fmt.Sprintf("%s.%d", path, generation)
+		to := fmt.Sprintf("%s.%d", path, generation+1)
+		if err := os.Rename(from, to); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return os.Rename(path, path+".1")
+}
+
+func appendJSONLine(path string, value any) error {
+	b, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
 	}
-	f, err := os.OpenFile(r.JournalPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	// #nosec G304 -- path is derived from the Recorder's application-owned base directory.
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open journal: %w", err)
 	}

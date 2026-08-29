@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type CSSProperties, type ReactElement } from 'react';
+import { recordRendererError } from '@/lib/desktop-telemetry';
 
 /**
  * The last boundary: a crash in the root layout itself, where `app/(app)/
@@ -76,6 +77,7 @@ export default function GlobalError({
 }): ReactElement {
   useEffect(() => {
     console.error('[cliphub] global error', error);
+    recordRendererError('global.error', error);
   }, [error]);
 
   return (

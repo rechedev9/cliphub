@@ -273,7 +273,7 @@ func run() error {
 	}
 
 	var queue httpapi.Enqueuer
-	inline := newInlineQueue(taskHandlers, cfg.WorkerConcurrency)
+	inline := newInlineQueue(taskHandlers, cfg.WorkerConcurrency).withObservability(observability)
 	queue = inline
 	// Wire the chaining queue before processing starts so the record worker
 	// never handles a task with a half-set enqueuer.
