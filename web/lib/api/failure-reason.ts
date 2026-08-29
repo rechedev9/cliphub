@@ -5,7 +5,7 @@ export const DEMO_INCOMPATIBLE_PREFIX = 'demo_incompatible:' as const;
 export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
 
 /** Stable prefix the orchestrator stamps when a stored capture must be re-recorded. */
-export const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
+const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
 /** True when compose/render must re-record; re-rendering the stored capture cannot recover. */
 export function requiresRecapture(reason: string | undefined): boolean {
@@ -21,7 +21,7 @@ export function requiresRecapture(reason: string | undefined): boolean {
 }
 
 /** How many planned segments were captured before an incompatible demo aborted the run. */
-export type CapturedCounts = { captured: number; requested: number };
+type CapturedCounts = { captured: number; requested: number };
 
 /** Parsed classification of a reel's `failureReason` string. */
 export type FailureReason = {

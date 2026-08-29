@@ -1,4 +1,3 @@
-import { TACTICAL_EVENT_KINDS } from './api/tactical.ts';
 import type { TacticalEvent, TacticalRound } from './api/tactical.ts';
 import { roundClockLabel } from './tactical-labels.ts';
 
@@ -17,7 +16,6 @@ export const DEFAULT_TICKRATE = 64;
 
 /** Playback speeds the transport offers, slowest first. */
 export const TACTICAL_REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
-export type TacticalReplaySpeed = (typeof TACTICAL_REPLAY_SPEEDS)[number];
 
 /** Seconds an arrow-key seek moves the playhead. */
 export const SEEK_STEP_SECONDS = 1;
@@ -169,20 +167,6 @@ export function timelineEvents(
       ...entry,
       fraction: timelineFraction(timeline, entry.seconds),
     }));
-}
-
-/** Whether an event is drawn as a kill marker, a bomb notch, or a utility tick. */
-export function isBombEvent(event: TacticalEvent): boolean {
-  return (
-    event.kind === TACTICAL_EVENT_KINDS.plant ||
-    event.kind === TACTICAL_EVENT_KINDS.defuse ||
-    event.kind === TACTICAL_EVENT_KINDS.explode
-  );
-}
-
-/** The events already in the past at a playhead position. */
-export function elapsedEvents(entries: readonly TimelineEvent[], seconds: number): TimelineEvent[] {
-  return entries.filter((entry) => entry.seconds <= seconds);
 }
 
 /** Seek epsilon: a step must clear the current event, not land back on it. */

@@ -366,11 +366,6 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	return sb.String(), nil
 }
 
-func buildSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep) {
-	commands, seeks, _ := buildRuntimeSchedule(plan)
-	return commands, seeks
-}
-
 func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, []captureWindow) {
 	commands := []scheduledCommand{}
 	seeks := []seekStep{}
@@ -646,10 +641,6 @@ func EffectiveRecordEndTick(segment RecordingSegment, plan RecordingPlan) int {
 		return segment.TickEnd
 	}
 	return end
-}
-
-func effectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
-	return EffectiveRecordStartTick(segment, tickrate)
 }
 
 func firstKillTick(segment RecordingSegment) int {

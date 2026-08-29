@@ -185,32 +185,6 @@ func RenderVariantVideoKey(id uuid.UUID, variant, name string) (string, error) {
 	return path.Join(prefix, "videos", name+".mp4"), nil
 }
 
-// RenderVariantCoverKey returns the JPG cover key for one artifact inside a
-// named render variant.
-func RenderVariantCoverKey(id uuid.UUID, variant, name string) (string, error) {
-	prefix, err := RenderVariantPrefix(id, variant)
-	if err != nil {
-		return "", err
-	}
-	if err := ValidateArtifactToken("artifact name", name); err != nil {
-		return "", err
-	}
-	return path.Join(prefix, "covers", name+".jpg"), nil
-}
-
-// RenderVariantCaptionKey returns the caption text key for one artifact inside
-// a named render variant.
-func RenderVariantCaptionKey(id uuid.UUID, variant, name string) (string, error) {
-	prefix, err := RenderVariantPrefix(id, variant)
-	if err != nil {
-		return "", err
-	}
-	if err := ValidateArtifactToken("artifact name", name); err != nil {
-		return "", err
-	}
-	return path.Join(prefix, "captions", name+".caption.txt"), nil
-}
-
 // RenderVariantGalleryKey returns the HTML gallery key for a named render
 // variant.
 func RenderVariantGalleryKey(id uuid.UUID, variant string) (string, error) {

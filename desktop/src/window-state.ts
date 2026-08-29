@@ -3,7 +3,7 @@
 // touching the filesystem. No side effects, no relative imports, so `node --test`
 // runs this .ts file directly.
 
-export interface WindowBounds {
+interface WindowBounds {
   width: number;
   height: number;
   x?: number;

@@ -27,18 +27,9 @@ export function isWin(score: string): boolean {
   return ours > theirs;
 }
 
-export type MatchOutcome = 'win' | 'loss' | 'draw';
+type MatchOutcome = 'win' | 'loss' | 'draw';
 
-/** The scoreline's outcome, or null when the score is not a rounds score. */
-export function matchOutcome(score: string): MatchOutcome | null {
-  const { ours, theirs } = parseScore(score);
-  if (ours === null || theirs === null) return null;
-  if (ours > theirs) return 'win';
-  if (ours < theirs) return 'loss';
-  return 'draw';
-}
-
-export type MatchScoreSize = 'md' | 'lg';
+type MatchScoreSize = 'md' | 'lg';
 
 /**
  * 30px in a row, 40px on the detail header. Both are mono steps of the v4 scale

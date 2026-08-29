@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 1;
 
 export const SCENARIOS = Object.freeze([
   'foreground-idle',
@@ -84,12 +84,8 @@ export function compareReports(baseline, candidate) {
   });
 }
 
-export function parseReportText(text) {
+function parseReportText(text) {
   return JSON.parse(String(text).replace(/^\uFEFF/, ''));
-}
-
-export function loadReport(path) {
-  return parseReportText(readFileSync(path, { encoding: 'utf8' }));
 }
 
 export function runCompareCli(argv, io = {

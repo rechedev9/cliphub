@@ -141,30 +141,3 @@ func TestNewRenderVariantUploadTargetsRejectsUnsafeSegmentID(t *testing.T) {
 		t.Fatalf("error = %q, want invalid render segment id", err.Error())
 	}
 }
-
-func TestNewRenderVariantReadyArtifactsReturnsSkipSentinels(t *testing.T) {
-	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-	got, err := NewRenderVariantReadyArtifacts(id, editor.PresetViral60Clean)
-	if err != nil {
-		t.Fatalf("NewRenderVariantReadyArtifacts error = %v", err)
-	}
-
-	want := RenderVariantReadyArtifacts{
-		ResultKey: "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/render-result.json",
-		RequiredKeys: []string{
-			"jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/pack-manifest.json",
-			"jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/index.html",
-		},
-	}
-	if got.ResultKey != want.ResultKey {
-		t.Fatalf("result key = %q, want %q", got.ResultKey, want.ResultKey)
-	}
-	if len(got.RequiredKeys) != len(want.RequiredKeys) {
-		t.Fatalf("required keys len = %d, want %d: %#v", len(got.RequiredKeys), len(want.RequiredKeys), got.RequiredKeys)
-	}
-	for i := range want.RequiredKeys {
-		if got.RequiredKeys[i] != want.RequiredKeys[i] {
-			t.Fatalf("required key[%d] = %q, want %q", i, got.RequiredKeys[i], want.RequiredKeys[i])
-		}
-	}
-}

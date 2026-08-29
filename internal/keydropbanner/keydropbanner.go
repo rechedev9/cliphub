@@ -29,8 +29,7 @@ const (
 	// StyleJcorko is the blue zebra promo plate.
 	StyleJcorko = "jcorko"
 
-	DefaultStyle = StyleOperator
-	DefaultCode  = "ZACKCSGO"
+	DefaultCode = "ZACKCSGO"
 
 	// Version bumps force re-materialization when embedded plates change.
 	Version = "v6"
@@ -191,11 +190,6 @@ func plateSearchDirs() []string {
 	return dirs
 }
 
-// Styles returns the selectable styles in stable UI order.
-func Styles() []Style {
-	return []Style{styles[StyleOperator], styles[StyleClassic], styles[StyleTigerr], styles[StyleJcorko]}
-}
-
 // Lookup returns a style by id.
 func Lookup(id string) (Style, bool) {
 	s, ok := styles[NormalizeStyle(id)]
@@ -248,11 +242,6 @@ func EffectiveCode(code string) string {
 		return DefaultCode
 	}
 	return code
-}
-
-// DisplayLabel is the full lower-third string drawn on the plate.
-func DisplayLabel(code string) string {
-	return DisplayLabelFor("", code)
 }
 
 // DisplayLabelFor is the lower-third string for a plate; jcorko uses CODIGO.

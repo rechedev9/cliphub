@@ -54,14 +54,6 @@ type DualPlan struct {
 	Recap killplan.Plan
 }
 
-// Run wires kill event handlers on p, drives the parser to completion, and
-// returns the assembled kill plan. The passed PlanMeta supplies demo path
-// and SHA256; map name, tickrate, and duration are filled in from the
-// parser unless already provided.
-func Run(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, error) {
-	return RunWithOptions(p, target, r, m, RunOptions{SegmentMode: SegmentModeKills})
-}
-
 // RunWithContext drives the parser like RunWithOptions but aborts parsing when
 // ctx is cancelled (e.g. an Asynq task deadline or a server shutdown), returning
 // the context error instead of a partial plan. demoinfocs has no context-aware

@@ -1,6 +1,6 @@
 // Shape only. The base-57 decode lives in internal/sharecode, not here.
 
-export const SHARE_CODE_DICTIONARY = 'ABCDEFGHJKLMNOPQRSTUVWXYZabcdefhijkmnopqrstuvwxyz23456789';
+const SHARE_CODE_DICTIONARY = 'ABCDEFGHJKLMNOPQRSTUVWXYZabcdefhijkmnopqrstuvwxyz23456789';
 
 const PAYLOAD_LENGTH = 25;
 

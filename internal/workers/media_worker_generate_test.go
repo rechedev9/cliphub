@@ -157,7 +157,7 @@ func newRecordWorkerForTest(repo *fakeRepo, store *fakeStorage, t *testing.T) *R
 
 func generateRecordTask(t *testing.T, id uuid.UUID, intent renderplan.GenerateIntent) *asynq.Task {
 	t.Helper()
-	task, err := tasks.NewGenerateRecordDemoTask(id, "", nil, false, intent)
+	task, err := tasks.NewGenerateRecordDemoTaskWithRecap(id, "", nil, false, false, intent)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,7 +6,7 @@ import type { Video } from './api/types.ts';
 export const CAPTURE_ACTIVE_ATTRIBUTE = 'data-capture-active';
 
 /** A push is authoritative for this long before the shell polls for itself. */
-export const SHELL_ACTIVITY_MAX_AGE_MS = 4000;
+const SHELL_ACTIVITY_MAX_AGE_MS = 4000;
 
 /** The non-terminal reel states, in the order the pipeline runs them. */
 export type ShellJobStage = 'queued' | 'recording' | 'composing';

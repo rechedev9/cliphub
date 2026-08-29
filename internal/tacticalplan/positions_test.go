@@ -6,6 +6,18 @@ import (
 	"testing"
 )
 
+func DecodePositions(data []byte) (Positions, []Frame, error) {
+	desc, err := DecodeHeader(data)
+	if err != nil {
+		return Positions{}, nil, err
+	}
+	frames, err := DecodeFrames(data, positionsHeaderSize, desc.FrameCount, desc)
+	if err != nil {
+		return Positions{}, nil, err
+	}
+	return desc, frames, nil
+}
+
 func sampleRounds() []RoundFrames {
 	return []RoundFrames{
 		{Round: 1, Frames: []Frame{

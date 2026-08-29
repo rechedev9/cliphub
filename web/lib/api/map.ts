@@ -13,7 +13,7 @@ export type KillPlan = {
   segments?: KillPlanSegment[];
 };
 
-export type KillPlanSegment = {
+type KillPlanSegment = {
   id: string;
   round: number;
   tick_start?: number;
@@ -77,7 +77,7 @@ const WEAPON_LABELS: Record<string, string> = {
 };
 
 /** Pretty weapon label for an engine id, falling back to the raw value. */
-export function prettifyWeapon(raw: string): string {
+function prettifyWeapon(raw: string): string {
   if (!raw) return raw;
   return WEAPON_LABELS[raw.toLowerCase()] ?? raw;
 }
@@ -101,7 +101,7 @@ function topWeapon(segment: KillPlanSegment): string | undefined {
 }
 
 /** One killplan segment → a UI Play. */
-export function segmentToPlay(jobId: string, segment: KillPlanSegment): Play {
+function segmentToPlay(jobId: string, segment: KillPlanSegment): Play {
   const kills = segment.kills?.length ?? 0;
   return {
     id: segment.id,

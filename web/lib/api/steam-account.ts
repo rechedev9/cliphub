@@ -1,7 +1,7 @@
-import { SERVICE_UNAVAILABLE_CODE, STEAM_CODES } from './types.ts';
+import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
 
 export const STEAM_ACCOUNT_ENDPOINT = '/api/steam/account';
-export const STEAM_SYNC_ENDPOINT = '/api/steam/matches/sync';
+const STEAM_SYNC_ENDPOINT = '/api/steam/matches/sync';
 
 export type SteamStoredMatch = {
   shareCode: string;
@@ -137,4 +137,4 @@ export async function syncSteamMatches(): Promise<SteamAccountResult> {
   return failFrom(res, body);
 }
 
-export { STEAM_CODES };
+;

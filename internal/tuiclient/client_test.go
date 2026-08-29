@@ -50,9 +50,6 @@ func TestGetPlanNotReadyIsConflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !IsNotReady(err) {
-		t.Fatalf("IsNotReady = false for %v", err)
-	}
 	if StatusCode(err) != http.StatusConflict {
 		t.Fatalf("StatusCode = %d", StatusCode(err))
 	}
@@ -63,8 +60,8 @@ func TestGetRenderVariantNotFound(t *testing.T) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 	_, err := c.GetRenderVariant(context.Background(), "id", "viral-60-clean")
-	if !IsNotFound(err) {
-		t.Fatalf("IsNotFound = false for %v", err)
+	if StatusCode(err) != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want 404", StatusCode(err))
 	}
 }
 

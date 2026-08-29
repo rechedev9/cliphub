@@ -248,14 +248,6 @@ func WithSteamAccount(store *steamresolve.AccountStore, history *steamresolve.Hi
 	}
 }
 
-// WithSteamTransport injects a Game Coordinator transport. Tests use it so
-// import/resolve never open a real Steam session.
-func WithSteamTransport(t steamresolve.Transport) Option {
-	return func(h *Handlers) {
-		h.steamTransport = t
-	}
-}
-
 // WithSteamTransportFactory builds a short-lived GC transport from a session.
 // The orchestrator supplies steamclient.New here so httpapi never imports go-steam.
 func WithSteamTransportFactory(f func(steamresolve.Session) steamresolve.Transport) Option {
@@ -1116,10 +1108,6 @@ func (h *Handlers) requireGenerateRenderIdle(id uuid.UUID) error {
 		}
 	}
 	return nil
-}
-
-func (h *Handlers) writeGenerateIntent(id uuid.UUID, intent renderplan.GenerateIntent) error {
-	return h.generateIntents.Write(id, intent)
 }
 
 func (h *Handlers) readGenerateIntent(id uuid.UUID) (renderplan.GenerateIntent, bool, error) {

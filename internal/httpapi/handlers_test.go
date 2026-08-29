@@ -38,6 +38,13 @@ import (
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
+func renderVariantTestKey(kind renderplan.RenderVariantArtifactKind) func(uuid.UUID, string, string) (string, error) {
+	return func(id uuid.UUID, variant, name string) (string, error) {
+		ref, err := renderplan.NewRenderVariantArtifactRef(id, variant, kind, name)
+		return ref.Key, err
+	}
+}
+
 // fakeRepo implements JobRepository for tests.
 type fakeRepo struct {
 	jobs            map[uuid.UUID]job.Job
@@ -2313,11 +2320,11 @@ func TestStartRenderVariantRejectsWhileGuidedGenerateIsActive(t *testing.T) {
 	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
 	repo.jobs[j.ID] = j
 	h := NewHandlers(repo, store, queue)
-	if err := h.writeGenerateIntent(j.ID, renderplan.GenerateIntent{
+	if err := h.generateIntents.Begin(j.ID, renderplan.GenerateIntent{
 		Variant:     editor.PresetViral60Clean,
 		Edit:        renderplan.DefaultEditRequest(),
 		ActiveRunID: uuid.New(),
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -3568,7 +3575,7 @@ func TestGetRenderVariantReportsArtifactNames(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				coverKey, err := artifacts.RenderVariantCoverKey(j.ID, variant, "demo-compilation")
+				coverKey, err := renderVariantTestKey(renderplan.RenderVariantArtifactCover)(j.ID, variant, "demo-compilation")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -3679,11 +3686,11 @@ func TestGetRenderPublishBoardReturnsReadyStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coverKey, err := artifacts.RenderVariantCoverKey(j.ID, variant, "seg-001")
+	coverKey, err := renderVariantTestKey(renderplan.RenderVariantArtifactCover)(j.ID, variant, "seg-001")
 	if err != nil {
 		t.Fatal(err)
 	}
-	captionKey, err := artifacts.RenderVariantCaptionKey(j.ID, variant, "seg-001")
+	captionKey, err := renderVariantTestKey(renderplan.RenderVariantArtifactCaption)(j.ID, variant, "seg-001")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3834,8 +3841,8 @@ func TestDeleteRenderVideoRemovesVideoCoverAndCaption(t *testing.T) {
 	keys := make([]string, 0, 3)
 	for _, derive := range []func(uuid.UUID, string, string) (string, error){
 		artifacts.RenderVariantVideoKey,
-		artifacts.RenderVariantCoverKey,
-		artifacts.RenderVariantCaptionKey,
+		renderVariantTestKey(renderplan.RenderVariantArtifactCover),
+		renderVariantTestKey(renderplan.RenderVariantArtifactCaption),
 	} {
 		key, err := derive(j.ID, editor.PresetViral60Clean, "seg-001_seg-002")
 		if err != nil {
@@ -4290,8 +4297,8 @@ func TestWorkbenchLocalProductFlowEndToEnd(t *testing.T) {
 	}
 	for _, keyFn := range []func(uuid.UUID, string, string) (string, error){
 		artifacts.RenderVariantVideoKey,
-		artifacts.RenderVariantCoverKey,
-		artifacts.RenderVariantCaptionKey,
+		renderVariantTestKey(renderplan.RenderVariantArtifactCover),
+		renderVariantTestKey(renderplan.RenderVariantArtifactCaption),
 	} {
 		key, err := keyFn(j.ID, editor.PresetViral60Clean, "seg-001")
 		if err != nil {

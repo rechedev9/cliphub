@@ -152,20 +152,6 @@ func (c *Collector) RecordRoundEnd(re RoundEnd) {
 	c.roundEnds = append(c.roundEnds, re)
 }
 
-// TotalKillsTarget reports the number of kills attributed to the target
-// observed in the demo, before filters.
-func (c *Collector) TotalKillsTarget() int { return c.totalKillsTarget }
-
-// KillsAfterFilters reports the number of kills that survived the weapon /
-// headshot / round filters.
-func (c *Collector) KillsAfterFilters() int { return c.killsAfterFilters }
-
-// Build assembles the final kill plan. It returns an error if the target
-// player was never observed in the demo.
-func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
-	return c.build(m, SegmentModeKills)
-}
-
 func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 	if !c.targetSeen {
 		return killplan.Plan{}, fmt.Errorf("target steamid %q: %w", c.target, ErrTargetNotFound)

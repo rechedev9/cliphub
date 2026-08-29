@@ -6,8 +6,6 @@ export const STUDIO_SETTINGS_ACTION = {
   telemetryUpdate: 'telemetry-update',
 } as const;
 
-export type StudioSettingsAction = typeof STUDIO_SETTINGS_ACTION[keyof typeof STUDIO_SETTINGS_ACTION];
-
 export type StudioSettingsRequest =
   | { action: typeof STUDIO_SETTINGS_ACTION.appInfo }
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryStatus }

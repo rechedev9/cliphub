@@ -10,14 +10,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/rhythm"
 )
 
-func loadRhythmSync(path string) (map[string]rhythm.SegmentSync, error) {
-	analysis, err := readRhythmAnalysis(path)
-	if err != nil || analysis == nil {
-		return nil, err
-	}
-	return indexRhythmSync(*analysis)
-}
-
 func loadRhythmSyncForRender(path, musicPath string, plan killplan.Plan, tailTrimSeconds float64) (map[string]rhythm.SegmentSync, error) {
 	analysisPtr, err := readRhythmAnalysis(path)
 	if err != nil || analysisPtr == nil {

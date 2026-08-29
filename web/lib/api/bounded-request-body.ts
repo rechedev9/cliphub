@@ -1,6 +1,6 @@
 import { localAPIRequestError } from './local-request-guard.ts';
 
-export const MAX_CONTROL_BODY_BYTES = 1 * 1024 * 1024;
+const MAX_CONTROL_BODY_BYTES = 1 * 1024 * 1024;
 
 export interface RequestBodySource {
   readonly headers: Headers;

@@ -6,7 +6,7 @@ export const IMPORT_SOURCE = {
   stream: 'stream',
 } as const;
 
-export type ImportSource = (typeof IMPORT_SOURCE)[keyof typeof IMPORT_SOURCE];
+type ImportSource = (typeof IMPORT_SOURCE)[keyof typeof IMPORT_SOURCE];
 
 export type ImportableRender = {
   source: ImportSource;

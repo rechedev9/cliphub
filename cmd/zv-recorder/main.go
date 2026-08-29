@@ -424,10 +424,10 @@ func validateRecordingOutputDirectory(outDir, killPlanPath, demoPath string) err
 	)
 }
 
-// generateFakeSegments produces one placeholder mp4 per plan segment (at the
-// recording resolution, with a silent-ish tone) so the downstream compose/render
-// pipeline can run end-to-end without launching HLAE/CS2. It is gated behind
-// the explicit --fake flag and intended for local e2e and CI only.
+// generateFakeSegments produces one instrumented MP4 per plan segment so the
+// downstream compose/render pipeline and Capture Lab media oracle can run
+// without launching HLAE/CS2. The explicit --fake flag is the only entry point;
+// results retain capture_mode=fake and remain ineligible for production reuse.
 func generateFakeSegments(ctx context.Context, plan recording.RecordingPlan) ([]recording.RecordingArtifact, error) {
 	ffmpeg := recording.FindFFmpeg()
 	if ffmpeg == "" {
@@ -445,15 +445,27 @@ func generateFakeSegments(ctx context.Context, plan recording.RecordingPlan) ([]
 	if fps <= 0 {
 		fps = 60
 	}
+	instrumentation := captureLabInstrumentation{SchemaVersion: 1, CaptureMode: string(recording.CaptureModeFake)}
 	out := make([]recording.RecordingArtifact, 0, len(plan.Segments))
-	for _, seg := range plan.Segments {
+	for index, seg := range plan.Segments {
 		clip := filepath.Join(segDir, seg.ID+".mp4")
+		identity := captureLabSegmentIdentity(seg.ID, index)
+		eventOffsets := captureLabEventOffsets(seg, plan, fakeDurationSec)
+		videoFilter := fmt.Sprintf(
+			"testsrc2=size=%dx%d:rate=%d:duration=%d,drawbox=x=0:y=0:w=iw:h=80:color=0x%s:t=fill",
+			width, height, fps, fakeDurationSec, identity.ColorHex,
+		)
+		for _, offset := range eventOffsets {
+			videoFilter += fmt.Sprintf(",drawbox=x=0:y=ih-100:w=iw:h=100:color=white:t=fill:enable='between(t,%.3f,%.3f)'", offset, offset+0.12)
+		}
 		// #nosec G204 -- ffmpeg path is discovered locally; args are not shell-interpolated.
-		cmd := exec.CommandContext(ctx, ffmpeg, "-y",
-			"-f", "lavfi", "-i", fmt.Sprintf("testsrc=size=%dx%d:rate=%d:duration=%d", width, height, fps, fakeDurationSec),
-			"-f", "lavfi", "-i", fmt.Sprintf("sine=frequency=220:duration=%d", fakeDurationSec),
+		cmd := exec.CommandContext(ctx, ffmpeg, "-y", "-v", "error",
+			"-f", "lavfi", "-i", videoFilter,
+			"-f", "lavfi", "-i", fmt.Sprintf("sine=frequency=%d:sample_rate=48000:duration=%d", identity.ToneHz, fakeDurationSec),
+			"-metadata", "comment=cliphub-capturelab:"+seg.ID,
+			"-metadata:s:v:0", "title=cliphub-capturelab:"+seg.ID,
 			"-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast",
-			"-c:a", "aac", "-shortest", clip,
+			"-c:a", "aac", "-shortest", "-movflags", "+faststart", clip,
 		)
 		if combined, err := cmd.CombinedOutput(); err != nil {
 			return nil, fmt.Errorf("ffmpeg fake clip %q: %w: %q", seg.ID, err, strings.TrimSpace(string(combined)))
@@ -473,9 +485,75 @@ func generateFakeSegments(ctx context.Context, plan recording.RecordingPlan) ([]
 			Codec:           "h264",
 			Width:           width,
 			Height:          height,
+			SampleRate:      48000,
+			Channels:        1,
+		})
+		instrumentation.Segments = append(instrumentation.Segments, captureLabInstrumentedSegment{
+			ID:              seg.ID,
+			Path:            clip,
+			ColorRGB:        identity.ColorHex,
+			ToneHz:          identity.ToneHz,
+			DurationSeconds: fakeDurationSec,
+			EventOffsets:    eventOffsets,
 		})
 	}
+	instrumentationPath := filepath.Join(plan.OutputDir, "capturelab-instrumentation.json")
+	encoded, err := json.MarshalIndent(instrumentation, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("encode Capture Lab instrumentation: %w", err)
+	}
+	if err := os.WriteFile(instrumentationPath, append(encoded, '\n'), 0o600); err != nil {
+		return nil, fmt.Errorf("write Capture Lab instrumentation: %w", err)
+	}
 	return out, nil
+}
+
+type captureLabInstrumentation struct {
+	SchemaVersion int                             `json:"schema_version"`
+	CaptureMode   string                          `json:"capture_mode"`
+	Segments      []captureLabInstrumentedSegment `json:"segments"`
+}
+
+type captureLabInstrumentedSegment struct {
+	ID              string    `json:"id"`
+	Path            string    `json:"path"`
+	ColorRGB        string    `json:"color_rgb"`
+	ToneHz          int       `json:"tone_hz"`
+	DurationSeconds float64   `json:"duration_seconds"`
+	EventOffsets    []float64 `json:"event_offsets"`
+}
+
+type captureLabIdentity struct {
+	ColorHex string
+	ToneHz   int
+}
+
+func captureLabSegmentIdentity(segmentID string, index int) captureLabIdentity {
+	sum := sha256.Sum256([]byte(segmentID))
+	// Avoid nearly-black identity bars so decoded-pixel checks remain robust
+	// after H.264 chroma subsampling and color-space conversion.
+	colorHex := fmt.Sprintf("%02x%02x%02x", 64+sum[0]%160, 64+sum[1]%160, 64+sum[2]%160)
+	return captureLabIdentity{ColorHex: colorHex, ToneHz: 300 + (int(sum[3])+index*97)%600}
+}
+
+func captureLabEventOffsets(segment recording.RecordingSegment, plan recording.RecordingPlan, duration float64) []float64 {
+	start := recording.EffectiveRecordStartTick(segment, plan.Tickrate)
+	end := recording.EffectiveRecordEndTick(segment, plan)
+	if end <= start || duration <= 0 {
+		return nil
+	}
+	var offsets []float64
+	for _, kill := range segment.Kills {
+		offset := float64(kill.Tick-start) / float64(end-start) * duration
+		if offset < 0 {
+			offset = 0
+		}
+		if maximum := duration - 0.15; offset > maximum {
+			offset = maximum
+		}
+		offsets = append(offsets, offset)
+	}
+	return offsets
 }
 
 func readKillPlan(path string) (killplan.Plan, error) {
@@ -947,11 +1025,11 @@ func (e *captureVerificationError) Error() string {
 }
 
 var (
-	armedMarker           = regexp.MustCompile(`^\[zackvideo\] armed at tick (\d+)$`)
-	seekMarker            = regexp.MustCompile(`^\[zackvideo\] seek \d+ -> (\d+) attempt \d+ \(at (\d+)\)$`)
-	seekLandedMarker      = regexp.MustCompile(`^\[zackvideo\] seek-landed -> (\d+) \(at (\d+)\)$`)
-	recordMarker          = regexp.MustCompile(`^\[zackvideo\] record-(start|end)-(.+): mirv_streams record (start|end)$`)
-	captureFailedPattern  = regexp.MustCompile(`(?m)\[zackvideo\] capture_failed:\s*(.*?)\s*(?:\\n|$)`)
+	armedMarker          = regexp.MustCompile(`^\[zackvideo\] armed at tick (\d+)$`)
+	seekMarker           = regexp.MustCompile(`^\[zackvideo\] seek \d+ -> (\d+) attempt \d+ \(at (\d+)\)$`)
+	seekLandedMarker     = regexp.MustCompile(`^\[zackvideo\] seek-landed -> (\d+) \(at (\d+)\)$`)
+	recordMarker         = regexp.MustCompile(`^\[zackvideo\] record-(start|end)-(.+): mirv_streams record (start|end)$`)
+	captureFailedPattern = regexp.MustCompile(`(?m)\[zackvideo\] capture_failed:\s*(.*?)\s*(?:\\n|$)`)
 )
 
 type performanceTrace struct {

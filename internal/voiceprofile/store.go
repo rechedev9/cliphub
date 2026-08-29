@@ -66,13 +66,6 @@ func ValidID(id string) bool {
 	return true
 }
 
-// Save atomically replaces the reference audio, then publishes metadata. A
-// reader never observes metadata pointing at a partial audio file because the
-// underlying local storage Put is atomic.
-func (s *Store) Save(profile Profile, audio io.Reader) (Profile, error) {
-	return s.SaveLimited(profile, audio, 0)
-}
-
 // SaveLimited stages a new audio object and publishes metadata only after the
 // complete reference has passed the optional size limit. The previous profile
 // remains readable if staging, validation, or metadata publication fails.

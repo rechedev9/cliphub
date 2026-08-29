@@ -25,7 +25,7 @@ export type ProcessLauncher = (
 
 export type ProcessTerminator = (process: ProcessHandle) => void;
 
-export interface TaskkillResult {
+interface TaskkillResult {
   status: number | null;
   error?: Error;
   stderr?: string;

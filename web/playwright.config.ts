@@ -6,14 +6,14 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: './e2e',
-  outputDir: './test-results',
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? './test-results',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   // Next dev compiles a route on first request; more workers than this just
   // queue behind the same compiler.
   workers: 4,
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  reporter: [['list'], ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report', open: 'never' }]],
   timeout: 90_000,
   expect: { timeout: 15_000 },
   use: {

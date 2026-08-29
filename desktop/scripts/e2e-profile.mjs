@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
 export const E2E_USER_DATA_ENV = 'CLIPHUB_E2E_USER_DATA';
-export const E2E_TOOL_FIXTURE_ENV = 'CLIPHUB_E2E_TOOL_FIXTURE';
+const E2E_TOOL_FIXTURE_ENV = 'CLIPHUB_E2E_TOOL_FIXTURE';
 
 function safeLabel(label) {
   return String(label).replaceAll(/[^A-Za-z0-9_-]/g, '-').slice(0, 40) || 'run';
