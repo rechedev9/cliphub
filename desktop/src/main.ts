@@ -59,6 +59,14 @@ import {
   APP_UPDATE_STATUS_CHANNEL,
   parseAppUpdateRequest,
 } from './app-update-ipc';
+import { TelemetrySettingsStore } from './telemetry-settings';
+import { TelemetryClient, type TelemetryReleaseConfig } from './telemetry-client';
+import { TelemetryJournal } from './telemetry-journal';
+import { PACKAGED_TELEMETRY_CONFIG } from './telemetry-release';
+import {
+  parseTelemetryEventRequest,
+  STUDIO_TELEMETRY_EVENT_CHANNEL,
+} from './telemetry-ipc';
 
 // ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
@@ -115,6 +123,47 @@ function logLine(text: string): void {
     // Logging must never break the app; stdout still has the line in dev.
   }
 }
+
+function packagedTelemetryConfig(): TelemetryReleaseConfig | null {
+  if (!app.isPackaged
+    || !PACKAGED_TELEMETRY_CONFIG.endpoint.startsWith('https://')
+    || PACKAGED_TELEMETRY_CONFIG.ingestKey.length < 24) return null;
+  return PACKAGED_TELEMETRY_CONFIG;
+}
+
+const telemetrySettings = new TelemetrySettingsStore(path.join(app.getPath('userData'), 'telemetry.json'));
+const telemetryClient = new TelemetryClient({
+  settings: telemetrySettings,
+  queuePath: path.join(app.getPath('userData'), 'telemetry-queue.json'),
+  release: app.getVersion(),
+  config: packagedTelemetryConfig(),
+  log: logLine,
+});
+const telemetryJournal = new TelemetryJournal({
+  client: telemetryClient,
+  errorJournalPath: path.join(dataDir, 'obs', 'journal.jsonl'),
+  spanJournalPath: path.join(dataDir, 'obs', 'spans.jsonl'),
+  cursorPath: path.join(app.getPath('userData'), 'telemetry-cursors.json'),
+  log: logLine,
+});
+
+process.on('uncaughtExceptionMonitor', () => {
+  telemetryClient.recordError({
+    component: 'electron',
+    name: 'process.uncaught_exception',
+    stage: 'runtime',
+    class: 'uncaught_exception',
+  });
+});
+process.on('unhandledRejection', (reason) => {
+  logLine(`[runtime] unhandled rejection: ${String(reason)}\n`);
+  telemetryClient.recordError({
+    component: 'electron',
+    name: 'process.unhandled_rejection',
+    stage: 'runtime',
+    class: 'unhandled_rejection',
+  });
+});
 
 const portsFile = path.join(app.getPath('userData'), 'ports.json');
 
@@ -252,6 +301,12 @@ function createWindow(): BrowserWindow {
 
   win.webContents.on('render-process-gone', (_event, details) => {
     logLine(`[window] render process gone: ${JSON.stringify(details)}\n`);
+    telemetryClient.recordError({
+      component: 'renderer',
+      name: 'renderer.process_gone',
+      stage: 'runtime',
+      class: 'process_gone',
+    });
     if (quitting) return;
     if (renderProcessGoneResetTimer) {
       clearTimeout(renderProcessGoneResetTimer);
@@ -415,6 +470,7 @@ async function boot(): Promise<void> {
 }
 
 async function runBootAttempt(attempt: BootAttempt): Promise<void> {
+  const bootStartedAt = performance.now();
   assertBootAttemptActive(attempt);
   // Reuse the existing window on retry instead of opening another one over the
   // error screen from the failed attempt.
@@ -522,6 +578,13 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   allowedInternalUrls.clear();
   await loadStudio(webPort, security.proxyMutationCapability);
   assertBootAttemptActive(attempt);
+  telemetryClient.recordSpan({
+    component: 'electron',
+    name: 'desktop.boot',
+    stage: 'boot',
+    outcome: 'ok',
+    durationMS: performance.now() - bootStartedAt,
+  });
   scheduleAppUpdateChecks();
 }
 
@@ -534,6 +597,12 @@ function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailur
   allowedInternalUrls.clear();
   activeWebOrigin = null;
   logLine(`[boot] ${details.logLabel ?? 'failed'}: ${String(err)}\n`);
+  telemetryClient.recordError({
+    component: 'electron',
+    name: 'desktop.boot_failed',
+    stage: 'boot',
+    class: 'boot_failed',
+  });
   if (!quitting) showErrorScreen(err, details.title, details.hint);
 }
 
@@ -596,10 +665,33 @@ function settingsFailure(error: string): { error: string; ok: false } {
 function registerStudioSettingsIPC(): void {
   ipcMain.handle(STUDIO_SETTINGS_CHANNEL, (event, value: unknown): unknown => {
     if (!trustedSettingsSender(event)) return settingsFailure('Solicitud de Ajustes rechazada.');
+    let request;
     try {
-      parseStudioSettingsRequest(value);
+      request = parseStudioSettingsRequest(value);
     } catch {
       return settingsFailure('Solicitud de Ajustes no válida.');
+    }
+    if (request.action === 'telemetry-status') return telemetryClient.status();
+    if (request.action === 'telemetry-update') {
+      if (!request.enabled) {
+        try {
+          const status = telemetryClient.update(false);
+          try {
+            telemetryJournal.discardPending();
+          } catch (error) {
+            logLine(`[telemetry] journal cursor reset deferred: ${String(error)}\n`);
+          }
+          return status;
+        } catch {
+          return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
+        }
+      }
+      try {
+        telemetryJournal.discardPending();
+        return telemetryClient.update(true);
+      } catch {
+        return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
+      }
     }
     return {
       version: app.getVersion(),
@@ -607,6 +699,34 @@ function registerStudioSettingsIPC(): void {
       electronVersion: process.versions.electron,
       chromiumVersion: process.versions.chrome,
     };
+  });
+}
+
+function registerStudioTelemetryIPC(): void {
+  ipcMain.handle(STUDIO_TELEMETRY_EVENT_CHANNEL, (event, value: unknown): { ok: boolean } => {
+    if (!trustedSettingsSender(event)) return { ok: false };
+    try {
+      const request = parseTelemetryEventRequest(value);
+      if (request.kind === 'error') {
+        telemetryClient.recordError({
+          component: 'renderer',
+          name: request.name,
+          stage: 'renderer',
+          class: 'exception',
+        });
+      } else {
+        telemetryClient.recordSpan({
+          component: 'renderer',
+          name: request.name,
+          stage: 'renderer',
+          outcome: 'ok',
+          durationMS: request.durationMS,
+        });
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
   });
 }
 
@@ -719,14 +839,19 @@ app.whenReady().then(() => {
   );
   session.defaultSession.setPermissionCheckHandler(() => false);
   registerStudioSettingsIPC();
+  registerStudioTelemetryIPC();
   registerStudioClipboardIPC();
   registerAppUpdateIPC();
+  telemetryClient.start();
+  telemetryJournal.start();
   runBoot();
 });
 
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   quitting = true;
+  telemetryJournal.stop();
+  telemetryClient.stop();
   disposeAppUpdate();
   shutdown();
 });

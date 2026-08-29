@@ -6,6 +6,7 @@ import { RotateCcw, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { writeClipboardText } from '@/lib/clipboard-write';
+import { recordRendererError } from '@/lib/desktop-telemetry';
 
 /**
  * Route-level error boundary. ClipHub ships packaged with `devTools: false`,
@@ -26,6 +27,7 @@ export default function AppError({
   useEffect(() => {
     // The packaged app has no console to read, so the log is the only trail.
     console.error('[cliphub] route error', error);
+    recordRendererError('route.error', error);
   }, [error]);
 
   const diagnostics = [

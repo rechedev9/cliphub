@@ -2,13 +2,16 @@ export const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
 
 export const STUDIO_SETTINGS_ACTION = {
   appInfo: 'app-info',
+  telemetryStatus: 'telemetry-status',
+  telemetryUpdate: 'telemetry-update',
 } as const;
 
 export type StudioSettingsAction = typeof STUDIO_SETTINGS_ACTION[keyof typeof STUDIO_SETTINGS_ACTION];
 
-export interface StudioSettingsRequest {
-  action: typeof STUDIO_SETTINGS_ACTION.appInfo;
-}
+export type StudioSettingsRequest =
+  | { action: typeof STUDIO_SETTINGS_ACTION.appInfo }
+  | { action: typeof STUDIO_SETTINGS_ACTION.telemetryStatus }
+  | { action: typeof STUDIO_SETTINGS_ACTION.telemetryUpdate; enabled: boolean };
 
 export interface TrustedSettingsSenderInput {
   expectedOrigin: string | null;
@@ -24,9 +27,15 @@ export function parseStudioSettingsRequest(value: unknown): StudioSettingsReques
     throw new Error('invalid Studio settings request');
   }
   const action = value.action;
-  if (action !== STUDIO_SETTINGS_ACTION.appInfo) throw new Error('invalid Studio settings request');
-  requireExactKeys(value, ['action']);
-  return { action };
+  if (action === STUDIO_SETTINGS_ACTION.appInfo || action === STUDIO_SETTINGS_ACTION.telemetryStatus) {
+    requireExactKeys(value, ['action']);
+    return { action };
+  }
+  if (action === STUDIO_SETTINGS_ACTION.telemetryUpdate && typeof value.enabled === 'boolean') {
+    requireExactKeys(value, ['action', 'enabled']);
+    return { action, enabled: value.enabled };
+  }
+  throw new Error('invalid Studio settings request');
 }
 
 /** Accepts IPC only from the active Studio page's top frame and exact web origin. */

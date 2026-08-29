@@ -6,6 +6,7 @@ const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
 const STUDIO_CLIPBOARD_CHANNEL = 'cliphub:clipboard-write';
 const STUDIO_UPDATE_CHANNEL = 'cliphub:app-update';
 const STUDIO_UPDATE_STATUS_CHANNEL = 'cliphub:app-update-status';
+const STUDIO_TELEMETRY_EVENT_CHANNEL = 'cliphub:telemetry-event';
 
 interface PreloadBrowserScope {
   navigator?: {
@@ -17,6 +18,22 @@ interface PreloadBrowserScope {
 
 contextBridge.exposeInMainWorld('cliphubSettings', {
   getAppInfo: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'app-info' }),
+  getTelemetry: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'telemetry-status' }),
+  updateTelemetry: (enabled: unknown): Promise<unknown> => ipcRenderer.invoke(
+    STUDIO_SETTINGS_CHANNEL,
+    { action: 'telemetry-update', enabled },
+  ),
+});
+
+contextBridge.exposeInMainWorld('cliphubTelemetry', {
+  recordError: (value: unknown): Promise<unknown> => ipcRenderer.invoke(
+    STUDIO_TELEMETRY_EVENT_CHANNEL,
+    value,
+  ),
+  recordSpan: (value: unknown): Promise<unknown> => ipcRenderer.invoke(
+    STUDIO_TELEMETRY_EVENT_CHANNEL,
+    value,
+  ),
 });
 
 contextBridge.exposeInMainWorld('cliphubUpdate', {

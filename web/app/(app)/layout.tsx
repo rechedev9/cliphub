@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/shell/app-sidebar';
 import { CommandStrip } from '@/components/shell/command-strip';
 import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor';
+import { TelemetryNotice } from '@/components/shell/telemetry-notice';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
 
 /** Typed rather than cast: CSSProperties has no index signature for custom
@@ -27,6 +28,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
   return (
     <SidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
       <ShellActivityMonitor />
+      <TelemetryNotice />
       <AppSidebar />
       <SidebarInset>
         <CommandStrip />

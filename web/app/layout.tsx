@@ -7,6 +7,7 @@ import { ServiceWorkerCleanup } from '@/components/shell/service-worker-cleanup'
 import { ShellCanvas } from '@/components/shell/shell-canvas';
 import { StudioAmbient } from '@/components/shell/studio-ambient';
 import { WindowActivityPolicy } from '@/components/shell/window-activity-policy';
+import { DesktopPerformance } from '@/components/shell/desktop-performance';
 
 const chakraPetch = Chakra_Petch({
   subsets: ['latin'],
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: ReactNode }): React
         <ShellCanvas />
         <ServiceWorkerCleanup />
         <WindowActivityPolicy />
+        <DesktopPerformance />
         {children}
         <Toaster />
       </body>

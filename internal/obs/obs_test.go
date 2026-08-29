@@ -3,6 +3,7 @@ package obs
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -199,6 +200,54 @@ func TestWritePrometheusFormat(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("prometheus output missing %q\n---\n%s", want, out)
+		}
+	}
+}
+
+func TestRecordSpanWritesPrivacyBoundedJournal(t *testing.T) {
+	r, err := New(t.TempDir())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := r.RecordSpan(Span{Stage: StageWorker, Name: "render:variant", Result: "ok", DurationMS: 1250}); err != nil {
+		t.Fatalf("RecordSpan: %v", err)
+	}
+	b, err := os.ReadFile(r.SpansPath())
+	if err != nil {
+		t.Fatalf("read spans: %v", err)
+	}
+	var span Span
+	if err := json.Unmarshal([]byte(strings.TrimSpace(string(b))), &span); err != nil {
+		t.Fatalf("unmarshal span: %v", err)
+	}
+	if span.Stage != StageWorker || span.Name != "render:variant" || span.Result != "ok" || span.DurationMS != 1250 || span.Time.IsZero() {
+		t.Fatalf("span = %+v", span)
+	}
+	if strings.Contains(string(b), "message") || strings.Contains(string(b), "demo") {
+		t.Fatalf("span journal crossed privacy boundary: %s", b)
+	}
+}
+
+func TestRotateFileAtSizeKeepsFourBoundedPreviousJournals(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spans.jsonl")
+	for _, value := range []string{"first", "second", "third", "fourth", "fifth"} {
+		if err := os.WriteFile(path, []byte(value+"-journal"), 0o600); err != nil {
+			t.Fatalf("seed spans: %v", err)
+		}
+		if err := rotateFileAtSize(path, 4); err != nil {
+			t.Fatalf("rotateFileAtSize: %v", err)
+		}
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("current journal still exists: %v", err)
+	}
+	for generation, want := range map[int]string{1: "fifth-journal", 2: "fourth-journal", 3: "third-journal", 4: "second-journal"} {
+		contents, err := os.ReadFile(fmt.Sprintf("%s.%d", path, generation))
+		if err != nil {
+			t.Fatalf("read generation %d: %v", generation, err)
+		}
+		if string(contents) != want {
+			t.Fatalf("generation %d = %q, want %q", generation, contents, want)
 		}
 	}
 }
