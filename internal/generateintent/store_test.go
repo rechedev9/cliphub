@@ -17,6 +17,13 @@ import (
 	"github.com/rechedev9/cliphub/internal/renderplan"
 )
 
+func (s *Store) Write(id uuid.UUID, intent renderplan.GenerateIntent) error {
+	lock := s.lock(id)
+	lock.Lock()
+	defer lock.Unlock()
+	return s.write(id, intent)
+}
+
 type blockingStorage struct {
 	mu           sync.Mutex
 	files        map[string][]byte

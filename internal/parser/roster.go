@@ -56,34 +56,8 @@ type RosterResult struct {
 	Match   MatchInfo    `json:"match"`
 }
 
-// Roster does one pass over the demo and returns every human player it saw, as a
-// full scoreboard line (K/D/A plus HS%, ADR, KAST, MVPs, and an HLTV 1.0 rating),
-// sorted by Kills desc then Name asc. Bots and players with a zero SteamID are
-// skipped. An empty demo yields an empty slice, not an error; unlike Run, Roster
-// needs no target and never reports one missing.
-func Roster(p demoinfocs.Parser) ([]PlayerStat, error) {
-	result, err := RosterScan(p)
-	if err != nil {
-		return nil, err
-	}
-	return result.Players, nil
-}
-
-// RosterWithContext drives Roster but aborts parsing when ctx is cancelled,
-// returning the context error instead of a partial roster. It mirrors
-// RunWithContext: a watcher goroutine calls p.Cancel() on ctx.Done() and is
-// joined before return, so Close() never races a Cancel() in flight.
-func RosterWithContext(ctx context.Context, p demoinfocs.Parser) ([]PlayerStat, error) {
-	result, err := RosterScanWithContext(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	return result.Players, nil
-}
-
-// RosterScan does one pass over the demo and returns both the player roster
-// (see Roster) and match-level metadata (map, final scoreline, rounds
-// played), gathered in the same pass.
+// RosterScan does one pass over the demo and returns the player roster and
+// match-level metadata (map, final scoreline, rounds played).
 func RosterScan(p demoinfocs.Parser) (RosterResult, error) {
 	acc := newRosterAccumulator()
 	acc.register(p)
@@ -105,7 +79,7 @@ func RosterScan(p demoinfocs.Parser) (RosterResult, error) {
 }
 
 // RosterScanWithContext drives RosterScan but aborts parsing when ctx is
-// cancelled, mirroring RosterWithContext.
+// cancelled, mirroring RunWithContext.
 func RosterScanWithContext(ctx context.Context, p demoinfocs.Parser) (RosterResult, error) {
 	stop := make(chan struct{})
 	var wg sync.WaitGroup

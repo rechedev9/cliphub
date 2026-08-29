@@ -33,11 +33,6 @@ func CollectFile(demoPath, target string) (Report, []Packet, []Sighting, error) 
 	return Collect(p, target, abs)
 }
 
-func Probe(p demoinfocs.Parser, target, demoPath string) (Report, error) {
-	report, _, _, err := Collect(p, target, demoPath)
-	return report, err
-}
-
 func Collect(p demoinfocs.Parser, target, demoPath string) (Report, []Packet, []Sighting, error) {
 	var (
 		mapName   string

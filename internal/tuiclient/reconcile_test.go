@@ -47,19 +47,6 @@ func TestNextStepRenderDrivesView(t *testing.T) {
 	}
 }
 
-func TestStepActionable(t *testing.T) {
-	actionable := map[Step]bool{
-		StepPickTarget: true, StepRecord: true, StepRender: true, StepRetry: true,
-		StepScanning: false, StepParsing: false, StepRecording: false,
-		StepComposing: false, StepRendering: false, StepReady: false, StepWait: false,
-	}
-	for step, want := range actionable {
-		if got := step.Actionable(); got != want {
-			t.Errorf("%q.Actionable() = %v, want %v", step, got, want)
-		}
-	}
-}
-
 func TestNextStreamStep(t *testing.T) {
 	cases := map[string]StreamStep{
 		StreamAcquiring: StreamStepAcquiring,

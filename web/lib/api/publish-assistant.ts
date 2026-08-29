@@ -2,7 +2,7 @@ export const PUBLISH_ASSISTANT_SCHEMA_VERSION = '1.0';
 export const PUBLISH_ASSISTANT_TIME_ZONE = 'Europe/Madrid';
 export const YOUTUBE_STUDIO_URL = 'https://studio.youtube.com/';
 
-export type PublishMetadata = {
+type PublishMetadata = {
   title: string;
   description: string;
   tags: string[];
@@ -17,12 +17,12 @@ export type PublishRecommendation = {
   rationale: string;
 };
 
-export type PublishScheduleSource = {
+type PublishScheduleSource = {
   title: string;
   url: string;
 };
 
-export type PublishScheduleSlot = {
+type PublishScheduleSlot = {
   publishAt: string;
   localTime: string;
   source: 'baseline';
@@ -31,7 +31,7 @@ export type PublishScheduleSlot = {
   rationale: string;
 };
 
-export type PublishScheduleDay = {
+type PublishScheduleDay = {
   date: string;
   weekday: string;
   slots: PublishScheduleSlot[];
@@ -45,7 +45,7 @@ export type PublishSchedule = {
   caveat: string;
 };
 
-export type PublishTrends = {
+type PublishTrends = {
   available: boolean;
   terms: string[];
   fetchedAt?: string;

@@ -36,8 +36,6 @@ const (
 	StageRecord  = "record"
 	StageRender  = "render"
 	StageCompose = "compose"
-	StageBatch   = "batch"
-	StageHTTP    = "http"
 	StageWorker  = "worker"
 
 	// StageTactical labels failures of the demo tactical analysis scan.

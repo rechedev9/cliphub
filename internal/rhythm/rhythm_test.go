@@ -38,7 +38,7 @@ func TestAnalyzeSamplesDetectsBeatGrid(t *testing.T) {
 	}
 }
 
-func TestBuildSegmentSyncAlignsFirstKillAfterBeat(t *testing.T) {
+func TestBuildSegmentSyncWithTrimAlignsFirstKillAfterBeat(t *testing.T) {
 	plan := killplan.NewPlan()
 	plan.Demo.Tickrate = 64
 	plan.Segments = []killplan.Segment{
@@ -52,7 +52,7 @@ func TestBuildSegmentSyncAlignsFirstKillAfterBeat(t *testing.T) {
 	}
 	beats := []float64{0.5, 1.0, 1.5, 2.0, 2.5}
 
-	got := BuildSegmentSync(plan, beats, 0.10)
+	got := BuildSegmentSyncWithTrim(plan, beats, 0.10, 0)
 
 	if len(got) != 1 {
 		t.Fatalf("sync entries = %d, want 1", len(got))

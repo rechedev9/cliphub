@@ -15,14 +15,11 @@ import { DEFAULT_OVERLAY_FONT_SIZE } from '../clip-edit.ts';
 /** Schema the editor writes; mirrors streamclips.EditPlan. */
 export const EDIT_PLAN_SCHEMA_VERSION = '1.1';
 
-export const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
+const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 export const DEFAULT_FACE_CROP: NormalizedRect = { x: 0.62, y: 0.03, width: 0.34, height: 0.3 };
 
 /** Nicks the streamer banner accepts, matching the Go validator. */
 export const STREAMER_NICK_RE = /^[A-Za-z0-9_]{0,25}$/;
-
-/** KeyDrop sponsor codes accepted by the Go validator. */
-export const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
 
 export const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
 
@@ -122,7 +119,7 @@ export function streamSourceLabel(sourceUrl?: string): string | null {
   }
 }
 
-export function streamerBannerPlatformFromSourceURL(sourceUrl?: string): StreamerBannerPlatform {
+function streamerBannerPlatformFromSourceURL(sourceUrl?: string): StreamerBannerPlatform {
   if (!sourceUrl) return 'twitch';
   try {
     const host = new URL(sourceUrl).hostname.toLowerCase();

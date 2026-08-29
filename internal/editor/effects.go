@@ -872,14 +872,6 @@ func validateEffectsAST(stmts []ast.Stmt) error {
 	return walkStmts(stmts)
 }
 
-func evaluateEffects(source effectsSource, short ShortEdit) ([]Effect, []string, error) {
-	proto, err := compileEffectsScript(source)
-	if err != nil {
-		return nil, nil, err
-	}
-	return evaluateCompiledEffects(proto, short, effectsAssetRoot(source))
-}
-
 func evaluateCompiledEffects(proto *lua.FunctionProto, short ShortEdit, assetRoot string) ([]Effect, []string, error) {
 	if proto == nil {
 		return nil, nil, nil

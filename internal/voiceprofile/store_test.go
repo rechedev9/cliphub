@@ -11,6 +11,10 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
+func (s *Store) Save(profile Profile, audio io.Reader) (Profile, error) {
+	return s.SaveLimited(profile, audio, 0)
+}
+
 func TestStoreSaveGetOpenAndDelete(t *testing.T) {
 	local, err := storage.NewLocal(t.TempDir())
 	if err != nil {

@@ -57,9 +57,6 @@ func TestEffectiveCodeAndLabel(t *testing.T) {
 	if got := EffectiveCode("  foo_bar "); got != "FOO_BAR" {
 		t.Fatalf("EffectiveCode = %q, want FOO_BAR", got)
 	}
-	if got := DisplayLabel("test"); got != "CODE: TEST" {
-		t.Fatalf("DisplayLabel = %q", got)
-	}
 	if got := DisplayLabelFor(StyleJcorko, "otro"); got != "CODIGO: OTRO" {
 		t.Fatalf("DisplayLabelFor jcorko = %q", got)
 	}
@@ -71,7 +68,7 @@ func TestEffectiveCodeAndLabel(t *testing.T) {
 func TestMaterializeWritesCachedPlates(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	for _, style := range Styles() {
+	for _, style := range styles {
 		if len(style.Data) == 0 {
 			t.Logf("skip materialize %s: plate not on disk", style.ID)
 			continue
@@ -94,11 +91,8 @@ func TestMaterializeWritesCachedPlates(t *testing.T) {
 	}
 }
 
-func TestLookupAndStyles(t *testing.T) {
+func TestLookup(t *testing.T) {
 	t.Parallel()
-	if len(Styles()) != 4 {
-		t.Fatalf("Styles len = %d, want 4", len(Styles()))
-	}
 	if _, ok := Lookup(StyleTigerr); !ok {
 		t.Fatal("Lookup tigerr failed")
 	}

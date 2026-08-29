@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-export type LongOperationTone = 'primary' | 'stream';
+type LongOperationTone = 'primary' | 'stream';
 
 const TONE_TEXT_CLASS = {
   primary: 'text-primary',

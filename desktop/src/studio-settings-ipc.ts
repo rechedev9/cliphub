@@ -4,8 +4,6 @@ export const STUDIO_SETTINGS_ACTION = {
   appInfo: 'app-info',
 } as const;
 
-export type StudioSettingsAction = typeof STUDIO_SETTINGS_ACTION[keyof typeof STUDIO_SETTINGS_ACTION];
-
 export interface StudioSettingsRequest {
   action: typeof STUDIO_SETTINGS_ACTION.appInfo;
 }

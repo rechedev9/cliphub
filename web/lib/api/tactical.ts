@@ -14,7 +14,7 @@ import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
  */
 
 /** Document format understood by this client (`tacticalplan.SchemaVersion`). */
-export const TACTICAL_SCHEMA_VERSION = '1.0';
+const TACTICAL_SCHEMA_VERSION = '1.0';
 
 /**
  * Round count below which a rate is reported but flagged as unreliable
@@ -157,7 +157,7 @@ export type RadarLevel = (typeof RADAR_LEVELS)[keyof typeof RADAR_LEVELS];
  * demo (stable inside the demo, not comparable with another one).
  */
 export const RADAR_CALIBRATION_SOURCES = { overview: 'overview', derived: 'derived' } as const;
-export type RadarCalibrationSource =
+type RadarCalibrationSource =
   (typeof RADAR_CALIBRATION_SOURCES)[keyof typeof RADAR_CALIBRATION_SOURCES];
 
 /** The only map shape a demo can prove (`tacticalplan.GeometrySourceOccupancy`). */
@@ -218,7 +218,6 @@ export const TACTICAL_SAMPLE_FLAGS = {
   airborne: 1 << 6,
   sideT: 1 << 7,
 } as const;
-export type TacticalSampleFlag = (typeof TACTICAL_SAMPLE_FLAGS)[keyof typeof TACTICAL_SAMPLE_FLAGS];
 
 /** Reports whether every bit in `mask` is set, like `SampleFlags.Has`. */
 export function hasSampleFlags(flags: number, mask: number): boolean {
@@ -245,7 +244,7 @@ export type TacticalDocument = {
 };
 
 /** The source demo's identity and timing (`tacticalplan.Demo`). */
-export type TacticalDemo = {
+type TacticalDemo = {
   path: string;
   sha256: string;
   map: string;
@@ -274,7 +273,7 @@ export type TacticalTeam = {
  * The identity table (`tacticalplan.Player`). Every sample and every event
  * refers to `slot`, the only stable key across a name change.
  */
-export type TacticalPlayer = {
+type TacticalPlayer = {
   slot: number;
   steamid64: string;
   name: string;
@@ -304,7 +303,7 @@ export type TacticalRound = {
 };
 
 /** The bomb's fate (`tacticalplan.Bomb`). */
-export type TacticalBomb = {
+type TacticalBomb = {
   plant_tick: number;
   site: TacticalSite;
   planter_slot?: number;
@@ -314,7 +313,7 @@ export type TacticalBomb = {
 };
 
 /** Both sides' buy state, sampled once per round (`tacticalplan.Economy`). */
-export type TacticalEconomy = {
+type TacticalEconomy = {
   ct_equip_value: number;
   t_equip_value: number;
   ct_money: number;
@@ -329,7 +328,7 @@ export type TacticalEconomy = {
  * The deterministic round taxonomy (`tacticalplan.Class`). `reasons` records why
  * the classifier landed where it did, so a rule change is a reviewable diff.
  */
-export type TacticalClass = {
+type TacticalClass = {
   t_side: TacticalTPattern;
   ct_side: TacticalCTPattern;
   site: TacticalSite;
@@ -344,7 +343,7 @@ export type TacticalClass = {
 };
 
 /** One player's round (`tacticalplan.PlayerRound`). */
-export type TacticalPlayerRound = {
+type TacticalPlayerRound = {
   slot: number;
   side: TacticalSide;
   kills: number;
@@ -419,7 +418,7 @@ export type TacticalGeometryLevel = {
 };
 
 /** One named position and the centre of mass of play observed in it. */
-export type TacticalCallout = {
+type TacticalCallout = {
   name: string;
   level: RadarLevel;
   center: [number, number];
@@ -460,7 +459,7 @@ export type RadarBounds = {
  * how to decode it, and how to seek into it. It travels inside the JSON
  * document; the bytes it describes do not.
  */
-export type TacticalPositions = {
+type TacticalPositions = {
   format: string;
   hz: number;
   sample_ticks: number;
@@ -580,7 +579,7 @@ export type TacticalRate = {
 };
 
 /** One economic state and how the perspective fared in it (`tacticalplan.BuyBucket`). */
-export type TacticalBuyBucket = {
+type TacticalBuyBucket = {
   buy: TacticalBuyType;
   rounds: number;
   share: TacticalRate;
@@ -589,7 +588,7 @@ export type TacticalBuyBucket = {
 };
 
 /** The perspective's buy crossed with the opponent's: the correct "anti-eco". */
-export type TacticalMatchupBucket = {
+type TacticalMatchupBucket = {
   buy: TacticalBuyType;
   opponent_buy: TacticalBuyType;
   rounds: number;
@@ -597,7 +596,7 @@ export type TacticalMatchupBucket = {
 };
 
 /** Where the round was decided and how it went (`tacticalplan.SiteBucket`). */
-export type TacticalSiteBucket = {
+type TacticalSiteBucket = {
   site: TacticalSite;
   rounds: number;
   share: TacticalRate;
@@ -605,7 +604,7 @@ export type TacticalSiteBucket = {
 };
 
 /** On this economy, where do they go, and does it work (`tacticalplan.BuySiteBucket`). */
-export type TacticalBuySiteBucket = {
+type TacticalBuySiteBucket = {
   buy: TacticalBuyType;
   site: TacticalSite;
   rounds: number;
@@ -614,7 +613,7 @@ export type TacticalBuySiteBucket = {
 };
 
 /** One round shape's frequency and success (`tacticalplan.PatternBucket`). */
-export type TacticalPatternBucket = {
+type TacticalPatternBucket = {
   pattern: string;
   rounds: number;
   share: TacticalRate;
@@ -622,7 +621,7 @@ export type TacticalPatternBucket = {
 };
 
 /** The opening duel (`tacticalplan.OpeningSummary`), the most predictive round event. */
-export type TacticalOpeningSummary = {
+type TacticalOpeningSummary = {
   rounds: number;
   won: TacticalRate;
   traded_on_loss: TacticalRate;
@@ -631,7 +630,7 @@ export type TacticalOpeningSummary = {
 };
 
 /** When things happened, in seconds from freeze-time end (`tacticalplan.TimingSummary`). */
-export type TacticalTimingSummary = {
+type TacticalTimingSummary = {
   first_contact: TacticalHistogram;
   plant: TacticalHistogram;
   round_duration: TacticalHistogram;
@@ -646,13 +645,13 @@ export type TacticalHistogram = {
 };
 
 /** Counts samples in `[from_seconds, from_seconds + bucket_seconds)`. */
-export type TacticalHistogramBucket = {
+type TacticalHistogramBucket = {
   from_seconds: number;
   count: number;
 };
 
 /** One player's contribution across the filtered rounds (`tacticalplan.PlayerSummary`). */
-export type TacticalPlayerSummary = {
+type TacticalPlayerSummary = {
   slot: number;
   name: string;
   rounds: number;
@@ -694,12 +693,6 @@ export type TacticalStatus = {
   generated_at: string;
   schema_version: string;
   error?: string;
-};
-
-/** One round's index entry plus its decoded position frames. */
-export type TacticalRoundFrames = {
-  round: TacticalRound;
-  frames: TacticalFrame[];
 };
 
 /* -------------------------------------------------------------------------- */
@@ -753,34 +746,29 @@ export const TACTICAL_TENDENCIES_KEYS: readonly string[] = [
 /* -------------------------------------------------------------------------- */
 
 /** Base path of the demo proxy routes; the orchestrator is never addressed directly. */
-export const TACTICAL_API_BASE = '/api/demos';
+const TACTICAL_API_BASE = '/api/demos';
 
 function jobBase(jobId: string): string {
   return `${TACTICAL_API_BASE}/${encodeURIComponent(jobId)}/tactical`;
 }
 
 /** GET (read) / POST (start) the tactical document of a job. */
-export function tacticalDocumentUrl(jobId: string): string {
+function tacticalDocumentUrl(jobId: string): string {
   return jobBase(jobId);
 }
 
 /** GET the analysis lifecycle state of a job. */
-export function tacticalStatusUrl(jobId: string): string {
+function tacticalStatusUrl(jobId: string): string {
   return `${jobBase(jobId)}/status`;
 }
 
-/** GET one round's index entry and position frames. */
-export function tacticalRoundUrl(jobId: string, round: number): string {
-  return `${jobBase(jobId)}/rounds/${encodeURIComponent(String(round))}`;
-}
-
 /** GET the raw zvpos1 blob; Range-capable. */
-export function tacticalPositionsUrl(jobId: string): string {
+function tacticalPositionsUrl(jobId: string): string {
   return `${jobBase(jobId)}/positions`;
 }
 
 /** GET the tendencies computed over the rounds a filter selects. */
-export function tacticalAggregateUrl(jobId: string, filter: TacticalFilter = {}): string {
+function tacticalAggregateUrl(jobId: string, filter: TacticalFilter = {}): string {
   const query = tacticalFilterParams(filter).toString();
   return query ? `${jobBase(jobId)}/aggregate?${query}` : `${jobBase(jobId)}/aggregate`;
 }
@@ -807,16 +795,6 @@ export function tacticalFilterParams(filter: TacticalFilter): URLSearchParams {
 /** A byte range of the positions blob, inclusive of both ends, as HTTP Range is. */
 export type TacticalByteRange = { start: number; endInclusive: number };
 
-/** The range covering just the fixed blob header. */
-export function tacticalPositionsHeaderRange(): TacticalByteRange {
-  return { start: 0, endInclusive: POSITIONS_HEADER_SIZE - 1 };
-}
-
-/** The range covering exactly one round's frames, from its document offset. */
-export function tacticalRoundByteRange(offset: TacticalRoundOffset): TacticalByteRange {
-  return { start: offset.byte_offset, endInclusive: offset.byte_offset + offset.byte_length - 1 };
-}
-
 /* -------------------------------------------------------------------------- */
 /* Typed fetches                                                              */
 /* -------------------------------------------------------------------------- */
@@ -841,7 +819,7 @@ export function isServiceUnavailableError(error: unknown): boolean {
 }
 
 /** Reports whether this client understands a document's schema version. */
-export function isSupportedTacticalSchema(version: string): boolean {
+function isSupportedTacticalSchema(version: string): boolean {
   return version === TACTICAL_SCHEMA_VERSION;
 }
 
@@ -882,13 +860,6 @@ export async function fetchTacticalDocument(jobId: string): Promise<TacticalDocu
     );
   }
   return doc;
-}
-
-/** GET — one round's index entry plus its already-decoded frames. */
-export async function fetchTacticalRound(jobId: string, round: number): Promise<TacticalRoundFrames> {
-  return readJson<TacticalRoundFrames>(
-    await fetch(tacticalRoundUrl(jobId, round), { cache: 'no-store' }),
-  );
 }
 
 /** GET — tendencies over the rounds the filter selects. */

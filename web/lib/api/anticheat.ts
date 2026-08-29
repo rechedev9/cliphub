@@ -53,9 +53,9 @@ export function isReviewable(verdict: AnticheatVerdict): boolean {
   return REVIEWABLE_VERDICTS.has(verdict);
 }
 
-export type MetricDirection = 'high' | 'low';
+type MetricDirection = 'high' | 'low';
 
-export type MetricBaseline = { mean: number; stddev: number; samples: number };
+type MetricBaseline = { mean: number; stddev: number; samples: number };
 
 export type AnticheatMetric = {
   id: string;
@@ -72,7 +72,7 @@ export type AnticheatMetric = {
   applied: boolean;
 };
 
-export type AnticheatEvidence = {
+type AnticheatEvidence = {
   kind: string;
   round: number;
   tick: number;
@@ -94,14 +94,14 @@ export type AnticheatPlayer = {
   evidence: AnticheatEvidence[];
 };
 
-export type AnticheatBaselineHeader = {
+type AnticheatBaselineHeader = {
   id: string;
   source: string;
   description: string;
   measured: boolean;
 };
 
-export type AnticheatReport = {
+type AnticheatReport = {
   schema_version: number;
   source: { demo_path?: string; sha256?: string };
   baseline: AnticheatBaselineHeader;
@@ -120,7 +120,7 @@ export type AnticheatDocument = {
   report?: AnticheatReport;
 };
 
-export type ReportChannel = {
+type ReportChannel = {
   id: string;
   label: string;
   url?: string;
@@ -150,9 +150,6 @@ export class AnticheatServiceError extends Error {
     this.code = code;
   }
 }
-
-/** HTTP 409 from the analysis endpoints: "no screening exists yet". */
-export const ANTICHEAT_NOT_STARTED = 'anticheat_not_started' as const;
 
 async function readError(res: Response): Promise<string> {
   try {

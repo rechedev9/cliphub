@@ -11,13 +11,13 @@ export type MatchStats = {
   hsPct?: number;
 };
 export type Match = { id: string; map: string; score: string; playedAt: string; stats: MatchStats; decentPlays: number; thumbnailUrl?: string; source?: 'steam' | 'upload'; /** Display name of the clipped/target player, when known. */ player?: string };
-export type PlayKind = 'clean' | 'highlight';
+type PlayKind = 'clean' | 'highlight';
 export type Play = { id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number; weapon?: string; thumbnailUrl?: string };
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
-export type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
-export type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
-export type CoverStrategy = 'generated-gameplay' | 'no-cover';
+type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
+type TransitionStyle = 'cut' | 'flash' | 'whip' | 'dip' | 'glitch' | 'zoom-whip';
+type CoverStrategy = 'generated-gameplay' | 'no-cover';
 /** Max length (trimmed) for the intro/outro bookend text, enforced client-side via `maxLength`. */
 export const BOOKEND_TEXT_MAX_LENGTH = 80;
 

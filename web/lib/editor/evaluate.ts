@@ -64,7 +64,7 @@ export type EditorDocument = {
   music?: { key?: string; volume?: number };
 };
 
-export type EditorLayer = {
+type EditorLayer = {
   item_id: string;
   track_id: string;
   asset_id: string;
@@ -74,7 +74,7 @@ export type EditorLayer = {
   filter: EditorFilter;
 };
 
-export type EditorTextSample = {
+type EditorTextSample = {
   id: string;
   text: string;
   position_y: number;

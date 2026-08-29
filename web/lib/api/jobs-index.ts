@@ -48,7 +48,7 @@ export function listableJobs(jobs: readonly IndexedJob[]): IndexedJob[] {
     .sort((a, b) => jobCreatedAtMs(b) - jobCreatedAtMs(a));
 }
 
-export function jobHasPlan(status: string): boolean {
+function jobHasPlan(status: string): boolean {
   return PLAN_READY_STATUSES.has(status);
 }
 

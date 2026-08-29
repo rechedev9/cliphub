@@ -112,13 +112,13 @@ export function retryReelAction(input: {
 }
 
 /** Capture-time bits: a ready render that disagrees must not be this reel. */
-export function captureContractMatches(intentEdit: EditConfig, renderEdit: EditConfig | undefined): boolean {
+function captureContractMatches(intentEdit: EditConfig, renderEdit: EditConfig | undefined): boolean {
   if (!renderEdit) return false;
   return intentEdit.matchRecap === renderEdit.matchRecap && intentEdit.nativeHud === renderEdit.nativeHud;
 }
 
 /** Render-time mix: same capture can still need a new encode. */
-export function renderDeliveryMatches(
+function renderDeliveryMatches(
   intentEdit: EditConfig,
   renderEdit: EditConfig | undefined,
   intentMusic: MusicChoice,

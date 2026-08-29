@@ -94,20 +94,6 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s %s: %d %s", e.Method, e.Path, e.StatusCode, msg)
 }
 
-// IsNotReady reports whether err is a 409 Conflict, which the orchestrator uses
-// both for "artifact not ready yet" (e.g. GET plan before parse finishes) and
-// for "action not valid in this state". The TUI treats it as "keep polling".
-func IsNotReady(err error) bool {
-	var apiErr *APIError
-	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusConflict
-}
-
-// IsNotFound reports whether err is a 404.
-func IsNotFound(err error) bool {
-	var apiErr *APIError
-	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
-}
-
 // StatusCode returns the HTTP status of an APIError, or 0 if err is not one.
 func StatusCode(err error) int {
 	var apiErr *APIError

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestEvaluateAndChangePoints(t *testing.T) {
+func TestEvaluate(t *testing.T) {
 	t.Parallel()
 	end := 4.0
 	doc := Document{
@@ -86,11 +86,6 @@ func TestEvaluateAndChangePoints(t *testing.T) {
 				t.Fatalf("opacity = %v, want %v", layer.Opacity, tc.wantOp)
 			}
 		})
-	}
-
-	points := ChangePoints(doc)
-	if len(points) < 4 || points[0] != 0 {
-		t.Fatalf("ChangePoints() = %v, want sorted points starting at 0", points)
 	}
 }
 

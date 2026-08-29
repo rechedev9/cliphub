@@ -18,13 +18,6 @@ type RenderVariantUploadTarget struct {
 	Required bool
 }
 
-// RenderVariantReadyArtifacts names the durable artifacts that must already
-// exist for a render variant to be considered reusable.
-type RenderVariantReadyArtifacts struct {
-	ResultKey    string
-	RequiredKeys []string
-}
-
 // NewRenderVariantUploadTargetsOptions carries local render outputs and the
 // rendered result metadata needed to plan durable uploads.
 type NewRenderVariantUploadTargetsOptions struct {
@@ -160,20 +153,4 @@ func renderVariantUploadArtifactRef(opts NewRenderVariantUploadTargetsOptions, k
 		return NewRenderVariantRevisionArtifactRef(opts.JobID, opts.Variant, opts.RevisionID, kind, segmentID)
 	}
 	return NewRenderVariantArtifactRef(opts.JobID, opts.Variant, kind, segmentID)
-}
-
-// NewRenderVariantReadyArtifacts returns the minimal durable artifacts that
-// prove a render variant is already materialized enough to skip rerendering.
-func NewRenderVariantReadyArtifacts(jobID uuid.UUID, variant string) (RenderVariantReadyArtifacts, error) {
-	refs, err := renderVariantArtifactsFor(jobID, variant)
-	if err != nil {
-		return RenderVariantReadyArtifacts{}, err
-	}
-	return RenderVariantReadyArtifacts{
-		ResultKey: refs.RenderResultKey,
-		RequiredKeys: []string{
-			refs.PackManifestKey,
-			refs.GalleryKey,
-		},
-	}, nil
 }

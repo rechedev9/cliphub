@@ -54,7 +54,7 @@ async function readJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export class RealEditorApiClient {
+class RealEditorApiClient {
   async listAssets(): Promise<EditorAsset[]> {
     const data = await readJson<{ assets?: EditorAsset[] }>(await fetch('/api/editor/assets', { cache: 'no-store' }));
     return data.assets ?? [];

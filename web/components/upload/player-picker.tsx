@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 
 // Series rows add mapsPresent; single-match callers keep plain DemoPlayer values.
-export type PickerPlayer = DemoPlayer & { mapsPresent?: number };
+type PickerPlayer = DemoPlayer & { mapsPresent?: number };
 
 export type PlayerPickerProps = {
   /** Roster from the scan (single match) or aggregated across a series, sorted by kills desc. */

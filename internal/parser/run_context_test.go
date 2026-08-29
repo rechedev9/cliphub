@@ -106,7 +106,7 @@ func TestRunWithContextReturnsUnderlyingResultWhenNotCancelled(t *testing.T) {
 	}
 }
 
-func TestRosterWithContextAbortsWhenContextCancelled(t *testing.T) {
+func TestRosterScanWithContextAbortsWhenContextCancelled(t *testing.T) {
 	p := &blockingParser{entered: make(chan struct{}), release: make(chan struct{}), block: true}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -118,33 +118,33 @@ func TestRosterWithContextAbortsWhenContextCancelled(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := RosterWithContext(ctx, p)
+		_, err := RosterScanWithContext(ctx, p)
 		done <- err
 	}()
 
 	select {
 	case err := <-done:
 		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("RosterWithContext err = %v, want context.Canceled", err)
+			t.Fatalf("RosterScanWithContext err = %v, want context.Canceled", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("RosterWithContext did not return after context cancellation")
+		t.Fatal("RosterScanWithContext did not return after context cancellation")
 	}
 	if !p.cancelCalled.Load() {
 		t.Error("parser Cancel() was not called on context cancellation")
 	}
 }
 
-func TestRosterWithContextReturnsResultWhenNotCancelled(t *testing.T) {
+func TestRosterScanWithContextReturnsResultWhenNotCancelled(t *testing.T) {
 	p := &blockingParser{block: false}
 
-	roster, err := RosterWithContext(context.Background(), p)
+	result, err := RosterScanWithContext(context.Background(), p)
 
 	if err != nil {
-		t.Fatalf("RosterWithContext err = %v, want nil", err)
+		t.Fatalf("RosterScanWithContext err = %v, want nil", err)
 	}
-	if len(roster) != 0 {
-		t.Fatalf("roster = %#v, want empty (no events dispatched)", roster)
+	if len(result.Players) != 0 {
+		t.Fatalf("roster = %#v, want empty (no events dispatched)", result.Players)
 	}
 	if p.cancelCalled.Load() {
 		t.Error("parser Cancel() was called on a run that was never cancelled")

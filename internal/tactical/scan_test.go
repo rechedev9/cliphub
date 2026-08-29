@@ -128,9 +128,13 @@ func TestScanRealDemo(t *testing.T) {
 	if result.Positions.Descriptor.FrameCount == 0 {
 		t.Fatal("no positions were sampled")
 	}
-	desc, frames, err := tacticalplan.DecodePositions(result.Positions.Data)
+	desc, err := tacticalplan.DecodeHeader(result.Positions.Data)
 	if err != nil {
-		t.Fatalf("DecodePositions: %v", err)
+		t.Fatalf("DecodeHeader: %v", err)
+	}
+	frames, err := tacticalplan.DecodeFrames(result.Positions.Data, tacticalplan.PositionsHeaderSize, desc.FrameCount, desc)
+	if err != nil {
+		t.Fatalf("DecodeFrames: %v", err)
 	}
 	if len(frames) != result.Positions.Descriptor.FrameCount {
 		t.Fatalf("decoded %d frames, descriptor says %d", len(frames), result.Positions.Descriptor.FrameCount)

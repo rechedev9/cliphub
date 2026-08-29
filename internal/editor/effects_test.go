@@ -12,6 +12,14 @@ import (
 	"time"
 )
 
+func evaluateEffects(source effectsSource, short ShortEdit) ([]Effect, []string, error) {
+	proto, err := compileEffectsScript(source)
+	if err != nil {
+		return nil, nil, err
+	}
+	return evaluateCompiledEffects(proto, short, effectsAssetRoot(source))
+}
+
 func TestValidateEffectColor(t *testing.T) {
 	valid := []string{
 		"white", "red", "black",

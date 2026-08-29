@@ -16,6 +16,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/steamresolve"
 )
 
+func withSteamTransport(transport steamresolve.Transport) Option {
+	return func(h *Handlers) {
+		h.steamTransport = transport
+	}
+}
+
 func TestResolveShareCode(t *testing.T) {
 	// The decode-only default path must not depend on ambient Steam credentials.
 	t.Setenv("ZV_STEAM_USERNAME", "")
@@ -269,7 +275,7 @@ func TestImportShareCode(t *testing.T) {
 			}
 			opts := []Option{WithSteamAccount(store, nil, steamresolve.NewFetcher(redirectingValveClient(t, server.URL)))}
 			if tt.transport != nil {
-				opts = append(opts, WithSteamTransport(tt.transport))
+				opts = append(opts, withSteamTransport(tt.transport))
 			}
 			h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, opts...)
 			rw := httptest.NewRecorder()

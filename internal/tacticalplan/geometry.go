@@ -122,9 +122,6 @@ func (b *OccupancyBuilder) Add(x, y, z float64, place string) {
 // Bounds returns the world extent observed so far.
 func (b *OccupancyBuilder) Bounds() radarmap.Bounds { return b.bounds }
 
-// Samples returns how many positions have been recorded.
-func (b *OccupancyBuilder) Samples() int { return b.samples }
-
 // Build returns the geometry. minSamples drops cells and callouts seen fewer
 // times, which removes the specks left by a player clipping through a corner or
 // by a single spectator-camera artefact; the default of 1 keeps everything.

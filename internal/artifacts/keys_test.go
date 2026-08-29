@@ -73,14 +73,6 @@ func TestRenderVariantKeysUseStableLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coverKey, err := RenderVariantCoverKey(id, testRenderVariant, "seg-001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	captionKey, err := RenderVariantCaptionKey(id, testRenderVariant, "seg-001")
-	if err != nil {
-		t.Fatal(err)
-	}
 	galleryKey, err := RenderVariantGalleryKey(id, testRenderVariant)
 	if err != nil {
 		t.Fatal(err)
@@ -99,8 +91,6 @@ func TestRenderVariantKeysUseStableLayout(t *testing.T) {
 		packKey:         "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/pack-manifest.json",
 		summaryKey:      "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/publish-summary.md",
 		videoKey:        "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/videos/seg-001.mp4",
-		coverKey:        "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/covers/seg-001.jpg",
-		captionKey:      "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/captions/seg-001.caption.txt",
 		galleryKey:      "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/index.html",
 		logKey:          "jobs/11111111-1111-1111-1111-111111111111/renders/viral-60-clean/logs/seg-001-render.log",
 	}

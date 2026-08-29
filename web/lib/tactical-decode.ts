@@ -260,11 +260,11 @@ function readFrames(
 }
 
 /** Turns a quantised int16 step count back into a world coordinate. */
-export function dequantize(steps: number, origin: number, quantum: number): number {
+function dequantize(steps: number, origin: number, quantum: number): number {
   return origin + steps * quantum;
 }
 
 /** Turns the packed uint16 heading back into degrees in `[0, 360)`. */
-export function decodeYaw(packed: number): number {
+function decodeYaw(packed: number): number {
   return (packed * 360) / YAW_STEPS;
 }

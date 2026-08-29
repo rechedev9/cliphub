@@ -2,9 +2,9 @@ import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-export type IconTileSize = 'sm' | 'md' | 'lg';
+type IconTileSize = 'sm' | 'md' | 'lg';
 export type IconTileTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'stream';
-export type IconTileDepth = 'raised' | 'inset';
+type IconTileDepth = 'raised' | 'inset';
 
 const SIZE_CLASS = {
   sm: 'size-9',

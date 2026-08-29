@@ -66,14 +66,14 @@ func (c *Client) StartParse(ctx context.Context, id, targetSteamID string) (Crea
 	return out, err
 }
 
-// GetPlan returns the kill plan, or a 409 APIError (IsNotReady) if not parsed.
+// GetPlan returns the kill plan, or a 409 APIError if not parsed.
 func (c *Client) GetPlan(ctx context.Context, id string) (Plan, error) {
 	var plan Plan
 	err := c.getJSON(ctx, "/api/jobs/"+id+"/plan", &plan)
 	return plan, err
 }
 
-// GetRoster returns the roster scan, or a 409 APIError (IsNotReady) if the scan
+// GetRoster returns the roster scan, or a 409 APIError if the scan
 // has not finished.
 func (c *Client) GetRoster(ctx context.Context, id string) (RosterResult, error) {
 	var roster RosterResult
@@ -119,7 +119,7 @@ func (c *Client) StartRenderVariant(ctx context.Context, id, variant string) (En
 }
 
 // GetRenderVariant returns the state of one render variant, or a 404 APIError
-// (IsNotFound) when it has never been requested.
+// when it has never been requested.
 func (c *Client) GetRenderVariant(ctx context.Context, id, variant string) (RenderVariantState, error) {
 	var state RenderVariantState
 	err := c.getJSON(ctx, "/api/jobs/"+id+"/renders/"+variant, &state)

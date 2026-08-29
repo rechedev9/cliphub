@@ -1,4 +1,4 @@
-import type { Match, Play, VideoStatus } from './api/types';
+import type { Match, Play } from './api/types';
 
 export function formatKd(n: number): string {
   return n.toFixed(2);
@@ -88,21 +88,4 @@ export function playsSelectionLabel(plays: Play[]): string | null {
   if (plays.length === 1) return plays[0].label;
   const rounds = Array.from(new Set(plays.map((p) => p.round))).sort((a, b) => a - b);
   return `${plays.length} jugadas · Rondas ${rounds.join(', ')}`;
-}
-
-/** Spanish render status; queued/composing both read Editando. */
-export function productStatusLabel(status: VideoStatus): string {
-  switch (status) {
-    case 'recording':
-      return 'Capturando';
-    case 'queued':
-    case 'composing':
-      return 'Editando';
-    case 'ready':
-      return 'Listo';
-    case 'review_required':
-      return 'Revisión necesaria';
-    case 'failed':
-      return 'Fallido';
-  }
 }

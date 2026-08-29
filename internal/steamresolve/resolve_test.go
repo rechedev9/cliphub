@@ -121,7 +121,7 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func TestConfigured(t *testing.T) {
+func TestSessionFromEnvComplete(t *testing.T) {
 	tests := []struct {
 		name                      string
 		username, password, guard string
@@ -138,8 +138,8 @@ func TestConfigured(t *testing.T) {
 			t.Setenv(EnvUsername, tt.username)
 			t.Setenv(EnvPassword, tt.password)
 			t.Setenv(EnvGuard, tt.guard)
-			if got := Configured(); got != tt.want {
-				t.Errorf("Configured() = %v, want %v", got, tt.want)
+			if got := SessionFromEnv().Complete(); got != tt.want {
+				t.Errorf("SessionFromEnv().Complete() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export type StatusTagTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'stream';
-export type StatusTagSize = 'sm' | 'md';
+type StatusTagSize = 'sm' | 'md';
 
 /**
  * One alpha per role instead of one per call site. The audit found six tags with

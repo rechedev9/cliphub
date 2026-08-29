@@ -13,7 +13,6 @@ package radarmap
 import (
 	"fmt"
 	"math"
-	"sort"
 )
 
 // Level names the vertical section a world position belongs to. CS2 draws
@@ -77,16 +76,6 @@ func Lookup(mapName string) (Calibration, bool) {
 	}
 	c.Source = SourceOverview
 	return c, true
-}
-
-// Maps returns the calibrated map names, sorted.
-func Maps() []string {
-	names := make([]string, 0, len(calibrations))
-	for name := range calibrations {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // Bounds is an axis-aligned world-space rectangle.

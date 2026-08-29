@@ -163,7 +163,7 @@ func TestRecordWorkerHUDFromPayloadOverridesDefault(t *testing.T) {
 			w := NewRecordWorker(repo, store, RecordWorkerConfig{WorkDir: t.TempDir(), RecorderPath: "zv-recorder", HLAEPath: "HLAE.exe", CS2Path: "cs2.exe"})
 			w.runner = runner
 
-			task, err := tasks.NewRecordDemoTask(id, tc.hud, nil, tc.portraitSafeKillfeed)
+			task, err := tasks.NewRecordDemoTaskWithRecap(id, tc.hud, nil, tc.portraitSafeKillfeed, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2297,14 +2297,14 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 
 func TestRenderWorkerPassesGameAndVoiceVolume(t *testing.T) {
 	cases := []struct {
-		name       string
-		musicVol   float64
-		gameVol    float64
-		voiceVol   float64
-		fullDemo   bool
-		wantMusic  string
-		wantGame   string
-		wantVoice  string
+		name      string
+		musicVol  float64
+		gameVol   float64
+		voiceVol  float64
+		fullDemo  bool
+		wantMusic string
+		wantGame  string
+		wantVoice string
 	}{
 		{
 			name:      "shorts duck game under music",
@@ -2696,7 +2696,7 @@ func recordTaskFor(t *testing.T, id uuid.UUID, segmentIDs []string) *asynq.Task 
 
 func recordTaskWithCaptureProfile(t *testing.T, id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) *asynq.Task {
 	t.Helper()
-	task, err := tasks.NewRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed)
+	task, err := tasks.NewRecordDemoTaskWithRecap(id, hudMode, segmentIDs, portraitSafeKillfeed, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2833,20 +2833,20 @@ func mustRenderVariantVideoKey(t *testing.T, id uuid.UUID, variant, name string)
 
 func mustRenderVariantCoverKey(t *testing.T, id uuid.UUID, variant, name string) string {
 	t.Helper()
-	key, err := artifacts.RenderVariantCoverKey(id, variant, name)
+	ref, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactCover, name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return key
+	return ref.Key
 }
 
 func mustRenderVariantCaptionKey(t *testing.T, id uuid.UUID, variant, name string) string {
 	t.Helper()
-	key, err := artifacts.RenderVariantCaptionKey(id, variant, name)
+	ref, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactCaption, name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return key
+	return ref.Key
 }
 
 func seedLegacyRenderVariantReady(
