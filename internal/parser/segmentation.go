@@ -106,9 +106,11 @@ func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int)
 	return out
 }
 
-// SegmentRecap records each live round from freeze-end to round end so a
-// landscape POV recap skips buy time and hard-cuts between rounds.
-// Rounds without target kills are kept when live bounds are known.
+// SegmentRecap records each live round from freeze-end to round end.
+// Hard-cuts are between rounds only. One live round is one continuous
+// capture window (the recap-plan contract), never an intra-round jump-cut
+// montage or Shorts-style kill stitch. Rounds without target kills are
+// kept when live bounds are known.
 func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []RoundStart, liveStarts []RoundLiveStart, roundEnds []RoundEnd, targetDeaths []TargetDeath, r rules.Rules, tickrate int) []killplan.Segment {
 	if tickrate <= 0 {
 		return nil

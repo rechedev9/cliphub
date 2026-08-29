@@ -3,6 +3,8 @@ package demooverlay
 import (
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/parser"
 )
 
 func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
@@ -27,6 +29,15 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	}
 	if IntroFreezeSeconds != 15 || OutroSeconds != 8 || BannerHoldSeconds != 4 {
 		t.Fatalf("freeze/outro/banner = %d / %d / %d", IntroFreezeSeconds, OutroSeconds, BannerHoldSeconds)
+	}
+	if IntroFreezeSeconds != parser.IntroFreezeSeconds {
+		t.Fatalf("overlay freeze %d != parser %d", IntroFreezeSeconds, parser.IntroFreezeSeconds)
+	}
+	if BannerHoldSeconds != parser.OutroBannerSeconds {
+		t.Fatalf("overlay banner %d != parser %d", BannerHoldSeconds, parser.OutroBannerSeconds)
+	}
+	if OutroSeconds != parser.OutroScoreboardSeconds {
+		t.Fatalf("overlay outro %d != parser %d", OutroSeconds, parser.OutroScoreboardSeconds)
 	}
 }
 
