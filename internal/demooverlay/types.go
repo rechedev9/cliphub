@@ -5,12 +5,32 @@ package demooverlay
 const (
 	SchemaVersion = "cliphub.full-demo-overlay/v1"
 
-	IntroSeconds = 8
-	OutroSeconds = 8
+	// FadeFromBlackSeconds is the opening fade. The roster slides in
+	// IntroOverlayAfterFadeSeconds after that fade ends, then leaves before
+	// live action. Parser IntroFreezeSeconds must stay in sync with
+	// IntroFreezeSeconds here so the first compiled seconds are freeze/buy.
+	FadeFromBlackSeconds         = 1.0
+	IntroOverlayAfterFadeSeconds = 4.0
+	IntroOverlaySlideSeconds     = 0.4
+	IntroFreezeSeconds           = 15
+	IntroLeaveBeforeLiveSeconds  = 1.0
+	OutroSeconds                 = 8
+	BannerHoldSeconds            = 4
 
 	FrameWidth  = 1920
 	FrameHeight = 1080
 )
+
+// IntroOverlayStart is fade duration + the post-fade delay (~4s).
+func IntroOverlayStart() float64 {
+	return FadeFromBlackSeconds + IntroOverlayAfterFadeSeconds
+}
+
+// IntroOverlayEnd is 1s before the typical freeze prefix ends, so the
+// roster leaves before live action.
+func IntroOverlayEnd() float64 {
+	return float64(IntroFreezeSeconds) - IntroLeaveBeforeLiveSeconds
+}
 
 const (
 	ColName    = "name"

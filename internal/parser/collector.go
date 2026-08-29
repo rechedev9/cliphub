@@ -179,6 +179,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		planKillsAfterFilters = len(recapKills)
 		segs = SegmentRecap(recapKills, c.utility, c.roundStarts, c.liveStarts, c.roundEnds, c.targetDeaths, planRules, m.Tickrate)
 		segs = WithIntroFreeze(segs, c.roundStarts, m.Tickrate)
+		segs = WithOutroHold(segs, c.roundStarts, c.targetDeaths, m.Tickrate)
 	default:
 		segs = Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
 	}

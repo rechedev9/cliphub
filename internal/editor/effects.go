@@ -228,28 +228,31 @@ func generatedFullDemoOverlayEffects(short ShortEdit) []Effect {
 	var effects []Effect
 	if path := strings.TrimSpace(short.FullDemoIntroImagePath); path != "" && introEnd > introStart {
 		effects = append(effects, Effect{
-			Type:         EffectImage,
-			Path:         path,
-			X:            "0",
-			Y:            "0",
-			Width:        demooverlay.FrameWidth,
-			Height:       demooverlay.FrameHeight,
-			StartSeconds: introStart,
-			EndSeconds:   introEnd,
-			Source:       "full-demo-intro",
+			Type:           EffectImage,
+			Path:           path,
+			X:              "0",
+			Y:              "0",
+			Width:          demooverlay.FrameWidth,
+			Height:         demooverlay.FrameHeight,
+			StartSeconds:   introStart,
+			EndSeconds:     introEnd,
+			FadeInSeconds:  demooverlay.IntroOverlaySlideSeconds,
+			FadeOutSeconds: 0.35,
+			Source:         "full-demo-intro",
 		})
 	}
 	if path := strings.TrimSpace(short.FullDemoOutroImagePath); path != "" && outroEnd > outroStart {
 		effects = append(effects, Effect{
-			Type:         EffectImage,
-			Path:         path,
-			X:            "0",
-			Y:            "0",
-			Width:        demooverlay.FrameWidth,
-			Height:       demooverlay.FrameHeight,
-			StartSeconds: outroStart,
-			EndSeconds:   outroEnd,
-			Source:       "full-demo-outro",
+			Type:          EffectImage,
+			Path:          path,
+			X:             "0",
+			Y:             "0",
+			Width:         demooverlay.FrameWidth,
+			Height:        demooverlay.FrameHeight,
+			StartSeconds:  outroStart,
+			EndSeconds:    outroEnd,
+			FadeInSeconds: demooverlay.IntroOverlaySlideSeconds,
+			Source:        "full-demo-outro",
 		})
 	}
 	return effects

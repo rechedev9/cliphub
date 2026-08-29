@@ -12,6 +12,11 @@ import (
 func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 	dir := t.TempDir()
 	result := testRecordingResult(dir)
+	result.Plan.Segments[0].TickEnd = result.Plan.Segments[0].TickStart + 64*40
+	result.Plan.Segments[1].TickEnd = result.Plan.Segments[1].TickStart + 64*40
+	for i := range result.Artifacts {
+		result.Artifacts[i].DurationSeconds = 40
+	}
 	intro := filepath.Join(dir, "shorts", "full-demo-intro.png")
 	outro := filepath.Join(dir, "shorts", "full-demo-outro.png")
 	if err := os.MkdirAll(filepath.Dir(intro), 0o750); err != nil {
@@ -67,15 +72,42 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 	if introFx == nil || outroFx == nil {
 		t.Fatalf("effects = %#v, want intro and outro image overlays", short.Effects)
 	}
-	if introFx.Type != EffectImage || introFx.StartSeconds != 0 || introFx.EndSeconds != 8 {
-		t.Fatalf("intro effect = %#v", introFx)
+	wantIntroStart, wantIntroEnd, wantOutroStart, wantOutroEnd := demooverlay.OverlayWindows(short.DurationSeconds)
+	if introFx.Type != EffectImage || introFx.StartSeconds != wantIntroStart || introFx.EndSeconds != wantIntroEnd {
+		t.Fatalf("intro effect = %#v, want %.1f-%.1f (after fade, before live)", introFx, wantIntroStart, wantIntroEnd)
 	}
-	if outroFx.Type != EffectImage || outroFx.EndSeconds != short.DurationSeconds {
-		t.Fatalf("outro effect = %#v", outroFx)
+	if introFx.FadeInSeconds != demooverlay.IntroOverlaySlideSeconds {
+		t.Fatalf("intro slide-in fade = %.2f, want %.2f", introFx.FadeInSeconds, demooverlay.IntroOverlaySlideSeconds)
+	}
+	if outroFx.Type != EffectImage || outroFx.StartSeconds != wantOutroStart || outroFx.EndSeconds != wantOutroEnd {
+		t.Fatalf("outro effect = %#v, want %.1f-%.1f", outroFx, wantOutroStart, wantOutroEnd)
+	}
+	if wantIntroStart < demooverlay.FadeFromBlackSeconds+demooverlay.IntroOverlayAfterFadeSeconds-0.01 {
+		t.Fatal("roster must wait until ~4s after the fade")
+	}
+	if wantIntroEnd >= float64(demooverlay.IntroFreezeSeconds) {
+		t.Fatal("roster must leave before live action")
 	}
 	command := strings.Join(short.FFmpegCommand, " ")
 	if !strings.Contains(command, intro) || !strings.Contains(command, outro) {
 		t.Fatalf("ffmpeg missing overlay stills:\n%s", command)
+	}
+	if !strings.Contains(command, "fade=t=in:st=0") {
+		t.Fatalf("ffmpeg missing fade from black:\n%s", command)
+	}
+	if short.MusicPath != "" {
+		t.Fatalf("full demo mixed a music bed: %q", short.MusicPath)
+	}
+	for _, effect := range short.Effects {
+		if effect.Type == EffectZoom {
+			t.Fatalf("full demo gained punch-in zoom: %#v", effect)
+		}
+		if strings.Contains(strings.ToLower(effect.Value), "subscribe") || strings.Contains(strings.ToLower(effect.Value), "suscríb") {
+			t.Fatalf("full demo gained a subscribe CTA: %#v", effect)
+		}
+		if effect.Source == "edit-request" && (effect.Type == EffectText) {
+			t.Fatalf("full demo gained a Shorts bookend/hook: %#v", effect)
+		}
 	}
 }
 

@@ -413,6 +413,7 @@ func compilationPostConcatFilter(short ShortEdit) string {
 		return VideoFilter(short)
 	}
 	filters := appendEffectFilters([]string{}, short, false)
+	filters = appendFullDemoFadeFromBlack(filters, short, true)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
 }

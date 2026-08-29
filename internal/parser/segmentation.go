@@ -188,14 +188,22 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 	return out
 }
 
-// IntroFreezeSeconds is the native freeze prefix kept on the first live
-// recap round so the FACEIT roster overlay can sit on buy time.
-const IntroFreezeSeconds = 8
+// IntroFreezeSeconds is the native freeze/buy countdown kept on the first
+// live recap round (typical CS2 freezetime). Clamped to the actual round
+// start. Must stay in sync with demooverlay.IntroFreezeSeconds.
+const IntroFreezeSeconds = 15
 
-// WithIntroFreeze pulls the first recap window back through at most 8s of
-// freeze. Later rounds stay freeze-end to round-end. Utility already listed
-// on the segment is left untouched so a buy-time nade cannot appear as a
-// new capture abort.
+// OutroBannerSeconds is live POV through the round-win banner. OutroScoreboardSeconds
+// is the FACEIT scoreboard that covers the last beats after that banner.
+const (
+	OutroBannerSeconds     = 4
+	OutroScoreboardSeconds = 8
+)
+
+// WithIntroFreeze pulls the first recap window back through the freeze/buy
+// countdown (at most IntroFreezeSeconds). Later rounds stay freeze-end.
+// Utility already listed on the segment is left untouched so a buy-time
+// nade cannot appear as a new capture abort.
 func WithIntroFreeze(segs []killplan.Segment, roundStarts []RoundStart, tickrate int) []killplan.Segment {
 	if len(segs) == 0 || tickrate <= 0 {
 		return segs
@@ -218,6 +226,35 @@ func WithIntroFreeze(segs []killplan.Segment, roundStarts []RoundStart, tickrate
 	}
 	out := append([]killplan.Segment(nil), segs...)
 	out[0].TickStart = want
+	return out
+}
+
+// WithOutroHold keeps the last recap segment in live POV through the
+// round-win banner, then enough extra time for the scoreboard overlay.
+// A death-clipped end is left alone so capture never continues into deathcam.
+// Utility already listed on the segment is not rewritten.
+func WithOutroHold(segs []killplan.Segment, roundStarts []RoundStart, targetDeaths []TargetDeath, tickrate int) []killplan.Segment {
+	if len(segs) == 0 || tickrate <= 0 {
+		return segs
+	}
+	last := segs[len(segs)-1]
+	deaths := indexTargetDeaths(targetDeaths)[last.Round]
+	if death, ok := firstTargetDeathInWindow(deaths, last.TickStart, last.TickEnd+1); ok && death <= last.TickEnd {
+		return segs
+	}
+	hold := (OutroBannerSeconds + OutroScoreboardSeconds) * tickrate
+	want := last.TickEnd + hold
+	startByRound := indexRoundStarts(roundStarts)
+	for round, start := range startByRound {
+		if round > last.Round && start > last.TickEnd && start <= want {
+			want = start - 1
+		}
+	}
+	if want <= last.TickEnd {
+		return segs
+	}
+	out := append([]killplan.Segment(nil), segs...)
+	out[len(out)-1].TickEnd = want
 	return out
 }
 

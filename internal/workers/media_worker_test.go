@@ -2312,6 +2312,13 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 			wantFlag:  true,
 		},
 		{
+			name:      "native POV recap ignores a music key",
+			fullDemo:  true,
+			preset:    editor.PresetGameplayPOV60,
+			putRoster: true,
+			wantFlag:  true,
+		},
+		{
 			name:     "native POV recap without roster skips overlay",
 			fullDemo: true,
 			preset:   editor.PresetGameplayPOV60,
@@ -2384,7 +2391,63 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 					t.Fatalf("--full-demo-overlay = %q", path)
 				}
 			}
+			if tc.fullDemo && tc.preset == editor.PresetGameplayPOV60 {
+				if hasArg(gotArgs, "--music") || hasArg(gotArgs, "--music-volume") {
+					t.Fatalf("native POV Full Demo mixed a music bed: %#v", gotArgs)
+				}
+			}
 		})
+	}
+}
+
+func TestRenderWorkerNativePOVDropsMusicBed(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := minimalKillPlan()
+	repo.jobs[id] = &job.Job{
+		ID:            id,
+		Status:        job.StatusRecorded,
+		TargetSteamID: "76561197960265729",
+		Rules:         rules.Default(),
+		KillPlan:      &plan,
+	}
+	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
+	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
+
+	var gotArgs []string
+	stop := errors.New("stop after args")
+	musicDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(musicDir, "phonk.wav"), []byte("music"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	w := NewRenderWorker(repo, store, RenderWorkerConfig{
+		WorkDir:    t.TempDir(),
+		EditorPath: "zv-editor",
+		MusicDir:   musicDir,
+	})
+	w.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		gotArgs = append([]string(nil), args...)
+		return nil, stop
+	}}
+
+	edit := renderplan.DefaultEditRequest()
+	edit.MatchRecap = true
+	edit.NativeHUD = true
+	edit.Format = renderplan.FormatLandscape16x9
+	edit.KillEffect = renderplan.KillEffectClean
+	edit.VoiceComms = false
+	gameDuck := 0.2
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "phonk", 0.8, &gameDuck, edit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.HandleRenderVariant(context.Background(), task)
+	if !errors.Is(err, stop) {
+		t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
+	}
+	if hasArg(gotArgs, "--music") || hasArg(gotArgs, "--game-volume") {
+		t.Fatalf("native POV ducked to a music bed: %#v", gotArgs)
 	}
 }
 

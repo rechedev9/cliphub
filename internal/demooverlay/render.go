@@ -10,15 +10,19 @@ import (
 )
 
 // OverlayWindows returns the compiled-timeline windows for intro and outro
-// image overlays. Intro is the opening freeze prefix; outro is the hold
-// after the last live round.
+// image overlays. Intro starts ~4s after the fade-from-black and ends
+// before live action. Outro covers the last beats after the win banner.
 func OverlayWindows(durationSeconds float64) (introStart, introEnd, outroStart, outroEnd float64) {
 	if durationSeconds <= 0 {
 		return 0, 0, 0, 0
 	}
-	introEnd = IntroSeconds
+	introStart = IntroOverlayStart()
+	introEnd = IntroOverlayEnd()
 	if introEnd > durationSeconds {
 		introEnd = durationSeconds
+	}
+	if introStart >= introEnd {
+		introStart, introEnd = 0, 0
 	}
 	outroStart = durationSeconds - OutroSeconds
 	if outroStart < introEnd {
@@ -27,7 +31,7 @@ func OverlayWindows(durationSeconds float64) (introStart, introEnd, outroStart, 
 	if outroStart < 0 {
 		outroStart = 0
 	}
-	return 0, introEnd, outroStart, durationSeconds
+	return introStart, introEnd, outroStart, durationSeconds
 }
 
 // RenderPNGs writes the intro (transparent sides) and outro (full-frame)

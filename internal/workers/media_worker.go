@@ -1735,6 +1735,11 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		return err
 	}
 	cfg := w.cfg.withDefaults()
+	if isFullDemoNativeMix(loadout.Preset, edit) {
+		musicKey = ""
+		musicVolume = 0
+		gameVolume = nil
+	}
 	musicPath := resolveMusicFile(cfg.MusicDir, musicKey)
 	effectiveMusic := &renderplan.MusicSnapshot{}
 	effectiveMusicVolume := 0.0
@@ -2848,8 +2853,12 @@ func readStoredRecordingResult(store storage.Storage, id uuid.UUID) (recording.R
 	return result, nil
 }
 
+func isFullDemoNativeMix(preset string, edit renderplan.EditRequest) bool {
+	return edit.MatchRecap && edit.Format == renderplan.FormatLandscape16x9 && preset == editor.PresetGameplayPOV60
+}
+
 func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, edit renderplan.EditRequest) (string, error) {
-	if !edit.MatchRecap || edit.Format != renderplan.FormatLandscape16x9 || preset != editor.PresetGameplayPOV60 {
+	if !isFullDemoNativeMix(preset, edit) {
 		return "", nil
 	}
 	rc, err := w.storage.Open(artifacts.RosterKey(j.ID))
