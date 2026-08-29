@@ -37,6 +37,29 @@ func TestRunFFmpegWithOptionalLogRecordsStartFailure(t *testing.T) {
 	}
 }
 
+func TestRenderSecondsPerMediaSecond(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		renderMS     int64
+		mediaSeconds float64
+		want         float64
+	}{
+		{name: "two times realtime", renderMS: 10_000, mediaSeconds: 5, want: 2},
+		{name: "faster than realtime", renderMS: 1_500, mediaSeconds: 6, want: 0.25},
+		{name: "missing duration", renderMS: 1_000, mediaSeconds: 0, want: 0},
+		{name: "reused output", renderMS: 0, mediaSeconds: 5, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := renderSecondsPerMediaSecond(tt.renderMS, tt.mediaSeconds); got != tt.want {
+				t.Fatalf("renderSecondsPerMediaSecond(%d, %v) = %v, want %v", tt.renderMS, tt.mediaSeconds, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeRenderJobs(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -143,7 +144,7 @@ func (p *shortPackRenderer) renderOne(ctx context.Context, i int, warn *[]string
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		p.runQualityCheck(ctx, short, &qaWarn)
+		p.runQualityCheck(ctx, i, short, &qaWarn)
 	}()
 
 	if p.opts.CoversEnabled {
@@ -170,12 +171,28 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 	if err := os.MkdirAll(filepath.Dir(short.Output), 0o750); err != nil {
 		return err
 	}
+	performance := &RenderPerformance{}
+	p.result.Shorts[i].Performance = performance
 	if validatedExistingArtifact(p.previous, p.result.Shorts[i], short.Output, "video") {
 		p.result.Shorts[i].RenderSkipped = true
-	} else if err := runFFmpegAtomic(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, short.Output); err != nil {
-		return err
+		performance.Reused = true
+	} else {
+		started := time.Now()
+		err := runFFmpegAtomic(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, short.Output)
+		performance.RenderMS = time.Since(started).Milliseconds()
+		if err != nil {
+			return err
+		}
 	}
+	probeStarted := time.Now()
 	artifact := p.probeArtifact(ctx, short.SegmentID, "short", "video", short.Output)
+	performance.ProbeMS = time.Since(probeStarted).Milliseconds()
+	performance.OutputBytes = artifact.SizeBytes
+	performance.MediaDurationSeconds = artifact.DurationSeconds
+	if performance.MediaDurationSeconds <= 0 {
+		performance.MediaDurationSeconds = short.DurationSeconds
+	}
+	performance.RenderSecondsPerMediaSecond = renderSecondsPerMediaSecond(performance.RenderMS, performance.MediaDurationSeconds)
 	p.result.Shorts[i].OutputArtifact = artifact
 	p.manifest.Shorts[i].OutputArtifact = artifact
 	if p.opts.ValidateVideos {
@@ -223,11 +240,15 @@ func (p *shortPackRenderer) derivedArtifact(base recording.RecordingArtifact, ro
 	return artifact
 }
 
-func (p *shortPackRenderer) runQualityCheck(ctx context.Context, short *ShortEdit, warn *[]string) {
+func (p *shortPackRenderer) runQualityCheck(ctx context.Context, i int, short *ShortEdit, warn *[]string) {
 	if len(short.QualityCommand) == 0 {
 		return
 	}
+	started := time.Now()
 	output, err := runFFmpegOutput(ctx, short.QualityCommand, "quality check")
+	p.updatePerformance(i, func(performance *RenderPerformance) {
+		performance.QualityCheckMS = time.Since(started).Milliseconds()
+	})
 	if short.QualityLogPath != "" {
 		if writeErr := writeLogFile(short.QualityLogPath, output); writeErr != nil {
 			*warn = append(*warn, fmt.Sprintf("quality log %s: %v", short.SegmentID, writeErr))
@@ -252,7 +273,12 @@ func (p *shortPackRenderer) renderCover(ctx context.Context, i int, short *Short
 		p.shortMu[i].Unlock()
 		return
 	}
-	if err := runFFmpegAtomic(ctx, short.CoverCommand, "cover extract", "", short.CoverPath); err != nil {
+	started := time.Now()
+	err := runFFmpegAtomic(ctx, short.CoverCommand, "cover extract", "", short.CoverPath)
+	p.updatePerformance(i, func(performance *RenderPerformance) {
+		performance.CoverMS = time.Since(started).Milliseconds()
+	})
+	if err != nil {
 		*warn = append(*warn, fmt.Sprintf("cover %s: %v", short.SegmentID, err))
 		return
 	}
@@ -277,7 +303,12 @@ func (p *shortPackRenderer) renderCoverSheet(ctx context.Context, i int, short *
 		p.shortMu[i].Unlock()
 		return
 	}
-	if err := runFFmpegAtomic(ctx, short.CoverSheetCommand, "cover sheet", "", short.CoverSheetPath); err != nil {
+	started := time.Now()
+	err := runFFmpegAtomic(ctx, short.CoverSheetCommand, "cover sheet", "", short.CoverSheetPath)
+	p.updatePerformance(i, func(performance *RenderPerformance) {
+		performance.CoverSheetMS = time.Since(started).Milliseconds()
+	})
+	if err != nil {
 		*warn = append(*warn, fmt.Sprintf("cover sheet %s: %v", short.SegmentID, err))
 		return
 	}
@@ -285,6 +316,24 @@ func (p *shortPackRenderer) renderCoverSheet(ctx context.Context, i int, short *
 	p.shortMu[i].Lock()
 	p.result.Shorts[i].CoverSheetArtifact = artifact
 	p.shortMu[i].Unlock()
+}
+
+func (p *shortPackRenderer) updatePerformance(i int, update func(*RenderPerformance)) {
+	p.shortMu[i].Lock()
+	defer p.shortMu[i].Unlock()
+	performance := p.result.Shorts[i].Performance
+	if performance == nil {
+		performance = &RenderPerformance{}
+		p.result.Shorts[i].Performance = performance
+	}
+	update(performance)
+}
+
+func renderSecondsPerMediaSecond(renderMS int64, mediaSeconds float64) float64 {
+	if renderMS <= 0 || mediaSeconds <= 0 {
+		return 0
+	}
+	return float64(renderMS) / 1000 / mediaSeconds
 }
 
 func (p *shortPackRenderer) probeCover(ctx context.Context, segmentID, role, path, outputFormat string, warn *[]string) recording.RecordingArtifact {

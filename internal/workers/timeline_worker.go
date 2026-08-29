@@ -196,6 +196,7 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 		Width:       result.Width,
 		Height:      result.Height,
 		Warnings:    result.Warnings,
+		Performance: result.Performance,
 		CreatedAt:   time.Now().UTC(),
 	}
 	raw, err := json.MarshalIndent(record, "", "  ")
