@@ -7,7 +7,7 @@ export const APP_UPDATE_ACTION = {
   install: 'install',
 } as const;
 
-export type AppUpdateAction = typeof APP_UPDATE_ACTION[keyof typeof APP_UPDATE_ACTION];
+type AppUpdateAction = typeof APP_UPDATE_ACTION[keyof typeof APP_UPDATE_ACTION];
 
 export interface AppUpdateRequest {
   action: AppUpdateAction;

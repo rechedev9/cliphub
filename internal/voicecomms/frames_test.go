@@ -145,14 +145,3 @@ func TestWriteOggPageRejectsNegativeGranule(t *testing.T) {
 		})
 	}
 }
-
-func TestAllowedSpeakers(t *testing.T) {
-	report := Report{
-		Target:    PlayerVoice{SteamID64: "1"},
-		Teammates: []PlayerVoice{{SteamID64: "2"}, {SteamID64: "3"}},
-	}
-	got := allowedSpeakers(report)
-	if len(got) != 3 || !got[1] || !got[2] || !got[3] {
-		t.Fatalf("allowed = %#v", got)
-	}
-}

@@ -60,17 +60,6 @@ func NextStep(jobStatus string, render *RenderVariantState) Step {
 	}
 }
 
-// Actionable reports whether a step is one the operator triggers (as opposed to
-// a server stage the TUI only waits on).
-func (s Step) Actionable() bool {
-	switch s {
-	case StepPickTarget, StepRecord, StepRender, StepRetry:
-		return true
-	default:
-		return false
-	}
-}
-
 // Label is a short human description of a step, for the status bar.
 func (s Step) Label() string {
 	switch s {

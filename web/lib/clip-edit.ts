@@ -9,7 +9,7 @@ export const DEFAULT_OVERLAY_FONT_SIZE = 64;
 export const MIN_OVERLAY_FONT_SIZE = 24;
 export const MAX_OVERLAY_FONT_SIZE = 120;
 export const MAX_TEXT_OVERLAYS = 4;
-export const MAX_CLIP_FADE_SECONDS = 5;
+const MAX_CLIP_FADE_SECONDS = 5;
 
 /** Playback rates the render's chained atempo filters reproduce faithfully. */
 export const CLIP_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;

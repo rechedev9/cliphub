@@ -27,8 +27,3 @@ func SessionFromEnv() Session {
 		Guard:    strings.TrimSpace(os.Getenv(EnvGuard)),
 	}
 }
-
-// Configured reports whether the environment holds a complete Steam session.
-func Configured() bool {
-	return SessionFromEnv().Complete()
-}

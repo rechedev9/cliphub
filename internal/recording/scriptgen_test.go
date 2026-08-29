@@ -410,7 +410,7 @@ func TestBuildScheduleDoesNotSeekAcrossNearbySegments(t *testing.T) {
 		{ID: "seg-004", TickStart: 141619, TickEnd: 142530},
 	}
 
-	_, seeks := buildSchedule(plan)
+	_, seeks, _ := buildRuntimeSchedule(plan)
 	if got, want := len(seeks), 2; got != want {
 		t.Fatalf("seek count = %d, want %d: %+v", got, want, seeks)
 	}
@@ -446,7 +446,7 @@ func TestBuildScheduleSeekGapThreshold(t *testing.T) {
 				TickEnd:   seekAfter + leadTicks + tt.gapTicks + plan.Tickrate,
 			}}
 
-			_, seeks := buildSchedule(plan)
+			_, seeks, _ := buildRuntimeSchedule(plan)
 			if got := len(seeks); got != tt.wantSeeks {
 				t.Fatalf("seek count = %d, want %d: %+v", got, tt.wantSeeks, seeks)
 			}
@@ -476,7 +476,7 @@ func TestBuildScheduleLaterSegmentSeekGapThreshold(t *testing.T) {
 				},
 			}
 
-			_, seeks := buildSchedule(plan)
+			_, seeks, _ := buildRuntimeSchedule(plan)
 			if got := len(seeks); got != tt.wantSeeks {
 				t.Fatalf("seek count = %d, want %d: %+v", got, tt.wantSeeks, seeks)
 			}
@@ -515,12 +515,12 @@ func TestEffectiveRecordStartTickAllowsCameraToSettleBeforeFirstKill(t *testing.
 			{Tick: 14450},
 		},
 	}
-	if got, want := effectiveRecordStartTick(segment, 64), 14157; got != want {
+	if got, want := EffectiveRecordStartTick(segment, 64), 14157; got != want {
 		t.Fatalf("effectiveRecordStartTick() = %d, want %d", got, want)
 	}
 
 	segment.Kills = nil
-	if got, want := effectiveRecordStartTick(segment, 64), segment.TickStart; got != want {
+	if got, want := EffectiveRecordStartTick(segment, 64), segment.TickStart; got != want {
 		t.Fatalf("effectiveRecordStartTick() without kills = %d, want %d", got, want)
 	}
 }

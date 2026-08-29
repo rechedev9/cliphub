@@ -278,12 +278,6 @@ func listInterruptedStreamAcquisitions(ctx context.Context, repo streamInterrupt
 	return ids, nil
 }
 
-// sweepInterruptedStreamJobs fails render tasks that cannot survive the
-// desktop process stopping. Acquisitions are re-enqueued instead.
-func sweepInterruptedStreamJobs(ctx context.Context, repo streamInterruptSweeper, rec *obs.Recorder) (int, error) {
-	return sweepInterruptedStreamJobsAfterRenderStates(ctx, repo, rec, streamRenderSweepResult{auditComplete: true})
-}
-
 func sweepInterruptedStreamJobsAfterRenderStates(
 	ctx context.Context,
 	repo streamInterruptSweeper,
@@ -348,14 +342,6 @@ func (r streamRenderSweepResult) completed(id uuid.UUID) bool {
 func (r streamRenderSweepResult) interrupted(id uuid.UUID) bool {
 	_, ok := r.interruptedJobs[id]
 	return ok
-}
-
-// sweepInterruptedStreamRenderStates fails rendering state documents for every
-// known stream job, independent of the parent job's current status. Existing
-// warnings, video entries, artifact keys, and other state data are preserved.
-func sweepInterruptedStreamRenderStates(ctx context.Context, repo streamInterruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
-	result, err := reconcileInterruptedStreamRenderStates(ctx, repo, store, rec)
-	return result.Reconciled, err
 }
 
 func reconcileInterruptedStreamRenderStates(

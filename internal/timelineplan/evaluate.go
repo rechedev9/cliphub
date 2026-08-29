@@ -1,7 +1,5 @@
 package timelineplan
 
-import "sort"
-
 // Layer is one visible video item at a sample time. Preview and render share
 // this evaluation so a WASM compositor and FFmpeg see the same stack.
 type Layer struct {
@@ -81,42 +79,6 @@ func Evaluate(doc Document, t float64) Sample {
 			FontSize:  size,
 		})
 	}
-	return out
-}
-
-func ChangePoints(doc Document) []float64 {
-	doc = Normalize(doc)
-	seen := map[float64]struct{}{0: {}}
-	add := func(v float64) {
-		if v < 0 {
-			return
-		}
-		seen[v] = struct{}{}
-	}
-	for _, track := range doc.Tracks {
-		for _, item := range track.Items {
-			add(item.TimelineStart)
-			add(item.TimelineEnd())
-			if item.FadeIn > 0 {
-				add(item.TimelineStart + item.FadeIn)
-			}
-			if item.FadeOut > 0 {
-				add(item.TimelineEnd() - item.FadeOut)
-			}
-		}
-	}
-	for _, overlay := range doc.Overlays {
-		add(overlay.StartSeconds)
-		if overlay.EndSeconds != nil {
-			add(*overlay.EndSeconds)
-		}
-	}
-	add(doc.DurationSeconds())
-	out := make([]float64, 0, len(seen))
-	for v := range seen {
-		out = append(out, v)
-	}
-	sort.Float64s(out)
 	return out
 }
 

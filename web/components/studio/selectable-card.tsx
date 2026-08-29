@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { TiltSurface } from '@/components/studio/tilt-surface';
 import { cn } from '@/lib/utils';
 
-export type SelectableCardTone = 'primary' | 'stream';
+type SelectableCardTone = 'primary' | 'stream';
 
 const TONE_SELECTED_CLASS = {
   primary: 'border-primary',

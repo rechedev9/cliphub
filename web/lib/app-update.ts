@@ -10,8 +10,6 @@ export const APP_UPDATE_STATE = {
   error: 'error',
 } as const;
 
-export type AppUpdateState = typeof APP_UPDATE_STATE[keyof typeof APP_UPDATE_STATE];
-
 export type AppUpdateStatus =
   | { state: typeof APP_UPDATE_STATE.unavailable }
   | { state: typeof APP_UPDATE_STATE.idle }

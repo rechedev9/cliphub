@@ -33,7 +33,7 @@ export type FaceitPlayer = {
 
 export type FaceitFollowedPlayer = FaceitPlayer & { followed_at?: string };
 
-export type FaceitMatchScore = {
+type FaceitMatchScore = {
   player_team?: string;
   winner_team?: string;
   for?: number;

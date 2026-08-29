@@ -128,8 +128,8 @@ func TestOccupancyBuilderTracksBounds(t *testing.T) {
 	if got != want {
 		t.Fatalf("bounds = %+v, want %+v", got, want)
 	}
-	if b.Samples() != 2 {
-		t.Fatalf("samples = %d, want 2", b.Samples())
+	if b.samples != 2 {
+		t.Fatalf("samples = %d, want 2", b.samples)
 	}
 }
 
@@ -138,8 +138,8 @@ func TestOccupancyBuilderIgnoresNaN(t *testing.T) {
 	b := NewOccupancyBuilder(cal, 64)
 	b.Add(math.NaN(), 0, 0, "Middle")
 	b.Add(0, math.NaN(), 0, "Middle")
-	if b.Samples() != 0 {
-		t.Fatalf("samples = %d, want 0", b.Samples())
+	if b.samples != 0 {
+		t.Fatalf("samples = %d, want 0", b.samples)
 	}
 }
 

@@ -68,12 +68,13 @@ func TestHealthHandlerNeverProvesIdentityFromACredential(t *testing.T) {
 }
 
 func TestMetricsHandlerServesCounters(t *testing.T) {
+	const testHTTPStage = "http"
 	t.Setenv("ZV_DATA_DIR", t.TempDir())
 	rec, err := obs.New(obs.DefaultDir())
 	if err != nil {
 		t.Fatalf("obs.New: %v", err)
 	}
-	if err := rec.RecordError(obs.Event{Stage: obs.StageHTTP, Class: "boom", Message: "x"}); err != nil {
+	if err := rec.RecordError(obs.Event{Stage: testHTTPStage, Class: "boom", Message: "x"}); err != nil {
 		t.Fatalf("RecordError: %v", err)
 	}
 

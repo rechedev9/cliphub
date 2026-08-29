@@ -114,13 +114,3 @@ func isRootReadme(relPath string) bool {
 	base := filepath.Base(relPath)
 	return !strings.Contains(relPath, "/") && strings.EqualFold(strings.TrimSuffix(base, filepath.Ext(base)), "README")
 }
-
-func isExecutableDirectWorkflowCommand(command []string, workflow workflowInfo) bool {
-	if !hasPrefixArgs(command, workflow.RunArgs) {
-		return false
-	}
-	if isSingleHelp(command[len(workflow.RunArgs):]) {
-		return false
-	}
-	return validateSkillCommand(command) == ""
-}

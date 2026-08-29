@@ -133,7 +133,7 @@ func TestNewAnalyzeTacticalTaskRoundtrip(t *testing.T) {
 
 func TestNewRecordDemoTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
-	tk, err := NewRecordDemoTask(id, "", nil, false)
+	tk, err := NewRecordDemoTaskWithRecap(id, "", nil, false, false)
 	if err != nil {
 		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}
@@ -180,7 +180,7 @@ func TestNewRecordDemoTaskWithRecapRoundtrip(t *testing.T) {
 func TestNewRecordDemoTaskRoundtripWithSegmentIDs(t *testing.T) {
 	id := uuid.New()
 	want := []string{"seg-001", "seg-002"}
-	tk, err := NewRecordDemoTask(id, "clean", want, true)
+	tk, err := NewRecordDemoTaskWithRecap(id, "clean", want, true, false)
 	if err != nil {
 		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}
@@ -217,7 +217,7 @@ func TestNewGenerateRecordDemoTaskCarriesIntentOutsideUniquePayload(t *testing.T
 		MusicKey: "track-01",
 		Edit:     renderplan.DefaultEditRequest(),
 	}
-	task, err := NewGenerateRecordDemoTask(id, "deathnotices", []string{"seg-001"}, true, want)
+	task, err := NewGenerateRecordDemoTaskWithRecap(id, "deathnotices", []string{"seg-001"}, true, false, want)
 	if err != nil {
 		t.Fatalf("NewGenerateRecordDemoTask error = %v", err)
 	}
@@ -229,7 +229,7 @@ func TestNewGenerateRecordDemoTaskCarriesIntentOutsideUniquePayload(t *testing.T
 		t.Fatalf("GenerateIntentFromTask = (%#v, %v), want (%#v, true)", got, ok, want)
 	}
 
-	plain, err := NewRecordDemoTask(id, "deathnotices", []string{"seg-001"}, true)
+	plain, err := NewRecordDemoTaskWithRecap(id, "deathnotices", []string{"seg-001"}, true, false)
 	if err != nil {
 		t.Fatalf("NewRecordDemoTask error = %v", err)
 	}

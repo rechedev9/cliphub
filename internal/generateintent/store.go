@@ -34,15 +34,6 @@ func New(store storage.Storage) *Store {
 	return &Store{storage: store}
 }
 
-// Write atomically publishes the latest accepted intent for id.
-func (s *Store) Write(id uuid.UUID, intent renderplan.GenerateIntent) error {
-	lock := s.lock(id)
-	lock.Lock()
-	defer lock.Unlock()
-
-	return s.write(id, intent)
-}
-
 // Begin publishes intent only while no prior run owns the job and ready still
 // reports that adjacent render state is idle. ready runs inside the same job
 // lock used by Finish and WhileIdle; it must not call this Store recursively.

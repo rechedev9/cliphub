@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { cn } from '@/lib/utils';
 
-export type StreamOutputNoteTone = 'stream' | 'success' | 'neutral';
+type StreamOutputNoteTone = 'stream' | 'success' | 'neutral';
 
 const NOTE_TONE_CLASS = {
   stream: 'text-stream-text',
@@ -11,7 +11,7 @@ const NOTE_TONE_CLASS = {
   neutral: 'text-fg-3',
 } as const satisfies Record<StreamOutputNoteTone, string>;
 
-export type StreamOutputNote = {
+type StreamOutputNote = {
   icon: LucideIcon;
   text: string;
   tone?: StreamOutputNoteTone;

@@ -104,7 +104,3 @@ var sha256HexPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 func MediaKey(id uuid.UUID) string {
 	return path.Join("editor-assets", id.String(), "media.mp4")
 }
-
-func Prefix(id uuid.UUID) string {
-	return path.Join("editor-assets", id.String())
-}

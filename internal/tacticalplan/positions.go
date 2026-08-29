@@ -243,20 +243,6 @@ func sampleForSlot(samples []Sample, slot uint8) Sample {
 	return Sample{Slot: slot}
 }
 
-// DecodePositions decodes a whole blob. It is the reference decoder the
-// TypeScript one is tested against.
-func DecodePositions(data []byte) (Positions, []Frame, error) {
-	desc, err := DecodeHeader(data)
-	if err != nil {
-		return Positions{}, nil, err
-	}
-	frames, err := DecodeFrames(data, positionsHeaderSize, desc.FrameCount, desc)
-	if err != nil {
-		return Positions{}, nil, err
-	}
-	return desc, frames, nil
-}
-
 // DecodeHeader reads the fixed header. The returned descriptor carries no round
 // offsets: those live in the JSON document, which is the index into the blob.
 func DecodeHeader(data []byte) (Positions, error) {

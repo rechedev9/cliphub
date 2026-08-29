@@ -60,7 +60,7 @@ func BenchmarkCollectorBuildSorted(b *testing.B) {
 			c.RecordRoundEnd(roundEnd)
 		}
 
-		plan, err := c.Build(m)
+		plan, err := c.build(m, SegmentModeKills)
 		if err != nil {
 			b.Fatal(err)
 		}

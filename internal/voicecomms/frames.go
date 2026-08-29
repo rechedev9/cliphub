@@ -50,25 +50,3 @@ func isStartOffsets(offsets []uint32, dataLen int) bool {
 	}
 	return int(offsets[len(offsets)-1]) < dataLen
 }
-
-func allowedSpeakers(report Report) map[uint64]bool {
-	out := map[uint64]bool{}
-	add := func(id string) {
-		if id == "" {
-			return
-		}
-		var n uint64
-		for _, r := range id {
-			if r < '0' || r > '9' {
-				return
-			}
-			n = n*10 + uint64(r-'0')
-		}
-		out[n] = true
-	}
-	add(report.Target.SteamID64)
-	for _, mate := range report.Teammates {
-		add(mate.SteamID64)
-	}
-	return out
-}

@@ -13,6 +13,14 @@ import (
 	"github.com/rechedev9/cliphub/internal/rhythm"
 )
 
+func loadRhythmSync(path string) (map[string]rhythm.SegmentSync, error) {
+	analysis, err := readRhythmAnalysis(path)
+	if err != nil || analysis == nil {
+		return nil, err
+	}
+	return indexRhythmSync(*analysis)
+}
+
 func TestLoadRhythmSyncIndexesSegments(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "rhythm.json")

@@ -135,8 +135,8 @@ func TestStartGenerateDuplicatePreservesAcceptedIntent(t *testing.T) {
 		MusicKey: "first-track",
 		Edit:     renderplan.DefaultEditRequest(),
 	}
-	if err := h.writeGenerateIntent(j.ID, existing); err != nil {
-		t.Fatalf("writeGenerateIntent error = %v", err)
+	if err := h.generateIntents.Begin(j.ID, existing, nil); err != nil {
+		t.Fatalf("seed generate intent: %v", err)
 	}
 
 	rw := postGenerate(t, h, j.ID, `{"preset":"clean-pov-60","music":"second-track","edit":{"intro":true}}`)

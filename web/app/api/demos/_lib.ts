@@ -82,7 +82,7 @@ export function serviceUnavailable(): Response {
 const UUID_RE = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 /** Query param the orchestrator filters jobs by for a bulk series listing. */
-export const SERIES_ID_PARAM = 'series_id';
+const SERIES_ID_PARAM = 'series_id';
 
 /**
  * Builds the upstream job URL for a validated UUID jobId, returning null when
@@ -102,7 +102,7 @@ export function seriesJobsUrl(seriesId: string): string | null {
 }
 
 /** How many recent jobs the Partidas index requests; the orchestrator caps it at 100. */
-export const JOBS_LIST_LIMIT = 100;
+const JOBS_LIST_LIMIT = 100;
 
 /** Builds the upstream recent-jobs listing URL (most recent first, capped). */
 export function jobsListUrl(): string {

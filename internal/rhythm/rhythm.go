@@ -270,10 +270,6 @@ func AnalyzeSamples(samples []float64, sampleRate int, cfg samplesConfig) Analys
 	}
 }
 
-func BuildSegmentSync(plan killplan.Plan, beats []float64, killOffset float64) []SegmentSync {
-	return BuildSegmentSyncWithTrim(plan, beats, killOffset, 0)
-}
-
 // BuildSegmentSyncWithTrim binds beat placement to the exact clip durations
 // the editor will use, so changing trim invalidates the rhythm artifact.
 func BuildSegmentSyncWithTrim(plan killplan.Plan, beats []float64, killOffset, tailTrimSeconds float64) []SegmentSync {

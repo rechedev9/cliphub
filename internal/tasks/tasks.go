@@ -195,26 +195,10 @@ func NewAnalyzeTacticalTask(id uuid.UUID, sampleHZ float64) (*asynq.Task, error)
 	return asynq.NewTask(TypeAnalyzeTactical, payload), nil
 }
 
-// NewRecordDemoTask returns an Asynq task for recording a job. hudMode is
-// optional; when non-empty it must be one of the known HUD modes and overrides
-// the recorder default for this capture. segmentIDs, when non-empty, scopes the
-// capture to those kill-plan segments (the caller validates the ids against the
-// job's kill plan); empty records every segment. Because the ids are part of the
-// payload, asynq dedup treats a task for one segment as distinct from another.
-func NewRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool) (*asynq.Task, error) {
-	return NewRecordDemoTaskWithRecap(id, hudMode, segmentIDs, portraitSafeKillfeed, false)
-}
-
-// NewRecordDemoTaskWithRecap is NewRecordDemoTask with an explicit recap-plan switch.
+// NewRecordDemoTaskWithRecap returns an Asynq task for recording a job with an
+// explicit recap-plan switch.
 func NewRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool) (*asynq.Task, error) {
 	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, nil)
-}
-
-// NewGenerateRecordDemoTask returns a record task carrying the immutable render
-// intent for that capture. The intent lives in task headers so uniqueness stays
-// keyed by the capture payload (job, HUD, segments, and killfeed geometry).
-func NewGenerateRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed bool, intent renderplan.GenerateIntent) (*asynq.Task, error) {
-	return NewGenerateRecordDemoTaskWithRecap(id, hudMode, segmentIDs, portraitSafeKillfeed, false, intent)
 }
 
 func NewGenerateRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, intent renderplan.GenerateIntent) (*asynq.Task, error) {

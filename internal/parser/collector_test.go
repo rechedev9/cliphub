@@ -10,6 +10,10 @@ import (
 
 const targetID = "76561198000000000"
 
+func (c *Collector) Build(m PlanMeta) (killplan.Plan, error) {
+	return c.build(m, SegmentModeKills)
+}
+
 func meta() PlanMeta {
 	return PlanMeta{
 		DemoPath:      "/tmp/demo.dem",
@@ -25,11 +29,11 @@ func TestRecordKillAcceptedWeaponAdded(t *testing.T) {
 	c.RecordTargetIdentity("MARTINEZSA", "CT")
 	c.RecordKill(RawKill{Tick: 1000, Round: 3, Weapon: "awp"})
 
-	if c.TotalKillsTarget() != 1 {
-		t.Errorf("TotalKillsTarget = %d, want 1", c.TotalKillsTarget())
+	if c.totalKillsTarget != 1 {
+		t.Errorf("TotalKillsTarget = %d, want 1", c.totalKillsTarget)
 	}
-	if c.KillsAfterFilters() != 1 {
-		t.Errorf("KillsAfterFilters = %d, want 1", c.KillsAfterFilters())
+	if c.killsAfterFilters != 1 {
+		t.Errorf("KillsAfterFilters = %d, want 1", c.killsAfterFilters)
 	}
 }
 
@@ -39,11 +43,11 @@ func TestRecordKillRejectedWeaponNotAdded(t *testing.T) {
 	c := NewCollector(targetID, r)
 	c.RecordKill(RawKill{Tick: 1000, Round: 3, Weapon: "knife"})
 
-	if c.TotalKillsTarget() != 1 {
-		t.Errorf("TotalKillsTarget = %d, want 1 (counted before filters)", c.TotalKillsTarget())
+	if c.totalKillsTarget != 1 {
+		t.Errorf("TotalKillsTarget = %d, want 1 (counted before filters)", c.totalKillsTarget)
 	}
-	if c.KillsAfterFilters() != 0 {
-		t.Errorf("KillsAfterFilters = %d, want 0 (filtered out)", c.KillsAfterFilters())
+	if c.killsAfterFilters != 0 {
+		t.Errorf("KillsAfterFilters = %d, want 0 (filtered out)", c.killsAfterFilters)
 	}
 }
 
@@ -67,7 +71,7 @@ func TestCollectorRecapKeepsEveryWeaponDespiteShortsFilters(t *testing.T) {
 			c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: tt.weapon})
 			c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 11000})
 
-			killBursts, err := c.Build(meta())
+			killBursts, err := c.build(meta(), SegmentModeKills)
 			if err != nil {
 				t.Fatalf("Build kills: %v", err)
 			}
@@ -128,7 +132,7 @@ func TestCollectorRecapIgnoresShortsRoundRange(t *testing.T) {
 	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: "awp"})
 	c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 11000})
 
-	shorts, err := c.Build(meta())
+	shorts, err := c.build(meta(), SegmentModeKills)
 	if err != nil {
 		t.Fatalf("Build Shorts: %v", err)
 	}
@@ -159,8 +163,8 @@ func TestRecordKillHeadshotOnlyDropsNonHeadshots(t *testing.T) {
 	c.RecordKill(RawKill{Tick: 1000, Round: 3, Weapon: "awp", Headshot: false})
 	c.RecordKill(RawKill{Tick: 2000, Round: 3, Weapon: "awp", Headshot: true})
 
-	if c.KillsAfterFilters() != 1 {
-		t.Errorf("KillsAfterFilters = %d, want 1 (only headshot)", c.KillsAfterFilters())
+	if c.killsAfterFilters != 1 {
+		t.Errorf("KillsAfterFilters = %d, want 1 (only headshot)", c.killsAfterFilters)
 	}
 }
 
@@ -174,8 +178,8 @@ func TestRecordKillRoundFilter(t *testing.T) {
 	c.RecordKill(RawKill{Tick: 3000, Round: 10, Weapon: "awp"}) // ok
 	c.RecordKill(RawKill{Tick: 4000, Round: 11, Weapon: "awp"}) // above
 
-	if c.KillsAfterFilters() != 2 {
-		t.Errorf("KillsAfterFilters = %d, want 2", c.KillsAfterFilters())
+	if c.killsAfterFilters != 2 {
+		t.Errorf("KillsAfterFilters = %d, want 2", c.killsAfterFilters)
 	}
 }
 
@@ -183,7 +187,7 @@ func TestBuildPlanFailsWhenTargetNeverSeen(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	// no RecordTargetIdentity, no kills
 
-	_, err := c.Build(meta())
+	_, err := c.build(meta(), SegmentModeKills)
 	if err == nil {
 		t.Fatal("Build() error = nil, want error about target not seen")
 	}
@@ -196,7 +200,7 @@ func TestBuildPlanWithNoKillsReturnsEmptySegments(t *testing.T) {
 	c := NewCollector(targetID, defaultTestRules())
 	c.RecordTargetIdentity("MARTINEZSA", "CT")
 
-	plan, err := c.Build(meta())
+	plan, err := c.build(meta(), SegmentModeKills)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -271,7 +275,7 @@ func TestRecordTargetIdentityKeepsTheFirstObservedAliasAndTeam(t *testing.T) {
 	c.RecordTargetIdentity("ZaCkETiZOR", "T")
 	c.RecordTargetIdentity("zack", "CT")
 
-	plan, err := c.Build(meta())
+	plan, err := c.build(meta(), SegmentModeKills)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -291,7 +295,7 @@ func TestBuildClampsSegmentEndToDemoDuration(t *testing.T) {
 	const duration = 20_000
 	const killTick = 10_000
 	c.RecordKill(RawKill{Tick: killTick, Round: 1, Weapon: "ak47"})
-	plan, err := c.Build(PlanMeta{Tickrate: 64, DurationTicks: duration})
+	plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: duration}, SegmentModeKills)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +317,7 @@ func TestBuildPullsSegmentEndBackFromDemoEOF(t *testing.T) {
 	const duration = 10_500
 	const killTick = 10_200
 	c.RecordKill(RawKill{Tick: killTick, Round: 1, Weapon: "ak47"})
-	plan, err := c.Build(PlanMeta{Tickrate: 64, DurationTicks: duration})
+	plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: duration}, SegmentModeKills)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +345,7 @@ func TestBuildNeverLandsSegmentEndOnAbsoluteDurationWhenMarginApplies(t *testing
 		killTick = 49_700 // post-roll 49_700+320=50020 > duration
 	)
 	c.RecordKill(RawKill{Tick: killTick, Round: 12, Weapon: "awp"})
-	plan, err := c.Build(PlanMeta{Tickrate: tickrate, DurationTicks: duration})
+	plan, err := c.build(PlanMeta{Tickrate: tickrate, DurationTicks: duration}, SegmentModeKills)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +373,7 @@ func TestBuildKeepsShortTailWhenKillIsInsideEOFMargin(t *testing.T) {
 	const duration = 10_000
 	const killTick = 9_950
 	c.RecordKill(RawKill{Tick: killTick, Round: 1, Weapon: "ak47"})
-	plan, err := c.Build(PlanMeta{Tickrate: 64, DurationTicks: duration})
+	plan, err := c.build(PlanMeta{Tickrate: 64, DurationTicks: duration}, SegmentModeKills)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +396,7 @@ func TestBuildPlanAssemblesSegments(t *testing.T) {
 	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: "awp"})
 	c.RecordKill(RawKill{Tick: 10000 + 2*testTickrate, Round: 5, Weapon: "awp"})
 
-	plan, err := c.Build(meta())
+	plan, err := c.build(meta(), SegmentModeKills)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
@@ -446,7 +450,7 @@ func TestBuildPlanRoundEndClipping(t *testing.T) {
 	c.RecordKill(RawKill{Tick: 10000, Round: 5, Weapon: "awp"})
 	c.RecordRoundEnd(RoundEnd{Round: 5, Tick: 10100})
 
-	plan, err := c.Build(meta())
+	plan, err := c.build(meta(), SegmentModeKills)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}

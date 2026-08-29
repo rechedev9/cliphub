@@ -1,7 +1,7 @@
-export const DEM_EXT = '.dem';
-export const DEM_ZST_EXT = '.dem.zst';
-export const RAR_EXT = '.rar';
-export const ZIP_EXT = '.zip';
+const DEM_EXT = '.dem';
+const DEM_ZST_EXT = '.dem.zst';
+const RAR_EXT = '.rar';
+const ZIP_EXT = '.zip';
 export const MAX_DEMO_FILES = 10;
 
 export function isDemoFileName(name: string): boolean {
@@ -9,7 +9,7 @@ export function isDemoFileName(name: string): boolean {
   return lower.endsWith(DEM_EXT) || lower.endsWith(DEM_ZST_EXT);
 }
 
-export function isZipFileName(name: string): boolean {
+function isZipFileName(name: string): boolean {
   return name.toLowerCase().endsWith(ZIP_EXT);
 }
 

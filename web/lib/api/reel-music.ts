@@ -18,7 +18,7 @@ export const GAME_VOLUME_MIN_PERCENT = 0;
 export const GAME_VOLUME_MAX_PERCENT = 100;
 export const GAME_VOLUME_STEP_PERCENT = 5;
 export const GAME_VOLUME_DEFAULT_PERCENT = 70;
-export const GAME_VOLUME_DEFAULT = GAME_VOLUME_DEFAULT_PERCENT / 100;
+const GAME_VOLUME_DEFAULT = GAME_VOLUME_DEFAULT_PERCENT / 100;
 
 /** True when both choices describe the same mix (including "no music"). */
 export function musicChoicesEqual(left: MusicChoice, right: MusicChoice): boolean {

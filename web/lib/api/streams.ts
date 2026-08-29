@@ -1,10 +1,10 @@
-import { SERVICE_UNAVAILABLE_CODE, type KeyDropStyle } from './types.ts';
+import type { KeyDropStyle } from './types.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
-export type StreamJobStatus = 'acquiring' | 'uploaded' | 'ready' | 'rendering' | 'rendered' | 'failed';
+type StreamJobStatus = 'acquiring' | 'uploaded' | 'ready' | 'rendering' | 'rendered' | 'failed';
 
-export type StreamProbe = {
+type StreamProbe = {
   width: number;
   height: number;
   duration_seconds: number;
@@ -50,16 +50,16 @@ export type StreamClipRange = {
 };
 
 /** A music catalog track mixed under the clip audio; empty key means none. */
-export type StreamMusic = { key?: string; volume?: number };
+type StreamMusic = { key?: string; volume?: number };
 
 /** Light post effects; grade is the mild viral contrast/saturation lift. */
-export type StreamEffects = { grade?: boolean };
+type StreamEffects = { grade?: boolean };
 
-export const STREAMER_BANNER_PLATFORMS = ['twitch', 'kick'] as const;
+const STREAMER_BANNER_PLATFORMS = ['twitch', 'kick'] as const;
 export type StreamerBannerPlatform = (typeof STREAMER_BANNER_PLATFORMS)[number];
 
 /** Optional branded strip rendered over the stream output. */
-export type StreamerBanner = {
+type StreamerBanner = {
   nick?: string;
   platform?: StreamerBannerPlatform;
   position_y?: number;
@@ -68,7 +68,7 @@ export type StreamerBanner = {
 
 /** KeyDrop sponsor plate; empty style disables the overlay. */
 export type KeyDropBannerStyle = KeyDropStyle;
-export type KeyDropBanner = {
+type KeyDropBanner = {
   style?: KeyDropBannerStyle | '';
   code?: string;
   position_y?: number;
@@ -106,12 +106,12 @@ export type StreamJob = {
   updated_at?: string;
 };
 
-export type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };
-export type StreamRenderStatus = 'queued' | 'rendering' | 'rendered' | 'failed' | 'none';
+type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };
+type StreamRenderStatus = 'queued' | 'rendering' | 'rendered' | 'failed' | 'none';
 export const STREAM_RENDER_ERROR_CODE = {
   superseded: 'render_superseded',
 } as const;
-export type StreamRenderErrorCode =
+type StreamRenderErrorCode =
   (typeof STREAM_RENDER_ERROR_CODE)[keyof typeof STREAM_RENDER_ERROR_CODE];
 export type StreamRenderState = {
   status: StreamRenderStatus;
@@ -228,4 +228,4 @@ export class RealStreamsApiClient implements StreamsApiClient {
 
 export const streamsApi: StreamsApiClient = new RealStreamsApiClient();
 
-export { SERVICE_UNAVAILABLE_CODE };
+;

@@ -55,7 +55,7 @@ func TestWorldToPixel(t *testing.T) {
 }
 
 func TestPixelToWorldRoundTrip(t *testing.T) {
-	for _, name := range Maps() {
+	for name := range calibrations {
 		c, ok := Lookup(name)
 		if !ok {
 			t.Fatalf("%s must be calibrated", name)
