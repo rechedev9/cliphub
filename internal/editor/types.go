@@ -444,6 +444,21 @@ type Result struct {
 	Error             string        `json:"error,omitempty"`
 }
 
+// RenderPerformance records local, content-free measurements for one finished
+// short. It deliberately stores no machine identity or media path, so results
+// can be compared across real jobs without expanding telemetry exposure.
+type RenderPerformance struct {
+	RenderMS                    int64   `json:"render_ms,omitempty"`
+	ProbeMS                     int64   `json:"probe_ms,omitempty"`
+	QualityCheckMS              int64   `json:"quality_check_ms,omitempty"`
+	CoverMS                     int64   `json:"cover_ms,omitempty"`
+	CoverSheetMS                int64   `json:"cover_sheet_ms,omitempty"`
+	OutputBytes                 int64   `json:"output_bytes,omitempty"`
+	MediaDurationSeconds        float64 `json:"media_duration_seconds,omitempty"`
+	RenderSecondsPerMediaSecond float64 `json:"render_seconds_per_media_second,omitempty"`
+	Reused                      bool    `json:"reused,omitempty"`
+}
+
 type ShortResult struct {
 	Index              int                         `json:"index"`
 	SegmentID          string                      `json:"segment_id"`
@@ -501,6 +516,7 @@ type ShortResult struct {
 	QualityCommand     []string                    `json:"quality_command,omitempty"`
 	RenderLogPath      string                      `json:"render_log_path,omitempty"`
 	QualityLogPath     string                      `json:"quality_log_path,omitempty"`
+	Performance        *RenderPerformance          `json:"performance,omitempty"`
 }
 
 type PackManifest struct {

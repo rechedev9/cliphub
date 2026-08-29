@@ -71,6 +71,7 @@ func TestBuildFFmpegArgs(t *testing.T) {
 		{name: "speed atempo", want: "atempo=2.000000"},
 		{name: "adelay pip", want: "adelay=500:all=1"},
 		{name: "amix three", want: "amix=inputs=3"},
+		{name: "high quality scaling", want: "force_original_aspect_ratio=decrease:flags=lanczos+accurate_rnd+full_chroma_int"},
 		{name: "h264 profile", want: "-c:v libx264 -preset slow -crf 18"},
 	}
 	for _, tc := range cases {

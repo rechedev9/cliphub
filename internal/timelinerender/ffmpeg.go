@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	defaultVideoCRF   = 18
-	defaultAACBitrate = "192k"
-	defaultPreset     = "slow"
-	gradeFilter       = "eq=contrast=1.05:saturation=1.15"
+	defaultVideoCRF       = 18
+	defaultAACBitrate     = "192k"
+	defaultPreset         = "slow"
+	highQualityScaleFlags = "lanczos+accurate_rnd+full_chroma_int"
+	gradeFilter           = "eq=contrast=1.05:saturation=1.15"
 )
 
 // AssetInput is one resolved media file referenced by the timeline.
@@ -224,7 +225,7 @@ func videoChain(item timelineplan.Item, canvasW, canvasH int, _ float64) (string
 	parts := []string{
 		fmt.Sprintf("trim=start=%s:end=%s", secondsArg(item.SourceIn), secondsArg(item.SourceOut)),
 		"setpts=(PTS-STARTPTS)/" + floatArg(speed) + "+" + secondsArg(item.TimelineStart) + "/TB",
-		fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", outW, outH),
+		fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease:flags=%s", outW, outH, highQualityScaleFlags),
 		fmt.Sprintf("pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black@0", outW, outH),
 		"setsar=1",
 		"format=yuva420p",

@@ -295,6 +295,9 @@ func TestRunWithFakeFFmpegWritesShortResults(t *testing.T) {
 	if first.OutputArtifact.SizeBytes == 0 {
 		t.Fatalf("short output artifact missing size: %#v", first.OutputArtifact)
 	}
+	if first.Performance == nil || first.Performance.OutputBytes != first.OutputArtifact.SizeBytes {
+		t.Fatalf("short performance = %#v, want measured output bytes", first.Performance)
+	}
 	if _, err := os.Stat(filepath.Join(outDir, "short-001-seg-001.mp4")); err != nil {
 		t.Fatalf("short output missing: %v", err)
 	}
@@ -330,6 +333,9 @@ func TestRunWithFakeFFmpegWritesShortResults(t *testing.T) {
 	}
 	if len(written.Shorts) != 2 || written.Shorts[0].SegmentID != "seg-001" {
 		t.Fatalf("written result = %#v", written.Shorts)
+	}
+	if written.Shorts[0].Performance == nil || written.Shorts[0].Performance.OutputBytes == 0 {
+		t.Fatalf("written performance = %#v", written.Shorts[0].Performance)
 	}
 
 	var pack PackManifest

@@ -283,11 +283,22 @@ type RenderResult struct {
 	RenderedAt    time.Time    `json:"rendered_at"`
 }
 
+// VideoPerformance is a content-free local measurement of one stream encode.
+// It is persisted with the render result so real jobs can be compared without
+// collecting host identity, media names, or source URLs.
+type VideoPerformance struct {
+	RenderMS                    int64   `json:"render_ms,omitempty"`
+	OutputBytes                 int64   `json:"output_bytes,omitempty"`
+	MediaDurationSeconds        float64 `json:"media_duration_seconds,omitempty"`
+	RenderSecondsPerMediaSecond float64 `json:"render_seconds_per_media_second,omitempty"`
+}
+
 type VideoEntry struct {
-	ClipID          string  `json:"clip_id"`
-	Title           string  `json:"title,omitempty"`
-	Key             string  `json:"key"`
-	DurationSeconds float64 `json:"duration_seconds,omitempty"`
+	ClipID          string            `json:"clip_id"`
+	Title           string            `json:"title,omitempty"`
+	Key             string            `json:"key"`
+	DurationSeconds float64           `json:"duration_seconds,omitempty"`
+	Performance     *VideoPerformance `json:"performance,omitempty"`
 }
 
 func NewVideoEntry(clip ClipRange, key string) VideoEntry {
@@ -299,6 +310,18 @@ func NewVideoEntry(clip ClipRange, key string) VideoEntry {
 	}
 }
 
+func NewVideoPerformance(elapsed time.Duration, mediaSeconds float64, outputBytes int64) *VideoPerformance {
+	performance := &VideoPerformance{
+		RenderMS:             elapsed.Milliseconds(),
+		OutputBytes:          outputBytes,
+		MediaDurationSeconds: mediaSeconds,
+	}
+	if elapsed > 0 && mediaSeconds > 0 {
+		performance.RenderSecondsPerMediaSecond = elapsed.Seconds() / mediaSeconds
+	}
+	return performance
+}
+
 func NewRenderResult(id uuid.UUID, variant string, videos []VideoEntry, renderedAt time.Time) (RenderResult, error) {
 	if _, err := RenderPrefix(id, variant); err != nil {
 		return RenderResult{}, err
@@ -306,11 +329,19 @@ func NewRenderResult(id uuid.UUID, variant string, videos []VideoEntry, rendered
 	if renderedAt.IsZero() {
 		renderedAt = time.Now()
 	}
+	clips := append([]VideoEntry(nil), videos...)
+	for i := range clips {
+		if clips[i].Performance == nil {
+			continue
+		}
+		performance := *clips[i].Performance
+		clips[i].Performance = &performance
+	}
 	return RenderResult{
 		SchemaVersion: "1.0",
 		JobID:         id,
 		Variant:       variant,
-		Clips:         append([]VideoEntry(nil), videos...),
+		Clips:         clips,
 		RenderedAt:    renderedAt.UTC(),
 	}, nil
 }
