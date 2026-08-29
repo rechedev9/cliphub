@@ -10,6 +10,7 @@ const FLUSH_INTERVAL_MS = 30_000;
 const MAX_BACKOFF_MS = 30 * 60_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 const PERFORMANCE_SAMPLE_RATE = 0.1;
+const RELEASE_PATTERN = /^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$/;
 
 export interface TelemetryReleaseConfig {
   endpoint: string;
@@ -384,7 +385,7 @@ function isLabel(value: unknown): value is string {
 }
 
 function isRelease(value: unknown): value is string {
-  return typeof value === 'string' && /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(value);
+  return typeof value === 'string' && RELEASE_PATTERN.test(value);
 }
 
 function safeLabel(value: string, fallback: string): string {
@@ -393,8 +394,8 @@ function safeLabel(value: string, fallback: string): string {
 }
 
 function safeRelease(value: string): string {
-  const normalized = value.trim().slice(0, 64);
-  return /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(normalized) ? normalized : 'unknown';
+  const coreVersion = value.trim().split(/[+-]/, 1)[0];
+  return RELEASE_PATTERN.test(coreVersion) ? coreVersion : '0.0.0';
 }
 
 function sampled(eventID: string, rate: number): boolean {

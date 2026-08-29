@@ -6,7 +6,7 @@ import test from 'node:test';
 import { TelemetryClient } from './telemetry-client.ts';
 import { TelemetrySettingsStore } from './telemetry-settings.ts';
 
-function fixture(responseStatus = 202): {
+function fixture(responseStatus = 202, release = '2.4.35'): {
   client: TelemetryClient;
   queuePath: string;
   requests: Array<{ body: string; headers: Record<string, string> }>;
@@ -18,7 +18,7 @@ function fixture(responseStatus = 202): {
   const client = new TelemetryClient({
     settings,
     queuePath,
-    release: '2.4.35',
+    release,
     config: { endpoint: 'https://collector.example/v1/ingest', ingestKey: 'public-ingest-key-with-24-characters' },
     fetch: async (_input, init) => {
       requests.push({ body: init.body, headers: init.headers });
@@ -50,6 +50,22 @@ test('waits for the informed choice and uploads only fixed error labels', async 
   assert.match(posted, /desktop\.boot_failed/);
   assert.doesNotMatch(posted, /summary|fingerprint|Users|7656119|token/);
   assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).events.length, 0);
+});
+
+test('normalizes prerelease versions to the collector release contract', async () => {
+  const { client, requests } = fixture(202, '2.4.35-beta.1+local');
+  client.update(true);
+  client.recordError({ component: 'renderer', name: 'route.error', stage: 'renderer', class: 'exception' });
+  await client.flush();
+  assert.equal(JSON.parse(requests[0].body).events[0].release, '2.4.35');
+});
+
+test('uses a valid sentinel for malformed app versions', async () => {
+  const { client, requests } = fixture(202, 'development');
+  client.update(true);
+  client.recordError({ component: 'renderer', name: 'route.error', stage: 'renderer', class: 'exception' });
+  await client.flush();
+  assert.equal(JSON.parse(requests[0].body).events[0].release, '0.0.0');
 });
 
 test('disabling diagnostics aborts an in-flight upload before clearing the queue', async () => {
