@@ -224,6 +224,7 @@ func TestHandleRenderVariantIngestsAttemptFileWithoutResultJSON(t *testing.T) {
 	if err := putCaptureKind(store, id, true); err != nil {
 		t.Fatal(err)
 	}
+	stampRecordingSegmentDuration(t, store, id, 1312)
 	worker.cfg.FFprobePath = "ffprobe.exe"
 	var logs bytes.Buffer
 	log.SetOutput(&logs)
@@ -277,6 +278,64 @@ func TestHandleRenderVariantIngestsAttemptFileWithoutResultJSON(t *testing.T) {
 	if _, ok := store.files[state.EditDocumentKey]; !ok {
 		t.Fatalf("durable edit-document.json missing at %s", state.EditDocumentKey)
 	}
+	for key := range store.files {
+		if strings.HasSuffix(key, ".cover.jpg") {
+			t.Fatalf("salvage uploaded a cover without a real JPEG: %s", key)
+		}
+	}
+}
+
+func TestHandleRenderVariantRejectsTruncatedAttemptFile(t *testing.T) {
+	id, store, worker := recordedFullDemoRender(t)
+	if err := putCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	stampRecordingSegmentDuration(t, store, id, 1312)
+	worker.cfg.FFprobePath = "ffprobe.exe"
+	worker.runner = &fakeRunner{fn: func(_ context.Context, exe string, args ...string) ([]byte, error) {
+		switch filepath.Base(exe) {
+		case "zv-editor.exe":
+			outDir := argValue(args, "--out")
+			attempt := filepath.Join(outDir, ".short-001-demo-compilation.attempt-1.mp4")
+			if err := os.WriteFile(attempt, bytes.Repeat([]byte("mp4"), 64), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return nil, errors.New("exit status 1")
+		case "ffprobe.exe":
+			return []byte(`{"streams":[{"codec_name":"h264","width":1920,"height":1080,"r_frame_rate":"60/1","duration":"12.0"}],"format":{"duration":"12.0","size":"4000000"}}`), nil
+		default:
+			t.Fatalf("unexpected exe %q", exe)
+			return nil, nil
+		}
+	}}
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, renderplan.RecapEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.HandleRenderVariant(context.Background(), task); err == nil {
+		t.Fatal("HandleRenderVariant error = nil, want truncated 16:9 rejected")
+	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetGameplayPOV60)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusFailed {
+		t.Fatalf("status = %q, want failed so a 12s stub is not published as the recap", state.Status)
+	}
+}
+
+func stampRecordingSegmentDuration(t *testing.T, store *fakeStorage, id uuid.UUID, seconds float64) {
+	t.Helper()
+	key := recording.ResultArtifactKey(id)
+	var result recording.RecordingResult
+	if err := json.Unmarshal(store.files[key], &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Artifacts) == 0 {
+		t.Fatal("recording result has no artifacts")
+	}
+	result.Artifacts[0].DurationSeconds = seconds
+	putJSON(t, store, key, result)
 }
 
 func TestHandleRenderVariantDoesNotPublishNineBySixteenFullDemo(t *testing.T) {
@@ -358,4 +417,24 @@ func recordedFullDemoRender(t *testing.T) (uuid.UUID, *fakeStorage, *RenderWorke
 	})
 	worker.voiceExtract = func(string, string, string) (int, error) { return 0, nil }
 	return id, store, worker
+}
+
+func TestRecapDurationMismatch(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		got, expected float64
+		want          bool
+	}{
+		{got: 1312, expected: 1312, want: false},
+		{got: 1300, expected: 1312, want: false},
+		{got: 12, expected: 1312, want: true},
+		{got: 1312, expected: 0, want: true},
+		{got: 0, expected: 1312, want: true},
+		{got: 2, expected: 1, want: true},
+	}
+	for _, tc := range cases {
+		if got := recapDurationMismatch(tc.got, tc.expected); got != tc.want {
+			t.Fatalf("recapDurationMismatch(%v, %v) = %v, want %v", tc.got, tc.expected, got, tc.want)
+		}
+	}
 }

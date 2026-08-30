@@ -3142,14 +3142,15 @@ func salvageFullDemoLandscapeFromDisk(
 	if err != nil {
 		return editor.Result{}, err
 	}
-	if expected := expectedRecapDurationSeconds(recordingResult); expected > 0 && artifact.DurationSeconds > 0 {
-		delta := artifact.DurationSeconds - expected
-		if delta < 0 {
-			delta = -delta
-		}
-		if delta > 30 && delta > expected*0.15 {
-			return editor.Result{}, fmt.Errorf("16:9 recap duration %.3fs does not match captured length %.3fs", artifact.DurationSeconds, expected)
-		}
+	if artifact.DurationSeconds <= 0 {
+		return editor.Result{}, fmt.Errorf("16:9 recap probe has no duration")
+	}
+	expected := expectedRecapDurationSeconds(recordingResult)
+	if expected <= 0 {
+		return editor.Result{}, fmt.Errorf("cannot prove 16:9 recap completeness: captured segment duration is unknown")
+	}
+	if recapDurationMismatch(artifact.DurationSeconds, expected) {
+		return editor.Result{}, fmt.Errorf("16:9 recap duration %.3fs does not match captured length %.3fs", artifact.DurationSeconds, expected)
 	}
 	if err := os.MkdirAll(publishDir, 0o750); err != nil {
 		return editor.Result{}, err
@@ -3162,10 +3163,7 @@ func salvageFullDemoLandscapeFromDisk(
 	if err := os.WriteFile(captionPath, []byte("Full Demo recap\n"), 0o600); err != nil {
 		return editor.Result{}, err
 	}
-	coverPath := filepath.Join(publishDir, fullDemoCompilationSegmentID+".cover.jpg")
-	if err := os.WriteFile(coverPath, []byte("cover"), 0o600); err != nil {
-		return editor.Result{}, err
-	}
+	coverPath, coverOK := extractSalvagedRecapCover(ctx, runner, cfg.FFmpegPath, destination, publishDir)
 	publishArt := artifact
 	publishArt.Path = publishVideo
 	publishArt.Role = "publish"
@@ -3177,11 +3175,17 @@ func salvageFullDemoLandscapeFromDisk(
 		PublishPath:     publishVideo,
 		OutputFormat:    editor.OutputFormatLandscape16x9,
 		CaptionPath:     captionPath,
-		CoverPath:       coverPath,
 		DurationSeconds: artifact.DurationSeconds,
 		Title:           "Full Demo recap",
 		OutputArtifact:  artifact,
 		PublishArtifact: publishArt,
+	}
+	if coverOK {
+		short.CoverPath = coverPath
+	}
+	warnings := []string{"editor exited after writing a complete output; ingested the finished file"}
+	if !coverOK {
+		warnings = append(warnings, "cover omitted; editor exited before writing publish assets")
 	}
 	result := editor.Result{
 		Preset:          loadout.Preset,
@@ -3191,11 +3195,11 @@ func salvageFullDemoLandscapeFromDisk(
 		KillEffect:      edit.KillEffect,
 		Transition:      edit.Transition,
 		CompileSegments: true,
-		CoverSheets:     loadout.CoverSheets,
-		CoversEnabled:   loadout.CoversEnabled,
+		CoverSheets:     false,
+		CoversEnabled:   coverOK,
 		Executed:        true,
 		Shorts:          []editor.ShortResult{short},
-		Warnings:        []string{"editor exited after writing a complete output; ingested the finished file"},
+		Warnings:        warnings,
 	}
 	manifest := editor.Manifest{
 		Preset:          loadout.Preset,
@@ -3203,8 +3207,8 @@ func salvageFullDemoLandscapeFromDisk(
 		PublishDir:      publishDir,
 		OutputFormat:    editor.OutputFormatLandscape16x9,
 		CompileSegments: true,
-		CoverSheets:     loadout.CoverSheets,
-		CoversEnabled:   loadout.CoversEnabled,
+		CoverSheets:     false,
+		CoversEnabled:   coverOK,
 		Shorts: []editor.ShortEdit{{
 			Index:        1,
 			SegmentID:    fullDemoCompilationSegmentID,
@@ -3213,7 +3217,7 @@ func salvageFullDemoLandscapeFromDisk(
 			PublishPath:  publishVideo,
 			OutputFormat: editor.OutputFormatLandscape16x9,
 			CaptionPath:  captionPath,
-			CoverPath:    coverPath,
+			CoverPath:    short.CoverPath,
 		}},
 	}
 	pack := editor.PackManifest{
@@ -3221,8 +3225,8 @@ func salvageFullDemoLandscapeFromDisk(
 		PublishDir:      publishDir,
 		OutputFormat:    editor.OutputFormatLandscape16x9,
 		CompileSegments: true,
-		CoverSheets:     loadout.CoverSheets,
-		CoversEnabled:   loadout.CoversEnabled,
+		CoverSheets:     false,
+		CoversEnabled:   coverOK,
 		Items: []editor.PublishItem{{
 			Index:        1,
 			SegmentID:    fullDemoCompilationSegmentID,
@@ -3230,7 +3234,7 @@ func salvageFullDemoLandscapeFromDisk(
 			Video:        publishVideo,
 			OutputFormat: editor.OutputFormatLandscape16x9,
 			CaptionPath:  captionPath,
-			CoverPath:    coverPath,
+			CoverPath:    short.CoverPath,
 		}},
 	}
 	if err := writeJSONFile(filepath.Join(outDir, "edit-manifest.json"), manifest); err != nil {
@@ -3297,7 +3301,66 @@ func expectedRecapDurationSeconds(result recording.RecordingResult) float64 {
 			sum += artifact.DurationSeconds
 		}
 	}
+	if sum > 0 {
+		return sum
+	}
+	if result.Plan.Tickrate <= 0 {
+		return 0
+	}
+	for _, segment := range result.Plan.Segments {
+		if segment.TickEnd <= segment.TickStart {
+			continue
+		}
+		sum += float64(segment.TickEnd-segment.TickStart) / float64(result.Plan.Tickrate)
+	}
 	return sum
+}
+
+func recapDurationMismatch(got, expected float64) bool {
+	if got <= 0 || expected <= 0 {
+		return true
+	}
+	delta := got - expected
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta > 30 || delta > expected*0.15
+}
+
+func extractSalvagedRecapCover(ctx context.Context, runner commandRunner, ffmpegPath, videoPath, publishDir string) (string, bool) {
+	if strings.TrimSpace(ffmpegPath) == "" || runner == nil {
+		return "", false
+	}
+	coverPath := filepath.Join(publishDir, fullDemoCompilationSegmentID+".cover.jpg")
+	_, err := runner.Run(ctx, ffmpegPath,
+		"-y", "-hide_banner", "-loglevel", "error",
+		"-ss", "1",
+		"-i", videoPath,
+		"-frames:v", "1",
+		"-q:v", "4",
+		coverPath,
+	)
+	if err != nil {
+		return "", false
+	}
+	info, err := os.Stat(coverPath)
+	if err != nil || !info.Mode().IsRegular() || info.Size() < 100 {
+		_ = os.Remove(coverPath)
+		return "", false
+	}
+	header := make([]byte, 3)
+	f, err := os.Open(coverPath)
+	if err != nil {
+		_ = os.Remove(coverPath)
+		return "", false
+	}
+	_, readErr := f.Read(header)
+	_ = f.Close()
+	if readErr != nil || header[0] != 0xff || header[1] != 0xd8 || header[2] != 0xff {
+		_ = os.Remove(coverPath)
+		return "", false
+	}
+	return coverPath, true
 }
 
 func copyRegularFile(src, dst string) error {
