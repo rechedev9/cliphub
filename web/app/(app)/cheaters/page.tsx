@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, FileVideo, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Match } from '@/lib/api/types';
+import type { JobProgress, Match } from '@/lib/api/types';
 import {
   ANTICHEAT_STATUS,
   fetchAnticheat,
@@ -16,6 +16,7 @@ import {
 import { DossierDialog } from '@/components/cheaters/dossier-dialog';
 import { PlayerDetail, PlayerSummaryRow } from '@/components/cheaters/player-detail';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { LiveWait } from '@/components/studio/live-wait';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { Button } from '@/components/ui/button';
@@ -136,7 +137,15 @@ function AnalysisPanel({
       <StudioEmptyState
         icon={Loader2}
         title="Analizando la demo"
-        description="Se está recorriendo la demo tick a tick para medir puntería, información y tiempos de reacción. Puedes salir de esta pantalla; el análisis sigue. Si lleva demasiado tiempo aquí, reinicia el análisis."
+        description={
+          <>
+            <p>
+              Se está recorriendo la demo tick a tick para medir puntería, información y tiempos de reacción. Puedes
+              salir de esta pantalla; el análisis sigue.
+            </p>
+            <LiveWait progress={document.progress} className="mt-4" />
+          </>
+        }
         compact
         actions={
           <Button variant="outline" onClick={onStart} loading={starting} loadingText="REINICIANDO ANÁLISIS…">
@@ -221,15 +230,14 @@ function AnalysisPanel({
   );
 }
 
-function IngestStatus({ fileName }: { fileName: string | null }): ReactNode {
+function IngestStatus({ fileName, progress }: { fileName: string | null; progress?: JobProgress }): ReactNode {
   return (
     <div
       role="status"
       aria-live="polite"
       className="studio-panel flex min-h-24 flex-col items-center justify-center gap-2 px-4 py-5 text-center"
     >
-      <Loader2 className="size-5 animate-spin text-primary" />
-      <p className="font-display text-body-sm font-bold uppercase text-fg-1">Escaneando el roster…</p>
+      <LiveWait progress={progress} label="Escaneando el roster…" />
       {fileName ? (
         <p className="inline-flex max-w-full items-center gap-2 font-mono text-meta text-fg-3">
           <FileVideo aria-hidden className="size-4 shrink-0" />
@@ -269,6 +277,7 @@ export default function CheatersPage(): ReactNode {
   const [ingestError, setIngestError] = useState<string | null>(null);
   const [ingesting, setIngesting] = useState(false);
   const [ingestName, setIngestName] = useState<string | null>(null);
+  const [ingestProgress, setIngestProgress] = useState<JobProgress | undefined>(undefined);
 
   // The selected job is read inside the poll timer, which must not restart on
   // every render; a ref keeps the timer stable while still seeing the latest id.
@@ -400,9 +409,10 @@ export default function CheatersPage(): ReactNode {
     }
     setIngestError(null);
     setIngestName(picked.file.name);
+    setIngestProgress(undefined);
     setIngesting(true);
     try {
-      const scan = await api.scanDemo(picked.file);
+      const scan = await api.scanDemo(picked.file, { onProgress: setIngestProgress });
       if (scan.players.length === 0) {
         setIngestError(DEMO_EMPTY_ROSTER_HINT);
         return;
@@ -447,7 +457,7 @@ export default function CheatersPage(): ReactNode {
       <div className="@container/upload flex flex-col gap-3">
         {listError ? <IngestError message={listError} /> : null}
         {ingestError ? <IngestError message={ingestError} /> : null}
-        {ingesting ? <IngestStatus fileName={ingestName} /> : dropzone}
+        {ingesting ? <IngestStatus fileName={ingestName} progress={ingestProgress} /> : dropzone}
       </div>
     );
   } else {
@@ -455,7 +465,7 @@ export default function CheatersPage(): ReactNode {
       <div className="grid gap-8 lg:grid-cols-[minmax(200px,260px)_1fr] lg:gap-10">
         <div className="flex flex-col gap-3">
           {ingestError ? <IngestError message={ingestError} /> : null}
-          {ingesting ? <IngestStatus fileName={ingestName} /> : dropzone}
+          {ingesting ? <IngestStatus fileName={ingestName} progress={ingestProgress} /> : dropzone}
           <DemoPicker matches={matches} selected={selected} onSelect={setSelected} />
         </div>
         <AnalysisPanel

@@ -1,4 +1,4 @@
-import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
+import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo, JobProgress } from './types';
 import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 import type { MusicChoice } from './reel-music.ts';
@@ -26,9 +26,9 @@ export interface ApiClient {
   /** @deprecated Superseded by scanDemo + parseDemo. */
   uploadDemo(input: { fileName: string }): Promise<Match>;
   /** Pass `opts.seriesId` to tag a bo3/bo5 part. */
-  scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }>;
+  scanDemo(file: File, opts?: { seriesId?: string; onProgress?: (progress: JobProgress) => void }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }>;
   getSeries(seriesId: string): Promise<SeriesDemo[]>;
-  parseDemo(input: { jobId: string; steamId: string }): Promise<Match>;
+  parseDemo(input: { jobId: string; steamId: string; onProgress?: (progress: JobProgress) => void }): Promise<Match>;
   findClips(matchId: string): Promise<Play[]>;
   findRecapClips(matchId: string): Promise<Play[]>;
   listSongs(): Promise<Song[]>;

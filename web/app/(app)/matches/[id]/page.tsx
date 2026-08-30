@@ -33,6 +33,7 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { isWin, MatchScore } from '@/components/matches/match-score';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { LiveWait } from '@/components/studio/live-wait';
 import { PlayList } from '@/components/clips/play-list';
 import { PresetCards } from '@/components/clips/preset-cards';
 import { CreateReelBar } from '@/components/clips/create-reel-bar';
@@ -378,7 +379,12 @@ export default function FindHighlightsPage({
       <StudioEmptyState
         icon={Loader2}
         title={MATCH_PLAYS_ANALYZING_TITLE}
-        description={MATCH_PLAYS_ANALYZING_DESCRIPTION}
+        description={
+          <>
+            <p>{MATCH_PLAYS_ANALYZING_DESCRIPTION}</p>
+            <LiveWait progress={match.progress} className="mt-4" />
+          </>
+        }
         compact
       />
     );

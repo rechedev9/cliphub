@@ -57,6 +57,8 @@ type Options struct {
 	// MapName overrides the map read from the demo header, for demos that do
 	// not carry one.
 	MapName string
+	// OnProgress reports how far the tick walk has advanced. Optional.
+	OnProgress func(done, total int)
 }
 
 func (o Options) sampleHZ() (float64, error) {
@@ -351,6 +353,11 @@ func (s *scanner) register() {
 	})
 
 	p.RegisterEventHandler(func(events.FrameDone) { s.onFrame() })
+	if s.opts.OnProgress != nil {
+		p.RegisterEventHandler(func(events.FrameDone) {
+			s.opts.OnProgress(parser.TickProgress(s.p))
+		})
+	}
 }
 
 func (s *scanner) tick() int {

@@ -1,3 +1,4 @@
+import type { JobProgress } from './types.ts';
 import type { EditorDocument, EditorSample } from '../editor/evaluate.ts';
 
 export const EDITOR_STATUS = {
@@ -39,6 +40,7 @@ export type EditorRenderState = {
   fingerprint?: string;
   warnings?: string[];
   error?: string;
+  progress?: JobProgress;
 };
 
 async function throwResponseError(res: Response): Promise<never> {

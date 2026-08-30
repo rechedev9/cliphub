@@ -34,6 +34,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -468,7 +469,7 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 			internalError(w, "list jobs by series", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": h.jobListViews(jobs)})
 		return
 	}
 	limit := 50
@@ -485,7 +486,15 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": h.jobListViews(jobs)})
+}
+
+func (h *Handlers) jobListViews(jobs []job.Job) []jobResponse {
+	out := make([]jobResponse, len(jobs))
+	for i, j := range jobs {
+		out[i] = h.jobResponse(j)
+	}
+	return out
 }
 
 // ListLoadouts handles GET /api/loadouts.
@@ -582,7 +591,7 @@ func (h *Handlers) writeJobStatus(w http.ResponseWriter, r *http.Request, id uui
 		return
 	}
 	resp := jobStatusResponse{Status: status, FailureReason: failureReason}
-	if progress, ok := captureProgressWithTotal(h.storage, id, status, segmentCount); ok {
+	if progress, ok := jobProgressView(h.storage, id, status, segmentCount); ok {
 		resp.Progress = &progress
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -605,7 +614,11 @@ type jobResponse struct {
 
 func (h *Handlers) jobResponse(j job.Job) jobResponse {
 	resp := jobResponse{Job: j}
-	if progress, ok := captureProgress(h.storage, j); ok {
+	total := 0
+	if j.KillPlan != nil {
+		total = len(j.KillPlan.Segments)
+	}
+	if progress, ok := jobProgressView(h.storage, j.ID, j.Status, total); ok {
 		resp.Progress = &progress
 	}
 	return resp
@@ -1760,10 +1773,11 @@ func listArtifactDir(store storage.Storage, key string) ([]string, bool) {
 // the names the editor actually wrote instead of guessing them from segment ids.
 type renderVariantResponse struct {
 	*renderplan.RenderVariantState
-	Videos []string                  `json:"videos"`
-	Covers []string                  `json:"covers"`
-	Edit   *renderplan.EditRequest   `json:"edit,omitempty"`
-	Music  *renderplan.MusicSnapshot `json:"music,omitempty"`
+	Videos   []string                  `json:"videos"`
+	Covers   []string                  `json:"covers"`
+	Edit     *renderplan.EditRequest   `json:"edit,omitempty"`
+	Music    *renderplan.MusicSnapshot `json:"music,omitempty"`
+	Progress *captureProgressView      `json:"progress,omitempty"`
 }
 
 // artifactNamePlaceholder is a valid artifact token used only to resolve a
@@ -1794,13 +1808,17 @@ func (h *Handlers) writeRenderVariant(w http.ResponseWriter, state *renderplan.R
 		edit = &document.Edit
 		music = document.Music
 	}
-	writeJSON(w, http.StatusOK, renderVariantResponse{
+	resp := renderVariantResponse{
 		RenderVariantState: state,
 		Videos:             videos,
 		Covers:             covers,
 		Edit:               edit,
 		Music:              music,
-	})
+	}
+	if progress, ok := loadProgressView(h.storage, artifacts.ProgressKey(state.JobID)); ok && progress.Stage == jobprogress.StageRender {
+		resp.Progress = &progress
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handlers) readRenderVariantDocument(key string) (*renderplan.EditDocument, error) {

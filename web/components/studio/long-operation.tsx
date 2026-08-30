@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
+import type { JobProgress } from '@/lib/api/types';
+import { jobProgressCount, jobProgressPercent } from '@/lib/job-progress';
 import { cn } from '@/lib/utils';
 
 type LongOperationTone = 'primary' | 'stream';
@@ -29,23 +32,32 @@ export type LongOperationProps = {
   detail?: ReactNode;
   /** 0-100 from the pipeline. Omit when the stage reports none. */
   percent?: number;
+  /** Durable worker snapshot; when set, percent and current/total come from it. */
+  progress?: JobProgress;
   /** Seconds the operation has been running. The caller owns the clock. */
   elapsedSec?: number;
   tone?: LongOperationTone;
   className?: string;
 };
 
-/** Shared capture/render/stream progress: stage, bar, elapsed. `aria-live="polite"`. */
+/** Shared capture/render/stream progress: spinner, percent, current/total. */
 export function LongOperation({
   stage,
   detail,
   percent,
+  progress,
   elapsedSec,
   tone = 'primary',
   className,
 }: LongOperationProps): ReactNode {
-  const pct = percent === undefined ? undefined : Math.min(100, Math.max(0, Math.round(percent)));
-  const determinate = pct !== undefined;
+  const fromProgress = progress !== undefined;
+  let pct = 0;
+  if (fromProgress) {
+    pct = jobProgressPercent(progress);
+  } else if (percent !== undefined) {
+    pct = Math.min(100, Math.max(0, Math.round(percent)));
+  }
+  const count = fromProgress ? jobProgressCount(progress) : undefined;
   const complete = pct === 100;
 
   return (
@@ -63,11 +75,13 @@ export function LongOperation({
             <svg viewBox="0 0 16 16" className="size-3 shrink-0" aria-hidden>
               <path className="studio-op-check-path" d="M3.5 8.5 6.5 11.5 12.5 4.5" />
             </svg>
-          ) : null}
+          ) : (
+            <Loader2 className="size-3 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+          )}
           <span className="min-w-0 truncate">{stage}</span>
         </span>
         <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-meta tabular-nums">
-          {determinate ? <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span> : null}
+          <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span>
           {elapsedSec !== undefined ? <span className="text-fg-3">{formatElapsed(elapsedSec)}</span> : null}
         </span>
       </div>
@@ -75,21 +89,18 @@ export function LongOperation({
       <div
         role="progressbar"
         aria-label={stage}
-        aria-valuemin={determinate ? 0 : undefined}
-        aria-valuemax={determinate ? 100 : undefined}
+        aria-valuemin={0}
+        aria-valuemax={100}
         aria-valuenow={pct}
         className="h-1 w-full overflow-hidden bg-surface-0"
       >
-        {determinate ? (
-          <span
-            className={cn('block h-full transition-[width] duration-(--dur-data) ease-standard', TONE_FILL_CLASS[tone])}
-            style={{ width: `${pct}%` }}
-          />
-        ) : (
-          <span className={cn('studio-indeterminate block h-full w-2/5', TONE_FILL_CLASS[tone])} />
-        )}
+        <span
+          className={cn('block h-full transition-[width] duration-(--dur-data) ease-standard', TONE_FILL_CLASS[tone])}
+          style={{ width: `${pct}%` }}
+        />
       </div>
 
+      {count ? <p className="font-mono text-meta tabular-nums text-fg-3">{count}</p> : null}
       {detail ? <p className="font-mono text-meta uppercase text-fg-3">{detail}</p> : null}
     </div>
   );

@@ -3,7 +3,7 @@
 import { use, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Loader2, SearchX, Unplug } from 'lucide-react';
+import { AlertTriangle, SearchX, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
 import { canForgeReel } from '@/lib/reel-brief';
@@ -26,6 +26,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { LiveWait } from '@/components/studio/live-wait';
 import { StudioPageHeader } from '@/components/studio/page-header';
 
 const FAST_POLL_MS = 1500;
@@ -185,10 +186,9 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         </p>
       ) : null}
       {roundsPending ? (
-        <p className="flex items-center gap-2 text-body-sm text-fg-2" role="status" aria-live="polite">
-          <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden />
-          {FULL_DEMO_ROUNDS_PENDING}
-        </p>
+        <div className="flex flex-col gap-2" role="status" aria-live="polite">
+          <LiveWait progress={match?.progress} label={FULL_DEMO_ROUNDS_PENDING} />
+        </div>
       ) : null}
 
       <FullDemoCaptureBar

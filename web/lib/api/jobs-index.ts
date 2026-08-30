@@ -1,6 +1,6 @@
 // Pure Partidas index: /api/demos/jobs → Matches/series. Status filters stay here.
 
-import type { DemoPlayer, Match, MatchStats } from './types.ts';
+import type { DemoPlayer, JobProgress, Match, MatchStats } from './types.ts';
 import { PLAN_READY_STATUSES } from './types.ts';
 import { prettifyMap } from './map.ts';
 import { groupSeriesDemos } from '../series-grouping.ts';
@@ -15,6 +15,7 @@ export type IndexedJob = {
   targetSteamId?: string;
   /** ISO-8601 upload time; the Partidas list sorts newest first by it. */
   createdAt?: string;
+  progress?: JobProgress;
 };
 
 /** Statuses with a roster scan. Shared with getSeries. */
@@ -122,5 +123,6 @@ export function jobToMatch(job: IndexedJob, enrichment?: { map?: string; player?
   // Name the row after the clipped/target player when the roster resolved them;
   // leave it off (no stray separator) for an unenriched or nameless entry.
   if (player?.name) match.player = player.name;
+  if (job.progress) match.progress = job.progress;
   return match;
 }

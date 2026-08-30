@@ -33,10 +33,24 @@ test('recording without progress → no captureProgress key (indeterminate bar)'
   assert.equal('captureProgress' in v, false);
 });
 
-test('progress is ignored when not recording (never leaks onto other stages)', () => {
+test('stale capture progress does not leak onto a drive-render view', () => {
   assert.deepEqual(
     view({ jobStatus: 'recorded', captureProgress: { done: 2, total: 4 } }),
     { status: 'composing', action: 'render' },
+  );
+});
+
+test('composing keeps live worker progress', () => {
+  assert.deepEqual(
+    view({ jobStatus: 'composing', captureProgress: { done: 0, total: 8, unit: 'clips' } }),
+    { status: 'composing', action: 'none', captureProgress: { done: 0, total: 8, unit: 'clips' } },
+  );
+});
+
+test('render-in-flight keeps live worker progress', () => {
+  assert.deepEqual(
+    view({ jobStatus: 'recorded', renderStatus: 'rendering', captureProgress: { done: 3, total: 8 } }),
+    { status: 'composing', action: 'none', captureProgress: { done: 3, total: 8 } },
   );
 });
 

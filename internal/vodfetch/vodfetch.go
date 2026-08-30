@@ -285,6 +285,9 @@ type Fetcher struct {
 	MaxBytes int64
 	// Runner executes BinaryPath. Defaults to execCommandRunner when nil.
 	Runner CommandRunner
+	// OnProgress reports live download bytes when Runner is the default exec
+	// path. Injected test runners still return stderr only at the end.
+	OnProgress ProgressFunc
 }
 
 // Result describes a downloaded (or already-present) file.
@@ -366,12 +369,17 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		return Result{}, fmt.Errorf("remove temp placeholder: %w", err)
 	}
 
+	progressFlag := "--no-progress"
+	live := f.OnProgress != nil && f.Runner == nil
+	if live {
+		progressFlag = "--newline"
+	}
 	args := []string{
 		"--ignore-config",
 		"-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
 		"--merge-output-format", "mp4",
 		"--no-playlist",
-		"--no-progress",
+		progressFlag,
 		"--socket-timeout", "30",
 		"--retries", "2",
 		"--fragment-retries", "2",
@@ -382,7 +390,13 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 		rawURL,
 	}
 
-	stdout, stderr, runErr := f.runner().Run(ctx, destDir, f.binaryPath(), args...)
+	var stdout, stderr string
+	var runErr error
+	if live {
+		stdout, stderr, runErr = runWithProgress(ctx, destDir, f.binaryPath(), args, f.OnProgress)
+	} else {
+		stdout, stderr, runErr = f.runner().Run(ctx, destDir, f.binaryPath(), args...)
+	}
 	if runErr != nil {
 		_ = os.Remove(tmpPath)
 		if ctx.Err() != nil {

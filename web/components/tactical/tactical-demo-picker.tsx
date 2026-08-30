@@ -10,7 +10,7 @@ import {
   fetchTacticalStatus,
   isServiceUnavailableError,
 } from '@/lib/api/tactical';
-import type { TacticalState } from '@/lib/api/tactical';
+import type { TacticalState, TacticalStatus } from '@/lib/api/tactical';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { TacticalStateBadge } from '@/components/tactical/tactical-state-badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { matchDateLabel } from '@/lib/format';
 
 /** One listed demo and the lifecycle of its tactical analysis. */
-type DemoEntry = { match: Match; state: TacticalState };
+type DemoEntry = { match: Match; state: TacticalState; progress?: TacticalStatus['progress'] };
 
 /**
  * The demos this PC has parsed, each with the state of its tactical analysis.
@@ -30,14 +30,21 @@ async function loadEntries(): Promise<DemoEntry[]> {
   const states = await Promise.all(
     matches.map((match) =>
       fetchTacticalStatus(match.id)
-        .then((status) => status.state)
+        .then((status): Pick<TacticalStatus, 'state' | 'progress'> => ({
+          state: status.state,
+          progress: status.progress,
+        }))
         // A per-demo status failure must not blank the whole list: an unknown
         // analysis reads as "not analysed", which is what the workspace offers
         // to fix.
-        .catch(() => TACTICAL_STATES.none),
+        .catch((): Pick<TacticalStatus, 'state' | 'progress'> => ({ state: TACTICAL_STATES.none })),
     ),
   );
-  return matches.map((match, index) => ({ match, state: states[index] }));
+  return matches.map((match, index) => ({
+    match,
+    state: states[index]?.state ?? TACTICAL_STATES.none,
+    progress: states[index]?.progress,
+  }));
 }
 
 export function TacticalDemoPicker(): ReactNode {
@@ -57,6 +64,16 @@ export function TacticalDemoPicker(): ReactNode {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!entries?.some((entry) => entry.state === TACTICAL_STATES.running || entry.state === TACTICAL_STATES.queued)) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void load();
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [entries, load]);
 
   if (entries === null) return <DemoPickerSkeleton />;
 
@@ -85,7 +102,7 @@ export function TacticalDemoPicker(): ReactNode {
 
   return (
     <section className="flex flex-col gap-3" aria-label="Demos analizables">
-      {entries.map(({ match, state }) => (
+      {entries.map(({ match, state, progress }) => (
         <Link
           key={match.id}
           href={`/tactical/${match.id}`}
@@ -105,7 +122,7 @@ export function TacticalDemoPicker(): ReactNode {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <TacticalStateBadge state={state} className="hidden sm:inline-flex" />
+            <TacticalStateBadge state={state} progress={progress} className="hidden sm:inline-flex" />
             <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
           </div>
         </Link>

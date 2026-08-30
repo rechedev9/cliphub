@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/tactical';
 import type { TacticalStatus } from '@/lib/api/tactical';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { LiveWait } from '@/components/studio/live-wait';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
 import { TacticalStateBadge } from '@/components/tactical/tactical-state-badge';
@@ -129,7 +130,7 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
         description="Clasificación determinista de rondas, repetición 2D y tendencias. Todo sale de la demo; nada se infiere del vídeo."
         actions={
           <div className="flex items-center gap-3">
-            {status ? <TacticalStateBadge state={status.state} className="h-9 px-3" /> : null}
+            {status ? <TacticalStateBadge state={status.state} progress={status.progress} className="h-9 px-3" /> : null}
             <Button asChild variant="outline" className="font-mono text-meta tracking-wider">
               <Link href="/tactical">
                 <ArrowLeft aria-hidden />
@@ -250,15 +251,9 @@ function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode
       className="studio-panel studio-panel-raised flex flex-col items-center gap-4 px-6 py-14 text-center sm:px-10"
       aria-live="polite"
     >
-      <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-primary shadow-[var(--elev-0)]">
-        <Radar className="size-5 animate-pulse motion-reduce:animate-none" aria-hidden />
-      </span>
-      <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
-        {stateLabel(status.state)}
-      </h2>
+      <LiveWait progress={status.progress} label={stateLabel(status.state)} />
       <p className="max-w-xl text-body leading-6 text-muted-foreground">
-        Se está recorriendo la demo para clasificar rondas y muestrear posiciones. Esta página se actualiza sola
-        al terminar.
+        Se está recorriendo la demo para clasificar rondas y muestrear posiciones. Puedes salir; el análisis sigue.
       </p>
     </section>
   );

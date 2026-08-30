@@ -1,4 +1,4 @@
-import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { SERVICE_UNAVAILABLE_CODE, type JobProgress } from './types.ts';
 
 /**
  * Browser-side contract for the deterministic tactical analysis of a demo.
@@ -693,6 +693,7 @@ export type TacticalStatus = {
   generated_at: string;
   schema_version: string;
   error?: string;
+  progress?: JobProgress;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -719,6 +720,7 @@ export const TACTICAL_STATUS_KEYS: readonly string[] = [
   'generated_at',
   'schema_version',
   'error',
+  'progress',
 ];
 
 /** Top-level keys the per-round proxy forwards. */

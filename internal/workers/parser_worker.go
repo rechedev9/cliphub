@@ -19,6 +19,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/parser"
@@ -135,6 +136,12 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
 
+	rep := jobprogress.NewReporter(w.storage, j.ID, jobprogress.StageParse, jobprogress.UnitTicks, "ticks")
+	_ = rep.Update(0, 0)
+	parser.AttachTickProgress(p, func(done, total int) {
+		_ = rep.Update(int64(done), int64(total))
+	})
+
 	meta := parser.PlanMeta{
 		DemoPath: j.DemoPath,
 		SHA256:   j.DemoSHA256,
@@ -149,6 +156,7 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	if err := recapplan.Store(w.storage, j.ID, dual.Recap); err != nil {
 		return killplan.Plan{}, err
 	}
+	_ = rep.Complete(int64(p.CurrentFrame()))
 	return dual.Kills, nil
 }
 
@@ -162,10 +170,17 @@ func (w *ParserWorker) scanRoster(ctx context.Context, j job.Job) (string, error
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
 
+	rep := jobprogress.NewReporter(w.storage, j.ID, jobprogress.StageScan, jobprogress.UnitTicks, "ticks")
+	_ = rep.Update(0, 0)
+	parser.AttachTickProgress(p, func(done, total int) {
+		_ = rep.Update(int64(done), int64(total))
+	})
+
 	result, err := parser.RosterScanWithContext(ctx, p)
 	if err != nil {
 		return "", fmt.Errorf("scan roster: %w", err)
 	}
+	_ = rep.Complete(int64(p.CurrentFrame()))
 	b, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return "", err

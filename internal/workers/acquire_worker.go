@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
@@ -105,6 +106,10 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 	destPath := filepath.Join(workDir, "source.mp4")
 	sourceKey := streamclips.SourceKey(j.ID)
 	metadataKey := streamclips.SourceMetadataKey(j.ID)
+	rep := jobprogress.NewKeyedReporter(w.storage, streamclips.ProgressKey(j.ID), jobprogress.StageAcquire, jobprogress.UnitBytes, "bytes")
+	_ = rep.Update(0, 0)
+	fetcher := w.fetcher
+	fetcher.OnProgress = func(done, total int64) { _ = rep.Update(done, total) }
 
 	// Idempotent: a retried/redriven acquire skips the download when the
 	// durable source artifact already exists and just re-probes it.
@@ -132,11 +137,12 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 	} else {
 		runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 		defer cancel()
-		result, err := w.fetcher.Download(runCtx, j.SourceURL, destPath)
+		result, err := fetcher.Download(runCtx, j.SourceURL, destPath)
 		if err != nil {
 			return err
 		}
 		discoveredTitle = result.Title
+		_ = rep.Complete(result.Bytes)
 		// Publish metadata before the source. Once source.mp4 exists, a retry can
 		// therefore recover the title even if the job-row update was interrupted.
 		if err := putJSONToStorage(w.storage, metadataKey, acquiredSourceMetadata{Title: discoveredTitle}); err != nil {
@@ -156,6 +162,9 @@ func (w *AcquireWorker) acquire(ctx context.Context, j streamclips.Job) error {
 		return fmt.Errorf("hash stream source: %w", err)
 	}
 
+	if info, statErr := os.Stat(destPath); statErr == nil {
+		_ = rep.Complete(info.Size())
+	}
 	if err := w.repo.SetAcquired(ctx, j.ID, probe, sha, discoveredTitle); err != nil {
 		return fmt.Errorf("mark stream job acquired: %w", err)
 	}

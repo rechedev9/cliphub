@@ -2,6 +2,8 @@ import { CircleDashed, CircleSlash, Loader2, Radar, TriangleAlert } from 'lucide
 import type { ReactNode } from 'react';
 import { TACTICAL_STATES } from '@/lib/api/tactical';
 import type { TacticalState } from '@/lib/api/tactical';
+import type { JobProgress } from '@/lib/api/types';
+import { jobProgressPercent } from '@/lib/job-progress';
 import { stateLabel } from '@/lib/tactical-labels';
 import { cn } from '@/lib/utils';
 
@@ -38,13 +40,16 @@ const STATE_STYLE: Record<TacticalState, { icon: typeof Radar; className: string
 /** Compact lifecycle chip for a demo's tactical analysis. */
 export function TacticalStateBadge({
   state,
+  progress,
   className,
 }: {
   state: TacticalState;
+  progress?: JobProgress;
   className?: string;
 }): ReactNode {
   const style = STATE_STYLE[state];
   const Icon = style.icon;
+  const pct = progress && style.spin ? `${jobProgressPercent(progress)}%` : null;
   return (
     <span
       className={cn(
@@ -56,6 +61,7 @@ export function TacticalStateBadge({
     >
       <Icon className={cn('size-3.5', style.spin && 'animate-spin motion-reduce:animate-none')} aria-hidden />
       {stateLabel(state)}
+      {pct ? <span className="tabular-nums">{pct}</span> : null}
     </span>
   );
 }

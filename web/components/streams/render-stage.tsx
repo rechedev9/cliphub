@@ -19,9 +19,7 @@ import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
  * 9:16 `MediaFrame` the Library and the results grid use, so both pipelines
  * speak one visual language.
  *
- * The bar is indeterminate because the render reports a status, not a
- * percentage; the frames are the real clips from the plan, labelled with their
- * real output durations. Nothing here is invented to fill the grid.
+ * Live clip count comes from the worker snapshot on the render state.
  */
 export function StreamRenderStage({
   clips,
@@ -48,6 +46,7 @@ export function StreamRenderStage({
       <LongOperation
         stage={stage}
         detail={`${clips.length} ${clips.length === 1 ? 'CLIP' : 'CLIPS'} · ${variantLabel} · 1080×1920`}
+        progress={renderState?.progress}
         elapsedSec={elapsed}
         tone="stream"
       />

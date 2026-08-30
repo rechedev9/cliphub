@@ -1,3 +1,13 @@
+/** Live worker snapshot: percent plus current/total in real units (ticks, clips, bytes). */
+export type JobProgress = {
+  done: number;
+  total: number;
+  percent?: number;
+  unit?: string;
+  label?: string;
+  stage?: string;
+};
+
 export type SteamUser = { id: string; personaName: string; avatarUrl: string };
 export type MatchStats = {
   kills: number;
@@ -23,6 +33,8 @@ export type Match = {
   player?: string;
   /** Orchestrator job status when known (Partidas / constructors). */
   status?: string;
+  /** Durable worker snapshot while this job is still a long wait. */
+  progress?: JobProgress;
 };
 type PlayKind = 'clean' | 'highlight';
 export type Play = { id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number; weapon?: string; thumbnailUrl?: string };
@@ -127,8 +139,8 @@ export type VideoStatus =
   | 'ready'
   | 'review_required'
   | 'failed';
-/** Live capture progress; set only while status is 'recording'. percent is 0-100 of planned ticks. */
-export type CaptureProgress = { done: number; total: number; percent?: number };
+/** Capture progress is the same snapshot; recording still uses segments or rounds. */
+export type CaptureProgress = JobProgress;
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;
@@ -202,6 +214,7 @@ export type SeriesDemo = {
   status: string;
   failureReason?: string;
   match?: RosterMatch;
+  progress?: JobProgress;
 };
 
 /** Series scoreboard: counted stats summed, rates round-weighted. */

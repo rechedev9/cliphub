@@ -265,7 +265,7 @@ export function EditorWorkspace({ projectId }: EditorWorkspaceProps): ReactEleme
             onImported={(asset) => setAssets((prev) => [asset, ...prev.filter((entry) => entry.id !== asset.id)])}
           />
           <section className="flex min-h-0 flex-col gap-3">
-            {phase.kind === 'rendering' ? <LongOperation stage="RENDERIZANDO" /> : null}
+            {phase.kind === 'rendering' ? <LongOperation stage="RENDERIZANDO" progress={render?.progress} /> : null}
             <EditorPreviewPlayer doc={doc} time={time} playing={playing} onTime={setTime} onEnded={handleEnded} />
             {phase.kind === 'rendered' ? (
               <div className="grid gap-2">

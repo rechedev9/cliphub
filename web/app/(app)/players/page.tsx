@@ -18,6 +18,7 @@ import {
 import { FACEIT_NOT_CONFIGURED_CODE, SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import { formatShortDate, prettyMapName } from '@/lib/format';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { LiveWait } from '@/components/studio/live-wait';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
@@ -153,7 +154,7 @@ export default function PlayersPage(): ReactNode {
 
   let body: ReactNode;
   if (state === 'loading') {
-    body = <p className="text-body-sm text-fg-3">Cargando jugadores…</p>;
+    body = <LiveWait progress={{ done: 0, total: 1, unit: 'lists', label: 'listas' }} label="Cargando jugadores…" />;
   } else if (players.length === 0) {
     body = (
       <StudioEmptyState
@@ -322,7 +323,7 @@ function StatPill({ label, value, highlight, mono }: { label: string; value: str
 
 function MatchSection({ matches }: { matches: FaceitMatch[] | 'loading' | 'error' | null }): ReactNode {
   if (matches === null || matches === 'loading') {
-    return <p className="text-body-sm text-fg-3">Cargando partidas…</p>;
+    return <LiveWait progress={{ done: 0, total: 1, unit: 'lists', label: 'listas' }} label="Cargando partidas…" />;
   }
   if (matches === 'error') {
     return <p className="text-body-sm text-destructive">No se pudieron cargar las partidas.</p>;

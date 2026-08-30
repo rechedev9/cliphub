@@ -66,16 +66,14 @@ test('capture progress is carried only where the API reports it', () => {
   publishShellActivity(
     [
       reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 8, percent: 41 } }),
-      reel({ id: 'b', status: 'composing', captureProgress: { done: 8, total: 8 } }),
+      reel({ id: 'b', status: 'composing', captureProgress: { done: 2, total: 8, percent: 25 } }),
       reel({ id: 'c', status: 'queued' }),
     ],
     10,
   );
   const [recording, composing, queued] = shellActivitySnapshot().jobs;
   assert.deepEqual(recording?.progress, { done: 3, total: 8, percent: 41 });
-  // Composing has no segment counter of its own; a stale capture count there
-  // would be fabricated progress.
-  assert.equal(composing?.progress, null);
+  assert.deepEqual(composing?.progress, { done: 2, total: 8, percent: 25 });
   assert.equal(queued?.progress, null);
 });
 

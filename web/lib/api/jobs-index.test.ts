@@ -25,6 +25,7 @@ function job(overrides: Partial<IndexedJob> & { jobId: string }): IndexedJob {
     seriesId: overrides.seriesId,
     targetSteamId: overrides.targetSteamId,
     createdAt: overrides.createdAt,
+    progress: overrides.progress,
   };
 }
 
@@ -169,6 +170,17 @@ test('jobToMatch falls back to a filename-titled, zeroed entry without enrichmen
 
 test('jobToMatch titles a roster-less, nameless job as "Partida"', () => {
   assert.equal(jobToMatch(job({ jobId: 'job-3' })).map, 'Partida');
+});
+
+test('jobToMatch copies live worker progress onto the listed match', () => {
+  const match = jobToMatch(
+    job({
+      jobId: 'job-parse',
+      status: 'parsing',
+      progress: { done: 64000, total: 172772, percent: 37, unit: 'ticks', label: 'ticks' },
+    }),
+  );
+  assert.deepEqual(match.progress, { done: 64000, total: 172772, percent: 37, unit: 'ticks', label: 'ticks' });
 });
 
 test('jobToMatch zeroes stats when the target is not in the roster (map only)', () => {

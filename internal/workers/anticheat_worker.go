@@ -14,7 +14,9 @@ import (
 	"github.com/rechedev9/cliphub/internal/anticheat"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -83,10 +85,21 @@ func (w *ParserWorker) analyzeAnticheat(ctx context.Context, j job.Job) (antiche
 	p := demoinfocs.NewParser(demo)
 	defer p.Close()
 
-	return anticheat.AnalyzeWithContext(ctx, p, anticheat.Options{
+	rep := jobprogress.NewKeyedReporter(w.storage, artifacts.AnticheatProgressKey(j.ID), jobprogress.StageAnticheat, jobprogress.UnitTicks, "ticks")
+	_ = rep.Update(0, 0)
+	parser.AttachTickProgress(p, func(done, total int) {
+		_ = rep.Update(int64(done), int64(total))
+	})
+
+	report, err := anticheat.AnalyzeWithContext(ctx, p, anticheat.Options{
 		DemoPath: j.DemoFileName,
 		SHA256:   j.DemoSHA256,
 	})
+	if err != nil {
+		return report, err
+	}
+	_ = rep.Complete(int64(p.CurrentFrame()))
+	return report, nil
 }
 
 func (w *ParserWorker) putAnticheatDocument(id uuid.UUID, doc anticheat.Document) error {

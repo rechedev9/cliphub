@@ -1,4 +1,5 @@
 import type { CaptureProgress } from '@/lib/api/types';
+import { parseJobProgress, type JobProgressRaw } from './job-progress.ts';
 
 export function captureProgressPercent(progress: CaptureProgress): number {
   let raw = 0;
@@ -21,17 +22,6 @@ export function captureProgressDetail(progress: CaptureProgress): string {
   return `Capturando ${progress.done + 1}/${progress.total}`;
 }
 
-export function parseCaptureProgress(raw: {
-  done?: number;
-  total?: number;
-  percent?: number;
-} | undefined): CaptureProgress | undefined {
-  if (raw === undefined || typeof raw.done !== 'number' || typeof raw.total !== 'number' || raw.total <= 0) {
-    return undefined;
-  }
-  const progress: CaptureProgress = { done: raw.done, total: raw.total };
-  if (typeof raw.percent === 'number' && Number.isFinite(raw.percent)) {
-    progress.percent = Math.min(100, Math.max(0, Math.round(raw.percent)));
-  }
-  return progress;
+export function parseCaptureProgress(raw: JobProgressRaw | undefined): CaptureProgress | undefined {
+  return parseJobProgress(raw);
 }

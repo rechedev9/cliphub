@@ -23,6 +23,10 @@ func RenderStateKey(id uuid.UUID) string {
 	return path.Join(RenderPrefix(id), "status.json")
 }
 
+func ProgressKey(id uuid.UUID) string {
+	return path.Join(RenderPrefix(id), "progress.json")
+}
+
 func RenderRevisionPrefix(id, revision uuid.UUID) (string, error) {
 	if revision == uuid.Nil {
 		return "", fmt.Errorf("editor render revision id is required")

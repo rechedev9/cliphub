@@ -84,6 +84,24 @@ func AnticheatKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "anticheat.json")
 }
 
+// ProgressKey is the durable in-flight snapshot for a long job stage. Workers
+// overwrite it as they walk ticks, clips, or bytes; the UI polls it so leaving
+// a screen and coming back resumes the same percent.
+func ProgressKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "progress.json")
+}
+
+// AnticheatProgressKey is the CheaterDetect side-lane snapshot. It must not
+// share ProgressKey: a screening can run beside a parse of the same demo.
+func AnticheatProgressKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "anticheat-progress.json")
+}
+
+// TacticalProgressKey is the tactical side-lane snapshot.
+func TacticalProgressKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "tactical", "progress.json")
+}
+
 // TacticalIndexKey is the storage key for a job's tactical document: the round
 // index, its classification, and the descriptor of the position blob.
 func TacticalIndexKey(id uuid.UUID) string {

@@ -9,17 +9,79 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
-// captureProgressView reports how far a capturing job has advanced: how many of
-// its selected segments already have a completed clip on disk. It is attached to
-// the job GET response only while it can be computed (see captureProgress).
+// captureProgressView is the HTTP shape for any long wait: percent plus
+// current/total in the worker's real units. Capture still fills it from
+// capture-progress.json; other stages load jobprogress snapshots.
 type captureProgressView struct {
-	Done    int `json:"done"`
-	Total   int `json:"total"`
-	Percent int `json:"percent"`
+	Done    int    `json:"done"`
+	Total   int    `json:"total"`
+	Percent int    `json:"percent"`
+	Unit    string `json:"unit,omitempty"`
+	Label   string `json:"label,omitempty"`
+	Stage   string `json:"stage,omitempty"`
+}
+
+func viewFromSnapshot(s jobprogress.Snapshot) captureProgressView {
+	return captureProgressView{
+		Done:    int(s.Done),
+		Total:   int(s.Total),
+		Percent: s.Percent,
+		Unit:    s.Unit,
+		Label:   s.Label,
+		Stage:   s.Stage,
+	}
+}
+
+func loadProgressView(store storage.Storage, key string) (captureProgressView, bool) {
+	snap, ok, err := jobprogress.Load(store, key)
+	if err != nil || !ok {
+		return captureProgressView{}, false
+	}
+	return viewFromSnapshot(snap), true
+}
+
+func progressRelevant(status job.Status, stage string) bool {
+	switch status {
+	case job.StatusScanning:
+		return stage == jobprogress.StageScan
+	case job.StatusParsing:
+		return stage == jobprogress.StageParse
+	case job.StatusComposing:
+		return stage == jobprogress.StageCompose || stage == jobprogress.StageRender
+	case job.StatusRecording:
+		return stage == jobprogress.StageRecord
+	default:
+		return false
+	}
+}
+
+func captureLabels(store storage.Storage, id uuid.UUID) (unit, label string) {
+	if _, ok, err := recapplan.Load(store, id); err == nil && ok {
+		return jobprogress.UnitRounds, "rondas"
+	}
+	return jobprogress.UnitSegments, "segmentos"
+}
+
+func decorateCaptureProgress(store storage.Storage, id uuid.UUID, progress captureProgressView) captureProgressView {
+	progress.Unit, progress.Label = captureLabels(store, id)
+	progress.Stage = jobprogress.StageRecord
+	return progress
+}
+
+func jobProgressView(store storage.Storage, id uuid.UUID, status job.Status, segmentCount int) (captureProgressView, bool) {
+	if progress, ok := captureProgressWithTotal(store, id, status, segmentCount); ok {
+		return decorateCaptureProgress(store, id, progress), true
+	}
+	if snap, ok, err := jobprogress.LoadJob(store, id); err == nil && ok && progressRelevant(status, snap.Stage) {
+		return viewFromSnapshot(snap), true
+	}
+	return captureProgressView{}, false
 }
 
 // captureProgress derives capture progress for a recording job from durable

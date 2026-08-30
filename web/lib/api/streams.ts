@@ -1,4 +1,4 @@
-import type { KeyDropStyle } from './types.ts';
+import type { JobProgress, KeyDropStyle } from './types.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -104,6 +104,7 @@ export type StreamJob = {
   failure_reason?: string;
   created_at: string;
   updated_at?: string;
+  progress?: JobProgress;
 };
 
 type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };
@@ -121,6 +122,7 @@ export type StreamRenderState = {
   error?: string;
   error_code?: StreamRenderErrorCode | string;
   delivery?: { name: string; kind: string; key: string }[];
+  progress?: JobProgress;
 };
 
 export interface StreamsApiClient {

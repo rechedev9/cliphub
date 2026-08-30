@@ -3,24 +3,33 @@
 import type { ReactNode } from 'react';
 import type { Video } from '@/lib/api/types';
 import { captureProgressDetail, captureProgressPercent } from '@/lib/capture-progress';
+import { jobProgressCount, jobProgressPercent } from '@/lib/job-progress';
 import { isLandscapeRecap } from '@/lib/reel-brief';
 import { RecDot } from '@/components/brand/rec-dot';
 import { StatusTag } from '@/components/studio/status-tag';
 import { ReelCard, reelFormatLabel, type ReelCardTone } from '@/components/videos/reel-card';
 
-/** In-flight reel card. Capture percent fills the strip; editing stays indeterminate. */
+/** In-flight reel card. Capture and compose both show a real percent + count. */
 export function RenderingCard({ video }: { video: Video }) {
   const isCapturing = video.status === 'recording';
   const isComposing = video.status === 'composing';
 
-  // One derived value so the strip, the stat, and the copy share a guard.
+  const live = video.captureProgress;
   const capture =
-    isCapturing && video.captureProgress && video.captureProgress.total > 0
+    isCapturing && live && live.total > 0
       ? {
-          detail: captureProgressDetail(video.captureProgress),
-          pct: captureProgressPercent(video.captureProgress),
+          detail: captureProgressDetail(live),
+          pct: captureProgressPercent(live),
         }
       : undefined;
+  const compose =
+    isComposing && live
+      ? {
+          detail: jobProgressCount(live),
+          pct: jobProgressPercent(live),
+        }
+      : undefined;
+  const liveStat = capture ?? compose;
 
   const formatBadge = reelFormatLabel(video.editConfig);
   const fullDemo = video.editConfig != null && isLandscapeRecap(video.editConfig);
@@ -49,14 +58,14 @@ export function RenderingCard({ video }: { video: Video }) {
         Editando
       </StatusTag>
     );
-    detail = 'Montando cortes y ritmo';
+    detail = compose ? compose.detail : 'Montando cortes y ritmo';
   }
 
   return (
     <ReelCard
       video={video}
       tone={tone}
-      percent={capture?.pct}
+      percent={liveStat?.pct}
       plainCover
       coverClassName="opacity-55"
       coverTintClassName={coverTint}
@@ -80,9 +89,9 @@ export function RenderingCard({ video }: { video: Video }) {
       >
         <span className="min-w-0 truncate font-mono text-meta uppercase text-fg-2">{detail}</span>
         {/* Capture is the only stage with a real percent, so the stat stays REC. */}
-        {capture ? (
-          <span aria-hidden className="shrink-0 font-mono text-stat tabular-nums text-stream-text">
-            {capture.pct}%
+        {liveStat ? (
+          <span aria-hidden className={`shrink-0 font-mono text-stat tabular-nums ${isCapturing ? 'text-stream-text' : 'text-primary'}`}>
+            {liveStat.pct}%
           </span>
         ) : null}
       </div>

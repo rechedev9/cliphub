@@ -15,6 +15,11 @@ import (
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
+type anticheatResponse struct {
+	anticheat.Document
+	Progress *captureProgressView `json:"progress,omitempty"`
+}
+
 // anticheatClaimTTL is how long a "running" analysis document keeps the lane to
 // itself. It is longer than the queue's own parse attempt timeout, so a genuine
 // in-flight screening is never restarted underneath itself; past it, the pass
@@ -96,7 +101,11 @@ func (h *Handlers) GetAnticheat(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "open anticheat document", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, doc)
+	resp := anticheatResponse{Document: doc}
+	if progress, ok := loadProgressView(h.storage, artifacts.AnticheatProgressKey(j.ID)); ok {
+		resp.Progress = &progress
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // GetAnticheatDossier handles GET /api/jobs/{id}/anticheat/dossier/{steamid}.

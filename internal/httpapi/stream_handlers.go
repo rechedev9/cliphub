@@ -282,7 +282,16 @@ func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, j)
+	resp := streamJobResponse{Job: j}
+	if progress, ok := loadProgressView(h.storage, streamclips.ProgressKey(j.ID)); ok {
+		resp.Progress = &progress
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+type streamJobResponse struct {
+	streamclips.Job
+	Progress *captureProgressView `json:"progress,omitempty"`
 }
 
 func (h *Handlers) GetStreamSource(w http.ResponseWriter, r *http.Request) {
@@ -576,9 +585,12 @@ func (h *Handlers) GetStreamRender(w http.ResponseWriter, r *http.Request) {
 	rc, err := h.storage.Open(key)
 	if err == nil {
 		defer rc.Close()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.Copy(w, rc)
+		var state streamclips.RenderState
+		if decErr := json.NewDecoder(rc).Decode(&state); decErr != nil {
+			internalError(w, "decode stream render state", decErr)
+			return
+		}
+		h.writeStreamRender(w, j.ID, state)
 		return
 	}
 	if !storageNotExist(err) {
@@ -590,7 +602,20 @@ func (h *Handlers) GetStreamRender(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, state)
+	h.writeStreamRender(w, j.ID, state)
+}
+
+type streamRenderResponse struct {
+	streamclips.RenderState
+	Progress *captureProgressView `json:"progress,omitempty"`
+}
+
+func (h *Handlers) writeStreamRender(w http.ResponseWriter, id uuid.UUID, state streamclips.RenderState) {
+	resp := streamRenderResponse{RenderState: state}
+	if progress, ok := loadProgressView(h.storage, streamclips.ProgressKey(id)); ok {
+		resp.Progress = &progress
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handlers) GetStreamGallery(w http.ResponseWriter, r *http.Request) {

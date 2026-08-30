@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { MonitorPlay, ShieldCheck, Twitch } from 'lucide-react';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import type { JobProgress } from '@/lib/api/types';
 import { LongOperation } from '@/components/studio/long-operation';
 import { StreamOutputAside } from '@/components/streams/output-aside';
 import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
@@ -12,12 +13,8 @@ const NOTES = [
   { icon: ShieldCheck, text: 'El vídeo no sale de tu máquina', tone: 'success' as const },
 ];
 
-/**
- * Stage 2: yt-dlp is fetching the source and ffprobe is reading it. There is no
- * byte count to show — the acquire job reports a status, not a percentage — so
- * the bar is indeterminate and the clock is the honest signal that it is alive.
- */
-export function StreamAcquiringCard({ title }: { title?: string }): ReactNode {
+/** Stage 2: yt-dlp is fetching the source; live bytes come from the worker. */
+export function StreamAcquiringCard({ title, progress }: { title?: string; progress?: JobProgress }): ReactNode {
   const elapsed = useElapsedSeconds(true);
 
   return (
@@ -35,6 +32,7 @@ export function StreamAcquiringCard({ title }: { title?: string }): ReactNode {
           <LongOperation
             stage="DESCARGA + PROBE"
             detail="SIN CORTES TODAVÍA"
+            progress={progress}
             elapsedSec={elapsed}
             tone="stream"
             className="mt-1"

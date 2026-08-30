@@ -1,15 +1,16 @@
 'use client';
 
 import { useCallback, useState, type ReactNode } from 'react';
-import { AlertTriangle, FileVideo, Loader2 } from 'lucide-react';
+import { AlertTriangle, FileVideo } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { DemoPlayer, Match, RosterMatch } from '@/lib/api/types';
+import type { DemoPlayer, JobProgress, Match, RosterMatch } from '@/lib/api/types';
 import {
   DEMO_EMPTY_ROSTER_HINT,
   DEMO_SINGLE_FILE_HINT,
   demoParseError,
   demoScanError,
 } from '@/lib/demo-parse-flow';
+import { LiveWait } from '@/components/studio/live-wait';
 import { Card } from '@/components/ui/card';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
@@ -28,9 +29,11 @@ export function SingleDemoParse({ onParsed, purpose = 'highlights' }: SingleDemo
   const [players, setPlayers] = useState<DemoPlayer[]>([]);
   const [match, setMatch] = useState<RosterMatch | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [waitProgress, setWaitProgress] = useState<JobProgress | undefined>(undefined);
 
   const reset = useCallback((message: string | null) => {
     setError(message);
+    setWaitProgress(undefined);
     setStage('idle');
     setFileName(null);
     setJobId(null);
@@ -42,9 +45,10 @@ export function SingleDemoParse({ onParsed, purpose = 'highlights' }: SingleDemo
     async (file: File) => {
       setError(null);
       setFileName(file.name);
+      setWaitProgress(undefined);
       setStage('scanning');
       try {
-        const scan = await api.scanDemo(file);
+        const scan = await api.scanDemo(file, { onProgress: setWaitProgress });
         if (scan.players.length === 0) {
           reset(DEMO_EMPTY_ROSTER_HINT);
           return;
@@ -64,9 +68,10 @@ export function SingleDemoParse({ onParsed, purpose = 'highlights' }: SingleDemo
     async (steamId: string) => {
       if (stage !== 'picking' || !jobId) return;
       setError(null);
+      setWaitProgress(undefined);
       setStage('parsing');
       try {
-        onParsed(await api.parseDemo({ jobId, steamId }));
+        onParsed(await api.parseDemo({ jobId, steamId, onProgress: setWaitProgress }));
       } catch (err) {
         setError(demoParseError(err));
         setStage('picking');
@@ -90,7 +95,7 @@ export function SingleDemoParse({ onParsed, purpose = 'highlights' }: SingleDemo
 
   let card: ReactNode = null;
   if (stage === 'scanning' || stage === 'parsing') {
-    card = <ScanProgress stage={stage} fileName={fileName} purpose={purpose} />;
+    card = <ScanProgress stage={stage} fileName={fileName} purpose={purpose} progress={waitProgress} />;
   } else if (stage === 'picking') {
     card = <PlayerPicker players={players} onPick={onPick} match={match ?? undefined} purpose={purpose} />;
   }
@@ -119,10 +124,12 @@ function ScanProgress({
   stage,
   fileName,
   purpose,
+  progress,
 }: {
   stage: 'scanning' | 'parsing';
   fileName: string | null;
   purpose: 'highlights' | 'full-demo';
+  progress?: JobProgress;
 }): ReactNode {
   let statusLabel = 'Escaneando el roster…';
   if (stage === 'parsing') {
@@ -135,20 +142,13 @@ function ScanProgress({
       aria-live="polite"
       className="flex min-h-[16rem] flex-col items-center justify-center gap-5 px-4 py-12 text-center"
     >
-      <span className="grid size-14 place-items-center border border-primary/45 bg-surface-0 text-primary shadow-[var(--elev-1),var(--glow-primary-md)]">
-        <Loader2 className="size-6 animate-spin" />
-      </span>
-      <div className="flex flex-col items-center gap-2">
-        <p className="font-display text-title font-bold uppercase text-fg-1">
-          {statusLabel}
+      <LiveWait progress={progress} label={statusLabel} />
+      {fileName ? (
+        <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
+          <FileVideo aria-hidden className="size-4 shrink-0" />
+          <span className="truncate">{fileName}</span>
         </p>
-        {fileName ? (
-          <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
-            <FileVideo aria-hidden className="size-4 shrink-0" />
-            <span className="truncate">{fileName}</span>
-          </p>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

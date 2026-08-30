@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronRight, Layers } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import type { RosterMatch, SeriesDemo, Video } from '@/lib/api/types';
+import type { JobProgress, RosterMatch, SeriesDemo, Video } from '@/lib/api/types';
 import {
   isSeriesId,
   seriesReelIsActive,
@@ -132,6 +132,14 @@ function demoLabel(demo: SeriesDemo, reel: Video | undefined): string {
  * The part whose status stands for the whole map, matching the bucket the page
  * header counts it in, so the spine node and the header never contradict.
  */
+function seriesWaitProgress(groups: readonly SeriesGroup<SeriesDemo>[], list: readonly SeriesDemo[]): JobProgress {
+  const pending = list.filter((demo) => seriesStatusIsPending(demo.status));
+  const working = pending.find((demo) => demo.progress);
+  if (working?.progress) return working.progress;
+  const doneMaps = groups.filter((group) => !group.demos.some((demo) => seriesStatusIsPending(demo.status))).length;
+  return { done: doneMaps, total: groups.length, unit: 'maps', label: 'mapas' };
+}
+
 function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
   const status = representativeSeriesStatus(demos.map((d) => d.status));
   return demos.find((d) => d.status === status) ?? demos[0];
@@ -295,12 +303,11 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
       />
 
       {workingTitles.length > 0 ? (
-        // No percentage exists for a demo parse, so the bar stays indeterminate
-        // rather than inventing one. This is also the page's polite live region.
         <LongOperation
           className="studio-panel px-5 py-4"
           stage={workingTitles.length === 1 ? 'ANALIZANDO 1 MAPA' : `ANALIZANDO ${workingTitles.length} MAPAS`}
           detail={workingTitles.join(' · ')}
+          progress={seriesWaitProgress(groups, list)}
         />
       ) : null}
 

@@ -146,7 +146,16 @@ func (h *Handlers) GetTacticalStatus(w http.ResponseWriter, r *http.Request) {
 			SampleHZ:      tactical.DefaultSampleHZ,
 		}
 	}
-	writeJSON(w, http.StatusOK, status)
+	resp := tacticalStatusResponse{TacticalStatus: status}
+	if progress, ok := loadProgressView(h.storage, artifacts.TacticalProgressKey(j.ID)); ok {
+		resp.Progress = &progress
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+type tacticalStatusResponse struct {
+	artifacts.TacticalStatus
+	Progress *captureProgressView `json:"progress,omitempty"`
 }
 
 // GetTacticalRound handles GET /api/jobs/{id}/tactical/rounds/{round}. It

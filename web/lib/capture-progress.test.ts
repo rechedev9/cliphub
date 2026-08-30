@@ -42,4 +42,9 @@ test('parseCaptureProgress keeps percent only when the payload has a number', ()
     total: 4,
     percent: 82,
   });
+  assert.deepEqual(parseCaptureProgress({ done: 0, total: 0 }), { done: 0, total: 0 });
+  assert.deepEqual(
+    parseCaptureProgress({ done: 64000, total: 172772, percent: 37, unit: 'ticks', label: 'ticks', stage: 'parse' }),
+    { done: 64000, total: 172772, percent: 37, unit: 'ticks', label: 'ticks', stage: 'parse' },
+  );
 });

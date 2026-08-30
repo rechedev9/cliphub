@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
@@ -970,6 +971,13 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
 	if err := writeJSONFile(localRecordingResult, recordingResult); err != nil {
 		return false, fmt.Errorf("write localized recording result: %w", err)
 	}
+	clips, _, clipErr := recording.ResolveSegmentClips(recordingResult)
+	composeTotal := int64(len(clips))
+	if clipErr != nil || composeTotal == 0 {
+		composeTotal = 1
+	}
+	composeRep := jobprogress.NewReporter(w.storage, j.ID, jobprogress.StageCompose, jobprogress.UnitClips, "clips")
+	_ = composeRep.Update(0, composeTotal)
 
 	// The result key is the commit marker for the fixed-key composition pair.
 	// Invalidate it before the composer can replace final.mp4, so a failed
@@ -1020,6 +1028,7 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
 	if err := uploadFile(w.storage, composition.ResultArtifactKey(j.ID), resultPath); err != nil {
 		return false, fmt.Errorf("upload composition result: %w", err)
 	}
+	_ = composeRep.Complete(composeTotal)
 	logWorkerArtifacts(j.ID, tasks.TypeComposeFinal, []string{
 		composition.ResultArtifactKey(j.ID),
 		composition.FinalArtifactKey(j.ID),
@@ -1362,7 +1371,13 @@ func (w *StreamRenderWorker) render(
 			warnings = append(warnings, fmt.Sprintf("music %q not found, rendering without music", plan.Music.Key))
 		}
 	}
-	for _, clip := range plan.Clips {
+	streamTotal := int64(len(plan.Clips))
+	if streamTotal == 0 {
+		streamTotal = 1
+	}
+	streamRep := jobprogress.NewKeyedReporter(w.storage, streamclips.ProgressKey(j.ID), jobprogress.StageRender, jobprogress.UnitClips, "clips")
+	_ = streamRep.Update(0, streamTotal)
+	for i, clip := range plan.Clips {
 		textPaths, err := writeClipOverlayTexts(workDir, clip)
 		if err != nil {
 			return err
@@ -1408,7 +1423,9 @@ func (w *StreamRenderWorker) render(
 		video := streamclips.NewVideoEntry(clip, key)
 		video.Performance = streamclips.NewVideoPerformance(renderElapsed, video.DurationSeconds, outputBytes)
 		videos = append(videos, video)
+		_ = streamRep.Update(int64(i+1), streamTotal)
 	}
+	_ = streamRep.Complete(streamTotal)
 
 	if len(videos) > 0 {
 		coverPath := filepath.Join(outDir, "cover.jpg")
@@ -1890,6 +1907,12 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err := writeJSONFile(localRecordingResult, recordingResult); err != nil {
 		return fmt.Errorf("write localized recording result: %w", err)
 	}
+	renderTotal := int64(len(recording.SegmentIDs(recordingResult)))
+	if renderTotal == 0 {
+		renderTotal = 1
+	}
+	renderRep := jobprogress.NewReporter(w.storage, j.ID, jobprogress.StageRender, jobprogress.UnitClips, "clips")
+	_ = renderRep.Update(0, renderTotal)
 	localKillPlan := filepath.Join(workDir, "killplan.json")
 	if err := writeJSONFile(localKillPlan, j.KillPlan); err != nil {
 		return fmt.Errorf("write kill plan: %w", err)
@@ -2024,6 +2047,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return err
 	}
+	_ = renderRep.Complete(renderTotal)
 	logWorkerArtifacts(j.ID, tasks.TypeRenderVariant, keys)
 	readyStatus := renderVariantCompletionStatus(result)
 	readyState, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{

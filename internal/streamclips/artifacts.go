@@ -26,6 +26,10 @@ func EditPlanKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "edit-plan.json")
 }
 
+func ProgressKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "progress.json")
+}
+
 func RenderPrefix(id uuid.UUID, variant string) (string, error) {
 	if _, ok := VariantByName(variant); !ok {
 		return "", unknownVariantError(variant)

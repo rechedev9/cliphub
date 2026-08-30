@@ -64,6 +64,32 @@ test('a stored analysis is returned as-is', async () => {
   }
 });
 
+test('a running analysis keeps the worker progress snapshot', async () => {
+  const stub = stubFetch(() =>
+    json({
+      status: 'running',
+      job_id: 'job-1',
+      schema_version: 1,
+      started_at: 'now',
+      progress: { done: 1000, total: 4000, percent: 25, unit: 'ticks', label: 'ticks', stage: 'anticheat' },
+    }),
+  );
+  try {
+    const doc = await fetchAnticheat('job-1');
+    assert.equal(doc?.status, 'running');
+    assert.deepEqual(doc?.progress, {
+      done: 1000,
+      total: 4000,
+      percent: 25,
+      unit: 'ticks',
+      label: 'ticks',
+      stage: 'anticheat',
+    });
+  } finally {
+    stub.restore();
+  }
+});
+
 test('an offline orchestrator surfaces the shared service-unavailable code', async () => {
   const stub = stubFetch(() => json({ error: 'service offline' }, 503));
   try {

@@ -1,4 +1,4 @@
-import { SERVICE_UNAVAILABLE_CODE } from './types.ts';
+import { SERVICE_UNAVAILABLE_CODE, type JobProgress } from './types.ts';
 
 /**
  * CheaterDetect: screen an already uploaded demo for cheat-suspicion signals
@@ -118,6 +118,7 @@ export type AnticheatDocument = {
   completed_at?: string;
   failure_reason?: string;
   report?: AnticheatReport;
+  progress?: JobProgress;
 };
 
 type ReportChannel = {
@@ -217,4 +218,5 @@ export const ANTICHEAT_DOCUMENT_KEYS: readonly string[] = [
   'completed_at',
   'failure_reason',
   'report',
+  'progress',
 ];

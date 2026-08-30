@@ -20,10 +20,11 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
+import type { DemoPlayer, JobProgress, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { prettyMapName } from '@/lib/format';
+import { jobProgressCount, jobProgressPercent } from '@/lib/job-progress';
 import { navSection } from '@/lib/nav';
 import { seriesTitle } from '@/lib/series-status';
 import { Wordmark } from '@/components/brand/wordmark';
@@ -33,6 +34,7 @@ import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { LiveWait } from '@/components/studio/live-wait';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
 
@@ -44,12 +46,12 @@ type Stage = 'idle' | 'scanning' | 'picking' | 'parsing';
 
 /** One dropped demo's roster-scan state. */
 type ScanRow =
-  | { fileName: string; status: 'scanning' }
+  | { fileName: string; status: 'scanning'; progress?: JobProgress }
   | { fileName: string; status: 'scanned'; jobId: string; players: DemoPlayer[]; match?: RosterMatch }
   | { fileName: string; status: 'error'; reason?: string };
 
 /** One scanned demo's parse state after the player is picked (series mode). */
-type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error' };
+type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error'; progress?: JobProgress };
 
 /** Empty-roster scan: treat as a bad demo, not a transient failure. */
 const ZERO_PLAYERS_HINT = 'Sin jugadores — ¿seguro que es una demo de CS2?';
@@ -97,6 +99,7 @@ export default function UploadPage() {
 
   // Single-demo state (seriesMode === false).
   const [fileName, setFileName] = useState<string | null>(null);
+  const [waitProgress, setWaitProgress] = useState<JobProgress | undefined>(undefined);
   const [jobId, setJobId] = useState<string | null>(null);
   const [players, setPlayers] = useState<DemoPlayer[]>([]);
   const [match, setMatch] = useState<RosterMatch | null>(null);
@@ -116,6 +119,7 @@ export default function UploadPage() {
     setStage('idle');
     setSeriesId(null);
     setFileName(null);
+    setWaitProgress(undefined);
     setJobId(null);
     setPlayers([]);
     setMatch(null);
@@ -130,9 +134,10 @@ export default function UploadPage() {
       setError(null);
       setWarning(null);
       setFileName(file.name);
+      setWaitProgress(undefined);
       setStage('scanning');
       try {
-        const scan = await api.scanDemo(file);
+        const scan = await api.scanDemo(file, { onProgress: setWaitProgress });
         if (scan.players.length === 0) {
           reset(
             'El escaneo no encontró jugadores en esa demo. ¿Seguro que es una demo de CS2? Prueba con otro archivo .dem.',
@@ -158,9 +163,10 @@ export default function UploadPage() {
     async (steamId: string, destination: 'highlights' | 'full-demo' = 'highlights') => {
       if (stage !== 'picking' || seriesMode || !jobId) return;
       setError(null);
+      setWaitProgress(undefined);
       setStage('parsing');
       try {
-        const parsed = await api.parseDemo({ jobId, steamId });
+        const parsed = await api.parseDemo({ jobId, steamId, onProgress: setWaitProgress });
         router.push(
           destination === 'full-demo' ? '/full-demo/' + parsed.id : '/matches/' + parsed.id,
         );
@@ -189,7 +195,17 @@ export default function UploadPage() {
       let sawOffline = false;
       const settle = files.map((file, i) =>
         api
-          .scanDemo(file, { seriesId: sid })
+          .scanDemo(file, {
+            seriesId: sid,
+            onProgress: (progress) => {
+              setScanRows((prev) => {
+                const next = [...prev];
+                const current = next[i];
+                if (current?.status === 'scanning') next[i] = { ...current, progress };
+                return next;
+              });
+            },
+          })
           .then((scan): ScanRow => {
             if (scan.players.length === 0) return { fileName: file.name, status: 'error', reason: ZERO_PLAYERS_HINT };
             const row: ScanRow = { fileName: file.name, status: 'scanned', jobId: scan.jobId, players: scan.players };
@@ -257,12 +273,24 @@ export default function UploadPage() {
         rows.map(async (row, i) => {
           if (row.status === 'skipped') return;
           const next: ParseRow['status'] = await api
-            .parseDemo({ jobId: row.jobId, steamId })
+            .parseDemo({
+              jobId: row.jobId,
+              steamId,
+              onProgress: (progress) => {
+                setParseRows((prev) => {
+                  const copy = [...prev];
+                  const current = copy[i];
+                  if (current) copy[i] = { ...current, progress };
+                  return copy;
+                });
+              },
+            })
             .then((): ParseRow['status'] => 'done')
             .catch((): ParseRow['status'] => 'error');
           setParseRows((prev) => {
             const copy = [...prev];
-            copy[i] = { ...copy[i], status: next };
+            const current = copy[i];
+            if (current) copy[i] = { ...current, status: next };
             return copy;
           });
         }),
@@ -325,7 +353,7 @@ export default function UploadPage() {
   } else if (seriesMode && stage === 'picking') {
     cardContent = <PlayerPicker players={aggregated} onPick={onPickSeries} seriesMapCount={mapCount} />;
   } else if (stage === 'scanning' || stage === 'parsing') {
-    cardContent = <SingleDemoProgress stage={stage} fileName={fileName} />;
+    cardContent = <SingleDemoProgress stage={stage} fileName={fileName} progress={waitProgress} />;
   } else if (stage === 'picking') {
     cardContent = <PlayerPicker players={players} onPick={onPickSingle} match={match ?? undefined} />;
   } else {
@@ -478,27 +506,31 @@ function PipelineSteps(): ReactNode {
 }
 
 /** The single-demo scan/parse moment: one centered, announced status object. */
-function SingleDemoProgress({ stage, fileName }: { stage: 'scanning' | 'parsing'; fileName: string | null }): ReactNode {
+function SingleDemoProgress({
+  stage,
+  fileName,
+  progress,
+}: {
+  stage: 'scanning' | 'parsing';
+  fileName: string | null;
+  progress?: JobProgress;
+}): ReactNode {
   return (
     <div
       role="status"
       aria-live="polite"
       className="flex min-h-[16rem] flex-col items-center justify-center gap-5 px-4 py-12 text-center"
     >
-      <span className="grid size-14 place-items-center border border-primary/45 bg-surface-0 text-primary shadow-[var(--elev-1),var(--glow-primary-md)]">
-        <Loader2 className="size-6 animate-spin" />
-      </span>
-      <div className="flex flex-col items-center gap-2">
-        <p className="font-display text-title font-bold uppercase text-fg-1">
-          {stage === 'scanning' ? 'Escaneando el roster…' : 'Forjando highlights…'}
+      <LiveWait
+        progress={progress}
+        label={stage === 'scanning' ? 'Escaneando el roster…' : 'Forjando highlights…'}
+      />
+      {fileName ? (
+        <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
+          <FileVideo aria-hidden className="size-4 shrink-0" />
+          <span className="truncate">{fileName}</span>
         </p>
-        {fileName ? (
-          <p className="inline-flex max-w-full items-center gap-2 font-mono text-body-sm text-fg-2">
-            <FileVideo aria-hidden className="size-4 shrink-0" />
-            <span className="truncate">{fileName}</span>
-          </p>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -525,9 +557,11 @@ function ScanRowList({ rows }: { rows: ScanRow[] }) {
 /** The right-hand state of one scan row: working, scanned (with map), or failed. */
 function ScanRowStatus({ row }: { row: ScanRow }): ReactNode {
   if (row.status === 'scanning') {
+    const pct = row.progress ? `${jobProgressPercent(row.progress)}%` : '0%';
+    const count = row.progress ? jobProgressCount(row.progress) : '0 / 0';
     return (
       <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
-        Escaneando
+        {pct} · {count}
       </StatusTag>
     );
   }
@@ -557,7 +591,7 @@ function ParseRowList({ rows }: { rows: ParseRow[] }) {
           key={`${row.jobId}-${i}`}
           active={row.status === 'parsing'}
           label={row.label}
-          status={<ParseRowStatus status={row.status} />}
+          status={<ParseRowStatus row={row} />}
         />
       ))}
     </div>
@@ -565,14 +599,17 @@ function ParseRowList({ rows }: { rows: ParseRow[] }) {
 }
 
 /** The right-hand state of one parse row. */
-function ParseRowStatus({ status }: { status: ParseRow['status'] }): ReactNode {
-  switch (status) {
-    case 'parsing':
+function ParseRowStatus({ row }: { row: ParseRow }): ReactNode {
+  switch (row.status) {
+    case 'parsing': {
+      const pct = row.progress ? `${jobProgressPercent(row.progress)}%` : '0%';
+      const count = row.progress ? jobProgressCount(row.progress) : '0 / 0';
       return (
         <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
-          Forjando
+          {pct} · {count}
         </StatusTag>
       );
+    }
     case 'done':
       return (
         <StatusTag tone="success" icon={CheckCircle2}>

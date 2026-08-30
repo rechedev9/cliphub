@@ -17,6 +17,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -444,10 +445,23 @@ func (h *Handlers) GetEditorRender(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !exists {
-		writeJSON(w, http.StatusOK, timelineplan.RenderState{ProjectID: p.ID, Status: timelineplan.StatusDraft})
+		h.writeEditorRender(w, p.ID, timelineplan.RenderState{ProjectID: p.ID, Status: timelineplan.StatusDraft})
 		return
 	}
-	writeJSON(w, http.StatusOK, state)
+	h.writeEditorRender(w, p.ID, state)
+}
+
+type editorRenderResponse struct {
+	timelineplan.RenderState
+	Progress *captureProgressView `json:"progress,omitempty"`
+}
+
+func (h *Handlers) writeEditorRender(w http.ResponseWriter, id uuid.UUID, state timelineplan.RenderState) {
+	resp := editorRenderResponse{RenderState: state}
+	if progress, ok := loadProgressView(h.storage, timelineplan.ProgressKey(id)); ok && progress.Stage == jobprogress.StageRender {
+		resp.Progress = &progress
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handlers) GetEditorRenderVideo(w http.ResponseWriter, r *http.Request) {

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/mediafont"
 	"github.com/rechedev9/cliphub/internal/obs"
@@ -105,6 +106,11 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 	}
 	if fp != payload.Fingerprint {
 		return fmt.Errorf("timeline changed after render was admitted")
+	}
+
+	progress := jobprogress.NewKeyedReporter(w.storage, timelineplan.ProgressKey(p.ID), jobprogress.StageRender, jobprogress.UnitClips, "clips")
+	if err := progress.Update(0, 1); err != nil {
+		return fmt.Errorf("write editor render progress: %w", err)
 	}
 
 	timeout := 20 * time.Minute
@@ -228,6 +234,9 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 		UpdatedAt:   time.Now().UTC(),
 	}); err != nil {
 		return err
+	}
+	if err := progress.Complete(1); err != nil {
+		return fmt.Errorf("complete editor render progress: %w", err)
 	}
 	return w.repo.UpdateStatus(ctx, p.ID, timelineplan.StatusRendered, "")
 }

@@ -135,6 +135,7 @@ function LocalStreamsPage() {
             setStage('failed');
             return;
           }
+          setJob(j);
           if (j.status !== 'acquiring') {
             void loadEditor(j);
             return;
@@ -417,7 +418,7 @@ function LocalStreamsPage() {
       />
     );
   } else if (stage === 'acquiring') {
-    stageContent = <StreamAcquiringCard title={job?.title} />;
+    stageContent = <StreamAcquiringCard title={job?.title} progress={job?.progress} />;
   } else if (stage === 'failed') {
     stageContent = (
       <div role="alert">

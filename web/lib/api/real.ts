@@ -5,7 +5,7 @@ import {
   titleWithMusicSuffix,
   type MusicChoice,
 } from './reel-music.ts';
-import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo } from './types';
+import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo, JobProgress } from './types';
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
 import { planToMatch, planToPlays, type KillPlan } from './map';
@@ -33,7 +33,7 @@ import {
   type SeriesSummary,
 } from './jobs-index';
 import { reconcileReels } from './reconcile-batch';
-import { parseCaptureProgress } from '@/lib/capture-progress';
+import { parseJobProgress } from '@/lib/job-progress';
 import { playsSelectionLabel } from '@/lib/format';
 import { constrainEditConfig, isLandscapeRecap } from '@/lib/reel-brief';
 
@@ -205,7 +205,7 @@ export class RealApiClient implements ApiClient {
     return readJson<RosterResponse>(await this.send((dp) => ({ url: dp.rosterUrl(jobId) })));
   }
 
-  async scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }> {
+  async scanDemo(file: File, opts?: { seriesId?: string; onProgress?: (progress: JobProgress) => void }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }> {
     const dp = this.dp();
     const form = new FormData();
     form.append(dp.scanField, file);
@@ -216,7 +216,7 @@ export class RealApiClient implements ApiClient {
     );
     const jobId = dp.scanJobId(scanned);
 
-    await this.waitForStatus(jobId, 'scanned');
+    await this.waitForStatus(jobId, 'scanned', { onProgress: opts?.onProgress });
 
     const roster = await readJson<RosterResponse>(await this.send((d) => ({ url: d.rosterUrl(jobId) })));
     return { jobId, players: roster.players.map(toDemoPlayer), match: toRosterMatch(roster.match) };
@@ -224,13 +224,14 @@ export class RealApiClient implements ApiClient {
 
   /** Series demos in upload order; a roster miss leaves that map unmatched. */
   async getSeries(seriesId: string): Promise<SeriesDemo[]> {
-    type ProxyDemo = { jobId: string; status: string; failureReason?: string; fileName?: string };
+    type ProxyDemo = { jobId: string; status: string; failureReason?: string; fileName?: string; progress?: JobProgress };
     const body = await readJson<{ demos: ProxyDemo[] }>(await this.send((dp) => ({ url: dp.seriesUrl(seriesId) })));
     return Promise.all(
       body.demos.map(async (raw): Promise<SeriesDemo> => {
         const demo: SeriesDemo = { jobId: raw.jobId, status: raw.status };
         if (raw.fileName) demo.fileName = raw.fileName;
         if (raw.failureReason) demo.failureReason = raw.failureReason;
+        if (raw.progress) demo.progress = raw.progress;
         const cached = this.seriesMatches.get(raw.jobId);
         if (cached) {
           demo.match = cached;
@@ -251,7 +252,7 @@ export class RealApiClient implements ApiClient {
     );
   }
 
-  async parseDemo(input: { jobId: string; steamId: string }): Promise<Match> {
+  async parseDemo(input: { jobId: string; steamId: string; onProgress?: (progress: JobProgress) => void }): Promise<Match> {
     await readJson<unknown>(
       await this.send((dp) => ({
         url: dp.parseUrl(input.jobId),
@@ -263,7 +264,7 @@ export class RealApiClient implements ApiClient {
       })),
     );
 
-    await this.waitForStatus(input.jobId, 'parsed');
+    await this.waitForStatus(input.jobId, 'parsed', { onProgress: input.onProgress });
 
     const [plan, roster] = await Promise.all([
       readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(input.jobId) }))),
@@ -278,18 +279,19 @@ export class RealApiClient implements ApiClient {
   async getMatch(id: string): Promise<Match | null> {
     if (!isJobId(id)) return this.fallback.getMatch(id);
 
-    const status = await this.fetchStatus(id);
-    if (status === null) return null;
-    if (!ROSTER_READY.has(status)) return null;
+    const full = await this.fetchStatusFull(id);
+    if (full === null) return null;
+    if (!ROSTER_READY.has(full.status)) return null;
 
     // Parsing / scanned: listable in Partidas but no kill plan yet.
-    if (!PLAN_READY_STATUSES.has(status)) {
-      return this.jobToMatchEnriched({ jobId: id, status });
+    if (!PLAN_READY_STATUSES.has(full.status)) {
+      return this.jobToMatchEnriched({ jobId: id, status: full.status, progress: full.captureProgress });
     }
 
     const plan = await readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(id) })));
     const match = planToMatch(id, plan, await this.summaryPlayer(id, plan));
-    match.status = status;
+    match.status = full.status;
+    if (full.captureProgress) match.progress = full.captureProgress;
     return match;
   }
 
@@ -343,11 +345,17 @@ export class RealApiClient implements ApiClient {
   }
 
   /** Polls /status until it reaches `want`; throws on `failed` or timeout. */
-  private async waitForStatus(jobId: string, want: string, maxAttempts = 240): Promise<void> {
+  private async waitForStatus(
+    jobId: string,
+    want: string,
+    opts?: { onProgress?: (progress: JobProgress) => void; maxAttempts?: number },
+  ): Promise<void> {
+    const maxAttempts = opts?.maxAttempts ?? 240;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const status = await this.fetchStatus(jobId);
-      if (status === want) return;
-      if (status === 'failed') throw new Error(`job ${jobId} failed`);
+      const full = await this.fetchStatusFull(jobId);
+      if (full?.captureProgress && opts?.onProgress) opts.onProgress(full.captureProgress);
+      if (full?.status === want) return;
+      if (full?.status === 'failed') throw new Error(`job ${jobId} failed`);
       await sleep(800);
     }
     throw new Error(`timed out waiting for ${want}`);
@@ -705,6 +713,7 @@ export class RealApiClient implements ApiClient {
       artifactPrefix?: string;
       editConfig?: EditConfig;
       effectiveMusic?: EffectiveRenderMusic;
+      progress?: JobProgress;
     } =
       canHaveRenderState(job.status)
         ? await this.fetchRenderStatus(intent.jobId, variantOf(intent))
@@ -731,7 +740,7 @@ export class RealApiClient implements ApiClient {
       renderFailureReason: render.failureReason,
       renderWarnings: render.warnings,
       renderArtifactPrefix: render.artifactPrefix,
-      captureProgress: job.captureProgress,
+      captureProgress: job.captureProgress ?? render.progress,
       recordAdmitted: this.pendingCapture.has(intent.videoId),
       intentEdit: intent.editConfig,
       renderEdit: render.editConfig,
@@ -760,7 +769,7 @@ export class RealApiClient implements ApiClient {
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
   private applyView(intent: ReelIntent, view: ReelView): void {
     const base = this.reels.get(intent.videoId) ?? videoFromIntent(intent);
-    // captureProgress only belongs on a recording view.
+    // captureProgress belongs on recording and composing waits.
     const next = hydrateVideoFromIntent({
       ...base,
       status: view.status,
@@ -896,13 +905,13 @@ export class RealApiClient implements ApiClient {
     const data = await readJson<{
       status: string;
       failure_reason?: string;
-      progress?: { done?: number; total?: number; percent?: number };
+      progress?: { done?: number; total?: number; percent?: number; unit?: string; label?: string; stage?: string };
     }>(res);
     const full: { status: string; failureReason?: string; captureProgress?: CaptureProgress } = {
       status: data.status,
       failureReason: data.failure_reason,
     };
-    const parsed = parseCaptureProgress(data.progress);
+    const parsed = parseJobProgress(data.progress);
     if (parsed) full.captureProgress = parsed;
     return full;
   }
@@ -927,6 +936,7 @@ export class RealApiClient implements ApiClient {
     artifactPrefix?: string;
     editConfig?: EditConfig;
     effectiveMusic?: EffectiveRenderMusic;
+    progress?: JobProgress;
   }> {
     const res = await this.send((dp) => ({ url: dp.renderUrl(jobId, variant) }));
     if (res.status === 404) return { status: 'none' };
@@ -938,6 +948,7 @@ export class RealApiClient implements ApiClient {
       videos?: string[];
       covers?: string[];
       artifact_prefix?: string;
+      progress?: { done?: number; total?: number; percent?: number; unit?: string; label?: string; stage?: string };
       music?: unknown;
       edit?: {
         format?: EditConfig['format'];
@@ -963,6 +974,7 @@ export class RealApiClient implements ApiClient {
     const coverNames = Array.isArray(data.covers)
       ? data.covers.filter((name): name is string => typeof name === 'string' && name.length > 0)
       : undefined;
+    const progress = parseJobProgress(data.progress);
     return {
       status,
       failureReason: data.failure_reason,
@@ -973,6 +985,7 @@ export class RealApiClient implements ApiClient {
       artifactPrefix: data.artifact_prefix,
       editConfig: parseEffectiveEditConfig(data.edit),
       effectiveMusic: parseEffectiveRenderMusic(data.music),
+      ...(progress ? { progress } : {}),
     };
   }
 

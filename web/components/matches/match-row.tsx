@@ -10,6 +10,7 @@ import { formatKd, matchDateLabel } from '@/lib/format';
 import { matchPlanReady } from '@/lib/match-plays-empty';
 import { cn } from '@/lib/utils';
 import type { Match } from '@/lib/api/types';
+import { jobProgressCount, jobProgressPercent } from '@/lib/job-progress';
 import { isWin, MatchScore, parseScore } from './match-score';
 import { MATCH_ROW_MARKER } from './row-parallax';
 
@@ -71,7 +72,9 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
   // Lead the meta line with the clipped player when known ("<PLAYER> · HACE X"),
   // dropping it cleanly (no stray separator) when it is absent.
   let playsMeta: string | null = null;
-  if (!analyzing && match.decentPlays > 0) {
+  if (analyzing && match.progress) {
+    playsMeta = jobProgressCount(match.progress);
+  } else if (!analyzing && match.decentPlays > 0) {
     playsMeta = `${match.decentPlays} ${match.decentPlays === 1 ? 'jugada' : 'jugadas'}`;
   }
   const meta = [match.player, matchDateLabel(match), playsMeta].filter(Boolean).join(' · ');
@@ -121,7 +124,11 @@ export function MatchRow({ match, featured = false, onDelete, onDeleted }: Match
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h2 className="truncate font-display text-title font-bold uppercase text-fg-1">{match.map}</h2>
-                {analyzing ? <StatusTag tone="warning">Analizando</StatusTag> : null}
+                {analyzing ? (
+                  <StatusTag tone="warning">
+                    {match.progress ? `Analizando ${jobProgressPercent(match.progress)}%` : 'Analizando'}
+                  </StatusTag>
+                ) : null}
               </div>
               <p className="mt-1 truncate font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</p>
             </div>

@@ -20,6 +20,8 @@ import { IconTile } from '@/components/studio/icon-tile';
 import { Button } from '@/components/ui/button';
 import { seriesTitle } from '@/lib/series-status';
 import { timeAgo } from '@/lib/format';
+import { matchPlanReady } from '@/lib/match-plays-empty';
+import { startPollLoop } from '@/lib/poll-loop';
 
 
 /** True when an API error means the local analysis service is unreachable. */
@@ -120,6 +122,20 @@ export default function MatchesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const analyzing = matches?.some((match) => !matchPlanReady(match.status)) ?? false;
+  useEffect(() => {
+    if (!analyzing) return;
+    const stop = startPollLoop({
+      tick: async () => {
+        await load();
+        return 'fast';
+      },
+      fastMs: 2500,
+      idleMs: 8000,
+    });
+    return stop;
+  }, [analyzing, load]);
 
   // Deletes throw so the row can surface 409/503; success re-fetches both lists.
   const deleteMatch = useCallback((jobId: string) => api.deleteMatch(jobId), []);

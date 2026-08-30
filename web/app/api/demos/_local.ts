@@ -11,7 +11,7 @@ import {
   TACTICAL_STATUS_KEYS,
   TACTICAL_TENDENCIES_KEYS,
 } from '@/lib/api/tactical';
-import { parseCaptureProgress } from '@/lib/capture-progress';
+import { parseJobProgress } from '@/lib/job-progress';
 import {
   orchestratorUrl,
   forwardError,
@@ -70,19 +70,19 @@ export async function localStatus(jobId: string): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  // Whitelist status, failure_reason, and capture progress; drop anything else.
+  // Whitelist status, failure_reason, and live worker progress; drop anything else.
   const data = (await res.json()) as {
     status: string;
     failure_reason?: string;
-    progress?: { done?: number; total?: number; percent?: number };
+    progress?: { done?: number; total?: number; percent?: number; unit?: string; label?: string; stage?: string };
   };
   const body: {
     status: string;
     failure_reason?: string;
-    progress?: { done: number; total: number; percent?: number };
+    progress?: { done: number; total: number; percent?: number; unit?: string; label?: string; stage?: string };
   } = { status: data.status };
   if (data.failure_reason) body.failure_reason = data.failure_reason;
-  const parsed = parseCaptureProgress(data.progress);
+  const parsed = parseJobProgress(data.progress);
   if (parsed) body.progress = parsed;
   return NextResponse.json(body);
 }
@@ -128,15 +128,24 @@ export async function localSeries(seriesId: string): Promise<Response> {
     status: string;
     failure_reason?: string;
     demo_file_name?: string;
+    progress?: { done?: number; total?: number; percent?: number; unit?: string; label?: string; stage?: string };
   };
   const body = (await res.json()) as { jobs: UpstreamJob[] };
   const demos = body.jobs.map((job) => {
-    const demo: { jobId: string; status: string; failureReason?: string; fileName?: string } = {
+    const demo: {
+      jobId: string;
+      status: string;
+      failureReason?: string;
+      fileName?: string;
+      progress?: { done: number; total: number; percent?: number; unit?: string; label?: string; stage?: string };
+    } = {
       jobId: job.id,
       status: job.status,
     };
     if (job.failure_reason) demo.failureReason = job.failure_reason;
     if (job.demo_file_name) demo.fileName = job.demo_file_name;
+    const parsed = parseJobProgress(job.progress);
+    if (parsed) demo.progress = parsed;
     return demo;
   });
   return NextResponse.json({ demos });
@@ -156,6 +165,7 @@ export async function localJobs(): Promise<Response> {
     series_id?: string;
     target_steamid?: string;
     created_at?: string;
+    progress?: { done?: number; total?: number; percent?: number; unit?: string; label?: string; stage?: string };
   };
   const body = (await res.json()) as { jobs: UpstreamJob[] };
   const jobs = body.jobs.map((job) => {
@@ -167,12 +177,15 @@ export async function localJobs(): Promise<Response> {
       seriesId?: string;
       targetSteamId?: string;
       createdAt?: string;
+      progress?: { done: number; total: number; percent?: number; unit?: string; label?: string; stage?: string };
     } = { jobId: job.id, status: job.status };
     if (job.failure_reason) out.failureReason = job.failure_reason;
     if (job.demo_file_name) out.fileName = job.demo_file_name;
     if (job.series_id) out.seriesId = job.series_id;
     if (job.target_steamid) out.targetSteamId = job.target_steamid;
     if (job.created_at) out.createdAt = job.created_at;
+    const parsed = parseJobProgress(job.progress);
+    if (parsed) out.progress = parsed;
     return out;
   });
   return NextResponse.json({ jobs });

@@ -16,6 +16,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tactical"
@@ -135,10 +136,13 @@ func (w *TacticalWorker) analyze(ctx context.Context, j job.Job, sampleHZ float6
 	}
 	defer cleanup()
 
+	rep := jobprogress.NewKeyedReporter(w.storage, artifacts.TacticalProgressKey(j.ID), jobprogress.StageTactical, jobprogress.UnitTicks, "ticks")
+	_ = rep.Update(0, 0)
 	result, err := tactical.ScanFile(ctx, demoPath, tactical.Options{
-		SHA256:   j.DemoSHA256,
-		JobID:    j.ID,
-		SampleHZ: sampleHZ,
+		SHA256:     j.DemoSHA256,
+		JobID:      j.ID,
+		SampleHZ:   sampleHZ,
+		OnProgress: func(done, total int) { _ = rep.Update(int64(done), int64(total)) },
 	})
 	if err != nil {
 		return fmt.Errorf("scan tactical: %w", err)
@@ -161,6 +165,7 @@ func (w *TacticalWorker) analyze(ctx context.Context, j job.Job, sampleHZ float6
 	if err := w.storage.Put(indexKey, bytes.NewReader(append(b, '\n'))); err != nil {
 		return newTacticalFailure(tacticalClassWriteArtifact, fmt.Errorf("store tactical document: %w", err))
 	}
+	_ = rep.Complete(int64(result.Document.Demo.DurationTicks))
 	return nil
 }
 

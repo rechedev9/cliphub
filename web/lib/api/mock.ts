@@ -1,6 +1,6 @@
 import type { ApiClient, VideoReviewResolution } from './client';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
-import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
+import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo, JobProgress } from './types';
 import type { SeriesSummary } from './jobs-index';
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 import {
@@ -319,7 +319,7 @@ export class MockApiClient implements ApiClient {
     return { ...match, stats: { ...match.stats } };
   }
 
-  async scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match: RosterMatch }> {
+  async scanDemo(file: File, opts?: { seriesId?: string; onProgress?: (progress: JobProgress) => void }): Promise<{ jobId: string; players: DemoPlayer[]; match: RosterMatch }> {
     await delay();
     uploadSeq += 1;
     const jobId = `m-upload-${uploadSeq}`;
@@ -342,7 +342,7 @@ export class MockApiClient implements ApiClient {
     return list.map((s) => ({ jobId: s.jobId, fileName: s.fileName, status: 'scanned', match: { ...s.match } }));
   }
 
-  async parseDemo(input: { jobId: string; steamId: string }): Promise<Match> {
+  async parseDemo(input: { jobId: string; steamId: string; onProgress?: (progress: JobProgress) => void }): Promise<Match> {
     await delay();
     const pending = pendingScans.get(input.jobId);
     if (!pending) throw new Error(`no scan to parse: ${input.jobId}`);

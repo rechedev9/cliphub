@@ -17,7 +17,7 @@ const STAGE_LABEL: Record<ShellJobStage, string> = {
   composing: 'Editando',
 };
 
-/** Command-strip job chip. The ring and percent exist only while capturing. */
+/** Command-strip job chip. Percent and current/total stay up while the job waits. */
 export function JobTransport(): ReactElement | null {
   const activity = useSyncExternalStore(
     subscribeToShellActivity,
