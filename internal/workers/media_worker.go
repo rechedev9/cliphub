@@ -195,10 +195,7 @@ func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([
 	if err == nil {
 		return out, nil
 	}
-	if text := strings.TrimSpace(string(out)); text != "" {
-		return out, fmt.Errorf("%s failed: %w: %s", exe, err, text)
-	}
-	return out, fmt.Errorf("%s failed: %w", exe, err)
+	return out, formatToolFailure(exe, out, err)
 }
 
 type RecordWorkerConfig struct {
@@ -2002,7 +1999,10 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
-	_, runErr := w.runner.Run(runCtx, cfg.EditorPath, args...)
+	out, runErr := w.runner.Run(runCtx, cfg.EditorPath, args...)
+	if runErr != nil {
+		runErr = ensureToolFailureOutput(cfg.EditorPath, out, runErr)
+	}
 
 	resultPath := filepath.Join(outDir, "shorts-result.json")
 	if err := readJSONFile(resultPath, &result); err != nil {
