@@ -27,6 +27,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/composition"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/jobprogress"
@@ -2003,28 +2004,51 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 
 	resultPath := filepath.Join(outDir, "shorts-result.json")
+	fullDemo := isFullDemoNativeMix(loadout.Preset, edit)
 	if err := readJSONFile(resultPath, &result); err != nil {
-		if runErr != nil {
-			return runErr
-		}
-		return fmt.Errorf("read render result: %w", err)
-	}
-	result.InputFingerprint = inputFingerprint
-	if cfg.FFprobePath != "" {
-		if err := probeRenderResult(runCtx, w.runner, cfg.FFprobePath, &result); err != nil {
-			result.Warnings = append(result.Warnings, "ffprobe quality metadata: "+err.Error())
-		}
-	}
-	if runErr != nil || result.Error != "" {
-		salvaged, ok := salvageCompleteEditorResult(result, edit)
-		if !ok {
+		if !fullDemo {
 			if runErr != nil {
 				return runErr
 			}
-			return fmt.Errorf("render result error: %s", result.Error)
+			return fmt.Errorf("read render result: %w", err)
+		}
+		salvaged, salvageErr := salvageFullDemoLandscapeFromDisk(runCtx, w.runner, cfg, outDir, publishDir, recordingResult, loadout, edit)
+		if salvageErr != nil {
+			if runErr != nil {
+				return runErr
+			}
+			return fmt.Errorf("read render result: %w", err)
 		}
 		result = salvaged
-		runErr = nil
+	} else {
+		if cfg.FFprobePath != "" {
+			if probeErr := probeRenderResult(runCtx, w.runner, cfg.FFprobePath, &result); probeErr != nil {
+				result.Warnings = append(result.Warnings, "ffprobe quality metadata: "+probeErr.Error())
+			}
+		}
+		if runErr != nil || result.Error != "" {
+			salvaged, ok := salvageCompleteEditorResult(result, edit)
+			if !ok && fullDemo {
+				if disk, diskErr := salvageFullDemoLandscapeFromDisk(runCtx, w.runner, cfg, outDir, publishDir, recordingResult, loadout, edit); diskErr == nil {
+					salvaged = disk
+					ok = true
+				}
+			}
+			if !ok {
+				if runErr != nil {
+					return runErr
+				}
+				return fmt.Errorf("render result error: %s", result.Error)
+			}
+			result = salvaged
+			runErr = nil
+		}
+	}
+	result.InputFingerprint = inputFingerprint
+	if cfg.FFprobePath != "" && result.Shorts != nil {
+		if probeErr := probeRenderResult(runCtx, w.runner, cfg.FFprobePath, &result); probeErr != nil {
+			result.Warnings = append(result.Warnings, "ffprobe quality metadata: "+probeErr.Error())
+		}
 	}
 	result.Warnings = renderplan.CompleteRenderWarnings(result)
 	if err := writeJSONFile(resultPath, result); err != nil {
@@ -3080,6 +3104,220 @@ func salvageCompleteEditorResult(result editor.Result, edit renderplan.EditReque
 	}
 	result.Executed = true
 	return result, true
+}
+
+const (
+	fullDemoCompilationSegmentID = "demo-compilation"
+	fullDemoCompilationBase      = "short-001-demo-compilation"
+	fullDemoLandscapeWidth       = 1920
+	fullDemoLandscapeHeight      = 1080
+)
+
+// salvageFullDemoLandscapeFromDisk promotes a finished 1920×1080 recap left
+// beside out/ when zv-editor exits 1 before writing shorts-result.json.
+// Tonight's 2.4.37 walk left .short-001-demo-compilation.attempt-*.mp4.
+func salvageFullDemoLandscapeFromDisk(
+	ctx context.Context,
+	runner commandRunner,
+	cfg RenderWorkerConfig,
+	outDir, publishDir string,
+	recordingResult recording.RecordingResult,
+	loadout renderplan.Loadout,
+	edit renderplan.EditRequest,
+) (editor.Result, error) {
+	if strings.TrimSpace(cfg.FFprobePath) == "" {
+		return editor.Result{}, fmt.Errorf("ffprobe is required to ingest a 16:9 recap without shorts-result.json")
+	}
+	candidate, err := findFullDemoLandscapeCandidate(outDir)
+	if err != nil {
+		return editor.Result{}, err
+	}
+	destination := filepath.Join(outDir, fullDemoCompilationBase+".mp4")
+	if filepath.Clean(candidate) != filepath.Clean(destination) {
+		if err := filecommit.Commit(candidate, destination); err != nil {
+			return editor.Result{}, fmt.Errorf("promote 16:9 recap attempt: %w", err)
+		}
+	}
+	artifact, err := probeFullDemoLandscapeFile(ctx, runner, cfg.FFprobePath, destination)
+	if err != nil {
+		return editor.Result{}, err
+	}
+	if expected := expectedRecapDurationSeconds(recordingResult); expected > 0 && artifact.DurationSeconds > 0 {
+		delta := artifact.DurationSeconds - expected
+		if delta < 0 {
+			delta = -delta
+		}
+		if delta > 30 && delta > expected*0.15 {
+			return editor.Result{}, fmt.Errorf("16:9 recap duration %.3fs does not match captured length %.3fs", artifact.DurationSeconds, expected)
+		}
+	}
+	if err := os.MkdirAll(publishDir, 0o750); err != nil {
+		return editor.Result{}, err
+	}
+	publishVideo := filepath.Join(publishDir, fullDemoCompilationSegmentID+".mp4")
+	if err := copyRegularFile(destination, publishVideo); err != nil {
+		return editor.Result{}, err
+	}
+	captionPath := filepath.Join(publishDir, fullDemoCompilationSegmentID+".caption.txt")
+	if err := os.WriteFile(captionPath, []byte("Full Demo recap\n"), 0o600); err != nil {
+		return editor.Result{}, err
+	}
+	coverPath := filepath.Join(publishDir, fullDemoCompilationSegmentID+".cover.jpg")
+	if err := os.WriteFile(coverPath, []byte("cover"), 0o600); err != nil {
+		return editor.Result{}, err
+	}
+	publishArt := artifact
+	publishArt.Path = publishVideo
+	publishArt.Role = "publish"
+	short := editor.ShortResult{
+		Index:           1,
+		SegmentID:       fullDemoCompilationSegmentID,
+		Preset:          loadout.Preset,
+		Output:          destination,
+		PublishPath:     publishVideo,
+		OutputFormat:    editor.OutputFormatLandscape16x9,
+		CaptionPath:     captionPath,
+		CoverPath:       coverPath,
+		DurationSeconds: artifact.DurationSeconds,
+		Title:           "Full Demo recap",
+		OutputArtifact:  artifact,
+		PublishArtifact: publishArt,
+	}
+	result := editor.Result{
+		Preset:          loadout.Preset,
+		OutputDir:       outDir,
+		PublishDir:      publishDir,
+		OutputFormat:    editor.OutputFormatLandscape16x9,
+		KillEffect:      edit.KillEffect,
+		Transition:      edit.Transition,
+		CompileSegments: true,
+		CoverSheets:     loadout.CoverSheets,
+		CoversEnabled:   loadout.CoversEnabled,
+		Executed:        true,
+		Shorts:          []editor.ShortResult{short},
+		Warnings:        []string{"editor exited after writing a complete output; ingested the finished file"},
+	}
+	manifest := editor.Manifest{
+		Preset:          loadout.Preset,
+		OutputDir:       outDir,
+		PublishDir:      publishDir,
+		OutputFormat:    editor.OutputFormatLandscape16x9,
+		CompileSegments: true,
+		CoverSheets:     loadout.CoverSheets,
+		CoversEnabled:   loadout.CoversEnabled,
+		Shorts: []editor.ShortEdit{{
+			Index:        1,
+			SegmentID:    fullDemoCompilationSegmentID,
+			Preset:       loadout.Preset,
+			Output:       destination,
+			PublishPath:  publishVideo,
+			OutputFormat: editor.OutputFormatLandscape16x9,
+			CaptionPath:  captionPath,
+			CoverPath:    coverPath,
+		}},
+	}
+	pack := editor.PackManifest{
+		Preset:          loadout.Preset,
+		PublishDir:      publishDir,
+		OutputFormat:    editor.OutputFormatLandscape16x9,
+		CompileSegments: true,
+		CoverSheets:     loadout.CoverSheets,
+		CoversEnabled:   loadout.CoversEnabled,
+		Items: []editor.PublishItem{{
+			Index:        1,
+			SegmentID:    fullDemoCompilationSegmentID,
+			Preset:       loadout.Preset,
+			Video:        publishVideo,
+			OutputFormat: editor.OutputFormatLandscape16x9,
+			CaptionPath:  captionPath,
+			CoverPath:    coverPath,
+		}},
+	}
+	if err := writeJSONFile(filepath.Join(outDir, "edit-manifest.json"), manifest); err != nil {
+		return editor.Result{}, err
+	}
+	if err := writeJSONFile(filepath.Join(publishDir, "pack-manifest.json"), pack); err != nil {
+		return editor.Result{}, err
+	}
+	if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), result); err != nil {
+		return editor.Result{}, err
+	}
+	return result, nil
+}
+
+func findFullDemoLandscapeCandidate(outDir string) (string, error) {
+	committed := filepath.Join(outDir, fullDemoCompilationBase+".mp4")
+	if info, err := os.Stat(committed); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
+		return committed, nil
+	}
+	matches, err := filepath.Glob(filepath.Join(outDir, "."+fullDemoCompilationBase+".attempt-*.mp4"))
+	if err != nil {
+		return "", err
+	}
+	var best string
+	var bestSize int64
+	for _, path := range matches {
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			continue
+		}
+		if info.Size() > bestSize {
+			best = path
+			bestSize = info.Size()
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no complete 16:9 recap artifact")
+	}
+	return best, nil
+}
+
+func probeFullDemoLandscapeFile(ctx context.Context, runner commandRunner, ffprobePath, path string) (recording.RecordingArtifact, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return recording.RecordingArtifact{}, err
+	}
+	if !info.Mode().IsRegular() || info.Size() == 0 {
+		return recording.RecordingArtifact{}, fmt.Errorf("16:9 recap artifact is empty")
+	}
+	probed, err := probeVideoArtifact(ctx, runner, ffprobePath, fullDemoCompilationSegmentID, "short", path)
+	if err != nil {
+		return recording.RecordingArtifact{}, fmt.Errorf("ffprobe 16:9 recap: %w", err)
+	}
+	if probed.Width != fullDemoLandscapeWidth || probed.Height != fullDemoLandscapeHeight {
+		return recording.RecordingArtifact{}, fmt.Errorf("recap is %dx%d, want %dx%d", probed.Width, probed.Height, fullDemoLandscapeWidth, fullDemoLandscapeHeight)
+	}
+	return probed, nil
+}
+
+func expectedRecapDurationSeconds(result recording.RecordingResult) float64 {
+	var sum float64
+	for _, artifact := range result.Artifacts {
+		if artifact.Role == "segment" && artifact.Type == "video" && artifact.DurationSeconds > 0 {
+			sum += artifact.DurationSeconds
+		}
+	}
+	return sum
+}
+
+func copyRegularFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 func completeEditorOutput(result editor.Result, format string) bool {

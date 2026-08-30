@@ -219,6 +219,66 @@ func TestHandleRenderVariantIngestsCompleteLandscapeAfterEmptyCombinedOutput(t *
 	}
 }
 
+func TestHandleRenderVariantIngestsAttemptFileWithoutResultJSON(t *testing.T) {
+	id, store, worker := recordedFullDemoRender(t)
+	if err := putCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	worker.cfg.FFprobePath = "ffprobe.exe"
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	log.SetFlags(0)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	worker.runner = &fakeRunner{fn: func(_ context.Context, exe string, args ...string) ([]byte, error) {
+		switch filepath.Base(exe) {
+		case "zv-editor.exe":
+			outDir := argValue(args, "--out")
+			if outDir == "" {
+				t.Fatal("editor args missing --out")
+			}
+			if got := argValue(args, "--output-format"); got != renderplan.FormatLandscape16x9 {
+				t.Fatalf("--output-format = %q, want landscape-16x9", got)
+			}
+			attempt := filepath.Join(outDir, ".short-001-demo-compilation.attempt-2591725329.mp4")
+			if err := os.WriteFile(attempt, bytes.Repeat([]byte("mp4"), 64), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return nil, errors.New("exit status 1")
+		case "ffprobe.exe":
+			return []byte(`{"streams":[{"codec_name":"h264","width":1920,"height":1080,"r_frame_rate":"60/1","duration":"1312.0"}],"format":{"duration":"1312.0","size":"5177344000"}}`), nil
+		default:
+			t.Fatalf("unexpected exe %q", exe)
+			return nil, nil
+		}
+	}}
+
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, renderplan.DefaultEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.HandleRenderVariant(context.Background(), task); err != nil {
+		t.Fatalf("HandleRenderVariant error = %v, want ingest of attempt MP4", err)
+	}
+	if !strings.Contains(logs.String(), "combined_output="+emptyCombinedOutputMarker) {
+		t.Fatalf("studio.log missing CombinedOutput: %q", logs.String())
+	}
+
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetGameplayPOV60)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview {
+		t.Fatalf("status = %q, want ready or review after ingesting attempt 16:9", state.Status)
+	}
+	if state.EditDocumentKey == "" {
+		t.Fatal("durable edit-document key missing after attempt-file ingest")
+	}
+	if _, ok := store.files[state.EditDocumentKey]; !ok {
+		t.Fatalf("durable edit-document.json missing at %s", state.EditDocumentKey)
+	}
+}
+
 func TestHandleRenderVariantDoesNotPublishNineBySixteenFullDemo(t *testing.T) {
 	id, store, worker := recordedFullDemoRender(t)
 	if err := putCaptureKind(store, id, true); err != nil {
