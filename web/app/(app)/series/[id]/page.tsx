@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronRight, Layers } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
-import type { JobProgress, RosterMatch, SeriesDemo, Video } from '@/lib/api/types';
+import type { RosterMatch, SeriesDemo, Video } from '@/lib/api/types';
 import {
   isSeriesId,
   seriesReelIsActive,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/series-status';
 import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
+import { seriesWaitProgress } from '@/lib/series-wait-progress';
 import { startPollLoop } from '@/lib/poll-loop';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
@@ -126,18 +127,6 @@ function demoTone(demo: SeriesDemo, reel: Video | undefined): SeriesStatusTone {
 /** The Spanish label matching {@link demoTone}. */
 function demoLabel(demo: SeriesDemo, reel: Video | undefined): string {
   return reel ? seriesReelLabel(reel.status) : seriesStatusLabel(demo.status);
-}
-
-/**
- * The part whose status stands for the whole map, matching the bucket the page
- * header counts it in, so the spine node and the header never contradict.
- */
-function seriesWaitProgress(groups: readonly SeriesGroup<SeriesDemo>[], list: readonly SeriesDemo[]): JobProgress {
-  const pending = list.filter((demo) => seriesStatusIsPending(demo.status));
-  const working = pending.find((demo) => demo.progress);
-  if (working?.progress) return working.progress;
-  const doneMaps = groups.filter((group) => !group.demos.some((demo) => seriesStatusIsPending(demo.status))).length;
-  return { done: doneMaps, total: groups.length, unit: 'maps', label: 'mapas' };
 }
 
 function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {

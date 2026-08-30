@@ -17,6 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -271,6 +272,124 @@ func TestGetStreamJobOmitsAcquireProgressAfterReady(t *testing.T) {
 	}
 	if got.Progress != nil {
 		t.Fatalf("acquire leftover leaked onto ready stream job: %+v", got.Progress)
+	}
+}
+
+func writeRecordingProgress(t *testing.T, store storage.Storage, id uuid.UUID, ids []string, done int) {
+	t.Helper()
+	completed := append([]string{}, ids[:done]...)
+	progress, err := recording.NewCaptureProgress(uuid.New(), ids, completed, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.CaptureProgressKey(id), bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func getJobStatusProgress(t *testing.T, repo *fakeRepo, store storage.Storage, id uuid.UUID) *captureProgressView {
+	t.Helper()
+	h := NewHandlers(repo, store, &fakeQueue{})
+	router := chi.NewRouter()
+	router.Get("/api/jobs/{id}", h.GetJob)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"?view=status", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+	}
+	var got jobStatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	return got.Progress
+}
+
+func TestGetJobStatusRecordingLabelsShortsDespiteStoredRecapPlan(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecording}
+	if err := recapplan.Store(store, id, killplan.Plan{Segments: []killplan.Segment{{ID: "seg-001"}, {ID: "seg-002"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCaptureKind(store, id, false); err != nil {
+		t.Fatal(err)
+	}
+	writeRecordingProgress(t, store, id, []string{"seg-001", "seg-002", "seg-003", "seg-004"}, 1)
+
+	got := getJobStatusProgress(t, repo, store, id)
+	if got == nil || got.Label != "segmentos" || got.Unit != jobprogress.UnitSegments {
+		t.Fatalf("shorts recording progress = %+v, want segmentos", got)
+	}
+	if got.Done != 1 || got.Total != 4 {
+		t.Fatalf("shorts recording count = %+v, want 1/4", got)
+	}
+}
+
+func TestGetJobStatusRecordingLabelsFullDemoRounds(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecording}
+	if err := recapplan.Store(store, id, killplan.Plan{Segments: []killplan.Segment{{ID: "seg-001"}, {ID: "seg-002"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	writeRecordingProgress(t, store, id, []string{"seg-001", "seg-002", "seg-003"}, 1)
+
+	got := getJobStatusProgress(t, repo, store, id)
+	if got == nil || got.Label != "rondas" || got.Unit != jobprogress.UnitRounds {
+		t.Fatalf("full demo recording progress = %+v, want rondas", got)
+	}
+}
+
+func TestGetStreamRenderHandoffReplacesAcquireBytesWithClips(t *testing.T) {
+	store := newFakeStorage()
+	id := uuid.New()
+	streamRepo := newFakeStreamRepo()
+	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusAcquiring, SourcePath: streamclips.SourceKey(id)}
+	putProgressSnapshot(t, store, streamclips.ProgressKey(id), jobprogress.StageAcquire, jobprogress.UnitBytes, "bytes", 500, 1000)
+
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(streamRepo))
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String(), nil))
+	var acquiring streamJobResponse
+	if err := json.Unmarshal(rw.Body.Bytes(), &acquiring); err != nil {
+		t.Fatal(err)
+	}
+	if acquiring.Progress == nil || acquiring.Progress.Stage != jobprogress.StageAcquire || acquiring.Progress.Unit != jobprogress.UnitBytes {
+		t.Fatalf("acquire poll = %+v, want bytes", acquiring.Progress)
+	}
+
+	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusRendering, SourcePath: streamclips.SourceKey(id)}
+	putProgressSnapshot(t, store, streamclips.ProgressKey(id), jobprogress.StageRender, jobprogress.UnitClips, "clips", 0, 4)
+	state, err := streamclips.NewRenderState(id, streamclips.VariantStreamerVerticalStack, streamclips.StatusRendering, nil, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.writeStreamRenderState(state); err != nil {
+		t.Fatal(err)
+	}
+	rw = httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String()+"/renders/"+streamclips.VariantStreamerVerticalStack, nil))
+	var rendering streamRenderResponse
+	if err := json.Unmarshal(rw.Body.Bytes(), &rendering); err != nil {
+		t.Fatal(err)
+	}
+	if rendering.Progress == nil || rendering.Progress.Stage != jobprogress.StageRender || rendering.Progress.Done != 0 || rendering.Progress.Total != 4 {
+		t.Fatalf("render handoff = %+v, want 0/4 clips", rendering.Progress)
 	}
 }
 
