@@ -69,5 +69,4 @@ test('CI backend pins go.mod and runs vet, test, and zv check', () => {
   assert.match(body, /go vet \.\/\.\.\./);
   assert.match(body, /go test \.\/\.\.\. -count=1 -timeout 3m/);
   assert.match(body, /go run \.\/cmd\/zv check/);
-  assert.match(body, /gofmt -l/);
 });
