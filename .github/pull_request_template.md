@@ -6,13 +6,13 @@ below this comment.
 Required PR title:
 type: user-facing description
 Use a parenthesized scope only when it adds clarity:
-fix(auth): login redirect loops when session cookie is expired
+fix(parser): 9:16 Shorts fail to load when the demo has no kills
 
 Types: feat, fix, improve, refactor, docs, chore.
 For fixes, describe the user-visible symptom and trigger:
-fix: task list fails to load when user has no environments
+fix: Full Demo recap aborts capture when a buy-time nade is thrown
 Avoid implementation details such as:
-fix: add null check to task query
+fix: add null check to recap planner
 -->
 
 <details>
@@ -32,7 +32,8 @@ For fixes, begin with:
 or:
 "Resolves a problem where..."
 
-Name the affected UI surface or workflow. Do not describe the code-level cause here.
+Name the affected ClipHub surface: Demo parser → 9:16 Shorts, Full Demo → 16:9 recap, HLAE/capture, Studio installer/updater, or docs/CI.
+Do not describe the code-level cause here.
 -->
 
 ## Why This Change Was Made
@@ -59,6 +60,11 @@ Show the most useful proof that this change works. Screenshots, screencasts,
 terminal output, focused tests, CI results, live observations, redacted logs,
 and artifact links are all useful. Include before/after evidence for visual
 changes when it clarifies the result.
+
+For parser/capture/render changes: real ClipHub Studio on Windows + HLAE/CS2.
+Unit tests, mocks, lint, and CI are supplemental only. Name which structural
+flow you exercised (9:16 Shorts and/or Full Demo 16:9). If E2E cannot run, say
+so plainly. Do not claim the path works from reading code.
 
 Reviewers will inspect the code, tests, and CI. Use this section to make the
 validation easy to understand, not to restate the diff.
