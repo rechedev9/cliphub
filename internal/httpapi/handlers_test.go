@@ -2207,6 +2207,42 @@ func TestStartRenderVariantEnqueuesRenderTaskWhenRecorded(t *testing.T) {
 	}
 }
 
+func TestStartRenderVariantLocksFullDemoNineBySixteen(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	store := newFakeStorage()
+	if err := writeCaptureKind(store, j.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, queue)
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/"+editor.PresetGameplayPOV60, strings.NewReader(`{"edit":{"format":"short-9x16","killEffect":"punch-in","transition":"flash"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Variant != editor.PresetGameplayPOV60 {
+		t.Fatalf("variant = %q, want %q", payload.Variant, editor.PresetGameplayPOV60)
+	}
+	if payload.Edit.Format != renderplan.FormatLandscape16x9 || !payload.Edit.MatchRecap || !payload.Edit.NativeHUD {
+		t.Fatalf("edit = %#v, want locked RecapEditRequest", payload.Edit)
+	}
+}
+
 func TestStartRenderVariantRejectsOutOfRangeMusicVolume(t *testing.T) {
 	repo := newFakeRepo()
 	queue := &fakeQueue{}

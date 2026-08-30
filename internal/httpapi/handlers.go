@@ -1407,6 +1407,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	editRequest = editPatch.merge(editRequest)
+	editRequest = renderplan.LockFullDemoEdit(editRequest, variant, captureIsRecap(h.storage, j.ID))
 	if err := editRequest.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

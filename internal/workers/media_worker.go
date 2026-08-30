@@ -977,7 +977,6 @@ func (w *ComposeWorker) compose(ctx context.Context, j job.Job) (bool, error) {
 		composeTotal = 1
 	}
 	composeRep := jobprogress.NewReporter(w.storage, j.ID, jobprogress.StageCompose, jobprogress.UnitClips, "clips")
-	_ = composeRep.Update(0, composeTotal)
 
 	// The result key is the commit marker for the fixed-key composition pair.
 	// Invalidate it before the composer can replace final.mp4, so a failed
@@ -1784,7 +1783,7 @@ func (w *RenderWorker) HandleRenderVariant(ctx context.Context, t *asynq.Task) e
 }
 
 func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest) (err error) {
-	edit = renderplan.NormalizeEditRequest(edit)
+	edit = renderplan.LockFullDemoEdit(edit, variant, captureIsRecap(w.storage, j.ID))
 	if err := edit.Validate(); err != nil {
 		return err
 	}
@@ -1912,7 +1911,6 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		renderTotal = 1
 	}
 	renderRep := jobprogress.NewReporter(w.storage, j.ID, jobprogress.StageRender, jobprogress.UnitClips, "clips")
-	_ = renderRep.Update(0, renderTotal)
 	localKillPlan := filepath.Join(workDir, "killplan.json")
 	if err := writeJSONFile(localKillPlan, j.KillPlan); err != nil {
 		return fmt.Errorf("write kill plan: %w", err)
@@ -2017,14 +2015,25 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			result.Warnings = append(result.Warnings, "ffprobe quality metadata: "+err.Error())
 		}
 	}
+	if runErr != nil || result.Error != "" {
+		salvaged, ok := salvageCompleteEditorResult(result, edit)
+		if !ok {
+			if runErr != nil {
+				return runErr
+			}
+			return fmt.Errorf("render result error: %s", result.Error)
+		}
+		result = salvaged
+		runErr = nil
+	}
 	result.Warnings = renderplan.CompleteRenderWarnings(result)
 	if err := writeJSONFile(resultPath, result); err != nil {
 		return fmt.Errorf("write fingerprinted render result: %w", err)
 	}
-	if runErr != nil {
-		return runErr
-	}
 	if err := renderplan.ValidateRenderVariantRunResult(result); err != nil {
+		return err
+	}
+	if err := renderplan.ValidateFullDemoPublish(edit, result); err != nil {
 		return err
 	}
 	result.GalleryPath = filepath.Join(publishDir, "index.html")
@@ -3036,6 +3045,80 @@ func putCaptureKind(store storage.Storage, id uuid.UUID, recap bool) error {
 		return err
 	}
 	return store.Put(artifacts.CaptureKindKey(id), bytes.NewReader(body))
+}
+
+func captureIsRecap(store storage.Storage, id uuid.UUID) bool {
+	rc, err := store.Open(artifacts.CaptureKindKey(id))
+	if err != nil {
+		return false
+	}
+	defer rc.Close()
+	var doc struct {
+		Recap bool `json:"recap"`
+	}
+	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+		return false
+	}
+	return doc.Recap
+}
+
+// salvageCompleteEditorResult keeps a finished MP4 when zv-editor exits 1 after
+// writing complete output (empty CombinedOutput on a 16:9 concat is the
+// observed Studio case). Incomplete or wrong-aspect files stay failed.
+func salvageCompleteEditorResult(result editor.Result, edit renderplan.EditRequest) (editor.Result, bool) {
+	if !edit.MatchRecap || edit.Format != renderplan.FormatLandscape16x9 {
+		return result, false
+	}
+	if !completeEditorOutput(result, edit.Format) {
+		return result, false
+	}
+	if result.Error != "" {
+		result.Warnings = append(result.Warnings, "editor exited after writing a complete output: "+result.Error)
+		result.Error = ""
+	} else {
+		result.Warnings = append(result.Warnings, "editor exited after writing a complete output; ingested the finished file")
+	}
+	result.Executed = true
+	return result, true
+}
+
+func completeEditorOutput(result editor.Result, format string) bool {
+	if len(result.Shorts) == 0 {
+		return false
+	}
+	wantW, wantH := 1080, 1920
+	if format == renderplan.FormatLandscape16x9 {
+		wantW, wantH = 1920, 1080
+	}
+	for _, short := range result.Shorts {
+		path := short.PublishPath
+		if path == "" {
+			path = short.Output
+		}
+		if path == "" {
+			return false
+		}
+		info, err := os.Stat(path)
+		if err != nil || info.IsDir() || info.Size() == 0 {
+			return false
+		}
+		art := short.PublishArtifact
+		if art.Width == 0 && art.Height == 0 {
+			art = short.OutputArtifact
+		}
+		if art.ProbeError != "" {
+			return false
+		}
+		if art.Width > 0 && art.Height > 0 && (art.Width != wantW || art.Height != wantH) {
+			return false
+		}
+		if format == renderplan.FormatLandscape16x9 && (art.Width == 0 || art.Height == 0) {
+			// Full Demo salvage requires probed 1920×1080 so a leftover 9:16
+			// file cannot ride an empty CombinedOutput into Biblioteca.
+			return false
+		}
+	}
+	return true
 }
 
 func putCaptureSelection(store storage.Storage, id uuid.UUID, segmentIDs []string) error {

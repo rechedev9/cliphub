@@ -58,6 +58,15 @@ test('jobProgressDisplay omits percent and count when no snapshot exists', () =>
   });
 });
 
+test('jobProgressDisplay omits encode-start 0/N compose and render placeholders', () => {
+  assert.deepEqual(jobProgressDisplay({ done: 0, total: 20, percent: 0, unit: 'clips', label: 'clips', stage: 'render' }), {});
+  assert.deepEqual(jobProgressDisplay({ done: 0, total: 8, percent: 0, unit: 'clips', label: 'clips', stage: 'compose' }), {});
+  assert.deepEqual(jobProgressDisplay({ done: 0, total: 172772, percent: 0, unit: 'ticks', label: 'ticks', stage: 'parse' }), {
+    percent: '0%',
+    count: '0 / 172772 ticks',
+  });
+});
+
 test('parseJobProgress keeps unit/label/stage and allows a 0/0 first write', () => {
   assert.equal(parseJobProgress(undefined), undefined);
   assert.equal(parseJobProgress({ done: 1, total: 0 }), undefined);

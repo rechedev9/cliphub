@@ -30,6 +30,10 @@ export function jobProgressDisplay(progress?: JobProgress): { percent?: string; 
   if (!progress) {
     return {};
   }
+  // Encode-start 0/N is not a count. Biblioteca must not snap 8/20 to 0/20.
+  if (progress.done === 0 && (progress.stage === 'compose' || progress.stage === 'render')) {
+    return {};
+  }
   return {
     percent: `${jobProgressPercent(progress)}%`,
     count: jobProgressCount(progress),

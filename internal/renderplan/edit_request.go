@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 )
 
@@ -65,6 +66,25 @@ func DefaultEditRequest() EditRequest {
 		Transition:    TransitionFlash,
 		CoverStrategy: CoverStrategyGenerated,
 	}
+}
+
+// LockFullDemoEdit forces landscape 16:9 when this render is a Full Demo.
+// A recap capture that arrived with DefaultEditRequest (short-9x16) gets the
+// locked RecapEditRequest. An explicit recap intent keeps its other fields
+// and only has the aspect corrected. Shorts on other variants stay untouched.
+func LockFullDemoEdit(edit EditRequest, variant string, recapCapture bool) EditRequest {
+	edit = NormalizeEditRequest(edit)
+	if variant != editor.PresetGameplayPOV60 {
+		return edit
+	}
+	if !edit.MatchRecap && !recapCapture {
+		return edit
+	}
+	if !edit.MatchRecap {
+		return RecapEditRequest()
+	}
+	edit.Format = FormatLandscape16x9
+	return edit
 }
 
 // RecapEditRequest is the locked 16:9 Full Demo treatment: native HUD, team

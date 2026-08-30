@@ -42,8 +42,23 @@ test('stale capture progress does not leak onto a drive-render view', () => {
 
 test('composing keeps live worker progress', () => {
   assert.deepEqual(
+    view({ jobStatus: 'composing', captureProgress: { done: 3, total: 8, unit: 'clips' } }),
+    { status: 'composing', action: 'none', captureProgress: { done: 3, total: 8, unit: 'clips' } },
+  );
+});
+
+test('composing omits encode-start 0/N so Biblioteca does not snap to 0/20', () => {
+  assert.deepEqual(
+    view({
+      jobStatus: 'recorded',
+      renderStatus: 'rendering',
+      captureProgress: { done: 0, total: 20, percent: 0, unit: 'clips', label: 'clips', stage: 'render' },
+    }),
+    { status: 'composing', action: 'none' },
+  );
+  assert.deepEqual(
     view({ jobStatus: 'composing', captureProgress: { done: 0, total: 8, unit: 'clips' } }),
-    { status: 'composing', action: 'none', captureProgress: { done: 0, total: 8, unit: 'clips' } },
+    { status: 'composing', action: 'none' },
   );
 });
 

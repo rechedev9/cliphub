@@ -31,6 +31,58 @@ func TestEditRequestSerializesOptionalRecapControls(t *testing.T) {
 	}
 }
 
+func TestLockFullDemoEditForcesLandscapeRecap(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name         string
+		edit         EditRequest
+		variant      string
+		recapCapture bool
+		wantLock     bool
+	}{
+		{
+			name:         "recap capture plus default 9:16",
+			edit:         DefaultEditRequest(),
+			variant:      "gameplay-pov-60",
+			recapCapture: true,
+			wantLock:     true,
+		},
+		{
+			name:     "explicit match_recap plus 9:16 keeps extras and forces 16:9",
+			edit:     EditRequest{Format: FormatShort9x16, MatchRecap: true, NativeHUD: true},
+			variant:  "gameplay-pov-60",
+			wantLock: true,
+		},
+		{
+			name:     "shorts gameplay-pov-60 stays 9:16",
+			edit:     DefaultEditRequest(),
+			variant:  "gameplay-pov-60",
+			wantLock: false,
+		},
+		{
+			name:         "viral shorts on a recap job stay 9:16",
+			edit:         DefaultEditRequest(),
+			variant:      "viral-60-clean",
+			recapCapture: true,
+			wantLock:     false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := LockFullDemoEdit(tc.edit, tc.variant, tc.recapCapture)
+			if tc.wantLock {
+				if got.Format != FormatLandscape16x9 || !got.MatchRecap || !got.NativeHUD {
+					t.Fatalf("locked edit = %#v, want RecapEditRequest", got)
+				}
+				return
+			}
+			if got.Format != FormatShort9x16 || got.MatchRecap {
+				t.Fatalf("edit = %#v, want unchanged Shorts default", got)
+			}
+		})
+	}
+}
+
 func TestRecapEditRequestLocksFullDemoTreatment(t *testing.T) {
 	got := RecapEditRequest()
 	if got.Format != FormatLandscape16x9 || !got.MatchRecap || !got.NativeHUD || !got.VoiceComms {

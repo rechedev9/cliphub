@@ -106,6 +106,175 @@ func TestHandleRenderVariantPersistsTruncatedEditorCombinedOutput(t *testing.T) 
 	}
 }
 
+func TestHandleRenderVariantLocksRecapCaptureToLandscape(t *testing.T) {
+	id, store, worker := recordedFullDemoRender(t)
+	if err := putCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	var format string
+	worker.runner = &fakeRunner{fn: func(_ context.Context, exe string, args ...string) ([]byte, error) {
+		if filepath.Base(exe) != "zv-editor.exe" {
+			t.Fatalf("exe = %q, want zv-editor.exe", exe)
+		}
+		format = argValue(args, "--output-format")
+		return nil, errors.New("exit status 1")
+	}}
+
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, renderplan.DefaultEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.HandleRenderVariant(context.Background(), task); err == nil {
+		t.Fatal("HandleRenderVariant error = nil, want editor exit")
+	}
+	if format != renderplan.FormatLandscape16x9 {
+		t.Fatalf("--output-format = %q, want %q on a recap capture", format, renderplan.FormatLandscape16x9)
+	}
+}
+
+func TestHandleRenderVariantIngestsCompleteLandscapeAfterEmptyCombinedOutput(t *testing.T) {
+	id, store, worker := recordedFullDemoRender(t)
+	if err := putCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	worker.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		outDir := argValue(args, "--out")
+		publishDir := argValue(args, "--publish-dir")
+		if outDir == "" || publishDir == "" {
+			t.Fatal("editor args missing --out or --publish-dir")
+		}
+		videoPath := filepath.Join(publishDir, "demo-compilation.mp4")
+		coverPath := filepath.Join(publishDir, "demo-compilation.cover.jpg")
+		captionPath := filepath.Join(publishDir, "demo-compilation.caption.txt")
+		logPath := filepath.Join(outDir, "logs", "demo-compilation-render.log")
+		for _, file := range []struct {
+			path string
+			body string
+		}{
+			{filepath.Join(outDir, "edit-manifest.json"), `{"shorts":[{"segment_id":"demo-compilation"}]}`},
+			{filepath.Join(publishDir, "pack-manifest.json"), `{"items":[{"segment_id":"demo-compilation"}]}`},
+			{filepath.Join(publishDir, "index.html"), `<html></html>`},
+			{filepath.Join(publishDir, "publish-summary.md"), `summary`},
+			{videoPath, "complete-1920x1080"},
+			{coverPath, "cover"},
+			{captionPath, "caption"},
+			{logPath, "log"},
+		} {
+			if err := os.MkdirAll(filepath.Dir(file.path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(file.path, []byte(file.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rendered := editor.Result{
+			Preset:      editor.PresetGameplayPOV60,
+			OutputDir:   outDir,
+			PublishDir:  publishDir,
+			GalleryPath: filepath.Join(publishDir, "index.html"),
+			SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
+			Error:       emptyCombinedOutputMarker,
+			Shorts: []editor.ShortResult{{
+				SegmentID:     "demo-compilation",
+				Output:        videoPath,
+				PublishPath:   videoPath,
+				CoverPath:     coverPath,
+				CaptionPath:   captionPath,
+				RenderLogPath: logPath,
+				OutputFormat:  editor.OutputFormatLandscape16x9,
+				PublishArtifact: recording.RecordingArtifact{
+					Width:  1920,
+					Height: 1080,
+					Path:   videoPath,
+					Type:   "video",
+					Role:   "publish",
+				},
+			}},
+		}
+		if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), rendered); err != nil {
+			t.Fatal(err)
+		}
+		return nil, errors.New("exit status 1")
+	}}
+
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, renderplan.RecapEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.HandleRenderVariant(context.Background(), task); err != nil {
+		t.Fatalf("HandleRenderVariant error = %v, want ingested complete 16:9", err)
+	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetGameplayPOV60)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview {
+		t.Fatalf("status = %q, want ready or review after ingesting complete 16:9", state.Status)
+	}
+	if state.EditDocumentKey == "" {
+		t.Fatal("render state missing edit document after salvage ingest")
+	}
+	if _, ok := store.files[state.EditDocumentKey]; !ok {
+		t.Fatalf("durable %s missing after salvage ingest", state.EditDocumentKey)
+	}
+}
+
+func TestHandleRenderVariantDoesNotPublishNineBySixteenFullDemo(t *testing.T) {
+	id, store, worker := recordedFullDemoRender(t)
+	if err := putCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	worker.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		outDir := argValue(args, "--out")
+		publishDir := argValue(args, "--publish-dir")
+		videoPath := filepath.Join(publishDir, "demo-compilation.mp4")
+		if err := os.MkdirAll(publishDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(videoPath, []byte("portrait"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		rendered := editor.Result{
+			Preset:     editor.PresetGameplayPOV60,
+			OutputDir:  outDir,
+			PublishDir: publishDir,
+			Shorts: []editor.ShortResult{{
+				SegmentID:    "demo-compilation",
+				Output:       videoPath,
+				PublishPath:  videoPath,
+				OutputFormat: editor.OutputFormatShort9x16,
+				PublishArtifact: recording.RecordingArtifact{
+					Width:  1080,
+					Height: 1920,
+					Path:   videoPath,
+				},
+			}},
+		}
+		if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), rendered); err != nil {
+			t.Fatal(err)
+		}
+		return []byte("rendered"), nil
+	}}
+
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, renderplan.DefaultEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.HandleRenderVariant(context.Background(), task); err == nil {
+		t.Fatal("HandleRenderVariant error = nil, want 9:16 Full Demo rejected")
+	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetGameplayPOV60)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusFailed {
+		t.Fatalf("status = %q, want failed so 9:16 is not published", state.Status)
+	}
+	if _, ok := store.files[mustRenderVariantEditDocumentKey(t, id, editor.PresetGameplayPOV60)]; ok {
+		t.Fatal("9:16 Full Demo was uploaded")
+	}
+}
+
 func recordedFullDemoRender(t *testing.T) (uuid.UUID, *fakeStorage, *RenderWorker) {
 	t.Helper()
 	repo := newFakeRepo()

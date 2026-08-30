@@ -129,7 +129,7 @@ func TestGetJobStatusReportsComposeProgress(t *testing.T) {
 	}
 	id := uuid.New()
 	repo.jobs[id] = job.Job{ID: id, Status: job.StatusComposing}
-	putProgressSnapshot(t, store, artifacts.ProgressKey(id), jobprogress.StageCompose, jobprogress.UnitClips, "clips", 0, 8)
+	putProgressSnapshot(t, store, artifacts.ProgressKey(id), jobprogress.StageCompose, jobprogress.UnitClips, "clips", 3, 8)
 
 	h := NewHandlers(repo, store, &fakeQueue{})
 	router := chi.NewRouter()
@@ -143,8 +143,8 @@ func TestGetJobStatusReportsComposeProgress(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Progress == nil || got.Progress.Done != 0 || got.Progress.Total != 8 || got.Progress.Percent != 0 {
-		t.Fatalf("progress = %+v, want 0/8 0%%", got.Progress)
+	if got.Progress == nil || got.Progress.Done != 3 || got.Progress.Total != 8 {
+		t.Fatalf("progress = %+v, want 3/8", got.Progress)
 	}
 	if got.Progress.Unit != "clips" || got.Progress.Stage != "compose" {
 		t.Fatalf("progress labels = %+v", got.Progress)
@@ -489,6 +489,46 @@ func TestRecordedFullDemoRenderAttachesComposeAndRenderProgress(t *testing.T) {
 				t.Fatalf("GET render progress = %+v, want 3/20 %s", got.Progress, tc.stage)
 			}
 		})
+	}
+}
+
+func TestRecordedInFlightRenderOmitsZeroPlaceholder(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetGameplayPOV60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now().UTC().Add(-time.Minute)
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusRendering,
+		Now:     started,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := renderplan.RenderVariantStateKey(id, editor.PresetGameplayPOV60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	putProgressSnapshot(t, store, artifacts.ProgressKey(id), jobprogress.StageRender, jobprogress.UnitClips, "clips", 0, 20)
+
+	if got := getJobStatusProgress(t, repo, store, id); got != nil {
+		t.Fatalf("0/20 encode-start placeholder leaked onto EDITANDO: %+v", got)
 	}
 }
 

@@ -83,6 +83,15 @@ function failed(reason?: string): ReelView {
     : { status: 'failed', action: 'none' };
 }
 
+/** Encode-start 0/N is not live progress; keep the last honest count or omit. */
+function liveComposeProgress(progress?: CaptureProgress): CaptureProgress | undefined {
+  if (!progress) return undefined;
+  if (progress.done === 0 && (progress.stage === 'compose' || progress.stage === 'render' || progress.unit === 'clips')) {
+    return undefined;
+  }
+  return progress;
+}
+
 const IN_FLIGHT_RECORD_CONFLICT = /^job is not ready to record \(status=recording\)$/;
 
 /** HTTP POST /record result → reel view. Null keeps the current poll (202/503). */
@@ -211,8 +220,9 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     return failed(renderFailureReason);
   }
   if (renderStatus === 'queued' || renderStatus === 'rendering') {
-    return captureProgress
-      ? { status: 'composing', action: 'none', captureProgress }
+    const live = liveComposeProgress(captureProgress);
+    return live
+      ? { status: 'composing', action: 'none', captureProgress: live }
       : { status: 'composing', action: 'none' };
   }
 
@@ -229,10 +239,12 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     case 'composed':
     case 'done':
       return { status: 'composing', action: 'render' };
-    case 'composing':
-      return captureProgress
-        ? { status: 'composing', action: 'none', captureProgress }
+    case 'composing': {
+      const composing = liveComposeProgress(captureProgress);
+      return composing
+        ? { status: 'composing', action: 'none', captureProgress: composing }
         : { status: 'composing', action: 'none' };
+    }
     default:
       // queued / scanning / scanned / parsing / unknown: not yet drivable as a reel.
       return { status: 'queued', action: 'none' };

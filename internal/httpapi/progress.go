@@ -69,8 +69,14 @@ func renderWaitStage(stage string) bool {
 
 func renderWaitProgress(store storage.Storage, id uuid.UUID, startedAt time.Time) (captureProgressView, bool) {
 	return loadProgressViewIf(store, artifacts.ProgressKey(id), func(snap jobprogress.Snapshot) bool {
-		return renderWaitStage(snap.Stage) && snapshotFromThisRun(snap.UpdatedAt, startedAt)
+		return renderWaitStage(snap.Stage) && snapshotFromThisRun(snap.UpdatedAt, startedAt) && !zeroRenderWait(snap)
 	})
+}
+
+// zeroRenderWait is the 0/N placeholder written at encode start. Biblioteca
+// must not snap EDITANDO from 8/20 down to 0/20 while ffmpeg concats.
+func zeroRenderWait(snap jobprogress.Snapshot) bool {
+	return renderWaitStage(snap.Stage) && snap.Done == 0 && snap.Total > 0
 }
 
 func inFlightRenderState(store storage.Storage, id uuid.UUID) (renderplan.RenderVariantState, bool) {
@@ -166,7 +172,7 @@ func jobProgressView(store storage.Storage, id uuid.UUID, status job.Status, seg
 	if progress, ok := captureProgressWithTotal(store, id, status, segmentCount); ok {
 		return decorateCaptureProgress(store, id, progress), true
 	}
-	if snap, ok, err := jobprogress.LoadJob(store, id); err == nil && ok && progressRelevant(status, snap.Stage) {
+	if snap, ok, err := jobprogress.LoadJob(store, id); err == nil && ok && progressRelevant(status, snap.Stage) && !zeroRenderWait(snap) {
 		return viewFromSnapshot(snap), true
 	}
 	if state, ok := inFlightRenderState(store, id); ok {
