@@ -27,9 +27,9 @@ export function canHaveRenderState(status: string): boolean {
   return RENDER_STATE_STATUSES.has(status);
 }
 
-/** Review cards stay on the idle poll so cross-tab resolutions become visible. */
+/** Failed reels stay on the poll so a successful retry is not stuck on FALLO. */
 export function shouldReconcileVideoStatus(status: VideoStatus | undefined): boolean {
-  return status === undefined || status !== 'ready' && status !== 'failed';
+  return status === undefined || status !== 'ready';
 }
 
 export type ReconcileInput = {
@@ -41,6 +41,8 @@ export type ReconcileInput = {
   renderArtifactPrefix?: string;
   /** Live capture progress from the job poll; meaningful only while recording. */
   captureProgress?: CaptureProgress;
+  /** True after POST /record was accepted while the job may still read failed. */
+  recordAdmitted?: boolean;
 };
 
 export type ReelView = {
@@ -178,6 +180,7 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     renderWarnings,
     renderArtifactPrefix,
     captureProgress,
+    recordAdmitted,
   } = input;
 
   // A finished render is terminal even if the job later fails.
@@ -191,6 +194,9 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     };
   }
   if (jobStatus === 'failed') {
+    if (recordAdmitted) {
+      return { status: 'recording', action: 'none' };
+    }
     // Non-reusable capture: re-drive record instead of staying failed.
     if (requiresRecapture(jobFailureReason)) {
       return { status: 'queued', action: 'record' };

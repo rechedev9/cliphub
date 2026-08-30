@@ -187,11 +187,15 @@ func TestGenerateHLAEJavaScriptLocksAndVerifiesTheObservedSteamID(t *testing.T) 
 		CaptureVerifiedAttestation(token),
 		`observer target`,
 		`const maxUnknownObserverFrames = 3`,
+		`const maxDriftedObserverFrames = 12`,
 		`if (observed === null)`,
 		`unknownObserverFrames++`,
+		`driftedObserverFrames++`,
 		`unknownObserverFrames >= maxUnknownObserverFrames`,
+		`driftedObserverFrames >= maxDriftedObserverFrames`,
 		`unknownObserverFrames = 0`,
 		`} else if (observed !== targetSteamId) {`,
+		`lockTarget(captureWindow.segmentId)`,
 	} {
 		if !strings.Contains(js, want) {
 			t.Errorf("generated JS missing verified POV contract %q\n%s", want, js)

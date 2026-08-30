@@ -6,6 +6,7 @@ import { ReelCover } from '@/components/brand/reel-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { MediaFrame, type MediaFrameAspect } from '@/components/studio/media-frame';
 import { TiltSurface } from '@/components/studio/tilt-surface';
+import { failedStripLabel } from '@/lib/api/failure-reason';
 import { ReelStageTrack } from '@/components/videos/reel-stage-track';
 
 /** Frame aspect follows the render format, not a hardcoded landscape box. */
@@ -146,7 +147,13 @@ export function ReelCard({
         {children}
       </div>
 
-      <ReelStageTrack status={video.status} percent={percent} />
+      <ReelStageTrack
+        status={video.status}
+        percent={percent}
+        failedLabel={failedStripLabel(video.failureReason, {
+          fullDemo: video.editConfig?.matchRecap === true,
+        })}
+      />
 
       {footer}
     </article>

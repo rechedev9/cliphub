@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { VideoStatus } from '@/lib/api/types';
+import { FAILED_STRIP_LABEL } from '@/lib/api/failure-reason';
 import { cn } from '@/lib/utils';
 
 /**
@@ -94,6 +95,7 @@ export type ReelStageTrackProps = {
    */
   percent?: number;
   className?: string;
+  failedLabel?: string;
 };
 
 /**
@@ -106,10 +108,13 @@ export type ReelStageTrackProps = {
  * to `--surface-2`, and a 2px lit rim marks it. All three survive the efficiency
  * profile, unlike a blurred glow, because two of them are colours.
  */
-export function ReelStageTrack({ status, percent, className }: ReelStageTrackProps): ReactNode {
+export function ReelStageTrack({
+  status,
+  percent,
+  className,
+  failedLabel = FAILED_STRIP_LABEL.pipeline,
+}: ReelStageTrackProps): ReactNode {
   if (status === 'failed') {
-    // A generic failure carries no reliable failed-stage data, so the strip
-    // states the fact instead of inventing a position on the ladder.
     return (
       <p
         className={cn(
@@ -119,7 +124,7 @@ export function ReelStageTrack({ status, percent, className }: ReelStageTrackPro
         )}
       >
         <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
-        Error de pipeline
+        {failedLabel}
       </p>
     );
   }

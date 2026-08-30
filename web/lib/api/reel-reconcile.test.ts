@@ -89,10 +89,22 @@ test('render warnings stay terminal but block publication', () => {
   );
 });
 
-test('review-required reels remain on idle reconciliation for cross-tab updates', () => {
+test('review-required and failed reels remain on reconciliation so retries are not stuck', () => {
   assert.equal(shouldReconcileVideoStatus('review_required'), true);
   assert.equal(shouldReconcileVideoStatus('ready'), false);
-  assert.equal(shouldReconcileVideoStatus('failed'), false);
+  assert.equal(shouldReconcileVideoStatus('failed'), true);
+  assert.equal(shouldReconcileVideoStatus('recording'), true);
+});
+
+test('admitted record keeps a still-failed job in capture instead of latching FALLO', () => {
+  assert.deepEqual(
+    view({
+      jobStatus: 'failed',
+      jobFailureReason: 'recorder failed: capture POV verification failed: observer target x drifted from y during seg-001',
+      recordAdmitted: true,
+    }),
+    { status: 'recording', action: 'none' },
+  );
 });
 
 test('job failed → failed with reason', () => {

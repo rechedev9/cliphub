@@ -25,7 +25,13 @@ type CapturedCounts = { captured: number; requested: number };
 
 /** Parsed classification of a reel's `failureReason` string. */
 export type FailureReason = {
-  kind: 'demo-incompatible' | 'unplayable-start' | 'recording-not-reusable' | 'pov-verification' | 'generic';
+  kind:
+    | 'demo-incompatible'
+    | 'unplayable-start'
+    | 'recording-not-reusable'
+    | 'pov-verification'
+    | 'capture-flake'
+    | 'generic';
   /** Spanish message the failed-reel card should surface to the user. */
   message: string;
   /** Whether a retry could plausibly resolve the failure. */
@@ -33,6 +39,11 @@ export type FailureReason = {
   /** Populated only for demo-incompatible failures that reported partial capture. */
   counts?: CapturedCounts;
 };
+
+export const FAILED_STRIP_LABEL = {
+  pipeline: 'Error de pipeline',
+  capture: 'Fallo de captura',
+} as const;
 
 export type FailureContext = {
   /** Full Demo plans are regenerated rather than replayed after a stale POV boundary. */
@@ -64,6 +75,13 @@ const RECORDING_NOT_REUSABLE_MESSAGE =
 const POV_VERIFICATION_MESSAGE =
   'ClipHub perdió el POV al terminar una ronda. La demo sigue intacta, pero este plan no es reutilizable: ' +
   'vuelve a preparar la demo para generar sus rondas con el contrato actual.';
+
+const CAPTURE_FLAKE_MESSAGE =
+  'La cámara perdió el POV un momento durante la captura. No es un error de pipeline: Reintentar vuelve a grabar al jugador elegido.';
+
+const OBSERVER_DRIFT_PHRASE = 'drifted from';
+const OBSERVER_MISMATCH_PHRASE = 'does not match';
+const OBSERVER_TARGET_PHRASE = 'observer target';
 
 // Matches the orchestrator's "; captured N/M segments before the failure" clause.
 const CAPTURED_CLAUSE = /captured\s+(\d+)\/(\d+)\s+segments/i;
@@ -108,5 +126,21 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
     return { kind: 'pov-verification', message: POV_VERIFICATION_MESSAGE, retryCanHelp: false };
   }
 
+  if (
+    reason.includes(OBSERVER_TARGET_PHRASE) &&
+    (reason.includes(OBSERVER_DRIFT_PHRASE) || reason.includes(OBSERVER_MISMATCH_PHRASE))
+  ) {
+    return { kind: 'capture-flake', message: CAPTURE_FLAKE_MESSAGE, retryCanHelp: true };
+  }
+
   return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
+}
+
+/** Library strip label: capture flakes are not a dead pipeline. */
+export function failedStripLabel(reason: string | undefined, context: FailureContext = {}): string {
+  const kind = parseFailureReason(reason, context).kind;
+  if (kind === 'pov-verification' || kind === 'capture-flake') {
+    return FAILED_STRIP_LABEL.capture;
+  }
+  return FAILED_STRIP_LABEL.pipeline;
 }

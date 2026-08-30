@@ -172,6 +172,8 @@ export class RealApiClient implements ApiClient {
 
   /** Consecutive 404 status polls per reel, feeding the unrecoverable latch. */
   private readonly jobGoneTicks = new Map<string, number>();
+  /** POST /record accepted; job may still read failed until the worker dequeues. */
+  private readonly pendingCapture = new Set<string>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[] }>();
   /** Cached per-job series match (map/score); immutable once a job has one. */
@@ -673,7 +675,7 @@ export class RealApiClient implements ApiClient {
   private async reconcile(): Promise<void> {
     const active = Array.from(this.intents.values()).filter((intent) => {
       const v = this.reels.get(intent.videoId);
-      return shouldReconcileVideoStatus(v?.status);
+      return shouldReconcileVideoStatus(v?.status) && !v?.unrecoverable;
     });
     await reconcileReels(active.map((intent) => this.reconcileOne(intent)));
   }
@@ -719,6 +721,9 @@ export class RealApiClient implements ApiClient {
       }
       this.artifactNames.set(intent.videoId, names);
     }
+    if (job.status !== 'failed') {
+      this.pendingCapture.delete(intent.videoId);
+    }
     const decision = decideReelReconcile({
       jobStatus: job.status,
       jobFailureReason: job.failureReason,
@@ -727,6 +732,7 @@ export class RealApiClient implements ApiClient {
       renderWarnings: render.warnings,
       renderArtifactPrefix: render.artifactPrefix,
       captureProgress: job.captureProgress,
+      recordAdmitted: this.pendingCapture.has(intent.videoId),
       intentEdit: intent.editConfig,
       renderEdit: render.editConfig,
       intentMusic: {
@@ -839,6 +845,11 @@ export class RealApiClient implements ApiClient {
                 }),
               },
             }));
+      if (res.ok && action === 'record') {
+        this.pendingCapture.add(intent.videoId);
+        this.applyView(intent, { status: 'recording', action: 'none' });
+        return;
+      }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
         if (action === 'record') {

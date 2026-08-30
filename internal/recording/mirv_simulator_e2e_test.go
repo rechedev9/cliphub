@@ -152,12 +152,27 @@ func TestGeneratedHLAEScriptRunsInMIRVSimulator(t *testing.T) {
 			},
 		},
 		{
-			name: "wrong observer fails immediately",
+			name: "brief observer drift re-specs and continues",
+			plan: one,
+			scenario: captureLabScenario{
+				Name: "observer-brief-drift", MaxFrames: 600, DemoEndTick: ptr(6000),
+				ObserverOverrides: []captureLabObserverSpan{{FromTick: 65, ToTick: 66, ObservedSteamID: &other}},
+				Expected: captureLabExpected{
+					Outcome: "verified", RecordedSegments: []string{"seg-001"},
+					MustExec: []string{"spec_player"}, SoftQuit: true,
+				},
+			},
+		},
+		{
+			name: "persistent wrong observer fails after respec budget",
 			plan: one,
 			scenario: captureLabScenario{
 				Name: "observer-drift", MaxFrames: 300, DemoEndTick: ptr(6000),
-				ObserverOverrides: []captureLabObserverSpan{{FromTick: 65, ToTick: 70, ObservedSteamID: &other}},
-				Expected:          captureLabExpected{Outcome: "failed", FailureContains: "drifted from", SoftQuit: true},
+				ObserverOverrides: []captureLabObserverSpan{{FromTick: 65, ToTick: 90, ObservedSteamID: &other}},
+				Expected: captureLabExpected{
+					Outcome: "failed", FailureContains: "drifted from",
+					MustExec: []string{"spec_player"}, SoftQuit: true,
+				},
 			},
 		},
 		{
