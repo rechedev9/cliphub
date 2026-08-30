@@ -1,0 +1,68 @@
+# Cheap PR/main quality lane for Studio UI packages.
+# Not HLAE/CS2 E2E. Do not assemble or dist the Windows installer here.
+name: CI frontend
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'desktop/**'
+      - '.github/workflows/ci-frontend.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+      - 'desktop/**'
+      - '.github/workflows/ci-frontend.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            web/pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
+
+      - name: Install web and desktop dependencies
+        run: |
+          pnpm --dir web install --frozen-lockfile
+          pnpm --dir desktop install --frozen-lockfile
+
+      - name: Web typecheck, lint, unit
+        run: |
+          pnpm --dir web run typecheck
+          pnpm --dir web run lint
+          pnpm --dir web run test:unit
+
+      - name: Desktop typecheck, lint, unit
+        run: |
+          pnpm --dir desktop run typecheck
+          pnpm --dir desktop run lint
+          pnpm --dir desktop run test:unit

@@ -1,5 +1,5 @@
-# The only hosted ClipHub pipeline: unsigned Windows Studio installer.
-# Product quality is verified locally. Do not add a second release job.
+# The only hosted ClipHub release pipeline: unsigned Windows Studio installer.
+# PR quality checks are ci-frontend / ci-backend / ci-infra. Do not add a second release job.
 name: Desktop release
 
 on:

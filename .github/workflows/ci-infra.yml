@@ -1,0 +1,29 @@
+# Cheap PR/main check of hosted pipeline YAML and the unsigned-release contract.
+# Not product E2E. Does not cut a Windows installer.
+name: CI infra
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate hosted pipelines
+        run: bash scripts/ci-infra.sh

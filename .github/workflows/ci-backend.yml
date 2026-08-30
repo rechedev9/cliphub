@@ -1,0 +1,70 @@
+# Cheap PR/main quality lane for the Go pipeline contract.
+# Not HLAE/CS2 E2E. Does not start Redis/asynq; tests use the in-process queue.
+name: CI backend
+
+on:
+  pull_request:
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'effects/**'
+      - 'testdata/**'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - '.codex/**'
+      - '.claude/**'
+      - 'scripts/go-*.sh'
+      - 'scripts/check-codex-harness.sh'
+      - '.github/workflows/ci-backend.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'effects/**'
+      - 'testdata/**'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - '.codex/**'
+      - '.claude/**'
+      - 'scripts/go-*.sh'
+      - 'scripts/check-codex-harness.sh'
+      - '.github/workflows/ci-backend.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./... -count=1 -timeout 3m
+
+      - name: zv check
+        run: go run ./cmd/zv check

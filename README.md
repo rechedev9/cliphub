@@ -172,7 +172,7 @@ data/                local artifacts (music catalog, …) — not source of trut
 
 Toolchain sources of truth: **Go** (`go.mod` → `github.com/rechedev9/cliphub`), **pnpm 11.22** / **Node 24** per package.
 
-Quality checks are local and explicit; see [CLAUDE.md](CLAUDE.md) for the affected-package commands. The one hosted job is [Desktop release](.github/workflows/desktop-release.yml) on `windows-latest`, which publishes the unsigned installer.
+Quality checks are local and explicit; see [CLAUDE.md](CLAUDE.md) for the affected-package commands. PRs and `main` also run [CI frontend](.github/workflows/ci-frontend.yml), [CI backend](.github/workflows/ci-backend.yml), and [CI infra](.github/workflows/ci-infra.yml). Those lanes are not HLAE/CS2 E2E. The only hosted release job is [Desktop release](.github/workflows/desktop-release.yml) on `windows-latest`, which publishes the unsigned installer.
 
 ```powershell
 .\scripts\build.ps1
