@@ -285,6 +285,45 @@ func TestHandleRenderVariantIngestsAttemptFileWithoutResultJSON(t *testing.T) {
 	}
 }
 
+func TestHandleRenderVariantIngestsAttemptFileWhenOneSegmentUnprobed(t *testing.T) {
+	id, store, worker := recordedFullDemoRender(t)
+	if err := putCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	stampPartialRecapCapture(t, store, id, 600, 712)
+	worker.cfg.FFprobePath = "ffprobe.exe"
+	worker.runner = &fakeRunner{fn: func(_ context.Context, exe string, args ...string) ([]byte, error) {
+		switch filepath.Base(exe) {
+		case "zv-editor.exe":
+			outDir := argValue(args, "--out")
+			attempt := filepath.Join(outDir, ".short-001-demo-compilation.attempt-2.mp4")
+			if err := os.WriteFile(attempt, bytes.Repeat([]byte("mp4"), 64), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return nil, errors.New("exit status 1")
+		case "ffprobe.exe":
+			return []byte(`{"streams":[{"codec_name":"h264","width":1920,"height":1080,"r_frame_rate":"60/1","duration":"1312.0"}],"format":{"duration":"1312.0","size":"5177344000"}}`), nil
+		default:
+			t.Fatalf("unexpected exe %q", exe)
+			return nil, nil
+		}
+	}}
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, renderplan.RecapEditRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.HandleRenderVariant(context.Background(), task); err != nil {
+		t.Fatalf("HandleRenderVariant error = %v, want ingest when one captured round is unprobed", err)
+	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetGameplayPOV60)], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview {
+		t.Fatalf("status = %q, want ready or review after filling an unprobed round from ticks", state.Status)
+	}
+}
+
 func TestHandleRenderVariantRejectsTruncatedAttemptFile(t *testing.T) {
 	id, store, worker := recordedFullDemoRender(t)
 	if err := putCaptureKind(store, id, true); err != nil {
@@ -336,6 +375,48 @@ func stampRecordingSegmentDuration(t *testing.T, store *fakeStorage, id uuid.UUI
 	}
 	result.Artifacts[0].DurationSeconds = seconds
 	putJSON(t, store, key, result)
+}
+
+func stampPartialRecapCapture(t *testing.T, store *fakeStorage, id uuid.UUID, probedSeconds, unprobedSeconds float64) {
+	t.Helper()
+	key := recording.ResultArtifactKey(id)
+	var result recording.RecordingResult
+	if err := json.Unmarshal(store.files[key], &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Plan.Segments) == 0 || len(result.Artifacts) == 0 {
+		t.Fatal("recording result missing plan segment or artifact")
+	}
+	if result.Plan.Tickrate <= 0 {
+		t.Fatal("recording plan tickrate is unset")
+	}
+	result.Artifacts[0].DurationSeconds = probedSeconds
+	start := result.Plan.Segments[0].TickEnd + result.Plan.Tickrate*10
+	end := start + int(unprobedSeconds*float64(result.Plan.Tickrate))
+	result.Plan.Segments = append(result.Plan.Segments, recording.RecordingSegment{
+		ID:        "seg-002",
+		TickStart: start,
+		TickEnd:   end,
+	})
+	result.Plan.EditorialSegmentIDs = make([]string, len(result.Plan.Segments))
+	for i, segment := range result.Plan.Segments {
+		result.Plan.EditorialSegmentIDs[i] = segment.ID
+	}
+	result.Artifacts = append(result.Artifacts, recording.RecordingArtifact{
+		SegmentID: "seg-002",
+		Role:      "segment",
+		Type:      "video",
+		Path:      "C:/stale/seg-002.mp4",
+	})
+	fingerprint, err := recording.CaptureInputFingerprint(result.Plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.CaptureInputFingerprint = fingerprint
+	putJSON(t, store, key, result)
+	if err := store.Put(mustSegmentClipKey(t, id, "seg-002"), bytes.NewReader([]byte("clip"))); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestHandleRenderVariantDoesNotPublishNineBySixteenFullDemo(t *testing.T) {

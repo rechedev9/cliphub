@@ -26,6 +26,48 @@ func expectedSegmentDurationSeconds(segment RecordingSegment, plan RecordingPlan
 	return float64(recordEnd-recordStart) / float64(plan.Tickrate)
 }
 
+// RecapDurationSeconds is the wall-clock length of the captured recap.
+// Each planned segment uses its probed duration when present; an unprobed
+// round falls back to that segment's scheduled record window (camera settle
+// and EOF clamp included). A partial probe set must not drop those unprobed
+// rounds, or a finished concat looks truncated. Returns 0 when any planned
+// segment cannot be accounted for.
+func RecapDurationSeconds(result RecordingResult) float64 {
+	probed := map[string]float64{}
+	var probedSum float64
+	for _, artifact := range result.Artifacts {
+		if artifact.Role != "segment" || artifact.Type != "video" || artifact.DurationSeconds <= 0 || artifact.SegmentID == "" {
+			continue
+		}
+		if probed[artifact.SegmentID] > 0 {
+			continue
+		}
+		probed[artifact.SegmentID] = artifact.DurationSeconds
+		probedSum += artifact.DurationSeconds
+	}
+	ids := SegmentIDs(result)
+	if len(ids) == 0 {
+		return probedSum
+	}
+	byID := make(map[string]RecordingSegment, len(result.Plan.Segments))
+	for _, segment := range result.Plan.Segments {
+		byID[segment.ID] = segment
+	}
+	var sum float64
+	for _, id := range ids {
+		if d := probed[id]; d > 0 {
+			sum += d
+			continue
+		}
+		seconds := expectedSegmentDurationSeconds(byID[id], result.Plan)
+		if seconds <= 0 {
+			return 0
+		}
+		sum += seconds
+	}
+	return sum
+}
+
 // ValidateCaptureCoverage fails a capture whose recorded video is shorter than
 // the window the plan scheduled. A clip truncated before its last kill still
 // passes the presence and size checks in ValidateRecordingAttempt, so without

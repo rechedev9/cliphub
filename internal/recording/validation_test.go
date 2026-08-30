@@ -157,3 +157,72 @@ func TestValidateCaptureCoverageSkipsUnmeasurableClips(t *testing.T) {
 		t.Fatalf("ValidateCaptureCoverage = %v, want nil", err)
 	}
 }
+
+func TestRecapDurationSeconds(t *testing.T) {
+	t.Parallel()
+	plan := RecordingPlan{
+		Tickrate:          64,
+		DemoDurationTicks: 200000,
+		Segments: []RecordingSegment{
+			{ID: "r1", TickStart: 64, TickEnd: 64 + 64*600},
+			{ID: "r2", TickStart: 40000, TickEnd: 40000 + 64*712},
+		},
+	}
+	probedBoth := []RecordingArtifact{
+		{SegmentID: "r1", Role: "segment", Type: "video", Path: "r1.mp4", DurationSeconds: 600},
+		{SegmentID: "r2", Role: "segment", Type: "video", Path: "r2.mp4", DurationSeconds: 712},
+	}
+	r2Unprobed := []RecordingArtifact{
+		{SegmentID: "r1", Role: "segment", Type: "video", Path: "r1.mp4", DurationSeconds: 600},
+		{SegmentID: "r2", Role: "segment", Type: "video", Path: "r2.mp4"},
+	}
+	want := 600 + expectedSegmentDurationSeconds(plan.Segments[1], plan)
+	if want != 1312 {
+		t.Fatalf("fixture planned r2 duration = %v, want 712 so total is 1312", want-600)
+	}
+
+	cases := []struct {
+		name   string
+		result RecordingResult
+		want   float64
+	}{
+		{name: "all probed", result: RecordingResult{Plan: plan, Artifacts: probedBoth}, want: 1312},
+		{name: "one unprobed uses planned ticks", result: RecordingResult{Plan: plan, Artifacts: r2Unprobed}, want: 1312},
+		{name: "no artifacts uses planned ticks", result: RecordingResult{Plan: plan}, want: 1312},
+		{
+			name: "unprobed clip without ticks is unknown",
+			result: RecordingResult{
+				Plan: RecordingPlan{
+					Tickrate: 64,
+					Segments: []RecordingSegment{{ID: "r1", TickStart: 64, TickEnd: 64}},
+				},
+				Artifacts: []RecordingArtifact{{SegmentID: "r1", Role: "segment", Type: "video", Path: "r1.mp4"}},
+			},
+			want: 0,
+		},
+		{
+			name: "unprobed uses scheduled window not raw ticks",
+			result: RecordingResult{
+				Plan: RecordingPlan{
+					Tickrate:          64,
+					DemoDurationTicks: 40000,
+					Segments: []RecordingSegment{{
+						ID:        "r1",
+						TickStart: 14029,
+						TickEnd:   14770,
+						Kills:     []killplan.Kill{{Tick: 14221}},
+					}},
+				},
+				Artifacts: []RecordingArtifact{{SegmentID: "r1", Role: "segment", Type: "video", Path: "r1.mp4"}},
+			},
+			want: 9.578125,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := RecapDurationSeconds(tc.result); got != tc.want {
+				t.Fatalf("RecapDurationSeconds = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
