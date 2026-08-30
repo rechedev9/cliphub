@@ -3295,23 +3295,42 @@ func probeFullDemoLandscapeFile(ctx context.Context, runner commandRunner, ffpro
 }
 
 func expectedRecapDurationSeconds(result recording.RecordingResult) float64 {
-	var sum float64
+	probed := map[string]float64{}
 	for _, artifact := range result.Artifacts {
-		if artifact.Role == "segment" && artifact.Type == "video" && artifact.DurationSeconds > 0 {
-			sum += artifact.DurationSeconds
-		}
-	}
-	if sum > 0 {
-		return sum
-	}
-	if result.Plan.Tickrate <= 0 {
-		return 0
-	}
-	for _, segment := range result.Plan.Segments {
-		if segment.TickEnd <= segment.TickStart {
+		if artifact.Role != "segment" || artifact.Type != "video" || artifact.DurationSeconds <= 0 || artifact.SegmentID == "" {
 			continue
 		}
-		sum += float64(segment.TickEnd-segment.TickStart) / float64(result.Plan.Tickrate)
+		probed[artifact.SegmentID] += artifact.DurationSeconds
+	}
+	ids := recording.SegmentIDs(result)
+	if len(ids) == 0 {
+		var sum float64
+		for _, d := range probed {
+			sum += d
+		}
+		return sum
+	}
+	var sum float64
+	for _, id := range ids {
+		if d := probed[id]; d > 0 {
+			sum += d
+			continue
+		}
+		filled := false
+		for _, segment := range result.Plan.Segments {
+			if segment.ID != id {
+				continue
+			}
+			if result.Plan.Tickrate <= 0 || segment.TickEnd <= segment.TickStart {
+				return 0
+			}
+			sum += float64(segment.TickEnd-segment.TickStart) / float64(result.Plan.Tickrate)
+			filled = true
+			break
+		}
+		if !filled {
+			return 0
+		}
 	}
 	return sum
 }

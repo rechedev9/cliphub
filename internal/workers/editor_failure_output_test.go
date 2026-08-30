@@ -419,6 +419,38 @@ func recordedFullDemoRender(t *testing.T) (uuid.UUID, *fakeStorage, *RenderWorke
 	return id, store, worker
 }
 
+func TestExpectedRecapDurationFillsUnprobedSegmentsFromPlan(t *testing.T) {
+	t.Parallel()
+	result := recording.RecordingResult{
+		Plan: recording.RecordingPlan{
+			Tickrate: 64,
+			Segments: []recording.RecordingSegment{
+				{ID: "seg-001", TickStart: 0, TickEnd: 640},
+				{ID: "seg-002", TickStart: 640, TickEnd: 1280},
+			},
+		},
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID:       "seg-001",
+			Role:            "segment",
+			Type:            "video",
+			DurationSeconds: 10,
+		}},
+	}
+	got := expectedRecapDurationSeconds(result)
+	const want = 20.0 // probed first round + plan ticks for the unprobed second (640/64)
+	if got != want {
+		t.Fatalf("expectedRecapDurationSeconds = %v, want %v (do not drop the unprobed round)", got, want)
+	}
+	partialOnly := expectedRecapDurationSeconds(recording.RecordingResult{
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID: "seg-001", Role: "segment", Type: "video", DurationSeconds: 10,
+		}},
+	})
+	if partialOnly != 10 {
+		t.Fatalf("no plan should keep the probed sum %v, got %v", 10, partialOnly)
+	}
+}
+
 func TestRecapDurationMismatch(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
