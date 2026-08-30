@@ -133,8 +133,8 @@ After final media is validated and no recapture/reparse is needed, send used ext
 ## Development
 
 Toolchain sources of truth are `go.mod` (Go 1.26.6), each package's `packageManager` field (pnpm 11.22.0), and Node 24.
-There is no hosted quality CI. Run the relevant local checks before committing or shipping; nothing re-checks product quality on GitHub.
-The one hosted pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It does not replace local verification and must stay the only release job.
+Pull requests and pushes to `main` run three cheap hosted checks: `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`gofmt`, `go vet`, `go test ./...`, `zv check`), and `CI infra` (actionlint + the unsigned-release contract). These are not HLAE/CS2 E2E and do not replace local verification.
+The only hosted release pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It must stay the only release job.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
 Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser E2E is Playwright in `web/e2e/`, run explicitly with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
 

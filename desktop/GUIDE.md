@@ -164,7 +164,8 @@ landing/Vercel deploy is not required.
 
 `GITHUB_TOKEN` needs `contents: write` to create the release and upload assets.
 A 403 on upload means that permission is missing under repo Settings → Actions
-→ General → Workflow permissions. Do not add a second workflow.
+→ General → Workflow permissions. Do not add a second release workflow. PR
+quality checks live in `ci-frontend.yml`, `ci-backend.yml`, and `ci-infra.yml`.
 
 ## Run without packaging (dev)
 
