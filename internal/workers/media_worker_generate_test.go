@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
@@ -162,6 +163,75 @@ func generateRecordTask(t *testing.T, id uuid.UUID, intent renderplan.GenerateIn
 		t.Fatal(err)
 	}
 	return task
+}
+
+func TestRecordWorkerChainsRecapRenderWithoutGenerateIntent(t *testing.T) {
+	store := newFakeStorage()
+	repo, id := parsedRecordJob(store)
+	plan := *repo.jobs[id].KillPlan
+	if err := recapplan.Store(store, id, plan); err != nil {
+		t.Fatal(err)
+	}
+	enq := &fakeEnqueuer{}
+	w := newRecordWorkerForTest(repo, store, t)
+	w.UseEnqueuer(enq)
+	task, err := tasks.NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.HandleRecordDemo(context.Background(), task); err != nil {
+		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if repo.jobs[id].Status != job.StatusRecorded {
+		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
+	}
+	if len(enq.tasks) != 1 {
+		t.Fatalf("chained tasks = %d, want 1", len(enq.tasks))
+	}
+	if got := enq.tasks[0].Type(); got != tasks.TypeRenderVariant {
+		t.Fatalf("chained task type = %q, want %q", got, tasks.TypeRenderVariant)
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(enq.tasks[0].Payload(), &payload); err != nil {
+		t.Fatalf("unmarshal render payload: %v", err)
+	}
+	if payload.Variant != editor.PresetGameplayPOV60 || !payload.Edit.MatchRecap || payload.Edit.Format != renderplan.FormatLandscape16x9 {
+		t.Fatalf("render payload = %#v, want gameplay-pov-60 landscape recap", payload)
+	}
+	raw, ok := store.files[mustRenderVariantStatusKey(t, id, editor.PresetGameplayPOV60)]
+	if !ok {
+		t.Fatal("queued recap render state not written")
+	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		t.Fatalf("unmarshal render state: %v", err)
+	}
+	if state.Status != renderplan.RenderVariantStatusQueued {
+		t.Fatalf("render state status = %q, want queued", state.Status)
+	}
+}
+
+func TestRecordWorkerDoesNotChainShortsRenderWithoutGenerateIntent(t *testing.T) {
+	store := newFakeStorage()
+	repo, id := parsedRecordJob(store)
+	enq := &fakeEnqueuer{}
+	w := newRecordWorkerForTest(repo, store, t)
+	w.UseEnqueuer(enq)
+	task, err := tasks.NewRecordDemoTaskWithRecap(id, "", nil, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.HandleRecordDemo(context.Background(), task); err != nil {
+		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if repo.jobs[id].Status != job.StatusRecorded {
+		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
+	}
+	if len(enq.tasks) != 0 {
+		t.Fatalf("shorts record without generate intent enqueued %d task(s), want 0", len(enq.tasks))
+	}
 }
 
 func TestRecordWorkerChainsRenderFromGenerateIntent(t *testing.T) {

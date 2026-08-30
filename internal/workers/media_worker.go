@@ -387,7 +387,13 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	// A guided generate task carries its own immutable render intent, so another
 	// accepted capture cannot change the treatment this capture chains. A
 	// chaining failure must not fail capture; manual render remains a fallback.
-	w.chainRender(j.ID, generateIntent, hasGenerateIntent)
+	// Studio Full Demo retries POST /record (no generate header). Without this
+	// recap chain, a successful 20-round capture stays recorded and never composes.
+	if hasGenerateIntent {
+		w.chainRender(j.ID, generateIntent, true)
+	} else if payload.UseRecapPlan {
+		w.chainRecapRender(j.ID)
+	}
 	return nil
 }
 
@@ -450,6 +456,40 @@ func (w *RecordWorker) chainRender(id uuid.UUID, intent renderplan.GenerateInten
 			return
 		}
 		logWorkerError(id, "enqueue chained render", err)
+		return
+	}
+	logWorkerTransition(id, tasks.TypeRenderVariant, job.StatusRecorded)
+}
+
+// chainRecapRender enqueues the locked 16:9 Full Demo render after a recap
+// capture that did not carry generate intent (Studio POST /record).
+func (w *RecordWorker) chainRecapRender(id uuid.UUID) {
+	if w.enqueuer == nil {
+		logWorkerError(id, "enqueue recap render", errors.New("render queue is not configured"))
+		return
+	}
+	edit := renderplan.RecapEditRequest()
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, edit)
+	if err != nil {
+		logWorkerError(id, "build recap render task", err)
+		return
+	}
+	_, err = w.enqueuer.EnqueueWithTransition(task, func(decision error) error {
+		switch {
+		case decision == nil:
+			return w.writeQueuedRenderState(id, editor.PresetGameplayPOV60)
+		case errors.Is(decision, asynq.ErrDuplicateTask):
+			return nil
+		default:
+			return w.writeFailedRenderState(id, editor.PresetGameplayPOV60, fmt.Sprintf("enqueue render: %v", decision))
+		}
+	}, asynq.Unique(chainedRenderUniqueTTL))
+	if err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			logWorkerTransition(id, tasks.TypeRenderVariant, job.StatusRecorded)
+			return
+		}
+		logWorkerError(id, "enqueue recap render", err)
 		return
 	}
 	logWorkerTransition(id, tasks.TypeRenderVariant, job.StatusRecorded)

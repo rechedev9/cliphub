@@ -31,6 +31,22 @@ func TestEditRequestSerializesOptionalRecapControls(t *testing.T) {
 	}
 }
 
+func TestRecapEditRequestLocksFullDemoTreatment(t *testing.T) {
+	got := RecapEditRequest()
+	if got.Format != FormatLandscape16x9 || !got.MatchRecap || !got.NativeHUD || !got.VoiceComms {
+		t.Fatalf("recap edit = %#v, want landscape recap with native HUD and comms", got)
+	}
+	if got.KillEffect != KillEffectClean || got.Transition != TransitionCut {
+		t.Fatalf("recap garnish = effect %q transition %q, want clean/cut", got.KillEffect, got.Transition)
+	}
+	if got.VoiceVolume == nil || *got.VoiceVolume != DefaultRecapVoiceVolume {
+		t.Fatalf("recap voice volume = %v, want %v", got.VoiceVolume, DefaultRecapVoiceVolume)
+	}
+	if got.Intro || got.Outro || got.HookText || got.KillCounter {
+		t.Fatalf("recap edit gained Shorts garnish: %#v", got)
+	}
+}
+
 func TestNormalizeEditRequestDefaultsUnsetFields(t *testing.T) {
 	got := NormalizeEditRequest(EditRequest{Intro: true})
 	want := EditRequest{

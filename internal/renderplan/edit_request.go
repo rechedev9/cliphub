@@ -28,30 +28,32 @@ const (
 	TransitionZoomWhip     = "zoom-whip"
 	CoverStrategyGenerated = "generated-gameplay"
 	CoverStrategyNone      = "no-cover"
+	// DefaultRecapVoiceVolume is the locked Full Demo team-comms gain.
+	DefaultRecapVoiceVolume = 0.85
 )
 
 // EditRequest is the user-selected editing contract captured from the UI for
 // one render. Workers snapshot it into the edit document so a render is
 // reproducible without knowing which screen launched it.
 type EditRequest struct {
-	Format          string `json:"format"`
-	KillEffect      string `json:"killEffect"`
-	Transition      string `json:"transition"`
-	Intro           bool   `json:"intro"`
-	Outro           bool   `json:"outro"`
-	HookText        bool   `json:"hook_text"`
-	KillCounter     bool   `json:"kill_counter"`
-	MatchRecap      bool   `json:"match_recap"`
-	VoiceComms      bool   `json:"voice_comms"`
-	VoiceVolume *float64 `json:"voice_volume,omitempty"`
-	NativeHUD   bool     `json:"native_hud"`
-	CoverStrategy   string `json:"cover_strategy"`
-	CoverFirstFrame bool   `json:"cover_first_frame"`
-	IntroText string `json:"intro_text,omitempty"`
-	OutroText string `json:"outro_text,omitempty"`
-	KeyDropStyle string `json:"keydrop_style,omitempty"`
-	KeyDropCode string `json:"keydrop_code,omitempty"`
-	KeyDropPositionY *float64 `json:"keydrop_position_y,omitempty"`
+	Format              string   `json:"format"`
+	KillEffect          string   `json:"killEffect"`
+	Transition          string   `json:"transition"`
+	Intro               bool     `json:"intro"`
+	Outro               bool     `json:"outro"`
+	HookText            bool     `json:"hook_text"`
+	KillCounter         bool     `json:"kill_counter"`
+	MatchRecap          bool     `json:"match_recap"`
+	VoiceComms          bool     `json:"voice_comms"`
+	VoiceVolume         *float64 `json:"voice_volume,omitempty"`
+	NativeHUD           bool     `json:"native_hud"`
+	CoverStrategy       string   `json:"cover_strategy"`
+	CoverFirstFrame     bool     `json:"cover_first_frame"`
+	IntroText           string   `json:"intro_text,omitempty"`
+	OutroText           string   `json:"outro_text,omitempty"`
+	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
+	KeyDropCode         string   `json:"keydrop_code,omitempty"`
+	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
 }
@@ -63,6 +65,23 @@ func DefaultEditRequest() EditRequest {
 		Transition:    TransitionFlash,
 		CoverStrategy: CoverStrategyGenerated,
 	}
+}
+
+// RecapEditRequest is the locked 16:9 Full Demo treatment: native HUD, team
+// comms, no Shorts garnish. Studio /record retries do not carry generate
+// intent, so the record worker uses this to chain the recap render.
+func RecapEditRequest() EditRequest {
+	voice := DefaultRecapVoiceVolume
+	return NormalizeEditRequest(EditRequest{
+		Format:        FormatLandscape16x9,
+		KillEffect:    KillEffectClean,
+		Transition:    TransitionCut,
+		MatchRecap:    true,
+		VoiceComms:    true,
+		VoiceVolume:   &voice,
+		NativeHUD:     true,
+		CoverStrategy: CoverStrategyGenerated,
+	})
 }
 
 func NormalizeEditRequest(req EditRequest) EditRequest {

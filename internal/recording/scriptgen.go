@@ -38,7 +38,10 @@ type captureWindow struct {
 const (
 	minimumDemoSeekGapSeconds = 30
 	maxUnknownObserverFrames  = 3
-	demoEndedGraceFrames      = 30
+	// maxDriftedObserverFrames lets CS2 re-spec after a one-frame GOTV flicker
+	// before aborting. A persistent other SteamID still fails the run.
+	maxDriftedObserverFrames = 12
+	demoEndedGraceFrames     = 30
 	// softQuitClientFrames delays quit after disconnect. disconnect ends demo
 	// playback so ticks stop; quit must be driven by client frames, not the
 	// tick schedule. Same-frame disconnect+quit hard-crashes CS2/AfxHookSource2.
@@ -124,6 +127,8 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    let activeSegment = null;\n")
 	sb.WriteString("    let unknownObserverFrames = 0;\n")
 	sb.WriteString(fmt.Sprintf("    const maxUnknownObserverFrames = %d;\n", maxUnknownObserverFrames))
+	sb.WriteString("    let driftedObserverFrames = 0;\n")
+	sb.WriteString(fmt.Sprintf("    const maxDriftedObserverFrames = %d;\n", maxDriftedObserverFrames))
 	sb.WriteString("    let demoEndedFrames = 0;\n")
 	sb.WriteString(fmt.Sprintf("    const demoEndedGraceFrames = %d;\n", demoEndedGraceFrames))
 	sb.WriteString("    let fatal = false;\n")
@@ -296,19 +301,29 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("            if (activeSegment === captureWindow.segmentId) {\n")
 	sb.WriteString("                if (observed === null) {\n")
 	sb.WriteString("                    unknownObserverFrames++;\n")
+	sb.WriteString("                    driftedObserverFrames = 0;\n")
 	sb.WriteString("                    if (unknownObserverFrames >= maxUnknownObserverFrames) {\n")
 	sb.WriteString("                        failCapture(`observer target remained unknown during ${captureWindow.segmentId}`);\n")
 	sb.WriteString("                        return;\n")
 	sb.WriteString("                    }\n")
 	sb.WriteString("                } else if (observed !== targetSteamId) {\n")
 	sb.WriteString("                    unknownObserverFrames = 0;\n")
-	sb.WriteString("                    failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
-	sb.WriteString("                    return;\n")
+	sb.WriteString("                    driftedObserverFrames++;\n")
+	sb.WriteString("                    if (frame - lastLockFrame >= 8) {\n")
+	sb.WriteString("                        lockTarget(captureWindow.segmentId);\n")
+	sb.WriteString("                        lastLockFrame = frame;\n")
+	sb.WriteString("                    }\n")
+	sb.WriteString("                    if (driftedObserverFrames >= maxDriftedObserverFrames) {\n")
+	sb.WriteString("                        failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+	sb.WriteString("                        return;\n")
+	sb.WriteString("                    }\n")
 	sb.WriteString("                } else {\n")
 	sb.WriteString("                    unknownObserverFrames = 0;\n")
+	sb.WriteString("                    driftedObserverFrames = 0;\n")
 	sb.WriteString("                }\n")
 	sb.WriteString("            } else {\n")
 	sb.WriteString("                unknownObserverFrames = 0;\n")
+	sb.WriteString("                driftedObserverFrames = 0;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("            if (activeSegment === null && observed !== targetSteamId && frame - lastLockFrame >= 8) {\n")
 	sb.WriteString("                lockTarget(captureWindow.segmentId);\n")
@@ -316,6 +331,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("            }\n")
 	sb.WriteString("        } else {\n")
 	sb.WriteString("            unknownObserverFrames = 0;\n")
+	sb.WriteString("            driftedObserverFrames = 0;\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("        for (const item of schedule) {\n")
 	sb.WriteString("            if (fired[item.key] || tick < item.tick) continue;\n")

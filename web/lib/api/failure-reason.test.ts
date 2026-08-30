@@ -2,7 +2,13 @@
 // Run: node --test failure-reason.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEMO_INCOMPATIBLE_PREFIX, UNPLAYABLE_START_PREFIX, parseFailureReason } from './failure-reason.ts';
+import {
+  DEMO_INCOMPATIBLE_PREFIX,
+  FAILED_STRIP_LABEL,
+  UNPLAYABLE_START_PREFIX,
+  failedStripLabel,
+  parseFailureReason,
+} from './failure-reason.ts';
 
 test('demo-incompatible reason with a captured clause yields counts and no retry', () => {
   const reason =
@@ -91,6 +97,31 @@ test('observer-target failure explains how to regenerate without leaking the con
   assert.match(result.message, /perdió el POV/);
   assert.match(result.message, /vuelve a preparar la demo/);
   assert.doesNotMatch(result.message, /console\.log|seg-012|C:\\/);
+});
+
+test('observer-target drift is a retryable capture flake, not a dead pipeline', () => {
+  const reason =
+    'recorder failed: capture POV verification failed: observer target 76561198307734468 drifted from 76561198386265483 during seg-001; check CS2 console.log';
+  const result = parseFailureReason(reason, { fullDemo: true });
+  assert.equal(result.kind, 'capture-flake');
+  assert.equal(result.retryCanHelp, true);
+  assert.match(result.message, /perdió el POV/);
+  assert.match(result.message, /No es un error de pipeline/);
+  assert.doesNotMatch(result.message, /console\.log|76561198307734468|seg-001/);
+  assert.equal(failedStripLabel(reason, { fullDemo: true }), FAILED_STRIP_LABEL.capture);
+});
+
+test('observer mismatch before record-start is the same capture flake', () => {
+  const reason =
+    'recorder failed: capture POV verification failed: observer target 76561198000000001 does not match 76561198386265483 before record-start-seg-001';
+  const result = parseFailureReason(reason);
+  assert.equal(result.kind, 'capture-flake');
+  assert.equal(result.retryCanHelp, true);
+  assert.equal(failedStripLabel(reason), FAILED_STRIP_LABEL.capture);
+});
+
+test('generic failures keep the pipeline-dead strip label', () => {
+  assert.equal(failedStripLabel('ffmpeg exited with code 1'), FAILED_STRIP_LABEL.pipeline);
 });
 
 test('other POV verification failures stay sanitized and retryable', () => {

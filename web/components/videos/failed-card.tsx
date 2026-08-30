@@ -32,6 +32,9 @@ export function FailedCard({ video, onChange }: { video: Video; onChange: () => 
     if (failure.kind === 'pov-verification') {
       return 'Elimina esta tarjeta y vuelve a preparar la demo para regenerar el plan de rondas.';
     }
+    if (failure.kind === 'capture-flake') {
+      return 'Reintenta: no es un pipeline muerto. Si el POV no vuelve, el vídeo no se publicará con otro jugador.';
+    }
     if (!failure.retryCanHelp) return 'Reintentar el mismo trabajo no resolverá este fallo.';
     return 'Reintenta para retomar desde la etapa que falló.';
   }
