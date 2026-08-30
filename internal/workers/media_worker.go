@@ -747,6 +747,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err := putCaptureSelection(w.storage, j.ID, killPlanSegmentIDs(recordPlan)); err != nil {
 		return fmt.Errorf("persist capture selection: %w", err)
 	}
+	if err := putCaptureKind(w.storage, j.ID, useRecapPlan); err != nil {
+		return fmt.Errorf("persist capture kind: %w", err)
+	}
 
 	if err := cfg.validate(); err != nil {
 		return err
@@ -3016,13 +3019,25 @@ func prepareCaptureAttemptRollback(store storage.Storage, id uuid.UUID) (func() 
 	if err != nil {
 		return nil, fmt.Errorf("snapshot capture progress: %w", err)
 	}
+	kindRollback, err := snapshot(artifacts.CaptureKindKey(id), "capture kind")
+	if err != nil {
+		return nil, fmt.Errorf("snapshot capture kind: %w", err)
+	}
 	return func() error {
-		return errors.Join(selectionRollback(), progressRollback())
+		return errors.Join(selectionRollback(), progressRollback(), kindRollback())
 	}, nil
 }
 
-// putCaptureSelection persists the ordered segment ids a record run will
-// capture, so the job poll can scope capture progress to this reel.
+func putCaptureKind(store storage.Storage, id uuid.UUID, recap bool) error {
+	body, err := json.Marshal(struct {
+		Recap bool `json:"recap"`
+	}{Recap: recap})
+	if err != nil {
+		return err
+	}
+	return store.Put(artifacts.CaptureKindKey(id), bytes.NewReader(body))
+}
+
 func putCaptureSelection(store storage.Storage, id uuid.UUID, segmentIDs []string) error {
 	b, err := json.Marshal(segmentIDs)
 	if err != nil {

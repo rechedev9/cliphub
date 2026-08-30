@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
@@ -283,7 +284,7 @@ func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := streamJobResponse{Job: j}
-	if progress, ok := loadProgressView(h.storage, streamclips.ProgressKey(j.ID)); ok {
+	if progress, ok := loadProgressView(h.storage, streamclips.ProgressKey(j.ID)); ok && streamProgressRelevant(j.Status, progress.Stage) {
 		resp.Progress = &progress
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -610,9 +611,20 @@ type streamRenderResponse struct {
 	Progress *captureProgressView `json:"progress,omitempty"`
 }
 
+func streamProgressRelevant(status streamclips.Status, stage string) bool {
+	switch status {
+	case streamclips.StatusAcquiring:
+		return stage == jobprogress.StageAcquire
+	case streamclips.StatusRendering:
+		return stage == jobprogress.StageRender
+	default:
+		return false
+	}
+}
+
 func (h *Handlers) writeStreamRender(w http.ResponseWriter, id uuid.UUID, state streamclips.RenderState) {
 	resp := streamRenderResponse{RenderState: state}
-	if progress, ok := loadProgressView(h.storage, streamclips.ProgressKey(id)); ok {
+	if progress, ok := loadProgressView(h.storage, streamclips.ProgressKey(id)); ok && streamProgressRelevant(state.Status, progress.Stage) {
 		resp.Progress = &progress
 	}
 	writeJSON(w, http.StatusOK, resp)

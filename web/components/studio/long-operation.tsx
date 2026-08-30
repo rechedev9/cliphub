@@ -51,6 +51,7 @@ export function LongOperation({
   className,
 }: LongOperationProps): ReactNode {
   const fromProgress = progress !== undefined;
+  const hasPct = fromProgress || percent !== undefined;
   let pct = 0;
   if (fromProgress) {
     pct = jobProgressPercent(progress);
@@ -58,7 +59,7 @@ export function LongOperation({
     pct = Math.min(100, Math.max(0, Math.round(percent)));
   }
   const count = fromProgress ? jobProgressCount(progress) : undefined;
-  const complete = pct === 100;
+  const complete = hasPct && pct === 100;
 
   return (
     <div
@@ -81,7 +82,7 @@ export function LongOperation({
           <span className="min-w-0 truncate">{stage}</span>
         </span>
         <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-meta tabular-nums">
-          <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span>
+          {hasPct ? <span className={TONE_TEXT_CLASS[tone]}>{pct}%</span> : null}
           {elapsedSec !== undefined ? <span className="text-fg-3">{formatElapsed(elapsedSec)}</span> : null}
         </span>
       </div>
@@ -91,7 +92,7 @@ export function LongOperation({
         aria-label={stage}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={pct}
+        aria-valuenow={hasPct ? pct : undefined}
         className="h-1 w-full overflow-hidden bg-surface-0"
       >
         <span

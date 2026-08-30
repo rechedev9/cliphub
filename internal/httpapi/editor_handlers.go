@@ -458,8 +458,10 @@ type editorRenderResponse struct {
 
 func (h *Handlers) writeEditorRender(w http.ResponseWriter, id uuid.UUID, state timelineplan.RenderState) {
 	resp := editorRenderResponse{RenderState: state}
-	if progress, ok := loadProgressView(h.storage, timelineplan.ProgressKey(id)); ok && progress.Stage == jobprogress.StageRender {
-		resp.Progress = &progress
+	if state.Status == timelineplan.StatusRendering {
+		if progress, ok := loadProgressView(h.storage, timelineplan.ProgressKey(id)); ok && progress.Stage == jobprogress.StageRender {
+			resp.Progress = &progress
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

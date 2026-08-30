@@ -69,10 +69,8 @@ func (r *Reporter) Update(done, total int64) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.wrote && snap.Percent == r.lastPct && snap.Done == r.lastDone {
-		if r.minGap > 0 && !r.lastAt.IsZero() && snap.UpdatedAt.Sub(r.lastAt) < r.minGap {
-			return nil
-		}
+	if r.wrote && r.minGap > 0 && !r.lastAt.IsZero() && snap.UpdatedAt.Sub(r.lastAt) < r.minGap {
+		return nil
 	}
 	if err := r.put(snap); err != nil {
 		return err

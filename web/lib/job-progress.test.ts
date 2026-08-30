@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { jobProgressCount, jobProgressPercent, parseJobProgress } from './job-progress.ts';
+import { jobProgressCount, jobProgressDisplay, jobProgressPercent, parseJobProgress } from './job-progress.ts';
 
 test('jobProgressPercent prefers the worker percent and clamps', () => {
   const cases: Array<{ progress: Parameters<typeof jobProgressPercent>[0]; want: number }> = [
@@ -44,6 +44,14 @@ test('a remounted snapshot resumes the same percent and count', () => {
   }
   assert.equal(jobProgressPercent(stored), 37);
   assert.equal(jobProgressCount(stored), '64000 / 172772 ticks');
+});
+
+test('jobProgressDisplay omits percent and count when no snapshot exists', () => {
+  assert.deepEqual(jobProgressDisplay(undefined), {});
+  assert.deepEqual(jobProgressDisplay({ done: 8, total: 20, percent: 40, label: 'rondas' }), {
+    percent: '40%',
+    count: '8 / 20 rondas',
+  });
 });
 
 test('parseJobProgress keeps unit/label/stage and allows a 0/0 first write', () => {

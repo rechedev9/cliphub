@@ -39,6 +39,13 @@ func CaptureSelectionKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "recording", "capture-selection.json")
 }
 
+// CaptureKindKey says whether the in-flight record is a Full Demo recap
+// (rounds) or a Shorts reel (segments). Recap-plan existence is not enough:
+// parse always stores that sidecar.
+func CaptureKindKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "recording", "capture-kind.json")
+}
+
 // CaptureProgressKey is a non-committing status document for the in-flight
 // recorder. It never makes a segment reusable; validated clips are still
 // published only with the authoritative recording result.

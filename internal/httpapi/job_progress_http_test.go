@@ -15,13 +15,16 @@ import (
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/jobprogress"
+	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
 )
 
 func putProgressSnapshot(t *testing.T, store storage.Storage, key string, stage, unit, label string, done, total int64) {
 	t.Helper()
-	snap, err := jobprogress.NewSnapshot(stage, unit, label, done, total, time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC))
+	snap, err := jobprogress.NewSnapshot(stage, unit, label, done, total, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,5 +173,132 @@ func TestGetTacticalStatusIncludesSideLaneProgress(t *testing.T) {
 	}
 	if got.Progress == nil || got.Progress.Done != 8000 || got.Progress.Total != 20000 {
 		t.Fatalf("progress = %+v, want 8000/20000", got.Progress)
+	}
+}
+
+func TestCaptureLabelsUsesInFlightKindNotRecapPlan(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	if err := recapplan.Store(store, id, killplan.Plan{Segments: []killplan.Segment{{ID: "seg-001"}}}); err != nil {
+		t.Fatal(err)
+	}
+	unit, label := captureLabels(store, id)
+	if unit != jobprogress.UnitSegments || label != "segmentos" {
+		t.Fatalf("shorts labels = %s/%s, want segments/segmentos", unit, label)
+	}
+	if err := writeCaptureKind(store, id, true); err != nil {
+		t.Fatal(err)
+	}
+	unit, label = captureLabels(store, id)
+	if unit != jobprogress.UnitRounds || label != "rondas" {
+		t.Fatalf("recap labels = %s/%s, want rounds/rondas", unit, label)
+	}
+}
+
+func TestGetJobStatusOmitsLeftoverRenderProgressWhileComposing(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusComposing}
+	putProgressSnapshot(t, store, artifacts.ProgressKey(id), jobprogress.StageRender, jobprogress.UnitClips, "clips", 8, 8)
+
+	h := NewHandlers(repo, store, &fakeQueue{})
+	router := chi.NewRouter()
+	router.Get("/api/jobs/{id}", h.GetJob)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"?view=status", nil))
+	var got jobStatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("leftover render progress leaked onto compose: %+v", got.Progress)
+	}
+}
+
+func TestGetAnticheatOmitsFinishedProgressAfterRestart(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := scannedJob()
+	repo.jobs[j.ID] = j
+	putAnticheat(t, store, j.ID, anticheat.NewRunningDocument(j.ID.String(), time.Now()))
+	old, err := jobprogress.NewSnapshot(jobprogress.StageAnticheat, jobprogress.UnitTicks, "ticks", 4000, 4000, time.Now().Add(-time.Hour).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := old.Encode(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.AnticheatProgressKey(j.ID), bytes.NewReader(buf.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewHandlers(repo, store, &fakeQueue{})
+	rw := httptest.NewRecorder()
+	anticheatRouter(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+j.ID.String()+"/anticheat", nil))
+	var got anticheatResponse
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("stale 100%% anticheat progress leaked onto a restart: %+v", got.Progress)
+	}
+}
+
+func TestGetStreamJobOmitsAcquireProgressAfterReady(t *testing.T) {
+	store := newFakeStorage()
+	id := uuid.New()
+	streamRepo := newFakeStreamRepo()
+	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusReady, SourcePath: streamclips.SourceKey(id)}
+	putProgressSnapshot(t, store, streamclips.ProgressKey(id), jobprogress.StageAcquire, jobprogress.UnitBytes, "bytes", 1000, 1000)
+
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(streamRepo))
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String(), nil))
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rw.Code, rw.Body.String())
+	}
+	var got streamJobResponse
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("acquire leftover leaked onto ready stream job: %+v", got.Progress)
+	}
+}
+
+func TestGetStreamRenderOmitsAcquireProgress(t *testing.T) {
+	store := newFakeStorage()
+	id := uuid.New()
+	streamRepo := newFakeStreamRepo()
+	streamRepo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusRendering, SourcePath: streamclips.SourceKey(id)}
+	putProgressSnapshot(t, store, streamclips.ProgressKey(id), jobprogress.StageAcquire, jobprogress.UnitBytes, "bytes", 1000, 1000)
+	state, err := streamclips.NewRenderState(id, streamclips.VariantStreamerVerticalStack, streamclips.StatusRendering, nil, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(streamRepo))
+	if err := h.writeStreamRenderState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String()+"/renders/"+streamclips.VariantStreamerVerticalStack, nil))
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rw.Code, rw.Body.String())
+	}
+	var got streamRenderResponse
+	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("acquire leftover leaked onto stream render: %+v", got.Progress)
 	}
 }

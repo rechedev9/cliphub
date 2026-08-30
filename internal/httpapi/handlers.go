@@ -975,6 +975,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "enqueue record task", err)
 		return
 	}
+	_ = writeCaptureKind(h.storage, j.ID, useRecapPlan)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"id":   j.ID,
 		"task": tasks.TypeRecordDemo,
@@ -1065,6 +1066,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			}); err != nil {
 				return err
 			}
+			_ = writeCaptureKind(h.storage, j.ID, useRecapPlan)
 			accepted = true
 			return nil
 		case errors.Is(decision, asynq.ErrDuplicateTask):

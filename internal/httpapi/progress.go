@@ -1,16 +1,17 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/jobprogress"
-	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
@@ -53,7 +54,7 @@ func progressRelevant(status job.Status, stage string) bool {
 	case job.StatusParsing:
 		return stage == jobprogress.StageParse
 	case job.StatusComposing:
-		return stage == jobprogress.StageCompose || stage == jobprogress.StageRender
+		return stage == jobprogress.StageCompose
 	case job.StatusRecording:
 		return stage == jobprogress.StageRecord
 	default:
@@ -61,11 +62,54 @@ func progressRelevant(status job.Status, stage string) bool {
 	}
 }
 
+type captureKindDocument struct {
+	Recap bool `json:"recap"`
+}
+
+func writeCaptureKind(store storage.Storage, id uuid.UUID, recap bool) error {
+	body, err := json.Marshal(captureKindDocument{Recap: recap})
+	if err != nil {
+		return err
+	}
+	return store.Put(artifacts.CaptureKindKey(id), bytes.NewReader(body))
+}
+
+func captureIsRecap(store storage.Storage, id uuid.UUID) bool {
+	rc, err := store.Open(artifacts.CaptureKindKey(id))
+	if err != nil {
+		return false
+	}
+	defer rc.Close()
+	var doc captureKindDocument
+	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+		return false
+	}
+	return doc.Recap
+}
+
 func captureLabels(store storage.Storage, id uuid.UUID) (unit, label string) {
-	if _, ok, err := recapplan.Load(store, id); err == nil && ok {
+	if captureIsRecap(store, id) {
 		return jobprogress.UnitRounds, "rondas"
 	}
 	return jobprogress.UnitSegments, "segmentos"
+}
+
+func snapshotFromThisRun(updatedAt, startedAt time.Time) bool {
+	if startedAt.IsZero() || updatedAt.IsZero() {
+		return true
+	}
+	return !updatedAt.Before(startedAt)
+}
+
+func loadProgressViewIf(store storage.Storage, key string, keep func(jobprogress.Snapshot) bool) (captureProgressView, bool) {
+	snap, ok, err := jobprogress.Load(store, key)
+	if err != nil || !ok {
+		return captureProgressView{}, false
+	}
+	if keep != nil && !keep(snap) {
+		return captureProgressView{}, false
+	}
+	return viewFromSnapshot(snap), true
 }
 
 func decorateCaptureProgress(store storage.Storage, id uuid.UUID, progress captureProgressView) captureProgressView {

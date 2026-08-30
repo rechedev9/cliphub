@@ -16,6 +16,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/radarmap"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tactical"
@@ -147,8 +148,12 @@ func (h *Handlers) GetTacticalStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp := tacticalStatusResponse{TacticalStatus: status}
-	if progress, ok := loadProgressView(h.storage, artifacts.TacticalProgressKey(j.ID)); ok {
-		resp.Progress = &progress
+	if status.State == artifacts.TacticalStateQueued || status.State == artifacts.TacticalStateRunning {
+		if progress, ok := loadProgressViewIf(h.storage, artifacts.TacticalProgressKey(j.ID), func(snap jobprogress.Snapshot) bool {
+			return snap.Stage == jobprogress.StageTactical && snapshotFromThisRun(snap.UpdatedAt, status.GeneratedAt)
+		}); ok {
+			resp.Progress = &progress
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

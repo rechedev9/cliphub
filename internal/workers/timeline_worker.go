@@ -109,9 +109,7 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 	}
 
 	progress := jobprogress.NewKeyedReporter(w.storage, timelineplan.ProgressKey(p.ID), jobprogress.StageRender, jobprogress.UnitClips, "clips")
-	if err := progress.Update(0, 1); err != nil {
-		return fmt.Errorf("write editor render progress: %w", err)
-	}
+	_ = progress.Update(0, 1)
 
 	timeout := 20 * time.Minute
 	if w.cfg.Timeout != "" {
@@ -235,9 +233,7 @@ func (w *TimelineRenderWorker) render(ctx context.Context, payload tasks.RenderT
 	}); err != nil {
 		return err
 	}
-	if err := progress.Complete(1); err != nil {
-		return fmt.Errorf("complete editor render progress: %w", err)
-	}
+	_ = progress.Complete(1)
 	return w.repo.UpdateStatus(ctx, p.ID, timelineplan.StatusRendered, "")
 }
 

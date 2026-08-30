@@ -25,6 +25,17 @@ export function jobProgressCount(progress: JobProgress): string {
   return unit ? `${count} ${unit}` : count;
 }
 
+/** Percent and count only when a real snapshot exists. Never invent 0 / 0. */
+export function jobProgressDisplay(progress?: JobProgress): { percent?: string; count?: string } {
+  if (!progress) {
+    return {};
+  }
+  return {
+    percent: `${jobProgressPercent(progress)}%`,
+    count: jobProgressCount(progress),
+  };
+}
+
 export function parseJobProgress(raw: JobProgressRaw | undefined): JobProgress | undefined {
   if (raw === undefined || typeof raw.done !== 'number' || typeof raw.total !== 'number') {
     return undefined;

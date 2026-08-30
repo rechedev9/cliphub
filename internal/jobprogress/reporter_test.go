@@ -68,8 +68,11 @@ func TestReporterWritesFirstAndComplete(t *testing.T) {
 	store := &memStore{}
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	rep := NewReporter(store, id, StageParse, UnitTicks, "ticks")
-	rep.minGap = time.Hour
-	rep.now = func() time.Time { return time.Unix(10, 0).UTC() }
+	n := 0
+	rep.now = func() time.Time {
+		n++
+		return time.Unix(10, 0).UTC().Add(time.Duration(n) * DefaultMinInterval)
+	}
 
 	if err := rep.Update(0, 100); err != nil {
 		t.Fatal(err)
@@ -123,6 +126,29 @@ func TestReporterThrottlesUnchangedPercent(t *testing.T) {
 	}
 	if len(store.files[artifacts.ProgressKey(id)]) != first {
 		t.Fatal("throttled rewrite still replaced the snapshot")
+	}
+}
+
+func TestReporterThrottlesDoneChangesWithinGap(t *testing.T) {
+	store := &memStore{}
+	id := uuid.New()
+	rep := NewReporter(store, id, StageParse, UnitTicks, "ticks")
+	rep.minGap = time.Hour
+	n := 0
+	base := time.Unix(30, 0).UTC()
+	rep.now = func() time.Time {
+		n++
+		return base.Add(time.Duration(n) * time.Millisecond)
+	}
+	if err := rep.Update(1, 100); err != nil {
+		t.Fatal(err)
+	}
+	first := string(store.files[artifacts.ProgressKey(id)])
+	if err := rep.Update(2, 100); err != nil {
+		t.Fatal(err)
+	}
+	if string(store.files[artifacts.ProgressKey(id)]) != first {
+		t.Fatal("tick walk within the gap rewrote progress.json")
 	}
 }
 

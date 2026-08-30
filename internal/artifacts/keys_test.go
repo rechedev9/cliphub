@@ -19,6 +19,7 @@ func TestKeysUseStableJobLayout(t *testing.T) {
 		JobPrefix(id):            "jobs/11111111-1111-1111-1111-111111111111",
 		RecordingResultKey(id):   "jobs/11111111-1111-1111-1111-111111111111/recording/recording-result.json",
 		RecordingScriptKey(id):   "jobs/11111111-1111-1111-1111-111111111111/recording/recording.js",
+		CaptureKindKey(id):       "jobs/11111111-1111-1111-1111-111111111111/recording/capture-kind.json",
 		segmentKey:               "jobs/11111111-1111-1111-1111-111111111111/recording/segments/s1.mp4",
 		CompositionResultKey(id): "jobs/11111111-1111-1111-1111-111111111111/composition/composition-result.json",
 		FinalMP4Key(id):          "jobs/11111111-1111-1111-1111-111111111111/composition/final.mp4",

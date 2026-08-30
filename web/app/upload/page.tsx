@@ -24,7 +24,7 @@ import type { DemoPlayer, JobProgress, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { prettyMapName } from '@/lib/format';
-import { jobProgressCount, jobProgressPercent } from '@/lib/job-progress';
+import { jobProgressDisplay } from '@/lib/job-progress';
 import { navSection } from '@/lib/nav';
 import { seriesTitle } from '@/lib/series-status';
 import { Wordmark } from '@/components/brand/wordmark';
@@ -557,11 +557,11 @@ function ScanRowList({ rows }: { rows: ScanRow[] }) {
 /** The right-hand state of one scan row: working, scanned (with map), or failed. */
 function ScanRowStatus({ row }: { row: ScanRow }): ReactNode {
   if (row.status === 'scanning') {
-    const pct = row.progress ? `${jobProgressPercent(row.progress)}%` : '0%';
-    const count = row.progress ? jobProgressCount(row.progress) : '0 / 0';
+    const display = jobProgressDisplay(row.progress);
+    const text = [display.percent, display.count].filter(Boolean).join(' · ');
     return (
       <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
-        {pct} · {count}
+        {text || 'Escaneando'}
       </StatusTag>
     );
   }
@@ -602,11 +602,11 @@ function ParseRowList({ rows }: { rows: ParseRow[] }) {
 function ParseRowStatus({ row }: { row: ParseRow }): ReactNode {
   switch (row.status) {
     case 'parsing': {
-      const pct = row.progress ? `${jobProgressPercent(row.progress)}%` : '0%';
-      const count = row.progress ? jobProgressCount(row.progress) : '0 / 0';
+      const display = jobProgressDisplay(row.progress);
+      const text = [display.percent, display.count].filter(Boolean).join(' · ');
       return (
         <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
-          {pct} · {count}
+          {text || 'Forjando'}
         </StatusTag>
       );
     }

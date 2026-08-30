@@ -11,6 +11,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/anticheat"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
@@ -102,8 +103,12 @@ func (h *Handlers) GetAnticheat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := anticheatResponse{Document: doc}
-	if progress, ok := loadProgressView(h.storage, artifacts.AnticheatProgressKey(j.ID)); ok {
-		resp.Progress = &progress
+	if doc.Status == anticheat.StatusRunning {
+		if progress, ok := loadProgressViewIf(h.storage, artifacts.AnticheatProgressKey(j.ID), func(snap jobprogress.Snapshot) bool {
+			return snap.Stage == jobprogress.StageAnticheat && snapshotFromThisRun(snap.UpdatedAt, doc.StartedAt)
+		}); ok {
+			resp.Progress = &progress
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
