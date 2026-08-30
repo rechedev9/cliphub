@@ -27,6 +27,17 @@ stream video -> persisted edit plan -> render -> publish pack
 - `data/`, `bin/`, capture output, and generated media are artifacts, not source, unless a task explicitly targets fixtures or cleanup.
 - Agent-oriented architecture guidance lives in `docs/AI_AGENT_ARCHITECTURE.md`: agents discover contracts, inspect durable artifacts, ask for unanswered gates, and execute only approved explicit commands. Do not convert that guidance into model-driven clip decisions.
 
+## Punk Records
+
+Shared standing law for every agent that touches this repo. If it is not here, it did not happen. Update this block in the same PR when a law changes.
+
+- **Prove It Works.** Verify the real path, not a proxy. CI, mocks, lint, and "it compiles" are supplemental. For parser/capture/render: real ClipHub Studio on Windows + HLAE/CS2, or name the gap and do not call the work done.
+- **PR body** (`.github/pull_request_template.md`): only four H2s — What Problem This Solves, Why This Change Was Made, User Impact, Evidence. Empty Evidence is a blocker.
+- **Hosted quality CI** (PRs and `main`): `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`), `CI infra` (actionlint + unsigned-release contract). Not HLAE/CS2 E2E. Not Playwright.
+- **Release:** unsigned Windows installer only, via `.github/workflows/desktop-release.yml` (`workflow_dispatch` or `v*.*.*` matching `desktop/package.json`). Actualizar reads `releases/latest`. No Authenticode. Vercel/landing is not the updater.
+- **Structural flows:** (1) Demo parser → 9:16 Shorts (2) Full Demo → 16:9 recap. A PR that touches a flow must prove that flow. Unknown on a touched flow is a merge block.
+- **Current Studio** (as of 2026-08-30): 2.4.36.
+
 ## Where To Look
 
 | Task | Location |
