@@ -179,9 +179,10 @@ func run() error {
 	}
 	if reconciled.total() > 0 {
 		log.Printf(
-			"startup: reconciled interrupted work (demo_jobs=%d demo_renders=%d generate_runs=%d stream_jobs=%d stream_renders=%d stream_acquisitions=%d)",
+			"startup: reconciled interrupted work (demo_jobs=%d demo_renders=%d demo_render_recoveries=%d generate_runs=%d stream_jobs=%d stream_renders=%d stream_acquisitions=%d)",
 			reconciled.DemoJobs,
 			reconciled.DemoRenders,
+			len(reconciled.DemoRenderRecoveries),
 			reconciled.GenerateRuns,
 			reconciled.StreamJobs,
 			reconciled.StreamRenderStates,
@@ -313,6 +314,16 @@ func run() error {
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 	inline.Start(workerCtx)
+	if err := recoverDemoRenders(
+		ctx,
+		reconciled.DemoRenderRecoveries,
+		cfg.renderWorkerEnabled(),
+		store,
+		inline,
+		observability,
+	); err != nil {
+		return fmt.Errorf("recover demo renders: %w", err)
+	}
 	if err := recoverStreamAcquisitions(
 		ctx,
 		reconciled.StreamAcquisitions,

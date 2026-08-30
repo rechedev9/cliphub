@@ -52,6 +52,10 @@ test('jobProgressDisplay omits percent and count when no snapshot exists', () =>
     percent: '40%',
     count: '8 / 20 rondas',
   });
+  assert.deepEqual(jobProgressDisplay({ done: 3, total: 20, percent: 15, unit: 'clips', label: 'clips', stage: 'render' }), {
+    percent: '15%',
+    count: '3 / 20 clips',
+  });
 });
 
 test('parseJobProgress keeps unit/label/stage and allows a 0/0 first write', () => {

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import type { Video } from '@/lib/api/types';
 import { captureProgressDetail, captureProgressPercent } from '@/lib/capture-progress';
-import { jobProgressCount, jobProgressPercent } from '@/lib/job-progress';
+import { jobProgressDisplay, jobProgressPercent } from '@/lib/job-progress';
 import { isLandscapeRecap } from '@/lib/reel-brief';
 import { RecDot } from '@/components/brand/rec-dot';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -22,10 +22,11 @@ export function RenderingCard({ video }: { video: Video }) {
           pct: captureProgressPercent(live),
         }
       : undefined;
+  const composeDisplay = isComposing ? jobProgressDisplay(live) : {};
   const compose =
-    isComposing && live
+    isComposing && live && composeDisplay.count
       ? {
-          detail: jobProgressCount(live),
+          detail: composeDisplay.count,
           pct: jobProgressPercent(live),
         }
       : undefined;
@@ -58,7 +59,7 @@ export function RenderingCard({ video }: { video: Video }) {
         Editando
       </StatusTag>
     );
-    detail = compose ? compose.detail : 'Montando cortes y ritmo';
+    detail = compose?.detail ?? 'Montando cortes y ritmo';
   }
 
   return (

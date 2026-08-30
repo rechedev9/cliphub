@@ -13,16 +13,17 @@ import (
 // startupReconciliationResult reports each durable lifecycle repaired before
 // the orchestrator begins accepting requests.
 type startupReconciliationResult struct {
-	DemoJobs           int
-	DemoRenders        int
-	GenerateRuns       int
-	StreamJobs         int
-	StreamRenderStates int
-	StreamAcquisitions []uuid.UUID
+	DemoJobs             int
+	DemoRenders          int
+	DemoRenderRecoveries []demoRenderRecovery
+	GenerateRuns         int
+	StreamJobs           int
+	StreamRenderStates   int
+	StreamAcquisitions   []uuid.UUID
 }
 
 func (r startupReconciliationResult) total() int {
-	return r.DemoJobs + r.DemoRenders + r.GenerateRuns + r.StreamJobs + r.StreamRenderStates + len(r.StreamAcquisitions)
+	return r.DemoJobs + r.DemoRenders + len(r.DemoRenderRecoveries) + r.GenerateRuns + r.StreamJobs + r.StreamRenderStates + len(r.StreamAcquisitions)
 }
 
 // reconcileInterruptedWork repairs every process-local lifecycle it can, then
@@ -50,7 +51,9 @@ func reconcileInterruptedWork(
 	if err != nil {
 		errs = append(errs, fmt.Errorf("demo jobs: %w", err))
 	}
-	result.DemoRenders, err = sweepInterruptedDemoRenderStates(ctx, repo, store, rec)
+	demoRenders, err := sweepInterruptedDemoRenderStates(ctx, repo, store, rec)
+	result.DemoRenders = demoRenders.Failed
+	result.DemoRenderRecoveries = demoRenders.Recoverable
 	if err != nil {
 		errs = append(errs, fmt.Errorf("demo render states: %w", err))
 	}

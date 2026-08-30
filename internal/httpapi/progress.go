@@ -13,6 +13,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
@@ -60,6 +61,49 @@ func progressRelevant(status job.Status, stage string) bool {
 	default:
 		return false
 	}
+}
+
+func renderWaitStage(stage string) bool {
+	return stage == jobprogress.StageCompose || stage == jobprogress.StageRender
+}
+
+func renderWaitProgress(store storage.Storage, id uuid.UUID, startedAt time.Time) (captureProgressView, bool) {
+	return loadProgressViewIf(store, artifacts.ProgressKey(id), func(snap jobprogress.Snapshot) bool {
+		return renderWaitStage(snap.Stage) && snapshotFromThisRun(snap.UpdatedAt, startedAt)
+	})
+}
+
+func inFlightRenderState(store storage.Storage, id uuid.UUID) (renderplan.RenderVariantState, bool) {
+	for _, loadout := range renderplan.LoadoutCatalog() {
+		key, err := renderplan.RenderVariantStateKey(id, loadout.Variant)
+		if err != nil {
+			continue
+		}
+		var state renderplan.RenderVariantState
+		found, err := readRenderStateJSON(store, key, &state)
+		if err != nil || !found {
+			continue
+		}
+		if state.Status == renderplan.RenderVariantStatusQueued || state.Status == renderplan.RenderVariantStatusRendering {
+			return state, true
+		}
+	}
+	return renderplan.RenderVariantState{}, false
+}
+
+func readRenderStateJSON(store storage.Storage, key string, dst *renderplan.RenderVariantState) (bool, error) {
+	rc, err := store.Open(key)
+	if err != nil {
+		if storage.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer rc.Close()
+	if err := json.NewDecoder(rc).Decode(dst); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 type captureKindDocument struct {
@@ -124,6 +168,11 @@ func jobProgressView(store storage.Storage, id uuid.UUID, status job.Status, seg
 	}
 	if snap, ok, err := jobprogress.LoadJob(store, id); err == nil && ok && progressRelevant(status, snap.Stage) {
 		return viewFromSnapshot(snap), true
+	}
+	if state, ok := inFlightRenderState(store, id); ok {
+		if progress, ok := renderWaitProgress(store, id, state.UpdatedAt); ok {
+			return progress, true
+		}
 	}
 	return captureProgressView{}, false
 }

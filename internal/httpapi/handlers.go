@@ -34,7 +34,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
-	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -1817,8 +1816,10 @@ func (h *Handlers) writeRenderVariant(w http.ResponseWriter, state *renderplan.R
 		Edit:               edit,
 		Music:              music,
 	}
-	if progress, ok := loadProgressView(h.storage, artifacts.ProgressKey(state.JobID)); ok && progress.Stage == jobprogress.StageRender {
-		resp.Progress = &progress
+	if state.Status == renderplan.RenderVariantStatusQueued || state.Status == renderplan.RenderVariantStatusRendering {
+		if progress, ok := renderWaitProgress(h.storage, state.JobID, state.UpdatedAt); ok {
+			resp.Progress = &progress
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

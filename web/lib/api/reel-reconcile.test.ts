@@ -54,6 +54,24 @@ test('render-in-flight keeps live worker progress', () => {
   );
 });
 
+test('Full Demo recorded + rendering attaches compose/render snapshot and does not invent 0/0', () => {
+  assert.deepEqual(
+    view({
+      jobStatus: 'recorded',
+      renderStatus: 'rendering',
+      captureProgress: { done: 3, total: 20, percent: 15, unit: 'clips', label: 'clips', stage: 'render' },
+    }),
+    {
+      status: 'composing',
+      action: 'none',
+      captureProgress: { done: 3, total: 20, percent: 15, unit: 'clips', label: 'clips', stage: 'render' },
+    },
+  );
+  const waiting = view({ jobStatus: 'recorded', renderStatus: 'rendering' });
+  assert.deepEqual(waiting, { status: 'composing', action: 'none' });
+  assert.equal('captureProgress' in waiting, false);
+});
+
 test('recorded + no render → drive render', () => {
   assert.deepEqual(view({ jobStatus: 'recorded' }), { status: 'composing', action: 'render' });
 });

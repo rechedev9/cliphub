@@ -106,17 +106,32 @@ func interruptedDemoJobReason(status job.Status) string {
 	return fmt.Sprintf("interrupted: the orchestrator restarted mid-%s", status)
 }
 
-// sweepInterruptedDemoRenderStates fails queued or rendering variant state
-// documents left by the previous process. Parent job status is deliberately
-// irrelevant: render variants have their own lifecycle and a stale render can
-// belong to a recorded, composed, done, or failed job.
-func sweepInterruptedDemoRenderStates(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
+// demoRenderRecovery is one queued/rendering variant the previous process
+// left without a live worker. Startup re-enqueues it after the queue starts,
+// or fails it visibly when that is impossible.
+type demoRenderRecovery struct {
+	JobID   uuid.UUID
+	Variant string
+	Demo    string
+	Target  string
+}
+
+type demoRenderSweepResult struct {
+	Failed      int
+	Recoverable []demoRenderRecovery
+}
+
+// sweepInterruptedDemoRenderStates inspects every demo render variant. A
+// corrupt queued/rendering document is failed immediately. A valid one is
+// returned for recoverDemoRenders so a Full Demo left `rendering` across
+// restart is not stranded as EDITANDO with no worker.
+func sweepInterruptedDemoRenderStates(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder) (demoRenderSweepResult, error) {
 	jobs, listErr := listAllDemoJobs(ctx, repo)
 	var errs []error
 	if listErr != nil {
 		errs = append(errs, listErr)
 	}
-	swept := 0
+	result := demoRenderSweepResult{}
 	now := time.Now().UTC()
 	for _, j := range jobs {
 		if err := ctx.Err(); err != nil {
@@ -141,22 +156,26 @@ func sweepInterruptedDemoRenderStates(ctx context.Context, repo interruptSweeper
 				continue
 			}
 
-			if readErr != nil || !validDemoRenderStateIdentity(state, j.ID, loadout.Variant) {
-				state, err = renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+			if readErr == nil && validDemoRenderStateIdentity(state, j.ID, loadout.Variant) {
+				result.Recoverable = append(result.Recoverable, demoRenderRecovery{
 					JobID:   j.ID,
-					Loadout: loadout,
-					Status:  renderplan.RenderVariantStatusFailed,
-					Error:   interruptedDemoRenderReason,
-					Now:     now,
+					Variant: loadout.Variant,
+					Demo:    j.DemoPath,
+					Target:  j.TargetSteamID,
 				})
-				if err != nil {
-					errs = append(errs, fmt.Errorf("build failed demo render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
-					continue
-				}
-			} else {
-				state.Status = renderplan.RenderVariantStatusFailed
-				state.Error = interruptedDemoRenderReason
-				state.UpdatedAt = now
+				continue
+			}
+
+			state, err = renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:   j.ID,
+				Loadout: loadout,
+				Status:  renderplan.RenderVariantStatusFailed,
+				Error:   interruptedDemoRenderReason,
+				Now:     now,
+			})
+			if err != nil {
+				errs = append(errs, fmt.Errorf("build failed demo render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
+				continue
 			}
 			if err := writeSweepJSON(store, key, state); err != nil {
 				writeErr := fmt.Errorf("write failed demo render state %s: %w", key, err)
@@ -166,11 +185,11 @@ func sweepInterruptedDemoRenderStates(ctx context.Context, repo interruptSweeper
 				errs = append(errs, writeErr)
 				continue
 			}
-			swept++
+			result.Failed++
 			recordInterruptedRender(rec, j.DemoPath, j.TargetSteamID, interruptedDemoRenderReason)
 		}
 	}
-	return swept, errors.Join(errs...)
+	return result, errors.Join(errs...)
 }
 
 func validDemoRenderStateIdentity(state renderplan.RenderVariantState, jobID uuid.UUID, variant string) bool {

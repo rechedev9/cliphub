@@ -115,8 +115,14 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 		t.Fatalf("reconcileInterruptedWork after restart: %v", err)
 	}
 	wantReconciled := startupReconciliationResult{
-		DemoJobs:           1,
-		DemoRenders:        1,
+		DemoJobs:    1,
+		DemoRenders: 0,
+		DemoRenderRecoveries: []demoRenderRecovery{{
+			JobID:   rendering.ID,
+			Variant: loadout.Variant,
+			Demo:    rendering.DemoPath,
+			Target:  rendering.TargetSteamID,
+		}},
 		GenerateRuns:       1,
 		StreamJobs:         0,
 		StreamRenderStates: 1,
@@ -143,8 +149,15 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 	}
 	var gotDemoState renderplan.RenderVariantState
 	readRestartJSON(t, storeAfter, demoStateKey, &gotDemoState)
-	if gotDemoState.Status != renderplan.RenderVariantStatusFailed || gotDemoState.Error != interruptedDemoRenderReason {
-		t.Fatalf("demo render after restart = status %q error %q, want failed/%q", gotDemoState.Status, gotDemoState.Error, interruptedDemoRenderReason)
+	if gotDemoState.Status != renderplan.RenderVariantStatusRendering {
+		t.Fatalf("demo render after sweep = status %q, want rendering listed for recovery", gotDemoState.Status)
+	}
+	if err := recoverDemoRenders(ctx, reconciled.DemoRenderRecoveries, false, storeAfter, nil, nil); err != nil {
+		t.Fatalf("recoverDemoRenders without worker: %v", err)
+	}
+	readRestartJSON(t, storeAfter, demoStateKey, &gotDemoState)
+	if gotDemoState.Status != renderplan.RenderVariantStatusFailed || gotDemoState.Error != demoRenderRecoveryDisabledReason {
+		t.Fatalf("demo render after disabled recover = status %q error %q, want failed/%q", gotDemoState.Status, gotDemoState.Error, demoRenderRecoveryDisabledReason)
 	}
 
 	gotAcquiring, err := streamAfter.Get(ctx, acquiring.ID)

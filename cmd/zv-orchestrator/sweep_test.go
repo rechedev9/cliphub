@@ -281,7 +281,7 @@ func TestSweepInterruptedJobsAggregatesRecordFailures(t *testing.T) {
 	}
 }
 
-func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t *testing.T) {
+func TestSweepInterruptedDemoRenderStatesListsActiveStatesForRecovery(t *testing.T) {
 	for _, repoName := range []string{"memory", "sqlite"} {
 		t.Run(repoName, func(t *testing.T) {
 			var repo interruptSweeperRepo
@@ -301,20 +301,20 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 			loadout := loadouts[0]
 			createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 			cases := []struct {
-				parentStatus job.Status
-				stateStatus  string
-				wantFailed   bool
+				parentStatus    job.Status
+				stateStatus     string
+				wantRecoverable bool
 			}{
-				{parentStatus: job.StatusDone, stateStatus: renderplan.RenderVariantStatusQueued, wantFailed: true},
-				{parentStatus: job.StatusRecorded, stateStatus: renderplan.RenderVariantStatusRendering, wantFailed: true},
+				{parentStatus: job.StatusDone, stateStatus: renderplan.RenderVariantStatusQueued, wantRecoverable: true},
+				{parentStatus: job.StatusRecorded, stateStatus: renderplan.RenderVariantStatusRendering, wantRecoverable: true},
 				{parentStatus: job.StatusComposed, stateStatus: renderplan.RenderVariantStatusReady},
 				{parentStatus: job.StatusFailed, stateStatus: renderplan.RenderVariantStatusFailed},
 			}
 
 			type fixture struct {
-				key        string
-				before     renderplan.RenderVariantState
-				wantFailed bool
+				key             string
+				before          renderplan.RenderVariantState
+				wantRecoverable bool
 			}
 			fixtures := make([]fixture, 0, len(cases))
 			for i, tc := range cases {
@@ -337,27 +337,25 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 					t.Fatalf("RenderVariantStateKey: %v", err)
 				}
 				putSweepFixture(t, store, key, state)
-				fixtures = append(fixtures, fixture{key: key, before: state, wantFailed: tc.wantFailed})
+				fixtures = append(fixtures, fixture{key: key, before: state, wantRecoverable: tc.wantRecoverable})
 			}
 
 			swept, err := sweepInterruptedDemoRenderStates(context.Background(), repo, store, nil)
 			if err != nil {
 				t.Fatalf("sweepInterruptedDemoRenderStates: %v", err)
 			}
-			if got, want := swept, 2; got != want {
-				t.Fatalf("swept = %d, want %d", got, want)
+			if got, want := swept.Failed, 0; got != want {
+				t.Fatalf("failed = %d, want %d", got, want)
+			}
+			if got, want := len(swept.Recoverable), 2; got != want {
+				t.Fatalf("recoverable = %d, want %d", got, want)
 			}
 			for _, f := range fixtures {
 				var got renderplan.RenderVariantState
 				readSweepFixture(t, store, f.key, &got)
 				want := f.before
-				if f.wantFailed {
-					if !got.UpdatedAt.After(f.before.UpdatedAt) {
-						t.Errorf("UpdatedAt for %s = %s, want after %s", f.key, got.UpdatedAt, f.before.UpdatedAt)
-					}
-					want.Status = renderplan.RenderVariantStatusFailed
-					want.Error = interruptedDemoRenderReason
-					want.UpdatedAt = got.UpdatedAt
+				if f.wantRecoverable && got.Status != f.before.Status {
+					t.Errorf("active state %s was rewritten to %s, want left for recovery", f.key, got.Status)
 				}
 				if !reflect.DeepEqual(got, want) {
 					t.Errorf("state for %s = %+v, want %+v", f.key, got, want)
@@ -412,8 +410,11 @@ func TestSweepInterruptedDemoRenderStatesRepairsCorruptDocumentsAndContinues(t *
 			t.Errorf("error %q does not include %q", err, want)
 		}
 	}
-	if got, want := swept, 1; got != want {
-		t.Fatalf("swept = %d, want %d", got, want)
+	if got, want := swept.Failed, 1; got != want {
+		t.Fatalf("failed = %d, want %d", got, want)
+	}
+	if len(swept.Recoverable) != 0 {
+		t.Fatalf("recoverable = %d, want 0", len(swept.Recoverable))
 	}
 
 	var repaired renderplan.RenderVariantState

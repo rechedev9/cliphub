@@ -13,11 +13,14 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/anticheat"
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/jobprogress"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
+	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tacticalplan"
@@ -419,5 +422,159 @@ func TestGetStreamRenderOmitsAcquireProgress(t *testing.T) {
 	}
 	if got.Progress != nil {
 		t.Fatalf("acquire leftover leaked onto stream render: %+v", got.Progress)
+	}
+}
+
+func TestRecordedFullDemoRenderAttachesComposeAndRenderProgress(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		stage string
+	}{
+		{name: "render clips", stage: jobprogress.StageRender},
+		{name: "compose clips", stage: jobprogress.StageCompose},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store, err := storage.NewLocal(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := uuid.New()
+			repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+			loadout, err := renderplan.LoadoutForVariant(editor.PresetGameplayPOV60)
+			if err != nil {
+				t.Fatal(err)
+			}
+			started := time.Now().UTC().Add(-time.Minute)
+			state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+				JobID:   id,
+				Loadout: loadout,
+				Status:  renderplan.RenderVariantStatusRendering,
+				Now:     started,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			key, err := renderplan.RenderVariantStateKey(id, editor.PresetGameplayPOV60)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := json.Marshal(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Put(key, bytes.NewReader(body)); err != nil {
+				t.Fatal(err)
+			}
+			putProgressSnapshot(t, store, artifacts.ProgressKey(id), tc.stage, jobprogress.UnitClips, "clips", 3, 20)
+
+			h := NewHandlers(repo, store, &fakeQueue{})
+			jobProgress := getJobStatusProgress(t, repo, store, id)
+			if jobProgress == nil || jobProgress.Done != 3 || jobProgress.Total != 20 || jobProgress.Stage != tc.stage {
+				t.Fatalf("GET job status progress = %+v, want 3/20 %s", jobProgress, tc.stage)
+			}
+
+			rw := httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"/renders/"+editor.PresetGameplayPOV60, nil))
+			if rw.Code != http.StatusOK {
+				t.Fatalf("GET render status = %d: %s", rw.Code, rw.Body.String())
+			}
+			var got renderVariantResponse
+			if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Progress == nil || got.Progress.Done != 3 || got.Progress.Total != 20 || got.Progress.Stage != tc.stage {
+				t.Fatalf("GET render progress = %+v, want 3/20 %s", got.Progress, tc.stage)
+			}
+		})
+	}
+}
+
+func TestRecordedJobOmitsLeftoverRenderProgressWithoutInFlightVariant(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetGameplayPOV60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusReady,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := renderplan.RenderVariantStateKey(id, editor.PresetGameplayPOV60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	putProgressSnapshot(t, store, artifacts.ProgressKey(id), jobprogress.StageRender, jobprogress.UnitClips, "clips", 20, 20)
+
+	if got := getJobStatusProgress(t, repo, store, id); got != nil {
+		t.Fatalf("ready Full Demo leaked leftover render progress onto recorded job: %+v", got)
+	}
+}
+
+func TestRecordedInFlightRenderOmitsStaleSnapshotFromEarlierRun(t *testing.T) {
+	repo := newFakeRepo()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default()}
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetGameplayPOV60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   id,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusRendering,
+		Now:     time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := renderplan.RenderVariantStateKey(id, editor.PresetGameplayPOV60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	old, err := jobprogress.NewSnapshot(jobprogress.StageRender, jobprogress.UnitClips, "clips", 20, 20, time.Now().Add(-time.Hour).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := old.Encode(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.ProgressKey(id), bytes.NewReader(buf.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := getJobStatusProgress(t, repo, store, id); got != nil {
+		t.Fatalf("stale 100%% render snapshot leaked onto a restarted wait: %+v", got)
 	}
 }
