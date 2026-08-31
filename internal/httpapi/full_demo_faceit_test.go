@@ -1,8 +1,12 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +69,52 @@ func TestStoreFullDemoFaceitWritesFollowedSteamIDsOnly(t *testing.T) {
 	}
 	if en.Last20 != nil {
 		t.Fatalf("last-20 invented from follows: %+v", en.Last20)
+	}
+	if en.Ranking != nil {
+		t.Fatalf("ranking invented from follows: %+v", en.Ranking)
+	}
+}
+
+func TestStoreFullDemoFaceitLooksUpRosterViaDataAPI(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/players" && r.URL.Query().Get("game_player_id") == "76561198000000001":
+			_, _ = w.Write([]byte(`{"player_id":"player-1","nickname":"donk666","country":"ru","avatar":"https://assets.faceit-cdn.net/avatars/donk.png","steam_id_64":"76561198000000001","games":{"cs2":{"region":"EU","skill_level":10,"faceit_elo":4370}}}`))
+		case strings.HasPrefix(r.URL.Path, "/players/player-1/history"), strings.HasPrefix(r.URL.Path, "/players/player-1/games/cs2/stats"):
+			_, _ = w.Write([]byte(`{"items":[]}`))
+		case r.URL.Path == "/rankings/games/cs2/regions/EU/players/player-1":
+			_, _ = w.Write([]byte(`{"position":1}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := newFakeStorage()
+	id := uuid.New()
+	_ = store.Put(artifacts.RosterKey(id), bytes.NewReader([]byte(`{"players":[{"steamid64":"76561198000000001","name":"donk666","team":"CT"}]}`)))
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithFaceit(client, nil))
+	h.storeFullDemoFaceit(job.Job{ID: id})
+
+	rc, err := store.Open(artifacts.FullDemoFaceitKey(id))
+	if err != nil {
+		t.Fatalf("open enrichment: %v", err)
+	}
+	defer rc.Close()
+	var got map[string]demooverlay.Enrichment
+	if err := json.NewDecoder(rc).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	en := got["76561198000000001"]
+	if en.Nickname != "donk666" || en.ELO != 4370 || en.Ranking == nil || *en.Ranking != 1 {
+		t.Fatalf("enrichment = %+v", en)
+	}
+	if en.Last20 != nil {
+		t.Fatalf("empty match history invented last-20: %+v", en.Last20)
 	}
 }
 

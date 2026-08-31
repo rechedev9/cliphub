@@ -390,10 +390,39 @@ func TestBuildCompilationFFmpegCommandMixesVoiceTracks(t *testing.T) {
 		},
 	}
 	command := strings.Join(BuildCompilationFFmpegCommand("ffmpeg", short), " ")
-	for _, want := range []string{"-i a.ogg", "-i b.ogg", "atrim=start=12.000000:end=20.000000", "volume=0.85", "amix=inputs=2:duration=first", "[pav0]"} {
+	for _, want := range []string{"-i a.ogg", "-i b.ogg", "atrim=start=12.000000:end=14.000000", "volume=0.85", "amix=inputs=2:duration=first", "[pav0]"} {
 		if !strings.Contains(command, want) {
 			t.Fatalf("command = %q, missing %q", command, want)
 		}
+	}
+}
+
+func TestPartSyncDurationAndVoiceWindow(t *testing.T) {
+	part := ShortPart{TickStart: 640, TickEnd: 1280, CaptureTickStart: 768, CaptureTickEnd: 1280}
+	tests := []struct {
+		name     string
+		video    float64
+		wantSync float64
+		wantEnd  float64
+	}{
+		{name: "video shorter than ticks", video: 2, wantSync: 2, wantEnd: 14},
+		{name: "video longer than ticks", video: 10, wantSync: 8, wantEnd: 20},
+		{name: "equal lengths", video: 8, wantSync: 8, wantEnd: 20},
+		{name: "no video duration", video: 0, wantSync: 8, wantEnd: 20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := part
+			p.DurationSeconds = tt.video
+			got := partSyncDuration(p, 64)
+			if got != tt.wantSync {
+				t.Fatalf("partSyncDuration = %v, want %v", got, tt.wantSync)
+			}
+			start, end := voiceMixWindow(p, 64, got)
+			if start != 12 || end != tt.wantEnd {
+				t.Fatalf("voiceMixWindow = %.6f-%.6f, want 12-%.6f", start, end, tt.wantEnd)
+			}
+		})
 	}
 }
 

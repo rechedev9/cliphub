@@ -109,6 +109,8 @@ type PlayerCard struct {
 	HasRating  bool    `json:"has_rating,omitempty"`
 	ELO        *int    `json:"elo,omitempty"`
 	SkillLevel *int    `json:"skill_level,omitempty"`
+	Ranking    *int    `json:"ranking,omitempty"`
+	Avatar     string  `json:"avatar,omitempty"`
 	Last20     *Last20 `json:"last20,omitempty"`
 }
 
@@ -162,6 +164,8 @@ type Enrichment struct {
 	Country    string
 	ELO        int
 	SkillLevel int
+	Ranking    *int
+	Avatar     string
 	Last20     *Last20
 }
 

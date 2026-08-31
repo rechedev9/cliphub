@@ -1,6 +1,8 @@
 package demooverlay
 
 import (
+	"bytes"
+	"image/png"
 	"strings"
 	"testing"
 
@@ -12,11 +14,11 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	if l.Width != 1920 || l.Height != 1080 {
 		t.Fatalf("frame = %dx%d", l.Width, l.Height)
 	}
-	if l.Intro.LeftPanelX != 24 || l.Intro.RightPanelX != 1376 {
+	if l.Intro.LeftPanelX != 42 || l.Intro.RightPanelX != 1308 {
 		t.Fatalf("panels x = %d / %d", l.Intro.LeftPanelX, l.Intro.RightPanelX)
 	}
-	if l.Intro.CenterGap != 832 {
-		t.Fatalf("center gap = %d, want 832 so radar/score/health stay visible", l.Intro.CenterGap)
+	if l.Intro.CenterGap != 703 {
+		t.Fatalf("center gap = %d, want 703 so radar/score/health stay visible", l.Intro.CenterGap)
 	}
 	if !l.NativeHUDVisible() {
 		t.Fatal("native HUD channel closed")
@@ -89,7 +91,7 @@ func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 			t.Fatalf("demo-only intro invented %q:\n%s", banned, got)
 		}
 	}
-	if !strings.Contains(got, "donk666") || !strings.Contains(got, "K/D/A 2/1/0") {
+	if !strings.Contains(got, "donk666") || !strings.Contains(got, "2/1/0") || !strings.Contains(got, "K/D/A") {
 		t.Fatalf("demo-only intro missing demo facts:\n%s", got)
 	}
 
@@ -101,12 +103,58 @@ func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 		},
 	}, map[string]Enrichment{"1": {ELO: elo, SkillLevel: 10}})
 	got = introFilter(enriched, "/fonts/Montserrat-ExtraBold.ttf")
-	if !strings.Contains(got, "ELO 4370") || !strings.Contains(got, "LVL 10") {
+	if !strings.Contains(got, "4370") || !strings.Contains(got, "10") {
 		t.Fatalf("enriched intro missing FACEIT facts:\n%s", got)
 	}
 }
 
-func TestOutroFilterIsFullFrameAndUsesDemoScoreline(t *testing.T) {
+func TestStatColumnOffsetsGiveKDAMoreWidthThanKD(t *testing.T) {
+	offsets := statColumnOffsets(400, 8)
+	if len(offsets) != 8 {
+		t.Fatalf("len = %d", len(offsets))
+	}
+	kdaW := offsets[5] - offsets[4]
+	kdW := offsets[6] - offsets[5]
+	if kdaW <= kdW {
+		t.Fatalf("K/D/A width %d <= K/D width %d (offsets=%v)", kdaW, kdW, offsets)
+	}
+	for i := 1; i < len(offsets); i++ {
+		if offsets[i] <= offsets[i-1] {
+			t.Fatalf("column %d did not advance: %v", i, offsets)
+		}
+	}
+}
+
+func TestIntroChromeKeepsTransparentHUDChannel(t *testing.T) {
+	img, err := png.Decode(bytes.NewReader(introChromePNG))
+	if err != nil {
+		t.Fatalf("decode intro chrome: %v", err)
+	}
+	if img.Bounds().Dx() != FrameWidth || img.Bounds().Dy() != FrameHeight {
+		t.Fatalf("intro chrome = %dx%d", img.Bounds().Dx(), img.Bounds().Dy())
+	}
+	_, _, _, a := img.At(960, 540).RGBA()
+	if a != 0 {
+		t.Fatalf("intro chrome center alpha = %d, want 0 so native HUD stays visible", a)
+	}
+	_, _, _, panelA := img.At(200, 200).RGBA()
+	if panelA == 0 {
+		t.Fatal("intro chrome left panel is transparent")
+	}
+	l := DefaultLayout()
+	if !l.NativeHUDVisible() {
+		t.Fatal("native HUD channel closed")
+	}
+}
+
+func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
+	img, err := png.Decode(bytes.NewReader(outroChromePNG))
+	if err != nil {
+		t.Fatalf("decode outro chrome: %v", err)
+	}
+	if img.Bounds().Dx() != FrameWidth || img.Bounds().Dy() != FrameHeight {
+		t.Fatalf("outro chrome = %dx%d", img.Bounds().Dx(), img.Bounds().Dy())
+	}
 	doc := Build(Roster{
 		TargetSteamID64: "1",
 		ScoreCT:         13,
@@ -117,9 +165,6 @@ func TestOutroFilterIsFullFrameAndUsesDemoScoreline(t *testing.T) {
 		},
 	}, nil)
 	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
-	if !strings.Contains(got, "drawbox=x=0:y=0:w=1920:h=1080") {
-		t.Fatalf("outro is not full-frame:\n%s", got)
-	}
 	if !strings.Contains(got, "13") || !strings.Contains(got, "8") {
 		t.Fatalf("outro missing scoreline:\n%s", got)
 	}

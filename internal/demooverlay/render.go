@@ -2,12 +2,15 @@ package demooverlay
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 )
+
+const mutedColor = "0xA1A1AA"
 
 // OverlayWindows returns the compiled-timeline windows for intro and outro
 // image overlays. Intro starts ~4s after the fade-from-black and ends
@@ -43,31 +46,112 @@ func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath 
 	if strings.TrimSpace(fontPath) == "" {
 		return fmt.Errorf("render full-demo overlay: font path is required")
 	}
-	if err := renderStill(ffmpegPath, introPath, introFilter(doc, fontPath)); err != nil {
+	if err := renderStill(ffmpegPath, introPath, introGraph(doc, fontPath), introChromePNG, introAvatarSlots(doc)); err != nil {
 		return fmt.Errorf("render intro overlay: %w", err)
 	}
-	if err := renderStill(ffmpegPath, outroPath, outroFilter(doc, fontPath)); err != nil {
+	if err := renderStill(ffmpegPath, outroPath, outroFilter(doc, fontPath), outroChromePNG, nil); err != nil {
 		return fmt.Errorf("render outro overlay: %w", err)
 	}
 	return nil
 }
 
-func renderStill(ffmpegPath, outPath, vf string) error {
+type avatarSlot struct {
+	Path string
+	X, Y int
+	Size int
+}
+
+func introAvatarSlots(doc Document) []avatarSlot {
+	l := DefaultLayout()
+	var slots []avatarSlot
+	add := func(cards []PlayerCard, x, y int) {
+		if len(cards) > l.Intro.MaxPlayers {
+			cards = cards[:l.Intro.MaxPlayers]
+		}
+		for i, card := range cards {
+			if strings.TrimSpace(card.Avatar) == "" {
+				continue
+			}
+			if _, err := os.Stat(card.Avatar); err != nil {
+				continue
+			}
+			slots = append(slots, avatarSlot{
+				Path: card.Avatar,
+				X:    x + 12,
+				Y:    y + l.Intro.HeaderH + i*l.Intro.RowHeight + 18,
+				Size: l.Intro.AvatarSize,
+			})
+		}
+	}
+	add(doc.Intro.Left, l.Intro.LeftPanelX, l.Intro.PanelTop)
+	add(doc.Intro.Right, l.Intro.RightPanelX, l.Intro.PanelTop)
+	return slots
+}
+
+func introGraph(doc Document, fontPath string) string {
+	text := introFilter(doc, fontPath)
+	return text
+}
+
+func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatarSlot) error {
 	if strings.TrimSpace(outPath) == "" {
 		return fmt.Errorf("output path is required")
 	}
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o750); err != nil {
 		return fmt.Errorf("create output directory: %w", err)
 	}
+	chromeFile, err := os.CreateTemp("", "cliphub-chrome-*.png")
+	if err != nil {
+		return fmt.Errorf("create overlay chrome: %w", err)
+	}
+	chromePath := chromeFile.Name()
+	_ = chromeFile.Close()
+	defer func() { _ = os.Remove(chromePath) }()
+	if err := writeChrome(chromePath, chrome); err != nil {
+		return err
+	}
+	script, err := os.CreateTemp("", "cliphub-overlay-*.fffilter")
+	if err != nil {
+		return fmt.Errorf("create overlay filter script: %w", err)
+	}
+	scriptPath := script.Name()
+	defer func() { _ = os.Remove(scriptPath) }()
+	graph := vf
+	args := []string{"-y", "-hide_banner", "-loglevel", "error", "-i", chromePath}
+	if len(avatars) > 0 {
+		var clauses []string
+		current := "[0:v]"
+		for i, slot := range avatars {
+			args = append(args, "-i", slot.Path)
+			scaled := fmt.Sprintf("a%d", i)
+			clauses = append(clauses, fmt.Sprintf(
+				"[%d:v]scale=%d:%d:flags=lanczos,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-W/2,Y-H/2),min(W,H)/2),255,0)'[%s]",
+				i+1, slot.Size, slot.Size, scaled,
+			))
+			next := fmt.Sprintf("s%d", i)
+			clauses = append(clauses, fmt.Sprintf("%s[%s]overlay=%d:%d:format=auto[%s]", current, scaled, slot.X, slot.Y, next))
+			current = "[" + next + "]"
+		}
+		if vf != "" && vf != "null" {
+			graph = strings.Join(clauses, ";") + ";" + current + vf
+		} else {
+			graph = strings.Join(clauses, ";")
+		}
+	}
+	if _, err := script.WriteString(graph); err != nil {
+		_ = script.Close()
+		return fmt.Errorf("write overlay filter script: %w", err)
+	}
+	if err := script.Close(); err != nil {
+		return fmt.Errorf("close overlay filter script: %w", err)
+	}
+	scriptFlag := "-filter_script:v"
+	if len(avatars) > 0 {
+		scriptFlag = "-filter_complex_script"
+	}
+	args = append(args, scriptFlag, scriptPath, "-frames:v", "1", "-pix_fmt", "rgba", outPath)
 	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config.
-	cmd := exec.Command(ffmpegPath, //nolint:gosec
-		"-y", "-hide_banner", "-loglevel", "error",
-		"-f", "lavfi",
-		"-i", fmt.Sprintf("color=c=black@0.0:s=%dx%d:d=1,format=rgba", FrameWidth, FrameHeight),
-		"-vf", vf,
-		"-frames:v", "1",
-		outPath,
-	)
+	cmd := exec.Command(ffmpegPath, args...) //nolint:gosec
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
@@ -78,12 +162,11 @@ func renderStill(ffmpegPath, outPath, vf string) error {
 func introFilter(doc Document, fontPath string) string {
 	l := DefaultLayout()
 	var parts []string
-	parts = append(parts,
-		drawbox(l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro.PanelWidth, l.Intro.PanelHeight, "black@0.72"),
-		drawbox(l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro.PanelWidth, l.Intro.PanelHeight, "black@0.72"),
-	)
 	parts = append(parts, introColumn(doc.Intro.Left, doc.Intro.Columns, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
 	parts = append(parts, introColumn(doc.Intro.Right, doc.Intro.Columns, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
+	if len(parts) == 0 {
+		return "null"
+	}
 	return strings.Join(parts, ",")
 }
 
@@ -93,85 +176,206 @@ func introColumn(cards []PlayerCard, columns []string, x, y int, layout IntroLay
 	}
 	var parts []string
 	for i, card := range cards {
-		rowY := y + 12 + i*layout.RowHeight
-		parts = appendFilter(parts, drawtext(fontPath, card.Name, x+16, rowY, 28, "white"))
-		lineY := rowY + 36
-		for _, col := range columns {
-			text := introCell(card, col)
-			if text == "" || col == ColName {
-				continue
-			}
-			parts = appendFilter(parts, drawtext(fontPath, text, x+16, lineY, 18, "white"))
-			lineY += 22
+		cy := y + layout.HeaderH + i*layout.RowHeight
+		nx := x + layout.CardInset
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, nx, cy+10, layout.NameSize, "white"))
+		if card.Country != "" {
+			parts = appendFilter(parts, drawtext(fontPath, strings.ToUpper(card.Country), nx, cy+10+layout.NameSize+4, layout.LabelSize, mutedColor))
 		}
+		if card.ELO != nil {
+			eloX := x + layout.PanelWidth - 150
+			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, cy+18, 20, "white"))
+		}
+		badge := ""
+		badgeFill := skillFill(10)
+		if card.Ranking != nil {
+			badge = "#" + strconv.Itoa(*card.Ranking)
+			badgeFill = "0xEB1923@0.95"
+		} else if card.SkillLevel != nil {
+			badge = strconv.Itoa(*card.SkillLevel)
+			badgeFill = skillFill(*card.SkillLevel)
+		}
+		if badge != "" {
+			bx := x + layout.PanelWidth - layout.BadgeSize - 18
+			by := cy + 16
+			parts = append(parts, drawbox(bx, by, layout.BadgeSize, layout.BadgeSize, badgeFill))
+			parts = appendFilter(parts, drawtext(fontPath, badge, bx+2, by+6, 12, "white"))
+		}
+		statsY := cy + 100
+		if card.Last20 != nil && card.Last20.Matches != nil {
+			n := *card.Last20.Matches
+			caption := "Last 20 matches"
+			if n >= 30 {
+				caption = "Last 30 matches"
+			} else if n > 0 {
+				caption = fmt.Sprintf("Last %d matches", n)
+			}
+			parts = appendFilter(parts, drawtext(fontPath, caption, nx, statsY-14, 9, mutedColor))
+		}
+		parts = append(parts, introStatGrid(card, columns, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout)...)
 	}
 	return parts
 }
 
-func introCell(card PlayerCard, col string) string {
-	switch col {
-	case ColCountry:
-		return strings.ToUpper(card.Country)
-	case ColELO:
-		return formatOptInt("ELO", card.ELO)
-	case ColLevel:
-		return formatOptInt("LVL", card.SkillLevel)
-	case ColMatches:
-		if card.Last20 != nil {
-			return formatOptInt("Matches", card.Last20.Matches)
+type overlayStat struct {
+	label string
+	value string
+}
+
+func introStatGrid(card PlayerCard, columns []string, x, y, width int, fontPath string, layout IntroLayout) []string {
+	stats := introStats(card, columns)
+	if len(stats) == 0 {
+		return nil
+	}
+	offsets := statColumnOffsets(width, len(stats))
+	var parts []string
+	for i, stat := range stats {
+		if i >= len(offsets) {
+			break
 		}
-	case ColWinPct:
-		if card.Last20 != nil {
-			return formatOptPct("Win%", card.Last20.WinPct)
-		}
-	case ColRating:
-		if card.Last20 != nil {
-			return formatOptFloat("Rating", card.Last20.Rating)
-		}
-	case ColSwing:
-		if card.Last20 != nil {
-			return formatOptSignedPct("Swing", card.Last20.Swing)
-		}
-	case ColKDA:
-		if card.Last20 != nil && (card.Last20.Kills != nil || card.Last20.Deaths != nil) {
-			return fmt.Sprintf("K/D/A %s/%s/%s", optInt(card.Last20.Kills), optInt(card.Last20.Deaths), optInt(card.Last20.Assists))
-		}
-		return fmt.Sprintf("K/D/A %d/%d/%d", card.Kills, card.Deaths, card.Assists)
-	case ColKD:
-		if card.Last20 != nil {
-			return formatOptFloat("K/D", card.Last20.KD)
-		}
-	case ColKR:
-		if card.Last20 != nil {
-			return formatOptFloat("K/R", card.Last20.KR)
-		}
-	case ColADR:
-		if card.Last20 != nil {
-			return formatOptFloat("ADR", card.Last20.ADR)
+		sx := x + offsets[i]
+		sy := y
+		parts = appendFilter(parts, drawtext(fontPath, stat.value, sx, sy, layout.StatSize, "white"))
+		parts = appendFilter(parts, drawtext(fontPath, stat.label, sx, sy+layout.StatSize+2, layout.LabelSize, mutedColor))
+	}
+	return parts
+}
+
+// introStatWeights stretch K/D/A so "18/14/4" does not collide with K/D.
+var introStatWeights = []float64{1.2, 0.9, 0.95, 1.15, 1.75, 0.9, 0.85, 1.0}
+
+func statColumnOffsets(width, n int) []int {
+	if n <= 0 || width <= 0 {
+		return nil
+	}
+	if n > len(introStatWeights) {
+		n = len(introStatWeights)
+	}
+	sum := 0.0
+	for i := 0; i < n; i++ {
+		sum += introStatWeights[i]
+	}
+	out := make([]int, n)
+	cursor := 0.0
+	for i := 0; i < n; i++ {
+		out[i] = int(cursor)
+		cursor += float64(width) * introStatWeights[i] / sum
+	}
+	return out
+}
+
+func introStats(card PlayerCard, columns []string) []overlayStat {
+	if card.Last20 == nil {
+		return []overlayStat{{label: "K/D/A", value: overlayKDA(card)}}
+	}
+	kd := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.KD }))
+	kr := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.KR }))
+	adr := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.ADR }))
+	if adr == "" && card.HasADR {
+		adr = fmt.Sprintf("%.1f", card.ADR)
+	}
+	matches := ""
+	if v := last20Int(card, func(l Last20) *int { return l.Matches }); v != nil {
+		matches = formatThousands(*v)
+	}
+	return []overlayStat{
+		{label: "Matches", value: matches},
+		{label: "Wins", value: formatOptPct("", last20Float(card, func(l Last20) *float64 { return l.WinPct }))},
+		{label: "Rating", value: formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.Rating }))},
+		{label: "Swing", value: formatOptSignedPct("", last20Float(card, func(l Last20) *float64 { return l.Swing }))},
+		{label: "K/D/A", value: overlayKDA(card)},
+		{label: "K/D", value: kd},
+		{label: "K/R", value: kr},
+		{label: "ADR", value: adr},
+	}
+}
+
+func overlayKDA(card PlayerCard) string {
+	if card.Last20 != nil && card.Last20.Matches != nil && *card.Last20.Matches > 0 {
+		n := float64(*card.Last20.Matches)
+		if card.Last20.Kills != nil && card.Last20.Deaths != nil && card.Last20.Assists != nil {
+			return fmt.Sprintf("%d/%d/%d",
+				int(math.Round(float64(*card.Last20.Kills)/n)),
+				int(math.Round(float64(*card.Last20.Deaths)/n)),
+				int(math.Round(float64(*card.Last20.Assists)/n)),
+			)
 		}
 	}
-	return ""
+	return fmt.Sprintf("%d/%d/%d", card.Kills, card.Deaths, card.Assists)
+}
+
+func overlayDecimal(v float64, prec int) string {
+	return strings.Replace(strconv.FormatFloat(v, 'f', prec, 64), ".", ",", 1)
+}
+
+func formatThousands(n int) string {
+	sign := ""
+	if n < 0 {
+		sign = "-"
+		n = -n
+	}
+	s := strconv.Itoa(n)
+	var parts []string
+	for len(s) > 3 {
+		parts = append([]string{s[len(s)-3:]}, parts...)
+		s = s[:len(s)-3]
+	}
+	parts = append([]string{s}, parts...)
+	return sign + strings.Join(parts, ".")
+}
+
+func last20Int(card PlayerCard, fn func(Last20) *int) *int {
+	if card.Last20 == nil {
+		return nil
+	}
+	return fn(*card.Last20)
+}
+
+func last20Float(card PlayerCard, fn func(Last20) *float64) *float64 {
+	if card.Last20 == nil {
+		return nil
+	}
+	return fn(*card.Last20)
 }
 
 func outroFilter(doc Document, fontPath string) string {
 	l := DefaultLayout()
-	parts := []string{drawbox(0, 0, FrameWidth, FrameHeight, "black@0.92")}
-	y := l.Outro.Margin
-	for _, team := range doc.Outro.Teams {
-		header := fmt.Sprintf("%s  %d", team.Name, team.Score)
-		if team.AverageELO != nil {
-			header += fmt.Sprintf("  %d ELO", *team.AverageELO)
+	teams := doc.Outro.Teams
+	headerY := 155
+	row0 := 220
+	var parts []string
+	if len(teams) == 2 {
+		parts = append(parts, outroTeam(teams[0], doc.Outro.Columns, l.Outro.Margin, headerY, row0, l.Outro, fontPath)...)
+		parts = append(parts, outroTeam(teams[1], doc.Outro.Columns, l.Outro.Margin+l.Outro.ColGap, headerY, row0, l.Outro, fontPath)...)
+		if len(parts) == 0 {
+			return "null"
 		}
-		parts = appendFilter(parts, drawtext(fontPath, header, l.Outro.Margin, y, 36, "white"))
-		y += l.Outro.HeaderH
-		for _, card := range team.Players {
-			line := outroLine(card, doc.Outro.Columns)
-			parts = appendFilter(parts, drawtext(fontPath, line, l.Outro.Margin+16, y, 22, "white"))
-			y += l.Outro.RowHeight
-		}
-		y += 16
+		return strings.Join(parts, ",")
+	}
+	y := headerY
+	for _, team := range teams {
+		parts = append(parts, outroTeam(team, doc.Outro.Columns, l.Outro.Margin, y, y+l.Outro.HeaderH, l.Outro, fontPath)...)
+		y += l.Outro.HeaderH + len(team.Players)*l.Outro.RowHeight + 16
+	}
+	if len(parts) == 0 {
+		return "null"
 	}
 	return strings.Join(parts, ",")
+}
+
+func outroTeam(team TeamBoard, columns []string, x, headerY, rowY int, layout OutroLayout, fontPath string) []string {
+	header := fmt.Sprintf("%s  %d", team.Name, team.Score)
+	if team.AverageELO != nil {
+		header += fmt.Sprintf("  %d ELO", *team.AverageELO)
+	}
+	parts := []string{drawtext(fontPath, header, x, headerY, 28, "white")}
+	for _, card := range team.Players {
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, rowY+8, 22, "white"))
+		line := outroLine(card, columns)
+		parts = appendFilter(parts, drawtext(fontPath, line, x, rowY+40, 16, mutedColor))
+		rowY += layout.RowHeight
+	}
+	return parts
 }
 
 func outroLine(card PlayerCard, columns []string) string {
@@ -179,10 +383,10 @@ func outroLine(card PlayerCard, columns []string) string {
 	for _, col := range columns {
 		switch col {
 		case ColName:
-			parts = append(parts, card.Name)
+			// Name is drawn on its own line.
 		case ColELO:
 			if card.ELO != nil {
-				parts = append(parts, strconv.Itoa(*card.ELO))
+				parts = append(parts, strconv.Itoa(*card.ELO)+" ELO")
 			}
 		case ColLevel:
 			if card.SkillLevel != nil {
@@ -221,7 +425,26 @@ func outroLine(card PlayerCard, columns []string) string {
 	return strings.Join(parts, "   ")
 }
 
+func skillFill(level int) string {
+	switch {
+	case level >= 10:
+		return "0xEB1923@0.95"
+	case level >= 8:
+		return "0xF59E0B@0.95"
+	case level >= 4:
+		return "0x7C3AED@0.95"
+	default:
+		return "0x22C55E@0.95"
+	}
+}
+
 func drawbox(x, y, w, h int, color string) string {
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
 	return fmt.Sprintf("drawbox=x=%d:y=%d:w=%d:h=%d:color=%s:t=fill", x, y, w, h, color)
 }
 
@@ -230,7 +453,7 @@ func drawtext(fontPath, text string, x, y, size int, color string) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"drawtext=fontfile='%s':text='%s':fontsize=%d:fontcolor=%s:x=%d:y=%d",
+		"drawtext=fontfile='%s':text='%s':fontsize=%d:fontcolor=%s:x=%d:y=%d:expansion=none:borderw=1:bordercolor=black@0.55",
 		ffmpegFilterPath(fontPath),
 		ffmpegDrawtextText(text),
 		size,
@@ -261,12 +484,18 @@ func formatOptFloat(label string, v *float64) string {
 	if v == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s %.2f", label, *v)
+	if label == "" {
+		return overlayDecimal(*v, 2)
+	}
+	return fmt.Sprintf("%s %s", label, overlayDecimal(*v, 2))
 }
 
 func formatOptPct(label string, v *float64) string {
 	if v == nil {
 		return ""
+	}
+	if label == "" {
+		return fmt.Sprintf("%.0f%%", *v)
 	}
 	return fmt.Sprintf("%s %.0f%%", label, *v)
 }
@@ -280,16 +509,9 @@ func formatOptSignedPct(label string, v *float64) string {
 		sign = ""
 	}
 	if label == "" {
-		return fmt.Sprintf("%s%.2f%%", sign, *v)
+		return sign + overlayDecimal(*v, 2) + "%"
 	}
-	return fmt.Sprintf("%s %s%.2f%%", label, sign, *v)
-}
-
-func optInt(v *int) string {
-	if v == nil {
-		return "0"
-	}
-	return strconv.Itoa(*v)
+	return fmt.Sprintf("%s %s%s%%", label, sign, overlayDecimal(*v, 2))
 }
 
 func ffmpegFilterPath(path string) string {

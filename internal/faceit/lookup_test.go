@@ -212,8 +212,8 @@ func TestRecentMatchesClampsLimitAndRejectsInvalidID(t *testing.T) {
 			}
 			switch test.limit {
 			case 99:
-				if seenLimit != "20" {
-					t.Fatalf("limit = %q, want 20", seenLimit)
+				if seenLimit != "30" {
+					t.Fatalf("limit = %q, want 30", seenLimit)
 				}
 			case 0:
 				if seenLimit != "10" {
@@ -270,7 +270,8 @@ func TestClampRecentMatchLimit(t *testing.T) {
 		{in: -3, want: 10},
 		{in: 5, want: 5},
 		{in: 20, want: 20},
-		{in: 21, want: 20},
+		{in: 30, want: 30},
+		{in: 31, want: 30},
 	}
 	for _, test := range tests {
 		if got := clampRecentMatchLimit(test.in); got != test.want {
@@ -323,6 +324,29 @@ func TestRecentMatchesDerivesResultWithoutStats(t *testing.T) {
 	}
 	if len(matches) != 1 || matches[0].Stats == nil || matches[0].Stats.Result != "win" {
 		t.Fatalf("matches = %#v", matches)
+	}
+}
+
+func TestRankingPositionReadsPlayerSlot(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rankings/games/cs2/regions/EU/players/player-1" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"position":31,"items":[{"position":31}]}`))
+	}))
+	defer server.Close()
+	client, err := New(Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := client.RankingPosition(context.Background(), "EU", "player-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 31 {
+		t.Fatalf("ranking = %d, want 31", got)
 	}
 }
 

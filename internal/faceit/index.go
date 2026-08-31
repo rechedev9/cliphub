@@ -251,6 +251,45 @@ func (c *Client) LookupBySteamID(ctx context.Context, steamID64 string) (Player,
 	return player, nil
 }
 
+func (c *Client) RankingPosition(ctx context.Context, region, playerID string) (int, error) {
+	if c == nil || c.apiKey == "" {
+		return 0, ErrNotConfigured
+	}
+	if !ValidPlayerID(playerID) {
+		return 0, fmt.Errorf("FACEIT player id is invalid")
+	}
+	region = strings.TrimSpace(region)
+	if region == "" {
+		region = "EU"
+	}
+	if !validIdentifier(region) {
+		return 0, fmt.Errorf("FACEIT region is invalid")
+	}
+	var raw rankingResponse
+	endpoint := "/rankings/games/cs2/regions/" + url.PathEscape(region) + "/players/" + url.PathEscape(playerID)
+	if err := c.getJSON(ctx, endpoint, nil, &raw); err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("look up FACEIT ranking: %w", err)
+	}
+	if raw.Position > 0 {
+		return raw.Position, nil
+	}
+	if len(raw.Items) > 0 && raw.Items[0].Position > 0 {
+		return raw.Items[0].Position, nil
+	}
+	return 0, nil
+}
+
+type rankingResponse struct {
+	Position int `json:"position"`
+	Items    []struct {
+		Position int `json:"position"`
+	} `json:"items"`
+}
+
 func (c *Client) LookupPlayer(ctx context.Context, profile string) (Player, error) {
 	if c == nil || c.apiKey == "" {
 		return Player{}, ErrNotConfigured
@@ -279,7 +318,7 @@ func (c *Client) LookupPlayer(ctx context.Context, profile string) (Player, erro
 
 const (
 	defaultRecentMatchLimit = 10
-	maxRecentMatchLimit     = 20
+	maxRecentMatchLimit     = 30
 )
 
 func clampRecentMatchLimit(limit int) int {

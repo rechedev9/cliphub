@@ -297,8 +297,15 @@ func CompilationFilter(short ShortEdit) string {
 	concatCount := 0
 	fps := outputFPS(short)
 	cursorFrame := 0
+	mixVoice := len(short.VoiceTracks) > 0 && short.VoiceTickrate > 0
 	for i, part := range short.Parts {
-		partFrames := max(1, int(math.Round(part.DurationSeconds*float64(fps))))
+		mediaSeconds := part.DurationSeconds
+		if mixVoice {
+			if sync := partSyncDuration(part, short.VoiceTickrate); sync > 0 {
+				mediaSeconds = sync
+			}
+		}
+		partFrames := max(1, int(math.Round(mediaSeconds*float64(fps))))
 		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))
 		partStartFrame := cursorFrame + gapFrames
 		if part.TimelineStartSeconds > 0 {
@@ -329,7 +336,7 @@ func CompilationFilter(short ShortEdit) string {
 			fmt.Sprintf("[%d:v]%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, VideoFilter(partShort), partFrames, videoLabel),
 			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, partDuration, audioLabel),
 		)
-		if voice := voiceMixFilter(short, i, part, audioLabel); voice != "" {
+		if voice := voiceMixFilter(short, i, part, audioLabel, partDuration); voice != "" {
 			clauses = append(clauses, voice)
 			audioLabel = fmt.Sprintf("pav%d", i)
 		}
@@ -586,20 +593,53 @@ func voiceInputStart(short ShortEdit) int {
 	return n
 }
 
-func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel string) string {
-	startTick, endTick := part.TickStart, part.TickEnd
+func captureTicks(part ShortPart) (start, end int) {
+	start, end = part.TickStart, part.TickEnd
 	if part.CaptureTickStart > 0 {
-		startTick = part.CaptureTickStart
+		start = part.CaptureTickStart
 	}
 	if part.CaptureTickEnd > 0 {
-		endTick = part.CaptureTickEnd
+		end = part.CaptureTickEnd
 	}
-	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || endTick <= startTick {
-		return ""
+	return start, end
+}
+
+func partSyncDuration(part ShortPart, tickrate int) float64 {
+	videoDur := part.DurationSeconds
+	start, end := captureTicks(part)
+	if tickrate <= 0 || end <= start {
+		return videoDur
 	}
-	start := float64(startTick) / float64(short.VoiceTickrate)
-	end := float64(endTick) / float64(short.VoiceTickrate)
+	tickDur := float64(end-start) / float64(tickrate)
+	if videoDur <= 0 {
+		return tickDur
+	}
+	if videoDur < tickDur {
+		return videoDur
+	}
+	return tickDur
+}
+
+func voiceMixWindow(part ShortPart, tickrate int, partDuration float64) (start, end float64) {
+	if tickrate <= 0 {
+		return 0, 0
+	}
+	startTick, endTick := captureTicks(part)
+	start = float64(startTick) / float64(tickrate)
+	if partDuration > 0 {
+		end = start + partDuration
+	} else {
+		end = float64(endTick) / float64(tickrate)
+	}
 	if end <= start {
+		return 0, 0
+	}
+	return start, end
+}
+
+func voiceMixFilter(short ShortEdit, partIdx int, part ShortPart, gameLabel string, partDuration float64) string {
+	start, end := voiceMixWindow(part, short.VoiceTickrate, partDuration)
+	if len(short.VoiceTracks) == 0 || short.VoiceTickrate <= 0 || end <= start {
 		return ""
 	}
 	base := voiceInputStart(short)

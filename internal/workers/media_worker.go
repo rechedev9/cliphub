@@ -27,6 +27,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/composition"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
@@ -2938,11 +2939,44 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		return "", fmt.Errorf("open full-demo FACEIT enrichment: %w", ferr)
 	}
 	doc := demooverlay.Build(demooverlay.FromRosterScan(roster, target), faceit)
+	materializeOverlayAvatars(&doc, workDir)
 	path := filepath.Join(workDir, "full-demo-overlay.json")
 	if err := demooverlay.Write(path, doc); err != nil {
 		return "", err
 	}
 	return path, nil
+}
+
+func materializeOverlayAvatars(doc *demooverlay.Document, workDir string) {
+	if doc == nil {
+		return
+	}
+	dir := filepath.Join(workDir, "overlay-avatars")
+	apply := func(cards []demooverlay.PlayerCard) {
+		for i := range cards {
+			url := cards[i].Avatar
+			if url == "" || !strings.HasPrefix(url, "https://") {
+				continue
+			}
+			body, err := faceit.FetchAvatar(context.Background(), nil, url)
+			if err != nil || len(body) == 0 {
+				cards[i].Avatar = ""
+				continue
+			}
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				cards[i].Avatar = ""
+				continue
+			}
+			path := filepath.Join(dir, cards[i].SteamID64+".img")
+			if err := os.WriteFile(path, body, 0o600); err != nil {
+				cards[i].Avatar = ""
+				continue
+			}
+			cards[i].Avatar = path
+		}
+	}
+	apply(doc.Intro.Left)
+	apply(doc.Intro.Right)
 }
 
 // compileSegmentsArgs returns the zv-editor flags that compile a render's
