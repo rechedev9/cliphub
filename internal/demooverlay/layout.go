@@ -21,6 +21,8 @@ type IntroLayout struct {
 	HeaderH     int
 	CardInset   int
 	AvatarSize  int
+	AvatarXOff  int
+	AvatarYOff  int
 	NameSize    int
 	StatSize    int
 	LabelSize   int
@@ -33,6 +35,10 @@ type OutroLayout struct {
 	RowHeight int
 	FullFrame bool
 	ColGap    int
+	NameWidth int
+	StatWidth int
+	HeaderY   int
+	Row0      int
 }
 
 func DefaultLayout() Layout {
@@ -53,15 +59,17 @@ func DefaultLayout() Layout {
 			LeftPanelX:  inset,
 			RightPanelX: rightX,
 			CenterGap:   rightX - inset - panelW,
-			RowHeight:   204,
+			RowHeight:   196,
 			MaxPlayers:  5,
-			HeaderH:     0,
-			CardInset:   100,
-			AvatarSize:  72,
-			NameSize:    22,
-			StatSize:    13,
-			LabelSize:   9,
-			BadgeSize:   28,
+			HeaderH:     36,
+			CardInset:   88,
+			AvatarSize:  64,
+			AvatarXOff:  16,
+			AvatarYOff:  16,
+			NameSize:    20,
+			StatSize:    14,
+			LabelSize:   10,
+			BadgeSize:   26,
 		},
 		Outro: OutroLayout{
 			Margin:    270,
@@ -69,6 +77,10 @@ func DefaultLayout() Layout {
 			RowHeight: 145,
 			FullFrame: true,
 			ColGap:    760,
+			NameWidth: 210,
+			StatWidth: 78,
+			HeaderY:   155,
+			Row0:      220,
 		},
 	}
 }

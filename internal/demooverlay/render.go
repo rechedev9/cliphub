@@ -77,8 +77,8 @@ func introAvatarSlots(doc Document) []avatarSlot {
 			}
 			slots = append(slots, avatarSlot{
 				Path: card.AvatarFile,
-				X:    x + 12,
-				Y:    y + l.Intro.HeaderH + i*l.Intro.RowHeight + 18,
+				X:    x + l.Intro.AvatarXOff,
+				Y:    y + l.Intro.HeaderH + i*l.Intro.RowHeight + l.Intro.AvatarYOff,
 				Size: l.Intro.AvatarSize,
 			})
 		}
@@ -173,6 +173,7 @@ func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath stri
 		cards = cards[:layout.MaxPlayers]
 	}
 	var parts []string
+	parts = appendFilter(parts, drawtext(fontPath, "PLAYERS", x+20, y+10, layout.LabelSize+2, mutedColor))
 	for i, card := range cards {
 		cy := y + layout.HeaderH + i*layout.RowHeight
 		nx := x + layout.CardInset
@@ -181,8 +182,8 @@ func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath stri
 			parts = appendFilter(parts, drawtext(fontPath, strings.ToUpper(card.Country), nx, cy+10+layout.NameSize+4, layout.LabelSize, mutedColor))
 		}
 		if card.ELO != nil {
-			eloX := x + layout.PanelWidth - 150
-			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, cy+18, 20, "white"))
+			eloX := x + layout.PanelWidth - layout.BadgeSize - 132
+			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, cy+18, 18, "white"))
 		}
 		badge := ""
 		badgeFill := skillFill(10)
@@ -197,18 +198,11 @@ func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath stri
 			bx := x + layout.PanelWidth - layout.BadgeSize - 18
 			by := cy + 16
 			parts = append(parts, drawbox(bx, by, layout.BadgeSize, layout.BadgeSize, badgeFill))
-			parts = appendFilter(parts, drawtext(fontPath, badge, bx+2, by+6, 12, "white"))
+			parts = appendFilter(parts, drawtext(fontPath, badge, bx+2, by+5, 12, "white"))
 		}
-		statsY := cy + 100
-		if card.Last20 != nil && card.Last20.Matches != nil {
-			n := *card.Last20.Matches
-			caption := "Last 20 matches"
-			if n >= 30 {
-				caption = "Last 30 matches"
-			} else if n > 0 {
-				caption = fmt.Sprintf("Last %d matches", n)
-			}
-			parts = appendFilter(parts, drawtext(fontPath, caption, nx, statsY-14, 9, mutedColor))
+		statsY := cy + 108
+		if card.Last20 != nil {
+			parts = appendFilter(parts, drawtext(fontPath, "Last 20 matches", nx, statsY-14, 9, mutedColor))
 		}
 		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout)...)
 	}
@@ -239,8 +233,8 @@ func introStatGrid(card PlayerCard, x, y, width int, fontPath string, layout Int
 	return parts
 }
 
-// introStatWeights stretch K/D/A so "18/14/4" does not collide with K/D.
-var introStatWeights = []float64{1.2, 0.9, 0.95, 1.15, 1.75, 0.9, 0.85, 1.0}
+// introStatWeights stretch ADR/HS and K/D / K/R in the four-column Last 20 grid.
+var introStatWeights = []float64{1.0, 1.0, 1.25, 1.25}
 
 func statColumnOffsets(width, n int) []int {
 	if n <= 0 || width <= 0 {
@@ -266,25 +260,33 @@ func introStats(card PlayerCard) []overlayStat {
 	if card.Last20 == nil {
 		return []overlayStat{{label: "K/D/A", value: overlayKDA(card)}}
 	}
-	kd := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.KD }))
-	kr := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.KR }))
-	adr := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.ADR }))
-	if adr == "" && card.HasADR {
-		adr = fmt.Sprintf("%.1f", card.ADR)
-	}
 	matches := ""
 	if v := last20Int(card, func(l Last20) *int { return l.Matches }); v != nil {
 		matches = formatThousands(*v)
 	}
+	adrLabel, adrValue := introADRHS(card)
 	return []overlayStat{
 		{label: "Matches", value: matches},
-		{label: "Wins", value: formatOptPct("", last20Float(card, func(l Last20) *float64 { return l.WinPct }))},
-		{label: "Rating", value: formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.Rating }))},
-		{label: "Swing", value: formatOptSignedPct("", last20Float(card, func(l Last20) *float64 { return l.Swing }))},
-		{label: "K/D/A", value: overlayKDA(card)},
-		{label: "K/D", value: kd},
-		{label: "K/R", value: kr},
-		{label: "ADR", value: adr},
+		{label: "Win rate", value: formatOptPct("", last20Float(card, func(l Last20) *float64 { return l.WinPct }))},
+		{label: adrLabel, value: adrValue},
+		{label: "K/D / K/R", value: introKDKR(card)},
+	}
+}
+
+func introADRHS(card PlayerCard) (label, value string) {
+	return "ADR", formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.ADR }))
+}
+
+func introKDKR(card PlayerCard) string {
+	kd := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.KD }))
+	kr := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.KR }))
+	switch {
+	case kd != "" && kr != "":
+		return kd + " / " + kr
+	case kd != "":
+		return kd
+	default:
+		return kr
 	}
 }
 
@@ -339,21 +341,22 @@ func last20Float(card PlayerCard, fn func(Last20) *float64) *float64 {
 func outroFilter(doc Document, fontPath string) string {
 	l := DefaultLayout()
 	teams := doc.Outro.Teams
-	headerY := 155
-	row0 := 220
+	cols := outroGridColumns(doc.Outro.Columns)
 	var parts []string
 	if len(teams) == 2 {
-		parts = append(parts, outroTeam(teams[0], doc.Outro.Columns, l.Outro.Margin, headerY, row0, l.Outro, fontPath)...)
-		parts = append(parts, outroTeam(teams[1], doc.Outro.Columns, l.Outro.Margin+l.Outro.ColGap, headerY, row0, l.Outro, fontPath)...)
+		parts = append(parts, outroTeam(teams[0], cols, l.Outro.Margin, l.Outro, fontPath)...)
+		parts = append(parts, outroTeam(teams[1], cols, l.Outro.Margin+l.Outro.ColGap, l.Outro, fontPath)...)
 		if len(parts) == 0 {
 			return "null"
 		}
 		return strings.Join(parts, ",")
 	}
-	y := headerY
-	for _, team := range teams {
-		parts = append(parts, outroTeam(team, doc.Outro.Columns, l.Outro.Margin, y, y+l.Outro.HeaderH, l.Outro, fontPath)...)
-		y += l.Outro.HeaderH + len(team.Players)*l.Outro.RowHeight + 16
+	layout := l.Outro
+	for i, team := range teams {
+		shifted := layout
+		shifted.HeaderY = layout.HeaderY + i*(layout.HeaderH+len(team.Players)*layout.RowHeight+16)
+		shifted.Row0 = shifted.HeaderY + layout.HeaderH
+		parts = append(parts, outroTeam(team, cols, layout.Margin, shifted, fontPath)...)
 	}
 	if len(parts) == 0 {
 		return "null"
@@ -361,66 +364,88 @@ func outroFilter(doc Document, fontPath string) string {
 	return strings.Join(parts, ",")
 }
 
-func outroTeam(team TeamBoard, columns []string, x, headerY, rowY int, layout OutroLayout, fontPath string) []string {
+func outroGridColumns(columns []string) []string {
+	present := map[string]bool{}
+	for _, col := range columns {
+		present[col] = true
+	}
+	var out []string
+	for _, col := range []string{ColRating, ColKDA, ColADR, ColHSPct, ColELO, ColLevel} {
+		if present[col] {
+			out = append(out, col)
+		}
+	}
+	return out
+}
+
+func outroTeam(team TeamBoard, columns []string, x int, layout OutroLayout, fontPath string) []string {
 	header := fmt.Sprintf("%s  %d", team.Name, team.Score)
 	if team.AverageELO != nil {
 		header += fmt.Sprintf("  %d ELO", *team.AverageELO)
 	}
-	parts := []string{drawtext(fontPath, header, x, headerY, 28, "white")}
+	parts := []string{drawtext(fontPath, header, x, layout.HeaderY, 26, "white")}
+	labelY := layout.HeaderY + 32
+	for i, col := range columns {
+		cx := x + layout.NameWidth + i*layout.StatWidth
+		parts = appendFilter(parts, drawtext(fontPath, outroColLabel(col), cx, labelY, 11, mutedColor))
+	}
+	rowY := layout.Row0
 	for _, card := range team.Players {
-		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, rowY+8, 22, "white"))
-		line := outroLine(card, columns)
-		parts = appendFilter(parts, drawtext(fontPath, line, x, rowY+40, 16, mutedColor))
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, rowY+8, 20, "white"))
+		for i, col := range columns {
+			cx := x + layout.NameWidth + i*layout.StatWidth
+			parts = appendFilter(parts, drawtext(fontPath, outroCell(card, col), cx, rowY+36, 16, mutedColor))
+		}
 		rowY += layout.RowHeight
 	}
 	return parts
 }
 
-func outroLine(card PlayerCard, columns []string) string {
-	var parts []string
-	for _, col := range columns {
-		switch col {
-		case ColName:
-			// Name is drawn on its own line.
-		case ColELO:
-			if card.ELO != nil {
-				parts = append(parts, strconv.Itoa(*card.ELO)+" ELO")
-			}
-		case ColLevel:
-			if card.SkillLevel != nil {
-				parts = append(parts, fmt.Sprintf("L%d", *card.SkillLevel))
-			}
-		case ColRating:
-			if card.HasRating {
-				parts = append(parts, fmt.Sprintf("%.2f", card.Rating))
-			}
-		case ColSwing:
-			if card.Last20 != nil && card.Last20.Swing != nil {
-				parts = append(parts, formatOptSignedPct("", card.Last20.Swing))
-			}
-		case ColKDA:
-			parts = append(parts, fmt.Sprintf("%d/%d/%d", card.Kills, card.Deaths, card.Assists))
-		case ColADR:
-			if card.HasADR {
-				parts = append(parts, fmt.Sprintf("%.1f", card.ADR))
-			}
-		case ColHS:
-			if card.Headshots > 0 {
-				parts = append(parts, fmt.Sprintf("HS %d", card.Headshots))
-			}
-		case ColHSPct:
-			if card.HasHSPct {
-				parts = append(parts, fmt.Sprintf("%.0f%%", card.HSPct))
-			}
-		case ColMulti:
-			parts = append(parts, fmt.Sprintf("%d/%d/%d/%d", card.Rounds5K, card.Rounds4K, card.Rounds3K, card.Rounds2K))
-		case ColMVP:
-			if card.MVPs > 0 {
-				parts = append(parts, fmt.Sprintf("MVP %d", card.MVPs))
-			}
+func outroColLabel(col string) string {
+	switch col {
+	case ColRating:
+		return "RATING"
+	case ColKDA:
+		return "K/D/A"
+	case ColADR:
+		return "ADR"
+	case ColHSPct:
+		return "HS%"
+	case ColELO:
+		return "ELO"
+	case ColLevel:
+		return "LVL"
+	default:
+		return strings.ToUpper(col)
+	}
+}
+
+func outroCell(card PlayerCard, col string) string {
+	switch col {
+	case ColELO:
+		if card.ELO != nil {
+			return strconv.Itoa(*card.ELO)
+		}
+	case ColLevel:
+		if card.SkillLevel != nil {
+			return strconv.Itoa(*card.SkillLevel)
+		}
+	case ColRating:
+		if card.HasRating {
+			return overlayDecimal(card.Rating, 2)
+		}
+	case ColKDA:
+		return fmt.Sprintf("%d/%d/%d", card.Kills, card.Deaths, card.Assists)
+	case ColADR:
+		if card.HasADR {
+			return overlayDecimal(card.ADR, 1)
+		}
+	case ColHSPct:
+		if card.HasHSPct && (card.HSPct > 0 || card.Headshots > 0) {
+			return fmt.Sprintf("%.0f%%", card.HSPct)
 		}
 	}
-	return strings.Join(parts, "   ")
+	return ""
 }
 
 func skillFill(level int) string {

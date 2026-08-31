@@ -20,6 +20,9 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	if l.Intro.CenterGap != 703 {
 		t.Fatalf("center gap = %d, want 703 so radar/score/health stay visible", l.Intro.CenterGap)
 	}
+	if l.Intro.AvatarSize != 64 || l.Intro.HeaderH != 36 || l.Intro.RowHeight != 196 {
+		t.Fatalf("intro card = avatar %d header %d row %d", l.Intro.AvatarSize, l.Intro.HeaderH, l.Intro.RowHeight)
+	}
 	if !l.NativeHUDVisible() {
 		t.Fatal("native HUD channel closed")
 	}
@@ -108,19 +111,144 @@ func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 	}
 }
 
-func TestStatColumnOffsetsGiveKDAMoreWidthThanKD(t *testing.T) {
-	offsets := statColumnOffsets(400, 8)
-	if len(offsets) != 8 {
+func TestStatColumnOffsetsSpreadFourNebulaColumns(t *testing.T) {
+	offsets := statColumnOffsets(400, 4)
+	if len(offsets) != 4 {
 		t.Fatalf("len = %d", len(offsets))
 	}
-	kdaW := offsets[5] - offsets[4]
-	kdW := offsets[6] - offsets[5]
-	if kdaW <= kdW {
-		t.Fatalf("K/D/A width %d <= K/D width %d (offsets=%v)", kdaW, kdW, offsets)
+	adrW := offsets[3] - offsets[2]
+	matchW := offsets[1] - offsets[0]
+	if adrW <= matchW {
+		t.Fatalf("ADR/HS width %d <= Matches width %d (offsets=%v)", adrW, matchW, offsets)
 	}
 	for i := 1; i < len(offsets); i++ {
 		if offsets[i] <= offsets[i-1] {
 			t.Fatalf("column %d did not advance: %v", i, offsets)
+		}
+	}
+}
+
+func TestIntroFilterLast20UsesNebulaFourColumns(t *testing.T) {
+	matches := 1577
+	win := 80.0
+	kd := 1.66
+	kr := 0.93
+	adr := 96.7
+	doc := Build(Roster{
+		TargetSteamID64: "1",
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "ZywOo", Team: "CT", Kills: 23, Deaths: 10, Headshots: 12, HSPct: 52, ADR: 101.6},
+			{SteamID64: "2", Name: "enemy", Team: "T", Kills: 10, Deaths: 18},
+		},
+	}, map[string]Enrichment{
+		"1": {Nickname: "ZywOo", Country: "fr", ELO: 3500, SkillLevel: 10, Last20: &Last20{
+			Matches: &matches, WinPct: &win, KD: &kd, KR: &kr, ADR: &adr,
+		}},
+	})
+	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
+	for _, want := range []string{"PLAYERS", "ZywOo", "3500", "10", "Last 20 matches", "Matches", "Win rate", "ADR", "K/D / K/R", "1,66 / 0,93"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("intro missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Swing") {
+		t.Fatalf("Last 20 intro invented swing:\n%s", got)
+	}
+}
+
+func TestIntroLast20ADRDoesNotFallBackToMatch(t *testing.T) {
+	matches := 20
+	win := 57.0
+	tests := []struct {
+		name      string
+		last20    *Last20
+		matchADR  float64
+		wantADR   string
+		forbidADR string
+	}{
+		{
+			name:      "last20 adr present",
+			last20:    &Last20{Matches: &matches, WinPct: &win, ADR: floatPtr(96.7)},
+			matchADR:  101.6,
+			wantADR:   "96,70",
+			forbidADR: "101,6",
+		},
+		{
+			name:      "last20 without adr",
+			last20:    &Last20{Matches: &matches, WinPct: &win},
+			matchADR:  101.6,
+			wantADR:   "",
+			forbidADR: "101,6",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := Build(Roster{
+				TargetSteamID64: "1",
+				Players: []RosterPlayer{
+					{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, ADR: tt.matchADR},
+					{SteamID64: "2", Name: "enemy", Team: "T", Kills: 10, Deaths: 18},
+				},
+			}, map[string]Enrichment{"1": {Last20: tt.last20}})
+			got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
+			if !strings.Contains(got, "Last 20 matches") || !strings.Contains(got, "ADR") {
+				t.Fatalf("missing Last 20 ADR column:\n%s", got)
+			}
+			if tt.wantADR != "" && !strings.Contains(got, tt.wantADR) {
+				t.Fatalf("missing Last 20 ADR %q:\n%s", tt.wantADR, got)
+			}
+			if tt.forbidADR != "" && strings.Contains(got, tt.forbidADR) {
+				t.Fatalf("match ADR leaked into Last 20 grid:\n%s", got)
+			}
+			_, value := introADRHS(doc.Intro.Left[0])
+			if value != tt.wantADR {
+				t.Fatalf("introADRHS = %q, want %q", value, tt.wantADR)
+			}
+		})
+	}
+}
+
+func floatPtr(v float64) *float64 { return &v }
+
+func TestOutroGridColumnsKeepsNebulaOrder(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{name: "demo facts", in: []string{ColName, ColKDA, ColRating, ColADR, ColHS, ColHSPct, ColMVP}, want: []string{ColRating, ColKDA, ColADR, ColHSPct}},
+		{name: "with faceit", in: []string{ColName, ColELO, ColLevel, ColKDA}, want: []string{ColKDA, ColELO, ColLevel}},
+		{name: "empty", in: nil, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := outroGridColumns(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("got %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestOutroFilterDrawsScoreboardColumns(t *testing.T) {
+	doc := Build(Roster{
+		TargetSteamID64: "1",
+		ScoreCT:         13,
+		ScoreT:          8,
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, Headshots: 12, HSPct: 52},
+			{SteamID64: "2", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
+		},
+	}, nil)
+	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
+	for _, want := range []string{"RATING", "K/D/A", "ADR", "HS%", "23/14/4", "1,35"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("outro missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -161,6 +289,10 @@ func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
 	}
 	if img.Bounds().Dx() != FrameWidth || img.Bounds().Dy() != FrameHeight {
 		t.Fatalf("outro chrome = %dx%d", img.Bounds().Dx(), img.Bounds().Dy())
+	}
+	_, _, _, a := img.At(10, 10).RGBA()
+	if a == 0xFFFF {
+		t.Fatal("outro chrome is fully opaque; gameplay cannot show through")
 	}
 	doc := Build(Roster{
 		TargetSteamID64: "1",

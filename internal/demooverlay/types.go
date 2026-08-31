@@ -19,6 +19,10 @@ const (
 
 	FrameWidth  = 1920
 	FrameHeight = 1080
+
+	// Outro gameplay treatment under the translucent scoreboard chrome.
+	OutroBlurSigma    = 7.0
+	OutroEQBrightness = -0.35
 )
 
 // IntroOverlayStart is fade duration + the post-fade delay (~4s).

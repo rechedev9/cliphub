@@ -353,6 +353,10 @@ func CompilationFilter(short ShortEdit) string {
 	} else {
 		clauses = append(clauses, fmt.Sprintf("[catv]%s[vbase]", compilationPostConcatFilter(short)))
 		current := "vbase"
+		if dim, dimOut, ok := fullDemoOutroDimClauses(short, current, "vdim"); ok {
+			clauses = append(clauses, dim...)
+			current = dimOut
+		}
 		for i, effect := range killfeeds {
 			partIndex, sampleSeconds := killfeedSamplePart(&short, effect)
 			if partIndex < 0 {

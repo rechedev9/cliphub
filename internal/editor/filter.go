@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -128,6 +129,12 @@ func appendImageOverlayClauses(clauses []string, current string, imageInputStart
 		if i == len(images)-1 {
 			next = outputLabel
 		}
+		if effect.Source == "full-demo-intro" && effect.FadeInSeconds > 0 {
+			var slide []string
+			slide, current = introSlideOverlayClauses(current, imageInput, imageLabel, next, effect, short)
+			clauses = append(clauses, slide...)
+			continue
+		}
 		clauses = append(clauses,
 			fmt.Sprintf("[%d:v]%s[%s]", imageInput, imageOverlayFilter(effect, short), imageLabel),
 			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:enable='%s'[%s]",
@@ -142,6 +149,57 @@ func appendImageOverlayClauses(clauses []string, current string, imageInputStart
 		current = next
 	}
 	return clauses
+}
+
+func introSlideOverlayClauses(current string, imageInput int, imageLabel, next string, effect Effect, short ShortEdit) ([]string, string) {
+	l := demooverlay.DefaultLayout()
+	leftW := l.Intro.LeftPanelX + l.Intro.PanelWidth + 16
+	rightX := l.Intro.RightPanelX - 16
+	rightW := demooverlay.FrameWidth - rightX
+	enable := betweenExpression(effect.StartSeconds, effect.EndSeconds)
+	mid := imageLabel + "L"
+	clauses := []string{
+		fmt.Sprintf("[%d:v]%s[%s]", imageInput, imageOverlayFilter(effect, short), imageLabel),
+		fmt.Sprintf("[%s]split=2[%ssrcL][%ssrcR]", imageLabel, imageLabel, imageLabel),
+		fmt.Sprintf("[%ssrcL]crop=%d:%d:0:0[%sL]", imageLabel, leftW, demooverlay.FrameHeight, imageLabel),
+		fmt.Sprintf("[%ssrcR]crop=%d:%d:%d:0[%sR]", imageLabel, rightW, demooverlay.FrameHeight, rightX, imageLabel),
+		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=auto:enable='%s'[%s]",
+			current, imageLabel, easeOutX(effect.StartSeconds, effect.FadeInSeconds, -leftW, 0), enable, mid),
+		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=auto:enable='%s'[%s]",
+			mid, imageLabel, easeOutX(effect.StartSeconds, effect.FadeInSeconds, demooverlay.FrameWidth, rightX), enable, next),
+	}
+	return clauses, next
+}
+
+func easeOutX(start, dur float64, from, to int) string {
+	if dur <= 0 {
+		return strconv.Itoa(to)
+	}
+	end := start + dur
+	delta := to - from
+	return fmt.Sprintf("if(gte(t\\,%.3f)\\,%d\\,if(lte(t\\,%.3f)\\,%d\\,%d+(%d)*(1-pow(1-(t-%.3f)/%.3f\\,3))))",
+		end, to, start, from, from, delta, start, dur)
+}
+
+func fullDemoOutroDimClauses(short ShortEdit, current, next string) ([]string, string, bool) {
+	var outro *Effect
+	for i := range short.Effects {
+		if short.Effects[i].Source == "full-demo-outro" && short.Effects[i].Type == EffectImage {
+			outro = &short.Effects[i]
+			break
+		}
+	}
+	if outro == nil || outro.EndSeconds <= outro.StartSeconds {
+		return nil, current, false
+	}
+	start, end := outro.StartSeconds, outro.EndSeconds
+	clauses := []string{
+		fmt.Sprintf("[%s]split=2[vkeep][vtail]", current),
+		fmt.Sprintf("[vtail]trim=start=%.3f:end=%.3f,gblur=sigma=%.3f,eq=brightness=%.3f[vblurred]",
+			start, end, demooverlay.OutroBlurSigma, demooverlay.OutroEQBrightness),
+		fmt.Sprintf("[vkeep][vblurred]overlay=enable='%s'[%s]", betweenExpression(start, end), next),
+	}
+	return clauses, next, true
 }
 
 func killfeedEffects(effects []Effect) []Effect {
@@ -159,7 +217,7 @@ func imageOverlayFilter(effect Effect, short ShortEdit) string {
 		"format=rgba",
 		imageScaleFilter(effect),
 	}
-	if hasEffectFade(effect) {
+	if hasEffectFade(effect) || effect.Source == "full-demo-intro" {
 		duration := short.DurationSeconds
 		if duration <= 0 {
 			duration = effect.EndSeconds
@@ -171,7 +229,14 @@ func imageOverlayFilter(effect Effect, short ShortEdit) string {
 		if duration > 0 {
 			filters = append(filters, fmt.Sprintf("trim=duration=%.3f", duration))
 		}
-		filters = append(filters, overlayFadeFilters(effect)...)
+		fadeIn, fadeOut := normalizedFadeDurations(effect)
+		if effect.Source == "full-demo-intro" {
+			fadeIn = 0
+		}
+		faded := effect
+		faded.FadeInSeconds = fadeIn
+		faded.FadeOutSeconds = fadeOut
+		filters = append(filters, overlayFadeFilters(faded)...)
 	}
 	return strings.Join(filters, ",")
 }

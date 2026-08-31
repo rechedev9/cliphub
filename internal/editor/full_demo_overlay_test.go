@@ -102,6 +102,12 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 	if !strings.Contains(command, "fade=t=in:st=0") {
 		t.Fatalf("ffmpeg missing fade from black:\n%s", command)
 	}
+	if !strings.Contains(command, "gblur=sigma=") {
+		t.Fatalf("ffmpeg missing outro gameplay blur:\n%s", command)
+	}
+	if !strings.Contains(command, "crop=") || !strings.Contains(command, "pow(1-(t-") {
+		t.Fatalf("ffmpeg missing intro column slide:\n%s", command)
+	}
 	if short.MusicPath != "" {
 		t.Fatalf("full demo mixed a music bed: %q", short.MusicPath)
 	}
@@ -115,6 +121,66 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 		if effect.Source == "edit-request" && (effect.Type == EffectText) {
 			t.Fatalf("full demo gained a Shorts bookend/hook: %#v", effect)
 		}
+	}
+}
+
+func TestCompilationFilterFullDemoSlidesIntroAndBlursOutro(t *testing.T) {
+	short := ShortEdit{
+		Preset:          PresetGameplayPOV60,
+		OutputFormat:    OutputFormatLandscape16x9,
+		DurationSeconds: 24,
+		Parts:           []ShortPart{{Input: "p1.mp4", DurationSeconds: 24, TickStart: 1000, TickEnd: 2536}},
+		Tickrate:        64,
+		Effects: []Effect{
+			{
+				Type:           EffectImage,
+				Path:           "intro.png",
+				Source:         "full-demo-intro",
+				StartSeconds:   5,
+				EndSeconds:     14,
+				FadeInSeconds:  demooverlay.IntroOverlaySlideSeconds,
+				FadeOutSeconds: 0.35,
+				Width:          demooverlay.FrameWidth,
+				Height:         demooverlay.FrameHeight,
+			},
+			{
+				Type:         EffectImage,
+				Path:         "outro.png",
+				Source:       "full-demo-outro",
+				StartSeconds: 16,
+				EndSeconds:   24,
+				Width:        demooverlay.FrameWidth,
+				Height:       demooverlay.FrameHeight,
+			},
+		},
+	}
+	got := CompilationFilter(short)
+	wantDim := fmt.Sprintf(
+		"[vtail]trim=start=16.000:end=24.000,gblur=sigma=%.3f,eq=brightness=%.3f[vblurred]",
+		demooverlay.OutroBlurSigma, demooverlay.OutroEQBrightness,
+	)
+	for _, want := range []string{
+		wantDim,
+		"split=2[img0srcL][img0srcR]",
+		"crop=",
+		"pow(1-(t-",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("CompilationFilter missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "setpts=PTS+16.000/TB") {
+		t.Fatalf("outro dim shifted PTS off the overlay window:\n%s", got)
+	}
+	vtail := got[strings.Index(got, "[vtail]"):]
+	if end := strings.Index(vtail, ";"); end >= 0 {
+		vtail = vtail[:end]
+	}
+	if strings.Contains(vtail, "setpts=") {
+		t.Fatalf("outro dim vtail must keep concat PTS, got %q", vtail)
+	}
+	if strings.Contains(got, "fade=t=in:st=5.000") {
+		t.Fatalf("intro still faded in instead of sliding:\n%s", got)
 	}
 }
 
