@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -74,13 +75,12 @@ func TestFullDemoVoiceMixManifestDropsEnemyTracks(t *testing.T) {
 		t.Fatalf("ffmpeg missing POV-team tracks:\n%s", command)
 	}
 	for _, part := range short.Parts {
-		recSeg := recording.RecordingSegment{
-			ID: part.SegmentID, TickStart: part.TickStart, TickEnd: part.TickEnd,
-			Kills: killsForTestSegment(result, part.SegmentID),
-		}
-		start := recording.EffectiveRecordStartTick(recSeg, result.Plan.Tickrate)
-		end := recording.EffectiveRecordEndTick(recSeg, result.Plan)
-		want := fmt.Sprintf("atrim=start=%.6f:end=%.6f", float64(start)/float64(result.Plan.Tickrate), float64(end)/float64(result.Plan.Tickrate))
+		startTick, _ := captureTicks(part)
+		sync := partSyncDuration(part, short.VoiceTickrate)
+		frames := max(1, int(math.Round(sync*float64(outputFPS(short)))))
+		dur := float64(frames) / float64(outputFPS(short))
+		start := float64(startTick) / float64(short.VoiceTickrate)
+		want := fmt.Sprintf("atrim=start=%.6f:end=%.6f", start, start+dur)
 		if !strings.Contains(command, want) {
 			t.Fatalf("missing capture-aligned atrim %q for %s\n%s", want, part.SegmentID, command)
 		}

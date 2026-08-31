@@ -148,6 +148,8 @@ func cardFromRoster(p RosterPlayer, en Enrichment) PlayerCard {
 	card.Country = strings.TrimSpace(en.Country)
 	card.ELO = intPtr(en.ELO)
 	card.SkillLevel = intPtr(en.SkillLevel)
+	card.Ranking = en.Ranking
+	card.AvatarURL = strings.TrimSpace(en.AvatarURL)
 	if last20HasAny(en.Last20) {
 		card.Last20 = en.Last20
 	}

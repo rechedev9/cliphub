@@ -221,6 +221,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			QualityChecks:     qualityChecks,
 			VoiceTracks:       voiceTracks,
 			VoiceTickrate:     voiceTickrate,
+			Tickrate:          result.Plan.Tickrate,
 		})
 		if err != nil {
 			return manifest, err
@@ -417,6 +418,7 @@ type compiledShortOptions struct {
 	QualityChecks     bool
 	VoiceTracks       []string
 	VoiceTickrate     int
+	Tickrate          int
 }
 
 func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, c compiledShortOptions) (ShortEdit, error) {
@@ -521,6 +523,7 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		VoiceVolume:            opts.VoiceVolume,
 		VoiceTracks:            append([]string(nil), c.VoiceTracks...),
 		VoiceTickrate:          c.VoiceTickrate,
+		Tickrate:               c.Tickrate,
 		RhythmPath:             opts.RhythmPath,
 		OutputFormat:           c.OutputFormat,
 		KillEffect:             c.KillEffect,

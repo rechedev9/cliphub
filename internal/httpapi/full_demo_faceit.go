@@ -27,6 +27,7 @@ func (h *Handlers) storeFullDemoFaceit(j job.Job) {
 			Country:    player.Country,
 			ELO:        player.ELO,
 			SkillLevel: player.SkillLevel,
+			AvatarURL:  player.Avatar,
 		}
 	}
 	if len(enrichment) == 0 {

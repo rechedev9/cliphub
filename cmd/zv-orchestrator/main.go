@@ -231,6 +231,7 @@ func run() error {
 			FFprobePath: cfg.FFprobePath,
 			Timeout:     cfg.RenderTimeout,
 			MusicDir:    cfg.MusicDir,
+			Faceit:      faceitClient,
 		})
 		taskHandlers[tasks.TypeRenderVariant] = renderWorker.HandleRenderVariant
 		log.Printf("worker: render enabled")

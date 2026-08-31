@@ -66,6 +66,9 @@ func TestStoreFullDemoFaceitWritesFollowedSteamIDsOnly(t *testing.T) {
 	if en.Last20 != nil {
 		t.Fatalf("last-20 invented from follows: %+v", en.Last20)
 	}
+	if en.Ranking != nil {
+		t.Fatalf("ranking invented from follows: %+v", en.Ranking)
+	}
 }
 
 func TestStoreFullDemoFaceitSkipsWhenNothingFollowed(t *testing.T) {

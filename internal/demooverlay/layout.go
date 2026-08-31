@@ -18,6 +18,13 @@ type IntroLayout struct {
 	CenterGap   int
 	RowHeight   int
 	MaxPlayers  int
+	HeaderH     int
+	CardInset   int
+	AvatarSize  int
+	NameSize    int
+	StatSize    int
+	LabelSize   int
+	BadgeSize   int
 }
 
 type OutroLayout struct {
@@ -25,14 +32,16 @@ type OutroLayout struct {
 	HeaderH   int
 	RowHeight int
 	FullFrame bool
+	ColGap    int
 }
 
 func DefaultLayout() Layout {
 	const (
-		panelW = 520
-		inset  = 24
-		top    = 72
-		height = 936
+		panelW = 563
+		inset  = 42
+		top    = 28
+		height = 1020
+		rightX = 1308
 	)
 	return Layout{
 		Width:  FrameWidth,
@@ -42,20 +51,28 @@ func DefaultLayout() Layout {
 			PanelHeight: height,
 			PanelTop:    top,
 			LeftPanelX:  inset,
-			RightPanelX: FrameWidth - inset - panelW,
-			CenterGap:   FrameWidth - 2*(inset+panelW),
-			RowHeight:   180,
+			RightPanelX: rightX,
+			CenterGap:   rightX - inset - panelW,
+			RowHeight:   204,
 			MaxPlayers:  5,
+			HeaderH:     0,
+			CardInset:   100,
+			AvatarSize:  72,
+			NameSize:    22,
+			StatSize:    13,
+			LabelSize:   9,
+			BadgeSize:   28,
 		},
 		Outro: OutroLayout{
-			Margin:    32,
-			HeaderH:   88,
-			RowHeight: 72,
+			Margin:    270,
+			HeaderH:   60,
+			RowHeight: 145,
 			FullFrame: true,
+			ColGap:    760,
 		},
 	}
 }
 
 func (l Layout) NativeHUDVisible() bool {
-	return l.Intro.CenterGap >= 800
+	return l.Intro.CenterGap >= 700
 }
