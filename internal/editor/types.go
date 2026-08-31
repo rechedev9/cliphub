@@ -299,6 +299,7 @@ type ShortEdit struct {
 	VoiceVolume       *float64 `json:"voice_volume,omitempty"`
 	VoiceTracks       []string `json:"voice_tracks,omitempty"`
 	VoiceTickrate     int      `json:"voice_tickrate,omitempty"`
+	Tickrate          int      `json:"tickrate,omitempty"`
 	RhythmPath        string   `json:"rhythm_path,omitempty"`
 	OutputFormat      string   `json:"output_format,omitempty"`
 	KillEffect        string   `json:"kill_effect,omitempty"`

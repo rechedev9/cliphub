@@ -397,6 +397,21 @@ func TestBuildCompilationFFmpegCommandMixesVoiceTracks(t *testing.T) {
 	}
 }
 
+func TestCompilationFilterSyncsCaptureDurationWithoutVoiceTracks(t *testing.T) {
+	short := ShortEdit{
+		Preset:   PresetViral60Clean,
+		Output:   "out.mp4",
+		Tickrate: 64,
+		Parts: []ShortPart{
+			{SegmentID: "seg-001", Input: "p1.mp4", DurationSeconds: 10, TickStart: 640, TickEnd: 1280, CaptureTickStart: 768, CaptureTickEnd: 1280},
+		},
+	}
+	command := strings.Join(BuildCompilationFFmpegCommand("ffmpeg", short), " ")
+	if !strings.Contains(command, "trim=end_frame=480") {
+		t.Fatalf("expected 8s capture window (480 frames at 60fps), got %q", command)
+	}
+}
+
 func TestPartSyncDurationAndVoiceWindow(t *testing.T) {
 	part := ShortPart{TickStart: 640, TickEnd: 1280, CaptureTickStart: 768, CaptureTickEnd: 1280}
 	tests := []struct {

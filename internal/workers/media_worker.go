@@ -229,6 +229,7 @@ type RenderWorkerConfig struct {
 	// MusicDir holds music tracks named "<key>.<ext>" that a render can mix in
 	// (see RenderVariantPayload.MusicKey). Empty disables music mixing.
 	MusicDir string
+	Faceit   *faceit.Client
 }
 
 // resolveMusicFile returns the first existing track file for key in dir, or ""
@@ -2929,17 +2930,13 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	if target == "" {
 		target = j.TargetSteamID
 	}
-	faceit := map[string]demooverlay.Enrichment{}
-	if frc, ferr := w.storage.Open(artifacts.FullDemoFaceitKey(j.ID)); ferr == nil {
-		defer frc.Close()
-		if err := json.NewDecoder(frc).Decode(&faceit); err != nil {
-			return "", fmt.Errorf("decode full-demo FACEIT enrichment: %w", err)
-		}
-	} else if !storage.IsNotExist(ferr) {
-		return "", fmt.Errorf("open full-demo FACEIT enrichment: %w", ferr)
-	}
-	doc := demooverlay.Build(demooverlay.FromRosterScan(roster, target), faceit)
-	materializeOverlayAvatars(&doc, workDir)
+	enrichment := overlayEnrichment(w, j.ID, roster)
+	doc := demooverlay.Build(demooverlay.FromRosterScan(roster, target), enrichment)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) {
+		return faceit.FetchAvatar(ctx, nil, raw)
+	})
 	path := filepath.Join(workDir, "full-demo-overlay.json")
 	if err := demooverlay.Write(path, doc); err != nil {
 		return "", err
@@ -2947,36 +2944,68 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	return path, nil
 }
 
-func materializeOverlayAvatars(doc *demooverlay.Document, workDir string) {
-	if doc == nil {
-		return
-	}
-	dir := filepath.Join(workDir, "overlay-avatars")
-	apply := func(cards []demooverlay.PlayerCard) {
-		for i := range cards {
-			url := cards[i].Avatar
-			if url == "" || !strings.HasPrefix(url, "https://") {
-				continue
+func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterResult) map[string]demooverlay.Enrichment {
+	if w != nil && w.cfg.Faceit != nil {
+		ids := make([]string, 0, len(roster.Players))
+		for _, p := range roster.Players {
+			ids = append(ids, p.SteamID64)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		players := w.cfg.Faceit.OverlayPlayers(ctx, ids)
+		out := make(map[string]demooverlay.Enrichment, len(players))
+		for steamID, player := range players {
+			en := demooverlay.Enrichment{
+				Nickname:   player.Nickname,
+				Country:    player.Country,
+				ELO:        player.ELO,
+				SkillLevel: player.SkillLevel,
+				Ranking:    player.Ranking,
+				AvatarURL:  player.Avatar,
 			}
-			body, err := faceit.FetchAvatar(context.Background(), nil, url)
-			if err != nil || len(body) == 0 {
-				cards[i].Avatar = ""
-				continue
+			if last := last20FromFACEIT(player.Recent); last != nil {
+				en.Last20 = last
 			}
-			if err := os.MkdirAll(dir, 0o750); err != nil {
-				cards[i].Avatar = ""
-				continue
-			}
-			path := filepath.Join(dir, cards[i].SteamID64+".img")
-			if err := os.WriteFile(path, body, 0o600); err != nil {
-				cards[i].Avatar = ""
-				continue
-			}
-			cards[i].Avatar = path
+			out[steamID] = en
+		}
+		if len(out) > 0 {
+			return out
 		}
 	}
-	apply(doc.Intro.Left)
-	apply(doc.Intro.Right)
+	return storedOverlayEnrichment(w, jobID)
+}
+
+func storedOverlayEnrichment(w *RenderWorker, jobID uuid.UUID) map[string]demooverlay.Enrichment {
+	out := map[string]demooverlay.Enrichment{}
+	if w == nil || w.storage == nil {
+		return out
+	}
+	frc, err := w.storage.Open(artifacts.FullDemoFaceitKey(jobID))
+	if err != nil {
+		return out
+	}
+	defer frc.Close()
+	if err := json.NewDecoder(frc).Decode(&out); err != nil {
+		return map[string]demooverlay.Enrichment{}
+	}
+	return out
+}
+
+func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
+	out := demooverlay.Last20{
+		Matches: src.Matches,
+		WinPct:  src.WinPct,
+		Kills:   src.Kills,
+		Deaths:  src.Deaths,
+		Assists: src.Assists,
+		KD:      src.KD,
+		KR:      src.KR,
+		ADR:     src.ADR,
+	}
+	if out.Matches == nil && out.WinPct == nil && out.Kills == nil && out.KD == nil && out.KR == nil && out.ADR == nil {
+		return nil
+	}
+	return &out
 }
 
 // compileSegmentsArgs returns the zv-editor flags that compile a render's

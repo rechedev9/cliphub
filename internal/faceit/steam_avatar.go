@@ -66,45 +66,6 @@ func ResolveSteamAvatar(ctx context.Context, httpClient *http.Client, steamID64 
 	return u.String(), nil
 }
 
-const overlayAvatarMaxBytes = 256 * 1024
-
-func FetchAvatar(ctx context.Context, httpClient *http.Client, rawURL string) ([]byte, error) {
-	cleaned := cleanAvatarURL(rawURL)
-	if cleaned == "" {
-		return nil, nil
-	}
-	host := ""
-	if u, err := url.Parse(cleaned); err == nil {
-		host = strings.ToLower(u.Hostname())
-	}
-	if !strings.HasSuffix(host, "faceit-cdn.net") && !strings.HasSuffix(host, "steamstatic.com") && !strings.HasSuffix(host, "akamai.steamstatic.com") {
-		return nil, nil
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, steamRequestTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, cleaned, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build FACEIT avatar request: %w", err)
-	}
-	client := httpClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetch FACEIT avatar: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, nil
-	}
-	body, err := io.ReadAll(io.LimitReader(res.Body, overlayAvatarMaxBytes+1))
-	if err != nil || len(body) == 0 || len(body) > overlayAvatarMaxBytes {
-		return nil, nil
-	}
-	return body, nil
-}
-
 func IsDefaultFaceitAvatar(avatar string) bool {
 	if avatar == "" {
 		return true

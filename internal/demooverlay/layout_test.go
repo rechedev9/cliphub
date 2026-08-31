@@ -125,6 +125,13 @@ func TestStatColumnOffsetsGiveKDAMoreWidthThanKD(t *testing.T) {
 	}
 }
 
+func TestStillFilterGraphAlwaysUsesLabeledInput(t *testing.T) {
+	got := stillFilterGraph("drawtext=text='x'", nil)
+	if !strings.HasPrefix(got, "[0:v]") {
+		t.Fatalf("graph = %q, want [0:v] prefix", got)
+	}
+}
+
 func TestIntroChromeKeepsTransparentHUDChannel(t *testing.T) {
 	img, err := png.Decode(bytes.NewReader(introChromePNG))
 	if err != nil {

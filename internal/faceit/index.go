@@ -886,8 +886,8 @@ func buildRecentMatches(playerID string, history []apiHistoryItem, stats []apiMa
 	return matches
 }
 
-// Last20 is an honest aggregate of RecentMatches. Rating and swing are
-// omitted because FACEIT match stats do not provide those fields.
+// Last20 is an honest aggregate of recent FACEIT matches (up to 30).
+// Rating and swing are omitted because match stats do not provide them.
 type Last20 struct {
 	Matches *int
 	WinPct  *float64

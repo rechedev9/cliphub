@@ -46,7 +46,7 @@ func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath 
 	if strings.TrimSpace(fontPath) == "" {
 		return fmt.Errorf("render full-demo overlay: font path is required")
 	}
-	if err := renderStill(ffmpegPath, introPath, introGraph(doc, fontPath), introChromePNG, introAvatarSlots(doc)); err != nil {
+	if err := renderStill(ffmpegPath, introPath, introFilter(doc, fontPath), introChromePNG, introAvatarSlots(doc)); err != nil {
 		return fmt.Errorf("render intro overlay: %w", err)
 	}
 	if err := renderStill(ffmpegPath, outroPath, outroFilter(doc, fontPath), outroChromePNG, nil); err != nil {
@@ -69,14 +69,14 @@ func introAvatarSlots(doc Document) []avatarSlot {
 			cards = cards[:l.Intro.MaxPlayers]
 		}
 		for i, card := range cards {
-			if strings.TrimSpace(card.Avatar) == "" {
+			if strings.TrimSpace(card.AvatarFile) == "" {
 				continue
 			}
-			if _, err := os.Stat(card.Avatar); err != nil {
+			if _, err := os.Stat(card.AvatarFile); err != nil {
 				continue
 			}
 			slots = append(slots, avatarSlot{
-				Path: card.Avatar,
+				Path: card.AvatarFile,
 				X:    x + 12,
 				Y:    y + l.Intro.HeaderH + i*l.Intro.RowHeight + 18,
 				Size: l.Intro.AvatarSize,
@@ -86,11 +86,6 @@ func introAvatarSlots(doc Document) []avatarSlot {
 	add(doc.Intro.Left, l.Intro.LeftPanelX, l.Intro.PanelTop)
 	add(doc.Intro.Right, l.Intro.RightPanelX, l.Intro.PanelTop)
 	return slots
-}
-
-func introGraph(doc Document, fontPath string) string {
-	text := introFilter(doc, fontPath)
-	return text
 }
 
 func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatarSlot) error {
@@ -116,40 +111,18 @@ func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatar
 	}
 	scriptPath := script.Name()
 	defer func() { _ = os.Remove(scriptPath) }()
-	graph := vf
 	args := []string{"-y", "-hide_banner", "-loglevel", "error", "-i", chromePath}
-	if len(avatars) > 0 {
-		var clauses []string
-		current := "[0:v]"
-		for i, slot := range avatars {
-			args = append(args, "-i", slot.Path)
-			scaled := fmt.Sprintf("a%d", i)
-			clauses = append(clauses, fmt.Sprintf(
-				"[%d:v]scale=%d:%d:flags=lanczos,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-W/2,Y-H/2),min(W,H)/2),255,0)'[%s]",
-				i+1, slot.Size, slot.Size, scaled,
-			))
-			next := fmt.Sprintf("s%d", i)
-			clauses = append(clauses, fmt.Sprintf("%s[%s]overlay=%d:%d:format=auto[%s]", current, scaled, slot.X, slot.Y, next))
-			current = "[" + next + "]"
-		}
-		if vf != "" && vf != "null" {
-			graph = strings.Join(clauses, ";") + ";" + current + vf
-		} else {
-			graph = strings.Join(clauses, ";")
-		}
+	for _, slot := range avatars {
+		args = append(args, "-i", slot.Path)
 	}
-	if _, err := script.WriteString(graph); err != nil {
+	if _, err := script.WriteString(stillFilterGraph(vf, avatars)); err != nil {
 		_ = script.Close()
 		return fmt.Errorf("write overlay filter script: %w", err)
 	}
 	if err := script.Close(); err != nil {
 		return fmt.Errorf("close overlay filter script: %w", err)
 	}
-	scriptFlag := "-filter_script:v"
-	if len(avatars) > 0 {
-		scriptFlag = "-filter_complex_script"
-	}
-	args = append(args, scriptFlag, scriptPath, "-frames:v", "1", "-pix_fmt", "rgba", outPath)
+	args = append(args, "-filter_complex_script", scriptPath, "-frames:v", "1", "-pix_fmt", "rgba", outPath)
 	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config.
 	cmd := exec.Command(ffmpegPath, args...) //nolint:gosec
 	out, err := cmd.CombinedOutput()
@@ -159,18 +132,43 @@ func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatar
 	return nil
 }
 
+func stillFilterGraph(text string, avatars []avatarSlot) string {
+	current := "[0:v]"
+	var clauses []string
+	for i, slot := range avatars {
+		scaled := fmt.Sprintf("a%d", i)
+		clauses = append(clauses, fmt.Sprintf(
+			"[%d:v]scale=%d:%d:flags=lanczos,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-W/2,Y-H/2),min(W,H)/2),255,0)'[%s]",
+			i+1, slot.Size, slot.Size, scaled,
+		))
+		next := fmt.Sprintf("s%d", i)
+		clauses = append(clauses, fmt.Sprintf("%s[%s]overlay=%d:%d:format=auto[%s]", current, scaled, slot.X, slot.Y, next))
+		current = "[" + next + "]"
+	}
+	if text == "" || text == "null" {
+		if len(clauses) == 0 {
+			return "[0:v]format=rgba"
+		}
+		return strings.Join(clauses, ";")
+	}
+	if len(clauses) == 0 {
+		return current + text
+	}
+	return strings.Join(clauses, ";") + ";" + current + text
+}
+
 func introFilter(doc Document, fontPath string) string {
 	l := DefaultLayout()
 	var parts []string
-	parts = append(parts, introColumn(doc.Intro.Left, doc.Intro.Columns, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
-	parts = append(parts, introColumn(doc.Intro.Right, doc.Intro.Columns, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
+	parts = append(parts, introColumn(doc.Intro.Left, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
+	parts = append(parts, introColumn(doc.Intro.Right, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
 	if len(parts) == 0 {
 		return "null"
 	}
 	return strings.Join(parts, ",")
 }
 
-func introColumn(cards []PlayerCard, columns []string, x, y int, layout IntroLayout, fontPath string) []string {
+func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath string) []string {
 	if len(cards) > layout.MaxPlayers {
 		cards = cards[:layout.MaxPlayers]
 	}
@@ -212,7 +210,7 @@ func introColumn(cards []PlayerCard, columns []string, x, y int, layout IntroLay
 			}
 			parts = appendFilter(parts, drawtext(fontPath, caption, nx, statsY-14, 9, mutedColor))
 		}
-		parts = append(parts, introStatGrid(card, columns, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout)...)
+		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout)...)
 	}
 	return parts
 }
@@ -222,8 +220,8 @@ type overlayStat struct {
 	value string
 }
 
-func introStatGrid(card PlayerCard, columns []string, x, y, width int, fontPath string, layout IntroLayout) []string {
-	stats := introStats(card, columns)
+func introStatGrid(card PlayerCard, x, y, width int, fontPath string, layout IntroLayout) []string {
+	stats := introStats(card)
 	if len(stats) == 0 {
 		return nil
 	}
@@ -264,7 +262,7 @@ func statColumnOffsets(width, n int) []int {
 	return out
 }
 
-func introStats(card PlayerCard, columns []string) []overlayStat {
+func introStats(card PlayerCard) []overlayStat {
 	if card.Last20 == nil {
 		return []overlayStat{{label: "K/D/A", value: overlayKDA(card)}}
 	}

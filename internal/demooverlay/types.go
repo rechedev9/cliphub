@@ -110,7 +110,8 @@ type PlayerCard struct {
 	ELO        *int    `json:"elo,omitempty"`
 	SkillLevel *int    `json:"skill_level,omitempty"`
 	Ranking    *int    `json:"ranking,omitempty"`
-	Avatar     string  `json:"avatar,omitempty"`
+	AvatarURL  string  `json:"avatar_url,omitempty"`
+	AvatarFile string  `json:"avatar_file,omitempty"`
 	Last20     *Last20 `json:"last20,omitempty"`
 }
 
@@ -165,7 +166,7 @@ type Enrichment struct {
 	ELO        int
 	SkillLevel int
 	Ranking    *int
-	Avatar     string
+	AvatarURL  string
 	Last20     *Last20
 }
 

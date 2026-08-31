@@ -297,13 +297,14 @@ func CompilationFilter(short ShortEdit) string {
 	concatCount := 0
 	fps := outputFPS(short)
 	cursorFrame := 0
-	mixVoice := len(short.VoiceTracks) > 0 && short.VoiceTickrate > 0
+	tickrate := short.Tickrate
+	if tickrate <= 0 {
+		tickrate = short.VoiceTickrate
+	}
 	for i, part := range short.Parts {
 		mediaSeconds := part.DurationSeconds
-		if mixVoice {
-			if sync := partSyncDuration(part, short.VoiceTickrate); sync > 0 {
-				mediaSeconds = sync
-			}
+		if sync := partSyncDuration(part, tickrate); sync > 0 {
+			mediaSeconds = sync
 		}
 		partFrames := max(1, int(math.Round(mediaSeconds*float64(fps))))
 		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))
