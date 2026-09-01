@@ -12,6 +12,15 @@ import (
 
 const mutedColor = "0xA1A1AA"
 
+const (
+	outroScoreSize    = 34
+	outroColLabelSize = 14
+	outroNameSize     = 22
+	outroTopNameSize  = 24
+	outroStatSize     = 21
+	outroPOVLabelSize = 10
+)
+
 // OverlayWindows returns the compiled-timeline windows for intro and outro
 // image overlays. Intro starts ~4s after the fade-from-black and ends
 // before live action. Outro covers the last beats after the win banner.
@@ -59,17 +68,31 @@ func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath 
 
 func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
 	l := DefaultLayout()
-	hasPlate := platePath != ""
-	text := introFilter(doc, fontPath, hasPlate)
+	hasExternalPlate := platePath != ""
+	text := introFilter(doc, fontPath, hasExternalPlate)
+	artworkPath := platePath
+	if artworkPath == "" {
+		chromeFile, err := os.CreateTemp("", "cliphub-intro-chrome-*.png")
+		if err != nil {
+			return fmt.Errorf("create intro chrome temp: %w", err)
+		}
+		chromePath := chromeFile.Name()
+		_ = chromeFile.Close()
+		defer func() { _ = os.Remove(chromePath) }()
+		if err := writeChrome(chromePath, introChromePNG); err != nil {
+			return err
+		}
+		artworkPath = chromePath
+	}
 	req := stillRenderRequest{
 		outPath:         outPath,
 		textFilter:      text,
 		chrome:          introChromePNG,
-		transparentBase: hasPlate && !previewGrey,
-		previewGreyBase: hasPlate && previewGrey,
-		avatars:         introAvatarSlots(doc, hasPlate),
-		platePath:       platePath,
-		introPlate:      hasPlate,
+		transparentBase: !previewGrey,
+		previewGreyBase: previewGrey,
+		avatars:         introAvatarSlots(doc, hasExternalPlate),
+		platePath:       artworkPath,
+		introPlate:      true,
 		layout:          l,
 	}
 	return renderStill(ffmpegPath, req)
@@ -78,7 +101,7 @@ func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, plateP
 func renderOutroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
 	l := DefaultLayout()
 	hasPlate := platePath != ""
-	layout, _, usePlateGeo := OutroLayoutForSourceWithPlate(doc.Source, hasPlate)
+	layout, geo, usePlateGeo := OutroLayoutForSourceWithPlate(doc.Source, hasPlate)
 	text := outroFilter(doc, fontPath, layout, hasPlate)
 	if hasPlate && !usePlateGeo {
 		shading := OutroRowShadingDrawboxes(layout)
@@ -93,30 +116,39 @@ func renderOutroStill(ffmpegPath, fontPath string, doc Document, outPath, plateP
 	if text == "" {
 		text = "null"
 	}
+	cropTop, cropBottom := 0, 0
+	if usePlateGeo {
+		cropTop = geo.PlateCropTop
+		cropBottom = geo.PlateCropBottom
+	}
 	req := stillRenderRequest{
-		outPath:         outPath,
-		textFilter:      text,
-		chrome:          outroChromePNG,
-		transparentBase: hasPlate && !previewGrey,
-		previewGreyBase: hasPlate && previewGrey,
-		outroPlate:      hasPlate,
-		platePath:       platePath,
-		layout:          l,
+		outPath:              outPath,
+		textFilter:           text,
+		chrome:               outroChromePNG,
+		transparentBase:      hasPlate && !previewGrey,
+		previewGreyBase:      hasPlate && previewGrey,
+		outroPlate:           hasPlate,
+		outroPlateCropTop:    cropTop,
+		outroPlateCropBottom: cropBottom,
+		platePath:            platePath,
+		layout:               l,
 	}
 	return renderStill(ffmpegPath, req)
 }
 
 type stillRenderRequest struct {
-	outPath         string
-	textFilter      string
-	chrome          []byte
-	transparentBase bool
-	previewGreyBase bool
-	avatars         []avatarSlot
-	platePath       string
-	introPlate      bool
-	outroPlate      bool
-	layout          Layout
+	outPath              string
+	textFilter           string
+	chrome               []byte
+	transparentBase      bool
+	previewGreyBase      bool
+	avatars              []avatarSlot
+	platePath            string
+	introPlate           bool
+	outroPlate           bool
+	outroPlateCropTop    int
+	outroPlateCropBottom int
+	layout               Layout
 }
 
 type avatarSlot struct {
@@ -202,12 +234,14 @@ func renderStill(ffmpegPath string, req stillRenderRequest) error {
 	scriptPath := script.Name()
 	defer func() { _ = os.Remove(scriptPath) }()
 	graph := stillFilterGraph(stillFilterGraphOptions{
-		text:       req.textFilter,
-		avatars:    req.avatars,
-		plateInput: plateInput,
-		introPlate: req.introPlate,
-		outroPlate: req.outroPlate,
-		layout:     req.layout,
+		text:                 req.textFilter,
+		avatars:              req.avatars,
+		plateInput:           plateInput,
+		introPlate:           req.introPlate,
+		outroPlate:           req.outroPlate,
+		outroPlateCropTop:    req.outroPlateCropTop,
+		outroPlateCropBottom: req.outroPlateCropBottom,
+		layout:               req.layout,
 	})
 	if _, err := script.WriteString(graph); err != nil {
 		_ = script.Close()
@@ -228,12 +262,14 @@ func renderStill(ffmpegPath string, req stillRenderRequest) error {
 }
 
 type stillFilterGraphOptions struct {
-	text       string
-	avatars    []avatarSlot
-	plateInput int
-	introPlate bool
-	outroPlate bool
-	layout     Layout
+	text                 string
+	avatars              []avatarSlot
+	plateInput           int
+	introPlate           bool
+	outroPlate           bool
+	outroPlateCropTop    int
+	outroPlateCropBottom int
+	layout               Layout
 }
 
 func stillFilterGraph(opts stillFilterGraphOptions) string {
@@ -245,7 +281,7 @@ func stillFilterGraph(opts stillFilterGraphOptions) string {
 			clauses = append(clauses, plateClauses...)
 			current = "[" + next + "]"
 		} else if opts.outroPlate {
-			plateClauses, next := OutroPlateBackdropClauses(current, opts.plateInput)
+			plateClauses, next := OutroPlateBackdropClauses(current, opts.plateInput, opts.outroPlateCropTop, opts.outroPlateCropBottom)
 			clauses = append(clauses, plateClauses...)
 			current = "[" + next + "]"
 		}
@@ -632,43 +668,57 @@ func outroTeam(team TeamBoard, columns []string, x int, layout OutroLayout, font
 	if team.AverageELO != nil {
 		header += fmt.Sprintf("  %d ELO", *team.AverageELO)
 	}
-	parts := []string{drawtext(fontPath, header, x, layout.HeaderY, 26, "white")}
-	labelY := layout.HeaderY + 32
+	parts := []string{drawtext(fontPath, header, x, layout.HeaderY, outroScoreSize, "white")}
+	labelY := layout.HeaderY + 36
 	if useGeo {
-		labelY = geo.ColLabelY
+		labelY = geo.mappedColLabelY()
 	}
 	for i, col := range columns {
 		cx := x + layout.NameWidth + i*layout.StatWidth
-		parts = appendFilter(parts, drawtext(fontPath, outroColLabel(col), cx, labelY, 11, mutedColor))
+		parts = appendFilter(parts, drawtext(fontPath, outroColLabel(col), cx, labelY, outroColLabelSize, mutedColor))
+	}
+	players := team.Players
+	if len(players) > outroMaxPlayersPerTeam {
+		players = players[:outroMaxPlayersPerTeam]
+	}
+	topKills := 0
+	for _, card := range players {
+		if card.Kills > topKills {
+			topKills = card.Kills
+		}
 	}
 	rowY := layout.Row0
-	maxRows := len(geo.RowNameCenterY)
+	maxRows := len(players)
 	if useGeo {
-		maxRows = geo.rowCount()
+		maxRows = min(maxRows, geo.rowCount())
 	}
-	for pi, card := range team.Players {
-		if useGeo && pi >= maxRows {
+	for pi, card := range players {
+		if pi >= maxRows {
 			break
 		}
 		nameColor := "white"
+		nameSize := outroNameSize
 		if doc.IsPOV(card) {
+			nameColor = "0xFCD34D"
+			nameSize = outroTopNameSize
+		} else if topKills > 0 && card.Kills == topKills {
 			nameColor = "0xFCD34D"
 		}
 		nameY := rowY + 8
-		statY := rowY + 36
+		statY := rowY + 38
 		if useGeo {
 			nameY = geo.rowNameY(pi)
 			statY = geo.rowStatY(pi)
 		}
-		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, nameY, 20, nameColor))
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, nameY, nameSize, nameColor))
 		if doc.IsPOV(card) {
-			tagX := x + layout.NameWidth - 44
-			parts = append(parts, drawbox(tagX, nameY+2, 36, 16, "0xF59E0B@0.95"))
-			parts = appendFilter(parts, drawtext(fontPath, "POV", tagX+5, nameY+3, 9, "white"))
+			tagX := outroPlatePOVBadgeX(x, layout.NameWidth)
+			parts = append(parts, drawbox(tagX, nameY+2, outroPlatePOVBadgeW, outroPlatePOVBadgeH, "0xF59E0B@0.95"))
+			parts = appendFilter(parts, drawtext(fontPath, "POV", tagX+5, nameY+3, outroPOVLabelSize, "white"))
 		}
 		for i, col := range columns {
 			cx := x + layout.NameWidth + i*layout.StatWidth
-			parts = appendFilter(parts, drawtext(fontPath, outroCell(card, col), cx, statY, 16, mutedColor))
+			parts = appendFilter(parts, drawtext(fontPath, outroCell(card, col), cx, statY, outroStatSize, mutedColor))
 		}
 		if !useGeo {
 			rowY += layout.RowHeight

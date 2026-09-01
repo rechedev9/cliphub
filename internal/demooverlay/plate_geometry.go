@@ -1,6 +1,14 @@
 package demooverlay
 
-const outroPlateMaxRows = 10
+const (
+	outroPlateMaxRows        = 5
+	outroMaxPlayersPerTeam   = 5
+	outroPlateNameYOffset    = 22
+	outroPlateStatYOffset    = 10
+	outroPlatePOVBadgeW      = 36
+	outroPlatePOVBadgeH      = 16
+	outroPlatePOVStatGap     = 10
+)
 
 const (
 	introPlateTeamNameSize = 30
@@ -22,9 +30,14 @@ type IntroPlateGeometry struct {
 
 // OutroPlateGeometry holds measured scoreboard row bands in frame space.
 type OutroPlateGeometry struct {
-	HeaderY        int
-	ColLabelY      int
-	RowNameCenterY [outroPlateMaxRows]int
+	HeaderY  int
+	ColLabelY int
+	// PlateCropTop and PlateCropBottom bound the scoreboard artwork after
+	// scale-to-cover: from the outer frame through the bottom of row 5, excluding
+	// empty lower slots. The cropped region is vertically centered in FrameHeight.
+	PlateCropTop    int
+	PlateCropBottom int
+	RowNameCenterY  [outroPlateMaxRows]int
 }
 
 // introPlateGeometryTable is measured from data/overlay-assets/plates/*-intro.jpg.
@@ -56,58 +69,89 @@ var introPlateGeometryTable = map[string]IntroPlateGeometry{
 // outroPlateGeometryTable is measured from data/overlay-assets/plates/*-outro.jpg.
 var outroPlateGeometryTable = map[string]OutroPlateGeometry{
 	SourceProfessional: {
-		HeaderY:   118,
-		ColLabelY: 248,
-		RowNameCenterY: [outroPlateMaxRows]int{
-			329, 410, 490, 571, 653, 732, 811, 893, 972, 1052,
-		},
+		HeaderY:         118,
+		ColLabelY:       248,
+		PlateCropTop:    34,
+		PlateCropBottom: 699,
+		RowNameCenterY:  [outroPlateMaxRows]int{329, 410, 490, 571, 653},
 	},
 	SourcePremier: {
-		HeaderY:   118,
-		ColLabelY: 248,
-		RowNameCenterY: [outroPlateMaxRows]int{
-			329, 410, 490, 571, 651, 732, 811, 893, 972, 1052,
-		},
+		HeaderY:         118,
+		ColLabelY:       248,
+		PlateCropTop:    44,
+		PlateCropBottom: 697,
+		RowNameCenterY:  [outroPlateMaxRows]int{329, 410, 490, 571, 651},
 	},
 	SourceFACEIT: {
-		HeaderY:   128,
-		ColLabelY: 278,
-		RowNameCenterY: [outroPlateMaxRows]int{
-			316, 397, 477, 558, 637, 721, 804, 887, 976, 1054,
-		},
+		HeaderY:         108,
+		ColLabelY:       252,
+		PlateCropTop:    59,
+		PlateCropBottom: 680,
+		RowNameCenterY:  [outroPlateMaxRows]int{316, 397, 477, 558, 637},
 	},
 }
-
-const (
-	outroPlateNameYOffset = 22
-	outroPlateStatYOffset = 8
-)
 
 func introPlatePOVBadgeX(panelX, panelWidth int) int {
 	return panelX + panelWidth - introPlatePOVRightPad
 }
 
 func (g OutroPlateGeometry) rowCount() int {
-	for i := len(g.RowNameCenterY) - 1; i >= 0; i-- {
+	n := 0
+	for i := range g.RowNameCenterY {
 		if g.RowNameCenterY[i] > 0 {
-			return i + 1
+			n = i + 1
 		}
 	}
-	return 0
+	return n
+}
+
+func (g OutroPlateGeometry) contentHeight() int {
+	if g.PlateCropBottom <= g.PlateCropTop {
+		return 0
+	}
+	return g.PlateCropBottom - g.PlateCropTop
+}
+
+func (g OutroPlateGeometry) verticalPadTop() int {
+	h := g.contentHeight()
+	if h <= 0 || h >= FrameHeight {
+		return 0
+	}
+	return (FrameHeight - h) / 2
+}
+
+func (g OutroPlateGeometry) mapFrameY(y int) int {
+	h := g.contentHeight()
+	if h <= 0 || h >= FrameHeight {
+		return y
+	}
+	return y - g.PlateCropTop + g.verticalPadTop()
+}
+
+func (g OutroPlateGeometry) mappedHeaderY() int {
+	return g.mapFrameY(g.HeaderY)
+}
+
+func (g OutroPlateGeometry) mappedColLabelY() int {
+	return g.mapFrameY(g.ColLabelY)
 }
 
 func (g OutroPlateGeometry) rowNameY(i int) int {
 	if i < 0 || i >= len(g.RowNameCenterY) || g.RowNameCenterY[i] == 0 {
 		return 0
 	}
-	return g.RowNameCenterY[i] - outroPlateNameYOffset
+	return g.mapFrameY(g.RowNameCenterY[i] - outroPlateNameYOffset)
 }
 
 func (g OutroPlateGeometry) rowStatY(i int) int {
 	if i < 0 || i >= len(g.RowNameCenterY) || g.RowNameCenterY[i] == 0 {
 		return 0
 	}
-	return g.RowNameCenterY[i] + outroPlateStatYOffset
+	return g.mapFrameY(g.RowNameCenterY[i] + outroPlateStatYOffset)
+}
+
+func outroPlatePOVBadgeX(nameColX, nameWidth int) int {
+	return nameColX + nameWidth - outroPlatePOVBadgeW - outroPlatePOVStatGap
 }
 
 func IntroPlateGeo(source string, hasPlate bool) (IntroPlateGeometry, bool) {
@@ -145,10 +189,10 @@ func OutroLayoutForSourceWithPlate(source string, hasPlate bool) (OutroLayout, O
 	if !ok {
 		return base, OutroPlateGeometry{}, false
 	}
-	base.HeaderY = geo.HeaderY
+	base.HeaderY = geo.mappedHeaderY()
 	base.Row0 = geo.rowNameY(0)
 	if geo.rowCount() >= 2 {
-		base.RowHeight = geo.RowNameCenterY[1] - geo.RowNameCenterY[0]
+		base.RowHeight = geo.rowNameY(1) - geo.rowNameY(0)
 	}
 	return base, geo, true
 }

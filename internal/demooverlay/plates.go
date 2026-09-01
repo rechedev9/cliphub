@@ -12,6 +12,11 @@ const (
 	plateIntroSuffix = "-intro.jpg"
 	plateOutroSuffix = "-outro.jpg"
 	outroPlateAlpha  = 0.95
+	// Ambient blur fill behind the sharp scoreboard crop.
+	outroBlurLumaRadius    = 24
+	outroBlurChromaRadius  = 12
+	outroAmbientBrightness = -0.08
+	outroAmbientSaturation = 0.85
 )
 
 // RenderOptions configures optional Full Demo overlay background plates.
@@ -89,8 +94,8 @@ type introPlateOverlay struct {
 
 func introPlateOverlaySpec(l Layout) introPlateOverlay {
 	return introPlateOverlay{
-		LeftCrop:  fmt.Sprintf("[pcov]crop=%d:%d:%d:%d[plL]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.LeftPanelX, l.Intro.PanelTop),
-		RightCrop: fmt.Sprintf("[pcov]crop=%d:%d:%d:%d[plR]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.RightPanelX, l.Intro.PanelTop),
+		LeftCrop:  fmt.Sprintf("[pcov]crop=%d:%d:%d:%d[plL]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.LeftPanelCropX, l.Intro.PanelTop),
+		RightCrop: fmt.Sprintf("[pcov]crop=%d:%d:%d:%d[plR]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.RightPanelCropX, l.Intro.PanelTop),
 		LeftX:     l.Intro.LeftPanelX,
 		LeftY:     l.Intro.PanelTop,
 		RightX:    l.Intro.RightPanelX,
@@ -106,8 +111,8 @@ func IntroPlateFilterClauses(current string, plateInputIndex int, l Layout) ([]s
 	clauses := []string{
 		fmt.Sprintf("[%s]%s[pcov]", plateIn, plateScaleCoverCropChain()),
 		"[pcov]split=2[pcovL][pcovR]",
-		fmt.Sprintf("[pcovL]crop=%d:%d:%d:%d[plL]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.LeftPanelX, l.Intro.PanelTop),
-		fmt.Sprintf("[pcovR]crop=%d:%d:%d:%d[plR]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.RightPanelX, l.Intro.PanelTop),
+		fmt.Sprintf("[pcovL]crop=%d:%d:%d:%d[plL]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.LeftPanelCropX, l.Intro.PanelTop),
+		fmt.Sprintf("[pcovR]crop=%d:%d:%d:%d[plR]", l.Intro.PanelWidth, l.Intro.PanelHeight, l.Intro.RightPanelCropX, l.Intro.PanelTop),
 		fmt.Sprintf("%s[plL]overlay=x=%d:y=%d:format=auto[pl_left]", current, spec.LeftX, spec.LeftY),
 	}
 	next := "pl_done"
@@ -116,13 +121,37 @@ func IntroPlateFilterClauses(current string, plateInputIndex int, l Layout) ([]s
 }
 
 // OutroPlateBackdropClauses composites a full-frame outro plate beneath text.
-func OutroPlateBackdropClauses(current string, plateInputIndex int) ([]string, string) {
+// cropTop and cropBottom bound the sharp scoreboard region after scale-to-cover.
+// The full plate covers the frame as a blurred ambient layer; the sharp crop is
+// centered on top so letterbox bands inherit plate texture, not flat padding.
+func OutroPlateBackdropClauses(current string, plateInputIndex int, cropTop, cropBottom int) ([]string, string) {
 	plateIn := fmt.Sprintf("%d:v", plateInputIndex)
 	clauses := []string{
 		fmt.Sprintf("[%s]%s[pcov]", plateIn, plateScaleCoverCropChain()),
-		fmt.Sprintf("[pcov]format=rgba,colorchannelmixer=aa=%.2f[plat]", outroPlateAlpha),
-		fmt.Sprintf("%s[plat]overlay=x=0:y=0:format=auto[plated]", current),
+		"[pcov]split=2[pcov_bg][pcov_fg]",
+		fmt.Sprintf(
+			"[pcov_bg]boxblur=luma_radius=%d:luma_power=1:chroma_radius=%d:chroma_power=1[pcov_blur]",
+			outroBlurLumaRadius, outroBlurChromaRadius,
+		),
+		fmt.Sprintf("[pcov_blur]eq=brightness=%g:saturation=%g[pcov_ambient]", outroAmbientBrightness, outroAmbientSaturation),
+		fmt.Sprintf("%s[pcov_ambient]overlay=x=0:y=0:format=auto[bg]", current),
 	}
+	if cropBottom > cropTop {
+		h := cropBottom - cropTop
+		if h > 0 && h < FrameHeight {
+			padTop := (FrameHeight - h) / 2
+			clauses = append(clauses,
+				fmt.Sprintf("[pcov_fg]crop=%d:%d:0:%d[pcov_trim]", FrameWidth, h, cropTop),
+				fmt.Sprintf("[pcov_trim]format=rgba,colorchannelmixer=aa=%.2f[pcov_sharp]", outroPlateAlpha),
+				fmt.Sprintf("[bg][pcov_sharp]overlay=x=0:y=%d:format=auto[plated]", padTop),
+			)
+			return clauses, "plated"
+		}
+	}
+	clauses = append(clauses,
+		fmt.Sprintf("[pcov_fg]format=rgba,colorchannelmixer=aa=%.2f[plat]", outroPlateAlpha),
+		"[bg][plat]overlay=x=0:y=0:format=auto[plated]",
+	)
 	return clauses, "plated"
 }
 

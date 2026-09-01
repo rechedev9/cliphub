@@ -14,11 +14,19 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	if l.Width != 1920 || l.Height != 1080 {
 		t.Fatalf("frame = %dx%d", l.Width, l.Height)
 	}
-	if l.Intro.LeftPanelX != 42 || l.Intro.RightPanelX != 1308 {
+	if l.Intro.LeftPanelX != 45 || l.Intro.RightPanelX != 1311 {
 		t.Fatalf("panels x = %d / %d", l.Intro.LeftPanelX, l.Intro.RightPanelX)
+	}
+	if l.Intro.LeftPanelCropX != 42 || l.Intro.RightPanelCropX != 1308 {
+		t.Fatalf("panel crop x = %d / %d", l.Intro.LeftPanelCropX, l.Intro.RightPanelCropX)
 	}
 	if l.Intro.CenterGap != 703 {
 		t.Fatalf("center gap = %d, want 703 so radar/score/health stay visible", l.Intro.CenterGap)
+	}
+	leftMargin := l.Intro.LeftPanelX
+	rightMargin := l.Width - l.Intro.RightPanelX - l.Intro.PanelWidth
+	if rightMargin-leftMargin > 1 {
+		t.Fatalf("intro margins asymmetric: left=%d right=%d", leftMargin, rightMargin)
 	}
 	if l.Intro.AvatarSize != 64 || l.Intro.HeaderH != 36 || l.Intro.RowHeight != 196 {
 		t.Fatalf("intro card = avatar %d header %d row %d", l.Intro.AvatarSize, l.Intro.HeaderH, l.Intro.RowHeight)

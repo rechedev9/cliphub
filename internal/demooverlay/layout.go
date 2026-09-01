@@ -15,7 +15,12 @@ type IntroLayout struct {
 	PanelTop    int
 	LeftPanelX  int
 	RightPanelX int
-	CenterGap   int
+	// LeftPanelCropX and RightPanelCropX are the measured panel origins in the
+	// scale-to-cover 1920x1080 plate/chrome artwork. Overlay/text use LeftPanelX
+	// and RightPanelX so the pair stays centered in frame.
+	LeftPanelCropX  int
+	RightPanelCropX int
+	CenterGap       int
 	RowHeight   int
 	MaxPlayers  int
 	HeaderH     int
@@ -43,22 +48,28 @@ type OutroLayout struct {
 
 func DefaultLayout() Layout {
 	const (
-		panelW = 563
-		inset  = 42
-		top    = 28
-		height = 1020
-		rightX = 1308
+		panelW      = 563
+		panelCropL  = 42
+		panelCropR  = 1308
+		top         = 28
+		height      = 1020
+		centerGap   = 703
 	)
+	margin := (FrameWidth - 2*panelW - centerGap) / 2
+	leftX := margin
+	rightX := margin + panelW + centerGap
 	return Layout{
 		Width:  FrameWidth,
 		Height: FrameHeight,
 		Intro: IntroLayout{
-			PanelWidth:  panelW,
-			PanelHeight: height,
-			PanelTop:    top,
-			LeftPanelX:  inset,
-			RightPanelX: rightX,
-			CenterGap:   rightX - inset - panelW,
+			PanelWidth:      panelW,
+			PanelHeight:     height,
+			PanelTop:        top,
+			LeftPanelX:      leftX,
+			RightPanelX:     rightX,
+			LeftPanelCropX:  panelCropL,
+			RightPanelCropX: panelCropR,
+			CenterGap:       centerGap,
 			RowHeight:   196,
 			MaxPlayers:  5,
 			HeaderH:     36,
@@ -74,11 +85,11 @@ func DefaultLayout() Layout {
 		Outro: OutroLayout{
 			Margin:    270,
 			HeaderH:   60,
-			RowHeight: 145,
+			RowHeight: 118,
 			FullFrame: true,
 			ColGap:    760,
-			NameWidth: 210,
-			StatWidth: 78,
+			NameWidth: 240,
+			StatWidth: 88,
 			HeaderY:   155,
 			Row0:      220,
 		},

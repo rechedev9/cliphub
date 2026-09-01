@@ -59,7 +59,7 @@ func TestMeasureFaceitIntroCircles(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := DefaultLayout()
-	centers := detectIntroAvatarCircleCenters(img, l.Intro.LeftPanelX)
+	centers := detectIntroAvatarCircleCenters(img, l.Intro.LeftPanelCropX)
 	fmt.Printf("\n=== faceit-intro avatar circles (frame Y) ===\n")
 	for i, cy := range centers {
 		fmt.Printf("  row %d center=%d\n", i, cy)

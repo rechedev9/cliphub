@@ -100,8 +100,8 @@ func TestIntroPlateFilterClausesUsesPanelGeometry(t *testing.T) {
 		"split=2[pcovL][pcovR]",
 		"[pcovL]crop=563:1020:42:28[plL]",
 		"[pcovR]crop=563:1020:1308:28[plR]",
-		"[0:v][plL]overlay=x=42:y=28",
-		"[pl_left][plR]overlay=x=1308:y=28",
+		"[0:v][plL]overlay=x=45:y=28",
+		"[pl_left][plR]overlay=x=1311:y=28",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in:\n%s", want, joined)
@@ -215,11 +215,11 @@ func TestFaceitIntroRow0CircleCenter(t *testing.T) {
 
 func TestLockedOutroPlateGeometryTables(t *testing.T) {
 	proOutro := OutroPlateGeometry{
-		HeaderY:   118,
-		ColLabelY: 248,
-		RowNameCenterY: [outroPlateMaxRows]int{
-			329, 410, 490, 571, 653, 732, 811, 893, 972, 1052,
-		},
+		HeaderY:         118,
+		ColLabelY:       248,
+		PlateCropTop:    34,
+		PlateCropBottom: 699,
+		RowNameCenterY:  [outroPlateMaxRows]int{329, 410, 490, 571, 653},
 	}
 	tests := []struct {
 		source string
@@ -229,21 +229,21 @@ func TestLockedOutroPlateGeometryTables(t *testing.T) {
 		{
 			source: SourcePremier,
 			want: OutroPlateGeometry{
-				HeaderY:   118,
-				ColLabelY: 248,
-				RowNameCenterY: [outroPlateMaxRows]int{
-					329, 410, 490, 571, 651, 732, 811, 893, 972, 1052,
-				},
+				HeaderY:         118,
+				ColLabelY:       248,
+				PlateCropTop:    44,
+				PlateCropBottom: 697,
+				RowNameCenterY:  [outroPlateMaxRows]int{329, 410, 490, 571, 651},
 			},
 		},
 		{
 			source: SourceFACEIT,
 			want: OutroPlateGeometry{
-				HeaderY:   128,
-				ColLabelY: 278,
-				RowNameCenterY: [outroPlateMaxRows]int{
-					316, 397, 477, 558, 637, 721, 804, 887, 976, 1054,
-				},
+				HeaderY:         108,
+				ColLabelY:       252,
+				PlateCropTop:    59,
+				PlateCropBottom: 680,
+				RowNameCenterY:  [outroPlateMaxRows]int{316, 397, 477, 558, 637},
 			},
 		},
 	}
@@ -265,34 +265,139 @@ func TestOutroPlateRowYPacking(t *testing.T) {
 	if !ok {
 		t.Fatal("expected geometry")
 	}
-	// Row 0 band is frame y=297..363; name+stat must stay inside.
 	nameY := geo.rowNameY(0)
-	statY := geo.rowStatY(0)
-	if nameY < 297 || nameY > 340 {
-		t.Fatalf("row 0 nameY=%d outside upper band", nameY)
+	statY := geo.rowStatY(4)
+	if nameY < geo.mappedHeaderY()+20 {
+		t.Fatalf("row 0 nameY=%d too close to header y=%d", nameY, geo.mappedHeaderY())
 	}
-	if statY < 320 || statY+16 > 363 {
-		t.Fatalf("row 0 statY=%d extends past band bottom 363", statY)
+	if statY <= nameY {
+		t.Fatalf("row 4 statY=%d must sit below row 0 nameY=%d", statY, nameY)
 	}
-	if geo.rowCount() != 10 {
-		t.Fatalf("rowCount=%d, want 10", geo.rowCount())
+	if statY+outroStatSize > FrameHeight-geo.verticalPadTop()/2 {
+		t.Fatalf("row 4 stats extend past frame: statY=%d padTop=%d", statY, geo.verticalPadTop())
+	}
+	if geo.rowCount() != outroPlateMaxRows {
+		t.Fatalf("rowCount=%d, want %d", geo.rowCount(), outroPlateMaxRows)
+	}
+}
+
+func TestOutroPlateFrameYMapping(t *testing.T) {
+	geo, ok := OutroPlateGeo(SourceProfessional, true)
+	if !ok {
+		t.Fatal("expected geometry")
+	}
+	padTop := geo.verticalPadTop()
+	if padTop <= 0 {
+		t.Fatalf("padTop=%d, want vertical centering padding", padTop)
+	}
+	if got := geo.mappedHeaderY(); got != geo.HeaderY-geo.PlateCropTop+padTop {
+		t.Fatalf("mapped header y=%d, want %d", got, geo.HeaderY-geo.PlateCropTop+padTop)
+	}
+	if got := geo.mappedColLabelY(); got <= geo.mappedHeaderY() {
+		t.Fatalf("col labels y=%d must sit below header y=%d", got, geo.mappedHeaderY())
+	}
+	if bottom := geo.mapFrameY(geo.PlateCropBottom); bottom > FrameHeight-padTop/2 {
+		t.Fatalf("mapped crop bottom=%d exceeds frame with pad", bottom)
+	}
+}
+
+func TestOutroPlatePOVBadgeClearsStatColumns(t *testing.T) {
+	layout := DefaultLayout().Outro
+	x := layout.Margin
+	tagX := outroPlatePOVBadgeX(x, layout.NameWidth)
+	statX := x + layout.NameWidth
+	if tagX+outroPlatePOVBadgeW+outroPlatePOVStatGap > statX {
+		t.Fatalf("POV badge right=%d overlaps stats at %d", tagX+outroPlatePOVBadgeW, statX)
+	}
+}
+
+func TestOutroFilterDrawsColumnHeadersForBothTeams(t *testing.T) {
+	doc := BuildForSource(Roster{
+		TargetSteamID64: "1",
+		ClanNameCT:      "Vitality",
+		ClanNameT:       "G2",
+		ScoreCT:         13,
+		ScoreT:          8,
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, Headshots: 12, HSPct: 52},
+			{SteamID64: "2", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
+		},
+	}, SourceProfessional, nil)
+	layout, _, useGeo := OutroLayoutForSourceWithPlate(SourceProfessional, true)
+	if !useGeo {
+		t.Fatal("expected plate geometry")
+	}
+	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", layout, true)
+	rightHeaderX := layout.Margin + layout.ColGap + layout.NameWidth
+	wantRight := fmt.Sprintf("x=%d", rightHeaderX)
+	if !strings.Contains(got, wantRight) {
+		t.Fatalf("outro missing right-team column header anchor %q:\n%s", wantRight, got)
+	}
+	for _, label := range []string{"RATING", "K/D/A", "ADR", "HS%"} {
+		if strings.Count(got, "text='"+label+"'") < 2 {
+			t.Fatalf("outro should draw %q above both teams, got:\n%s", label, got)
+		}
 	}
 }
 
 func TestOutroPlateBackdropClausesUsesHighOpacity(t *testing.T) {
-	clauses, next := OutroPlateBackdropClauses("[0:v]", 1)
+	clauses, next := OutroPlateBackdropClauses("[0:v]", 1, 34, 699)
 	if next != "plated" {
 		t.Fatalf("next = %q", next)
 	}
 	joined := strings.Join(clauses, ";")
 	for _, want := range []string{
 		"scale=1920:1080:force_original_aspect_ratio=increase",
+		"split=2[pcov_bg][pcov_fg]",
+		"boxblur=luma_radius=24",
+		"eq=brightness=-0.08",
+		"crop=1920:665:0:34",
+		"overlay=x=0:y=207",
 		"colorchannelmixer=aa=0.95",
-		"overlay=x=0:y=0",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in:\n%s", want, joined)
 		}
+	}
+	if strings.Contains(joined, "pad=1920:1080") {
+		t.Fatalf("expected blur fill, not flat pad:\n%s", joined)
+	}
+}
+
+func TestOutroPlateGeometryFitsAllSources(t *testing.T) {
+	const statSize = 21
+	for _, source := range []string{SourceProfessional, SourcePremier, SourceFACEIT} {
+		t.Run(source, func(t *testing.T) {
+			geo, ok := OutroPlateGeo(source, true)
+			if !ok {
+				t.Fatal("expected geometry")
+			}
+			padTop := geo.verticalPadTop()
+			if padTop <= 0 {
+				t.Fatalf("padTop=%d", padTop)
+			}
+			if geo.mappedHeaderY() < padTop/2 {
+				t.Fatalf("header y=%d leaves no top margin", geo.mappedHeaderY())
+			}
+			if geo.mappedColLabelY() <= geo.mappedHeaderY()+20 {
+				t.Fatalf("col labels y=%d too close to header y=%d", geo.mappedColLabelY(), geo.mappedHeaderY())
+			}
+			lastStatY := geo.rowStatY(geo.rowCount() - 1)
+			if lastStatY+statSize > FrameHeight-padTop/2 {
+				t.Fatalf("last row stats y=%d overflow frame %d", lastStatY, FrameHeight)
+			}
+		})
+	}
+}
+
+func TestFaceitOutroColLabelsSitBelowHeader(t *testing.T) {
+	geo, ok := OutroPlateGeo(SourceFACEIT, true)
+	if !ok {
+		t.Fatal("expected geometry")
+	}
+	gap := geo.mappedColLabelY() - geo.mappedHeaderY()
+	if gap > 170 {
+		t.Fatalf("FACEIT header-to-label gap=%d too large", gap)
 	}
 }
 
@@ -307,13 +412,19 @@ func TestStillFilterGraphFallsBackWithoutPlate(t *testing.T) {
 }
 
 func TestStillFilterGraphCompositesIntroPlate(t *testing.T) {
+	l := DefaultLayout()
 	got := stillFilterGraph(stillFilterGraphOptions{
 		text:       "drawtext=text='x'",
 		plateInput: 1,
 		introPlate: true,
-		layout:     DefaultLayout(),
+		layout:     l,
 	})
-	for _, want := range []string{"[1:v]", "[plL]", "overlay=x=42:y=28", "drawtext=text='x'"} {
+	for _, want := range []string{
+		"[1:v]",
+		"[plL]",
+		fmt.Sprintf("overlay=x=%d:y=%d", l.Intro.LeftPanelX, l.Intro.PanelTop),
+		"drawtext=text='x'",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in:\n%s", want, got)
 		}
@@ -360,18 +471,22 @@ func TestRenderPlatePreviewPNGs(t *testing.T) {
 	}
 	roster := Roster{
 		TargetSteamID64: "1",
-		Map:             "de_mirage",
+		Map:             "de_cache",
 		ScoreCT:         13,
-		ScoreT:          8,
-		ClanNameCT:      "Vitality",
-		ClanNameT:       "G2",
+		ScoreT:          7,
+		ClanNameCT:      "Spirit",
+		ClanNameT:       "DENDELE",
 		Players: []RosterPlayer{
-			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, HSPct: 52, Headshots: 12},
-			{SteamID64: "2", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16, Assists: 3, Rating: 1.05},
-			{SteamID64: "3", Name: "mezii", Team: "CT", Kills: 15, Deaths: 12, Assists: 5},
-			{SteamID64: "4", Name: "apEX", Team: "CT", Kills: 12, Deaths: 15, Assists: 7},
-			{SteamID64: "5", Name: "ZywOo", Team: "CT", Kills: 20, Deaths: 10, Assists: 2},
-			{SteamID64: "6", Name: "huNter", Team: "T", Kills: 14, Deaths: 17, Assists: 4},
+			{SteamID64: "1", Name: "donk", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, HSPct: 52, Headshots: 12},
+			{SteamID64: "2", Name: "magixx", Team: "CT", Kills: 15, Deaths: 12, Assists: 5, ADR: 82.3, Rating: 1.05, HSPct: 41},
+			{SteamID64: "3", Name: "chopper", Team: "CT", Kills: 12, Deaths: 15, Assists: 7, ADR: 71.2, Rating: 0.92, HSPct: 38},
+			{SteamID64: "4", Name: "clt0", Team: "CT", Kills: 11, Deaths: 16, Assists: 3, ADR: 68.4, Rating: 0.88, HSPct: 35},
+			{SteamID64: "5", Name: "zonte1x", Team: "CT", Kills: 9, Deaths: 14, Assists: 6, ADR: 62.1, Rating: 0.79, HSPct: 29},
+			{SteamID64: "6", Name: "kai1n", Team: "T", Kills: 18, Deaths: 16, Assists: 3, ADR: 88.5, Rating: 1.08, HSPct: 44},
+			{SteamID64: "7", Name: "xsepower", Team: "T", Kills: 14, Deaths: 17, Assists: 4, ADR: 76.2, Rating: 0.95, HSPct: 36},
+			{SteamID64: "8", Name: "gafolo", Team: "T", Kills: 12, Deaths: 18, Assists: 2, ADR: 69.8, Rating: 0.84, HSPct: 31},
+			{SteamID64: "9", Name: "renzo", Team: "T", Kills: 10, Deaths: 19, Assists: 5, ADR: 58.3, Rating: 0.72, HSPct: 27},
+			{SteamID64: "10", Name: "dee", Team: "T", Kills: 8, Deaths: 20, Assists: 1, ADR: 51.4, Rating: 0.65, HSPct: 22},
 		},
 	}
 	for _, source := range []string{SourceProfessional, SourcePremier, SourceFACEIT} {
