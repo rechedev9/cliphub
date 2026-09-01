@@ -155,14 +155,7 @@ func appendImageOverlayClauses(clauses []string, current string, imageInputStart
 		}
 		clauses = append(clauses,
 			fmt.Sprintf("[%d:v]%s[%s]", imageInput, imageOverlayFilter(effect, short), imageLabel),
-			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:enable='%s'[%s]",
-				current,
-				imageLabel,
-				effectPosition(effect.X, "(W-w)/2"),
-				effectPosition(effect.Y, "72"),
-				betweenExpression(effect.StartSeconds, effect.EndSeconds),
-				next,
-			),
+			imageOverlayClause(current, imageLabel, next, effectPosition(effect.X, "(W-w)/2"), effectPosition(effect.Y, "72"), betweenExpression(effect.StartSeconds, effect.EndSeconds)),
 		)
 		current = next
 	}
@@ -186,11 +179,11 @@ func introSlideOverlayClauses(current string, imageInput int, imageLabel, next s
 		fmt.Sprintf("[%s]split=2[%ssrcL][%ssrcR]", imageLabel, imageLabel, imageLabel),
 		fmt.Sprintf("[%ssrcL]crop=%d:%d:0:0[%sL]", imageLabel, leftW, demooverlay.FrameHeight, imageLabel),
 		fmt.Sprintf("[%ssrcR]crop=%d:%d:%d:0[%sR]", imageLabel, rightW, demooverlay.FrameHeight, rightX, imageLabel),
-		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=auto:enable='%s'[%s]",
+		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
 			current, imageLabel,
 			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, -leftW, 0),
 			enable, mid),
-		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=auto:enable='%s'[%s]",
+		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
 			mid, imageLabel,
 			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, demooverlay.FrameWidth, rightX),
 			enable, next),
@@ -258,33 +251,81 @@ func killfeedEffects(effects []Effect) []Effect {
 	return out
 }
 
+var imageOverlayFilterFunc = buildImageOverlayFilter
+
 func imageOverlayFilter(effect Effect, short ShortEdit) string {
+	return imageOverlayFilterFunc(effect, short)
+}
+
+func buildImageOverlayFilter(effect Effect, short ShortEdit) string {
 	filters := []string{
 		"format=rgba",
 		imageScaleFilter(effect),
 	}
 	if hasEffectFade(effect) || effect.Source == "full-demo-intro" {
-		duration := short.DurationSeconds
-		if duration <= 0 {
-			duration = effect.EndSeconds
+		window := overlayActiveWindowForEffect(effect)
+		if window.DurationSeconds() > 0 {
+			filters = append(filters, imageOverlayWindowFilters(effect, short, window)...)
 		}
-		filters = append(filters,
-			"loop=loop=-1:size=1:start=0",
-			fmt.Sprintf("setpts=N/%d/TB", outputFPS(short)),
-		)
-		if duration > 0 {
-			filters = append(filters, fmt.Sprintf("trim=duration=%.3f", duration))
-		}
-		fadeIn, fadeOut := normalizedFadeDurations(effect)
-		if effect.Source == "full-demo-intro" {
-			fadeIn = 0
-		}
-		faded := effect
-		faded.FadeInSeconds = fadeIn
-		faded.FadeOutSeconds = fadeOut
-		filters = append(filters, overlayFadeFilters(faded)...)
 	}
 	return strings.Join(filters, ",")
+}
+
+// overlayActiveWindow is the explicit timeline span where an image overlay must
+// decode frames. The main video keeps recording outside this window.
+type overlayActiveWindow struct {
+	StartSeconds float64
+	EndSeconds   float64
+}
+
+func (w overlayActiveWindow) DurationSeconds() float64 {
+	if w.EndSeconds <= w.StartSeconds {
+		return 0
+	}
+	return w.EndSeconds - w.StartSeconds
+}
+
+func overlayActiveWindowForEffect(effect Effect) overlayActiveWindow {
+	start := effect.StartSeconds
+	if start < 0 {
+		start = 0
+	}
+	end := effect.EndSeconds
+	if end < start {
+		end = start
+	}
+	return overlayActiveWindow{StartSeconds: start, EndSeconds: end}
+}
+
+func imageOverlayWindowFilters(effect Effect, short ShortEdit, window overlayActiveWindow) []string {
+	windowDuration := window.DurationSeconds()
+	fps := outputFPS(short)
+	trimDuration := windowDuration
+	if fps > 0 {
+		// One extra frame so inclusive enable='between(t,start,end)' still has
+		// overlay media at the exact end tick, matching the legacy full-trim graph.
+		trimDuration += 1.0 / float64(fps)
+	}
+	filters := []string{
+		"loop=loop=-1:size=1:start=0",
+		fmt.Sprintf("setpts=N/%d/TB", fps),
+		fmt.Sprintf("trim=duration=%.3f", trimDuration),
+	}
+	fadeIn, fadeOut := normalizedFadeDurations(effect)
+	if effect.Source == "full-demo-intro" {
+		fadeIn = 0
+	}
+	faded := effect
+	faded.FadeInSeconds = fadeIn
+	faded.FadeOutSeconds = fadeOut
+	filters = append(filters, overlayFadeFiltersLocal(faded, windowDuration)...)
+	filters = append(filters, fmt.Sprintf("setpts=PTS-STARTPTS+%.3f/TB", window.StartSeconds))
+	return filters
+}
+
+func imageOverlayClause(baseLabel, imageLabel, outputLabel, x, y, enable string) string {
+	return fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:eof_action=pass:repeatlast=0:enable='%s'[%s]",
+		baseLabel, imageLabel, x, y, enable, outputLabel)
 }
 
 func imageScaleFilter(effect Effect) string {
@@ -321,6 +362,22 @@ func overlayFadeFilters(effect Effect) []string {
 	}
 	if fadeOut > 0 {
 		filters = append(filters, fmt.Sprintf("fade=t=out:st=%.3f:d=%.3f:alpha=1", effect.EndSeconds-fadeOut, fadeOut))
+	}
+	return filters
+}
+
+func overlayFadeFiltersLocal(effect Effect, windowDuration float64) []string {
+	fadeIn, fadeOut := normalizedFadeDurations(effect)
+	filters := []string{}
+	if fadeIn > 0 {
+		filters = append(filters, fmt.Sprintf("fade=t=in:st=0:d=%.3f:alpha=1", fadeIn))
+	}
+	if fadeOut > 0 && windowDuration > 0 {
+		fadeOutStart := windowDuration - fadeOut
+		if fadeOutStart < 0 {
+			fadeOutStart = 0
+		}
+		filters = append(filters, fmt.Sprintf("fade=t=out:st=%.3f:d=%.3f:alpha=1", fadeOutStart, fadeOut))
 	}
 	return filters
 }
