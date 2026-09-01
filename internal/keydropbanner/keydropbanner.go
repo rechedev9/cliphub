@@ -43,6 +43,9 @@ var styleOperatorPNG []byte
 //go:embed style-classic.png
 var styleClassicPNG []byte
 
+//go:embed style-jcorko.png
+var styleJcorkoPNG []byte
+
 // codePattern accepts the short sponsor codes streamers type by hand.
 // Letters, digits, and a few separators; no spaces or control chars.
 var codePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`)
@@ -114,6 +117,7 @@ var styles = map[string]Style{
 	StyleJcorko: {
 		ID:           StyleJcorko,
 		FileName:     "style-jcorko.png",
+		Data:         styleJcorkoPNG,
 		Width:        1080,
 		Height:       520,
 		CoverX:       0.20,
