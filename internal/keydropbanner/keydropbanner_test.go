@@ -1,6 +1,10 @@
 package keydropbanner
 
 import (
+	"bytes"
+	"image"
+	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,6 +148,45 @@ func TestFamiliesDoNotSharePlatesOrCopy(t *testing.T) {
 	if got := FamilyLabel(EffectiveFamily("", StyleClassic)); got != "KeyDrop" {
 		t.Fatalf("legacy style without family labeled %q, want KeyDrop", got)
 	}
+}
+
+func TestGeneratedFamilyPlateBayMatchesCover(t *testing.T) {
+	t.Parallel()
+	const classicX, classicY, classicW, classicH = 0.18, 0.54, 0.64, 0.22
+	for _, id := range []string{StyleClassic, StyleOperator} {
+		style, ok := Lookup(FamilyCSGOSkins, id)
+		if !ok || len(style.Data) == 0 {
+			t.Fatalf("%s plate missing", id)
+		}
+		img, err := png.Decode(bytes.NewReader(style.Data))
+		if err != nil {
+			t.Fatalf("decode %s: %v", id, err)
+		}
+		cover := samplePlate(img, style.CoverX+style.CoverW/2, style.CoverY+style.CoverH/2)
+		if cover == (colorAt{}) {
+			t.Fatalf("%s cover center is empty", id)
+		}
+		if id != StyleOperator {
+			continue
+		}
+		wrong := samplePlate(img, classicX+classicW/2, classicY+classicH/2)
+		if cover == wrong {
+			t.Fatalf("CSGOSKINS operator bay is painted at classic fractions; cover=%v classic=%v", cover, wrong)
+		}
+	}
+}
+
+type colorAt struct{ r, g, b, a uint32 }
+
+func samplePlate(img image.Image, xf, yf float64) colorAt {
+	b := img.Bounds()
+	x := b.Min.X + int(math.Round(xf*float64(b.Dx())))
+	y := b.Min.Y + int(math.Round(yf*float64(b.Dy())))
+	if x < b.Min.X || x >= b.Max.X || y < b.Min.Y || y >= b.Max.Y {
+		return colorAt{}
+	}
+	r, g, bl, a := img.At(x, y).RGBA()
+	return colorAt{r, g, bl, a}
 }
 
 func TestClassicCoverStaysInsideTextBay(t *testing.T) {

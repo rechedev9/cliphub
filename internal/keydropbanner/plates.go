@@ -6,11 +6,17 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 )
 
 // generateFamilyPlate paints a family-owned PNG that never shares bytes with
-// the bundled KeyDrop art. CompositeWithCode covers the bay and draws CODE.
-func generateFamilyPlate(w, h int, bg, stripe, bay color.RGBA) []byte {
+// the bundled KeyDrop art. The code bay uses the style's Cover* fractions so
+// CompositeWithCode covers the same rectangle it later draws CODE into.
+func generateFamilyPlate(style Style, bg, stripe, bay color.RGBA) []byte {
+	w, h := style.Width, style.Height
+	if w <= 0 || h <= 0 {
+		return nil
+	}
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(img, img.Bounds(), &image.Uniform{C: bg}, image.Point{}, draw.Src)
 	stripeH := h / 7
@@ -18,10 +24,10 @@ func generateFamilyPlate(w, h int, bg, stripe, bay color.RGBA) []byte {
 		stripeH = 24
 	}
 	draw.Draw(img, image.Rect(0, 0, w, stripeH), &image.Uniform{C: stripe}, image.Point{}, draw.Src)
-	bayX := int(float64(w) * 0.18)
-	bayY := int(float64(h) * 0.54)
-	bayW := int(float64(w) * 0.64)
-	bayH := int(float64(h) * 0.22)
+	bayX := int(math.Round(style.CoverX * float64(w)))
+	bayY := int(math.Round(style.CoverY * float64(h)))
+	bayW := int(math.Round(style.CoverW * float64(w)))
+	bayH := int(math.Round(style.CoverH * float64(h)))
 	draw.Draw(img, image.Rect(bayX, bayY, bayX+bayW, bayY+bayH), &image.Uniform{C: bay}, image.Point{}, draw.Src)
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
@@ -31,11 +37,10 @@ func generateFamilyPlate(w, h int, bg, stripe, bay color.RGBA) []byte {
 }
 
 func registerGeneratedFamilyPlates() {
-	styles[catalogKey(FamilyCSGOSkins, StyleClassic)] = Style{
+	classic := Style{
 		Family:       FamilyCSGOSkins,
 		ID:           StyleClassic,
 		FileName:     "csgoskins-classic.png",
-		Data:         generateFamilyPlate(1080, 475, color.RGBA{R: 8, G: 36, B: 32, A: 255}, color.RGBA{R: 20, G: 168, B: 132, A: 255}, color.RGBA{R: 6, G: 22, B: 20, A: 255}),
 		Width:        1080,
 		Height:       475,
 		CoverX:       0.18,
@@ -46,11 +51,13 @@ func registerGeneratedFamilyPlates() {
 		TextCenterY:  0.65,
 		FontSizeFrac: 0.12,
 	}
-	styles[catalogKey(FamilyCSGOSkins, StyleOperator)] = Style{
+	classic.Data = generateFamilyPlate(classic, color.RGBA{R: 8, G: 36, B: 32, A: 255}, color.RGBA{R: 20, G: 168, B: 132, A: 255}, color.RGBA{R: 6, G: 22, B: 20, A: 255})
+	styles[catalogKey(FamilyCSGOSkins, StyleClassic)] = classic
+
+	operator := Style{
 		Family:       FamilyCSGOSkins,
 		ID:           StyleOperator,
 		FileName:     "csgoskins-operator.png",
-		Data:         generateFamilyPlate(1080, 722, color.RGBA{R: 6, G: 22, B: 28, A: 255}, color.RGBA{R: 14, G: 120, B: 140, A: 255}, color.RGBA{R: 8, G: 16, B: 20, A: 255}),
 		Width:        1080,
 		Height:       722,
 		CoverX:       0.28,
@@ -61,4 +68,6 @@ func registerGeneratedFamilyPlates() {
 		TextCenterY:  0.516,
 		FontSizeFrac: 0.095,
 	}
+	operator.Data = generateFamilyPlate(operator, color.RGBA{R: 6, G: 22, B: 28, A: 255}, color.RGBA{R: 14, G: 120, B: 140, A: 255}, color.RGBA{R: 8, G: 16, B: 20, A: 255})
+	styles[catalogKey(FamilyCSGOSkins, StyleOperator)] = operator
 }
