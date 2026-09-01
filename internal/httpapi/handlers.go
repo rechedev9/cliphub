@@ -900,6 +900,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	var segmentIDs []string
 	var portraitSafeKillfeed bool
 	var useRecapPlan bool
+	var demoSource string
 	if r.Body != nil {
 		var req struct {
 			Preset     string                 `json:"preset"`
@@ -924,11 +925,18 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 			}
 			hudMode, useRecapPlan = applyCaptureOverrides(hudMode, edit)
 			if useRecapPlan {
+				if err := edit.Validate(); err != nil {
+					writeError(w, http.StatusBadRequest, err.Error())
+					return
+				}
 				if !h.requireRecapPlan(w, j) {
 					return
 				}
 				segmentIDs = nil
-				h.storeFullDemoFaceit(j)
+				demoSource = edit.DemoSource
+				if edit.UsesFACEITOverlay() {
+					h.storeFullDemoFaceit(j)
+				}
 			} else {
 				if !validateSegmentSelection(w, j, req.SegmentIDs) {
 					return
@@ -940,7 +948,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)
+	task, err := tasks.NewRecordDemoTaskWithSource(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, demoSource)
 	if err != nil {
 		internalError(w, "build record task", err)
 		return
@@ -1030,7 +1038,9 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		segmentIDs = nil
-		h.storeFullDemoFaceit(j)
+		if intent.Edit.UsesFACEITOverlay() {
+			h.storeFullDemoFaceit(j)
+		}
 	} else if !validateSegmentSelection(w, j, segmentIDs) {
 		return
 	}
@@ -1210,6 +1220,7 @@ type renderEditRequest struct {
 	KeyDropPositionY    *float64 `json:"keydrop_position_y"`
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds"`
+	DemoSource          *string  `json:"demo_source"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -1276,6 +1287,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	if r.KeyDropEndSeconds != nil {
 		e := *r.KeyDropEndSeconds
 		base.KeyDropEndSeconds = &e
+	}
+	if r.DemoSource != nil {
+		base.DemoSource = *r.DemoSource
 	}
 	return renderplan.NormalizeEditRequest(base)
 }

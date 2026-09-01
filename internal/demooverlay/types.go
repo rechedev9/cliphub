@@ -5,6 +5,10 @@ package demooverlay
 const (
 	SchemaVersion = "cliphub.full-demo-overlay/v1"
 
+	SourcePremier      = "premier"
+	SourceProfessional = "professional"
+	SourceFACEIT       = "faceit"
+
 	// FadeFromBlackSeconds is the opening fade. The roster slides in
 	// IntroOverlayAfterFadeSeconds after that fade ends, then leaves before
 	// live action. Parser IntroFreezeSeconds must stay in sync with
@@ -59,6 +63,7 @@ const (
 // omitted unless a real FACEIT value was supplied; nothing is invented.
 type Document struct {
 	SchemaVersion   string     `json:"schema_version"`
+	Source          string     `json:"source,omitempty"`
 	TargetSteamID64 string     `json:"target_steamid64"`
 	TargetName      string     `json:"target_name"`
 	TargetKills     int        `json:"target_kills"`

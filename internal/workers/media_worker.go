@@ -394,7 +394,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	if hasGenerateIntent {
 		w.chainRender(j.ID, generateIntent, true)
 	} else if payload.UseRecapPlan {
-		w.chainRecapRender(j.ID)
+		w.chainRecapRender(j.ID, payload.DemoSource)
 	}
 	return nil
 }
@@ -465,12 +465,12 @@ func (w *RecordWorker) chainRender(id uuid.UUID, intent renderplan.GenerateInten
 
 // chainRecapRender enqueues the locked 16:9 Full Demo render after a recap
 // capture that did not carry generate intent (Studio POST /record).
-func (w *RecordWorker) chainRecapRender(id uuid.UUID) {
+func (w *RecordWorker) chainRecapRender(id uuid.UUID, demoSource string) {
 	if w.enqueuer == nil {
 		logWorkerError(id, "enqueue recap render", errors.New("render queue is not configured"))
 		return
 	}
-	edit := renderplan.RecapEditRequest()
+	edit := renderplan.RecapEditRequestWithSource(demoSource)
 	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, edit)
 	if err != nil {
 		logWorkerError(id, "build recap render task", err)
@@ -2930,8 +2930,11 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	if target == "" {
 		target = j.TargetSteamID
 	}
-	enrichment := overlayEnrichment(w, j.ID, roster)
-	doc := demooverlay.Build(demooverlay.FromRosterScan(roster, target), enrichment)
+	var enrichment map[string]demooverlay.Enrichment
+	if demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
+		enrichment = overlayEnrichment(w, j.ID, roster)
+	}
+	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) {

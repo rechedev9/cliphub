@@ -80,6 +80,46 @@ func TestOverlayWindowsStartsAfterFadeAndLeavesBeforeLive(t *testing.T) {
 	}
 }
 
+func TestIntroFilterHeadersFollowSource(t *testing.T) {
+	roster := Roster{
+		TargetSteamID64: "1",
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, HSPct: 52, Headshots: 12},
+			{SteamID64: "2", Name: "enemy", Team: "T", Kills: 10, Deaths: 18},
+		},
+	}
+	leaked := map[string]Enrichment{"1": {Nickname: "faceit-donk", ELO: 4370, SkillLevel: 10}}
+	font := "/fonts/Montserrat-ExtraBold.ttf"
+	tests := []struct {
+		source string
+		header string
+		want   []string
+		forbid []string
+	}{
+		{source: SourcePremier, header: "PREMIER", want: []string{"donk666", "23/14/4", "ADR", "RATING"}, forbid: []string{"4370", "faceit-donk", "ELO ", "LVL "}},
+		{source: SourceProfessional, header: "LINEUP", want: []string{"donk666", "23/14/4", "ADR", "RATING", "HS%"}, forbid: []string{"4370", "faceit-donk", "ELO ", "LVL "}},
+		{source: SourceFACEIT, header: "PLAYERS", want: []string{"faceit-donk", "4370", "10"}, forbid: []string{"PREMIER", "LINEUP"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.source, func(t *testing.T) {
+			got := introFilter(BuildForSource(roster, tc.source, leaked), font)
+			if !strings.Contains(got, tc.header) {
+				t.Fatalf("missing header %q:\n%s", tc.header, got)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Fatalf("missing %q:\n%s", want, got)
+				}
+			}
+			for _, banned := range tc.forbid {
+				if strings.Contains(got, banned) {
+					t.Fatalf("invented %q:\n%s", banned, got)
+				}
+			}
+		})
+	}
+}
+
 func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 	demoOnly := Build(Roster{
 		TargetSteamID64: "1",

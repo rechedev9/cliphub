@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEditRequest } from './api/edit-request.ts';
 import { reelIdentity } from './api/reel-identity.ts';
-import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
+import { DEMO_SOURCE, SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
+  canStartFullDemoCapture,
   FULL_DEMO_CONTRACT,
   FULL_DEMO_EDIT,
   FULL_DEMO_EMPTY,
@@ -12,10 +13,13 @@ import {
   FULL_DEMO_PRESET,
   FULL_DEMO_RECAP_ERROR,
   FULL_DEMO_ROUNDS_PENDING,
+  FULL_DEMO_SOURCE_OPTIONS,
   FULL_DEMO_VARIANT,
   FULL_DEMO_VOICE_VOLUME,
   classifyFullDemoLoadFailure,
+  fullDemoEdit,
   fullDemoEmptyState,
+  fullDemoSourceLabel,
 } from './full-demo.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 
@@ -84,8 +88,43 @@ test('buildEditRequest is the native-HUD wire: recap, gameplay HUD, comms, no sh
   assert.equal(body.outro, false);
   assert.equal(body.hook_text, false);
   assert.equal(body.kill_counter, false);
+  assert.equal(body.demo_source, undefined);
   assert.equal('music' in body, false);
   assert.equal('song_id' in body, false);
+});
+
+test('full-demo source options are Premier, professional HLTV, and FACEIT', () => {
+  assert.deepEqual(
+    FULL_DEMO_SOURCE_OPTIONS.map((option) => option.value),
+    [DEMO_SOURCE.premier, DEMO_SOURCE.professional, DEMO_SOURCE.faceit],
+  );
+  assert.equal(FULL_DEMO_SOURCE_OPTIONS[0].label, 'Premier');
+  assert.match(FULL_DEMO_SOURCE_OPTIONS[1].label, /profesional/i);
+  assert.match(FULL_DEMO_SOURCE_OPTIONS[1].label, /HLTV/i);
+  assert.equal(FULL_DEMO_SOURCE_OPTIONS[2].label, 'FACEIT');
+  assert.equal(fullDemoSourceLabel(DEMO_SOURCE.premier), 'Premier');
+  assert.equal(fullDemoSourceLabel(''), '');
+});
+
+test('full-demo capture stays gated until a source is chosen', () => {
+  const ready = { roundCount: 1, briefApproved: true, demoSource: '' as const, creating: false };
+  assert.equal(canStartFullDemoCapture(ready), false);
+  assert.equal(canStartFullDemoCapture({ ...ready, demoSource: DEMO_SOURCE.premier }), true);
+  assert.equal(canStartFullDemoCapture({ ...ready, demoSource: DEMO_SOURCE.professional }), true);
+  assert.equal(canStartFullDemoCapture({ ...ready, demoSource: DEMO_SOURCE.faceit }), true);
+  assert.equal(canStartFullDemoCapture({ ...ready, demoSource: DEMO_SOURCE.premier, briefApproved: false }), false);
+  assert.equal(canStartFullDemoCapture({ ...ready, demoSource: DEMO_SOURCE.premier, roundCount: 0 }), false);
+  assert.equal(canStartFullDemoCapture({ ...ready, demoSource: DEMO_SOURCE.premier, creating: true }), false);
+});
+
+test('create-video wire includes the selected full-demo source', () => {
+  const cases = [DEMO_SOURCE.premier, DEMO_SOURCE.professional, DEMO_SOURCE.faceit] as const;
+  for (const source of cases) {
+    const body = buildEditRequest(fullDemoEdit(source));
+    assert.equal(body.demo_source, source);
+    assert.equal(body.match_recap, true);
+    assert.equal(body.format, 'landscape-16x9');
+  }
 });
 
 test('recap-plan failure copy is an error, not a pending parse or Shorts empty state', () => {

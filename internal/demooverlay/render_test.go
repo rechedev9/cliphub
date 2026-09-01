@@ -60,6 +60,67 @@ func TestRenderPNGsWritesIntroAndOutroStills(t *testing.T) {
 	}
 }
 
+func TestRenderPNGsPremierAndProfessionalWithoutAvatars(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg not on PATH; overlay compositor cannot run on this host")
+	}
+	font, err := mediafont.Materialize()
+	if err != nil {
+		t.Fatalf("materialize font: %v", err)
+	}
+	roster := Roster{
+		TargetSteamID64: "76561198148986856",
+		Map:             "de_mirage",
+		ScoreCT:         13,
+		ScoreT:          8,
+		Players: []RosterPlayer{
+			{SteamID64: "76561198148986856", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, HSPct: 52, Headshots: 12},
+			{SteamID64: "9", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
+		},
+	}
+	tests := []struct {
+		source string
+		intro  string
+		outro  string
+	}{
+		{source: SourcePremier, intro: "premier-intro.png", outro: "premier-outro.png"},
+		{source: SourceProfessional, intro: "pro-intro.png", outro: "pro-outro.png"},
+	}
+	dir := t.TempDir()
+	dest := os.Getenv("FULL_DEMO_OVERLAY_OUT")
+	for _, tc := range tests {
+		t.Run(tc.source, func(t *testing.T) {
+			doc := BuildForSource(roster, tc.source, nil)
+			if doc.Intro.Left[0].AvatarURL != "" || doc.Intro.Left[0].AvatarFile != "" {
+				t.Fatalf("avatar invented: %+v", doc.Intro.Left[0])
+			}
+			intro := filepath.Join(dir, tc.intro)
+			outro := filepath.Join(dir, tc.outro)
+			if err := RenderPNGs(ffmpeg, font, doc, intro, outro); err != nil {
+				t.Fatalf("RenderPNGs: %v", err)
+			}
+			for _, path := range []string{intro, outro} {
+				raw, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("read %s: %v", path, err)
+				}
+				if len(raw) < 8 || string(raw[:8]) != "\x89PNG\r\n\x1a\n" {
+					t.Fatalf("%s is not a PNG (%d bytes)", path, len(raw))
+				}
+				if dest != "" {
+					if err := os.MkdirAll(dest, 0o750); err != nil {
+						t.Fatalf("evidence dir: %v", err)
+					}
+					if err := os.WriteFile(filepath.Join(dest, filepath.Base(path)), raw, 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {

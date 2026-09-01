@@ -88,6 +88,17 @@ export function keyDropDisplayLabel(style: KeyDropStyle | '', code: string): str
   return `${prefix}${body}`;
 }
 
+export const DEMO_SOURCE = {
+  premier: 'premier',
+  professional: 'professional',
+  faceit: 'faceit',
+} as const;
+export type DemoSource = (typeof DEMO_SOURCE)[keyof typeof DEMO_SOURCE];
+
+export function isDemoSource(value: unknown): value is DemoSource {
+  return value === DEMO_SOURCE.premier || value === DEMO_SOURCE.professional || value === DEMO_SOURCE.faceit;
+}
+
 export type EditConfig = {
   format: RenderFormat;
   killEffect: KillEffect;
@@ -108,6 +119,7 @@ export type EditConfig = {
   keyDropPositionY?: number;
   keyDropStartSeconds?: number;
   keyDropEndSeconds?: number;
+  demoSource?: DemoSource;
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };
 /** User-selectable reel preset; `name` is the render variant. */

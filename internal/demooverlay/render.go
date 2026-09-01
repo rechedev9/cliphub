@@ -160,20 +160,31 @@ func stillFilterGraph(text string, avatars []avatarSlot) string {
 func introFilter(doc Document, fontPath string) string {
 	l := DefaultLayout()
 	var parts []string
-	parts = append(parts, introColumn(doc.Intro.Left, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
-	parts = append(parts, introColumn(doc.Intro.Right, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath)...)
+	parts = append(parts, introColumn(doc.Intro.Left, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc.Source)...)
+	parts = append(parts, introColumn(doc.Intro.Right, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc.Source)...)
 	if len(parts) == 0 {
 		return "null"
 	}
 	return strings.Join(parts, ",")
 }
 
-func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath string) []string {
+func introHeader(source string) string {
+	switch NormalizeSource(source) {
+	case SourcePremier:
+		return "PREMIER"
+	case SourceProfessional:
+		return "LINEUP"
+	default:
+		return "PLAYERS"
+	}
+}
+
+func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath, source string) []string {
 	if len(cards) > layout.MaxPlayers {
 		cards = cards[:layout.MaxPlayers]
 	}
 	var parts []string
-	parts = appendFilter(parts, drawtext(fontPath, "PLAYERS", x+20, y+10, layout.LabelSize+2, mutedColor))
+	parts = appendFilter(parts, drawtext(fontPath, introHeader(source), x+20, y+10, layout.LabelSize+2, mutedColor))
 	for i, card := range cards {
 		cy := y + layout.HeaderH + i*layout.RowHeight
 		nx := x + layout.CardInset
@@ -204,7 +215,7 @@ func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath stri
 		if card.Last20 != nil {
 			parts = appendFilter(parts, drawtext(fontPath, "Last 20 matches", nx, statsY-14, 9, mutedColor))
 		}
-		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout)...)
+		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout, source)...)
 	}
 	return parts
 }
@@ -214,8 +225,8 @@ type overlayStat struct {
 	value string
 }
 
-func introStatGrid(card PlayerCard, x, y, width int, fontPath string, layout IntroLayout) []string {
-	stats := introStats(card)
+func introStatGrid(card PlayerCard, x, y, width int, fontPath string, layout IntroLayout, source string) []string {
+	stats := introStats(card, source)
 	if len(stats) == 0 {
 		return nil
 	}
@@ -256,21 +267,31 @@ func statColumnOffsets(width, n int) []int {
 	return out
 }
 
-func introStats(card PlayerCard) []overlayStat {
-	if card.Last20 == nil {
-		return []overlayStat{{label: "K/D/A", value: overlayKDA(card)}}
+func introStats(card PlayerCard, source string) []overlayStat {
+	if card.Last20 != nil {
+		matches := ""
+		if v := last20Int(card, func(l Last20) *int { return l.Matches }); v != nil {
+			matches = formatThousands(*v)
+		}
+		adrLabel, adrValue := introADRHS(card)
+		return []overlayStat{
+			{label: "Matches", value: matches},
+			{label: "Win rate", value: formatOptPct("", last20Float(card, func(l Last20) *float64 { return l.WinPct }))},
+			{label: adrLabel, value: adrValue},
+			{label: "K/D / K/R", value: introKDKR(card)},
+		}
 	}
-	matches := ""
-	if v := last20Int(card, func(l Last20) *int { return l.Matches }); v != nil {
-		matches = formatThousands(*v)
+	stats := []overlayStat{{label: "K/D/A", value: overlayKDA(card)}}
+	if card.HasADR {
+		stats = append(stats, overlayStat{label: "ADR", value: overlayDecimal(card.ADR, 1)})
 	}
-	adrLabel, adrValue := introADRHS(card)
-	return []overlayStat{
-		{label: "Matches", value: matches},
-		{label: "Win rate", value: formatOptPct("", last20Float(card, func(l Last20) *float64 { return l.WinPct }))},
-		{label: adrLabel, value: adrValue},
-		{label: "K/D / K/R", value: introKDKR(card)},
+	if card.HasRating {
+		stats = append(stats, overlayStat{label: "RATING", value: overlayDecimal(card.Rating, 2)})
 	}
+	if NormalizeSource(source) == SourceProfessional && card.HasHSPct && (card.HSPct > 0 || card.Headshots > 0) {
+		stats = append(stats, overlayStat{label: "HS%", value: fmt.Sprintf("%.0f%%", card.HSPct)})
+	}
+	return stats
 }
 
 func introADRHS(card PlayerCard) (label, value string) {

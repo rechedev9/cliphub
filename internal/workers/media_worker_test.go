@@ -21,6 +21,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
@@ -2297,12 +2298,27 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 
 func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 	const steamID = "76561197960265729"
+	matches := 20
+	win := 57.0
+	faceitSidecar := map[string]demooverlay.Enrichment{
+		steamID: {
+			Nickname:   "faceit-donk",
+			Country:    "ru",
+			ELO:        4370,
+			SkillLevel: 10,
+			AvatarURL:  "https://assets.faceit.com/avatars/donk.png",
+			Last20:     &demooverlay.Last20{Matches: &matches, WinPct: &win},
+		},
+	}
 	cases := []struct {
-		name      string
-		fullDemo  bool
-		preset    string
-		putRoster bool
-		wantFlag  bool
+		name       string
+		fullDemo   bool
+		preset     string
+		putRoster  bool
+		source     string
+		wantFlag   bool
+		wantSource string
+		wantFACEIT bool
 	}{
 		{
 			name:      "native POV recap with roster",
@@ -2328,6 +2344,34 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 			preset:    editor.PresetViral60Clean,
 			putRoster: true,
 		},
+		{
+			name:       "premier source writes overlay without FACEIT lookup",
+			fullDemo:   true,
+			preset:     editor.PresetGameplayPOV60,
+			putRoster:  true,
+			source:     renderplan.DemoSourcePremier,
+			wantFlag:   true,
+			wantSource: demooverlay.SourcePremier,
+		},
+		{
+			name:       "professional source writes overlay without FACEIT lookup",
+			fullDemo:   true,
+			preset:     editor.PresetGameplayPOV60,
+			putRoster:  true,
+			source:     renderplan.DemoSourceProfessional,
+			wantFlag:   true,
+			wantSource: demooverlay.SourceProfessional,
+		},
+		{
+			name:       "faceit source keeps stored enrichment",
+			fullDemo:   true,
+			preset:     editor.PresetGameplayPOV60,
+			putRoster:  true,
+			source:     renderplan.DemoSourceFACEIT,
+			wantFlag:   true,
+			wantSource: demooverlay.SourceFACEIT,
+			wantFACEIT: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2347,11 +2391,12 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 			if tc.putRoster {
 				putJSON(t, store, artifacts.RosterKey(id), map[string]any{
 					"players": []map[string]any{
-						{"steamid64": steamID, "name": "donk666", "team": "CT", "kills": 23, "deaths": 14, "assists": 4},
+						{"steamid64": steamID, "name": "donk666", "team": "CT", "kills": 23, "deaths": 14, "assists": 4, "adr": 101.6, "rating": 1.35},
 						{"steamid64": "76561198000000002", "name": "KingwayO", "team": "T", "kills": 18, "deaths": 16},
 					},
 					"match": map[string]any{"map": "de_mirage", "score_ct": 13, "score_t": 8},
 				})
+				putJSON(t, store, artifacts.FullDemoFaceitKey(id), faceitSidecar)
 			}
 
 			var gotArgs []string
@@ -2373,6 +2418,7 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 				edit.KillEffect = renderplan.KillEffectClean
 				edit.Intro = false
 				edit.Outro = false
+				edit.DemoSource = tc.source
 			}
 			task, err := tasks.NewRenderVariantTask(id, tc.preset, "", 0, nil, edit)
 			if err != nil {
@@ -2389,6 +2435,36 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 				path := argValue(gotArgs, "--full-demo-overlay")
 				if path == "" || !strings.HasSuffix(filepath.Clean(path), "full-demo-overlay.json") {
 					t.Fatalf("--full-demo-overlay = %q", path)
+				}
+				raw, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("read overlay: %v", err)
+				}
+				var doc demooverlay.Document
+				if err := json.Unmarshal(raw, &doc); err != nil {
+					t.Fatalf("decode overlay: %v", err)
+				}
+				if tc.wantSource != "" && doc.Source != tc.wantSource {
+					t.Fatalf("overlay source = %q, want %q", doc.Source, tc.wantSource)
+				}
+				if len(doc.Intro.Left) == 0 {
+					t.Fatal("overlay intro is empty")
+				}
+				card := doc.Intro.Left[0]
+				if card.Kills != 23 || card.Deaths != 14 || card.Assists != 4 {
+					t.Fatalf("demo K/D/A missing: %+v", card)
+				}
+				if tc.wantFACEIT {
+					if card.Name != "faceit-donk" || card.ELO == nil || *card.ELO != 4370 || card.Last20 == nil || card.AvatarURL == "" {
+						t.Fatalf("FACEIT enrichment missing: %+v", card)
+					}
+				} else if tc.source == renderplan.DemoSourcePremier || tc.source == renderplan.DemoSourceProfessional {
+					if card.Name != "donk666" || card.ELO != nil || card.Last20 != nil || card.AvatarURL != "" {
+						t.Fatalf("FACEIT enrichment leaked onto %s: %+v", tc.source, card)
+					}
+					if !card.HasADR || card.ADR != 101.6 || !card.HasRating || card.Rating != 1.35 {
+						t.Fatalf("demo ADR/rating missing on %s: %+v", tc.source, card)
+					}
 				}
 			}
 			if tc.fullDemo && tc.preset == editor.PresetGameplayPOV60 {

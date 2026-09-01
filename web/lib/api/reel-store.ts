@@ -1,4 +1,4 @@
-import { isKeyDropStyle, type EditConfig, type RenderMode } from './types.ts';
+import { isDemoSource, isKeyDropStyle, type EditConfig, type RenderMode } from './types.ts';
 
 // Mirrors types.BOOKEND_TEXT_MAX_LENGTH; duplicated so Node's TS loader stays type-only.
 const BOOKEND_TEXT_MAX_LENGTH = 80;
@@ -171,6 +171,9 @@ export function coerceEditConfig(value: unknown): EditConfig {
   }
   if (typeof raw.keyDropEndSeconds === 'number' && raw.keyDropEndSeconds > 0) {
     cfg.keyDropEndSeconds = raw.keyDropEndSeconds;
+  }
+  if (isDemoSource(raw.demoSource)) {
+    cfg.demoSource = raw.demoSource;
   }
   return cfg;
 }

@@ -20,6 +20,7 @@ export type EditRequestBody = {
   keydrop_position_y?: number;
   keydrop_start_seconds?: number;
   keydrop_end_seconds?: number;
+  demo_source?: EditConfig['demoSource'];
 };
 
 export function buildEditRequest(edit: EditConfig): EditRequestBody {
@@ -57,6 +58,9 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     if (typeof edit.keyDropEndSeconds === 'number' && Number.isFinite(edit.keyDropEndSeconds)) {
       body.keydrop_end_seconds = edit.keyDropEndSeconds;
     }
+  }
+  if (edit.demoSource) {
+    body.demo_source = edit.demoSource;
   }
   return body;
 }

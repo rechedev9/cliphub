@@ -9,8 +9,9 @@ import type { Match, Play } from '@/lib/api/types';
 import { canForgeReel } from '@/lib/reel-brief';
 import { startPollLoop } from '@/lib/poll-loop';
 import { FullDemoCaptureBar } from '@/components/full-demo/capture-bar';
+import { isDemoSource, type DemoSource } from '@/lib/api/types';
 import {
-  FULL_DEMO_EDIT,
+  canStartFullDemoCapture,
   FULL_DEMO_EMPTY,
   FULL_DEMO_FORGE_HINT_EMPTY,
   FULL_DEMO_FORGE_HINT_ERROR,
@@ -20,7 +21,9 @@ import {
   FULL_DEMO_VARIANT,
   classifyFullDemoLoadFailure,
   fullDemoBriefItems,
+  fullDemoEdit,
   fullDemoEmptyState,
+  fullDemoSourceLabel,
   type FullDemoLoadFailure,
 } from '@/lib/full-demo';
 import { Button } from '@/components/ui/button';
@@ -40,6 +43,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
   const [recapFailure, setRecapFailure] = useState<Exclude<FullDemoLoadFailure, null> | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
+  const [demoSource, setDemoSource] = useState<DemoSource | ''>('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -99,7 +103,14 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         hasPreset: true,
         selectionCount: plays.length,
         musicDecided: true,
-      })
+      }) ||
+      !canStartFullDemoCapture({
+        roundCount: plays.length,
+        briefApproved,
+        demoSource,
+        creating,
+      }) ||
+      !isDemoSource(demoSource)
     ) {
       return;
     }
@@ -111,7 +122,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         playIds: plays.map((play) => play.id),
         mode: 'clean',
         variant: FULL_DEMO_VARIANT,
-        editConfig: FULL_DEMO_EDIT,
+        editConfig: fullDemoEdit(demoSource),
       });
       router.push(`/videos?nuevo=${encodeURIComponent(video.id)}`);
     } catch (error) {
@@ -142,7 +153,10 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const briefItems = fullDemoBriefItems();
+  const briefItems = [
+    ...fullDemoBriefItems(),
+    { label: 'Origen', value: fullDemoSourceLabel(demoSource) || 'Pendiente' },
+  ];
   const roundsPending = recapFailure === null && plays.length === 0;
   const povLabel = match.player
     ? `POV: ${match.player} · fijado al parsear · para otro jugador, vuelve a parsear la demo`
@@ -198,6 +212,8 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         briefItems={[...briefItems]}
         briefApproved={briefApproved}
         onBriefApprovedChange={setBriefApproved}
+        demoSource={demoSource}
+        onDemoSourceChange={setDemoSource}
         onCreate={() => {
           void onCreate();
         }}

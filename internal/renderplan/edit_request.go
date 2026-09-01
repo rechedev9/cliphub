@@ -28,6 +28,9 @@ const (
 	TransitionZoomWhip     = "zoom-whip"
 	CoverStrategyGenerated = "generated-gameplay"
 	CoverStrategyNone      = "no-cover"
+	DemoSourcePremier      = "premier"
+	DemoSourceProfessional = "professional"
+	DemoSourceFACEIT       = "faceit"
 	// DefaultRecapVoiceVolume is the locked Full Demo team-comms gain.
 	DefaultRecapVoiceVolume = 0.85
 )
@@ -56,6 +59,7 @@ type EditRequest struct {
 	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
+	DemoSource          string   `json:"demo_source,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -71,6 +75,13 @@ func DefaultEditRequest() EditRequest {
 // comms, no Shorts garnish. Studio /record retries do not carry generate
 // intent, so the record worker uses this to chain the recap render.
 func RecapEditRequest() EditRequest {
+	return RecapEditRequestWithSource("")
+}
+
+// RecapEditRequestWithSource is the Studio Full Demo chain: locked recap
+// treatment plus the user-selected overlay source (premier / professional /
+// faceit). Empty source keeps demo-facts-only overlays.
+func RecapEditRequestWithSource(source string) EditRequest {
 	voice := DefaultRecapVoiceVolume
 	return NormalizeEditRequest(EditRequest{
 		Format:        FormatLandscape16x9,
@@ -81,6 +92,7 @@ func RecapEditRequest() EditRequest {
 		VoiceVolume:   &voice,
 		NativeHUD:     true,
 		CoverStrategy: CoverStrategyGenerated,
+		DemoSource:    source,
 	})
 }
 
@@ -102,6 +114,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	req.OutroText = strings.TrimSpace(req.OutroText)
 	req.KeyDropStyle = strings.ToLower(strings.TrimSpace(req.KeyDropStyle))
 	req.KeyDropCode = strings.ToUpper(strings.TrimSpace(req.KeyDropCode))
+	req.DemoSource = strings.ToLower(strings.TrimSpace(req.DemoSource))
 	return req
 }
 
@@ -167,5 +180,14 @@ func (r EditRequest) Validate() error {
 	if v := r.VoiceVolume; v != nil && (*v < 0 || *v > 1) {
 		return fmt.Errorf("voice volume must be between 0 and 1")
 	}
+	switch r.DemoSource {
+	case "", DemoSourcePremier, DemoSourceProfessional, DemoSourceFACEIT:
+	default:
+		return fmt.Errorf("unknown demo source %q", r.DemoSource)
+	}
 	return nil
+}
+
+func (r EditRequest) UsesFACEITOverlay() bool {
+	return r.DemoSource == DemoSourceFACEIT
 }

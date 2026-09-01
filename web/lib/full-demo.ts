@@ -1,4 +1,4 @@
-import { SERVICE_UNAVAILABLE_CODE, type EditConfig, type Preset } from './api/types.ts';
+import { DEMO_SOURCE, isDemoSource, SERVICE_UNAVAILABLE_CODE, type DemoSource, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
@@ -37,6 +37,34 @@ export const FULL_DEMO_EDIT: EditConfig = {
   nativeHud: true,
   coverStrategy: 'generated-gameplay',
 };
+
+export const FULL_DEMO_SOURCE_OPTIONS = [
+  { value: DEMO_SOURCE.premier, label: 'Premier' },
+  { value: DEMO_SOURCE.professional, label: 'Profesional (HLTV)' },
+  { value: DEMO_SOURCE.faceit, label: 'FACEIT' },
+] as const;
+
+export function fullDemoSourceLabel(source: DemoSource | ''): string {
+  return FULL_DEMO_SOURCE_OPTIONS.find((option) => option.value === source)?.label ?? '';
+}
+
+export function fullDemoEdit(source: DemoSource): EditConfig {
+  return { ...FULL_DEMO_EDIT, demoSource: source };
+}
+
+export function canStartFullDemoCapture({
+  roundCount,
+  briefApproved,
+  demoSource,
+  creating,
+}: {
+  roundCount: number;
+  briefApproved: boolean;
+  demoSource: DemoSource | '';
+  creating: boolean;
+}): boolean {
+  return roundCount > 0 && briefApproved && isDemoSource(demoSource) && !creating;
+}
 
 export const FULL_DEMO_PRESET: Preset = {
   name: FULL_DEMO_VARIANT,
