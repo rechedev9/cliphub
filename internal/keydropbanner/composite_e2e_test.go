@@ -29,7 +29,7 @@ func TestCompositeWithCodeWritesCustomLabel(t *testing.T) {
 		t.Fatalf("font: %v", err)
 	}
 	out := filepath.Join(t.TempDir(), "plate.png")
-	if err := CompositeWithCode("ffmpeg", StyleClassic, "OTROXYZ", font, out); err != nil {
+	if err := CompositeWithCode("ffmpeg", FamilyKeyDrop, StyleClassic, "OTROXYZ", font, out); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(out)

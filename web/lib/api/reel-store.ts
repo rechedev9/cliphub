@@ -1,4 +1,4 @@
-import { isKeyDropStyle, type EditConfig, type RenderMode } from './types.ts';
+import { isAffiliateStyle, isKeyDropStyle, normalizeAffiliateFamily, type EditConfig, type RenderMode } from './types.ts';
 
 // Mirrors types.BOOKEND_TEXT_MAX_LENGTH; duplicated so Node's TS loader stays type-only.
 const BOOKEND_TEXT_MAX_LENGTH = 80;
@@ -153,8 +153,16 @@ export function coerceEditConfig(value: unknown): EditConfig {
   };
   const voiceVolume = coerceUnitVolume(raw.voiceVolume);
   if (voiceVolume !== undefined) cfg.voiceVolume = voiceVolume;
-  if (typeof raw.keyDropStyle === 'string' && isKeyDropStyle(raw.keyDropStyle)) {
-    cfg.keyDropStyle = raw.keyDropStyle;
+  const family =
+    typeof raw.keyDropFamily === 'string' ? normalizeAffiliateFamily(raw.keyDropFamily) : '';
+  if (typeof raw.keyDropStyle === 'string') {
+    if (family && isAffiliateStyle(family, raw.keyDropStyle) && isKeyDropStyle(raw.keyDropStyle)) {
+      cfg.keyDropFamily = family;
+      cfg.keyDropStyle = raw.keyDropStyle;
+    } else if (!family && isKeyDropStyle(raw.keyDropStyle)) {
+      cfg.keyDropFamily = 'KEYDROP';
+      cfg.keyDropStyle = raw.keyDropStyle;
+    }
   }
   if (typeof raw.keyDropCode === 'string' && raw.keyDropCode.trim() !== '') {
     cfg.keyDropCode = raw.keyDropCode.trim().toUpperCase().slice(0, 16);

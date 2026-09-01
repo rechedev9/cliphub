@@ -47,6 +47,8 @@ import { StreamRenderStage } from '@/components/streams/render-stage';
 import { StreamRenderResults } from '@/components/streams/render-results';
 import { StreamPreviewColumn } from '@/components/streams/preview-column';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
+import type { AffiliateFamily } from '@/lib/api/types';
+import { persistAffiliateFamily, selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
 
 /** Stream edit workspace: plan setters plus the 9:16 monitor that reads them. */
 export function StreamEditor({
@@ -194,12 +196,29 @@ export function StreamEditor({
     );
   };
 
-  const setKeyDropStyle = (style: KeyDropBannerStyle | '') => {
+  const setKeyDropFamily = (family: AffiliateFamily) => {
+    const selected = selectAffiliateFamily(
+      {
+        family: plan.keydrop_banner?.family ?? '',
+        style: plan.keydrop_banner?.style ?? '',
+      },
+      family,
+    );
+    setKeyDropStyle(selected.style, selected.family);
+  };
+
+  const setKeyDropStyle = (style: string, family = plan.keydrop_banner?.family ?? '') => {
     if (!style) {
-      onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, style: '' } });
+      const off = selectAffiliateOff();
+      onPlanChange({ ...plan, keydrop_banner: { ...plan.keydrop_banner, family: off.family, style: off.style } });
       return;
     }
-    const next = { ...plan.keydrop_banner, style };
+    const selected = selectAffiliateStyle(family, style);
+    const next = {
+      ...plan.keydrop_banner,
+      family: persistAffiliateFamily(selected.family, selected.style) || selected.family,
+      style: selected.style,
+    };
     // First enable: pin the default sponsor code and a short callout window so
     // the rendered plate never depends on an implicit ZACKCSGO fallback alone.
     if (!plan.keydrop_banner?.code?.trim()) {
@@ -312,6 +331,7 @@ export function StreamEditor({
             />
 
             <StreamKeyDropBannerControls
+              family={plan.keydrop_banner?.family ?? ''}
               style={(plan.keydrop_banner?.style as KeyDropBannerStyle | '') ?? ''}
               code={plan.keydrop_banner?.code ?? ''}
               codeValid={isKeyDropCodeValid(plan.keydrop_banner?.code ?? '')}
@@ -322,6 +342,7 @@ export function StreamEditor({
               endSeconds={keyDropEnd}
               clipDurationSeconds={longestClipSeconds}
               busy={busy}
+              onFamilyChange={setKeyDropFamily}
               onStyleChange={setKeyDropStyle}
               onCodeChange={setKeyDropCode}
               onPositionChange={setKeyDropPosition}
@@ -402,6 +423,7 @@ export function StreamEditor({
           streamerPlatform={bannerPlatform}
           streamerPositionY={plan.streamer_banner?.position_y}
           streamerSlideEnabled={plan.streamer_banner?.slide_enabled}
+          keyDropFamily={plan.keydrop_banner?.family ?? ''}
           keyDropStyle={(plan.keydrop_banner?.style as KeyDropBannerStyle | '') ?? ''}
           keyDropCode={plan.keydrop_banner?.code}
           keyDropPositionY={plan.keydrop_banner?.position_y}

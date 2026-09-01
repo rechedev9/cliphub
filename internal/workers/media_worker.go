@@ -1313,6 +1313,7 @@ func (w *StreamRenderWorker) render(
 		platePath := filepath.Join(workDir, "keydrop-banner.png")
 		if err := keydropbanner.CompositeWithCode(
 			cfg.FFmpegPath,
+			plan.KeyDropBanner.Family,
 			plan.KeyDropBanner.Style,
 			plan.KeyDropBanner.Code,
 			bannerFontPath,
@@ -1930,6 +1931,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		args = append(args, "--outro-text", edit.OutroText)
 	}
 	if style := strings.TrimSpace(edit.KeyDropStyle); style != "" {
+		if family := strings.TrimSpace(edit.KeyDropFamily); family != "" {
+			args = append(args, "--keydrop-family", family)
+		}
 		args = append(args, "--keydrop-style", style)
 		if code := strings.TrimSpace(edit.KeyDropCode); code != "" {
 			args = append(args, "--keydrop-code", code)

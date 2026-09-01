@@ -51,6 +51,7 @@ type EditRequest struct {
 	CoverFirstFrame     bool     `json:"cover_first_frame"`
 	IntroText           string   `json:"intro_text,omitempty"`
 	OutroText           string   `json:"outro_text,omitempty"`
+	KeyDropFamily       string   `json:"keydrop_family,omitempty"`
 	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
 	KeyDropCode         string   `json:"keydrop_code,omitempty"`
 	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
@@ -100,8 +101,12 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	}
 	req.IntroText = strings.TrimSpace(req.IntroText)
 	req.OutroText = strings.TrimSpace(req.OutroText)
+	req.KeyDropFamily = keydropbanner.NormalizeFamily(req.KeyDropFamily)
 	req.KeyDropStyle = strings.ToLower(strings.TrimSpace(req.KeyDropStyle))
 	req.KeyDropCode = strings.ToUpper(strings.TrimSpace(req.KeyDropCode))
+	if req.KeyDropStyle != "" && req.KeyDropFamily == "" {
+		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
+	}
 	return req
 }
 
@@ -132,7 +137,10 @@ func (r EditRequest) Validate() error {
 	if len(strings.TrimSpace(r.OutroText)) > maxBookendTextLength {
 		return fmt.Errorf("outro text exceeds %d characters", maxBookendTextLength)
 	}
-	if err := keydropbanner.ValidateStyle(r.KeyDropStyle); err != nil {
+	if err := keydropbanner.ValidateFamily(r.KeyDropFamily); err != nil {
+		return err
+	}
+	if err := keydropbanner.ValidateStyle(r.KeyDropFamily, r.KeyDropStyle); err != nil {
 		return err
 	}
 	code := strings.ToUpper(strings.TrimSpace(r.KeyDropCode))

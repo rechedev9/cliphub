@@ -73,7 +73,7 @@ test('creative brief resolves every required production choice', () => {
     { label: 'Título / contador', value: 'Título automático · Contador activado' },
     { label: 'Intro', value: 'Sí · “Entrada”' },
     { label: 'Outro', value: 'No' },
-    { label: 'KeyDrop', value: 'No' },
+    { label: 'Afiliado', value: 'No' },
     { label: 'Música', value: 'Tema CC0 · música 35% · juego 20%' },
     { label: 'Portada', value: 'Generar candidatos de gameplay para revisión' },
   ]);
@@ -103,7 +103,7 @@ test('creative brief makes disabled options and missing preset explicit', () => 
   assert.equal(brief['Título / contador'], 'Sin título automático · Sin contador');
   assert.equal(brief['Intro'], 'No');
   assert.equal(brief['Outro'], 'Sí · firma ClipHub');
-  assert.equal(brief['KeyDrop'], 'No');
+  assert.equal(brief['Afiliado'], 'No');
   assert.equal(brief['Música'], 'Sin música');
   assert.equal(brief['Portada'], 'No generar portada');
 });
@@ -213,7 +213,7 @@ test('shorts full-hud-60 brief keeps HUD completo when nativeHud is off', () => 
   assert.equal(brief['HUD / killfeed'], 'HUD completo con killfeed');
 });
 
-test('creative brief names Tigerr and Jcorko KeyDrop styles', () => {
+test('creative brief names Tigerr and Jcorko affiliate styles', () => {
   const base: EditConfig = {
     format: 'short-9x16',
     killEffect: 'clean',
@@ -239,6 +239,35 @@ test('creative brief names Tigerr and Jcorko KeyDrop styles', () => {
       (item) => [item.label, item.value],
     ),
   );
-  assert.equal(tigerr.KeyDrop, 'Tigerr · TIGER · 0.0s–4.0s');
-  assert.equal(jcorko.KeyDrop, 'Jcorko · JCORKO · 0.0s–4.0s');
+  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER · 0.0s–4.0s');
+  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO · 0.0s–4.0s');
+});
+
+test('creative brief names CSGOSkins when that family is selected', () => {
+  const skins = Object.fromEntries(
+    reelCreativeBrief(
+      {
+        format: 'short-9x16',
+        killEffect: 'clean',
+        transition: 'cut',
+        hookText: false,
+        killCounter: false,
+        matchRecap: false,
+        voiceComms: false,
+        nativeHud: false,
+        coverStrategy: 'no-cover',
+        intro: false,
+        outro: false,
+        keyDropFamily: 'CSGOSKINS',
+        keyDropStyle: 'classic',
+        keyDropCode: 'skins99',
+        keyDropStartSeconds: 0,
+        keyDropEndSeconds: 4,
+      },
+      PRESET,
+      { status: 'none' },
+    ).map((item) => [item.label, item.value]),
+  );
+  assert.equal(skins.Afiliado, 'CSGOSkins · Classic · SKINS99 · 0.0s–4.0s');
+  assert.equal(skins.KeyDrop, undefined);
 });

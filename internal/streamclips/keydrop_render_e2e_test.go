@@ -45,7 +45,7 @@ func TestKeyDropRenderBurnsCustomCode(t *testing.T) {
 	}
 	// Mirror the stream worker: burn the plan code into a plate PNG first.
 	plate := filepath.Join(dir, "keydrop-banner.png")
-	if err := keydropbanner.CompositeWithCode("ffmpeg", "classic", "NUEVO99", font, plate); err != nil {
+	if err := keydropbanner.CompositeWithCode("ffmpeg", keydropbanner.FamilyKeyDrop, "classic", "NUEVO99", font, plate); err != nil {
 		t.Fatalf("composite plate: %v", err)
 	}
 

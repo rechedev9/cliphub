@@ -24,7 +24,7 @@ test('stream creative brief lists every production decision', () => {
   assert.equal(byLabel.Facecam, 'Recorte confirmado');
   assert.match(byLabel.Clips, /1 clip/);
   assert.equal(byLabel.Banner, 'pro_player · Twitch · slide');
-  assert.equal(byLabel.KeyDrop, 'No');
+  assert.equal(byLabel.Afiliado, 'No');
   assert.equal(byLabel.Música, 'phonk-01 · 25%');
   assert.equal(byLabel.Grade, 'Sí');
 });
@@ -42,7 +42,7 @@ test('stream creative brief lists KeyDrop when enabled', () => {
     }),
   );
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.KeyDrop, 'Classic · ZACKCSGO · slide');
+  assert.equal(byLabel.Afiliado, 'KeyDrop · Classic · ZACKCSGO · slide');
 });
 
 test('stream creative brief names Tigerr and Jcorko KeyDrop styles', () => {
@@ -58,8 +58,19 @@ test('stream creative brief names Tigerr and Jcorko KeyDrop styles', () => {
       item.value,
     ]),
   );
-  assert.equal(tigerr.KeyDrop, 'Tigerr · TIGER');
-  assert.equal(jcorko.KeyDrop, 'Jcorko · JCORKO');
+  assert.equal(tigerr.Afiliado, 'KeyDrop · Tigerr · TIGER');
+  assert.equal(jcorko.Afiliado, 'KeyDrop · Jcorko · JCORKO');
+});
+
+test('stream creative brief names CSGOSkins when that family is selected', () => {
+  const items = streamCreativeBrief(
+    plan({
+      keydrop_banner: { family: 'CSGOSKINS', style: 'classic', code: 'skins99' },
+    }),
+  );
+  const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
+  assert.equal(byLabel.Afiliado, 'CSGOSkins · Classic · SKINS99');
+  assert.equal(byLabel.KeyDrop, undefined);
 });
 
 test('stream creative brief marks unreviewed facecam and empty music', () => {

@@ -194,16 +194,20 @@ func (p StreamerBannerPlan) ResolvedPlatform() string {
 	return StreamerBannerPlatformTwitch
 }
 
-// KeyDropBannerPlan overlays the optional KeyDrop sponsor plate. An empty
+// KeyDropBannerPlan overlays the optional affiliate sponsor plate. An empty
 // Style keeps the render visually unchanged; Code defaults to ZACKCSGO when
-// the style is set and the code is blank.
+// the style is set and the code is blank. Family selects the plate catalog
+// (KEYDROP, CSGOSKINS). Empty family with a style still means KEYDROP.
 //
 // StartSeconds / EndSeconds are relative to each clip's start on the source
 // timeline (same origin as text overlays). Nil means the clip edge: unset
 // start = 0, unset end = full clip duration. A short window (e.g. 0–4s) is
 // the intended product default so the plate does not sit on the whole clip.
 type KeyDropBannerPlan struct {
-	// Style is a keydropbanner id (operator, classic, tigerr, jcorko); empty disables the banner.
+	// Family is a keydropbanner family id (KEYDROP, CSGOSKINS). Empty with a
+	// style still means KEYDROP so older plans keep rendering.
+	Family string `json:"family,omitempty"`
+	// Style is a plate id in Family (operator, classic, tigerr, jcorko); empty disables the banner.
 	Style        string   `json:"style,omitempty"`
 	Code         string   `json:"code,omitempty"`
 	PositionY    *float64 `json:"position_y,omitempty"`
@@ -463,7 +467,10 @@ func (p EditPlan) Validate() error {
 }
 
 func validateKeyDropBanner(banner KeyDropBannerPlan) error {
-	if err := keydropbanner.ValidateStyle(banner.Style); err != nil {
+	if err := keydropbanner.ValidateFamily(banner.Family); err != nil {
+		return err
+	}
+	if err := keydropbanner.ValidateStyle(banner.Family, banner.Style); err != nil {
 		return err
 	}
 	if err := keydropbanner.ValidateCode(banner.Code); err != nil {
@@ -721,8 +728,12 @@ func NormalizeEditPlan(plan EditPlan) EditPlan {
 	}
 	plan.StreamerBanner.Nick = strings.TrimSpace(plan.StreamerBanner.Nick)
 	plan.StreamerBanner.Platform = strings.ToLower(strings.TrimSpace(plan.StreamerBanner.Platform))
+	plan.KeyDropBanner.Family = keydropbanner.NormalizeFamily(plan.KeyDropBanner.Family)
 	plan.KeyDropBanner.Style = strings.ToLower(strings.TrimSpace(plan.KeyDropBanner.Style))
 	plan.KeyDropBanner.Code = strings.ToUpper(strings.TrimSpace(plan.KeyDropBanner.Code))
+	if plan.KeyDropBanner.Style != "" && plan.KeyDropBanner.Family == "" {
+		plan.KeyDropBanner.Family = keydropbanner.FamilyKeyDrop
+	}
 	plan.Music.Key = strings.TrimSpace(plan.Music.Key)
 	if plan.Music.Key == "" {
 		plan.Music.Volume = 0
