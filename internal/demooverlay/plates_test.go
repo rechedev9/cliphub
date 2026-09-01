@@ -497,6 +497,37 @@ func TestRenderPlatePreviewPNGs(t *testing.T) {
 			t.Fatalf("%s: %v", source, err)
 		}
 	}
+	violet := BuildForSource(roster, SourceFACEIT, nil)
+	violet.Theme = ThemeNeonViolet
+	violetIntro := filepath.Join(outDir, "faceit-violet-intro.png")
+	violetOutro := filepath.Join(outDir, "faceit-violet-outro.png")
+	if err := RenderPNGs(ffmpeg, font, violet, violetIntro, violetOutro, RenderOptions{OverlayAssetsDir: plates, PreviewGreyBase: true}); err != nil {
+		t.Fatalf("faceit-violet: %v", err)
+	}
+	faceitEnriched := BuildForSource(roster, SourceFACEIT, map[string]Enrichment{
+		"1": {Nickname: "donk", Country: "ru", ELO: 4370, SkillLevel: 10, Last20: func() *Last20 {
+			m, w, kd, kr, adr := 1577, 80.0, 1.66, 0.93, 96.7
+			return &Last20{Matches: &m, WinPct: &w, KD: &kd, KR: &kr, ADR: &adr}
+		}()},
+	})
+	for _, tc := range []struct {
+		name  string
+		doc   Document
+		intro string
+	}{
+		{name: "faceit-chrome-orange", doc: faceitEnriched, intro: "faceit-chrome-orange-intro.png"},
+		{name: "faceit-chrome-violet", doc: func() Document {
+			d := faceitEnriched
+			d.Theme = ThemeNeonViolet
+			return d
+		}(), intro: "faceit-chrome-violet-intro.png"},
+	} {
+		intro := filepath.Join(outDir, tc.intro)
+		outro := filepath.Join(outDir, strings.TrimSuffix(tc.intro, "-intro.png")+"-outro.png")
+		if err := RenderPNGs(ffmpeg, font, tc.doc, intro, outro, RenderOptions{PreviewGreyBase: true}); err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+	}
 }
 
 func writeTestPlate(t *testing.T, dir, name string, c color.Color) {

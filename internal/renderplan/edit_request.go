@@ -31,6 +31,8 @@ const (
 	DemoSourcePremier      = "premier"
 	DemoSourceProfessional = "professional"
 	DemoSourceFACEIT       = "faceit"
+	OverlayThemeFaceitOrange = "faceit-orange"
+	OverlayThemeNeonViolet   = "neon-violet"
 	// DefaultRecapVoiceVolume is the locked Full Demo team-comms gain.
 	DefaultRecapVoiceVolume = 0.85
 )
@@ -61,6 +63,7 @@ type EditRequest struct {
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
 	DemoSource          string   `json:"demo_source,omitempty"`
+	OverlayTheme        string   `json:"overlay_theme,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -117,6 +120,7 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 	req.KeyDropStyle = strings.ToLower(strings.TrimSpace(req.KeyDropStyle))
 	req.KeyDropCode = strings.ToUpper(strings.TrimSpace(req.KeyDropCode))
 	req.DemoSource = strings.ToLower(strings.TrimSpace(req.DemoSource))
+	req.OverlayTheme = strings.ToLower(strings.TrimSpace(req.OverlayTheme))
 	if req.KeyDropStyle != "" && req.KeyDropFamily == "" {
 		req.KeyDropFamily = keydropbanner.FamilyKeyDrop
 	}
@@ -192,6 +196,11 @@ func (r EditRequest) Validate() error {
 	case "", DemoSourcePremier, DemoSourceProfessional, DemoSourceFACEIT:
 	default:
 		return fmt.Errorf("unknown demo source %q", r.DemoSource)
+	}
+	switch r.OverlayTheme {
+	case "", OverlayThemeFaceitOrange, OverlayThemeNeonViolet:
+	default:
+		return fmt.Errorf("unknown overlay theme %q", r.OverlayTheme)
 	}
 	return nil
 }

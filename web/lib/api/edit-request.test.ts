@@ -37,3 +37,12 @@ test('buildEditRequest persists family with the style so a later render cannot f
   assert.equal(off.keydrop_family, undefined);
   assert.equal(off.keydrop_style, undefined);
 });
+
+test('buildEditRequest serializes overlay_theme when set', () => {
+  const body = buildEditRequest(
+    edit({ format: 'landscape-16x9', matchRecap: true, demoSource: 'faceit', overlayTheme: 'neon-violet' }),
+  );
+  assert.equal(body.overlay_theme, 'neon-violet');
+  assert.equal(body.demo_source, 'faceit');
+  assert.equal(buildEditRequest(edit()).overlay_theme, undefined);
+});

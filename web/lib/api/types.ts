@@ -197,6 +197,16 @@ export function isDemoSource(value: unknown): value is DemoSource {
   return value === DEMO_SOURCE.premier || value === DEMO_SOURCE.professional || value === DEMO_SOURCE.faceit;
 }
 
+export const OVERLAY_THEME = {
+  faceitOrange: 'faceit-orange',
+  neonViolet: 'neon-violet',
+} as const;
+export type OverlayTheme = (typeof OVERLAY_THEME)[keyof typeof OVERLAY_THEME];
+
+export function isOverlayTheme(value: unknown): value is OverlayTheme {
+  return value === OVERLAY_THEME.faceitOrange || value === OVERLAY_THEME.neonViolet;
+}
+
 export type EditConfig = {
   format: RenderFormat;
   killEffect: KillEffect;
@@ -219,6 +229,7 @@ export type EditConfig = {
   keyDropStartSeconds?: number;
   keyDropEndSeconds?: number;
   demoSource?: DemoSource;
+  overlayTheme?: OverlayTheme;
 };
 export type Song = { id: string; title: string; artist: string; genre: string; previewUrl: string; durationSec: number; license?: string };
 /** User-selectable reel preset; `name` is the render variant. */

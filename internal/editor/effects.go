@@ -152,6 +152,7 @@ func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath
 	if err != nil {
 		return fmt.Errorf("compile effects script: %w", err)
 	}
+	stampSegmentOrdinals(manifest)
 	for i := range manifest.Shorts {
 		short := &manifest.Shorts[i]
 		effects, warnings, err := evaluateCompiledEffects(proto, *short, effectsAssetRoot(source))
@@ -598,10 +599,8 @@ func generatedTransitionEffects(short ShortEdit) []Effect {
 	case "", TransitionCut:
 		return nil
 	case TransitionFlash:
-		return []Effect{
-			{Type: EffectFlash, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.16), Color: "white", Opacity: 0.20, Source: "edit-request"},
-			{Type: EffectFlash, StartSeconds: transitionStart(short, 0.18), EndSeconds: short.DurationSeconds, Color: "white", Opacity: 0.16, Source: "edit-request"},
-		}
+		// Dip-to-white is emitted in the filter graph via appendTransitionFlashFilters.
+		return nil
 	case TransitionWhip:
 		return []Effect{
 			{Type: EffectZoom, StartSeconds: 0, EndSeconds: transitionEnd(short, 0.22), AtSeconds: 0.08, Scale: 1.12, Source: "edit-request"},
@@ -762,6 +761,29 @@ func bookendFontSize(width int) int {
 		return 44
 	}
 	return 36
+}
+
+func stampSegmentOrdinals(manifest *Manifest) {
+	if manifest == nil {
+		return
+	}
+	var singles []int
+	for i := range manifest.Shorts {
+		if len(manifest.Shorts[i].Parts) == 0 {
+			singles = append(singles, i)
+		}
+	}
+	total := len(singles)
+	for ord, idx := range singles {
+		manifest.Shorts[idx].SegmentOrdinal = ord + 1
+		manifest.Shorts[idx].SegmentTotal = total
+	}
+	for i := range manifest.Shorts {
+		if len(manifest.Shorts[i].Parts) == 0 {
+			continue
+		}
+		manifest.Shorts[i].SegmentTotal = len(manifest.Shorts[i].Parts)
+	}
 }
 
 func transitionEnd(short ShortEdit, duration float64) float64 {

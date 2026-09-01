@@ -293,6 +293,8 @@ func CompilationFilter(short ShortEdit) string {
 	fps := outputFPS(short)
 	cursorFrame := 0
 	for i, part := range short.Parts {
+		partShort.SegmentOrdinal = i + 1
+		partShort.SegmentTotal = len(short.Parts)
 		partDuration := compilationPartDuration(short, part)
 		partFrames := max(1, int(math.Round(partDuration*float64(fps))))
 		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))

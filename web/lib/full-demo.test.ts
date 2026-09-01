@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEditRequest } from './api/edit-request.ts';
 import { reelIdentity } from './api/reel-identity.ts';
-import { DEMO_SOURCE, SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
+import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 import {
   canStartFullDemoCapture,
   FULL_DEMO_CONTRACT,
@@ -10,6 +10,7 @@ import {
   FULL_DEMO_EMPTY,
   FULL_DEMO_FORGE_HINT_EMPTY,
   FULL_DEMO_FORGE_HINT_ERROR,
+  FULL_DEMO_OVERLAY_THEME_OPTIONS,
   FULL_DEMO_PRESET,
   FULL_DEMO_RECAP_ERROR,
   FULL_DEMO_ROUNDS_PENDING,
@@ -19,6 +20,7 @@ import {
   classifyFullDemoLoadFailure,
   fullDemoEdit,
   fullDemoEmptyState,
+  fullDemoOverlayThemeLabel,
   fullDemoSourceLabel,
 } from './full-demo.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
@@ -124,7 +126,29 @@ test('create-video wire includes the selected full-demo source', () => {
     assert.equal(body.demo_source, source);
     assert.equal(body.match_recap, true);
     assert.equal(body.format, 'landscape-16x9');
+    assert.equal(body.overlay_theme, undefined);
   }
+});
+
+test('create-video wire includes overlay theme only for FACEIT', () => {
+  const orange = buildEditRequest(fullDemoEdit(DEMO_SOURCE.faceit, OVERLAY_THEME.faceitOrange));
+  assert.equal(orange.demo_source, DEMO_SOURCE.faceit);
+  assert.equal(orange.overlay_theme, OVERLAY_THEME.faceitOrange);
+
+  const violet = buildEditRequest(fullDemoEdit(DEMO_SOURCE.faceit, OVERLAY_THEME.neonViolet));
+  assert.equal(violet.overlay_theme, OVERLAY_THEME.neonViolet);
+
+  const premier = buildEditRequest(fullDemoEdit(DEMO_SOURCE.premier));
+  assert.equal(premier.overlay_theme, undefined);
+});
+
+test('full-demo overlay theme options are FACEIT orange and neon violet', () => {
+  assert.deepEqual(
+    FULL_DEMO_OVERLAY_THEME_OPTIONS.map((option) => option.value),
+    [OVERLAY_THEME.faceitOrange, OVERLAY_THEME.neonViolet],
+  );
+  assert.equal(fullDemoOverlayThemeLabel(OVERLAY_THEME.neonViolet), 'Neón violeta');
+  assert.equal(fullDemoOverlayThemeLabel(''), '');
 });
 
 test('recap-plan failure copy is an error, not a pending parse or Shorts empty state', () => {

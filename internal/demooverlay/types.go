@@ -9,6 +9,9 @@ const (
 	SourceProfessional = "professional"
 	SourceFACEIT       = "faceit"
 
+	ThemeFaceitOrange = "faceit-orange"
+	ThemeNeonViolet   = "neon-violet"
+
 	// FadeFromBlackSeconds is the opening fade. The roster slides in
 	// IntroOverlayAfterFadeSeconds after that fade ends, then leaves before
 	// live action. Parser IntroFreezeSeconds must stay in sync with
@@ -16,6 +19,7 @@ const (
 	FadeFromBlackSeconds         = 1.0
 	IntroOverlayAfterFadeSeconds = 4.0
 	IntroOverlaySlideSeconds     = 0.4
+	IntroOverlaySlideOutSeconds  = 0.3
 	IntroFreezeSeconds           = 15
 	IntroLeaveBeforeLiveSeconds  = 1.0
 	OutroSeconds                 = 8
@@ -64,6 +68,7 @@ const (
 type Document struct {
 	SchemaVersion   string     `json:"schema_version"`
 	Source          string     `json:"source,omitempty"`
+	Theme           string     `json:"theme,omitempty"`
 	TargetSteamID64 string     `json:"target_steamid64"`
 	TargetName      string     `json:"target_name"`
 	TargetKills     int        `json:"target_kills"`

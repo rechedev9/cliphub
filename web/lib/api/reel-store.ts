@@ -2,6 +2,7 @@ import {
   isAffiliateStyle,
   isDemoSource,
   isKeyDropStyle,
+  isOverlayTheme,
   normalizeAffiliateFamily,
   type EditConfig,
   type RenderMode,
@@ -189,6 +190,9 @@ export function coerceEditConfig(value: unknown): EditConfig {
   }
   if (isDemoSource(raw.demoSource)) {
     cfg.demoSource = raw.demoSource;
+  }
+  if (isOverlayTheme(raw.overlayTheme)) {
+    cfg.overlayTheme = raw.overlayTheme;
   }
   return cfg;
 }

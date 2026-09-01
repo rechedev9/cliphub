@@ -87,9 +87,10 @@ export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>
 
 export function constrainEditConfig(edit: EditConfig): EditConfig {
   if (edit.format !== 'short-9x16') return edit;
-  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource) return edit;
+  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource && !edit.overlayTheme) return edit;
   const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
   delete next.demoSource;
+  delete next.overlayTheme;
   return next;
 }
 

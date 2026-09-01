@@ -202,7 +202,8 @@ func TestEditRequestDemoSourceRoundTrip(t *testing.T) {
 		{name: "professional", source: DemoSourceProfessional, want: DemoSourceProfessional},
 		{name: "faceit", source: DemoSourceFACEIT, want: DemoSourceFACEIT},
 		{name: "omitted", want: ""},
-		{name: "unknown", raw: `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","demo_source":"esea"}`, wantErr: "unknown demo source"},
+		{name: "unknown demo source", raw: `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","demo_source":"esea"}`, wantErr: "unknown demo source"},
+		{name: "unknown overlay theme", raw: `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","overlay_theme":"cyber"}`, wantErr: "unknown overlay theme"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

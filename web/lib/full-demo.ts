@@ -1,4 +1,4 @@
-import { DEMO_SOURCE, isDemoSource, SERVICE_UNAVAILABLE_CODE, type DemoSource, type EditConfig, type Preset } from './api/types.ts';
+import { DEMO_SOURCE, isDemoSource, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type DemoSource, type EditConfig, type OverlayTheme, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
@@ -44,12 +44,25 @@ export const FULL_DEMO_SOURCE_OPTIONS = [
   { value: DEMO_SOURCE.faceit, label: 'FACEIT' },
 ] as const;
 
+export const FULL_DEMO_OVERLAY_THEME_OPTIONS = [
+  { value: OVERLAY_THEME.faceitOrange, label: 'FACEIT naranja' },
+  { value: OVERLAY_THEME.neonViolet, label: 'Neón violeta' },
+] as const;
+
 export function fullDemoSourceLabel(source: DemoSource | ''): string {
   return FULL_DEMO_SOURCE_OPTIONS.find((option) => option.value === source)?.label ?? '';
 }
 
-export function fullDemoEdit(source: DemoSource): EditConfig {
-  return { ...FULL_DEMO_EDIT, demoSource: source };
+export function fullDemoOverlayThemeLabel(theme: OverlayTheme | ''): string {
+  return FULL_DEMO_OVERLAY_THEME_OPTIONS.find((option) => option.value === theme)?.label ?? '';
+}
+
+export function fullDemoEdit(source: DemoSource, overlayTheme?: OverlayTheme): EditConfig {
+  const edit: EditConfig = { ...FULL_DEMO_EDIT, demoSource: source };
+  if (overlayTheme) {
+    edit.overlayTheme = overlayTheme;
+  }
+  return edit;
 }
 
 export function canStartFullDemoCapture({

@@ -115,7 +115,8 @@ func BuildForSource(roster Roster, source string, faceit map[string]Enrichment) 
 	}
 	cards := make([]PlayerCard, 0, len(roster.Players))
 	for _, p := range roster.Players {
-		cards = append(cards, cardFromRoster(p, faceit[p.SteamID64]))
+		en, linked := faceit[p.SteamID64]
+		cards = append(cards, cardFromRoster(source, roster, p, en, linked))
 	}
 	target := targetCard(cards, roster.TargetSteamID64)
 	povTeam := target.Team
@@ -158,7 +159,7 @@ func (doc Document) IsPOV(card PlayerCard) bool {
 	return doc.TargetSteamID64 != "" && card.SteamID64 == doc.TargetSteamID64
 }
 
-func cardFromRoster(p RosterPlayer, en Enrichment) PlayerCard {
+func cardFromRoster(source string, roster Roster, p RosterPlayer, en Enrichment, faceitLinked bool) PlayerCard {
 	card := PlayerCard{
 		SteamID64: p.SteamID64,
 		Name:      firstNonEmpty(p.Name, p.SteamID64),
@@ -196,8 +197,55 @@ func cardFromRoster(p RosterPlayer, en Enrichment) PlayerCard {
 	card.AvatarURL = strings.TrimSpace(en.AvatarURL)
 	if last20HasAny(en.Last20) {
 		card.Last20 = en.Last20
+	} else if UsesFACEITEnrichment(source) && !faceitLinked {
+		card.Last20 = demoDerivedLast20(p, roster)
 	}
 	return card
+}
+
+func demoDerivedLast20(p RosterPlayer, roster Roster) *Last20 {
+	matches := 1
+	out := &Last20{Matches: &matches}
+	if win := matchWinPct(p.Team, roster.ScoreCT, roster.ScoreT); win != nil {
+		out.WinPct = win
+	}
+	if p.Kills > 0 || p.Deaths > 0 {
+		kd := float64(p.Kills)
+		if p.Deaths > 0 {
+			kd = float64(p.Kills) / float64(p.Deaths)
+		}
+		out.KD = &kd
+	}
+	rounds := p.Rounds
+	if rounds <= 0 {
+		rounds = roster.Rounds
+	}
+	if rounds > 0 && p.Kills >= 0 {
+		kr := float64(p.Kills) / float64(rounds)
+		out.KR = &kr
+	}
+	if p.ADR > 0 {
+		adr := p.ADR
+		out.ADR = &adr
+	}
+	if !last20HasAny(out) {
+		return nil
+	}
+	return out
+}
+
+func matchWinPct(team string, scoreCT, scoreT int) *float64 {
+	if scoreCT == scoreT {
+		return nil
+	}
+	won := (team == "CT" && scoreCT > scoreT) || (team == "T" && scoreT > scoreCT)
+	var pct float64
+	if won {
+		pct = 100
+	} else {
+		pct = 0
+	}
+	return &pct
 }
 
 func last20HasAny(l *Last20) bool {

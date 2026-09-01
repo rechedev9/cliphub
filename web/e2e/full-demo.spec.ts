@@ -284,6 +284,18 @@ test.describe('Full demo to video', () => {
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeEnabled();
   });
 
+  test('FACEIT source exposes overlay theme selector with default orange', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, `/full-demo/${JOB}`);
+    const sourceGroup = page.getByRole('radiogroup', { name: 'Origen de la demo' });
+    await sourceGroup.getByRole('radio', { name: 'FACEIT' }).click();
+    const themeGroup = page.getByRole('radiogroup', { name: 'Tema del intro FACEIT' });
+    await expect(themeGroup).toBeVisible();
+    await expect(themeGroup.getByRole('radio', { name: 'FACEIT naranja' })).toBeChecked();
+    await themeGroup.getByRole('radio', { name: 'Neón violeta' }).click();
+    await expect(themeGroup.getByRole('radio', { name: 'Neón violeta' })).toBeChecked();
+  });
+
   test('job capture brief names native CS2 HUD without a redundant preset step', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, `/full-demo/${JOB}`);

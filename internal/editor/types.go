@@ -53,6 +53,9 @@ const (
 	KillEffectGlitch      = "glitch"
 
 	TransitionCut      = "cut"
+	// TransitionFlash applies a per-segment dip-to-white: fade=t=out on the tail
+	// of every clip except the last and fade=t=in on the head of every clip except
+	// the first, meeting at the concat cut (~0.10s each half).
 	TransitionFlash    = "flash"
 	TransitionWhip     = "whip"
 	TransitionDip      = "dip"
@@ -288,6 +291,10 @@ type Manifest struct {
 
 type ShortEdit struct {
 	Index           int                         `json:"index"`
+	// SegmentOrdinal and SegmentTotal position this clip among the rendered
+	// batch so transition-flash dip-to-white fades apply only at real cuts.
+	SegmentOrdinal  int                         `json:"segment_ordinal,omitempty"`
+	SegmentTotal    int                         `json:"segment_total,omitempty"`
 	SegmentID       string                      `json:"segment_id"`
 	Preset          string                      `json:"preset,omitempty"`
 	Player          string                      `json:"player"`

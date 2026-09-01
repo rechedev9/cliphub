@@ -172,6 +172,9 @@ test('automatic text controls preserve only explicit true values', () => {
   assert.equal(coerceEditConfig({ demoSource: 'professional' }).demoSource, 'professional');
   assert.equal(coerceEditConfig({ demoSource: 'faceit' }).demoSource, 'faceit');
   assert.equal(coerceEditConfig({ demoSource: 'esea' }).demoSource, undefined);
+  assert.equal(coerceEditConfig({ overlayTheme: 'neon-violet' }).overlayTheme, 'neon-violet');
+  assert.equal(coerceEditConfig({ overlayTheme: 'faceit-orange' }).overlayTheme, 'faceit-orange');
+  assert.equal(coerceEditConfig({ overlayTheme: 'cyber' }).overlayTheme, undefined);
 });
 
 test('coerceEditConfig keeps every catalog KeyDrop style and drops unknowns', () => {

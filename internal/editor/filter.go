@@ -73,6 +73,7 @@ func VideoFilter(short ShortEdit) string {
 	filters = append(filters, fpsFilter(short))
 	filters = appendTemporalSmoothingFilter(filters, short)
 	filters = appendEffectFilters(filters, short, singleCrop)
+	filters = appendTransitionFlashFilters(filters, short)
 	filters = appendFullDemoFadeFromBlack(filters, short, short.Effects != nil)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
@@ -103,6 +104,7 @@ func FullFrameVideoFilter(short ShortEdit) string {
 	}
 	filters = appendTemporalSmoothingFilter(filters, short)
 	filters = appendEffectFilters(filters, short, singleCrop)
+	filters = appendTransitionFlashFilters(filters, short)
 	filters = appendFullDemoFadeFromBlack(filters, short, short.Effects != nil)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
@@ -173,6 +175,11 @@ func introSlideOverlayClauses(current string, imageInput int, imageLabel, next s
 	rightX := l.Intro.RightPanelX - 16
 	rightW := demooverlay.FrameWidth - rightX
 	enable := betweenExpression(effect.StartSeconds, effect.EndSeconds)
+	slideOut := demooverlay.IntroOverlaySlideOutSeconds
+	outStart := effect.EndSeconds - slideOut
+	if outStart < effect.StartSeconds+effect.FadeInSeconds {
+		outStart = effect.StartSeconds + effect.FadeInSeconds
+	}
 	mid := imageLabel + "L"
 	clauses := []string{
 		fmt.Sprintf("[%d:v]%s[%s]", imageInput, imageOverlayFilter(effect, short), imageLabel),
@@ -180,11 +187,35 @@ func introSlideOverlayClauses(current string, imageInput int, imageLabel, next s
 		fmt.Sprintf("[%ssrcL]crop=%d:%d:0:0[%sL]", imageLabel, leftW, demooverlay.FrameHeight, imageLabel),
 		fmt.Sprintf("[%ssrcR]crop=%d:%d:%d:0[%sR]", imageLabel, rightW, demooverlay.FrameHeight, rightX, imageLabel),
 		fmt.Sprintf("[%s][%sL]overlay=x='%s':y=0:format=auto:enable='%s'[%s]",
-			current, imageLabel, easeOutX(effect.StartSeconds, effect.FadeInSeconds, -leftW, 0), enable, mid),
+			current, imageLabel,
+			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, -leftW, 0),
+			enable, mid),
 		fmt.Sprintf("[%s][%sR]overlay=x='%s':y=0:format=auto:enable='%s'[%s]",
-			mid, imageLabel, easeOutX(effect.StartSeconds, effect.FadeInSeconds, demooverlay.FrameWidth, rightX), enable, next),
+			mid, imageLabel,
+			introSlideX(effect.StartSeconds, effect.FadeInSeconds, outStart, effect.EndSeconds, demooverlay.FrameWidth, rightX),
+			enable, next),
 	}
 	return clauses, next
+}
+
+func introSlideX(start, inDur, outStart, end float64, hidden, rest int) string {
+	inEnd := start + inDur
+	if inEnd > outStart {
+		outStart = inEnd
+	}
+	inExpr := easeOutX(start, inDur, hidden, rest)
+	outExpr := easeInX(outStart, end-outStart, rest, hidden)
+	return fmt.Sprintf("if(lt(t\\,%.3f)\\,%s\\,if(lt(t\\,%.3f)\\,%d\\,%s))", inEnd, inExpr, outStart, rest, outExpr)
+}
+
+func easeInX(start, dur float64, from, to int) string {
+	if dur <= 0 {
+		return strconv.Itoa(to)
+	}
+	end := start + dur
+	delta := to - from
+	return fmt.Sprintf("if(gte(t\\,%.3f)\\,%d\\,if(lte(t\\,%.3f)\\,%d\\,%d+(%d)*pow((t-%.3f)/%.3f\\,3)))",
+		end, to, start, from, from, delta, start, dur)
 }
 
 func easeOutX(start, dur float64, from, to int) string {
@@ -443,6 +474,31 @@ func smoothZoomRampExpression(start, end, from, to float64) string {
 	return fmt.Sprintf("(%.3f+(%.3f-%.3f)*(%s*%s*(3-2*%s)))", from, to, from, t, t, t)
 }
 
+const transitionFlashHalfSeconds = 0.10
+
+func appendTransitionFlashFilters(filters []string, short ShortEdit) []string {
+	if short.Transition != TransitionFlash || short.SegmentTotal <= 1 {
+		return filters
+	}
+	dur := short.DurationSeconds
+	if dur <= 0 {
+		return filters
+	}
+	half := transitionFlashHalfSeconds
+	if short.SegmentOrdinal > 1 {
+		filters = append(filters, fmt.Sprintf("fade=t=in:st=0:d=%.3f:color=white", half))
+	}
+	if short.SegmentOrdinal < short.SegmentTotal {
+		tailStart := dur - half
+		if tailStart < 0 {
+			tailStart = 0
+			half = dur
+		}
+		filters = append(filters, fmt.Sprintf("fade=t=out:st=%.3f:d=%.3f:color=white", tailStart, half))
+	}
+	return filters
+}
+
 func appendEffectFilters(filters []string, short ShortEdit, singleCrop bool) []string {
 	effects := short.Effects
 	filters = append(filters, gradeFilters(effects)...)
@@ -450,6 +506,9 @@ func appendEffectFilters(filters []string, short ShortEdit, singleCrop bool) []s
 	filters = append(filters, chromaShiftFilters(effects)...)
 	for _, effect := range effects {
 		if effect.Type != EffectFlash {
+			continue
+		}
+		if effect.Source == "transition-flash-head" || effect.Source == "transition-flash-tail" {
 			continue
 		}
 		color := effect.Color

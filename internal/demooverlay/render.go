@@ -56,6 +56,9 @@ func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath 
 		return fmt.Errorf("render full-demo overlay: font path is required")
 	}
 	introPlate := IntroPlatePath(doc.Source, opts.OverlayAssetsDir)
+	if UsesProgrammaticIntroChrome(doc) {
+		introPlate = ""
+	}
 	outroPlate := OutroPlatePath(doc.Source, opts.OverlayAssetsDir)
 	if err := renderIntroStill(ffmpegPath, fontPath, doc, introPath, introPlate, opts.PreviewGreyBase); err != nil {
 		return fmt.Errorf("render intro overlay: %w", err)
@@ -79,7 +82,11 @@ func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, plateP
 		chromePath := chromeFile.Name()
 		_ = chromeFile.Close()
 		defer func() { _ = os.Remove(chromePath) }()
-		if err := writeChrome(chromePath, introChromePNG); err != nil {
+		chromePNG, err := renderIntroChromePNG(doc)
+		if err != nil {
+			return err
+		}
+		if err := writeChrome(chromePath, chromePNG); err != nil {
 			return err
 		}
 		artworkPath = chromePath
@@ -315,9 +322,10 @@ func stillFilterGraph(opts stillFilterGraphOptions) string {
 
 func introFilter(doc Document, fontPath string, hasPlate bool) string {
 	l := DefaultLayout()
+	theme := ResolveTheme(doc)
 	var parts []string
-	parts = append(parts, introColumn(doc.Intro.Left, doc.Intro.LeftTeamName, doc.Intro.LeftSubtitle, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc, hasPlate)...)
-	parts = append(parts, introColumn(doc.Intro.Right, doc.Intro.RightTeamName, doc.Intro.RightSubtitle, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc, hasPlate)...)
+	parts = append(parts, introColumn(doc.Intro.Left, doc.Intro.LeftTeamName, doc.Intro.LeftSubtitle, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc, hasPlate, theme)...)
+	parts = append(parts, introColumn(doc.Intro.Right, doc.Intro.RightTeamName, doc.Intro.RightSubtitle, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc, hasPlate, theme)...)
 	if len(parts) == 0 {
 		return "null"
 	}
@@ -335,7 +343,7 @@ func introHeader(source string) string {
 	}
 }
 
-func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout IntroLayout, fontPath string, doc Document, hasPlate bool) []string {
+func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout IntroLayout, fontPath string, doc Document, hasPlate bool, theme CardTheme) []string {
 	if len(cards) > layout.MaxPlayers {
 		cards = cards[:layout.MaxPlayers]
 	}
@@ -362,6 +370,7 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 	}
 	textInset := IntroTextInset(layout, doc.Source, hasPlate)
 	skipMonogram := hasPlate && NormalizeSource(doc.Source) == SourceFACEIT
+	useChromeCards := !hasPlate && NormalizeSource(doc.Source) == SourceFACEIT
 	for i, card := range cards {
 		var cy, nameY int
 		if useGeo && i < len(geo.RowNameCenterY) {
@@ -370,6 +379,13 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 		} else {
 			cy = y + layout.HeaderH + i*layout.RowHeight
 			nameY = cy + 10
+		}
+		if useChromeCards {
+			rowY := cy - 8
+			if useGeo && i < len(geo.RowNameCenterY) {
+				rowY = geo.RowNameCenterY[i] - layout.RowHeight/2 + layout.HeaderH/2
+			}
+			parts = append(parts, introPlayerCardChrome(x+8, rowY, layout.PanelWidth-16, layout.RowHeight-12, theme)...)
 		}
 		nx := x + textInset
 		ax := x + layout.AvatarXOff
@@ -400,7 +416,7 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 			if !useGeo {
 				countryY = cy + 10 + layout.NameSize + 4
 			}
-			parts = appendFilter(parts, drawtext(fontPath, strings.ToUpper(card.Country), nx, countryY, layout.LabelSize, mutedColor))
+			parts = append(parts, countryBadgeFilters(fontPath, nx, countryY, card.Country, theme)...)
 		}
 		if card.ELO != nil {
 			eloX := x + layout.PanelWidth - layout.BadgeSize - 132
@@ -414,7 +430,7 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 		badgeFill := skillFill(10)
 		if card.Ranking != nil {
 			badge = "#" + strconv.Itoa(*card.Ranking)
-			badgeFill = "0xEB1923@0.95"
+			badgeFill = "0xFFD700@0.95"
 		} else if card.SkillLevel != nil {
 			badge = strconv.Itoa(*card.SkillLevel)
 			badgeFill = skillFill(*card.SkillLevel)
@@ -432,8 +448,8 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 		if useGeo && i < len(geo.RowNameCenterY) {
 			statsY = geo.RowNameCenterY[i] + layout.NameSize/2 + 12
 		}
-		if card.Last20 != nil {
-			parts = appendFilter(parts, drawtext(fontPath, "Last 20 matches", nx, statsY-14, 9, mutedColor))
+		if title := introStatsSectionTitle(card, doc.Source); title != "" {
+			parts = appendFilter(parts, drawtext(fontPath, title, nx, statsY-14, 9, mutedColor))
 		}
 		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-textInset-16, fontPath, layout, doc.Source)...)
 	}
@@ -469,6 +485,19 @@ func monogramInitial(name string) string {
 type overlayStat struct {
 	label string
 	value string
+}
+
+func introStatsSectionTitle(card PlayerCard, source string) string {
+	if len(introStats(card, source)) == 0 {
+		return ""
+	}
+	if card.Last20 != nil && card.Last20.Matches != nil && *card.Last20.Matches > 1 {
+		return "Last 20 matches"
+	}
+	if card.Last20 != nil {
+		return "This match"
+	}
+	return "Last 20 matches"
 }
 
 func introStatGrid(card PlayerCard, x, y, width int, fontPath string, layout IntroLayout, source string) []string {
@@ -560,7 +589,36 @@ func introStats(card PlayerCard, source string) []overlayStat {
 }
 
 func introADRHS(card PlayerCard) (label, value string) {
-	return "ADR", formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.ADR }))
+	adr := formatOptFloat("", last20Float(card, func(l Last20) *float64 { return l.ADR }))
+	hs := ""
+	if card.HasHSPct && (card.HSPct > 0 || card.Headshots > 0) {
+		hs = fmt.Sprintf("%.0f%%", card.HSPct)
+	}
+	if card.Last20 != nil {
+		switch {
+		case adr != "" && hs != "":
+			return "ADR-HS%", adr + " / " + hs
+		case adr != "":
+			return "ADR", adr
+		case hs != "":
+			return "HS%", hs
+		default:
+			return "ADR", ""
+		}
+	}
+	if adr == "" && card.HasADR {
+		adr = overlayDecimal(card.ADR, 1)
+	}
+	switch {
+	case adr != "" && hs != "":
+		return "ADR-HS%", adr + " / " + hs
+	case adr != "":
+		return "ADR", adr
+	case hs != "":
+		return "HS%", hs
+	default:
+		return "ADR", ""
+	}
 }
 
 func introKDKR(card PlayerCard) string {
@@ -784,6 +842,34 @@ func skillFill(level int) string {
 		return "0x7C3AED@0.95"
 	default:
 		return "0x22C55E@0.95"
+	}
+}
+
+// countryBadgeFilters draws a compact country-code insignia. Full flag image
+// assets remain pending license approval.
+func countryBadgeFilters(fontPath string, x, y int, country string, theme CardTheme) []string {
+	code := strings.ToUpper(strings.TrimSpace(country))
+	if code == "" {
+		return nil
+	}
+	w, h := 34, 16
+	parts := []string{
+		drawbox(x, y, w, h, introCardFill),
+		drawbox(x, y, w, 1, theme.Accent+"@0.55"),
+		drawbox(x, y+h-1, w, 1, theme.AccentSoft+"@0.45"),
+	}
+	parts = appendFilter(parts, drawtext(fontPath, code, x+5, y+1, 10, "white"))
+	return parts
+}
+
+func introPlayerCardChrome(x, y, w, h int, theme CardTheme) []string {
+	if w < 8 || h < 8 {
+		return nil
+	}
+	return []string{
+		drawbox(x, y, w, h, introCardFill),
+		drawbox(x, y, w, 2, theme.Accent+"@0.70"),
+		drawbox(x, y+h-2, w, 2, theme.AccentSoft+"@0.35"),
 	}
 }
 

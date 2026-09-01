@@ -3000,6 +3000,7 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		enrichment = overlayEnrichment(w, j.ID, roster)
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
+	doc.Theme = demooverlay.NormalizeTheme(edit.OverlayTheme)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) {

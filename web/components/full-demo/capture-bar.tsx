@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   canStartFullDemoCapture,
+  FULL_DEMO_OVERLAY_THEME_OPTIONS,
   FULL_DEMO_SOURCE_OPTIONS,
 } from '@/lib/full-demo';
-import { isDemoSource, type DemoSource } from '@/lib/api/types';
+import { isDemoSource, isOverlayTheme, DEMO_SOURCE, type DemoSource, type OverlayTheme } from '@/lib/api/types';
 
 export function FullDemoCaptureBar({
   roundCount,
@@ -18,6 +19,8 @@ export function FullDemoCaptureBar({
   onBriefApprovedChange,
   demoSource,
   onDemoSourceChange,
+  overlayTheme,
+  onOverlayThemeChange,
   onCreate,
 }: {
   roundCount: number;
@@ -28,6 +31,8 @@ export function FullDemoCaptureBar({
   onBriefApprovedChange: (approved: boolean) => void;
   demoSource: DemoSource | '';
   onDemoSourceChange: (source: DemoSource) => void;
+  overlayTheme: OverlayTheme;
+  onOverlayThemeChange: (theme: OverlayTheme) => void;
   onCreate: () => void;
 }) {
   const configured = roundCount > 0;
@@ -75,6 +80,35 @@ export function FullDemoCaptureBar({
               ))}
             </ToggleGroup>
           </div>
+          {demoSource === DEMO_SOURCE.faceit ? (
+            <div className="mt-3.5 flex flex-col gap-2">
+              <p id="full-demo-theme-label" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+                Tema del intro FACEIT
+              </p>
+              <ToggleGroup
+                type="single"
+                variant="filter"
+                spacing={2}
+                value={overlayTheme}
+                onValueChange={(value) => {
+                  if (isOverlayTheme(value)) onOverlayThemeChange(value);
+                }}
+                aria-labelledby="full-demo-theme-label"
+                className="flex flex-wrap"
+              >
+                {FULL_DEMO_OVERLAY_THEME_OPTIONS.map((option) => (
+                  <ToggleGroupItem
+                    key={option.value}
+                    value={option.value}
+                    aria-label={option.label}
+                    disabled={creating}
+                  >
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+          ) : null}
           <label className="mt-3.5 flex min-h-10 items-center gap-2.5 text-body-sm text-fg-1">
             <input
               type="checkbox"

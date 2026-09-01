@@ -23,6 +23,7 @@ export type EditRequestBody = {
   keydrop_start_seconds?: number;
   keydrop_end_seconds?: number;
   demo_source?: EditConfig['demoSource'];
+  overlay_theme?: EditConfig['overlayTheme'];
 };
 
 export function buildEditRequest(edit: EditConfig): EditRequestBody {
@@ -65,6 +66,9 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   }
   if (edit.demoSource) {
     body.demo_source = edit.demoSource;
+  }
+  if (edit.overlayTheme) {
+    body.overlay_theme = edit.overlayTheme;
   }
   return body;
 }

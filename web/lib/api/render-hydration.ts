@@ -3,6 +3,7 @@ import {
   isAffiliateStyle,
   isDemoSource,
   isKeyDropStyle,
+  isOverlayTheme,
   normalizeAffiliateFamily,
   type EditConfig,
   type Video,
@@ -84,6 +85,9 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   }
   if (isDemoSource(edit.demo_source)) {
     parsed.demoSource = edit.demo_source;
+  }
+  if (typeof edit.overlay_theme === 'string' && isOverlayTheme(edit.overlay_theme)) {
+    parsed.overlayTheme = edit.overlay_theme;
   }
   return parsed;
 }
