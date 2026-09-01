@@ -10,7 +10,7 @@ const workflowsDir = join(repo, '.github', 'workflows');
 const ciWorkflows = ['ci-backend.yml', 'ci-frontend.yml', 'ci-infra.yml'];
 
 function readWorkflow(name) {
-  return readFileSync(join(workflowsDir, name), 'utf8');
+  return readFileSync(join(workflowsDir, name), 'utf8').replaceAll('\r\n', '\n');
 }
 
 test('hosted workflows are the three CI lanes plus the unsigned release job', () => {
