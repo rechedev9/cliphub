@@ -56,7 +56,7 @@ func TestKeyDropRenderBurnsCustomCode(t *testing.T) {
 			plate := filepath.Join(dir, "keydrop-"+tt.style+".png")
 			clipOut := filepath.Join(dir, tt.style+".mp4")
 			clipFrame := filepath.Join(dir, tt.style+"-frame.png")
-			if err := keydropbanner.CompositeWithCode("ffmpeg", tt.style, tt.code, font, plate); err != nil {
+			if err := keydropbanner.CompositeWithCode("ffmpeg", keydropbanner.FamilyKeyDrop, tt.style, tt.code, font, plate); err != nil {
 				t.Fatalf("composite plate: %v", err)
 			}
 

@@ -180,6 +180,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		HookText:            cfg.HookText,
 		KillCounter:         cfg.KillCounter,
 		KillfeedOverlay:     cfg.KillfeedOverlay,
+		KeyDropFamily:       cfg.KeyDropFamily,
 		KeyDropStyle:        cfg.KeyDropStyle,
 		KeyDropCode:         cfg.KeyDropCode,
 		KeyDropPositionY:    cfg.KeyDropPositionY,

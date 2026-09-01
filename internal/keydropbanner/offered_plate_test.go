@@ -15,7 +15,7 @@ import (
 // whole stream-to-short job with "plate is missing".
 func TestStudioOfferedJcorkoPlateMaterializes(t *testing.T) {
 	t.Parallel()
-	style, ok := Lookup(StyleJcorko)
+	style, ok := Lookup(FamilyKeyDrop, StyleJcorko)
 	if !ok {
 		t.Fatal("jcorko is offered in Studio but missing from the catalog")
 	}
@@ -56,7 +56,7 @@ func TestCompositeOfferedJcorkoStyleWithCode(t *testing.T) {
 		t.Fatalf("font: %v", err)
 	}
 	out := filepath.Join(t.TempDir(), "jcorko-huaso.png")
-	if err := CompositeWithCode("ffmpeg", StyleJcorko, "HUASO", font, out); err != nil {
+	if err := CompositeWithCode("ffmpeg", FamilyKeyDrop, StyleJcorko, "HUASO", font, out); err != nil {
 		t.Fatalf("composite jcorko HUASO: %v", err)
 	}
 	info, err := os.Stat(out)

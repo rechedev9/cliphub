@@ -1,6 +1,10 @@
 package keydropbanner
 
 import (
+	"bytes"
+	"image"
+	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +31,7 @@ func TestValidateAndNormalize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			errStyle := ValidateStyle(tt.style)
+			errStyle := ValidateStyle("", tt.style)
 			errCode := ValidateCode(tt.code)
 			var err error
 			switch {
@@ -57,11 +61,14 @@ func TestEffectiveCodeAndLabel(t *testing.T) {
 	if got := EffectiveCode("  foo_bar "); got != "FOO_BAR" {
 		t.Fatalf("EffectiveCode = %q, want FOO_BAR", got)
 	}
-	if got := DisplayLabelFor(StyleJcorko, "otro"); got != "CODIGO: OTRO" {
+	if got := DisplayLabelFor(FamilyKeyDrop, StyleJcorko, "otro"); got != "CODIGO: OTRO" {
 		t.Fatalf("DisplayLabelFor jcorko = %q", got)
 	}
-	if got := DisplayLabelFor(StyleTigerr, "tiger"); got != "CODE: TIGER" {
+	if got := DisplayLabelFor(FamilyKeyDrop, StyleTigerr, "tiger"); got != "CODE: TIGER" {
 		t.Fatalf("DisplayLabelFor tigerr = %q", got)
+	}
+	if got := DisplayLabelFor(FamilyCSGOSkins, StyleClassic, "skins"); got != "CODE: SKINS" {
+		t.Fatalf("DisplayLabelFor csgoskins = %q", got)
 	}
 }
 
@@ -96,23 +103,106 @@ func TestMaterializeWritesCachedPlates(t *testing.T) {
 
 func TestLookup(t *testing.T) {
 	t.Parallel()
-	if _, ok := Lookup(StyleTigerr); !ok {
+	if _, ok := Lookup(FamilyKeyDrop, StyleTigerr); !ok {
 		t.Fatal("Lookup tigerr failed")
 	}
-	if _, ok := Lookup(StyleJcorko); !ok {
+	if _, ok := Lookup(FamilyKeyDrop, StyleJcorko); !ok {
 		t.Fatal("Lookup jcorko failed")
 	}
-	if _, ok := Lookup("OPERATOR"); !ok {
+	if _, ok := Lookup("", "OPERATOR"); !ok {
 		t.Fatal("Lookup OPERATOR failed")
 	}
-	if _, ok := Lookup("missing"); ok {
+	if _, ok := Lookup(FamilyKeyDrop, "missing"); ok {
 		t.Fatal("Lookup missing unexpectedly ok")
 	}
 }
 
+func TestFamiliesDoNotSharePlatesOrCopy(t *testing.T) {
+	t.Parallel()
+	keyDrop, ok := Lookup(FamilyKeyDrop, StyleClassic)
+	if !ok {
+		t.Fatal("KEYDROP classic missing")
+	}
+	skins, ok := Lookup(FamilyCSGOSkins, StyleClassic)
+	if !ok {
+		t.Fatal("CSGOSKINS classic missing")
+	}
+	if keyDrop.FileName == skins.FileName {
+		t.Fatalf("families share plate file %q", keyDrop.FileName)
+	}
+	if keyDrop.SHA256 == "" || skins.SHA256 == "" || keyDrop.SHA256 == skins.SHA256 {
+		t.Fatalf("families share or lack plate hash: keydrop=%q csgoskins=%q", keyDrop.SHA256, skins.SHA256)
+	}
+	if len(keyDrop.Data) == 0 || len(skins.Data) == 0 {
+		t.Fatal("a family plate has no bytes")
+	}
+	if string(keyDrop.Data) == string(skins.Data) {
+		t.Fatal("KEYDROP and CSGOSKINS classic plates are identical bytes")
+	}
+	if _, ok := Lookup(FamilyCSGOSkins, StyleTigerr); ok {
+		t.Fatal("CSGOSKINS must not reuse the KEYDROP tigerr plate")
+	}
+	if err := ValidateStyle(FamilyCSGOSkins, StyleTigerr); err == nil || !strings.Contains(err.Error(), "csgoskins") {
+		t.Fatalf("ValidateStyle CSGOSKINS/tigerr = %v, want csgoskins error", err)
+	}
+	if FamilyLabel(FamilyKeyDrop) == FamilyLabel(FamilyCSGOSkins) {
+		t.Fatalf("family labels collided: %q", FamilyLabel(FamilyKeyDrop))
+	}
+	if got := FamilyLabel(EffectiveFamily("", StyleClassic)); got != "KeyDrop" {
+		t.Fatalf("legacy style without family labeled %q, want KeyDrop", got)
+	}
+}
+
+func TestGeneratedFamilyPlateBayMatchesCover(t *testing.T) {
+	t.Parallel()
+	wantBay := map[string]colorAt{
+		StyleClassic:  rgba8(6, 22, 20, 255),
+		StyleOperator: rgba8(8, 16, 20, 255),
+	}
+	const classicX, classicY, classicW, classicH = 0.18, 0.54, 0.64, 0.22
+	for _, id := range []string{StyleClassic, StyleOperator} {
+		style, ok := Lookup(FamilyCSGOSkins, id)
+		if !ok || len(style.Data) == 0 {
+			t.Fatalf("%s plate missing", id)
+		}
+		img, err := png.Decode(bytes.NewReader(style.Data))
+		if err != nil {
+			t.Fatalf("decode %s: %v", id, err)
+		}
+		cover := samplePlate(img, style.CoverX+style.CoverW/2, style.CoverY+style.CoverH/2)
+		if cover != wantBay[id] {
+			t.Fatalf("%s cover center = %v, want painted bay %v", id, cover, wantBay[id])
+		}
+		if id != StyleOperator {
+			continue
+		}
+		classicCenter := samplePlate(img, classicX+classicW/2, classicY+classicH/2)
+		if classicCenter == wantBay[StyleOperator] {
+			t.Fatalf("CSGOSKINS operator classic-fraction center is the bay color; cover=%v classic=%v", cover, classicCenter)
+		}
+	}
+}
+
+func rgba8(r, g, b, a uint8) colorAt {
+	return colorAt{r: uint32(r) * 0x101, g: uint32(g) * 0x101, b: uint32(b) * 0x101, a: uint32(a) * 0x101}
+}
+
+type colorAt struct{ r, g, b, a uint32 }
+
+func samplePlate(img image.Image, xf, yf float64) colorAt {
+	b := img.Bounds()
+	x := b.Min.X + int(math.Round(xf*float64(b.Dx())))
+	y := b.Min.Y + int(math.Round(yf*float64(b.Dy())))
+	if x < b.Min.X || x >= b.Max.X || y < b.Min.Y || y >= b.Max.Y {
+		return colorAt{}
+	}
+	r, g, bl, a := img.At(x, y).RGBA()
+	return colorAt{r, g, bl, a}
+}
+
 func TestClassicCoverStaysInsideTextBay(t *testing.T) {
 	t.Parallel()
-	style, ok := Lookup(StyleClassic)
+	style, ok := Lookup(FamilyKeyDrop, StyleClassic)
 	if !ok {
 		t.Fatal("classic style missing")
 	}
@@ -144,7 +234,7 @@ func TestClassicCoverStaysInsideTextBay(t *testing.T) {
 func TestTigerrAndJcorkoCoverStayInsideBar(t *testing.T) {
 	t.Parallel()
 	for _, id := range []string{StyleTigerr, StyleJcorko} {
-		style, ok := Lookup(id)
+		style, ok := Lookup(FamilyKeyDrop, id)
 		if !ok {
 			t.Fatalf("%s style missing", id)
 		}

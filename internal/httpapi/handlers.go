@@ -1205,6 +1205,7 @@ type renderEditRequest struct {
 	CoverFirstFrame     *bool    `json:"cover_first_frame"`
 	IntroText           *string  `json:"intro_text"`
 	OutroText           *string  `json:"outro_text"`
+	KeyDropFamily       *string  `json:"keydrop_family"`
 	KeyDropStyle        *string  `json:"keydrop_style"`
 	KeyDropCode         *string  `json:"keydrop_code"`
 	KeyDropPositionY    *float64 `json:"keydrop_position_y"`
@@ -1258,6 +1259,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.OutroText != nil {
 		base.OutroText = *r.OutroText
+	}
+	if r.KeyDropFamily != nil {
+		base.KeyDropFamily = *r.KeyDropFamily
 	}
 	if r.KeyDropStyle != nil {
 		base.KeyDropStyle = *r.KeyDropStyle

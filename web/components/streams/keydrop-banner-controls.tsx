@@ -7,10 +7,13 @@ import {
   KEYDROP_BANNER_MIN_POSITION,
 } from '@/lib/stream-preview';
 import {
+  AFFILIATE_FAMILY_CATALOG,
   DEFAULT_KEYDROP_CODE,
   KEYDROP_CODE_RE,
-  KEYDROP_STYLE_CATALOG,
-  keyDropDisplayLabel,
+  affiliateDisplayLabel,
+  isKeyDropStyle,
+  stylesForFamily,
+  type AffiliateFamily,
 } from '@/lib/api/types';
 import { DEFAULT_KEYDROP_END_SECONDS, DEFAULT_KEYDROP_START_SECONDS } from '@/lib/streams/plan';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
@@ -20,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
 
 export function StreamKeyDropBannerControls({
+  family,
   style,
   code,
   codeValid,
@@ -30,6 +34,7 @@ export function StreamKeyDropBannerControls({
   endSeconds,
   clipDurationSeconds,
   busy,
+  onFamilyChange,
   onStyleChange,
   onCodeChange,
   onPositionChange,
@@ -38,6 +43,7 @@ export function StreamKeyDropBannerControls({
   onStartChange,
   onEndChange,
 }: {
+  family: AffiliateFamily | '';
   style: KeyDropBannerStyle | '';
   code: string;
   codeValid: boolean;
@@ -48,6 +54,7 @@ export function StreamKeyDropBannerControls({
   endSeconds: number;
   clipDurationSeconds: number;
   busy: boolean;
+  onFamilyChange: (family: AffiliateFamily) => void;
   onStyleChange: (style: KeyDropBannerStyle | '') => void;
   onCodeChange: (code: string) => void;
   onPositionChange: (position: number) => void;
@@ -63,13 +70,29 @@ export function StreamKeyDropBannerControls({
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-5">
       <div className="flex flex-col gap-1">
-        <Label className="text-label text-fg-2">Banner KeyDrop (opcional)</Label>
+        <Label className="text-label text-fg-2">Banner afiliado (opcional)</Label>
         <p className="text-body-sm text-fg-3">
-          Placa de sponsor con código. Elige cuándo entra y sale; no tiene por qué quedarse todo el clip.
+          Placa de sponsor con código. Elige familia, estilo y cuándo entra y sale; no tiene por qué quedarse todo el clip.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Estilo del banner KeyDrop">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Familia del banner">
+        {AFFILIATE_FAMILY_CATALOG.map((entry) => (
+          <Button
+            key={entry.id}
+            type="button"
+            size="sm"
+            variant={family === entry.id ? 'default' : 'outline'}
+            disabled={busy}
+            aria-pressed={family === entry.id}
+            onClick={() => onFamilyChange(entry.id)}
+          >
+            {entry.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Estilo del banner">
         <Button
           type="button"
           size="sm"
@@ -78,9 +101,11 @@ export function StreamKeyDropBannerControls({
           aria-pressed={style === ''}
           onClick={() => onStyleChange('')}
         >
-          Sin KeyDrop
+          {family
+            ? AFFILIATE_FAMILY_CATALOG.find((entry) => entry.id === family)?.offLabel ?? 'Sin banner'
+            : 'Sin banner'}
         </Button>
-        {KEYDROP_STYLE_CATALOG.map((entry) => (
+        {stylesForFamily(family || 'KEYDROP').map((entry) => (
           <Button
             key={entry.id}
             type="button"
@@ -88,7 +113,9 @@ export function StreamKeyDropBannerControls({
             variant={style === entry.id ? 'default' : 'outline'}
             disabled={busy}
             aria-pressed={style === entry.id}
-            onClick={() => onStyleChange(entry.id)}
+            onClick={() => {
+              if (isKeyDropStyle(entry.id)) onStyleChange(entry.id);
+            }}
           >
             {entry.label}
             <span className="ml-1.5 text-fg-3">{entry.subtitle}</span>
@@ -114,7 +141,7 @@ export function StreamKeyDropBannerControls({
             />
             {codeValid ? (
               <p className="text-body-sm text-fg-3">
-                Se renderiza como <span className="font-mono text-fg-1">{keyDropDisplayLabel(style, code)}</span>
+                Se renderiza como <span className="font-mono text-fg-1">{affiliateDisplayLabel(family, style, code)}</span>
               </p>
             ) : (
               <p role="alert" className="text-body-sm text-destructive">
@@ -179,7 +206,7 @@ export function StreamKeyDropBannerControls({
                 step={0.1}
                 value={Math.min(startSeconds, maxT)}
                 disabled={busy}
-                aria-label="Segundo de entrada del banner KeyDrop"
+                aria-label="Segundo de entrada del banner"
                 onChange={(e) => onStartChange(Number(e.target.value))}
                 className={STREAM_SLIDER_CLASS}
               />
@@ -191,7 +218,7 @@ export function StreamKeyDropBannerControls({
                 step={0.1}
                 value={Math.min(endSeconds, maxT)}
                 disabled={busy}
-                aria-label="Segundo de salida del banner KeyDrop"
+                aria-label="Segundo de salida del banner"
                 onChange={(e) => onEndChange(Number(e.target.value))}
                 className={STREAM_SLIDER_CLASS}
               />
@@ -223,7 +250,7 @@ export function StreamKeyDropBannerControls({
             step="0.001"
             value={position}
             disabled={busy}
-            aria-label="Posición vertical del banner KeyDrop"
+            aria-label="Posición vertical del banner"
             aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
             onChange={(event) => onPositionChange(Number(event.target.value))}
             className={STREAM_SLIDER_CLASS}

@@ -24,6 +24,9 @@ func TestKeyDropBannerJSONRoundTripPreservesCode(t *testing.T) {
 	if plan.KeyDropBanner.Style != "classic" {
 		t.Fatalf("style = %q", plan.KeyDropBanner.Style)
 	}
+	if plan.KeyDropBanner.Family != "KEYDROP" {
+		t.Fatalf("legacy plan family = %q, want KEYDROP", plan.KeyDropBanner.Family)
+	}
 	out, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)
@@ -66,6 +69,75 @@ func TestEditPlanValidateAcceptsCatalogKeyDropStyles(t *testing.T) {
 			}
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("Validate(%q) = %v, want substring %q", tt.style, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestKeyDropBannerJSONRoundTripPersistsCSGOSkinsFamily(t *testing.T) {
+	raw := []byte(`{
+		"schema_version":"1.1",
+		"variant":"streamer-fullframe-nocam",
+		"clips":[{"id":"c1","start_seconds":0,"end_seconds":10}],
+		"keydrop_banner":{"family":"CSGOSKINS","style":"classic","code":"SKINS99"}
+	}`)
+	plan, err := DecodeEditPlan(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan = NormalizeEditPlan(plan)
+	if plan.KeyDropBanner.Family != "CSGOSKINS" {
+		t.Fatalf("family = %q, want CSGOSKINS", plan.KeyDropBanner.Family)
+	}
+	if plan.KeyDropBanner.Style != "classic" {
+		t.Fatalf("style = %q", plan.KeyDropBanner.Style)
+	}
+	out, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"family":"CSGOSKINS"`) {
+		t.Fatalf("marshaled plan dropped family: %s", out)
+	}
+	plan2, err := DecodeEditPlan(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan2.KeyDropBanner.Family != "CSGOSKINS" || plan2.KeyDropBanner.Style != "classic" {
+		t.Fatalf("round-trip = family %q style %q", plan2.KeyDropBanner.Family, plan2.KeyDropBanner.Style)
+	}
+}
+
+func TestEditPlanValidateScopesStylesToAffiliateFamily(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		family  string
+		style   string
+		wantErr string
+	}{
+		{name: "keydrop classic", family: "KEYDROP", style: "classic"},
+		{name: "csgoskins classic", family: "CSGOSKINS", style: "classic"},
+		{name: "csgoskins operator", family: "CSGOSKINS", style: "operator"},
+		{name: "csgoskins cannot use tigerr", family: "CSGOSKINS", style: "tigerr", wantErr: "csgoskins"},
+		{name: "unknown family", family: "SKINBARON", style: "classic", wantErr: "unknown affiliate family"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			plan := DefaultEditPlan()
+			plan.Variant = VariantStreamerFullframeNoCam
+			plan.Clips = []ClipRange{{ID: "c1", StartSeconds: 0, EndSeconds: 8}}
+			plan.KeyDropBanner = KeyDropBannerPlan{Family: tt.family, Style: tt.style, Code: "ZACKCSGO"}
+			err := plan.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate = %v, want substring %q", err, tt.wantErr)
 			}
 		})
 	}

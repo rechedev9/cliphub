@@ -37,6 +37,13 @@ export const BOOKEND_TEXT_MAX_LENGTH = 80;
 export const KEYDROP_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
 export const DEFAULT_KEYDROP_CODE = 'ZACKCSGO';
 
+export const AFFILIATE_FAMILY = {
+  keydrop: 'KEYDROP',
+  csgoskins: 'CSGOSKINS',
+} as const;
+
+export type AffiliateFamily = (typeof AFFILIATE_FAMILY)[keyof typeof AFFILIATE_FAMILY];
+
 export const KEYDROP_STYLE_CATALOG = [
   {
     id: 'operator',
@@ -74,8 +81,93 @@ export const KEYDROP_STYLE_CATALOG = [
 
 export type KeyDropStyle = (typeof KEYDROP_STYLE_CATALOG)[number]['id'];
 
+export const CSGOSKINS_STYLE_CATALOG = [
+  {
+    id: 'classic',
+    label: 'Classic',
+    subtitle: 'CSGOSkins promo',
+    preview: '/brand/csgoskins/classic.svg',
+    textClass: 'left-[18%] right-[18%] top-[54%] h-[22%]',
+    codePrefix: 'CODE: ',
+    plate: 'csgoskins-classic.png',
+  },
+  {
+    id: 'operator',
+    label: 'Operator',
+    subtitle: 'CSGOSkins táctico',
+    preview: '/brand/csgoskins/operator.svg',
+    textClass: 'left-[28%] right-[10%] top-[44%] h-[15%]',
+    codePrefix: 'CODE: ',
+    plate: 'csgoskins-operator.png',
+  },
+] as const;
+
+export const AFFILIATE_FAMILY_CATALOG = [
+  {
+    id: AFFILIATE_FAMILY.keydrop,
+    label: 'KeyDrop',
+    offLabel: 'Sin KeyDrop',
+    styles: KEYDROP_STYLE_CATALOG,
+  },
+  {
+    id: AFFILIATE_FAMILY.csgoskins,
+    label: 'CSGOSkins',
+    offLabel: 'Sin CSGOSkins',
+    styles: CSGOSKINS_STYLE_CATALOG,
+  },
+] as const;
+
+export function normalizeAffiliateFamily(family: string): AffiliateFamily | '' {
+  const id = family.trim().toUpperCase();
+  if (id === AFFILIATE_FAMILY.keydrop || id === AFFILIATE_FAMILY.csgoskins) return id;
+  return '';
+}
+
+export function effectiveAffiliateFamily(family: string, style: string): AffiliateFamily | '' {
+  const normalized = normalizeAffiliateFamily(family);
+  if (normalized) return normalized;
+  return style.trim() ? AFFILIATE_FAMILY.keydrop : '';
+}
+
+export function stylesForFamily(family: string): readonly {
+  id: string;
+  label: string;
+  subtitle: string;
+  preview: string;
+  textClass: string;
+  codePrefix: string;
+}[] {
+  const id = effectiveAffiliateFamily(family, '') || normalizeAffiliateFamily(family);
+  if (id === AFFILIATE_FAMILY.csgoskins) return CSGOSKINS_STYLE_CATALOG;
+  return KEYDROP_STYLE_CATALOG;
+}
+
+export function isAffiliateStyle(family: string, style: string): boolean {
+  const id = style.trim().toLowerCase();
+  if (!id) return false;
+  return stylesForFamily(effectiveAffiliateFamily(family, id)).some((entry) => entry.id === id);
+}
+
 export function isKeyDropStyle(value: string): value is KeyDropStyle {
   return KEYDROP_STYLE_CATALOG.some((entry) => entry.id === value);
+}
+
+export function affiliateFamilyLabel(family: string, style = ''): string {
+  const id = effectiveAffiliateFamily(family, style);
+  return AFFILIATE_FAMILY_CATALOG.find((entry) => entry.id === id)?.label ?? '';
+}
+
+export function affiliateStyleLabel(family: string, style: string): string {
+  return stylesForFamily(effectiveAffiliateFamily(family, style)).find((entry) => entry.id === style)?.label ?? style;
+}
+
+export function affiliatePlateFile(family: string, style: string): string {
+  const id = effectiveAffiliateFamily(family, style);
+  if (id === AFFILIATE_FAMILY.csgoskins) {
+    return CSGOSKINS_STYLE_CATALOG.find((entry) => entry.id === style)?.plate ?? '';
+  }
+  const keyDrop = KEYDROP_STYLE_CATALOG.find((entry) => entry.id === style);
+  return keyDrop ? `style-${keyDrop.id}.png` : '';
 }
 
 export function keyDropStyleLabel(id: string): string {
@@ -83,7 +175,13 @@ export function keyDropStyleLabel(id: string): string {
 }
 
 export function keyDropDisplayLabel(style: KeyDropStyle | '', code: string): string {
-  const prefix = KEYDROP_STYLE_CATALOG.find((entry) => entry.id === style)?.codePrefix ?? 'CODE: ';
+  return affiliateDisplayLabel('', style, code);
+}
+
+export function affiliateDisplayLabel(family: string, style: string, code: string): string {
+  const prefix =
+    stylesForFamily(effectiveAffiliateFamily(family, style)).find((entry) => entry.id === style)?.codePrefix ??
+    'CODE: ';
   const body = (code.trim() || DEFAULT_KEYDROP_CODE).toUpperCase();
   return `${prefix}${body}`;
 }
@@ -103,6 +201,7 @@ export type EditConfig = {
   coverStrategy: CoverStrategy;
   introText?: string;
   outroText?: string;
+  keyDropFamily?: AffiliateFamily | '';
   keyDropStyle?: KeyDropStyle | '';
   keyDropCode?: string;
   keyDropPositionY?: number;

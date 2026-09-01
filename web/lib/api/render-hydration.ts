@@ -1,5 +1,5 @@
 import type { ReelIntent } from './reel-store';
-import { isKeyDropStyle, type EditConfig, type Video } from './types.ts';
+import { isAffiliateStyle, isKeyDropStyle, normalizeAffiliateFamily, type EditConfig, type Video } from './types.ts';
 
 export type EffectiveRenderMusic =
   | { mode: 'clean' }
@@ -58,8 +58,16 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   }
   if (typeof edit.intro_text === 'string') parsed.introText = edit.intro_text;
   if (typeof edit.outro_text === 'string') parsed.outroText = edit.outro_text;
-  if (typeof edit.keydrop_style === 'string' && isKeyDropStyle(edit.keydrop_style)) {
-    parsed.keyDropStyle = edit.keydrop_style;
+  const family =
+    typeof edit.keydrop_family === 'string' ? normalizeAffiliateFamily(edit.keydrop_family) : '';
+  if (typeof edit.keydrop_style === 'string') {
+    if (family && isAffiliateStyle(family, edit.keydrop_style) && isKeyDropStyle(edit.keydrop_style)) {
+      parsed.keyDropFamily = family;
+      parsed.keyDropStyle = edit.keydrop_style;
+    } else if (!family && isKeyDropStyle(edit.keydrop_style)) {
+      parsed.keyDropFamily = 'KEYDROP';
+      parsed.keyDropStyle = edit.keydrop_style;
+    }
   }
   if (typeof edit.keydrop_code === 'string') {
     parsed.keyDropCode = edit.keydrop_code;

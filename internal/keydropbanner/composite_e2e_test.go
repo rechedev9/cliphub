@@ -39,7 +39,7 @@ func TestCompositeWithCodeWritesCustomLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.style+"/"+tt.code, func(t *testing.T) {
 			out := filepath.Join(t.TempDir(), "plate.png")
-			if err := CompositeWithCode("ffmpeg", tt.style, tt.code, font, out); err != nil {
+			if err := CompositeWithCode("ffmpeg", FamilyKeyDrop, tt.style, tt.code, font, out); err != nil {
 				t.Fatal(err)
 			}
 			info, err := os.Stat(out)

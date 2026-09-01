@@ -231,6 +231,7 @@ export function planFingerprint(plan: StreamEditPlan): string {
     streamerSlide: plan.streamer_banner?.slide_enabled ?? false,
     // KeyDrop is burn-in on every clip: style, code, placement, slide, and the
     // on-screen window all change the rendered Short and must move this key.
+    keyDropFamily: (keyDrop?.family?.trim() ?? '').toUpperCase(),
     keyDropStyle: keyDrop?.style?.trim() ?? '',
     keyDropCode: (keyDrop?.code?.trim() ?? '').toUpperCase(),
     keyDropPosition: keyDrop?.position_y ?? null,

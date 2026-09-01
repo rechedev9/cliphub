@@ -159,6 +159,7 @@ test('the fingerprint moves when any KeyDrop plate field that burns into the Sho
     variant: 'streamer-vertical-stack-40-60',
     clips: [clip()],
     keydrop_banner: {
+      family: 'KEYDROP',
       style: 'classic',
       code: 'ZACKCSGO',
       slide_enabled: false,
@@ -187,6 +188,10 @@ test('the fingerprint moves when any KeyDrop plate field that burns into the Sho
     planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, end_seconds: 8 } }),
   );
   assert.notEqual(planFingerprint(base), planFingerprint({ ...base, keydrop_banner: { style: '' } }));
+  assert.notEqual(
+    planFingerprint(base),
+    planFingerprint({ ...base, keydrop_banner: { ...base.keydrop_banner, family: 'CSGOSKINS' } }),
+  );
   // Case/whitespace on the sponsor code must not create a false mismatch.
   assert.equal(
     planFingerprint(base),

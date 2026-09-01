@@ -356,9 +356,9 @@ func buildStandardFilterGraph(layout LayoutVariant, plan EditPlan, clip ClipRang
 // keyDropBannerFilter overlays the pre-composited sponsor plate on the named
 // content label. The plate PNG already carries the live code.
 func keyDropBannerFilter(layout LayoutVariant, banner KeyDropBannerPlan, duration float64, contentLabel string, inputIndex int) (string, error) {
-	style, ok := keydropbanner.Lookup(banner.Style)
+	style, ok := keydropbanner.Lookup(banner.Family, banner.Style)
 	if !ok {
-		return "", fmt.Errorf("unknown keydrop banner style %q", banner.Style)
+		return "", fmt.Errorf("unknown %s banner style %q", strings.ToLower(keydropbanner.FamilyLabel(keydropbanner.EffectiveFamily(banner.Family, banner.Style))), banner.Style)
 	}
 	outputHeight := layout.FaceOutputHeight + layout.GameOutputHeight
 	positionY := keydropbanner.DefaultPositionY
