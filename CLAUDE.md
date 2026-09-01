@@ -32,6 +32,7 @@ stream video -> persisted edit plan -> render -> publish pack
 Shared standing law for every agent that touches this repo. If it is not here, it did not happen. Update this block in the same PR when a law changes.
 
 - **Prove It Works.** Verify the real path, not a proxy. CI, mocks, lint, and "it compiles" are supplemental. For parser/capture/render: real ClipHub Studio on Windows + HLAE/CS2, or name the gap and do not call the work done.
+- **Verification lever.** Close the loop with the in-repo `verify-cliphub` skill and `zv verify` before calling a ClipHub change done. Prove against the real artifact; loop until the path proves itself; never treat compile, lint, or hosted CI as the feature. Doctor and the skill fail closed and name the HLAE/CS2 / Windows Studio gap when capture or Full Demo 16:9 recap cannot be recertified on this machine. Cloud Linux cannot launch CS2. Hosted CI green is not HLAE/CS2 proof. Do not add a Grok Bot court or a second local bot farm.
 - **PR body** (`.github/pull_request_template.md`): only four H2s — What Problem This Solves, Why This Change Was Made, User Impact, Evidence. Empty Evidence is a blocker.
 - **Hosted quality CI** (PRs and `main`): `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`), `CI infra` (actionlint + unsigned-release contract). Not HLAE/CS2 E2E. Not Playwright.
 - **Release:** unsigned Windows installer only, via `.github/workflows/desktop-release.yml` (`workflow_dispatch` or `v*.*.*` matching `desktop/package.json`). Actualizar reads `releases/latest`. No Authenticode. Vercel/landing is not the updater.
@@ -45,6 +46,7 @@ Shared standing law for every agent that touches this repo. If it is not here, i
 | Go package map | `internal/AGENTS.md` |
 | 12 binaries / cmd leaks | `cmd/AGENTS.md` |
 | `zv` CLI surface | `cmd/zv/AGENTS.md`; contract is `zv flows show` / `workflows show` |
+| Verification lever | `.cursor/skills/verify-cliphub`; `zv verify doctor --format json` |
 | AI-agent system design | `docs/AI_AGENT_ARCHITECTURE.md` |
 | Studio UI / TypeScript | `web/CLAUDE.md`; visuals: `~/.grok/design.md` then `web/app/globals.css` + `frontend-design` skill |
 | Electron / installer | `desktop/GUIDE.md` |
@@ -59,6 +61,10 @@ If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
 
 ```powershell
 .\bin\zv.exe capabilities --format json
+.\bin\zv.exe verify doctor --format json
+.\bin\zv.exe verify features --format json
+.\bin\zv.exe verify http --format json
+.\bin\zv.exe verify gates --run --dry-run --format json
 .\bin\zv.exe flows show demo --format json
 .\bin\zv.exe flows show stream --format json
 .\bin\zv.exe workflows list --format json

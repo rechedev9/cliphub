@@ -21,7 +21,7 @@ This document is a target architecture for making ClipHub easier for AI coding a
 ## Design principles
 
 1. **Plans over prompts** — the durable plan (`killplan`, `moments`, `streamclips.EditPlan`, `timelineplan.Document`, `tacticalplan.Document`) is the unit of work. Prompts can help select or explain, but later stages consume versioned plans.
-2. **Capabilities over assumptions** — agents should discover support with `zv capabilities`, `zv flows show`, `zv workflows show`, `zv presets`, and `zv skills list` instead of parsing README examples as contracts.
+2. **Capabilities over assumptions** — agents should discover support with `zv capabilities`, `zv verify doctor`, `zv flows show`, `zv workflows show`, `zv presets`, and `zv skills list` instead of parsing README examples as contracts.
 3. **Artifacts over memory** — every resumable decision should be represented by an artifact key, schema version, provenance, or journal entry. A fresh agent session must be able to inspect state from disk/API.
 4. **One owner per boundary** — each package owns either facts, plans, side-lane analysis, execution, or presentation. Cross-boundary shortcuts are technical debt even if they work.
 5. **Safe-by-default automation** — dry-run first, explicit argv reuse, human approval for irreversible/expensive work, and redacted credentials by default.

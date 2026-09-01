@@ -9,6 +9,11 @@ Usage:
   zv errors [--tail <n>] [--json] [--clear]
   zv presets [--format text|json]
   zv capabilities [--format text|json]
+  zv verify doctor [--format text|json]
+  zv verify features [--feature <id>] [--format text|json]
+  zv verify http [--url <loopback>] [--format text|json]
+  zv verify gates [--run] [--dry-run] [--format text|json]
+  zv verify prove --feature <id> [--dry-run] [--format text|json]
   zv faceit index --profile <url-or-nickname> --out <demo-index.json> [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--format text|json]
   zv demo parse [zv-parser parse flags]
   zv demo players [zv-demo-players flags]
@@ -102,6 +107,43 @@ const presetsUsage = `usage: zv presets [--format text|json]
 `
 
 const capabilitiesUsage = `usage: zv capabilities [--format text|json]
+`
+
+const verifyUsage = `usage: zv verify doctor [--format text|json] | zv verify features [--feature <id>] [--format text|json] | zv verify http [--url <loopback>] [--format text|json] | zv verify gates [--run] [--dry-run] [--format text|json] | zv verify prove --feature <id> [--dry-run] [--format text|json]
+
+ClipHub verification lever. Inspect what this host can prove without HLAE/CS2.
+Doctor fails closed and names the HLAE/CS2 / Windows Studio gap when capture
+or Full Demo 16:9 recap cannot be recertified. Cloud Linux cannot launch CS2.
+Hosted CI green is not HLAE/CS2 proof. JSON is the agent contract.
+
+Subcommands:
+  doctor    host tools, skill, feature map, orchestrator, hosted gates, named gaps
+  features  dump the Studio feature map
+  http      GET /healthz on a loopback orchestrator if one is running
+  gates     list cheap hosted CI commands (no Playwright, no HLAE)
+  prove     fail-closed check for one mapped feature
+
+Flags:
+  --format text|json   machine-readable JSON in both formats
+  --feature <id>       catalog id (inicio, partidas, demo-completa, ...)
+  --url <loopback>     orchestrator base; default http://127.0.0.1:8080
+  --run                with gates, still requires --dry-run (not a second CI)
+  --dry-run            print the plan; required for gates --run
+`
+
+const verifyDoctorUsage = `usage: zv verify doctor [--format text|json]
+`
+
+const verifyFeaturesUsage = `usage: zv verify features [--feature <id>] [--format text|json]
+`
+
+const verifyHTTPUsage = `usage: zv verify http [--url <loopback>] [--format text|json]
+`
+
+const verifyGatesUsage = `usage: zv verify gates [--run] [--dry-run] [--format text|json]
+`
+
+const verifyProveUsage = `usage: zv verify prove --feature <id> [--dry-run] [--format text|json]
 `
 
 const faceitUsage = `usage: zv faceit index [flags]
