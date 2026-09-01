@@ -121,6 +121,10 @@ func TestDoctorSchemaAndNamedGap(t *testing.T) {
 			t.Fatal("this non-windows host must not claim capture recertification")
 		}
 	}
+	studioJSON, _ := decoded["studio"].(map[string]any)
+	if ports, ok := studioJSON["ports"]; ok && ports != nil {
+		t.Fatalf("linux doctor must omit absent ports, got %#v", ports)
+	}
 }
 
 func TestLiveCS2NeverFakedOnLinux(t *testing.T) {

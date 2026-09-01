@@ -19,15 +19,15 @@ type StudioPorts struct {
 
 // StudioSurface is the live ClipHub Studio layout doctor inspects.
 type StudioSurface struct {
-	UserDataDir     string      `json:"user_data_dir"`
-	PortsPath       string      `json:"ports_path"`
-	JobsDBPath      string      `json:"jobs_db_path"`
-	PortsPresent    bool        `json:"ports_present"`
-	JobsDBPresent   bool        `json:"jobs_db_present"`
-	Ports           StudioPorts `json:"ports,omitempty"`
-	OrchestratorURL string      `json:"orchestrator_url,omitempty"`
-	WebURL          string      `json:"web_url,omitempty"`
-	Healthz         HTTPReport  `json:"healthz"`
+	UserDataDir     string       `json:"user_data_dir"`
+	PortsPath       string       `json:"ports_path"`
+	JobsDBPath      string       `json:"jobs_db_path"`
+	PortsPresent    bool         `json:"ports_present"`
+	JobsDBPresent   bool         `json:"jobs_db_present"`
+	Ports           *StudioPorts `json:"ports,omitempty"`
+	OrchestratorURL string       `json:"orchestrator_url,omitempty"`
+	WebURL          string       `json:"web_url,omitempty"`
+	Healthz         HTTPReport   `json:"healthz"`
 }
 
 // ToolCheck is one detected executable. HLAE must never be C:\HLAE\HLAE.exe.
@@ -119,7 +119,7 @@ func inspectStudio(goos, userData string, probe StudioProbe, dryRun bool) Studio
 		return surface
 	}
 	surface.PortsPresent = true
-	surface.Ports = ports
+	surface.Ports = &ports
 	surface.OrchestratorURL = loopbackURL(ports.Orchestrator)
 	surface.WebURL = loopbackURL(ports.Web)
 	if dryRun {

@@ -29,7 +29,7 @@ type HTTPReport struct {
 	Service    string            `json:"service,omitempty"`
 	BodyStatus string            `json:"body_status,omitempty"`
 	Detail     string            `json:"detail,omitempty"`
-	Contract   map[string]string `json:"contract"`
+	Contract   map[string]string `json:"contract,omitempty"`
 }
 
 // ProbeOrchestrator GETs /healthz. Connection refused is absent, not a fake pass
