@@ -74,6 +74,40 @@ func TestEditPlanValidateAcceptsCatalogKeyDropStyles(t *testing.T) {
 	}
 }
 
+func TestKeyDropBannerJSONRoundTripPersistsCSGOSkinsFamily(t *testing.T) {
+	raw := []byte(`{
+		"schema_version":"1.1",
+		"variant":"streamer-fullframe-nocam",
+		"clips":[{"id":"c1","start_seconds":0,"end_seconds":10}],
+		"keydrop_banner":{"family":"CSGOSKINS","style":"classic","code":"SKINS99"}
+	}`)
+	plan, err := DecodeEditPlan(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan = NormalizeEditPlan(plan)
+	if plan.KeyDropBanner.Family != "CSGOSKINS" {
+		t.Fatalf("family = %q, want CSGOSKINS", plan.KeyDropBanner.Family)
+	}
+	if plan.KeyDropBanner.Style != "classic" {
+		t.Fatalf("style = %q", plan.KeyDropBanner.Style)
+	}
+	out, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"family":"CSGOSKINS"`) {
+		t.Fatalf("marshaled plan dropped family: %s", out)
+	}
+	plan2, err := DecodeEditPlan(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan2.KeyDropBanner.Family != "CSGOSKINS" || plan2.KeyDropBanner.Style != "classic" {
+		t.Fatalf("round-trip = family %q style %q", plan2.KeyDropBanner.Family, plan2.KeyDropBanner.Style)
+	}
+}
+
 func TestEditPlanValidateScopesStylesToAffiliateFamily(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
