@@ -34,6 +34,7 @@ func newSQLiteStreamJobRepository(db *sql.DB) (*sqliteStreamJobRepository, error
 		id             TEXT    PRIMARY KEY,
 		status         TEXT    NOT NULL,
 		failure_reason TEXT,
+		failure_code   TEXT,
 		source_path    TEXT    NOT NULL,
 		source_sha256  TEXT    NOT NULL,
 		source_url     TEXT,
@@ -75,9 +76,9 @@ func (r *sqliteStreamJobRepository) Create(ctx context.Context, j *streamclips.J
 		j.PublicSourceURL = source.PublicURL
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO stream_jobs (id, status, failure_reason, source_path, source_sha256, source_url, public_source_url, title, probe, edit_plan, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		j.ID.String(), string(j.Status), nullableText(j.FailureReason), j.SourcePath, j.SourceSHA256,
+		`INSERT INTO stream_jobs (id, status, failure_reason, failure_code, source_path, source_sha256, source_url, public_source_url, title, probe, edit_plan, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		j.ID.String(), string(j.Status), nullableText(j.FailureReason), nullableText(streamFailureCode(j.FailureReason, j.FailureCode)), j.SourcePath, j.SourceSHA256,
 		nullableText(j.SourceURL), nullableText(j.PublicSourceURL), nullableText(j.Title), probeJSON, nullableEditPlan(j.EditPlan),
 		now.UnixNano(), now.UnixNano(),
 	)
@@ -89,7 +90,7 @@ func (r *sqliteStreamJobRepository) Create(ctx context.Context, j *streamclips.J
 
 func (r *sqliteStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (streamclips.Job, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, status, COALESCE(failure_reason,''), source_path, source_sha256,
+		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
 		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
 		 FROM stream_jobs WHERE id = ?`, id.String())
 	return scanSQLiteStreamJob(row)
@@ -103,7 +104,7 @@ func (r *sqliteStreamJobRepository) List(ctx context.Context, limit int) ([]stre
 		limit = 100
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, status, COALESCE(failure_reason,''), source_path, source_sha256,
+		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
 		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
 		 FROM stream_jobs ORDER BY updated_at DESC, created_at DESC LIMIT ?`, limit)
 	if err != nil {
@@ -127,7 +128,7 @@ func (r *sqliteStreamJobRepository) List(ctx context.Context, limit int) ([]stre
 
 func (r *sqliteStreamJobRepository) ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, status, COALESCE(failure_reason,''), source_path, source_sha256,
+		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
 		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
 		 FROM stream_jobs WHERE status = ? ORDER BY updated_at DESC, created_at DESC`, string(status))
 	if err != nil {
@@ -151,10 +152,11 @@ func (r *sqliteStreamJobRepository) ListByStatus(ctx context.Context, status str
 
 func (r *sqliteStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status streamclips.Status, failureReason string) error {
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE stream_jobs SET status = ?, failure_reason = ?,
+		`UPDATE stream_jobs SET status = ?, failure_reason = ?, failure_code = ?,
 		 source_url = CASE WHEN ? THEN NULL ELSE source_url END,
 		 updated_at = ? WHERE id = ?`,
-		string(status), nullableText(failureReason), status == streamclips.StatusFailed,
+		string(status), nullableText(failureReason), nullableText(streamFailureCode(failureReason, "")),
+		status == streamclips.StatusFailed,
 		time.Now().UTC().UnixNano(), id.String(),
 	)
 	if err != nil {
@@ -172,7 +174,7 @@ func (r *sqliteStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUI
 		return fmt.Errorf("marshal probe: %w", err)
 	}
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE stream_jobs SET probe = ?, source_sha256 = ?, source_url = NULL, title = CASE WHEN COALESCE(trim(title), '') = '' THEN ? ELSE title END, status = ?, failure_reason = NULL, updated_at = ? WHERE id = ?`,
+		`UPDATE stream_jobs SET probe = ?, source_sha256 = ?, source_url = NULL, title = CASE WHEN COALESCE(trim(title), '') = '' THEN ? ELSE title END, status = ?, failure_reason = NULL, failure_code = NULL, updated_at = ? WHERE id = ?`,
 		probeJSON, sha256, discoveredTitle, string(streamclips.StatusReady), time.Now().UTC().UnixNano(), id.String(),
 	)
 	if err != nil {
@@ -191,7 +193,7 @@ func (r *sqliteStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUI
 		return fmt.Errorf("marshal edit plan: %w", err)
 	}
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE stream_jobs SET edit_plan = ?, status = ?, failure_reason = NULL, updated_at = ? WHERE id = ?`,
+		`UPDATE stream_jobs SET edit_plan = ?, status = ?, failure_reason = NULL, failure_code = NULL, updated_at = ? WHERE id = ?`,
 		b, string(streamclips.StatusReady), time.Now().UTC().UnixNano(), id.String(),
 	)
 	if err != nil {
@@ -211,7 +213,7 @@ func scanSQLiteStreamJob(row sqlScanner) (streamclips.Job, error) {
 	var idStr, statusRaw string
 	var probeJSON, planJSON []byte
 	var createdNano, updatedNano int64
-	err := row.Scan(&idStr, &statusRaw, &j.FailureReason, &j.SourcePath, &j.SourceSHA256,
+	err := row.Scan(&idStr, &statusRaw, &j.FailureReason, &j.FailureCode, &j.SourcePath, &j.SourceSHA256,
 		&j.SourceURL, &j.PublicSourceURL, &j.Title, &probeJSON, &planJSON, &createdNano, &updatedNano)
 	if errors.Is(err, sql.ErrNoRows) {
 		return streamclips.Job{}, streamclips.ErrNotFound
@@ -245,12 +247,18 @@ func scanSQLiteStreamJob(row sqlScanner) (streamclips.Job, error) {
 	}
 	j.CreatedAt = time.Unix(0, createdNano).UTC()
 	j.UpdatedAt = time.Unix(0, updatedNano).UTC()
-	if code := streamclips.CodeFromReason(j.FailureReason); code != "" {
-		j.FailureCode = code
-	} else {
-		j.FailureCode = obs.ClassOf(j.FailureReason)
-	}
+	j.FailureCode = streamFailureCode(j.FailureReason, j.FailureCode)
 	return j, nil
+}
+
+func streamFailureCode(reason, stored string) string {
+	if stored != "" {
+		return stored
+	}
+	if code := streamclips.CodeFromReason(reason); code != "" {
+		return code
+	}
+	return obs.ClassOf(reason)
 }
 
 func ensureSQLiteStreamSourceColumns(db *sql.DB) error {
@@ -259,6 +267,7 @@ func ensureSQLiteStreamSourceColumns(db *sql.DB) error {
 		return fmt.Errorf("inspect stream_jobs columns: %w", err)
 	}
 	foundPublic := false
+	foundFailureCode := false
 	for rows.Next() {
 		var cid, notNull, primaryKey int
 		var name, columnType string
@@ -268,6 +277,7 @@ func ensureSQLiteStreamSourceColumns(db *sql.DB) error {
 			return fmt.Errorf("scan stream_jobs column: %w", err)
 		}
 		foundPublic = foundPublic || name == "public_source_url"
+		foundFailureCode = foundFailureCode || name == "failure_code"
 	}
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close stream_jobs column rows: %w", err)
@@ -275,6 +285,11 @@ func ensureSQLiteStreamSourceColumns(db *sql.DB) error {
 	if !foundPublic {
 		if _, err := db.Exec(`ALTER TABLE stream_jobs ADD COLUMN public_source_url TEXT`); err != nil {
 			return fmt.Errorf("add stream_jobs public source url: %w", err)
+		}
+	}
+	if !foundFailureCode {
+		if _, err := db.Exec(`ALTER TABLE stream_jobs ADD COLUMN failure_code TEXT`); err != nil {
+			return fmt.Errorf("add stream_jobs failure_code: %w", err)
 		}
 	}
 	return nil

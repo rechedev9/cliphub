@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -76,32 +77,84 @@ func TestGetJobExposesStructuredFailureCodeWithoutParsingMessage(t *testing.T) {
 	}
 }
 
-func TestGetStreamJobExposesAcquireFailureCodeFromSpanishReason(t *testing.T) {
+func TestStreamAcquireFailureCodeIsQueryableOnGetAndList(t *testing.T) {
 	repo := newFakeStreamRepo()
-	id := uuid.New()
-	repo.jobs[id] = streamclips.Job{
-		ID:            id,
-		Status:        streamclips.StatusFailed,
-		FailureReason: streamclips.AcquireReasonNotFound,
+	cases := []struct {
+		reason string
+		code   string
+	}{
+		{reason: streamclips.AcquireReasonNotFound, code: streamclips.AcquireCodeNotFound},
+		{reason: streamclips.AcquireReasonAuthRequired, code: streamclips.AcquireCodeAuthRequired},
 	}
+	byCode := map[string]uuid.UUID{}
+	for _, tc := range cases {
+		id := uuid.New()
+		byCode[tc.code] = id
+		repo.jobs[id] = streamclips.Job{ID: id, Status: streamclips.StatusAcquiring}
+		if err := repo.UpdateStatus(context.Background(), id, streamclips.StatusFailed, tc.reason); err != nil {
+			t.Fatalf("persist %s: %v", tc.code, err)
+		}
+		stored := repo.jobs[id]
+		if stored.FailureCode != tc.code {
+			t.Fatalf("stored failure_code = %q, want persisted %q", stored.FailureCode, tc.code)
+		}
+		if stored.FailureReason != tc.reason {
+			t.Fatalf("stored failure_reason = %q, want Spanish display text", stored.FailureReason)
+		}
+	}
+
 	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo))
 	router := chi.NewRouter()
 	router.Get("/api/stream-jobs/{id}", h.GetStreamJob)
+	router.Get("/api/stream-jobs", h.ListStreamJobs)
 
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String(), nil))
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	list := httptest.NewRecorder()
+	router.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/api/stream-jobs", nil))
+	if list.Code != http.StatusOK {
+		t.Fatalf("list status = %d: %s", list.Code, list.Body.String())
 	}
-	var got streamclips.Job
-	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
-		t.Fatalf("decode: %v", err)
+	var listed struct {
+		Jobs []struct {
+			ID          uuid.UUID `json:"id"`
+			FailureCode string    `json:"failure_code"`
+		} `json:"jobs"`
 	}
-	if got.FailureCode != streamclips.AcquireCodeNotFound {
-		t.Fatalf("failure_code = %q, want %q", got.FailureCode, streamclips.AcquireCodeNotFound)
+	if err := json.Unmarshal(list.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("decode list: %v", err)
 	}
-	if got.FailureReason != streamclips.AcquireReasonNotFound {
-		t.Fatalf("failure_reason = %q, want the Spanish display text", got.FailureReason)
+
+	for _, tc := range cases {
+		id := byCode[tc.code]
+		get := httptest.NewRecorder()
+		router.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String(), nil))
+		if get.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d: %s", tc.code, get.Code, get.Body.String())
+		}
+		var got struct {
+			ID            uuid.UUID `json:"id"`
+			FailureCode   string    `json:"failure_code"`
+			FailureReason string    `json:"failure_reason"`
+		}
+		if err := json.Unmarshal(get.Body.Bytes(), &got); err != nil {
+			t.Fatalf("decode GET %s: %v", tc.code, err)
+		}
+		if got.ID != id || got.FailureCode != tc.code {
+			t.Fatalf("GET select by job_id+failure_code failed: id=%s code=%q", got.ID, got.FailureCode)
+		}
+		if !strings.Contains(got.FailureReason, " ") {
+			t.Fatalf("GET %s dropped human failure_reason: %q", tc.code, got.FailureReason)
+		}
+
+		found := false
+		for _, job := range listed.Jobs {
+			if job.ID == id && job.FailureCode == tc.code {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("LIST could not select job %s by failure_code %q", id, tc.code)
+		}
 	}
 }
 
