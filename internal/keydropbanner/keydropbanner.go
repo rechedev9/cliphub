@@ -1,5 +1,6 @@
-// Package keydropbanner ships the KeyDrop sponsor banner plates and the
+// Package keydropbanner ships affiliate sponsor banner plates and the
 // shared validation/materialize helpers used by stream clips and demo reels.
+// KEYDROP is one family; each family owns its styles, codes, and plate files.
 package keydropbanner
 
 import (
@@ -43,6 +44,9 @@ var styleOperatorPNG []byte
 //go:embed style-classic.png
 var styleClassicPNG []byte
 
+//go:embed style-jcorko.png
+var styleJcorkoPNG []byte
+
 // codePattern accepts the short sponsor codes streamers type by hand.
 // Letters, digits, and a few separators; no spaces or control chars.
 var codePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`)
@@ -51,6 +55,7 @@ var codePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`)
 // used to replace the baked-in code at render time. Coordinates are fractions
 // of the plate's own width/height so they survive any output scale.
 type Style struct {
+	Family       string
 	ID           string
 	FileName     string
 	SHA256       string
@@ -68,7 +73,8 @@ type Style struct {
 }
 
 var styles = map[string]Style{
-	StyleOperator: {
+	"KEYDROP/operator": {
+		Family:       FamilyKeyDrop,
 		ID:           StyleOperator,
 		FileName:     "style-operator.png",
 		SHA256:       "d9b53431aaf6019e9b65a588704d99becc0442dff9bda074df42df0dcfd26452",
@@ -83,7 +89,8 @@ var styles = map[string]Style{
 		TextCenterY:  0.516,
 		FontSizeFrac: 0.095,
 	},
-	StyleClassic: {
+	"KEYDROP/classic": {
+		Family:       FamilyKeyDrop,
 		ID:           StyleClassic,
 		FileName:     "style-classic.png",
 		SHA256:       "4e95761419634e4ff90ef1f738f6029a02e75264c61f9a2228b94c67c5d0224e",
@@ -98,7 +105,8 @@ var styles = map[string]Style{
 		TextCenterY:  0.65,
 		FontSizeFrac: 0.12,
 	},
-	StyleTigerr: {
+	"KEYDROP/tigerr": {
+		Family:       FamilyKeyDrop,
 		ID:           StyleTigerr,
 		FileName:     "style-tigerr.png",
 		Width:        1080,
@@ -111,9 +119,11 @@ var styles = map[string]Style{
 		TextCenterY:  0.58,
 		FontSizeFrac: 0.12,
 	},
-	StyleJcorko: {
+	"KEYDROP/jcorko": {
+		Family:       FamilyKeyDrop,
 		ID:           StyleJcorko,
 		FileName:     "style-jcorko.png",
+		Data:         styleJcorkoPNG,
 		Width:        1080,
 		Height:       520,
 		CoverX:       0.20,
@@ -128,6 +138,7 @@ var styles = map[string]Style{
 }
 
 func init() {
+	registerGeneratedFamilyPlates()
 	for id, style := range styles {
 		if len(style.Data) == 0 {
 			style.Data = loadPlateFile(style.FileName)
@@ -190,9 +201,14 @@ func plateSearchDirs() []string {
 	return dirs
 }
 
-// Lookup returns a style by id.
-func Lookup(id string) (Style, bool) {
-	s, ok := styles[NormalizeStyle(id)]
+// Lookup returns a style in family. Empty family with a known KEYDROP style
+// resolves as KEYDROP so persisted plans without family keep working.
+func Lookup(family, styleID string) (Style, bool) {
+	styleID = NormalizeStyle(styleID)
+	if styleID == "" {
+		return Style{}, false
+	}
+	s, ok := styles[catalogKey(EffectiveFamily(family, styleID), styleID)]
 	return s, ok
 }
 
@@ -206,14 +222,21 @@ func NormalizeCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
 }
 
-// ValidateStyle reports whether style is empty (off) or a known plate.
-func ValidateStyle(id string) error {
+// ValidateStyle reports whether style is empty (off) or a known plate in family.
+func ValidateStyle(family, id string) error {
 	id = NormalizeStyle(id)
 	if id == "" {
 		return nil
 	}
-	if _, ok := styles[id]; !ok {
-		return fmt.Errorf("unknown keydrop banner style %q", id)
+	if err := ValidateFamily(family); err != nil {
+		return err
+	}
+	if _, ok := Lookup(family, id); !ok {
+		label := strings.ToLower(FamilyLabel(EffectiveFamily(family, id)))
+		if label == "" {
+			label = "affiliate"
+		}
+		return fmt.Errorf("unknown %s banner style %q", label, id)
 	}
 	return nil
 }
@@ -245,9 +268,9 @@ func EffectiveCode(code string) string {
 }
 
 // DisplayLabelFor is the lower-third string for a plate; jcorko uses CODIGO.
-func DisplayLabelFor(styleID, code string) string {
+func DisplayLabelFor(family, styleID, code string) string {
 	prefix := "CODE: "
-	if style, ok := Lookup(styleID); ok && style.LabelPrefix != "" {
+	if style, ok := Lookup(family, styleID); ok && style.LabelPrefix != "" {
 		prefix = style.LabelPrefix
 	}
 	return prefix + EffectiveCode(code)
@@ -255,24 +278,24 @@ func DisplayLabelFor(styleID, code string) string {
 
 var materializeMu sync.Mutex
 
-// Materialize writes the embedded plate for style into the user cache and
+// Materialize writes the family plate for style into the user cache and
 // returns its absolute path. Empty style is an error.
-func Materialize(styleID string) (string, error) {
-	style, ok := Lookup(styleID)
+func Materialize(family, styleID string) (string, error) {
+	style, ok := Lookup(family, styleID)
 	if !ok {
-		return "", fmt.Errorf("unknown keydrop banner style %q", styleID)
+		return "", fmt.Errorf("unknown %s banner style %q", strings.ToLower(FamilyLabel(EffectiveFamily(family, styleID))), styleID)
 	}
 	if len(style.Data) == 0 {
-		return "", fmt.Errorf("keydrop banner style %q plate is missing", styleID)
+		return "", fmt.Errorf("%s banner style %q plate is missing", strings.ToLower(FamilyLabel(style.Family)), styleID)
 	}
 	root, err := os.UserCacheDir()
 	if err != nil || root == "" {
 		root = os.TempDir()
 	}
 	if root == "" {
-		return "", fmt.Errorf("materialize keydrop banner: no user cache or temp directory available")
+		return "", fmt.Errorf("materialize affiliate banner: no user cache or temp directory available")
 	}
-	dir := filepath.Join(root, "ClipHub", "keydrop-banner", Version)
+	dir := filepath.Join(root, "ClipHub", "keydrop-banner", Version, style.Family)
 	return materializeAt(dir, style)
 }
 

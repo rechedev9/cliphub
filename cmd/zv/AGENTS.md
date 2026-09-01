@@ -18,6 +18,7 @@ Unified CLI. Feature binaries remain behavioral owners; `zv` is the stable comma
 | Tactical CLI | `analysis_commands.go` |
 | Record / stream wrappers | `record_command.go`, `stream_commands.go` |
 | Public presets | `supported_presets.go`, `presets_command.go` |
+| `zv verify` | `verify_commands.go` → `internal/verify` |
 
 Legacy pass-throughs (`parser`, `editor`, `recorder`, …) live in `check_config.go`. `zv-stream` and `zv-demo-players` have no raw-bin alias.
 

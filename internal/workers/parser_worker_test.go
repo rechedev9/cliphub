@@ -17,6 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
@@ -82,6 +83,7 @@ func (f *fakeRepo) UpdateStatus(_ context.Context, id uuid.UUID, s job.Status, r
 	}
 	j.Status = s
 	j.FailureReason = reason
+	j.FailureCode = obs.ClassOf(reason)
 	return nil
 }
 func (f *fakeRepo) SetKillPlan(_ context.Context, id uuid.UUID, p killplan.Plan) error {

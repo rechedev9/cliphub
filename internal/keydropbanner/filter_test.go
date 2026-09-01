@@ -7,7 +7,7 @@ import (
 
 func TestBuildOverlayFilterScalesPrecompositedPlate(t *testing.T) {
 	t.Parallel()
-	style, ok := Lookup(StyleOperator)
+	style, ok := Lookup(FamilyKeyDrop, StyleOperator)
 	if !ok {
 		t.Fatal("operator style missing")
 	}
@@ -45,7 +45,7 @@ func TestBuildOverlayFilterScalesPrecompositedPlate(t *testing.T) {
 
 func TestBuildOverlayFilterHonorsVisibilityWindow(t *testing.T) {
 	t.Parallel()
-	style, _ := Lookup(StyleOperator)
+	style, _ := Lookup(FamilyKeyDrop, StyleOperator)
 	filter, err := BuildOverlayFilter(OverlayParams{
 		Style:           style,
 		OutputWidth:     1080,
@@ -67,7 +67,7 @@ func TestBuildOverlayFilterHonorsVisibilityWindow(t *testing.T) {
 
 func TestBuildOverlayFilterSlideUsesEvalFrame(t *testing.T) {
 	t.Parallel()
-	style, _ := Lookup(StyleClassic)
+	style, _ := Lookup(FamilyKeyDrop, StyleClassic)
 	filter, err := BuildOverlayFilter(OverlayParams{
 		Style:           style,
 		OutputWidth:     1920,

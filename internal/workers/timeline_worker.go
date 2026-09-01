@@ -56,7 +56,7 @@ func (w *TimelineRenderWorker) HandleRenderTimeline(ctx context.Context, t *asyn
 		return fmt.Errorf("decode timeline render payload: %w", err)
 	}
 	if err := w.render(ctx, payload); err != nil {
-		recordStageFailure(payload.ProjectID, obs.StageEditor, tasks.TypeRenderTimeline, err)
+		recordStageFailure(payload.ProjectID, obs.StageEditor, tasks.TypeRenderTimeline, errorClass(tasks.TypeRenderTimeline, err), err)
 		if updErr := w.repo.UpdateStatus(ctx, payload.ProjectID, timelineplan.StatusFailed, err.Error()); updErr != nil {
 			return fmt.Errorf("render timeline: %w (also failed to mark failed: %v)", err, updErr)
 		}

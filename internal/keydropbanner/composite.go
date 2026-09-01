@@ -12,12 +12,12 @@ import (
 // CompositeWithCode writes a PNG of the plate with the baked code covered and
 // the live sponsor code drawn on top. ffmpegPath must resolve to a working
 // FFmpeg binary; outPath's parent directory must already exist.
-func CompositeWithCode(ffmpegPath, styleID, code, fontPath, outPath string) error {
-	style, ok := Lookup(styleID)
+func CompositeWithCode(ffmpegPath, family, styleID, code, fontPath, outPath string) error {
+	style, ok := Lookup(family, styleID)
 	if !ok {
-		return fmt.Errorf("unknown keydrop banner style %q", styleID)
+		return fmt.Errorf("unknown %s banner style %q", strings.ToLower(FamilyLabel(EffectiveFamily(family, styleID))), styleID)
 	}
-	platePath, err := Materialize(styleID)
+	platePath, err := Materialize(family, styleID)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func CompositeWithCode(ffmpegPath, styleID, code, fontPath, outPath string) erro
 	if textY < 0 {
 		textY = 0
 	}
-	label := DisplayLabelFor(styleID, code)
+	label := DisplayLabelFor(family, styleID, code)
 	vf := fmt.Sprintf(
 		"drawbox=x=%d:y=%d:w=%d:h=%d:color=%s@1:t=fill,"+
 			"drawtext=fontfile='%s':text='%s':fontcolor=white:fontsize=%d:"+

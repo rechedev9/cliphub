@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-44 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
+45 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
 
 ## WHERE TO LOOK
 
@@ -24,6 +24,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Guided generate state | `generateintent` | Shared HTTP+worker store; record task gets an immutable copy |
 | Artifact keys / FS root | `artifacts`, `storage`, `filecommit` | Keys only in `artifacts`; no I/O there |
 | Tool detect (HLAE/CS2/ffmpeg) | `capturetools` | Same resolver for CLI and orchestrator |
+| Verification lever | `verify` | Windows-first `zv verify` doctor against live Studio; Linux fail-closes `hlae_cs2_windows_studio` |
 | Folder parse (no queue) | `batch` | `zv batch` only; no Asynq |
 | Pipeline errors | `obs` | Journal is authoritative; do not mutate in-memory counters |
 | CheaterDetect | `anticheat` | No parser import. Anomaly report, never guilt |

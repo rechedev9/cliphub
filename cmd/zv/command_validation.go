@@ -26,6 +26,8 @@ func validateSkillCommand(command []string) string {
 		if issue := validateFormattedCommand("capabilities", command[1:]); issue != "" {
 			return issue
 		}
+	case "verify":
+		return validateVerifyCommand(command[1:])
 	case "faceit":
 		if len(command) < 2 || command[1] != "index" {
 			return `uses non-standard zv command "faceit"; expected "faceit index"`

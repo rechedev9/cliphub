@@ -1,4 +1,4 @@
-import type { KeyDropStyle } from './types.ts';
+import type { AffiliateFamily, KeyDropStyle } from './types.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -66,9 +66,10 @@ type StreamerBanner = {
   slide_enabled?: boolean;
 };
 
-/** KeyDrop sponsor plate; empty style disables the overlay. */
+/** Affiliate sponsor plate; empty style disables the overlay. */
 export type KeyDropBannerStyle = KeyDropStyle;
 type KeyDropBanner = {
+  family?: AffiliateFamily | '';
   style?: KeyDropBannerStyle | '';
   code?: string;
   position_y?: number;

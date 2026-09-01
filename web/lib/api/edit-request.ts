@@ -1,3 +1,4 @@
+import { persistAffiliateFamily } from '../affiliate-banner.ts';
 import type { EditConfig } from './types.ts';
 
 export type EditRequestBody = {
@@ -15,6 +16,7 @@ export type EditRequestBody = {
   cover_strategy: EditConfig['coverStrategy'];
   intro_text?: string;
   outro_text?: string;
+  keydrop_family?: string;
   keydrop_style?: string;
   keydrop_code?: string;
   keydrop_position_y?: number;
@@ -46,6 +48,8 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
   if (edit.outro && outroText) body.outro_text = outroText;
   const keyDropStyle = edit.keyDropStyle?.trim();
   if (keyDropStyle) {
+    const family = persistAffiliateFamily(edit.keyDropFamily ?? '', keyDropStyle);
+    if (family) body.keydrop_family = family;
     body.keydrop_style = keyDropStyle;
     const code = edit.keyDropCode?.trim();
     if (code) body.keydrop_code = code.toUpperCase();

@@ -1,4 +1,4 @@
-import { keyDropStyleLabel, type EditConfig, type Preset } from './api/types.ts';
+import { affiliateFamilyLabel, affiliateStyleLabel, type EditConfig, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL } from './preset-copy.ts';
 import { resolvedReelFormat } from './reel-format.ts';
 
@@ -122,9 +122,9 @@ export function reelCreativeBrief(
     { label: 'Intro', value: bookendLabel(edit.intro, edit.introText, 'titular generado') },
     { label: 'Outro', value: bookendLabel(edit.outro, edit.outroText, 'firma ClipHub') },
     {
-      label: 'KeyDrop',
+      label: 'Afiliado',
       value: edit.keyDropStyle
-        ? `${keyDropStyleLabel(edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · ${(edit.keyDropStartSeconds ?? 0).toFixed(1)}s–${edit.keyDropEndSeconds != null ? edit.keyDropEndSeconds.toFixed(1) : 'fin'}s`
+        ? `${affiliateFamilyLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${affiliateStyleLabel(edit.keyDropFamily ?? '', edit.keyDropStyle)} · ${(edit.keyDropCode?.trim() || 'ZACKCSGO').toUpperCase()} · ${(edit.keyDropStartSeconds ?? 0).toFixed(1)}s–${edit.keyDropEndSeconds != null ? edit.keyDropEndSeconds.toFixed(1) : 'fin'}s`
         : 'No',
     },
     { label: 'Música', value: musicBriefValue(music) },

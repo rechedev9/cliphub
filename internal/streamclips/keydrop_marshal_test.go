@@ -36,4 +36,7 @@ func TestKeyDropBannerMarshalIncludesCustomCode(t *testing.T) {
 	if kd["style"] != "classic" {
 		t.Fatalf("style = %v", kd["style"])
 	}
+	if kd["family"] != "KEYDROP" {
+		t.Fatalf("family = %v, want KEYDROP so a later render cannot forget it", kd["family"])
+	}
 }

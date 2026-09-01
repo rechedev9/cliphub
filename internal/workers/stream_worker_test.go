@@ -97,6 +97,7 @@ func (f *fakeStreamRepo) UpdateStatus(_ context.Context, id uuid.UUID, s streamc
 	}
 	j.Status = s
 	j.FailureReason = reason
+	j.FailureCode = streamclips.CodeFromReason(reason)
 	f.jobs[id] = j
 	return nil
 }
@@ -113,6 +114,7 @@ func (f *fakeStreamRepo) SetAcquired(_ context.Context, id uuid.UUID, probe stre
 	}
 	j.Status = streamclips.StatusReady
 	j.FailureReason = ""
+	j.FailureCode = ""
 	f.jobs[id] = j
 	return nil
 }
@@ -276,6 +278,9 @@ func TestAcquireWorkerFailureRecordsReasonAndObs(t *testing.T) {
 	}
 	if strings.Contains(got.FailureReason, "HTTP Error 404") {
 		t.Fatalf("failure reason = %q, leaked the raw yt-dlp stderr", got.FailureReason)
+	}
+	if got.FailureCode != streamclips.AcquireCodeNotFound {
+		t.Fatalf("failure_code = %q, want %q so HTTP can select without the Spanish reason", got.FailureCode, streamclips.AcquireCodeNotFound)
 	}
 }
 

@@ -383,8 +383,8 @@ func TestSQLiteRepoUpdateStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Status != job.StatusFailed || got.FailureReason != "boom" {
-		t.Fatalf("UpdateStatus: got status=%s reason=%q, want failed/boom", got.Status, got.FailureReason)
+	if got.Status != job.StatusFailed || got.FailureReason != "boom" || got.FailureCode != "" {
+		t.Fatalf("UpdateStatus: got status=%s reason=%q code=%q, want failed/boom/empty", got.Status, got.FailureReason, got.FailureCode)
 	}
 	if got.KillPlan == nil || len(got.KillPlan.Segments) != 1 || got.KillPlan.Segments[0].ID != "seg-001" {
 		t.Fatalf("UpdateStatus changed kill plan: %#v", got.KillPlan)
@@ -396,6 +396,17 @@ func TestSQLiteRepoUpdateStatus(t *testing.T) {
 	if got, want := mirroredUpdatedAt, got.UpdatedAt.UnixNano(); got != want {
 		t.Fatalf("mirrored updated_at = %d, want JSON timestamp %d", got, want)
 	}
+	const missingPlate = `composite keydrop banner code "HUASO": keydrop banner style "jcorko" plate is missing`
+	if err := repo.UpdateStatus(ctx, j.ID, job.StatusFailed, missingPlate); err != nil {
+		t.Fatalf("UpdateStatus classified: %v", err)
+	}
+	got, err = repo.Get(ctx, j.ID)
+	if err != nil {
+		t.Fatalf("Get classified: %v", err)
+	}
+	if got.FailureReason != missingPlate || got.FailureCode != "missing_plate" {
+		t.Fatalf("classified failure = reason %q code %q, want missing_plate", got.FailureReason, got.FailureCode)
+	}
 	if err := repo.UpdateStatus(ctx, j.ID, job.StatusDone, ""); err != nil {
 		t.Fatalf("UpdateStatus clear failure: %v", err)
 	}
@@ -403,8 +414,8 @@ func TestSQLiteRepoUpdateStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after clear failure: %v", err)
 	}
-	if got.Status != job.StatusDone || got.FailureReason != "" {
-		t.Fatalf("UpdateStatus clear failure: got status=%s reason=%q, want done/empty", got.Status, got.FailureReason)
+	if got.Status != job.StatusDone || got.FailureReason != "" || got.FailureCode != "" {
+		t.Fatalf("UpdateStatus clear failure: got status=%s reason=%q code=%q, want done/empty", got.Status, got.FailureReason, got.FailureCode)
 	}
 	if got.KillPlan == nil || len(got.KillPlan.Segments) != 1 || got.KillPlan.Segments[0].ID != "seg-001" {
 		t.Fatalf("UpdateStatus clear failure changed kill plan: %#v", got.KillPlan)

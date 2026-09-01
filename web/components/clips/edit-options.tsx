@@ -2,14 +2,17 @@
 
 import { Film, Gift, Headphones, ImageIcon, ListOrdered, Monitor, PanelTop, Sparkles, Type, Zap } from 'lucide-react';
 import {
+  AFFILIATE_FAMILY_CATALOG,
   BOOKEND_TEXT_MAX_LENGTH,
   DEFAULT_KEYDROP_CODE,
   KEYDROP_CODE_RE,
-  KEYDROP_STYLE_CATALOG,
-  isKeyDropStyle,
-  keyDropDisplayLabel,
+  affiliateDisplayLabel,
+  affiliateFamilyLabel,
+  isAffiliateStyle,
+  stylesForFamily,
   type EditConfig,
 } from '@/lib/api/types';
+import { selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -238,20 +241,20 @@ export function EditOptions({
         </ToggleGroup>
       </OptionBlock>
 
-      <OptionBlock label="BANNER KEYDROP" className="md:col-span-2">
+      <OptionBlock label="BANNER AFILIADO" className="md:col-span-2">
         <ToggleGroup
           type="single"
-          value={value.keyDropStyle || 'off'}
+          value={value.keyDropFamily || ''}
           onValueChange={(next) => {
-            if (!next) return;
-            if (next === 'off') {
-              onChange({ ...value, keyDropStyle: '', keyDropCode: value.keyDropCode });
-              return;
-            }
-            if (!isKeyDropStyle(next)) return;
+            if (next !== 'KEYDROP' && next !== 'CSGOSKINS') return;
+            const selected = selectAffiliateFamily(
+              { family: value.keyDropFamily ?? '', style: value.keyDropStyle ?? '' },
+              next,
+            );
             onChange({
               ...value,
-              keyDropStyle: next,
+              keyDropFamily: selected.family,
+              keyDropStyle: selected.style,
               keyDropStartSeconds: value.keyDropStartSeconds ?? 0,
               keyDropEndSeconds: value.keyDropEndSeconds ?? 4,
             });
@@ -259,11 +262,45 @@ export function EditOptions({
           disabled={disabled}
           variant="outline"
           className="flex-wrap"
+          aria-label="Familia del banner"
         >
-          <ToggleGroupItem value="off" aria-label="Sin banner KeyDrop">
-            Sin KeyDrop
+          {AFFILIATE_FAMILY_CATALOG.map((entry) => (
+            <ToggleGroupItem key={entry.id} value={entry.id} aria-label={`Familia ${entry.label}`}>
+              {entry.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <ToggleGroup
+          type="single"
+          value={value.keyDropStyle || 'off'}
+          onValueChange={(next) => {
+            if (!next) return;
+            if (next === 'off') {
+              const off = selectAffiliateOff();
+              onChange({ ...value, keyDropFamily: off.family, keyDropStyle: off.style, keyDropCode: value.keyDropCode });
+              return;
+            }
+            const selected = selectAffiliateStyle(value.keyDropFamily ?? '', next);
+            if (!selected.style || !isAffiliateStyle(selected.family, selected.style)) return;
+            onChange({
+              ...value,
+              keyDropFamily: selected.family,
+              keyDropStyle: selected.style,
+              keyDropStartSeconds: value.keyDropStartSeconds ?? 0,
+              keyDropEndSeconds: value.keyDropEndSeconds ?? 4,
+            });
+          }}
+          disabled={disabled}
+          variant="outline"
+          className="flex-wrap"
+          aria-label="Estilo del banner"
+        >
+          <ToggleGroupItem value="off" aria-label="Sin banner">
+            {value.keyDropFamily
+              ? AFFILIATE_FAMILY_CATALOG.find((entry) => entry.id === value.keyDropFamily)?.offLabel ?? 'Sin banner'
+              : 'Sin banner'}
           </ToggleGroupItem>
-          {KEYDROP_STYLE_CATALOG.map((entry) => (
+          {stylesForFamily(value.keyDropFamily || 'KEYDROP').map((entry) => (
             <ToggleGroupItem key={entry.id} value={entry.id} aria-label={`Estilo ${entry.label}`}>
               <Gift className="size-4" />
               {entry.label}
@@ -287,12 +324,12 @@ export function EditOptions({
                   !KEYDROP_CODE_RE.test((value.keyDropCode ?? '').trim())
                 }
                 onChange={(e) => onChange({ ...value, keyDropCode: e.target.value.toUpperCase() })}
-                aria-label="Código KeyDrop"
+                aria-label={`Código ${affiliateFamilyLabel(value.keyDropFamily ?? '', value.keyDropStyle)}`}
               />
               <p className="text-body-sm text-fg-3">
                 Se renderiza como{' '}
                 <span className="font-mono text-fg-1">
-                  {keyDropDisplayLabel(value.keyDropStyle ?? '', value.keyDropCode ?? '')}
+                  {affiliateDisplayLabel(value.keyDropFamily ?? '', value.keyDropStyle ?? '', value.keyDropCode ?? '')}
                 </span>
               </p>
             </div>
@@ -311,7 +348,7 @@ export function EditOptions({
                   onChange={(e) =>
                     onChange({ ...value, keyDropStartSeconds: Number(e.target.value) })
                   }
-                  aria-label="Segundo de entrada KeyDrop"
+                  aria-label="Segundo de entrada del banner"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -328,7 +365,7 @@ export function EditOptions({
                   onChange={(e) =>
                     onChange({ ...value, keyDropEndSeconds: Number(e.target.value) })
                   }
-                  aria-label="Segundo de salida KeyDrop"
+                  aria-label="Segundo de salida del banner"
                 />
               </div>
             </div>

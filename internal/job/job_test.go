@@ -68,6 +68,9 @@ func TestJobMarshalsToExpectedShape(t *testing.T) {
 	if !strings.Contains(out, `"id":"11111111-1111-1111-1111-111111111111"`) {
 		t.Errorf("id not rendered as UUID string: %s", out)
 	}
+	if strings.Contains(out, "failure_code") || strings.Contains(out, "failure_reason") {
+		t.Errorf("empty failure fields should be omitted: %s", out)
+	}
 }
 
 func TestStatusJSONRoundTrip(t *testing.T) {

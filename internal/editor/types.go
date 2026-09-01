@@ -132,6 +132,8 @@ type Config struct {
 	VoiceVolume *float64
 	// VoiceDir holds POV-team Ogg tracks from `zv demo voice --extract`.
 	VoiceDir string
+	// KeyDropFamily selects the affiliate catalog (KEYDROP, CSGOSKINS).
+	KeyDropFamily string
 	// KeyDropStyle enables the sponsor plate (operator, classic, tigerr, jcorko).
 	KeyDropStyle string
 	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
@@ -198,6 +200,8 @@ type ManifestOptions struct {
 	// Nil keeps the historical 0.85 gain.
 	VoiceVolume *float64
 	VoiceDir    string
+	// KeyDropFamily selects the affiliate catalog (KEYDROP, CSGOSKINS).
+	KeyDropFamily string
 	// KeyDropStyle enables the sponsor plate (operator, classic, tigerr, jcorko).
 	KeyDropStyle string
 	// KeyDropCode is drawn on the plate; empty defaults to ZACKCSGO.
@@ -319,8 +323,9 @@ type ShortEdit struct {
 	HQFilters         bool     `json:"hq_filters,omitempty"`
 	AudioNormalize    bool     `json:"audio_normalize,omitempty"`
 	TemporalSmoothing bool     `json:"temporal_smoothing,omitempty"`
-	// KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
+	// KeyDropFamily / KeyDropStyle / KeyDropCode / KeyDropPositionY / KeyDropImagePath paint
 	// the optional sponsor plate for a bounded window of the short.
+	KeyDropFamily          string      `json:"keydrop_family,omitempty"`
 	KeyDropStyle           string      `json:"keydrop_style,omitempty"`
 	KeyDropCode            string      `json:"keydrop_code,omitempty"`
 	KeyDropPositionY       *float64    `json:"keydrop_position_y,omitempty"`

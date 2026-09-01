@@ -12,6 +12,154 @@ import (
 	"testing"
 )
 
+func TestRecordErrorJobIDAndClassAreQueryableWithoutMessage(t *testing.T) {
+	r, err := New(t.TempDir())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	cases := []struct {
+		name    string
+		jobID   string
+		class   string
+		task    string
+		message string
+	}{
+		{
+			name:    "missing_plate",
+			jobID:   "11111111-1111-1111-1111-111111111111",
+			class:   ClassMissingPlate,
+			task:    "render:stream-clip",
+			message: `composite keydrop banner code "HUASO": keydrop banner style "jcorko" plate is missing`,
+		},
+		{
+			name:    "capture_flake",
+			jobID:   "22222222-2222-2222-2222-222222222222",
+			class:   ClassCaptureFlake,
+			task:    "record:demo",
+			message: "capture POV verification failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-001",
+		},
+	}
+	for _, tc := range cases {
+		if err := r.RecordError(Event{
+			JobID:   tc.jobID,
+			Stage:   StageWorker,
+			Task:    tc.task,
+			Class:   tc.class,
+			Message: tc.message,
+		}); err != nil {
+			t.Fatalf("%s RecordError: %v", tc.name, err)
+		}
+	}
+
+	raw, err := os.ReadFile(r.JournalPath())
+	if err != nil {
+		t.Fatalf("read journal: %v", err)
+	}
+	events, err := ReadJournal(r.JournalPath())
+	if err != nil {
+		t.Fatalf("ReadJournal: %v", err)
+	}
+	if got, want := len(events), 2; got != want {
+		t.Fatalf("journal events: got %d want %d", got, want)
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			found := Select(events, tc.jobID, tc.class)
+			if len(found) != 1 {
+				t.Fatalf("Select(%q, %q) = %#v, want exactly one event", tc.jobID, tc.class, found)
+			}
+			got := found[0]
+			if got.JobID != tc.jobID || got.Class != tc.class || got.Task != tc.task {
+				t.Fatalf("selected event = %+v", got)
+			}
+			if got.Message != tc.message {
+				t.Fatalf("message = %q, want original human text", got.Message)
+			}
+			lookup, err := r.SelectErrors(tc.jobID, tc.class)
+			if err != nil {
+				t.Fatalf("SelectErrors: %v", err)
+			}
+			if len(lookup) != 1 || lookup[0].JobID != tc.jobID || lookup[0].Class != tc.class {
+				t.Fatalf("SelectErrors = %#v", lookup)
+			}
+		})
+	}
+
+	if Select(events, cases[0].jobID, ClassCaptureFlake) != nil {
+		t.Fatal("Select matched across job_id and class")
+	}
+	if strings.Contains(string(raw), `"job_id":"`+cases[0].jobID+`"`) &&
+		!jsonLineHasJobAndClass(t, raw, cases[0].jobID, ClassMissingPlate) {
+		t.Fatal("journal line missing job_id+class fields")
+	}
+}
+
+func jsonLineHasJobAndClass(t *testing.T, raw []byte, jobID, class string) bool {
+	t.Helper()
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var ev Event
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("unmarshal %q: %v", line, err)
+		}
+		if ev.JobID == jobID && ev.Class == class {
+			return true
+		}
+	}
+	return false
+}
+
+func TestClassOfTable(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    string
+	}{
+		{
+			name:    "missing_plate",
+			message: `composite keydrop banner code "HUASO": keydrop banner style "jcorko" plate is missing`,
+			want:    ClassMissingPlate,
+		},
+		{
+			name:    "observer_drift",
+			message: "recorder failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-001",
+			want:    ClassCaptureFlake,
+		},
+		{
+			name:    "observer_mismatch",
+			message: "observer target 76561198000000000 does not match expected 76561198000000001",
+			want:    ClassCaptureFlake,
+		},
+		{
+			name:    "demo_incompatible_prefix",
+			message: "demo_incompatible: cs2 cannot replay this demo",
+			want:    ClassDemoIncompatible,
+		},
+		{
+			name:    "unplayable_start_prefix",
+			message: "unplayable_start: CS2 crashed rewinding playdemo to tick 0",
+			want:    ClassUnplayableStart,
+		},
+		{
+			name:    "generic_stays_empty",
+			message: "ffmpeg exited with code 1",
+			want:    "",
+		},
+		{
+			name:    "empty",
+			message: "",
+			want:    "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ClassOf(tc.message); got != tc.want {
+				t.Fatalf("ClassOf(%q) = %q, want %q", tc.message, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRecordErrorWritesJournalAndCounters(t *testing.T) {
 	dir := t.TempDir()
 	r, err := New(dir)

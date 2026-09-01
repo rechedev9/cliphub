@@ -99,6 +99,9 @@ type Job struct {
 	ID            uuid.UUID `json:"id"`
 	Status        Status    `json:"status"`
 	FailureReason string    `json:"failure_reason,omitempty"`
+	// FailureCode is the stable obs class for a terminal failure (missing_plate,
+	// capture_flake, demo_incompatible, …). FailureReason stays human text.
+	FailureCode string `json:"failure_code,omitempty"`
 	// SeriesID groups the jobs of one uploaded bo3/bo5 series. It is a
 	// client-minted UUID shared by every demo in the series; empty for a
 	// standalone single-demo upload.

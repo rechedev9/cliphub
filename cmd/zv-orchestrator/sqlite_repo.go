@@ -13,6 +13,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
@@ -313,21 +314,40 @@ func (r *sqliteJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 			UPDATE jobs
 			SET data = json_remove(
 					json_set(data, '$.status', ?, '$.updated_at', ?),
-					'$.failure_reason'
+					'$.failure_reason',
+					'$.failure_code'
 				),
 				status = ?,
 				updated_at = ?
 			WHERE id = ?`,
 			status.String(), now.Format(time.RFC3339Nano), status.String(), now.UnixNano(), id.String(),
 		)
-	} else {
+	} else if code := obs.ClassOf(failureReason); code != "" {
 		result, err = r.db.ExecContext(ctx, `
 			UPDATE jobs
 			SET data = json_set(
 					data,
 					'$.status', ?,
 					'$.failure_reason', ?,
+					'$.failure_code', ?,
 					'$.updated_at', ?
+				),
+				status = ?,
+				updated_at = ?
+			WHERE id = ?`,
+			status.String(), failureReason, code, now.Format(time.RFC3339Nano), status.String(), now.UnixNano(), id.String(),
+		)
+	} else {
+		result, err = r.db.ExecContext(ctx, `
+			UPDATE jobs
+			SET data = json_remove(
+					json_set(
+						data,
+						'$.status', ?,
+						'$.failure_reason', ?,
+						'$.updated_at', ?
+					),
+					'$.failure_code'
 				),
 				status = ?,
 				updated_at = ?

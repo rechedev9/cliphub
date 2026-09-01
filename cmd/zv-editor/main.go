@@ -47,8 +47,9 @@ func run() error {
 		hook                = flag.Bool("hook", true, "draw the generated headline as a hook over the first ~2s")
 		killCounter         = flag.Bool("kill-counter", true, "pop a running kill count with 2K/3K/4K/ACE milestones")
 		killfeedOverlay     = flag.Bool("killfeed-overlay", true, "re-overlay the source kill notices near the top of the 9:16 frame")
-		keyDropStyle        = flag.String("keydrop-style", "", "optional KeyDrop banner style: operator, classic, tigerr, or jcorko")
-		keyDropCode         = flag.String("keydrop-code", "", "KeyDrop sponsor code; defaults to ZACKCSGO when style is set")
+		keyDropFamily       = flag.String("keydrop-family", "", "affiliate family for the banner plate: KEYDROP or CSGOSKINS; empty with a style means KEYDROP")
+		keyDropStyle        = flag.String("keydrop-style", "", "optional affiliate banner style in --keydrop-family: operator, classic, tigerr, or jcorko")
+		keyDropCode         = flag.String("keydrop-code", "", "affiliate sponsor code; defaults to ZACKCSGO when style is set")
 		keyDropPositionY    = flag.Float64("keydrop-position-y", 0, "KeyDrop banner vertical center 0.025-0.975; 0 uses the default")
 		keyDropStart        = flag.Float64("keydrop-start", -1, "KeyDrop plate appears at this second; <0 defaults to 0")
 		keyDropEnd          = flag.Float64("keydrop-end", -1, "KeyDrop plate disappears at this second; <0 defaults to full short")
@@ -153,6 +154,7 @@ func run() error {
 		HookText:            *hook,
 		KillCounter:         *killCounter,
 		KillfeedOverlay:     *killfeedOverlay,
+		KeyDropFamily:       *keyDropFamily,
 		KeyDropStyle:        *keyDropStyle,
 		KeyDropCode:         *keyDropCode,
 		KeyDropPositionY:    keyDropPosition,
