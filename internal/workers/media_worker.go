@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"net/url"
 	"os"
 	"os/exec"
@@ -793,15 +794,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err := writeJSONFile(killPlanPath, recordPlan); err != nil {
 		return fmt.Errorf("write kill plan: %w", err)
 	}
-	expectedPlan, err := recording.NewPlanFromKillPlan(*recordPlan, demoPath, outDir, expectedStream)
-	if err != nil {
-		return fmt.Errorf("build launched recording plan: %w", err)
-	}
-
 	recorderArgs := []string{
 		"--killplan", killPlanPath,
 		"--demo", demoPath,
-		"--out", outDir,
 		"--hlae", cfg.HLAEPath,
 		"--cs2", cfg.CS2Path,
 		"--hud", cfg.HUDMode,
@@ -827,35 +822,65 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	}
 	logWorkerTransition(j.ID, tasks.TypeRecordDemo, job.StatusRecording)
 
-	progressCtx, stopProgress := context.WithCancel(ctx)
-	progressDone := make(chan struct{})
-	progress := newCaptureProgressReporter(
-		w.storage,
-		j.ID,
-		progressAttemptID,
-		filepath.Join(outDir, "segments"),
-		killPlanSegmentIDs(recordPlan),
+	var (
+		expectedPlan recording.RecordingPlan
+		result       recording.RecordingResult
+		resultPath   string
+		runErr       error
 	)
-	progress.outDir = outDir
-	progress.tickrate = recordPlan.Demo.Tickrate
-	progress.ticks = segmentTickWeights(recordPlan)
-	go func() {
-		defer close(progressDone)
-		progress.watch(progressCtx)
-	}()
-	_, runErr := w.runner.Run(ctx, cfg.RecorderPath, recorderArgs...)
-	stopProgress()
-	<-progressDone
-
-	resultPath := filepath.Join(outDir, "recording-result.json")
-	var result recording.RecordingResult
-	if err := readJSONFile(resultPath, &result); err != nil {
-		if runErr != nil {
-			return newRecordFailure(runErr, result, requested)
+	for attempt := 0; attempt <= maxTransientCaptureRestarts; attempt++ {
+		attemptOutDir := outDir
+		if attempt > 0 {
+			attemptOutDir = filepath.Join(workDir, fmt.Sprintf("out-retry-%02d", attempt))
+			progressAttemptID = uuid.New()
 		}
-		return fmt.Errorf("read recording result: %w", err)
-	}
-	if runErr != nil {
+		expectedPlan, err = recording.NewPlanFromKillPlan(*recordPlan, demoPath, attemptOutDir, expectedStream)
+		if err != nil {
+			return fmt.Errorf("build launched recording plan: %w", err)
+		}
+
+		attemptArgs := append([]string(nil), recorderArgs...)
+		attemptArgs = append(attemptArgs, "--out", attemptOutDir)
+		progressCtx, stopProgress := context.WithCancel(ctx)
+		progressDone := make(chan struct{})
+		progress := newCaptureProgressReporter(
+			w.storage,
+			j.ID,
+			progressAttemptID,
+			filepath.Join(attemptOutDir, "segments"),
+			killPlanSegmentIDs(recordPlan),
+		)
+		progress.outDir = attemptOutDir
+		progress.tickrate = recordPlan.Demo.Tickrate
+		progress.ticks = segmentTickWeights(recordPlan)
+		go func() {
+			defer close(progressDone)
+			progress.watch(progressCtx)
+		}()
+		_, runErr = w.runner.Run(ctx, cfg.RecorderPath, attemptArgs...)
+		stopProgress()
+		<-progressDone
+
+		resultPath = filepath.Join(attemptOutDir, "recording-result.json")
+		result = recording.RecordingResult{}
+		readErr := readJSONFile(resultPath, &result)
+		if runErr == nil {
+			if readErr != nil {
+				return fmt.Errorf("read recording result: %w", readErr)
+			}
+			outDir = attemptOutDir
+			break
+		}
+		if attempt < maxTransientCaptureRestarts && ctx.Err() == nil && retryableCaptureCrash(runErr, result) {
+			log.Printf(
+				"worker job=%s task=%s transient CS2 capture crash; clean relaunch %d/%d",
+				j.ID,
+				tasks.TypeRecordDemo,
+				attempt+1,
+				maxTransientCaptureRestarts,
+			)
+			continue
+		}
 		return newRecordFailure(runErr, result, requested)
 	}
 	if err := recording.ValidateRecordingAttempt(expectedPlan, outDir, result); err != nil {

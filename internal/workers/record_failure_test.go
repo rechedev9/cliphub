@@ -150,3 +150,46 @@ func TestRecordWorkerFailsWithConciseIncompatibleReason(t *testing.T) {
 		t.Fatalf("FailureReason = %q, want prefix %q", got.FailureReason, demoIncompatiblePrefix)
 	}
 }
+
+func TestRetryableCaptureCrash(t *testing.T) {
+	tests := []struct {
+		name   string
+		runErr error
+		result recording.RecordingResult
+		want   bool
+	}{
+		{
+			name:   "native CS2 exit is transient",
+			runErr: errors.New("recorder failed: capture POV verification failed: " + missingCaptureAttestationMarker),
+			want:   true,
+		},
+		{
+			name:   "structured result carries native exit",
+			runErr: errors.New("exit status 1"),
+			result: recording.RecordingResult{Error: missingCaptureAttestationMarker},
+			want:   true,
+		},
+		{
+			name:   "observer drift is deterministic",
+			runErr: errors.New("observer target drifted during seg-001"),
+		},
+		{
+			name:   "incompatible demo is deterministic",
+			runErr: errors.New(networkDisconnectMarker),
+		},
+		{
+			name:   "unplayable start is deterministic",
+			runErr: errors.New(unplayableStartPrefix + " " + missingCaptureAttestationMarker),
+		},
+		{
+			name: "success is not retried",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := retryableCaptureCrash(tt.runErr, tt.result); got != tt.want {
+				t.Fatalf("retryableCaptureCrash() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

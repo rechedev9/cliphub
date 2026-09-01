@@ -27,6 +27,17 @@ const networkDisconnectMarker = "NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR"
 // CS2 build cannot resolve it.
 const playbackEndedMarker = "demo playback ended before every protected segment completed"
 
+// missingCaptureAttestationMarker is emitted when CS2 exits unexpectedly after
+// playback began but before the HLAE runtime could attest the whole capture.
+// Unlike POV drift and incompatible-demo failures, this is an external process
+// crash and can succeed after a clean relaunch.
+const missingCaptureAttestationMarker = "CS2 exited without the completed POV verification marker"
+
+// maxTransientCaptureRestarts bounds clean CS2/HLAE relaunches inside one
+// record task. Queue-level retries remain disabled so deterministic capture
+// failures are never repeated automatically.
+const maxTransientCaptureRestarts = 2
+
 // recordFailure carries a concise, user-facing job failure reason while still
 // wrapping the original noisy recorder error so logs and tests can unwrap the
 // full chain.
@@ -44,6 +55,22 @@ func (f *recordFailure) Unwrap() error { return f.err }
 // ids this reel requested.
 func newRecordFailure(runErr error, result recording.RecordingResult, requested []string) error {
 	return &recordFailure{reason: recordFailureReason(runErr, result, requested), err: runErr}
+}
+
+// retryableCaptureCrash reports whether the recorder observed a native CS2
+// exit without a runtime failure attestation. The result error is included
+// because command wrappers can truncate or replace stderr in some hosts.
+func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool {
+	if runErr == nil {
+		return false
+	}
+	text := runErr.Error() + "\n" + result.Error
+	if !strings.Contains(text, missingCaptureAttestationMarker) {
+		return false
+	}
+	return !strings.Contains(text, networkDisconnectMarker) &&
+		!strings.Contains(text, playbackEndedMarker) &&
+		!strings.Contains(text, unplayableStartPrefix)
 }
 
 // recordFailureReason condenses a noisy recorder run error into a concise

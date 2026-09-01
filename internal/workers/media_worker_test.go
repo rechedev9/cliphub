@@ -128,6 +128,81 @@ func TestRecordWorkerStoresOutputsAndMarksRecorded(t *testing.T) {
 	}
 }
 
+func TestRecordWorkerRestartsTransientCS2CrashWithFreshOutput(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := minimalKillPlan()
+	repo.jobs[id] = &job.Job{
+		ID:       id,
+		Status:   job.StatusParsed,
+		DemoPath: "demos/test.dem",
+		Rules:    rules.Default(),
+		KillPlan: &plan,
+	}
+	_ = store.Put("demos/test.dem", bytes.NewReader([]byte("demo")))
+
+	var outDirs []string
+	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		outDir := argValue(args, "--out")
+		outDirs = append(outDirs, outDir)
+		if len(outDirs) <= maxTransientCaptureRestarts {
+			failed := recording.RecordingResult{Error: missingCaptureAttestationMarker}
+			if err := os.MkdirAll(outDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSONFile(filepath.Join(outDir, "recording-result.json"), failed); err != nil {
+				t.Fatal(err)
+			}
+			return nil, errors.New(missingCaptureAttestationMarker)
+		}
+
+		scriptPath := filepath.Join(outDir, "recording.js")
+		segmentPath := filepath.Join(outDir, "segments", "seg-001.mp4")
+		if err := os.MkdirAll(filepath.Dir(segmentPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(scriptPath, []byte("script"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(segmentPath, []byte("clip"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		result := recordingResultForRunnerArgs(t, args, scriptPath, segmentPath)
+		if err := writeJSONFile(filepath.Join(outDir, "recording-result.json"), result); err != nil {
+			t.Fatal(err)
+		}
+		return []byte("recorded"), nil
+	}}
+	w := NewRecordWorker(repo, store, RecordWorkerConfig{
+		WorkDir:      t.TempDir(),
+		RecorderPath: "zv-recorder",
+		HLAEPath:     "HLAE.exe",
+		CS2Path:      "cs2.exe",
+	})
+	w.runner = runner
+
+	if err := w.HandleRecordDemo(context.Background(), recordTask(t, id)); err != nil {
+		t.Fatalf("HandleRecordDemo error = %v", err)
+	}
+	if got, want := len(outDirs), maxTransientCaptureRestarts+1; got != want {
+		t.Fatalf("recorder attempts = %d, want %d", got, want)
+	}
+	seen := map[string]bool{}
+	for _, outDir := range outDirs {
+		if seen[outDir] {
+			t.Fatalf("recorder reused output directory %q", outDir)
+		}
+		seen[outDir] = true
+	}
+	if repo.jobs[id].Status != job.StatusRecorded {
+		t.Fatalf("Status = %s, want recorded", repo.jobs[id].Status)
+	}
+	if _, ok := store.files[mustSegmentClipKey(t, id, "seg-001")]; !ok {
+		t.Fatal("successful retry did not publish segment clip")
+	}
+}
+
 func TestRecordWorkerHUDFromPayloadOverridesDefault(t *testing.T) {
 	cases := []struct {
 		name                 string

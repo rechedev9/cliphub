@@ -151,11 +151,17 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 		liveStart := recapLiveStart(round, g, utilityByRound[round], liveByRound, startByRound, previousEnd)
 		tickStart, tickEnd := recapRoundWindow(round, g, utilityByRound[round], liveStart, endByRound)
 		liveEnd := 0
+		hasRoundEnd := false
 		hasLiveDeath := false
 		if end, ok := endByRound[round]; ok {
 			liveEnd = end
+			hasRoundEnd = true
 		}
-		if death, ok := firstTargetDeathInWindow(deathByRound[round], liveStart, liveEnd); ok {
+		deathWindowEnd := liveEnd
+		if deathWindowEnd > 0 {
+			deathWindowEnd++
+		}
+		if death, ok := firstTargetDeathInWindow(deathByRound[round], liveStart, deathWindowEnd); ok {
 			liveEnd = death
 			hasLiveDeath = true
 		}
@@ -179,16 +185,21 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 				tickEnd = tickStart + 1
 			}
 		}
+		liveEndTick := tickEnd
+		recordEndTick := liveEndTick
+		if hasRoundEnd && !hasLiveDeath {
+			recordEndTick = recapRecordEndWithKillGrace(liveEndTick, g, round, tickrate, startByRound)
+		}
 		out = append(out, killplan.Segment{
 			ID:          killplan.FormatSegmentID(len(out) + 1),
 			Round:       round,
 			TickStart:   tickStart,
-			TickEnd:     tickEnd,
-			LiveEndTick: tickEnd,
-			Kills:       killsInRecapWindow(buildKillPlanKills(g), tickStart, tickEnd),
-			Utility:     utilityInRecapWindow(utilityByRound[round], tickStart, tickEnd),
+			TickEnd:     recordEndTick,
+			LiveEndTick: liveEndTick,
+			Kills:       killsInRecapWindow(buildKillPlanKills(g), tickStart, liveEndTick),
+			Utility:     utilityInRecapWindow(utilityByRound[round], tickStart, liveEndTick),
 		})
-		previousEnd = tickEnd
+		previousEnd = recordEndTick
 	}
 	return out
 }
@@ -249,15 +260,19 @@ func WithOutroHold(segs []killplan.Segment, roundStarts []RoundStart, targetDeat
 		return segs
 	}
 	last := segs[len(segs)-1]
+	liveEnd := last.LiveEndTick
+	if liveEnd <= 0 {
+		liveEnd = last.TickEnd
+	}
 	deaths := indexTargetDeaths(targetDeaths)[last.Round]
-	if death, ok := firstTargetDeathInWindow(deaths, last.TickStart, last.TickEnd+1); ok && death <= last.TickEnd {
+	if death, ok := firstTargetDeathInWindow(deaths, last.TickStart, liveEnd+1); ok && death <= liveEnd {
 		return segs
 	}
 	hold := (OutroBannerSeconds + OutroScoreboardSeconds) * tickrate
-	want := last.TickEnd + hold
+	want := liveEnd + hold
 	startByRound := indexRoundStarts(roundStarts)
 	for round, start := range startByRound {
-		if round > last.Round && start > last.TickEnd && start <= want {
+		if round > last.Round && start > liveEnd && start <= want {
 			want = start - 1
 		}
 	}
@@ -324,6 +339,25 @@ func recapRounds(killsByRound map[int][]RawKill, utilityByRound map[int][]killpl
 	}
 	sort.Ints(out)
 	return out
+}
+
+// recapRecordEndWithKillGrace preserves the victim fall and native deathnotice
+// when the selected player's last kill lands at the round boundary. The POV
+// contract still ends at liveEnd; only recording continues into CS2's short
+// post-round presentation, and never into the next round's freeze time.
+func recapRecordEndWithKillGrace(liveEnd int, kills []RawKill, round, tickrate int, startByRound map[int]int) int {
+	if liveEnd <= 0 || len(kills) == 0 || tickrate <= 0 {
+		return liveEnd
+	}
+	lastKill := kills[len(kills)-1].Tick
+	if lastKill <= 0 || lastKill > liveEnd {
+		return liveEnd
+	}
+	want := lastKill + roundEndGraceSeconds*tickrate
+	if want <= liveEnd {
+		return liveEnd
+	}
+	return capBeforeNextRoundStart(want, round, liveEnd, startByRound)
 }
 
 func expandRecapWindowForUtility(tickStart, tickEnd int, utility []killplan.UtilityThrow, preRollTicks, postRollTicks, roundEnd int) (int, int) {

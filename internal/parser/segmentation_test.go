@@ -375,7 +375,7 @@ func TestSegmentRecap(t *testing.T) {
 			wantKills:   2,
 			checkRange:  true,
 			wantStart:   10000,
-			wantEnd:     10300,
+			wantEnd:     10200 + roundEndGraceSeconds*testTickrate,
 		},
 		{
 			name: "shorts minimum does not drop a full-demo round",
@@ -724,6 +724,71 @@ func TestSegmentRecapSetsLiveEndTickBeforeOutroHold(t *testing.T) {
 	}
 }
 
+func TestSegmentRecapPreservesPostKillPayoffAtRoundEnd(t *testing.T) {
+	tests := []struct {
+		name           string
+		killTick       int
+		nextRoundStart int
+		deaths         []TargetDeath
+		wantEnd        int
+	}{
+		{
+			name:           "winning kill gets two second payoff",
+			killTick:       14000,
+			nextRoundStart: 15000,
+			wantEnd:        14000 + roundEndGraceSeconds*testTickrate,
+		},
+		{
+			name:           "kill one second before round end gets remaining payoff",
+			killTick:       14000 - testTickrate,
+			nextRoundStart: 15000,
+			wantEnd:        14000 + testTickrate,
+		},
+		{
+			name:           "earlier kill needs no extra round footage",
+			killTick:       14000 - 3*testTickrate,
+			nextRoundStart: 15000,
+			wantEnd:        14000,
+		},
+		{
+			name:           "next freeze caps payoff",
+			killTick:       14000,
+			nextRoundStart: 14000 + testTickrate,
+			wantEnd:        14000 + testTickrate - 1,
+		},
+		{
+			name:           "target death at round end prevents deathcam",
+			killTick:       14000,
+			nextRoundStart: 15000,
+			deaths:         []TargetDeath{{Round: 1, Tick: 14000}},
+			wantEnd:        14000,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SegmentRecap(
+				[]RawKill{mkKill(tt.killTick, 1, "ak47")},
+				nil,
+				[]RoundStart{{Round: 1, Tick: 8000}, {Round: 2, Tick: tt.nextRoundStart}},
+				[]RoundLiveStart{{Round: 1, Tick: 9200}},
+				[]RoundEnd{{Round: 1, Tick: 14000}},
+				tt.deaths,
+				defaultTestRules(),
+				testTickrate,
+			)
+			if len(got) != 1 {
+				t.Fatalf("segments = %d, want 1", len(got))
+			}
+			if got[0].LiveEndTick != 14000 {
+				t.Fatalf("LiveEndTick = %d, want 14000", got[0].LiveEndTick)
+			}
+			if got[0].TickEnd != tt.wantEnd {
+				t.Fatalf("TickEnd = %d, want %d", got[0].TickEnd, tt.wantEnd)
+			}
+		})
+	}
+}
+
 func TestWithOutroHoldKeepsWinBannerThenScoreboardAndSkipsDeathcam(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -759,6 +824,14 @@ func TestWithOutroHoldKeepsWinBannerThenScoreboardAndSkipsDeathcam(t *testing.T)
 			},
 			roundStarts: []RoundStart{{Round: 1, Tick: 8000}, {Round: 2, Tick: 14500}},
 			wantLastEnd: 14499,
+		},
+		{
+			name: "post-kill grace does not lengthen the total outro hold",
+			segs: []killplan.Segment{
+				{ID: "seg-001", Round: 1, TickStart: 16000, TickEnd: 22128, LiveEndTick: 22000},
+			},
+			roundStarts: []RoundStart{{Round: 1, Tick: 15000}},
+			wantLastEnd: 22000 + (OutroBannerSeconds+OutroScoreboardSeconds)*testTickrate,
 		},
 	}
 	for _, tt := range tests {
