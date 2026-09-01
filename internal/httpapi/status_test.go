@@ -12,8 +12,68 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
+
+func TestGetJobExposesStructuredFailureCodeWithoutParsingMessage(t *testing.T) {
+	cases := []struct {
+		name   string
+		reason string
+		want   string
+	}{
+		{
+			name:   "missing_plate",
+			reason: `composite keydrop banner code "HUASO": keydrop banner style "jcorko" plate is missing`,
+			want:   obs.ClassMissingPlate,
+		},
+		{
+			name:   "capture_flake",
+			reason: "recorder failed: observer target 76561198000000000 drifted from 76561198000000001 during seg-001",
+			want:   obs.ClassCaptureFlake,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			id := uuid.New()
+			repo.jobs[id] = job.Job{ID: id, Status: job.StatusFailed, FailureReason: tc.reason}
+
+			h := NewHandlers(repo, newFakeStorage(), &fakeQueue{})
+			router := chi.NewRouter()
+			router.Get("/api/jobs/{id}", h.GetJob)
+
+			full := httptest.NewRecorder()
+			router.ServeHTTP(full, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String(), nil))
+			if full.Code != http.StatusOK {
+				t.Fatalf("full GET status = %d: %s", full.Code, full.Body.String())
+			}
+			var got job.Job
+			if err := json.Unmarshal(full.Body.Bytes(), &got); err != nil {
+				t.Fatalf("decode full job: %v", err)
+			}
+			if got.FailureCode != tc.want {
+				t.Fatalf("full failure_code = %q, want %q", got.FailureCode, tc.want)
+			}
+			if got.FailureReason != tc.reason {
+				t.Fatalf("full failure_reason = %q, want original prose", got.FailureReason)
+			}
+
+			status := httptest.NewRecorder()
+			router.ServeHTTP(status, httptest.NewRequest(http.MethodGet, "/api/jobs/"+id.String()+"?view=status", nil))
+			if status.Code != http.StatusOK {
+				t.Fatalf("status GET = %d: %s", status.Code, status.Body.String())
+			}
+			var view jobStatusResponse
+			if err := json.Unmarshal(status.Body.Bytes(), &view); err != nil {
+				t.Fatalf("decode status: %v", err)
+			}
+			if view.FailureCode != tc.want || view.FailureReason != tc.reason {
+				t.Fatalf("status view = %+v, want code %q", view, tc.want)
+			}
+		})
+	}
+}
 
 func TestGetJobStatusOmitsKillPlanAndPreservesLifecycleFields(t *testing.T) {
 	plan := killplan.NewPlan()

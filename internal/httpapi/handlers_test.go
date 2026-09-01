@@ -29,6 +29,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
@@ -120,6 +121,7 @@ func (f *fakeStreamRepo) UpdateStatus(_ context.Context, id uuid.UUID, s streamc
 	}
 	j.Status = s
 	j.FailureReason = reason
+	j.FailureCode = obs.ClassOf(reason)
 	if s == streamclips.StatusFailed {
 		j.SourceURL = ""
 	}
@@ -237,6 +239,7 @@ func (f *fakeRepo) UpdateStatus(ctx context.Context, id uuid.UUID, s job.Status,
 	}
 	j.Status = s
 	j.FailureReason = reason
+	j.FailureCode = obs.ClassOf(reason)
 	f.jobs[id] = j
 	return nil
 }

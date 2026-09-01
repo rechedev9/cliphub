@@ -36,6 +36,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/moments"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
@@ -468,7 +469,7 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 			internalError(w, "list jobs by series", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": attachJobFailureCodes(jobs)})
 		return
 	}
 	limit := 50
@@ -485,7 +486,7 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": attachJobFailureCodes(jobs)})
 }
 
 // ListLoadouts handles GET /api/loadouts.
@@ -581,7 +582,11 @@ func (h *Handlers) writeJobStatus(w http.ResponseWriter, r *http.Request, id uui
 		internalError(w, "get job status", err)
 		return
 	}
-	resp := jobStatusResponse{Status: status, FailureReason: failureReason}
+	resp := jobStatusResponse{
+		Status:        status,
+		FailureReason: failureReason,
+		FailureCode:   jobFailureCode(failureReason, ""),
+	}
 	if progress, ok := captureProgressWithTotal(h.storage, id, status, segmentCount); ok {
 		resp.Progress = &progress
 	}
@@ -591,6 +596,7 @@ func (h *Handlers) writeJobStatus(w http.ResponseWriter, r *http.Request, id uui
 type jobStatusResponse struct {
 	Status        job.Status           `json:"status"`
 	FailureReason string               `json:"failure_reason,omitempty"`
+	FailureCode   string               `json:"failure_code,omitempty"`
 	Progress      *captureProgressView `json:"progress,omitempty"`
 }
 
@@ -604,11 +610,26 @@ type jobResponse struct {
 }
 
 func (h *Handlers) jobResponse(j job.Job) jobResponse {
+	j.FailureCode = jobFailureCode(j.FailureReason, j.FailureCode)
 	resp := jobResponse{Job: j}
 	if progress, ok := captureProgress(h.storage, j); ok {
 		resp.Progress = &progress
 	}
 	return resp
+}
+
+func jobFailureCode(reason, stored string) string {
+	if stored != "" {
+		return stored
+	}
+	return obs.ClassOf(reason)
+}
+
+func attachJobFailureCodes(jobs []job.Job) []job.Job {
+	for i := range jobs {
+		jobs[i].FailureCode = jobFailureCode(jobs[i].FailureReason, jobs[i].FailureCode)
+	}
+	return jobs
 }
 
 // GetPlan handles GET /api/jobs/{id}/plan.

@@ -55,8 +55,11 @@ type Job struct {
 	ID            uuid.UUID `json:"id"`
 	Status        Status    `json:"status"`
 	FailureReason string    `json:"failure_reason,omitempty"`
-	SourcePath    string    `json:"source_path"`
-	SourceSHA256  string    `json:"source_sha256"`
+	// FailureCode is the stable obs class for a terminal failure. FailureReason
+	// stays the user-facing text (including Spanish acquire reasons).
+	FailureCode  string `json:"failure_code,omitempty"`
+	SourcePath   string `json:"source_path"`
+	SourceSHA256 string `json:"source_sha256"`
 	// SourceURL is the private, short-lived acquisition URL used by the worker.
 	// It may contain provider query material and is never serialized. Durable
 	// repositories clear it on acquisition success or terminal failure.

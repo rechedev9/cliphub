@@ -68,7 +68,7 @@ func (w *ParserWorker) failAnticheat(ctx context.Context, jobID uuid.UUID, doc a
 	if ctx.Err() != nil && !taskIsTerminal(ctx) {
 		return cause
 	}
-	recordStageFailure(jobID, obs.StageWorker, tasks.TypeAnalyzeAnticheat, cause)
+	recordStageFailure(jobID, obs.StageWorker, tasks.TypeAnalyzeAnticheat, errorClass(tasks.TypeAnalyzeAnticheat, cause), cause)
 	logWorkerError(jobID, "anticheat", cause)
 	return w.putAnticheatDocument(jobID, doc.Fail(cause.Error(), time.Now()))
 }

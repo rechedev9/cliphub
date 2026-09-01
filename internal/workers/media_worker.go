@@ -121,7 +121,7 @@ func markFailed(repo statusUpdater, id uuid.UUID, reason string) error {
 // progress across retries; the terminal failure is recorded once retries are
 // exhausted.
 func recordTaskFailure(ctx context.Context, repo statusUpdater, id uuid.UUID, taskType string, err error) error {
-	return recordTaskFailureAs(ctx, repo, id, taskType, obs.StageWorker, taskType, err)
+	return recordTaskFailureAs(ctx, repo, id, taskType, obs.StageWorker, errorClass(taskType, err), err)
 }
 
 // recordTaskFailureAs is recordTaskFailure with an explicit obs stage and class,
@@ -135,7 +135,7 @@ func recordTaskFailureAs(ctx context.Context, repo statusUpdater, id uuid.UUID, 
 	if markErr := markFailed(repo, id, err.Error()); markErr != nil {
 		return markErr
 	}
-	recordStageFailure(id, stage, class, err)
+	recordStageFailure(id, stage, taskType, class, err)
 	logWorkerTransition(id, taskType, job.StatusFailed)
 	return nil
 }
@@ -155,7 +155,7 @@ func recordPreservedRecordingFailure(ctx context.Context, repo statusUpdater, id
 		logWorkerError(id, "preserve recorded status after failed recapture", statusErr)
 		return statusErr
 	}
-	recordStageFailure(id, obs.StageWorker, tasks.TypeRecordDemo, err)
+	recordStageFailure(id, obs.StageWorker, tasks.TypeRecordDemo, errorClass(tasks.TypeRecordDemo, err), err)
 	logWorkerTransition(id, tasks.TypeRecordDemo, job.StatusRecorded)
 	return nil
 }
@@ -1197,6 +1197,7 @@ func (w *StreamRenderWorker) HandleRenderStreamClip(ctx context.Context, t *asyn
 			}
 		}
 		finalErr := errors.Join(err, repairErr)
+		recordStageFailure(j.ID, obs.StageWorker, tasks.TypeRenderStreamClip, errorClass(tasks.TypeRenderStreamClip, err), err)
 		logWorkerError(j.ID, tasks.TypeRenderStreamClip, finalErr)
 		return finalErr
 	}
@@ -1762,6 +1763,7 @@ func (w *RenderWorker) HandleRenderVariant(ctx context.Context, t *asynq.Task) e
 		variant = editor.DefaultPreset().Name
 	}
 	if err := w.render(ctx, j, variant, payload.MusicKey, payload.MusicVolume, payload.GameVolume, payload.Edit); err != nil {
+		recordStageFailure(j.ID, obs.StageWorker, tasks.TypeRenderVariant, errorClass(tasks.TypeRenderVariant, err), err)
 		logWorkerError(j.ID, tasks.TypeRenderVariant, err)
 		return err
 	}

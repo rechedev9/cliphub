@@ -12,6 +12,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
@@ -189,6 +190,7 @@ func (r *memoryJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 	}
 	j.Status = status
 	j.FailureReason = failureReason
+	j.FailureCode = obs.ClassOf(failureReason)
 	j.UpdatedAt = time.Now().UTC()
 	r.jobs[id] = j
 	return nil

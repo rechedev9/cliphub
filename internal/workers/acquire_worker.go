@@ -274,9 +274,11 @@ func recordStreamAcquireFailure(id uuid.UUID, err error) {
 		return
 	}
 	_ = rec.RecordError(obs.Event{
+		JobID:   id.String(),
 		Stage:   obs.StageStreamAcquire,
+		Task:    tasks.TypeStreamAcquire,
 		Class:   acquireFailureClass(err),
-		Message: id.String() + ": " + err.Error(),
+		Message: err.Error(),
 	})
 }
 
