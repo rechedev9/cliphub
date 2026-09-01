@@ -20,11 +20,12 @@ A landscape recap exists in Biblioteca with PARTIDA COMPLETA, native HUD, team c
 ## Driving it with zv verify
 
 ```text
-./bin/zv verify prove --feature demo-completa --format json
+./bin/zv verify prove --feature demo-completa --job-id <uuid> --format json
+./bin/zv verify prove --feature demo-completa --dry-run --format json
 ./bin/zv verify doctor --format json
 ```
 
-This **fails closed** on Cloud Linux. HLAE/CS2 cannot be recertified here. Do not treat `go test` as a Pass.
+King's Windows Studio is the host of record. This **fails closed** on Cloud Linux (`hlae_cs2_windows_studio`). HLAE/CS2 cannot be recertified here. Do not treat `go test` as a Pass. Do not call Full Demo Pass.
 
 ## Gotchas
 

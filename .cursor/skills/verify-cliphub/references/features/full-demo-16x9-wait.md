@@ -22,11 +22,12 @@ This path **cannot be recertified on Cloud Linux**. HLAE/CS2 cannot launch here.
 ## Driving it with zv verify
 
 ```text
-./bin/zv verify prove --feature full-demo-16x9-wait --format json
+./bin/zv verify prove --feature full-demo-16x9-wait --job-id <uuid> --format json
+./bin/zv verify prove --feature full-demo-16x9-wait --dry-run --format json
 ./bin/zv verify doctor --format json
 ```
 
-Fails closed. Name the gap. Do not call Full Demo done from unit tests.
+Fails closed on Cloud Linux. Name the gap. Inspect live progress on King's Windows Studio. Do not call Full Demo Pass from unit tests.
 
 ## Gotchas
 

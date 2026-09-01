@@ -1,17 +1,12 @@
 package verify
 
-import (
-	"runtime"
-
-	"github.com/rechedev9/cliphub/internal/capturetools"
-)
-
 const (
-	CaptureUnavailable  = "unavailable"
-	CaptureToolsPresent = "tools_present"
+	CaptureUnavailable = "unavailable"
+	CaptureStudioLive  = "studio_live"
 )
 
 // Host is what this machine can actually recertify.
+// Capture recertification is studio_live only: Windows + live Studio + HLAE + running CS2.
 type Host struct {
 	GOOS                   string `json:"goos"`
 	GOARCH                 string `json:"goarch"`
@@ -21,35 +16,69 @@ type Host struct {
 	CaptureRecertification string `json:"capture_recertification"`
 }
 
-// InspectHost resolves HLAE/CS2 the same way zv capabilities does, then applies
-// the Windows Studio gate. A stub HLAE path on Linux is still unavailable.
-func InspectHost() Host {
-	paths, sources := capturetools.Detect(capturetools.FromEnvironment())
-	hlae := capturetools.ResolveTool("ZV_HLAE_PATH", paths.HLAE, sources)
-	cs2 := capturetools.ResolveTool("ZV_CS2_PATH", paths.CS2, sources)
-	return ClassifyHost(runtime.GOOS, runtime.GOARCH, hlae.Accessible, cs2.Accessible)
+// HostFacts are the raw probes used to classify recertification.
+type HostFacts struct {
+	GOOS, GOARCH string
+	StudioUp     bool
+	HLAE         bool
+	CS2Running   bool
 }
 
-// ClassifyHost is the fail-closed rule: capture recertification needs Windows
-// plus accessible HLAE and CS2. Anything less is unavailable.
-func ClassifyHost(goos, goarch string, hlae, cs2 bool) Host {
-	windows := goos == "windows"
-	tools := windows && hlae && cs2
+// InspectHost resolves the live Studio surface on this machine.
+// Linux never claims capture recertification, even if stubs exist.
+func InspectHost() Host {
+	return InspectHostWith(DoctorOptions{})
+}
+
+// InspectHostWith applies GOOS/probe overrides used by tests and the CLI.
+func InspectHostWith(opts DoctorOptions) Host {
+	goos := runtimeGOOS(opts.GOOS)
+	goarch := runtimeGOARCH(opts.GOARCH)
+	probe := opts.Probe
+	if probe == nil {
+		probe = liveProbe{}
+	}
+	userData := resolveUserData(goos, opts.UserData)
+	studio := inspectStudio(goos, userData, probe, opts.DryRun)
+	hlaePath, hlaeOK := probe.DetectHLAE()
+	if isForbiddenHLAE(hlaePath) {
+		hlaeOK = false
+	}
+	cs2, _ := probe.CS2Running()
+	return ClassifyHost(HostFacts{
+		GOOS:       goos,
+		GOARCH:     goarch,
+		StudioUp:   studioIsUp(studio),
+		HLAE:       hlaeOK,
+		CS2Running: cs2,
+	})
+}
+
+func studioIsUp(studio StudioSurface) bool {
+	return studio.PortsPresent && studio.JobsDBPresent && studio.Healthz.Status == HTTPStatusOK
+}
+
+// ClassifyHost is the fail-closed rule: recertification needs Windows plus a
+// live Studio, detected HLAE, and a running cs2.exe. Tools on disk are not enough.
+func ClassifyHost(facts HostFacts) Host {
+	windows := facts.GOOS == "windows"
+	live := windows && facts.StudioUp && facts.HLAE && facts.CS2Running
 	recert := CaptureUnavailable
-	if tools {
-		recert = CaptureToolsPresent
+	if live {
+		recert = CaptureStudioLive
 	}
 	return Host{
-		GOOS:                   goos,
-		GOARCH:                 goarch,
-		WindowsStudio:          windows,
-		HLAE:                   windows && hlae,
-		CS2:                    windows && cs2,
+		GOOS:                   facts.GOOS,
+		GOARCH:                 facts.GOARCH,
+		WindowsStudio:          windows && facts.StudioUp,
+		HLAE:                   windows && facts.HLAE,
+		CS2:                    windows && facts.CS2Running,
 		CaptureRecertification: recert,
 	}
 }
 
-// CanRecertifyCapture is true only when HLAE and CS2 are present on Windows.
+// CanRecertifyCapture is true only when Studio, HLAE, and CS2 are actually up
+// on Windows. Cloud Linux never returns true.
 func (h Host) CanRecertifyCapture() bool {
-	return h.CaptureRecertification == CaptureToolsPresent
+	return h.CaptureRecertification == CaptureStudioLive && h.GOOS == "windows"
 }

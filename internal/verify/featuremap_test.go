@@ -69,7 +69,7 @@ func TestProveFeatureFailsClosedForCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	host := ClassifyHost("linux", "amd64", false, false)
+	host := ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"})
 	tests := []string{"demo-completa", "shorts-9x16-wait", "full-demo-16x9-wait"}
 	for _, id := range tests {
 		t.Run(id, func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestProveFeatureFailsClosedForCapture(t *testing.T) {
 }
 
 func TestProveUnknownFeature(t *testing.T) {
-	_, err := ProveFeature(".", ClassifyHost("linux", "amd64", false, false), "not-a-feature")
+	_, err := ProveFeature(".", ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "not-a-feature")
 	if err == nil {
 		t.Fatal("expected unknown feature error")
 	}
@@ -99,7 +99,7 @@ func TestProveInicioCheapProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := ProveFeature(root, ClassifyHost("linux", "amd64", false, false), "inicio")
+	report, err := ProveFeature(root, ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "inicio")
 	if err != nil {
 		t.Fatal(err)
 	}

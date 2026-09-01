@@ -24,7 +24,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Guided generate state | `generateintent` | Shared HTTP+worker store; record task gets an immutable copy |
 | Artifact keys / FS root | `artifacts`, `storage`, `filecommit` | Keys only in `artifacts`; no I/O there |
 | Tool detect (HLAE/CS2/ffmpeg) | `capturetools` | Same resolver for CLI and orchestrator |
-| Verification lever | `verify` | `zv verify` doctor/feature-map/http/gates; fail closed on HLAE/CS2 |
+| Verification lever | `verify` | Windows-first `zv verify` doctor against live Studio; Linux fail-closes `hlae_cs2_windows_studio` |
 | Folder parse (no queue) | `batch` | `zv batch` only; no Asynq |
 | Pipeline errors | `obs` | Journal is authoritative; do not mutate in-memory counters |
 | CheaterDetect | `anticheat` | No parser import. Anomaly report, never guilt |

@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -129,12 +131,69 @@ func TestRunVerifyProveDryRun(t *testing.T) {
 	}
 }
 
+func TestRunVerifyProveDryRunDoesNotTouchJobsDB(t *testing.T) {
+	userData := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(userData, "data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db := filepath.Join(userData, "data", "jobs.db")
+	if err := os.WriteFile(db, []byte("SQLite format 3"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userData, "ports.json"), []byte(`{"orchestrator":41001,"web":42002}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr strings.Builder
+	code := Run([]string{
+		"zv", "verify", "prove",
+		"--feature", "demo-completa",
+		"--job-id", "11111111-1111-1111-1111-111111111111",
+		"--dry-run",
+		"--user-data", userData,
+		"--format", "json",
+	}, &stdout, &stderr, nil, nil)
+	if code != exitSuccess {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	after, err := os.ReadFile(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("dry-run mutated jobs.db")
+	}
+}
+
+func TestRunVerifyDoctorHelpListsFlagsAndGaps(t *testing.T) {
+	var stdout, stderr strings.Builder
+	code := Run([]string{"zv", "verify", "doctor", "--help"}, &stdout, &stderr, nil, nil)
+	if code != exitSuccess || stderr.String() != "" {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	text := strings.ToLower(stdout.String())
+	for _, want := range []string{
+		"--format", "--dry-run", "--user-data",
+		"hlae_cs2_windows_studio", "studio_ports_missing", "studio_jobs_db_missing",
+		"studio_orchestrator_down", "hlae_not_detected", "cs2_not_running",
+		"never fake", "fail-closed",
+	} {
+		if !strings.Contains(text, strings.ToLower(want)) {
+			t.Fatalf("doctor help missing %q\n%s", want, stdout.String())
+		}
+	}
+}
+
 func TestValidateVerifyCommand(t *testing.T) {
 	tests := []struct {
 		command []string
 		want    string
 	}{
 		{command: []string{"verify", "doctor", "--format", "json"}},
+		{command: []string{"verify", "doctor", "--dry-run", "--format", "json"}},
 		{command: []string{"verify", "features", "--format", "json"}},
 		{command: []string{"verify", "http", "--url", "http://127.0.0.1:8080", "--format", "json"}},
 		{command: []string{"verify", "gates", "--run", "--dry-run", "--format", "json"}},

@@ -21,3 +21,4 @@ User-POV routes the verification lever can name. Dump with:
 | `full-demo-16x9-wait` | Full Demo 16:9 wait | `/videos` | **gap** — live overlay |
 
 Sidebar order lives in `web/lib/nav.ts`. `/` redirects to `/onboarding`.
+The verification host of record for HLAE/CS2 rows is King's Windows Studio, not Cloud Linux.

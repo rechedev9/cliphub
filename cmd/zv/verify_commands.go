@@ -39,18 +39,22 @@ func runVerifyDoctor(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, verifyDoctorUsage)
 		return exitSuccess
 	}
-	format, flags, err := parseVerifyFlags("doctor", args, nil)
+	format, flags, err := parseVerifyFlags("doctor", args, []string{"--dry-run", "--user-data"})
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, err, verifyDoctorUsage, exitInvalidArgs)
 	}
-	if flags.URL != "" || flags.Feature != "" || flags.Run {
+	if flags.URL != "" || flags.Feature != "" || flags.Run || flags.JobID != "" {
 		return writeCommandError(args, stdout, stderr, fmt.Errorf("unexpected extra args for %q", "verify doctor"), verifyDoctorUsage, exitInvalidArgs)
 	}
 	root, err := verify.FindRepoRoot()
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, err, verifyDoctorUsage, exitUnexpected)
 	}
-	report := verify.Doctor(root, verify.InspectHost(), verify.ProbeOrchestrator(verify.DefaultOrchestratorURL))
+	report := verify.Doctor(verify.DoctorOptions{
+		Root:     root,
+		DryRun:   flags.DryRun,
+		UserData: flags.UserData,
+	})
 	if err := writeVerifyResult(stdout, stderr, format, report); err != nil {
 		return exitUnexpected
 	}
@@ -146,7 +150,7 @@ func runVerifyProve(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, verifyProveUsage)
 		return exitSuccess
 	}
-	format, flags, err := parseVerifyFlags("prove", args, []string{"--feature", "--dry-run"})
+	format, flags, err := parseVerifyFlags("prove", args, []string{"--feature", "--dry-run", "--job-id", "--user-data"})
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, err, verifyProveUsage, exitInvalidArgs)
 	}
@@ -157,25 +161,13 @@ func runVerifyProve(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, err, verifyProveUsage, exitUnexpected)
 	}
-	if flags.DryRun {
-		feature, ok := verify.FeatureByID(flags.Feature)
-		if !ok {
-			return writeCommandError(args, stdout, stderr, fmt.Errorf("unknown feature %q", flags.Feature), verifyProveUsage, exitInvalidArgs)
-		}
-		preview := map[string]any{
-			"ok":                true,
-			"executed":          false,
-			"dry_run":           true,
-			"feature":           feature.ID,
-			"would_prove":       feature.Title,
-			"requires_hlae_cs2": feature.RequiresHLAECS2,
-		}
-		if err := writeVerifyResult(stdout, stderr, format, preview); err != nil {
-			return exitUnexpected
-		}
-		return exitSuccess
-	}
-	report, err := verify.ProveFeature(root, verify.InspectHost(), flags.Feature)
+	report, err := verify.Prove(verify.ProveOptions{
+		Root:     root,
+		Feature:  flags.Feature,
+		JobID:    flags.JobID,
+		DryRun:   flags.DryRun,
+		UserData: flags.UserData,
+	})
 	if err != nil {
 		return writeCommandError(args, stdout, stderr, err, verifyProveUsage, exitInvalidArgs)
 	}
@@ -189,10 +181,12 @@ func runVerifyProve(args []string, stdout, stderr io.Writer) int {
 }
 
 type verifyFlags struct {
-	URL     string
-	Feature string
-	DryRun  bool
-	Run     bool
+	URL      string
+	Feature  string
+	JobID    string
+	UserData string
+	DryRun   bool
+	Run      bool
 }
 
 func parseVerifyFlags(command string, args []string, allowed []string) (string, verifyFlags, error) {
@@ -237,6 +231,24 @@ func parseVerifyFlags(command string, args []string, allowed []string) (string, 
 			flags.DryRun = parseOptionalBoolFlag(value, hasValue)
 		case "--run":
 			flags.Run = parseOptionalBoolFlag(value, hasValue)
+		case "--job-id":
+			if !hasValue {
+				if i+1 >= len(rest) {
+					return "", flags, fmt.Errorf("--job-id requires a value")
+				}
+				i++
+				value = rest[i]
+			}
+			flags.JobID = value
+		case "--user-data":
+			if !hasValue {
+				if i+1 >= len(rest) {
+					return "", flags, fmt.Errorf("--user-data requires a value")
+				}
+				i++
+				value = rest[i]
+			}
+			flags.UserData = value
 		}
 	}
 	return format, flags, nil
@@ -295,11 +307,11 @@ func validateVerifySubcommand(name string, args []string) string {
 		return ""
 	}
 	allowed := map[string][]string{
-		"doctor":   nil,
+		"doctor":   {"--dry-run", "--user-data"},
 		"features": {"--feature"},
 		"http":     {"--url"},
 		"gates":    {"--dry-run", "--run"},
-		"prove":    {"--feature", "--dry-run"},
+		"prove":    {"--feature", "--dry-run", "--job-id", "--user-data"},
 	}
 	_, flags, err := parseVerifyFlags(name, args, allowed[name])
 	if err != nil {

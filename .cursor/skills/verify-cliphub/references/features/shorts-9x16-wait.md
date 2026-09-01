@@ -22,11 +22,12 @@ This path **cannot be recertified on Cloud Linux**. HLAE/CS2 are required.
 ## Driving it with zv verify
 
 ```text
-./bin/zv verify prove --feature shorts-9x16-wait --format json
+./bin/zv verify prove --feature shorts-9x16-wait --job-id <uuid> --format json
+./bin/zv verify prove --feature shorts-9x16-wait --dry-run --format json
 ./bin/zv verify doctor --format json
 ```
 
-Cheap proof: `web/lib/capture-progress.ts` and `shell-activity` unit tests. Doctor names the HLAE/CS2 gap. Do not fake a Pass.
+Live overlay percent is `GET /api/jobs/{id}?view=status` → `progress.percent` on King's Windows Studio. Cheap proof: `web/lib/capture-progress.ts` and `shell-activity` unit tests. Cloud Linux fail-closes. Do not fake a Pass.
 
 ## Gotchas
 

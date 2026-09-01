@@ -32,7 +32,7 @@ stream video -> persisted edit plan -> render -> publish pack
 Shared standing law for every agent that touches this repo. If it is not here, it did not happen. Update this block in the same PR when a law changes.
 
 - **Prove It Works.** Verify the real path, not a proxy. CI, mocks, lint, and "it compiles" are supplemental. For parser/capture/render: real ClipHub Studio on Windows + HLAE/CS2, or name the gap and do not call the work done.
-- **Verification lever.** Close the loop with the in-repo `verify-cliphub` skill and `zv verify` before calling a ClipHub change done. Prove against the real artifact; loop until the path proves itself; never treat compile, lint, or hosted CI as the feature. Doctor and the skill fail closed and name the HLAE/CS2 / Windows Studio gap when capture or Full Demo 16:9 recap cannot be recertified on this machine. Cloud Linux cannot launch CS2. Hosted CI green is not HLAE/CS2 proof. Do not add a Grok Bot court or a second local bot farm.
+- **Verification lever.** `zv verify` is the Windows-first control CLI. The verification host of record for capture and overlays is King's Windows ClipHub Studio (live orchestrator from `%APPDATA%\cliphub-studio\ports.json`, detected `C:\HLAE-*\HLAE.exe` — never `C:\HLAE\HLAE.exe` — and a running `cs2.exe`), not the cloud Linux VM. Doctor Passes only when that Studio + HLAE + CS2 are actually up. Linux doctor fail-closes and names `hlae_cs2_windows_studio`. A Windows host with Studio down still fail-closes, named. Close the loop with the in-repo `verify-cliphub` skill before calling a change done. Prove against the real artifact; never treat compile, lint, or hosted CI as the feature. Hosted CI green is not HLAE/CS2 proof. Do not add a Grok Bot court, Playwright-in-CI, or a second local bot farm.
 - **PR body** (`.github/pull_request_template.md`): only four H2s — What Problem This Solves, Why This Change Was Made, User Impact, Evidence. Empty Evidence is a blocker.
 - **Hosted quality CI** (PRs and `main`): `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`), `CI infra` (actionlint + unsigned-release contract). Not HLAE/CS2 E2E. Not Playwright.
 - **Release:** unsigned Windows installer only, via `.github/workflows/desktop-release.yml` (`workflow_dispatch` or `v*.*.*` matching `desktop/package.json`). Actualizar reads `releases/latest`. No Authenticode. Vercel/landing is not the updater.
@@ -58,7 +58,7 @@ Shared standing law for every agent that touches this repo. If it is not here, i
 
 Use the unified `zv` CLI for normal parsing, capture, render, QA, and publishing; Studio is not a prerequisite.
 If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
-Before calling a change done, use the `verify-cliphub` skill. `zv verify doctor` fails closed on Cloud Linux and names the HLAE/CS2 gap; the cheap dumps below stay runnable without CS2.
+Before calling a change done, use the `verify-cliphub` skill. `zv verify` is Windows-first: doctor Passes only on King's live Studio + HLAE + running CS2. On Cloud Linux it fail-closes and names `hlae_cs2_windows_studio`; the cheap dumps below stay runnable without CS2.
 
 ```powershell
 .\bin\zv.exe capabilities --format json

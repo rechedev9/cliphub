@@ -109,29 +109,63 @@ const presetsUsage = `usage: zv presets [--format text|json]
 const capabilitiesUsage = `usage: zv capabilities [--format text|json]
 `
 
-const verifyUsage = `usage: zv verify doctor [--format text|json] | zv verify features [--feature <id>] [--format text|json] | zv verify http [--url <loopback>] [--format text|json] | zv verify gates [--run] [--dry-run] [--format text|json] | zv verify prove --feature <id> [--dry-run] [--format text|json]
+const verifyUsage = `usage: zv verify doctor [--format text|json] [--dry-run] [--user-data <dir>] | zv verify features [--feature <id>] [--format text|json] | zv verify http [--url <loopback>] [--format text|json] | zv verify gates [--run] [--dry-run] [--format text|json] | zv verify prove --feature <id> [--job-id <uuid>] [--dry-run] [--user-data <dir>] [--format text|json]
 
-ClipHub verification lever. Inspect what this host can prove without HLAE/CS2.
-Doctor fails closed and names the HLAE/CS2 / Windows Studio gap when capture
-or Full Demo 16:9 recap cannot be recertified. Cloud Linux cannot launch CS2.
-Hosted CI green is not HLAE/CS2 proof. JSON is the agent contract.
+Windows-first ClipHub control CLI. Doctor inspects a live Studio: orchestrator
+on 127.0.0.1 from %APPDATA%\cliphub-studio\ports.json, jobs.db, HLAE
+(C:\HLAE-*\HLAE.exe, never C:\HLAE\HLAE.exe), and a running cs2.exe.
+The verification host of record is King's Windows Studio, not the cloud VM.
+Linux doctor fail-closes and names hlae_cs2_windows_studio. Windows Passes
+only when Studio + HLAE + CS2 are actually up. Never fake CS2. Hosted CI
+green is not HLAE/CS2 proof. JSON is the agent contract.
 
 Subcommands:
-  doctor    host tools, skill, feature map, orchestrator, hosted gates, named gaps
+  doctor    live Studio surface, HLAE, running CS2, skill, feature map, named gaps
   features  dump the Studio feature map
   http      GET /healthz on a loopback orchestrator if one is running
   gates     list cheap hosted CI commands (no Playwright, no HLAE)
-  prove     fail-closed check for one mapped feature
+  prove     inspect one mapped feature; HLAE features GET job status / progress
 
 Flags:
   --format text|json   machine-readable JSON in both formats
   --feature <id>       catalog id (inicio, partidas, demo-completa, ...)
+  --job-id <uuid>      GET /api/jobs/{id}?view=status (status, progress.percent)
+  --user-data <dir>    Studio userData (default %APPDATA%\cliphub-studio)
   --url <loopback>     orchestrator base; default http://127.0.0.1:8080
   --run                with gates, still requires --dry-run (not a second CI)
-  --dry-run            print the plan; required for gates --run
+  --dry-run            inspect only; no jobs.db writes, no capture enqueue, no HTTP
+
+Fail-closed gaps:
+  hlae_cs2_windows_studio   Linux / non-Windows host (never Pass recertification)
+  studio_ports_missing      ports.json missing under Studio userData
+  studio_jobs_db_missing    jobs.db missing under userData\data
+  studio_orchestrator_down  ports.json present but /healthz is not live
+  hlae_not_detected         no C:\HLAE-*\HLAE.exe (never C:\HLAE\HLAE.exe)
+  cs2_not_running           cs2.exe process is not running (never faked)
+  studio_job_id_required    prove of an HLAE feature without --job-id
 `
 
-const verifyDoctorUsage = `usage: zv verify doctor [--format text|json]
+const verifyDoctorUsage = `usage: zv verify doctor [--format text|json] [--dry-run] [--user-data <dir>]
+
+Windows-first Studio doctor. Passes only when this Windows host has a live
+ClipHub Studio (ports.json + jobs.db + /healthz), detected HLAE, and a
+running cs2.exe. Linux always fail-closes.
+
+Flags:
+  --format text|json   machine-readable JSON in both formats
+  --user-data <dir>    Studio userData (default %APPDATA%\cliphub-studio)
+  --dry-run            do not GET /healthz; never writes jobs.db or enqueues capture
+
+Fail-closed gaps:
+  hlae_cs2_windows_studio   this host is not Windows Studio (Cloud Linux)
+  studio_ports_missing      %APPDATA%\cliphub-studio\ports.json is missing
+  studio_jobs_db_missing    %APPDATA%\cliphub-studio\data\jobs.db is missing
+  studio_orchestrator_down  Studio is down (Windows host still fail-closes)
+  hlae_not_detected         expected C:\HLAE-*\HLAE.exe; never C:\HLAE\HLAE.exe
+  cs2_not_running           cs2.exe is not running; doctor never fakes CS2
+
+Never Pass capture recertification on Cloud Linux. Never fake CS2.
+This CLI does not screenshot Studio and does not add Playwright to CI.
 `
 
 const verifyFeaturesUsage = `usage: zv verify features [--feature <id>] [--format text|json]
@@ -143,7 +177,25 @@ const verifyHTTPUsage = `usage: zv verify http [--url <loopback>] [--format text
 const verifyGatesUsage = `usage: zv verify gates [--run] [--dry-run] [--format text|json]
 `
 
-const verifyProveUsage = `usage: zv verify prove --feature <id> [--dry-run] [--format text|json]
+const verifyProveUsage = `usage: zv verify prove --feature <id> [--job-id <uuid>] [--dry-run] [--user-data <dir>] [--format text|json]
+
+Inspect one mapped Studio feature. Cheap features (inicio, partidas, ...)
+prove the feature-map contract. HLAE/CS2 features GET live job status and
+capture-progress percent when Studio is up.
+
+Flags:
+  --feature <id>       catalog id; required
+  --job-id <uuid>      GET /api/jobs/{id}?view=status (status, progress.percent)
+  --user-data <dir>    Studio userData (default %APPDATA%\cliphub-studio)
+  --dry-run            print the plan; no HTTP, no jobs.db writes, no capture enqueue
+  --format text|json   machine-readable JSON in both formats
+
+Fail-closed gaps:
+  hlae_cs2_windows_studio   Linux cannot recertify capture or Full Demo
+  studio_job_id_required    HLAE feature prove without --job-id
+  studio_overlay_walk       live GET failed; this is not Full Demo Pass
+
+Never enqueue capture. Never fake CS2. Do not call Full Demo Pass from Cloud Linux.
 `
 
 const faceitUsage = `usage: zv faceit index [flags]
