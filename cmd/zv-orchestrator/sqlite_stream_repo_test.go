@@ -116,6 +116,16 @@ func TestSQLiteStreamRepoLifecycle(t *testing.T) {
 	if got.Status != streamclips.StatusFailed || got.FailureReason != "render exploded" {
 		t.Fatalf("got status=%s reason=%q, want failed/render exploded", got.Status, got.FailureReason)
 	}
+	if err := repo.UpdateStatus(ctx, j.ID, streamclips.StatusFailed, streamclips.AcquireReasonNotFound); err != nil {
+		t.Fatalf("UpdateStatus acquire class: %v", err)
+	}
+	got, err = repo.Get(ctx, j.ID)
+	if err != nil {
+		t.Fatalf("Get after acquire class: %v", err)
+	}
+	if got.FailureCode != streamclips.AcquireCodeNotFound || got.FailureReason != streamclips.AcquireReasonNotFound {
+		t.Fatalf("persisted acquire failure = code %q reason %q, want %s + Spanish text", got.FailureCode, got.FailureReason, streamclips.AcquireCodeNotFound)
+	}
 
 	probe := streamclips.SourceProbe{Width: 1920, Height: 1080, DurationSeconds: 42}
 	if err := repo.SetAcquired(ctx, j.ID, probe, "def456", "Título de Twitch"); err != nil {

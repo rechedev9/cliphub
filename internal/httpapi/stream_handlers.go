@@ -274,7 +274,7 @@ func (h *Handlers) ListStreamJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list stream jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": attachStreamFailureCodes(jobs)})
 }
 
 func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +282,15 @@ func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	j.FailureCode = jobFailureCode(j.FailureReason, j.FailureCode)
 	writeJSON(w, http.StatusOK, j)
+}
+
+func attachStreamFailureCodes(jobs []streamclips.Job) []streamclips.Job {
+	for i := range jobs {
+		jobs[i].FailureCode = jobFailureCode(jobs[i].FailureReason, jobs[i].FailureCode)
+	}
+	return jobs
 }
 
 func (h *Handlers) GetStreamSource(w http.ResponseWriter, r *http.Request) {

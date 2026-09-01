@@ -3,7 +3,7 @@ import {
   type StreamEditPlan,
   type StreamVariant,
 } from '../api/streams.ts';
-import { keyDropStyleLabel } from '../api/types.ts';
+import { affiliateFamilyLabel, affiliateStyleLabel } from '../api/types.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
 import { clipOutputDuration } from './plan.ts';
 
@@ -49,19 +49,21 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
     banner = plan.streamer_banner?.slide_enabled ? `${labeled} · slide` : labeled;
   }
   const kdStyle = plan.keydrop_banner?.style?.trim() ?? '';
+  const kdFamily = plan.keydrop_banner?.family?.trim() ?? '';
   const kdCode = (plan.keydrop_banner?.code?.trim() || 'ZACKCSGO').toUpperCase();
-  let keydrop = 'No';
+  let affiliate = 'No';
   if (kdStyle) {
-    const styleLabel = keyDropStyleLabel(kdStyle);
+    const familyLabel = affiliateFamilyLabel(kdFamily, kdStyle);
+    const styleLabel = affiliateStyleLabel(kdFamily, kdStyle);
     const start = plan.keydrop_banner?.start_seconds;
     const end = plan.keydrop_banner?.end_seconds;
     const window =
       typeof start === 'number' || typeof end === 'number'
         ? ` · ${typeof start === 'number' ? start.toFixed(1) : '0'}s–${typeof end === 'number' ? end.toFixed(1) : 'fin'}s`
         : '';
-    keydrop = plan.keydrop_banner?.slide_enabled
-      ? `${styleLabel} · ${kdCode}${window} · slide`
-      : `${styleLabel} · ${kdCode}${window}`;
+    affiliate = plan.keydrop_banner?.slide_enabled
+      ? `${familyLabel} · ${styleLabel} · ${kdCode}${window} · slide`
+      : `${familyLabel} · ${styleLabel} · ${kdCode}${window}`;
   }
 
   return [
@@ -69,7 +71,7 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
     { label: 'Facecam', value: facecam },
     { label: 'Clips', value: clipSummary },
     { label: 'Banner', value: banner },
-    { label: 'KeyDrop', value: keydrop },
+    { label: 'Afiliado', value: affiliate },
     { label: 'Música', value: music },
     { label: 'Grade', value: plan.effects?.grade ? 'Sí' : 'No' },
   ];

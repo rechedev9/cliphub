@@ -176,9 +176,15 @@ test('automatic text controls preserve only explicit true values', () => {
 
 test('coerceEditConfig keeps every catalog KeyDrop style and drops unknowns', () => {
   for (const style of ['operator', 'classic', 'tigerr', 'jcorko'] as const) {
-    assert.equal(coerceEditConfig({ keyDropStyle: style }).keyDropStyle, style);
+    const coerced = coerceEditConfig({ keyDropStyle: style });
+    assert.equal(coerced.keyDropStyle, style);
+    assert.equal(coerced.keyDropFamily, 'KEYDROP');
   }
   assert.equal(coerceEditConfig({ keyDropStyle: 'neon' }).keyDropStyle, undefined);
+  const skins = coerceEditConfig({ keyDropFamily: 'CSGOSKINS', keyDropStyle: 'classic' });
+  assert.equal(skins.keyDropFamily, 'CSGOSKINS');
+  assert.equal(skins.keyDropStyle, 'classic');
+  assert.equal(coerceEditConfig({ keyDropFamily: 'CSGOSKINS', keyDropStyle: 'tigerr' }).keyDropStyle, undefined);
 });
 
 test('truncates bookend text to the 80-char limit and drops non-string values', () => {

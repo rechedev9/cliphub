@@ -195,7 +195,7 @@ func ensureKeyDropPlate(manifest *Manifest, ffmpegPath string) error {
 		return fmt.Errorf("keydrop banner font: %w", err)
 	}
 	outPath := filepath.Join(manifest.OutputDir, "keydrop-banner.png")
-	if err := keydropbanner.CompositeWithCode(ffmpegPath, style, manifest.Shorts[0].KeyDropCode, fontPath, outPath); err != nil {
+	if err := keydropbanner.CompositeWithCode(ffmpegPath, manifest.Shorts[0].KeyDropFamily, style, manifest.Shorts[0].KeyDropCode, fontPath, outPath); err != nil {
 		return err
 	}
 	for i := range manifest.Shorts {

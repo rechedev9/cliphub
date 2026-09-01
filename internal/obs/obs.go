@@ -17,6 +17,7 @@
 package obs
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,10 +66,13 @@ var metricHelp = map[string]string{
 }
 
 // Event is one recorded pipeline error. It is appended to the journal as a
-// single JSON line.
+// single JSON line. JobID and Class are the query key; Message stays human
+// text and is not required to look an event up.
 type Event struct {
 	Time     time.Time `json:"time"`
+	JobID    string    `json:"job_id,omitempty"`
 	Stage    string    `json:"stage"`
+	Task     string    `json:"task,omitempty"`
 	Class    string    `json:"class"`
 	Message  string    `json:"message"`
 	Demo     string    `json:"demo,omitempty"`
@@ -162,6 +166,60 @@ func (r *Recorder) Reset() error {
 
 // JournalPath is the newline-delimited JSON error journal.
 func (r *Recorder) JournalPath() string { return filepath.Join(r.dir, "journal.jsonl") }
+
+// ReadJournal decodes every JSONL error event at path. A missing file is an
+// empty journal, not an error.
+func ReadJournal(path string) ([]Event, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open journal: %w", err)
+	}
+	defer f.Close()
+	var events []Event
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		var ev Event
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			return nil, fmt.Errorf("unmarshal journal line: %w", err)
+		}
+		events = append(events, ev)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("scan journal: %w", err)
+	}
+	return events, nil
+}
+
+// Select returns journal events whose JobID and Class both match. It does not
+// inspect Message.
+func Select(events []Event, jobID, class string) []Event {
+	if jobID == "" && class == "" {
+		return nil
+	}
+	var out []Event
+	for _, ev := range events {
+		if ev.JobID == jobID && ev.Class == class {
+			out = append(out, ev)
+		}
+	}
+	return out
+}
+
+// SelectErrors loads this recorder's journal and returns events for jobID+class.
+func (r *Recorder) SelectErrors(jobID, class string) ([]Event, error) {
+	events, err := ReadJournal(r.JournalPath())
+	if err != nil {
+		return nil, err
+	}
+	return Select(events, jobID, class), nil
+}
 
 // SpansPath is the newline-delimited local duration journal.
 func (r *Recorder) SpansPath() string { return filepath.Join(r.dir, "spans.jsonl") }

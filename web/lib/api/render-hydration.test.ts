@@ -125,7 +125,37 @@ test('effective edit parser reads the Go mixed wire fields', () => {
     keydrop_style: 'jcorko',
   });
   assert.equal(withTigerr?.keyDropStyle, 'tigerr');
+  assert.equal(withTigerr?.keyDropFamily, 'KEYDROP');
   assert.equal(withJcorko?.keyDropStyle, 'jcorko');
+  const withSkins = parseEffectiveEditConfig({
+    format: 'short-9x16',
+    killEffect: 'freeze-flash',
+    transition: 'dip',
+    cover_strategy: 'generated-gameplay',
+    intro: true,
+    outro: false,
+    hook_text: true,
+    kill_counter: false,
+    keydrop_family: 'CSGOSKINS',
+    keydrop_style: 'classic',
+  });
+  assert.equal(withSkins?.keyDropFamily, 'CSGOSKINS');
+  assert.equal(withSkins?.keyDropStyle, 'classic');
+  assert.equal(
+    parseEffectiveEditConfig({
+      format: 'short-9x16',
+      killEffect: 'freeze-flash',
+      transition: 'dip',
+      cover_strategy: 'generated-gameplay',
+      intro: true,
+      outro: false,
+      hook_text: true,
+      kill_counter: false,
+      keydrop_family: 'CSGOSKINS',
+      keydrop_style: 'tigerr',
+    })?.keyDropStyle,
+    undefined,
+  );
   assert.equal(
     parseEffectiveEditConfig({
       format: 'short-9x16',

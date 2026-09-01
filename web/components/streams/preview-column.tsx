@@ -20,6 +20,7 @@ export function StreamPreviewColumn({
   streamerPlatform,
   streamerPositionY,
   streamerSlideEnabled,
+  keyDropFamily,
   keyDropStyle,
   keyDropCode,
   keyDropPositionY,
@@ -50,6 +51,7 @@ export function StreamPreviewColumn({
   streamerPlatform?: StreamerBannerPlatform;
   streamerPositionY?: number;
   streamerSlideEnabled?: boolean;
+  keyDropFamily?: import('@/lib/api/types').AffiliateFamily | '';
   keyDropStyle?: import('@/lib/api/streams').KeyDropBannerStyle | '';
   keyDropCode?: string;
   keyDropPositionY?: number;
@@ -89,6 +91,7 @@ export function StreamPreviewColumn({
         streamerPlatform={streamerPlatform}
         streamerPositionY={streamerPositionY}
         streamerSlideEnabled={streamerSlideEnabled}
+        keyDropFamily={keyDropFamily}
         keyDropStyle={keyDropStyle}
         keyDropCode={keyDropCode}
         keyDropPositionY={keyDropPositionY}

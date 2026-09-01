@@ -33,7 +33,11 @@ import {
   sleep,
   withDefaultStreamTitle,
 } from '@/lib/streams/plan';
-import { isKeyDropStyle, KEYDROP_STYLE_CATALOG } from '@/lib/api/types';
+import {
+  affiliateFamilyLabel,
+  isAffiliateStyle,
+  stylesForFamily,
+} from '@/lib/api/types';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
@@ -280,15 +284,17 @@ function LocalStreamsPage() {
       setError('El nick debe tener hasta 25 letras, números o guiones bajos.');
       return;
     }
+    const keyDropFamily = fittedPlan.keydrop_banner?.family?.trim() ?? '';
     const keyDropStyle = fittedPlan.keydrop_banner?.style?.trim() ?? '';
-    if (keyDropStyle && !isKeyDropStyle(keyDropStyle)) {
-      const names = KEYDROP_STYLE_CATALOG.map((entry) => entry.label).join(', ');
-      setError(`Elige un estilo KeyDrop válido (${names}).`);
+    if (keyDropStyle && !isAffiliateStyle(keyDropFamily, keyDropStyle)) {
+      const names = stylesForFamily(keyDropFamily).map((entry) => entry.label).join(', ');
+      const familyName = affiliateFamilyLabel(keyDropFamily, keyDropStyle) || 'afiliado';
+      setError(`Elige un estilo ${familyName} válido (${names}).`);
       return;
     }
     const keyDropCode = fittedPlan.keydrop_banner?.code?.trim() ?? '';
     if (keyDropCode !== '' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(keyDropCode)) {
-      setError('El código KeyDrop debe tener 1–16 letras, números, guiones o guiones bajos.');
+      setError('El código de afiliado debe tener 1–16 letras, números, guiones o guiones bajos.');
       return;
     }
     const editIssue = clipEditIssue(fittedPlan.clips);

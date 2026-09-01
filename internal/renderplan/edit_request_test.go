@@ -255,6 +255,33 @@ func TestEditRequestValidateAcceptsTextAtMaxLength(t *testing.T) {
 	}
 }
 
+func TestNormalizeEditRequestPersistsAffiliateFamilyWithStyle(t *testing.T) {
+	legacy := NormalizeEditRequest(EditRequest{
+		Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash,
+		KeyDropStyle: "classic", KeyDropCode: "zackcsgo",
+	})
+	if legacy.KeyDropFamily != "KEYDROP" {
+		t.Fatalf("legacy family = %q, want KEYDROP", legacy.KeyDropFamily)
+	}
+	skins := NormalizeEditRequest(EditRequest{
+		Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash,
+		KeyDropFamily: "csgoskins", KeyDropStyle: "classic", KeyDropCode: "skins",
+	})
+	if skins.KeyDropFamily != "CSGOSKINS" {
+		t.Fatalf("skins family = %q, want CSGOSKINS", skins.KeyDropFamily)
+	}
+	if err := skins.Validate(); err != nil {
+		t.Fatalf("CSGOSKINS classic Validate = %v", err)
+	}
+	wrong := EditRequest{
+		Format: FormatShort9x16, KillEffect: KillEffectPunchIn, Transition: TransitionFlash,
+		KeyDropFamily: "CSGOSKINS", KeyDropStyle: "tigerr",
+	}
+	if err := NormalizeEditRequest(wrong).Validate(); err == nil || !strings.Contains(err.Error(), "csgoskins") {
+		t.Fatalf("CSGOSKINS tigerr Validate = %v, want family-scoped error", err)
+	}
+}
+
 func TestNormalizeEditRequestTrimsBookendTextWithoutEnablingBookends(t *testing.T) {
 	got := NormalizeEditRequest(EditRequest{IntroText: "  Watch this ace  ", OutroText: "  follow for more  "})
 	if got.IntroText != "Watch this ace" || got.OutroText != "follow for more" {

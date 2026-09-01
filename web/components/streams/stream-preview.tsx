@@ -18,7 +18,7 @@ import {
   type FrameSize,
 } from '@/lib/stream-preview';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
-import { KEYDROP_STYLE_CATALOG, keyDropDisplayLabel } from '@/lib/api/types';
+import { affiliateDisplayLabel, stylesForFamily, type AffiliateFamily } from '@/lib/api/types';
 
 const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 const EMPTY_CLIPS: StreamClipRange[] = [];
@@ -78,6 +78,7 @@ export function StreamPreview({
   streamerPositionY,
   streamerSlideEnabled = false,
   onStreamerPositionChange,
+  keyDropFamily,
   keyDropStyle,
   keyDropCode,
   keyDropPositionY,
@@ -97,6 +98,7 @@ export function StreamPreview({
   streamerPositionY?: number;
   streamerSlideEnabled?: boolean;
   onStreamerPositionChange?: (position: number) => void;
+  keyDropFamily?: AffiliateFamily | '';
   keyDropStyle?: KeyDropBannerStyle | '';
   keyDropCode?: string;
   keyDropPositionY?: number;
@@ -118,8 +120,8 @@ export function StreamPreview({
     : 0;
   const bannerPosition = resolveStreamerBannerPosition(variant, streamerPositionY);
   const keyDropPosition = resolveKeyDropBannerPosition(keyDropPositionY);
-  const keyDropPlate = KEYDROP_STYLE_CATALOG.find((entry) => entry.id === keyDropStyle);
-  const keyDropLabel = keyDropDisplayLabel(keyDropStyle ?? '', keyDropCode ?? '');
+  const keyDropPlate = stylesForFamily(keyDropFamily ?? '').find((entry) => entry.id === keyDropStyle);
+  const keyDropLabel = affiliateDisplayLabel(keyDropFamily ?? '', keyDropStyle ?? '', keyDropCode ?? '');
   const activeOverlays = activeTextOverlays(clips, frameSeconds);
   // KeyDrop times are relative to each clip start (same as the FFmpeg enable window).
   const activeClip = clips.find(
@@ -286,7 +288,7 @@ export function StreamPreview({
         <div
           role="slider"
           tabIndex={disabled ? -1 : 0}
-          aria-label="Posición del banner KeyDrop en la vista previa"
+          aria-label="Posición del banner afiliado en la vista previa"
           aria-orientation="vertical"
           aria-valuemin={KEYDROP_BANNER_MIN_POSITION * 100}
           aria-valuemax={KEYDROP_BANNER_MAX_POSITION * 100}
@@ -304,7 +306,7 @@ export function StreamPreview({
           {/* Same plates the Go renderer embeds; live code is drawn on top. */}
           <div className={`relative w-full ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}>
             <img
-              src={keyDropPlate?.preview ?? '/brand/keydrop/operator.png'}
+              src={keyDropPlate?.preview ?? ''}
               alt=""
               draggable={false}
               className="pointer-events-none block h-auto w-full select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.55)]"

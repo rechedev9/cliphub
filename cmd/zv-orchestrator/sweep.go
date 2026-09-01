@@ -87,6 +87,7 @@ func sweepInterruptedJobs(ctx context.Context, repo interruptSweeper, rec *obs.R
 			swept++
 			if rec != nil {
 				_ = rec.RecordError(obs.Event{
+					JobID:   j.ID.String(),
 					Stage:   interruptedStages[status],
 					Class:   interruptedClass,
 					Message: reason,
@@ -167,7 +168,7 @@ func sweepInterruptedDemoRenderStates(ctx context.Context, repo interruptSweeper
 				continue
 			}
 			swept++
-			recordInterruptedRender(rec, j.DemoPath, j.TargetSteamID, interruptedDemoRenderReason)
+			recordInterruptedRender(rec, j.ID, j.DemoPath, j.TargetSteamID, interruptedDemoRenderReason)
 		}
 	}
 	return swept, errors.Join(errs...)
@@ -240,6 +241,7 @@ func sweepInterruptedGenerateRuns(ctx context.Context, repo interruptSweeper, st
 		swept++
 		if failJob && rec != nil {
 			_ = rec.RecordError(obs.Event{
+				JobID:   j.ID.String(),
 				Stage:   obs.StageRecord,
 				Class:   interruptedClass,
 				Message: interruptedGenerateReason,
@@ -312,6 +314,7 @@ func sweepInterruptedStreamJobsAfterRenderStates(
 			swept++
 			if rec != nil && !(status == streamclips.StatusRendering && renderStates.interrupted(j.ID)) {
 				_ = rec.RecordError(obs.Event{
+					JobID:   j.ID.String(),
 					Stage:   stage,
 					Class:   interruptedClass,
 					Message: reason,
@@ -445,7 +448,7 @@ func reconcileInterruptedStreamRenderStates(
 				continue
 			}
 			result.Reconciled++
-			recordInterruptedRender(rec, j.SourcePath, "", interruptedStreamRender)
+			recordInterruptedRender(rec, j.ID, j.SourcePath, "", interruptedStreamRender)
 		}
 		if j.Status == streamclips.StatusRendering && result.completed(j.ID) {
 			if err := repo.UpdateStatus(ctx, j.ID, streamclips.StatusRendered, ""); err != nil {
@@ -503,11 +506,12 @@ func validatePublishedStreamRenderArtifacts(store storage.Storage, state streamc
 	return nil
 }
 
-func recordInterruptedRender(rec *obs.Recorder, source, target, message string) {
+func recordInterruptedRender(rec *obs.Recorder, jobID uuid.UUID, source, target, message string) {
 	if rec == nil {
 		return
 	}
 	_ = rec.RecordError(obs.Event{
+		JobID:   jobID.String(),
 		Stage:   obs.StageRender,
 		Class:   interruptedClass,
 		Message: message,

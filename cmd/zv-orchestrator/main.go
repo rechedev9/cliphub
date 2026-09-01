@@ -372,9 +372,11 @@ func recoverStreamAcquisitions(
 			}
 			if rec != nil {
 				_ = rec.RecordError(obs.Event{
+					JobID:   id.String(),
 					Stage:   obs.StageStreamAcquire,
+					Task:    tasks.TypeStreamAcquire,
 					Class:   interruptedClass,
-					Message: id.String() + ": " + streamAcquireRecoveryDisabledReason,
+					Message: streamAcquireRecoveryDisabledReason,
 				})
 			}
 		}
