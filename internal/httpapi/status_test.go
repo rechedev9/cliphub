@@ -14,6 +14,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 func TestGetJobExposesStructuredFailureCodeWithoutParsingMessage(t *testing.T) {
@@ -72,6 +73,35 @@ func TestGetJobExposesStructuredFailureCodeWithoutParsingMessage(t *testing.T) {
 				t.Fatalf("status view = %+v, want code %q", view, tc.want)
 			}
 		})
+	}
+}
+
+func TestGetStreamJobExposesAcquireFailureCodeFromSpanishReason(t *testing.T) {
+	repo := newFakeStreamRepo()
+	id := uuid.New()
+	repo.jobs[id] = streamclips.Job{
+		ID:            id,
+		Status:        streamclips.StatusFailed,
+		FailureReason: streamclips.AcquireReasonNotFound,
+	}
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithStreamRepository(repo))
+	router := chi.NewRouter()
+	router.Get("/api/stream-jobs/{id}", h.GetStreamJob)
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+id.String(), nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var got streamclips.Job
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.FailureCode != streamclips.AcquireCodeNotFound {
+		t.Fatalf("failure_code = %q, want %q", got.FailureCode, streamclips.AcquireCodeNotFound)
+	}
+	if got.FailureReason != streamclips.AcquireReasonNotFound {
+		t.Fatalf("failure_reason = %q, want the Spanish display text", got.FailureReason)
 	}
 }
 

@@ -121,7 +121,7 @@ func (f *fakeStreamRepo) UpdateStatus(_ context.Context, id uuid.UUID, s streamc
 	}
 	j.Status = s
 	j.FailureReason = reason
-	j.FailureCode = obs.ClassOf(reason)
+	j.FailureCode = jobFailureCode(reason, "")
 	if s == streamclips.StatusFailed {
 		j.SourceURL = ""
 	}

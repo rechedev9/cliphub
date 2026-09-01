@@ -622,7 +622,10 @@ func jobFailureCode(reason, stored string) string {
 	if stored != "" {
 		return stored
 	}
-	return obs.ClassOf(reason)
+	if class := obs.ClassOf(reason); class != "" {
+		return class
+	}
+	return streamclips.CodeFromReason(reason)
 }
 
 func attachJobFailureCodes(jobs []job.Job) []job.Job {

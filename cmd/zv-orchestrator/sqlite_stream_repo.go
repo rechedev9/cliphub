@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
@@ -244,6 +245,11 @@ func scanSQLiteStreamJob(row sqlScanner) (streamclips.Job, error) {
 	}
 	j.CreatedAt = time.Unix(0, createdNano).UTC()
 	j.UpdatedAt = time.Unix(0, updatedNano).UTC()
+	if code := streamclips.CodeFromReason(j.FailureReason); code != "" {
+		j.FailureCode = code
+	} else {
+		j.FailureCode = obs.ClassOf(j.FailureReason)
+	}
 	return j, nil
 }
 
