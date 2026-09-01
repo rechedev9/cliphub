@@ -83,6 +83,9 @@ func TestOverlayWindowsStartsAfterFadeAndLeavesBeforeLive(t *testing.T) {
 func TestIntroFilterHeadersFollowSource(t *testing.T) {
 	roster := Roster{
 		TargetSteamID64: "1",
+		Map:             "de_mirage",
+		ClanNameCT:      "Vitality",
+		ClanNameT:       "G2",
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, HSPct: 52, Headshots: 12},
 			{SteamID64: "2", Name: "enemy", Team: "T", Kills: 10, Deaths: 18},
@@ -92,20 +95,28 @@ func TestIntroFilterHeadersFollowSource(t *testing.T) {
 	font := "/fonts/Montserrat-ExtraBold.ttf"
 	tests := []struct {
 		source string
-		header string
 		want   []string
 		forbid []string
 	}{
-		{source: SourcePremier, header: "PREMIER", want: []string{"donk666", "23/14/4", "ADR", "RATING"}, forbid: []string{"4370", "faceit-donk", "ELO ", "LVL "}},
-		{source: SourceProfessional, header: "LINEUP", want: []string{"donk666", "23/14/4", "ADR", "RATING", "HS%"}, forbid: []string{"4370", "faceit-donk", "ELO ", "LVL "}},
-		{source: SourceFACEIT, header: "PLAYERS", want: []string{"faceit-donk", "4370", "10"}, forbid: []string{"PREMIER", "LINEUP"}},
+		{
+			source: SourcePremier,
+			want:   []string{"Vitality", "CS2 PREMIER", "Mirage", "donk666", "POV", "G2"},
+			forbid: []string{"23/14/4", "ADR", "RATING", "4370", "faceit-donk", "ELO ", "LVL ", "LINEUP", "PLAYERS"},
+		},
+		{
+			source: SourceProfessional,
+			want:   []string{"Vitality", "Mirage", "donk666", "POV", "G2"},
+			forbid: []string{"23/14/4", "ADR", "RATING", "4370", "faceit-donk", "ELO ", "LVL ", "PREMIER", "PLAYERS", "HS%"},
+		},
+		{
+			source: SourceFACEIT,
+			want:   []string{"Vitality", "faceit-donk", "4370", "10", "POV"},
+			forbid: []string{"23/14/4", "PREMIER", "LINEUP", "Mirage"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.source, func(t *testing.T) {
-			got := introFilter(BuildForSource(roster, tc.source, leaked), font)
-			if !strings.Contains(got, tc.header) {
-				t.Fatalf("missing header %q:\n%s", tc.header, got)
-			}
+			got := introFilter(BuildForSource(roster, tc.source, leaked), font, false)
 			for _, want := range tc.want {
 				if !strings.Contains(got, want) {
 					t.Fatalf("missing %q:\n%s", want, got)
@@ -120,6 +131,20 @@ func TestIntroFilterHeadersFollowSource(t *testing.T) {
 	}
 }
 
+func TestIntroFilterIncludesMonogramWithoutAvatar(t *testing.T) {
+	doc := BuildForSource(Roster{
+		TargetSteamID64: "1",
+		ClanNameCT:      "NAVI",
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "s1mple", Team: "CT", Kills: 20, Deaths: 10},
+		},
+	}, SourceProfessional, nil)
+	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
+	if !strings.Contains(got, "text='S'") {
+		t.Fatalf("monogram initial missing:\n%s", got)
+	}
+}
+
 func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 	demoOnly := Build(Roster{
 		TargetSteamID64: "1",
@@ -128,7 +153,7 @@ func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 			{SteamID64: "2", Name: "enemy", Team: "T", Kills: 1, Deaths: 2},
 		},
 	}, nil)
-	got := introFilter(demoOnly, "/fonts/Montserrat-ExtraBold.ttf")
+	got := introFilter(demoOnly, "/fonts/Montserrat-ExtraBold.ttf", false)
 	for _, banned := range []string{"ELO ", "LVL ", "Matches ", "Win% ", "Swing "} {
 		if strings.Contains(got, banned) {
 			t.Fatalf("demo-only intro invented %q:\n%s", banned, got)
@@ -145,7 +170,7 @@ func TestIntroFilterOmitsEmptyFACEITColumns(t *testing.T) {
 			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 2, Deaths: 1},
 		},
 	}, map[string]Enrichment{"1": {ELO: elo, SkillLevel: 10}})
-	got = introFilter(enriched, "/fonts/Montserrat-ExtraBold.ttf")
+	got = introFilter(enriched, "/fonts/Montserrat-ExtraBold.ttf", false)
 	if !strings.Contains(got, "4370") || !strings.Contains(got, "10") {
 		t.Fatalf("enriched intro missing FACEIT facts:\n%s", got)
 	}
@@ -185,8 +210,8 @@ func TestIntroFilterLast20UsesNebulaFourColumns(t *testing.T) {
 			Matches: &matches, WinPct: &win, KD: &kd, KR: &kr, ADR: &adr,
 		}},
 	})
-	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
-	for _, want := range []string{"PLAYERS", "ZywOo", "3500", "10", "Last 20 matches", "Matches", "Win rate", "ADR", "K/D / K/R", "1,66 / 0,93"} {
+	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
+	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "Last 20 matches", "Matches", "Win rate", "ADR", "K/D / K/R", "1,66 / 0,93", "POV"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("intro missing %q:\n%s", want, got)
 		}
@@ -230,7 +255,7 @@ func TestIntroLast20ADRDoesNotFallBackToMatch(t *testing.T) {
 					{SteamID64: "2", Name: "enemy", Team: "T", Kills: 10, Deaths: 18},
 				},
 			}, map[string]Enrichment{"1": {Last20: tt.last20}})
-			got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
+			got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
 			if !strings.Contains(got, "Last 20 matches") || !strings.Contains(got, "ADR") {
 				t.Fatalf("missing Last 20 ADR column:\n%s", got)
 			}
@@ -276,17 +301,20 @@ func TestOutroGridColumnsKeepsNebulaOrder(t *testing.T) {
 }
 
 func TestOutroFilterDrawsScoreboardColumns(t *testing.T) {
-	doc := Build(Roster{
+	doc := BuildForSource(Roster{
 		TargetSteamID64: "1",
+		ClanNameCT:      "Vitality",
+		ClanNameT:       "G2",
 		ScoreCT:         13,
 		ScoreT:          8,
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 23, Deaths: 14, Assists: 4, ADR: 101.6, Rating: 1.35, Headshots: 12, HSPct: 52},
 			{SteamID64: "2", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
 		},
-	}, nil)
-	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
-	for _, want := range []string{"RATING", "K/D/A", "ADR", "HS%", "23/14/4", "1,35"} {
+	}, SourceProfessional, nil)
+	outroLayout := DefaultLayout().Outro
+	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", outroLayout, false)
+	for _, want := range []string{"Vitality", "G2", "RATING", "K/D/A", "ADR", "HS%", "23/14/4", "1,35", "POV"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("outro missing %q:\n%s", want, got)
 		}
@@ -294,7 +322,7 @@ func TestOutroFilterDrawsScoreboardColumns(t *testing.T) {
 }
 
 func TestStillFilterGraphAlwaysUsesLabeledInput(t *testing.T) {
-	got := stillFilterGraph("drawtext=text='x'", nil)
+	got := stillFilterGraph(stillFilterGraphOptions{text: "drawtext=text='x'"})
 	if !strings.HasPrefix(got, "[0:v]") {
 		t.Fatalf("graph = %q, want [0:v] prefix", got)
 	}
@@ -343,7 +371,8 @@ func TestOutroChromeIsFullFrameAndFilterUsesDemoScoreline(t *testing.T) {
 			{SteamID64: "2", Name: "KingwayO", Team: "T", Kills: 18, Deaths: 16},
 		},
 	}, nil)
-	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf")
+	outroLayout := DefaultLayout().Outro
+	got := outroFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", outroLayout, false)
 	if !strings.Contains(got, "13") || !strings.Contains(got, "8") {
 		t.Fatalf("outro missing scoreline:\n%s", got)
 	}

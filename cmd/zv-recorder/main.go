@@ -235,7 +235,7 @@ func run() error {
 		_ = writeResult(plan.OutputDir, result)
 		return err
 	}
-	if err := recording.CheckEncoderSupported(ffmpegPath, plan.Stream.Encoder); err != nil {
+	if err := recording.CheckEncoderSupported(recording.HLAEStreamFFmpeg(absHLAEExe), plan.Stream.Encoder); err != nil {
 		result.Error = err.Error()
 		_ = writeResult(plan.OutputDir, result)
 		return err

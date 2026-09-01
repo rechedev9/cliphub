@@ -39,7 +39,7 @@ export type ReconcileInput = {
   renderFailureReason?: string;
   renderWarnings?: string[];
   renderArtifactPrefix?: string;
-  /** Live capture progress from the job poll; meaningful only while recording. */
+  /** Live job progress from the job poll; meaningful while recording or composing. */
   captureProgress?: CaptureProgress;
   /** True after POST /record was accepted while the job may still read failed. */
   recordAdmitted?: boolean;
@@ -54,7 +54,7 @@ export type ReelView = {
   warnings?: string[];
   /** Immutable revision that produced `warnings`; required for review CAS. */
   reviewArtifactPrefix?: string;
-  /** Set only when status is 'recording' and the orchestrator reported progress. */
+  /** Set when the orchestrator reported progress during capture or editing. */
   captureProgress?: CaptureProgress;
   /** Job is gone; Retry cannot re-drive it. */
   unrecoverable?: true;
@@ -211,7 +211,9 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     return failed(renderFailureReason);
   }
   if (renderStatus === 'queued' || renderStatus === 'rendering') {
-    return { status: 'composing', action: 'none' };
+    return captureProgress
+      ? { status: 'composing', action: 'none', captureProgress }
+      : { status: 'composing', action: 'none' };
   }
 
   // renderStatus === 'none': decide the next step from the job's own progress.
@@ -228,7 +230,9 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     case 'done':
       return { status: 'composing', action: 'render' };
     case 'composing':
-      return { status: 'composing', action: 'none' };
+      return captureProgress
+        ? { status: 'composing', action: 'none', captureProgress }
+        : { status: 'composing', action: 'none' };
     default:
       // queued / scanning / scanned / parsing / unknown: not yet drivable as a reel.
       return { status: 'queued', action: 'none' };

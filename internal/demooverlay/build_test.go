@@ -2,6 +2,7 @@ package demooverlay
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -122,6 +123,50 @@ func TestBuildZeroFACEITValuesAreOmitted(t *testing.T) {
 	}
 }
 
+func TestBuildUsesClanNamesForIntroAndOutro(t *testing.T) {
+	doc := BuildForSource(Roster{
+		TargetSteamID64: "1",
+		Map:             "de_nuke",
+		ClanNameCT:      "NAVI",
+		ClanNameT:       "FaZe",
+		ScoreCT:         16,
+		ScoreT:          14,
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "s1mple", Team: "CT", Kills: 30, Deaths: 20},
+			{SteamID64: "2", Name: "karrigan", Team: "T", Kills: 22, Deaths: 24},
+		},
+	}, SourceProfessional, nil)
+
+	if doc.Intro.LeftTeamName != "NAVI" || doc.Intro.RightTeamName != "FaZe" {
+		t.Fatalf("intro team names = %q / %q, want NAVI / FaZe", doc.Intro.LeftTeamName, doc.Intro.RightTeamName)
+	}
+	if doc.Intro.LeftSubtitle != "Nuke" {
+		t.Fatalf("intro left subtitle = %q, want Nuke", doc.Intro.LeftSubtitle)
+	}
+	if len(doc.Outro.Teams) != 2 || doc.Outro.Teams[0].Name != "NAVI" || doc.Outro.Teams[1].Name != "FaZe" {
+		t.Fatalf("outro teams = %+v", doc.Outro.Teams)
+	}
+	if !doc.IsPOV(doc.Intro.Left[0]) || doc.IsPOV(doc.Intro.Right[0]) {
+		t.Fatalf("POV derivation failed")
+	}
+}
+
+func TestBuildFallsBackWhenClanNamesMissing(t *testing.T) {
+	doc := BuildForSource(Roster{
+		TargetSteamID64: "1",
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "donk666", Team: "CT", Kills: 10},
+			{SteamID64: "2", Name: "enemy", Team: "T", Kills: 8},
+		},
+	}, SourcePremier, nil)
+	if doc.Intro.LeftTeamName != "Counter-Terrorists" || doc.Intro.RightTeamName != "Terrorists" {
+		t.Fatalf("fallback team names = %q / %q", doc.Intro.LeftTeamName, doc.Intro.RightTeamName)
+	}
+	if !strings.Contains(doc.Intro.LeftSubtitle, "CS2 PREMIER") {
+		t.Fatalf("premier subtitle = %q", doc.Intro.LeftSubtitle)
+	}
+}
+
 func TestBuildForSourceHonorsPremierProfessionalAndFACEIT(t *testing.T) {
 	matches := 20
 	win := 57.0
@@ -232,8 +277,28 @@ func TestBuildForSourceHonorsPremierProfessionalAndFACEIT(t *testing.T) {
 			if !tc.wantELO && slices.Contains(doc.Outro.Columns, ColELO) {
 				t.Fatalf("outro invented FACEIT elo: %v", doc.Outro.Columns)
 			}
-			if !slices.Contains(doc.Intro.Columns, ColName) || !slices.Contains(doc.Intro.Columns, ColKDA) {
-				t.Fatalf("intro missing demo columns: %v", doc.Intro.Columns)
+			if !slices.Contains(doc.Intro.Columns, ColName) {
+				t.Fatalf("intro missing name column: %v", doc.Intro.Columns)
+			}
+			if tc.source == SourceFACEIT {
+				if !slices.Contains(doc.Intro.Columns, ColELO) {
+					t.Fatalf("FACEIT intro missing elo column: %v", doc.Intro.Columns)
+				}
+			} else if tc.source == SourcePremier || tc.source == SourceProfessional {
+				if slices.Contains(doc.Intro.Columns, ColKDA) || slices.Contains(doc.Intro.Columns, ColADR) {
+					t.Fatalf("intro leaked match stats onto %s: %v", tc.source, doc.Intro.Columns)
+				}
+			} else if !slices.Contains(doc.Intro.Columns, ColKDA) {
+				t.Fatalf("intro columns missing demo facts: %v", doc.Intro.Columns)
+			}
+			if doc.Intro.LeftTeamName == "" {
+				t.Fatalf("left team name missing for %s", tc.source)
+			}
+			if doc.Outro.Teams[0].Name != "Counter-Terrorists" && doc.Outro.Teams[0].Name == "" {
+				t.Fatalf("outro team name missing: %+v", doc.Outro.Teams)
+			}
+			if !doc.IsPOV(doc.Intro.Left[0]) {
+				t.Fatalf("POV target not marked on intro left card")
 			}
 			if !slices.Contains(doc.Outro.Columns, ColADR) || !slices.Contains(doc.Outro.Columns, ColRating) {
 				t.Fatalf("outro missing demo columns: %v", doc.Outro.Columns)

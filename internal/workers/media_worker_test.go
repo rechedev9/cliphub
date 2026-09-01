@@ -2296,6 +2296,22 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 	}
 }
 
+func TestOverlayAssetsPlatesDirResolvesStorageKey(t *testing.T) {
+	root := t.TempDir()
+	plates := filepath.Join(root, "overlay-assets", "plates")
+	if err := os.MkdirAll(plates, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	store, err := storage.NewLocal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := overlayAssetsPlatesDir(store)
+	if got != plates {
+		t.Fatalf("got %q, want %q", got, plates)
+	}
+}
+
 func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 	const steamID = "76561197960265729"
 	matches := 20
@@ -2891,6 +2907,10 @@ func recordingResultForRunnerArgs(t *testing.T, args []string, scriptPath, segme
 	stream := recording.DefaultStreamConfig()
 	stream.HUDMode = recording.HUDMode(argValue(args, "--hud"))
 	stream.PortraitSafeKillfeed = hasArg(args, "--portrait-safe-killfeed")
+	// Mirror cmd/zv-recorder: the --encoder flag lands in the result plan's
+	// stream, so a worker that sends the flag without carrying it in its
+	// expected plan must fail attempt validation here too.
+	stream.Encoder = argValue(args, "--encoder")
 	recordingPlan, err := recording.NewPlanFromKillPlan(plan, argValue(args, "--demo"), argValue(args, "--out"), stream)
 	if err != nil {
 		t.Fatalf("build runner recording plan: %v", err)

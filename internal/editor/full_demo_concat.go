@@ -72,10 +72,8 @@ func buildFullDemoCompilationCommand(ffmpegPath string, short ShortEdit) []strin
 		"-filter_complex", fullDemoCompilationFilter(short),
 		"-map", "[v]",
 		"-map", "[a]",
-		"-c:v", "libx264",
-		"-preset", videoPresetForCommand(short.VideoPreset),
-		"-crf", fmt.Sprintf("%d", videoCRFForCommand(short.VideoCRF)),
 	)
+	command = appendVideoEncodeArgs(command, short)
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
 	command = appendThreadArgs(command, short)

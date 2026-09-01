@@ -2,7 +2,9 @@ package recording
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -20,6 +22,29 @@ func EncoderFFmpegCodec(encoder string) string {
 	default:
 		return "libx264"
 	}
+}
+
+// HLAEStreamFFmpeg resolves the ffmpeg binary HLAE's mirv_streams will invoke
+// for the given HLAE.exe: the bundled ffmpeg\bin\ffmpeg.exe when present, then
+// the Path declared in ffmpeg\ffmpeg.ini, and finally the PATH ffmpeg that
+// ensureHLAEFFmpegConfig would write into a fresh ini. Capture-encoder probes
+// must use this binary, not whatever ffmpeg the caller itself resolved,
+// because the two can differ per install.
+func HLAEStreamFFmpeg(hlaeExe string) string {
+	dir := filepath.Join(filepath.Dir(hlaeExe), "ffmpeg")
+	bundled := filepath.Join(dir, "bin", "ffmpeg.exe")
+	if _, err := os.Stat(bundled); err == nil {
+		return bundled
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "ffmpeg.ini")); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if path, ok := strings.CutPrefix(line, "Path="); ok && strings.TrimSpace(path) != "" {
+				return strings.TrimSpace(path)
+			}
+		}
+	}
+	return FindFFmpeg()
 }
 
 // CheckEncoderSupported verifies that the ffmpeg binary HLAE's mirv_streams

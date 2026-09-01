@@ -32,7 +32,7 @@ func TestRenderPNGsWritesIntroAndOutroStills(t *testing.T) {
 	dir := t.TempDir()
 	intro := filepath.Join(dir, "full-demo-intro.png")
 	outro := filepath.Join(dir, "full-demo-outro.png")
-	if err := RenderPNGs(ffmpeg, font, doc, intro, outro); err != nil {
+	if err := RenderPNGs(ffmpeg, font, doc, intro, outro, RenderOptions{}); err != nil {
 		t.Fatalf("RenderPNGs: %v", err)
 	}
 	for _, path := range []string{intro, outro} {
@@ -97,7 +97,7 @@ func TestRenderPNGsPremierAndProfessionalWithoutAvatars(t *testing.T) {
 			}
 			intro := filepath.Join(dir, tc.intro)
 			outro := filepath.Join(dir, tc.outro)
-			if err := RenderPNGs(ffmpeg, font, doc, intro, outro); err != nil {
+			if err := RenderPNGs(ffmpeg, font, doc, intro, outro, RenderOptions{}); err != nil {
 				t.Fatalf("RenderPNGs: %v", err)
 			}
 			for _, path := range []string{intro, outro} {
@@ -165,7 +165,7 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 	dir := t.TempDir()
 	intro := filepath.Join(dir, "full-demo-intro.png")
 	outro := filepath.Join(dir, "full-demo-outro.png")
-	if err := RenderPNGs(ffmpeg, font, doc, intro, outro); err != nil {
+	if err := RenderPNGs(ffmpeg, font, doc, intro, outro, RenderOptions{}); err != nil {
 		t.Fatalf("RenderPNGs: %v", err)
 	}
 	raw, err := os.ReadFile(intro)
@@ -175,7 +175,7 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 	if len(raw) < 8 || string(raw[:8]) != "\x89PNG\r\n\x1a\n" {
 		t.Fatalf("intro is not a PNG")
 	}
-	got := introFilter(doc, font)
+	got := introFilter(doc, font, false)
 	for _, name := range []string{"mezii--", "ZywOo", "doghamster", "Sil3nT189"} {
 		if !strings.Contains(got, name) {
 			t.Fatalf("intro filter missing %q", name)
@@ -188,5 +188,28 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dest, "intro-filled.png"), raw, 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestFfmpegDrawtextTextEscaping(t *testing.T) {
+	// Every drawtext clause sets expansion=none, so % must stay single:
+	// doubling it painted "79%%" on intro/outro HS cells.
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "percent stays literal", in: "79%", want: "79%"},
+		{name: "label percent stays literal", in: "HS%", want: "HS%"},
+		{name: "colon escaped", in: "K:D", want: `K\:D`},
+		{name: "quote escaped", in: "pl'yer", want: `pl\'yer`},
+		{name: "backslash escaped", in: `a\b`, want: `a\\b`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ffmpegDrawtextText(tc.in); got != tc.want {
+				t.Fatalf("ffmpegDrawtextText(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }

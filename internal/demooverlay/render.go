@@ -39,20 +39,84 @@ func OverlayWindows(durationSeconds float64) (introStart, introEnd, outroStart, 
 
 // RenderPNGs writes the intro (transparent sides) and outro (full-frame)
 // overlay stills. ffmpegPath and fontPath must already be resolved.
-func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath string) error {
+func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath string, opts RenderOptions) error {
 	if strings.TrimSpace(ffmpegPath) == "" {
 		return fmt.Errorf("render full-demo overlay: ffmpeg path is required")
 	}
 	if strings.TrimSpace(fontPath) == "" {
 		return fmt.Errorf("render full-demo overlay: font path is required")
 	}
-	if err := renderStill(ffmpegPath, introPath, introFilter(doc, fontPath), introChromePNG, introAvatarSlots(doc)); err != nil {
+	introPlate := IntroPlatePath(doc.Source, opts.OverlayAssetsDir)
+	outroPlate := OutroPlatePath(doc.Source, opts.OverlayAssetsDir)
+	if err := renderIntroStill(ffmpegPath, fontPath, doc, introPath, introPlate, opts.PreviewGreyBase); err != nil {
 		return fmt.Errorf("render intro overlay: %w", err)
 	}
-	if err := renderStill(ffmpegPath, outroPath, outroFilter(doc, fontPath), outroChromePNG, nil); err != nil {
+	if err := renderOutroStill(ffmpegPath, fontPath, doc, outroPath, outroPlate, opts.PreviewGreyBase); err != nil {
 		return fmt.Errorf("render outro overlay: %w", err)
 	}
 	return nil
+}
+
+func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
+	l := DefaultLayout()
+	hasPlate := platePath != ""
+	text := introFilter(doc, fontPath, hasPlate)
+	req := stillRenderRequest{
+		outPath:         outPath,
+		textFilter:      text,
+		chrome:          introChromePNG,
+		transparentBase: hasPlate && !previewGrey,
+		previewGreyBase: hasPlate && previewGrey,
+		avatars:         introAvatarSlots(doc, hasPlate),
+		platePath:       platePath,
+		introPlate:      hasPlate,
+		layout:          l,
+	}
+	return renderStill(ffmpegPath, req)
+}
+
+func renderOutroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
+	l := DefaultLayout()
+	hasPlate := platePath != ""
+	layout, _, usePlateGeo := OutroLayoutForSourceWithPlate(doc.Source, hasPlate)
+	text := outroFilter(doc, fontPath, layout, hasPlate)
+	if hasPlate && !usePlateGeo {
+		shading := OutroRowShadingDrawboxes(layout)
+		if len(shading) > 0 {
+			if text == "" || text == "null" {
+				text = strings.Join(shading, ",")
+			} else {
+				text = text + "," + strings.Join(shading, ",")
+			}
+		}
+	}
+	if text == "" {
+		text = "null"
+	}
+	req := stillRenderRequest{
+		outPath:         outPath,
+		textFilter:      text,
+		chrome:          outroChromePNG,
+		transparentBase: hasPlate && !previewGrey,
+		previewGreyBase: hasPlate && previewGrey,
+		outroPlate:      hasPlate,
+		platePath:       platePath,
+		layout:          l,
+	}
+	return renderStill(ffmpegPath, req)
+}
+
+type stillRenderRequest struct {
+	outPath         string
+	textFilter      string
+	chrome          []byte
+	transparentBase bool
+	previewGreyBase bool
+	avatars         []avatarSlot
+	platePath       string
+	introPlate      bool
+	outroPlate      bool
+	layout          Layout
 }
 
 type avatarSlot struct {
@@ -61,8 +125,9 @@ type avatarSlot struct {
 	Size int
 }
 
-func introAvatarSlots(doc Document) []avatarSlot {
+func introAvatarSlots(doc Document, hasPlate bool) []avatarSlot {
 	l := DefaultLayout()
+	geo, useGeo := IntroPlateGeo(doc.Source, hasPlate)
 	var slots []avatarSlot
 	add := func(cards []PlayerCard, x, y int) {
 		if len(cards) > l.Intro.MaxPlayers {
@@ -75,10 +140,14 @@ func introAvatarSlots(doc Document) []avatarSlot {
 			if _, err := os.Stat(card.AvatarFile); err != nil {
 				continue
 			}
+			ay := y + l.Intro.HeaderH + i*l.Intro.RowHeight + l.Intro.AvatarYOff
+			if useGeo && i < len(geo.RowNameCenterY) {
+				ay = geo.RowNameCenterY[i] - l.Intro.AvatarSize/2
+			}
 			slots = append(slots, avatarSlot{
 				Path: card.AvatarFile,
 				X:    x + l.Intro.AvatarXOff,
-				Y:    y + l.Intro.HeaderH + i*l.Intro.RowHeight + l.Intro.AvatarYOff,
+				Y:    ay,
 				Size: l.Intro.AvatarSize,
 			})
 		}
@@ -88,22 +157,43 @@ func introAvatarSlots(doc Document) []avatarSlot {
 	return slots
 }
 
-func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatarSlot) error {
-	if strings.TrimSpace(outPath) == "" {
+func renderStill(ffmpegPath string, req stillRenderRequest) error {
+	if strings.TrimSpace(req.outPath) == "" {
 		return fmt.Errorf("output path is required")
 	}
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(req.outPath), 0o750); err != nil {
 		return fmt.Errorf("create output directory: %w", err)
 	}
-	chromeFile, err := os.CreateTemp("", "cliphub-chrome-*.png")
-	if err != nil {
-		return fmt.Errorf("create overlay chrome: %w", err)
+	var args []string
+	var chromeCleanup func()
+	inputIndex := 0
+	if req.previewGreyBase {
+		args = append(args, "-f", "lavfi", "-i", fmt.Sprintf("color=c=0x808080:s=%dx%d", FrameWidth, FrameHeight))
+	} else if req.transparentBase {
+		args = append(args, "-f", "lavfi", "-i", fmt.Sprintf("color=c=black@0:s=%dx%d,format=rgba", FrameWidth, FrameHeight))
+	} else {
+		chromeFile, err := os.CreateTemp("", "cliphub-chrome-*.png")
+		if err != nil {
+			return fmt.Errorf("create overlay chrome: %w", err)
+		}
+		chromePath := chromeFile.Name()
+		_ = chromeFile.Close()
+		chromeCleanup = func() { _ = os.Remove(chromePath) }
+		defer chromeCleanup()
+		if err := writeChrome(chromePath, req.chrome); err != nil {
+			return err
+		}
+		args = append(args, "-i", chromePath)
 	}
-	chromePath := chromeFile.Name()
-	_ = chromeFile.Close()
-	defer func() { _ = os.Remove(chromePath) }()
-	if err := writeChrome(chromePath, chrome); err != nil {
-		return err
+	inputIndex++
+	plateInput := -1
+	if req.platePath != "" {
+		args = append(args, "-i", req.platePath)
+		plateInput = inputIndex
+		inputIndex++
+	}
+	for _, slot := range req.avatars {
+		args = append(args, "-i", slot.Path)
 	}
 	script, err := os.CreateTemp("", "cliphub-overlay-*.fffilter")
 	if err != nil {
@@ -111,18 +201,23 @@ func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatar
 	}
 	scriptPath := script.Name()
 	defer func() { _ = os.Remove(scriptPath) }()
-	args := []string{"-y", "-hide_banner", "-loglevel", "error", "-i", chromePath}
-	for _, slot := range avatars {
-		args = append(args, "-i", slot.Path)
-	}
-	if _, err := script.WriteString(stillFilterGraph(vf, avatars)); err != nil {
+	graph := stillFilterGraph(stillFilterGraphOptions{
+		text:       req.textFilter,
+		avatars:    req.avatars,
+		plateInput: plateInput,
+		introPlate: req.introPlate,
+		outroPlate: req.outroPlate,
+		layout:     req.layout,
+	})
+	if _, err := script.WriteString(graph); err != nil {
 		_ = script.Close()
 		return fmt.Errorf("write overlay filter script: %w", err)
 	}
 	if err := script.Close(); err != nil {
 		return fmt.Errorf("close overlay filter script: %w", err)
 	}
-	args = append(args, "-filter_complex_script", scriptPath, "-frames:v", "1", "-pix_fmt", "rgba", outPath)
+	args = append([]string{"-y", "-hide_banner", "-loglevel", "error"}, args...)
+	args = append(args, "-filter_complex_script", scriptPath, "-frames:v", "1", "-pix_fmt", "rgba", req.outPath)
 	// #nosec G204 -- ffmpegPath is the host FFmpeg resolved by ClipHub config.
 	cmd := exec.Command(ffmpegPath, args...) //nolint:gosec
 	out, err := cmd.CombinedOutput()
@@ -132,22 +227,47 @@ func renderStill(ffmpegPath, outPath, vf string, chrome []byte, avatars []avatar
 	return nil
 }
 
-func stillFilterGraph(text string, avatars []avatarSlot) string {
+type stillFilterGraphOptions struct {
+	text       string
+	avatars    []avatarSlot
+	plateInput int
+	introPlate bool
+	outroPlate bool
+	layout     Layout
+}
+
+func stillFilterGraph(opts stillFilterGraphOptions) string {
 	current := "[0:v]"
 	var clauses []string
-	for i, slot := range avatars {
+	if opts.plateInput >= 0 {
+		if opts.introPlate {
+			plateClauses, next := IntroPlateFilterClauses(current, opts.plateInput, opts.layout)
+			clauses = append(clauses, plateClauses...)
+			current = "[" + next + "]"
+		} else if opts.outroPlate {
+			plateClauses, next := OutroPlateBackdropClauses(current, opts.plateInput)
+			clauses = append(clauses, plateClauses...)
+			current = "[" + next + "]"
+		}
+	}
+	avatarStart := 1
+	if opts.plateInput >= 0 {
+		avatarStart = opts.plateInput + 1
+	}
+	for i, slot := range opts.avatars {
 		scaled := fmt.Sprintf("a%d", i)
 		clauses = append(clauses, fmt.Sprintf(
 			"[%d:v]scale=%d:%d:flags=lanczos,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-W/2,Y-H/2),min(W,H)/2),255,0)'[%s]",
-			i+1, slot.Size, slot.Size, scaled,
+			avatarStart+i, slot.Size, slot.Size, scaled,
 		))
 		next := fmt.Sprintf("s%d", i)
 		clauses = append(clauses, fmt.Sprintf("%s[%s]overlay=%d:%d:format=auto[%s]", current, scaled, slot.X, slot.Y, next))
 		current = "[" + next + "]"
 	}
+	text := opts.text
 	if text == "" || text == "null" {
 		if len(clauses) == 0 {
-			return "[0:v]format=rgba"
+			return current + "format=rgba"
 		}
 		return strings.Join(clauses, ";")
 	}
@@ -157,11 +277,11 @@ func stillFilterGraph(text string, avatars []avatarSlot) string {
 	return strings.Join(clauses, ";") + ";" + current + text
 }
 
-func introFilter(doc Document, fontPath string) string {
+func introFilter(doc Document, fontPath string, hasPlate bool) string {
 	l := DefaultLayout()
 	var parts []string
-	parts = append(parts, introColumn(doc.Intro.Left, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc.Source)...)
-	parts = append(parts, introColumn(doc.Intro.Right, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc.Source)...)
+	parts = append(parts, introColumn(doc.Intro.Left, doc.Intro.LeftTeamName, doc.Intro.LeftSubtitle, l.Intro.LeftPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc, hasPlate)...)
+	parts = append(parts, introColumn(doc.Intro.Right, doc.Intro.RightTeamName, doc.Intro.RightSubtitle, l.Intro.RightPanelX, l.Intro.PanelTop, l.Intro, fontPath, doc, hasPlate)...)
 	if len(parts) == 0 {
 		return "null"
 	}
@@ -179,22 +299,80 @@ func introHeader(source string) string {
 	}
 }
 
-func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath, source string) []string {
+func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout IntroLayout, fontPath string, doc Document, hasPlate bool) []string {
 	if len(cards) > layout.MaxPlayers {
 		cards = cards[:layout.MaxPlayers]
 	}
 	var parts []string
-	parts = appendFilter(parts, drawtext(fontPath, introHeader(source), x+20, y+10, layout.LabelSize+2, mutedColor))
+	header := strings.TrimSpace(teamName)
+	if header == "" {
+		header = introHeader(doc.Source)
+	}
+	geo, useGeo := IntroPlateGeo(doc.Source, hasPlate)
+	if useGeo {
+		nameSize := geo.TeamNameSize
+		if nameSize <= 0 {
+			nameSize = introPlateTeamNameSize
+		}
+		parts = appendFilter(parts, drawtext(fontPath, header, x+geo.TeamNameXOff, geo.TeamNameY, nameSize, "white"))
+		if sub := strings.TrimSpace(subtitle); sub != "" {
+			parts = appendFilter(parts, drawtext(fontPath, sub, x+geo.TeamNameXOff, geo.SubtitleY, layout.LabelSize+2, mutedColor))
+		}
+	} else {
+		parts = appendFilter(parts, drawtext(fontPath, header, x+20, y+10, layout.LabelSize+2, "white"))
+		if sub := strings.TrimSpace(subtitle); sub != "" {
+			parts = appendFilter(parts, drawtext(fontPath, sub, x+20, y+10+layout.LabelSize+4, layout.LabelSize, mutedColor))
+		}
+	}
+	textInset := IntroTextInset(layout, doc.Source, hasPlate)
+	skipMonogram := hasPlate && NormalizeSource(doc.Source) == SourceFACEIT
 	for i, card := range cards {
-		cy := y + layout.HeaderH + i*layout.RowHeight
-		nx := x + layout.CardInset
-		parts = appendFilter(parts, drawtext(fontPath, card.Name, nx, cy+10, layout.NameSize, "white"))
+		var cy, nameY int
+		if useGeo && i < len(geo.RowNameCenterY) {
+			cy = geo.RowNameCenterY[i]
+			nameY = cy - layout.NameSize/2
+		} else {
+			cy = y + layout.HeaderH + i*layout.RowHeight
+			nameY = cy + 10
+		}
+		nx := x + textInset
+		ax := x + layout.AvatarXOff
+		ay := cy + layout.AvatarYOff
+		if useGeo && i < len(geo.RowNameCenterY) {
+			ay = geo.RowNameCenterY[i] - layout.AvatarSize/2
+		}
+		if !skipMonogram && strings.TrimSpace(card.AvatarFile) == "" && strings.TrimSpace(card.AvatarURL) == "" {
+			parts = append(parts, monogramFilters(fontPath, ax, ay, layout.AvatarSize, card.Name)...)
+		}
+		nameColor := "white"
+		if doc.IsPOV(card) {
+			nameColor = "0xFCD34D"
+		}
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, nx, nameY, layout.NameSize, nameColor))
+		if doc.IsPOV(card) {
+			tagX := introPlatePOVBadgeX(x, layout.PanelWidth)
+			tagY := nameY
+			if !useGeo {
+				tagX = x + layout.PanelWidth - 56
+				tagY = cy + 10
+			}
+			parts = append(parts, drawbox(tagX, tagY, introPlatePOVBadgeW, introPlatePOVBadgeH, "0xF59E0B@0.95"))
+			parts = appendFilter(parts, drawtext(fontPath, "POV", tagX+5, tagY+2, 10, "white"))
+		}
 		if card.Country != "" {
-			parts = appendFilter(parts, drawtext(fontPath, strings.ToUpper(card.Country), nx, cy+10+layout.NameSize+4, layout.LabelSize, mutedColor))
+			countryY := nameY + layout.NameSize + 4
+			if !useGeo {
+				countryY = cy + 10 + layout.NameSize + 4
+			}
+			parts = appendFilter(parts, drawtext(fontPath, strings.ToUpper(card.Country), nx, countryY, layout.LabelSize, mutedColor))
 		}
 		if card.ELO != nil {
 			eloX := x + layout.PanelWidth - layout.BadgeSize - 132
-			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, cy+18, 18, "white"))
+			eloY := nameY + 8
+			if !useGeo {
+				eloY = cy + 18
+			}
+			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, eloY, 18, "white"))
 		}
 		badge := ""
 		badgeFill := skillFill(10)
@@ -207,17 +385,49 @@ func introColumn(cards []PlayerCard, x, y int, layout IntroLayout, fontPath, sou
 		}
 		if badge != "" {
 			bx := x + layout.PanelWidth - layout.BadgeSize - 18
-			by := cy + 16
+			by := nameY + 6
+			if !useGeo {
+				by = cy + 16
+			}
 			parts = append(parts, drawbox(bx, by, layout.BadgeSize, layout.BadgeSize, badgeFill))
 			parts = appendFilter(parts, drawtext(fontPath, badge, bx+2, by+5, 12, "white"))
 		}
 		statsY := cy + 108
+		if useGeo && i < len(geo.RowNameCenterY) {
+			statsY = geo.RowNameCenterY[i] + layout.NameSize/2 + 12
+		}
 		if card.Last20 != nil {
 			parts = appendFilter(parts, drawtext(fontPath, "Last 20 matches", nx, statsY-14, 9, mutedColor))
 		}
-		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-layout.CardInset-16, fontPath, layout, source)...)
+		parts = append(parts, introStatGrid(card, nx, statsY, layout.PanelWidth-textInset-16, fontPath, layout, doc.Source)...)
 	}
 	return parts
+}
+
+func monogramFilters(fontPath string, x, y, size int, name string) []string {
+	initial := monogramInitial(name)
+	if initial == "" {
+		return nil
+	}
+	parts := []string{drawbox(x, y, size, size, "0x27272A@0.92")}
+	fontSize := size / 2
+	if fontSize < 18 {
+		fontSize = 18
+	}
+	textX := x + (size-fontSize)/2 - 2
+	textY := y + (size-fontSize)/2 + 2
+	parts = appendFilter(parts, drawtext(fontPath, initial, textX, textY, fontSize, "white"))
+	return parts
+}
+
+func monogramInitial(name string) string {
+	name = strings.TrimSpace(name)
+	for _, r := range name {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return strings.ToUpper(string(r))
+		}
+	}
+	return ""
 }
 
 type overlayStat struct {
@@ -268,6 +478,25 @@ func statColumnOffsets(width, n int) []int {
 }
 
 func introStats(card PlayerCard, source string) []overlayStat {
+	switch NormalizeSource(source) {
+	case SourceProfessional, SourcePremier:
+		return nil
+	case SourceFACEIT:
+		if card.Last20 != nil {
+			matches := ""
+			if v := last20Int(card, func(l Last20) *int { return l.Matches }); v != nil {
+				matches = formatThousands(*v)
+			}
+			adrLabel, adrValue := introADRHS(card)
+			return []overlayStat{
+				{label: "Matches", value: matches},
+				{label: "Win rate", value: formatOptPct("", last20Float(card, func(l Last20) *float64 { return l.WinPct }))},
+				{label: adrLabel, value: adrValue},
+				{label: "K/D / K/R", value: introKDKR(card)},
+			}
+		}
+		return nil
+	}
 	if card.Last20 != nil {
 		matches := ""
 		if v := last20Int(card, func(l Last20) *int { return l.Matches }); v != nil {
@@ -359,25 +588,24 @@ func last20Float(card PlayerCard, fn func(Last20) *float64) *float64 {
 	return fn(*card.Last20)
 }
 
-func outroFilter(doc Document, fontPath string) string {
-	l := DefaultLayout()
+func outroFilter(doc Document, fontPath string, layout OutroLayout, hasPlate bool) string {
 	teams := doc.Outro.Teams
 	cols := outroGridColumns(doc.Outro.Columns)
+	_, geo, useGeo := OutroLayoutForSourceWithPlate(doc.Source, hasPlate)
 	var parts []string
 	if len(teams) == 2 {
-		parts = append(parts, outroTeam(teams[0], cols, l.Outro.Margin, l.Outro, fontPath)...)
-		parts = append(parts, outroTeam(teams[1], cols, l.Outro.Margin+l.Outro.ColGap, l.Outro, fontPath)...)
+		parts = append(parts, outroTeam(teams[0], cols, layout.Margin, layout, fontPath, doc, geo, useGeo)...)
+		parts = append(parts, outroTeam(teams[1], cols, layout.Margin+layout.ColGap, layout, fontPath, doc, geo, useGeo)...)
 		if len(parts) == 0 {
 			return "null"
 		}
 		return strings.Join(parts, ",")
 	}
-	layout := l.Outro
 	for i, team := range teams {
 		shifted := layout
 		shifted.HeaderY = layout.HeaderY + i*(layout.HeaderH+len(team.Players)*layout.RowHeight+16)
 		shifted.Row0 = shifted.HeaderY + layout.HeaderH
-		parts = append(parts, outroTeam(team, cols, layout.Margin, shifted, fontPath)...)
+		parts = append(parts, outroTeam(team, cols, layout.Margin, shifted, fontPath, doc, geo, useGeo)...)
 	}
 	if len(parts) == 0 {
 		return "null"
@@ -399,25 +627,52 @@ func outroGridColumns(columns []string) []string {
 	return out
 }
 
-func outroTeam(team TeamBoard, columns []string, x int, layout OutroLayout, fontPath string) []string {
+func outroTeam(team TeamBoard, columns []string, x int, layout OutroLayout, fontPath string, doc Document, geo OutroPlateGeometry, useGeo bool) []string {
 	header := fmt.Sprintf("%s  %d", team.Name, team.Score)
 	if team.AverageELO != nil {
 		header += fmt.Sprintf("  %d ELO", *team.AverageELO)
 	}
 	parts := []string{drawtext(fontPath, header, x, layout.HeaderY, 26, "white")}
 	labelY := layout.HeaderY + 32
+	if useGeo {
+		labelY = geo.ColLabelY
+	}
 	for i, col := range columns {
 		cx := x + layout.NameWidth + i*layout.StatWidth
 		parts = appendFilter(parts, drawtext(fontPath, outroColLabel(col), cx, labelY, 11, mutedColor))
 	}
 	rowY := layout.Row0
-	for _, card := range team.Players {
-		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, rowY+8, 20, "white"))
+	maxRows := len(geo.RowNameCenterY)
+	if useGeo {
+		maxRows = geo.rowCount()
+	}
+	for pi, card := range team.Players {
+		if useGeo && pi >= maxRows {
+			break
+		}
+		nameColor := "white"
+		if doc.IsPOV(card) {
+			nameColor = "0xFCD34D"
+		}
+		nameY := rowY + 8
+		statY := rowY + 36
+		if useGeo {
+			nameY = geo.rowNameY(pi)
+			statY = geo.rowStatY(pi)
+		}
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, x, nameY, 20, nameColor))
+		if doc.IsPOV(card) {
+			tagX := x + layout.NameWidth - 44
+			parts = append(parts, drawbox(tagX, nameY+2, 36, 16, "0xF59E0B@0.95"))
+			parts = appendFilter(parts, drawtext(fontPath, "POV", tagX+5, nameY+3, 9, "white"))
+		}
 		for i, col := range columns {
 			cx := x + layout.NameWidth + i*layout.StatWidth
-			parts = appendFilter(parts, drawtext(fontPath, outroCell(card, col), cx, rowY+36, 16, mutedColor))
+			parts = appendFilter(parts, drawtext(fontPath, outroCell(card, col), cx, statY, 16, mutedColor))
 		}
-		rowY += layout.RowHeight
+		if !useGeo {
+			rowY += layout.RowHeight
+		}
 	}
 	return parts
 }
@@ -567,10 +822,12 @@ func ffmpegFilterPath(path string) string {
 	return path
 }
 
+// ffmpegDrawtextText escapes a value for drawtext's text option. Every
+// drawtext clause here sets expansion=none, so % is literal and must not be
+// doubled: escaping it as %% painted "79%%" on intro/outro stat cells.
 func ffmpegDrawtextText(text string) string {
 	text = strings.ReplaceAll(text, `\`, `\\`)
 	text = strings.ReplaceAll(text, `'`, `\'`)
 	text = strings.ReplaceAll(text, `:`, `\:`)
-	text = strings.ReplaceAll(text, `%`, `%%`)
 	return text
 }

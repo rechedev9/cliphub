@@ -33,7 +33,21 @@ test('recording without progress → no captureProgress key (indeterminate bar)'
   assert.equal('captureProgress' in v, false);
 });
 
-test('progress is ignored when not recording (never leaks onto other stages)', () => {
+test('composing with progress → carries percent to the card', () => {
+  assert.deepEqual(
+    view({ jobStatus: 'composing', captureProgress: { done: 42, total: 100, percent: 42 } }),
+    { status: 'composing', action: 'none', captureProgress: { done: 42, total: 100, percent: 42 } },
+  );
+});
+
+test('rendering with progress → composing view carries percent', () => {
+  assert.deepEqual(
+    view({ jobStatus: 'recorded', renderStatus: 'rendering', captureProgress: { done: 55, total: 100, percent: 55 } }),
+    { status: 'composing', action: 'none', captureProgress: { done: 55, total: 100, percent: 55 } },
+  );
+});
+
+test('progress is ignored when not recording or composing', () => {
   assert.deepEqual(
     view({ jobStatus: 'recorded', captureProgress: { done: 2, total: 4 } }),
     { status: 'composing', action: 'render' },

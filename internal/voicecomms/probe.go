@@ -30,10 +30,10 @@ func CollectFile(demoPath, target string) (Report, []Packet, []Sighting, error) 
 
 	p := demoinfocs.NewParser(f)
 	defer p.Close()
-	return Collect(p, target, abs)
+	return Collect(p, target, abs, nil)
 }
 
-func Collect(p demoinfocs.Parser, target, demoPath string) (Report, []Packet, []Sighting, error) {
+func Collect(p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (Report, []Packet, []Sighting, error) {
 	var (
 		mapName   string
 		maxTick   int
@@ -63,13 +63,23 @@ func Collect(p demoinfocs.Parser, target, demoPath string) (Report, []Packet, []
 		if pkt.Tick > maxTick {
 			maxTick = pkt.Tick
 		}
+		var data []byte
+		var offsets []uint32
 		if audio := m.GetAudio(); audio != nil {
-			data := audio.GetVoiceData()
-			pkt.Data = append([]byte(nil), data...)
-			pkt.Bytes = len(pkt.Data)
+			data = audio.GetVoiceData()
+			pkt.Bytes = len(data)
 			pkt.Format = formatFromProto(audio.GetFormat())
 			pkt.SampleRate = audio.GetSampleRate()
-			pkt.Offsets = append([]uint32(nil), audio.GetPacketOffsets()...)
+			offsets = audio.GetPacketOffsets()
+			pkt.Offsets = append([]uint32(nil), offsets...)
+		}
+		index := len(packets)
+		if spill != nil && len(data) > 0 {
+			if err := spill.write(index, pkt.XUID, pkt.Tick, data, offsets); err != nil {
+				return
+			}
+		} else if len(data) > 0 {
+			pkt.Data = append([]byte(nil), data...)
 		}
 		packets = append(packets, pkt)
 	})

@@ -687,7 +687,11 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if hudMode != "" {
 		cfg.HUDMode = hudMode
 	}
-	expectedStream, err := normalizedRecordingStream(requestedPlan, cfg.HUDMode, portraitSafeKillfeed)
+	// The encoder is part of the recording identity: it must reach both the
+	// recorder argv and the expected plan, or attempt validation rejects the
+	// recorder's echoed plan after a successful capture.
+	captureEncoder := studioCaptureEncoder(cfg.HLAEPath)
+	expectedStream, err := normalizedRecordingStream(requestedPlan, cfg.HUDMode, portraitSafeKillfeed, captureEncoder)
 	if err != nil {
 		return fmt.Errorf("build recording profile: %w", err)
 	}
@@ -805,6 +809,9 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	}
 	if portraitSafeKillfeed {
 		recorderArgs = append(recorderArgs, "--portrait-safe-killfeed")
+	}
+	if captureEncoder != "" {
+		recorderArgs = append(recorderArgs, "--encoder", captureEncoder)
 	}
 	progressAttemptID, err := startCaptureProgressAttempt(w.storage, j.ID, killPlanSegmentIDs(recordPlan))
 	if err != nil {
@@ -1947,6 +1954,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	} else if overlayPath != "" {
 		args = append(args, "--full-demo-overlay", overlayPath)
 	}
+	if plateDir := overlayAssetsPlatesDir(w.storage); plateDir != "" {
+		args = append(args, "--overlay-assets", plateDir)
+	}
 	if edit.IntroText != "" {
 		args = append(args, "--intro-text", edit.IntroText)
 	}
@@ -1973,6 +1983,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	if cfg.FFmpegPath != "" {
 		args = append(args, "--ffmpeg", cfg.FFmpegPath)
+	}
+	if encoder := studioRenderVideoEncoder(cfg.FFmpegPath); encoder != "" {
+		args = append(args, "--video-encoder", encoder)
 	}
 	if cfg.FFprobePath != "" {
 		args = append(args, "--ffprobe", cfg.FFprobePath)
@@ -2005,7 +2018,15 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 
 	runCtx, cancel := context.WithTimeout(ctx, cfg.timeoutDuration())
 	defer cancel()
+
+	progressPath := filepath.Join(workDir, "editor-progress.json")
+	args = append(args, "--progress-out", progressPath)
+	progressCtx, progressCancel := context.WithCancel(ctx)
+	reporter := newRenderProgressReporter(w.storage, j.ID, progressPath)
+	go reporter.watch(progressCtx)
+
 	_, runErr := w.runner.Run(runCtx, cfg.EditorPath, args...)
+	progressCancel()
 
 	resultPath := filepath.Join(outDir, "shorts-result.json")
 	if err := readJSONFile(resultPath, &result); err != nil {
@@ -2934,6 +2955,23 @@ func isFullDemoNativeMix(preset string, edit renderplan.EditRequest) bool {
 	return edit.MatchRecap && edit.Format == renderplan.FormatLandscape16x9 && preset == editor.PresetGameplayPOV60
 }
 
+func overlayAssetsPlatesDir(store storage.Storage) string {
+	resolver, ok := store.(interface {
+		ResolvePath(string) (string, error)
+	})
+	if !ok {
+		return ""
+	}
+	path, err := resolver.ResolvePath("overlay-assets/plates")
+	if err != nil {
+		return ""
+	}
+	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		return ""
+	}
+	return path
+}
+
 func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, edit renderplan.EditRequest) (string, error) {
 	if !isFullDemoNativeMix(preset, edit) {
 		return "", nil
@@ -3185,10 +3223,11 @@ func tryDecodeStoredRecordingResult(store storage.Storage, id uuid.UUID) (record
 // will use for this task. NewPlanFromKillPlan owns default normalization (FPS,
 // dimensions, CRF, deathnotice safe zone and lifetime), so worker idempotency
 // changes automatically when any output-affecting recorder default changes.
-func normalizedRecordingStream(plan *killplan.Plan, hudMode string, portraitSafeKillfeed bool) (recording.StreamConfig, error) {
+func normalizedRecordingStream(plan *killplan.Plan, hudMode string, portraitSafeKillfeed bool, encoder string) (recording.StreamConfig, error) {
 	stream := recording.DefaultStreamConfig()
 	stream.HUDMode = recording.HUDMode(hudMode)
 	stream.PortraitSafeKillfeed = portraitSafeKillfeed
+	stream.Encoder = encoder
 	normalized, err := recording.NewPlanFromKillPlan(*plan, "profile.dem", "profile", stream)
 	if err != nil {
 		return recording.StreamConfig{}, err

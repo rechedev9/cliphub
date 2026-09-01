@@ -139,6 +139,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		LineupCatalogPath: opts.LineupCatalogPath,
 		VideoCRF:          videoCRF,
 		VideoPreset:       videoPreset,
+		VideoEncoder:      opts.VideoEncoder,
 		Threads:           opts.Threads,
 		HQFilters:         hqFilters,
 		AudioNormalize:    audioNormalize,
@@ -149,6 +150,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		CoversEnabled:     opts.CoversEnabled,
 		Warnings:          warnings,
 		fullDemoOverlay:   opts.FullDemoOverlay,
+		overlayAssetsDir:  opts.OverlayAssetsDir,
 	}
 	if opts.LineupCatalogPath != "" {
 		manifest.UnmatchedSmokes = filepath.Join(opts.OutputDir, "unmatched-smokes.json")
@@ -201,6 +203,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			RhythmSync:        rhythmSync,
 			VideoCRF:          videoCRF,
 			VideoPreset:       videoPreset,
+			VideoEncoder:      opts.VideoEncoder,
 			OutputFormat:      outputFormat,
 			KillEffect:        killEffect,
 			Transition:        transition,
@@ -317,6 +320,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 			OutputFPS:           outputFPS,
 			VideoCRF:            videoCRF,
 			VideoPreset:         videoPreset,
+			VideoEncoder:        opts.VideoEncoder,
 			Threads:             opts.Threads,
 			HQFilters:           hqFilters,
 			AudioNormalize:      audioNormalize,
@@ -399,6 +403,7 @@ type compiledShortOptions struct {
 	RhythmSync        map[string]rhythm.SegmentSync
 	VideoCRF          int
 	VideoPreset       string
+	VideoEncoder      string
 	OutputFPS         int
 	OutputFormat      string
 	KillEffect        string
@@ -538,8 +543,12 @@ func buildCompiledShort(result recording.RecordingResult, opts ManifestOptions, 
 		KillfeedOverlay:        c.KillfeedOverlay,
 		TailTrimSeconds:        tailTrimForRhythm(c),
 		OutputFPS:              c.OutputFPS,
+		SourceWidth:            result.Plan.Stream.Width,
+		SourceHeight:           result.Plan.Stream.Height,
+		SourceFPS:              result.Plan.Stream.FPS,
 		VideoCRF:               c.VideoCRF,
 		VideoPreset:            c.VideoPreset,
+		VideoEncoder:           c.VideoEncoder,
 		Threads:                opts.Threads,
 		HQFilters:              c.HQFilters,
 		AudioNormalize:         c.AudioNormalize,

@@ -255,7 +255,7 @@ func TestFullDemoCompilationFilterKeepsOverlays(t *testing.T) {
 	}
 	got := fullDemoCompilationFilter(short)
 	wantDim := fmt.Sprintf(
-		"[vtail]trim=start=16.000:end=24.000,gblur=sigma=%.3f,eq=brightness=%.3f[vblurred]",
+		"gblur=sigma=%.3f:enable='between(t\\,16.000\\,24.000)',eq=brightness=%.3f:enable='between(t\\,16.000\\,24.000)'",
 		demooverlay.OutroBlurSigma, demooverlay.OutroEQBrightness,
 	)
 	for _, want := range []string{
@@ -268,6 +268,11 @@ func TestFullDemoCompilationFilterKeepsOverlays(t *testing.T) {
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("fullDemoCompilationFilter missing %q:\n%s", want, got)
+		}
+	}
+	for _, forbidden := range []string{"[vkeep]", "[vtail]", "[vblurred]"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("outro dim must not use split/overlay buffering, found %q:\n%s", forbidden, got)
 		}
 	}
 	if strings.Contains(got, "concat=n=") && strings.Contains(got, ":v=1") {
