@@ -176,9 +176,9 @@ func TestGeneratedFamilyPlateBayMatchesCover(t *testing.T) {
 		if id != StyleOperator {
 			continue
 		}
-		wrong := samplePlate(img, classicX+classicW/2, classicY+classicH/2)
-		if cover == wrong {
-			t.Fatalf("CSGOSKINS operator bay is painted at classic fractions; cover=%v classic=%v", cover, wrong)
+		classicCenter := samplePlate(img, classicX+classicW/2, classicY+classicH/2)
+		if classicCenter == wantBay[StyleOperator] {
+			t.Fatalf("CSGOSKINS operator classic-fraction center is the bay color; cover=%v classic=%v", cover, classicCenter)
 		}
 	}
 }
