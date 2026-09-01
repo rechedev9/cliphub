@@ -587,7 +587,11 @@ func (h *Handlers) writeJobStatus(w http.ResponseWriter, r *http.Request, id uui
 		FailureReason: failureReason,
 		FailureCode:   jobFailureCode(failureReason, ""),
 	}
-	if progress, ok := captureProgressWithTotal(h.storage, id, status, segmentCount); ok {
+	if status == job.StatusRecording {
+		if progress, ok := captureProgressWithTotal(h.storage, id, status, segmentCount); ok {
+			resp.Progress = &progress
+		}
+	} else if progress, ok := renderProgressDocument(h.storage, id); ok {
 		resp.Progress = &progress
 	}
 	writeJSON(w, http.StatusOK, resp)

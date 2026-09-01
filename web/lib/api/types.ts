@@ -238,7 +238,7 @@ export type VideoStatus =
   | 'ready'
   | 'review_required'
   | 'failed';
-/** Live capture progress; set only while status is 'recording'. percent is 0-100 of planned ticks. */
+/** Live job progress during capture or editing; percent is 0-100. */
 export type CaptureProgress = { done: number; total: number; percent?: number };
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
@@ -265,6 +265,7 @@ export type Video = {
   warnings?: string[];
   /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */
   reviewArtifactPrefix?: string;
+  /** Live progress during capture or editing. */
   captureProgress?: CaptureProgress;
   /** Cover candidate basenames when the render produced JPGs. */
   coverCandidates?: string[];

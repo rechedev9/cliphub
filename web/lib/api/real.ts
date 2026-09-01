@@ -755,7 +755,7 @@ export class RealApiClient implements ApiClient {
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
   private applyView(intent: ReelIntent, view: ReelView): void {
     const base = this.reels.get(intent.videoId) ?? videoFromIntent(intent);
-    // captureProgress only belongs on a recording view.
+    // captureProgress belongs on recording and composing views.
     const next = hydrateVideoFromIntent({
       ...base,
       status: view.status,

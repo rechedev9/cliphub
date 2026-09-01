@@ -25,6 +25,7 @@ type shortPackOptions struct {
 	SkipExisting   bool
 	ValidateVideos bool
 	RenderJobs     int
+	Progress       *ProgressTracker
 }
 
 func renderShortPack(ctx context.Context, manifest *Manifest, result *Result, opts shortPackOptions) error {
@@ -47,6 +48,7 @@ type shortPackRenderer struct {
 	result   *Result
 	opts     shortPackOptions
 	previous *Result
+	encode   *encodeProgressState
 	// shortMu guards p.result.Shorts[i]/p.manifest.Shorts[i] for each short
 	// index i: renderOne's publish/quality/cover goroutines can write
 	// different fields of the same struct concurrently, which the race
@@ -72,6 +74,10 @@ func normalizeRenderJobs(jobs int) int {
 func (p *shortPackRenderer) render(ctx context.Context) error {
 	if p.opts.SkipExisting {
 		p.previous = readReusableResult(p.opts.ResultPath)
+	}
+	if p.opts.Progress != nil {
+		p.opts.Progress.Set("Montando cortes y ritmo", progressPrepPercent)
+		p.encode = newEncodeProgressState(buildEncodeProgressPlan(p.manifest.Shorts), p.opts.Progress, "Montando cortes y ritmo")
 	}
 	jobs := normalizeRenderJobs(p.opts.RenderJobs)
 	ctx, cancel := context.WithCancel(ctx)
@@ -176,12 +182,25 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 	if validatedExistingArtifact(p.previous, p.result.Shorts[i], short.Output, "video") {
 		p.result.Shorts[i].RenderSkipped = true
 		performance.Reused = true
+		if p.encode != nil {
+			p.encode.markDone(i)
+		}
 	} else {
 		started := time.Now()
-		err := runFFmpegAtomic(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, short.Output)
+		expectedDuration := expectedShortDuration(*short)
+		var onFraction func(float64)
+		if p.encode != nil {
+			onFraction = func(fraction float64) {
+				p.encode.setFraction(i, fraction)
+			}
+		}
+		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, short.Output, expectedDuration, onFraction)
 		performance.RenderMS = time.Since(started).Milliseconds()
 		if err != nil {
 			return err
+		}
+		if p.encode != nil {
+			p.encode.markDone(i)
 		}
 	}
 	probeStarted := time.Now()
@@ -359,6 +378,9 @@ func (p *shortPackRenderer) probeArtifact(ctx context.Context, segmentID, role, 
 }
 
 func (p *shortPackRenderer) writeOutputs() error {
+	if p.opts.Progress != nil {
+		p.opts.Progress.Set("Montando cortes y ritmo", progressFinalizeStart)
+	}
 	p.manifest.Warnings = append([]string(nil), p.result.Warnings...)
 	if err := WriteManifest(filepath.Join(p.opts.OutputDir, "edit-manifest.json"), *p.manifest); err != nil {
 		return err
@@ -368,6 +390,9 @@ func (p *shortPackRenderer) writeOutputs() error {
 	}
 	if err := WritePublishGallery(p.manifest.GalleryPath, *p.manifest); err != nil {
 		return err
+	}
+	if p.opts.Progress != nil {
+		p.opts.Progress.Flush("Montando cortes y ritmo", progressFinalizeEnd)
 	}
 	return WriteResult(p.opts.ResultPath, *p.result)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -259,5 +260,38 @@ func TestCaptureProgress(t *testing.T) {
 				t.Errorf("percent = %d, want %d", got.Percent, tt.wantPercent)
 			}
 		})
+	}
+}
+
+func TestRenderProgressDocument(t *testing.T) {
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	body, err := json.Marshal(editor.EditorProgress{
+		Schema:  editor.EditorProgressSchema,
+		Stage:   "Montando cortes y ritmo",
+		Percent: 63,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.RenderProgressKey(id), bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok := renderProgressDocument(store, id)
+	if !ok {
+		t.Fatal("renderProgressDocument = false, want true")
+	}
+	if got.Done != 63 || got.Total != 100 || got.Percent != 63 {
+		t.Fatalf("progress = %+v, want 63/100 63%%", got)
+	}
+
+	j := job.Job{ID: id, Status: job.StatusRecorded}
+	jobGot, ok := captureProgress(store, j)
+	if !ok || jobGot.Percent != 63 {
+		t.Fatalf("captureProgress during render = (%+v, %v), want 63%%", jobGot, ok)
 	}
 }

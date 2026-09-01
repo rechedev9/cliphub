@@ -46,6 +46,13 @@ func CaptureProgressKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "recording", "capture-progress.json")
 }
 
+// RenderProgressKey is a non-committing status document for the in-flight
+// editor. It never publishes render outputs; ready artifacts still come only
+// from the render revision namespace.
+func RenderProgressKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "render", "render-progress.json")
+}
+
 func CompositionResultKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "composition", "composition-result.json")
 }

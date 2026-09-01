@@ -8,14 +8,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
-// captureProgressView reports how far a capturing job has advanced: how many of
-// its selected segments already have a completed clip on disk. It is attached to
-// the job GET response only while it can be computed (see captureProgress).
+// captureProgressView reports how far a capturing or composing job has advanced.
+// It is attached to the job GET response only while it can be computed.
 type captureProgressView struct {
 	Done    int `json:"done"`
 	Total   int `json:"total"`
@@ -38,11 +38,18 @@ type captureProgressView struct {
 // yet (the segments dir is still absent/empty).
 // A segment mid-write is briefly counted or missed; the poll tolerates that.
 func captureProgress(store storage.Storage, j job.Job) (captureProgressView, bool) {
-	total := 0
-	if j.KillPlan != nil {
-		total = len(j.KillPlan.Segments)
+	return jobProgress(store, j)
+}
+
+func jobProgress(store storage.Storage, j job.Job) (captureProgressView, bool) {
+	if j.Status == job.StatusRecording {
+		total := 0
+		if j.KillPlan != nil {
+			total = len(j.KillPlan.Segments)
+		}
+		return captureProgressWithTotal(store, j.ID, j.Status, total)
 	}
-	return captureProgressWithTotal(store, j.ID, j.Status, total)
+	return renderProgressDocument(store, j.ID)
 }
 
 func captureProgressWithTotal(store storage.Storage, id uuid.UUID, status job.Status, fallbackTotal int) (captureProgressView, bool) {
@@ -129,6 +136,26 @@ func documentPercent(p recording.CaptureProgress) int {
 		return p.Percent
 	}
 	return recording.CaptureWorkPercent(len(p.SegmentIDs), len(p.CompletedSegmentIDs), nil, 0)
+}
+
+func renderProgressDocument(store storage.Storage, id uuid.UUID) (captureProgressView, bool) {
+	rc, err := store.Open(artifacts.RenderProgressKey(id))
+	if err != nil {
+		return captureProgressView{}, false
+	}
+	defer rc.Close()
+	var progress editor.EditorProgress
+	if err := json.NewDecoder(rc).Decode(&progress); err != nil || progress.Validate() != nil {
+		return captureProgressView{}, false
+	}
+	if progress.Percent <= 0 {
+		return captureProgressView{}, false
+	}
+	pct := progress.Percent
+	if pct > 100 {
+		pct = 100
+	}
+	return captureProgressView{Done: pct, Total: 100, Percent: pct}, true
 }
 
 // readCaptureSelection reads the ordered segment ids the in-flight record run
