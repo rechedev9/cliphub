@@ -457,9 +457,22 @@ func validatedExistingArtifact(previous *Result, current ShortResult, artifactPa
 	return false
 }
 
+func compilationPartsMatch(a, b []ShortPart) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Input != b[i].Input || a[i].DurationSeconds != b[i].DurationSeconds {
+			return false
+		}
+	}
+	return true
+}
+
 func artifactProducerContractMatches(previous, current ShortResult, role string) bool {
 	videoMatches := len(current.FFmpegCommand) > 0 &&
-		slices.Equal(previous.FFmpegCommand, current.FFmpegCommand)
+		slices.Equal(previous.FFmpegCommand, current.FFmpegCommand) &&
+		compilationPartsMatch(previous.Parts, current.Parts)
 	switch role {
 	case "video":
 		return videoMatches

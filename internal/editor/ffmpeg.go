@@ -246,6 +246,9 @@ func appendAudioCodecArgs(command []string) []string {
 }
 
 func BuildCompilationFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
+	if isFullDemoNative(short.Preset, short.OutputFormat, len(short.Parts) > 0) {
+		return buildFullDemoCompilationCommand(ffmpegPath, short)
+	}
 	if ffmpegPath == "" {
 		ffmpegPath = "ffmpeg"
 	}
@@ -297,16 +300,9 @@ func CompilationFilter(short ShortEdit) string {
 	concatCount := 0
 	fps := outputFPS(short)
 	cursorFrame := 0
-	tickrate := short.Tickrate
-	if tickrate <= 0 {
-		tickrate = short.VoiceTickrate
-	}
 	for i, part := range short.Parts {
-		mediaSeconds := part.DurationSeconds
-		if sync := partSyncDuration(part, tickrate); sync > 0 {
-			mediaSeconds = sync
-		}
-		partFrames := max(1, int(math.Round(mediaSeconds*float64(fps))))
+		partDuration := compilationPartDuration(short, part)
+		partFrames := max(1, int(math.Round(partDuration*float64(fps))))
 		gapFrames := int(math.Round(part.GapBeforeSeconds * float64(fps)))
 		partStartFrame := cursorFrame + gapFrames
 		if part.TimelineStartSeconds > 0 {
@@ -332,7 +328,6 @@ func CompilationFilter(short ShortEdit) string {
 		}
 		videoLabel := fmt.Sprintf("pv%d", i)
 		audioLabel := fmt.Sprintf("pa%d", i)
-		partDuration := float64(partFrames) / float64(fps)
 		clauses = append(clauses,
 			fmt.Sprintf("[%d:v]%s,trim=end_frame=%d,setpts=PTS-STARTPTS[%s]", i, VideoFilter(partShort), partFrames, videoLabel),
 			fmt.Sprintf("[%d:a]aformat=channel_layouts=stereo,aresample=48000,atrim=duration=%.6f,asetpts=PTS-STARTPTS[%s]", i, partDuration, audioLabel),
@@ -346,50 +341,12 @@ func CompilationFilter(short ShortEdit) string {
 		cursorFrame = partStartFrame + partFrames
 	}
 	clauses = append(clauses, fmt.Sprintf("%sconcat=n=%d:v=1:a=1[catv][gamea]", strings.Join(concatLabels, ""), concatCount))
-	images := imageEffects(short.Effects)
-	killfeeds := killfeedEffects(short.Effects)
-	if len(images) == 0 && len(killfeeds) == 0 && !short.CoverFirstFrame {
-		clauses = append(clauses, fmt.Sprintf("[catv]%s[v]", compilationPostConcatFilter(short)))
-	} else {
-		clauses = append(clauses, fmt.Sprintf("[catv]%s[vbase]", compilationPostConcatFilter(short)))
-		current := "vbase"
-		if dim, dimOut, ok := fullDemoOutroDimClauses(short, current, "vdim"); ok {
-			clauses = append(clauses, dim...)
-			current = dimOut
-		}
-		for i, effect := range killfeeds {
-			partIndex, sampleSeconds := killfeedSamplePart(&short, effect)
-			if partIndex < 0 {
-				partIndex = 0
-			}
-			killfeedLabel := fmt.Sprintf("kf%d", i)
-			next := fmt.Sprintf("vkf%d", i)
-			clauses = append(clauses,
-				fmt.Sprintf("[%d:v]%s[%s]", partIndex, killfeedCropFilter(effect, short, sampleSeconds), killfeedLabel),
-				fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:enable='%s'[%s]",
-					current,
-					killfeedLabel,
-					effectPosition(effect.X, "W-w-18"),
-					effectPosition(effect.Y, "438"),
-					betweenExpression(effect.StartSeconds, effect.EndSeconds),
-					next,
-				),
-			)
-			current = next
-		}
-		if len(images) > 0 {
-			imageInputStart := len(short.Parts)
-			if short.MusicPath != "" {
-				imageInputStart++
-			}
-			imageInputStart += len(short.VoiceTracks)
-			clauses = appendImageOverlayClauses(clauses, current, imageInputStart, images, short, "vimages")
-			current = "vimages"
-		}
-		coverClauses, coverOut := coverFirstFrameClauses(short, current)
-		clauses = append(clauses, coverClauses...)
-		clauses = append(clauses, fmt.Sprintf("[%s]format=yuv420p[v]", coverOut))
+	imageInputStart := len(short.Parts)
+	if short.MusicPath != "" {
+		imageInputStart++
 	}
+	imageInputStart += len(short.VoiceTracks)
+	clauses = appendCompilationProgramVideo(clauses, short, "catv", imageInputStart)
 	if short.MusicPath != "" {
 		musicInput := len(short.Parts)
 		audio := fmt.Sprintf("[%d:a]volume=%.2f[music];%s;[game][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,aresample=48000", musicInput, musicMixVolume(short), musicGameVolumeFilter(short))
@@ -403,6 +360,61 @@ func CompilationFilter(short ShortEdit) string {
 		clauses = append(clauses, "[gamea]anull[a]")
 	}
 	return strings.Join(clauses, ";")
+}
+
+func compilationPartDuration(short ShortEdit, part ShortPart) float64 {
+	fps := outputFPS(short)
+	tickrate := short.Tickrate
+	if tickrate <= 0 {
+		tickrate = short.VoiceTickrate
+	}
+	mediaSeconds := part.DurationSeconds
+	if sync := partSyncDuration(part, tickrate); sync > 0 {
+		mediaSeconds = sync
+	}
+	partFrames := max(1, int(math.Round(mediaSeconds*float64(fps))))
+	return float64(partFrames) / float64(fps)
+}
+
+func appendCompilationProgramVideo(clauses []string, short ShortEdit, catLabel string, imageInputStart int) []string {
+	images := imageEffects(short.Effects)
+	killfeeds := killfeedEffects(short.Effects)
+	if len(images) == 0 && len(killfeeds) == 0 && !short.CoverFirstFrame {
+		return append(clauses, fmt.Sprintf("[%s]%s[v]", catLabel, compilationPostConcatFilter(short)))
+	}
+	clauses = append(clauses, fmt.Sprintf("[%s]%s[vbase]", catLabel, compilationPostConcatFilter(short)))
+	current := "vbase"
+	if dim, dimOut, ok := fullDemoOutroDimClauses(short, current, "vdim"); ok {
+		clauses = append(clauses, dim...)
+		current = dimOut
+	}
+	for i, effect := range killfeeds {
+		partIndex, sampleSeconds := killfeedSamplePart(&short, effect)
+		if partIndex < 0 {
+			partIndex = 0
+		}
+		killfeedLabel := fmt.Sprintf("kf%d", i)
+		next := fmt.Sprintf("vkf%d", i)
+		clauses = append(clauses,
+			fmt.Sprintf("[%d:v]%s[%s]", partIndex, killfeedCropFilter(effect, short, sampleSeconds), killfeedLabel),
+			fmt.Sprintf("[%s][%s]overlay=x=%s:y=%s:format=auto:enable='%s'[%s]",
+				current,
+				killfeedLabel,
+				effectPosition(effect.X, "W-w-18"),
+				effectPosition(effect.Y, "438"),
+				betweenExpression(effect.StartSeconds, effect.EndSeconds),
+				next,
+			),
+		)
+		current = next
+	}
+	if len(images) > 0 {
+		clauses = appendImageOverlayClauses(clauses, current, imageInputStart, images, short, "vimages")
+		current = "vimages"
+	}
+	coverClauses, coverOut := coverFirstFrameClauses(short, current)
+	clauses = append(clauses, coverClauses...)
+	return append(clauses, fmt.Sprintf("[%s]format=yuv420p[v]", coverOut))
 }
 
 // compilationPostConcatFilter builds the video filter applied to [catv],

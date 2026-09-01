@@ -10,8 +10,12 @@ import (
 )
 
 func TestConcatListEscapesPaths(t *testing.T) {
-	got := ConcatList([]recording.SegmentClip{{Path: `C:\tmp\clip's\seg-001.mp4`}})
+	path := `C:\tmp\clip's\seg-001.mp4`
 	want := "file 'C:/tmp/clip'\\''s/seg-001.mp4'\n"
+	if got := ConcatFileLine(path); got != want {
+		t.Fatalf("ConcatFileLine = %q, want %q", got, want)
+	}
+	got := ConcatList([]recording.SegmentClip{{Path: path}})
 	if got != want {
 		t.Fatalf("ConcatList = %q, want %q", got, want)
 	}

@@ -128,6 +128,12 @@ func TestValidatedExistingArtifactRequiresMatchingProducerContract(t *testing.T)
 		}
 	}
 
+	changedParts := previousShort
+	changedParts.Parts = []ShortPart{{Input: "seg-003.mp4", DurationSeconds: 4}}
+	if validatedExistingArtifact(previous, changedParts, videoPath, "video") {
+		t.Fatal("video reused after compiled part inputs changed")
+	}
+
 	for _, changedCommand := range [][]string{
 		{"ffmpeg", "-i", "seg-002.mp4", "-i", "seg-001.mp4", videoPath},
 		{"ffmpeg", "-i", "seg-001.mp4", videoPath},

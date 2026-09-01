@@ -166,16 +166,18 @@ func parseFrameRate(raw string) (float64, bool) {
 	return v, true
 }
 
+// ConcatFileLine formats one concat-demuxer `file` directive. Paths are
+// slash-normalized and single-quoted so the same line works on Windows and
+// Unix hosts. filepath.ToSlash only rewrites the host separator, which left
+// Windows-style paths unconverted when this runs on Linux/WSL.
+func ConcatFileLine(path string) string {
+	return "file '" + escapeConcatPath(strings.ReplaceAll(path, `\`, "/")) + "'\n"
+}
+
 func ConcatList(clips []recording.SegmentClip) string {
 	var sb strings.Builder
 	for _, clip := range clips {
-		sb.WriteString("file '")
-		// FFmpeg concat lists always want forward slashes, so normalize
-		// backslashes unconditionally. filepath.ToSlash only rewrites on
-		// Windows, which left Windows-style paths unconverted (and this test
-		// failing) when the pipeline or its tests run on Linux/WSL.
-		sb.WriteString(escapeConcatPath(strings.ReplaceAll(clip.Path, "\\", "/")))
-		sb.WriteString("'\n")
+		sb.WriteString(ConcatFileLine(clip.Path))
 	}
 	return sb.String()
 }

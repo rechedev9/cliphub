@@ -161,6 +161,9 @@ func applyEffectsToManifest(manifest *Manifest, source effectsSource, ffmpegPath
 		effects = append(effects, generatedEditEffects(*short)...)
 		short.Effects = effects
 		manifest.Warnings = append(manifest.Warnings, refineKillfeedEffects(short, killfeedProbe)...)
+		if err := writeFullDemoConcatList(*short); err != nil {
+			return fmt.Errorf("full demo concat list for %s: %w", short.SegmentID, err)
+		}
 		short.FFmpegCommand = BuildFFmpegCommand(ffmpegPath, *short)
 		if short.CoverPath != "" {
 			short.CoverCommand = BuildCoverFFmpegCommand(ffmpegPath, *short)
