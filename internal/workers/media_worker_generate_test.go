@@ -252,11 +252,12 @@ func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
 				"match": map[string]any{"map": "de_mirage", "score_ct": 13, "score_t": 8},
 			})
 			putJSON(t, store, artifacts.FullDemoFaceitKey(id), faceitSidecar)
+			putJSON(t, store, artifacts.FullDemoSourceKey(id), map[string]string{"source": tc.source})
 
 			enq := &fakeEnqueuer{}
 			w := newRecordWorkerForTest(repo, store, t)
 			w.UseEnqueuer(enq)
-			task, err := tasks.NewRecordDemoTaskWithSource(id, "gameplay", nil, false, true, tc.source)
+			task, err := tasks.NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
 			if err != nil {
 				t.Fatal(err)
 			}

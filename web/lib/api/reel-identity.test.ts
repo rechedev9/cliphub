@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
-import { FULL_DEMO_EDIT } from '../full-demo.ts';
-import { reelContractMatches, reelIdentity } from './reel-identity.ts';
+import { FULL_DEMO_EDIT, fullDemoEdit } from '../full-demo.ts';
+import { reelContractMatches, reelIdentity, shouldReuseReelIntent } from './reel-identity.ts';
+import { DEMO_SOURCE } from './types.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PLAYS = ['seg-001', 'seg-002'];
@@ -83,4 +84,36 @@ test('reelContractMatches refuses a Shorts reel as Full Demo', () => {
   for (const tc of cases) {
     assert.equal(reelContractMatches(tc.existing, tc.input), tc.want, tc.name);
   }
+});
+
+test('in-flight Full Demo reuses the reel when overlay source changes', () => {
+  const premier = intent({
+    videoId: `${JOB}__full-demo`,
+    segmentIds: [],
+    variant: 'gameplay-pov-60',
+    editConfig: fullDemoEdit(DEMO_SOURCE.premier),
+  });
+  const faceitInput = {
+    matchId: JOB,
+    playIds: [] as string[],
+    mode: 'clean' as const,
+    variant: 'gameplay-pov-60',
+    editConfig: fullDemoEdit(DEMO_SOURCE.faceit),
+  };
+  assert.equal(reelContractMatches(premier, faceitInput), false);
+  assert.equal(shouldReuseReelIntent({ status: 'recording' }, premier, faceitInput), true);
+  assert.equal(shouldReuseReelIntent({ status: 'queued' }, premier, faceitInput), true);
+  assert.equal(shouldReuseReelIntent({ status: 'composing' }, premier, faceitInput), true);
+  assert.equal(shouldReuseReelIntent({ status: 'ready' }, premier, faceitInput), false);
+  assert.equal(shouldReuseReelIntent({ status: 'failed' }, premier, faceitInput), false);
+  assert.equal(
+    shouldReuseReelIntent({ status: 'recording' }, premier, {
+      matchId: JOB,
+      playIds: PLAYS,
+      mode: 'clean',
+      variant: 'viral-60-clean',
+      editConfig: DEFAULT_EDIT_CONFIG,
+    }),
+    false,
+  );
 });

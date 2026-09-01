@@ -470,6 +470,9 @@ func (w *RecordWorker) chainRecapRender(id uuid.UUID, demoSource string) {
 		logWorkerError(id, "enqueue recap render", errors.New("render queue is not configured"))
 		return
 	}
+	if strings.TrimSpace(demoSource) == "" {
+		demoSource = loadFullDemoSource(w.storage, id)
+	}
 	edit := renderplan.RecapEditRequestWithSource(demoSource)
 	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, edit)
 	if err != nil {
@@ -495,6 +498,24 @@ func (w *RecordWorker) chainRecapRender(id uuid.UUID, demoSource string) {
 		return
 	}
 	logWorkerTransition(id, tasks.TypeRenderVariant, job.StatusRecorded)
+}
+
+func loadFullDemoSource(store storage.Storage, id uuid.UUID) string {
+	if store == nil {
+		return ""
+	}
+	rc, err := store.Open(artifacts.FullDemoSourceKey(id))
+	if err != nil {
+		return ""
+	}
+	defer rc.Close()
+	var doc struct {
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+		return ""
+	}
+	return demooverlay.NormalizeSource(doc.Source)
 }
 
 func (w *RecordWorker) failGenerateHandoff(id uuid.UUID, intent renderplan.GenerateIntent, cause error) {

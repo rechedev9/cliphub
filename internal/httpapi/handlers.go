@@ -934,9 +934,6 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 				}
 				segmentIDs = nil
 				demoSource = edit.DemoSource
-				if edit.UsesFACEITOverlay() {
-					h.storeFullDemoFaceit(j)
-				}
 			} else {
 				if !validateSegmentSelection(w, j, req.SegmentIDs) {
 					return
@@ -948,7 +945,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	task, err := tasks.NewRecordDemoTaskWithSource(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, demoSource)
+	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)
 	if err != nil {
 		internalError(w, "build record task", err)
 		return
@@ -969,6 +966,12 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		}
 		internalError(w, "enqueue record task", err)
 		return
+	}
+	if useRecapPlan {
+		h.persistFullDemoSource(j.ID, demoSource)
+		if demoSource == renderplan.DemoSourceFACEIT {
+			h.storeFullDemoFaceit(j)
+		}
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"id":   j.ID,

@@ -12,7 +12,7 @@ import { planToMatch, planToPlays, type KillPlan } from './map';
 import { canHaveRenderState, decideReelReconcile, retryReelAction, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, viewForRecordAdmission, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store';
 import { buildEditRequest, editConfigsEqual } from './edit-request';
-import { reelContractMatches, reelIdentity } from './reel-identity';
+import { reelIdentity, shouldReuseReelIntent } from './reel-identity';
 import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
@@ -362,12 +362,7 @@ export class RealApiClient implements ApiClient {
     const videoId = reelIdentity(normalized);
     const existing = this.reels.get(videoId);
     const existingIntent = this.intents.get(videoId);
-    if (
-      existing &&
-      existing.status !== 'failed' &&
-      existingIntent &&
-      reelContractMatches(existingIntent, { ...normalized, mode: input.mode })
-    ) {
+    if (existing && existingIntent && shouldReuseReelIntent(existing, existingIntent, { ...normalized, mode: input.mode })) {
       return { ...existing };
     }
 

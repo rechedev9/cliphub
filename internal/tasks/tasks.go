@@ -216,7 +216,7 @@ func NewGenerateRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs
 	if err != nil {
 		return nil, err
 	}
-	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, intent.Edit.DemoSource, map[string]string{
+	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, "", map[string]string{
 		generateIntentHeader: string(b),
 	})
 }

@@ -326,6 +326,23 @@ func (q *fakeQueue) EnqueueWithTransition(t *asynq.Task, transition func(error) 
 	return q.enqueue(t, transition, opts...)
 }
 
+type uniquePayloadQueue struct {
+	fakeQueue
+	seen map[string]struct{}
+}
+
+func (q *uniquePayloadQueue) Enqueue(t *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error) {
+	if q.seen == nil {
+		q.seen = map[string]struct{}{}
+	}
+	key := string(t.Payload())
+	if _, ok := q.seen[key]; ok {
+		return nil, asynq.ErrDuplicateTask
+	}
+	q.seen[key] = struct{}{}
+	return q.fakeQueue.Enqueue(t, opts...)
+}
+
 func (q *fakeQueue) enqueue(t *asynq.Task, transition func(error) error, opts ...asynq.Option) (*asynq.TaskInfo, error) {
 	if transition != nil {
 		if err := transition(q.err); err != nil {
@@ -1838,13 +1855,82 @@ func TestStartRecordingPersistsFullDemoSource(t *testing.T) {
 			if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
 				t.Fatalf("unmarshal record payload: %v", err)
 			}
-			if payload.DemoSource != tc.wantSource {
-				t.Fatalf("DemoSource = %q, want %q", payload.DemoSource, tc.wantSource)
+			if payload.DemoSource != "" {
+				t.Fatalf("record payload DemoSource = %q, want empty so Asynq unique stays job-scoped", payload.DemoSource)
 			}
 			if !payload.UseRecapPlan {
 				t.Fatal("UseRecapPlan = false, want true")
 			}
+			rc, err := store.Open(artifacts.FullDemoSourceKey(j.ID))
+			if err != nil {
+				t.Fatalf("open source sidecar: %v", err)
+			}
+			defer rc.Close()
+			var doc struct {
+				Source string `json:"source"`
+			}
+			if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+				t.Fatal(err)
+			}
+			if doc.Source != tc.wantSource {
+				t.Fatalf("sidecar source = %q, want %q", doc.Source, tc.wantSource)
+			}
 		})
+	}
+}
+
+func TestStartRecordingSourceDoesNotSplitRecordUniqueness(t *testing.T) {
+	const editPrefix = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"`
+	repo := newFakeRepo()
+	queue := &uniquePayloadQueue{seen: map[string]struct{}{}}
+	store := newFakeStorage()
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	recap := killplan.NewPlan()
+	recap.Segments = []killplan.Segment{{ID: "recap-001", Round: 1, TickStart: 1, TickEnd: 9000}}
+	if err := recapplan.Store(store, j.ID, recap); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/record", h.StartRecording)
+
+	post := func(source string) *httptest.ResponseRecorder {
+		body := `{"preset":"gameplay-pov-60","edit":` + editPrefix + `,"demo_source":"` + source + `"}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", strings.NewReader(body))
+		rw := httptest.NewRecorder()
+		r.ServeHTTP(rw, req)
+		return rw
+	}
+	first := post(renderplan.DemoSourcePremier)
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("premier status = %d; body=%s", first.Code, first.Body.String())
+	}
+	second := post(renderplan.DemoSourceFACEIT)
+	if second.Code != http.StatusAccepted {
+		t.Fatalf("faceit status = %d; body=%s", second.Code, second.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want 1 unique recap capture", len(queue.enqueued))
+	}
+	if !strings.Contains(second.Body.String(), `"duplicate":true`) {
+		t.Fatalf("second POST body = %s, want unique duplicate", second.Body.String())
+	}
+	rc, err := store.Open(artifacts.FullDemoSourceKey(j.ID))
+	if err != nil {
+		t.Fatalf("open source sidecar: %v", err)
+	}
+	defer rc.Close()
+	var doc struct {
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Source != renderplan.DemoSourcePremier {
+		t.Fatalf("sidecar source = %q, want premier from the admitted capture", doc.Source)
 	}
 }
 

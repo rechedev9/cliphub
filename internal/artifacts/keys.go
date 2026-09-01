@@ -77,6 +77,13 @@ func FullDemoFaceitKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "full-demo-faceit.json")
 }
 
+// FullDemoSourceKey is the user-selected overlay source for a Full Demo recap
+// (premier / professional / faceit). It is a sidecar so the record task
+// payload — and Asynq uniqueness — stay job-scoped, not source-scoped.
+func FullDemoSourceKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "full-demo-source.json")
+}
+
 // AnticheatKey is the storage key for a job's CheaterDetect analysis. The
 // analysis is a side lane on the same demo: it never advances the job status,
 // so its progress lives entirely inside this document.
