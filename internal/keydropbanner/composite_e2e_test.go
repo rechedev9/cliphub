@@ -28,15 +28,26 @@ func TestCompositeWithCodeWritesCustomLabel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("font: %v", err)
 	}
-	out := filepath.Join(t.TempDir(), "plate.png")
-	if err := CompositeWithCode("ffmpeg", FamilyKeyDrop, StyleClassic, "OTROXYZ", font, out); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		style string
+		code  string
+		copy  string
+	}{
+		{style: StyleClassic, code: "OTROXYZ", copy: "/tmp/kd-demo-composite.png"},
+		{style: StyleJcorko, code: "HUASO", copy: "/tmp/kd-jcorko-composite.png"},
 	}
-	info, err := os.Stat(out)
-	if err != nil || info.Size() < 1000 {
-		t.Fatalf("bad out: %v size=%v", err, info)
+	for _, tt := range tests {
+		t.Run(tt.style+"/"+tt.code, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "plate.png")
+			if err := CompositeWithCode("ffmpeg", FamilyKeyDrop, tt.style, tt.code, font, out); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(out)
+			if err != nil || info.Size() < 1000 {
+				t.Fatalf("bad out: %v size=%v", err, info)
+			}
+			b, _ := os.ReadFile(out)
+			_ = os.WriteFile(tt.copy, b, 0o644)
+		})
 	}
-	// copy
-	b, _ := os.ReadFile(out)
-	_ = os.WriteFile("/tmp/kd-demo-composite.png", b, 0o644)
 }
