@@ -152,6 +152,10 @@ func TestFamiliesDoNotSharePlatesOrCopy(t *testing.T) {
 
 func TestGeneratedFamilyPlateBayMatchesCover(t *testing.T) {
 	t.Parallel()
+	wantBay := map[string]colorAt{
+		StyleClassic:  rgba8(6, 22, 20, 255),
+		StyleOperator: rgba8(8, 16, 20, 255),
+	}
 	const classicX, classicY, classicW, classicH = 0.18, 0.54, 0.64, 0.22
 	for _, id := range []string{StyleClassic, StyleOperator} {
 		style, ok := Lookup(FamilyCSGOSkins, id)
@@ -163,8 +167,8 @@ func TestGeneratedFamilyPlateBayMatchesCover(t *testing.T) {
 			t.Fatalf("decode %s: %v", id, err)
 		}
 		cover := samplePlate(img, style.CoverX+style.CoverW/2, style.CoverY+style.CoverH/2)
-		if cover == (colorAt{}) {
-			t.Fatalf("%s cover center is empty", id)
+		if cover != wantBay[id] {
+			t.Fatalf("%s cover center = %v, want painted bay %v", id, cover, wantBay[id])
 		}
 		if id != StyleOperator {
 			continue
@@ -174,6 +178,10 @@ func TestGeneratedFamilyPlateBayMatchesCover(t *testing.T) {
 			t.Fatalf("CSGOSKINS operator bay is painted at classic fractions; cover=%v classic=%v", cover, wrong)
 		}
 	}
+}
+
+func rgba8(r, g, b, a uint8) colorAt {
+	return colorAt{r: uint32(r) * 0x101, g: uint32(g) * 0x101, b: uint32(b) * 0x101, a: uint32(a) * 0x101}
 }
 
 type colorAt struct{ r, g, b, a uint32 }
