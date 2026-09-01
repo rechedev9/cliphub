@@ -52,12 +52,15 @@ test('Sin banner turns the plate off and a later render keeps the chosen family'
   const keyDrop = selectAffiliateStyle('', 'tigerr');
   assert.deepEqual(keyDrop, { family: AFFILIATE_FAMILY.keydrop, style: 'tigerr' });
   assert.equal(persistAffiliateFamily(keyDrop.family, keyDrop.style), AFFILIATE_FAMILY.keydrop);
+  assert.equal(affiliateDisplayLabel(keyDrop.family, keyDrop.style, 'zackcsgo'), 'CODE: ZACKCSGO');
 
   const skins = selectAffiliateFamily(keyDrop, AFFILIATE_FAMILY.csgoskins);
   assert.equal(skins.family, AFFILIATE_FAMILY.csgoskins);
   assert.equal(skins.style, 'classic');
   assert.equal(persistAffiliateFamily(skins.family, skins.style), AFFILIATE_FAMILY.csgoskins);
   assert.equal(isAffiliateStyle(skins.family, 'tigerr'), false);
+  assert.equal(affiliateDisplayLabel(skins.family, skins.style, 'zackcsgo'), 'CODE: ZACKCSGO');
+  assert.deepEqual(selectAffiliateOff(), { family: '', style: '' });
 });
 
 test('preview copy stays CODE and follows the family catalog prefix', () => {
