@@ -321,6 +321,7 @@ func TestShortsParsePlanPortraitSeam(t *testing.T) {
 			{Tick: 20000, Round: 6, Weapon: "awp"},
 		},
 		nil,
+		nil,
 		rules.Default(),
 		64,
 	)

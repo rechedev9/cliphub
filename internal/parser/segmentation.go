@@ -56,7 +56,7 @@ type TargetDeath struct {
 //
 // Segments produced by this function are not yet attached to a kill plan;
 // the demo metadata, target identity, and stats are filled in by the parser.
-func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int) []killplan.Segment {
+func Segment(kills []RawKill, roundEnds []RoundEnd, roundStarts []RoundStart, r rules.Rules, tickrate int) []killplan.Segment {
 	if len(kills) == 0 || tickrate <= 0 {
 		return nil
 	}
@@ -65,6 +65,7 @@ func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int)
 	preRollTicks := r.PreRollSeconds * tickrate
 	postRollTicks := r.PostRollSeconds * tickrate
 	roundEndByRound := indexRoundEnds(roundEnds)
+	startByRound := indexRoundStarts(roundStarts)
 
 	out := make([]killplan.Segment, 0, countKillSegmentGroups(kills, windowTicks, r.MinKillsInWindow))
 	groupStart := 0
@@ -86,12 +87,13 @@ func Segment(kills []RawKill, roundEnds []RoundEnd, r rules.Rules, tickrate int)
 			tickStart = 0
 		}
 		tickEnd := last.Tick + postRollTicks
-		// Clip the post-roll at the end of the round where the segment actually
-		// ends (last kill's round). For the common single-round group this is the
-		// same as the first kill's round; for a group that spans a round boundary
-		// it prevents the clip from bleeding into the following round.
-		if endTick, ok := roundEndForRound(roundEndByRound, last.Round); ok && endTick < tickEnd && endTick >= last.Tick {
-			tickEnd = endTick
+		// Cap post-roll at round-end footage plus grace. RoundEnd often shares the
+		// winning kill tick; CS2 still renders ~roundEndGraceSeconds of live POV
+		// before the next freeze. Without grace, TickEnd lands on the kill tick and
+		// capture ends before the victim/deathnotice payoff. When the next round
+		// start is known, stop before that freeze so the clip cannot bleed over.
+		if endTick, ok := roundEndForRound(roundEndByRound, last.Round); ok && endTick >= last.Tick {
+			tickEnd = clipSegmentEndAtRound(tickEnd, endTick, last.Round, tickrate, startByRound)
 		}
 
 		seg := killplan.Segment{
@@ -201,6 +203,12 @@ const (
 	OutroBannerSeconds     = 4
 	OutroScoreboardSeconds = 8
 )
+
+// roundEndGraceSeconds is live POV footage CS2 keeps after RoundEnd before the
+// next freeze. Segmentation may extend TickEnd this far past the round-end tick
+// so victim fall and deathnotice post-roll are not clipped when the winning
+// kill shares the RoundEnd tick.
+const roundEndGraceSeconds = 2
 
 // WithIntroFreeze pulls the first recap window back through the freeze/buy
 // countdown (at most IntroFreezeSeconds). Later rounds stay freeze-end.
@@ -481,6 +489,27 @@ func roundEndForRound(roundEndByRound map[int]int, round int) (int, bool) {
 	}
 	tick, ok := roundEndByRound[round]
 	return tick, ok
+}
+
+func clipSegmentEndAtRound(tickEnd, roundEndTick, round, tickrate int, startByRound map[int]int) int {
+	graceTicks := roundEndGraceSeconds * tickrate
+	capped := roundEndTick + graceTicks
+	if capped < tickEnd {
+		tickEnd = capped
+	}
+	return capBeforeNextRoundStart(tickEnd, round, roundEndTick, startByRound)
+}
+
+func capBeforeNextRoundStart(tickEnd, round, roundEndTick int, startByRound map[int]int) int {
+	if len(startByRound) == 0 {
+		return tickEnd
+	}
+	for nextRound, start := range startByRound {
+		if nextRound > round && start > roundEndTick && start <= tickEnd {
+			tickEnd = start - 1
+		}
+	}
+	return tickEnd
 }
 
 func buildKillPlanKills(in []RawKill) []killplan.Kill {

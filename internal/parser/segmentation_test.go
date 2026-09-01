@@ -28,7 +28,7 @@ func mkKill(tick, round int, weapon string) RawKill {
 }
 
 func TestSegmentEmptyKillsReturnsNoSegments(t *testing.T) {
-	got := Segment(nil, nil, defaultTestRules(), testTickrate)
+	got := Segment(nil, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 0 {
 		t.Errorf("Segment(nil) = %d segments, want 0", len(got))
 	}
@@ -36,7 +36,7 @@ func TestSegmentEmptyKillsReturnsNoSegments(t *testing.T) {
 
 func TestSegmentSingleKillProducesOneSegment(t *testing.T) {
 	kills := []RawKill{mkKill(10000, 5, "awp")}
-	got := Segment(kills, nil, defaultTestRules(), testTickrate)
+	got := Segment(kills, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
@@ -71,7 +71,7 @@ func TestSegmentPreservesTheTargetIdentityAtTheKillTick(t *testing.T) {
 		Round:  1,
 		Weapon: "deagle",
 		Killer: killer,
-	}}, nil, defaultTestRules(), testTickrate)
+	}}, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 || len(got[0].Kills) != 1 {
 		t.Fatalf("Segment() = %+v, want one kill", got)
 	}
@@ -86,7 +86,7 @@ func TestSegmentTwoKillsWithinWindowMergeIntoOneSegment(t *testing.T) {
 		mkKill(10000, 5, "awp"),
 		mkKill(10000+7*testTickrate, 5, "awp"),
 	}
-	got := Segment(kills, nil, defaultTestRules(), testTickrate)
+	got := Segment(kills, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
@@ -109,7 +109,7 @@ func TestSegmentKillsOutsideWindowSplitIntoSeparateSegments(t *testing.T) {
 		mkKill(10000, 5, "awp"),
 		mkKill(10000+9*testTickrate, 5, "awp"),
 	}
-	got := Segment(kills, nil, defaultTestRules(), testTickrate)
+	got := Segment(kills, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 2 {
 		t.Fatalf("got %d segments, want 2", len(got))
 	}
@@ -126,7 +126,7 @@ func TestSegmentTransitiveChainingAcrossKills(t *testing.T) {
 		mkKill(10000+7*testTickrate, 5, "awp"),
 		mkKill(10000+14*testTickrate, 5, "awp"),
 	}
-	got := Segment(kills, nil, defaultTestRules(), testTickrate)
+	got := Segment(kills, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
@@ -145,7 +145,7 @@ func TestSegmentMinKillsInWindowDropsSingleKillSegments(t *testing.T) {
 		mkKill(20000+2*testTickrate, 6, "awp"), // ...with this one
 		mkKill(40000, 7, "awp"),                // alone
 	}
-	got := Segment(kills, nil, r, testTickrate)
+	got := Segment(kills, nil, nil, r, testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1 (only the pair survives)", len(got))
 	}
@@ -160,7 +160,7 @@ func TestSegmentMinKillsInWindowDropsSingleKillSegments(t *testing.T) {
 func TestSegmentPreRollClampedToZero(t *testing.T) {
 	// kill very early — pre-roll would underflow past tick 0
 	kills := []RawKill{mkKill(100, 1, "awp")}
-	got := Segment(kills, nil, defaultTestRules(), testTickrate)
+	got := Segment(kills, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
@@ -171,15 +171,16 @@ func TestSegmentPreRollClampedToZero(t *testing.T) {
 
 func TestSegmentClippedAtRoundEnd(t *testing.T) {
 	// kill at tick 10000, post-roll would extend to 10000 + 320 = 10320.
-	// Round 5 ends at tick 10100 → segment should clip to 10100.
+	// Round 5 ends at tick 10100 → segment clips to round end plus grace.
 	kills := []RawKill{mkKill(10000, 5, "awp")}
 	roundEnds := []RoundEnd{{Round: 5, Tick: 10100}}
-	got := Segment(kills, roundEnds, defaultTestRules(), testTickrate)
+	got := Segment(kills, roundEnds, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
-	if got[0].TickEnd != 10100 {
-		t.Errorf("TickEnd = %d, want 10100 (clipped at round end)", got[0].TickEnd)
+	want := 10100 + roundEndGraceSeconds*testTickrate
+	if got[0].TickEnd != want {
+		t.Errorf("TickEnd = %d, want %d (round end + grace)", got[0].TickEnd, want)
 	}
 }
 
@@ -189,12 +190,12 @@ func TestSegmentUsesFirstRoundEndWhenDuplicatesExist(t *testing.T) {
 		{Round: 5, Tick: 10100},
 		{Round: 5, Tick: 10200},
 	}
-	got := Segment(kills, roundEnds, defaultTestRules(), testTickrate)
+	got := Segment(kills, roundEnds, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
-	if got[0].TickEnd != 10100 {
-		t.Errorf("TickEnd = %d, want first round end 10100", got[0].TickEnd)
+	if got[0].TickEnd != 10100+roundEndGraceSeconds*testTickrate {
+		t.Errorf("TickEnd = %d, want first round end plus grace %d", got[0].TickEnd, 10100+roundEndGraceSeconds*testTickrate)
 	}
 }
 
@@ -202,7 +203,7 @@ func TestSegmentNotClippedWhenRoundEndIsAfterPostRoll(t *testing.T) {
 	// Round 5 ends way after post-roll; no clipping should happen.
 	kills := []RawKill{mkKill(10000, 5, "awp")}
 	roundEnds := []RoundEnd{{Round: 5, Tick: 999999}}
-	got := Segment(kills, roundEnds, defaultTestRules(), testTickrate)
+	got := Segment(kills, roundEnds, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
@@ -225,12 +226,68 @@ func TestSegmentClippedAtRoundEndWhenGroupSpansRounds(t *testing.T) {
 		{Round: 5, Tick: 10100}, // before the last kill; must not drive the clip
 		{Round: 6, Tick: 10400}, // within the post-roll; the segment must clip here
 	}
-	got := Segment(kills, roundEnds, defaultTestRules(), testTickrate)
+	got := Segment(kills, roundEnds, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
-	if got[0].TickEnd != 10400 {
-		t.Errorf("TickEnd = %d, want 10400 (clipped at the ending round's end)", got[0].TickEnd)
+	if got[0].TickEnd != 10400+roundEndGraceSeconds*testTickrate {
+		t.Errorf("TickEnd = %d, want %d (ending round end + grace)", got[0].TickEnd, 10400+roundEndGraceSeconds*testTickrate)
+	}
+}
+
+func TestSegmentRoundEndKillPostRollGrace(t *testing.T) {
+	graceTicks := roundEndGraceSeconds * testTickrate
+	tests := []struct {
+		name        string
+		kills       []RawKill
+		roundEnds   []RoundEnd
+		roundStarts []RoundStart
+		wantEnd     int
+	}{
+		{
+			name:      "last kill equals round end tick keeps grace post-roll",
+			kills:     []RawKill{mkKill(10750, 12, "ak47")},
+			roundEnds: []RoundEnd{{Round: 12, Tick: 10750}},
+			wantEnd:   10750 + graceTicks,
+		},
+		{
+			name: "grace stops before the next round freeze",
+			kills: []RawKill{
+				mkKill(10000, 5, "awp"),
+				mkKill(10000+4*testTickrate, 6, "awp"),
+			},
+			roundEnds: []RoundEnd{
+				{Round: 5, Tick: 10100},
+				{Round: 6, Tick: 10400},
+			},
+			roundStarts: []RoundStart{
+				{Round: 5, Tick: 9000},
+				{Round: 6, Tick: 10200},
+				{Round: 7, Tick: 10500},
+			},
+			wantEnd: 10499,
+		},
+		{
+			name:      "unknown next round start allows full grace past round end",
+			kills:     []RawKill{mkKill(10750, 12, "ak47")},
+			roundEnds: []RoundEnd{{Round: 12, Tick: 10750}},
+			wantEnd:   10750 + graceTicks,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Segment(tt.kills, tt.roundEnds, tt.roundStarts, defaultTestRules(), testTickrate)
+			if len(got) != 1 {
+				t.Fatalf("segments = %d, want 1", len(got))
+			}
+			lastKill := tt.kills[len(tt.kills)-1].Tick
+			if got[0].TickEnd < lastKill+graceTicks {
+				t.Fatalf("TickEnd = %d, want at least last kill %d + grace %d", got[0].TickEnd, lastKill, graceTicks)
+			}
+			if got[0].TickEnd != tt.wantEnd {
+				t.Fatalf("TickEnd = %d, want %d", got[0].TickEnd, tt.wantEnd)
+			}
+		})
 	}
 }
 
@@ -580,7 +637,7 @@ func TestSegmentRoundIsFirstKillsRound(t *testing.T) {
 		mkKill(10000, 5, "awp"),
 		mkKill(10000+4*testTickrate, 6, "awp"),
 	}
-	got := Segment(kills, nil, defaultTestRules(), testTickrate)
+	got := Segment(kills, nil, nil, defaultTestRules(), testTickrate)
 	if len(got) != 1 {
 		t.Fatalf("got %d segments, want 1", len(got))
 	}
@@ -732,7 +789,7 @@ func TestSegmentRecapIsOneContinuousLiveRoundNotAJumpCut(t *testing.T) {
 		}
 	}
 
-	shorts := Segment(kills, roundEnds, r, testTickrate)
+	shorts := Segment(kills, roundEnds, nil, r, testTickrate)
 	if len(shorts) != 3 {
 		t.Fatalf("shorts segments = %d, want 3 kill bursts so the recap contrast is real", len(shorts))
 	}

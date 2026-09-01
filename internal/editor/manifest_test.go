@@ -912,6 +912,69 @@ func TestPublishFileBaseIsStableAndWindowsSafe(t *testing.T) {
 	}
 }
 
+func TestKillCueTailMarginWarnings(t *testing.T) {
+	tests := []struct {
+		name     string
+		kills    []KillCue
+		duration float64
+		wantWarn bool
+	}{
+		{
+			name:     "clip shorter than last kill cue",
+			kills:    []KillCue{{TimeSeconds: 16.094}},
+			duration: 16.05,
+			wantWarn: true,
+		},
+		{
+			name:     "kill with sufficient margin",
+			kills:    []KillCue{{TimeSeconds: 4.0}},
+			duration: 8.0,
+			wantWarn: false,
+		},
+		{
+			name:     "margin exactly at threshold is ok",
+			kills:    []KillCue{{TimeSeconds: 7.7}},
+			duration: 8.0,
+			wantWarn: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warnings := killCueTailMarginWarnings("seg-002", tt.kills, tt.duration)
+			hasWarn := len(warnings) > 0
+			if hasWarn != tt.wantWarn {
+				t.Fatalf("warnings = %#v, wantWarn = %v", warnings, tt.wantWarn)
+			}
+			if tt.wantWarn && !strings.Contains(warnings[0], "victim/deathnotice may be clipped") {
+				t.Fatalf("warnings = %#v", warnings)
+			}
+		})
+	}
+}
+
+func TestBuildManifestWarnsWhenLastKillNearClipEnd(t *testing.T) {
+	dir := t.TempDir()
+	result := testRecordingResult(dir)
+	result.Artifacts[0].DurationSeconds = 1.1
+
+	manifest := mustBuildManifest(t, result, testManifestOptions(dir, nil))
+	joined := strings.Join(manifest.Warnings, "\n")
+	if !strings.Contains(joined, "seg-002 last kill at") || !strings.Contains(joined, "victim/deathnotice may be clipped") {
+		t.Fatalf("warnings missing kill-tail margin:\n%s", joined)
+	}
+}
+
+func TestBuildManifestNoKillTailWarningWithHealthyMargin(t *testing.T) {
+	dir := t.TempDir()
+	result := testRecordingResult(dir)
+	manifest := mustBuildManifest(t, result, testManifestOptions(dir, nil))
+	for _, warning := range manifest.Warnings {
+		if strings.Contains(warning, "victim/deathnotice may be clipped") {
+			t.Fatalf("unexpected kill-tail warning: %s", warning)
+		}
+	}
+}
+
 func TestCoverTimeSecondsUsesFirstKillAndFallback(t *testing.T) {
 	if got := coverTimeSeconds([]KillCue{{TimeSeconds: 1}}, 8); got != 0.88 {
 		t.Fatalf("coverTimeSeconds = %.3f, want 0.880", got)

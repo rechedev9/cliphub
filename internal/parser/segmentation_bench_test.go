@@ -18,7 +18,7 @@ func BenchmarkSegment(b *testing.B) {
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		benchmarkSegments = Segment(kills, roundEnds, r, testTickrate)
+		benchmarkSegments = Segment(kills, roundEnds, nil, r, testTickrate)
 	}
 }
 

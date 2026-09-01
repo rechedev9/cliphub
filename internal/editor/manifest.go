@@ -232,6 +232,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		if compiled.SegmentID != "" {
 			for _, part := range compiled.Parts {
 				manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(part.SourceArtifact)...)
+				manifest.Warnings = append(manifest.Warnings, killCueTailMarginWarnings(part.SegmentID, part.Kills, part.DurationSeconds)...)
 			}
 			manifest.Shorts = append(manifest.Shorts, compiled)
 		}
@@ -358,6 +359,7 @@ func buildManifest(result recording.RecordingResult, opts ManifestOptions) (Mani
 		if qualityChecks {
 			edit.QualityLogPath = filepath.Join(logDir, logBase+"-quality.log")
 		}
+		manifest.Warnings = append(manifest.Warnings, killCueTailMarginWarnings(segment.ID, kills, duration)...)
 		manifest.Warnings = append(manifest.Warnings, ValidateSourceArtifact(edit.SourceArtifact)...)
 		manifest.Shorts = append(manifest.Shorts, edit)
 	}
@@ -935,6 +937,30 @@ func coverTimeSecondsForSmoke(smoke SmokeCue, duration float64) float64 {
 		return duration
 	}
 	return t
+}
+
+const killCueTailMarginSeconds = 0.3
+
+// killCueTailMarginWarnings flags clips whose last kill cue sits too close to the
+// measured end, which usually means the victim fall or deathnotice was clipped.
+func killCueTailMarginWarnings(segmentID string, kills []KillCue, durationSeconds float64) []string {
+	if len(kills) == 0 || durationSeconds <= 0 {
+		return nil
+	}
+	lastKill := kills[0].TimeSeconds
+	for _, kill := range kills[1:] {
+		if kill.TimeSeconds > lastKill {
+			lastKill = kill.TimeSeconds
+		}
+	}
+	margin := durationSeconds - lastKill
+	if margin+0.0005 >= killCueTailMarginSeconds {
+		return nil
+	}
+	return []string{fmt.Sprintf(
+		"short %s last kill at %.3fs ends %.3fs before clip end (%.3fs); victim/deathnotice may be clipped",
+		segmentID, lastKill, margin, durationSeconds,
+	)}
 }
 
 // tailTrimmedDuration shortens a clip to end tailSeconds after its final kill,

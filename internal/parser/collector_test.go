@@ -497,8 +497,8 @@ func TestBuildPlanRoundEndClipping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
-	if plan.Segments[0].TickEnd != 10100 {
-		t.Errorf("TickEnd = %d, want 10100 (clipped)", plan.Segments[0].TickEnd)
+	if plan.Segments[0].TickEnd != 10100+roundEndGraceSeconds*testTickrate {
+		t.Errorf("TickEnd = %d, want %d (round end + grace)", plan.Segments[0].TickEnd, 10100+roundEndGraceSeconds*testTickrate)
 	}
 }
 

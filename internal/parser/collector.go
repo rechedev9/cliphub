@@ -181,7 +181,7 @@ func (c *Collector) build(m PlanMeta, mode SegmentMode) (killplan.Plan, error) {
 		segs = WithIntroFreeze(segs, c.roundStarts, m.Tickrate)
 		segs = WithOutroHold(segs, c.roundStarts, c.targetDeaths, m.Tickrate)
 	default:
-		segs = Segment(c.kills, c.roundEnds, c.rules, m.Tickrate)
+		segs = Segment(c.kills, c.roundEnds, c.roundStarts, c.rules, m.Tickrate)
 	}
 	segs = clampSegmentsToDuration(segs, m.DurationTicks, m.Tickrate)
 	if segs == nil {
