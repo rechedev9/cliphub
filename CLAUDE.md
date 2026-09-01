@@ -58,10 +58,10 @@ Shared standing law for every agent that touches this repo. If it is not here, i
 
 Use the unified `zv` CLI for normal parsing, capture, render, QA, and publishing; Studio is not a prerequisite.
 If `bin\zv.exe` is missing or stale, run `.\scripts\build.ps1` first.
+Before calling a change done, use the `verify-cliphub` skill. `zv verify doctor` fails closed on Cloud Linux and names the HLAE/CS2 gap; the cheap dumps below stay runnable without CS2.
 
 ```powershell
 .\bin\zv.exe capabilities --format json
-.\bin\zv.exe verify doctor --format json
 .\bin\zv.exe verify features --format json
 .\bin\zv.exe verify http --format json
 .\bin\zv.exe verify gates --run --dry-run --format json
