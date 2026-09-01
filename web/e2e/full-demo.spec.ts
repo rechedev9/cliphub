@@ -273,7 +273,14 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
+    const sourceGroup = page.getByRole('radiogroup', { name: 'Origen de la demo' });
+    await expect(sourceGroup).toBeVisible();
+    await expect(sourceGroup.getByRole('radio', { name: 'Premier' })).toBeVisible();
+    await expect(sourceGroup.getByRole('radio', { name: 'Profesional (HLTV)' })).toBeVisible();
+    await expect(sourceGroup.getByRole('radio', { name: 'FACEIT' })).toBeVisible();
     await page.getByRole('checkbox', { name: /Confirmo esta configuración/ }).check();
+    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
+    await sourceGroup.getByRole('radio', { name: 'Premier' }).click();
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeEnabled();
   });
 

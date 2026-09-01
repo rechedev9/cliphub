@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -99,6 +100,7 @@ type RecordDemoPayload struct {
 	SegmentIDs           []string  `json:"segment_ids,omitempty"`
 	PortraitSafeKillfeed bool      `json:"portrait_safe_killfeed,omitempty"`
 	UseRecapPlan         bool      `json:"use_recap_plan,omitempty"`
+	DemoSource           string    `json:"demo_source,omitempty"`
 }
 
 // ComposeFinalPayload carries the job id for the composition worker.
@@ -198,7 +200,11 @@ func NewAnalyzeTacticalTask(id uuid.UUID, sampleHZ float64) (*asynq.Task, error)
 // NewRecordDemoTaskWithRecap returns an Asynq task for recording a job with an
 // explicit recap-plan switch.
 func NewRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool) (*asynq.Task, error) {
-	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, nil)
+	return NewRecordDemoTaskWithSource(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, "")
+}
+
+func NewRecordDemoTaskWithSource(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, demoSource string) (*asynq.Task, error) {
+	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, demoSource, nil)
 }
 
 func NewGenerateRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, intent renderplan.GenerateIntent) (*asynq.Task, error) {
@@ -210,12 +216,12 @@ func NewGenerateRecordDemoTaskWithRecap(id uuid.UUID, hudMode string, segmentIDs
 	if err != nil {
 		return nil, err
 	}
-	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, map[string]string{
+	return newRecordDemoTask(id, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan, "", map[string]string{
 		generateIntentHeader: string(b),
 	})
 }
 
-func newRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, headers map[string]string) (*asynq.Task, error) {
+func newRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, demoSource string, headers map[string]string) (*asynq.Task, error) {
 	switch hudMode {
 	case "", "gameplay", "clean", "deathnotices":
 	default:
@@ -227,6 +233,7 @@ func newRecordDemoTask(id uuid.UUID, hudMode string, segmentIDs []string, portra
 		SegmentIDs:           segmentIDs,
 		PortraitSafeKillfeed: portraitSafeKillfeed,
 		UseRecapPlan:         useRecapPlan,
+		DemoSource:           strings.ToLower(strings.TrimSpace(demoSource)),
 	})
 	if err != nil {
 		return nil, err

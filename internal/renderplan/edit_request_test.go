@@ -45,6 +45,27 @@ func TestRecapEditRequestLocksFullDemoTreatment(t *testing.T) {
 	if got.Intro || got.Outro || got.HookText || got.KillCounter {
 		t.Fatalf("recap edit gained Shorts garnish: %#v", got)
 	}
+	if got.DemoSource != "" {
+		t.Fatalf("recap edit defaulted a demo source: %#v", got)
+	}
+}
+
+func TestRecapEditRequestWithSourceKeepsLockedTreatment(t *testing.T) {
+	tests := []string{DemoSourcePremier, DemoSourceProfessional, DemoSourceFACEIT}
+	for _, source := range tests {
+		t.Run(source, func(t *testing.T) {
+			got := RecapEditRequestWithSource(source)
+			if got.Format != FormatLandscape16x9 || !got.MatchRecap || !got.NativeHUD || !got.VoiceComms {
+				t.Fatalf("recap edit = %#v, want landscape recap", got)
+			}
+			if got.DemoSource != source {
+				t.Fatalf("demo source = %q, want %q", got.DemoSource, source)
+			}
+			if err := got.Validate(); err != nil {
+				t.Fatalf("Validate error = %v", err)
+			}
+		})
+	}
 }
 
 func TestNormalizeEditRequestDefaultsUnsetFields(t *testing.T) {
@@ -141,6 +162,83 @@ func TestEditRequestValidateVoiceVolume(t *testing.T) {
 			}
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("Validate error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestEditRequestDemoSourceRoundTrip(t *testing.T) {
+	validWire := func(source string) []byte {
+		body := map[string]any{
+			"format":         FormatLandscape16x9,
+			"killEffect":     KillEffectClean,
+			"transition":     TransitionCut,
+			"intro":          false,
+			"outro":          false,
+			"hook_text":      false,
+			"kill_counter":   false,
+			"match_recap":    true,
+			"voice_comms":    true,
+			"native_hud":     true,
+			"cover_strategy": CoverStrategyGenerated,
+		}
+		if source != "" {
+			body["demo_source"] = source
+		}
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	tests := []struct {
+		name    string
+		source  string
+		raw     string
+		want    string
+		wantErr string
+	}{
+		{name: "premier", source: DemoSourcePremier, want: DemoSourcePremier},
+		{name: "professional", source: DemoSourceProfessional, want: DemoSourceProfessional},
+		{name: "faceit", source: DemoSourceFACEIT, want: DemoSourceFACEIT},
+		{name: "omitted", want: ""},
+		{name: "unknown", raw: `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","demo_source":"esea"}`, wantErr: "unknown demo source"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := []byte(tc.raw)
+			if len(raw) == 0 {
+				raw = validWire(tc.source)
+			}
+			var req EditRequest
+			if err := json.Unmarshal(raw, &req); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			req = NormalizeEditRequest(req)
+			err := req.Validate()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Validate error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Validate error = %v", err)
+			}
+			if req.DemoSource != tc.want {
+				t.Fatalf("demo source = %q, want %q", req.DemoSource, tc.want)
+			}
+			encoded, err := json.Marshal(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var round EditRequest
+			if err := json.Unmarshal(encoded, &round); err != nil {
+				t.Fatal(err)
+			}
+			round = NormalizeEditRequest(round)
+			if round.DemoSource != tc.want {
+				t.Fatalf("round-trip demo source = %q, want %q", round.DemoSource, tc.want)
 			}
 		})
 	}

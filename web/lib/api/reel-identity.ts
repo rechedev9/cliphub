@@ -1,4 +1,4 @@
-import type { EditConfig, RenderMode } from './types.ts';
+import type { EditConfig, RenderMode, VideoStatus } from './types.ts';
 import { DEFAULT_EDIT_CONFIG, DEFAULT_VARIANT, FULL_DEMO_REEL_SUFFIX, type ReelIntent } from './reel-store.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { isLandscapeRecap } from '../reel-brief.ts';
@@ -34,4 +34,19 @@ export function reelContractMatches(
     existing.mode === input.mode &&
     editConfigsEqual(existing.editConfig, edit)
   );
+}
+
+const IN_FLIGHT: ReadonlySet<VideoStatus> = new Set(['queued', 'recording', 'composing']);
+
+/** Full Demo identity is one slot per job. A source change must not replace an in-flight capture. */
+export function shouldReuseReelIntent(
+  existing: { status: VideoStatus },
+  existingIntent: Pick<ReelIntent, 'variant' | 'songId' | 'musicVolume' | 'gameVolume' | 'editConfig' | 'mode'>,
+  input: ReelIdentityInput & { mode: RenderMode },
+): boolean {
+  if (existing.status === 'failed') return false;
+  if (reelContractMatches(existingIntent, input)) return true;
+  if (!IN_FLIGHT.has(existing.status)) return false;
+  const incoming = input.editConfig ?? DEFAULT_EDIT_CONFIG;
+  return isLandscapeRecap(existingIntent.editConfig) && isLandscapeRecap(incoming);
 }

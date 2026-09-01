@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -78,7 +79,35 @@ func FromRosterScan(result parser.RosterResult, targetSteamID string) Roster {
 	}
 }
 
+func NormalizeSource(source string) string {
+	switch s := strings.ToLower(strings.TrimSpace(source)); s {
+	case SourcePremier, SourceProfessional, SourceFACEIT:
+		return s
+	default:
+		return ""
+	}
+}
+
+func UsesFACEITEnrichment(source string) bool {
+	return NormalizeSource(source) == SourceFACEIT
+}
+
+// Build keeps the historical FACEIT-when-enrichment-present behavior for
+// existing tests. Full Demo renders must call BuildForSource so a Premier or
+// professional job cannot inherit FACEIT fields from a leftover map.
 func Build(roster Roster, faceit map[string]Enrichment) Document {
+	source := ""
+	if len(faceit) > 0 {
+		source = SourceFACEIT
+	}
+	return BuildForSource(roster, source, faceit)
+}
+
+func BuildForSource(roster Roster, source string, faceit map[string]Enrichment) Document {
+	source = NormalizeSource(source)
+	if !UsesFACEITEnrichment(source) {
+		faceit = nil
+	}
 	if faceit == nil {
 		faceit = map[string]Enrichment{}
 	}
@@ -93,6 +122,7 @@ func Build(roster Roster, faceit map[string]Enrichment) Document {
 	outroTeams := outroTeams(cards, roster.ScoreCT, roster.ScoreT)
 	doc := Document{
 		SchemaVersion:   SchemaVersion,
+		Source:          source,
 		TargetSteamID64: roster.TargetSteamID64,
 		TargetName:      firstNonEmpty(target.Name, roster.TargetSteamID64),
 		TargetKills:     target.Kills,
@@ -303,10 +333,19 @@ func introColumns(cards []PlayerCard) []string {
 	if anyLast20(cards, func(l Last20) bool { return l.KR != nil }) {
 		cols = append(cols, ColKR)
 	}
-	if anyLast20(cards, func(l Last20) bool { return l.ADR != nil }) {
-		cols = append(cols, ColADR)
+	if anyLast20(cards, func(l Last20) bool { return l.ADR != nil }) || anyCard(cards, func(p PlayerCard) bool { return p.HasADR }) {
+		if !containsCol(cols, ColADR) {
+			cols = append(cols, ColADR)
+		}
+	}
+	if anyCard(cards, func(p PlayerCard) bool { return p.HasRating }) && !containsCol(cols, ColRating) {
+		cols = append(cols, ColRating)
 	}
 	return cols
+}
+
+func containsCol(cols []string, col string) bool {
+	return slices.Contains(cols, col)
 }
 
 func outroColumns(teams []TeamBoard) []string {

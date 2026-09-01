@@ -170,6 +170,36 @@ test('effective edit parser reads the Go mixed wire fields', () => {
     })?.keyDropStyle,
     undefined,
   );
+  assert.equal(
+    parseEffectiveEditConfig({
+      format: 'landscape-16x9',
+      killEffect: 'clean',
+      transition: 'cut',
+      cover_strategy: 'generated-gameplay',
+      intro: false,
+      outro: false,
+      hook_text: false,
+      kill_counter: false,
+      match_recap: true,
+      demo_source: 'premier',
+    })?.demoSource,
+    'premier',
+  );
+  assert.equal(
+    parseEffectiveEditConfig({
+      format: 'landscape-16x9',
+      killEffect: 'clean',
+      transition: 'cut',
+      cover_strategy: 'generated-gameplay',
+      intro: false,
+      outro: false,
+      hook_text: false,
+      kill_counter: false,
+      match_recap: true,
+      demo_source: 'esea',
+    })?.demoSource,
+    undefined,
+  );
 });
 
 test('effective render music replaces stale cross-tab intent fields', () => {

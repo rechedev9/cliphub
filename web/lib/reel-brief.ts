@@ -87,8 +87,10 @@ export function isLandscapeRecap(edit: Pick<EditConfig, 'format' | 'matchRecap'>
 
 export function constrainEditConfig(edit: EditConfig): EditConfig {
   if (edit.format !== 'short-9x16') return edit;
-  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud) return edit;
-  return { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
+  if (!edit.matchRecap && !edit.voiceComms && !edit.nativeHud && !edit.demoSource) return edit;
+  const next: EditConfig = { ...edit, matchRecap: false, voiceComms: false, nativeHud: false };
+  delete next.demoSource;
+  return next;
 }
 
 /** Exact, reviewable values that must be approved before capture or render. */

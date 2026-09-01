@@ -26,6 +26,7 @@ func TestKeysUseStableJobLayout(t *testing.T) {
 		RosterKey(id):            "jobs/11111111-1111-1111-1111-111111111111/roster.json",
 		RecapPlanKey(id):         "jobs/11111111-1111-1111-1111-111111111111/recap-plan.json",
 		FullDemoFaceitKey(id):    "jobs/11111111-1111-1111-1111-111111111111/full-demo-faceit.json",
+		FullDemoSourceKey(id):    "jobs/11111111-1111-1111-1111-111111111111/full-demo-source.json",
 		GenerateIntentKey(id):    "jobs/11111111-1111-1111-1111-111111111111/generate-intent.json",
 		AnticheatKey(id):         "jobs/11111111-1111-1111-1111-111111111111/anticheat.json",
 		TacticalIndexKey(id):     "jobs/11111111-1111-1111-1111-111111111111/tactical/tactical.json",

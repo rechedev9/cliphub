@@ -2,6 +2,12 @@
 
 import type { CreativeBriefItem } from '@/lib/reel-brief';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  canStartFullDemoCapture,
+  FULL_DEMO_SOURCE_OPTIONS,
+} from '@/lib/full-demo';
+import { isDemoSource, type DemoSource } from '@/lib/api/types';
 
 export function FullDemoCaptureBar({
   roundCount,
@@ -10,6 +16,8 @@ export function FullDemoCaptureBar({
   briefItems,
   briefApproved,
   onBriefApprovedChange,
+  demoSource,
+  onDemoSourceChange,
   onCreate,
 }: {
   roundCount: number;
@@ -18,10 +26,12 @@ export function FullDemoCaptureBar({
   briefItems: CreativeBriefItem[];
   briefApproved: boolean;
   onBriefApprovedChange: (approved: boolean) => void;
+  demoSource: DemoSource | '';
+  onDemoSourceChange: (source: DemoSource) => void;
   onCreate: () => void;
 }) {
   const configured = roundCount > 0;
-  const ready = configured && briefApproved && !creating;
+  const ready = canStartFullDemoCapture({ roundCount, briefApproved, demoSource, creating });
 
   return (
     <div className="sticky bottom-0 z-20 -mx-(--shell-gutter) mt-2 border-t border-border-accent bg-surface-1 px-(--shell-gutter) py-4 shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)]">
@@ -38,6 +48,33 @@ export function FullDemoCaptureBar({
               </div>
             ))}
           </dl>
+          <div className="mt-3.5 flex flex-col gap-2">
+            <p id="full-demo-source-label" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              Origen de la demo
+            </p>
+            <ToggleGroup
+              type="single"
+              variant="filter"
+              spacing={2}
+              value={demoSource || undefined}
+              onValueChange={(value) => {
+                if (isDemoSource(value)) onDemoSourceChange(value);
+              }}
+              aria-labelledby="full-demo-source-label"
+              className="flex flex-wrap"
+            >
+              {FULL_DEMO_SOURCE_OPTIONS.map((option) => (
+                <ToggleGroupItem
+                  key={option.value}
+                  value={option.value}
+                  aria-label={option.label}
+                  disabled={creating}
+                >
+                  {option.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
           <label className="mt-3.5 flex min-h-10 items-center gap-2.5 text-body-sm text-fg-1">
             <input
               type="checkbox"

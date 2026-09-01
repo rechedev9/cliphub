@@ -4,10 +4,24 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/google/uuid"
+
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/job"
 )
+
+func (h *Handlers) persistFullDemoSource(id uuid.UUID, source string) {
+	if h == nil || h.storage == nil {
+		return
+	}
+	source = demooverlay.NormalizeSource(source)
+	body, err := json.MarshalIndent(map[string]string{"source": source}, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = h.storage.Put(artifacts.FullDemoSourceKey(id), bytes.NewReader(body))
+}
 
 func (h *Handlers) storeFullDemoFaceit(j job.Job) {
 	if h == nil || h.faceitFollows == nil || h.storage == nil {

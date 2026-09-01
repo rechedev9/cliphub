@@ -177,6 +177,32 @@ func TestNewRecordDemoTaskWithRecapRoundtrip(t *testing.T) {
 	}
 }
 
+func TestNewRecordDemoTaskWithSourceRoundtrip(t *testing.T) {
+	id := uuid.New()
+	tests := []string{"premier", "professional", "faceit"}
+	for _, source := range tests {
+		t.Run(source, func(t *testing.T) {
+			tk, err := NewRecordDemoTaskWithSource(id, "gameplay", nil, false, true, source)
+			if err != nil {
+				t.Fatalf("NewRecordDemoTaskWithSource error = %v", err)
+			}
+			if !strings.Contains(string(tk.Payload()), `"demo_source":"`+source+`"`) {
+				t.Errorf("payload missing demo_source: %s", tk.Payload())
+			}
+			var payload RecordDemoPayload
+			if err := json.Unmarshal(tk.Payload(), &payload); err != nil {
+				t.Fatalf("Unmarshal payload error = %v", err)
+			}
+			if payload.DemoSource != source {
+				t.Fatalf("DemoSource = %q, want %q", payload.DemoSource, source)
+			}
+			if !payload.UseRecapPlan {
+				t.Fatal("UseRecapPlan = false, want true")
+			}
+		})
+	}
+}
+
 func TestNewRecordDemoTaskRoundtripWithSegmentIDs(t *testing.T) {
 	id := uuid.New()
 	want := []string{"seg-001", "seg-002"}

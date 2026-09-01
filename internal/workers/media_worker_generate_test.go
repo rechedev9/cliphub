@@ -16,6 +16,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -209,6 +210,115 @@ func TestRecordWorkerChainsRecapRenderWithoutGenerateIntent(t *testing.T) {
 	}
 	if state.Status != renderplan.RenderVariantStatusQueued {
 		t.Fatalf("render state status = %q, want queued", state.Status)
+	}
+}
+
+func TestRecordWorkerChainsRecapRenderWithDemoSource(t *testing.T) {
+	const steamID = "76561197960265729"
+	matches := 20
+	win := 57.0
+	faceitSidecar := map[string]demooverlay.Enrichment{
+		steamID: {
+			Nickname:   "faceit-donk",
+			Country:    "ru",
+			ELO:        4370,
+			SkillLevel: 10,
+			AvatarURL:  "https://assets.faceit.com/avatars/donk.png",
+			Last20:     &demooverlay.Last20{Matches: &matches, WinPct: &win},
+		},
+	}
+	tests := []struct {
+		source     string
+		wantFACEIT bool
+	}{
+		{source: renderplan.DemoSourcePremier},
+		{source: renderplan.DemoSourceProfessional},
+		{source: renderplan.DemoSourceFACEIT, wantFACEIT: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.source, func(t *testing.T) {
+			store := newFakeStorage()
+			repo, id := parsedRecordJob(store)
+			repo.jobs[id].TargetSteamID = steamID
+			plan := *repo.jobs[id].KillPlan
+			if err := recapplan.Store(store, id, plan); err != nil {
+				t.Fatal(err)
+			}
+			putJSON(t, store, artifacts.RosterKey(id), map[string]any{
+				"players": []map[string]any{
+					{"steamid64": steamID, "name": "donk666", "team": "CT", "kills": 23, "deaths": 14, "assists": 4, "adr": 101.6, "rating": 1.35},
+					{"steamid64": "76561198000000002", "name": "KingwayO", "team": "T", "kills": 18, "deaths": 16},
+				},
+				"match": map[string]any{"map": "de_mirage", "score_ct": 13, "score_t": 8},
+			})
+			putJSON(t, store, artifacts.FullDemoFaceitKey(id), faceitSidecar)
+			putJSON(t, store, artifacts.FullDemoSourceKey(id), map[string]string{"source": tc.source})
+
+			enq := &fakeEnqueuer{}
+			w := newRecordWorkerForTest(repo, store, t)
+			w.UseEnqueuer(enq)
+			task, err := tasks.NewRecordDemoTaskWithRecap(id, "gameplay", nil, false, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := w.HandleRecordDemo(context.Background(), task); err != nil {
+				t.Fatalf("HandleRecordDemo error = %v", err)
+			}
+			if len(enq.tasks) != 1 {
+				t.Fatalf("chained tasks = %d, want 1", len(enq.tasks))
+			}
+			var payload tasks.RenderVariantPayload
+			if err := json.Unmarshal(enq.tasks[0].Payload(), &payload); err != nil {
+				t.Fatalf("unmarshal render payload: %v", err)
+			}
+			if payload.Edit.DemoSource != tc.source {
+				t.Fatalf("chained Edit.DemoSource = %q, want %q", payload.Edit.DemoSource, tc.source)
+			}
+			if payload.Variant != editor.PresetGameplayPOV60 || !payload.Edit.MatchRecap {
+				t.Fatalf("render payload = %#v, want gameplay-pov-60 recap", payload)
+			}
+
+			var gotArgs []string
+			stop := errors.New("stop after args")
+			rw := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:    t.TempDir(),
+				EditorPath: "zv-editor",
+			})
+			rw.voiceExtract = func(string, string, string) (int, error) { return 0, nil }
+			rw.runner = &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				gotArgs = append([]string(nil), args...)
+				return nil, stop
+			}}
+			if err := rw.HandleRenderVariant(context.Background(), enq.tasks[0]); !errors.Is(err, stop) {
+				t.Fatalf("HandleRenderVariant error = %v, want stop sentinel", err)
+			}
+			overlayPath := argValue(gotArgs, "--full-demo-overlay")
+			if overlayPath == "" {
+				t.Fatalf("--full-demo-overlay missing: %#v", gotArgs)
+			}
+			raw, err := os.ReadFile(overlayPath)
+			if err != nil {
+				t.Fatalf("read overlay: %v", err)
+			}
+			var doc demooverlay.Document
+			if err := json.Unmarshal(raw, &doc); err != nil {
+				t.Fatalf("decode overlay: %v", err)
+			}
+			if doc.Source != tc.source {
+				t.Fatalf("overlay source = %q, want %q", doc.Source, tc.source)
+			}
+			if len(doc.Intro.Left) == 0 {
+				t.Fatal("overlay intro is empty")
+			}
+			card := doc.Intro.Left[0]
+			if tc.wantFACEIT {
+				if card.Name != "faceit-donk" || card.ELO == nil || *card.ELO != 4370 || card.Last20 == nil {
+					t.Fatalf("FACEIT enrichment missing: %+v", card)
+				}
+			} else if card.ELO != nil || card.Last20 != nil || card.Name == "faceit-donk" {
+				t.Fatalf("FACEIT enrichment leaked onto %s: %+v", tc.source, card)
+			}
+		})
 	}
 }
 

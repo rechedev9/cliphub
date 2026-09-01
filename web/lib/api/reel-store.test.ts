@@ -168,6 +168,10 @@ test('automatic text controls preserve only explicit true values', () => {
   assert.equal(coerceEditConfig({ voiceVolume: 0.4 }).voiceVolume, 0.4);
   assert.equal(coerceEditConfig({ voiceVolume: 0 }).voiceVolume, 0);
   assert.equal(coerceEditConfig({ voiceVolume: 1.5 }).voiceVolume, undefined);
+  assert.equal(coerceEditConfig({ demoSource: 'premier' }).demoSource, 'premier');
+  assert.equal(coerceEditConfig({ demoSource: 'professional' }).demoSource, 'professional');
+  assert.equal(coerceEditConfig({ demoSource: 'faceit' }).demoSource, 'faceit');
+  assert.equal(coerceEditConfig({ demoSource: 'esea' }).demoSource, undefined);
 });
 
 test('coerceEditConfig keeps every catalog KeyDrop style and drops unknowns', () => {
