@@ -281,7 +281,9 @@ func ensureFullDemoOverlays(manifest *Manifest, ffmpegPath string) error {
 	}
 	introPath := filepath.Join(manifest.OutputDir, "full-demo-intro.png")
 	outroPath := filepath.Join(manifest.OutputDir, "full-demo-outro.png")
-	if err := demooverlay.RenderPNGs(ffmpegPath, fontPath, *manifest.fullDemoOverlay, introPath, outroPath); err != nil {
+	if err := demooverlay.RenderPNGs(ffmpegPath, fontPath, *manifest.fullDemoOverlay, introPath, outroPath, demooverlay.RenderOptions{
+		OverlayAssetsDir: manifest.overlayAssetsDir,
+	}); err != nil {
 		return err
 	}
 	for i := range manifest.Shorts {

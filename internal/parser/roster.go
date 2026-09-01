@@ -43,10 +43,12 @@ type PlayerStat struct {
 // scoreboard reads it - the score of whichever team ended the match on each
 // side, not tied to a specific team identity across a side swap.
 type MatchInfo struct {
-	Map     string `json:"map"`
-	ScoreCT int    `json:"score_ct"`
-	ScoreT  int    `json:"score_t"`
-	Rounds  int    `json:"rounds"`
+	Map        string `json:"map"`
+	ScoreCT    int    `json:"score_ct"`
+	ScoreT     int    `json:"score_t"`
+	Rounds     int    `json:"rounds"`
+	ClanNameCT string `json:"clan_name_ct,omitempty"`
+	ClanNameT  string `json:"clan_name_t,omitempty"`
 }
 
 // RosterResult is the result of a roster scan: every player's scoreboard line
@@ -67,13 +69,22 @@ func RosterScan(p demoinfocs.Parser) (RosterResult, error) {
 	}
 
 	gs := p.GameState()
+	clanCT, clanT := acc.clanNameCT, acc.clanNameT
+	if clanCT == "" {
+		clanCT = gs.TeamCounterTerrorists().ClanName()
+	}
+	if clanT == "" {
+		clanT = gs.TeamTerrorists().ClanName()
+	}
 	return RosterResult{
 		Players: acc.finalize(),
 		Match: MatchInfo{
-			Map:     acc.mapName,
-			ScoreCT: gs.TeamCounterTerrorists().Score(),
-			ScoreT:  gs.TeamTerrorists().Score(),
-			Rounds:  acc.rounds,
+			Map:        acc.mapName,
+			ScoreCT:    gs.TeamCounterTerrorists().Score(),
+			ScoreT:     gs.TeamTerrorists().Score(),
+			Rounds:     acc.rounds,
+			ClanNameCT: clanCT,
+			ClanNameT:  clanT,
 		},
 	}, nil
 }

@@ -3,6 +3,7 @@ package parser
 import (
 	"math"
 	"strconv"
+	"strings"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -50,6 +51,9 @@ type rosterAccumulator struct {
 	// cleared on MatchStart: it is set once near the start of the demo and the
 	// map never changes mid-match.
 	mapName string
+
+	clanNameCT string
+	clanNameT  string
 
 	// Current-round scratch, reset each RoundStart.
 	curParticipants map[uint64]string // steamid -> team, snapshot at round start
@@ -111,7 +115,35 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 		}
 	})
 
-	p.RegisterEventHandler(func(events.MatchStart) { a.reset() })
+	p.RegisterEventHandler(func(events.MatchStart) {
+		a.reset()
+		gs := p.GameState()
+		if name := gs.TeamCounterTerrorists().ClanName(); name != "" {
+			a.clanNameCT = name
+		}
+		if name := gs.TeamTerrorists().ClanName(); name != "" {
+			a.clanNameT = name
+		}
+	})
+
+	p.RegisterEventHandler(func(e events.TeamClanNameUpdated) {
+		if e.TeamState == nil {
+			return
+		}
+		name := strings.TrimSpace(e.TeamState.ClanName())
+		if name == "" {
+			name = strings.TrimSpace(e.NewName)
+		}
+		if name == "" {
+			return
+		}
+		switch e.TeamState.Team() {
+		case common.TeamCounterTerrorists:
+			a.clanNameCT = name
+		case common.TeamTerrorists:
+			a.clanNameT = name
+		}
+	})
 
 	p.RegisterEventHandler(func(events.RoundStart) {
 		a.curParticipants = map[uint64]string{}

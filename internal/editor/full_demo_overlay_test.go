@@ -156,7 +156,7 @@ func TestCompilationFilterFullDemoSlidesIntroAndBlursOutro(t *testing.T) {
 	}
 	got := CompilationFilter(short)
 	wantDim := fmt.Sprintf(
-		"[vtail]trim=start=16.000:end=24.000,gblur=sigma=%.3f,eq=brightness=%.3f[vblurred]",
+		"gblur=sigma=%.3f:enable='between(t\\,16.000\\,24.000)',eq=brightness=%.3f:enable='between(t\\,16.000\\,24.000)'",
 		demooverlay.OutroBlurSigma, demooverlay.OutroEQBrightness,
 	)
 	for _, want := range []string{
@@ -169,15 +169,10 @@ func TestCompilationFilterFullDemoSlidesIntroAndBlursOutro(t *testing.T) {
 			t.Fatalf("CompilationFilter missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "setpts=PTS+16.000/TB") {
-		t.Fatalf("outro dim shifted PTS off the overlay window:\n%s", got)
-	}
-	vtail := got[strings.Index(got, "[vtail]"):]
-	if end := strings.Index(vtail, ";"); end >= 0 {
-		vtail = vtail[:end]
-	}
-	if strings.Contains(vtail, "setpts=") {
-		t.Fatalf("outro dim vtail must keep concat PTS, got %q", vtail)
+	for _, forbidden := range []string{"[vkeep]", "[vtail]", "[vblurred]", "split=2[vkeep]"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("outro dim must not use split/overlay buffering, found %q:\n%s", forbidden, got)
+		}
 	}
 	if strings.Contains(got, "fade=t=in:st=5.000") {
 		t.Fatalf("intro still faded in instead of sliding:\n%s", got)

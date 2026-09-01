@@ -76,6 +76,8 @@ func FromRosterScan(result parser.RosterResult, targetSteamID string) Roster {
 		ScoreCT:         result.Match.ScoreCT,
 		ScoreT:          result.Match.ScoreT,
 		Rounds:          result.Match.Rounds,
+		ClanNameCT:      result.Match.ClanNameCT,
+		ClanNameT:       result.Match.ClanNameT,
 	}
 }
 
@@ -118,8 +120,11 @@ func BuildForSource(roster Roster, source string, faceit map[string]Enrichment) 
 	target := targetCard(cards, roster.TargetSteamID64)
 	povTeam := target.Team
 	left, right := splitSides(cards, povTeam)
-	introCols := introColumns(append(append([]PlayerCard{}, left...), right...))
-	outroTeams := outroTeams(cards, roster.ScoreCT, roster.ScoreT)
+	allIntro := append(append([]PlayerCard{}, left...), right...)
+	introCols := introColumns(source, allIntro)
+	outroTeams := outroTeamsFromRoster(cards, roster)
+	leftTeam, leftSub := introPanelMeta(source, povTeam, clanNameForSide(roster, povTeam), roster.Map, left)
+	rightTeam, rightSub := introPanelMeta(source, oppositeSide(povTeam), clanNameForSide(roster, oppositeSide(povTeam)), roster.Map, right)
 	doc := Document{
 		SchemaVersion:   SchemaVersion,
 		Source:          source,
@@ -132,9 +137,13 @@ func BuildForSource(roster Roster, source string, faceit map[string]Enrichment) 
 		ScoreCT:         roster.ScoreCT,
 		ScoreT:          roster.ScoreT,
 		Intro: Intro{
-			Left:    left,
-			Right:   right,
-			Columns: introCols,
+			Left:          left,
+			Right:         right,
+			LeftTeamName:  leftTeam,
+			LeftSubtitle:  leftSub,
+			RightTeamName: rightTeam,
+			RightSubtitle: rightSub,
+			Columns:       introCols,
 		},
 		Outro: Scoreboard{
 			Teams:   outroTeams,
@@ -142,6 +151,11 @@ func BuildForSource(roster Roster, source string, faceit map[string]Enrichment) 
 		},
 	}
 	return doc
+}
+
+// IsPOV reports whether card is the Full Demo POV target.
+func (doc Document) IsPOV(card PlayerCard) bool {
+	return doc.TargetSteamID64 != "" && card.SteamID64 == doc.TargetSteamID64
 }
 
 func cardFromRoster(p RosterPlayer, en Enrichment) PlayerCard {
@@ -236,7 +250,7 @@ func sortCards(cards []PlayerCard) {
 	})
 }
 
-func outroTeams(cards []PlayerCard, scoreCT, scoreT int) []TeamBoard {
+func outroTeamsFromRoster(cards []PlayerCard, roster Roster) []TeamBoard {
 	bySide := map[string][]PlayerCard{}
 	for _, card := range cards {
 		side := card.Team
@@ -246,7 +260,7 @@ func outroTeams(cards []PlayerCard, scoreCT, scoreT int) []TeamBoard {
 		bySide[side] = append(bySide[side], card)
 	}
 	order := []string{"CT", "T"}
-	if scoreT > scoreCT {
+	if roster.ScoreT > roster.ScoreCT {
 		order = []string{"T", "CT"}
 	}
 	var teams []TeamBoard
@@ -256,12 +270,12 @@ func outroTeams(cards []PlayerCard, scoreCT, scoreT int) []TeamBoard {
 			continue
 		}
 		sortCards(players)
-		score := scoreCT
+		score := roster.ScoreCT
 		if side == "T" {
-			score = scoreT
+			score = roster.ScoreT
 		}
 		teams = append(teams, TeamBoard{
-			Name:       teamName(players, side),
+			Name:       teamDisplayName(side, clanNameForSide(roster, side), players),
 			Side:       side,
 			Score:      score,
 			AverageELO: averageELO(players),
@@ -271,11 +285,75 @@ func outroTeams(cards []PlayerCard, scoreCT, scoreT int) []TeamBoard {
 	if others := bySide["other"]; len(others) > 0 {
 		sortCards(others)
 		teams = append(teams, TeamBoard{
-			Name:    teamName(others, ""),
+			Name:    teamDisplayName("", "", others),
 			Players: others,
 		})
 	}
 	return teams
+}
+
+func clanNameForSide(roster Roster, side string) string {
+	switch side {
+	case "CT":
+		return strings.TrimSpace(roster.ClanNameCT)
+	case "T":
+		return strings.TrimSpace(roster.ClanNameT)
+	default:
+		return ""
+	}
+}
+
+func oppositeSide(side string) string {
+	switch side {
+	case "CT":
+		return "T"
+	case "T":
+		return "CT"
+	default:
+		return ""
+	}
+}
+
+func sideDisplayName(side string) string {
+	switch side {
+	case "CT":
+		return "Counter-Terrorists"
+	case "T":
+		return "Terrorists"
+	default:
+		return ""
+	}
+}
+
+func teamDisplayName(side, clanName string, players []PlayerCard) string {
+	if name := strings.TrimSpace(clanName); name != "" {
+		return name
+	}
+	if label := sideDisplayName(side); label != "" {
+		return label
+	}
+	return teamName(players, side)
+}
+
+func introPanelMeta(source, side, clanName, mapName string, players []PlayerCard) (teamName, subtitle string) {
+	displayTeam := teamDisplayName(side, clanName, players)
+	switch NormalizeSource(source) {
+	case SourceProfessional:
+		return displayTeam, displayMapName(mapName)
+	case SourcePremier:
+		subtitle = "CS2 PREMIER"
+		if mapLabel := displayMapName(mapName); mapLabel != "" {
+			subtitle += " · " + mapLabel
+		}
+		return displayTeam, subtitle
+	case SourceFACEIT:
+		if avg := averageELO(players); avg != nil {
+			return displayTeam, fmt.Sprintf("%d avg ELO", *avg)
+		}
+		return displayTeam, ""
+	default:
+		return "", ""
+	}
 }
 
 func teamName(players []PlayerCard, side string) string {
@@ -303,7 +381,53 @@ func averageELO(players []PlayerCard) *int {
 	return &avg
 }
 
-func introColumns(cards []PlayerCard) []string {
+func introColumns(source string, cards []PlayerCard) []string {
+	switch NormalizeSource(source) {
+	case SourceProfessional, SourcePremier:
+		return []string{ColName}
+	case SourceFACEIT:
+		return introFACEITColumns(cards)
+	default:
+		return introLegacyColumns(cards)
+	}
+}
+
+func introFACEITColumns(cards []PlayerCard) []string {
+	cols := []string{ColName}
+	if anyCard(cards, func(p PlayerCard) bool { return p.Country != "" }) {
+		cols = append(cols, ColCountry)
+	}
+	if anyCard(cards, func(p PlayerCard) bool { return p.ELO != nil }) {
+		cols = append(cols, ColELO)
+	}
+	if anyCard(cards, func(p PlayerCard) bool { return p.SkillLevel != nil }) {
+		cols = append(cols, ColLevel)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.Matches != nil }) {
+		cols = append(cols, ColMatches)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.WinPct != nil }) {
+		cols = append(cols, ColWinPct)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.Rating != nil }) {
+		cols = append(cols, ColRating)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.Swing != nil }) {
+		cols = append(cols, ColSwing)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.KD != nil }) {
+		cols = append(cols, ColKD)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.KR != nil }) {
+		cols = append(cols, ColKR)
+	}
+	if anyLast20(cards, func(l Last20) bool { return l.ADR != nil }) {
+		cols = append(cols, ColADR)
+	}
+	return cols
+}
+
+func introLegacyColumns(cards []PlayerCard) []string {
 	cols := []string{ColName}
 	if anyCard(cards, func(p PlayerCard) bool { return p.Country != "" }) {
 		cols = append(cols, ColCountry)

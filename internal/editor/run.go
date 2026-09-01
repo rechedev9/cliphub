@@ -195,6 +195,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		RankMoments:         cfg.RankMoments,
 		VideoCRF:            videoCRF,
 		VideoPreset:         videoPreset,
+		VideoEncoder:        cfg.VideoEncoder,
 		Threads:             cfg.Threads,
 		HQFilters:           cfg.HQFilters,
 		AudioNormalize:      cfg.AudioNormalize,
@@ -208,6 +209,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		SkipExisting:        cfg.SkipExisting,
 		KillPlan:            killPlan,
 		KillfeedFrameProbe:  killfeedProbe,
+		OverlayAssetsDir:    cfg.OverlayAssetsDir,
 		FullDemoOverlay:     fullDemoOverlay,
 	})
 	if err != nil {
@@ -254,6 +256,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		SkipExisting:   cfg.SkipExisting,
 		ValidateVideos: true,
 		RenderJobs:     cfg.RenderJobs,
+		Progress:       NewProgressTracker(cfg.ProgressOutPath),
 	}); err != nil {
 		return result, err
 	}
@@ -305,6 +308,9 @@ func (c Config) validate() error {
 		return err
 	}
 	if _, err := normalizeVideoPresetForPreset(preset, c.VideoPreset); err != nil {
+		return err
+	}
+	if err := validateVideoEncoder(c.VideoEncoder); err != nil {
 		return err
 	}
 	if _, err := normalizeOutputFPS(c.OutputFPS); err != nil {

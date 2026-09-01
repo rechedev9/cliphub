@@ -36,6 +36,9 @@ const (
 
 	// StandardVideoPreset is the x264 speed/quality setting for viral-60-clean.
 	StandardVideoPreset = "slow"
+
+	// VideoEncoderNVENC selects h264_nvenc for final renders when FFmpeg supports it.
+	VideoEncoderNVENC = "nvenc-h264"
 )
 
 const (
@@ -97,6 +100,7 @@ type Config struct {
 	RankMoments       bool
 	VideoCRF          int
 	VideoPreset       string
+	VideoEncoder      string
 	// Threads caps the FFmpeg encoder threads for each render; 0 lets FFmpeg
 	// pick its own default.
 	Threads        int `json:"threads,omitempty"`
@@ -146,6 +150,10 @@ type Config struct {
 	// FullDemoOverlayPath is a demooverlay.Document JSON used only for the
 	// landscape native POV compilation.
 	FullDemoOverlayPath string
+	// OverlayAssetsDir points at per-source Full Demo background plates.
+	OverlayAssetsDir string
+	// ProgressOutPath is an optional JSON status file updated during render.
+	ProgressOutPath string
 }
 
 type ManifestOptions struct {
@@ -177,6 +185,7 @@ type ManifestOptions struct {
 	RankMoments         bool
 	VideoCRF            int
 	VideoPreset         string
+	VideoEncoder        string
 	// Threads caps the FFmpeg encoder threads for each render; 0 lets FFmpeg
 	// pick its own default.
 	Threads           int `json:"threads,omitempty"`
@@ -218,6 +227,7 @@ type ManifestOptions struct {
 	FullDemoOverlay        *demooverlay.Document
 	FullDemoIntroImagePath string
 	FullDemoOutroImagePath string
+	OverlayAssetsDir       string
 	KillPlan               *killplan.Plan
 	// KillfeedFrameProbe loads a source frame for per-kill killfeed crop
 	// measurement; nil keeps the static crop defaults.
@@ -261,6 +271,7 @@ type Manifest struct {
 	UnmatchedSmokes   string      `json:"unmatched_smokes,omitempty"`
 	VideoCRF          int         `json:"video_crf,omitempty"`
 	VideoPreset       string      `json:"video_preset,omitempty"`
+	VideoEncoder      string      `json:"video_encoder,omitempty"`
 	Threads           int         `json:"threads,omitempty"`
 	HQFilters         bool        `json:"hq_filters,omitempty"`
 	AudioNormalize    bool        `json:"audio_normalize,omitempty"`
@@ -272,6 +283,7 @@ type Manifest struct {
 	Shorts            []ShortEdit `json:"shorts"`
 	Warnings          []string    `json:"warnings,omitempty"`
 	fullDemoOverlay   *demooverlay.Document
+	overlayAssetsDir  string
 }
 
 type ShortEdit struct {
@@ -317,8 +329,12 @@ type ShortEdit struct {
 	KillfeedOverlay   bool     `json:"killfeed_overlay,omitempty"`
 	TailTrimSeconds   float64  `json:"tail_trim_seconds,omitempty"`
 	OutputFPS         int      `json:"output_fps,omitempty"`
+	SourceWidth       int      `json:"source_width,omitempty"`
+	SourceHeight      int      `json:"source_height,omitempty"`
+	SourceFPS         int      `json:"source_fps,omitempty"`
 	VideoCRF          int      `json:"video_crf,omitempty"`
 	VideoPreset       string   `json:"video_preset,omitempty"`
+	VideoEncoder      string   `json:"video_encoder,omitempty"`
 	Threads           int      `json:"threads,omitempty"`
 	HQFilters         bool     `json:"hq_filters,omitempty"`
 	AudioNormalize    bool     `json:"audio_normalize,omitempty"`

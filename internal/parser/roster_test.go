@@ -211,16 +211,17 @@ func (gs *scanGameState) TeamTerrorists() *common.TeamState        { return &com
 // fixture.
 type fakeScanParser struct {
 	demoinfocs.Parser
-	gs         *scanGameState
-	matchStart func(events.MatchStart)
-	roundStart func(events.RoundStart)
-	kill       func(events.Kill)
-	playerHurt func(events.PlayerHurt)
-	weaponFire func(events.WeaponFire)
-	mvp        func(events.RoundMVPAnnouncement)
-	roundEnd   func(events.RoundEnd)
-	serverInfo func(*msg.CSVCMsg_ServerInfo)
-	script     func(*fakeScanParser)
+	gs              *scanGameState
+	matchStart      func(events.MatchStart)
+	roundStart      func(events.RoundStart)
+	kill            func(events.Kill)
+	playerHurt      func(events.PlayerHurt)
+	weaponFire      func(events.WeaponFire)
+	mvp             func(events.RoundMVPAnnouncement)
+	roundEnd        func(events.RoundEnd)
+	serverInfo      func(*msg.CSVCMsg_ServerInfo)
+	clanNameUpdated func(events.TeamClanNameUpdated)
+	script          func(*fakeScanParser)
 }
 
 func (p *fakeScanParser) RegisterEventHandler(h any) dp.HandlerIdentifier {
@@ -239,6 +240,8 @@ func (p *fakeScanParser) RegisterEventHandler(h any) dp.HandlerIdentifier {
 		p.mvp = fn
 	case func(events.RoundEnd):
 		p.roundEnd = fn
+	case func(events.TeamClanNameUpdated):
+		p.clanNameUpdated = fn
 	}
 	return nil
 }
@@ -456,6 +459,25 @@ func (p *fakeScanParser) GameState() demoinfocs.GameState { return p.gs }
 func (p *fakeScanParser) ParseToEnd() error {
 	p.script(p)
 	return nil
+}
+
+func TestRosterScanCapturesClanNamesFromEvents(t *testing.T) {
+	ctState := common.NewTeamState(common.TeamCounterTerrorists, func(common.Team) []*common.Player { return nil }, nil)
+	tState := common.NewTeamState(common.TeamTerrorists, func(common.Team) []*common.Player { return nil }, nil)
+	p := &fakeScanParser{gs: &scanGameState{}}
+	p.script = func(p *fakeScanParser) {
+		p.matchStart(events.MatchStart{})
+		p.clanNameUpdated(events.TeamClanNameUpdated{NewName: "NAVI", TeamState: &ctState})
+		p.clanNameUpdated(events.TeamClanNameUpdated{NewName: "FaZe", TeamState: &tState})
+	}
+
+	result, err := RosterScan(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Match.ClanNameCT != "NAVI" || result.Match.ClanNameT != "FaZe" {
+		t.Fatalf("clan names = %q / %q, want NAVI / FaZe", result.Match.ClanNameCT, result.Match.ClanNameT)
+	}
 }
 
 func TestRosterScanTracksMultiKillRoundsAndMatchInfo(t *testing.T) {

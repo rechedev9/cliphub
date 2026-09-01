@@ -77,9 +77,13 @@ type Document struct {
 }
 
 type Intro struct {
-	Left    []PlayerCard `json:"left"`
-	Right   []PlayerCard `json:"right"`
-	Columns []string     `json:"columns"`
+	Left          []PlayerCard `json:"left"`
+	Right         []PlayerCard `json:"right"`
+	LeftTeamName  string       `json:"left_team_name,omitempty"`
+	LeftSubtitle  string       `json:"left_subtitle,omitempty"`
+	RightTeamName string       `json:"right_team_name,omitempty"`
+	RightSubtitle string       `json:"right_subtitle,omitempty"`
+	Columns       []string     `json:"columns"`
 }
 
 type Scoreboard struct {
@@ -146,6 +150,8 @@ type Roster struct {
 	ScoreCT         int
 	ScoreT          int
 	Rounds          int
+	ClanNameCT      string
+	ClanNameT       string
 }
 
 type RosterPlayer struct {
