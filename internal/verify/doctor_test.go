@@ -123,6 +123,19 @@ func TestDoctorSchemaAndNamedGap(t *testing.T) {
 	}
 }
 
+func TestLiveCS2NeverFakedOnLinux(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Cloud Linux contract: live cs2.exe is never invented here")
+	}
+	running, err := cs2ProcessRunning()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running {
+		t.Fatal("linux must not report cs2.exe running; never fake CS2")
+	}
+}
+
 func TestDoctorWindowsStudioDetection(t *testing.T) {
 	root, err := FindRepoRoot()
 	if err != nil {

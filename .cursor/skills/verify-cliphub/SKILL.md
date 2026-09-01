@@ -19,7 +19,7 @@ ClipHub Studio is a Windows-local Electron shell over `zv-orchestrator` + the Ne
 
 Packaged Studio writes `%APPDATA%\cliphub-studio\ports.json` (`orchestrator`, `web`) and `%APPDATA%\cliphub-studio\data\jobs.db`. Doctor reads those. The CLI default `http://127.0.0.1:8080` is not packaged Studio.
 
-On this Cloud Linux VM there is no CS2, no HLAE, and no Windows Studio. Do not launch HLAE/CS2 from here. Do not fake a Studio walk. The verification host of record for capture and overlays is King's Windows Studio.
+On this Cloud Linux VM there is no CS2, no HLAE, and no Windows Studio. Do not launch HLAE/CS2 from here. Do not fake a Studio walk. Do not drive King's Windows PC, HLAE, or CS2 unless that run was explicitly granted. The verification host of record for capture and overlays remains King's Windows Studio; a later granted Windows loop runs this CLI. This run proves Linux fail-close and fixture tests only.
 
 For CLI-only cheap proof, no server is required: build or `go run` `zv` and inspect.
 
@@ -40,7 +40,7 @@ Run this first whenever anything looks off, and before calling a change done:
 ./bin/zv capabilities --format json
 ```
 
-Doctor is a Windows-first control CLI. On King's Windows Studio it inspects:
+Doctor is a Windows-first control CLI shipped so a later granted Windows loop can inspect:
 
 - `ports.json` under `%APPDATA%\cliphub-studio`
 - `data\jobs.db`
@@ -69,13 +69,13 @@ Cheap (Linux OK):
 ./bin/zv verify prove --feature inicio --format json
 ```
 
-User-path (King's Windows Studio):
+User-path (later granted Windows Studio only — do not drive King's PC from Cloud Linux):
 
 ```text
 ./bin/zv verify prove --feature shorts-9x16-wait --job-id <uuid> --format json
 ```
 
-That GET `/api/jobs/{id}?view=status` returns `{status, failure_reason, progress?: {done, total, percent}}`. Overlay percent is `progress.percent`. `--dry-run` prints the planned GET and does not HTTP.
+That GET `/api/jobs/{id}?view=status` returns `{status, failure_reason, progress?: {done, total, percent}}`. Overlay percent is `progress.percent`. `--dry-run` prints the planned GET and does not HTTP. On Cloud Linux, cover the Windows detection paths with table-driven fixtures (missing `ports.json` / missing HLAE / CS2 not running / all present). Never fake a live `cs2.exe`.
 
 `prove --feature` on `demo-completa`, `shorts-9x16-wait`, or `full-demo-16x9-wait` must fail closed here on Cloud Linux.
 
