@@ -49,8 +49,11 @@ type Segment struct {
 	Round     int            `json:"round"`
 	TickStart int            `json:"tick_start"`
 	TickEnd   int            `json:"tick_end"`
-	Kills     []Kill         `json:"kills,omitempty"`
-	Utility   []UtilityThrow `json:"utility,omitempty"`
+	// LiveEndTick is the last tick where target POV must stay locked. Recording
+	// may continue through TickEnd for outro overlays or post-kill tails.
+	LiveEndTick int            `json:"live_end_tick,omitempty"`
+	Kills       []Kill         `json:"kills,omitempty"`
+	Utility     []UtilityThrow `json:"utility,omitempty"`
 }
 
 // Kill captures the metadata downstream stages need to choose effects

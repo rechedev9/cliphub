@@ -699,6 +699,31 @@ func TestWithIntroFreezeDoesNotPullBuyTimeNadesIntoTheSegment(t *testing.T) {
 	}
 }
 
+func TestSegmentRecapSetsLiveEndTickBeforeOutroHold(t *testing.T) {
+	roundEnds := []RoundEnd{{Round: 18, Tick: 152626}}
+	liveStarts := []RoundLiveStart{{Round: 18, Tick: 146271}}
+	roundStarts := []RoundStart{{Round: 18, Tick: 145900}, {Round: 19, Tick: 153500}}
+	got := SegmentRecap(nil, nil, roundStarts, liveStarts, roundEnds, nil, defaultTestRules(), testTickrate)
+	if len(got) != 1 {
+		t.Fatalf("segments = %d, want 1", len(got))
+	}
+	if got[0].LiveEndTick != 152626 {
+		t.Fatalf("LiveEndTick = %d, want round live end 152626", got[0].LiveEndTick)
+	}
+	if got[0].TickEnd != 152626 {
+		t.Fatalf("TickEnd before outro = %d, want 152626", got[0].TickEnd)
+	}
+	held := WithOutroHold(got, roundStarts, nil, testTickrate)
+	last := held[len(held)-1]
+	wantRecordEnd := 152626 + (OutroBannerSeconds+OutroScoreboardSeconds)*testTickrate
+	if last.TickEnd != wantRecordEnd {
+		t.Fatalf("TickEnd after outro hold = %d, want %d", last.TickEnd, wantRecordEnd)
+	}
+	if last.LiveEndTick != 152626 {
+		t.Fatalf("LiveEndTick after outro hold = %d, want preserved live end 152626", last.LiveEndTick)
+	}
+}
+
 func TestWithOutroHoldKeepsWinBannerThenScoreboardAndSkipsDeathcam(t *testing.T) {
 	tests := []struct {
 		name          string

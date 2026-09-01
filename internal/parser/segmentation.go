@@ -180,12 +180,13 @@ func SegmentRecap(kills []RawKill, utility []RawUtilityThrow, roundStarts []Roun
 			}
 		}
 		out = append(out, killplan.Segment{
-			ID:        killplan.FormatSegmentID(len(out) + 1),
-			Round:     round,
-			TickStart: tickStart,
-			TickEnd:   tickEnd,
-			Kills:     killsInRecapWindow(buildKillPlanKills(g), tickStart, tickEnd),
-			Utility:   utilityInRecapWindow(utilityByRound[round], tickStart, tickEnd),
+			ID:          killplan.FormatSegmentID(len(out) + 1),
+			Round:       round,
+			TickStart:   tickStart,
+			TickEnd:     tickEnd,
+			LiveEndTick: tickEnd,
+			Kills:       killsInRecapWindow(buildKillPlanKills(g), tickStart, tickEnd),
+			Utility:     utilityInRecapWindow(utilityByRound[round], tickStart, tickEnd),
 		})
 		previousEnd = tickEnd
 	}

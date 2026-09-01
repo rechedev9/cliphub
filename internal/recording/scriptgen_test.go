@@ -420,6 +420,86 @@ func TestBuildRuntimeScheduleRecordEndCoversUtilityInsideEOFMargin(t *testing.T)
 	}
 }
 
+func TestBuildRuntimeScheduleAllowsPOVDriftDuringRecapOutroHold(t *testing.T) {
+	// Real failure: job e56b9468 seg-018 on de_cache — kill-less last recap round
+	// with outro hold. CS2 drops observer POV during scoreboard overlay.
+	const (
+		liveEnd   = 152626
+		recordEnd = 153394
+	)
+	plan := testPlan()
+	plan.DemoDurationTicks = 153711
+	plan.Segments = []RecordingSegment{{
+		ID:          "seg-018",
+		Round:       18,
+		TickStart:   146271,
+		TickEnd:     recordEnd,
+		LiveEndTick: liveEnd,
+	}}
+
+	_, _, windows := buildRuntimeSchedule(plan)
+	if len(windows) != 1 {
+		t.Fatalf("capture window count = %d, want 1", len(windows))
+	}
+	window := windows[0]
+	if got, want := window.VerifyUntil, liveEnd; got != want {
+		t.Errorf("window %s verifyUntil = %d, want live end %d", window.SegmentID, got, want)
+	}
+	if got, want := window.RecordEnd, recordEnd; got != want {
+		t.Errorf("window %s recordEnd = %d, want outro hold end %d", window.SegmentID, got, want)
+	}
+	if liveTick := liveEnd - 64; liveTick < window.LockFrom || liveTick > window.VerifyUntil {
+		t.Fatalf("live-round tick %d should stay inside protected POV window: %+v", liveTick, window)
+	}
+	if outroTick := liveEnd + 128; outroTick <= window.VerifyUntil || outroTick > window.RecordEnd {
+		t.Fatalf("outro tick %d should record after POV verification ends: %+v", outroTick, window)
+	}
+}
+
+func TestPovVerifyUntilTick(t *testing.T) {
+	tests := []struct {
+		name        string
+		segment     RecordingSegment
+		recordStart int
+		recordEnd   int
+		want        int
+	}{
+		{
+			name:        "legacy plan without live end verifies through record end",
+			segment:     RecordingSegment{ID: "seg-001", TickStart: 1000, TickEnd: 2000},
+			recordStart: 1000,
+			recordEnd:   2000,
+			want:        1999,
+		},
+		{
+			name: "recap outro hold stops verification at live end",
+			segment: RecordingSegment{
+				ID: "seg-018", TickStart: 146271, TickEnd: 153394, LiveEndTick: 152626,
+			},
+			recordStart: 146271,
+			recordEnd:   153394,
+			want:        152626,
+		},
+		{
+			name: "kill segment still caps at last kill before live end",
+			segment: RecordingSegment{
+				ID: "seg-kill", TickStart: 1000, TickEnd: 2000, LiveEndTick: 1900,
+				Kills: []killplan.Kill{{Tick: 1500}, {Tick: 1700}},
+			},
+			recordStart: 1000,
+			recordEnd:   2000,
+			want:        1700,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := povVerifyUntilTick(tc.segment, tc.recordStart, tc.recordEnd); got != tc.want {
+				t.Fatalf("povVerifyUntilTick = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBuildRuntimeScheduleVerifiesPOVUntilRecordEndBoundaryWithoutKills(t *testing.T) {
 	plan := testPlan()
 	_, _, windows := buildRuntimeSchedule(plan)

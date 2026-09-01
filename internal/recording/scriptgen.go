@@ -413,13 +413,7 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		// Verification runs before scheduled commands at a tick. Stop one tick
 		// before record-end so a legitimate entity teardown at the boundary does
 		// not fail an otherwise complete capture.
-		verifyUntil := max(recordStart, recordEnd-1)
-		if lastKill := lastKillTick(s); lastKill > 0 {
-			// Once the final selected kill has happened, a spectator change can
-			// be CS2's legitimate death cam during post-roll. Keep recording the
-			// full segment, but stop treating that camera change as POV drift.
-			verifyUntil = min(verifyUntil, max(recordStart, lastKill))
-		}
+		verifyUntil := povVerifyUntilTick(s, recordStart, recordEnd)
 		windows = append(windows, captureWindow{
 			SegmentID:   s.ID,
 			LockFrom:    max(seekTarget+1, cameraWarmupTick),
@@ -670,6 +664,22 @@ func firstKillTick(segment RecordingSegment) int {
 		}
 	}
 	return out
+}
+
+func povVerifyUntilTick(segment RecordingSegment, recordStart, recordEnd int) int {
+	verifyUntil := max(recordStart, recordEnd-1)
+	if lastKill := lastKillTick(segment); lastKill > 0 {
+		// Once the final selected kill has happened, a spectator change can
+		// be CS2's legitimate death cam during post-roll. Keep recording the
+		// full segment, but stop treating that camera change as POV drift.
+		return min(verifyUntil, max(recordStart, lastKill))
+	}
+	if liveEnd := segment.LiveEndTick; liveEnd > 0 {
+		// Recap outro holds extend TickEnd past live POV. Keep recording through
+		// overlays, but stop POV verification at the last playable tick.
+		return min(verifyUntil, max(recordStart, liveEnd))
+	}
+	return verifyUntil
 }
 
 func lastKillTick(segment RecordingSegment) int {

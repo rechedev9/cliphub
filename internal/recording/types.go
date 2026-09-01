@@ -182,12 +182,13 @@ type RecordingPlan struct {
 
 // RecordingSegment is one HLAE record window.
 type RecordingSegment struct {
-	ID        string                  `json:"id"`
-	Round     int                     `json:"round,omitempty"`
-	TickStart int                     `json:"tick_start"`
-	TickEnd   int                     `json:"tick_end"`
-	Kills     []killplan.Kill         `json:"kills,omitempty"`
-	Utility   []killplan.UtilityThrow `json:"utility,omitempty"`
+	ID          string                  `json:"id"`
+	Round       int                     `json:"round,omitempty"`
+	TickStart   int                     `json:"tick_start"`
+	TickEnd     int                     `json:"tick_end"`
+	LiveEndTick int                     `json:"live_end_tick,omitempty"`
+	Kills       []killplan.Kill         `json:"kills,omitempty"`
+	Utility     []killplan.UtilityThrow `json:"utility,omitempty"`
 }
 
 // RecordingArtifact is one file discovered after recording.
@@ -312,10 +313,11 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 	for _, s := range plan.Segments {
 		out.EditorialSegmentIDs = append(out.EditorialSegmentIDs, s.ID)
 		out.Segments = append(out.Segments, RecordingSegment{
-			ID:        s.ID,
-			Round:     s.Round,
-			TickStart: s.TickStart,
-			TickEnd:   s.TickEnd,
+			ID:          s.ID,
+			Round:       s.Round,
+			TickStart:   s.TickStart,
+			TickEnd:     s.TickEnd,
+			LiveEndTick: s.LiveEndTick,
 			// Recap sidecars can list buy-time nades after the live window was clamped.
 			Kills:   killsInsideWindow(s.Kills, s.TickStart, s.TickEnd),
 			Utility: utilityInsideWindow(s.Utility, s.TickStart, s.TickEnd),
@@ -386,12 +388,13 @@ func (p RecordingPlan) ToKillPlan() killplan.Plan {
 	out.Segments = make([]killplan.Segment, 0, len(orderedSegments))
 	for _, segment := range orderedSegments {
 		converted := killplan.Segment{
-			ID:        segment.ID,
-			Round:     segment.Round,
-			TickStart: segment.TickStart,
-			TickEnd:   segment.TickEnd,
-			Kills:     append([]killplan.Kill(nil), segment.Kills...),
-			Utility:   append([]killplan.UtilityThrow(nil), segment.Utility...),
+			ID:          segment.ID,
+			Round:       segment.Round,
+			TickStart:   segment.TickStart,
+			TickEnd:     segment.TickEnd,
+			LiveEndTick: segment.LiveEndTick,
+			Kills:       append([]killplan.Kill(nil), segment.Kills...),
+			Utility:     append([]killplan.UtilityThrow(nil), segment.Utility...),
 		}
 		out.Segments = append(out.Segments, converted)
 		out.Stats.TotalKillsTarget += len(converted.Kills)
