@@ -139,7 +139,7 @@ func windowsStudioGaps(studio StudioSurface, hlae ToolCheck, cs2 ProcessCheck) [
 	if !studio.JobsDBPresent {
 		gaps = append(gaps, closedGap(StudioJobsDBGapID, "studio", StudioJobsDBGap))
 	}
-	if studio.PortsPresent && studio.Healthz.Status != HTTPStatusOK {
+	if studio.PortsPresent && studio.Healthz.Status != HTTPStatusOK && studio.Healthz.Status != HTTPStatusSkipped {
 		gaps = append(gaps, closedGap(StudioDownGapID, "studio", StudioDownGap))
 	}
 	if !hlae.Detected {

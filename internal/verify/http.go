@@ -16,6 +16,7 @@ const (
 	HealthzPath            = "/healthz"
 	HTTPStatusOK           = "ok"
 	HTTPStatusAbsent       = "absent"
+	HTTPStatusSkipped      = "skipped"
 	HTTPStatusMismatch     = "mismatch"
 	HTTPStatusRejected     = "rejected"
 )

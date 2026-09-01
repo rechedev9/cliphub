@@ -282,6 +282,12 @@ func TestDoctorDryRunDoesNotHTTP(t *testing.T) {
 	if report.OK {
 		t.Fatal("dry-run doctor must not Pass")
 	}
+	if report.Studio.Healthz.Status != HTTPStatusSkipped {
+		t.Fatalf("dry-run healthz status = %q, want %q", report.Studio.Healthz.Status, HTTPStatusSkipped)
+	}
+	if hasGapID(report.Gaps, StudioDownGapID) {
+		t.Fatalf("dry-run must not name %s when /healthz was skipped: %#v", StudioDownGapID, report.Gaps)
+	}
 }
 
 func TestForbiddenHLAEPath(t *testing.T) {

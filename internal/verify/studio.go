@@ -124,7 +124,7 @@ func inspectStudio(goos, userData string, probe StudioProbe, dryRun bool) Studio
 	surface.WebURL = loopbackURL(ports.Web)
 	if dryRun {
 		surface.Healthz = HTTPReport{
-			Status: HTTPStatusAbsent,
+			Status: HTTPStatusSkipped,
 			URL:    surface.OrchestratorURL + HealthzPath,
 			Detail: "dry-run: no HTTP",
 			OK:     true,
