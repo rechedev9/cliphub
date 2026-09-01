@@ -223,7 +223,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         note="Las series se identifican con el id que acuña /upload al soltar varias demos."
         actions={
           <Button asChild variant="hero">
-            <Link href="/upload">SUBIR DEMOS</Link>
+            <Link href="/upload">CREAR SHORTS</Link>
           </Button>
         }
       />
@@ -248,7 +248,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
           <Button asChild variant="outline">
-            <Link href="/upload">SUBIR DEMOS</Link>
+            <Link href="/upload">CREAR SHORTS</Link>
           </Button>
         }
       />
@@ -264,7 +264,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         description="No hay demos en esta serie. Sube las demos de tu bo3/bo5 para forjar sus highlights."
         actions={
           <Button asChild variant="hero">
-            <Link href="/upload">SUBIR DEMOS</Link>
+            <Link href="/upload">CREAR SHORTS</Link>
           </Button>
         }
       />

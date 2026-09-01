@@ -36,7 +36,7 @@ export function MatchList({ matches, onDelete, onDeleted }: MatchListProps) {
   }
 
   return (
-    <section ref={trackPointer} className="studio-reveal flex flex-col gap-3" aria-label="Partidas disponibles">
+    <section ref={trackPointer} className="studio-reveal flex flex-col gap-3" aria-label="Demos disponibles">
       {matches.map((match, index) => (
         <MatchRow key={match.id} match={match} featured={index === 0} onDelete={onDelete} onDeleted={onDeleted} />
       ))}

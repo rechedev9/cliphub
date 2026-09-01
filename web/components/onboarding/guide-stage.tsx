@@ -9,8 +9,8 @@ const DOORS = [
   {
     href: '/upload',
     icon: UploadCloud,
-    title: 'Sube una demo',
-    description: 'Un .dem de CS2: forja Shorts 9:16 o un vídeo completo 16:9.',
+    title: 'Crea Shorts',
+    description: 'Un .dem de CS2: elige las mejores jugadas y forja un Short 9:16.',
     emphasis: 'primary',
   },
   {

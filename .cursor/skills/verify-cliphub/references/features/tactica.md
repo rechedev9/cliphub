@@ -4,7 +4,7 @@ Radar / round analysis side lane.
 
 ## Sub-features
 
-- `tactica-rail` — Sidebar `04 Táctica` → `/tactical`.
+- `tactica-rail` — Sidebar `05 Táctica` → `/tactical`.
 - `tactica-picker` — Parsed demos only; this screen does not start work.
 - `tactica-workspace` — `/tactical/{jobId}` rounds, replay, tendencies.
 - `tactica-positions` — Positions blob is Range-capable.

@@ -45,7 +45,7 @@ async function stubJobs(page: Page, jobs: Array<Record<string, string>>): Promis
 }
 
 test.describe('CheaterDetect', () => {
-  test('empty state is a demo drop, not a detour to Subir demo', async ({ page }) => {
+  test('empty state is a demo drop, not a detour to Shorts', async ({ page }) => {
     await stubJobs(page, []);
     await gotoStudio(page, '/cheaters');
     await expect(page.getByRole('heading', { name: 'CHEATERDETECT' })).toBeVisible();
@@ -72,7 +72,7 @@ test.describe('CheaterDetect', () => {
     await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
   });
 
-  test('dropping a demo adds it to the picker without opening Subir demo', async ({ page }) => {
+  test('dropping a demo adds it to the picker without opening Shorts', async ({ page }) => {
     await stubJobs(page, []);
     await page.route('**/api/demos/scan', async (route) => {
       await route.fulfill({
@@ -134,7 +134,7 @@ async function pageOverflow(page: Page): Promise<{ scrollWidth: number; clientWi
 }
 
 test.describe('CheaterDetect presentation contract', () => {
-  test('the empty drop is an operable file input, same hook as Subir demo', async ({ page }) => {
+  test('the empty drop is an operable file input, same hook as Shorts', async ({ page }) => {
     await stubJobs(page, []);
     await gotoStudio(page, '/cheaters');
     const input = page.locator('input[type="file"]');

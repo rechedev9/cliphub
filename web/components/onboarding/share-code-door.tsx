@@ -176,7 +176,7 @@ function ResolutionOutcome({
           <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {result.matchId}</p>
           <p className="text-body-sm text-fg-2">
             {result.kind === 'resolved'
-              ? 'La demo está en los servidores de Valve. Encolarla usa el mismo flujo que Subir demo.'
+              ? 'La demo está en los servidores de Valve. Encolarla usa el mismo flujo que Shorts.'
               : (
                 <>
                   ClipHub ya sabe qué partida es. Para bajarla, la primera vez te pedirá el login de

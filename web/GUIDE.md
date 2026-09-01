@@ -109,7 +109,7 @@ web/
     (app)/tactical/            # tactical replay
     (app)/series/              # multi-map series
     (app)/cheaters/            # CheaterDetect UI
-    (app)/feed/ settings/
+    (app)/settings/
   components/
     ui/                        # shadcn/ui primitives
     studio/                    # shared kit (header, empty, StatusTag, …)

@@ -1,6 +1,6 @@
 ---
 name: verify-cliphub
-description: "Prove ClipHub Studio and zv changes against the real user path before calling work done. Use when finishing a ClipHub change, verifying Studio routes (Inicio, Partidas, Shorts wait, Full Demo), or when compile/lint/CI is being treated as the feature."
+description: "Prove ClipHub Studio and zv changes against the real user path before calling work done. Use when finishing a ClipHub change, verifying Studio routes (Inicio, Demos, Shorts, Vídeos largos), or when compile/lint/CI is being treated as the feature."
 ---
 
 # Verify ClipHub
@@ -97,7 +97,7 @@ For waits: live `%` and `current/total` come from the orchestrator progress obje
 ## Driving conventions
 
 - Read [references/features/INDEX.md](references/features/INDEX.md) first, then the matching feature file.
-- Prefer rail labels from `web/lib/nav.ts`, visible headings, and ARIA names over CSS selectors. Rail accessible names are uppercase (`INICIO`, `EDITOR`); the `00`–`11` prefixes are source order, not the clickable name.
+- Prefer rail labels from `web/lib/nav.ts`, visible headings, and ARIA names over CSS selectors. Rail accessible names are uppercase (`INICIO`, `SHORTS`, `AJUSTES`); the `00`–`09` prefixes are source order, not the clickable name.
 - `drive.open_url` is Studio's loopback web origin plus the feature route. A Chrome tab against that URL is the Next.js UI, not Electron chrome (Ajustes versión/telemetry need the desktop bridge).
 - Wait on observable copy (`EMPIEZA AQUÍ`, `BIBLIOTECA`, `ANALIZAR DEMO`), not fixed sleeps.
 - Same-origin only: UI talks through `/api/*` proxies. Orchestrator down is `503 {code:"service_unavailable"}`.

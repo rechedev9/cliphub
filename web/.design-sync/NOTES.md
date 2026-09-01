@@ -74,7 +74,7 @@ Each `.design-sync/previews/<Name>.tsx`:
   without a dark surface.
 - Use realistic CS2 content (maps: Mirage/Inferno/Nuke; mono stats K/D/A/MVP;
   lime accent on standout stats). Fixtures follow `lib/api/types.ts`
-  (Match/Video/FeedItem/Play/DemoPlayer/Preset/Song).
+  (Match/Video/Play/DemoPlayer/Preset/Song).
 - Overlays (Dialog/Sheet/DropdownMenu/Tooltip): set
   `cfg.overrides.<Name> = {"cardMode":"single","viewport":"WxH"}` and render the
   OPEN state inside the card; compose with SidebarProvider/TooltipProvider where
@@ -105,13 +105,9 @@ their parent's preview). `window.ClipHub` still exports all ~126 names.
   (it portals a mobile Sheet that escapes a grid cell).
 - **Images don't load offline** in the render check. Prefer a component's own
   no-image fallback: ReadyCard/RenderingCard use ReelCover when `thumbnailUrl`
-  is omitted; Avatar uses AvatarFallback (force it via empty `<AvatarImage src="" />`);
-  pass `authorAvatarUrl: ''` for initials. FeedCard has NO fallback — it renders
-  a bare `<img>`; use an inline-SVG data URI (URL-encode `#` as `%23`, strip
-  newlines) for a 9:16 placeholder.
-- **Fixture/prop gotchas**: `Match.playedAt` is an ISO string; `FeedItem.createdAt`
-  is epoch ms (`timeAgo` accepts both). `FailedCard.onChange` is required (not
-  optional like ReadyCard). `PlayerPicker` expects players pre-sorted by kills
+  is omitted; Avatar uses AvatarFallback (force it via empty `<AvatarImage src="" />`).
+- **Fixture/prop gotchas**: `Match.playedAt` is an ISO string. `FailedCard.onChange`
+  is required (not optional like ReadyCard). `PlayerPicker` expects players pre-sorted by kills
   (`players[0]` is auto-highlighted). `PresetCards` `value` is the preset `name`,
   not an index. `ToggleGroup` needs `type="single"|"multiple"` + matching
   `defaultValue`; `variant="outline"` is most legible on dark.

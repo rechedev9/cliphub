@@ -19,7 +19,7 @@ The verification host of record for HLAE/CS2 rows is King's Windows Studio, not 
 ## Driving conventions
 
 - Start from the rail label in this INDEX unless the feature file names another door.
-- Rail accessible names are uppercase (`INICIO`, `EDITOR`, `AJUSTES`). The `00`–`11` prefixes in `web/lib/nav.ts` are source order, not the clickable name.
+- Rail accessible names are uppercase (`INICIO`, `SHORTS`, `AJUSTES`). The `00`–`09` prefixes in `web/lib/nav.ts` are source order, not the clickable name.
 - Prefer visible headings and ARIA names. Class selectors are fallbacks.
 - `drive.open_url` is Studio loopback web + route. A Chrome tab is the Next.js UI, not Electron chrome.
 - Wait on observable copy, not fixed sleeps.
@@ -40,16 +40,14 @@ Walk this map top to bottom for a broad regression. Finish with [journeys.md](jo
 ### Rail
 
 - [inicio](inicio.md): First-run door. `/onboarding`. Header EMPIEZA AQUÍ.
-- [partidas](partidas.md): Match list and series. `/matches`.
-- [subir-demo](subir-demo.md): Local `.dem` intake. `/upload`.
-- [demo-completa](demo-completa.md): Full Demo → 16:9 recap. `/full-demo`. **gap** — HLAE/CS2.
+- [Demos](partidas.md) (`partidas`): Imported demo and series history. `/matches`.
+- [Shorts](subir-demo.md) (`subir-demo`): Local `.dem` → 9:16 Short. `/upload`.
+- [clips-de-stream](clips-de-stream.md): VOD edit plan → render. `/streams`.
+- [Vídeos largos](demo-completa.md) (`demo-completa`): Full Demo → 16:9 recap. `/full-demo`. **gap** — HLAE/CS2.
 - [tactica](tactica.md): Radar / round analysis. `/tactical`.
 - [cheaterdetect](cheaterdetect.md): Side-lane anomaly screen. `/cheaters`.
 - [jugadores](jugadores.md): FACEIT player index. `/players`.
-- [clips-de-stream](clips-de-stream.md): VOD edit plan → render. `/streams`.
-- [editor](editor.md): Multitrack montage of already-rendered MP4s. `/editor`.
 - [biblioteca](biblioteca.md): Ready / in-flight / failed reel cards. `/videos`.
-- [feed](feed.md): Community reel grid. `/feed`.
 - [ajustes](ajustes.md): Version, telemetry, Steam account. `/settings`.
 
 ### In-flight waits (not rail items)

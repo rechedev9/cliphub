@@ -4,7 +4,7 @@ FACEIT-indexed player list for triage. Stats are not the clip source.
 
 ## Sub-features
 
-- `players-rail` — Sidebar `06 Jugadores` → `/players`.
+- `players-rail` — Sidebar `07 Jugadores` → `/players`.
 - `players-door` — Inicio plate **Busca un jugador**.
 - `players-follow` — Followed players and match rooms.
 - `players-unconfigured` — FACEIT key missing is unconfigured, not offline.

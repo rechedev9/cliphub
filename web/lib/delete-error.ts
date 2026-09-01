@@ -1,7 +1,7 @@
 import { SERVICE_UNAVAILABLE_CODE } from './api/types.ts';
 
 /**
- * Shown inline near a Partidas row when a delete fails because the local
+ * Shown inline near a Demos row when a delete fails because the local
  * analysis service is unreachable, matching the page's "offline" hint copy.
  */
 export const DELETE_OFFLINE_MESSAGE = 'Servicio de análisis local desconectado. Arráncalo y reintenta.';

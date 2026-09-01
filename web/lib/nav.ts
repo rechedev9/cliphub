@@ -1,17 +1,15 @@
 /** Numbered Studio nav. The index is the rail order, padded to two digits. */
 export const NAV_SECTIONS = [
   { number: '00', label: 'Inicio', href: '/onboarding' },
-  { number: '01', label: 'Partidas', href: '/matches' },
-  { number: '02', label: 'Subir demo', href: '/upload' },
-  { number: '03', label: 'Demo completa', href: '/full-demo' },
-  { number: '04', label: 'Táctica', href: '/tactical' },
-  { number: '05', label: 'CheaterDetect', href: '/cheaters' },
-  { number: '06', label: 'Jugadores', href: '/players' },
-  { number: '07', label: 'Clips de stream', href: '/streams' },
-  { number: '08', label: 'Editor', href: '/editor' },
-  { number: '09', label: 'Biblioteca', href: '/videos' },
-  { number: '10', label: 'Feed', href: '/feed' },
-  { number: '11', label: 'Ajustes', href: '/settings' },
+  { number: '01', label: 'Demos', href: '/matches' },
+  { number: '02', label: 'Shorts', href: '/upload' },
+  { number: '03', label: 'Clips de stream', href: '/streams' },
+  { number: '04', label: 'Vídeos largos', href: '/full-demo' },
+  { number: '05', label: 'Táctica', href: '/tactical' },
+  { number: '06', label: 'CheaterDetect', href: '/cheaters' },
+  { number: '07', label: 'Jugadores', href: '/players' },
+  { number: '08', label: 'Biblioteca', href: '/videos' },
+  { number: '09', label: 'Ajustes', href: '/settings' },
 ] as const;
 
 export type NavSection = (typeof NAV_SECTIONS)[number];

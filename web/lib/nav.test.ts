@@ -5,17 +5,15 @@ import { NAV_SECTIONS, navSection } from './nav.ts';
 /** Rail order: the number is the padded index, not a historical slot. */
 const RAIL = [
   ['00', 'Inicio', '/onboarding'],
-  ['01', 'Partidas', '/matches'],
-  ['02', 'Subir demo', '/upload'],
-  ['03', 'Demo completa', '/full-demo'],
-  ['04', 'Táctica', '/tactical'],
-  ['05', 'CheaterDetect', '/cheaters'],
-  ['06', 'Jugadores', '/players'],
-  ['07', 'Clips de stream', '/streams'],
-  ['08', 'Editor', '/editor'],
-  ['09', 'Biblioteca', '/videos'],
-  ['10', 'Feed', '/feed'],
-  ['11', 'Ajustes', '/settings'],
+  ['01', 'Demos', '/matches'],
+  ['02', 'Shorts', '/upload'],
+  ['03', 'Clips de stream', '/streams'],
+  ['04', 'Vídeos largos', '/full-demo'],
+  ['05', 'Táctica', '/tactical'],
+  ['06', 'CheaterDetect', '/cheaters'],
+  ['07', 'Jugadores', '/players'],
+  ['08', 'Biblioteca', '/videos'],
+  ['09', 'Ajustes', '/settings'],
 ] as const;
 
 test('nav: numbers follow rail order', () => {

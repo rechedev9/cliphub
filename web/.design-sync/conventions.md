@@ -58,8 +58,7 @@ destructive / link; sizes sm / default / lg / icon), `Badge`, `Card` (with
 Editing → Ready — the hero of the product story), `RecDot` ("LIVE ON YOUR RIG"),
 `ScoreBar` (win/loss accent bar), `Filmstrip` (horizontal play selector),
 `Wordmark`, `SectionEyebrow`, `ReelCover`, `GrainOverlay` (subtle tape texture).
-Feature compositions to imitate: `MatchRow`, `ReadyCard`, `FeedCard`,
-`PlayerPicker`.
+Feature compositions to imitate: `MatchRow`, `ReadyCard`, `PlayerPicker`.
 
 Read each component's `<Name>.prompt.md` for its props and a real usage example,
 and `styles.css` (plus its `@import` closure) for the exact token values.

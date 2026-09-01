@@ -3,7 +3,7 @@ import { VALIDATION_WIDTHS, gotoStudio } from './contract.ts';
 
 /** The three ways in, in the order the screen offers them. */
 const DOORS = [
-  { href: '/upload', title: 'Sube una demo' },
+  { href: '/upload', title: 'Crea Shorts' },
   { href: '/streams', title: 'Corta un stream' },
   { href: '/players', title: 'Busca un jugador' },
 ] as const;
@@ -31,8 +31,8 @@ test.describe('Inicio', () => {
     // textContent, not innerText: the labels are uppercased in CSS, and reading
     // the rendered casing would assert the stylesheet instead of the nav model.
     const labels = await page.locator('[data-slot="sidebar-group-label"]').allTextContents();
-    // Three phases, and no fourth heading invented for the single entry key.
-    expect(labels.map((label) => label.trim())).toEqual(['Producción', 'Señal', 'Salida']);
+    // Two phases, and no third heading invented for the single entry key.
+    expect(labels.map((label) => label.trim())).toEqual(['Producción', 'Salida']);
   });
 
   test('offers exactly three doors, each a whole-card link', async ({ page }) => {

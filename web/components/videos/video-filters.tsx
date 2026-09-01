@@ -10,7 +10,7 @@ const FORMAT_FILTERS = [
   { value: 'all', label: 'Todos', description: 'Todos los formatos' },
   { value: 'short-9x16', label: '9:16', description: 'Formato vertical 9:16' },
   { value: 'landscape-16x9', label: '16:9', description: 'Formato horizontal 16:9' },
-  { value: 'full-demo', label: 'Partidas completas', description: 'Partidas completas 16:9 con resumen' },
+  { value: 'full-demo', label: 'Vídeos largos', description: 'Vídeos largos 16:9 con resumen' },
 ] as const satisfies readonly { value: VideoFormatFilter; label: string; description: string }[];
 
 function isFormatFilter(value: string): value is VideoFormatFilter {

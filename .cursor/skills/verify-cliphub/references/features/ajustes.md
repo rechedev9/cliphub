@@ -4,7 +4,7 @@ Desktop settings: installed build, telemetry, and the Steam account the user pla
 
 ## Sub-features
 
-- `settings-rail` — Sidebar `11 Ajustes` → `/settings`.
+- `settings-rail` — Sidebar `09 Ajustes` → `/settings`.
 - `settings-info` — ClipHub Studio version / build / Electron / Chromium.
 - `settings-telemetry` — Opt-in diagnostics. Never includes demos, videos, SteamID, or credentials.
 - `settings-steam` — SteamID + authentication code + Web API key. No password stored.

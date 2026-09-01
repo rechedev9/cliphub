@@ -4,7 +4,7 @@ Ready / in-flight / failed reel cards. Publication assistant is factual, not mod
 
 ## Sub-features
 
-- `library-rail` — Sidebar `09 Biblioteca` → `/videos`.
+- `library-rail` — Sidebar `08 Biblioteca` → `/videos`.
 - `library-empty` — Empty library when no reels exist.
 - `library-ready` — MP4 download + PREPARAR PUBLICACIÓN as soon as the file exists.
 - `library-failed` — Retry unless the job is gone.

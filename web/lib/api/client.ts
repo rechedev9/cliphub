@@ -1,4 +1,4 @@
-import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
+import type { Match, Play, Song, Video, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
 import type { PublishAssistant } from './publish-assistant';
 import type { MusicChoice } from './reel-music.ts';
@@ -46,5 +46,4 @@ export interface ApiClient {
   /** 404 is success; 409/503 throw. */
   deleteMatch(jobId: string): Promise<void>;
   deleteSeries(seriesId: string): Promise<void>;
-  listFeed(): Promise<FeedItem[]>;
 }

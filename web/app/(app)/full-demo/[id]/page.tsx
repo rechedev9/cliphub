@@ -144,7 +144,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
     else if (loadFailure === 'error') emptyIcon = AlertTriangle;
     return (
       <div className="flex flex-col gap-8">
-        <StudioBackLink href={FULL_DEMO_HREF}>DEMO COMPLETA A VÍDEO</StudioBackLink>
+        <StudioBackLink href={FULL_DEMO_HREF}>VÍDEOS LARGOS</StudioBackLink>
         <StudioEmptyState
           icon={emptyIcon}
           title={empty.title}
@@ -170,7 +170,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <StudioBackLink href={FULL_DEMO_HREF}>DEMO COMPLETA A VÍDEO</StudioBackLink>
+        <StudioBackLink href={FULL_DEMO_HREF}>VÍDEOS LARGOS</StudioBackLink>
         <Link
           href={`/matches/${id}`}
           className="font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors hover:text-primary"

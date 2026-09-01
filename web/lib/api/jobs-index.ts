@@ -1,4 +1,4 @@
-// Pure Partidas index: /api/demos/jobs → Matches/series. Status filters stay here.
+// Pure Demos index: /api/demos/jobs → Matches/series. Status filters stay here.
 
 import type { DemoPlayer, Match, MatchStats } from './types.ts';
 import { PLAN_READY_STATUSES } from './types.ts';
@@ -13,7 +13,7 @@ export type IndexedJob = {
   fileName?: string;
   seriesId?: string;
   targetSteamId?: string;
-  /** ISO-8601 upload time; the Partidas list sorts newest first by it. */
+  /** ISO-8601 upload time; the Demos list sorts newest first by it. */
   createdAt?: string;
 };
 
@@ -29,7 +29,7 @@ export const ROSTER_READY: ReadonlySet<string> = new Set([
   'done',
 ]);
 
-/** True once a demo has a roster scan, so it belongs in the Partidas list. */
+/** True once a demo has a roster scan, so it belongs in the Demos list. */
 export function jobHasRoster(status: string): boolean {
   return ROSTER_READY.has(status);
 }
@@ -41,7 +41,7 @@ export function jobCreatedAtMs(job: IndexedJob): number {
   return Number.isNaN(ms) ? 0 : ms;
 }
 
-/** Roster-ready jobs for Partidas, newest first. Failed jobs never list. */
+/** Roster-ready jobs for Demos, newest first. Failed jobs never list. */
 export function listableJobs(jobs: readonly IndexedJob[]): IndexedJob[] {
   return jobs
     .filter((job) => jobHasRoster(job.status))
@@ -58,7 +58,7 @@ export function planReadyJobs(jobs: readonly IndexedJob[]): IndexedJob[] {
     .sort((a, b) => jobCreatedAtMs(b) - jobCreatedAtMs(a));
 }
 
-/** One uploaded series, as the Partidas SERIES section lists it. */
+/** One uploaded series, as the Demos SERIES section lists it. */
 export type SeriesSummary = { seriesId: string; mapCount: number; createdAt: number };
 
 /** One summary per series_id, newest first. Split demo parts count as one map. */

@@ -5,7 +5,7 @@ import {
   titleWithMusicSuffix,
   type MusicChoice,
 } from './reel-music.ts';
-import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo } from './types';
+import type { Match, Play, Song, Video, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo } from './types';
 import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
 import { MockApiClient } from './mock';
 import { planToMatch, planToPlays, type KillPlan } from './map';
@@ -282,7 +282,7 @@ export class RealApiClient implements ApiClient {
     if (status === null) return null;
     if (!ROSTER_READY.has(status)) return null;
 
-    // Parsing / scanned: listable in Partidas but no kill plan yet.
+    // Parsing / scanned: listable in Demos but no kill plan yet.
     if (!PLAN_READY_STATUSES.has(status)) {
       return this.jobToMatchEnriched({ jobId: id, status });
     }
@@ -996,7 +996,7 @@ export class RealApiClient implements ApiClient {
       return { recordEnabled: false, status: 'offline', tools: [] };
     }
   }
-  /** Persisted jobs as Partidas rows; roster enrichment is best-effort. */
+  /** Persisted jobs as Demos rows; roster enrichment is best-effort. */
   async listMatches(): Promise<Match[]> {
     const jobs = await this.fetchJobs();
     return Promise.all(listableJobs(jobs).map((job) => this.jobToMatchEnriched(job)));
@@ -1012,7 +1012,7 @@ export class RealApiClient implements ApiClient {
     return summarizeSeries(await this.fetchJobs());
   }
 
-  /** The recent demo jobs the orchestrator persists (the Partidas index feed). */
+  /** The recent demo jobs the orchestrator persists for the Demos index. */
   private async fetchJobs(): Promise<IndexedJob[]> {
     const body = await readJson<{ jobs: IndexedJob[] }>(await this.send((dp) => ({ url: dp.jobsUrl })));
     return body.jobs;
@@ -1087,10 +1087,6 @@ export class RealApiClient implements ApiClient {
     }
   }
 
-  listFeed(): Promise<FeedItem[]> {
-    // The community feed was a cloud surface; the desktop app shows no feed.
-    return Promise.resolve([]);
-  }
 }
 
 /** Server roster row (steamid64) → the UI's DemoPlayer (steamId). */

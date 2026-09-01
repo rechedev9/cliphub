@@ -291,7 +291,7 @@ function PlayerHeader({
           <Button asChild variant="outline-primary" size="sm">
             <Link href="/upload">
               <UploadCloud className="size-4" />
-              Subir demo
+              Crear Short
             </Link>
           </Button>
           <Button type="button" variant="ghost" size="icon-sm" aria-label={`Dejar de seguir a ${player.nickname}`} onClick={onUnfollow}>

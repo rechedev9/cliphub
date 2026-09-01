@@ -5,10 +5,8 @@ import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
   Clapperboard,
-  Compass,
   Crosshair,
   Film,
-  Layers,
   MonitorPlay,
   Radar,
   Rocket,
@@ -48,14 +46,12 @@ const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroupId | 'chrome'
   '/onboarding': { icon: Rocket, group: 'entry' },
   '/matches': { icon: Crosshair, group: 'production' },
   '/upload': { icon: UploadCloud, group: 'production' },
+  '/streams': { icon: Clapperboard, group: 'production', stream: true },
   '/full-demo': { icon: MonitorPlay, group: 'production' },
   '/tactical': { icon: Radar, group: 'production' },
   '/cheaters': { icon: ShieldAlert, group: 'production' },
   '/players': { icon: Users, group: 'production' },
-  '/streams': { icon: Clapperboard, group: 'production', stream: true },
-  '/editor': { icon: Layers, group: 'output' },
   '/videos': { icon: Film, group: 'output' },
-  '/feed': { icon: Compass, group: 'output' },
   '/settings': { icon: Settings, group: 'chrome' },
 };
 
@@ -78,7 +74,7 @@ export function AppSidebar(): ReactElement {
       <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-4 group-data-[collapsible=icon]:px-2">
         <Link
           href="/matches"
-          aria-label="Ir a Partidas"
+          aria-label="Ir a Demos"
           className="inline-flex min-h-10 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />

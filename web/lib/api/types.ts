@@ -21,7 +21,7 @@ export type Match = {
   source?: 'steam' | 'upload';
   /** Display name of the clipped/target player, when known. */
   player?: string;
-  /** Orchestrator job status when known (Partidas / constructors). */
+  /** Orchestrator job status when known (Demos / constructors). */
   status?: string;
 };
 type PlayKind = 'clean' | 'highlight';
@@ -286,7 +286,6 @@ export type Video = {
   unrecoverable?: true;
 };
 export type Slots = { used: number; total: number };
-export type FeedItem = { id: string; author: string; authorAvatarUrl: string; title: string; map: string; thumbnailUrl: string; likes: number; createdAt: number; videoUrl: string };
 export type Session = { user: SteamUser | null; slots: Slots; pcPaired: boolean; matchHistoryLinked: boolean };
 /** Roster-scan player; scoreboard extras default to 0 on older artifacts. */
 export type DemoPlayer = {

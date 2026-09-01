@@ -68,7 +68,7 @@ export default function AppError({
             Reintentar
           </Button>
           <Button asChild variant="outline">
-            <Link href="/matches">Volver a partidas</Link>
+            <Link href="/matches">Volver a Demos</Link>
           </Button>
           <Button
             type="button"

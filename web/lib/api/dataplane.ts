@@ -14,7 +14,7 @@ export type DataPlane = {
   /** DELETE target for removing a demo job (match) and its server-side artifacts. */
   jobDeleteUrl(jobId: string): string;
   rosterUrl(jobId: string): string;
-  /** The recent-jobs listing that Partidas rediscovers uploads/series from. */
+  /** The recent-jobs listing that Demos rediscovers uploads/series from. */
   jobsUrl: string;
   seriesUrl(seriesId: string): string;
   parseUrl(jobId: string): string;

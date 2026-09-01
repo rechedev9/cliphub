@@ -82,7 +82,7 @@ const PIPELINE_STEPS = [
     n: '03',
     icon: Monitor,
     title: 'RENDER EN TU RIG',
-    copy: 'Captura y edición en tu propio PC. 9:16 para Shorts o 16:9 para largo.',
+    copy: 'Captura y edición en tu propio PC. Salida vertical 9:16 para Shorts.',
   },
 ] as const;
 

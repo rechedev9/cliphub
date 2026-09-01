@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 export type SectionEyebrowProps = {
-  /** Uppercase section label, e.g. "PARTIDAS", "BIBLIOTECA". */
+  /** Uppercase section label, e.g. "DEMOS", "BIBLIOTECA". */
   label: string;
   /** Optional section number, rendered as `// 0N — LABEL`. */
   number?: number;

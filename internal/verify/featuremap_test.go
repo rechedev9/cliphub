@@ -37,9 +37,8 @@ func TestFeatureMapExistsAndMatchesCatalog(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"inicio", "partidas", "subir-demo", "demo-completa", "tactica",
-		"cheaterdetect", "jugadores", "clips-de-stream", "editor",
-		"biblioteca", "feed", "ajustes",
+		"inicio", "partidas", "subir-demo", "clips-de-stream", "demo-completa",
+		"tactica", "cheaterdetect", "jugadores", "biblioteca", "ajustes",
 		"shorts-9x16-wait", "full-demo-16x9-wait",
 	} {
 		if !seen[want] {
@@ -66,9 +65,8 @@ func TestCatalogCheapFeaturesHaveProbePath(t *testing.T) {
 func TestCatalogCoversStudioNav(t *testing.T) {
 	t.Parallel()
 	want := []string{
-		"/onboarding", "/matches", "/upload", "/full-demo", "/tactical",
-		"/cheaters", "/players", "/streams", "/editor", "/videos",
-		"/feed", "/settings",
+		"/onboarding", "/matches", "/upload", "/streams", "/full-demo",
+		"/tactical", "/cheaters", "/players", "/videos", "/settings",
 	}
 	have := map[string]bool{}
 	for _, feature := range Features() {
@@ -78,6 +76,41 @@ func TestCatalogCoversStudioNav(t *testing.T) {
 		if !have[route] {
 			t.Fatalf("catalog missing nav route %s", route)
 		}
+	}
+}
+
+func TestCatalogUsesCurrentRailLabels(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		id    string
+		label string
+	}{
+		{id: "partidas", label: "Demos"},
+		{id: "subir-demo", label: "Shorts"},
+		{id: "clips-de-stream", label: "Clips de stream"},
+		{id: "demo-completa", label: "Vídeos largos"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.id, func(t *testing.T) {
+			feature, ok := FeatureByID(tc.id)
+			if !ok {
+				t.Fatalf("FeatureByID(%q) not found", tc.id)
+			}
+			if feature.NavLabel != tc.label {
+				t.Fatalf("FeatureByID(%q).NavLabel = %q, want %q", tc.id, feature.NavLabel, tc.label)
+			}
+		})
+	}
+}
+
+func TestRemovedStudioFeaturesAreNotCatalogued(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"editor", "feed"} {
+		t.Run(id, func(t *testing.T) {
+			if feature, ok := FeatureByID(id); ok {
+				t.Fatalf("FeatureByID(%q) = %#v, want removed feature", id, feature)
+			}
+		})
 	}
 }
 

@@ -2,8 +2,7 @@
  * Shared visual contract for Studio segmented controls.
  *
  * SUPERSEDED by `ToggleGroup variant="filter"` (`components/ui/toggle.tsx`). It
- * stays exported so `match-filters.tsx`, `video-filters.tsx` and `feed/page.tsx`
- * keep compiling; move those three onto the variant, then delete this file.
+ * stays exported while the tactical filters migrate onto that variant.
  *
  * v4 changes: the 1.44:1 tinted edge became `--border-strong` (4.01:1, the WCAG
  * 1.4.11 floor for a control boundary), the invented `text-xs` +

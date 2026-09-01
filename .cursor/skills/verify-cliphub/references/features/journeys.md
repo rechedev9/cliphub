@@ -6,8 +6,8 @@ Cross-feature walks. A change that touches a structural flow must prove that flo
 
 Demo parser → 9:16 Shorts.
 
-1. Land on **Inicio** (`/onboarding`) or **Subir demo** (`/upload`).
-2. Accept a local `.dem`, pick a player, parse. Job appears in **Partidas**.
+1. Land on **Inicio** (`/onboarding`) or **Shorts** (`/upload`).
+2. Accept a local `.dem`, pick a player, parse. Job appears in **Demos**.
 3. Start a 9:16 Short from the match. Stay on **Biblioteca** while capture runs ([shorts-9x16-wait](shorts-9x16-wait.md)).
 4. Ready card: MP4 download + PREPARAR PUBLICACIÓN without a cover pick.
 
@@ -17,7 +17,7 @@ Cheap: map + unit tests on parse/plan/progress. Live: granted Windows Studio + H
 
 Full Demo → 16:9 recap.
 
-1. **Demo completa** (`/full-demo`). Contract rows: landscape 16:9, native HUD, comms, no music, no punch-in.
+1. **Vídeos largos** (`/full-demo`). Contract rows: landscape 16:9, native HUD, comms, no music, no punch-in.
 2. Pick a parsed match → `/full-demo/{jobId}`. Start the POV recap.
 3. Watch Biblioteca ([full-demo-16x9-wait](full-demo-16x9-wait.md)) until the landscape file exists.
 4. Ready card shows PARTIDA COMPLETA, not a vertical Short.
@@ -37,6 +37,6 @@ VOD → persisted edit plan → render.
 Empty Studio.
 
 1. Open Studio → EMPIEZA AQUÍ. `/` must not stay on a blank marketing root.
-2. Three doors only: **Sube una demo**, **Corta un stream**, **Busca un jugador**.
-3. Empty **Partidas** sends the user to Inicio (`EMPIEZA AQUÍ`), not a hidden upload shortcut.
+2. Three doors only: **Crea Shorts**, **Corta un stream**, **Busca un jugador**.
+3. Empty **Demos** sends the user to Inicio (`EMPIEZA AQUÍ`), not a hidden upload shortcut.
 4. Steam GC is an explicit user action. Never open it at startup.

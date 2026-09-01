@@ -1,4 +1,4 @@
-import type { Match, Play, Song, Video, FeedItem, SteamUser, Slots, DemoPlayer, RosterMatch } from './types';
+import type { Match, Play, Song, Video, SteamUser, Slots, DemoPlayer, RosterMatch } from './types';
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 
 /**
@@ -17,7 +17,7 @@ function thumb(seed: string): string {
 
 /**
  * A locally-served sample clip (same-origin, from web/public) so mock "ready"
- * reels and feed items are actually playable/downloadable in the demo with no
+ * reels are actually playable/downloadable in the demo with no
  * external dependency. scripts/run-local.sh generates it; reels produced by the
  * real pipeline (uploaded demos) stream from the orchestrator instead.
  */
@@ -312,61 +312,3 @@ export function seedVideos(): Video[] {
     },
   ];
 }
-
-export const fixtureFeed: FeedItem[] = [
-  {
-    id: 'feed-1',
-    author: 'RaiSeNN',
-    authorAvatarUrl: avatar('RaiSeNN'),
-    title: '4K - Edición Musical',
-    map: 'Mirage',
-    thumbnailUrl: thumb('feed-1'),
-    likes: 482,
-    createdAt: Date.now() - 2 * 3600 * 1000,
-    videoUrl: SAMPLE_REEL_URL,
-  },
-  {
-    id: 'feed-2',
-    author: 'granz',
-    authorAvatarUrl: avatar('granz'),
-    title: '5K - Clean POV',
-    map: 'Inferno',
-    thumbnailUrl: thumb('feed-2'),
-    likes: 1203,
-    createdAt: Date.now() - 5 * 3600 * 1000,
-    videoUrl: SAMPLE_REEL_URL,
-  },
-  {
-    id: 'feed-3',
-    author: 'mcyans',
-    authorAvatarUrl: avatar('mcyans'),
-    title: '3K - Clutch',
-    map: 'Nuke',
-    thumbnailUrl: thumb('feed-3'),
-    likes: 87,
-    createdAt: Date.now() - 26 * 3600 * 1000,
-    videoUrl: SAMPLE_REEL_URL,
-  },
-  {
-    id: 'feed-4',
-    author: 'Revol',
-    authorAvatarUrl: avatar('Revol'),
-    title: '4K - AWP Highlight',
-    map: 'Ancient',
-    thumbnailUrl: thumb('feed-4'),
-    likes: 351,
-    createdAt: Date.now() - 50 * 3600 * 1000,
-    videoUrl: SAMPLE_REEL_URL,
-  },
-  {
-    id: 'feed-5',
-    author: 'RaiSeNN',
-    authorAvatarUrl: avatar('RaiSeNN'),
-    title: '5K - Edición Musical',
-    map: 'Anubis',
-    thumbnailUrl: thumb('feed-5'),
-    likes: 902,
-    createdAt: Date.now() - 72 * 3600 * 1000,
-    videoUrl: SAMPLE_REEL_URL,
-  },
-];

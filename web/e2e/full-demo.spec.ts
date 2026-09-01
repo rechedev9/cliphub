@@ -131,13 +131,13 @@ test.describe('Full demo to video', () => {
     await gotoStudio(page, '/full-demo');
     const key = page.locator('[data-slot="sidebar"] a[href="/full-demo"]');
     await expect(key).toBeVisible();
-    await expect(key).toContainText('03');
-    await expect(key).toContainText('Demo completa');
+    await expect(key).toContainText('04');
+    await expect(key).toContainText('Vídeos largos');
   });
 
   test('states the locked 16:9 recap contract from shipped constants', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
-    await expect(page.getByRole('heading', { name: 'DEMO COMPLETA A VÍDEO' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'VÍDEOS LARGOS' })).toBeVisible();
     for (const row of FULL_DEMO_CONTRACT) {
       await expect(page.getByText(row.value, { exact: true })).toBeVisible();
     }
@@ -146,7 +146,7 @@ test.describe('Full demo to video', () => {
     await expect(page.getByRole('button', { name: /Preset (POV nativo|Native POV)/ })).toHaveCount(0);
   });
 
-  test('empty state uses the same demo drop as Subir demo', async ({ page }) => {
+  test('empty state uses the same demo drop as Shorts', async ({ page }) => {
     await gotoStudio(page, '/full-demo');
     await expect(page.locator('p[role="alert"]')).toContainText(
       /El servicio de análisis está offline|No se pudieron cargar las demos parseadas/,
@@ -194,7 +194,9 @@ test.describe('Full demo to video', () => {
 
   test('a missing job does not offer FORJAR or a music picker', async ({ page }) => {
     await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByText(/Servicio local sin conexión|Demo no encontrada/)).toBeVisible();
+    await expect(
+      page.getByText(/Servicio local sin conexión|Demo no encontrada|No se pudo cargar la demo/),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'AÑADIR MÚSICA' })).toHaveCount(0);

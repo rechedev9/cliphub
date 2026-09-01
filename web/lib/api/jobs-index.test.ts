@@ -1,4 +1,4 @@
-// Unit tests for the pure Partidas index logic (job listing → Matches/series).
+// Unit tests for the pure Demos index logic (job listing → Matches/series).
 // Run: node --test jobs-index.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';

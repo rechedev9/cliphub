@@ -101,7 +101,7 @@ export function seriesJobsUrl(seriesId: string): string | null {
   return UUID_RE.test(seriesId) ? `${orchestratorUrl()}/api/jobs?${SERIES_ID_PARAM}=${seriesId}` : null;
 }
 
-/** How many recent jobs the Partidas index requests; the orchestrator caps it at 100. */
+/** How many recent jobs the Demos index requests; the orchestrator caps it at 100. */
 const JOBS_LIST_LIMIT = 100;
 
 /** Builds the upstream recent-jobs listing URL (most recent first, capped). */

@@ -6,7 +6,7 @@ First-run door inside the Studio shell. Not a marketing page.
 
 - `inicio-rail` — Sidebar `00 Inicio` → `/onboarding`.
 - `inicio-root` — `/` redirects to `/onboarding`.
-- `inicio-doors` — Guide plates: Sube una demo, Corta un stream, Busca un jugador.
+- `inicio-doors` — Guide plates: Crea Shorts, Corta un stream, Busca un jugador.
 - `inicio-sharecode` — Paste a `CSGO-` share code. Decode works without Steam configured.
 - `inicio-steam-recent` — Recent matches after Steam is saved in Ajustes.
 
@@ -14,7 +14,7 @@ First-run door inside the Studio shell. Not a marketing page.
 
 - Open ClipHub Studio. Land on EMPIEZA AQUÍ.
 - Click **Inicio** in the numbered rail.
-- From empty Partidas, click **EMPIEZA AQUÍ**.
+- From empty Demos, click **EMPIEZA AQUÍ**.
 
 ## What done looks like
 
@@ -29,7 +29,7 @@ Preconditions:
 
 - **Cheap contract.** Run `./bin/zv verify prove --feature inicio --format json`. `ok` is true, `drive.route` is `/onboarding`.
 - **Live API.** When Studio is up, prove GETs `/api/steam/account`. Empty account is success. `user_path` becomes inspected, never pass.
-- **Open Inicio.** Click **Inicio**. Heading EMPIEZA AQUÍ. Doors: Sube una demo → `/upload`, Corta un stream → `/streams`, Busca un jugador → `/players`.
+- **Open Inicio.** Click **Inicio**. Heading EMPIEZA AQUÍ. Doors: Crea Shorts → `/upload`, Corta un stream → `/streams`, Busca un jugador → `/players`.
 - **Share code without Steam.** Paste a well-shaped code. Result `status: "decoded"` is success, not an error.
 - **Root redirect.** Open `/`. Location becomes `/onboarding`.
 - **Dry-run.** `./bin/zv verify prove --feature inicio --dry-run --format json` issues no HTTP and does not touch jobs.db.

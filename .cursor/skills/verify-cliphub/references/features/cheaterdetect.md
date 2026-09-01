@@ -4,7 +4,7 @@ Side-lane anomaly screen. Never a guilt verdict.
 
 ## Sub-features
 
-- `cheaters-rail` — Sidebar `05 CheaterDetect` → `/cheaters`.
+- `cheaters-rail` — Sidebar `06 CheaterDetect` → `/cheaters`.
 - `cheaters-pick` — Pick a local parsed demo (`aria-label="Demos analizables"`).
 - `cheaters-run` — **ANALIZAR DEMO** starts `analyze:anticheat`.
 - `cheaters-dossier` — Per-player dossier render.

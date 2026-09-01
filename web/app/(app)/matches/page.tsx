@@ -27,12 +27,12 @@ function isServiceUnavailable(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
 }
 
-/** Empty Partidas state: Inicio is the only first-run door. */
+/** Empty Demos state: Inicio is the only first-run door. */
 function NoMatchesYet({ offline }: { offline: boolean }) {
   return (
     <StudioEmptyState
       icon={Swords}
-      title="Aún no hay partidas"
+      title="Aún no hay demos"
       description={
         offline
           ? 'No se pudo contactar con el servicio de análisis local. Arráncalo y recarga, o empieza en Inicio.'
@@ -161,7 +161,7 @@ export default function MatchesPage() {
         ) : null}
         {matches.length > 0 ? (
           <section className="flex flex-col gap-3">
-            <SectionEyebrow label="PARTIDAS" count={visible.length} />
+            <SectionEyebrow label="DEMOS" count={visible.length} />
             <MatchList matches={visible} onDelete={deleteMatch} onDeleted={refresh} />
           </section>
         ) : null}
@@ -175,8 +175,8 @@ export default function MatchesPage() {
   return (
     <div className="flex flex-col gap-8 @[34rem]/content:gap-10">
       <StudioPageHeader
-        title="TUS PARTIDAS"
-        description="Tus últimas partidas de CS2. Elige una y forja sus highlights en un reel."
+        title="TUS DEMOS"
+        description="Demos de CS2 que ya has importado. Elige una y forja sus highlights en un Short."
         actions={
           showFilters ? (
             <MatchFilters

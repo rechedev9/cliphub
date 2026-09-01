@@ -62,7 +62,7 @@ export function FullDemoPicker(): ReactNode {
         }}
       />
       {matches.length > 0 ? (
-        <section className="flex flex-col gap-3" aria-label="Demos para demo completa a vídeo">
+        <section className="flex flex-col gap-3" aria-label="Demos para vídeos largos">
           {matches.map((match) => {
             const ready = matchPlanReady(match.status);
             const meta = [match.player, matchDateLabel(match)].filter(Boolean).join(' · ');

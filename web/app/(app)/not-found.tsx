@@ -29,7 +29,7 @@ export default function AppNotFound(): ReactElement {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button asChild>
-            <Link href="/matches">Ir a partidas</Link>
+            <Link href="/matches">Ir a Demos</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/videos">Ver biblioteca</Link>

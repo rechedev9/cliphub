@@ -1,6 +1,6 @@
 import type { ApiClient, VideoReviewResolution } from './client';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
-import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
+import type { Session, Match, Play, Song, Video, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 import {
@@ -17,7 +17,6 @@ import {
   fixtureSlots,
   fixtureMatches,
   fixtureSongs,
-  fixtureFeed,
   playsForMatch,
   seedVideos,
   synthUploadedMatch,
@@ -555,10 +554,6 @@ export class MockApiClient implements ApiClient {
     saveUploads();
   }
 
-  async listFeed(): Promise<FeedItem[]> {
-    await delay();
-    return fixtureFeed.map((f) => ({ ...f }));
-  }
 }
 
 function cloneSession(): Session {

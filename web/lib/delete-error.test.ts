@@ -1,4 +1,4 @@
-// Unit tests for the Partidas delete error → Spanish message mapping.
+// Unit tests for the Demos delete error → Spanish message mapping.
 // Run: node --test delete-error.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';

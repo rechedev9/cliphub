@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export function MatchListSkeleton() {
   return (
-    <div role="status" aria-busy="true" aria-label="Cargando partidas" className="flex flex-col gap-3">
+    <div role="status" aria-busy="true" aria-label="Cargando demos" className="flex flex-col gap-3">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="studio-panel px-4 py-4 @[34rem]/content:px-5">
           <div className="flex items-stretch gap-4 @[34rem]/content:gap-5">

@@ -11,7 +11,7 @@ In-flight landscape recap card. Same capture lane, different brief.
 
 ## How to get to it (user POV)
 
-- Start a recap from **Demo completa**.
+- Start a recap from **Vídeos largos**.
 - Watch Biblioteca (and the shell wait) until the 16:9 file exists.
 
 ## What done looks like

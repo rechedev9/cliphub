@@ -9,7 +9,7 @@ import { deleteErrorMessage } from '@/lib/delete-error';
 const REVERT_MS = 8000;
 
 /**
- * Two-step inline delete for a Partidas row (match or series). The first click
+ * Two-step inline delete for a Demos row (match or series). The first click
  * arms a destructive "¿BORRAR?" button; the second confirms. Blur or a short
  * timeout disarms it, so there is no native confirm() and no modal. While
  * deleting the button shows a spinner and is disabled; on success `onDeleted`

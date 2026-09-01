@@ -6,7 +6,7 @@ export const DEMO_CHEATER_SINGLE_FILE_HINT =
 
 export type PickedDemo = { ok: true; file: File } | { ok: false; error: string };
 
-/** CheaterDetect screens one demo; a series drop belongs on Subir demo. */
+/** CheaterDetect screens one demo; a series drop belongs on Shorts. */
 export function pickCheaterDetectDemo(files: readonly File[]): PickedDemo {
   const file = files[0];
   if (files.length !== 1 || !file) {
@@ -22,7 +22,7 @@ export type ScanMatchInput = {
   createdAt?: string;
 };
 
-/** Roster-ready Partidas row from a finished scan, without a POV parse. */
+/** Roster-ready Demos row from a finished scan, without a POV parse. */
 export function matchFromScan(input: ScanMatchInput): Match {
   return jobToMatch(
     {

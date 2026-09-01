@@ -8,7 +8,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 export type MatchFilter = 'all' | 'wins' | 'frags';
 
 const FILTER_ITEMS: Array<{ value: MatchFilter; label: string; description: string }> = [
-  { value: 'all', label: 'TODAS', description: 'Todas las partidas' },
+  { value: 'all', label: 'TODAS', description: 'Todas las demos' },
   { value: 'wins', label: 'VICTORIAS', description: 'Solo victorias' },
   { value: 'frags', label: 'MEJORES FRAGS', description: 'Mejores frags primero' },
 ];
@@ -48,7 +48,7 @@ export function MatchFilters({ filter, onFilterChange, query, onQueryChange }: M
           variant="filter"
           spacing={2}
           className="w-max"
-          aria-label="Filtrar partidas"
+          aria-label="Filtrar demos"
         >
           {FILTER_ITEMS.map((item) => (
             <ToggleGroupItem key={item.value} value={item.value} aria-label={item.description}>

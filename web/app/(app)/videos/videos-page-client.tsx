@@ -154,7 +154,7 @@ export function VideosPageClient() {
     <div className="flex flex-col gap-8">
       <StudioPageHeader
         title="BIBLIOTECA"
-        description="Sigue cada captura desde la cola hasta el MP4: Shorts y partidas completas comparten el mismo estado local."
+        description="Sigue cada captura desde la cola hasta el MP4: Shorts y vídeos largos comparten el mismo estado local."
         actions={
           videos !== null && videos.length > 0 ? (
             <VideoFilters filter={filter} onFilterChange={setFilter} />
@@ -320,7 +320,7 @@ function EmptyState() {
     <StudioEmptyState
       icon={Film}
       title="Todavía no hay vídeos"
-      description="Forja Shorts desde Partidas o captura una demo completa 16:9; ClipHub sigue captura y render aquí."
+      description="Forja Shorts desde Demos o crea un vídeo largo 16:9; ClipHub sigue captura y render aquí."
       compact
       actions={
         <>
@@ -331,7 +331,7 @@ function EmptyState() {
             </Link>
           </Button>
           <Button asChild variant="outline-primary">
-            <Link href={FULL_DEMO_HREF}>DEMO COMPLETA 16:9</Link>
+            <Link href={FULL_DEMO_HREF}>VÍDEO LARGO 16:9</Link>
           </Button>
         </>
       }

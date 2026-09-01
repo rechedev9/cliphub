@@ -7,7 +7,7 @@ export default function FullDemoIndexPage(): ReactNode {
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
-        title="DEMO COMPLETA A VÍDEO"
+        title="VÍDEOS LARGOS"
         description="Sube una demo, elige el jugador y revisa la configuración antes de capturar toda su POV. La salida es horizontal, con HUD nativo y comms; sin música."
       />
       <dl className="studio-panel grid gap-x-6 gap-y-2 px-4 py-4 text-body-sm sm:grid-cols-2">

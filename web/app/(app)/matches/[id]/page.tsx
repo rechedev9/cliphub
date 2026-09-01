@@ -309,13 +309,13 @@ export default function FindHighlightsPage({
     else if (errored) emptyIcon = AlertTriangle;
     return (
       <div className="flex flex-col gap-8">
-        <StudioBackLink href="/matches">PARTIDAS</StudioBackLink>
+        <StudioBackLink href="/matches">DEMOS</StudioBackLink>
         <StudioEmptyState
           icon={emptyIcon}
           title={emptyTitle}
           description={emptyDescription}
           actions={
-            <Button onClick={() => router.push('/matches')}>VOLVER A PARTIDAS</Button>
+            <Button onClick={() => router.push('/matches')}>VOLVER A DEMOS</Button>
           }
         />
       </div>
@@ -331,7 +331,7 @@ export default function FindHighlightsPage({
   const hasScore = match.score.trim() !== '';
   const fromUpload = match.source === 'upload';
   let backHref = fromUpload ? '/upload' : '/matches';
-  let backLabel = fromUpload ? 'SUBIR DEMO' : 'PARTIDAS';
+  let backLabel = fromUpload ? 'SHORTS' : 'DEMOS';
   if (seriesId) {
     backHref = `/series/${seriesId}`;
     backLabel = 'SERIE';

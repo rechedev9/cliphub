@@ -8,7 +8,7 @@ export type MapCoverProps = {
 };
 
 /**
- * Tiny map still for the Partidas scoreboard. Real cover photos are rare on
+ * Tiny map still for the Demos scoreboard. Real cover photos are rare on
  * uploaded demos, so each known map gets its own palette and silhouette instead
  * of the generic horizon plate that made Ancient and Mirage look identical.
  */

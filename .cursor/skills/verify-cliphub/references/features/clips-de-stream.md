@@ -4,7 +4,7 @@ VOD → persisted edit plan → render. The plan is canonical.
 
 ## Sub-features
 
-- `streams-rail` — Sidebar `07 Clips de stream` → `/streams`.
+- `streams-rail` — Sidebar `03 Clips de stream` → `/streams`.
 - `streams-door` — Inicio plate **Corta un stream**.
 - `streams-source` — Twitch/Kick URL or local MP4.
 - `streams-plan` — Crop, audio, fades, text, `music.volume` live on the plan.
