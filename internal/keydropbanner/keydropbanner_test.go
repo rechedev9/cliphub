@@ -70,6 +70,9 @@ func TestMaterializeWritesCachedPlates(t *testing.T) {
 	dir := t.TempDir()
 	for _, style := range styles {
 		if len(style.Data) == 0 {
+			if style.ID == StyleJcorko {
+				t.Fatal("jcorko is offered in Studio; its plate must be embedded")
+			}
 			t.Logf("skip materialize %s: plate not on disk", style.ID)
 			continue
 		}
