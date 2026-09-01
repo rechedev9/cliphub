@@ -12,6 +12,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
@@ -189,6 +190,7 @@ func (r *memoryJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 	}
 	j.Status = status
 	j.FailureReason = failureReason
+	j.FailureCode = obs.ClassOf(failureReason)
 	j.UpdatedAt = time.Now().UTC()
 	r.jobs[id] = j
 	return nil
@@ -365,6 +367,11 @@ func (r *memoryStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UU
 	}
 	j.Status = status
 	j.FailureReason = failureReason
+	if code := streamclips.CodeFromReason(failureReason); code != "" {
+		j.FailureCode = code
+	} else {
+		j.FailureCode = obs.ClassOf(failureReason)
+	}
 	if status == streamclips.StatusFailed {
 		j.SourceURL = ""
 	}
@@ -394,6 +401,7 @@ func (r *memoryStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUI
 	j.EditPlan = append(json.RawMessage(nil), b...)
 	j.Status = streamclips.StatusReady
 	j.FailureReason = ""
+	j.FailureCode = ""
 	j.UpdatedAt = time.Now().UTC()
 	r.jobs[id] = j
 	return nil
@@ -416,6 +424,7 @@ func (r *memoryStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUI
 	}
 	j.Status = streamclips.StatusReady
 	j.FailureReason = ""
+	j.FailureCode = ""
 	j.SourceURL = ""
 	j.UpdatedAt = time.Now().UTC()
 	r.jobs[id] = j

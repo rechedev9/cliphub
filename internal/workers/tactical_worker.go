@@ -115,7 +115,7 @@ func (w *TacticalWorker) ProcessAnalyzeTactical(ctx context.Context, jobID uuid.
 			logWorkerError(j.ID, tasks.TypeAnalyzeTactical+" will retry", scanErr)
 			return scanErr
 		}
-		recordStageFailure(j.ID, obs.StageTactical, tacticalFailureClass(scanErr), scanErr)
+		recordStageFailure(j.ID, obs.StageTactical, tasks.TypeAnalyzeTactical, tacticalFailureClass(scanErr), scanErr)
 		logWorkerError(j.ID, tasks.TypeAnalyzeTactical+" failed", scanErr)
 		return scanErr
 	}

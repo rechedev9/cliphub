@@ -226,17 +226,17 @@ func writeStreamEditPlanArtifact(store storage.Storage, id uuid.UUID, plan strea
 func acquireFailureClass(err error) string {
 	switch {
 	case errors.Is(err, vodfetch.ErrNotFound):
-		return "not_found"
+		return streamclips.AcquireCodeNotFound
 	case errors.Is(err, vodfetch.ErrAuthRequired):
-		return "auth_required"
+		return streamclips.AcquireCodeAuthRequired
 	case errors.Is(err, vodfetch.ErrUnavailable):
-		return "unavailable"
+		return streamclips.AcquireCodeUnavailable
 	case errors.Is(err, vodfetch.ErrBlocked):
-		return "blocked"
+		return streamclips.AcquireCodeBlocked
 	case errors.Is(err, vodfetch.ErrTooLarge):
-		return "too_large"
+		return streamclips.AcquireCodeTooLarge
 	default:
-		return "error"
+		return streamclips.AcquireCodeError
 	}
 }
 
@@ -250,17 +250,17 @@ func acquireFailureClass(err error) string {
 func friendlyAcquireReason(err error) string {
 	switch {
 	case errors.Is(err, vodfetch.ErrNotFound):
-		return "No encontramos un vídeo en esa URL (puede que el clip se haya borrado)."
+		return streamclips.AcquireReasonNotFound
 	case errors.Is(err, vodfetch.ErrAuthRequired):
-		return "Ese vídeo necesita inicio de sesión o suscripción; no podemos descargarlo."
+		return streamclips.AcquireReasonAuthRequired
 	case errors.Is(err, vodfetch.ErrUnavailable):
-		return "Ese vídeo no está disponible ahora mismo (privado, caducado o restringido por región)."
+		return streamclips.AcquireReasonUnavailable
 	case errors.Is(err, vodfetch.ErrBlocked):
-		return "El origen bloqueó la descarga (protección anti-bots). Espera un momento y vuelve a intentarlo."
+		return streamclips.AcquireReasonBlocked
 	case errors.Is(err, vodfetch.ErrTooLarge):
-		return "Ese vídeo supera el límite máximo de descarga permitido."
+		return streamclips.AcquireReasonTooLarge
 	default:
-		return "No pudimos preparar un vídeo a partir de esa URL. Asegúrate de que es un clip o VOD público de Twitch, YouTube o Kick."
+		return streamclips.AcquireReasonError
 	}
 }
 
@@ -274,9 +274,11 @@ func recordStreamAcquireFailure(id uuid.UUID, err error) {
 		return
 	}
 	_ = rec.RecordError(obs.Event{
+		JobID:   id.String(),
 		Stage:   obs.StageStreamAcquire,
+		Task:    tasks.TypeStreamAcquire,
 		Class:   acquireFailureClass(err),
-		Message: id.String() + ": " + err.Error(),
+		Message: err.Error(),
 	})
 }
 
