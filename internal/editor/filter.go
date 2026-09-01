@@ -87,21 +87,37 @@ func FullFrameVideoFilter(short ShortEdit) string {
 			heightExpr = "'" + expr + "'"
 		}
 	}
-	filters := []string{
-		fullFrameBackgroundScaleFilter(short, heightExpr),
+	var filters []string
+	if sourceGeometryMatchesOutput(short) {
+		filters = []string{"setsar=1"}
+		singleCrop = true
+	} else {
+		filters = []string{
+			fullFrameBackgroundScaleFilter(short, heightExpr),
+		}
+		if !singleCrop {
+			filters = append(filters, fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height))
+		}
+		filters = append(filters, "setsar=1")
+		filters = append(filters, fpsFilter(short))
 	}
-	if !singleCrop {
-		filters = append(filters, fmt.Sprintf("crop=%d:%d:(iw-ow)/2:(ih-oh)/2", width, height))
-	}
-	filters = append(filters, "setsar=1")
-	filters = append(filters,
-		fpsFilter(short),
-	)
 	filters = appendTemporalSmoothingFilter(filters, short)
 	filters = appendEffectFilters(filters, short, singleCrop)
 	filters = appendFullDemoFadeFromBlack(filters, short, short.Effects != nil)
 	filters = append(filters, "format=yuv420p")
 	return strings.Join(filters, ",")
+}
+
+func sourceGeometryMatchesOutput(short ShortEdit) bool {
+	if !isFullDemoNative(short.Preset, short.OutputFormat, len(short.Parts) > 0 || short.Input != "") {
+		return false
+	}
+	outW, outH := outputDimensions(short)
+	outFPS := outputFPS(short)
+	return short.SourceWidth == outW &&
+		short.SourceHeight == outH &&
+		short.SourceFPS == outFPS &&
+		short.SourceWidth > 0
 }
 
 func appendFullDemoFadeFromBlack(filters []string, short ShortEdit, finalPass bool) []string {
@@ -193,11 +209,10 @@ func fullDemoOutroDimClauses(short ShortEdit, current, next string) ([]string, s
 		return nil, current, false
 	}
 	start, end := outro.StartSeconds, outro.EndSeconds
+	enable := betweenExpression(start, end)
 	clauses := []string{
-		fmt.Sprintf("[%s]split=2[vkeep][vtail]", current),
-		fmt.Sprintf("[vtail]trim=start=%.3f:end=%.3f,gblur=sigma=%.3f,eq=brightness=%.3f[vblurred]",
-			start, end, demooverlay.OutroBlurSigma, demooverlay.OutroEQBrightness),
-		fmt.Sprintf("[vkeep][vblurred]overlay=enable='%s'[%s]", betweenExpression(start, end), next),
+		fmt.Sprintf("[%s]gblur=sigma=%.3f:enable='%s',eq=brightness=%.3f:enable='%s'[%s]",
+			current, demooverlay.OutroBlurSigma, enable, demooverlay.OutroEQBrightness, enable, next),
 	}
 	return clauses, next, true
 }

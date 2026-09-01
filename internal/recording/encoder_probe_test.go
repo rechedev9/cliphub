@@ -1,7 +1,9 @@
 package recording
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -21,6 +23,48 @@ func TestEncoderFFmpegCodec(t *testing.T) {
 		if got := EncoderFFmpegCodec(tt.encoder); got != tt.want {
 			t.Errorf("EncoderFFmpegCodec(%q) = %q, want %q", tt.encoder, got, tt.want)
 		}
+	}
+}
+
+func TestHLAEStreamFFmpeg(t *testing.T) {
+	writeFile := func(t *testing.T, path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, hlaeDir string) string // returns want; "" = FindFFmpeg fallback
+	}{
+		{name: "bundled bin wins over ini", setup: func(t *testing.T, dir string) string {
+			bundled := filepath.Join(dir, "ffmpeg", "bin", "ffmpeg.exe")
+			writeFile(t, bundled, "fake")
+			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), "[Ffmpeg]\r\nPath=C:\\other\\ffmpeg.exe\r\n")
+			return bundled
+		}},
+		{name: "ini path with CRLF", setup: func(t *testing.T, dir string) string {
+			writeFile(t, filepath.Join(dir, "ffmpeg", "ffmpeg.ini"), "[Ffmpeg]\r\nPath=C:\\tools\\ffmpeg.exe\r\n")
+			return `C:\tools\ffmpeg.exe`
+		}},
+		{name: "no config falls back to PATH ffmpeg", setup: func(t *testing.T, dir string) string {
+			return ""
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			want := tt.setup(t, dir)
+			if want == "" {
+				want = FindFFmpeg()
+			}
+			if got := HLAEStreamFFmpeg(filepath.Join(dir, "HLAE.exe")); got != want {
+				t.Fatalf("HLAEStreamFFmpeg = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

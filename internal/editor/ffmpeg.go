@@ -44,11 +44,7 @@ func BuildFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 			"-vf", VideoFilter(short),
 		)
 	}
-	command = append(command,
-		"-c:v", "libx264",
-		"-preset", videoPresetForCommand(short.VideoPreset),
-		"-crf", fmt.Sprintf("%d", videoCRFForCommand(short.VideoCRF)),
-	)
+	command = appendVideoEncodeArgs(command, short)
 	command = appendAudioEncodeArgs(command, short)
 	command = append(command, "-movflags", "+faststart")
 	command = append(command, tailTrimArgs(short)...)
@@ -123,10 +119,8 @@ func BuildMusicFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 		"-filter_complex", filter,
 		"-map", "[v]",
 		"-map", "[a]",
-		"-c:v", "libx264",
-		"-preset", videoPresetForCommand(short.VideoPreset),
-		"-crf", fmt.Sprintf("%d", videoCRFForCommand(short.VideoCRF)),
 	}
+	command = appendVideoEncodeArgs(command, short)
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
 	command = append(command, tailTrimArgs(short)...)
@@ -278,10 +272,8 @@ func BuildCompilationFFmpegCommand(ffmpegPath string, short ShortEdit) []string 
 		"-filter_complex", CompilationFilter(short),
 		"-map", "[v]",
 		"-map", "[a]",
-		"-c:v", "libx264",
-		"-preset", videoPresetForCommand(short.VideoPreset),
-		"-crf", fmt.Sprintf("%d", videoCRFForCommand(short.VideoCRF)),
 	)
+	command = appendVideoEncodeArgs(command, short)
 	command = appendAudioCodecArgs(command)
 	command = append(command, "-movflags", "+faststart")
 	command = appendThreadArgs(command, short)

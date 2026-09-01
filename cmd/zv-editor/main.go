@@ -62,6 +62,7 @@ func run() error {
 		rankMoments         = flag.Bool("rank-moments", false, "score and order embedded recording segments best-first before applying --limit")
 		videoCRF            = flag.Int("video-crf", 0, "x264 CRF quality from 1..51; lower is higher quality; defaults by preset")
 		videoPreset         = flag.String("video-preset", "", "x264 preset; defaults by preset")
+		videoEncoder        = flag.String("video-encoder", "", "final render encoder: nvenc-h264 or libx264 default")
 		threads             = flag.Int("threads", 0, "cap encoder threads per render; 0 lets FFmpeg pick its own default")
 		hqFilters           = flag.Bool("hq-filters", false, "use Lanczos scaling and square-pixel normalization")
 		audioNormalize      = flag.Bool("audio-normalize", false, "normalize audio with FFmpeg loudnorm")
@@ -77,7 +78,9 @@ func run() error {
 		renderJobs          = flag.Int("render-jobs", 0, "max shorts rendered concurrently; 0 selects an automatic CPU-based limit")
 		openGallery         = flag.Bool("open-gallery", false, "open the publish gallery after a successful run")
 		fullDemoOverlay     = flag.String("full-demo-overlay", "", "optional Full Demo intro/outro overlay JSON")
+		overlayAssets       = flag.String("overlay-assets", "", "optional Full Demo overlay background plates directory")
 		dryRun              = flag.Bool("dry-run", false, "write manifests and prompts without running FFmpeg")
+		progressOut         = flag.String("progress-out", "", "optional JSON file updated with render progress")
 		format              = flag.String("format", "text", "result summary format: text or json")
 		listPresets         = flag.Bool("list-presets", false, "print supported preset names, one per line, and exit; used by zv short to detect stale binaries")
 	)
@@ -169,6 +172,7 @@ func run() error {
 		RankMoments:         *rankMoments,
 		VideoCRF:            *videoCRF,
 		VideoPreset:         *videoPreset,
+		VideoEncoder:        *videoEncoder,
 		Threads:             *threads,
 		HQFilters:           *hqFilters,
 		AudioNormalize:      *audioNormalize,
@@ -184,6 +188,8 @@ func run() error {
 		RenderJobs:          *renderJobs,
 		DryRun:              *dryRun,
 		FullDemoOverlayPath: *fullDemoOverlay,
+		OverlayAssetsDir:    *overlayAssets,
+		ProgressOutPath:     *progressOut,
 	})
 	if err != nil {
 		return err
