@@ -37,7 +37,7 @@ Shared standing law for every agent that touches this repo. If it is not here, i
 - **Hosted quality CI** (PRs and `main`): `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`), `CI infra` (actionlint + unsigned-release contract). Not HLAE/CS2 E2E. Not Playwright.
 - **Release:** unsigned Windows installer only, via `.github/workflows/desktop-release.yml` (`workflow_dispatch` or `v*.*.*` matching `desktop/package.json`). Actualizar reads `releases/latest`. No Authenticode. Vercel/landing is not the updater.
 - **Structural flows:** (1) Demo parser → 9:16 Shorts (2) Full Demo → 16:9 recap. A PR that touches a flow must prove that flow. Unknown on a touched flow is a merge block.
-- **Current Studio** (as of 2026-09-01): 2.4.41.
+- **Current Studio** (as of 2026-09-01): 2.4.42.
 
 ## Where To Look
 
