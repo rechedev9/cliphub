@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { Compass, Film, PlugZap, RefreshCw, UploadCloud } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { FeedItem } from '@/lib/api/types';

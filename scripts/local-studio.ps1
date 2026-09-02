@@ -10,8 +10,7 @@
 #      (no external database or queue service). The orchestrator auto-detects
 #      HLAE, CS2, and zv-recorder on startup, so capture works without setting
 #      any tool-path env vars.
-#   2. Starts the Next.js web UI, whose /api/demos/* routes proxy the full
-#      pipeline to the local orchestrator.
+#   2. Serves the static React UI from that same orchestrator process.
 #   3. Opens the browser at the upload page.
 #
 # Ctrl+C stops the web UI and then the orchestrator. Pass explicit loopback
@@ -40,9 +39,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-if ($OrchestratorPort -eq $WebPort) {
-    throw "-OrchestratorPort and -WebPort must be different"
-}
+# WebPort is retained as a no-op compatibility parameter for existing scripts.
 
 # Keep every service descendant inside a kill-on-close Windows Job Object.
 # `finally` handles ordinary Ctrl+C/error exits; the OS job also handles an
@@ -61,10 +58,10 @@ $dataDir = if ([string]::IsNullOrWhiteSpace($DataDir)) {
 
 # Loopback only: the web server proxies to the orchestrator over localhost, and
 # the browser only ever talks to the web server. Distinct process-local
-# capabilities keep the Next proxy, the standalone bootstrap form, and the Go
-# orchestrator from sharing one bearer secret.
+# capabilities keep the browser session and internal API clients from sharing
+# one bearer secret.
 $orchestratorUrl = "http://127.0.0.1:$OrchestratorPort"
-$webUrl = "http://127.0.0.1:$WebPort"
+$webUrl = $orchestratorUrl
 
 function New-LocalCapability {
     $bytes = New-Object byte[] 32
@@ -79,6 +76,9 @@ $mutatedEnvironmentNames = @(
     "ZV_DATA_DIR",
     "ZV_HTTP_ADDR",
     "ZV_MUTATION_TOKEN",
+    "ZV_UI_DIR",
+    "ZV_UI_CAPABILITY",
+    "ZV_UI_BOOTSTRAP_CAPABILITY",
     "ORCHESTRATOR_URL",
     "ORCHESTRATOR_TOKEN",
     "CLIPHUB_PROXY_MUTATION_CAPABILITY",
@@ -113,7 +113,7 @@ $bootstrapCapability = if ([string]::IsNullOrWhiteSpace($originalEnvironment["CL
 }
 foreach ($capability in @($proxyCapability, $bootstrapCapability)) {
     if ($capability -notmatch '^[0-9a-f]{64}$') {
-        throw "standalone proxy capabilities must be 32 random bytes encoded as 64 lowercase hexadecimal characters"
+        throw "Studio UI capabilities must be 32 random bytes encoded as 64 lowercase hexadecimal characters"
     }
 }
 if ((@($mutationCapability, $proxyCapability, $bootstrapCapability) | Select-Object -Unique).Count -ne 3) {
@@ -144,6 +144,11 @@ if (-not (Test-Path (Join-Path $webDir "node_modules"))) {
     try { & pnpm install --frozen-lockfile; if ($LASTEXITCODE -ne 0) { throw "pnpm install failed" } }
     finally { Pop-Location }
 }
+
+Write-Host "[local-studio] building static web UI..."
+Push-Location $webDir
+try { & pnpm run build; if ($LASTEXITCODE -ne 0) { throw "pnpm build failed" } }
+finally { Pop-Location }
 
 New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
@@ -228,6 +233,9 @@ $env:ZV_DATABASE_URL = "sqlite"
 $env:ZV_DATA_DIR = $dataDir
 $env:ZV_HTTP_ADDR = "127.0.0.1:$OrchestratorPort"
 $env:ZV_MUTATION_TOKEN = $mutationCapability
+$env:ZV_UI_DIR = Join-Path $webDir "dist"
+$env:ZV_UI_CAPABILITY = $proxyCapability
+$env:ZV_UI_BOOTSTRAP_CAPABILITY = $bootstrapCapability
 try {
     # Own the actual service process. Starting through `zv serve` owns only the
     # short-lived delegate wrapper, so teardown can otherwise leave the
@@ -240,6 +248,8 @@ try {
     )
 } finally {
     [Environment]::SetEnvironmentVariable("ZV_MUTATION_TOKEN", $null, "Process")
+    [Environment]::SetEnvironmentVariable("ZV_UI_CAPABILITY", $null, "Process")
+    [Environment]::SetEnvironmentVariable("ZV_UI_BOOTSTRAP_CAPABILITY", $null, "Process")
 }
 
 try {
@@ -259,47 +269,16 @@ try {
     if (-not $healthy) { throw "orchestrator did not become healthy at $orchestratorUrl" }
     Write-Host "[local-studio] orchestrator healthy at $orchestratorUrl"
 
-    # The /api/demos/* routes proxy the whole pipeline to the local
-    # orchestrator; these values are read server-side by the Next.js server.
-    $env:ORCHESTRATOR_URL = $orchestratorUrl
-    $env:ORCHESTRATOR_TOKEN = $mutationCapability
-    $env:CLIPHUB_PROXY_MUTATION_CAPABILITY = $proxyCapability
-    $env:CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY = $bootstrapCapability
-    $env:PORT = "$WebPort"
-    # Next's development server otherwise binds to :: and advertises a LAN URL.
-    # Studio is a local control plane, so both services must stay on loopback.
-    $env:HOSTNAME = "127.0.0.1"
-
     if ($NoBrowser) {
         Write-Host "[local-studio] browser launch disabled; navigate the owned browser to $webUrl/bootstrap#<the provided bootstrap capability>"
     } else {
         Write-Host "[local-studio] standalone browser will authorize itself with a one-launch local capability"
     }
-    Write-Host "[local-studio] starting web UI (Ctrl+C to stop everything)..."
-    $nodeCommand = (Get-Command node.exe -ErrorAction Stop).Source
-    $nextCommand = Join-Path $webDir "node_modules\next\dist\bin\next"
-    # Windows PowerShell 5 flattens ArgumentList into one command line, so an
-    # entrypoint beneath a repository path containing spaces must retain quotes.
-    $quotedNextCommand = '"' + $nextCommand + '"'
-    $webArguments = "$quotedNextCommand dev --hostname 127.0.0.1 --port $WebPort"
-    $webProcess = [ClipHub.LocalProcessJob]::StartInJob(
-        $processJob,
-        $nodeCommand,
-        $webArguments,
-        $webDir
-    )
-    # Next inherited its server-only capabilities at spawn. Remove them from
-    # the launcher before any browser process is created; finally restores the
-    # caller's exact prior environment.
-    $env:ORCHESTRATOR_TOKEN = $null
-    $env:CLIPHUB_PROXY_MUTATION_CAPABILITY = $null
-    $env:CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY = $null
-
     Write-Host "[local-studio] waiting for web UI..."
     $webReady = $false
     for ($i = 0; $i -lt 120; $i++) {
-        if ($webProcess.HasExited) {
-            throw "web UI exited early (code $($webProcess.ExitCode))"
+        if ($orchestrator.HasExited) {
+            throw "orchestrator exited early (code $($orchestrator.ExitCode))"
         }
         try {
             $response = Invoke-WebRequest -Uri "$webUrl/bootstrap" -UseBasicParsing -TimeoutSec 2
@@ -322,11 +301,11 @@ try {
         Start-Process "$webUrl/bootstrap#$bootstrapCapability"
     }
 
-    while (-not $webProcess.HasExited) {
+    while (-not $orchestrator.HasExited) {
         Start-Sleep -Milliseconds 500
     }
-    if ($webProcess.ExitCode -ne 0) {
-        throw "web UI exited (code $($webProcess.ExitCode))"
+    if ($orchestrator.ExitCode -ne 0) {
+        throw "orchestrator exited (code $($orchestrator.ExitCode))"
     }
 }
 finally {

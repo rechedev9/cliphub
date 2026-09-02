@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactElement } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/src/compat/navigation';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { Button } from '@/components/ui/button';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';

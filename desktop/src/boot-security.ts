@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 const CAPABILITY_BYTES = 32;
 const CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
 
-export const PROXY_CAPABILITY_COOKIE = 'cliphub_proxy_capability';
+export const PROXY_CAPABILITY_COOKIE = 'cliphub_ui_capability';
 
 export interface BootSecurityCapabilities {
   mutationToken: string;
@@ -50,17 +50,8 @@ export function orchestratorSecurityEnvironment(
     CLIPHUB_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
     ZV_MUTATION_TOKEN: capabilities.mutationToken,
-  };
-}
-
-export function webSecurityEnvironment(
-  capabilities: BootSecurityCapabilities,
-): NodeJS.ProcessEnv {
-  return {
-    CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    CLIPHUB_PROXY_MUTATION_CAPABILITY: capabilities.proxyMutationCapability,
-    ORCHESTRATOR_TOKEN: capabilities.mutationToken,
-    ZV_MUTATION_TOKEN: undefined,
+    ZV_UI_CAPABILITY: capabilities.proxyMutationCapability,
+    ZV_UI_BOOTSTRAP_CAPABILITY: undefined,
   };
 }
 

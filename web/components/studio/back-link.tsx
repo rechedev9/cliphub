@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { ChevronLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';

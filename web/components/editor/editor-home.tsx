@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, type ReactElement } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/src/compat/link';
+import { useRouter } from '@/src/compat/navigation';
 import { ChevronRight, Layers } from 'lucide-react';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
@@ -10,7 +10,7 @@ import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { editorApi, EDITOR_STATUS, type EditorProject, type EditorStatus } from '@/lib/api/editor';
-import { MUTATION_CAPABILITY_ERROR } from '@/lib/api/local-request-guard';
+import { MUTATION_CAPABILITY_ERROR } from '@/lib/api/errors';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 

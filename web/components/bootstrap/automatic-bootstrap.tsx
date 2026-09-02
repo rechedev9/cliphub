@@ -10,7 +10,7 @@ interface AutomaticBootstrapProps {
 
 /**
  * Local Studio opens /bootstrap#<one-launch-capability>. The fragment never
- * reaches Next.js; this component removes it from browser history before
+ * reaches the Go bootstrap endpoint; this component removes it from browser history before
  * submitting the existing POST form. A direct/manual visit simply leaves the
  * recovery form untouched.
  */

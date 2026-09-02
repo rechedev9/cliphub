@@ -224,10 +224,16 @@ export class RealApiClient implements ApiClient {
 
   /** Series demos in upload order; a roster miss leaves that map unmatched. */
   async getSeries(seriesId: string): Promise<SeriesDemo[]> {
-    type ProxyDemo = { jobId: string; status: string; failureReason?: string; fileName?: string };
-    const body = await readJson<{ demos: ProxyDemo[] }>(await this.send((dp) => ({ url: dp.seriesUrl(seriesId) })));
+    type ProxyDemo = { jobId?: string; id?: string; status: string; failureReason?: string; failure_reason?: string; fileName?: string; demo_file_name?: string };
+    const raw = await readJson<{ demos?: ProxyDemo[]; jobs?: ProxyDemo[] }>(await this.send((dp) => ({ url: dp.seriesUrl(seriesId) })));
+    const demos = (raw.demos ?? raw.jobs ?? []).map((demo) => ({
+      jobId: demo.jobId ?? demo.id ?? '',
+      status: demo.status,
+      failureReason: demo.failureReason ?? demo.failure_reason,
+      fileName: demo.fileName ?? demo.demo_file_name,
+    }));
     return Promise.all(
-      body.demos.map(async (raw): Promise<SeriesDemo> => {
+      demos.filter((demo) => demo.jobId !== '').map(async (raw): Promise<SeriesDemo> => {
         const demo: SeriesDemo = { jobId: raw.jobId, status: raw.status };
         if (raw.fileName) demo.fileName = raw.fileName;
         if (raw.failureReason) demo.failureReason = raw.failureReason;
@@ -1014,8 +1020,24 @@ export class RealApiClient implements ApiClient {
 
   /** The recent demo jobs the orchestrator persists (the Partidas index feed). */
   private async fetchJobs(): Promise<IndexedJob[]> {
-    const body = await readJson<{ jobs: IndexedJob[] }>(await this.send((dp) => ({ url: dp.jobsUrl })));
-    return body.jobs;
+    type RawJob = IndexedJob & {
+      id?: string;
+      failure_reason?: string;
+      demo_file_name?: string;
+      series_id?: string;
+      target_steamid?: string;
+      created_at?: string;
+    };
+    const body = await readJson<{ jobs: RawJob[] }>(await this.send((dp) => ({ url: dp.jobsUrl })));
+    return body.jobs.map((job) => ({
+      jobId: job.jobId ?? job.id ?? '',
+      status: job.status,
+      failureReason: job.failureReason ?? job.failure_reason,
+      fileName: job.fileName ?? job.demo_file_name,
+      seriesId: job.seriesId ?? job.series_id,
+      targetSteamId: job.targetSteamId ?? job.target_steamid,
+      createdAt: job.createdAt ?? job.created_at,
+    })).filter((job) => job.jobId !== '');
   }
 
   /** Job to Match; a missing roster still lists a zeroed filename row. */

@@ -107,15 +107,33 @@ func TestProveLiveStudioNeedsJobID(t *testing.T) {
 
 func TestParseStudioPorts(t *testing.T) {
 	t.Parallel()
-	ports, err := parseStudioPorts([]byte(`{"orchestrator":41001,"web":42002,"keep":true}`))
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		raw  string
+		want StudioPorts
+		bad  bool
+	}{
+		{name: "single port", raw: `{"web":42002,"keep":true}`, want: StudioPorts{Web: 42002}},
+		{name: "legacy two ports", raw: `{"orchestrator":41001,"web":42002}`, want: StudioPorts{Orchestrator: 41001, Web: 42002}},
+		{name: "missing web", raw: `{"orchestrator":41001}`, bad: true},
+		{name: "invalid legacy orchestrator", raw: `{"orchestrator":65536,"web":42002}`, bad: true},
 	}
-	if ports.Orchestrator != 41001 || ports.Web != 42002 {
-		t.Fatalf("ports = %#v", ports)
-	}
-	if _, err := parseStudioPorts([]byte(`{"orchestrator":0,"web":42002}`)); err == nil {
-		t.Fatal("expected invalid ports error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseStudioPorts([]byte(tt.raw))
+			if tt.bad {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

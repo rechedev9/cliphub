@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/src/compat/link';
+import { useRouter } from '@/src/compat/navigation';
 import { useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { StatusTag } from '@/components/studio/status-tag';

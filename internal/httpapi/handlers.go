@@ -121,6 +121,10 @@ type Handlers struct {
 	queue             Enqueuer
 	mutationToken     string
 	requireReadAuth   bool
+	uiDir             string
+	uiCapability      string
+	uiBootstrapMu     sync.Mutex
+	uiBootstrap       string
 	rateLimiter       *rateLimiter
 	uploadLimiter     *uploadLimiter
 	streamProber      streamclips.Prober
@@ -157,6 +161,15 @@ func WithMutationToken(token string) Option {
 func WithRequireReadAuth(require bool) Option {
 	return func(h *Handlers) {
 		h.requireReadAuth = require
+	}
+}
+
+// WithStudioUI configures the static Studio bundle and browser capabilities.
+func WithStudioUI(dir, capability, bootstrap string) Option {
+	return func(h *Handlers) {
+		h.uiDir = dir
+		h.uiCapability = capability
+		h.uiBootstrap = bootstrap
 	}
 }
 

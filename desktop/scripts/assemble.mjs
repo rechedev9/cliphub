@@ -1,12 +1,11 @@
 // Assembles the resources electron-builder bundles into the installer:
 //   build-resources/bin/   -> zv-orchestrator.exe, zv-editor.exe, zv-recorder.exe
-//   build-resources/web/   -> the Next.js standalone server, ready to run
+//   build-resources/web/   -> the Vite static Studio bundle
 //   build-resources/hlae/  -> pinned official HLAE release archive
 //   build-resources/music/ -> catalog.json (track metadata; audio is downloaded on first boot)
 //
-// The Next standalone output does NOT include .next/static or public, so we copy
-// them next to server.js the same way the web Dockerfile does. Cross-platform
-// (pure Node fs), because the real build runs on Windows.
+// The static bundle is copied verbatim so the real Windows build and local
+// assembly stage exactly the same files.
 
 import { execSync } from 'node:child_process';
 import { existsSync, rmSync, mkdirSync, cpSync, readFileSync } from 'node:fs';
@@ -14,7 +13,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { environmentWithoutXAIAPIKey } from './build-environment.mjs';
 import { stageBundledHLAE } from './hlae-bundle.mjs';
-import { pruneSharpPlatforms } from './standalone-runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, '..');
@@ -57,7 +55,7 @@ if (process.env.CLIPHUB_ASSEMBLE_ALLOW_STALE_BIN !== '1') {
 }
 // electron-builder picks up build/icon.ico automatically (see desktop/GUIDE.md);
 // it does not fail loudly if it's missing, it just ships an installer with the
-// default Electron icon. Fail here instead, before the (slow) Next.js build
+// default Electron icon. Fail here before the web build
 // below, so a missing icon is caught in seconds rather than discovered by
 // eyeballing the finished installer.
 const iconFile = join(desktop, 'build', 'icon.ico');
@@ -75,9 +73,9 @@ execSync('pnpm run build', {
   env: webBuildEnvironment,
 });
 
-const standalone = join(web, '.next', 'standalone');
-if (!existsSync(join(standalone, 'server.js'))) {
-  console.error(`\nexpected ${join(standalone, 'server.js')} - is output:'standalone' set in web/next.config?\n`);
+const staticBundle = join(web, 'dist');
+if (!existsSync(join(staticBundle, 'index.html')) || !existsSync(join(staticBundle, '.vite', 'manifest.json'))) {
+  console.error(`\nexpected a complete Vite bundle under ${staticBundle}\n`);
   process.exit(1);
 }
 
@@ -86,11 +84,7 @@ console.log('[assemble] staging build-resources/...');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, 'bin'), { recursive: true });
 
-cpSync(standalone, join(out, 'web'), { recursive: true });
-pruneSharpPlatforms(join(out, 'web', 'node_modules'));
-cpSync(join(web, '.next', 'static'), join(out, 'web', '.next', 'static'), { recursive: true });
-const publicDir = join(web, 'public');
-if (existsSync(publicDir)) cpSync(publicDir, join(out, 'web', 'public'), { recursive: true });
+cpSync(staticBundle, join(out, 'web'), { recursive: true });
 
 cpSync(zvOrchestrator, join(out, 'bin', 'zv-orchestrator.exe'));
 cpSync(zvEditor, join(out, 'bin', 'zv-editor.exe'));

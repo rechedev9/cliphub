@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import Link from '@/src/compat/link';
+import { useSearchParams } from '@/src/compat/navigation';
 import { AlertTriangle, Film, PlugZap, RefreshCw, Swords } from 'lucide-react';
 import type { Video } from '@/lib/api/types';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';

@@ -48,7 +48,7 @@ cd cliphub
 # Go runtimes (zv, orchestrator, recorder, editor, …)
 .\scripts\build.ps1
 
-# Local Studio (Next + orchestrator)
+# Local Studio (static React + orchestrator)
 .\scripts\local-studio.ps1
 ```
 
@@ -163,7 +163,7 @@ Public preset catalog exposes `viral-60-clean` (death notices + `viral-ultra-cle
 cmd/                 CLI binaries (zv, zv-orchestrator, zv-recorder, …)
 internal/            parser, killplan, recording, editor, workers, httpapi, …
 effects/             sandboxed gopher-lua effects (no FS / process)
-web/                 Next.js 16 Studio UI
+web/                 Vite + React 19 static Studio UI
 desktop/             Electron shell + installer
 landing/             marketing site (Vercel, Next.js 15)
 scripts/             build.ps1, local-studio.ps1, gates

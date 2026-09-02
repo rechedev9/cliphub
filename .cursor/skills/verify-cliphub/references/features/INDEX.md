@@ -21,7 +21,7 @@ The verification host of record for HLAE/CS2 rows is King's Windows Studio, not 
 - Start from the rail label in this INDEX unless the feature file names another door.
 - Rail accessible names are uppercase (`INICIO`, `EDITOR`, `AJUSTES`). The `00`–`11` prefixes in `web/lib/nav.ts` are source order, not the clickable name.
 - Prefer visible headings and ARIA names. Class selectors are fallbacks.
-- `drive.open_url` is Studio loopback web + route. A Chrome tab is the Next.js UI, not Electron chrome.
+- `drive.open_url` is Studio loopback web + route. A Chrome tab is the Go-served SPA, not Electron chrome.
 - Wait on observable copy, not fixed sleeps.
 - Offline orchestrator is `503 {code:"service_unavailable"}`, never a bad demo.
 - Cheap `prove` GETs the catalog `probe_path` when Studio is up. Empty lists and gated `503 {code}` are success. That is not a UI walk and not a capture Pass.

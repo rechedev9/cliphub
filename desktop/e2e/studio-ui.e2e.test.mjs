@@ -1,6 +1,6 @@
 // ClipHub Studio UI e2e: launches the real Electron app (dev layout, same
 // build-resources the installer bundles), waits for the full boot sequence
-// (orchestrator + Next server + window navigation), and exercises the shell UI
+// (orchestrator-served static UI + window navigation), and exercises the shell UI
 // through Playwright's Electron driver.
 //
 // Prerequisites: `pnpm run build` (dist/main.js) and `pnpm run assemble`

@@ -23,7 +23,7 @@ stream video -> persisted edit plan -> render -> publish pack
 - `internal/httpapi` and `internal/workers` implement the local API and jobs; the inline queue has a dedicated one-worker capture lane because all captures contend for one `cs2.exe`.
 - Workers skip completed durable artifacts on retry, but recording is enqueued with `MaxRetry(0)`; a `demo_incompatible:` failure is deterministic and must not be retried against the same CS2 build.
 - Series jobs share a client-minted `series_id`; roster choice is aggregated across maps, and HLTV `-pN.dem` parts are one logical map.
-- `web/` is the Next.js 16 / React 19 local Studio UI. `desktop/` packages it with the Go services in Electron (no React in `desktop/src`). `landing/` is the only hosted app (Next.js 15; it has a build command but no lint/test scripts).
+- `web/` is the Vite / React 19 static local Studio UI, served by the Go orchestrator. `desktop/` packages it with the Go services in Electron (no React in `desktop/src`). `landing/` is the only hosted app (Next.js 15; it has a build command but no lint/test scripts).
 - `data/`, `bin/`, capture output, and generated media are artifacts, not source, unless a task explicitly targets fixtures or cleanup.
 - Agent-oriented architecture guidance lives in `docs/AI_AGENT_ARCHITECTURE.md`: agents discover contracts, inspect durable artifacts, ask for unanswered gates, and execute only approved explicit commands. Do not convert that guidance into model-driven clip decisions.
 
@@ -153,7 +153,7 @@ Toolchain sources of truth are `go.mod` (Go 1.26.6), each package's `packageMana
 Pull requests and pushes to `main` run three cheap hosted checks: `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`), and `CI infra` (actionlint + the unsigned-release contract). These are not HLAE/CS2 E2E and do not replace local verification.
 The only hosted release pipeline is `.github/workflows/desktop-release.yml`: a `windows-latest` job that runs `pnpm --dir desktop run dist` and publishes the unsigned NSIS installer (`ClipHub.Studio.Setup.<ver>.exe`, `.exe.blockmap`, `SHA256SUMS.txt`) to GitHub Releases. Trigger it with `workflow_dispatch` or by pushing a `v*.*.*` tag that matches `desktop/package.json`. It must stay the only release job.
 The three JavaScript packages have independent lockfiles; run commands with `pnpm --dir web|desktop|landing`, not from an assumed root workspace.
-Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. `web/proxy.ts` is the Next 16 request guard (not `middleware.ts`). Browser E2E is Playwright in `web/e2e/`, run explicitly with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
+Lint is oxlint, not ESLint. Unit tests are `node:test` on colocated `*.test.ts` / `*.test.mjs`; no Jest/Vitest. The Go Studio facade owns browser request guards and static fallback. Browser E2E is Playwright in `web/e2e/`, run explicitly with `pnpm --dir web run test:e2e`; landing has no lint/test scripts.
 
 ```powershell
 .\scripts\build.ps1
@@ -190,7 +190,7 @@ pnpm --dir landing run build
 
 The Electron UI E2E is manual and expensive: build, run `pnpm --dir desktop run assemble`, then `pnpm --dir desktop run test:e2e:ui` only when that product flow needs end-to-end verification.
 Before frontend work, read `web/CLAUDE.md`; before visual work, read `~/.grok/design.md`, then load the `frontend-design` skill and restyle onto `web/app/globals.css`.
-All browser API access must remain same-origin through server proxy routes, keep orchestrator URLs/tokens server-side, validate IDs before upstream URL construction, and preserve `503 {code: "service_unavailable"}`.
+All browser API access must remain same-origin through the Go Studio facade. Browser sessions use the per-boot HttpOnly capability cookie; internal clients use `X-ClipHub-Token`. Validate IDs before artifact lookup and preserve stable error codes.
 Before Electron lifecycle, packaging, or release work, read `desktop/GUIDE.md` and keep renderer access behind preload/IPC.
 
 ## Code Contracts

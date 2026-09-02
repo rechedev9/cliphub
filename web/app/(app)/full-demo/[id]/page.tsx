@@ -1,8 +1,8 @@
 'use client';
 
-import { use, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, type ReactNode } from 'react';
+import Link from '@/src/compat/link';
+import { useParams, useRouter } from '@/src/compat/navigation';
 import { AlertTriangle, Loader2, SearchX, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
@@ -34,8 +34,8 @@ import { StudioPageHeader } from '@/components/studio/page-header';
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
 
-export default function FullDemoJobPage({ params }: { params: Promise<{ id: string }> }): ReactNode {
-  const { id } = use(params);
+export default function FullDemoJobPage(): ReactNode {
+  const { id = '' } = useParams();
   const router = useRouter();
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[]>([]);

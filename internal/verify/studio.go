@@ -11,9 +11,10 @@ import (
 
 const forbiddenBareHLAE = `C:\HLAE\HLAE.exe`
 
-// StudioPorts is the persisted Electron ports.json contract: two loopback ports.
+// StudioPorts accepts the current single-port contract and the former two-port
+// document so doctor can inspect Studio during an upgrade.
 type StudioPorts struct {
-	Orchestrator int `json:"orchestrator"`
+	Orchestrator int `json:"orchestrator,omitempty"`
 	Web          int `json:"web"`
 }
 
@@ -75,8 +76,11 @@ func parseStudioPorts(raw []byte) (StudioPorts, error) {
 	if err := json.Unmarshal(raw, &ports); err != nil {
 		return StudioPorts{}, fmt.Errorf("ports.json: %w", err)
 	}
-	if !validTCPPort(ports.Orchestrator) || !validTCPPort(ports.Web) {
-		return StudioPorts{}, fmt.Errorf("ports.json must contain orchestrator and web ports")
+	if !validTCPPort(ports.Web) {
+		return StudioPorts{}, fmt.Errorf("ports.json must contain a web port")
+	}
+	if ports.Orchestrator != 0 && !validTCPPort(ports.Orchestrator) {
+		return StudioPorts{}, fmt.Errorf("ports.json contains an invalid legacy orchestrator port")
 	}
 	return ports, nil
 }
@@ -120,7 +124,11 @@ func inspectStudio(goos, userData string, probe StudioProbe, dryRun bool) Studio
 	}
 	surface.PortsPresent = true
 	surface.Ports = &ports
-	surface.OrchestratorURL = loopbackURL(ports.Orchestrator)
+	servicePort := ports.Web
+	if validTCPPort(ports.Orchestrator) {
+		servicePort = ports.Orchestrator
+	}
+	surface.OrchestratorURL = loopbackURL(servicePort)
 	surface.WebURL = loopbackURL(ports.Web)
 	if dryRun {
 		surface.Healthz = HTTPReport{

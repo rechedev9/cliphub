@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { MapCover } from '@/components/brand/map-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { ScoreBar } from '@/components/brand/score-bar';

@@ -45,10 +45,6 @@
         "to": "web"
       },
       {
-        "from": "build-resources/web/node_modules",
-        "to": "web/node_modules"
-      },
-      {
         "from": "build-resources/bin",
         "to": "bin"
       },

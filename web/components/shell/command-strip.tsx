@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/src/compat/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { AppUpdateControl } from '@/components/shell/app-update-control';

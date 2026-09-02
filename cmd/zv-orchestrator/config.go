@@ -34,6 +34,9 @@ type config struct {
 	ComposeTimeout    string
 	RenderTimeout     string
 	MutationToken     string
+	UIDir             string
+	UICapability      string
+	UIBootstrap       string
 	YtdlpPath         string
 	FirecrawlAPIKey   string
 	FaceitAPIKey      string
@@ -86,6 +89,9 @@ func loadConfig() (config, error) {
 		FFmpegPath:    os.Getenv("ZV_FFMPEG_PATH"),
 		FFprobePath:   os.Getenv("ZV_FFPROBE_PATH"),
 		MutationToken: os.Getenv(mutationTokenEnvironmentVariable),
+		UIDir:         os.Getenv("ZV_UI_DIR"),
+		UICapability:  os.Getenv("ZV_UI_CAPABILITY"),
+		UIBootstrap:   os.Getenv("ZV_UI_BOOTSTRAP_CAPABILITY"),
 		YtdlpPath:     os.Getenv("ZV_YTDLP_PATH"),
 		// Firecrawl enriches strategy suggestions with public CS2 trend
 		// references. It is optional and never sent to the web renderer.
@@ -106,6 +112,12 @@ func loadConfig() (config, error) {
 	}
 	if !validSessionCapability(c.MutationToken) {
 		return c, fmt.Errorf("ZV_MUTATION_TOKEN must be a per-session capability of 32 random bytes encoded as lowercase hex")
+	}
+	if c.UIDir != "" && !validSessionCapability(c.UICapability) {
+		return c, fmt.Errorf("ZV_UI_CAPABILITY must be configured when ZV_UI_DIR is set")
+	}
+	if c.UIBootstrap != "" && !validSessionCapability(c.UIBootstrap) {
+		return c, fmt.Errorf("ZV_UI_BOOTSTRAP_CAPABILITY must be a per-session capability")
 	}
 	if c.RecordHUD != "" && !recording.HUDMode(c.RecordHUD).Valid() {
 		return c, fmt.Errorf(
@@ -178,6 +190,11 @@ func clearLegacyCaptionCredentialsEnvironment() error {
 func clearSubprocessCredentialEnvironment() error {
 	if err := clearEnvironmentVariable(mutationTokenEnvironmentVariable); err != nil {
 		return err
+	}
+	for _, variable := range []string{"ZV_UI_CAPABILITY", "ZV_UI_BOOTSTRAP_CAPABILITY"} {
+		if err := clearEnvironmentVariable(variable); err != nil {
+			return err
+		}
 	}
 	if err := clearEnvironmentVariable(firecrawlAPIKeyEnvironmentVariable); err != nil {
 		return err

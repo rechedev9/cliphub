@@ -43,7 +43,7 @@ export function dataPlane(): DataPlane {
     scanUrl: '/api/demos/scan',
     scanField: 'demo',
     scanSeriesField: 'series_id',
-    scanJobId: (body) => str(body, 'jobId'),
+    scanJobId: (body) => str(body, 'jobId') || str(body, 'id'),
     jobStatusUrl: (jobId) => `/api/demos/${jobId}/status`,
     jobDeleteUrl: (jobId) => `/api/demos/${jobId}`,
     rosterUrl: (jobId) => `/api/demos/${jobId}/roster`,

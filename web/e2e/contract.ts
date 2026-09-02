@@ -120,7 +120,8 @@ export function rootToken(page: Page, token: string): Promise<string> {
 export async function gotoStudio(page: Page, href: string): Promise<void> {
   await page.goto(href, { waitUntil: 'load' });
   await page.locator('body').waitFor({ state: 'visible' });
-  // App Router stages streamed chunks twice; wait for two equal DOM sizes.
+  // Wait for the SPA to finish its first React render and reach a stable paint.
+  await page.locator('#root > *').first().waitFor({ state: 'attached' });
   await page.waitForFunction(
     () => {
       const probe = window as unknown as { __studioDomSize?: number };
@@ -132,7 +133,5 @@ export async function gotoStudio(page: Page, href: string): Promise<void> {
     undefined,
     { polling: 150 },
   );
-  // Settled markup is still not an interactive page; wait for React to attach.
-  await page.waitForFunction(() => Object.keys(document.body).some((key) => key.startsWith('__react')));
   await page.evaluate(() => document.fonts.ready);
 }

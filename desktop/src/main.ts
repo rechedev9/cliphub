@@ -1,4 +1,4 @@
-// Desktop wrapper: boot the orchestrator and Next server, then show Studio.
+// Desktop wrapper: boot the orchestrator, which serves both API and static Studio.
 
 import {
   app,
@@ -20,7 +20,6 @@ import {
   createBootSecurityCapabilities,
   installProxyCapabilityCookie,
   orchestratorSecurityEnvironment,
-  webSecurityEnvironment,
 } from './boot-security';
 import {
   isAbortedNavigation,
@@ -41,7 +40,7 @@ import { PINNED_HLAE_TOOL } from './hlae-tool';
 import { ProcessSession, type LaunchedProcess } from './process-session';
 import { waitForDesktopServices } from './service-health';
 import { provisionMusicLibrary } from './music-library';
-import { allocateStableServicePorts } from './stable-ports';
+import { allocateStableStudioPort } from './stable-ports';
 import { requestCanonicalSingleInstanceLock } from './user-data-lock';
 import {
   isTrustedSettingsSender,
@@ -99,7 +98,7 @@ const recorderExe = resourcePath(
   'bin',
   process.platform === 'win32' ? 'zv-recorder.exe' : 'zv-recorder',
 );
-const nextServer = resourcePath('web', 'server.js');
+const studioUI = resourcePath('web');
 const dataDir = path.join(app.getPath('userData'), 'data');
 const musicDir = path.join(dataDir, 'music');
 
@@ -508,17 +507,18 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   // Probe ports after provisioning; first boot can take minutes.
   setLoadingStatus('Eligiendo puertos libres…');
   const security = createBootSecurityCapabilities();
-  const { orchestrator: orchPort, web: webPort } = await allocateStableServicePorts({
+  // Reuse the historical web port so browser localStorage survives the
+  // migration from two processes to the single static Studio origin.
+  const studioPort = await allocateStableStudioPort({
     host: LOOPBACK_HOST,
     portsFile,
     logLine,
     signal: attempt.controller.signal,
   });
   assertBootAttemptActive(attempt);
-  const orchestratorUrl = `http://${LOOPBACK_HOST}:${orchPort}`;
-  activeWebOrigin = `http://${LOOPBACK_HOST}:${webPort}`;
-  allowedOrigins.add(`http://${LOOPBACK_HOST}:${orchPort}`);
-  allowedOrigins.add(activeWebOrigin);
+  const orchestratorUrl = `http://${LOOPBACK_HOST}:${studioPort}`;
+  activeWebOrigin = orchestratorUrl;
+  allowedOrigins.add(orchestratorUrl);
 
   setLoadingStatus('Iniciando el orquestador…');
   const orch = attempt.processes.launch(
@@ -527,34 +527,20 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     [],
     createOrchestratorEnvironment({
       dataDir,
-      httpAddress: `${LOOPBACK_HOST}:${orchPort}`,
+      httpAddress: `${LOOPBACK_HOST}:${studioPort}`,
       musicDir,
       recorderPath: recorderExe,
+      uiDir: studioUI,
       securityEnvironment: orchestratorSecurityEnvironment(security),
       toolEnvironment: toolEnv,
       steamEnvironment: steamEnvironment(process.env),
     }),
   );
 
-  setLoadingStatus('Iniciando el servidor web…');
-  const web = attempt.processes.launch('web', process.execPath, [nextServer], {
-    ELECTRON_RUN_AS_NODE: '1',
-    NODE_ENV: 'production',
-    PORT: String(webPort),
-    HOSTNAME: LOOPBACK_HOST,
-    ORCHESTRATOR_URL: orchestratorUrl,
-    NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=8',
-    ...webSecurityEnvironment(security),
-    // Orchestrator unsets this itself; the Next child would inherit it.
-    XAI_API_KEY: undefined,
-  });
-
-  // Either child dying is terminal during either health wait. Cancelling the
-  // attempt also tears down whichever HTTP poll loses the race.
-  const childExited = Promise.race([orch.exited, web.exited]);
+  const childExited = orch.exited;
   await waitForDesktopServices({
     orchestratorUrl,
-    webUrl: `http://${LOOPBACK_HOST}:${webPort}/`,
+    webUrl: `${orchestratorUrl}/`,
     timeoutMs: BOOT_HEALTH_TIMEOUT_MS,
     signal: attempt.controller.signal,
     childExited,
@@ -572,11 +558,10 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
     });
   };
   watchPostBoot(orch);
-  watchPostBoot(web);
 
   setLoadingStatus('Abriendo la interfaz…');
   allowedInternalUrls.clear();
-  await loadStudio(webPort, security.proxyMutationCapability);
+  await loadStudio(studioPort, security.proxyMutationCapability);
   assertBootAttemptActive(attempt);
   telemetryClient.recordSpan({
     component: 'electron',

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { FOCUS_RING } from '@/components/ui/button';

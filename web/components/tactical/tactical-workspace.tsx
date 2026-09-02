@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { ArrowLeft, PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
 import {
   TACTICAL_DEFAULT_SAMPLE_HZ,

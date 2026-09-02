@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { ExternalLink, Search, UploadCloud, Users, X } from 'lucide-react';
 import {
   FACEIT_CODES,

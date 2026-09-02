@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/src/compat/link';
+import { useRouter } from '@/src/compat/navigation';
 import { KeyRound } from 'lucide-react';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { IconTile } from '@/components/studio/icon-tile';

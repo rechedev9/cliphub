@@ -1,4 +1,4 @@
-import { MUTATION_CAPABILITY_ERROR } from '../api/local-request-guard.ts';
+import { MUTATION_CAPABILITY_ERROR } from '../api/errors.ts';
 import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
 
 const ORCHESTRATOR_DOWN = 'El orquestador no está en marcha.';

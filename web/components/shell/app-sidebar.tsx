@@ -1,7 +1,7 @@
 'use client';
 
-import Link, { useLinkStatus } from 'next/link';
-import { usePathname } from 'next/navigation';
+import Link, { useLinkStatus } from '@/src/compat/link';
+import { usePathname } from '@/src/compat/navigation';
 import type { ReactElement } from 'react';
 import {
   Clapperboard,

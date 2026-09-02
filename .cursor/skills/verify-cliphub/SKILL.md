@@ -25,7 +25,7 @@ On Cloud Linux there is no CS2, no HLAE, and no Windows Studio. Do not fake a St
 .\scripts\local-studio.ps1
 ```
 
-Packaged Studio writes `%APPDATA%\cliphub-studio\ports.json` (`orchestrator`, `web`) and `%APPDATA%\cliphub-studio\data\jobs.db`. Doctor reads those. The CLI default `http://127.0.0.1:8080` is not packaged Studio.
+Packaged Studio writes `%APPDATA%\cliphub-studio\ports.json` (`web`, the single Go UI/API port) and `%APPDATA%\cliphub-studio\data\jobs.db`. Doctor also accepts the former two-port document during upgrades. The CLI default `http://127.0.0.1:8080` is not packaged Studio.
 
 If ports.json is already live, drive that instance. Do not launch a second Studio against the same userData.
 
@@ -98,7 +98,7 @@ For waits: live `%` and `current/total` come from the orchestrator progress obje
 
 - Read [references/features/INDEX.md](references/features/INDEX.md) first, then the matching feature file.
 - Prefer rail labels from `web/lib/nav.ts`, visible headings, and ARIA names over CSS selectors. Rail accessible names are uppercase (`INICIO`, `EDITOR`); the `00`–`11` prefixes are source order, not the clickable name.
-- `drive.open_url` is Studio's loopback web origin plus the feature route. A Chrome tab against that URL is the Next.js UI, not Electron chrome (Ajustes versión/telemetry need the desktop bridge).
+- `drive.open_url` is Studio's loopback Go-served SPA origin plus the feature route. A Chrome tab against that URL is the same UI, not Electron chrome (Ajustes versión/telemetry need the desktop bridge).
 - Wait on observable copy (`EMPIEZA AQUÍ`, `BIBLIOTECA`, `ANALIZAR DEMO`), not fixed sleeps.
 - Same-origin only: UI talks through `/api/*` proxies. Orchestrator down is `503 {code:"service_unavailable"}`.
 - On Cloud Linux, cover Windows detection paths with table-driven fixtures (missing `ports.json` / missing HLAE / CS2 not running / all present). Never fake a live `cs2.exe`.

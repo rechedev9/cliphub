@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useEffect, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Link from '@/src/compat/link';
+import { useParams } from '@/src/compat/navigation';
 import { ChevronRight, Layers } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
@@ -144,8 +145,8 @@ function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
  * settled. Reached from the /upload series flow after the picked player is
  * parsed on each map.
  */
-export default function SeriesPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function SeriesPage() {
+  const { id = '' } = useParams();
   const valid = isSeriesId(id);
 
   const [demos, setDemos] = useState<SeriesDemo[] | null>(null);

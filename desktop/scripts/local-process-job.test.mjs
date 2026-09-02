@@ -33,7 +33,7 @@ test('Local Studio assigns suspended services before resuming them', () => {
   assert.ok(resumedAt > assignedAt);
   assert.equal(
     launcher.match(/\[ClipHub\.LocalProcessJob\]::StartInJob\(/g)?.length,
-    2,
+    1,
   );
   assert.doesNotMatch(launcher, /LocalProcessJob\]::AddProcess/);
 });

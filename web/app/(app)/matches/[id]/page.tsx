@@ -1,8 +1,8 @@
 'use client';
 
-import { use, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, type ReactNode } from 'react';
+import Link from '@/src/compat/link';
+import { useParams, useRouter, useSearchParams } from '@/src/compat/navigation';
 import { AlertTriangle, Loader2, Music, SearchX, Unplug } from 'lucide-react';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
 import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
@@ -55,17 +55,11 @@ const VOLUME_DEFAULT = 100;
 const GAME_VOLUME_MIN = 0;
 const GAME_VOLUME_DEFAULT = GAME_VOLUME_DEFAULT_PERCENT;
 
-export default function FindHighlightsPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ series?: string | string[] }>;
-}) {
-  const { id } = use(params);
+export default function FindHighlightsPage() {
+  const { id = '' } = useParams();
   // From a series map card: forging returns to the series instead of Library.
-  const { series } = use(searchParams);
-  const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
+  const series = useSearchParams().get('series');
+  const seriesId = series !== null && isSeriesId(series) ? series : null;
   const router = useRouter();
 
   const [match, setMatch] = useState<Match | null>(null);

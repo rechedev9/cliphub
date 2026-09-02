@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/src/compat/link';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import { captureProgressPercent } from '@/lib/capture-progress';
 import {

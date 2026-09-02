@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MUTATION_CAPABILITY_ERROR } from '../api/local-request-guard.ts';
+import { MUTATION_CAPABILITY_ERROR } from '../api/errors.ts';
 import { SERVICE_UNAVAILABLE_CODE } from '../api/types.ts';
 import { editorUserMessage } from './errors.ts';
 

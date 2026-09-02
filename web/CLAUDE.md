@@ -14,9 +14,8 @@ Do not introduce a parallel token set.
 
 ## Web frontend (web/)
 
-`web/` is a standalone Next.js 16 app (App Router, React 19, Tailwind 4): the no-login `/upload` entry, match/clip/video/stream/tactical views, and a typed API client under `web/lib/api`.
-It is local-first and stateless: it talks only to the orchestrator (`zv serve`) through same-origin proxy route handlers under `web/app/api/demos/*`, which forward `.dem` uploads and job calls while keeping the orchestrator URL and token server-side.
-`web/lib/api` always uses the real typed client; same-origin route handlers keep the orchestrator URL and token server-side.
+`web/` is a Vite, React 19, React Router, and Tailwind 4 static SPA: the `/upload` entry, match/clip/video/stream/tactical views, and a typed API client under `web/lib/api`.
+It is local-first and stateless. The Go orchestrator serves both the compiled files and the same-origin API; the browser authenticates with an HttpOnly per-boot cookie and never receives the internal orchestrator token.
 
 Finished Library reels expose a manual publication assistant through the per-artifact `/api/demos/*/publish-assistant` proxy. It generates Madrid-time guidance and factual reel-derived metadata, lets the user download the MP4, and opens only `https://studio.youtube.com/` in the system browser. Account, audience, visibility, scheduling, and the official upload flow remain entirely in YouTube Studio; ClipHub has no Google account connection or direct publishing path.
 Library ready cards do not require a cover-candidate pick before MP4 download or PREPARAR PUBLICACIÓN; cover generation in the render pipeline is unchanged.
@@ -24,9 +23,7 @@ Library ready cards do not require a cover-candidate pick before MP4 download or
 Run it locally with the standard pnpm scripts in `web/package.json` (`dev`, `typecheck`, `lint`, `test:unit`).
 The dev server needs the orchestrator on `127.0.0.1:8080`; the desktop/local-studio path uses persistent SQLite plus the inline queue.
 
-Proxy-route contract: every `/api/demos/*` route reaches the orchestrator through `callOrchestrator` (`web/app/api/demos/_lib.ts`).
-When the orchestrator is unreachable the route returns `503 {code: "service_unavailable"}` and logs the cause server-side, and the UI tells "service offline" apart from a bad demo via `SERVICE_UNAVAILABLE_CODE`.
-Keep that contract when adding `/api/demos/*` routes; do not let a bare `fetch` throw into a code-less 500.
+Studio API contract: browser requests stay relative and same-origin. Go owns validation, response projection, upload limits, Range responses, and stable error codes. Never add a browser-visible bearer token or a second HTTP proxy.
 
 Real `.dem` files are never committed, so the fixture stays local.
 
@@ -38,7 +35,7 @@ Ajustes stores the revocable authentication code, SteamID and Web API key throug
 
 ## TypeScript style (web/)
 
-Applies to everything under `web/` (Next.js 16 App Router, React 19, Tailwind 4).
+Applies to everything under `web/` (Vite, React Router, React 19, Tailwind 4).
 Adapted from the jvidalv/berrus agent guidelines.
 Same priorities as the Go rules: clarity, simplicity, concision, maintainability, and repo consistency, in that order.
 
@@ -86,11 +83,10 @@ Async:
 - Sequential `await` of independent operations is a performance bug; use `Promise.all`.
 - Every `fetch` to the orchestrator goes through `callOrchestrator` (`web/app/api/demos/_lib.ts`) so failures map to `503 {code: "service_unavailable"}` instead of a code-less 500.
 
-Server/client boundary:
+Runtime boundary:
 
-- Secrets (orchestrator URL, tokens) stay server-side: route handlers and `server-only` modules.
-  Never read them in a client component or ship them via `NEXT_PUBLIC_*`.
-- Keep components server components unless they need state, effects, or browser APIs; add `"use client"` at the leaf, not the layout.
+- The static bundle contains no secrets, service URLs, or capabilities. All API calls are relative to its loopback origin.
+- Treat API responses and browser storage as untrusted runtime input.
 
 React:
 
@@ -102,7 +98,7 @@ Testing:
 
 - Unit tests are `lib/**/*.test.ts` on `node:test`, run with `pnpm run test:unit` (Node strips types natively; relative imports keep the `.ts` extension, allowed by `allowImportingTsExtensions`).
 - Browser E2E is Playwright under `e2e/`, run with `pnpm run test:e2e` (the `playwright test` CLI). It verifies the presentation contract in `e2e/contract.ts` against `app/globals.css` — token ramps, the type scale, shell geometry, focus and target sizes, the `--shell-depth` gates, and zero horizontal overflow at the six validation widths — plus the `/upload` roster flow with the three `/api/demos/*` proxy calls stubbed at the network boundary.
-- The suite drives the **production standalone build** (`pnpm run build && pnpm run start`), not `next dev`: the dev server's HMR client never completes its handshake under Playwright and the app-router bootstrap stalls behind it, so React creates the root container and never attaches the tree — every interaction test would see server HTML with no handlers. `scripts/start-standalone.mjs` stages `public/` and `.next/static/` into the runnable standalone tree before launch. Pass `E2E_SKIP_BUILD=1` to reuse an existing `.next`.
+- The suite drives the production Vite bundle (`pnpm run build && pnpm run start`). Pass `E2E_SKIP_BUILD=1` to reuse an existing `dist/`.
 - Assert tokens through the parsers in `e2e/contract.ts`, never as literal strings: the production minifier rewrites `oklch(0.128 0.02 264)` to `oklch(12.8% .02 264)` and `380ms` to `.38s`, so a text comparison pins the minifier instead of the contract and passes in dev while failing in the build that ships.
 - E2E needs a build and a server. Run it explicitly when the shell, tokens, or the upload flow change. Deeper integration coverage still lives in Go HTTP/worker tests and `scripts/smoke-real.ps1`.
 - A test double for an external client (e.g. a fake `SupabaseClient`) types only the call surface it fakes and is cast once at creation with `as unknown as <ClientType>` plus a comment; that is the sole sanctioned use of a double cast.

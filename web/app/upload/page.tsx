@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/src/compat/link';
+import { useRouter } from '@/src/compat/navigation';
 import {
   AlertTriangle,
   ArrowLeft,

@@ -10,8 +10,6 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
-  // Next dev compiles a route on first request; more workers than this just
-  // queue behind the same compiler.
   workers: 4,
   reporter: [['list'], ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report', open: 'never' }]],
   timeout: 90_000,
@@ -22,7 +20,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  // Production build: next dev's HMR never attaches under Playwright.
+  // Exercise the same immutable production bundle staged into Electron.
   webServer: {
     command: process.env.E2E_SKIP_BUILD === '1' ? 'pnpm run start' : 'pnpm run build && pnpm run start',
     url: BASE_URL,

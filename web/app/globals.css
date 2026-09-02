@@ -29,10 +29,10 @@
    * directos (`font-family: var(--font-sans)` en body y los
    * `font-[family-name:var(--font-display)]` de los componentes) necesitan
    * estas definiciones reales. Las variables --font-chakra-petch y
-   * --font-share-tech-mono las define next/font en <html> (app/layout.tsx). */
-  --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
-  --font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;
+   * Las fuentes se empaquetan localmente desde @fontsource en src/main.tsx. */
+  --font-sans: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Share Tech Mono", ui-monospace, monospace;
+  --font-display: "Chakra Petch", ui-sans-serif, sans-serif;
 
   /* ── Surface ramp ────────────────────────────────────────────────────────
    * Monotonic in L, single hue 264, chroma rising with L so higher layers read
@@ -341,7 +341,7 @@ html[data-capture-active="true"] {
   --shadow-xl: var(--elev-4);
   --shadow-2xl: var(--elev-5);
 
-  /* Fuentes — cableadas en app/layout.tsx vía next/font/google. */
+  /* Fuentes — cableadas localmente en src/main.tsx. */
   --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
   --font-display: var(--font-chakra-petch), ui-sans-serif, sans-serif;

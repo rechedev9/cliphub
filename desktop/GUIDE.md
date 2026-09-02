@@ -1,7 +1,7 @@
 # ClipHub Studio Desktop Guide
 
 A Windows desktop wrapper around Local Studio: one app that boots the Go
-orchestrator and the Next.js web UI (in local mode) and shows the flow in a
+orchestrator and the static React UI and shows the flow in a
 native window, so an end user never touches Node, a terminal, or a browser.
 
 It bundles the same pieces `scripts/local-studio.ps1` runs:
@@ -16,14 +16,12 @@ It bundles the same pieces `scripts/local-studio.ps1` runs:
   workers. Studio explicitly pins the bundled recorder so a stale inherited
   `ZV_RECORDER_PATH` cannot select an incompatible developer binary; the editor
   is auto-detected beside the orchestrator.
-- The Next.js standalone server - started with Electron's own Node (no separate
-  Node runtime shipped), in local mode so the UI proxies the whole pipeline to
-  the orchestrator.
+- The Vite production bundle - served directly by the orchestrator from the
+  packaged `web/` resource directory.
 
-Both processes bind loopback (`ZV_HTTP_ADDR=127.0.0.1:<port>`) on ports chosen
-once per install and persisted in `<userData>/ports.json`; the web port in
-particular must stay stable across launches because the reel library lives in
-the browser's `localStorage`, which is keyed by origin (`host:port`).
+The orchestrator binds loopback (`ZV_HTTP_ADDR=127.0.0.1:<port>`) on the former
+stable web port persisted in `<userData>/ports.json`, preserving the origin of
+the reel library in browser `localStorage` across the migration.
 That file holds ports only; no secret is ever written to disk.
 
 The installer bundles the official HLAE archive pinned by `src/hlae-tool.json`.
@@ -72,8 +70,8 @@ Stream clips have no burned-in subtitle or killfeed pipeline, so no speech-to-te
 `/settings` only reports the installed app, Electron, and Chromium versions through the narrow preload bridge; it stores nothing.
 
 An operator's own `XAI_API_KEY` can still reach the Electron process by ordinary environment inheritance, and Studio refuses to pass it on.
-The main process deletes the name from `process.env` at startup, before it spawns anything, so no child inherits it: not the bundled Next.js server, not `zv-orchestrator.exe`, and not the PowerShell that expands a runtime-tool archive.
-The Next.js server is additionally launched with that name explicitly removed from its environment, and `zv-orchestrator.exe` additionally unsets it for itself and for every media subprocess it spawns.
+The main process deletes the name from `process.env` at startup, before it spawns anything, so no child inherits it: not `zv-orchestrator.exe` and not the PowerShell that expands a runtime-tool archive.
+The orchestrator additionally unsets it for itself and for every media subprocess it spawns.
 Studio never reads the value it removes.
 
 Packaging still strips `XAI_API_KEY` from the build, web, and electron-builder environments, and the installer manifest contains no credential resource.
@@ -113,7 +111,7 @@ embeds `FACEIT_API_KEY` (User or Process env). Dist fails if that key is
 missing or if the compiled orchestrator does not contain it. It then
 runs `scripts/assemble.mjs` (builds the web in local mode and
 stages `zv-orchestrator.exe`, `zv-editor.exe`, `zv-recorder.exe`, and the
-standalone server into `build-resources/`), then `electron-builder` produces the
+static web bundle into `build-resources/`), then `electron-builder` produces the
 installer under `dist-installer/` (`ClipHub Studio Setup <version>.exe`,
 where `<version>` is the `version` field in `desktop/package.json`). The
 distribution command verifies the packaged HLAE archive, installer, blockmap,
@@ -170,7 +168,7 @@ quality checks live in `ci-frontend.yml`, `ci-backend.yml`, and `ci-infra.yml`.
 ## Run without packaging (dev)
 
 ```powershell
-# From the repo root, once: build the Go binaries and the standalone bundle.
+# From the repo root, once: build the Go binaries and the static bundle.
 .\scripts\build.ps1
 cd desktop; pnpm install
 pnpm run assemble        # builds the web + stages build-resources/
@@ -239,13 +237,10 @@ same loop (`measure` → persist baseline → change → remasure → compare).
 
 `src/main.ts` (Electron main process, compiled to `dist/main.js`):
 
-1. Reads or picks two per-install-stable loopback ports (`orchestrator`,
-   `web`) and creates two distinct 32-byte per-boot secrets.
-   Neither is persisted: `<userData>/ports.json` holds ports only.
-   The mutation token is shared directly between the orchestrator, Next server,
-   and trusted main process, while the proxy capability reaches only Next and an
-   HttpOnly, SameSite=Strict loopback cookie seeded before the first app
-   navigation.
+1. Reuses or picks the per-install-stable Studio loopback port and creates two
+   distinct 32-byte per-boot secrets. Neither is persisted. The internal token
+   reaches only the orchestrator; the UI capability is also seeded as an
+   HttpOnly, SameSite=Strict cookie before the first navigation.
 2. Kicks off music catalog provisioning in the background, and awaits
    provisioning of bundled HLAE plus FFmpeg/yt-dlp into `<userData>/tools`
    (first boot only; later boots return the cached installs instantly).
@@ -254,11 +249,9 @@ same loop (`measure` → persist baseline → change → remasure → compare).
    `ZV_DATA_DIR=<userData>/data`, `ZV_HTTP_ADDR=127.0.0.1:<orchPort>`, the
    ephemeral `ZV_MUTATION_TOKEN`, the bundled `ZV_RECORDER_PATH`, plus any
    provisioned tool paths).
-4. Spawns the Next standalone `server.js` via `ELECTRON_RUN_AS_NODE`
-   (`ORCHESTRATOR_URL` pointing at the orchestrator, `PORT=<webPort>`).
-5. Waits for `/healthz` and the web root.
-6. Loads `/onboarding` in the window.
-7. Kills the orchestrator and web children on quit. Packaged builds acquire
+4. Waits for `/healthz` and the static web root.
+5. Loads `/onboarding` in the window.
+6. Kills the orchestrator on quit. Packaged builds acquire
    Electron's OS-backed single-instance lock under canonical `appData` before
    restoring any explicit profile, so changing `--user-data-dir` cannot bypass
    it; dev/E2E keeps profile-scoped isolation.

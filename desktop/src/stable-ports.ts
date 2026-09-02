@@ -1,11 +1,6 @@
 import * as fs from 'node:fs';
 import * as net from 'node:net';
 
-export interface StableServicePorts {
-  orchestrator: number;
-  web: number;
-}
-
 export interface StablePortOptions {
   host: string;
   portsFile: string;
@@ -15,7 +10,9 @@ export interface StablePortOptions {
   allocateFreePort?: (host: string) => Promise<number>;
 }
 
-type ServiceKey = keyof StableServicePorts;
+export type StableStudioPortOptions = StablePortOptions;
+
+type ServiceKey = 'web';
 
 interface SavedPortOptions {
   host: string;
@@ -36,10 +33,8 @@ function isValidPort(value: unknown): value is number {
     && value <= 65_535;
 }
 
-function originChangeHint(key: ServiceKey): string {
-  return key === 'web'
-    ? ' the reel library kept in the browser localStorage is keyed by origin, so it may appear empty on the new port'
-    : '';
+function originChangeHint(): string {
+  return ' the reel library kept in the browser localStorage is keyed by origin, so it may appear empty on the new port';
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -66,7 +61,7 @@ async function reusableSavedPort(
 
   if (selected.has(savedPort)) {
     options.logLine(
-      `[ports] saved ${key} port ${savedPort} conflicts with another service, picking a new one;${originChangeHint(key)}\n`,
+      `[ports] saved ${key} port ${savedPort} conflicts with another service, picking a new one;${originChangeHint()}\n`,
     );
     return undefined;
   }
@@ -76,7 +71,7 @@ async function reusableSavedPort(
   }
 
   options.logLine(
-    `[ports] saved ${key} port ${savedPort} was taken, picking a new one;${originChangeHint(key)}\n`,
+    `[ports] saved ${key} port ${savedPort} was taken, picking a new one;${originChangeHint()}\n`,
   );
   return undefined;
 }
@@ -134,61 +129,36 @@ function persistPorts(
   }
 }
 
-/**
- * Chooses stable, distinct loopback ports for both desktop services.
- *
- * Saved ports are evaluated in the same orchestrator-then-web order as the
- * original main-process implementation, while the selected set prevents a
- * duplicate/corrupt file from assigning one port to both children.
- */
-export async function allocateStableServicePorts({
+/** Chooses the single Studio port, preferring the former web origin. */
+export async function allocateStableStudioPort({
   host,
   portsFile,
   logLine,
   signal,
   isPortFree = loopbackPortFree,
   allocateFreePort = allocateLoopbackPort,
-}: StablePortOptions): Promise<StableServicePorts> {
+}: StableStudioPortOptions): Promise<number> {
   throwIfAborted(signal);
   const saved = readSavedPorts(portsFile);
   let changed = false;
-
-  // Retired along with the discovery handshake. Every boot before this release
-  // wrote a fresh secret here, so drop it from upgraded installs and republish
-  // the document; otherwise the last one ever written would sit on disk
-  // forever instead of rotating away.
   if ('discovery_secret' in saved) {
     delete saved.discovery_secret;
     changed = true;
   }
-
+  if ('orchestrator' in saved) {
+    delete saved.orchestrator;
+    changed = true;
+  }
   const selected = new Set<number>();
-  let orchestrator = await reusableSavedPort(
-    'orchestrator',
-    saved,
-    selected,
-    { host, logLine, isPortFree },
-  );
+  let port = await reusableSavedPort('web', saved, selected, { host, logLine, isPortFree });
   throwIfAborted(signal);
-  let web = await reusableSavedPort('web', saved, selected, { host, logLine, isPortFree });
-  throwIfAborted(signal);
-
-  if (orchestrator === undefined) {
-    orchestrator = await allocateDistinctPort(selected, host, allocateFreePort, signal);
-    throwIfAborted(signal);
-    saved.orchestrator = orchestrator;
+  if (port === undefined) {
+    port = await allocateDistinctPort(selected, host, allocateFreePort, signal);
+    saved.web = port;
     changed = true;
   }
-  if (web === undefined) {
-    web = await allocateDistinctPort(selected, host, allocateFreePort, signal);
-    throwIfAborted(signal);
-    saved.web = web;
-    changed = true;
-  }
-
   if (changed) persistPorts(saved, portsFile, logLine);
-
-  return { orchestrator, web };
+  return port;
 }
 
 /** Grabs an OS-assigned free loopback port, then releases it for the child. */

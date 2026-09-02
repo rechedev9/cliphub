@@ -285,6 +285,7 @@ func run() error {
 	handlers := httpapi.NewHandlers(repo, store, queue,
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
+		httpapi.WithStudioUI(cfg.UIDir, cfg.UICapability, cfg.UIBootstrap),
 		// Remote binds are rejected. A per-IP limiter on loopback would give
 		// every local process the same 127.0.0.1 bucket and let unauthenticated
 		// traffic starve the authenticated desktop session.

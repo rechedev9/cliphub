@@ -32,7 +32,7 @@ test.describe('Inicio', () => {
     // the rendered casing would assert the stylesheet instead of the nav model.
     const labels = await page.locator('[data-slot="sidebar-group-label"]').allTextContents();
     // Three phases, and no fourth heading invented for the single entry key.
-    expect(labels.map((label) => label.trim())).toEqual(['Producción', 'Señal', 'Salida']);
+    expect(labels.map((label) => label.trim())).toEqual(['Producción', 'Salida']);
   });
 
   test('offers exactly three doors, each a whole-card link', async ({ page }) => {

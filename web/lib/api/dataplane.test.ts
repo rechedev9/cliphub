@@ -33,9 +33,9 @@ test('targets the same-origin /api/demos proxy with no auth header', () => {
   assert.equal(dp.capabilitiesUrl, '/api/capabilities');
 });
 
-test('reads the proxy scan response key and posts { steamId }', () => {
+test('accepts legacy and direct scan response keys and posts the UI field', () => {
   const dp = dataPlane();
   assert.equal(dp.scanJobId({ jobId: JOB }), JOB);
-  assert.equal(dp.scanJobId({ id: 'ignored' }), '');
+  assert.equal(dp.scanJobId({ id: JOB }), JOB);
   assert.deepEqual(dp.parseBody('76561198000000001'), { steamId: '76561198000000001' });
 });

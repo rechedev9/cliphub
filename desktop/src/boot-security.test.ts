@@ -5,7 +5,6 @@ import {
   installProxyCapabilityCookie,
   orchestratorSecurityEnvironment,
   PROXY_CAPABILITY_COOKIE,
-  webSecurityEnvironment,
   type CookieStore,
 } from './boot-security.ts';
 
@@ -22,12 +21,8 @@ test('creates distinct per-boot capabilities and keeps each child environment mi
     CLIPHUB_PROXY_MUTATION_CAPABILITY: undefined,
     ORCHESTRATOR_TOKEN: undefined,
     ZV_MUTATION_TOKEN: '1'.repeat(64),
-  });
-  assert.deepEqual(webSecurityEnvironment(capabilities), {
-    CLIPHUB_PROXY_BOOTSTRAP_CAPABILITY: undefined,
-    CLIPHUB_PROXY_MUTATION_CAPABILITY: '2'.repeat(64),
-    ORCHESTRATOR_TOKEN: '1'.repeat(64),
-    ZV_MUTATION_TOKEN: undefined,
+    ZV_UI_CAPABILITY: '2'.repeat(64),
+    ZV_UI_BOOTSTRAP_CAPABILITY: undefined,
   });
 });
 
