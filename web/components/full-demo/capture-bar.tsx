@@ -6,9 +6,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   canStartFullDemoCapture,
   FULL_DEMO_OVERLAY_THEME_OPTIONS,
-  FULL_DEMO_SOURCE_OPTIONS,
 } from '@/lib/full-demo';
-import { isDemoSource, isOverlayTheme, DEMO_SOURCE, type DemoSource, type OverlayTheme } from '@/lib/api/types';
+import { isOverlayTheme, type OverlayTheme } from '@/lib/api/types';
 
 export function FullDemoCaptureBar({
   roundCount,
@@ -17,8 +16,6 @@ export function FullDemoCaptureBar({
   briefItems,
   briefApproved,
   onBriefApprovedChange,
-  demoSource,
-  onDemoSourceChange,
   overlayTheme,
   onOverlayThemeChange,
   onCreate,
@@ -29,14 +26,12 @@ export function FullDemoCaptureBar({
   briefItems: CreativeBriefItem[];
   briefApproved: boolean;
   onBriefApprovedChange: (approved: boolean) => void;
-  demoSource: DemoSource | '';
-  onDemoSourceChange: (source: DemoSource) => void;
   overlayTheme: OverlayTheme;
   onOverlayThemeChange: (theme: OverlayTheme) => void;
   onCreate: () => void;
 }) {
   const configured = roundCount > 0;
-  const ready = canStartFullDemoCapture({ roundCount, briefApproved, demoSource, creating });
+  const ready = canStartFullDemoCapture({ roundCount, briefApproved, creating });
 
   return (
     <div className="sticky bottom-0 z-20 -mx-(--shell-gutter) mt-2 border-t border-border-accent bg-surface-1 px-(--shell-gutter) py-4 shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)]">
@@ -53,22 +48,26 @@ export function FullDemoCaptureBar({
               </div>
             ))}
           </dl>
+          <div className="mt-3.5 border-l-2 border-primary bg-primary/8 px-3 py-2.5 text-body-sm text-fg-2">
+            <span className="font-mono text-meta uppercase tracking-wider text-primary">FACEIT obligatorio</span>
+            <span className="ml-2">ClipHub verifica el perfil y el historial de todos los jugadores antes de abrir HLAE.</span>
+          </div>
           <div className="mt-3.5 flex flex-col gap-2">
-            <p id="full-demo-source-label" className="font-mono text-meta uppercase tracking-wider text-fg-3">
-              Origen de la demo
+            <p id="full-demo-theme-label" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              Tema de overlays FACEIT
             </p>
             <ToggleGroup
               type="single"
               variant="filter"
               spacing={2}
-              value={demoSource || undefined}
+              value={overlayTheme}
               onValueChange={(value) => {
-                if (isDemoSource(value)) onDemoSourceChange(value);
+                if (isOverlayTheme(value)) onOverlayThemeChange(value);
               }}
-              aria-labelledby="full-demo-source-label"
+              aria-labelledby="full-demo-theme-label"
               className="flex flex-wrap"
             >
-              {FULL_DEMO_SOURCE_OPTIONS.map((option) => (
+              {FULL_DEMO_OVERLAY_THEME_OPTIONS.map((option) => (
                 <ToggleGroupItem
                   key={option.value}
                   value={option.value}
@@ -80,35 +79,6 @@ export function FullDemoCaptureBar({
               ))}
             </ToggleGroup>
           </div>
-          {demoSource === DEMO_SOURCE.faceit ? (
-            <div className="mt-3.5 flex flex-col gap-2">
-              <p id="full-demo-theme-label" className="font-mono text-meta uppercase tracking-wider text-fg-3">
-                Tema del intro FACEIT
-              </p>
-              <ToggleGroup
-                type="single"
-                variant="filter"
-                spacing={2}
-                value={overlayTheme}
-                onValueChange={(value) => {
-                  if (isOverlayTheme(value)) onOverlayThemeChange(value);
-                }}
-                aria-labelledby="full-demo-theme-label"
-                className="flex flex-wrap"
-              >
-                {FULL_DEMO_OVERLAY_THEME_OPTIONS.map((option) => (
-                  <ToggleGroupItem
-                    key={option.value}
-                    value={option.value}
-                    aria-label={option.label}
-                    disabled={creating}
-                  >
-                    {option.label}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </div>
-          ) : null}
           <label className="mt-3.5 flex min-h-10 items-center gap-2.5 text-body-sm text-fg-1">
             <input
               type="checkbox"

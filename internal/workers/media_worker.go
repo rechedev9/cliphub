@@ -3022,7 +3022,13 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	}
 	var enrichment map[string]demooverlay.Enrichment
 	if demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
-		enrichment = overlayEnrichment(w, j.ID, roster)
+		enrichment, err = overlayEnrichment(w, j.ID, roster)
+		if err != nil {
+			return "", fmt.Errorf("load FACEIT overlay data: %w", err)
+		}
+		if err := demooverlay.ValidateFACEITEnrichment(demooverlay.FromRosterScan(roster, target), enrichment); err != nil {
+			return "", fmt.Errorf("validate FACEIT overlay data: %w", err)
+		}
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
 	doc.Theme = demooverlay.NormalizeTheme(edit.OverlayTheme)
@@ -3038,7 +3044,12 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	return path, nil
 }
 
-func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterResult) map[string]demooverlay.Enrichment {
+func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterResult) (map[string]demooverlay.Enrichment, error) {
+	if stored, found, err := storedOverlayEnrichment(w, jobID); err != nil {
+		return nil, err
+	} else if found {
+		return stored, nil
+	}
 	if w != nil && w.cfg.Faceit != nil {
 		ids := make([]string, 0, len(roster.Players))
 		for _, p := range roster.Players {
@@ -3046,7 +3057,10 @@ func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterRes
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		players := w.cfg.Faceit.OverlayPlayers(ctx, ids)
+		players, err := w.cfg.Faceit.OverlayPlayers(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
 		out := make(map[string]demooverlay.Enrichment, len(players))
 		for steamID, player := range players {
 			en := demooverlay.Enrichment{
@@ -3062,27 +3076,28 @@ func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterRes
 			}
 			out[steamID] = en
 		}
-		if len(out) > 0 {
-			return out
-		}
+		return out, nil
 	}
-	return storedOverlayEnrichment(w, jobID)
+	return nil, faceit.ErrNotConfigured
 }
 
-func storedOverlayEnrichment(w *RenderWorker, jobID uuid.UUID) map[string]demooverlay.Enrichment {
-	out := map[string]demooverlay.Enrichment{}
+func storedOverlayEnrichment(w *RenderWorker, jobID uuid.UUID) (map[string]demooverlay.Enrichment, bool, error) {
 	if w == nil || w.storage == nil {
-		return out
+		return nil, false, nil
 	}
 	frc, err := w.storage.Open(artifacts.FullDemoFaceitKey(jobID))
 	if err != nil {
-		return out
+		if storage.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("open stored FACEIT overlay data: %w", err)
 	}
 	defer frc.Close()
+	out := map[string]demooverlay.Enrichment{}
 	if err := json.NewDecoder(frc).Decode(&out); err != nil {
-		return map[string]demooverlay.Enrichment{}
+		return nil, false, fmt.Errorf("decode stored FACEIT overlay data: %w", err)
 	}
-	return out
+	return out, true, nil
 }
 
 func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
@@ -3096,7 +3111,8 @@ func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
 		KR:      src.KR,
 		ADR:     src.ADR,
 	}
-	if out.Matches == nil && out.WinPct == nil && out.Kills == nil && out.KD == nil && out.KR == nil && out.ADR == nil {
+	if out.Matches == nil && out.WinPct == nil && out.Kills == nil && out.Deaths == nil &&
+		out.Assists == nil && out.KD == nil && out.KR == nil && out.ADR == nil {
 		return nil
 	}
 	return &out

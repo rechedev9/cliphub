@@ -1,4 +1,4 @@
-import { DEMO_SOURCE, isDemoSource, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type DemoSource, type EditConfig, type OverlayTheme, type Preset } from './api/types.ts';
+import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type EditConfig, type OverlayTheme, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
 
 export const FULL_DEMO_HREF = '/full-demo' as const;
@@ -36,47 +36,33 @@ export const FULL_DEMO_EDIT: EditConfig = {
   voiceVolume: FULL_DEMO_VOICE_VOLUME,
   nativeHud: true,
   coverStrategy: 'generated-gameplay',
+  demoSource: DEMO_SOURCE.faceit,
+  overlayTheme: OVERLAY_THEME.faceitOrange,
 };
-
-export const FULL_DEMO_SOURCE_OPTIONS = [
-  { value: DEMO_SOURCE.premier, label: 'Premier' },
-  { value: DEMO_SOURCE.professional, label: 'Profesional (HLTV)' },
-  { value: DEMO_SOURCE.faceit, label: 'FACEIT' },
-] as const;
 
 export const FULL_DEMO_OVERLAY_THEME_OPTIONS = [
   { value: OVERLAY_THEME.faceitOrange, label: 'FACEIT naranja' },
   { value: OVERLAY_THEME.neonViolet, label: 'Neón violeta' },
 ] as const;
 
-export function fullDemoSourceLabel(source: DemoSource | ''): string {
-  return FULL_DEMO_SOURCE_OPTIONS.find((option) => option.value === source)?.label ?? '';
-}
-
 export function fullDemoOverlayThemeLabel(theme: OverlayTheme | ''): string {
   return FULL_DEMO_OVERLAY_THEME_OPTIONS.find((option) => option.value === theme)?.label ?? '';
 }
 
-export function fullDemoEdit(source: DemoSource, overlayTheme?: OverlayTheme): EditConfig {
-  const edit: EditConfig = { ...FULL_DEMO_EDIT, demoSource: source };
-  if (overlayTheme) {
-    edit.overlayTheme = overlayTheme;
-  }
-  return edit;
+export function fullDemoEdit(overlayTheme: OverlayTheme = OVERLAY_THEME.faceitOrange): EditConfig {
+  return { ...FULL_DEMO_EDIT, overlayTheme };
 }
 
 export function canStartFullDemoCapture({
   roundCount,
   briefApproved,
-  demoSource,
   creating,
 }: {
   roundCount: number;
   briefApproved: boolean;
-  demoSource: DemoSource | '';
   creating: boolean;
 }): boolean {
-  return roundCount > 0 && briefApproved && isDemoSource(demoSource) && !creating;
+  return roundCount > 0 && briefApproved && !creating;
 }
 
 export const FULL_DEMO_PRESET: Preset = {
@@ -91,6 +77,7 @@ export const FULL_DEMO_PRESET: Preset = {
 export const FULL_DEMO_CONTRACT = [
   { label: 'Formato', value: 'Horizontal 16:9 · 1920×1080' },
   { label: 'Entrega', value: 'Rondas en vivo · sin freeze' },
+  { label: 'Datos', value: 'FACEIT obligatorio · roster completo' },
   { label: 'Comms', value: 'Comms del equipo del POV · 85%' },
   { label: 'HUD', value: NATIVE_HUD_LABEL },
   { label: 'Efectos', value: 'Sin punch-in ni transiciones de Short' },

@@ -25,11 +25,13 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
@@ -43,6 +45,29 @@ func renderVariantTestKey(kind renderplan.RenderVariantArtifactKind) func(uuid.U
 	return func(id uuid.UUID, variant, name string) (string, error) {
 		ref, err := renderplan.NewRenderVariantArtifactRef(id, variant, kind, name)
 		return ref.Key, err
+	}
+}
+
+func seedFullDemoFACEITContract(t *testing.T, store storage.Storage, id uuid.UUID) {
+	t.Helper()
+	const steamID = "76561198000000001"
+	for key, value := range map[string]any{
+		artifacts.RosterKey(id): parser.RosterResult{Players: []parser.PlayerStat{{
+			SteamID64: steamID,
+			Name:      "player-one",
+			Team:      "CT",
+		}}},
+		artifacts.FullDemoFaceitKey(id): map[string]demooverlay.Enrichment{
+			steamID: {Nickname: "player-one", ELO: 3000, SkillLevel: 10},
+		},
+	} {
+		body, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Put(key, bytes.NewReader(body)); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -1720,7 +1745,7 @@ func TestStartRecordingAppliesPresetCaptureHUD(t *testing.T) {
 
 func TestStartRecordingNativeHUDAndRecap(t *testing.T) {
 	// Locked Full Demo wire: landscape recap + native HUD + comms on viral-60-clean.
-	const fullDemoEdit = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"}`
+	const fullDemoEdit = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay","demo_source":"faceit"}`
 	tests := []struct {
 		name       string
 		body       string
@@ -1775,6 +1800,9 @@ func TestStartRecordingNativeHUDAndRecap(t *testing.T) {
 				if err := recapplan.Store(store, j.ID, recap); err != nil {
 					t.Fatal(err)
 				}
+				if !tc.emptyRecap {
+					seedFullDemoFACEITContract(t, store, j.ID)
+				}
 			}
 			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 
@@ -1818,8 +1846,8 @@ func TestStartRecordingPersistsFullDemoSource(t *testing.T) {
 		wantSource string
 		wantCode   int
 	}{
-		{name: "premier", source: renderplan.DemoSourcePremier, wantSource: renderplan.DemoSourcePremier, wantCode: http.StatusAccepted},
-		{name: "professional", source: renderplan.DemoSourceProfessional, wantSource: renderplan.DemoSourceProfessional, wantCode: http.StatusAccepted},
+		{name: "premier", source: renderplan.DemoSourcePremier, wantCode: http.StatusBadRequest},
+		{name: "professional", source: renderplan.DemoSourceProfessional, wantCode: http.StatusBadRequest},
 		{name: "faceit", source: renderplan.DemoSourceFACEIT, wantSource: renderplan.DemoSourceFACEIT, wantCode: http.StatusAccepted},
 		{name: "unknown", source: "esea", wantCode: http.StatusBadRequest},
 	}
@@ -1837,6 +1865,7 @@ func TestStartRecordingPersistsFullDemoSource(t *testing.T) {
 			if err := recapplan.Store(store, j.ID, recap); err != nil {
 				t.Fatal(err)
 			}
+			seedFullDemoFACEITContract(t, store, j.ID)
 			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 
 			r := chi.NewRouter()
@@ -1882,7 +1911,7 @@ func TestStartRecordingPersistsFullDemoSource(t *testing.T) {
 	}
 }
 
-func TestStartRecordingSourceDoesNotSplitRecordUniqueness(t *testing.T) {
+func TestStartRecordingFACEITDoesNotSplitRecordUniqueness(t *testing.T) {
 	const editPrefix = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"`
 	repo := newFakeRepo()
 	queue := &uniquePayloadQueue{seen: map[string]struct{}{}}
@@ -1896,6 +1925,7 @@ func TestStartRecordingSourceDoesNotSplitRecordUniqueness(t *testing.T) {
 	if err := recapplan.Store(store, j.ID, recap); err != nil {
 		t.Fatal(err)
 	}
+	seedFullDemoFACEITContract(t, store, j.ID)
 	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 	r := chi.NewRouter()
 	r.Post("/api/jobs/{id}/record", h.StartRecording)
@@ -1907,9 +1937,9 @@ func TestStartRecordingSourceDoesNotSplitRecordUniqueness(t *testing.T) {
 		r.ServeHTTP(rw, req)
 		return rw
 	}
-	first := post(renderplan.DemoSourcePremier)
+	first := post(renderplan.DemoSourceFACEIT)
 	if first.Code != http.StatusAccepted {
-		t.Fatalf("premier status = %d; body=%s", first.Code, first.Body.String())
+		t.Fatalf("first FACEIT status = %d; body=%s", first.Code, first.Body.String())
 	}
 	second := post(renderplan.DemoSourceFACEIT)
 	if second.Code != http.StatusAccepted {
@@ -1932,13 +1962,13 @@ func TestStartRecordingSourceDoesNotSplitRecordUniqueness(t *testing.T) {
 	if err := json.NewDecoder(rc).Decode(&doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.Source != renderplan.DemoSourcePremier {
-		t.Fatalf("sidecar source = %q, want premier from the admitted capture", doc.Source)
+	if doc.Source != renderplan.DemoSourceFACEIT {
+		t.Fatalf("sidecar source = %q, want FACEIT from the admitted capture", doc.Source)
 	}
 }
 
 func TestStartRecordingAdmissionByStatus(t *testing.T) {
-	const fullDemoEdit = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay"}`
+	const fullDemoEdit = `{"format":"landscape-16x9","killEffect":"clean","transition":"cut","intro":false,"outro":false,"hook_text":false,"kill_counter":false,"match_recap":true,"voice_comms":true,"voice_volume":0.85,"native_hud":true,"cover_strategy":"generated-gameplay","demo_source":"faceit"}`
 	plan := killplan.NewPlan()
 	plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
 
@@ -1995,6 +2025,7 @@ func TestStartRecordingAdmissionByStatus(t *testing.T) {
 				if err := recapplan.Store(store, j.ID, recap); err != nil {
 					t.Fatal(err)
 				}
+				seedFullDemoFACEITContract(t, store, j.ID)
 			}
 			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 

@@ -1,10 +1,15 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
-	"path/filepath"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -12,40 +17,52 @@ import (
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/parser"
 )
 
-func TestStoreFullDemoFaceitWritesFollowedSteamIDsOnly(t *testing.T) {
+func TestStoreFullDemoFaceitRequiresAndPersistsCompleteRoster(t *testing.T) {
 	t.Parallel()
-	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), func() time.Time {
-		return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
-	})
+	const (
+		steamOne = "76561198000000001"
+		steamTwo = "76561198000000002"
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		steamID := r.URL.Query().Get("game_player_id")
+		switch {
+		case r.URL.Path == "/players" && (steamID == steamOne || steamID == steamTwo):
+			n := 1
+			if steamID == steamTwo {
+				n = 2
+			}
+			_, _ = fmt.Fprintf(w, `{"player_id":"player-%d","nickname":"player%d","country":"es","steam_id_64":"%s","games":{"cs2":{"region":"EU","skill_level":10,"faceit_elo":%d}}}`, n, n, steamID, 3000+n)
+		case strings.Contains(r.URL.Path, "/history"), strings.Contains(r.URL.Path, "/games/cs2/stats"):
+			_, _ = w.Write([]byte(`{"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := follows.Follow(faceit.Player{
-		ID:         "player-1",
-		Nickname:   "donk666",
-		SteamID64:  "76561198000000001",
-		Country:    "ru",
-		ELO:        4370,
-		SkillLevel: 10,
-		ProfileURL: "https://www.faceit.com/en/players/donk666",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := follows.Follow(faceit.Player{
-		ID:         "player-2",
-		Nickname:   "no-steam",
-		ELO:        3000,
-		ProfileURL: "https://www.faceit.com/en/players/nosteam",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
 	store := newFakeStorage()
-	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithFaceit(nil, follows))
 	id := uuid.New()
-	h.storeFullDemoFaceit(job.Job{ID: id})
+	roster := parser.RosterResult{Players: []parser.PlayerStat{
+		{SteamID64: steamOne, Name: "one", Team: "CT"},
+		{SteamID64: steamTwo, Name: "two", Team: "T"},
+	}}
+	body, err := json.Marshal(roster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(artifacts.RosterKey(id), bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithFaceit(client, nil))
+	if err := h.storeFullDemoFaceit(context.Background(), job.Job{ID: id}); err != nil {
+		t.Fatal(err)
+	}
 
 	rc, err := store.Open(artifacts.FullDemoFaceitKey(id))
 	if err != nil {
@@ -56,32 +73,33 @@ func TestStoreFullDemoFaceitWritesFollowedSteamIDsOnly(t *testing.T) {
 	if err := json.NewDecoder(rc).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("enrichment = %#v, want only the followed SteamID", got)
-	}
-	en := got["76561198000000001"]
-	if en.Nickname != "donk666" || en.Country != "ru" || en.ELO != 4370 || en.SkillLevel != 10 {
-		t.Fatalf("enrichment = %+v", en)
-	}
-	if en.Last20 != nil {
-		t.Fatalf("last-20 invented from follows: %+v", en.Last20)
-	}
-	if en.Ranking != nil {
-		t.Fatalf("ranking invented from follows: %+v", en.Ranking)
+	if len(got) != 2 || got[steamOne].Nickname != "player1" || got[steamTwo].ELO != 3002 {
+		t.Fatalf("enrichment = %#v", got)
 	}
 }
 
-func TestStoreFullDemoFaceitSkipsWhenNothingFollowed(t *testing.T) {
+func TestStoreFullDemoFaceitRejectsMissingRosterPlayer(t *testing.T) {
 	t.Parallel()
-	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	client, err := faceit.New(faceit.Options{APIKey: "faceit-test-key", BaseURL: server.URL, HTTPClient: server.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := newFakeStorage()
-	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithFaceit(nil, follows))
 	id := uuid.New()
-	h.storeFullDemoFaceit(job.Job{ID: id})
-	if _, err := store.Open(artifacts.FullDemoFaceitKey(id)); err == nil {
-		t.Fatal("wrote FACEIT sidecar with no followed players")
+	body := []byte(`{"players":[{"steamid64":"76561198000000001","name":"missing","team":"CT"}]}`)
+	if err := store.Put(artifacts.RosterKey(id), bytes.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithFaceit(client, nil))
+	err = h.storeFullDemoFaceit(context.Background(), job.Job{ID: id})
+	if !errors.Is(err, faceit.ErrPlayerNotFound) {
+		t.Fatalf("error = %v, want ErrPlayerNotFound", err)
+	}
+	if _, openErr := store.Open(artifacts.FullDemoFaceitKey(id)); openErr == nil {
+		t.Fatal("stored a partial FACEIT roster")
 	}
 }

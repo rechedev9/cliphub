@@ -1,0 +1,169 @@
+{
+  "$schema": "./full-demo-overlay-layout.schema.json",
+  "schema_version": "cliphub.full-demo-overlay-layout/v1",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "assets": {
+    "intro_chrome": {
+      "renderer": "programmatic",
+      "fit": "canvas",
+      "requires_alpha": true,
+      "art_direction": "Two symmetric five-card FACEIT roster panels; graphite carbon texture; clear gameplay center"
+    },
+    "outro_chrome": {
+      "renderer": "programmatic",
+      "fit": "canvas",
+      "requires_alpha": true,
+      "art_direction": "Two stacked dense FACEIT match tables; teal CT names; violet T names; thin orange edge"
+    }
+  },
+  "themes": {
+    "faceit-orange": {
+      "accent": "0xFF5500",
+      "accent_soft": "0xFF7733"
+    },
+    "neon-violet": {
+      "accent": "0xA855F7",
+      "accent_soft": "0xC084FC"
+    }
+  },
+  "palette": {
+    "text": "0xFFFFFF",
+    "muted_text": "0xA1A1AA",
+    "stat_text": "0xD4D4D8",
+    "target_text": "0xFCD34D",
+    "pov_fill": "0xF59E0B@0.95",
+    "pov_text": "0xFFFFFF",
+    "rank_fill": "0xFFD700@0.95",
+    "level_10_fill": "0xEB1923@0.95",
+    "level_8_fill": "0xF59E0B@0.95",
+    "level_4_fill": "0x7C3AED@0.95",
+    "level_default_fill": "0x22C55E@0.95",
+    "intro_panel_fill": "0x07080A@0.93",
+    "intro_panel_border": "0x5A5E66@0.82",
+    "intro_card_fill": "0x141518@0.96",
+    "intro_card_divider": "0x52525B@0.55",
+    "intro_texture": "0xFFFFFF@0.025",
+    "avatar_fill": "0x27272A@0.92",
+    "outro_backdrop": "0x020304@0.74",
+    "outro_board_fill": "0x07080A@0.87",
+    "outro_board_border": "0x5A5E66@0.80",
+    "outro_label_fill": "0x1C1D20@0.93",
+    "outro_row_even": "0x131417@0.91",
+    "outro_row_odd": "0x0D0E11@0.91",
+    "outro_ct_name": "0x174846@0.80",
+    "outro_t_name": "0x31204A@0.80",
+    "outro_divider": "0x62656D@0.45",
+    "outro_column_guide": "0x62656D@0.20"
+  },
+  "intro": {
+    "z_order": ["chrome", "avatars", "data"],
+    "panel": {
+      "width": 570,
+      "height": 1004,
+      "top": 38,
+      "left_x": 14,
+      "right_x": 1336,
+      "center_gap": 752,
+      "row_height": 180,
+      "max_players": 5,
+      "header_height": 96
+    },
+    "header": {
+      "name": { "x": 20, "y": 18, "font_size": 22 },
+      "subtitle": { "x": 20, "y": 50, "font_size": 11 }
+    },
+    "card": { "x": 8, "y": -8, "width": 554, "height": 168 },
+    "avatar": { "x": 18, "y": 18, "width": 84, "height": 84 },
+    "name": { "x": 118, "y": 10, "font_size": 20 },
+    "country": {
+      "rect": { "x": 118, "y": 34, "width": 34, "height": 16 },
+      "text_x": 5,
+      "text_y": 1,
+      "font_size": 10
+    },
+    "elo": { "x": 410, "y": 18, "font_size": 18 },
+    "pov": {
+      "rect": { "x": 480, "y": 10, "width": 36, "height": 18 },
+      "text_x": 5,
+      "text_y": 2,
+      "font_size": 10
+    },
+    "level": {
+      "rect": { "x": 524, "y": 16, "width": 28, "height": 28 },
+      "text_x": 2,
+      "text_y": 5,
+      "font_size": 12
+    },
+    "stats": {
+      "x": 118,
+      "title_y": 98,
+      "value_y": 112,
+      "right": 16,
+      "title_size": 9,
+      "value_size": 13,
+      "label_size": 9,
+      "label_gap": 2,
+      "weights": [0.75, 0.85, 1.2, 0.85, 0.85, 1.0]
+    },
+    "chrome": {
+      "panel_radius": 6,
+      "panel_border": 1,
+      "accent_width": 4,
+      "header_divider": 2,
+      "card_accent_width": 3,
+      "texture_spacing": 12
+    }
+  },
+  "outro": {
+    "z_order": ["backdrop", "chrome", "data"],
+    "margin": 54,
+    "header_y": 42,
+    "row_y": 128,
+    "row_height": 62,
+    "team_y_gap": 520,
+    "max_players": 5,
+    "name_width": 300,
+    "header": { "x": 8, "y": 0, "font_size": 25 },
+    "team_average": { "right": 250, "y": 4, "font_size": 14 },
+    "column_labels_y": 45,
+    "column_label_size": 11,
+    "stat_size": 15,
+    "name": { "x": 18, "y": 20, "font_size": 17 },
+    "pov": {
+      "rect": { "x": 246, "y": 18, "width": 42, "height": 18 },
+      "text_x": 7,
+      "text_y": 2,
+      "font_size": 9
+    },
+    "columns": [
+      { "id": "level", "label": "LVL", "x": 300, "width": 126 },
+      { "id": "elo", "label": "ELO", "x": 426, "width": 126 },
+      { "id": "rating", "label": "RATING", "x": 552, "width": 126 },
+      { "id": "kda", "label": "K/D/A", "x": 678, "width": 126 },
+      { "id": "adr", "label": "ADR", "x": 804, "width": 126 },
+      { "id": "kr", "label": "K/R", "x": 930, "width": 126 },
+      { "id": "hspct", "label": "HS%", "x": 1056, "width": 126 },
+      { "id": "5k", "label": "5K", "x": 1182, "width": 126 },
+      { "id": "4k", "label": "4K", "x": 1308, "width": 126 },
+      { "id": "3k", "label": "3K", "x": 1434, "width": 126 },
+      { "id": "2k", "label": "2K", "x": 1560, "width": 126 },
+      { "id": "mvp", "label": "MVP", "x": 1686, "width": 126 }
+    ],
+    "chrome": {
+      "board_left": -8,
+      "board_top": -18,
+      "board_right": 8,
+      "board_bottom": 10,
+      "accent_width": 5,
+      "label_top": 40,
+      "label_bottom": -4,
+      "row_bottom_gap": 2,
+      "name_right_gap": 8,
+      "divider_height": 1,
+      "column_guide_width": 1
+    }
+  }
+}

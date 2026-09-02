@@ -2400,6 +2400,12 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 			AvatarURL:  "https://assets.faceit.com/avatars/donk.png",
 			Last20:     &demooverlay.Last20{Matches: &matches, WinPct: &win},
 		},
+		"76561198000000002": {
+			Nickname:   "KingwayO",
+			Country:    "de",
+			ELO:        2500,
+			SkillLevel: 10,
+		},
 	}
 	cases := []struct {
 		name       string

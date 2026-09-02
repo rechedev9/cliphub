@@ -133,16 +133,16 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 	i := func(v int) *int { return &v }
 	f := func(v float64) *float64 { return &v }
 	faceit := map[string]Enrichment{
-		"1":  {Nickname: "mezii--", Country: "gb", ELO: 3625, SkillLevel: 10, Last20: &Last20{Matches: i(1577), WinPct: f(80), ADR: f(96.7), KD: f(1.66), KR: f(0.93)}},
-		"2":  {Nickname: "ZywOo", Country: "fr", ELO: 3500, SkillLevel: 10, Last20: &Last20{Matches: i(4752), WinPct: f(70), ADR: f(106.3), KD: f(2.02), KR: f(1.04)}},
-		"3":  {Nickname: "-ZubZ", Country: "se", ELO: 2715, SkillLevel: 10, Last20: &Last20{Matches: i(3611), WinPct: f(20), ADR: f(75.2), KD: f(0.99), KR: f(0.7)}},
-		"4":  {Nickname: "KarlssonxP", Country: "se", ELO: 2701, SkillLevel: 10, Last20: &Last20{Matches: i(4920), WinPct: f(45), ADR: f(78.2), KD: f(1.02), KR: f(0.7)}},
-		"5":  {Nickname: "ZwooshY", Country: "fi", ELO: 2818, SkillLevel: 10, Last20: &Last20{Matches: i(2551), WinPct: f(35), ADR: f(83.5), KD: f(1.22), KR: f(0.8)}},
-		"6":  {Nickname: "doghamster", Country: "se", ELO: 2908, SkillLevel: 10, Last20: &Last20{Matches: i(6106), WinPct: f(65), ADR: f(83.9), KD: f(0.97), KR: f(0.73)}},
-		"7":  {Nickname: "DJTruecel", Country: "dk", ELO: 3242, SkillLevel: 10, Last20: &Last20{Matches: i(3822), WinPct: f(60), ADR: f(75.7), KD: f(1.01), KR: f(0.67)}},
-		"8":  {Nickname: "sil2nthill", Country: "at", ELO: 3057, SkillLevel: 10, Last20: &Last20{Matches: i(3360), WinPct: f(60), ADR: f(82.0), KD: f(1.18), KR: f(0.8)}},
-		"9":  {Nickname: "bananek147", Country: "pl", ELO: 2752, SkillLevel: 10, Last20: &Last20{Matches: i(5167), WinPct: f(60), ADR: f(71.0), KD: f(1.03), KR: f(0.66)}},
-		"10": {Nickname: "Sil3nT189", Country: "es", ELO: 2860, SkillLevel: 10, Last20: &Last20{Matches: i(3380), WinPct: f(40), ADR: f(84.0), KD: f(1.12), KR: f(0.78)}},
+		"1":  {Nickname: "mezii--", Country: "gb", ELO: 3625, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(80), ADR: f(96.7), KD: f(1.66), KR: f(0.93)}},
+		"2":  {Nickname: "ZywOo", Country: "fr", ELO: 3500, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(70), ADR: f(106.3), KD: f(2.02), KR: f(1.04)}},
+		"3":  {Nickname: "-ZubZ", Country: "se", ELO: 2715, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(20), ADR: f(75.2), KD: f(0.99), KR: f(0.7)}},
+		"4":  {Nickname: "KarlssonxP", Country: "se", ELO: 2701, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(45), ADR: f(78.2), KD: f(1.02), KR: f(0.7)}},
+		"5":  {Nickname: "ZwooshY", Country: "fi", ELO: 2818, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(35), ADR: f(83.5), KD: f(1.22), KR: f(0.8)}},
+		"6":  {Nickname: "doghamster", Country: "se", ELO: 2908, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(65), ADR: f(83.9), KD: f(0.97), KR: f(0.73)}},
+		"7":  {Nickname: "DJTruecel", Country: "dk", ELO: 3242, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(60), ADR: f(75.7), KD: f(1.01), KR: f(0.67)}},
+		"8":  {Nickname: "sil2nthill", Country: "at", ELO: 3057, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(60), ADR: f(82.0), KD: f(1.18), KR: f(0.8)}},
+		"9":  {Nickname: "bananek147", Country: "pl", ELO: 2752, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(60), ADR: f(71.0), KD: f(1.03), KR: f(0.66)}},
+		"10": {Nickname: "Sil3nT189", Country: "es", ELO: 2860, SkillLevel: 10, Last20: &Last20{Matches: i(20), WinPct: f(40), ADR: f(84.0), KD: f(1.12), KR: f(0.78)}},
 	}
 	doc := Build(Roster{
 		TargetSteamID64: "2",
@@ -150,16 +150,16 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 		ScoreCT:         13,
 		ScoreT:          8,
 		Players: []RosterPlayer{
-			{SteamID64: "1", Name: "mezii--", Team: "CT", Kills: 18, Deaths: 12},
-			{SteamID64: "2", Name: "ZywOo", Team: "CT", Kills: 23, Deaths: 10},
-			{SteamID64: "3", Name: "-ZubZ", Team: "CT", Kills: 11, Deaths: 16},
-			{SteamID64: "4", Name: "KarlssonxP", Team: "CT", Kills: 14, Deaths: 15},
-			{SteamID64: "5", Name: "ZwooshY", Team: "CT", Kills: 9, Deaths: 17},
-			{SteamID64: "6", Name: "doghamster", Team: "T", Kills: 16, Deaths: 14},
-			{SteamID64: "7", Name: "DJTruecel", Team: "T", Kills: 12, Deaths: 15},
-			{SteamID64: "8", Name: "sil2nthill", Team: "T", Kills: 15, Deaths: 13},
-			{SteamID64: "9", Name: "bananek147", Team: "T", Kills: 10, Deaths: 16},
-			{SteamID64: "10", Name: "Sil3nT189", Team: "T", Kills: 13, Deaths: 14},
+			{SteamID64: "1", Name: "mezii--", Team: "CT", Kills: 18, Deaths: 12, Assists: 5, Rounds: 21, ADR: 82.3, Rating: 1.17, HSPct: 44, Headshots: 8, Rounds2K: 3, Rounds3K: 1, MVPs: 3},
+			{SteamID64: "2", Name: "ZywOo", Team: "CT", Kills: 23, Deaths: 10, Assists: 4, Rounds: 21, ADR: 106.3, Rating: 1.57, HSPct: 52, Headshots: 12, Rounds2K: 4, Rounds3K: 2, Rounds4K: 1, MVPs: 5},
+			{SteamID64: "3", Name: "-ZubZ", Team: "CT", Kills: 11, Deaths: 16, Assists: 7, Rounds: 21, ADR: 70.2, Rating: 0.86, HSPct: 45, Headshots: 5, Rounds2K: 1, MVPs: 1},
+			{SteamID64: "4", Name: "KarlssonxP", Team: "CT", Kills: 14, Deaths: 15, Assists: 3, Rounds: 21, ADR: 76.4, Rating: 0.98, HSPct: 57, Headshots: 8, Rounds2K: 2, MVPs: 2},
+			{SteamID64: "5", Name: "ZwooshY", Team: "CT", Kills: 9, Deaths: 17, Assists: 6, Rounds: 21, ADR: 61.8, Rating: 0.72, HSPct: 33, Headshots: 3, MVPs: 1},
+			{SteamID64: "6", Name: "doghamster", Team: "T", Kills: 16, Deaths: 14, Assists: 3, Rounds: 21, ADR: 83.9, Rating: 1.09, HSPct: 50, Headshots: 8, Rounds2K: 2, Rounds3K: 1, MVPs: 3},
+			{SteamID64: "7", Name: "DJTruecel", Team: "T", Kills: 12, Deaths: 15, Assists: 4, Rounds: 21, ADR: 75.7, Rating: 0.91, HSPct: 42, Headshots: 5, Rounds2K: 1, MVPs: 1},
+			{SteamID64: "8", Name: "sil2nthill", Team: "T", Kills: 15, Deaths: 13, Assists: 6, Rounds: 21, ADR: 82.0, Rating: 1.08, HSPct: 60, Headshots: 9, Rounds2K: 3, Rounds3K: 1, MVPs: 2},
+			{SteamID64: "9", Name: "bananek147", Team: "T", Kills: 10, Deaths: 16, Assists: 5, Rounds: 21, ADR: 71.0, Rating: 0.79, HSPct: 40, Headshots: 4, Rounds2K: 1},
+			{SteamID64: "10", Name: "Sil3nT189", Team: "T", Kills: 13, Deaths: 14, Assists: 2, Rounds: 21, ADR: 84.0, Rating: 0.96, HSPct: 54, Headshots: 7, Rounds2K: 2, MVPs: 2},
 		},
 	}, faceit)
 	dir := t.TempDir()
@@ -185,8 +185,17 @@ func TestRenderPNGsFillsTenImagineSlotsWithDemoAndFACEITFacts(t *testing.T) {
 		if err := os.MkdirAll(dest, 0o750); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dest, "intro-filled.png"), raw, 0o600); err != nil {
-			t.Fatal(err)
+		for source, name := range map[string]string{
+			intro: "intro-filled.png",
+			outro: "outro-filled.png",
+		} {
+			data, err := os.ReadFile(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dest, name), data, 0o600); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 }

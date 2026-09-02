@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { FULL_DEMO_EDIT, fullDemoEdit } from '../full-demo.ts';
 import { reelContractMatches, reelIdentity, shouldReuseReelIntent } from './reel-identity.ts';
-import { DEMO_SOURCE } from './types.ts';
+import { OVERLAY_THEME } from './types.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PLAYS = ['seg-001', 'seg-002'];
@@ -86,28 +86,28 @@ test('reelContractMatches refuses a Shorts reel as Full Demo', () => {
   }
 });
 
-test('in-flight Full Demo reuses the reel when overlay source changes', () => {
-  const premier = intent({
+test('in-flight Full Demo reuses the reel when overlay theme changes', () => {
+  const orange = intent({
     videoId: `${JOB}__full-demo`,
     segmentIds: [],
     variant: 'gameplay-pov-60',
-    editConfig: fullDemoEdit(DEMO_SOURCE.premier),
+    editConfig: fullDemoEdit(OVERLAY_THEME.faceitOrange),
   });
-  const faceitInput = {
+  const violetInput = {
     matchId: JOB,
     playIds: [] as string[],
     mode: 'clean' as const,
     variant: 'gameplay-pov-60',
-    editConfig: fullDemoEdit(DEMO_SOURCE.faceit),
+    editConfig: fullDemoEdit(OVERLAY_THEME.neonViolet),
   };
-  assert.equal(reelContractMatches(premier, faceitInput), false);
-  assert.equal(shouldReuseReelIntent({ status: 'recording' }, premier, faceitInput), true);
-  assert.equal(shouldReuseReelIntent({ status: 'queued' }, premier, faceitInput), true);
-  assert.equal(shouldReuseReelIntent({ status: 'composing' }, premier, faceitInput), true);
-  assert.equal(shouldReuseReelIntent({ status: 'ready' }, premier, faceitInput), false);
-  assert.equal(shouldReuseReelIntent({ status: 'failed' }, premier, faceitInput), false);
+  assert.equal(reelContractMatches(orange, violetInput), false);
+  assert.equal(shouldReuseReelIntent({ status: 'recording' }, orange, violetInput), true);
+  assert.equal(shouldReuseReelIntent({ status: 'queued' }, orange, violetInput), true);
+  assert.equal(shouldReuseReelIntent({ status: 'composing' }, orange, violetInput), true);
+  assert.equal(shouldReuseReelIntent({ status: 'ready' }, orange, violetInput), false);
+  assert.equal(shouldReuseReelIntent({ status: 'failed' }, orange, violetInput), false);
   assert.equal(
-    shouldReuseReelIntent({ status: 'recording' }, premier, {
+    shouldReuseReelIntent({ status: 'recording' }, orange, {
       matchId: JOB,
       playIds: PLAYS,
       mode: 'clean',

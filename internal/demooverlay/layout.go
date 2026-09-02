@@ -21,17 +21,17 @@ type IntroLayout struct {
 	LeftPanelCropX  int
 	RightPanelCropX int
 	CenterGap       int
-	RowHeight   int
-	MaxPlayers  int
-	HeaderH     int
-	CardInset   int
-	AvatarSize  int
-	AvatarXOff  int
-	AvatarYOff  int
-	NameSize    int
-	StatSize    int
-	LabelSize   int
-	BadgeSize   int
+	RowHeight       int
+	MaxPlayers      int
+	HeaderH         int
+	CardInset       int
+	AvatarSize      int
+	AvatarXOff      int
+	AvatarYOff      int
+	NameSize        int
+	StatSize        int
+	LabelSize       int
+	BadgeSize       int
 }
 
 type OutroLayout struct {
@@ -48,12 +48,12 @@ type OutroLayout struct {
 
 func DefaultLayout() Layout {
 	const (
-		panelW      = 563
-		panelCropL  = 42
-		panelCropR  = 1308
-		top         = 28
-		height      = 1020
-		centerGap   = 703
+		panelW     = 563
+		panelCropL = 42
+		panelCropR = 1308
+		top        = 28
+		height     = 1020
+		centerGap  = 703
 	)
 	margin := (FrameWidth - 2*panelW - centerGap) / 2
 	leftX := margin
@@ -70,17 +70,17 @@ func DefaultLayout() Layout {
 			LeftPanelCropX:  panelCropL,
 			RightPanelCropX: panelCropR,
 			CenterGap:       centerGap,
-			RowHeight:   196,
-			MaxPlayers:  5,
-			HeaderH:     36,
-			CardInset:   88,
-			AvatarSize:  64,
-			AvatarXOff:  16,
-			AvatarYOff:  16,
-			NameSize:    20,
-			StatSize:    14,
-			LabelSize:   10,
-			BadgeSize:   26,
+			RowHeight:       196,
+			MaxPlayers:      5,
+			HeaderH:         36,
+			CardInset:       88,
+			AvatarSize:      64,
+			AvatarXOff:      16,
+			AvatarYOff:      16,
+			NameSize:        20,
+			StatSize:        14,
+			LabelSize:       10,
+			BadgeSize:       26,
 		},
 		Outro: OutroLayout{
 			Margin:    270,
@@ -93,6 +93,51 @@ func DefaultLayout() Layout {
 			HeaderY:   155,
 			Row0:      220,
 		},
+	}
+}
+
+func faceitIntroLayout() IntroLayout {
+	spec := defaultFaceitLayout.Intro
+	p := spec.Panel
+	return IntroLayout{
+		PanelWidth:      p.Width,
+		PanelHeight:     p.Height,
+		PanelTop:        p.Top,
+		LeftPanelX:      p.LeftX,
+		RightPanelX:     p.RightX,
+		LeftPanelCropX:  p.LeftX,
+		RightPanelCropX: p.RightX,
+		CenterGap:       p.CenterGap,
+		RowHeight:       p.RowHeight,
+		MaxPlayers:      p.MaxPlayers,
+		HeaderH:         p.HeaderHeight,
+		CardInset:       spec.Name.X,
+		AvatarSize:      spec.Avatar.Width,
+		AvatarXOff:      spec.Avatar.X,
+		AvatarYOff:      spec.Avatar.Y,
+		NameSize:        spec.Name.FontSize,
+		StatSize:        spec.Stats.ValueSize,
+		LabelSize:       spec.Stats.LabelSize,
+		BadgeSize:       spec.Level.Rect.Width,
+	}
+}
+
+func faceitOutroLayout() OutroLayout {
+	spec := defaultFaceitLayout.Outro
+	statWidth := 0
+	if len(spec.Columns) > 0 {
+		statWidth = spec.Columns[0].Width
+	}
+	return OutroLayout{
+		Margin:    spec.Margin,
+		HeaderH:   spec.RowY - spec.HeaderY,
+		RowHeight: spec.RowHeight,
+		FullFrame: true,
+		ColGap:    0,
+		NameWidth: spec.NameWidth,
+		StatWidth: statWidth,
+		HeaderY:   spec.HeaderY,
+		Row0:      spec.RowY,
 	}
 }
 

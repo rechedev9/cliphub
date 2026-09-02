@@ -3,8 +3,8 @@ package demooverlay
 import "testing"
 
 func TestUsesProgrammaticIntroChrome(t *testing.T) {
-	if UsesProgrammaticIntroChrome(Document{Source: SourceFACEIT, Theme: ThemeFaceitOrange}) {
-		t.Fatal("faceit-orange should keep bundled intro plates")
+	if !UsesProgrammaticIntroChrome(Document{Source: SourceFACEIT, Theme: ThemeFaceitOrange}) {
+		t.Fatal("faceit-orange should use live programmatic chrome")
 	}
 	if !UsesProgrammaticIntroChrome(Document{Source: SourceFACEIT, Theme: ThemeNeonViolet}) {
 		t.Fatal("neon-violet should use programmatic intro chrome")

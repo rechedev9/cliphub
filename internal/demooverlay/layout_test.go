@@ -201,8 +201,8 @@ func TestStatColumnOffsetsSpreadFourNebulaColumns(t *testing.T) {
 	}
 }
 
-func TestIntroFilterLast20UsesNebulaFourColumns(t *testing.T) {
-	matches := 1577
+func TestIntroFilterUsesDenseFACEITStats(t *testing.T) {
+	matches := 20
 	win := 80.0
 	kd := 1.66
 	kr := 0.93
@@ -219,13 +219,40 @@ func TestIntroFilterLast20UsesNebulaFourColumns(t *testing.T) {
 		}},
 	})
 	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "Last 20 matches", "Matches", "Win rate", "ADR", "K/D / K/R", "1,66 / 0,93", "POV"} {
+	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "Last 20 FACEIT matches", "Matches", "Wins", "K/D/A", "K/D", "K/R", "ADR", "1,66", "0,93", "POV"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("intro missing %q:\n%s", want, got)
 		}
 	}
 	if strings.Contains(got, "Swing") {
 		t.Fatalf("Last 20 intro invented swing:\n%s", got)
+	}
+}
+
+func TestFACEITIntroPOVAndLevelBadgesDoNotOverlap(t *testing.T) {
+	layout := faceitIntroLayout()
+	povX, levelX := faceitIntroBadgePositions(layout.LeftPanelX)
+	if povX+introPlatePOVBadgeW > levelX {
+		t.Fatalf("POV badge [%d,%d) overlaps level badge at %d", povX, povX+introPlatePOVBadgeW, levelX)
+	}
+
+	level := 10
+	doc := BuildForSource(Roster{
+		TargetSteamID64: "1",
+		Players: []RosterPlayer{
+			{SteamID64: "1", Name: "ZywOo", Team: "CT"},
+		},
+	}, SourceFACEIT, map[string]Enrichment{
+		"1": {Nickname: "ZywOo", ELO: 3500, SkillLevel: level},
+	})
+	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
+	for _, want := range []string{
+		drawbox(povX, layout.PanelTop+layout.HeaderH+10, introPlatePOVBadgeW, introPlatePOVBadgeH, "0xF59E0B@0.95"),
+		drawbox(levelX, layout.PanelTop+layout.HeaderH+16, layout.BadgeSize, layout.BadgeSize, skillFill(level)),
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("intro filter missing separated badge %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -264,7 +291,7 @@ func TestIntroLast20ADRDoesNotFallBackToMatch(t *testing.T) {
 				},
 			}, map[string]Enrichment{"1": {Last20: tt.last20}})
 			got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-			if !strings.Contains(got, "Last 20 matches") || !strings.Contains(got, "ADR") {
+			if !strings.Contains(got, "Last 20 FACEIT matches") || !strings.Contains(got, "ADR") {
 				t.Fatalf("missing Last 20 ADR column:\n%s", got)
 			}
 			if tt.wantADR != "" && !strings.Contains(got, tt.wantADR) {
@@ -303,6 +330,49 @@ func TestOutroGridColumnsKeepsNebulaOrder(t *testing.T) {
 				if got[i] != tt.want[i] {
 					t.Fatalf("got %v, want %v", got, tt.want)
 				}
+			}
+		})
+	}
+}
+
+func TestFACEITOutroGridColumnsKeepsTrackerOrder(t *testing.T) {
+	want := []string{
+		ColLevel, ColELO, ColRating, ColKDA, ColADR, ColKR,
+		ColHSPct, Col5K, Col4K, Col3K, Col2K, ColMVP,
+	}
+	input := append([]string{ColName, ColCountry}, want...)
+	got := faceitOutroGridColumns(input)
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestFACEITOutroCellsUseDemoFacts(t *testing.T) {
+	card := PlayerCard{
+		Kills: 10, Deaths: 8, Assists: 4, Rounds: 20,
+		Rounds2K: 3, Rounds3K: 2, Rounds4K: 1, Rounds5K: 1, MVPs: 4,
+	}
+	tests := []struct {
+		column string
+		want   string
+	}{
+		{column: ColKDA, want: "10/8/4"},
+		{column: ColKR, want: "0,50"},
+		{column: Col2K, want: "3"},
+		{column: Col3K, want: "2"},
+		{column: Col4K, want: "1"},
+		{column: Col5K, want: "1"},
+		{column: ColMVP, want: "4"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.column, func(t *testing.T) {
+			if got := outroCell(card, tt.column); got != tt.want {
+				t.Fatalf("outroCell(%q) = %q, want %q", tt.column, got, tt.want)
 			}
 		})
 	}

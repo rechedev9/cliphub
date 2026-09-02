@@ -60,6 +60,10 @@ const (
 	ColHS      = "hs"
 	ColHSPct   = "hspct"
 	ColMulti   = "multi"
+	Col2K      = "2k"
+	Col3K      = "3k"
+	Col4K      = "4k"
+	Col5K      = "5k"
 	ColMVP     = "mvp"
 )
 

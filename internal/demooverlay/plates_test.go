@@ -178,7 +178,6 @@ func TestIntroPlateTeamHeaderInFilter(t *testing.T) {
 	}{
 		{source: SourceProfessional, wantY: 126, wantPOV: true},
 		{source: SourcePremier, wantY: 168, wantPOV: true},
-		{source: SourceFACEIT, wantY: 78, wantPOV: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.source, func(t *testing.T) {

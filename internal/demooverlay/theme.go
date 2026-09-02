@@ -25,31 +25,17 @@ func ResolveTheme(doc Document) CardTheme {
 	if theme == "" && NormalizeSource(doc.Source) == SourceFACEIT {
 		theme = ThemeFaceitOrange
 	}
-	switch theme {
-	case ThemeNeonViolet:
-		return CardTheme{
-			Name:       ThemeNeonViolet,
-			Accent:     "0xA855F7",
-			AccentSoft: "0xC084FC",
-		}
-	default:
-		return CardTheme{
-			Name:       ThemeFaceitOrange,
-			Accent:     "0xFF5500",
-			AccentSoft: "0xFF7733",
-		}
+	spec, ok := defaultFaceitLayout.Themes[theme]
+	if !ok {
+		theme = ThemeFaceitOrange
+		spec = defaultFaceitLayout.Themes[theme]
 	}
+	return CardTheme{Name: theme, Accent: spec.Accent, AccentSoft: spec.AccentSoft}
 }
 
-const (
-	introCardFill      = "0x121216@0.88"
-	introCardRadius    = 14
-	introCardGlowSteps = 4
-)
-
 // UsesProgrammaticIntroChrome selects generated panel chrome instead of bundled
-// intro JPG plates. Neon-violet is opt-in programmatic-only; faceit-orange
-// keeps bundled plates when present.
+// intro JPG plates. FACEIT overlays always use live programmatic chrome so an
+// old screenshot plate can never replace current roster data.
 func UsesProgrammaticIntroChrome(doc Document) bool {
-	return NormalizeTheme(doc.Theme) == ThemeNeonViolet
+	return NormalizeSource(doc.Source) == SourceFACEIT || NormalizeTheme(doc.Theme) == ThemeNeonViolet
 }

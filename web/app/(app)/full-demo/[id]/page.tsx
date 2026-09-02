@@ -9,7 +9,7 @@ import type { Match, Play } from '@/lib/api/types';
 import { canForgeReel } from '@/lib/reel-brief';
 import { startPollLoop } from '@/lib/poll-loop';
 import { FullDemoCaptureBar } from '@/components/full-demo/capture-bar';
-import { isDemoSource, DEMO_SOURCE, OVERLAY_THEME, type DemoSource, type OverlayTheme } from '@/lib/api/types';
+import { OVERLAY_THEME, type OverlayTheme } from '@/lib/api/types';
 import {
   canStartFullDemoCapture,
   FULL_DEMO_EMPTY,
@@ -24,7 +24,6 @@ import {
   fullDemoEdit,
   fullDemoEmptyState,
   fullDemoOverlayThemeLabel,
-  fullDemoSourceLabel,
   type FullDemoLoadFailure,
 } from '@/lib/full-demo';
 import { Button } from '@/components/ui/button';
@@ -44,7 +43,6 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
   const [loadFailure, setLoadFailure] = useState<FullDemoLoadFailure>(null);
   const [recapFailure, setRecapFailure] = useState<Exclude<FullDemoLoadFailure, null> | null>(null);
   const [briefApproved, setBriefApproved] = useState(false);
-  const [demoSource, setDemoSource] = useState<DemoSource | ''>('');
   const [overlayTheme, setOverlayTheme] = useState<OverlayTheme>(OVERLAY_THEME.faceitOrange);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -109,10 +107,8 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
       !canStartFullDemoCapture({
         roundCount: plays.length,
         briefApproved,
-        demoSource,
         creating,
-      }) ||
-      !isDemoSource(demoSource)
+      })
     ) {
       return;
     }
@@ -124,7 +120,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         playIds: plays.map((play) => play.id),
         mode: 'clean',
         variant: FULL_DEMO_VARIANT,
-        editConfig: fullDemoEdit(demoSource, demoSource === DEMO_SOURCE.faceit ? overlayTheme : undefined),
+        editConfig: fullDemoEdit(overlayTheme),
       });
       router.push(`/videos?nuevo=${encodeURIComponent(video.id)}`);
     } catch (error) {
@@ -157,10 +153,7 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
 
   const briefItems = [
     ...fullDemoBriefItems(),
-    { label: 'Origen', value: fullDemoSourceLabel(demoSource) || 'Pendiente' },
-    ...(demoSource === DEMO_SOURCE.faceit
-      ? [{ label: 'Tema intro', value: fullDemoOverlayThemeLabel(overlayTheme) }]
-      : []),
+    { label: 'Tema overlays', value: fullDemoOverlayThemeLabel(overlayTheme) },
   ];
   const roundsPending = recapFailure === null && plays.length === 0;
   const povLabel = match.player
@@ -217,8 +210,6 @@ export default function FullDemoJobPage({ params }: { params: Promise<{ id: stri
         briefItems={[...briefItems]}
         briefApproved={briefApproved}
         onBriefApprovedChange={setBriefApproved}
-        demoSource={demoSource}
-        onDemoSourceChange={setDemoSource}
         overlayTheme={overlayTheme}
         onOverlayThemeChange={setOverlayTheme}
         onCreate={() => {

@@ -2,6 +2,8 @@ package faceit
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -17,16 +19,21 @@ type OverlayPlayer struct {
 	Recent     Last20
 }
 
-// OverlayPlayers looks up each SteamID on the Data API. Missing players are
-// omitted. The caller owns timeouts.
-func (c *Client) OverlayPlayers(ctx context.Context, steamIDs []string) map[string]OverlayPlayer {
+// OverlayPlayers looks up each SteamID on the Data API. It returns partial
+// results with a joined error when any profile or recent-match lookup fails.
+// The caller owns timeouts.
+func (c *Client) OverlayPlayers(ctx context.Context, steamIDs []string) (map[string]OverlayPlayer, error) {
 	out := map[string]OverlayPlayer{}
-	if c == nil || len(steamIDs) == 0 {
-		return out
+	if c == nil {
+		return out, ErrNotConfigured
 	}
 	ids := uniqueNonEmpty(steamIDs)
+	if len(ids) == 0 {
+		return out, nil
+	}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	failures := make(map[string]error)
 	gate := make(chan struct{}, 4)
 	for _, steamID := range ids {
 		steamID := steamID
@@ -37,10 +44,16 @@ func (c *Client) OverlayPlayers(ctx context.Context, steamIDs []string) map[stri
 			case gate <- struct{}{}:
 				defer func() { <-gate }()
 			case <-ctx.Done():
+				mu.Lock()
+				failures[steamID] = ctx.Err()
+				mu.Unlock()
 				return
 			}
-			player, ok := c.overlayPlayer(ctx, steamID)
-			if !ok {
+			player, err := c.overlayPlayer(ctx, steamID)
+			if err != nil {
+				mu.Lock()
+				failures[steamID] = err
+				mu.Unlock()
 				return
 			}
 			mu.Lock()
@@ -49,13 +62,19 @@ func (c *Client) OverlayPlayers(ctx context.Context, steamIDs []string) map[stri
 		}()
 	}
 	wg.Wait()
-	return out
+	joined := make([]error, 0, len(failures))
+	for _, steamID := range ids {
+		if err := failures[steamID]; err != nil {
+			joined = append(joined, fmt.Errorf("FACEIT overlay player %s: %w", steamID, err))
+		}
+	}
+	return out, errors.Join(joined...)
 }
 
-func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlayer, bool) {
+func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlayer, error) {
 	player, err := c.LookupBySteamID(ctx, steamID)
 	if err != nil {
-		return OverlayPlayer{}, false
+		return OverlayPlayer{}, err
 	}
 	out := OverlayPlayer{
 		Nickname:   player.Nickname,
@@ -65,15 +84,17 @@ func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlay
 		SkillLevel: player.SkillLevel,
 	}
 	if player.ID == "" {
-		return out, true
+		return out, nil
 	}
-	if matches, err := c.RecentMatches(ctx, player.ID, maxRecentMatchLimit); err == nil {
-		out.Recent = AggregateLast20(matches)
+	matches, err := c.RecentMatches(ctx, player.ID, maxRecentMatchLimit)
+	if err != nil {
+		return OverlayPlayer{}, fmt.Errorf("recent matches: %w", err)
 	}
+	out.Recent = AggregateLast20(matches)
 	if pos, err := c.RankingPosition(ctx, player.Region, player.ID); err == nil && pos > 0 {
 		out.Ranking = &pos
 	}
-	return out, true
+	return out, nil
 }
 
 func uniqueNonEmpty(ids []string) []string {

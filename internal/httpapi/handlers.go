@@ -973,6 +973,16 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if useRecapPlan {
+		if demoSource != renderplan.DemoSourceFACEIT {
+			writeCodedError(w, http.StatusBadRequest, faceitRosterIncomplete, "Full Demo requires FACEIT as its data source")
+			return
+		}
+		if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
+		}
+	}
 	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)
 	if err != nil {
 		internalError(w, "build record task", err)
@@ -997,9 +1007,6 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	}
 	if useRecapPlan {
 		h.persistFullDemoSource(j.ID, demoSource)
-		if demoSource == renderplan.DemoSourceFACEIT {
-			h.storeFullDemoFaceit(j)
-		}
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"id":   j.ID,
@@ -1069,8 +1076,13 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		segmentIDs = nil
-		if intent.Edit.UsesFACEITOverlay() {
-			h.storeFullDemoFaceit(j)
+		if !intent.Edit.UsesFACEITOverlay() {
+			writeCodedError(w, http.StatusBadRequest, faceitRosterIncomplete, "Full Demo requires FACEIT as its data source")
+			return
+		}
+		if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
 		}
 	} else if !validateSegmentSelection(w, j, segmentIDs) {
 		return

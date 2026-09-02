@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cliphub.local/schemas/full-demo-overlay-layout.schema.json",
+  "title": "ClipHub Full Demo overlay layout",
+  "description": "Deterministic 1920x1080 placement contract for Full Demo intro and outro chrome. Raster artwork never owns text or data placement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "canvas", "assets", "themes", "palette", "intro", "outro"],
+  "properties": {
+    "$schema": { "const": "./full-demo-overlay-layout.schema.json" },
+    "schema_version": { "const": "cliphub.full-demo-overlay-layout/v1" },
+    "canvas": { "$ref": "#/$defs/canvas" },
+    "assets": { "$ref": "#/$defs/assets" },
+    "themes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["faceit-orange", "neon-violet"],
+      "properties": {
+        "faceit-orange": { "$ref": "#/$defs/theme" },
+        "neon-violet": { "$ref": "#/$defs/theme" }
+      }
+    },
+    "palette": { "$ref": "#/$defs/palette" },
+    "intro": { "$ref": "#/$defs/intro" },
+    "outro": { "$ref": "#/$defs/outro" }
+  },
+  "$defs": {
+    "positiveInteger": { "type": "integer", "minimum": 1 },
+    "nonNegativeInteger": { "type": "integer", "minimum": 0 },
+    "overlayColor": {
+      "type": "string",
+      "pattern": "^0x[0-9A-Fa-f]{6}(@(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?))?$"
+    },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "const": 1920 },
+        "height": { "const": 1080 }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["renderer", "fit", "requires_alpha", "art_direction"],
+      "properties": {
+        "renderer": { "enum": ["programmatic", "bitmap"] },
+        "file": { "type": "string" },
+        "fit": { "const": "canvas" },
+        "requires_alpha": { "type": "boolean" },
+        "art_direction": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "renderer": { "const": "bitmap" } } },
+          "then": { "required": ["file"] }
+        }
+      ]
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intro_chrome", "outro_chrome"],
+      "properties": {
+        "intro_chrome": { "$ref": "#/$defs/asset" },
+        "outro_chrome": { "$ref": "#/$defs/asset" }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accent", "accent_soft"],
+      "properties": {
+        "accent": { "$ref": "#/$defs/overlayColor" },
+        "accent_soft": { "$ref": "#/$defs/overlayColor" }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text", "muted_text", "stat_text", "target_text", "pov_fill", "pov_text",
+        "rank_fill", "level_10_fill", "level_8_fill", "level_4_fill", "level_default_fill",
+        "intro_panel_fill", "intro_panel_border", "intro_card_fill", "intro_card_divider", "intro_texture",
+        "avatar_fill", "outro_backdrop", "outro_board_fill", "outro_board_border",
+        "outro_label_fill", "outro_row_even", "outro_row_odd", "outro_ct_name",
+        "outro_t_name", "outro_divider", "outro_column_guide"
+      ],
+      "properties": {
+        "text": { "$ref": "#/$defs/overlayColor" },
+        "muted_text": { "$ref": "#/$defs/overlayColor" },
+        "stat_text": { "$ref": "#/$defs/overlayColor" },
+        "target_text": { "$ref": "#/$defs/overlayColor" },
+        "pov_fill": { "$ref": "#/$defs/overlayColor" },
+        "pov_text": { "$ref": "#/$defs/overlayColor" },
+        "rank_fill": { "$ref": "#/$defs/overlayColor" },
+        "level_10_fill": { "$ref": "#/$defs/overlayColor" },
+        "level_8_fill": { "$ref": "#/$defs/overlayColor" },
+        "level_4_fill": { "$ref": "#/$defs/overlayColor" },
+        "level_default_fill": { "$ref": "#/$defs/overlayColor" },
+        "intro_panel_fill": { "$ref": "#/$defs/overlayColor" },
+        "intro_panel_border": { "$ref": "#/$defs/overlayColor" },
+        "intro_card_fill": { "$ref": "#/$defs/overlayColor" },
+        "intro_card_divider": { "$ref": "#/$defs/overlayColor" },
+        "intro_texture": { "$ref": "#/$defs/overlayColor" },
+        "avatar_fill": { "$ref": "#/$defs/overlayColor" },
+        "outro_backdrop": { "$ref": "#/$defs/overlayColor" },
+        "outro_board_fill": { "$ref": "#/$defs/overlayColor" },
+        "outro_board_border": { "$ref": "#/$defs/overlayColor" },
+        "outro_label_fill": { "$ref": "#/$defs/overlayColor" },
+        "outro_row_even": { "$ref": "#/$defs/overlayColor" },
+        "outro_row_odd": { "$ref": "#/$defs/overlayColor" },
+        "outro_ct_name": { "$ref": "#/$defs/overlayColor" },
+        "outro_t_name": { "$ref": "#/$defs/overlayColor" },
+        "outro_divider": { "$ref": "#/$defs/overlayColor" },
+        "outro_column_guide": { "$ref": "#/$defs/overlayColor" }
+      }
+    },
+    "textAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "font_size"],
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "font_size": { "$ref": "#/$defs/positiveInteger" }
+      }
+    },
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "width": { "$ref": "#/$defs/positiveInteger" },
+        "height": { "$ref": "#/$defs/positiveInteger" }
+      }
+    },
+    "badge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rect", "text_x", "text_y", "font_size"],
+      "properties": {
+        "rect": { "$ref": "#/$defs/rect" },
+        "text_x": { "type": "integer" },
+        "text_y": { "type": "integer" },
+        "font_size": { "$ref": "#/$defs/positiveInteger" }
+      }
+    },
+    "intro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["z_order", "panel", "header", "card", "avatar", "name", "country", "elo", "pov", "level", "stats", "chrome"],
+      "properties": {
+        "z_order": {
+          "type": "array",
+          "prefixItems": [{ "const": "chrome" }, { "const": "avatars" }, { "const": "data" }],
+          "items": false
+        },
+        "panel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height", "top", "left_x", "right_x", "center_gap", "row_height", "max_players", "header_height"],
+          "properties": {
+            "width": { "$ref": "#/$defs/positiveInteger" },
+            "height": { "$ref": "#/$defs/positiveInteger" },
+            "top": { "$ref": "#/$defs/nonNegativeInteger" },
+            "left_x": { "$ref": "#/$defs/nonNegativeInteger" },
+            "right_x": { "$ref": "#/$defs/nonNegativeInteger" },
+            "center_gap": { "$ref": "#/$defs/positiveInteger" },
+            "row_height": { "$ref": "#/$defs/positiveInteger" },
+            "max_players": { "type": "integer", "minimum": 1, "maximum": 5 },
+            "header_height": { "$ref": "#/$defs/positiveInteger" }
+          }
+        },
+        "header": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "subtitle"],
+          "properties": {
+            "name": { "$ref": "#/$defs/textAnchor" },
+            "subtitle": { "$ref": "#/$defs/textAnchor" }
+          }
+        },
+        "card": { "$ref": "#/$defs/rect" },
+        "avatar": { "$ref": "#/$defs/rect" },
+        "name": { "$ref": "#/$defs/textAnchor" },
+        "country": { "$ref": "#/$defs/badge" },
+        "elo": { "$ref": "#/$defs/textAnchor" },
+        "pov": { "$ref": "#/$defs/badge" },
+        "level": { "$ref": "#/$defs/badge" },
+        "stats": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "title_y", "value_y", "right", "title_size", "value_size", "label_size", "label_gap", "weights"],
+          "properties": {
+            "x": { "type": "integer" },
+            "title_y": { "type": "integer" },
+            "value_y": { "type": "integer" },
+            "right": { "$ref": "#/$defs/nonNegativeInteger" },
+            "title_size": { "$ref": "#/$defs/positiveInteger" },
+            "value_size": { "$ref": "#/$defs/positiveInteger" },
+            "label_size": { "$ref": "#/$defs/positiveInteger" },
+            "label_gap": { "$ref": "#/$defs/nonNegativeInteger" },
+            "weights": {
+              "type": "array",
+              "minItems": 6,
+              "maxItems": 6,
+              "items": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        "chrome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["panel_radius", "panel_border", "accent_width", "header_divider", "card_accent_width", "texture_spacing"],
+          "properties": {
+            "panel_radius": { "$ref": "#/$defs/nonNegativeInteger" },
+            "panel_border": { "$ref": "#/$defs/positiveInteger" },
+            "accent_width": { "$ref": "#/$defs/positiveInteger" },
+            "header_divider": { "$ref": "#/$defs/positiveInteger" },
+            "card_accent_width": { "$ref": "#/$defs/positiveInteger" },
+            "texture_spacing": { "$ref": "#/$defs/positiveInteger" }
+          }
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "x", "width"],
+      "properties": {
+        "id": { "enum": ["level", "elo", "rating", "kda", "adr", "kr", "hspct", "5k", "4k", "3k", "2k", "mvp"] },
+        "label": { "type": "string", "minLength": 1 },
+        "x": { "$ref": "#/$defs/nonNegativeInteger" },
+        "width": { "$ref": "#/$defs/positiveInteger" }
+      }
+    },
+    "outro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["z_order", "margin", "header_y", "row_y", "row_height", "team_y_gap", "max_players", "name_width", "header", "team_average", "column_labels_y", "column_label_size", "stat_size", "name", "pov", "columns", "chrome"],
+      "properties": {
+        "z_order": {
+          "type": "array",
+          "prefixItems": [{ "const": "backdrop" }, { "const": "chrome" }, { "const": "data" }],
+          "items": false
+        },
+        "margin": { "$ref": "#/$defs/nonNegativeInteger" },
+        "header_y": { "$ref": "#/$defs/nonNegativeInteger" },
+        "row_y": { "$ref": "#/$defs/nonNegativeInteger" },
+        "row_height": { "$ref": "#/$defs/positiveInteger" },
+        "team_y_gap": { "$ref": "#/$defs/positiveInteger" },
+        "max_players": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "name_width": { "$ref": "#/$defs/positiveInteger" },
+        "header": { "$ref": "#/$defs/textAnchor" },
+        "team_average": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["right", "y", "font_size"],
+          "properties": {
+            "right": { "$ref": "#/$defs/nonNegativeInteger" },
+            "y": { "type": "integer" },
+            "font_size": { "$ref": "#/$defs/positiveInteger" }
+          }
+        },
+        "column_labels_y": { "type": "integer" },
+        "column_label_size": { "$ref": "#/$defs/positiveInteger" },
+        "stat_size": { "$ref": "#/$defs/positiveInteger" },
+        "name": { "$ref": "#/$defs/textAnchor" },
+        "pov": { "$ref": "#/$defs/badge" },
+        "columns": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "chrome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["board_left", "board_top", "board_right", "board_bottom", "accent_width", "label_top", "label_bottom", "row_bottom_gap", "name_right_gap", "divider_height", "column_guide_width"],
+          "properties": {
+            "board_left": { "type": "integer" },
+            "board_top": { "type": "integer" },
+            "board_right": { "type": "integer" },
+            "board_bottom": { "type": "integer" },
+            "accent_width": { "$ref": "#/$defs/positiveInteger" },
+            "label_top": { "type": "integer" },
+            "label_bottom": { "type": "integer" },
+            "row_bottom_gap": { "$ref": "#/$defs/nonNegativeInteger" },
+            "name_right_gap": { "$ref": "#/$defs/nonNegativeInteger" },
+            "divider_height": { "$ref": "#/$defs/positiveInteger" },
+            "column_guide_width": { "$ref": "#/$defs/positiveInteger" }
+          }
+        }
+      }
+    }
+  }
+}
