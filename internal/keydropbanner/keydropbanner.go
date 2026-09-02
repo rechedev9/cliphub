@@ -159,12 +159,6 @@ func init() {
 }
 
 func loadPlateFile(name string) []byte {
-	srcDir := ""
-	if _, src, _, ok := runtime.Caller(0); ok {
-		srcDir = filepath.Dir(src)
-	}
-	var found []byte
-	foundDir := ""
 	for _, dir := range plateSearchDirs() {
 		b, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- name is a compile-time style constant; dirs are fixed lookup paths
 		if err != nil || len(b) < 32 {
@@ -173,21 +167,9 @@ func loadPlateFile(name string) []byte {
 		if b[0] != 0x89 || string(b[1:4]) != "PNG" {
 			continue
 		}
-		found = b
-		foundDir = dir
-		break
+		return b
 	}
-	if len(found) == 0 {
-		return nil
-	}
-	if srcDir != "" && foundDir != srcDir {
-		dest := filepath.Join(srcDir, name)
-		if _, err := os.Stat(dest); os.IsNotExist(err) {
-			// #nosec G703 -- style.FileName is a compile-time constant, never user input.
-			_ = os.WriteFile(dest, found, 0o600)
-		}
-	}
-	return found
+	return nil
 }
 
 func plateSearchDirs() []string {

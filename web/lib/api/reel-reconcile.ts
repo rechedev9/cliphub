@@ -1,4 +1,4 @@
-import { SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
+import { GENERATE_WORK_ACTIVE_CODE, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
 import { requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
@@ -92,6 +92,7 @@ export function viewForRecordAdmission(
 ): ReelView | null {
   if (httpStatus === 202 || httpStatus === 200) return null;
   if (httpStatus === 503 || body.code === SERVICE_UNAVAILABLE_CODE) return null;
+  if (httpStatus === 409 && body.code === GENERATE_WORK_ACTIVE_CODE) return null;
   if (httpStatus === 404) return unrecoverableJobGoneView();
   if (httpStatus === 409 && IN_FLIGHT_RECORD_CONFLICT.test(body.error ?? '')) {
     return { status: 'recording', action: 'none' };
@@ -119,6 +120,17 @@ function captureContractMatches(intentEdit: EditConfig, renderEdit: EditConfig |
   return intentEdit.matchRecap === renderEdit.matchRecap && intentEdit.nativeHud === renderEdit.nativeHud;
 }
 
+function selectionMatches(
+  intentEdit: EditConfig,
+  intentSegmentIds: readonly string[] | undefined,
+  renderSegmentIds: readonly string[] | undefined,
+): boolean {
+  // A recap expands its empty UI selection to every round in the durable plan.
+  if (intentEdit.matchRecap) return true;
+  if (!intentSegmentIds || !renderSegmentIds || intentSegmentIds.length !== renderSegmentIds.length) return false;
+  return intentSegmentIds.every((id, index) => id === renderSegmentIds[index]);
+}
+
 /** Render-time mix: same capture can still need a new encode. */
 function renderDeliveryMatches(
   intentEdit: EditConfig,
@@ -139,13 +151,17 @@ export type ReelReconcileDecision = {
 export type DecideReelReconcileInput = ReconcileInput & {
   intentEdit: EditConfig;
   renderEdit?: EditConfig;
+  intentSegmentIds?: readonly string[];
+  renderSegmentIds?: readonly string[];
   intentMusic?: MusicChoice;
   renderMusic?: MusicChoice;
 };
 
-/** Shorts pack on this variant is not Full Demo; same capture + new mix re-renders. */
+/** Reconcile a local reel intent with the durable variant and capture facts. */
 export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconcileDecision {
-  const ours = captureContractMatches(input.intentEdit, input.renderEdit);
+  const ours =
+    captureContractMatches(input.intentEdit, input.renderEdit) &&
+    selectionMatches(input.intentEdit, input.intentSegmentIds, input.renderSegmentIds);
   const readyOrReview = input.renderStatus === 'ready' || input.renderStatus === 'review_required';
   if (!ours && readyOrReview) {
     if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
@@ -163,7 +179,9 @@ export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconc
     if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
       return { view: deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
     }
-    return { view: { status: 'composing', action: 'render' }, adoptEffective: false };
+    // The single current recording may belong to another variant. Generate
+    // validates it server-side and either reuses it or recaptures from the DEM.
+    return { view: { status: 'queued', action: 'record' }, adoptEffective: false };
   }
   return {
     view: deriveReelView(input),
@@ -228,7 +246,9 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     case 'recorded':
     case 'composed':
     case 'done':
-      return { status: 'composing', action: 'render' };
+      // A job-level recorded state says only that some capture exists. Let the
+      // generate endpoint validate the exact Short/Full Demo capture contract.
+      return { status: 'queued', action: 'record' };
     case 'composing':
       return captureProgress
         ? { status: 'composing', action: 'none', captureProgress }

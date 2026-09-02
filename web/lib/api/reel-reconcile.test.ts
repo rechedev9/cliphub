@@ -50,20 +50,20 @@ test('rendering with progress → composing view carries percent', () => {
 test('progress is ignored when not recording or composing', () => {
   assert.deepEqual(
     view({ jobStatus: 'recorded', captureProgress: { done: 2, total: 4 } }),
-    { status: 'composing', action: 'render' },
+    { status: 'queued', action: 'record' },
   );
 });
 
-test('recorded + no render → drive render', () => {
-  assert.deepEqual(view({ jobStatus: 'recorded' }), { status: 'composing', action: 'render' });
+test('recorded + no render → let generate validate the cached capture', () => {
+  assert.deepEqual(view({ jobStatus: 'recorded' }), { status: 'queued', action: 'record' });
 });
 
-test('composed + no render → drive render', () => {
-  assert.deepEqual(view({ jobStatus: 'composed' }), { status: 'composing', action: 'render' });
+test('composed + no render → let generate validate the cached capture', () => {
+  assert.deepEqual(view({ jobStatus: 'composed' }), { status: 'queued', action: 'record' });
 });
 
-test('done + no render → drive render', () => {
-  assert.deepEqual(view({ jobStatus: 'done' }), { status: 'composing', action: 'render' });
+test('done + no render → let generate validate the cached capture', () => {
+  assert.deepEqual(view({ jobStatus: 'done' }), { status: 'queued', action: 'record' });
 });
 
 test('render queued → composing, no action', () => {
@@ -286,6 +286,8 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
     renderStatus: ReconcileInput['renderStatus'];
     intentEdit: EditConfig;
     renderEdit?: EditConfig;
+    intentSegmentIds?: string[];
+    renderSegmentIds?: string[];
     intentMusic?: MusicChoice;
     renderMusic?: MusicChoice;
     wantAction: 'record' | 'render' | 'none';
@@ -308,6 +310,16 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       renderStatus: 'ready',
       intentEdit: FULL_DEMO_EDIT,
       renderEdit: shortsEdit,
+      wantAction: 'record',
+      wantStatus: 'queued',
+      wantAdopt: false,
+    },
+    {
+      name: 'shorts + recorded + ready full demo → record, do not adopt',
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: shortsEdit,
+      renderEdit: FULL_DEMO_EDIT,
       wantAction: 'record',
       wantStatus: 'queued',
       wantAdopt: false,
@@ -337,6 +349,8 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       renderStatus: 'ready',
       intentEdit: shortsEdit,
       renderEdit: shortsEdit,
+      intentSegmentIds: ['kill-1'],
+      renderSegmentIds: ['kill-1'],
       wantAction: 'none',
       wantStatus: 'ready',
       wantAdopt: true,
@@ -370,25 +384,25 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       wantAdopt: false,
     },
     {
-      name: 'full demo + recorded + ready recap + different song → render, do not adopt',
+      name: 'full demo + recorded + ready recap + different song → validate capture, do not adopt',
       jobStatus: 'recorded',
       renderStatus: 'ready',
       intentEdit: FULL_DEMO_EDIT,
       renderEdit: { ...FULL_DEMO_EDIT },
       intentMusic: { songId: 'phonk-01', musicVolume: 1 },
       renderMusic: {},
-      wantAction: 'render',
-      wantStatus: 'composing',
+      wantAction: 'record',
+      wantStatus: 'queued',
       wantAdopt: false,
     },
     {
-      name: 'full demo + recorded + ready recap + different edit → render, do not adopt',
+      name: 'full demo + recorded + ready recap + different edit → validate capture, do not adopt',
       jobStatus: 'recorded',
       renderStatus: 'ready',
       intentEdit: { ...FULL_DEMO_EDIT, killEffect: 'punch-in' },
       renderEdit: { ...FULL_DEMO_EDIT },
-      wantAction: 'render',
-      wantStatus: 'composing',
+      wantAction: 'record',
+      wantStatus: 'queued',
       wantAdopt: false,
     },
     {
@@ -397,6 +411,8 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       renderStatus: 'ready',
       intentEdit: FULL_DEMO_EDIT,
       renderEdit: { ...FULL_DEMO_EDIT },
+      intentSegmentIds: [],
+      renderSegmentIds: ['round-1', 'round-2'],
       intentMusic: { songId: 'phonk-01', musicVolume: 0.8, gameVolume: 0.2 },
       renderMusic: { songId: 'phonk-01', musicVolume: 0.8, gameVolume: 0.2 },
       wantAction: 'none',
@@ -410,6 +426,8 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
       renderStatus: tc.renderStatus,
       intentEdit: tc.intentEdit,
       renderEdit: tc.renderEdit,
+      intentSegmentIds: tc.intentSegmentIds,
+      renderSegmentIds: tc.renderSegmentIds,
       intentMusic: tc.intentMusic,
       renderMusic: tc.renderMusic,
     });
@@ -417,6 +435,53 @@ test('decideReelReconcile does not adopt a ready Shorts pack as Full Demo', () =
     assert.equal(got.view.status, tc.wantStatus, `${tc.name} status`);
     assert.equal(got.adoptEffective, tc.wantAdopt, `${tc.name} adopt`);
     assert.notEqual(got.view.status, 'failed', `${tc.name} must not latch failed`);
+  }
+});
+
+test('ready Shorts are adopted only for the same ordered segment selection', () => {
+  const shortsEdit: EditConfig = { ...DEFAULT_EDIT_CONFIG };
+  const cases = [
+    {
+      name: 'same selection',
+      intentSegmentIds: ['kill-2', 'kill-7'],
+      renderSegmentIds: ['kill-2', 'kill-7'],
+      wantAction: 'none',
+      wantAdopt: true,
+    },
+    {
+      name: 'different kill',
+      intentSegmentIds: ['kill-2', 'kill-8'],
+      renderSegmentIds: ['kill-2', 'kill-7'],
+      wantAction: 'record',
+      wantAdopt: false,
+    },
+    {
+      name: 'different order',
+      intentSegmentIds: ['kill-7', 'kill-2'],
+      renderSegmentIds: ['kill-2', 'kill-7'],
+      wantAction: 'record',
+      wantAdopt: false,
+    },
+    {
+      name: 'legacy response without selection',
+      intentSegmentIds: ['kill-2'],
+      renderSegmentIds: undefined,
+      wantAction: 'record',
+      wantAdopt: false,
+    },
+  ] as const;
+
+  for (const tc of cases) {
+    const got = decideReelReconcile({
+      jobStatus: 'recorded',
+      renderStatus: 'ready',
+      intentEdit: shortsEdit,
+      renderEdit: shortsEdit,
+      intentSegmentIds: tc.intentSegmentIds,
+      renderSegmentIds: tc.renderSegmentIds,
+    });
+    assert.equal(got.view.action, tc.wantAction, `${tc.name} action`);
+    assert.equal(got.adoptEffective, tc.wantAdopt, `${tc.name} adopt`);
   }
 });
 
@@ -460,6 +525,12 @@ test('viewForRecordAdmission treats in-flight capture as progress, not a failed 
       body: { error: 'job is not ready to record (status=recording)' },
       wantStatus: 'recording',
       wantAction: 'none',
+    },
+    {
+      name: '409 active generate stays queued for reconciliation',
+      status: 409,
+      body: { error: 'job already has active generate or render work', code: 'generate_work_active' },
+      wantStatus: null,
     },
     {
       name: '202 accepted leaves polling to reconcile',

@@ -41,6 +41,36 @@ async function seedReels(page: Parameters<typeof gotoStudio>[0], intents: object
 }
 
 test.describe('Biblioteca', () => {
+  test('reuses a recorded demo through generate before editing a new Full Demo', async ({ page }) => {
+    await seedReels(page, [fullDemoIntent(RECORDING_JOB_ID, 'Partida completa · Joey-')]);
+    let jobStatus = 'recorded';
+    await page.route(`**/api/demos/${RECORDING_JOB_ID}/status`, (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ status: jobStatus }) }),
+    );
+    await page.route(`**/api/demos/${RECORDING_JOB_ID}/renders/gameplay-pov-60`, (route) =>
+      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+    );
+
+    let generateBody: Record<string, unknown> | undefined;
+    await page.route(`**/api/demos/${RECORDING_JOB_ID}/generate`, async (route) => {
+      generateBody = route.request().postDataJSON() as Record<string, unknown>;
+      jobStatus = 'recording';
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ task: 'record:demo' }) });
+    });
+
+    await gotoStudio(page, '/videos');
+
+    await expect.poll(() => generateBody).toBeDefined();
+    expect(generateBody).toMatchObject({
+      preset: 'gameplay-pov-60',
+      segment_ids: [],
+      edit: { format: 'landscape-16x9', match_recap: true, native_hud: true },
+    });
+    const library = page.getByLabel('Vídeos');
+    await expect(library.getByText('Capturando', { exact: true })).toBeVisible();
+    await expect(library.getByText('Editando', { exact: true })).toHaveCount(0);
+  });
+
   test('does not gate the MP4 behind a cover candidate picker', async ({ page }) => {
     await gotoStudio(page, '/videos');
     await expect(page.getByText('Portada · elige candidata')).toHaveCount(0);

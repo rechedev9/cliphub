@@ -299,6 +299,15 @@ func TestStartGenerateRejectsWhileRenderStateIsActive(t *testing.T) {
 	if rw.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
 	}
+	var response struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != generateWorkActive {
+		t.Fatalf("code = %q, want %q", response.Code, generateWorkActive)
+	}
 	if len(queue.enqueued) != 0 {
 		t.Fatalf("enqueued = %d, want 0 while render is active", len(queue.enqueued))
 	}
@@ -496,6 +505,50 @@ func TestStartGenerateRejectsBadMusicKey(t *testing.T) {
 	}
 	if _, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]; ok {
 		t.Fatal("intent written for a rejected request")
+	}
+}
+
+func TestStartGeneratePreservesMusicMixForChainedRender(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","music":{"key":"phonk-01","volume":0.35,"game_volume":0.2}}`)
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	intent, ok, err := tasks.GenerateIntentFromTask(queue.enqueued[0])
+	if err != nil || !ok {
+		t.Fatalf("GenerateIntentFromTask = (%#v, %v, %v)", intent, ok, err)
+	}
+	if intent.MusicKey != "phonk-01" || intent.MusicVolume != 0.35 || intent.GameVolume == nil || *intent.GameVolume != 0.2 {
+		t.Fatalf("music mix = %q/%v/%v, want phonk-01/0.35/0.2", intent.MusicKey, intent.MusicVolume, intent.GameVolume)
+	}
+}
+
+func TestStartGenerateReusesParsedDemoFromCompletedStatuses(t *testing.T) {
+	statuses := []job.Status{job.StatusRecorded, job.StatusComposed, job.StatusDone, job.StatusReviewRequired}
+	for _, status := range statuses {
+		t.Run(status.String(), func(t *testing.T) {
+			repo := newFakeRepo()
+			queue := &fakeQueue{}
+			plan := killplan.NewPlan()
+			j := job.Job{ID: uuid.New(), Status: status, Rules: rules.Default(), KillPlan: &plan}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+			rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean"}`)
+			if rw.Code != http.StatusAccepted {
+				t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+			}
+			if len(queue.enqueued) != 1 || queue.enqueued[0].Type() != tasks.TypeRecordDemo {
+				t.Fatalf("queue = %#v, want one cache-aware record task", queue.enqueued)
+			}
+		})
 	}
 }
 

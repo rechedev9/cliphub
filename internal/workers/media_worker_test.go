@@ -315,26 +315,28 @@ func TestRecordSourcePlanUsesRecapWindows(t *testing.T) {
 	}
 }
 
-func TestInvalidateReadyRendersDropsReadyShortsState(t *testing.T) {
+func TestInvalidateReadyRenderPreservesOtherFormats(t *testing.T) {
 	id := uuid.New()
 	store := newFakeStorage()
 	w := NewRecordWorker(newFakeRepo(), store, RecordWorkerConfig{WorkDir: t.TempDir()})
-	key, err := renderplan.RenderVariantStateKey(id, editor.PresetViral60Clean)
-	if err != nil {
-		t.Fatal(err)
-	}
 	tests := []struct {
-		name   string
-		status string
-		want   bool
+		name       string
+		variant    string
+		status     string
+		wantExists bool
 	}{
-		{name: "ready shorts pack", status: renderplan.RenderVariantStatusReady, want: false},
-		{name: "review shorts pack", status: renderplan.RenderVariantStatusReview, want: false},
-		{name: "failed render stays", status: renderplan.RenderVariantStatusFailed, want: true},
+		{name: "ready recap is invalidated", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusReady, wantExists: false},
+		{name: "review recap is invalidated", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusReview, wantExists: false},
+		{name: "failed recap stays", variant: editor.PresetGameplayPOV60, status: renderplan.RenderVariantStatusFailed, wantExists: true},
+		{name: "ready shorts pack stays", variant: editor.PresetViral60Clean, status: renderplan.RenderVariantStatusReady, wantExists: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			state := renderplan.RenderVariantState{JobID: id, Variant: editor.PresetViral60Clean, Status: tc.status}
+			key, err := renderplan.RenderVariantStateKey(id, tc.variant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := renderplan.RenderVariantState{JobID: id, Variant: tc.variant, Status: tc.status}
 			raw, err := json.Marshal(state)
 			if err != nil {
 				t.Fatal(err)
@@ -342,15 +344,15 @@ func TestInvalidateReadyRendersDropsReadyShortsState(t *testing.T) {
 			if err := store.Put(key, bytes.NewReader(raw)); err != nil {
 				t.Fatal(err)
 			}
-			if err := w.invalidateReadyRenders(id); err != nil {
+			if err := w.invalidateReadyRender(id, editor.PresetGameplayPOV60); err != nil {
 				t.Fatal(err)
 			}
 			exists, err := store.Exists(key)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if exists != tc.want {
-				t.Fatalf("exists = %t, want %t", exists, tc.want)
+			if exists != tc.wantExists {
+				t.Fatalf("exists = %t, want %t", exists, tc.wantExists)
 			}
 		})
 	}

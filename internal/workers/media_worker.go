@@ -383,8 +383,8 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		logWorkerError(j.ID, "clear not-reusable render failures", err)
 	}
 	if payload.UseRecapPlan {
-		if err := w.invalidateReadyRenders(j.ID); err != nil {
-			logWorkerError(j.ID, "invalidate ready renders after recap capture", err)
+		if err := w.invalidateReadyRender(j.ID, editor.PresetGameplayPOV60); err != nil {
+			logWorkerError(j.ID, "invalidate prior recap render after recap capture", err)
 		}
 	}
 	// A guided generate task carries its own immutable render intent, so another
@@ -411,7 +411,7 @@ func (w *RecordWorker) chainRender(id uuid.UUID, intent renderplan.GenerateInten
 		w.failGenerateHandoff(id, intent, errors.New("render queue is not configured"))
 		return
 	}
-	task, err := tasks.NewRenderVariantTask(id, intent.Variant, intent.MusicKey, 0, nil, intent.Edit)
+	task, err := tasks.NewRenderVariantTask(id, intent.Variant, intent.MusicKey, intent.MusicVolume, intent.GameVolume, intent.Edit)
 	if err != nil {
 		w.failGenerateHandoff(id, intent, fmt.Errorf("build chained render task: %w", err))
 		return
@@ -625,36 +625,29 @@ func (w *RecordWorker) clearNotReusableRenderFailures(id uuid.UUID) error {
 	return errors.Join(errs...)
 }
 
-// invalidateReadyRenders drops ready/review render status after a recap
-// recapture so Studio does not treat the previous Shorts pack as this reel.
-func (w *RecordWorker) invalidateReadyRenders(id uuid.UUID) error {
+// invalidateReadyRender drops the target variant after a recapture. Other
+// variants are immutable completed outputs and must remain available when the
+// same cached demo is used for both Shorts and Full Demo.
+func (w *RecordWorker) invalidateReadyRender(id uuid.UUID, variant string) error {
 	deleter, ok := w.storage.(interface{ Delete(string) error })
 	if !ok {
 		return fmt.Errorf("storage cannot delete ready renders")
 	}
-	var errs []error
-	for _, variant := range editor.PresetNames() {
-		state, exists, err := w.readRenderVariantState(id, variant)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("read render state %q: %w", variant, err))
-			continue
-		}
-		if !exists {
-			continue
-		}
-		if state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview {
-			continue
-		}
-		key, err := renderplan.RenderVariantStateKey(id, variant)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("render state key %q: %w", variant, err))
-			continue
-		}
-		if err := deleter.Delete(key); err != nil {
-			errs = append(errs, fmt.Errorf("delete render state %q: %w", variant, err))
-		}
+	state, exists, err := w.readRenderVariantState(id, variant)
+	if err != nil {
+		return fmt.Errorf("read render state %q: %w", variant, err)
 	}
-	return errors.Join(errs...)
+	if !exists || (state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview) {
+		return nil
+	}
+	key, err := renderplan.RenderVariantStateKey(id, variant)
+	if err != nil {
+		return fmt.Errorf("render state key %q: %w", variant, err)
+	}
+	if err := deleter.Delete(key); err != nil {
+		return fmt.Errorf("delete render state %q: %w", variant, err)
+	}
+	return nil
 }
 
 func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool) (retErr error) {

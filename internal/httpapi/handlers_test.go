@@ -2876,6 +2876,7 @@ func TestGetRenderVariantReturnsEffectiveEditForCurrentRevision(t *testing.T) {
 	putAssistantJSON(t, store, state.RenderResultKey, editor.Result{Preset: editor.PresetViral60Clean})
 	putAssistantJSON(t, store, state.EditDocumentKey, renderplan.EditDocument{
 		SchemaVersion: renderplan.EditDocumentSchemaVersion,
+		Selection:     renderplan.Selection{SegmentIDs: []string{"kill-2", "kill-7"}},
 		Edit: renderplan.EditRequest{
 			Format:        renderplan.FormatLandscape16x9,
 			KillEffect:    renderplan.KillEffectVelocity,
@@ -2904,6 +2905,9 @@ func TestGetRenderVariantReturnsEffectiveEditForCurrentRevision(t *testing.T) {
 	}
 	if !strings.Contains(rw.Body.String(), `"music":{"key":"phonk-01","volume":0.35}`) {
 		t.Fatalf("response missing effective music: %s", rw.Body.String())
+	}
+	if !strings.Contains(rw.Body.String(), `"segment_ids":["kill-2","kill-7"]`) {
+		t.Fatalf("response missing effective segment selection: %s", rw.Body.String())
 	}
 }
 

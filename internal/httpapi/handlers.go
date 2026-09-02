@@ -54,6 +54,7 @@ const (
 	multipartMemBudget = 32 << 20             // 32 MiB in-memory; spill beyond
 	maxJSONBodyBytes   = 1 << 20              // JSON control documents are small
 	renderUniqueTTL    = 24 * time.Hour
+	generateWorkActive = "generate_work_active"
 )
 
 var errGenerateRenderActive = errors.New("a render is already active for this job")
@@ -1024,9 +1025,10 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Same entry points as recording: a parsed job, or a recorded/failed job
-	// being re-run in place. The kill plan must exist before we can record.
-	if (j.Status != job.StatusParsed && j.Status != job.StatusRecorded && j.Status != job.StatusFailed) || j.KillPlan == nil {
+	// Parsed and completed jobs keep their stored demo and plan, so either flow
+	// can be generated again in place. Failed is also retryable when parsing had
+	// already produced the kill plan.
+	if !canGenerateFromStatus(j.Status) || j.KillPlan == nil {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to generate (status=%s)", j.Status))
 		return
 	}
@@ -1035,7 +1037,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Preset     string                 `json:"preset"`
-		Music      string                 `json:"music"`
+		Music      renderMusicRequest     `json:"music"`
 		Edit       renderplan.EditRequest `json:"edit"`
 		SegmentIDs []string               `json:"segment_ids"`
 	}
@@ -1054,7 +1056,9 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	intent := renderplan.GenerateIntent{
 		Variant:     preset.Name,
-		MusicKey:    req.Music,
+		MusicKey:    req.Music.Key,
+		MusicVolume: req.Music.Volume,
+		GameVolume:  req.Music.GameVolume,
 		Edit:        renderplan.NormalizeEditRequest(req.Edit),
 		ActiveRunID: uuid.New(),
 		AcceptedAt:  time.Now().UTC(),
@@ -1065,7 +1069,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	// Build the render task now so an invalid music key fails fast here rather
 	// than silently dropping the chained render later in the record worker.
-	if _, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, intent.MusicKey, 0, nil, intent.Edit); err != nil {
+	if _, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, intent.MusicKey, intent.MusicVolume, intent.GameVolume, intent.Edit); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1139,7 +1143,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, generateintent.ErrActiveRun) || errors.Is(err, errGenerateRenderActive) {
-			writeError(w, http.StatusConflict, "job already has active generate or render work")
+			writeCodedError(w, http.StatusConflict, generateWorkActive, "job already has active generate or render work")
 			return
 		}
 		internalError(w, "enqueue record task", err)
@@ -1150,6 +1154,15 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		"task":    tasks.TypeRecordDemo,
 		"variant": intent.Variant,
 	})
+}
+
+func canGenerateFromStatus(status job.Status) bool {
+	switch status {
+	case job.StatusParsed, job.StatusRecorded, job.StatusComposed, job.StatusDone, job.StatusReviewRequired, job.StatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *Handlers) requireGenerateRenderIdle(id uuid.UUID) error {
@@ -1821,10 +1834,11 @@ func listArtifactDir(store storage.Storage, key string) ([]string, bool) {
 // the names the editor actually wrote instead of guessing them from segment ids.
 type renderVariantResponse struct {
 	*renderplan.RenderVariantState
-	Videos []string                  `json:"videos"`
-	Covers []string                  `json:"covers"`
-	Edit   *renderplan.EditRequest   `json:"edit,omitempty"`
-	Music  *renderplan.MusicSnapshot `json:"music,omitempty"`
+	Videos     []string                  `json:"videos"`
+	Covers     []string                  `json:"covers"`
+	SegmentIDs []string                  `json:"segment_ids,omitempty"`
+	Edit       *renderplan.EditRequest   `json:"edit,omitempty"`
+	Music      *renderplan.MusicSnapshot `json:"music,omitempty"`
 }
 
 // artifactNamePlaceholder is a valid artifact token used only to resolve a
@@ -1851,14 +1865,17 @@ func (h *Handlers) writeRenderVariant(w http.ResponseWriter, state *renderplan.R
 	}
 	var edit *renderplan.EditRequest
 	var music *renderplan.MusicSnapshot
+	var segmentIDs []string
 	if document != nil {
 		edit = &document.Edit
 		music = document.Music
+		segmentIDs = document.Selection.SegmentIDs
 	}
 	writeJSON(w, http.StatusOK, renderVariantResponse{
 		RenderVariantState: state,
 		Videos:             videos,
 		Covers:             covers,
+		SegmentIDs:         segmentIDs,
 		Edit:               edit,
 		Music:              music,
 	})

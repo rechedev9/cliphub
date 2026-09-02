@@ -47,6 +47,16 @@ func TestGenerateIntentValidate(t *testing.T) {
 			intent:  GenerateIntent{Variant: editor.PresetFullHUD60, Edit: EditRequest{Format: "square", KillEffect: KillEffectPunchIn, Transition: TransitionFlash}},
 			wantErr: "unknown render format",
 		},
+		{
+			name:    "invalid music volume",
+			intent:  GenerateIntent{Variant: editor.PresetFullHUD60, MusicVolume: 1.1, Edit: valid()},
+			wantErr: "music volume must be between 0 and 1",
+		},
+		{
+			name:    "invalid game volume",
+			intent:  GenerateIntent{Variant: editor.PresetFullHUD60, GameVolume: floatPointer(-0.1), Edit: valid()},
+			wantErr: "game volume must be between 0 and 1",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,3 +76,5 @@ func TestGenerateIntentValidate(t *testing.T) {
 		})
 	}
 }
+
+func floatPointer(value float64) *float64 { return &value }

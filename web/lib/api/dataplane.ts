@@ -23,6 +23,8 @@ export type DataPlane = {
   planUrl(jobId: string): string;
   recapPlanUrl(jobId: string): string;
   recordUrl(jobId: string): string;
+  /** Atomically reuse/record the required capture and chain its render. */
+  generateUrl(jobId: string): string;
   renderUrl(jobId: string, variant: string): string;
   renderReviewUrl(jobId: string, variant: string): string;
   videoUrl(jobId: string, variant: string, name: string): string;
@@ -54,6 +56,7 @@ export function dataPlane(): DataPlane {
     planUrl: (jobId) => `/api/demos/${jobId}/plan`,
     recapPlanUrl: (jobId) => `/api/demos/${jobId}/recap-plan`,
     recordUrl: (jobId) => `/api/demos/${jobId}/record`,
+    generateUrl: (jobId) => `/api/demos/${jobId}/generate`,
     renderUrl: (jobId, variant) => `/api/demos/${jobId}/renders/${variant}`,
     renderReviewUrl: (jobId, variant) => `/api/demos/${jobId}/renders/${variant}/review`,
     videoUrl: (jobId, variant, name) => `/api/demos/${jobId}/renders/${variant}/videos/${name}`,

@@ -332,6 +332,7 @@ export type AggregatedSeriesPlayer = DemoPlayer & { mapsPresent: number };
 
 /** Proxy code when the local orchestrator is unreachable. */
 export const SERVICE_UNAVAILABLE_CODE = 'service_unavailable';
+export const GENERATE_WORK_ACTIVE_CODE = 'generate_work_active';
 export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
 export const STEAM_CODES = {
   credentialsRequired: 'steam_credentials_required',

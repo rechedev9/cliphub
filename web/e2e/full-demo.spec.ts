@@ -273,23 +273,16 @@ test.describe('Full demo to video', () => {
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
-    const sourceGroup = page.getByRole('radiogroup', { name: 'Origen de la demo' });
-    await expect(sourceGroup).toBeVisible();
-    await expect(sourceGroup.getByRole('radio', { name: 'Premier' })).toBeVisible();
-    await expect(sourceGroup.getByRole('radio', { name: 'Profesional (HLTV)' })).toBeVisible();
-    await expect(sourceGroup.getByRole('radio', { name: 'FACEIT' })).toBeVisible();
+    await expect(page.getByText('FACEIT obligatorio', { exact: true })).toBeVisible();
+    await expect(page.getByRole('radiogroup', { name: 'Tema de overlays FACEIT' })).toBeVisible();
     await page.getByRole('checkbox', { name: /Confirmo esta configuración/ }).check();
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
-    await sourceGroup.getByRole('radio', { name: 'Premier' }).click();
     await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeEnabled();
   });
 
-  test('FACEIT source exposes overlay theme selector with default orange', async ({ page }) => {
+  test('Full Demo exposes its required FACEIT overlay theme with default orange', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, `/full-demo/${JOB}`);
-    const sourceGroup = page.getByRole('radiogroup', { name: 'Origen de la demo' });
-    await sourceGroup.getByRole('radio', { name: 'FACEIT' }).click();
-    const themeGroup = page.getByRole('radiogroup', { name: 'Tema del intro FACEIT' });
+    const themeGroup = page.getByRole('radiogroup', { name: 'Tema de overlays FACEIT' });
     await expect(themeGroup).toBeVisible();
     await expect(themeGroup.getByRole('radio', { name: 'FACEIT naranja' })).toBeChecked();
     await themeGroup.getByRole('radio', { name: 'Neón violeta' }).click();

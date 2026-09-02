@@ -698,6 +698,7 @@ export class RealApiClient implements ApiClient {
       coverName?: string;
       coverNames?: string[];
       artifactPrefix?: string;
+      segmentIds?: string[];
       editConfig?: EditConfig;
       effectiveMusic?: EffectiveRenderMusic;
     } =
@@ -730,6 +731,8 @@ export class RealApiClient implements ApiClient {
       recordAdmitted: this.pendingCapture.has(intent.videoId),
       intentEdit: intent.editConfig,
       renderEdit: render.editConfig,
+      intentSegmentIds: intent.segmentIds,
+      renderSegmentIds: render.segmentIds,
       intentMusic: {
         songId: intent.songId,
         musicVolume: intent.musicVolume,
@@ -818,12 +821,13 @@ export class RealApiClient implements ApiClient {
       const res =
         action === 'record'
           ? await this.send((dp) => ({
-              url: dp.recordUrl(intent.jobId),
+              url: dp.generateUrl(intent.jobId),
               init: {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   preset: variant,
+                  music: buildMusicRequest(intent),
                   segment_ids: intent.segmentIds,
                   edit: buildEditRequest(intent.editConfig),
                 }),
@@ -843,6 +847,10 @@ export class RealApiClient implements ApiClient {
       if (res.ok && action === 'record') {
         this.pendingCapture.add(intent.videoId);
         this.applyView(intent, { status: 'recording', action: 'none' });
+        return;
+      }
+      if (res.ok && action === 'render') {
+        this.applyView(intent, { status: 'composing', action: 'none' });
         return;
       }
       if (!res.ok) {
@@ -920,6 +928,7 @@ export class RealApiClient implements ApiClient {
     coverName?: string;
     coverNames?: string[];
     artifactPrefix?: string;
+    segmentIds?: string[];
     editConfig?: EditConfig;
     effectiveMusic?: EffectiveRenderMusic;
   }> {
@@ -933,6 +942,7 @@ export class RealApiClient implements ApiClient {
       videos?: string[];
       covers?: string[];
       artifact_prefix?: string;
+      segment_ids?: unknown;
       music?: unknown;
       edit?: {
         format?: EditConfig['format'];
@@ -958,6 +968,9 @@ export class RealApiClient implements ApiClient {
     const coverNames = Array.isArray(data.covers)
       ? data.covers.filter((name): name is string => typeof name === 'string' && name.length > 0)
       : undefined;
+    const segmentIds = Array.isArray(data.segment_ids)
+      ? data.segment_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : undefined;
     return {
       status,
       failureReason: data.failure_reason,
@@ -966,6 +979,7 @@ export class RealApiClient implements ApiClient {
       coverName: coverNames?.[0],
       coverNames,
       artifactPrefix: data.artifact_prefix,
+      segmentIds,
       editConfig: parseEffectiveEditConfig(data.edit),
       effectiveMusic: parseEffectiveRenderMusic(data.music),
     };
