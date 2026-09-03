@@ -359,6 +359,8 @@ export type AggregatedSeriesPlayer = DemoPlayer & { mapsPresent: number };
 
 /** Proxy code when the local orchestrator is unreachable. */
 export const SERVICE_UNAVAILABLE_CODE = 'service_unavailable';
+/** Orchestrator 503 for a feature that is not set up; never the proxy's own code. */
+export const NOT_CONFIGURED_CODE = 'not_configured';
 export const GENERATE_WORK_ACTIVE_CODE = 'generate_work_active';
 export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
 export const STEAM_CODES = {
@@ -390,10 +392,6 @@ export const JOB_STATUSES = [
   'review_required',
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
-
-export function isJobStatus(status: string): status is JobStatus {
-  return (JOB_STATUSES as readonly string[]).includes(status);
-}
 
 /** Statuses at or past which the kill plan exists and stays available. */
 export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set<JobStatus>([

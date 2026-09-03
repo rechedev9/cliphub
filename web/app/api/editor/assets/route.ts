@@ -7,9 +7,9 @@ import {
   forwardError,
   serviceUnavailable,
   callOrchestratorStreamingUpload,
-  publicEditorAsset,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from '../_lib';
+import { publicEditorAsset } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 

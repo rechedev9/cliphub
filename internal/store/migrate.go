@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/vodfetch"
@@ -32,23 +33,24 @@ var migrations = []func(tx *sql.Tx) error{
 // access, which for a local single-user studio removes all "database is locked"
 // contention; WAL keeps that durable and fast.
 func openSQLite(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+	// Pragmas travel in the DSN so the driver re-applies them on every
+	// connection: database/sql replaces a connection the driver marks bad
+	// (an interrupted statement does that), and foreign_keys / busy_timeout
+	// are per-connection state that a db.Exec on open would not carry over.
+	// Without foreign_keys the job_kill_plans cascade is decorative.
+	db, err := sql.Open("sqlite", path+"?"+strings.Join([]string{
+		"_pragma=busy_timeout(5000)",
+		"_pragma=journal_mode(WAL)",
+		"_pragma=synchronous(NORMAL)",
+		"_pragma=foreign_keys(1)",
+	}, "&"))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	for _, pragma := range []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA busy_timeout=5000",
-		"PRAGMA synchronous=NORMAL",
-		// Off by default in SQLite; without it the job_kill_plans cascade is
-		// decorative. Must be set outside any transaction.
-		"PRAGMA foreign_keys=ON",
-	} {
-		if _, err := db.Exec(pragma); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("sqlite %s: %w", pragma, err)
-		}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	if err := migrate(db); err != nil {
 		_ = db.Close()

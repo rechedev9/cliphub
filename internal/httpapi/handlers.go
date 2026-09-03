@@ -94,6 +94,7 @@ type EditorProjectRepository interface {
 	Create(ctx context.Context, p *timelineplan.Project) error
 	Get(ctx context.Context, id uuid.UUID) (timelineplan.Project, error)
 	List(ctx context.Context, limit int) ([]timelineplan.Project, error)
+	ListByStatus(ctx context.Context, s timelineplan.Status) ([]timelineplan.Project, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, s timelineplan.Status, failureReason string) error
 	SetPlan(ctx context.Context, id uuid.UUID, plan timelineplan.Document) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -810,6 +811,28 @@ func (h *Handlers) StartParse(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// claimQueueStage builds the EnqueueWithTransition callback for a stage whose
+// durable claim must be visible before its task is: claim runs for accepted
+// work and compensate runs only when work that was actually claimed is later
+// discarded. A rejection at admission (duplicate, full or closed queue) leaves
+// the state untouched so the client can retry the POST once the queue recovers.
+func claimQueueStage(claim func() error, compensate func(decision error) error) func(error) error {
+	var admitted atomic.Bool
+	return func(decision error) error {
+		if decision == nil {
+			if err := claim(); err != nil {
+				return err
+			}
+			admitted.Store(true)
+			return nil
+		}
+		if !admitted.Load() {
+			return nil
+		}
+		return compensate(decision)
+	}
+}
+
 // persistJobQueueDecision keeps a persisted active-looking job state aligned
 // with ownership by the process-local queue. The queue calls it once during
 // admission and again if accepted pending work is discarded during shutdown.
@@ -1007,20 +1030,10 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	// the in-process queue, so without the claim a restart left the job idle at
 	// parsed with nothing to retry. A rejection at admission leaves the state
 	// untouched so the client can retry the POST once the queue recovers.
-	var admitted atomic.Bool
-	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
-		if decision == nil {
-			if err := h.repo.UpdateStatus(r.Context(), j.ID, job.StatusRecording, ""); err != nil {
-				return err
-			}
-			admitted.Store(true)
-			return nil
-		}
-		if !admitted.Load() {
-			return nil
-		}
-		return h.persistJobQueueDecision(j.ID, "record", decision)
-	}, asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL)); err != nil {
+	if _, err := h.queue.EnqueueWithTransition(task, claimQueueStage(
+		func() error { return h.repo.UpdateStatus(r.Context(), j.ID, job.StatusRecording, "") },
+		func(decision error) error { return h.persistJobQueueDecision(j.ID, "record", decision) },
+	), asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL)); err != nil {
 		// A duplicate is success: the reconcile loop re-POSTs record on every tick
 		// until the worker dequeues the unique task, so a 202 here keeps the reel
 		// advancing instead of being marked failed mid-capture.
@@ -1146,6 +1159,13 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			if readErr != nil {
 				return readErr
 			}
+			// Record uniqueness is per job, so a capture queued for another reel
+			// also answers duplicate. Adopting that reel's choices would silently
+			// drop this request; refuse it the way the intent store refuses an
+			// overlapping run so the client keeps polling and re-POSTs later.
+			if ok && !sameCapture(existing, intent) {
+				return fmt.Errorf("%w for job %s: queued capture carries a different intent", generateintent.ErrActiveRun, j.ID)
+			}
 			if ok {
 				intent = existing
 			}
@@ -1184,6 +1204,44 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		"task":    tasks.TypeRecordDemo,
 		"variant": intent.Variant,
 	})
+}
+
+// sameCapture reports whether two intents would enqueue the same record task,
+// i.e. the same HUD mode, segment selection, killfeed framing and recap flag.
+// Music and post-capture edit choices never change the capture, so a re-drive
+// that only differs there is still the duplicate the queue says it is.
+func sameCapture(a, b renderplan.GenerateIntent) bool {
+	ca, okA := captureRequestFor(a)
+	cb, okB := captureRequestFor(b)
+	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan &&
+		ca.portraitSafeKillfeed == cb.portraitSafeKillfeed && slices.Equal(ca.segmentIDs, cb.segmentIDs)
+}
+
+type captureRequest struct {
+	hudMode              string
+	segmentIDs           []string
+	portraitSafeKillfeed bool
+	useRecapPlan         bool
+}
+
+// captureRequestFor derives the capture-time choices of an intent the same way
+// StartGenerate does when it builds the record task.
+func captureRequestFor(intent renderplan.GenerateIntent) (captureRequest, bool) {
+	preset, ok := editor.PresetByName(intent.Variant)
+	if !ok {
+		return captureRequest{}, false
+	}
+	hudMode, useRecapPlan := applyCaptureOverrides(preset.HUDMode, intent.Edit)
+	segmentIDs := intent.SegmentIDs
+	if useRecapPlan || len(segmentIDs) == 0 {
+		segmentIDs = nil
+	}
+	return captureRequest{
+		hudMode:              hudMode,
+		segmentIDs:           segmentIDs,
+		portraitSafeKillfeed: preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16,
+		useRecapPlan:         useRecapPlan,
+	}, true
 }
 
 func canGenerateFromStatus(status job.Status) bool {
@@ -1234,20 +1292,10 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "build compose task", err)
 		return
 	}
-	var admitted atomic.Bool
-	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
-		if decision == nil {
-			if err := h.repo.UpdateStatus(r.Context(), j.ID, job.StatusComposing, ""); err != nil {
-				return err
-			}
-			admitted.Store(true)
-			return nil
-		}
-		if !admitted.Load() {
-			return nil
-		}
-		return h.persistJobQueueDecision(j.ID, "compose", decision)
-	}); err != nil {
+	if _, err := h.queue.EnqueueWithTransition(task, claimQueueStage(
+		func() error { return h.repo.UpdateStatus(r.Context(), j.ID, job.StatusComposing, "") },
+		func(decision error) error { return h.persistJobQueueDecision(j.ID, "compose", decision) },
+	)); err != nil {
 		internalError(w, "enqueue compose task", err)
 		return
 	}
@@ -2293,13 +2341,17 @@ func (h *Handlers) DeleteJob(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
 		return
 	}
-	h.renderStateMu.Lock()
-	defer h.renderStateMu.Unlock()
+	// The per-job intent lock is what keeps a render from being admitted for
+	// this job while its tree goes away (StartRenderVariant admits inside the
+	// same WhileIdle). The process-wide renderStateMu is deliberately not
+	// held: the tree can be gigabytes of captures and every other job's
+	// render poll would stall behind the RemoveAll. The idle read is the same
+	// lock-free read StartGenerate does under this lock.
 	err := h.generateIntents.WhileIdle(j.ID, func() error {
 		if err := h.requireGenerateRenderIdle(j.ID); err != nil {
 			return err
 		}
-		if err := deleter.DeleteTree(fmt.Sprintf("jobs/%s", j.ID)); err != nil {
+		if err := deleter.DeleteTree(artifacts.JobPrefix(j.ID)); err != nil {
 			return fmt.Errorf("delete job artifacts: %w", err)
 		}
 		if err := deleter.Delete(fmt.Sprintf("demos/%s.dem", j.ID)); err != nil {

@@ -67,7 +67,7 @@ func sweepInterruptedEditorRenders(ctx context.Context, repo editorInterruptSwee
 			_ = rec.RecordError(obs.Event{
 				JobID:   p.ID.String(),
 				Stage:   obs.StageEditor,
-				Class:   interruptedClass,
+				Class:   obs.ClassInterrupted,
 				Message: interruptedEditorRenderReason,
 			})
 		}

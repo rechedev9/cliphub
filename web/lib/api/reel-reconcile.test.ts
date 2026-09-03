@@ -12,8 +12,7 @@ import {
   unrecoverableJobGoneView,
   viewForJobGone,
   viewForRecordAdmission,
-  viewForRenderAdmission,
-} from './reel-reconcile.ts';
+  viewForRenderAdmission, viewForReadyWithoutVideo, READY_WITHOUT_VIDEO_REASON } from './reel-reconcile.ts';
 import type { DecideReelReconcileInput, MismatchRedrive, ReconcileInput, RedrivenRevision, ReelAction } from './reel-reconcile.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
 import type { EditConfig } from './types.ts';
@@ -126,6 +125,17 @@ test('render warnings stay terminal but block publication', () => {
       reviewArtifactPrefix: 'jobs/j/renders/v/revisions/r',
     },
   );
+});
+
+test('ready without an MP4 name latches failed+unrecoverable after three ticks so the poll stops', () => {
+  assert.equal(viewForReadyWithoutVideo(1), null);
+  assert.equal(viewForReadyWithoutVideo(2), null);
+  assert.deepEqual(viewForReadyWithoutVideo(3), {
+    status: 'failed',
+    action: 'none',
+    failureReason: READY_WITHOUT_VIDEO_REASON,
+    unrecoverable: true,
+  });
 });
 
 test('reels leave reconciliation only when ready with an MP4 URL; review/failed/active stay so retries are not stuck', () => {

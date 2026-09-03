@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
+import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE} from '@/lib/api/types';
 
 /** Server-side orchestrator base; local-first default. */
 export function orchestratorUrl(): string {
@@ -142,12 +142,12 @@ export async function forwardError(res: Response): Promise<Response> {
     const code = 'code' in body && typeof body.code === 'string' ? body.code : undefined;
     if (res.status === 503 && code === SERVICE_UNAVAILABLE_CODE) {
       // Reserved for this proxy; an upstream claiming it would masquerade as downtime.
-      return NextResponse.json({ error, code: 'not_configured' }, { status: res.status });
+      return NextResponse.json({ error, code: NOT_CONFIGURED_CODE }, { status: res.status });
     }
     return NextResponse.json(code === undefined ? { error } : { error, code }, { status: res.status });
   }
   if (res.status === 503) {
-    return NextResponse.json({ error: 'upstream error', code: 'not_configured' }, { status: res.status });
+    return NextResponse.json({ error: 'upstream error', code: NOT_CONFIGURED_CODE }, { status: res.status });
   }
   return NextResponse.json({ error: text || `orchestrator error (${res.status})` }, { status: res.status });
 }

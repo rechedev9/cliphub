@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { editorAssetUrl, callOrchestrator, forwardError, serviceUnavailable, publicEditorAsset } from '../../_lib';
+import { editorAssetUrl, callOrchestrator, forwardError, serviceUnavailable } from '../../_lib';
+import { publicEditorAsset } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 

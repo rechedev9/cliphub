@@ -86,6 +86,17 @@ export function viewForJobGone(consecutive404s: number): ReelView | null {
   return consecutive404s >= JOB_GONE_LATCH_TICKS ? unrecoverableJobGoneView() : null;
 }
 
+/** Ticks a ready render may report no MP4 name before latching; names can lag ready by one tick. */
+const READY_WITHOUT_VIDEO_LATCH_TICKS = 3;
+
+export const READY_WITHOUT_VIDEO_REASON = 'render reported ready but no MP4 exists under the run';
+
+/** Ready with no MP4 name for too long: latch failed+unrecoverable so the poll stops. */
+export function viewForReadyWithoutVideo(consecutiveTicks: number): ReelView | null {
+  if (consecutiveTicks < READY_WITHOUT_VIDEO_LATCH_TICKS) return null;
+  return { ...failed(READY_WITHOUT_VIDEO_REASON), unrecoverable: true };
+}
+
 function failed(reason?: string, code?: string): ReelView {
   const view: ReelView = { status: 'failed', action: 'none' };
   if (reason) view.failureReason = reason;

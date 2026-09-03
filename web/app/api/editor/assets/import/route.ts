@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
 import { parseControlJSONObject, readBoundedText } from '@/lib/api/bounded-request-body';
-import { orchestratorUrl, callOrchestrator, mutationHeaders, forwardError, serviceUnavailable, publicEditorAsset } from '../../_lib';
+import { orchestratorUrl, callOrchestrator, mutationHeaders, forwardError, serviceUnavailable } from '../../_lib';
+import { publicEditorAsset } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 

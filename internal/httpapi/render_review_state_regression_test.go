@@ -387,8 +387,8 @@ func TestMaterializeRenderVariantStatesSettlesLegacyReviewOnceAtStartup(t *testi
 		Preset:   variant,
 		Warnings: []string{"freeze at 00:12"},
 		Shorts: []editor.ShortResult{{
-			SegmentID:    "seg-001",
-			OutputFormat: editor.OutputFormatShort9x16,
+			SegmentID:       "seg-001",
+			OutputFormat:    editor.OutputFormatShort9x16,
 			PublishArtifact: recording.RecordingArtifact{Path: "seg-001.mp4", SizeBytes: 10, Width: 1080, Height: 1920},
 		}},
 	})

@@ -30,4 +30,3 @@ export function editorProjectUrl(projectId: string, suffix = ''): string | null 
   return UUID_RE.test(projectId) ? `${orchestratorUrl()}/api/editor/projects/${projectId}${suffix}` : null;
 }
 
-export { publicEditorAsset } from '@/lib/api/public-projections';

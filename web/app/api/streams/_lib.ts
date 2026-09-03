@@ -37,4 +37,3 @@ export function streamJobUrl(jobId: string, suffix = ''): string | null {
   return UUID_RE.test(jobId) ? `${orchestratorUrl()}/api/stream-jobs/${jobId}${suffix}` : null;
 }
 
-export { publicStreamJob } from '@/lib/api/public-projections';

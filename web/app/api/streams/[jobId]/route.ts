@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
-import { streamJobUrl, callOrchestrator, forwardError, serviceUnavailable, publicStreamJob } from '../_lib';
+import { streamJobUrl, callOrchestrator, forwardError, serviceUnavailable } from '../_lib';
+import { publicStreamJob } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 

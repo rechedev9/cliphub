@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -113,6 +114,18 @@ func (r *fakeEditorProjects) List(_ context.Context, _ int) ([]timelineplan.Proj
 	out := make([]timelineplan.Project, 0, len(r.projects))
 	for _, p := range r.projects {
 		out = append(out, p)
+	}
+	return out, nil
+}
+
+func (r *fakeEditorProjects) ListByStatus(_ context.Context, status timelineplan.Status) ([]timelineplan.Project, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := []timelineplan.Project{}
+	for _, p := range r.projects {
+		if p.Status == status {
+			out = append(out, p)
+		}
 	}
 	return out, nil
 }
@@ -555,5 +568,104 @@ func TestImportEditorAsset(t *testing.T) {
 				t.Fatalf("origin = %s, want %s", asset.Origin, tc.wantOrigin)
 			}
 		})
+	}
+}
+
+// renderStatePutFailureStorage fails every write of one key while serving the
+// rest from the in-memory fake, so a test can break the second admission write.
+type renderStatePutFailureStorage struct {
+	*fakeStorage
+	mu      sync.Mutex
+	failKey string
+}
+
+func (s *renderStatePutFailureStorage) setFailKey(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failKey = key
+}
+
+func (s *renderStatePutFailureStorage) Put(key string, r io.Reader) error {
+	s.mu.Lock()
+	failKey := s.failKey
+	s.mu.Unlock()
+	if key != "" && key == failKey {
+		return errors.New("disk full")
+	}
+	return s.fakeStorage.Put(key, r)
+}
+
+// Admission claims the row and then writes the render state; when the second
+// write fails nothing is queued, so the claim must be released or the project
+// answers 409 forever with no task behind it.
+func TestStartEditorRenderReleasesClaimWhenStateWriteFails(t *testing.T) {
+	t.Parallel()
+	assets := newFakeEditorAssets()
+	projects := newFakeEditorProjects()
+	queue := &fakeQueue{}
+	store := &renderStatePutFailureStorage{fakeStorage: newFakeStorage()}
+	h := NewHandlers(newFakeRepo(), store, queue, WithEditorRepositories(assets, projects))
+	srv := httptest.NewServer(Routes(h))
+	t.Cleanup(srv.Close)
+
+	create, err := http.NewRequest(http.MethodPost, srv.URL+"/api/editor/projects", strings.NewReader(`{"title":"Ace reel"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	create.Header.Set("Content-Type", "application/json")
+	resp, err := srv.Client().Do(create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	list, err := projects.List(context.Background(), 1)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("list projects: %v %#v", err, list)
+	}
+	plan := timelineplan.DefaultDocument()
+	plan.Tracks[0].Items = []timelineplan.Item{{
+		ID: "clip-1", AssetID: "11111111-1111-1111-1111-111111111111", SourceIn: 0, SourceOut: 1,
+	}}
+	if err := projects.SetPlan(context.Background(), list[0].ID, plan); err != nil {
+		t.Fatal(err)
+	}
+	store.setFailKey(timelineplan.RenderStateKey(list[0].ID))
+
+	render := func() int {
+		req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/editor/projects/"+list[0].ID.String()+"/render", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if code := render(); code != http.StatusInternalServerError {
+		t.Fatalf("render status = %d, want 500 when the state write fails", code)
+	}
+	if len(queue.enqueued) != 0 {
+		t.Fatalf("enqueued = %d, want nothing after a failed admission", len(queue.enqueued))
+	}
+	got, err := projects.Get(context.Background(), list[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != timelineplan.StatusDraft {
+		t.Fatalf("status after failed admission = %s, want draft (claim released)", got.Status)
+	}
+
+	store.setFailKey("")
+	if code := render(); code != http.StatusAccepted {
+		t.Fatalf("render status after storage recovered = %d, want 202 (no 409 lock-out)", code)
+	}
+	got, err = projects.Get(context.Background(), list[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != timelineplan.StatusRendering {
+		t.Fatalf("status after successful admission = %s, want rendering", got.Status)
 	}
 }

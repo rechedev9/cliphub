@@ -187,7 +187,6 @@ type sqlScanner interface {
 	Scan(dest ...any) error
 }
 
-
 // Delete removes the stream job row. Idempotent: a missing id is not an error,
 // so a retried delete after a partial artifact cleanup converges.
 func (r *SQLiteStreamJobRepository) Delete(ctx context.Context, id uuid.UUID) error {

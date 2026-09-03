@@ -32,7 +32,6 @@ import (
 
 const gracefulShutdownTimeout = 10 * time.Second
 
-const interruptedClass = "interrupted"
 const streamAcquireRecoveryDisabledReason = "interrupted: stream acquisition cannot resume because the acquisition worker is disabled"
 
 func main() {
@@ -367,7 +366,7 @@ func recoverStreamAcquisitions(
 					JobID:   id.String(),
 					Stage:   obs.StageStreamAcquire,
 					Task:    tasks.TypeStreamAcquire,
-					Class:   interruptedClass,
+					Class:   obs.ClassInterrupted,
 					Message: streamAcquireRecoveryDisabledReason,
 				})
 			}

@@ -152,7 +152,7 @@ func readSweepFixture(t *testing.T, store storage.Storage, key string, dst any) 
 func interruptedObsCount(rec *obs.Recorder, stage string) int64 {
 	var count int64
 	for _, metric := range rec.Snapshot() {
-		if metric.Name == "CLIPHUB_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == interruptedClass {
+		if metric.Name == "CLIPHUB_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == obs.ClassInterrupted {
 			count += metric.Value
 		}
 	}
@@ -237,7 +237,7 @@ func TestSweepInterruptedJobsFailsOnlyNonresumableStates(t *testing.T) {
 			// Each swept failure is recorded once through obs (class=interrupted).
 			var interruptErrors int64
 			for _, m := range rec.Snapshot() {
-				if m.Name == "CLIPHUB_errors_total" && m.Labels["class"] == interruptedClass {
+				if m.Name == "CLIPHUB_errors_total" && m.Labels["class"] == obs.ClassInterrupted {
 					interruptErrors += m.Value
 				}
 			}

@@ -20,10 +20,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
-// interruptedClass is the stable obs error class for jobs failed by the startup
-// sweep, so they group together in the journal and metrics.
-const interruptedClass = "interrupted"
-
 const (
 	interruptedQueuedJobReason  = "interrupted: the orchestrator restarted before queued work started"
 	interruptedDemoRenderReason = "interrupted: the orchestrator restarted before render completed"
@@ -90,7 +86,7 @@ func sweepInterruptedJobs(ctx context.Context, repo interruptSweeper, rec *obs.R
 				_ = rec.RecordError(obs.Event{
 					JobID:   j.ID.String(),
 					Stage:   interruptedStages[status],
-					Class:   interruptedClass,
+					Class:   obs.ClassInterrupted,
 					Message: reason,
 					Demo:    j.DemoPath,
 					Target:  j.TargetSteamID,
@@ -244,7 +240,7 @@ func sweepInterruptedGenerateRuns(ctx context.Context, repo interruptSweeper, st
 			_ = rec.RecordError(obs.Event{
 				JobID:   j.ID.String(),
 				Stage:   obs.StageRecord,
-				Class:   interruptedClass,
+				Class:   obs.ClassInterrupted,
 				Message: interruptedGenerateReason,
 				Demo:    j.DemoPath,
 				Target:  j.TargetSteamID,
@@ -317,7 +313,7 @@ func sweepInterruptedStreamJobsAfterRenderStates(
 				_ = rec.RecordError(obs.Event{
 					JobID:   j.ID.String(),
 					Stage:   stage,
-					Class:   interruptedClass,
+					Class:   obs.ClassInterrupted,
 					Message: reason,
 					Demo:    j.SourcePath,
 				})
@@ -514,7 +510,7 @@ func recordInterruptedRender(rec *obs.Recorder, jobID uuid.UUID, source, target,
 	_ = rec.RecordError(obs.Event{
 		JobID:   jobID.String(),
 		Stage:   obs.StageRender,
-		Class:   interruptedClass,
+		Class:   obs.ClassInterrupted,
 		Message: message,
 		Demo:    source,
 		Target:  target,

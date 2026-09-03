@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -420,21 +419,24 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 	// without it, so the compensating write uses its own context like
 	// persistJobQueueDecision. Only admitted work has anything to revert:
 	// a duplicate or full-queue rejection never wrote `rendering`.
-	var admitted atomic.Bool
-	_, err = h.queue.EnqueueWithTransition(task, func(decision error) error {
-		if decision == nil {
-			if err := h.editorProjects.UpdateStatus(r.Context(), p.ID, timelineplan.StatusRendering, ""); err != nil {
-				return err
-			}
-			if err := h.writeEditorRenderState(state); err != nil {
-				return err
-			}
-			admitted.Store(true)
-			return nil
+	claim := func() error {
+		if err := h.editorProjects.UpdateStatus(r.Context(), p.ID, timelineplan.StatusRendering, ""); err != nil {
+			return err
 		}
-		if !admitted.Load() {
-			return nil
+		if err := h.writeEditorRenderState(state); err != nil {
+			// The row is claimed but the state file is not and nothing will be
+			// queued: release the claim so the project is exactly as it was
+			// before the request instead of `rendering` with no task behind it.
+			revertCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if revertErr := h.editorProjects.UpdateStatus(revertCtx, p.ID, p.Status, p.FailureReason); revertErr != nil {
+				return errors.Join(err, fmt.Errorf("release editor render claim: %w", revertErr))
+			}
+			return err
 		}
+		return nil
+	}
+	compensate := func(decision error) error {
 		reason := "enqueue editor render task: " + decision.Error()
 		markCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -446,7 +448,8 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 		failed.Error = reason
 		failed.UpdatedAt = time.Now().UTC()
 		return h.writeEditorRenderState(failed)
-	}, asynq.MaxRetry(0), asynq.Unique(editorRenderUniqueTTL))
+	}
+	_, err = h.queue.EnqueueWithTransition(task, claimQueueStage(claim, compensate), asynq.MaxRetry(0), asynq.Unique(editorRenderUniqueTTL))
 	if err != nil {
 		if errors.Is(err, asynq.ErrDuplicateTask) {
 			writeError(w, http.StatusConflict, "a render is already queued for this project")

@@ -145,3 +145,29 @@ func TestMigrateV2DropsOrphanKillPlansFromLegacyDatabase(t *testing.T) {
 		t.Fatal("legacy jobs.kill_plan column survived migration")
 	}
 }
+
+// database/sql drops a connection the driver marks bad (an interrupted
+// statement does that) and opens a fresh one; per-connection pragmas must be
+// part of the DSN so the replacement still enforces foreign keys.
+func TestOpenSQLitePragmasSurviveConnectionReplacement(t *testing.T) {
+	db, err := openSQLite(filepath.Join(t.TempDir(), "jobs.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	// Interrupted statement: the driver flags the connection and the pool
+	// replaces it on the next use.
+	_, _ = db.ExecContext(cancelled, `SELECT 1`)
+	var foreignKeys, busyTimeout int
+	if err := db.QueryRow(`PRAGMA foreign_keys`).Scan(&foreignKeys); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`PRAGMA busy_timeout`).Scan(&busyTimeout); err != nil {
+		t.Fatal(err)
+	}
+	if foreignKeys != 1 || busyTimeout != 5000 {
+		t.Fatalf("after connection replacement foreign_keys=%d busy_timeout=%d, want 1 and 5000", foreignKeys, busyTimeout)
+	}
+}

@@ -8,9 +8,9 @@ import {
   forwardError,
   serviceUnavailable,
   callOrchestratorStreamingUpload,
-  publicStreamJob,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from './_lib';
+import { publicStreamJob } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 

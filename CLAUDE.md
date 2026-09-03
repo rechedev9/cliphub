@@ -24,7 +24,7 @@ Studio ships no assistant surface: it is a GUI over the same pipeline, and no pu
 |---|---|---|
 | `cmd/` | 12 `package main` binaries → `bin/zv*`. Thin flags + `os.Exit`. Known leaks: recorder launch, orchestrator inline queue, demo-players parse, analysis-viewer. Do not add more. | `cmd/AGENTS.md` |
 | `cmd/zv/` | Unified CLI dispatcher and catalog. `zv check` enforces docs/skills/workflows against the command contract. | `cmd/zv/AGENTS.md` |
-| `internal/` | 51 flat Go packages, one directory = one package. Durable plans (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan`, `timelineplan`) are the contracts later stages honor. | `internal/AGENTS.md` |
+| `internal/` | 53 flat Go packages, one directory = one package. Durable plans (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan`, `timelineplan`) are the contracts later stages honor. | `internal/AGENTS.md` |
 | `effects/` | Sandboxed `gopher-lua` effect scripts; no filesystem or process access. | - |
 | `web/` | Next.js 16 / React 19 local Studio UI. | `web/CLAUDE.md`, `~/.grok/design.md`, `frontend-design` skill |
 | `desktop/` | Electron 43 wrapper packaging `web/` + Go binaries. No React in `desktop/src`. | `desktop/GUIDE.md` |

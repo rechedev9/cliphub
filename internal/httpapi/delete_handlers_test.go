@@ -146,3 +146,53 @@ func TestDeleteEditorProjectAndAsset(t *testing.T) {
 		t.Fatal("asset row survived delete")
 	}
 }
+
+// A rendering project reads its asset media in place, so the asset must
+// survive until that render settles; afterwards the same delete goes through.
+func TestDeleteEditorAssetRefusesWhileRenderingProjectUsesIt(t *testing.T) {
+	assets := newFakeEditorAssets()
+	projects := newFakeEditorProjects()
+	store := newFakeStorage()
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithEditorRepositories(assets, projects))
+
+	asset := &mediaassets.Asset{SHA256: "abc", FileName: "clip.mp4", Origin: mediaassets.OriginUpload}
+	if err := assets.Create(context.Background(), asset); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(mediaassets.MediaKey(asset.ID), bytes.NewReader([]byte("mp4"))); err != nil {
+		t.Fatal(err)
+	}
+	project := &timelineplan.Project{Title: "busy", Status: timelineplan.StatusDraft}
+	if err := projects.Create(context.Background(), project); err != nil {
+		t.Fatal(err)
+	}
+	plan := timelineplan.DefaultDocument()
+	plan.Tracks[0].Items = []timelineplan.Item{{ID: "clip-1", AssetID: asset.ID.String(), SourceIn: 0, SourceOut: 1}}
+	if err := projects.SetPlan(context.Background(), project.ID, plan); err != nil {
+		t.Fatal(err)
+	}
+	if err := projects.UpdateStatus(context.Background(), project.ID, timelineplan.StatusRendering, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	del := func() *httptest.ResponseRecorder {
+		rw := httptest.NewRecorder()
+		Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/editor/assets/"+asset.ID.String(), nil))
+		return rw
+	}
+	if rw := del(); rw.Code != http.StatusConflict {
+		t.Fatalf("delete while rendering = %d, want 409; body=%s", rw.Code, rw.Body.String())
+	}
+	if exists, _ := store.Exists(mediaassets.MediaKey(asset.ID)); !exists {
+		t.Fatal("media removed by a refused delete")
+	}
+	if err := projects.UpdateStatus(context.Background(), project.ID, timelineplan.StatusRendered, ""); err != nil {
+		t.Fatal(err)
+	}
+	if rw := del(); rw.Code != http.StatusNoContent {
+		t.Fatalf("delete after render settled = %d, want 204; body=%s", rw.Code, rw.Body.String())
+	}
+	if _, err := assets.Get(context.Background(), asset.ID); err == nil {
+		t.Fatal("asset row survived delete")
+	}
+}

@@ -9,7 +9,7 @@ import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset
 import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
-import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
 import { reelIdentity, shouldReuseReelIntent } from './reel-identity.ts';
@@ -175,6 +175,8 @@ export class RealApiClient implements ApiClient {
 
   /** Consecutive 404 status polls per reel, feeding the unrecoverable latch. */
   private readonly jobGoneTicks = new Map<string, number>();
+  /** Consecutive ready-without-MP4 render polls per reel, feeding the unrecoverable latch. */
+  private readonly readyWithoutVideoTicks = new Map<string, number>();
   /** POST /record accepted; job may still read failed until the worker dequeues. */
   private readonly pendingCapture = new Set<string>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
@@ -689,6 +691,7 @@ export class RealApiClient implements ApiClient {
       this.reels.delete(videoId);
       this.artifactNames.delete(videoId);
       this.jobGoneTicks.delete(videoId);
+      this.readyWithoutVideoTicks.delete(videoId);
       this.forgetDriveState(videoId);
     }
     this.seriesMatches.delete(jobId);
@@ -757,6 +760,18 @@ export class RealApiClient implements ApiClient {
         names.covers = [render.coverName];
       }
       this.artifactNames.set(intent.videoId, names);
+    }
+    // A ready render whose MP4 never shows up would otherwise stay on the poll forever.
+    if (render.status === 'ready' && !render.videoName && !this.artifactNames.has(intent.videoId)) {
+      const strikes = (this.readyWithoutVideoTicks.get(intent.videoId) ?? 0) + 1;
+      this.readyWithoutVideoTicks.set(intent.videoId, strikes);
+      const latched = viewForReadyWithoutVideo(strikes);
+      if (latched) {
+        this.applyView(intent, latched);
+        return;
+      }
+    } else {
+      this.readyWithoutVideoTicks.delete(intent.videoId);
     }
     if (job.status !== 'failed') {
       this.pendingCapture.delete(intent.videoId);

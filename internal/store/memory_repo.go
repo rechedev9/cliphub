@@ -247,6 +247,12 @@ func (r *MemoryJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, pla
 	if !ok {
 		return job.ErrNotFound
 	}
+	// Same contract as the SQLite row: a plan that cannot be encoded (NaN or
+	// Inf in a float) is refused at write time instead of panicking every
+	// later clone.
+	if _, err := json.Marshal(plan); err != nil {
+		return fmt.Errorf("marshal kill plan: %w", err)
+	}
 	planCopy := plan
 	j.KillPlan = &planCopy
 	j.UpdatedAt = time.Now().UTC()
