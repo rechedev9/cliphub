@@ -54,7 +54,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 - Durable docs (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan.Document`, `timelineplan.Document`) are the contracts later stages must honor.
 - Agent-ready stage outputs should expose schema version, input refs, decision basis, effective config, safety gates, resume policy, QA status, and provenance when that stage is meant to be driven by CLI/API automation.
 - `cmd/zv-orchestrator` still owns the inline queue; repositories live in `store` and startup sweeps in `reconcile`. Do not create vague service layers around them.
-- Queue uniqueness is the logical scope from `tasks.UniqueScope` (one capture per job, one render per job+variant), not the payload bytes; admission that accepts work must claim it in the row (`recording`, `composing`, editor `rendering`) with a discard compensation.
+- Queue uniqueness is the logical scope from `tasks.UniqueScope` (one capture per job, one compose per job, one render per job+variant), not the payload bytes; admission that accepts work must claim it in the row (`recording`, `composing`, editor `rendering`) with a discard compensation.
 - Every HTTP error body carries `code`; `service_unavailable` is reserved for the Studio proxy meaning "orchestrator unreachable" and must never be emitted by Go.
 
 ## ANTI-PATTERNS

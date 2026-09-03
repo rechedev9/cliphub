@@ -572,9 +572,10 @@ func TestInlineQueueUniqueIdentityIgnoresTaskHeaders(t *testing.T) {
 	close(release)
 }
 
-// One capture per job and one render per job+variant: a second admission with
-// different editorial choices is the same physical work on the single CS2 /
-// ffmpeg lane and must be a duplicate, while another job or variant is not.
+// One capture per job, one compose per job, and one render per job+variant: a
+// second admission with different editorial choices is the same physical work
+// on the single CS2 / ffmpeg lane and must be a duplicate, while another job
+// or variant is not.
 func TestInlineQueueUniqueIdentityIsTheLogicalScopeNotThePayload(t *testing.T) {
 	release := make(chan struct{})
 	started := make(chan struct{}, 8)
@@ -585,6 +586,7 @@ func TestInlineQueueUniqueIdentityIsTheLogicalScopeNotThePayload(t *testing.T) {
 	}
 	queue := startTestInlineQueue(t, map[string]taskHandler{
 		tasktypes.TypeRecordDemo:    handler,
+		tasktypes.TypeComposeFinal:  handler,
 		tasktypes.TypeRenderVariant: handler,
 	}, 4)
 	t.Cleanup(func() { close(release) })
@@ -599,6 +601,9 @@ func TestInlineQueueUniqueIdentityIsTheLogicalScopeNotThePayload(t *testing.T) {
 	recordAClean := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobA, "clean", []string{"seg-001"}, false, false))
 	recordADeathnotices := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobA, "deathnotices", nil, true, false))
 	recordB := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobB, "clean", []string{"seg-001"}, false, false))
+	composeA := mustTask(tasktypes.NewComposeFinalTask(jobA))
+	composeAAgain := mustTask(tasktypes.NewComposeFinalTask(jobA))
+	composeB := mustTask(tasktypes.NewComposeFinalTask(jobB))
 	edit := renderplan.DefaultEditRequest()
 	renderAViral := mustTask(tasktypes.NewRenderVariantTask(jobA, "viral-60-clean", "", 0, nil, edit, nil))
 	renderAViralWithMusic := mustTask(tasktypes.NewRenderVariantTask(jobA, "viral-60-clean", "phonk-01", 0.4, nil, edit, []string{"seg-001"}))
@@ -612,6 +617,9 @@ func TestInlineQueueUniqueIdentityIsTheLogicalScopeNotThePayload(t *testing.T) {
 		{name: "first capture for job A", task: recordAClean},
 		{name: "same job, other HUD and segments", task: recordADeathnotices, wantDuplicate: true},
 		{name: "capture for job B", task: recordB},
+		{name: "first compose for job A", task: composeA},
+		{name: "same job compose again", task: composeAAgain, wantDuplicate: true},
+		{name: "compose for job B", task: composeB},
 		{name: "first render of A viral", task: renderAViral},
 		{name: "same variant, other music and selection", task: renderAViralWithMusic, wantDuplicate: true},
 		{name: "other variant of A", task: renderAAggressive},
