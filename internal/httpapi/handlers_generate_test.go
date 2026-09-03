@@ -916,6 +916,11 @@ func TestStartGenerateRefusesStaleIntentBehindPlainQueuedCapture(t *testing.T) {
 	if record.Code != http.StatusAccepted {
 		t.Fatalf("record status = %d, want 202; body=%s", record.Code, record.Body.String())
 	}
+	// Capture uniqueness outlives the recording claim, same as the no-intent
+	// collision: a completed-looking job still collides with record:demo.
+	current := repo.jobs[j.ID]
+	current.Status = job.StatusRecorded
+	repo.jobs[j.ID] = current
 
 	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean"}`)
 	if rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), generateWorkActive) {
