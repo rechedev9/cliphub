@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
@@ -16,6 +16,7 @@ import {
   estimatedSelectionSeconds,
   formatClock,
   roundsSummary,
+  selectionTimeline,
   SHORT_TARGET_SECONDS,
 } from '@/lib/produce/short-selection';
 import { canForgeReel, constrainEditConfig, reelCreativeBrief, type MusicBrief } from '@/lib/reel-brief';
@@ -23,16 +24,24 @@ import { selectShortsFormat, selectShortsPreset, shortsPresetsForFormat } from '
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ReelCover } from '@/components/brand/reel-cover';
-import { MediaFrame } from '@/components/studio/media-frame';
 import { EditOptions } from '@/components/clips/edit-options';
 import { PlayList } from '@/components/clips/play-list';
 import { SongPickerDialog } from '@/components/clips/song-picker-dialog';
 import { MusicCard, MUSIC_VOLUME } from './music-card';
 import { ProduceFooter } from './produce-footer';
+import { ShortStoryboard } from './short-storyboard';
 
 const SHORT_FORMAT: EditConfig['format'] = 'short-9x16';
 const CLOCK_TARGET = formatClock(SHORT_TARGET_SECONDS);
+const AUTO_PICK_LABEL = 'Auto: mejores 60 s';
+
+/** Step eyebrows: the list is 01, the aside walks 02 → 04, the footer brief closes. */
+const STEP = {
+  highlights: '01 · Highlights detectados',
+  preset: '02 · Preset',
+  music: '03 · Música',
+  overlays: '04 · Overlays',
+} as const;
 
 export type ShortProducerProps = {
   matchId: string;
@@ -42,11 +51,12 @@ export type ShortProducerProps = {
   seriesId: string | null;
 };
 
-/** The Short constructor: pick highlights, preset, music and overlays, approve the brief, render. */
+/** The Short constructor: the best minute is preselected, then preset, music and overlays, approve, render. */
 export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+  // A first-time user lands on a renderable plan; every row stays a toggle.
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => autoPickBestPlays(plays));
   const [variant, setVariant] = useState<string | null>(null);
   const [songId, setSongId] = useState<string | null>(null);
   const [songTitle, setSongTitle] = useState<string | null>(null);
@@ -86,6 +96,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   }, []);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
+  const cues = selectionTimeline(plays, selectedIds);
   const estimatedSeconds = estimatedSelectionSeconds(selectedPlays);
   const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
   // No tilde: under uppercase mono it reads as a minus sign ("-0:00").
@@ -175,7 +186,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
 
   return (
     <>
-      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_320px]">
         <section className="flex min-w-0 flex-col gap-3.5">
           <div className="flex flex-col gap-1.5">
             <p className="font-mono text-meta uppercase tracking-ultra text-fg-3">
@@ -183,26 +194,32 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               {match.player ? ` · ${match.player}` : ''}
             </p>
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
+            <p className="max-w-[640px] text-body text-fg-2">
+              Ya tienes preseleccionado el mejor minuto. Toca una fila para quitarla o añadirla; el guion de la derecha
+              enseña el orden final.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2.5 font-mono text-meta uppercase tracking-wider">
-            <span className="border border-primary px-2.5 py-1.5 text-primary">
-              Todos · <span className="tabular-nums">{plays.length}</span>
-            </span>
-            <button
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
               type="button"
+              size="xs"
+              variant="outline-primary"
               disabled={creating || plays.length === 0}
               onClick={() => setSelectedIds(autoPickBestPlays(plays))}
-              className="ml-auto min-h-10 text-primary transition-colors duration-(--dur-fast) hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
             >
-              Auto: mejores 60 s
-            </button>
+              <Sparkles aria-hidden />
+              {AUTO_PICK_LABEL}
+            </Button>
+            <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              {plays.length} {plays.length === 1 ? 'highlight detectado' : 'highlights detectados'}
+            </span>
           </div>
 
           <PlayList
             plays={plays}
             selectedIds={selectedIds}
-            title="Highlights detectados"
+            title={STEP.highlights}
             counter={
               <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-primary')}>
                 {selectedPlays.length} {selectedPlays.length === 1 ? 'elegido' : 'elegidos'} · {clock}
@@ -215,15 +232,11 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
         </section>
 
         <aside className="flex flex-col gap-3 @[56rem]/content:sticky @[56rem]/content:top-20">
-          <MediaFrame
-            aspect="9:16"
-            className="w-[170px] self-center border border-border-accent shadow-[var(--glow-primary-md)]"
-            fallback={<ReelCover seed={matchId} label={presetLabel ?? 'preview 9:16'} />}
-          />
+          <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} />
 
           <div className="studio-panel flex flex-col gap-2.5 px-3.5 py-3">
             <label htmlFor="short-preset" className="font-mono text-meta uppercase tracking-ultra text-fg-3">
-              Preset
+              {STEP.preset}
             </label>
             {visiblePresets !== null && visiblePresets.length === 0 ? (
               <p role="alert" className="text-body-sm text-fg-2">
@@ -246,6 +259,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           </div>
 
           <MusicCard
+            eyebrow={STEP.music}
             decided={musicDecided}
             songTitle={songTitle}
             musicVolume={musicVolume}
@@ -260,7 +274,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
 
           <details className="group/overlays studio-panel px-3.5 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-              <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">Overlays</span>
+              <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{STEP.overlays}</span>
               <span className="flex items-center gap-1.5 font-display text-body-sm font-semibold uppercase text-fg-1">
                 {overlaysSummary(editConfig)}
                 <ChevronRight aria-hidden className="size-4 text-primary transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />

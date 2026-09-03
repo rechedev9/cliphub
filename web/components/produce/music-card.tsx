@@ -12,6 +12,8 @@ const SLIDER_CLASS =
   'h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50';
 
 export type MusicCardProps = {
+  /** Card eyebrow; the Short constructor numbers it as a step. */
+  eyebrow?: string;
   decided: boolean;
   songTitle: string | null;
   musicVolume: number;
@@ -25,10 +27,10 @@ export type MusicCardProps = {
 };
 
 /** The Short music decision: a track with its mix, explicit "sin música", or still pending. */
-export function MusicCard(props: MusicCardProps): ReactNode {
+export function MusicCard({ eyebrow = 'Música', ...props }: MusicCardProps): ReactNode {
   return (
     <div className="studio-panel flex flex-col gap-2.5 px-3.5 py-3">
-      <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">Música</span>
+      <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{eyebrow}</span>
       <MusicDecision {...props} />
     </div>
   );
