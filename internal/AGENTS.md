@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-47 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
+53 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
 
 ## WHERE TO LOOK
 
@@ -44,6 +44,9 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Demo voice probe | `voicecomms` | Reads `svc_VoiceData`. Lists/extracts POV team only; overlay uses IngameTick |
 | Path / CLI safety | `pathguard` | Blocks `--out` aliasing inputs |
 | TUI DTOs | `tuiclient` | No parser/editor import |
+| Full Demo round sidecar | `recapplan` | `match_recap` plan consumed by capture/overlay |
+| `.dem.zst` upload unwrap | `demozstd` | Decompress before parse; no parser import |
+| Studio telemetry events | `telemetry` | Privacy-minimized event contract; see `docs/TELEMETRY_RUNBOOK.md` |
 
 ## CONVENTIONS
 
