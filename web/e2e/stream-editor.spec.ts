@@ -90,6 +90,8 @@ test.describe('stream editor', () => {
     await expect(stepTitle(page, '01 · Layout y facecam')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirmar recorte de facecam' })).toBeVisible();
     await expect(cta(page, 'Confirma el recorte primero')).toBeEnabled();
+    await railStep(page, /Revisar/).click();
+    await expect(stepTitle(page, '05 · Revisar y renderizar')).toBeVisible();
     await expect(briefCheckbox(page)).toBeDisabled();
 
     await railStep(page, /Cortes/).click();
@@ -108,17 +110,16 @@ test.describe('stream editor', () => {
 
     await page.getByRole('button', { name: 'Confirmar recorte de facecam' }).click();
     await expect(page.getByRole('button', { name: 'Recorte confirmado' })).toBeVisible();
-    await expect(cta(page, 'Aprueba el brief')).toBeDisabled();
     await expect(railStep(page, /Layout/)).toContainText('recorte ✓');
+    await cta(page, 'Revisar y renderizar').click();
+    await expect(stepTitle(page, '05 · Revisar y renderizar')).toBeVisible();
+    await expect(cta(page, 'Aprueba el brief')).toBeDisabled();
 
     await briefCheckbox(page).check();
     await expect(cta(page, 'Crear Shorts →')).toBeEnabled();
     await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
 
-    const briefLine = page.getByTitle(/de salida aprox\./);
-    await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
-    await page.getByRole('button', { name: 'Ver el brief completo' }).click();
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);

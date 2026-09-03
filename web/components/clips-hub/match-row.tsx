@@ -71,7 +71,8 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
       id={matchRowId(match.id)}
       className={cn('studio-panel studio-enter flex flex-col overflow-hidden rounded-[10px]', expanded && 'studio-panel-raised')}
     >
-      <div className="flex w-full items-stretch">
+      {/* Narrow content: the action cluster wraps under the header instead of overlaying the title. */}
+      <div className="flex w-full flex-wrap items-stretch @[44rem]/content:flex-nowrap">
         <button
           type="button"
           aria-expanded={expanded}
@@ -80,7 +81,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
             if (expandable) onToggle();
           }}
           className={cn(
-            'flex min-w-0 flex-1 items-stretch gap-4 py-3 pr-3 pl-[18px] text-left transition-colors duration-(--dur-fast)',
+            'flex min-w-0 flex-1 flex-wrap items-stretch gap-4 py-3 pr-3 pl-[18px] text-left transition-colors duration-(--dur-fast) @[44rem]/content:flex-nowrap',
             expandable ? 'cursor-pointer hover:bg-surface-3' : 'cursor-default',
           )}
         >
@@ -110,7 +111,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
           ) : null}
         </button>
 
-        <span className="flex shrink-0 items-center gap-2 py-3 pr-[18px]">
+        <span className="flex w-full shrink-0 items-center justify-end gap-2 px-[18px] pb-3 @[44rem]/content:w-auto @[44rem]/content:pl-0 @[44rem]/content:py-3">
           {nextStep === HUB_NEXT_STEP.pick ? (
             <Button asChild size="xs" variant="outline-primary">
               <Link href={newDemoHref({ job: match.id })}>{MATCH_ROW_UNPICKED_CTA}</Link>
@@ -144,7 +145,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
 
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (
-    <span role="status" className="flex w-[280px] shrink-0 flex-col justify-center gap-1.5 self-center">
+    <span role="status" className="flex w-full shrink-0 flex-col justify-center gap-1.5 self-center @[44rem]/content:w-[280px]">
       <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary">
         <span aria-hidden className="studio-spinner" />
         {player === undefined ? 'Parseando la demo' : `Parseando POV de ${player}`}
@@ -207,7 +208,7 @@ function ReadyHeaderBlock({
 
 function UnpickedBlock(): ReactNode {
   return (
-    <span className="flex w-[280px] shrink-0 flex-col justify-center gap-1.5 self-center">
+    <span className="flex w-full shrink-0 flex-col justify-center gap-1.5 self-center @[44rem]/content:w-[280px]">
       <span className="font-mono text-meta uppercase tracking-wider text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
       <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
     </span>
