@@ -2,11 +2,14 @@
 
 import type { ReactNode } from 'react';
 import { ChevronRight, Film } from 'lucide-react';
-import type { StreamJob } from '@/lib/api/streams';
+import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { streamJobTag } from '@/lib/streams/list';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
+
+/** Frame 0 of a stream clip is usually black; a media fragment seeks past it at metadata cost only. */
+const POSTER_FRAGMENT = '#t=1';
 
 /** One stream job. Everything shown is read from the job; nothing is inferred. */
 export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => void }): ReactNode {
@@ -32,6 +35,17 @@ export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => v
         <MediaFrame
           aspect="16:9"
           className="w-[84px] shrink-0 border border-border-strong"
+          media={
+            acquiring ? null : (
+              <video
+                src={`${streamsApi.sourceUrl(job.id)}${POSTER_FRAGMENT}`}
+                preload="metadata"
+                muted
+                playsInline
+                aria-hidden
+              />
+            )
+          }
           fallback={
             <span className="grid size-full place-items-center">
               <Film aria-hidden className="size-4 text-fg-3" />

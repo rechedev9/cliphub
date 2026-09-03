@@ -15,6 +15,7 @@ import {
   isStreamURLValidationError,
   nonVideoExtension,
 } from '@/lib/streams/plan';
+import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { StreamListRow } from '@/components/streams/stream-list-row';
 import { StreamSourcePanel } from '@/components/streams/stream-source-panel';
@@ -134,25 +135,11 @@ export default function StreamsPage(): ReactNode {
 
   return (
     <div className="studio-enter flex flex-col gap-3.5">
-      <header className="flex max-w-[1080px] flex-col gap-3 @[44rem]/content:flex-row @[44rem]/content:items-end @[44rem]/content:justify-between">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">De stream a Short</h1>
-          <p className="max-w-[620px] text-body text-fg-2">
-            Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Lo cortas en vertical con tu facecam,
-            banners y música.
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-4 font-mono text-meta uppercase tracking-wider">
-          <span className="flex items-center gap-1.5 text-stream-text">
-            <span aria-hidden className="size-2 rounded-full bg-stream" />
-            Twitch · YouTube · Kick
-          </span>
-          <span className="flex items-center gap-1.5 text-success">
-            <span aria-hidden className="size-2 rounded-full bg-success" />
-            Procesado en este PC
-          </span>
-        </div>
-      </header>
+      <StudioPageHeader
+        className="max-w-[1080px]"
+        title="De stream a Short"
+        description="Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Marcas los cortes y cada uno sale como un Short 9:16 a 1080p con tu facecam, banners y música, todo procesado en este PC."
+      />
 
       {listError !== null ? (
         <div
