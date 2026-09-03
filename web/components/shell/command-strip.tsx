@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import { AppUpdateControl } from '@/components/shell/app-update-control';
 import { JobTransport } from '@/components/shell/job-transport';
 import {
@@ -72,11 +70,6 @@ export function CommandStrip(): ReactElement {
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <JobTransport />
-        {pathname === CLIPS_HREF ? (
-          <Button asChild variant="hero" size="sm" className="neon-notch max-sm:hidden">
-            <Link href={NEW_DEMO_HREF}>+ Cargar demo</Link>
-          </Button>
-        ) : null}
         {activity.capturing ? <CapturePip /> : null}
         <AppUpdateControl />
       </div>

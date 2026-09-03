@@ -52,3 +52,24 @@ export function autoPickBestPlays(plays: readonly Play[], targetSeconds = SHORT_
 export function roundsSummary(plays: ReadonlyArray<Pick<Play, 'round'>>): string {
   return plays.map((play) => `R${play.round}`).join(' · ');
 }
+
+export type SelectionCue = {
+  play: Play;
+  /** Estimated length of this highlight in the Short. */
+  seconds: number;
+  /** Estimated second at which it starts, in plan order. */
+  startAt: number;
+};
+
+/** The Short as a running order: plan order, each cue with its estimated length and start. */
+export function selectionTimeline(plays: readonly Play[], selectedIds: ReadonlySet<string>): SelectionCue[] {
+  const cues: SelectionCue[] = [];
+  let startAt = 0;
+  for (const play of plays) {
+    if (!selectedIds.has(play.id)) continue;
+    const seconds = estimatedPlaySeconds(play);
+    cues.push({ play, seconds, startAt });
+    startAt += seconds;
+  }
+  return cues;
+}

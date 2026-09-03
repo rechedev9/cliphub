@@ -44,12 +44,9 @@ export function StreamSourcePanel({
       aria-labelledby="stream-source-title"
       className="studio-panel studio-panel-raised flex max-w-[1080px] flex-col gap-2.5 border-stream/45 px-4.5 py-3.5 shadow-[var(--elev-3),var(--glow-stream-md)]"
     >
-      <div className="flex justify-between gap-3 font-mono text-meta uppercase tracking-widest text-fg-3">
-        <span id="stream-source-title" className="text-stream-text">
-          Nueva fuente
-        </span>
-        <span>Salida 9:16 · 1080p</span>
-      </div>
+      <h2 id="stream-source-title" className="font-mono text-meta uppercase tracking-widest text-stream-text">
+        Nueva fuente
+      </h2>
 
       <form
         className="grid items-center gap-3 @[44rem]/content:grid-cols-[minmax(0,1fr)_220px_auto]"

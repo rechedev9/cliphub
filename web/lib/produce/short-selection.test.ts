@@ -7,6 +7,7 @@ import {
   estimatedSelectionSeconds,
   formatClock,
   roundsSummary,
+  selectionTimeline,
   SHORT_TARGET_SECONDS,
 } from './short-selection.ts';
 
@@ -82,4 +83,21 @@ test('auto pick always keeps the top-ranked play when nothing fits the target', 
   for (const tc of cases) {
     assert.deepEqual([...autoPickBestPlays(tc.plays, tc.target)], tc.want, tc.name);
   }
+});
+
+test('selectionTimeline keeps plan order and accumulates estimated starts', () => {
+  const plays: Play[] = [
+    { id: 'a', matchId: 'm', label: 'a', kind: 'highlight', round: 3, kills: 2 },
+    { id: 'b', matchId: 'm', label: 'b', kind: 'highlight', round: 7, kills: 5 },
+    { id: 'c', matchId: 'm', label: 'c', kind: 'highlight', round: 9, kills: 1 },
+  ];
+  const cues = selectionTimeline(plays, new Set(['c', 'a']));
+  assert.deepEqual(
+    cues.map((cue) => [cue.play.id, cue.seconds, cue.startAt]),
+    [
+      ['a', 12, 0],
+      ['c', 9, 12],
+    ],
+  );
+  assert.deepEqual(selectionTimeline(plays, new Set()), []);
 });

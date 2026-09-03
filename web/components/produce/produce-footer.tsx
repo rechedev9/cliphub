@@ -3,11 +3,9 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import type { CreativeBriefItem } from '@/lib/reel-brief';
+import { BRIEF_APPROVAL_LABEL, type CreativeBriefItem } from '@/lib/reel-brief';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-export const BRIEF_APPROVAL_LABEL = 'Apruebo el brief antes de renderizar';
 
 /** Same lift as the old CreateReelBar: the bar floats over the scrolled list. */
 const FOOTER_SHADOW = 'shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)]';

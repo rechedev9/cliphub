@@ -16,8 +16,10 @@ import {
   nonVideoExtension,
   planFingerprint,
   pruneClipEdit,
+  resolveFaceCrop,
   resolveStreamerBannerPlatform,
   streamSourceLabel,
+  DEFAULT_FACE_CROP,
   timelineClipAt,
   STREAM_INVALID_URL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
@@ -58,6 +60,12 @@ test('the source label names the Twitch channel when the clip URL carries one', 
   assert.equal(streamSourceLabel('https://youtu.be/abc'), 'YouTube');
   assert.equal(streamSourceLabel('https://vod.example.com/a.mp4'), 'vod.example.com');
   assert.equal(streamSourceLabel(undefined), null);
+});
+
+test('resolveFaceCrop uses the default guide until a rect is stored', () => {
+  assert.deepEqual(resolveFaceCrop(undefined), DEFAULT_FACE_CROP);
+  const stored = { x: 0.1, y: 0.2, width: 0.3, height: 0.4 };
+  assert.deepEqual(resolveFaceCrop(stored), stored);
 });
 
 test('banner platform is explicit when set and otherwise follows the source host', () => {

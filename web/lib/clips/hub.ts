@@ -232,22 +232,69 @@ export function activeJobCount(model: HubModel, streams: readonly StreamJob[] = 
   return parsing + running + streaming;
 }
 
-/** Full POV chip label for a collapsed row. */
-export function fullChipLabel(fulls: readonly MatchOutput[]): string {
+/** What a collapsed row asks of the user next; `none` means the row is self-explanatory. */
+export const HUB_NEXT_STEP = { wait: 'wait', pick: 'pick', firstClip: 'firstClip', none: 'none' } as const;
+export type HubNextStep = (typeof HUB_NEXT_STEP)[keyof typeof HUB_NEXT_STEP];
+
+export function hubNextStep(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): HubNextStep {
+  if (row.stage === HUB_ROW_STAGE.parsing) return HUB_NEXT_STEP.wait;
+  if (row.stage === HUB_ROW_STAGE.unpicked) return HUB_NEXT_STEP.pick;
+  if (row.shorts.length === 0 && row.fulls.length === 0) return HUB_NEXT_STEP.firstClip;
+  return HUB_NEXT_STEP.none;
+}
+
+/** Row subtitle: the facts that tell five same-map partidas apart. `dateLabel` is already formatted. */
+export function matchMetaParts(match: Match, dateLabel: string): string[] {
+  const parts: string[] = [];
+  if (match.player !== undefined && match.player !== '') parts.push(match.player);
+  const { kills, deaths } = match.stats;
+  if (kills > 0 || deaths > 0) parts.push(`${kills}/${deaths} K/D`);
+  if (match.decentPlays > 0) parts.push(`${match.decentPlays} highlights`);
+  parts.push(dateLabel);
+  return parts;
+}
+
+/** First-run guide steps, in order. Each flips to done from real hub data, never from a click. */
+export const FIRST_RUN_STEP = { load: 'load', pick: 'pick', produce: 'produce' } as const;
+export type FirstRunStep = (typeof FIRST_RUN_STEP)[keyof typeof FIRST_RUN_STEP];
+export type FirstRunProgress = Record<FirstRunStep, boolean>;
+
+export const FIRST_RUN_NONE: FirstRunProgress = { load: false, pick: false, produce: false };
+
+export function firstRunProgress(model: Pick<HubModel, 'rows' | 'clips'>): FirstRunProgress {
+  return {
+    load: model.rows.length > 0,
+    // A parsing row already carries the chosen player: the pick happened, the parse is what waits.
+    pick: model.rows.some((row) => row.stage === HUB_ROW_STAGE.ready || (row.match.player ?? '') !== ''),
+    produce: model.clips.length > 0,
+  };
+}
+
+export function firstRunComplete(progress: FirstRunProgress): boolean {
+  return Object.values(FIRST_RUN_STEP).every((step) => progress[step]);
+}
+
+/** State of the latest Full POV, as the column head shows it. */
+export function fullStateLabel(fulls: readonly MatchOutput[]): string {
   const latest = fulls[0];
-  if (latest === undefined) return 'Full POV · —';
+  if (latest === undefined) return 'sin generar';
   switch (latest.state) {
     case OUTPUT_STATE.ready:
-      return 'Full POV · listo';
+      return 'listo';
     case OUTPUT_STATE.rec:
-      return 'Full POV · REC';
+      return 'REC';
     case OUTPUT_STATE.render:
-      return 'Full POV · render';
+      return 'render';
     case OUTPUT_STATE.queue:
-      return 'Full POV · en cola';
+      return 'en cola';
     case OUTPUT_STATE.failed:
-      return 'Full POV · falló';
+      return 'falló';
   }
+}
+
+/** Full POV chip label for a collapsed row. */
+export function fullChipLabel(fulls: readonly MatchOutput[]): string {
+  return `Full POV · ${fullStateLabel(fulls)}`;
 }
 
 /** Shorts-column count, worded as "shorts" so it never reads as the Clips lens total. */

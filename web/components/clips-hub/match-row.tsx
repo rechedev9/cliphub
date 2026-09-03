@@ -4,10 +4,19 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
-import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT, MATCH_ROW_UNPICKED_TITLE } from '@/lib/clips/copy';
+import {
+  MATCH_ROW_FIRST_CLIP_CTA,
+  MATCH_ROW_UNPICKED_CTA,
+  MATCH_ROW_UNPICKED_HINT,
+  MATCH_ROW_UNPICKED_TITLE,
+} from '@/lib/clips/copy';
 import {
   fullChipLabel,
+  fullStateLabel,
+  HUB_NEXT_STEP,
   HUB_ROW_STAGE,
+  hubNextStep,
+  matchMetaParts,
   OUTPUT_STATE,
   OUTPUT_TONE,
   pluralShorts,
@@ -47,6 +56,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
   const player = match.player;
   const expandable = stage === HUB_ROW_STAGE.ready;
   const expanded = open && expandable;
+  const nextStep = hubNextStep(row);
 
   let bar = 'bg-border-strong';
   if (expandable && win) bar = 'bg-success';
@@ -62,7 +72,8 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
       id={matchRowId(match.id)}
       className={cn('studio-panel studio-enter flex flex-col overflow-hidden rounded-[10px]', expanded && 'studio-panel-raised')}
     >
-      <div className="flex w-full items-stretch">
+      {/* Narrow content: the action cluster wraps under the header instead of overlaying the title. */}
+      <div className="flex w-full flex-wrap items-stretch @[44rem]/content:flex-nowrap">
         <button
           type="button"
           aria-expanded={expanded}
@@ -71,7 +82,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
             if (expandable) onToggle();
           }}
           className={cn(
-            'flex min-w-0 flex-1 items-stretch gap-4 py-3 pr-3 pl-[18px] text-left transition-colors duration-(--dur-fast)',
+            'flex min-w-0 flex-1 flex-wrap items-stretch gap-4 py-3 pr-3 pl-[18px] text-left transition-colors duration-(--dur-fast) @[44rem]/content:flex-nowrap',
             expandable ? 'cursor-pointer hover:bg-surface-3' : 'cursor-default',
           )}
         >
@@ -87,9 +98,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
             <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-              {[player, matchDateLabel(match), match.decentPlays > 0 ? `${match.decentPlays} highlights` : null]
-                .filter(Boolean)
-                .join(' · ')}
+              {matchMetaParts(match, matchDateLabel(match)).join(' · ')}
             </span>
           </span>
 
@@ -103,10 +112,18 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
           ) : null}
         </button>
 
-        <span className="flex shrink-0 items-center gap-2 py-3 pr-[18px]">
-          {stage === HUB_ROW_STAGE.unpicked ? (
+        <span className="flex w-full shrink-0 items-center justify-end gap-2 px-[18px] pb-3 @[44rem]/content:w-auto @[44rem]/content:pl-0 @[44rem]/content:py-3">
+          {nextStep === HUB_NEXT_STEP.pick ? (
             <Button asChild size="xs" variant="outline-primary">
               <Link href={newDemoHref({ job: match.id })}>{MATCH_ROW_UNPICKED_CTA}</Link>
+            </Button>
+          ) : null}
+          {nextStep === HUB_NEXT_STEP.firstClip ? (
+            <Button asChild size="xs" variant="outline-primary">
+              <Link href={produceHref(match.id, PRODUCE_FORMAT.short)}>
+                <Plus aria-hidden />
+                {MATCH_ROW_FIRST_CLIP_CTA}
+              </Link>
             </Button>
           ) : null}
           <DeleteMatchButton
@@ -129,7 +146,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
 
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (
-    <span role="status" className="flex w-[280px] shrink-0 flex-col justify-center gap-1.5 self-center">
+    <span role="status" className="flex w-full shrink-0 flex-col justify-center gap-1.5 self-center @[44rem]/content:w-[280px]">
       <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary">
         <span aria-hidden className="studio-spinner" />
         {player === undefined ? 'Parseando la demo' : `Parseando POV de ${player}`}
@@ -172,22 +189,27 @@ function ReadyHeaderBlock({
           <span className="text-fg-1">{theirs}</span>
         </span>
       ) : null}
-      <span className="flex items-center gap-2 self-center">
-        <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag>
-        <StatusTag tone={fulls[0] === undefined ? OUTPUT_TONE.queue : OUTPUT_TONE[fulls[0].state]}>
-          {fulls[0]?.state === OUTPUT_STATE.rec ? (
-            <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
+      {/* An empty chip says nothing; the row's CTA carries "nothing yet". */}
+      {shorts.length > 0 || fulls[0] !== undefined ? (
+        <span className="flex items-center gap-2 self-center">
+          {shorts.length > 0 ? <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag> : null}
+          {fulls[0] !== undefined ? (
+            <StatusTag tone={OUTPUT_TONE[fulls[0].state]}>
+              {fulls[0].state === OUTPUT_STATE.rec ? (
+                <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
+              ) : null}
+              {fullChipLabel(fulls)}
+            </StatusTag>
           ) : null}
-          {fullChipLabel(fulls)}
-        </StatusTag>
-      </span>
+        </span>
+      ) : null}
     </>
   );
 }
 
 function UnpickedBlock(): ReactNode {
   return (
-    <span className="flex w-[280px] shrink-0 flex-col justify-center gap-1.5 self-center">
+    <span className="flex w-full shrink-0 flex-col justify-center gap-1.5 self-center @[44rem]/content:w-[280px]">
       <span className="font-mono text-meta uppercase tracking-wider text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
       <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
     </span>
@@ -225,7 +247,7 @@ function FullColumn({ row, onChange }: { row: HubMatch; onChange: () => void }):
   const rounds = roundsFromScore(row.match.score);
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
-      <ColumnHead label="Full POV" trailing={latest === undefined ? 'sin generar' : fullChipLabel(row.fulls).replace('Full POV · ', '')} />
+      <ColumnHead label="Full POV" trailing={fullStateLabel(row.fulls)} />
       {row.fulls.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}

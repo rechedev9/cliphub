@@ -38,7 +38,7 @@ export function StreamMonitor({
 }): ReactNode {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center gap-5">
-      <div className="flex h-full max-h-[400px] min-h-[120px] flex-none">
+      <div className="flex h-full max-h-full min-h-[120px] flex-none">
         <StreamPreview {...preview} />
       </div>
 

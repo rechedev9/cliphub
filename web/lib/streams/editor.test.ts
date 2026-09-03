@@ -8,7 +8,9 @@ import {
   streamCtaLabel,
   streamCtaTarget,
   streamEditorSteps,
+  streamNextStep,
   streamOutputSummary,
+  streamPlanBlocker,
   type StreamStep,
 } from './editor.ts';
 
@@ -31,10 +33,15 @@ test('rail steps describe the plan and only list results after a render', () => 
     steps.map((step) => [step.key, step.detail, step.done]),
     [
       [STREAM_STEP.layout, 'Facecam 40 · recorte ✓', true],
-      [STREAM_STEP.banners, 'sin banner', true],
+      [STREAM_STEP.banners, 'sin banner', false],
       [STREAM_STEP.cuts, '2 cortes → 2 Shorts', true],
       [STREAM_STEP.music, 'Sin música', false],
+      [STREAM_STEP.review, 'brief pendiente', false],
     ],
+  );
+  assert.deepEqual(
+    steps.map((step) => step.optional),
+    [false, true, false, true, false],
   );
   const withRender = streamEditorSteps({
     plan: plan({
@@ -49,9 +56,20 @@ test('rail steps describe the plan and only list results after a render', () => 
   });
   assert.equal(withRender[1].detail, '@zack · Kick · KeyDrop');
   assert.equal(withRender[3].detail, 'Night Drive · grade');
-  assert.equal(withRender[4]?.detail, '1 Short · desactualizados');
+  assert.equal(withRender[5]?.detail, '1 Short · desactualizados');
   const inFlight = streamEditorSteps({ plan: plan(), musicLabel: '', renderState: null, stale: false, rendering: true });
-  assert.deepEqual([inFlight[4]?.detail, inFlight[4]?.done], ['Renderizando…', false]);
+  assert.deepEqual([inFlight[5]?.detail, inFlight[5]?.done], ['Renderizando…', false]);
+  const approved = streamEditorSteps({ plan: plan(), musicLabel: '', renderState: null, stale: false, briefApproved: true });
+  assert.deepEqual([approved[4]?.detail, approved[4]?.done], ['brief aprobado', true]);
+  const blocked = streamEditorSteps({ plan: plan({ clips: [] }), musicLabel: '', renderState: null, stale: false });
+  assert.equal(blocked[4]?.detail, 'faltan pasos');
+});
+
+test('steps chain in editing order and stop at review', () => {
+  assert.equal(streamNextStep(STREAM_STEP.layout), STREAM_STEP.banners);
+  assert.equal(streamNextStep(STREAM_STEP.music), STREAM_STEP.review);
+  assert.equal(streamNextStep(STREAM_STEP.review), null);
+  assert.equal(streamNextStep(STREAM_STEP.results), null);
 });
 
 test('facecam layouts stay pending until the crop is confirmed', () => {
@@ -73,29 +91,32 @@ test('facecam layouts stay pending until the crop is confirmed', () => {
   assert.equal(noCam[0].done, true);
 });
 
-test('the CTA names the first blocker, then the action', () => {
+test('the CTA names the first blocker, then the review step, then the action', () => {
+  const base = { briefApproved: false, rendering: false, hasRender: false, onReview: false };
   const cases: [Parameters<typeof streamCtaLabel>[0], string][] = [
-    [{ plan: plan(), briefApproved: false, rendering: true, hasRender: false }, 'Renderizando…'],
-    [
-      { plan: plan({ face_crop_reviewed: false }), briefApproved: true, rendering: false, hasRender: false },
-      'Confirma el recorte primero',
-    ],
-    [{ plan: plan(), briefApproved: false, rendering: false, hasRender: false }, 'Aprueba el brief'],
-    [{ plan: plan(), briefApproved: true, rendering: false, hasRender: false }, 'Crear Shorts →'],
-    [{ plan: plan(), briefApproved: true, rendering: false, hasRender: true }, 'Crear Shorts de nuevo →'],
-    [{ plan: plan({ clips: [] }), briefApproved: false, rendering: false, hasRender: false }, 'Crear Shorts →'],
+    [{ ...base, plan: plan(), rendering: true }, 'Renderizando…'],
+    [{ ...base, plan: plan({ face_crop_reviewed: false }), briefApproved: true }, 'Confirma el recorte primero'],
+    [{ ...base, plan: plan({ clips: [] }) }, 'Añade un corte primero'],
+    [{ ...base, plan: plan() }, 'Revisar y renderizar'],
+    [{ ...base, plan: plan(), hasRender: true }, 'Revisar y renderizar de nuevo'],
+    [{ ...base, plan: plan(), onReview: true }, 'Aprueba el brief'],
+    [{ ...base, plan: plan(), onReview: true, briefApproved: true }, 'Crear Shorts →'],
+    [{ ...base, plan: plan(), onReview: true, briefApproved: true, hasRender: true }, 'Crear Shorts de nuevo →'],
   ];
   for (const [state, expected] of cases) assert.equal(streamCtaLabel(state), expected);
 });
 
-test('the CTA target jumps to the layout step only while a facecam crop is unconfirmed', () => {
-  const cases: [Parameters<typeof streamCtaTarget>[0], StreamStep | null][] = [
-    [plan(), null],
-    [plan({ face_crop_reviewed: false }), STREAM_STEP.layout],
-    [plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false }), null],
-    [plan({ clips: [] }), null],
+test('the CTA target is the first blocker, else the review step, else nothing', () => {
+  const cases: [StreamEditPlan, StreamStep, StreamStep | null][] = [
+    [plan(), STREAM_STEP.cuts, STREAM_STEP.review],
+    [plan(), STREAM_STEP.review, null],
+    [plan({ face_crop_reviewed: false }), STREAM_STEP.review, STREAM_STEP.layout],
+    [plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false }), STREAM_STEP.review, null],
+    [plan({ clips: [] }), STREAM_STEP.music, STREAM_STEP.cuts],
   ];
-  for (const [state, expected] of cases) assert.equal(streamCtaTarget(state), expected);
+  for (const [state, active, expected] of cases) assert.equal(streamCtaTarget(state, active), expected);
+  assert.equal(streamPlanBlocker(plan()), null);
+  assert.equal(streamPlanBlocker(plan({ face_crop_reviewed: false, clips: [] })), STREAM_STEP.layout);
 });
 
 test('the brief is approvable only with cuts and a confirmed facecam', () => {

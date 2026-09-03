@@ -23,8 +23,10 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
+import { HubGuide } from '@/components/clips-hub/hub-guide';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { HubEmpty } from '@/components/clips-hub/hub-empty';
+import { HubHeader } from '@/components/clips-hub/hub-header';
 import { LensToggle } from '@/components/clips-hub/lens-toggle';
 import { MatchRow, matchRowId } from '@/components/clips-hub/match-row';
 import { OutputItem } from '@/components/clips-hub/output-item';
@@ -174,11 +176,14 @@ function ClipsHub(): ReactNode {
 
   return (
     <div className="studio-enter flex max-w-[1080px] flex-col gap-3">
+      <HubHeader />
+      <HubGuide model={model} />
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <LensToggle lens={lens} counts={counts} />
-        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
-          {model.rows.length} {model.rows.length === 1 ? 'partida' : 'partidas'} · {jobs}{' '}
-          {jobs === 1 ? 'trabajo en marcha' : 'trabajos en marcha'}
+        {/* The lens already counts partidas; this line only reports work in flight. */}
+        <span role="status" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+          {jobs === 0 ? 'Nada en marcha' : `${jobs} ${jobs === 1 ? 'trabajo en marcha' : 'trabajos en marcha'}`}
         </span>
       </div>
 

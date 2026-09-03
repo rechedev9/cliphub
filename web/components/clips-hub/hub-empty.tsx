@@ -4,8 +4,10 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { setPendingDemoFiles } from '@/lib/clips/pending-upload';
 import { HUB_EMPTY_TITLE } from '@/lib/clips/copy';
+import { FIRST_RUN_NONE } from '@/lib/clips/hub';
 import { NEW_DEMO_HREF } from '@/lib/clips/routes';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
+import { FirstRunGuide } from '@/components/clips-hub/first-run-guide';
 
 /** First-run hub: the dropzone is the only door, and it hands its files to /clips/nueva. */
 export function HubEmpty(): ReactNode {
@@ -26,6 +28,7 @@ export function HubEmpty(): ReactNode {
           router.push(NEW_DEMO_HREF);
         }}
       />
+      <FirstRunGuide progress={FIRST_RUN_NONE} />
     </section>
   );
 }
