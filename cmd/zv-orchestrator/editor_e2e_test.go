@@ -18,6 +18,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/timelineplan"
@@ -40,13 +41,14 @@ func TestEditorRenderE2E(t *testing.T) {
 	}
 
 	dataDir := t.TempDir()
-	store, err := storage.NewLocal(dataDir)
+	assets := store.NewMemoryEditorAssetRepository()
+	projects := store.NewMemoryEditorProjectRepository()
+	jobs := store.NewMemoryJobRepository()
+	files, err := storage.NewLocal(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assets := newMemoryEditorAssetRepository()
-	projects := newMemoryEditorProjectRepository()
-	worker := workers.NewTimelineRenderWorker(projects, store, workers.TimelineRenderWorkerConfig{
+	worker := workers.NewTimelineRenderWorker(projects, files, workers.TimelineRenderWorkerConfig{
 		WorkDir:     filepath.Join(dataDir, "work"),
 		FFmpegPath:  ffmpegPath,
 		Timeout:     "2m",
@@ -57,10 +59,11 @@ func TestEditorRenderE2E(t *testing.T) {
 	queue.Start(ctx)
 	t.Cleanup(cancel)
 
-	h := httpapi.NewHandlers(newMemoryJobRepository(), store, queue,
+	h := httpapi.NewHandlers(jobs, files, queue,
 		httpapi.WithEditorRepositories(assets, projects),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: ffprobePath}),
 	)
+
 	srv := httptest.NewServer(httpapi.Routes(h))
 	t.Cleanup(srv.Close)
 	client := srv.Client()

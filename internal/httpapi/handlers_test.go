@@ -128,6 +128,11 @@ func (f *fakeStreamRepo) Get(_ context.Context, id uuid.UUID) (streamclips.Job, 
 	return j, nil
 }
 
+func (f *fakeStreamRepo) Delete(_ context.Context, id uuid.UUID) error {
+	delete(f.jobs, id)
+	return nil
+}
+
 func (f *fakeStreamRepo) List(_ context.Context, limit int) ([]streamclips.Job, error) {
 	jobs := make([]streamclips.Job, 0, len(f.jobs))
 	for _, j := range f.jobs {
@@ -2065,6 +2070,61 @@ func TestStartRecordingAdmissionByStatus(t *testing.T) {
 	}
 }
 
+// The record task lives only in the in-process queue, so admission must make
+// the pending capture durable: the job reads recording immediately, a
+// rejection leaves parsed for a retry, and a shutdown discard fails it.
+func TestStartRecordingClaimsRecordingAtAdmission(t *testing.T) {
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001", TickStart: 100, TickEnd: 200}}
+	newJob := func(repo *fakeRepo) job.Job {
+		j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+		repo.jobs[j.ID] = j
+		return j
+	}
+	post := func(h *Handlers, id uuid.UUID) *httptest.ResponseRecorder {
+		r := chi.NewRouter()
+		r.Post("/api/jobs/{id}/record", h.StartRecording)
+		rw := httptest.NewRecorder()
+		r.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+id.String()+"/record", strings.NewReader(`{"segment_ids":["seg-001"]}`)))
+		return rw
+	}
+
+	t.Run("accepted work claims recording, then a discard fails the job", func(t *testing.T) {
+		repo := newFakeRepo()
+		queue := &fakeQueue{}
+		j := newJob(repo)
+		h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+		if rw := post(h, j.ID); rw.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+		}
+		if got := repo.jobs[j.ID].Status; got != job.StatusRecording {
+			t.Fatalf("status after admission = %s, want recording", got)
+		}
+		if len(queue.transitions) != 1 {
+			t.Fatalf("queue transitions = %d, want 1", len(queue.transitions))
+		}
+		if err := queue.transitions[0](errors.New("inline queue task discarded during shutdown")); err != nil {
+			t.Fatalf("discard transition error = %v", err)
+		}
+		got := repo.jobs[j.ID]
+		if got.Status != job.StatusFailed || !strings.Contains(got.FailureReason, "discarded during shutdown") {
+			t.Fatalf("job after discard = status %s, reason %q; want failed discard reason", got.Status, got.FailureReason)
+		}
+	})
+	t.Run("rejected work keeps parsed for a retry", func(t *testing.T) {
+		repo := newFakeRepo()
+		queue := &fakeQueue{err: errors.New("queue is full")}
+		j := newJob(repo)
+		h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+		if rw := post(h, j.ID); rw.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500; body=%s", rw.Code, rw.Body.String())
+		}
+		if got := repo.jobs[j.ID].Status; got != job.StatusParsed {
+			t.Fatalf("status after rejection = %s, want parsed", got)
+		}
+	})
+}
+
 func TestGetRecapPlanReturnsStoredRounds(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
@@ -2255,70 +2315,94 @@ func TestStartRecordingRejectsFailedJobWithoutPlan(t *testing.T) {
 	}
 }
 
-func TestStartCompositionEnqueuesComposeTaskWhenRecorded(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/compose", h.StartComposition)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+func TestStartCompositionAdmission(t *testing.T) {
+	composeReady := WithCapabilities(Capabilities{ComposeEnabled: true})
+	cases := []struct {
+		name        string
+		status      job.Status
+		opts        []Option
+		wantCode    int
+		wantEnqueue int
+		wantStatus  job.Status
+	}{
+		{name: "recorded enqueues and claims composing", status: job.StatusRecorded, opts: []Option{composeReady}, wantCode: http.StatusAccepted, wantEnqueue: 1, wantStatus: job.StatusComposing},
+		{name: "composed retries idempotently", status: job.StatusComposed, opts: []Option{composeReady}, wantCode: http.StatusAccepted, wantEnqueue: 1, wantStatus: job.StatusComposing},
+		{name: "review_required recomposes", status: job.StatusReviewRequired, opts: []Option{composeReady}, wantCode: http.StatusAccepted, wantEnqueue: 1, wantStatus: job.StatusComposing},
+		{name: "composing is a conflict not a second task", status: job.StatusComposing, opts: []Option{composeReady}, wantCode: http.StatusConflict, wantStatus: job.StatusComposing},
+		{name: "parsed is a conflict", status: job.StatusParsed, opts: []Option{composeReady}, wantCode: http.StatusConflict, wantStatus: job.StatusParsed},
+		{name: "compose unconfigured is an actionable 409", status: job.StatusRecorded, wantCode: http.StatusConflict, wantStatus: job.StatusRecorded},
 	}
-	if len(queue.enqueued) != 1 {
-		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
-	}
-	if queue.enqueued[0].Type() != tasks.TypeComposeFinal {
-		t.Fatalf("task type = %q, want %q", queue.enqueued[0].Type(), tasks.TypeComposeFinal)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			queue := &fakeQueue{}
+			j := job.Job{ID: uuid.New(), Status: tc.status, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, newFakeStorage(), queue, tc.opts...)
+
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/compose", h.StartComposition)
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil))
+
+			if rw.Code != tc.wantCode {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantCode, rw.Body.String())
+			}
+			if len(queue.enqueued) != tc.wantEnqueue {
+				t.Fatalf("enqueued = %d, want %d", len(queue.enqueued), tc.wantEnqueue)
+			}
+			if got := repo.jobs[j.ID].Status; got != tc.wantStatus {
+				t.Fatalf("job status = %s, want %s", got, tc.wantStatus)
+			}
+			if tc.wantEnqueue == 1 && queue.enqueued[0].Type() != tasks.TypeComposeFinal {
+				t.Fatalf("task type = %q, want %q", queue.enqueued[0].Type(), tasks.TypeComposeFinal)
+			}
+		})
 	}
 }
 
-func TestStartCompositionAllowsIdempotentRetryWhenComposed(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusComposed, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/compose", h.StartComposition)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
-	}
-	if len(queue.enqueued) != 1 {
-		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
-	}
-}
-
-func TestStartCompositionRejectsWrongStatus(t *testing.T) {
-	repo := newFakeRepo()
-	queue := &fakeQueue{}
-	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default()}
-	repo.jobs[j.ID] = j
-	h := NewHandlers(repo, newFakeStorage(), queue)
-
-	r := chi.NewRouter()
-	r.Post("/api/jobs/{id}/compose", h.StartComposition)
-	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil)
-	rw := httptest.NewRecorder()
-	r.ServeHTTP(rw, req)
-
-	if rw.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409", rw.Code)
-	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
-	}
+func TestStartCompositionQueueDecisions(t *testing.T) {
+	t.Run("rejection at admission keeps the recorded state for a retry", func(t *testing.T) {
+		repo := newFakeRepo()
+		queue := &fakeQueue{err: errors.New("queue is full")}
+		j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+		repo.jobs[j.ID] = j
+		h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{ComposeEnabled: true}))
+		r := chi.NewRouter()
+		r.Post("/api/jobs/{id}/compose", h.StartComposition)
+		rw := httptest.NewRecorder()
+		r.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil))
+		if rw.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500; body=%s", rw.Code, rw.Body.String())
+		}
+		if got := repo.jobs[j.ID].Status; got != job.StatusRecorded {
+			t.Fatalf("job status = %s, want recorded", got)
+		}
+	})
+	t.Run("shutdown discard of admitted work fails the job", func(t *testing.T) {
+		repo := newFakeRepo()
+		queue := &fakeQueue{}
+		j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+		repo.jobs[j.ID] = j
+		h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{ComposeEnabled: true}))
+		r := chi.NewRouter()
+		r.Post("/api/jobs/{id}/compose", h.StartComposition)
+		rw := httptest.NewRecorder()
+		r.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil))
+		if rw.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+		}
+		if len(queue.transitions) != 1 {
+			t.Fatalf("queue transitions = %d, want 1", len(queue.transitions))
+		}
+		if err := queue.transitions[0](errors.New("inline queue task discarded during shutdown")); err != nil {
+			t.Fatalf("discard transition error = %v", err)
+		}
+		got := repo.jobs[j.ID]
+		if got.Status != job.StatusFailed || !strings.Contains(got.FailureReason, "discarded during shutdown") {
+			t.Fatalf("job after discard = status %s, reason %q; want failed discard reason", got.Status, got.FailureReason)
+		}
+	})
 }
 
 func TestStartRenderVariantEnqueuesRenderTaskWhenRecorded(t *testing.T) {
@@ -4343,6 +4427,97 @@ func TestDeleteJobRejectsInFlightJob(t *testing.T) {
 	}
 	if _, ok := store.puts[demoKey]; !ok {
 		t.Error("demo removed from storage despite 409")
+	}
+}
+
+// Render variants and guided generate runs never move job.Status, so a settled
+// job can still own live worker writes; delete must refuse those with the same
+// coded 409 as StartGenerate and succeed once the variant settles.
+func TestDeleteJobRefusesWhileRenderOrGenerateActive(t *testing.T) {
+	loadout, err := renderplan.LoadoutForVariant(editor.PresetViral60Clean)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeIntent, err := json.Marshal(renderplan.GenerateIntent{ActiveRunID: uuid.New()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name        string
+		renderState string
+		intent      []byte
+		wantCode    int
+	}{
+		{name: "render queued", renderState: renderplan.RenderVariantStatusQueued, wantCode: http.StatusConflict},
+		{name: "render rendering", renderState: renderplan.RenderVariantStatusRendering, wantCode: http.StatusConflict},
+		{name: "generate run active", intent: activeIntent, wantCode: http.StatusConflict},
+		{name: "render ready", renderState: renderplan.RenderVariantStatusReady, wantCode: http.StatusNoContent},
+		{name: "render failed", renderState: renderplan.RenderVariantStatusFailed, wantCode: http.StatusNoContent},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store, err := storage.NewLocal(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			j := job.Job{ID: uuid.New(), Status: job.StatusDone, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			demoKey := "demos/" + j.ID.String() + ".dem"
+			if err := store.Put(demoKey, bytes.NewReader([]byte("PBDEMS2\x00"))); err != nil {
+				t.Fatal(err)
+			}
+			h := NewHandlers(repo, store, &fakeQueue{})
+			if tc.renderState != "" {
+				state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+					JobID:   j.ID,
+					Loadout: loadout,
+					Status:  tc.renderState,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.writeRenderVariantState(state); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.intent != nil {
+				if err := store.Put(artifacts.GenerateIntentKey(j.ID), bytes.NewReader(tc.intent)); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			r := chi.NewRouter()
+			r.Delete("/api/jobs/{id}", h.DeleteJob)
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/jobs/"+j.ID.String(), nil))
+			if rw.Code != tc.wantCode {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantCode, rw.Body.String())
+			}
+			_, stillThere := repo.jobs[j.ID]
+			demoExists, err := store.Exists(demoKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantCode == http.StatusConflict {
+				var response struct {
+					Code string `json:"code"`
+				}
+				if err := json.Unmarshal(rw.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				if response.Code != generateWorkActive {
+					t.Fatalf("code = %q, want %q", response.Code, generateWorkActive)
+				}
+				if !stillThere || !demoExists {
+					t.Fatalf("409 must leave row (%v) and demo (%v) untouched", stillThere, demoExists)
+				}
+				return
+			}
+			if stillThere || demoExists {
+				t.Fatalf("204 must remove row (present=%v) and demo (present=%v)", stillThere, demoExists)
+			}
+		})
 	}
 }
 

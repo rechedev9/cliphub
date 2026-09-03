@@ -261,6 +261,14 @@ export type VideoStatus =
   | 'failed';
 /** Live job progress during capture or editing; percent is 0-100. */
 export type CaptureProgress = { done: number; total: number; percent?: number };
+/** `GET /api/demos/{jobId}/status`: the orchestrator's `jobStatusResponse`. */
+export type JobStatusView = {
+  status: string;
+  failureReason?: string;
+  /** Stable obs class (`demo_incompatible`, `capture_flake`, …); `failureReason` stays human text. */
+  failureCode?: string;
+  captureProgress?: CaptureProgress;
+};
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;
@@ -282,6 +290,8 @@ export type Video = {
   thumbnailUrl?: string;
   downloadUrl?: string;
   failureReason?: string;
+  /** Stable failure class from the orchestrator job when the job itself failed. */
+  failureCode?: string;
   /** Exact render QA warnings; populated only while status is review_required. */
   warnings?: string[];
   /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */
@@ -349,6 +359,8 @@ export type AggregatedSeriesPlayer = DemoPlayer & { mapsPresent: number };
 
 /** Proxy code when the local orchestrator is unreachable. */
 export const SERVICE_UNAVAILABLE_CODE = 'service_unavailable';
+/** Orchestrator 503 for a feature that is not set up; never the proxy's own code. */
+export const NOT_CONFIGURED_CODE = 'not_configured';
 export const GENERATE_WORK_ACTIVE_CODE = 'generate_work_active';
 export const FACEIT_NOT_CONFIGURED_CODE = 'faceit_not_configured';
 export const STEAM_CODES = {
@@ -360,15 +372,40 @@ export const STEAM_CODES = {
   invalidShareCode: 'invalid_share_code',
 } as const;
 
-/** Statuses at or past which the kill plan exists and stays available. */
-export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set([
+/**
+ * Every demo job status the orchestrator can emit, mirroring
+ * `internal/job/job.go` statusNames. Any status-driven gate must derive from
+ * this tuple so a new Go status cannot be silently absent on the client.
+ */
+export const JOB_STATUSES = [
+  'queued',
+  'parsing',
   'parsed',
   'recording',
   'recorded',
   'composing',
   'composed',
   'done',
+  'failed',
+  'scanning',
+  'scanned',
+  'review_required',
+] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+/** Statuses at or past which the kill plan exists and stays available. */
+export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set<JobStatus>([
+  'parsed',
+  'recording',
+  'recorded',
+  'composing',
+  'composed',
+  'review_required',
+  'done',
 ]);
+
+/** Statuses with a roster scan, so the demo belongs in Partidas: scanned or anything after it. */
+export const ROSTER_READY_STATUSES: ReadonlySet<string> = new Set<JobStatus>(['scanned', 'parsing', ...(PLAN_READY_STATUSES as ReadonlySet<JobStatus>)]);
 
 /** One capture tool and how its path was resolved. */
 export type CaptureTool = {

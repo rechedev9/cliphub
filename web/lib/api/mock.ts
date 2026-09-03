@@ -308,17 +308,6 @@ export class MockApiClient implements ApiClient {
     return match ? { ...match, stats: { ...match.stats } } : null;
   }
 
-  /** @deprecated Superseded by scanDemo + parseDemo. */
-  async uploadDemo(input: { fileName: string }): Promise<Match> {
-    await delay();
-    uploadSeq += 1;
-    const { match, plays } = synthUploadedMatch(input.fileName, uploadSeq);
-    uploadedMatches.unshift(match);
-    uploadedPlays.set(match.id, plays);
-    saveUploads();
-    return { ...match, stats: { ...match.stats } };
-  }
-
   async scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match: RosterMatch }> {
     await delay();
     uploadSeq += 1;

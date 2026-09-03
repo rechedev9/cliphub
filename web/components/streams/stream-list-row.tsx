@@ -2,14 +2,20 @@
 
 import type { ReactNode } from 'react';
 import { ChevronRight, Film } from 'lucide-react';
-import type { StreamJob } from '@/lib/api/streams';
+import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { streamJobTag } from '@/lib/streams/list';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
+import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
 
-/** One stream job. Everything shown is read from the job; nothing is inferred. */
-export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => void }): ReactNode {
+/**
+ * One stream job. Everything shown is read from the job; nothing is inferred.
+ * `onDeleted` lets the page re-fetch after the two-step delete; the
+ * orchestrator refuses (409) while the job is still acquiring or rendering and
+ * that message shows inline, same as a Partidas row.
+ */
+export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOpen: () => void; onDeleted: () => void }): ReactNode {
   const tag = streamJobTag(job);
   const acquiring = job.status === 'acquiring';
   const cuts = job.edit_plan?.clips.length ?? 0;
@@ -22,11 +28,11 @@ export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => v
     .join(' · ');
 
   return (
-    <li className="studio-enter studio-panel max-w-[1080px] overflow-hidden">
+    <li className="studio-enter studio-panel flex max-w-[1080px] items-stretch overflow-hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full items-center gap-4 py-2.5 pr-4 pl-0 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        className="flex min-w-0 flex-1 items-center gap-4 py-2.5 pr-4 pl-0 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
       >
         <span aria-hidden className="w-1 self-stretch bg-stream" />
         <MediaFrame
@@ -66,6 +72,13 @@ export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => v
         )}
         <ChevronRight aria-hidden className="size-4 shrink-0 text-fg-3" />
       </button>
+      <span className="flex shrink-0 items-center py-2.5 pr-4">
+        <DeleteMatchButton
+          label={job.title?.trim() || 'Clip de stream'}
+          onConfirm={() => streamsApi.deleteJob(job.id)}
+          onDeleted={onDeleted}
+        />
+      </span>
     </li>
   );
 }

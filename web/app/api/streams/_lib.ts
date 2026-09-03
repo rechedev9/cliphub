@@ -36,3 +36,4 @@ const UUID_RE = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 export function streamJobUrl(jobId: string, suffix = ''): string | null {
   return UUID_RE.test(jobId) ? `${orchestratorUrl()}/api/stream-jobs/${jobId}${suffix}` : null;
 }
+

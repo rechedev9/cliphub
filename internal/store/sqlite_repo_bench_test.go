@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -14,7 +14,7 @@ var benchmarkJobStatus job.Status
 var benchmarkJobList []job.Job
 
 func BenchmarkSQLiteGetMetaWithLargePlan(b *testing.B) {
-	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
+	repo, err := NewSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func BenchmarkSQLiteGetMetaWithLargePlan(b *testing.B) {
 }
 
 func BenchmarkSQLiteGetStatusWithLargePlan(b *testing.B) {
-	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
+	repo, err := NewSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func BenchmarkSQLiteGetStatusWithLargePlan(b *testing.B) {
 }
 
 func BenchmarkSQLiteListWithLargePlans(b *testing.B) {
-	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
+	repo, err := NewSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func BenchmarkSQLiteListWithLargePlans(b *testing.B) {
 }
 
 func BenchmarkSQLiteListWithoutPlans(b *testing.B) {
-	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
+	repo, err := NewSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func BenchmarkSQLiteListWithoutPlans(b *testing.B) {
 }
 
 func BenchmarkSQLiteUpdateStatusWithLargePlan(b *testing.B) {
-	repo, err := newSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
+	repo, err := NewSQLiteJobRepository(filepath.Join(b.TempDir(), "jobs.db"))
 	if err != nil {
 		b.Fatal(err)
 	}

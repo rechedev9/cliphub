@@ -1,4 +1,4 @@
-package main
+package reconcile
 
 import (
 	"bytes"
@@ -17,6 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
@@ -26,14 +27,14 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 	databasePath := filepath.Join(dir, "jobs.db")
 	storagePath := filepath.Join(dir, "artifacts")
 
-	before, err := newSQLiteJobRepository(databasePath)
+	before, err := store.NewSQLiteJobRepository(databasePath)
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository before restart: %v", err)
+		t.Fatalf("store.NewSQLiteJobRepository before restart: %v", err)
 	}
-	streamBefore, err := newSQLiteStreamJobRepository(before.db)
+	streamBefore, err := store.NewSQLiteStreamJobRepository(before.DB())
 	if err != nil {
 		_ = before.Close()
-		t.Fatalf("newSQLiteStreamJobRepository before restart: %v", err)
+		t.Fatalf("store.NewSQLiteStreamJobRepository before restart: %v", err)
 	}
 	storeBefore, err := storage.NewLocal(storagePath)
 	if err != nil {
@@ -96,25 +97,25 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 		t.Fatalf("close SQLite before restart: %v", err)
 	}
 
-	after, err := newSQLiteJobRepository(databasePath)
+	after, err := store.NewSQLiteJobRepository(databasePath)
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository after restart: %v", err)
+		t.Fatalf("store.NewSQLiteJobRepository after restart: %v", err)
 	}
 	t.Cleanup(func() { _ = after.Close() })
-	streamAfter, err := newSQLiteStreamJobRepository(after.db)
+	streamAfter, err := store.NewSQLiteStreamJobRepository(after.DB())
 	if err != nil {
-		t.Fatalf("newSQLiteStreamJobRepository after restart: %v", err)
+		t.Fatalf("store.NewSQLiteStreamJobRepository after restart: %v", err)
 	}
 	storeAfter, err := storage.NewLocal(storagePath)
 	if err != nil {
 		t.Fatalf("storage.NewLocal after restart: %v", err)
 	}
 
-	reconciled, err := reconcileInterruptedWork(ctx, after, streamAfter, storeAfter, nil)
+	reconciled, err := InterruptedWork(ctx, after, streamAfter, store.NewMemoryEditorProjectRepository(), storeAfter, nil)
 	if err != nil {
-		t.Fatalf("reconcileInterruptedWork after restart: %v", err)
+		t.Fatalf("InterruptedWork after restart: %v", err)
 	}
-	wantReconciled := startupReconciliationResult{
+	wantReconciled := Result{
 		DemoJobs:           1,
 		DemoRenders:        1,
 		GenerateRuns:       1,
@@ -171,7 +172,8 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 	}
 }
 
-func createRestartDemoJob(t *testing.T, repo *sqliteJobRepository, status job.Status) job.Job {
+func createRestartDemoJob(t *testing.T, repo *store.SQLiteJobRepository, status job.Status) job.Job {
+
 	t.Helper()
 	j := job.Job{
 		Status:        status,
@@ -186,7 +188,8 @@ func createRestartDemoJob(t *testing.T, repo *sqliteJobRepository, status job.St
 	return j
 }
 
-func createRestartStreamJob(t *testing.T, repo *sqliteStreamJobRepository, status streamclips.Status) streamclips.Job {
+func createRestartStreamJob(t *testing.T, repo *store.SQLiteStreamJobRepository, status streamclips.Status) streamclips.Job {
+
 	t.Helper()
 	j := streamclips.Job{
 		Status:       status,
@@ -223,7 +226,8 @@ func readRestartJSON(t *testing.T, store storage.Storage, key string, dst any) {
 	}
 }
 
-func assertRestartDemoFailed(t *testing.T, repo *sqliteJobRepository, id uuid.UUID, reason string) {
+func assertRestartDemoFailed(t *testing.T, repo *store.SQLiteJobRepository, id uuid.UUID, reason string) {
+
 	t.Helper()
 	got, err := repo.Get(context.Background(), id)
 	if err != nil {

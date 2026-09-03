@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -16,21 +16,21 @@ import (
 
 // newTestSQLiteStreamRepo builds a sqlite stream job repository the same way
 // main.go's sqlite branch does: sharing the *sql.DB opened by
-// newSQLiteJobRepository rather than opening the file twice. This is the
+// NewSQLiteJobRepository rather than opening the file twice. This is the
 // regression coverage for the bug where ClipHub Studio (desktop, which runs
 // the orchestrator with ZV_DATABASE_URL=sqlite) left streamRepo nil, so every
 // /api/stream-jobs endpoint 500'd.
-func newTestSQLiteStreamRepo(t *testing.T) *sqliteStreamJobRepository {
+func newTestSQLiteStreamRepo(t *testing.T) *SQLiteStreamJobRepository {
 	t.Helper()
-	jobRepo, err := newSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	jobRepo, err := NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository: %v", err)
+		t.Fatalf("NewSQLiteJobRepository: %v", err)
 	}
 	t.Cleanup(func() { _ = jobRepo.Close() })
 
-	streamRepo, err := newSQLiteStreamJobRepository(jobRepo.db)
+	streamRepo, err := NewSQLiteStreamJobRepository(jobRepo.db)
 	if err != nil {
-		t.Fatalf("newSQLiteStreamJobRepository: %v", err)
+		t.Fatalf("NewSQLiteStreamJobRepository: %v", err)
 	}
 	return streamRepo
 }
@@ -250,12 +250,14 @@ func TestSQLiteStreamRepoClearsPrivateSourceURLOnFailure(t *testing.T) {
 }
 
 func TestSQLiteStreamRepoMigratesLegacySourceURLsWithoutRetainingSecrets(t *testing.T) {
-	jobRepo, err := newSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	// A pre-versioned database: stream_jobs without public_source_url or
+	// failure_code and a single secret-bearing source_url.
+	dbPath := filepath.Join(t.TempDir(), "jobs.db")
+	legacy, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = jobRepo.Close() })
-	if _, err := jobRepo.db.Exec(`CREATE TABLE stream_jobs (
+	if _, err := legacy.Exec(`CREATE TABLE stream_jobs (
 		id TEXT PRIMARY KEY, status TEXT NOT NULL, failure_reason TEXT,
 		source_path TEXT NOT NULL, source_sha256 TEXT NOT NULL, source_url TEXT,
 		title TEXT, probe TEXT NOT NULL, edit_plan TEXT,
@@ -265,7 +267,7 @@ func TestSQLiteStreamRepoMigratesLegacySourceURLsWithoutRetainingSecrets(t *test
 	}
 	completedID := uuid.New()
 	rejectedID := uuid.New()
-	if _, err := jobRepo.db.Exec(
+	if _, err := legacy.Exec(
 		`INSERT INTO stream_jobs
 		 (id,status,source_path,source_sha256,source_url,probe,created_at,updated_at)
 		 VALUES (?,?,?,?,?,'{}',1,1), (?,?,?,?,?,'{}',1,1)`,
@@ -276,8 +278,17 @@ func TestSQLiteStreamRepoMigratesLegacySourceURLsWithoutRetainingSecrets(t *test
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := newSQLiteStreamJobRepository(jobRepo.db); err != nil {
+	if err := legacy.Close(); err != nil {
 		t.Fatal(err)
+	}
+
+	jobRepo, err := NewSQLiteJobRepository(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = jobRepo.Close() })
+	if version, err := schemaVersion(jobRepo.db); err != nil || version != len(migrations) {
+		t.Fatalf("schema version = %d (%v), want %d", version, err, len(migrations))
 	}
 
 	var private, public sql.NullString
@@ -318,15 +329,15 @@ func TestSQLiteStreamRepoSharesDBWithJobRepository(t *testing.T) {
 	// instead of leaving it nil. This exercises that construction path
 	// directly rather than through main().
 	dbPath := filepath.Join(t.TempDir(), "jobs.db")
-	jobRepo, err := newSQLiteJobRepository(dbPath)
+	jobRepo, err := NewSQLiteJobRepository(dbPath)
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository: %v", err)
+		t.Fatalf("NewSQLiteJobRepository: %v", err)
 	}
 	defer func() { _ = jobRepo.Close() }()
 
-	streamRepo, err := newSQLiteStreamJobRepository(jobRepo.db)
+	streamRepo, err := NewSQLiteStreamJobRepository(jobRepo.db)
 	if err != nil {
-		t.Fatalf("newSQLiteStreamJobRepository: %v", err)
+		t.Fatalf("NewSQLiteStreamJobRepository: %v", err)
 	}
 	if streamRepo.db != jobRepo.db {
 		t.Fatal("stream repo does not share the job repository's *sql.DB")

@@ -101,6 +101,11 @@ func (a Asset) Validate() error {
 
 var sha256HexPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+// AssetPrefix is the storage directory that holds everything for one asset.
+func AssetPrefix(id uuid.UUID) string {
+	return path.Join("editor-assets", id.String())
+}
+
 func MediaKey(id uuid.UUID) string {
-	return path.Join("editor-assets", id.String(), "media.mp4")
+	return path.Join(AssetPrefix(id), "media.mp4")
 }

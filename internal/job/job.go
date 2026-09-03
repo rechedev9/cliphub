@@ -94,6 +94,17 @@ func ParseStatus(name string) (Status, error) {
 	return 0, fmt.Errorf("unknown job status %q", name)
 }
 
+// Statuses returns every defined Status in declaration order. Exhaustive
+// walks (startup sweeps, contract tests) must range over this instead of a
+// hand-written list, which is how review_required was silently skipped.
+func Statuses() []Status {
+	out := make([]Status, len(statusNames))
+	for i := range statusNames {
+		out[i] = Status(i)
+	}
+	return out
+}
+
 // Job is the canonical domain model used by the API, the worker, and the DB.
 type Job struct {
 	ID            uuid.UUID `json:"id"`

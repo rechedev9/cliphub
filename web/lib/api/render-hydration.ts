@@ -83,6 +83,12 @@ export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined
   if (typeof edit.keydrop_position_y === 'number' && Number.isFinite(edit.keydrop_position_y)) {
     parsed.keyDropPositionY = edit.keydrop_position_y;
   }
+  if (typeof edit.keydrop_start_seconds === 'number' && Number.isFinite(edit.keydrop_start_seconds)) {
+    parsed.keyDropStartSeconds = edit.keydrop_start_seconds;
+  }
+  if (typeof edit.keydrop_end_seconds === 'number' && Number.isFinite(edit.keydrop_end_seconds)) {
+    parsed.keyDropEndSeconds = edit.keydrop_end_seconds;
+  }
   if (isDemoSource(edit.demo_source)) {
     parsed.demoSource = edit.demo_source;
   }

@@ -52,26 +52,23 @@ func (h *Handlers) StartAnticheat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Claim the lane before enqueueing so a poll issued right after this
-	// response already sees "running" instead of a stale ready document.
+	// Claim the lane inside the queue's admission boundary so a poll issued
+	// right after this response already sees "running" instead of a stale ready
+	// document. A rejected enqueue or a shutdown discard releases the claim as a
+	// failed document; otherwise the job would poll a screening that nothing
+	// owns until anticheatClaimTTL expires.
 	doc := anticheat.NewRunningDocument(j.ID.String(), now)
-	if err := h.putAnticheatDocument(j.ID, doc); err != nil {
-		internalError(w, "store anticheat document", err)
-		return
-	}
-
 	task, err := tasks.NewAnalyzeAnticheatTask(j.ID)
 	if err != nil {
 		internalError(w, "build anticheat task", err)
 		return
 	}
-	if _, err := h.queue.Enqueue(task); err != nil {
-		// The lane was claimed above, so a rejected enqueue must release it or
-		// the job would poll a screening that nothing owns.
-		if putErr := h.putAnticheatDocument(j.ID, doc.Fail("no se pudo encolar el análisis: "+err.Error(), time.Now())); putErr != nil {
-			internalError(w, "release anticheat document", putErr)
-			return
+	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
+		if decision == nil {
+			return h.putAnticheatDocument(j.ID, doc)
 		}
+		return h.putAnticheatDocument(j.ID, doc.Fail("no se pudo encolar el análisis: "+decision.Error(), time.Now()))
+	}); err != nil {
 		internalError(w, "enqueue anticheat task", err)
 		return
 	}

@@ -216,6 +216,34 @@ func TestStartAnticheatReleasesTheLaneWhenTheQueueRejects(t *testing.T) {
 	}
 }
 
+func TestStartAnticheatReleasesTheLaneWhenShutdownDiscardsAdmittedWork(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{}
+	j := scannedJob()
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue)
+
+	rw := httptest.NewRecorder()
+	anticheatRouter(h).ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/anticheat", nil))
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.transitions) != 1 {
+		t.Fatalf("queue transitions = %d, want 1", len(queue.transitions))
+	}
+	if err := queue.transitions[0](errors.New("inline queue task discarded during shutdown")); err != nil {
+		t.Fatalf("discard transition error = %v", err)
+	}
+	var doc anticheat.Document
+	if err := json.Unmarshal(store.puts[artifacts.AnticheatKey(j.ID)], &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Status != anticheat.StatusFailed {
+		t.Fatalf("document status = %q after discard, want %q so the lane is re-claimable now, not after the TTL", doc.Status, anticheat.StatusFailed)
+	}
+}
+
 func TestGetAnticheatReturns409BeforeAnyRun(t *testing.T) {
 	repo := newFakeRepo()
 	j := scannedJob()

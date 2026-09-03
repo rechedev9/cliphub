@@ -85,6 +85,12 @@ class RealEditorApiClient {
     return `/api/editor/assets/${id}/media`;
   }
 
+  /** 404 is success; a timeline still referencing the asset fails its next render. */
+  async deleteAsset(id: string): Promise<void> {
+    const res = await fetch(`/api/editor/assets/${id}`, { method: 'DELETE' });
+    if (res.status !== 404 && !res.ok) await throwResponseError(res);
+  }
+
   async listProjects(): Promise<EditorProject[]> {
     const data = await readJson<{ projects?: EditorProject[] }>(await fetch('/api/editor/projects', { cache: 'no-store' }));
     return data.projects ?? [];
@@ -102,6 +108,12 @@ class RealEditorApiClient {
 
   async getProject(id: string): Promise<EditorProject> {
     return readJson<EditorProject>(await fetch(`/api/editor/projects/${id}`, { cache: 'no-store' }));
+  }
+
+  /** 404 is success; 409 (rendering) and 503 throw with `code`. */
+  async deleteProject(id: string): Promise<void> {
+    const res = await fetch(`/api/editor/projects/${id}`, { method: 'DELETE' });
+    if (res.status !== 404 && !res.ok) await throwResponseError(res);
   }
 
   async putPlan(id: string, plan: EditorDocument): Promise<EditorDocument> {

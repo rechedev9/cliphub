@@ -749,3 +749,66 @@ func TestWorkbenchShowsInlinePreviewWhenReady(t *testing.T) {
 		}
 	}
 }
+
+// uniqueScopeQueue dedupes the way the inline queue does after the move to
+// tasks.UniqueScope: one record task per job regardless of payload, with the
+// rejected transition applied before the duplicate error is returned.
+type uniqueScopeQueue struct {
+	fakeQueue
+	seen map[string]struct{}
+}
+
+func (q *uniqueScopeQueue) EnqueueWithTransition(t *asynq.Task, transition func(error) error, opts ...asynq.Option) (*asynq.TaskInfo, error) {
+	if q.seen == nil {
+		q.seen = map[string]struct{}{}
+	}
+	if key, ok := tasks.UniqueScope(t); ok {
+		if _, dup := q.seen[key]; dup {
+			if transition != nil {
+				if err := transition(asynq.ErrDuplicateTask); err != nil {
+					return nil, fmt.Errorf("apply rejected inline queue transition after %v: %w", asynq.ErrDuplicateTask, err)
+				}
+			}
+			return nil, asynq.ErrDuplicateTask
+		}
+		q.seen[key] = struct{}{}
+	}
+	return q.fakeQueue.enqueue(t, transition, opts...)
+}
+
+// With job-scoped record uniqueness the queue answers duplicate before the
+// intent store can refuse an overlapping run. A re-drive of the same reel is
+// still a 202 duplicate; a different reel on the same job must get the 409 the
+// client already knows how to wait on, not adopt the queued reel's choices.
+func TestStartGenerateRefusesDifferentIntentBehindQueuedCapture(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &uniqueScopeQueue{}
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+	first := postGenerate(t, h, j.ID, `{"preset":"clean-pov-60","music":"first-track"}`)
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("first status = %d, want 202; body=%s", first.Code, first.Body.String())
+	}
+	redrive := postGenerate(t, h, j.ID, `{"preset":"clean-pov-60","music":"first-track"}`)
+	if redrive.Code != http.StatusAccepted || !strings.Contains(redrive.Body.String(), `"duplicate":true`) {
+		t.Fatalf("same-intent re-drive = %d %s, want 202 duplicate", redrive.Code, redrive.Body.String())
+	}
+	other := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","music":"second-track"}`)
+	if other.Code != http.StatusConflict || !strings.Contains(other.Body.String(), generateWorkActive) {
+		t.Fatalf("different-intent status = %d body=%s, want 409 %s", other.Code, other.Body.String(), generateWorkActive)
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want only the first capture", len(queue.enqueued))
+	}
+	current, ok, err := h.readGenerateIntent(j.ID)
+	if err != nil || !ok {
+		t.Fatalf("current intent = (%#v, %v, %v)", current, ok, err)
+	}
+	if current.Variant != "clean-pov-60" || current.MusicKey != "first-track" {
+		t.Fatalf("active intent changed after refused overlap: %+v", current)
+	}
+}

@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -13,29 +13,20 @@ import (
 	"github.com/rechedev9/cliphub/internal/timelineplan"
 )
 
-type sqliteEditorAssetRepository struct {
+type SQLiteEditorAssetRepository struct {
 	db *sql.DB
 }
 
-func newSQLiteEditorAssetRepository(db *sql.DB) (*sqliteEditorAssetRepository, error) {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS editor_assets (
-		id TEXT PRIMARY KEY,
-		sha256 TEXT NOT NULL,
-		file_name TEXT NOT NULL,
-		origin TEXT NOT NULL,
-		origin_job_id TEXT,
-		origin_variant TEXT,
-		origin_name TEXT,
-		probe TEXT NOT NULL,
-		media_key TEXT NOT NULL,
-		created_at INTEGER NOT NULL
-	)`); err != nil {
-		return nil, fmt.Errorf("create editor_assets table: %w", err)
+// NewSQLiteEditorAssetRepository returns a repository over the editor_assets
+// table of db, which openSQLite has already migrated to the current schema.
+func NewSQLiteEditorAssetRepository(db *sql.DB) (*SQLiteEditorAssetRepository, error) {
+	if db == nil {
+		return nil, fmt.Errorf("editor asset repository requires an open database")
 	}
-	return &sqliteEditorAssetRepository{db: db}, nil
+	return &SQLiteEditorAssetRepository{db: db}, nil
 }
 
-func (r *sqliteEditorAssetRepository) Create(ctx context.Context, a *mediaassets.Asset) error {
+func (r *SQLiteEditorAssetRepository) Create(ctx context.Context, a *mediaassets.Asset) error {
 	if a.ID == uuid.Nil {
 		a.ID = uuid.New()
 	}
@@ -59,21 +50,31 @@ func (r *sqliteEditorAssetRepository) Create(ctx context.Context, a *mediaassets
 	return err
 }
 
-func (r *sqliteEditorAssetRepository) Get(ctx context.Context, id uuid.UUID) (mediaassets.Asset, error) {
+func (r *SQLiteEditorAssetRepository) Get(ctx context.Context, id uuid.UUID) (mediaassets.Asset, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, sha256, file_name, origin, origin_job_id, origin_variant, origin_name, probe, media_key, created_at
 		 FROM editor_assets WHERE id = ?`, id.String())
 	return scanEditorAsset(row)
 }
 
-func (r *sqliteEditorAssetRepository) GetBySHA256(ctx context.Context, digest string) (mediaassets.Asset, error) {
+// GetBySHA256 returns the oldest asset with this digest: sha256 is not UNIQUE
+// (historic duplicates may exist), so the choice must be stable across calls.
+func (r *SQLiteEditorAssetRepository) GetBySHA256(ctx context.Context, digest string) (mediaassets.Asset, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, sha256, file_name, origin, origin_job_id, origin_variant, origin_name, probe, media_key, created_at
-		 FROM editor_assets WHERE sha256 = ? LIMIT 1`, digest)
+		 FROM editor_assets WHERE sha256 = ? ORDER BY created_at ASC, id ASC LIMIT 1`, digest)
 	return scanEditorAsset(row)
 }
 
-func (r *sqliteEditorAssetRepository) List(ctx context.Context, limit int) ([]mediaassets.Asset, error) {
+// Delete removes the asset row; a missing id is not an error.
+func (r *SQLiteEditorAssetRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM editor_assets WHERE id = ?`, id.String()); err != nil {
+		return fmt.Errorf("delete editor asset: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteEditorAssetRepository) List(ctx context.Context, limit int) ([]mediaassets.Asset, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -137,26 +138,20 @@ func scanEditorAsset(row sqlScanner) (mediaassets.Asset, error) {
 	return a, nil
 }
 
-type sqliteEditorProjectRepository struct {
+type SQLiteEditorProjectRepository struct {
 	db *sql.DB
 }
 
-func newSQLiteEditorProjectRepository(db *sql.DB) (*sqliteEditorProjectRepository, error) {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS editor_projects (
-		id TEXT PRIMARY KEY,
-		title TEXT NOT NULL,
-		status TEXT NOT NULL,
-		failure_reason TEXT NOT NULL DEFAULT '',
-		plan_json TEXT,
-		created_at INTEGER NOT NULL,
-		updated_at INTEGER NOT NULL
-	)`); err != nil {
-		return nil, fmt.Errorf("create editor_projects table: %w", err)
+// NewSQLiteEditorProjectRepository returns a repository over the
+// editor_projects table of db, which openSQLite has already migrated.
+func NewSQLiteEditorProjectRepository(db *sql.DB) (*SQLiteEditorProjectRepository, error) {
+	if db == nil {
+		return nil, fmt.Errorf("editor project repository requires an open database")
 	}
-	return &sqliteEditorProjectRepository{db: db}, nil
+	return &SQLiteEditorProjectRepository{db: db}, nil
 }
 
-func (r *sqliteEditorProjectRepository) Create(ctx context.Context, p *timelineplan.Project) error {
+func (r *SQLiteEditorProjectRepository) Create(ctx context.Context, p *timelineplan.Project) error {
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
 	}
@@ -171,14 +166,14 @@ func (r *sqliteEditorProjectRepository) Create(ctx context.Context, p *timelinep
 	return err
 }
 
-func (r *sqliteEditorProjectRepository) Get(ctx context.Context, id uuid.UUID) (timelineplan.Project, error) {
+func (r *SQLiteEditorProjectRepository) Get(ctx context.Context, id uuid.UUID) (timelineplan.Project, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, title, status, failure_reason, plan_json, created_at, updated_at FROM editor_projects WHERE id = ?`,
 		id.String())
 	return scanEditorProject(row)
 }
 
-func (r *sqliteEditorProjectRepository) List(ctx context.Context, limit int) ([]timelineplan.Project, error) {
+func (r *SQLiteEditorProjectRepository) List(ctx context.Context, limit int) ([]timelineplan.Project, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -200,7 +195,36 @@ func (r *sqliteEditorProjectRepository) List(ctx context.Context, limit int) ([]
 	return out, rows.Err()
 }
 
-func (r *sqliteEditorProjectRepository) UpdateStatus(ctx context.Context, id uuid.UUID, s timelineplan.Status, failureReason string) error {
+// ListByStatus is uncapped: the startup sweep must see every stranded project,
+// not the HTTP page size.
+func (r *SQLiteEditorProjectRepository) ListByStatus(ctx context.Context, status timelineplan.Status) ([]timelineplan.Project, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, title, status, failure_reason, plan_json, created_at, updated_at
+		 FROM editor_projects WHERE status = ? ORDER BY updated_at DESC, id ASC`, string(status))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []timelineplan.Project{}
+	for rows.Next() {
+		p, err := scanEditorProject(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// Delete removes the project row; a missing id is not an error.
+func (r *SQLiteEditorProjectRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM editor_projects WHERE id = ?`, id.String()); err != nil {
+		return fmt.Errorf("delete editor project: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteEditorProjectRepository) UpdateStatus(ctx context.Context, id uuid.UUID, s timelineplan.Status, failureReason string) error {
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE editor_projects SET status = ?, failure_reason = ?, updated_at = ? WHERE id = ?`,
 		string(s), failureReason, time.Now().UTC().UnixMilli(), id.String())
@@ -210,7 +234,7 @@ func (r *sqliteEditorProjectRepository) UpdateStatus(ctx context.Context, id uui
 	return checkEditorRowsAffected(res)
 }
 
-func (r *sqliteEditorProjectRepository) SetPlan(ctx context.Context, id uuid.UUID, plan timelineplan.Document) error {
+func (r *SQLiteEditorProjectRepository) SetPlan(ctx context.Context, id uuid.UUID, plan timelineplan.Document) error {
 	raw, err := json.Marshal(plan)
 	if err != nil {
 		return err

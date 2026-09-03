@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
 import { parseControlJSONObject, readBoundedText } from '@/lib/api/bounded-request-body';
 import { orchestratorUrl, callOrchestrator, mutationHeaders, forwardError, serviceUnavailable } from '../../_lib';
+import { publicEditorAsset } from '@/lib/api/public-projections';
 
 export const runtime = 'nodejs';
 
@@ -54,5 +55,5 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
-  return NextResponse.json((await res.json()) as unknown, { status: res.status });
+  return NextResponse.json(publicEditorAsset(await res.json()), { status: res.status });
 }

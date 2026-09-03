@@ -13,6 +13,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
@@ -26,20 +27,20 @@ import (
 // desktop UI does: a multipart upload with a "video" field.
 func TestPostStreamJobsUnderSQLiteMode(t *testing.T) {
 	dataDir := t.TempDir()
-	store, err := storage.NewLocal(dataDir)
+	jobRepo, err := store.NewSQLiteJobRepository(filepath.Join(dataDir, "jobs.db"))
+	if err != nil {
+		t.Fatalf("store.NewSQLiteJobRepository: %v", err)
+	}
+	defer func() { _ = jobRepo.Close() }()
+
+	files, err := storage.NewLocal(dataDir)
 	if err != nil {
 		t.Fatalf("storage.NewLocal: %v", err)
 	}
 
-	jobRepo, err := newSQLiteJobRepository(filepath.Join(dataDir, "jobs.db"))
+	streamRepo, err := store.NewSQLiteStreamJobRepository(jobRepo.DB())
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository: %v", err)
-	}
-	defer func() { _ = jobRepo.Close() }()
-
-	streamRepo, err := newSQLiteStreamJobRepository(jobRepo.db)
-	if err != nil {
-		t.Fatalf("newSQLiteStreamJobRepository: %v", err)
+		t.Fatalf("store.NewSQLiteStreamJobRepository: %v", err)
 	}
 
 	queue := newInlineQueue(map[string]taskHandler{}, 1)
@@ -47,7 +48,8 @@ func TestPostStreamJobsUnderSQLiteMode(t *testing.T) {
 	defer cancel()
 	queue.Start(ctx)
 
-	handlers := httpapi.NewHandlers(jobRepo, store, queue, httpapi.WithStreamRepository(streamRepo))
+	handlers := httpapi.NewHandlers(jobRepo, files, queue, httpapi.WithStreamRepository(streamRepo))
+
 	srv := httptest.NewServer(httpapi.Routes(handlers))
 	defer srv.Close()
 

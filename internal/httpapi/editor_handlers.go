@@ -2,10 +2,12 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -413,15 +415,41 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 		ResultKey:   previous.ResultKey,
 		UpdatedAt:   time.Now().UTC(),
 	}
-	_, err = h.queue.EnqueueWithTransition(task, func(decision error) error {
-		if decision != nil {
-			return nil
-		}
+	// The admission call runs inside the request; a later shutdown discard runs
+	// without it, so the compensating write uses its own context like
+	// persistJobQueueDecision. Only admitted work has anything to revert:
+	// a duplicate or full-queue rejection never wrote `rendering`.
+	claim := func() error {
 		if err := h.editorProjects.UpdateStatus(r.Context(), p.ID, timelineplan.StatusRendering, ""); err != nil {
 			return err
 		}
-		return h.writeEditorRenderState(state)
-	}, asynq.MaxRetry(0), asynq.Unique(editorRenderUniqueTTL))
+		if err := h.writeEditorRenderState(state); err != nil {
+			// The row is claimed but the state file is not and nothing will be
+			// queued: release the claim so the project is exactly as it was
+			// before the request instead of `rendering` with no task behind it.
+			revertCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if revertErr := h.editorProjects.UpdateStatus(revertCtx, p.ID, p.Status, p.FailureReason); revertErr != nil {
+				return errors.Join(err, fmt.Errorf("release editor render claim: %w", revertErr))
+			}
+			return err
+		}
+		return nil
+	}
+	compensate := func(decision error) error {
+		reason := "enqueue editor render task: " + decision.Error()
+		markCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.editorProjects.UpdateStatus(markCtx, p.ID, timelineplan.StatusFailed, reason); err != nil {
+			return fmt.Errorf("mark editor project failed after queue discard: %w", err)
+		}
+		failed := state
+		failed.Status = timelineplan.StatusFailed
+		failed.Error = reason
+		failed.UpdatedAt = time.Now().UTC()
+		return h.writeEditorRenderState(failed)
+	}
+	_, err = h.queue.EnqueueWithTransition(task, claimQueueStage(claim, compensate), asynq.MaxRetry(0), asynq.Unique(editorRenderUniqueTTL))
 	if err != nil {
 		if errors.Is(err, asynq.ErrDuplicateTask) {
 			writeError(w, http.StatusConflict, "a render is already queued for this project")

@@ -6,12 +6,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 func TestRecoverStreamAcquisitionsFailsJobsWhenWorkerDisabled(t *testing.T) {
 	ctx := context.Background()
-	repo := newMemoryStreamJobRepository()
+	repo := store.NewMemoryStreamJobRepository()
 	streamJob := streamclips.Job{Status: streamclips.StatusAcquiring}
 	if err := repo.Create(ctx, &streamJob); err != nil {
 		t.Fatal(err)

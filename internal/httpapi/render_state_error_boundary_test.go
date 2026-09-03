@@ -116,7 +116,7 @@ func TestRenderStateConsumersHideStateStorageFailures(t *testing.T) {
 				if rw.Code != http.StatusInternalServerError {
 					t.Fatalf("status = %d, want 500; body=%s", rw.Code, rw.Body.String())
 				}
-				if got, want := rw.Body.String(), "{\"error\":\"internal error\"}\n"; got != want {
+				if got, want := rw.Body.String(), "{\"code\":\"internal_error\",\"error\":\"internal error\"}\n"; got != want {
 					t.Fatalf("body = %q, want %q", got, want)
 				}
 				if strings.Contains(rw.Body.String(), renderStatePrivateDetail) {
@@ -229,7 +229,7 @@ func TestWorkbenchRenderStateFailureIsGenericInternalError(t *testing.T) {
 	if rw.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", rw.Code, rw.Body.String())
 	}
-	if got, want := rw.Body.String(), "{\"error\":\"internal error\"}\n"; got != want {
+	if got, want := rw.Body.String(), "{\"code\":\"internal_error\",\"error\":\"internal error\"}\n"; got != want {
 		t.Fatalf("body = %q, want %q", got, want)
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 )
 
 // captureLabSeed is an explicit, in-memory-only Studio verification fixture.
@@ -39,7 +40,7 @@ type captureLabSeed struct {
 	PublishSummaryPath  string `json:"publish_summary_path"`
 }
 
-func seedCaptureLabFromEnvironment(ctx context.Context, cfg config, repo orchestratorJobRepository, store storage.Storage) error {
+func seedCaptureLabFromEnvironment(ctx context.Context, cfg config, repo store.JobRepository, store storage.Storage) error {
 	seedPath := os.Getenv("ZV_CAPTURE_LAB_SEED")
 	evidenceRoot := os.Getenv("ZV_CAPTURE_LAB_EVIDENCE_ROOT")
 	if seedPath == "" && evidenceRoot == "" {
@@ -66,7 +67,7 @@ func seedCaptureLabFromEnvironment(ctx context.Context, cfg config, repo orchest
 	return nil
 }
 
-func seedCaptureLab(ctx context.Context, seedPath, evidenceRoot string, repo orchestratorJobRepository, store storage.Storage) error {
+func seedCaptureLab(ctx context.Context, seedPath, evidenceRoot string, repo store.JobRepository, store storage.Storage) error {
 	seedPath, err := captureLabContainedFile(evidenceRoot, evidenceRoot, seedPath)
 	if err != nil {
 		return fmt.Errorf("seed path: %w", err)
