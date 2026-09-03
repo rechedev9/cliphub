@@ -109,7 +109,7 @@ export function streamEditorSteps({
       key: STREAM_STEP.banners,
       number: '02',
       label: STREAM_STEP_LABEL.banners,
-      detail: `${nick ? `@${nick} · ${platform}` : 'opcional · sin banner'}${affiliate}`,
+      detail: `${nick ? `@${nick} · ${platform}` : 'sin banner'}${affiliate}`,
       done: nick !== '' || affiliate !== '',
       optional: true,
     },
@@ -125,7 +125,7 @@ export function streamEditorSteps({
       key: STREAM_STEP.music,
       number: '04',
       label: STREAM_STEP_LABEL.music,
-      detail: `${hasMusic ? musicLabel : 'opcional · sin música'}${grade}`,
+      detail: `${hasMusic ? musicLabel : 'Sin música'}${grade}`,
       done: hasMusic,
       optional: true,
     },
@@ -197,8 +197,11 @@ export function streamBriefCanBeApproved(plan: StreamEditPlan): boolean {
   return streamPlanBlocker(plan) === null;
 }
 
+/** Steps that can block a render; a new member forces every consumer to name its hint. */
+export type StreamBlocker = typeof STREAM_STEP.layout | typeof STREAM_STEP.cuts;
+
 /** The first step that still blocks a render, or null when the plan is renderable. */
-export function streamPlanBlocker(plan: StreamEditPlan): StreamStep | null {
+export function streamPlanBlocker(plan: StreamEditPlan): StreamBlocker | null {
   if (streamVariantNeedsFaceCrop(plan) && plan.face_crop_reviewed !== true) return STREAM_STEP.layout;
   if (plan.clips.length === 0) return STREAM_STEP.cuts;
   return null;

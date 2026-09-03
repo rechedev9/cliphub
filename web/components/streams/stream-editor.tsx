@@ -52,6 +52,7 @@ import {
   streamNextStep,
   streamOutputSummary,
   streamPlanBlocker,
+  type StreamBlocker,
   type StreamStep,
 } from '@/lib/streams/editor';
 import { persistAffiliateFamily, selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
@@ -72,19 +73,18 @@ import { StreamRenderResults } from '@/components/streams/render-results';
 import { StreamFooter } from '@/components/streams/stream-footer';
 import { Button } from '@/components/ui/button';
 
-const STEP_TITLE = {
-  layout: '01 · Layout y facecam',
-  banners: '02 · Banners',
-  cuts: '03 · Cortes → Shorts',
-  music: '04 · Música y efectos',
-  review: '05 · Revisar y renderizar',
-  results: '06 · Shorts renderizados',
-} as const satisfies Record<StreamStep, string>;
+/** Panel titles that say more than the rail label; every other step reuses its rail entry. */
+const STEP_SUBTITLE: Partial<Record<StreamStep, string>> = {
+  layout: 'Layout y facecam',
+  music: 'Música y efectos',
+  results: 'Shorts renderizados',
+};
 
-const BLOCKER_HINT = {
+/** One hint per blocker; the compiler refuses a new blocker without one. */
+const BLOCKER_HINT: Record<StreamBlocker, string> = {
   layout: 'Confirma el recorte de facecam en el paso 01 para poder aprobar.',
   cuts: 'Añade al menos un corte en la timeline para poder aprobar.',
-} as const;
+};
 
 /** Stream edit workspace: rail, monitor + timeline, active step, approval footer. */
 export function StreamEditor({
@@ -385,6 +385,11 @@ export function StreamEditor({
   const ctaTarget = streamCtaTarget(plan, activeStep);
   const ctaDisabled = busy ? true : ctaTarget === null && !canCreateStreamShorts({ briefApproved, busy });
   const blocker = streamPlanBlocker(plan);
+  const activeEntry = steps.find((step) => step.key === activeStep);
+  const panelTitle =
+    activeEntry === undefined
+      ? STREAM_STEP_LABEL[activeStep]
+      : `${activeEntry.number} · ${STEP_SUBTITLE[activeStep] ?? activeEntry.label}`;
   const cropStage = activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop;
   const nextStep = stage === 'rendering' ? null : streamNextStep(activeStep);
   const stepAction =
@@ -485,7 +490,7 @@ export function StreamEditor({
         items={briefItems}
         approved={briefApproved}
         approvable={briefApprovable}
-        blockerHint={blocker === STREAM_STEP.layout || blocker === STREAM_STEP.cuts ? BLOCKER_HINT[blocker] : null}
+        blockerHint={blocker === null ? null : BLOCKER_HINT[blocker]}
         busy={busy}
         onApprovedChange={setBriefApproved}
       />
@@ -605,7 +610,7 @@ export function StreamEditor({
             )}
           </section>
 
-          <StreamStepPanel title={STEP_TITLE[activeStep]} action={stepAction}>
+          <StreamStepPanel title={panelTitle} action={stepAction}>
             {stepContent}
           </StreamStepPanel>
         </div>

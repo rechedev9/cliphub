@@ -33,9 +33,9 @@ test('rail steps describe the plan and only list results after a render', () => 
     steps.map((step) => [step.key, step.detail, step.done]),
     [
       [STREAM_STEP.layout, 'Facecam 40 · recorte ✓', true],
-      [STREAM_STEP.banners, 'opcional · sin banner', false],
+      [STREAM_STEP.banners, 'sin banner', false],
       [STREAM_STEP.cuts, '2 cortes → 2 Shorts', true],
-      [STREAM_STEP.music, 'opcional · sin música', false],
+      [STREAM_STEP.music, 'Sin música', false],
       [STREAM_STEP.review, 'brief pendiente', false],
     ],
   );

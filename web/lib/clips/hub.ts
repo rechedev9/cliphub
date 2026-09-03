@@ -264,7 +264,8 @@ export const FIRST_RUN_NONE: FirstRunProgress = { load: false, pick: false, prod
 export function firstRunProgress(model: Pick<HubModel, 'rows' | 'clips'>): FirstRunProgress {
   return {
     load: model.rows.length > 0,
-    pick: model.rows.some((row) => row.stage === HUB_ROW_STAGE.ready),
+    // A parsing row already carries the chosen player: the pick happened, the parse is what waits.
+    pick: model.rows.some((row) => row.stage === HUB_ROW_STAGE.ready || (row.match.player ?? '') !== ''),
     produce: model.clips.length > 0,
   };
 }
@@ -273,22 +274,27 @@ export function firstRunComplete(progress: FirstRunProgress): boolean {
   return Object.values(FIRST_RUN_STEP).every((step) => progress[step]);
 }
 
-/** Full POV chip label for a collapsed row. */
-export function fullChipLabel(fulls: readonly MatchOutput[]): string {
+/** State of the latest Full POV, as the column head shows it. */
+export function fullStateLabel(fulls: readonly MatchOutput[]): string {
   const latest = fulls[0];
-  if (latest === undefined) return 'Full POV · sin generar';
+  if (latest === undefined) return 'sin generar';
   switch (latest.state) {
     case OUTPUT_STATE.ready:
-      return 'Full POV · listo';
+      return 'listo';
     case OUTPUT_STATE.rec:
-      return 'Full POV · REC';
+      return 'REC';
     case OUTPUT_STATE.render:
-      return 'Full POV · render';
+      return 'render';
     case OUTPUT_STATE.queue:
-      return 'Full POV · en cola';
+      return 'en cola';
     case OUTPUT_STATE.failed:
-      return 'Full POV · falló';
+      return 'falló';
   }
+}
+
+/** Full POV chip label for a collapsed row. */
+export function fullChipLabel(fulls: readonly MatchOutput[]): string {
+  return `Full POV · ${fullStateLabel(fulls)}`;
 }
 
 /** Shorts-column count, worded as "shorts" so it never reads as the Clips lens total. */

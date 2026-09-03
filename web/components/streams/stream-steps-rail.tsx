@@ -26,6 +26,8 @@ const LABEL_CLASS = {
   idle: 'text-fg-3',
 } as const satisfies Record<StepTone, string>;
 
+const OPTIONAL_LABEL = 'opcional';
+
 const AUTOSAVE_LABEL = {
   saving: 'Guardando borrador…',
   saved: '✓ Guardado · local + servidor',
@@ -85,13 +87,20 @@ export function StreamStepsRail({
               {step.done && !active ? '✓' : step.number}
             </span>
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span
-                className={cn(
-                  'truncate font-display text-label font-semibold uppercase tracking-wide',
-                  LABEL_CLASS[tone],
-                )}
-              >
-                {step.label}
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  className={cn(
+                    'truncate font-display text-label font-semibold uppercase tracking-wide',
+                    LABEL_CLASS[tone],
+                  )}
+                >
+                  {step.label}
+                </span>
+                {step.optional && !step.done ? (
+                  <span className="shrink-0 border border-border-strong px-1 font-mono text-meta uppercase tracking-wider text-fg-4">
+                    {OPTIONAL_LABEL}
+                  </span>
+                ) : null}
               </span>
               <span
                 className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3"

@@ -1,10 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { CreativeBriefItem } from '@/lib/reel-brief';
+import { BRIEF_APPROVAL_LABEL, type CreativeBriefItem } from '@/lib/reel-brief';
 import { cn } from '@/lib/utils';
-
-export const BRIEF_APPROVAL_LABEL = 'Apruebo el brief antes de renderizar';
 
 /** Step 05: the exact brief the render will honor, and the one checkbox that approves it. */
 export function StreamReviewStep({

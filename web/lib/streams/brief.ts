@@ -76,10 +76,3 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
     { label: 'Grade', value: plan.effects?.grade ? 'Sí' : 'No' },
   ];
 }
-
-/** The brief as one `Layout · Facecam · …` line for the editor footer. */
-export function streamCreativeBriefLine(plan: StreamEditPlan): string {
-  return streamCreativeBrief(plan)
-    .map((item) => item.value)
-    .join(' · ');
-}

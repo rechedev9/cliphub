@@ -12,6 +12,7 @@ import {
 } from '@/lib/clips/copy';
 import {
   fullChipLabel,
+  fullStateLabel,
   HUB_NEXT_STEP,
   HUB_ROW_STAGE,
   hubNextStep,
@@ -246,7 +247,7 @@ function FullColumn({ row, onChange }: { row: HubMatch; onChange: () => void }):
   const rounds = roundsFromScore(row.match.score);
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
-      <ColumnHead label="Full POV" trailing={latest === undefined ? 'sin generar' : fullChipLabel(row.fulls).replace('Full POV · ', '')} />
+      <ColumnHead label="Full POV" trailing={fullStateLabel(row.fulls)} />
       {row.fulls.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}

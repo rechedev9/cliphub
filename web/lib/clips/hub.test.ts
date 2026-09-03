@@ -336,6 +336,9 @@ test('firstRunProgress flips each step from hub data and completes only with a c
     pick: false,
     produce: false,
   });
+  // A parse in flight already names the POV: the pick is done, only the parse waits.
+  const parsing = buildHubModel([{ ...match('m1', 'parsing'), player: 'donk' }], []);
+  assert.deepEqual(firstRunProgress(parsing), { load: true, pick: true, produce: false });
   const parsed = buildHubModel([match('m1', 'parsed')], []);
   assert.deepEqual(firstRunProgress(parsed), { load: true, pick: true, produce: false });
   assert.equal(firstRunComplete(firstRunProgress(parsed)), false);

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronRight, Film } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { streamJobTag } from '@/lib/streams/list';
@@ -11,12 +11,34 @@ import { StatusTag } from '@/components/studio/status-tag';
 /** Frame 0 of a stream clip is usually black; a media fragment seeks past it at metadata cost only. */
 const POSTER_FRAGMENT = '#t=1';
 
+/** True once the element has scrolled into view; stays true so a painted frame never unmounts. */
+function useSeen<T extends Element>(): { ref: React.RefObject<T | null>; seen: boolean } {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (el === null || seen) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setSeen(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [seen]);
+  return { ref, seen };
+}
+
 /** One stream job. Everything shown is read from the job; nothing is inferred. */
 export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => void }): ReactNode {
   const tag = streamJobTag(job);
   const acquiring = job.status === 'acquiring';
   const cuts = job.edit_plan?.clips.length ?? 0;
   const duration = job.probe?.duration_seconds;
+  // The source only loads for rows on screen: a long list must not range-fetch every MP4 at once.
+  const { ref, seen } = useSeen<HTMLLIElement>();
   const meta = [
     streamSourceLabel(job.source_url) ?? 'Archivo local',
     duration !== undefined && duration > 0 ? formatStreamClock(duration) : null,
@@ -25,7 +47,7 @@ export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => v
     .join(' · ');
 
   return (
-    <li className="studio-enter studio-panel max-w-[1080px] overflow-hidden">
+    <li ref={ref} className="studio-enter studio-panel max-w-[1080px] overflow-hidden">
       <button
         type="button"
         onClick={onOpen}
@@ -36,7 +58,7 @@ export function StreamListRow({ job, onOpen }: { job: StreamJob; onOpen: () => v
           aspect="16:9"
           className="w-[84px] shrink-0 border border-border-strong"
           media={
-            acquiring ? null : (
+            acquiring || !seen ? null : (
               <video
                 src={`${streamsApi.sourceUrl(job.id)}${POSTER_FRAGMENT}`}
                 preload="metadata"
