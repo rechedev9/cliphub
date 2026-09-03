@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import Link from 'next/link';
 import { Users } from 'lucide-react';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,8 @@ export type PlayerPickerProps = {
   seriesMapCount?: number;
   /** Full-demo selects a continuous POV, while highlights optimizes for clip-worthy rounds. */
   purpose?: 'highlights' | 'full-demo';
+  /** Where "Cancelar" leads; omitted when the host owns the way back. */
+  cancelHref?: string;
 };
 
 /** Tooltip copy for the abbreviated stat column headers. */
@@ -160,7 +163,14 @@ function SeriesSummary({ mapCount, playerCount }: { mapCount: number; playerCoun
 
 // CS-style roster picker: Highlights recommends multi-kill potential, while
 // Full Demo recommends the strongest match rating for a continuous POV.
-export function PlayerPicker({ players, onPick, match, seriesMapCount, purpose = 'highlights' }: PlayerPickerProps) {
+export function PlayerPicker({
+  players,
+  onPick,
+  match,
+  seriesMapCount,
+  purpose = 'highlights',
+  cancelHref,
+}: PlayerPickerProps): ReactNode {
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
   const [selected, setSelected] = useState<string | null>(recommended?.steamId ?? players[0]?.steamId ?? null);
 
@@ -173,6 +183,13 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount, purpose =
   }, [players, recommended?.steamId]);
   const isSeries = (seriesMapCount ?? 0) >= 2;
   const selectedPlayer = players.find((p) => p.steamId === selected);
+  let contextLabel = 'Demo';
+  if (isSeries) contextLabel = `Serie · ${seriesMapCount} mapas`;
+  else if (match) contextLabel = prettyMapName(match.map);
+  let ctaLabel = purpose === 'full-demo' ? 'Grabar Full POV' : 'Parsear POV';
+  if (selectedPlayer) {
+    ctaLabel = purpose === 'full-demo' ? `Grabar Full POV de ${selectedPlayer.name}` : `Parsear POV de ${selectedPlayer.name} →`;
+  }
 
   const showMvp = players.some((p) => p.mvps > 0);
   const columns: Column[] = [
@@ -194,8 +211,8 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount, purpose =
     '--pp-cols': `minmax(0,1fr) repeat(${coreCount}, minmax(2.5rem,2.75rem))`,
     '--pp-cols-wide': `minmax(0,1fr) repeat(${columns.length}, minmax(2.5rem,2.75rem))`,
   };
-  const gridClass = '[grid-template-columns:var(--pp-cols)] @[44rem]/upload:[grid-template-columns:var(--pp-cols-wide)]';
-  const cellClass = (c: Column) => (c.secondary ? 'hidden @[44rem]/upload:block' : undefined);
+  const gridClass = '[grid-template-columns:var(--pp-cols)] @[44rem]/content:[grid-template-columns:var(--pp-cols-wide)]';
+  const cellClass = (c: Column) => (c.secondary ? 'hidden @[44rem]/content:block' : undefined);
 
   const sides: Array<DemoPlayer['team']> = ['T', 'CT', ''];
   const groups = sides
@@ -336,53 +353,49 @@ export function PlayerPicker({ players, onPick, match, seriesMapCount, purpose =
         );
       })}
 
-      {/*
-        The confirm bar. It bleeds to the card's inner edge (the card pads
-        `p-4` / `p-6`), so nothing scrolls past it through an unbled gutter, and
-        it is opaque rather than `backdrop-blur`: a blurred sticky band re-reads
-        and two-pass blurs its whole strip on every scroll frame, and on an
-        opaque navy card the two are indistinguishable.
-      */}
-      <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center justify-between gap-4 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-0 px-4 py-3 shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)] @[40rem]/upload:-mx-6 @[40rem]/upload:-mb-6 @[40rem]/upload:px-6">
-        <p className="min-w-0 text-body-sm text-fg-2">
-          {selectedPlayer ? (
-            <>
-              {purpose === 'full-demo' ? 'POV seleccionado: ' : 'Vas a clipear a '}
-              <strong className="font-semibold text-fg-1">{selectedPlayer.name}</strong>.
-            </>
-          ) : (
-            'Selecciona un jugador y continúa cuando estés listo.'
-          )}
-        </p>
+      <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-1 px-4 py-3 shadow-[var(--elev-4)] @[40rem]/content:-mx-6 @[40rem]/content:-mb-6 @[40rem]/content:px-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="font-mono text-meta uppercase tracking-widest text-fg-3">POV elegida</span>
+          <p className="truncate font-mono text-body uppercase text-fg-1">
+            {selectedPlayer ? (
+              <>
+                {contextLabel} <span className="text-fg-3">·</span>{' '}
+                <span className="text-primary">{selectedPlayer.name}</span>{' '}
+                <span className="text-fg-3">
+                  · {selectedPlayer.kills}K / {selectedPlayer.deaths}D
+                </span>
+              </>
+            ) : (
+              'Elige un jugador para continuar'
+            )}
+          </p>
+        </div>
+        {cancelHref !== undefined ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={cancelHref}>Cancelar</Link>
+          </Button>
+        ) : null}
         {purpose === 'highlights' && !isSeries ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline-primary"
-              disabled={selected === null}
-              onClick={() => selected && onPick(selected, 'full-demo')}
-            >
-              VÍDEO COMPLETO 16:9
-            </Button>
-            <Button
-              type="button"
-              variant="hero"
-              disabled={selected === null}
-              onClick={() => selected && onPick(selected, 'highlights')}
-            >
-              FORJAR HIGHLIGHTS
-            </Button>
-          </div>
-        ) : (
           <Button
             type="button"
-            variant="hero"
+            variant="outline-primary"
+            size="sm"
             disabled={selected === null}
-            onClick={() => selected && onPick(selected, purpose)}
+            onClick={() => selected && onPick(selected, 'full-demo')}
           >
-            {purpose === 'full-demo' ? 'REVISAR CAPTURA' : 'CONTINUAR'}
+            Grabar Full POV
           </Button>
-        )}
+        ) : null}
+        <Button
+          type="button"
+          variant="hero"
+          size="lg"
+          className="neon-notch"
+          disabled={selected === null}
+          onClick={() => selected && onPick(selected, purpose)}
+        >
+          {ctaLabel}
+        </Button>
       </div>
     </div>
   );

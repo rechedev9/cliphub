@@ -152,6 +152,16 @@ export function isKeyDropStyle(value: string): value is KeyDropStyle {
   return KEYDROP_STYLE_CATALOG.some((entry) => entry.id === value);
 }
 
+/**
+ * Narrows a persisted stream banner style. Affiliate families share the field,
+ * so a CSGOSkins id is accepted too: the banner renderer resolves the plate by
+ * family, and rejecting it here would silently blank a valid banner.
+ */
+export function isKeyDropBannerStyle(value: string | undefined): value is KeyDropStyle {
+  if (value === undefined || value === '') return false;
+  return isKeyDropStyle(value) || CSGOSKINS_STYLE_CATALOG.some((entry) => entry.id === value);
+}
+
 export function affiliateFamilyLabel(family: string, style = ''): string {
   const id = effectiveAffiliateFamily(family, style);
   return AFFILIATE_FAMILY_CATALOG.find((entry) => entry.id === id)?.label ?? '';

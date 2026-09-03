@@ -1,16 +1,21 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { StreamerBannerPlatform } from '@/lib/api/streams';
 import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/lib/stream-preview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
 
 /** Magenta accent for every range input in the stream editor. */
 export const STREAM_SLIDER_CLASS = 'min-h-10 w-full accent-stream disabled:opacity-50';
 
-/** Optional streamer banner: nick, platform, position slider, and slide-in. */
+/**
+ * Streamer banner card. The banner exists when a nick is present, so the
+ * switch clears the nick to turn it off and only reveals the fields to turn it
+ * on; nothing is written to the plan until the user types a nick.
+ */
 export function StreamBannerControls({
   nick,
   nickValid,
@@ -38,109 +43,94 @@ export function StreamBannerControls({
   onResetPosition: () => void;
   onSlideChange: (slideEnabled: boolean) => void;
 }): ReactNode {
+  const [armed, setArmed] = useState(false);
+  const enabled = nick.trim() !== '' || armed;
+
   return (
-    <div className="flex flex-col gap-3 border-t border-border pt-5">
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="streamer-nick" className="text-label text-fg-2">
-          Banner del streamer (opcional)
-        </Label>
-        <p className="text-body-sm text-fg-3">
-          Añade una franja con el nick sobre la unión entre facecam y gameplay.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant={platform === 'twitch' ? 'default' : 'outline'}
-          size="sm"
+    <StreamStepCard
+      title="Banner del streamer"
+      control={
+        <StreamSwitch
+          label="Banner del streamer"
+          checked={enabled}
           disabled={busy}
-          aria-pressed={platform === 'twitch'}
-          onClick={() => onPlatformChange('twitch')}
-        >
-          Twitch
-        </Button>
-        <Button
-          type="button"
-          variant={platform === 'kick' ? 'default' : 'outline'}
-          size="sm"
-          disabled={busy}
-          aria-pressed={platform === 'kick'}
-          onClick={() => onPlatformChange('kick')}
-        >
-          Kick
-        </Button>
-      </div>
-
-      <Input
-        id="streamer-nick"
-        value={nick}
-        disabled={busy}
-        maxLength={25}
-        pattern="[A-Za-z0-9_]{1,25}"
-        aria-invalid={!nickValid}
-        onChange={(e) => onNickChange(e.target.value)}
-        placeholder="zacketizorcs2"
-        className="max-w-sm"
-      />
-      {nickValid ? null : (
-        <p role="alert" className="text-body-sm text-destructive">
-          Usa solo letras, números o guiones bajos (máximo 25).
-        </p>
-      )}
-
-      <div className="mt-1 flex max-w-xl flex-col gap-3 border-l-2 border-stream/45 bg-surface-1 py-3 pr-3 pl-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label htmlFor="streamer-banner-position" className="text-label text-fg-2">
-            Posición vertical del banner
-          </Label>
-          <output
-            htmlFor="streamer-banner-position"
-            className="font-mono text-label tabular-nums text-stream-text"
-          >
-            {Math.round(position * 100)}%
-          </output>
-        </div>
-        <input
-          id="streamer-banner-position"
-          type="range"
-          min={STREAMER_BANNER_MIN_POSITION}
-          max={STREAMER_BANNER_MAX_POSITION}
-          step="0.001"
-          value={position}
-          disabled={busy}
-          aria-label="Posición vertical del banner"
-          aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
-          onChange={(event) => onPositionChange(Number(event.target.value))}
-          className={STREAM_SLIDER_CLASS}
+          onChange={(next) => {
+            setArmed(next);
+            if (!next && nick !== '') onNickChange('');
+          }}
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={slideEnabled ? 'default' : 'outline'}
-            size="sm"
+      }
+    >
+      {enabled ? (
+        <>
+          <div className="flex gap-1.5" role="group" aria-label="Plataforma">
+            {(['twitch', 'kick'] as const).map((entry) => (
+              <Button
+                key={entry}
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                aria-pressed={platform === entry}
+                onClick={() => onPlatformChange(entry)}
+                className={`font-mono uppercase tracking-wider ${platform === entry ? 'border-stream/45 text-stream-text' : ''}`}
+              >
+                {entry === 'twitch' ? 'Twitch' : 'Kick'}
+              </Button>
+            ))}
+          </div>
+          <Input
+            id="streamer-nick"
+            aria-label="Nick del streamer"
+            value={nick}
             disabled={busy}
-            aria-pressed={slideEnabled}
-            onClick={() => onSlideChange(!slideEnabled)}
-          >
-            {slideEnabled ? 'Deslizamiento: activado' : 'Deslizamiento: desactivado'}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy || !hasExplicitPosition}
-            onClick={onResetPosition}
-          >
-            Restablecer posición
-          </Button>
-        </div>
-        {slideEnabled ? (
-          <p className="text-body-sm text-fg-3">
-            La vista previa repite una entrada desde la izquierda, una pausa y la salida hacia la izquierda.
-          </p>
-        ) : null}
-      </div>
-    </div>
+            maxLength={25}
+            pattern="[A-Za-z0-9_]{1,25}"
+            aria-invalid={!nickValid}
+            onChange={(e) => onNickChange(e.target.value)}
+            placeholder="zacketizorcs2"
+            className="h-9 font-mono"
+          />
+          {nickValid ? null : (
+            <p role="alert" className="text-body-sm text-destructive">
+              Usa solo letras, números o guiones bajos (máximo 25).
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+            <Label htmlFor="streamer-banner-position" className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              Posición · {Math.round(position * 100)}%
+            </Label>
+            <button
+              type="button"
+              disabled={busy}
+              aria-pressed={slideEnabled}
+              onClick={() => onSlideChange(!slideEnabled)}
+              className={`min-h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${slideEnabled ? 'text-stream-text' : 'text-fg-3 hover:text-fg-2'}`}
+            >
+              Deslizamiento: {slideEnabled ? 'on' : 'off'}
+            </button>
+          </div>
+          <input
+            id="streamer-banner-position"
+            type="range"
+            min={STREAMER_BANNER_MIN_POSITION}
+            max={STREAMER_BANNER_MAX_POSITION}
+            step="0.001"
+            value={position}
+            disabled={busy}
+            aria-valuetext={`${Math.round(position * 100)}% desde arriba`}
+            onChange={(event) => onPositionChange(Number(event.target.value))}
+            className={STREAM_SLIDER_CLASS}
+          />
+          {hasExplicitPosition ? (
+            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={onResetPosition} className="self-start">
+              Restablecer posición
+            </Button>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-body-sm text-fg-3">Sin banner. Actívalo para añadir tu nick sobre la unión de bandas.</p>
+      )}
+    </StreamStepCard>
   );
 }

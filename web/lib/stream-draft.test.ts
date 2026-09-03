@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { loadStreamDraft, reconcileStreamDraftAfterSave, recoverableStreamJobs, saveStreamDraft, selectStreamDraftPlan, streamEditPlanFingerprint } from './stream-draft.ts';
+import { loadStreamDraft, reconcileStreamDraftAfterSave, saveStreamDraft, selectStreamDraftPlan, streamEditPlanFingerprint } from './stream-draft.ts';
 import type { StreamEditPlan } from './api/streams.ts';
 
 test('stream drafts round-trip through durable browser storage', () => {
@@ -110,15 +110,6 @@ test('a conflicting draft from another editor session is not rebased or restored
   assert.deepEqual(pending?.plan, conflicting);
   assert.equal(pending?.basePlanFingerprint, streamEditPlanFingerprint(previousServer));
   assert.equal(selectStreamDraftPlan(pending, saved), null);
-});
-
-test('recoverable stream jobs exclude failures and put newest first', () => {
-  const jobs = recoverableStreamJobs([
-    { id: 'old', status: 'ready', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-04-01T00:00:00Z' },
-    { id: 'failed', status: 'failed', created_at: '2026-03-01T00:00:00Z' },
-    { id: 'new', status: 'rendered', created_at: '2026-02-01T00:00:00Z' },
-  ]);
-  assert.deepEqual(jobs.map((job) => job.id), ['old', 'new']);
 });
 
 test('stream draft storage failures do not break the editor', () => {

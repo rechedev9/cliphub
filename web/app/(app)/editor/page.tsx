@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
-import { EditorHome } from '@/components/editor/editor-home';
+import { redirect } from 'next/navigation';
+import { RETIRED_ROUTES } from '@/lib/nav';
 
-export default function EditorPage(): ReactNode {
-  return <EditorHome />;
+/** Retired door; the section moved into 01 Clips y vídeos. */
+export default function RetiredPage(): never {
+  redirect(RETIRED_ROUTES['/editor']);
 }

@@ -37,7 +37,7 @@ export function StreamRenderStage({
   const stage = queued ? 'EN COLA' : 'RENDERIZANDO';
 
   return (
-    <section className="studio-panel studio-panel-raised flex flex-col gap-5 p-5 sm:p-6">
+    <section className="studio-panel flex flex-col gap-4 p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionEyebrow label="RENDER" accent="magenta" />
         <StatusTag tone="stream" dot>
@@ -52,7 +52,7 @@ export function StreamRenderStage({
         tone="stream"
       />
 
-      <ul className="grid grid-cols-2 gap-3 @[34rem]/editor:grid-cols-3 @[52rem]/editor:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-3">
         {clips.map((clip, index) => (
           <li key={clip.id} className="flex flex-col gap-2">
             <MediaFrame

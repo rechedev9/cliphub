@@ -9,8 +9,17 @@ import {
   FULL_DEMO_ROUNDS_PENDING,
 } from '../lib/full-demo.ts';
 import { NATIVE_HUD_LABEL } from '../lib/preset-copy.ts';
+import {
+  PRODUCE_FULL_ROUNDS_NOTE,
+  PRODUCE_FULL_TITLE,
+  PRODUCE_MATCH_MISSING,
+  PRODUCE_SHORT_TITLE,
+} from '../lib/produce/copy.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
+const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
+const REC_CTA = 'Grabar Full POV';
+const BRIEF_CHECKBOX = /Apruebo el brief/;
 
 const PLAN = {
   demo: { map: 'de_inferno' },
@@ -49,255 +58,124 @@ async function stubParsedMatch(page: Page, recap: { status: number; body: unknow
   await fulfillJson(page, '/recap-plan', recap.status, recap.body);
 }
 
-const PARSED_JOB_ID = '11111111-1111-4111-8111-111111111111';
-
-async function stubParsedInferno(page: Page): Promise<void> {
-  await page.route('**/api/demos/jobs', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        jobs: [
-          {
-            jobId: PARSED_JOB_ID,
-            status: 'parsed',
-            fileName: 'inferno.dem',
-            createdAt: '2026-08-25T12:00:00Z',
-          },
-        ],
-      }),
-    });
-  });
-  await page.route(`**/api/demos/${PARSED_JOB_ID}/roster`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        players: [
-          {
-            steamid64: '76561198000000001',
-            name: 'player',
-            team: 'CT',
-            kills: 1,
-            deaths: 0,
-            assists: 0,
-            headshots: 0,
-            mvps: 0,
-            rounds: 1,
-            adr: 0,
-            hs_pct: 0,
-            kast: 0,
-            rating: 0,
-          },
-        ],
-        match: { map: 'de_inferno', score_team_a: 13, score_team_b: 9 },
-      }),
-    });
-  });
-}
-
-async function stubFullDemoRosterScan(page: Page): Promise<void> {
-  await page.route('**/api/demos/scan', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jobId: JOB }) });
-  });
-  await page.route('**/api/demos/*/status', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'scanned' }) });
-  });
-  await page.route('**/api/demos/*/roster', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        players: [
-          {
-            steamid64: '76561198000000001', name: 'multikill', team: 'CT', kills: 30, deaths: 20,
-            assists: 2, headshots: 12, mvps: 2, rounds: 24, adr: 80, hs_pct: 40, kast: 68,
-            rating: 0.95, rounds_5k: 2, rounds_4k: 1, rounds_3k: 2,
-          },
-          {
-            steamid64: '76561198000000002', name: 'steady', team: 'T', kills: 25, deaths: 12,
-            assists: 6, headshots: 10, mvps: 4, rounds: 24, adr: 92, hs_pct: 40, kast: 78,
-            rating: 1.31, rounds_5k: 0, rounds_4k: 0, rounds_3k: 0,
-          },
-        ],
-        match: { map: 'de_ancient', score_team_a: 13, score_team_b: 10 },
-      }),
-    });
-  });
-}
-
-test.describe('Full demo to video', () => {
-  test('is a numbered production section', async ({ page }) => {
-    await gotoStudio(page, '/full-demo');
-    const key = page.locator('[data-slot="sidebar"] a[href="/full-demo"]');
+test.describe('Full POV constructor', () => {
+  test('lives under the numbered 01 section', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, PRODUCE_FULL);
+    const key = page.locator('[data-slot="sidebar-menu-button"][href="/clips"]');
     await expect(key).toBeVisible();
-    await expect(key).toContainText('03');
-    await expect(key).toContainText('Demo completa');
+    await expect(key).toContainText('01');
+    await expect(key).toContainText('Clips y vídeos');
   });
 
-  test('states the locked 16:9 recap contract from shipped constants', async ({ page }) => {
-    await gotoStudio(page, '/full-demo');
-    await expect(page.getByRole('heading', { name: 'DEMO COMPLETA A VÍDEO' })).toBeVisible();
-    for (const row of FULL_DEMO_CONTRACT) {
-      await expect(page.getByText(row.value, { exact: true })).toBeVisible();
-    }
-    await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'SIN MÚSICA' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /Preset (POV nativo|Native POV)/ })).toHaveCount(0);
+  test('the format control switches between Short and Full POV without a reload', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, PRODUCE_FULL);
+    const formats = page.getByRole('group', { name: 'Formato' });
+    await expect(formats.getByRole('button', { name: 'Full POV 16:9' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
+    await formats.getByRole('button', { name: 'Short 9:16' }).click();
+    await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo$`));
+    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
   });
 
-  test('empty state uses the same demo drop as Subir demo', async ({ page }) => {
-    await gotoStudio(page, '/full-demo');
-    await expect(page.locator('p[role="alert"]')).toContainText(
-      /El servicio de análisis está offline|No se pudieron cargar las demos parseadas/,
-    );
-    await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
-    await expect(page.locator('input[type="file"]')).toHaveCount(1);
-    await expect(page.locator('main a[href="/onboarding"]')).toHaveCount(0);
-  });
-
-  test('keeps the demo drop when a parsed match is already listed', async ({ page }) => {
-    await stubParsedInferno(page);
-    await gotoStudio(page, '/full-demo');
-    const listed = page.locator(`main a[href="/full-demo/${PARSED_JOB_ID}"]`);
-    await expect(listed).toBeVisible();
-    await expect(listed).toContainText(/Inferno/i);
-    await expect(page.getByText('SUELTA UN .DEM AQUÍ')).toBeVisible();
-    await expect(page.locator('input[type="file"]')).toHaveCount(1);
-  });
-
-  test('the roster step selects a POV instead of talking about clips', async ({ page }) => {
-    await stubFullDemoRosterScan(page);
-    await gotoStudio(page, '/full-demo');
-    await page.locator('input[type="file"]').setInputFiles({
-      name: 'ancient.dem',
-      mimeType: 'application/octet-stream',
-      buffer: Buffer.from('HL2DEMO\0full-demo-flow'),
-    });
-
-    const steadyRow = page.getByRole('button', { name: /steady/i });
-    await expect(steadyRow).toContainText('Mejor rendimiento');
-    await expect(page.getByText('POV seleccionado: steady.')).toBeVisible();
-    await expect(page.getByText(/Vas a clipear/)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'REVISAR CAPTURA' })).toBeVisible();
-  });
-
-  test('a 404 job is a missing demo', async ({ page }) => {
+  test('a 404 job is a missing partida', async ({ page }) => {
     await page.route(`**/api/demos/${JOB}/status`, async (route) => {
       await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not found' }) });
     });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByRole('heading', { name: FULL_DEMO_EMPTY.missing.title })).toBeVisible();
-    await expect(page.getByText(FULL_DEMO_EMPTY.missing.description)).toBeVisible();
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('heading', { name: PRODUCE_MATCH_MISSING.title })).toBeVisible();
+    await expect(page.getByText(PRODUCE_MATCH_MISSING.description)).toBeVisible();
     await expect(page.getByText(FULL_DEMO_EMPTY.error.title)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: REC_CTA })).toHaveCount(0);
   });
 
-  test('a missing job does not offer FORJAR or a music picker', async ({ page }) => {
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByText(/Servicio local sin conexión|Demo no encontrada/)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'AÑADIR MÚSICA' })).toHaveCount(0);
-  });
-
-  test('a 500 from /plan is a load error, not a missing demo', async ({ page }) => {
-    await page.route(`**/api/demos/${JOB}/status`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ status: 'parsed' }),
-      });
-    });
-    await page.route(`**/api/demos/${JOB}/plan`, async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'upstream error' }),
-      });
-    });
-    await gotoStudio(page, `/full-demo/${JOB}`);
+  test('a 500 from /plan is a load error, not a missing partida', async ({ page }) => {
+    await fulfillJson(page, '/status', 200, { status: 'parsed' });
+    await fulfillJson(page, '/plan', 500, { error: 'upstream error' });
+    await gotoStudio(page, PRODUCE_FULL);
     await expect(page.getByRole('heading', { name: FULL_DEMO_EMPTY.error.title })).toBeVisible();
     await expect(page.getByText(FULL_DEMO_EMPTY.error.description)).toBeVisible();
-    await expect(page.getByText(FULL_DEMO_EMPTY.missing.title)).toHaveCount(0);
-    await expect(page.getByText(FULL_DEMO_EMPTY.missing.description)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toHaveCount(0);
+    await expect(page.getByText(PRODUCE_MATCH_MISSING.title)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: REC_CTA })).toHaveCount(0);
   });
 
   test('a recap-plan 503 is offline, not a plan error', async ({ page }) => {
-    await fulfillJson(page, '/status', 200, { status: 'parsed' });
-    await fulfillJson(page, '/plan', 200, PLAN);
-    await fulfillJson(page, '/roster', 200, ROSTER);
-    await page.route(`**/api/demos/${JOB}/recap-plan`, async (route) => {
-      await route.fulfill({
-        status: 503,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: 'service_unavailable', error: 'offline' }),
-      });
-    });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await stubParsedMatch(page, { status: 503, body: { code: 'service_unavailable', error: 'offline' } });
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await expect(page.getByText(FULL_DEMO_EMPTY.offline.title)).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
-    await expect(page.getByText('Demo no encontrada')).toHaveCount(0);
+    await expect(page.getByText(PRODUCE_MATCH_MISSING.title)).toHaveCount(0);
   });
 
   test('a recap-plan 500 is an error, not a pending parse or Shorts empty state', async ({ page }) => {
     await stubParsedMatch(page, { status: 500, body: { error: 'upstream error' } });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toBeVisible();
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
-    await expect(page.getByText('Demo no encontrada')).toHaveCount(0);
-    await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_FORGE_HINT_ERROR)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeDisabled();
   });
 
-  test('a recap-plan 409 talks about rondas, not Shorts jugadas', async ({ page }) => {
+  test('a recap-plan 409 talks about rondas, not Shorts highlights', async ({ page }) => {
     await stubParsedMatch(page, { status: 409, body: { error: 'recap plan not ready' } });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
-    await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_FORGE_HINT_EMPTY)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
   });
 
-  test('a ready recap-plan names rondas and keeps 16:9', async ({ page }) => {
+  test('a ready recap-plan lists every round and gates REC behind the brief', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
-    await expect(page.getByText('1 ronda · POV nativo · 16:9 · sin música')).toBeVisible();
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
+    await expect(page.getByText(PRODUCE_FULL_ROUNDS_NOTE)).toBeVisible();
+    await expect(page.getByText('R01', { exact: true })).toBeVisible();
+    await expect(page.getByText('Contrato Full POV · fijado')).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
-    await expect(page.getByText('Elige al menos una jugada para empezar.')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeDisabled();
-    await expect(page.getByText('FACEIT obligatorio', { exact: true })).toBeVisible();
-    await expect(page.getByRole('radiogroup', { name: 'Tema de overlays FACEIT' })).toBeVisible();
-    await page.getByRole('checkbox', { name: /Confirmo esta configuración/ }).check();
-    await expect(page.getByRole('button', { name: 'INICIAR CAPTURA' })).toBeEnabled();
-  });
+    await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Sin música' })).toHaveCount(0);
 
-  test('Full Demo exposes its required FACEIT overlay theme with default orange', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    const themeGroup = page.getByRole('radiogroup', { name: 'Tema de overlays FACEIT' });
-    await expect(themeGroup).toBeVisible();
-    await expect(themeGroup.getByRole('radio', { name: 'FACEIT naranja' })).toBeChecked();
-    await themeGroup.getByRole('radio', { name: 'Neón violeta' }).click();
-    await expect(themeGroup.getByRole('radio', { name: 'Neón violeta' })).toBeChecked();
-  });
-
-  test('job capture brief names native CS2 HUD without a redundant preset step', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await gotoStudio(page, `/full-demo/${JOB}`);
-    await expect(page.getByRole('heading', { name: 'INFERNO' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Preset (POV nativo|Native POV)/ })).toHaveCount(0);
-    const brief = page.getByRole('region', { name: 'Configuración exacta de captura' });
-    await expect(brief.getByText('HUD:', { exact: true })).toBeVisible();
+    const cta = page.getByRole('button', { name: REC_CTA });
+    await expect(cta).toBeDisabled();
+    await page.getByText('Brief creativo').click();
+    const brief = page.getByRole('region', { name: /Brief creativo/ });
+    for (const row of FULL_DEMO_CONTRACT) {
+      await expect(brief.getByText(row.value, { exact: true })).toBeVisible();
+    }
     await expect(brief.getByText(NATIVE_HUD_LABEL, { exact: true })).toBeVisible();
+    await expect(brief.getByText('FACEIT obligatorio', { exact: true })).toBeVisible();
     await expect(page.getByText('HUD completo con killfeed')).toHaveCount(0);
-    await expect(page.getByText(/HUD · gameplay/i)).toHaveCount(0);
+    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+    await expect(cta).toBeEnabled();
+  });
+
+  test('the retired /matches route keeps the series return path', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    const series = '22222222-2222-4222-8222-222222222222';
+    await gotoStudio(page, `/matches/${JOB}?series=${series}`);
+    await expect(page).toHaveURL(`/clips/${JOB}/nuevo?series=${series}`);
+    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
+  });
+
+  test('the overlay theme is the only Full POV choice and defaults to FACEIT orange', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, PRODUCE_FULL);
+    const theme = page.getByRole('combobox', { name: 'Tema de overlays FACEIT' });
+    await expect(theme).toContainText('FACEIT naranja');
+    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+    await theme.click();
+    await page.getByRole('option', { name: /Neón violeta/ }).click();
+    await expect(theme).toContainText('Neón violeta');
+    // Any decision change revokes the approval.
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
+    await expect(page.getByRole('switch')).toHaveCount(0);
   });
 });

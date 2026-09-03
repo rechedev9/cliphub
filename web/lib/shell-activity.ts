@@ -1,4 +1,5 @@
-import type { Video } from './api/types.ts';
+import type { StreamJob } from './api/streams.ts';
+import type { Match, Video } from './api/types.ts';
 
 /** Live jobs for the command-strip transport and the html capture-active gate. */
 
@@ -8,21 +9,31 @@ export const CAPTURE_ACTIVE_ATTRIBUTE = 'data-capture-active';
 /** A push is authoritative for this long before the shell polls for itself. */
 const SHELL_ACTIVITY_MAX_AGE_MS = 4000;
 
-/** The non-terminal reel states, in the order the pipeline runs them. */
-export type ShellJobStage = 'queued' | 'recording' | 'composing';
+/**
+ * Non-terminal stages across the three job kinds, in the order the pipeline
+ * runs them. `recording` is CS2 + HLAE and always sorts first: it is the one
+ * stage that owns the machine.
+ */
+export type ShellJobStage = 'queued' | 'recording' | 'composing' | 'parsing' | 'acquiring';
+
+/** reel = demo output; parse = a partida being parsed; stream = a stream job. */
+export type ShellJobKind = 'reel' | 'parse' | 'stream';
 
 export interface ShellJob {
   readonly id: string;
+  readonly kind: ShellJobKind;
   readonly title: string;
   readonly stage: ShellJobStage;
-  /** Epoch ms the reel was created — real API data, used for elapsed time. */
+  /** Epoch ms the job was created — real API data, used for elapsed time. */
   readonly startedAt: number;
   /** Capture done/total/percent while recording; null on every other stage. */
   readonly progress: { readonly done: number; readonly total: number; readonly percent?: number } | null;
+  /** Where the job lives; the transport's row links there. */
+  readonly href: string;
 }
 
 export interface ShellActivity {
-  /** Non-terminal reels, most advanced first. */
+  /** Non-terminal jobs, most advanced first. */
   readonly jobs: readonly ShellJob[];
   /** True while a reel is on the GPU (recording or composing), not merely queued. */
   readonly capturing: boolean;
@@ -32,14 +43,24 @@ export interface ShellActivity {
 
 const EMPTY: ShellActivity = { jobs: [], capturing: false, publishedAt: 0 };
 
-const STAGE_RANK: Record<ShellJobStage, number> = { recording: 0, composing: 1, queued: 2 };
+const STAGE_RANK: Record<ShellJobStage, number> = {
+  recording: 0,
+  composing: 1,
+  acquiring: 2,
+  parsing: 3,
+  queued: 4,
+};
+
+/** Orchestrator statuses that mean "the partida is still being parsed". */
+const PARSING_STATUSES: ReadonlySet<string> = new Set(['queued', 'scanning', 'parsing']);
 
 let current: ShellActivity = EMPTY;
 const listeners = new Set<() => void>();
 
-export function publishShellActivity(videos: readonly Video[], now: number): void {
-  const jobs = videos.flatMap(toShellJob).sort(byPipelineOrder);
-  const capturing = jobs.some((job) => job.stage !== 'queued');
+/** Full push from a page that knows every source. */
+export function publishShellJobs(input: readonly ShellJob[], now: number): void {
+  const jobs = [...input].sort(byPipelineOrder);
+  const capturing = jobs.some((job) => job.stage === 'recording' || job.stage === 'composing');
   if (
     capturing === current.capturing &&
     jobs.length === current.jobs.length &&
@@ -51,6 +72,19 @@ export function publishShellActivity(videos: readonly Video[], now: number): voi
   }
   current = { jobs, capturing, publishedAt: now };
   for (const listener of listeners) listener();
+}
+
+/** Every live job from the three sources, unsorted. */
+export function collectShellJobs(input: {
+  videos: readonly Video[];
+  matches?: readonly Match[];
+  streams?: readonly StreamJob[];
+}): ShellJob[] {
+  return [
+    ...input.videos.flatMap(reelJob),
+    ...(input.matches ?? []).flatMap(parseJob),
+    ...(input.streams ?? []).flatMap(streamJob),
+  ];
 }
 
 export function subscribeToShellActivity(listener: () => void): () => void {
@@ -80,8 +114,8 @@ export function resetShellActivity(): void {
   current = EMPTY;
 }
 
-function toShellJob(video: Video): ShellJob[] {
-  const stage = toStage(video.status);
+function reelJob(video: Video): ShellJob[] {
+  const stage = reelStage(video.status);
   if (stage === null) return [];
   const capture = video.captureProgress;
   let progress: ShellJob['progress'] = null;
@@ -91,12 +125,49 @@ function toShellJob(video: Video): ShellJob[] {
       progress = { ...progress, percent: capture.percent };
     }
   }
-  return [{ id: video.id, title: video.title, stage, startedAt: video.createdAt, progress }];
+  const href = video.jobId === undefined ? '/clips?vista=clips' : `/clips?partida=${encodeURIComponent(video.jobId)}`;
+  return [{ id: video.id, kind: 'reel', title: video.title, stage, startedAt: video.createdAt, progress, href }];
 }
 
-function toStage(status: Video['status']): ShellJobStage | null {
+function reelStage(status: Video['status']): ShellJobStage | null {
   if (status === 'queued' || status === 'recording' || status === 'composing') return status;
   return null;
+}
+
+function parseJob(match: Match): ShellJob[] {
+  if (match.status === undefined || !PARSING_STATUSES.has(match.status)) return [];
+  const title = match.player ? `${match.map} · parseo POV ${match.player}` : `${match.map} · parseo`;
+  const startedAt = Date.parse(match.playedAt);
+  return [
+    {
+      id: `parse:${match.id}`,
+      kind: 'parse',
+      title,
+      stage: 'parsing',
+      startedAt: Number.isNaN(startedAt) ? 0 : startedAt,
+      progress: null,
+      href: `/clips?partida=${encodeURIComponent(match.id)}`,
+    },
+  ];
+}
+
+function streamJob(job: StreamJob): ShellJob[] {
+  let stage: ShellJobStage;
+  if (job.status === 'acquiring') stage = 'acquiring';
+  else if (job.status === 'rendering') stage = 'composing';
+  else return [];
+  const startedAt = Date.parse(job.updated_at ?? job.created_at);
+  return [
+    {
+      id: `stream:${job.id}`,
+      kind: 'stream',
+      title: job.title?.trim() || 'Clip de stream',
+      stage,
+      startedAt: Number.isNaN(startedAt) ? 0 : startedAt,
+      progress: null,
+      href: `/streams/${encodeURIComponent(job.id)}`,
+    },
+  ];
 }
 
 /** Most advanced stage first, oldest first within a stage. */
@@ -109,6 +180,7 @@ function sameJob(job: ShellJob, other: ShellJob | undefined): boolean {
   if (other === undefined) return false;
   return (
     job.id === other.id &&
+    job.kind === other.kind &&
     job.stage === other.stage &&
     job.title === other.title &&
     job.progress?.done === other.progress?.done &&

@@ -19,6 +19,7 @@ import {
 } from '@/lib/stream-preview';
 import type { KeyDropBannerStyle } from '@/lib/api/streams';
 import { affiliateDisplayLabel, stylesForFamily, type AffiliateFamily } from '@/lib/api/types';
+import { cn } from '@/lib/utils';
 
 const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 const EMPTY_CLIPS: StreamClipRange[] = [];
@@ -87,6 +88,8 @@ export function StreamPreview({
   keyDropEndSeconds,
   onKeyDropPositionChange,
   disabled = false,
+  className,
+  playheadPercent,
 }: {
   variant: StreamVariant;
   faceCrop?: NormalizedRect;
@@ -108,6 +111,10 @@ export function StreamPreview({
   keyDropEndSeconds?: number;
   onKeyDropPositionChange?: (position: number) => void;
   disabled?: boolean;
+  /** Sizing override; the default is a 220px-wide column frame. */
+  className?: string;
+  /** Progress inside the current cut, drawn as the 3px magenta head at the foot. */
+  playheadPercent?: number;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startClientY: number; startPosition: number } | null>(null);
@@ -206,7 +213,10 @@ export function StreamPreview({
   return (
     <div
       ref={containerRef}
-      className="relative mx-auto aspect-[9/16] w-full max-w-[220px] overflow-hidden rounded-xl border border-border bg-background shadow-lg"
+      className={cn(
+        'relative aspect-[9/16] overflow-hidden border border-stream/45 bg-surface-0 shadow-[var(--elev-2),var(--glow-stream-md)]',
+        className ?? 'mx-auto w-full max-w-[220px]',
+      )}
       style={{ containerType: 'size' }}
     >
       <div className="flex h-full w-full flex-col">
@@ -319,6 +329,13 @@ export function StreamPreview({
             </span>
           </div>
         </div>
+      ) : null}
+      {playheadPercent !== undefined ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute bottom-0 left-0 h-[3px] bg-stream transition-[width] duration-(--dur-base) linear"
+          style={{ width: `${Math.min(100, Math.max(0, playheadPercent))}%` }}
+        />
       ) : null}
       <style>{`
         .streamer-banner-slide-preview {

@@ -1,8 +1,5 @@
 import { DEMO_SOURCE, OVERLAY_THEME, SERVICE_UNAVAILABLE_CODE, type EditConfig, type OverlayTheme, type Preset } from './api/types.ts';
 import { NATIVE_HUD_LABEL, PRESET_DESCRIPTION_ES } from './preset-copy.ts';
-
-export const FULL_DEMO_HREF = '/full-demo' as const;
-
 export const FULL_DEMO_ROUNDS_PENDING = 'Generando el plan de rondas…';
 
 export const FULL_DEMO_RECAP_ERROR =
@@ -84,7 +81,7 @@ export const FULL_DEMO_CONTRACT = [
   { label: 'Mix', value: 'Comms + juego · sin música' },
 ] as const;
 
-/** On-screen brief for /full-demo/[id]: contract facts + one Shorts-extras row. */
+/** On-screen brief for the Full POV constructor: contract facts + one Shorts-extras row. */
 export function fullDemoBriefItems(): ReadonlyArray<{ label: string; value: string }> {
   return [...FULL_DEMO_CONTRACT, FULL_DEMO_SHORTS_EXTRAS];
 }

@@ -13,13 +13,13 @@ const HTML_GATES = [
 
 test.describe('depth scalar', () => {
   test('is 1 in the default room', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     expect(parseNumber(await rootToken(page, '--shell-depth'))).toBe(1);
   });
 
   for (const { name, attributes } of HTML_GATES) {
     test(`collapses to 0 under ${name}`, async ({ page }) => {
-      await gotoStudio(page, '/matches');
+      await gotoStudio(page, '/clips');
       expect(parseNumber(await rootToken(page, '--shell-depth'))).toBe(1);
 
       await page.evaluate((pairs) => {
@@ -34,18 +34,18 @@ test.describe('depth scalar', () => {
 
   test('collapses to 0 under prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     expect(parseNumber(await rootToken(page, '--shell-depth'))).toBe(0);
   });
 
   test('collapses to 0 under forced-colors', async ({ page }) => {
     await page.emulateMedia({ forcedColors: 'active' });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     expect(parseNumber(await rootToken(page, '--shell-depth'))).toBe(0);
   });
 
   test('derived effects follow the scalar rather than their own media query', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     // getPropertyValue substitutes --shell-depth into the calc, which is the
     // point: the derived value has to move with the scalar, not sit beside it.
     expect(squash(await rootToken(page, '--tilt-max'))).toBe('calc(1*6deg)');
@@ -80,7 +80,7 @@ test.describe('depth scalar', () => {
 test.describe('reduced motion', () => {
   test('keeps the spinner alive because a frozen one reads as a hung app', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
 
     const duration = await page.evaluate(() => {
       const probe = document.createElement('div');
@@ -98,7 +98,7 @@ test.describe('reduced motion', () => {
 
   test('flattens every other transition to 1ms', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     for (const token of ['--dur-instant', '--dur-fast', '--dur-base', '--dur-slow', '--dur-data']) {
       expect(parseMs(await rootToken(page, token)), `${token} still animates`).toBe(1);
     }

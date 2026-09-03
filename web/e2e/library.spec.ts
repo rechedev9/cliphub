@@ -4,6 +4,9 @@ import { gotoStudio } from './contract.ts';
 const RECORDING_JOB_ID = '11111111-1111-4111-8111-111111111111';
 const FAILED_JOB_ID = '22222222-2222-4222-8222-222222222222';
 
+/** The Clips lens of 01: `/clips?vista=clips`. */
+const CLIPS_LENS_HREF = '/clips?vista=clips';
+
 function fullDemoIntent(jobId: string, title: string) {
   return {
     videoId: `${jobId}__full-demo`,
@@ -40,8 +43,8 @@ async function seedReels(page: Parameters<typeof gotoStudio>[0], intents: object
   }, intents);
 }
 
-test.describe('Biblioteca', () => {
-  test('reuses a recorded demo through generate before editing a new Full Demo', async ({ page }) => {
+test.describe('Clips lens', () => {
+  test('reuses a recorded demo through generate before editing a new Full POV', async ({ page }) => {
     await seedReels(page, [fullDemoIntent(RECORDING_JOB_ID, 'Partida completa · Joey-')]);
     let jobStatus = 'recorded';
     await page.route(`**/api/demos/${RECORDING_JOB_ID}/status`, (route) =>
@@ -58,7 +61,7 @@ test.describe('Biblioteca', () => {
       await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ task: 'record:demo' }) });
     });
 
-    await gotoStudio(page, '/videos');
+    await gotoStudio(page, CLIPS_LENS_HREF);
 
     await expect.poll(() => generateBody).toBeDefined();
     expect(generateBody).toMatchObject({
@@ -66,13 +69,14 @@ test.describe('Biblioteca', () => {
       segment_ids: [],
       edit: { format: 'landscape-16x9', match_recap: true, native_hud: true },
     });
-    const library = page.getByLabel('Vídeos');
-    await expect(library.getByText('Capturando', { exact: true })).toBeVisible();
-    await expect(library.getByText('Editando', { exact: true })).toHaveCount(0);
+    const clips = page.getByLabel('Clips', { exact: true });
+    await expect(clips.getByText('REC', { exact: true })).toBeVisible();
+    await expect(clips.getByText(/Full POV/).first()).toBeVisible();
+    await expect(clips.getByText('RENDER', { exact: true })).toHaveCount(0);
   });
 
   test('does not gate the MP4 behind a cover candidate picker', async ({ page }) => {
-    await gotoStudio(page, '/videos');
+    await gotoStudio(page, CLIPS_LENS_HREF);
     await expect(page.getByText('Portada · elige candidata')).toHaveCount(0);
     await expect(page.getByText('Confirma una portada antes de marcar el pack listo para subir.')).toHaveCount(0);
     const mp4 = page.getByRole('button', { name: 'MP4' });
@@ -81,7 +85,7 @@ test.describe('Biblioteca', () => {
     }
   });
 
-  test('shows completed capture progress as local validation', async ({ page }) => {
+  test('shows completed capture progress as the round counter', async ({ page }) => {
     await seedReels(page, [fullDemoIntent(RECORDING_JOB_ID, 'Partida completa · Joey-')]);
     await page.route(`**/api/demos/${RECORDING_JOB_ID}/status`, (route) =>
       route.fulfill({
@@ -93,10 +97,9 @@ test.describe('Biblioteca', () => {
       }),
     );
 
-    await gotoStudio(page, '/videos');
+    await gotoStudio(page, CLIPS_LENS_HREF);
 
-    await expect(page.getByText('Validando captura local')).toBeVisible();
-    await expect(page.getByLabel('Vídeos').getByText('100%')).toBeVisible();
+    await expect(page.getByLabel('Clips', { exact: true }).getByText('REC R12/12')).toBeVisible();
   });
 
   test('sanitizes stale POV failures and hides deterministic retry', async ({ page }) => {
@@ -115,13 +118,11 @@ test.describe('Biblioteca', () => {
       route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
     );
 
-    await gotoStudio(page, '/videos');
+    await gotoStudio(page, CLIPS_LENS_HREF);
 
-    await expect(page.getByText(/ClipHub perdió el POV al terminar una ronda/)).toBeVisible();
-    await expect(
-      page.getByText('Elimina esta tarjeta y vuelve a preparar la demo para regenerar el plan de rondas.'),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: /Reintentar/i })).toHaveCount(0);
+    const clips = page.getByLabel('Clips', { exact: true });
+    await expect(clips.getByText('FALLÓ', { exact: true })).toBeVisible();
+    await expect(clips.getByRole('button', { name: /Reintentar/i })).toHaveCount(0);
     await expect(page.getByText(/seg-012|console\.log|C:\\Games/i)).toHaveCount(0);
   });
 });

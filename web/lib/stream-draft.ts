@@ -1,4 +1,4 @@
-import type { StreamEditPlan, StreamJob } from './api/streams.ts';
+import type { StreamEditPlan } from './api/streams.ts';
 
 const PREFIX = 'cliphub.stream-draft.';
 
@@ -30,12 +30,6 @@ function canonicalJSON(value: unknown): unknown {
 
 export function streamEditPlanFingerprint(plan: StreamEditPlan): string {
   return JSON.stringify(canonicalJSON(plan));
-}
-
-export function recoverableStreamJobs(jobs: readonly StreamJob[]): StreamJob[] {
-  return jobs
-    .filter((job) => job.status !== 'failed')
-    .sort((a, b) => Date.parse(b.updated_at ?? b.created_at) - Date.parse(a.updated_at ?? a.created_at));
 }
 
 export function saveStreamDraft(

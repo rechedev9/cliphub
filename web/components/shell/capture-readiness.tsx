@@ -1,14 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import {
-  CircleCheck,
-  RefreshCw,
-  Settings2,
-  TriangleAlert,
-  WifiOff,
-  type LucideIcon,
-} from 'lucide-react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CaptureReadiness as CaptureReadinessData, CaptureStatus } from '@/lib/api/types';
 import {
@@ -20,42 +13,46 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  serverShellActivitySnapshot,
+  shellActivitySnapshot,
+  subscribeToShellActivity,
+} from '@/lib/shell-activity';
 import { cn } from '@/lib/utils';
 
-/** `bar` is the 2px status edge down the rail-native card's left side. */
+/** `label` is the short aria name; `text` is the one-line pill copy. */
 const STATUS_META: Record<
   CaptureStatus,
-  { label: string; text: string; bar: string; hint: string; icon: LucideIcon }
+  { label: string; text: string; tone: string; dot: string }
 > = {
   ready: {
     label: 'Lista',
-    text: 'text-success',
-    bar: 'bg-success',
-    hint: 'HLAE + CS2 detectados en este PC',
-    icon: CircleCheck,
+    text: 'CS2 + HLAE listos',
+    tone: 'border-success/45 text-success',
+    dot: 'bg-success',
   },
   warning: {
     label: 'Revisa rutas',
-    text: 'text-warning',
-    bar: 'bg-warning',
-    hint: 'Una herramienta configurada no está disponible.',
-    icon: TriangleAlert,
+    text: 'Revisa rutas',
+    tone: 'border-warning/45 text-warning',
+    dot: 'bg-warning',
   },
   unconfigured: {
     label: 'Configurar',
-    text: 'text-destructive',
-    bar: 'bg-destructive',
-    hint: 'No se encontró HLAE + CS2 en este PC.',
-    icon: Settings2,
+    text: 'Configurar',
+    tone: 'border-destructive/45 text-destructive',
+    dot: 'bg-destructive',
   },
   offline: {
     label: 'Sin conexión',
-    text: 'text-fg-3',
-    bar: 'bg-fg-4',
-    hint: 'Arranca el servicio local de ClipHub.',
-    icon: WifiOff,
+    text: 'Servicio local offline',
+    tone: 'border-destructive/45 text-destructive',
+    dot: 'bg-destructive',
   },
 };
+
+const REC_TONE = 'border-stream/45 text-stream-text';
+const REC_TITLE_MAX = 18;
 
 /** The three record tools, with a friendly name and a typical Windows path. */
 const TOOL_GUIDE: Array<{ name: string; label: string; example: string }> = [
@@ -65,16 +62,17 @@ const TOOL_GUIDE: Array<{ name: string; label: string; example: string }> = [
 ];
 
 /**
- * CaptureReadiness — the CAPTURA card pinned to the sidebar footer: a
- * bracket-cornered HUD panel that always tells the user whether gameplay
- * capture is set up on their machine, reading the local orchestrator's
- * /api/capabilities. Clicking it opens a dialog with the exact env vars +
- * example paths to set, each tool's live accessible state, and the restart
- * note. This is the always-on reminder so capture never silently fails.
+ * Sidebar footer status pill: capture readiness from the local orchestrator,
+ * overridden by the live REC job while CS2 + HLAE record. Click opens the setup dialog.
  */
-export function CaptureReadiness() {
+export function CaptureReadiness(): ReactElement {
   const [data, setData] = useState<CaptureReadinessData | null>(null);
   const [loading, setLoading] = useState(false);
+  const activity = useSyncExternalStore(
+    subscribeToShellActivity,
+    shellActivitySnapshot,
+    serverShellActivitySnapshot,
+  );
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -91,46 +89,42 @@ export function CaptureReadiness() {
 
   const status: CaptureStatus = data?.status ?? 'offline';
   const meta = STATUS_META[status];
-  const StatusIcon = meta.icon;
+  const recording = activity.jobs.find((job) => job.stage === 'recording');
   const toolState = new Map((data?.tools ?? []).map((t) => [t.name, t]));
+
+  let pillText = meta.text;
+  let label = meta.label;
+  if (recording !== undefined) {
+    const detail =
+      recording.progress === null
+        ? truncate(recording.title, REC_TITLE_MAX)
+        : `R${recording.progress.done}/${recording.progress.total}`;
+    pillText = `REC · ${detail}`;
+    label = `Grabando ${recording.title}`;
+  }
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        {/*
-          Rail-native, not a content card. `.studio-panel` carries a 20px
-          ambient drop designed for a large surface, and
-          `.studio-panel-interactive` adds a hover lift — so the sidebar's only
-          status object was a card levitating inside a navigation rail. It is
-          now full-bleed to the wall with a 2px status edge and a surface-only
-          hover, which is what everything else in the rail speaks.
-        */}
         <button
           type="button"
-          aria-label={`Captura: ${meta.label}`}
-          title={`Captura: ${meta.label}`}
-          className="relative w-full border-y border-sidebar-border bg-surface-1 py-3 pr-3 pl-4 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:grid group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:place-items-center group-data-[collapsible=icon]:border-y-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
+          aria-label={`Captura: ${label}`}
+          title={`Captura: ${label}`}
+          className={cn(
+            'mx-4 flex min-h-10 items-center gap-2 rounded-md border bg-surface-1 px-3 py-2.5 text-left font-[family-name:var(--font-mono)] text-meta tracking-wider uppercase',
+            'transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-2',
+            'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0',
+            recording === undefined ? meta.tone : REC_TONE,
+          )}
         >
           <span
             aria-hidden
             className={cn(
-              'absolute inset-y-0 left-0 w-[2px] group-data-[collapsible=icon]:hidden',
-              meta.bar,
+              'size-2 shrink-0 rounded-full',
+              recording === undefined ? meta.dot : 'neon-pulse bg-stream',
             )}
           />
-          <div className="group-data-[collapsible=icon]:hidden">
-            <div className="flex items-center justify-between gap-3 font-mono text-meta uppercase tracking-wider">
-              <span className="text-fg-3">Captura</span>
-              <span className={cn('inline-flex items-center gap-1.5', meta.text)}>
-                <StatusIcon className="size-3.5" aria-hidden />
-                {meta.label}
-              </span>
-            </div>
-            <p className="mt-2 text-body-sm text-fg-2">{meta.hint}</p>
-          </div>
-          <span className={cn('hidden group-data-[collapsible=icon]:block', meta.text)}>
-            <StatusIcon className="size-4" aria-hidden />
-          </span>
+          <span className="min-w-0 truncate group-data-[collapsible=icon]:hidden">{pillText}</span>
         </button>
       </DialogTrigger>
 
@@ -198,4 +192,8 @@ export function CaptureReadiness() {
       </DialogContent>
     </Dialog>
   );
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }

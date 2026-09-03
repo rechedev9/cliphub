@@ -23,18 +23,35 @@ const VARIANT_BANDS = {
 } as const satisfies Record<StreamVariant, readonly GlyphBand[]>;
 
 /**
- * A 9:16 plate in a perspective box, with the facecam bands floating above the
- * gameplay plane. The layout choice is otherwise abstract — three names and two
- * lines of copy — and turning it into a physical object is what makes it
- * legible at a glance.
- *
- * Every transform is multiplied by `--shell-depth`, so reduced motion, forced
- * colours, an inactive window and the desktop efficiency profile all flatten it
- * to a plain stacked diagram without a second rule. Purely decorative: the card
- * around it carries the label.
+ * A 9:16 plate showing the facecam bands over the gameplay plane. `md` floats
+ * the cam bands in a perspective box (multiplied by `--shell-depth`, so reduced
+ * motion and the efficiency profile flatten it); `sm` is the flat 9×16 mark
+ * for a segmented control. Purely decorative: the control carries the label.
  */
-export function LayoutGlyph({ variant, selected }: { variant: StreamVariant; selected: boolean }): ReactNode {
+export function LayoutGlyph({
+  variant,
+  selected,
+  size = 'md',
+}: {
+  variant: StreamVariant;
+  selected: boolean;
+  size?: 'sm' | 'md';
+}): ReactNode {
   const bands: readonly GlyphBand[] = VARIANT_BANDS[variant];
+
+  if (size === 'sm') {
+    return (
+      <span aria-hidden className="flex h-4 w-[9px] shrink-0 flex-col overflow-hidden border border-current">
+        {bands.map((band, index) => (
+          <span
+            key={`${band.kind}-${index}`}
+            style={{ height: `${band.share}%` }}
+            className={cn('block', band.kind === 'cam' && 'bg-current')}
+          />
+        ))}
+      </span>
+    );
+  }
 
   return (
     <span aria-hidden className="grid h-14 w-12 shrink-0 place-items-center [perspective:340px]">

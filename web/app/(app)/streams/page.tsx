@@ -1,159 +1,64 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
+import { streamsApi, type StreamJob } from '@/lib/api/streams';
+import { startPollLoop } from '@/lib/poll-loop';
+import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
 import {
-  streamsApi,
-  STREAM_VARIANTS,
-  type StreamEditPlan,
-  type StreamJob,
-  type StreamRenderState,
-  type StreamVariant,
-} from '@/lib/api/streams';
-import { clipEditIssue, streamRangesIssue } from '@/lib/clip-edit';
-import {
-  loadStreamDraft,
-  reconcileStreamDraftAfterSave,
-  recoverableStreamJobs,
-  saveStreamDraft,
-  selectStreamDraftPlan,
-  streamEditPlanFingerprint,
-} from '@/lib/stream-draft';
-import { isCurrentStreamEditorLoad, nextStreamEditorLoad, type StreamEditorLoad } from '@/lib/stream-editor-load';
-import { streamRenderCanRetry } from '@/lib/stream-recovery';
-import {
-  STREAMER_NICK_RE,
   STREAM_OFFLINE_MESSAGE,
-  blankClip,
   errorMessage,
-  fitPlanToSourceDuration,
   isServiceUnavailable,
   isStreamURLValidationError,
   nonVideoExtension,
-  sleep,
-  withDefaultStreamTitle,
 } from '@/lib/streams/plan';
-import {
-  affiliateFamilyLabel,
-  isAffiliateStyle,
-  stylesForFamily,
-} from '@/lib/api/types';
-import { StudioEmptyState } from '@/components/studio/empty-state';
-import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
-import { StreamAcquiringCard } from '@/components/streams/acquiring-card';
-import { StreamEditor } from '@/components/streams/stream-editor';
-import { StreamSourceCard } from '@/components/streams/source-card';
+import { StreamListRow } from '@/components/streams/stream-list-row';
+import { StreamSourcePanel } from '@/components/streams/stream-source-panel';
 
-type Stage = 'idle' | 'submitting' | 'acquiring' | 'editing' | 'rendering' | 'rendered' | 'failed';
+const POLL_FAST_MS = 1500;
+const POLL_IDLE_MS = 10000;
 
-/** Stage machine for /streams; UI lives in components/streams. */
-export default function StreamsPage() {
-  return <LocalStreamsPage />;
-}
-
-function LocalStreamsPage() {
-  const [stage, setStage] = useState<Stage>('idle');
-  const [job, setJob] = useState<StreamJob | null>(null);
-  const [plan, setPlan] = useState<StreamEditPlan | null>(null);
-  const [renderState, setRenderState] = useState<StreamRenderState | null>(null);
-  /** The exact plan the shown render used; drives URLs and staleness. */
-  const [renderedPlan, setRenderedPlan] = useState<StreamEditPlan | null>(null);
+/** /streams: new source on top, every stream job as a row underneath. */
+export default function StreamsPage(): ReactNode {
+  const router = useRouter();
+  const [jobs, setJobs] = useState<StreamJob[] | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [pollGeneration, setPollGeneration] = useState(0);
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [failureReason, setFailureReason] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [recoverableJobs, setRecoverableJobs] = useState<StreamJob[]>([]);
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autosaveGeneration = useRef(0);
-  const autosaveChain = useRef<Promise<void>>(Promise.resolve());
-  const serverPlanFingerprint = useRef<{ jobId: string; fingerprint: string } | null>(null);
-  const draftSessionId = useRef('');
-  const draftRevision = useRef(0);
-  const editorLoad = useRef<StreamEditorLoad>({ generation: 0, jobId: '' });
 
-  const pollGen = useRef(0);
-
-  const reset = useCallback((message: string) => {
-    pollGen.current += 1;
-    editorLoad.current = nextStreamEditorLoad(editorLoad.current, '');
-    setError(message);
-    setStage('idle');
-    setJob(null);
-    setPlan(null);
-    setRenderState(null);
-    setRenderedPlan(null);
-    setFailureReason(null);
-    serverPlanFingerprint.current = null;
-  }, []);
-
-  const loadEditor = useCallback(async (j: StreamJob, nextStage: 'editing' | 'rendering' = 'editing'): Promise<StreamEditPlan | null> => {
-    const requestedLoad = nextStreamEditorLoad(editorLoad.current, j.id);
-    editorLoad.current = requestedLoad;
-    draftSessionId.current = window.crypto.randomUUID();
-    draftRevision.current = 0;
-    setJob(j);
-    const duration = j.probe?.duration_seconds ?? 0;
-    try {
-      const browserDraft = typeof window === 'undefined' ? null : loadStreamDraft(window.localStorage, j.id);
-      const serverPlan = j.edit_plan ?? (await streamsApi.getEditPlan(j.id));
-      if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return null;
-      serverPlanFingerprint.current = { jobId: j.id, fingerprint: streamEditPlanFingerprint(serverPlan) };
-      // A browser draft is editable state only. An admitted/in-flight render is
-      // bound to the persisted server revision and variant.
-      const selectedPlan =
-        nextStage === 'rendering' ? serverPlan : (selectStreamDraftPlan(browserDraft, serverPlan) ?? serverPlan);
-      const loadedPlan = withDefaultStreamTitle(
-        fitPlanToSourceDuration(selectedPlan, duration),
-        j.title,
-        nextStage === 'editing',
-      );
-      const editorPlan =
-        loadedPlan.clips.length > 0 ? loadedPlan : { ...loadedPlan, clips: [blankClip(duration)] };
-      setPlan(editorPlan);
-      setStage(nextStage);
-      return editorPlan;
-    } catch (err) {
-      if (!isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) return null;
-      reset(errorMessage(err, 'No se pudo cargar el plan guardado. Vuelve a abrir el trabajo para reintentarlo.'));
-      return null;
-    }
-  }, [reset]);
-
-  const pollAcquiring = useCallback(
-    async (jobId: string) => {
-      const gen = ++pollGen.current;
-      for (let attempt = 0; attempt < 200; attempt++) {
-        await sleep(1200);
-        if (pollGen.current !== gen) return; // superseded by a new submission/reset
+  useEffect(() => {
+    const stop = startPollLoop({
+      fastMs: POLL_FAST_MS,
+      idleMs: POLL_IDLE_MS,
+      tick: async () => {
         try {
-          const j = await streamsApi.getJob(jobId);
-          if (!j) {
-            reset('Ese trabajo ya no está disponible.');
-            return;
-          }
-          if (j.status === 'failed') {
-            setJob(j);
-            setFailureReason(j.failure_reason || 'no se pudo obtener el vídeo de origen');
-            setStage('failed');
-            return;
-          }
-          if (j.status !== 'acquiring') {
-            void loadEditor(j);
-            return;
-          }
+          const next = sortStreamJobs(await streamsApi.listJobs());
+          setJobs(next);
+          setOffline(false);
+          return streamListCadence(next);
         } catch (err) {
-          if (isServiceUnavailable(err)) {
-            reset(STREAM_OFFLINE_MESSAGE);
-            return;
-          }
-          // transient network hiccup; keep polling
+          if (isServiceUnavailable(err)) setOffline(true);
+          return 'idle';
         }
+      },
+    });
+    return stop;
+  }, [pollGeneration]);
+
+  const open = useCallback(
+    (job: StreamJob) => {
+      if (job.status === 'acquiring') {
+        toast('Trayendo clip…', { description: 'Descargando el vídeo de origen en este PC' });
       }
-      reset('Se agotó el tiempo esperando a que el vídeo de origen estuviera listo.');
+      router.push(`/streams/${job.id}`);
     },
-    [loadEditor, reset],
+    [router],
   );
 
   const submitUrl = useCallback(async () => {
@@ -170,309 +75,107 @@ function LocalStreamsPage() {
       return;
     }
     setError(null);
-    setStage('submitting');
+    setSubmitting(true);
     try {
-      const j = await streamsApi.createFromUrl({ sourceUrl: trimmed, title: title.trim() || undefined });
-      if (j.status === 'acquiring') {
-        setJob(j);
-        setStage('acquiring');
-        void pollAcquiring(j.id);
-      } else {
-        void loadEditor(j);
-      }
+      open(await streamsApi.createFromUrl({ sourceUrl: trimmed, title: title.trim() || undefined }));
     } catch (err) {
-      reset(errorMessage(err, 'No se pudo iniciar ese trabajo. Revisa la URL y vuelve a intentarlo.'));
+      setError(errorMessage(err, 'No se pudo iniciar ese trabajo. Revisa la URL y vuelve a intentarlo.'));
+      setSubmitting(false);
     }
-  }, [sourceUrl, title, pollAcquiring, loadEditor, reset]);
+  }, [sourceUrl, title, open]);
 
   const submitFile = useCallback(
     async (file: File) => {
       setError(null);
-      setStage('submitting');
+      setSubmitting(true);
       try {
-        const j = await streamsApi.createFromFile(file, title.trim() || undefined);
-        if (j.status === 'acquiring') {
-          setJob(j);
-          setStage('acquiring');
-          void pollAcquiring(j.id);
-        } else {
-          void loadEditor(j);
-        }
+        open(await streamsApi.createFromFile(file, title.trim() || undefined));
       } catch (err) {
-        reset(errorMessage(err, 'No se pudo procesar ese archivo. Prueba con otro MP4.'));
+        setError(errorMessage(err, 'No se pudo procesar ese archivo. Prueba con otro MP4.'));
+        setSubmitting(false);
       }
     },
-    [title, pollAcquiring, loadEditor, reset],
+    [title, open],
   );
 
-  const pollRender = useCallback(
-    async (jobId: string, variant: StreamVariant, attemptedPlan: StreamEditPlan) => {
-      const gen = ++pollGen.current;
-      for (let attempt = 0; attempt < 300; attempt++) {
-        try {
-          const state = await streamsApi.getRenderState(jobId, variant);
-          if (pollGen.current !== gen) return;
-          setRenderState(state);
-          if (state.status === 'rendered') {
-            setRenderedPlan(attemptedPlan);
-            setStage('rendered');
-            return;
-          }
-          if (state.status === 'failed') {
-            if (streamRenderCanRetry(state)) {
-              setStage('editing');
-              setError(
-                state.error ||
-                  (state.published
-                    ? 'El nuevo render falló. La última versión publicada sigue disponible; revisa el plan y vuelve a intentarlo.'
-                    : 'El plan cambió antes de publicar el render. Revísalo y vuelve a crear los Shorts.'),
-              );
-              return;
-            }
-            setStage('failed');
-            setFailureReason(state.error || 'el render falló');
-            return;
-          }
-        } catch (err) {
-          if (isServiceUnavailable(err)) {
-            reset(STREAM_OFFLINE_MESSAGE);
-            return;
-          }
-        }
-        await sleep(1500);
-        if (pollGen.current !== gen) return;
-      }
-      setStage('failed');
-      setFailureReason('se agotó el tiempo esperando a que terminara el render');
-    },
-    [reset],
-  );
+  let list: ReactNode;
+  if (jobs === null) {
+    list = (
+      <p role="status" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+        <span aria-hidden className="studio-spinner" />
+        Cargando streams
+      </p>
+    );
+  } else if (jobs.length === 0) {
+    list = (
+      <p className="max-w-[1080px] border border-dashed border-border px-4 py-6 text-center text-body-sm text-fg-2">
+        Todavía no hay streams. Pega una URL o sube un MP4.
+      </p>
+    );
+  } else {
+    list = (
+      <ul className="flex flex-col gap-2.5">
+        {jobs.map((job) => (
+          <StreamListRow key={job.id} job={job} onOpen={() => open(job)} />
+        ))}
+      </ul>
+    );
+  }
 
-  const resumeJob = useCallback(
-    (candidate: StreamJob) => {
-      setError(null);
-      setJob(candidate);
-      if (candidate.status === 'acquiring') {
-        setStage('acquiring');
-        void pollAcquiring(candidate.id);
-        return;
-      }
-      const resumesRender = candidate.status === 'rendering' || candidate.status === 'rendered';
-      void loadEditor(candidate, resumesRender ? 'rendering' : 'editing').then((loadedPlan) => {
-        if (!resumesRender || loadedPlan === null) return;
-        void pollRender(candidate.id, loadedPlan.variant, loadedPlan);
-      });
-    },
-    [loadEditor, pollAcquiring, pollRender],
-  );
+  return (
+    <div className="studio-enter flex flex-col gap-3.5">
+      <header className="flex max-w-[1080px] flex-col gap-3 @[44rem]/content:flex-row @[44rem]/content:items-end @[44rem]/content:justify-between">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">De stream a Short</h1>
+          <p className="max-w-[620px] text-body text-fg-2">
+            Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Lo cortas en vertical con tu facecam,
+            banners y música.
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-4 font-mono text-meta uppercase tracking-wider">
+          <span className="flex items-center gap-1.5 text-stream-text">
+            <span aria-hidden className="size-2 rounded-full bg-stream" />
+            Twitch · YouTube · Kick
+          </span>
+          <span className="flex items-center gap-1.5 text-success">
+            <span aria-hidden className="size-2 rounded-full bg-success" />
+            Procesado en este PC
+          </span>
+        </div>
+      </header>
 
-  const createShorts = useCallback(async () => {
-    if (!job || !plan) return;
-    const fittedPlan = fitPlanToSourceDuration(plan, job.probe?.duration_seconds ?? 0);
-    const rangeIssue = streamRangesIssue(fittedPlan.clips, job.probe?.duration_seconds ?? 0);
-    if (rangeIssue !== null) {
-      setError(rangeIssue);
-      return;
-    }
-    const needsFaceCrop =
-      STREAM_VARIANTS.find((variant) => variant.value === fittedPlan.variant)?.needsFaceCrop ?? false;
-    if (needsFaceCrop && fittedPlan.face_crop_reviewed !== true) {
-      setError('Confirma manualmente el recorte de facecam antes de renderizar; no asumimos que el recorte automático contenga una cara.');
-      return;
-    }
-    if (!STREAMER_NICK_RE.test(fittedPlan.streamer_banner?.nick?.trim() ?? '')) {
-      setError('El nick debe tener hasta 25 letras, números o guiones bajos.');
-      return;
-    }
-    const keyDropFamily = fittedPlan.keydrop_banner?.family?.trim() ?? '';
-    const keyDropStyle = fittedPlan.keydrop_banner?.style?.trim() ?? '';
-    if (keyDropStyle && !isAffiliateStyle(keyDropFamily, keyDropStyle)) {
-      const names = stylesForFamily(keyDropFamily).map((entry) => entry.label).join(', ');
-      const familyName = affiliateFamilyLabel(keyDropFamily, keyDropStyle) || 'afiliado';
-      setError(`Elige un estilo ${familyName} válido (${names}).`);
-      return;
-    }
-    const keyDropCode = fittedPlan.keydrop_banner?.code?.trim() ?? '';
-    if (keyDropCode !== '' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(keyDropCode)) {
-      setError('El código de afiliado debe tener 1–16 letras, números, guiones o guiones bajos.');
-      return;
-    }
-    const editIssue = clipEditIssue(fittedPlan.clips);
-    if (editIssue !== null) {
-      setError(editIssue);
-      return;
-    }
-    setError(null);
-    setSaving(true);
-    try {
-      autosaveGeneration.current += 1;
-      if (autosaveTimer.current !== null) {
-        clearTimeout(autosaveTimer.current);
-        autosaveTimer.current = null;
-      }
-      await autosaveChain.current.catch(() => undefined);
-      const submittedRevision = { editorSessionId: draftSessionId.current, revision: draftRevision.current };
-      const saved = await streamsApi.putEditPlan(job.id, fittedPlan);
-      if (typeof window !== 'undefined') {
-        reconcileStreamDraftAfterSave(window.localStorage, job.id, fittedPlan, saved, submittedRevision);
-      }
-      serverPlanFingerprint.current = { jobId: job.id, fingerprint: streamEditPlanFingerprint(saved) };
-      setPlan(saved);
-      if (!saved.updated_at) {
-        throw new Error('El plan guardado no incluye una revisión verificable.');
-      }
-      setStage('rendering');
-      setRenderState((previous) =>
-        previous && (previous.published || previous.status === 'rendered')
-          ? { ...previous, published: true, status: 'queued' }
-          : { status: 'queued', videos: [] },
-      );
-      await streamsApi.startRender(job.id, saved.variant, saved.updated_at);
-      void pollRender(job.id, saved.variant, saved);
-    } catch (err) {
-      setStage('editing');
-      setError(errorMessage(err, 'No se pudo iniciar el render.'));
-    } finally {
-      setSaving(false);
-    }
-  }, [job, plan, pollRender]);
+      {offline ? (
+        <div
+          role="alert"
+          className="flex max-w-[1080px] flex-wrap items-center gap-3 border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
+        >
+          <AlertTriangle aria-hidden className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1">{STREAM_OFFLINE_MESSAGE}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => setPollGeneration((g) => g + 1)}>
+            Reintentar
+          </Button>
+        </div>
+      ) : null}
 
-  useEffect(() => {
-    let active = true;
-    void streamsApi
-      .listJobs()
-      .then((jobs) => {
-        if (active) setRecoverableJobs(recoverableStreamJobs(jobs).slice(0, 5));
-      })
-      .catch(() => {
-        // Source creation remains available if the recent-job read fails.
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!job || !plan || (stage !== 'editing' && stage !== 'rendered')) return;
-    const revision = ++draftRevision.current;
-    const submittedRevision = { editorSessionId: draftSessionId.current, revision };
-    const requestedLoad = editorLoad.current;
-    if (typeof window !== 'undefined') {
-      saveStreamDraft(
-        window.localStorage,
-        job.id,
-        plan,
-        undefined,
-        serverPlanFingerprint.current?.jobId === job.id
-          ? serverPlanFingerprint.current.fingerprint
-          : streamEditPlanFingerprint(plan),
-        submittedRevision,
-      );
-    }
-    const generation = ++autosaveGeneration.current;
-    if (autosaveTimer.current !== null) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
-      autosaveTimer.current = null;
-      autosaveChain.current = autosaveChain.current
-        .catch(() => undefined)
-        .then(async () => {
-          if (autosaveGeneration.current !== generation) return;
-          const saved = await streamsApi.putEditPlan(job.id, plan);
-          if (typeof window !== 'undefined') {
-            reconcileStreamDraftAfterSave(window.localStorage, job.id, plan, saved, submittedRevision);
-          }
-          if (isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) {
-            serverPlanFingerprint.current = { jobId: job.id, fingerprint: streamEditPlanFingerprint(saved) };
-          }
-        });
-      void autosaveChain.current.catch(() => {
-        // The synchronous local draft still protects navigation/restart recovery.
-      });
-    }, 500);
-    return () => {
-      if (autosaveTimer.current !== null) {
-        clearTimeout(autosaveTimer.current);
-        autosaveTimer.current = null;
-      }
-    };
-  }, [job, plan, stage]);
-
-  useEffect(() => {
-    return () => {
-      pollGen.current += 1; // stop any in-flight poll loop on unmount
-    };
-  }, []);
-
-  let stageContent: ReactNode;
-  if (stage === 'idle' || stage === 'submitting') {
-    stageContent = (
-      <StreamSourceCard
+      <StreamSourcePanel
         sourceUrl={sourceUrl}
         title={title}
-        submitting={stage === 'submitting'}
+        submitting={submitting}
         error={error}
-        recoverableJobs={recoverableJobs}
         onSourceUrlChange={(value) => {
           setSourceUrl(value);
           if (isStreamURLValidationError(error)) setError(null);
         }}
         onTitleChange={setTitle}
         onSubmitUrl={() => void submitUrl()}
-        onSubmitFile={(f) => void submitFile(f)}
-        onResume={resumeJob}
-      />
-    );
-  } else if (stage === 'acquiring') {
-    stageContent = <StreamAcquiringCard title={job?.title} />;
-  } else if (stage === 'failed') {
-    stageContent = (
-      <div role="alert">
-        <StudioEmptyState
-          icon={AlertTriangle}
-          accent="magenta"
-          title="Ese trabajo falló"
-          description={failureReason ?? 'Algo salió mal.'}
-          className="border-destructive/45"
-          actions={
-            <Button type="button" variant="hero" onClick={() => reset('')}>
-              EMPEZAR DE NUEVO
-            </Button>
-          }
-        />
-      </div>
-    );
-  } else if (job && plan) {
-    stageContent = (
-      <StreamEditor
-        job={job}
-        plan={plan}
-        onPlanChange={setPlan}
-        stage={stage}
-        renderState={renderState}
-        renderedPlan={renderedPlan}
-        error={error}
-        saving={saving}
-        onCreate={() => void createShorts()}
-        onStartOver={() => reset('')}
-      />
-    );
-  } else {
-    stageContent = null;
-  }
-
-  return (
-    <div className="flex flex-col gap-8">
-      <StudioPageHeader
-        title="DE STREAM A SHORT"
-        description={
-          <p>
-            Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Córtalo en vertical con tu facecam,
-            ajusta el encuadre y añade música antes de renderizar.
-          </p>
-        }
+        onSubmitFile={(file) => void submitFile(file)}
       />
 
-      {stageContent}
+      <p className="mt-1 max-w-[1080px] font-mono text-meta uppercase tracking-widest text-fg-3">
+        Tus streams · {jobs?.length ?? 0}
+      </p>
+
+      {list}
     </div>
   );
 }

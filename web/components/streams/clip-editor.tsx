@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { StreamClipEdit, StreamClipRange, StreamTextOverlay } from '@/lib/api/streams';
 import {
   CLIP_SPEEDS,
@@ -12,307 +12,337 @@ import {
   streamRangeIssue,
 } from '@/lib/clip-edit';
 import { STREAMER_BANNER_MAX_POSITION, STREAMER_BANNER_MIN_POSITION } from '@/lib/stream-preview';
-import { blankClip, pruneClipEdit } from '@/lib/streams/plan';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { clipOutputDuration, formatStreamClock, pruneClipEdit } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
-import { StreamClipTimeline } from '@/components/streams/clip-timeline';
 import { cn } from '@/lib/utils';
 
-/** A labelled group of related controls inside a clip card. */
-function ControlGroup({
-  caption,
-  children,
-  className,
-}: {
-  caption: string;
-  children: ReactNode;
-  className?: string;
-}): ReactNode {
-  return (
-    <div className={cn('flex flex-col gap-2.5 border border-border-subtle bg-surface-1 p-3', className)}>
-      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{caption}</span>
-      {children}
-    </div>
-  );
-}
+/** Both fades the chip toggles at once; the disclosure still edits each one. */
+const CHIP_FADE_SECONDS = 0.5;
+
+const CHIP_CLASS = 'font-mono uppercase tracking-wider hover:border-stream';
 
 /**
- * Clip ranges: the cut list the whole render is built from.
- *
- * Each clip is one card — identity, its band on the source timeline, then the
- * controls grouped by what they do (range, movement, audio, fades, on-screen
- * text) instead of a single wrapping row of nine anonymous number boxes. The
- * values written to the plan are exactly the ones the previous form wrote.
+ * One card per cut. The card head selects the cut on the monitor; the chips
+ * cover the everyday edits; the disclosure keeps every numeric field the
+ * plan stores. Values written are exactly the ones the previous form wrote.
  */
 export function StreamClipEditor({
   clips,
   sourceDuration,
+  selectedClipId,
   onChange,
+  onSelect,
+  onRemove,
   disabled,
 }: {
   clips: StreamClipRange[];
   sourceDuration: number;
+  selectedClipId: string | null;
   onChange: (clips: StreamClipRange[]) => void;
+  onSelect: (clip: StreamClipRange) => void;
+  /** Owned by the editor so removing a cut also clears the monitor selection. */
+  onRemove: (clip: StreamClipRange) => void;
   disabled: boolean;
 }): ReactNode {
   const updateClip = (id: string, patch: Partial<StreamClipRange>) =>
     onChange(clips.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  const removeClip = (id: string) => onChange(clips.filter((c) => c.id !== id));
-  const addClip = () => onChange([...clips, blankClip(sourceDuration)]);
   const updateEdit = (id: string, patch: Partial<StreamClipEdit>) =>
     onChange(clips.map((c) => (c.id === id ? { ...c, edit: pruneClipEdit({ ...c.edit, ...patch }) } : c)));
 
+  if (clips.length === 0) {
+    return (
+      <p className="border border-dashed border-border-subtle p-3.5 text-center text-body-sm text-fg-2">
+        Haz clic en la timeline para añadir el primer corte. Cada corte sale como un Short independiente.
+      </p>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionEyebrow label="RANGOS DE CLIP" count={clips.length} />
-        <Button type="button" variant="outline" size="sm" onClick={addClip} disabled={disabled}>
-          <Plus className="size-4" aria-hidden />
-          AÑADIR
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        {clips.map((clip, i) => {
-          const rangeIssue = streamRangeIssue(clip, sourceDuration, i);
-          const invalid = rangeIssue !== null;
-          return (
-            <article
-              key={clip.id}
-              className={cn(
-                '@container/clip flex flex-col gap-4 border bg-surface-2 p-4 shadow-[var(--elev-0)]',
-                invalid ? 'border-destructive/50' : 'border-border',
-              )}
-            >
-              <div className="flex flex-wrap items-end gap-3">
-                <span
-                  aria-hidden
-                  className="grid size-11 shrink-0 place-items-center border border-stream/45 bg-stream/10 font-mono text-label tabular-nums text-stream-text"
-                >
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div className="flex min-w-40 flex-1 flex-col gap-1.5">
-                  <Label htmlFor={`${clip.id}-title`} className="text-label text-fg-2">
-                    Título (opcional)
-                  </Label>
-                  <Input
-                    id={`${clip.id}-title`}
-                    value={clip.title ?? ''}
-                    disabled={disabled}
-                    onChange={(e) => updateClip(clip.id, { title: e.target.value })}
-                    placeholder={`Clip ${i + 1}`}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={disabled || clips.length <= 1}
-                  onClick={() => removeClip(clip.id)}
-                  aria-label={`Eliminar Clip ${i + 1}`}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
-              </div>
-
-              <StreamClipTimeline clip={clip} sourceDuration={sourceDuration} />
-
-              {rangeIssue ? (
-                <p role="alert" className="text-body-sm text-destructive">
-                  {rangeIssue}
-                </p>
-              ) : null}
-
-              <div className="grid gap-3 @[32rem]/clip:grid-cols-2">
-                <ControlGroup caption="Rango">
-                  <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`${clip.id}-start`} className="text-label text-fg-2">
-                        Inicio (s)
-                      </Label>
-                      <Input
-                        id={`${clip.id}-start`}
-                        type="number"
-                        min={0}
-                        step="0.1"
-                        value={clip.start_seconds}
-                        disabled={disabled}
-                        aria-invalid={invalid}
-                        onChange={(e) => updateClip(clip.id, { start_seconds: Number(e.target.value) })}
-                        className="w-24 tabular-nums"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`${clip.id}-end`} className="text-label text-fg-2">
-                        Fin (s)
-                      </Label>
-                      <Input
-                        id={`${clip.id}-end`}
-                        type="number"
-                        min={0}
-                        step="0.1"
-                        value={clip.end_seconds}
-                        disabled={disabled}
-                        aria-invalid={invalid}
-                        onChange={(e) => updateClip(clip.id, { end_seconds: Number(e.target.value) })}
-                        className="w-24 tabular-nums"
-                      />
-                    </div>
-                  </div>
-                </ControlGroup>
-
-                <ClipMovementGroup clip={clip} disabled={disabled} onEditChange={(patch) => updateEdit(clip.id, patch)} />
-
-                <ClipAudioGroup clip={clip} disabled={disabled} onEditChange={(patch) => updateEdit(clip.id, patch)} />
-
-                <ClipFadeGroup clip={clip} disabled={disabled} onEditChange={(patch) => updateEdit(clip.id, patch)} />
-              </div>
-
-              <ClipOverlayEditor
-                clip={clip}
-                disabled={disabled}
-                onEditChange={(patch) => updateEdit(clip.id, patch)}
-              />
-            </article>
-          );
-        })}
-      </div>
-    </div>
+    <ul className="flex flex-col gap-2.5">
+      {clips.map((clip, index) => (
+        <ClipCard
+          key={clip.id}
+          clip={clip}
+          index={index}
+          sourceDuration={sourceDuration}
+          selected={clip.id === selectedClipId}
+          disabled={disabled}
+          onSelect={() => onSelect(clip)}
+          onRemove={() => onRemove(clip)}
+          onClipChange={(patch) => updateClip(clip.id, patch)}
+          onEditChange={(patch) => updateEdit(clip.id, patch)}
+        />
+      ))}
+    </ul>
   );
 }
 
-function ClipMovementGroup({
+function ClipCard({
   clip,
+  index,
+  sourceDuration,
+  selected,
   disabled,
+  onSelect,
+  onRemove,
+  onClipChange,
   onEditChange,
 }: {
   clip: StreamClipRange;
+  index: number;
+  sourceDuration: number;
+  selected: boolean;
   disabled: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+  onClipChange: (patch: Partial<StreamClipRange>) => void;
   onEditChange: (patch: Partial<StreamClipEdit>) => void;
 }): ReactNode {
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const [textOpen, setTextOpen] = useState(false);
+  const rangeIssue = streamRangeIssue(clip, sourceDuration, index);
   const speed = clip.edit?.speed ?? 1;
+  const sourceVolume = clip.edit?.source_volume ?? 1;
+  const fadeIn = clip.edit?.fade_in_seconds ?? 0;
+  const fadeOut = clip.edit?.fade_out_seconds ?? 0;
+  const fadesOn = fadeIn > 0 || fadeOut > 0;
+  const overlays = clip.edit?.text_overlays ?? [];
+  const number = String(index + 1).padStart(2, '0');
+  const showText = textOpen || overlays.length > 0;
+  let cardClass = 'border-border bg-surface-2';
+  if (rangeIssue !== null) cardClass = 'border-destructive/50';
+  else if (selected) cardClass = 'border-stream/45 bg-surface-3';
 
   return (
-    <ControlGroup caption="Movimiento">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${clip.id}-speed`} className="text-label text-fg-2">
-          Velocidad
-        </Label>
-        <Select
-          value={String(speed)}
-          disabled={disabled}
-          onValueChange={(value) => onEditChange({ speed: Number(value) })}
+    <li
+      className={cn(
+        'studio-enter flex flex-col gap-2.5 border p-3.5 transition-colors duration-(--dur-fast) ease-standard',
+        cardClass,
+      )}
+    >
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onSelect}
+          aria-pressed={selected}
+          className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <SelectTrigger id={`${clip.id}-speed`} aria-label="Velocidad de reproducción" className="w-28">
+          <span
+            aria-hidden
+            className="grid size-7 shrink-0 place-items-center border border-stream/45 bg-stream/10 font-mono text-label tabular-nums text-stream-text"
+          >
+            {number}
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate font-display text-label font-semibold uppercase text-fg-1">
+              {clip.title?.trim() || `Clip ${index + 1}`}
+            </span>
+            <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+              {formatStreamClock(clip.start_seconds)} → {formatStreamClock(clip.end_seconds)} → Short de{' '}
+              {formatStreamClock(clipOutputDuration(clip))}
+            </span>
+          </span>
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          onClick={onRemove}
+          aria-label={`Quitar corte ${number}`}
+        >
+          <Trash2 aria-hidden />
+        </Button>
+      </div>
+
+      <Input
+        id={`${clip.id}-title`}
+        aria-label={`Título del corte ${number}`}
+        value={clip.title ?? ''}
+        disabled={disabled}
+        onChange={(e) => onClipChange({ title: e.target.value })}
+        placeholder={`Clip ${index + 1}`}
+        className="h-9"
+      />
+
+      {rangeIssue ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {rangeIssue}
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Select value={String(speed)} disabled={disabled} onValueChange={(value) => onEditChange({ speed: Number(value) })}>
+          <SelectTrigger aria-label="Velocidad de reproducción" className="h-10 w-auto gap-1 px-2.5 font-mono tracking-wider">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {CLIP_SPEEDS.map((value) => (
               <SelectItem key={value} value={String(value)}>
-                {value}x
+                {value}×
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-      </div>
-    </ControlGroup>
-  );
-}
-
-function ClipAudioGroup({
-  clip,
-  disabled,
-  onEditChange,
-}: {
-  clip: StreamClipRange;
-  disabled: boolean;
-  onEditChange: (patch: Partial<StreamClipEdit>) => void;
-}): ReactNode {
-  const sourceVolume = clip.edit?.source_volume ?? 1;
-  const readout = sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)}%`;
-
-  return (
-    <ControlGroup caption="Audio original">
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor={`${clip.id}-source-volume`} className="text-label text-fg-2">
-            Volumen original
-          </Label>
-          <output
-            htmlFor={`${clip.id}-source-volume`}
-            className="font-mono text-label tabular-nums text-stream-text"
-          >
-            {readout}
-          </output>
-        </div>
-        <input
-          id={`${clip.id}-source-volume`}
-          type="range"
-          min={0}
-          max={2}
-          step="0.05"
-          value={sourceVolume}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
           disabled={disabled}
-          aria-label="Volumen del audio original"
-          aria-valuetext={readout}
-          onChange={(e) => onEditChange({ source_volume: Number(e.target.value) })}
-          className={STREAM_SLIDER_CLASS}
-        />
+          aria-expanded={rangeOpen}
+          onClick={() => setRangeOpen((open) => !open)}
+          className={CHIP_CLASS}
+        >
+          {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)}%`}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          aria-pressed={fadesOn}
+          onClick={() =>
+            onEditChange(
+              fadesOn
+                ? { fade_in_seconds: 0, fade_out_seconds: 0 }
+                : { fade_in_seconds: CHIP_FADE_SECONDS, fade_out_seconds: CHIP_FADE_SECONDS },
+            )
+          }
+          className={cn(CHIP_CLASS, fadesOn && 'border-stream/45 text-stream-text')}
+        >
+          {fadesOn ? `Fundidos ${fadeIn === fadeOut ? fadeIn : `${fadeIn}/${fadeOut}`} s` : 'Sin fundidos'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          aria-expanded={showText}
+          onClick={() => setTextOpen((open) => !open)}
+          className={cn(CHIP_CLASS, overlays.length > 0 && 'border-stream/45 text-stream-text')}
+        >
+          {overlays.length > 0 ? `Texto · ${overlays.length}/${MAX_TEXT_OVERLAYS}` : '+ Texto'}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={rangeOpen}
+          onClick={() => setRangeOpen((open) => !open)}
+          className="ml-auto font-mono uppercase tracking-wider text-fg-3"
+        >
+          Ajustar rango
+          <ChevronDown aria-hidden className={cn('transition-transform duration-(--dur-fast)', rangeOpen && 'rotate-180')} />
+        </Button>
       </div>
-    </ControlGroup>
+
+      {rangeOpen ? (
+        <div className="flex flex-col gap-3 border-t border-border-subtle pt-3">
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField
+              id={`${clip.id}-start`}
+              label="Inicio (s)"
+              value={clip.start_seconds}
+              invalid={rangeIssue !== null}
+              disabled={disabled}
+              onChange={(value) => onClipChange({ start_seconds: value })}
+            />
+            <NumberField
+              id={`${clip.id}-end`}
+              label="Fin (s)"
+              value={clip.end_seconds}
+              invalid={rangeIssue !== null}
+              disabled={disabled}
+              onChange={(value) => onClipChange({ end_seconds: value })}
+            />
+            <NumberField
+              id={`${clip.id}-fade-in`}
+              label="Fundido entrada (s)"
+              value={fadeIn}
+              max={5}
+              disabled={disabled}
+              onChange={(value) => onEditChange({ fade_in_seconds: value })}
+            />
+            <NumberField
+              id={`${clip.id}-fade-out`}
+              label="Fundido salida (s)"
+              value={fadeOut}
+              max={5}
+              disabled={disabled}
+              onChange={(value) => onEditChange({ fade_out_seconds: value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor={`${clip.id}-source-volume`} className="text-label text-fg-2">
+                Volumen original
+              </Label>
+              <output htmlFor={`${clip.id}-source-volume`} className="font-mono text-label tabular-nums text-stream-text">
+                {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)}%`}
+              </output>
+            </div>
+            <input
+              id={`${clip.id}-source-volume`}
+              type="range"
+              min={0}
+              max={2}
+              step="0.05"
+              value={sourceVolume}
+              disabled={disabled}
+              aria-label="Volumen del audio original"
+              onChange={(e) => onEditChange({ source_volume: Number(e.target.value) })}
+              className={STREAM_SLIDER_CLASS}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {showText ? (
+        <ClipOverlayEditor clip={clip} disabled={disabled} onEditChange={onEditChange} />
+      ) : null}
+    </li>
   );
 }
 
-function ClipFadeGroup({
-  clip,
+function NumberField({
+  id,
+  label,
+  value,
+  max,
+  invalid,
   disabled,
-  onEditChange,
+  onChange,
 }: {
-  clip: StreamClipRange;
+  id: string;
+  label: string;
+  value: number;
+  max?: number;
+  invalid?: boolean;
   disabled: boolean;
-  onEditChange: (patch: Partial<StreamClipEdit>) => void;
+  onChange: (value: number) => void;
 }): ReactNode {
   return (
-    <ControlGroup caption="Fundidos">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${clip.id}-fade-in`} className="text-label text-fg-2">
-            Fundido entrada (s)
-          </Label>
-          <Input
-            id={`${clip.id}-fade-in`}
-            type="number"
-            min={0}
-            max={5}
-            step="0.1"
-            value={clip.edit?.fade_in_seconds ?? 0}
-            disabled={disabled}
-            onChange={(e) => onEditChange({ fade_in_seconds: Number(e.target.value) })}
-            className="w-24 tabular-nums"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${clip.id}-fade-out`} className="text-label text-fg-2">
-            Fundido salida (s)
-          </Label>
-          <Input
-            id={`${clip.id}-fade-out`}
-            type="number"
-            min={0}
-            max={5}
-            step="0.1"
-            value={clip.edit?.fade_out_seconds ?? 0}
-            disabled={disabled}
-            onChange={(e) => onEditChange({ fade_out_seconds: Number(e.target.value) })}
-            className="w-24 tabular-nums"
-          />
-        </div>
-      </div>
-    </ControlGroup>
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <Label htmlFor={id} className="text-label text-fg-2">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        min={0}
+        max={max}
+        step="0.1"
+        value={value}
+        disabled={disabled}
+        aria-invalid={invalid}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-9 tabular-nums"
+      />
+    </div>
   );
 }
 
@@ -357,8 +387,8 @@ function ClipOverlayEditor({
           onClick={addOverlay}
           disabled={disabled || overlays.length >= MAX_TEXT_OVERLAYS}
         >
-          <Plus className="size-4" aria-hidden />
-          AÑADIR TEXTO
+          <Plus aria-hidden />
+          Añadir texto
         </Button>
       </div>
 
@@ -377,6 +407,7 @@ function ClipOverlayEditor({
                 aria-invalid={overlay.text.trim() === ''}
                 onChange={(e) => updateOverlay(index, { text: e.target.value })}
                 placeholder="NICE SHOT"
+                className="h-9"
               />
             </div>
             <Button
@@ -387,12 +418,12 @@ function ClipOverlayEditor({
               onClick={() => removeOverlay(index)}
               aria-label={`Eliminar texto ${index + 1}`}
             >
-              <Trash2 className="size-4" aria-hidden />
+              <Trash2 aria-hidden />
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <Label htmlFor={`${clip.id}-text-${index}-start`} className="text-label text-fg-2">
                 Desde (s)
               </Label>
@@ -406,10 +437,10 @@ function ClipOverlayEditor({
                 disabled={disabled}
                 onChange={(e) => updateOverlay(index, { start_seconds: optionalNumber(e.target.value) })}
                 placeholder="0"
-                className="w-24 tabular-nums"
+                className="h-9 tabular-nums"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <Label htmlFor={`${clip.id}-text-${index}-end`} className="text-label text-fg-2">
                 Hasta (s)
               </Label>
@@ -423,10 +454,10 @@ function ClipOverlayEditor({
                 disabled={disabled}
                 onChange={(e) => updateOverlay(index, { end_seconds: optionalNumber(e.target.value) })}
                 placeholder={clipDuration.toFixed(1)}
-                className="w-24 tabular-nums"
+                className="h-9 tabular-nums"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <Label htmlFor={`${clip.id}-text-${index}-size`} className="text-label text-fg-2">
                 Tamaño
               </Label>
@@ -440,16 +471,13 @@ function ClipOverlayEditor({
                 disabled={disabled}
                 onChange={(e) => updateOverlay(index, { font_size: optionalInteger(e.target.value) })}
                 placeholder={String(DEFAULT_OVERLAY_FONT_SIZE)}
-                className="w-24 tabular-nums"
+                className="h-9 tabular-nums"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <Label
-              htmlFor={`${clip.id}-text-${index}-position`}
-              className="shrink-0 text-label text-fg-2"
-            >
+            <Label htmlFor={`${clip.id}-text-${index}-position`} className="shrink-0 text-label text-fg-2">
               Posición vertical
             </Label>
             <input

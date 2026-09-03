@@ -394,7 +394,7 @@ interface BootFailureDetails {
 
 let activeBootAttempt: BootAttempt | null = null;
 
-/** Inicio is the first-run door; /matches is no longer the shell entry. */
+/** 01 Clips y vídeos is the single door: the hub owns the first-run drop. */
 async function loadStudio(webPort: number, proxyMutationCapability: string): Promise<void> {
   loadingScreenShowing = false;
   const win = aliveWindow();
@@ -405,7 +405,7 @@ async function loadStudio(webPort: number, proxyMutationCapability: string): Pro
     webOrigin,
     proxyMutationCapability,
   );
-  const requestedURL = `${webOrigin}/onboarding`;
+  const requestedURL = `${webOrigin}/clips`;
   let observedReplacement: SuccessfulNavigationEvidence | null = null;
   let resolveReplacement: ((evidence: SuccessfulNavigationEvidence) => void) | undefined;
   const replacementCompleted = new Promise<SuccessfulNavigationEvidence>((resolve) => {

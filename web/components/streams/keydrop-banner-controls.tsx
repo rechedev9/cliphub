@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { STREAM_SLIDER_CLASS } from '@/components/streams/banner-controls';
+import { StreamStepCard, StreamSwitch } from '@/components/streams/step-card';
 
 export function StreamKeyDropBannerControls({
   family,
@@ -67,64 +68,63 @@ export function StreamKeyDropBannerControls({
   const maxT = clipDurationSeconds > 0 ? clipDurationSeconds : Math.max(endSeconds, DEFAULT_KEYDROP_END_SECONDS, 30);
   const rangeValid = startSeconds >= 0 && endSeconds > startSeconds && (clipDurationSeconds <= 0 || endSeconds <= clipDurationSeconds + 0.001);
 
+  const familyLabel = AFFILIATE_FAMILY_CATALOG.find((entry) => entry.id === family)?.label ?? 'KeyDrop';
+  const firstStyle = stylesForFamily(family || 'KEYDROP')[0]?.id ?? '';
+
   return (
-    <div className="flex flex-col gap-3 border-t border-border pt-5">
-      <div className="flex flex-col gap-1">
-        <Label className="text-label text-fg-2">Banner afiliado (opcional)</Label>
-        <p className="text-body-sm text-fg-3">
-          Placa de sponsor con código. Elige familia, estilo y cuándo entra y sale; no tiene por qué quedarse todo el clip.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Familia del banner">
-        {AFFILIATE_FAMILY_CATALOG.map((entry) => (
-          <Button
-            key={entry.id}
-            type="button"
-            size="sm"
-            variant={family === entry.id ? 'default' : 'outline'}
-            disabled={busy}
-            aria-pressed={family === entry.id}
-            onClick={() => onFamilyChange(entry.id)}
-          >
-            {entry.label}
-          </Button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Estilo del banner">
-        <Button
-          type="button"
-          size="sm"
-          variant={style === '' ? 'default' : 'outline'}
+    <StreamStepCard
+      title={`${familyLabel} · afiliado`}
+      control={
+        <StreamSwitch
+          label="Banner afiliado"
+          checked={enabled}
           disabled={busy}
-          aria-pressed={style === ''}
-          onClick={() => onStyleChange('')}
-        >
-          {family
-            ? AFFILIATE_FAMILY_CATALOG.find((entry) => entry.id === family)?.offLabel ?? 'Sin banner'
-            : 'Sin banner'}
-        </Button>
-        {stylesForFamily(family || 'KEYDROP').map((entry) => (
-          <Button
-            key={entry.id}
-            type="button"
-            size="sm"
-            variant={style === entry.id ? 'default' : 'outline'}
-            disabled={busy}
-            aria-pressed={style === entry.id}
-            onClick={() => {
-              if (isKeyDropStyle(entry.id)) onStyleChange(entry.id);
-            }}
-          >
-            {entry.label}
-            <span className="ml-1.5 text-fg-3">{entry.subtitle}</span>
-          </Button>
-        ))}
-      </div>
-
+          onChange={(next) => {
+            if (!next) onStyleChange('');
+            else if (isKeyDropStyle(firstStyle)) onStyleChange(firstStyle);
+          }}
+        />
+      }
+    >
       {enabled ? (
-        <div className="mt-1 flex max-w-xl flex-col gap-3 border-l-2 border-amber-500/50 bg-surface-1 py-3 pr-3 pl-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Familia del banner">
+            {AFFILIATE_FAMILY_CATALOG.map((entry) => (
+              <Button
+                key={entry.id}
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                aria-pressed={family === entry.id}
+                onClick={() => onFamilyChange(entry.id)}
+                className={`font-mono uppercase tracking-wider ${family === entry.id ? 'border-stream/45 text-stream-text' : ''}`}
+              >
+                {entry.label}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Estilo del banner">
+            {stylesForFamily(family || 'KEYDROP').map((entry) => (
+              <Button
+                key={entry.id}
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                aria-pressed={style === entry.id}
+                onClick={() => {
+                  if (isKeyDropStyle(entry.id)) onStyleChange(entry.id);
+                }}
+                className={`font-mono uppercase tracking-wider ${style === entry.id ? 'border-stream/45 text-stream-text' : ''}`}
+              >
+                {entry.label}
+                <span className="text-fg-3">{entry.subtitle}</span>
+              </Button>
+            ))}
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="keydrop-code" className="text-label text-fg-2">
               Código
@@ -137,7 +137,7 @@ export function StreamKeyDropBannerControls({
               aria-invalid={!codeValid}
               onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
               placeholder={DEFAULT_KEYDROP_CODE}
-              className="max-w-sm font-mono uppercase"
+              className="h-9 font-mono uppercase"
             />
             {codeValid ? (
               <p className="text-body-sm text-fg-3">
@@ -153,7 +153,7 @@ export function StreamKeyDropBannerControls({
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-label text-fg-2">Visible en el clip</Label>
-              <output className="font-mono text-label tabular-nums text-amber-200">
+              <output className="font-mono text-label tabular-nums text-stream-text">
                 {startSeconds.toFixed(1)}s → {endSeconds.toFixed(1)}s
               </output>
             </div>
@@ -174,7 +174,7 @@ export function StreamKeyDropBannerControls({
                   value={Number.isFinite(startSeconds) ? startSeconds : 0}
                   disabled={busy}
                   onChange={(e) => onStartChange(Number(e.target.value))}
-                  className="max-w-[10rem] font-mono"
+                  className="h-9 font-mono"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -190,7 +190,7 @@ export function StreamKeyDropBannerControls({
                   value={Number.isFinite(endSeconds) ? endSeconds : DEFAULT_KEYDROP_END_SECONDS}
                   disabled={busy}
                   onChange={(e) => onEndChange(Number(e.target.value))}
-                  className="max-w-[10rem] font-mono"
+                  className="h-9 font-mono"
                 />
               </div>
             </div>
@@ -237,7 +237,7 @@ export function StreamKeyDropBannerControls({
             </Label>
             <output
               htmlFor="keydrop-banner-position"
-              className="font-mono text-label tabular-nums text-amber-200"
+              className="font-mono text-label tabular-nums text-stream-text"
             >
               {Math.round(position * 100)}%
             </output>
@@ -258,13 +258,14 @@ export function StreamKeyDropBannerControls({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              variant={slideEnabled ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
               disabled={busy}
               aria-pressed={slideEnabled}
               onClick={() => onSlideChange(!slideEnabled)}
+              className={`font-mono uppercase tracking-wider ${slideEnabled ? 'border-stream/45 text-stream-text' : ''}`}
             >
-              {slideEnabled ? 'Deslizamiento: activado' : 'Deslizamiento: desactivado'}
+              Deslizamiento: {slideEnabled ? 'on' : 'off'}
             </Button>
             <Button
               type="button"
@@ -277,8 +278,10 @@ export function StreamKeyDropBannerControls({
             </Button>
           </div>
         </div>
-      ) : null}
-    </div>
+      ) : (
+        <p className="text-body-sm text-fg-3">Sin placa de sponsor. Actívala para elegir estilo, código y ventana.</p>
+      )}
+    </StreamStepCard>
   );
 }
 
