@@ -7,7 +7,11 @@ import {
   activeJobCount,
   buildHubModel,
   clipFilterCounts,
+  firstRunComplete,
+  firstRunProgress,
   fullChipLabel,
+  hubNextStep,
+  matchMetaParts,
   HUB_ROW_STAGE,
   hubTransitions,
   matchesClipFilter,
@@ -244,7 +248,7 @@ test('recBusy and activeJobCount count what is actually moving', () => {
 });
 
 test('fullChipLabel follows the latest Full POV state', () => {
-  assert.equal(fullChipLabel([]), 'Full POV · —');
+  assert.equal(fullChipLabel([]), 'Full POV · sin generar');
   assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'recording', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · REC');
   assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · listo');
   assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'queued', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · en cola');
@@ -296,4 +300,45 @@ test('hubTransitions: reports rows that finished parsing and outputs that became
   assert.deepEqual(got.parsed.map((row) => row.match.id), ['m1']);
   // v2 was already ready and v3 is new (first seen ready), so only v1 flipped.
   assert.deepEqual(got.ready.map((clip) => clip.id), ['v1']);
+});
+
+test('hubNextStep: parsing waits, scanned picks, an empty ready row asks for its first clip', () => {
+  const row = (status: string | undefined, videos: Video[] = []) => buildHubModel([match('m1', status)], videos).rows[0];
+  assert.equal(hubNextStep(row('parsing')), 'wait');
+  assert.equal(hubNextStep(row('scanned')), 'pick');
+  assert.equal(hubNextStep(row('parsed')), 'firstClip');
+  assert.equal(hubNextStep(row('parsed', [reel({ id: 'v1', status: 'queued', jobId: 'm1' })])), 'none');
+  assert.equal(
+    hubNextStep(row('parsed', [reel({ id: 'v1', status: 'ready', jobId: 'm1', editConfig: FULL_DEMO_EDIT })])),
+    'none',
+  );
+});
+
+test('matchMetaParts keeps player, K/D and highlights, and always ends with the date', () => {
+  assert.deepEqual(matchMetaParts({ ...match('m1'), player: 'donk' }, 'hace 2 h'), [
+    'donk',
+    '20/10 K/D',
+    '5 highlights',
+    'hace 2 h',
+  ]);
+  const bare: Match = {
+    ...match('m2'),
+    stats: { kills: 0, deaths: 0, assists: 0, mvps: 0, kd: 0 },
+    decentPlays: 0,
+  };
+  assert.deepEqual(matchMetaParts(bare, 'importada el 1 sept 2026'), ['importada el 1 sept 2026']);
+});
+
+test('firstRunProgress flips each step from hub data and completes only with a clip', () => {
+  assert.deepEqual(firstRunProgress(buildHubModel([], [])), { load: false, pick: false, produce: false });
+  assert.deepEqual(firstRunProgress(buildHubModel([match('m1', 'scanned')], [])), {
+    load: true,
+    pick: false,
+    produce: false,
+  });
+  const parsed = buildHubModel([match('m1', 'parsed')], []);
+  assert.deepEqual(firstRunProgress(parsed), { load: true, pick: true, produce: false });
+  assert.equal(firstRunComplete(firstRunProgress(parsed)), false);
+  const produced = buildHubModel([match('m1', 'parsed')], [reel({ id: 'v1', status: 'queued', jobId: 'm1' })]);
+  assert.equal(firstRunComplete(firstRunProgress(produced)), true);
 });

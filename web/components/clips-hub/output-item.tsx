@@ -82,9 +82,12 @@ export function OutputItem({ output, matchId, onChange }: OutputItemProps): Reac
         ) : null}
 
         <span className="flex justify-between gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-          <span className="truncate">
-            {output.state === OUTPUT_STATE.failed ? <FailureLine output={output} /> : `${video.map} · ${timeAgo(video.createdAt)}`}
-          </span>
+          {/* A failure reason is the only useful line of a failed card: it wraps, never truncates. */}
+          {output.state === OUTPUT_STATE.failed ? (
+            <FailureLine output={output} />
+          ) : (
+            <span className="truncate">{`${video.map} · ${timeAgo(video.createdAt)}`}</span>
+          )}
         </span>
 
         <OutputActions output={output} matchId={matchId} onChange={onChange} />

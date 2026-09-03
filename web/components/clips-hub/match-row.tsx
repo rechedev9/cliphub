@@ -4,10 +4,18 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
-import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT, MATCH_ROW_UNPICKED_TITLE } from '@/lib/clips/copy';
+import {
+  MATCH_ROW_FIRST_CLIP_CTA,
+  MATCH_ROW_UNPICKED_CTA,
+  MATCH_ROW_UNPICKED_HINT,
+  MATCH_ROW_UNPICKED_TITLE,
+} from '@/lib/clips/copy';
 import {
   fullChipLabel,
+  HUB_NEXT_STEP,
   HUB_ROW_STAGE,
+  hubNextStep,
+  matchMetaParts,
   OUTPUT_STATE,
   OUTPUT_TONE,
   pluralShorts,
@@ -47,6 +55,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
   const player = match.player;
   const expandable = stage === HUB_ROW_STAGE.ready;
   const expanded = open && expandable;
+  const nextStep = hubNextStep(row);
 
   let bar = 'bg-border-strong';
   if (expandable && win) bar = 'bg-success';
@@ -87,9 +96,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
             <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-              {[player, matchDateLabel(match), match.decentPlays > 0 ? `${match.decentPlays} highlights` : null]
-                .filter(Boolean)
-                .join(' · ')}
+              {matchMetaParts(match, matchDateLabel(match)).join(' · ')}
             </span>
           </span>
 
@@ -104,9 +111,17 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
         </button>
 
         <span className="flex shrink-0 items-center gap-2 py-3 pr-[18px]">
-          {stage === HUB_ROW_STAGE.unpicked ? (
+          {nextStep === HUB_NEXT_STEP.pick ? (
             <Button asChild size="xs" variant="outline-primary">
               <Link href={newDemoHref({ job: match.id })}>{MATCH_ROW_UNPICKED_CTA}</Link>
+            </Button>
+          ) : null}
+          {nextStep === HUB_NEXT_STEP.firstClip ? (
+            <Button asChild size="xs" variant="outline-primary">
+              <Link href={produceHref(match.id, PRODUCE_FORMAT.short)}>
+                <Plus aria-hidden />
+                {MATCH_ROW_FIRST_CLIP_CTA}
+              </Link>
             </Button>
           ) : null}
           <DeleteMatchButton
@@ -172,15 +187,20 @@ function ReadyHeaderBlock({
           <span className="text-fg-1">{theirs}</span>
         </span>
       ) : null}
-      <span className="flex items-center gap-2 self-center">
-        <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag>
-        <StatusTag tone={fulls[0] === undefined ? OUTPUT_TONE.queue : OUTPUT_TONE[fulls[0].state]}>
-          {fulls[0]?.state === OUTPUT_STATE.rec ? (
-            <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
+      {/* An empty chip says nothing; the row's CTA carries "nothing yet". */}
+      {shorts.length > 0 || fulls[0] !== undefined ? (
+        <span className="flex items-center gap-2 self-center">
+          {shorts.length > 0 ? <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag> : null}
+          {fulls[0] !== undefined ? (
+            <StatusTag tone={OUTPUT_TONE[fulls[0].state]}>
+              {fulls[0].state === OUTPUT_STATE.rec ? (
+                <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
+              ) : null}
+              {fullChipLabel(fulls)}
+            </StatusTag>
           ) : null}
-          {fullChipLabel(fulls)}
-        </StatusTag>
-      </span>
+        </span>
+      ) : null}
     </>
   );
 }
