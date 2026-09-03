@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -17,11 +17,11 @@ import (
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
-func newTestSQLiteRepo(t *testing.T) *sqliteJobRepository {
+func newTestSQLiteRepo(t *testing.T) *SQLiteJobRepository {
 	t.Helper()
-	repo, err := newSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	repo, err := NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository: %v", err)
+		t.Fatalf("NewSQLiteJobRepository: %v", err)
 	}
 	t.Cleanup(func() { _ = repo.Close() })
 	return repo
@@ -479,7 +479,7 @@ func TestSQLiteRepoPersistsAcrossReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "jobs.db")
 
-	repo, err := newSQLiteJobRepository(path)
+	repo, err := NewSQLiteJobRepository(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -494,7 +494,7 @@ func TestSQLiteRepoPersistsAcrossReopen(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	reopened, err := newSQLiteJobRepository(path)
+	reopened, err := NewSQLiteJobRepository(path)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
@@ -619,7 +619,7 @@ func TestSQLiteRepoMigratesLegacyEmbeddedKillPlan(t *testing.T) {
 		t.Fatalf("close legacy db: %v", err)
 	}
 
-	repo, err := newSQLiteJobRepository(path)
+	repo, err := NewSQLiteJobRepository(path)
 	if err != nil {
 		t.Fatalf("open migrated repo: %v", err)
 	}
@@ -703,7 +703,7 @@ func TestSQLiteRepoMigratesKillPlanColumnToSiblingTable(t *testing.T) {
 		t.Fatalf("close column-schema db: %v", err)
 	}
 
-	repo, err := newSQLiteJobRepository(path)
+	repo, err := NewSQLiteJobRepository(path)
 	if err != nil {
 		t.Fatalf("open migrated repo: %v", err)
 	}
@@ -756,7 +756,7 @@ func TestSQLiteRepoMigratesJSONNullKillPlanWithoutAbortingOpen(t *testing.T) {
 		t.Fatalf("close null-plan db: %v", err)
 	}
 
-	repo, err := newSQLiteJobRepository(path)
+	repo, err := NewSQLiteJobRepository(path)
 	if err != nil {
 		t.Fatalf("open repo with json-null kill_plan: %v", err)
 	}
@@ -857,7 +857,7 @@ func TestSQLiteRepoListAndStatusKeepLifecycleFieldsWithoutPlan(t *testing.T) {
 	}
 }
 
-func assertKillPlanOutsideData(t *testing.T, repo *sqliteJobRepository, id uuid.UUID) {
+func assertKillPlanOutsideData(t *testing.T, repo *SQLiteJobRepository, id uuid.UUID) {
 	t.Helper()
 	var embedded sql.NullString
 	if err := repo.db.QueryRow(`SELECT json_type(data, '$.kill_plan') FROM jobs WHERE id = ?`, id.String()).Scan(&embedded); err != nil {
@@ -876,18 +876,12 @@ func assertKillPlanOutsideData(t *testing.T, repo *sqliteJobRepository, id uuid.
 	if !json.Valid(planBytes) {
 		t.Fatalf("job_kill_plans.plan is not JSON: %q", planBytes)
 	}
-	hasColumn, err := jobsColumnExists(repo.db, "kill_plan")
+	// Schema v2 drops the leftover column outright.
+	hasColumn, err := columnExists(repo.db, "jobs", "kill_plan")
 	if err != nil {
 		t.Fatalf("inspect kill_plan column: %v", err)
 	}
-	if !hasColumn {
-		return
-	}
-	var leftover []byte
-	if err := repo.db.QueryRow(`SELECT kill_plan FROM jobs WHERE id = ?`, id.String()).Scan(&leftover); err != nil {
-		t.Fatalf("inspect jobs.kill_plan: %v", err)
-	}
-	if len(leftover) != 0 {
-		t.Fatalf("jobs.kill_plan still holds %d bytes", len(leftover))
+	if hasColumn {
+		t.Fatal("jobs.kill_plan column survived the schema migration")
 	}
 }

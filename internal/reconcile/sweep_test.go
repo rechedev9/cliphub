@@ -1,4 +1,4 @@
-package main
+package reconcile
 
 import (
 	"bytes"
@@ -19,6 +19,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
@@ -151,7 +152,7 @@ func readSweepFixture(t *testing.T, store storage.Storage, key string, dst any) 
 func interruptedObsCount(rec *obs.Recorder, stage string) int64 {
 	var count int64
 	for _, metric := range rec.Snapshot() {
-		if metric.Name == "CLIPHUB_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == interruptedClass {
+		if metric.Name == "CLIPHUB_errors_total" && metric.Labels["stage"] == stage && metric.Labels["class"] == obs.ClassInterrupted {
 			count += metric.Value
 		}
 	}
@@ -160,7 +161,7 @@ func interruptedObsCount(rec *obs.Recorder, stage string) int64 {
 
 func TestSweepInterruptedJobsFailsOnlyNonresumableStates(t *testing.T) {
 	repos := map[string]interruptSweeperRepo{
-		"memory": newMemoryJobRepository(),
+		"memory": store.NewMemoryJobRepository(),
 		"sqlite": newTestSQLiteRepo(t),
 	}
 
@@ -236,7 +237,7 @@ func TestSweepInterruptedJobsFailsOnlyNonresumableStates(t *testing.T) {
 			// Each swept failure is recorded once through obs (class=interrupted).
 			var interruptErrors int64
 			for _, m := range rec.Snapshot() {
-				if m.Name == "CLIPHUB_errors_total" && m.Labels["class"] == interruptedClass {
+				if m.Name == "CLIPHUB_errors_total" && m.Labels["class"] == obs.ClassInterrupted {
 					interruptErrors += m.Value
 				}
 			}
@@ -248,7 +249,7 @@ func TestSweepInterruptedJobsFailsOnlyNonresumableStates(t *testing.T) {
 }
 
 func TestSweepInterruptedJobsAggregatesRecordFailures(t *testing.T) {
-	base := newMemoryJobRepository()
+	base := store.NewMemoryJobRepository()
 	firstFailure := seedJob(t, base, job.StatusQueued)
 	success := seedJob(t, base, job.StatusQueued)
 	secondFailure := seedJob(t, base, job.StatusParsing)
@@ -286,7 +287,7 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 		t.Run(repoName, func(t *testing.T) {
 			var repo interruptSweeperRepo
 			if repoName == "memory" {
-				repo = newMemoryJobRepository()
+				repo = store.NewMemoryJobRepository()
 			} else {
 				repo = newTestSQLiteRepo(t)
 			}
@@ -307,6 +308,9 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 			}{
 				{parentStatus: job.StatusDone, stateStatus: renderplan.RenderVariantStatusQueued, wantFailed: true},
 				{parentStatus: job.StatusRecorded, stateStatus: renderplan.RenderVariantStatusRendering, wantFailed: true},
+				// Composition with QA warnings parks the job here; a rerender started
+				// from it must still be swept.
+				{parentStatus: job.StatusReviewRequired, stateStatus: renderplan.RenderVariantStatusRendering, wantFailed: true},
 				{parentStatus: job.StatusComposed, stateStatus: renderplan.RenderVariantStatusReady},
 				{parentStatus: job.StatusFailed, stateStatus: renderplan.RenderVariantStatusFailed},
 			}
@@ -344,7 +348,7 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 			if err != nil {
 				t.Fatalf("sweepInterruptedDemoRenderStates: %v", err)
 			}
-			if got, want := swept, 2; got != want {
+			if got, want := swept, 3; got != want {
 				t.Fatalf("swept = %d, want %d", got, want)
 			}
 			for _, f := range fixtures {
@@ -368,7 +372,7 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 }
 
 func TestSweepInterruptedDemoRenderStatesRepairsCorruptDocumentsAndContinues(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := store.NewMemoryJobRepository()
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewLocal: %v", err)
@@ -434,7 +438,7 @@ func TestSweepInterruptedGenerateRunsUsesActiveRunMarker(t *testing.T) {
 		t.Run(repoName, func(t *testing.T) {
 			var repo interruptSweeperRepo
 			if repoName == "memory" {
-				repo = newMemoryJobRepository()
+				repo = store.NewMemoryJobRepository()
 			} else {
 				repo = newTestSQLiteRepo(t)
 			}
@@ -548,7 +552,7 @@ func TestSweepInterruptedStreamJobsFailsOnlyRenderingAndPreservesAcquiring(t *te
 		t.Run(repoName, func(t *testing.T) {
 			var repo streamInterruptSweeperRepo
 			if repoName == "memory" {
-				repo = newMemoryStreamJobRepository()
+				repo = store.NewMemoryStreamJobRepository()
 			} else {
 				repo = newTestSQLiteStreamRepo(t)
 			}
@@ -597,7 +601,7 @@ func TestSweepInterruptedStreamJobsFailsOnlyRenderingAndPreservesAcquiring(t *te
 }
 
 func TestSweepInterruptedStreamJobsAggregatesRecordFailures(t *testing.T) {
-	base := newMemoryStreamJobRepository()
+	base := store.NewMemoryStreamJobRepository()
 	firstFailure := seedStreamJob(t, base, streamclips.StatusRendering)
 	success := seedStreamJob(t, base, streamclips.StatusRendering)
 	secondFailure := seedStreamJob(t, base, streamclips.StatusRendering)
@@ -636,7 +640,7 @@ func TestSweepInterruptedStreamJobsIsNotCappedAtHTTPListLimit(t *testing.T) {
 		t.Run(repoName, func(t *testing.T) {
 			var repo streamInterruptSweeperRepo
 			if repoName == "memory" {
-				repo = newMemoryStreamJobRepository()
+				repo = store.NewMemoryStreamJobRepository()
 			} else {
 				repo = newTestSQLiteStreamRepo(t)
 			}
@@ -675,7 +679,7 @@ func TestSweepInterruptedStreamRenderStatesPreservesArtifactData(t *testing.T) {
 		t.Run(repoName, func(t *testing.T) {
 			var repo streamInterruptSweeperRepo
 			if repoName == "memory" {
-				repo = newMemoryStreamJobRepository()
+				repo = store.NewMemoryStreamJobRepository()
 			} else {
 				repo = newTestSQLiteStreamRepo(t)
 			}
@@ -766,7 +770,7 @@ func TestSweepInterruptedStreamRenderStatesPreservesArtifactData(t *testing.T) {
 }
 
 func TestSweepInterruptedStreamRenderStatesPromotesCompletedRevision(t *testing.T) {
-	repo := newMemoryStreamJobRepository()
+	repo := store.NewMemoryStreamJobRepository()
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -814,7 +818,7 @@ func TestSweepInterruptedStreamRenderStatesPromotesCompletedRevision(t *testing.
 }
 
 func TestSweepInterruptedStreamRenderStatesDoesNotPromoteMissingPublishedArtifacts(t *testing.T) {
-	repo := newMemoryStreamJobRepository()
+	repo := store.NewMemoryStreamJobRepository()
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -856,7 +860,7 @@ func TestSweepInterruptedStreamRenderStatesDoesNotPromoteMissingPublishedArtifac
 }
 
 func TestSweepInterruptedStreamRenderStatesRestoresPublishedRevisionAfterInterruptedRerender(t *testing.T) {
-	repo := newMemoryStreamJobRepository()
+	repo := store.NewMemoryStreamJobRepository()
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -964,7 +968,7 @@ func TestSweepInterruptedStreamRenderStatesRestoresPublishedRevisionAfterInterru
 }
 
 func TestSweepInterruptedStreamRenderStatesRepairsCorruptDocumentsAndRecordsEachStateOnce(t *testing.T) {
-	repo := newMemoryStreamJobRepository()
+	repo := store.NewMemoryStreamJobRepository()
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewLocal: %v", err)

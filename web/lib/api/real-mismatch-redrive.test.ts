@@ -231,7 +231,7 @@ test('retrying a failed render POSTs /renders with the selection for a Short and
   for (const tc of cases) {
     const state: Orchestrator = {
       jobStatus: 'recorded',
-      render: { status: 'failed', failure_reason: 'ffmpeg exited with status 1' },
+      render: { status: 'failed', error: 'ffmpeg exited with status 1' },
       generate: () => json({}, 202),
       renderPost: () => json({ accepted: true }, 202),
     };
@@ -249,5 +249,30 @@ test('retrying a failed render POSTs /renders with the selection for a Short and
     } finally {
       fake.restore();
     }
+  }
+});
+
+test('a failed render whose `error` says the capture is not reusable recaptures instead of re-rendering', async () => {
+  // The orchestrator's RenderVariantState serialises its failure as `error`,
+  // not `failure_reason`; reading the wrong key hid every recapture hint.
+  const state: Orchestrator = {
+    jobStatus: 'recorded',
+    render: { status: 'failed', error: 'recording_not_reusable: capture fingerprint predates observer-steamid-input-v2' },
+    generate: () => json({}, 202),
+    renderPost: () => json({ accepted: true }, 202),
+  };
+  const fake = fakeOrchestrator('job-6', state);
+  try {
+    const client = new RealApiClient();
+    const { videoId } = seedReel(client, 'job-6');
+    await tick(client);
+    // The reconcile tick reads the hint and re-drives capture on its own; a
+    // plain ffmpeg failure would have parked the reel on FALLO instead.
+    assert.equal(fake.posts('/generate').length, 1, 'recapture goes through /generate');
+    assert.equal(fake.posts(`/renders/${DEFAULT_VARIANT}`).length, 0, 'no render-only POST for a dead capture');
+    const reel = (await client.listVideos()).find((v) => v.id === videoId);
+    assert.equal(reel?.status, 'recording');
+  } finally {
+    fake.restore();
   }
 });

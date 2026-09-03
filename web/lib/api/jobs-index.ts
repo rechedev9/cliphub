@@ -1,7 +1,7 @@
 // Pure Partidas index: /api/demos/jobs → Matches/series. Status filters stay here.
 
 import type { DemoPlayer, Match, MatchStats } from './types.ts';
-import { PLAN_READY_STATUSES } from './types.ts';
+import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
 import { prettifyMap } from './map.ts';
 import { groupSeriesDemos } from '../series-grouping.ts';
 
@@ -17,21 +17,9 @@ export type IndexedJob = {
   createdAt?: string;
 };
 
-/** Statuses with a roster scan. Shared with getSeries. */
-export const ROSTER_READY: ReadonlySet<string> = new Set([
-  'scanned',
-  'parsing',
-  'parsed',
-  'recording',
-  'recorded',
-  'composing',
-  'composed',
-  'done',
-]);
-
 /** True once a demo has a roster scan, so it belongs in the Partidas list. */
 export function jobHasRoster(status: string): boolean {
-  return ROSTER_READY.has(status);
+  return ROSTER_READY_STATUSES.has(status);
 }
 
 /** Epoch ms for a job's upload time; 0 (sorts last) when absent or unparseable. */

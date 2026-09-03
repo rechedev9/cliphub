@@ -19,19 +19,16 @@ import (
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/reconcile"
 	"github.com/rechedev9/cliphub/internal/steamclient"
 	"github.com/rechedev9/cliphub/internal/steamresolve"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/workers"
 	"github.com/rechedev9/cliphub/internal/youtubetrends"
 )
-
-type orchestratorStreamJobRepository interface {
-	httpapi.StreamJobRepository
-	streamInterruptSweeper
-}
 
 const gracefulShutdownTimeout = 10 * time.Second
 
@@ -86,7 +83,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	store, err := storage.NewLocal(cfg.DataDir)
+	files, err := storage.NewLocal(cfg.DataDir)
 	if err != nil {
 		return fmt.Errorf("storage: %w", err)
 	}
@@ -94,7 +91,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("observability: %w", err)
 	}
-	generateIntents := generateintent.New(store)
+	generateIntents := generateintent.New(files)
 	youtubeTrends, err := youtubetrends.New(youtubetrends.Options{APIKey: cfg.FirecrawlAPIKey})
 	if err != nil {
 		return fmt.Errorf("youtube trends client: %w", err)
@@ -128,64 +125,48 @@ func run() error {
 		steamResolver = steamresolve.NewService(nil)
 	}
 
-	var repo orchestratorJobRepository
-	var streamRepo orchestratorStreamJobRepository
-	var editorAssets httpapi.EditorAssetRepository
-	var editorProjects httpapi.EditorProjectRepository
+	var repos *store.Repositories
 	switch {
 	case cfg.DatabaseURL == databaseURLMemory:
-		repo = newMemoryJobRepository()
-		streamRepo = newMemoryStreamJobRepository()
-		editorAssets = newMemoryEditorAssetRepository()
-		editorProjects = newMemoryEditorProjectRepository()
+		repos = store.NewMemory()
 		log.Printf("jobs: using in-memory repository (state resets on restart)")
 	case cfg.DatabaseURL == databaseURLSQLite || strings.HasPrefix(cfg.DatabaseURL, databaseURLSQLite+":"):
 		path := sqlitePath(cfg.DatabaseURL, cfg.DataDir)
-		sqliteRepo, err := newSQLiteJobRepository(path)
+		repos, err = store.OpenSQLite(path)
 		if err != nil {
-			return fmt.Errorf("sqlite: %w", err)
+			return err
 		}
-		defer func() { _ = sqliteRepo.Close() }()
-		repo = sqliteRepo
-		sqliteStreamRepo, err := newSQLiteStreamJobRepository(sqliteRepo.db)
-		if err != nil {
-			return fmt.Errorf("sqlite stream jobs: %w", err)
-		}
-		streamRepo = sqliteStreamRepo
-		sqliteAssets, err := newSQLiteEditorAssetRepository(sqliteRepo.db)
-		if err != nil {
-			return fmt.Errorf("sqlite editor assets: %w", err)
-		}
-		sqliteProjects, err := newSQLiteEditorProjectRepository(sqliteRepo.db)
-		if err != nil {
-			return fmt.Errorf("sqlite editor projects: %w", err)
-		}
-		editorAssets = sqliteAssets
-		editorProjects = sqliteProjects
 		log.Printf("jobs: using sqlite repository at %s", path)
 	default:
 		return fmt.Errorf("unsupported ZV_DATABASE_URL %q: cliphub desktop only supports %q or %q", cfg.DatabaseURL, databaseURLMemory, databaseURLSQLite)
 	}
-	if err := seedCaptureLabFromEnvironment(ctx, cfg, repo, store); err != nil {
+	defer func() { _ = repos.Close() }()
+	repo := repos.Jobs
+	streamRepo := repos.Streams
+	editorAssets := repos.EditorAssets
+	editorProjects := repos.EditorProjects
+
+	if err := seedCaptureLabFromEnvironment(ctx, cfg, repo, files); err != nil {
 		return fmt.Errorf("capture lab seed: %w", err)
 	}
 
 	// Reconcile durable state whose process-local work vanished with the previous
 	// desktop process. Run every sweep before serving traffic so clients never
 	// observe an active state with no queue owner capable of advancing it.
-	reconciled, err := reconcileInterruptedWork(ctx, repo, streamRepo, store, observability)
+	reconciled, err := reconcile.InterruptedWork(ctx, repo, streamRepo, editorProjects, files, observability)
 	if err != nil {
 		return fmt.Errorf("startup reconciliation: %w", err)
 	}
-	if reconciled.total() > 0 {
+	if reconciled.Total() > 0 {
 		log.Printf(
-			"startup: reconciled interrupted work (demo_jobs=%d demo_renders=%d generate_runs=%d stream_jobs=%d stream_renders=%d stream_acquisitions=%d)",
+			"startup: reconciled interrupted work (demo_jobs=%d demo_renders=%d generate_runs=%d stream_jobs=%d stream_renders=%d stream_acquisitions=%d editor_renders=%d)",
 			reconciled.DemoJobs,
 			reconciled.DemoRenders,
 			reconciled.GenerateRuns,
 			reconciled.StreamJobs,
 			reconciled.StreamRenderStates,
 			len(reconciled.StreamAcquisitions),
+			reconciled.EditorRenders,
 		)
 	}
 	// HTTP plan mutations and stream render workers share this per-job
@@ -194,15 +175,15 @@ func run() error {
 	streamJobLocks := streamclips.NewJobLocks()
 
 	taskHandlers := map[string]taskHandler{}
-	parserWorker := workers.NewParserWorker(repo, store)
+	parserWorker := workers.NewParserWorker(repo, files)
 	taskHandlers[tasks.TypeParseDemo] = parserWorker.HandleParseDemo
 	taskHandlers[tasks.TypeScanRoster] = parserWorker.HandleScanRoster
 	taskHandlers[tasks.TypeAnalyzeAnticheat] = parserWorker.HandleAnalyzeAnticheat
-	tacticalWorker := workers.NewTacticalWorker(repo, store)
+	tacticalWorker := workers.NewTacticalWorker(repo, files)
 	taskHandlers[tasks.TypeAnalyzeTactical] = tacticalWorker.HandleAnalyzeTactical
 	var recordWorker *workers.RecordWorker
 	if cfg.recordWorkerEnabled() {
-		recordWorker = workers.NewRecordWorker(repo, store, workers.RecordWorkerConfig{
+		recordWorker = workers.NewRecordWorker(repo, files, workers.RecordWorkerConfig{
 			WorkDir:      cfg.MediaWorkDir,
 			RecorderPath: cfg.RecorderPath,
 			HLAEPath:     cfg.HLAEPath,
@@ -214,7 +195,7 @@ func run() error {
 		log.Printf("worker: record enabled")
 	}
 	if cfg.composeWorkerEnabled() {
-		composeWorker := workers.NewComposeWorker(repo, store, workers.ComposeWorkerConfig{
+		composeWorker := workers.NewComposeWorker(repo, files, workers.ComposeWorkerConfig{
 			WorkDir:      cfg.MediaWorkDir,
 			ComposerPath: cfg.ComposerPath,
 			FFmpegPath:   cfg.FFmpegPath,
@@ -224,7 +205,7 @@ func run() error {
 		log.Printf("worker: compose enabled")
 	}
 	if cfg.renderWorkerEnabled() {
-		renderWorker := workers.NewRenderWorker(repo, store, workers.RenderWorkerConfig{
+		renderWorker := workers.NewRenderWorker(repo, files, workers.RenderWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			EditorPath:  cfg.EditorPath,
 			FFmpegPath:  cfg.FFmpegPath,
@@ -237,7 +218,7 @@ func run() error {
 		log.Printf("worker: render enabled")
 	}
 	if cfg.streamRenderWorkerEnabled() && streamRepo != nil {
-		streamWorker := workers.NewStreamRenderWorker(streamRepo, store, workers.StreamRenderWorkerConfig{
+		streamWorker := workers.NewStreamRenderWorker(streamRepo, files, workers.StreamRenderWorkerConfig{
 			WorkDir:    cfg.MediaWorkDir,
 			FFmpegPath: cfg.FFmpegPath,
 			Timeout:    cfg.RenderTimeout,
@@ -252,7 +233,7 @@ func run() error {
 	}
 	streamAcquireEnabled := cfg.streamAcquireWorkerEnabled()
 	if streamAcquireEnabled && streamRepo != nil {
-		acquireWorker := workers.NewAcquireWorker(streamRepo, store, workers.AcquireWorkerConfig{
+		acquireWorker := workers.NewAcquireWorker(streamRepo, files, workers.AcquireWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			YtdlpPath:   cfg.YtdlpPath,
 			FFprobePath: cfg.FFprobePath,
@@ -262,7 +243,7 @@ func run() error {
 		log.Printf("worker: stream acquire enabled")
 	}
 	if cfg.streamRenderWorkerEnabled() && editorProjects != nil && editorAssets != nil {
-		timelineWorker := workers.NewTimelineRenderWorker(editorProjects, store, workers.TimelineRenderWorkerConfig{
+		timelineWorker := workers.NewTimelineRenderWorker(editorProjects, files, workers.TimelineRenderWorkerConfig{
 			WorkDir:     cfg.MediaWorkDir,
 			FFmpegPath:  cfg.FFmpegPath,
 			Timeout:     cfg.RenderTimeout,
@@ -282,7 +263,7 @@ func run() error {
 		recordWorker.UseGenerateIntentStore(generateIntents)
 		recordWorker.UseEnqueuer(queue)
 	}
-	handlers := httpapi.NewHandlers(repo, store, queue,
+	handlers := httpapi.NewHandlers(repo, files, queue,
 		httpapi.WithMutationToken(cfg.MutationToken),
 		httpapi.WithRequireReadAuth(true),
 		// Remote binds are rejected. A per-IP limiter on loopback would give
@@ -303,6 +284,16 @@ func run() error {
 		httpapi.WithSteamTransportFactory(steamFactory),
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
 	)
+	// Settle every legacy render state once so Studio polls read durable
+	// state instead of migrating it on the request path. Best-effort: a
+	// corrupt document is logged and left for the per-request safety net.
+	if allJobs, err := reconcile.ListAllDemoJobs(ctx, repo); err != nil {
+		log.Printf("startup: list jobs for render state materialization: %v", err)
+	} else if migrated, err := handlers.MaterializeRenderVariantStates(ctx, allJobs); err != nil {
+		log.Printf("startup: materialize render states (migrated=%d): %v", migrated, err)
+	} else if migrated > 0 {
+		log.Printf("startup: materialized %d legacy render states", migrated)
+	}
 	srv := newOrchestratorHTTPServer(cfg.HTTPAddr, httpapi.Routes(handlers))
 	httpRuntime, err := prepareHTTPServer(srv)
 	if err != nil {
@@ -361,7 +352,7 @@ func recoverStreamAcquisitions(
 	ctx context.Context,
 	ids []uuid.UUID,
 	workerEnabled bool,
-	repo orchestratorStreamJobRepository,
+	repo store.StreamJobRepository,
 	queue *inlineQueue,
 	rec *obs.Recorder,
 ) error {
@@ -375,7 +366,7 @@ func recoverStreamAcquisitions(
 					JobID:   id.String(),
 					Stage:   obs.StageStreamAcquire,
 					Task:    tasks.TypeStreamAcquire,
-					Class:   interruptedClass,
+					Class:   obs.ClassInterrupted,
 					Message: streamAcquireRecoveryDisabledReason,
 				})
 			}

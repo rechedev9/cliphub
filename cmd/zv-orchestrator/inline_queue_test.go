@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"os"
@@ -14,9 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/renderplan"
 	tasktypes "github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -569,6 +570,66 @@ func TestInlineQueueUniqueIdentityIgnoresTaskHeaders(t *testing.T) {
 		t.Fatalf("header-only duplicate error = %v, want ErrDuplicateTask", err)
 	}
 	close(release)
+}
+
+// One capture per job, one compose per job, and one render per job+variant: a
+// second admission with different editorial choices is the same physical work
+// on the single CS2 / ffmpeg lane and must be a duplicate, while another job
+// or variant is not.
+func TestInlineQueueUniqueIdentityIsTheLogicalScopeNotThePayload(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, 8)
+	handler := func(context.Context, *asynq.Task) error {
+		started <- struct{}{}
+		<-release
+		return nil
+	}
+	queue := startTestInlineQueue(t, map[string]taskHandler{
+		tasktypes.TypeRecordDemo:    handler,
+		tasktypes.TypeComposeFinal:  handler,
+		tasktypes.TypeRenderVariant: handler,
+	}, 4)
+	t.Cleanup(func() { close(release) })
+	jobA, jobB := uuid.New(), uuid.New()
+	mustTask := func(task *asynq.Task, err error) *asynq.Task {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return task
+	}
+	recordAClean := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobA, "clean", []string{"seg-001"}, false, false))
+	recordADeathnotices := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobA, "deathnotices", nil, true, false))
+	recordB := mustTask(tasktypes.NewRecordDemoTaskWithRecap(jobB, "clean", []string{"seg-001"}, false, false))
+	composeA := mustTask(tasktypes.NewComposeFinalTask(jobA))
+	composeAAgain := mustTask(tasktypes.NewComposeFinalTask(jobA))
+	composeB := mustTask(tasktypes.NewComposeFinalTask(jobB))
+	edit := renderplan.DefaultEditRequest()
+	renderAViral := mustTask(tasktypes.NewRenderVariantTask(jobA, "viral-60-clean", "", 0, nil, edit, nil))
+	renderAViralWithMusic := mustTask(tasktypes.NewRenderVariantTask(jobA, "viral-60-clean", "phonk-01", 0.4, nil, edit, []string{"seg-001"}))
+	renderAAggressive := mustTask(tasktypes.NewRenderVariantTask(jobA, "viral-aggressive-60", "", 0, nil, edit, nil))
+
+	cases := []struct {
+		name          string
+		task          *asynq.Task
+		wantDuplicate bool
+	}{
+		{name: "first capture for job A", task: recordAClean},
+		{name: "same job, other HUD and segments", task: recordADeathnotices, wantDuplicate: true},
+		{name: "capture for job B", task: recordB},
+		{name: "first compose for job A", task: composeA},
+		{name: "same job compose again", task: composeAAgain, wantDuplicate: true},
+		{name: "compose for job B", task: composeB},
+		{name: "first render of A viral", task: renderAViral},
+		{name: "same variant, other music and selection", task: renderAViralWithMusic, wantDuplicate: true},
+		{name: "other variant of A", task: renderAAggressive},
+	}
+	for _, tc := range cases {
+		_, err := queue.Enqueue(tc.task, asynq.Unique(time.Minute))
+		if tc.wantDuplicate != errors.Is(err, asynq.ErrDuplicateTask) || (!tc.wantDuplicate && err != nil) {
+			t.Fatalf("%s: Enqueue() error = %v, want duplicate=%v", tc.name, err, tc.wantDuplicate)
+		}
+	}
 }
 
 func TestInlineQueueAllowsOnlyOneConcurrentUniqueEnqueue(t *testing.T) {
@@ -1188,12 +1249,8 @@ func TestInlineQueueCompensatesPoppedTaskCanceledBeforeFirstAttempt(t *testing.T
 			}
 			return nil
 		},
-		unique: true,
-		uniqueKey: inlineUniqueKey{
-			queue:       inlineDefaultQueue,
-			taskType:    "render",
-			payloadHash: sha256.Sum256([]byte("popped")),
-		},
+		unique:    true,
+		uniqueKey: inlineUniqueKeyFor(inlineDefaultQueue, asynq.NewTask("render", []byte("popped"))),
 	}
 	queue.uniqueLocks[queued.uniqueKey] = inlineUniqueLock{
 		taskID:    queued.id,
@@ -1237,12 +1294,8 @@ func TestInlineQueueDoesNotCompensatePoppedTaskCanceledAfterHandlerStarts(t *tes
 			transitionCalls++
 			return nil
 		},
-		unique: true,
-		uniqueKey: inlineUniqueKey{
-			queue:       inlineDefaultQueue,
-			taskType:    "render",
-			payloadHash: sha256.Sum256([]byte("popped")),
-		},
+		unique:    true,
+		uniqueKey: inlineUniqueKeyFor(inlineDefaultQueue, asynq.NewTask("render", []byte("popped"))),
 	}
 	queue.uniqueLocks[queued.uniqueKey] = inlineUniqueLock{
 		taskID:    queued.id,

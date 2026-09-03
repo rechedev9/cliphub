@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -15,48 +15,27 @@ import (
 	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
 
-// sqliteStreamJobRepository persists streamer-clip jobs (internal/streamclips)
-// in the same local SQLite database as sqliteJobRepository, so the
+// SQLiteStreamJobRepository persists streamer-clip jobs (internal/streamclips)
+// in the same local SQLite database as SQLiteJobRepository, so the
 // stream-jobs API works on the local desktop studio, which has no Postgres.
-// It shares the *sql.DB opened by newSQLiteJobRepository (see main.go)
+// It shares the *sql.DB opened by NewSQLiteJobRepository (see main.go)
 // instead of opening the database file a second time: a single connection
 // (db.SetMaxOpenConns(1) is set once, by the job repository) serializes all
 // writers across both tables.
-type sqliteStreamJobRepository struct {
+type SQLiteStreamJobRepository struct {
 	db *sql.DB
 }
 
-// newSQLiteStreamJobRepository ensures the stream_jobs table exists on db and
-// returns a repository backed by it. db is expected to already have its
-// pragmas set (WAL, busy_timeout) by whoever opened it.
-func newSQLiteStreamJobRepository(db *sql.DB) (*sqliteStreamJobRepository, error) {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS stream_jobs (
-		id             TEXT    PRIMARY KEY,
-		status         TEXT    NOT NULL,
-		failure_reason TEXT,
-		failure_code   TEXT,
-		source_path    TEXT    NOT NULL,
-		source_sha256  TEXT    NOT NULL,
-		source_url     TEXT,
-		public_source_url TEXT,
-		title          TEXT,
-		probe          TEXT    NOT NULL,
-		edit_plan      TEXT,
-		created_at     INTEGER NOT NULL,
-		updated_at     INTEGER NOT NULL
-	)`); err != nil {
-		return nil, fmt.Errorf("create stream_jobs table: %w", err)
+// NewSQLiteStreamJobRepository returns a repository over the stream_jobs table
+// of db, which openSQLite has already migrated to the current schema.
+func NewSQLiteStreamJobRepository(db *sql.DB) (*SQLiteStreamJobRepository, error) {
+	if db == nil {
+		return nil, fmt.Errorf("stream job repository requires an open database")
 	}
-	if err := ensureSQLiteStreamSourceColumns(db); err != nil {
-		return nil, err
-	}
-	if err := migrateSQLiteStreamSourceURLs(db); err != nil {
-		return nil, err
-	}
-	return &sqliteStreamJobRepository{db: db}, nil
+	return &SQLiteStreamJobRepository{db: db}, nil
 }
 
-func (r *sqliteStreamJobRepository) Create(ctx context.Context, j *streamclips.Job) error {
+func (r *SQLiteStreamJobRepository) Create(ctx context.Context, j *streamclips.Job) error {
 	if j.ID == uuid.Nil {
 		j.ID = uuid.New()
 	}
@@ -88,7 +67,7 @@ func (r *sqliteStreamJobRepository) Create(ctx context.Context, j *streamclips.J
 	return nil
 }
 
-func (r *sqliteStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (streamclips.Job, error) {
+func (r *SQLiteStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (streamclips.Job, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
 		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
@@ -96,7 +75,7 @@ func (r *sqliteStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (stre
 	return scanSQLiteStreamJob(row)
 }
 
-func (r *sqliteStreamJobRepository) List(ctx context.Context, limit int) ([]streamclips.Job, error) {
+func (r *SQLiteStreamJobRepository) List(ctx context.Context, limit int) ([]streamclips.Job, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -126,7 +105,7 @@ func (r *sqliteStreamJobRepository) List(ctx context.Context, limit int) ([]stre
 	return out, nil
 }
 
-func (r *sqliteStreamJobRepository) ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error) {
+func (r *SQLiteStreamJobRepository) ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, status, COALESCE(failure_reason,''), COALESCE(failure_code,''), source_path, source_sha256,
 		        COALESCE(source_url,''), COALESCE(public_source_url,''), COALESCE(title,''), probe, edit_plan, created_at, updated_at
@@ -150,7 +129,7 @@ func (r *sqliteStreamJobRepository) ListByStatus(ctx context.Context, status str
 	return out, nil
 }
 
-func (r *sqliteStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status streamclips.Status, failureReason string) error {
+func (r *SQLiteStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status streamclips.Status, failureReason string) error {
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE stream_jobs SET status = ?, failure_reason = ?, failure_code = ?,
 		 source_url = CASE WHEN ? THEN NULL ELSE source_url END,
@@ -168,7 +147,7 @@ func (r *sqliteStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UU
 // SetAcquired records a successful acquire-by-URL download: the probed source
 // metadata and sha256, moving the job to "ready". It clears any prior failure
 // reason so a retried acquire does not leave a stale message behind.
-func (r *sqliteStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error {
+func (r *SQLiteStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error {
 	probeJSON, err := json.Marshal(probe)
 	if err != nil {
 		return fmt.Errorf("marshal probe: %w", err)
@@ -183,7 +162,7 @@ func (r *sqliteStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUI
 	return checkStreamJobRowsAffected(res)
 }
 
-func (r *sqliteStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error {
+func (r *SQLiteStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error {
 	plan = streamclips.NormalizeEditPlan(plan)
 	if err := plan.Validate(); err != nil {
 		return err
@@ -208,6 +187,14 @@ type sqlScanner interface {
 	Scan(dest ...any) error
 }
 
+// Delete removes the stream job row. Idempotent: a missing id is not an error,
+// so a retried delete after a partial artifact cleanup converges.
+func (r *SQLiteStreamJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM stream_jobs WHERE id = ?`, id.String()); err != nil {
+		return fmt.Errorf("delete stream job: %w", err)
+	}
+	return nil
+}
 func scanSQLiteStreamJob(row sqlScanner) (streamclips.Job, error) {
 	var j streamclips.Job
 	var idStr, statusRaw string
@@ -259,90 +246,6 @@ func streamFailureCode(reason, stored string) string {
 		return code
 	}
 	return obs.ClassOf(reason)
-}
-
-func ensureSQLiteStreamSourceColumns(db *sql.DB) error {
-	rows, err := db.Query(`PRAGMA table_info(stream_jobs)`)
-	if err != nil {
-		return fmt.Errorf("inspect stream_jobs columns: %w", err)
-	}
-	foundPublic := false
-	foundFailureCode := false
-	for rows.Next() {
-		var cid, notNull, primaryKey int
-		var name, columnType string
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			_ = rows.Close()
-			return fmt.Errorf("scan stream_jobs column: %w", err)
-		}
-		foundPublic = foundPublic || name == "public_source_url"
-		foundFailureCode = foundFailureCode || name == "failure_code"
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close stream_jobs column rows: %w", err)
-	}
-	if !foundPublic {
-		if _, err := db.Exec(`ALTER TABLE stream_jobs ADD COLUMN public_source_url TEXT`); err != nil {
-			return fmt.Errorf("add stream_jobs public source url: %w", err)
-		}
-	}
-	if !foundFailureCode {
-		if _, err := db.Exec(`ALTER TABLE stream_jobs ADD COLUMN failure_code TEXT`); err != nil {
-			return fmt.Errorf("add stream_jobs failure_code: %w", err)
-		}
-	}
-	return nil
-}
-
-func migrateSQLiteStreamSourceURLs(db *sql.DB) error {
-	rows, err := db.Query(`SELECT id, status, COALESCE(source_url,'') FROM stream_jobs WHERE COALESCE(source_url,'') <> ''`)
-	if err != nil {
-		return fmt.Errorf("query legacy stream source urls: %w", err)
-	}
-	type legacySource struct {
-		id, status, privateURL string
-	}
-	var sources []legacySource
-	for rows.Next() {
-		var source legacySource
-		if err := rows.Scan(&source.id, &source.status, &source.privateURL); err != nil {
-			_ = rows.Close()
-			return fmt.Errorf("scan legacy stream source url: %w", err)
-		}
-		sources = append(sources, source)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close legacy stream source rows: %w", err)
-	}
-
-	for _, legacy := range sources {
-		source, validationErr := vodfetch.ValidateSource(legacy.privateURL)
-		if validationErr != nil {
-			_, err = db.Exec(
-				`UPDATE stream_jobs SET source_url = NULL, public_source_url = NULL,
-				 status = CASE WHEN status = ? THEN ? ELSE status END,
-				 failure_reason = CASE WHEN status = ? THEN ? ELSE failure_reason END
-				 WHERE id = ?`,
-				string(streamclips.StatusAcquiring), string(streamclips.StatusFailed),
-				string(streamclips.StatusAcquiring), "legacy source URL rejected by current security policy",
-				legacy.id,
-			)
-		} else {
-			privateURL := any(nil)
-			if legacy.status == string(streamclips.StatusAcquiring) {
-				privateURL = source.AcquisitionURL
-			}
-			_, err = db.Exec(
-				`UPDATE stream_jobs SET source_url = ?, public_source_url = ? WHERE id = ?`,
-				privateURL, nullableText(source.PublicURL), legacy.id,
-			)
-		}
-		if err != nil {
-			return fmt.Errorf("migrate stream source url for %s: %w", legacy.id, err)
-		}
-	}
-	return nil
 }
 
 // checkStreamJobRowsAffected turns a zero-row UPDATE into streamclips.ErrNotFound,

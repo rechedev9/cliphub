@@ -16,15 +16,15 @@ Windows-local, deterministic CS2 demo/stream-to-video pipeline, mostly Go. The `
 VOD   -> persisted edit plan -> render -> publish pack                                        (stream clips)
 ```
 
-Studio ships no assistant surface: it is a GUI over the same pipeline, and no publish text is model-generated. Do not resurrect the retired external MCP server; drive the product through Studio or the `zv` CLI. Current Studio (as of 2026-09-03): 2.4.51.
+Studio ships no assistant surface: it is a GUI over the same pipeline, and no publish text is model-generated. Do not resurrect the retired external MCP server; drive the product through Studio or the `zv` CLI. Current Studio (as of 2026-09-03): 2.4.52.
 
 ## Repo Map
 
 | Path | What | Owner doc |
 |---|---|---|
-| `cmd/` | 12 `package main` binaries → `bin/zv*`. Thin flags + `os.Exit`. Known leaks: recorder launch, orchestrator SQLite/queue, demo-players parse, analysis-viewer. Do not add more. | `cmd/AGENTS.md` |
+| `cmd/` | 12 `package main` binaries → `bin/zv*`. Thin flags + `os.Exit`. Known leaks: recorder launch, orchestrator inline queue, demo-players parse, analysis-viewer. Do not add more. | `cmd/AGENTS.md` |
 | `cmd/zv/` | Unified CLI dispatcher and catalog. `zv check` enforces docs/skills/workflows against the command contract. | `cmd/zv/AGENTS.md` |
-| `internal/` | 51 flat Go packages, one directory = one package. Durable plans (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan`, `timelineplan`) are the contracts later stages honor. | `internal/AGENTS.md` |
+| `internal/` | 53 flat Go packages, one directory = one package. Durable plans (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan`, `timelineplan`) are the contracts later stages honor. | `internal/AGENTS.md` |
 | `effects/` | Sandboxed `gopher-lua` effect scripts; no filesystem or process access. | - |
 | `web/` | Next.js 16 / React 19 local Studio UI. | `web/CLAUDE.md`, `~/.grok/design.md`, `frontend-design` skill |
 | `desktop/` | Electron 43 wrapper packaging `web/` + Go binaries. No React in `desktop/src`. | `desktop/GUIDE.md` |
@@ -69,7 +69,7 @@ pnpm --dir landing run build
 
 Electron UI E2E (`pnpm --dir desktop run assemble` then `test:e2e:ui`) is manual and only for flows that need it.
 
-## CLI-first
+## Codex Desktop: CLI-first
 
 The `zv` CLI is the primary interface for parsing, capture, render, QA, and publishing; Studio is not a prerequisite. `flows show` and `workflows show` are the executable command contract; never guess flags from prose. Validate the exact argv, keep `--dry-run --format json` until real media work is approved, then preserve the approved argv when executing.
 
@@ -125,7 +125,7 @@ Capture hardware rules:
 
 ## Domain Invariants
 
-**Jobs.** `internal/httpapi` + `internal/workers` are the local API and inline queue; one dedicated capture lane because every capture contends for one `cs2.exe`. Workers skip completed durable artifacts on retry. Series jobs share a client-minted `series_id`; roster choice aggregates across maps, HLTV `-pN.dem` parts are one logical map. Pipeline failures record once through `internal/obs` with stable `stage`/`class` labels; the journal is authoritative.
+**Jobs.** `internal/httpapi` + `internal/workers` are the local API and inline queue; one dedicated capture lane because every capture contends for one `cs2.exe`. Persistence is `internal/store` (versioned `PRAGMA user_version` migrations; memory and SQLite share one contract test) and startup repair of interrupted work is `internal/reconcile`. Queue uniqueness is the logical scope from `tasks.UniqueScope`, not payload bytes; admission that accepts work claims it in the row with a discard compensation. Every Go error body carries `code`; `service_unavailable` is reserved for the Studio proxy. Workers skip completed durable artifacts on retry. Series jobs share a client-minted `series_id`; roster choice aggregates across maps, HLTV `-pN.dem` parts are one logical map. Pipeline failures record once through `internal/obs` with stable `stage`/`class` labels; the journal is authoritative.
 
 **CheaterDetect** (`internal/anticheat`). One deterministic parser pass, no CS2/HLAE, no network. CLI `demo anticheat [--dossier]` and `demo anticheat calibrate` (read flags from `--help`); API `POST|GET /api/jobs/{id}/anticheat`, task `analyze:anticheat`, artifact `jobs/<id>/anticheat.json`. Side lane: never changes job status. Weights/bands in `score.go`; baseline is data in `baseline_default.json` measured over 15 pro maps and carries per-metric sample counts. Never edit sample counts by hand or zero them to reconcile text; recalibrate. Composite blends the strongest of the information/aim clusters with the mean so a single-kind cheat still flags. Output is an anomaly report, never a verdict of guilt; keep `limitations`, `insufficient_data`, and confidence gates. ClipHub prepares a dossier and links official channels; it never submits reports, automates submission, or helps mass-report one account.
 
@@ -154,3 +154,12 @@ Capture hardware rules:
 - Before frontend work read `web/CLAUDE.md`; before visual work read `~/.grok/design.md`, load `frontend-design`, restyle onto `web/app/globals.css`. Before Electron/packaging/release work read `desktop/GUIDE.md`.
 - Committing or pushing requires an explicit user request. There is no commit-time gate and a push to `main` lands immediately, so run focused tests plus affected package checks first, stage only in-scope paths, and never disturb unrelated work. Temporary worktrees are fine; never remove or repurpose one holding uncommitted work.
 - Review findings use `BLOCKER`, `WARNING`, or `NIT` with file/path, problem, why it matters, and a practical fix; if clean, say `No blocking issues found.`
+
+## Codex Harness
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Doctor
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Preview -Playbook tdd "behavior change"
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Run -Playbook bugfix "bug fix"
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Check
+```

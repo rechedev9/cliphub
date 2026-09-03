@@ -19,6 +19,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 )
 
 func writeCaptureLabJSON(t *testing.T, path string, value any) {
@@ -90,7 +91,7 @@ func captureLabSeedFixture(t *testing.T, mode recording.CaptureMode, verified bo
 
 func TestSeedCaptureLabPublishesFakeEvidenceOnlyInsideInMemoryServer(t *testing.T) {
 	seedPath, id, _ := captureLabSeedFixture(t, recording.CaptureModeFake, false)
-	repo := newMemoryJobRepository()
+	repo := store.NewMemoryJobRepository()
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -170,11 +171,13 @@ func TestSeedCaptureLabRejectsEvidenceOutsideRoot(t *testing.T) {
 	}
 	seed.KillPlanPath = outside
 	writeCaptureLabJSON(t, seedPath, seed)
-	store, err := storage.NewLocal(t.TempDir())
+	jobs := store.NewMemoryJobRepository()
+	files, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = seedCaptureLab(context.Background(), seedPath, filepath.Dir(seedPath), newMemoryJobRepository(), store)
+	err = seedCaptureLab(context.Background(), seedPath, filepath.Dir(seedPath), jobs, files)
+
 	if err == nil || !strings.Contains(err.Error(), "escapes evidence root") {
 		t.Fatalf("seedCaptureLab error = %v", err)
 	}
@@ -200,11 +203,13 @@ func TestSeedCaptureLabRejectsMismatchedCaptureFingerprint(t *testing.T) {
 	}
 	result.CaptureInputFingerprint = strings.Repeat("b", 64)
 	writeCaptureLabJSON(t, seed.RecordingResultPath, result)
-	store, err := storage.NewLocal(t.TempDir())
+	jobs := store.NewMemoryJobRepository()
+	files, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = seedCaptureLab(context.Background(), seedPath, filepath.Dir(seedPath), newMemoryJobRepository(), store)
+	err = seedCaptureLab(context.Background(), seedPath, filepath.Dir(seedPath), jobs, files)
+
 	if err == nil || !strings.Contains(err.Error(), "fingerprint") {
 		t.Fatalf("seedCaptureLab error = %v", err)
 	}
@@ -231,11 +236,13 @@ func TestCaptureLabBuildRequiresIsolatedConfiguration(t *testing.T) {
 			for name, value := range tt.env {
 				t.Setenv(name, value)
 			}
-			store, err := storage.NewLocal(t.TempDir())
+			jobs := store.NewMemoryJobRepository()
+			files, err := storage.NewLocal(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = seedCaptureLabFromEnvironment(context.Background(), tt.cfg, newMemoryJobRepository(), store)
+			err = seedCaptureLabFromEnvironment(context.Background(), tt.cfg, jobs, files)
+
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("seedCaptureLabFromEnvironment error = %v, want %q", err, tt.want)
 			}
@@ -255,11 +262,13 @@ func TestSeedCaptureLabRejectsAnythingClaimingRealVerification(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			seedPath, _, _ := captureLabSeedFixture(t, tt.mode, tt.verified)
-			store, err := storage.NewLocal(t.TempDir())
+			jobs := store.NewMemoryJobRepository()
+			files, err := storage.NewLocal(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = seedCaptureLab(context.Background(), seedPath, filepath.Dir(seedPath), newMemoryJobRepository(), store)
+			err = seedCaptureLab(context.Background(), seedPath, filepath.Dir(seedPath), jobs, files)
+
 			if err == nil || !strings.Contains(err.Error(), `capture_mode="fake"`) {
 				t.Fatalf("seedCaptureLab error = %v", err)
 			}

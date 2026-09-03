@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
@@ -66,14 +67,14 @@ func TestInlineQueueShutdownCompensatesAcceptedParseThroughHTTP(t *testing.T) {
 }
 
 func TestInlineQueueShutdownCompensatesAcceptedStreamAcquireThroughHTTP(t *testing.T) {
-	jobRepo, err := newSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	jobRepo, err := store.NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository: %v", err)
+		t.Fatalf("store.NewSQLiteJobRepository: %v", err)
 	}
 	t.Cleanup(func() { _ = jobRepo.Close() })
-	streamRepo, err := newSQLiteStreamJobRepository(jobRepo.db)
+	streamRepo, err := store.NewSQLiteStreamJobRepository(jobRepo.DB())
 	if err != nil {
-		t.Fatalf("newSQLiteStreamJobRepository: %v", err)
+		t.Fatalf("store.NewSQLiteStreamJobRepository: %v", err)
 	}
 	store, err := storage.NewLocal(t.TempDir())
 	if err != nil {
@@ -153,4 +154,14 @@ func cancelAndShutdownInlineQueue(t *testing.T, queue *inlineQueue, cancel conte
 	if err := queue.Shutdown(ctx); err != nil {
 		t.Fatalf("inline queue shutdown: %v", err)
 	}
+}
+
+func newTestSQLiteRepo(t *testing.T) *store.SQLiteJobRepository {
+	t.Helper()
+	repo, err := store.NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	if err != nil {
+		t.Fatalf("store.NewSQLiteJobRepository: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+	return repo
 }

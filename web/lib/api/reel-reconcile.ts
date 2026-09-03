@@ -27,14 +27,21 @@ export function canHaveRenderState(status: string): boolean {
   return RENDER_STATE_STATUSES.has(status);
 }
 
-/** Failed reels stay on the poll so a successful retry is not stuck on FALLO. */
-export function shouldReconcileVideoStatus(status: VideoStatus | undefined): boolean {
-  return status === undefined || status !== 'ready';
+/**
+ * Failed reels stay on the poll so a successful retry is not stuck on FALLO.
+ * A ready reel leaves the poll only once its MP4 URL is wired: the render GET
+ * can report `ready` one tick before the artifact names, and nothing else
+ * would ever fetch them.
+ */
+export function shouldReconcileVideoStatus(video: { status: VideoStatus; downloadUrl?: string } | undefined): boolean {
+  if (video === undefined) return true;
+  return video.status !== 'ready' || !video.downloadUrl;
 }
 
 export type ReconcileInput = {
   jobStatus: string;
   jobFailureReason?: string;
+  jobFailureCode?: string;
   renderStatus: RenderStatus;
   renderFailureReason?: string;
   renderWarnings?: string[];
@@ -50,6 +57,8 @@ export type ReelView = {
   action: ReelAction;
   /** Set only when status is 'failed' and the orchestrator supplied a reason. */
   failureReason?: string;
+  /** Stable orchestrator failure class; only set when the job (not the render) failed. */
+  failureCode?: string;
   /** Exact QA warnings that block publication while review is required. */
   warnings?: string[];
   /** Immutable revision that produced `warnings`; required for review CAS. */
@@ -77,10 +86,22 @@ export function viewForJobGone(consecutive404s: number): ReelView | null {
   return consecutive404s >= JOB_GONE_LATCH_TICKS ? unrecoverableJobGoneView() : null;
 }
 
-function failed(reason?: string): ReelView {
-  return reason
-    ? { status: 'failed', action: 'none', failureReason: reason }
-    : { status: 'failed', action: 'none' };
+/** Ticks a ready render may report no MP4 name before latching; names can lag ready by one tick. */
+const READY_WITHOUT_VIDEO_LATCH_TICKS = 3;
+
+export const READY_WITHOUT_VIDEO_REASON = 'render reported ready but no MP4 exists under the run';
+
+/** Ready with no MP4 name for too long: latch failed+unrecoverable so the poll stops. */
+export function viewForReadyWithoutVideo(consecutiveTicks: number): ReelView | null {
+  if (consecutiveTicks < READY_WITHOUT_VIDEO_LATCH_TICKS) return null;
+  return { ...failed(READY_WITHOUT_VIDEO_REASON), unrecoverable: true };
+}
+
+function failed(reason?: string, code?: string): ReelView {
+  const view: ReelView = { status: 'failed', action: 'none' };
+  if (reason) view.failureReason = reason;
+  if (code) view.failureCode = code;
+  return view;
 }
 
 const IN_FLIGHT_RECORD_CONFLICT = /^job is not ready to record \(status=recording\)$/;
@@ -234,6 +255,7 @@ export function deriveReelView(input: ReconcileInput): ReelView {
   const {
     jobStatus,
     jobFailureReason,
+    jobFailureCode,
     renderStatus,
     renderFailureReason,
     renderWarnings,
@@ -260,7 +282,7 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     if (requiresRecapture(jobFailureReason)) {
       return { status: 'queued', action: 'record' };
     }
-    return failed(jobFailureReason);
+    return failed(jobFailureReason, jobFailureCode);
   }
   if (renderStatus === 'failed') {
     // Stale capture: re-record. The worker clears this failed state after recapture.

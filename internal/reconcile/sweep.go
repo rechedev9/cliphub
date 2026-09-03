@@ -1,4 +1,4 @@
-package main
+package reconcile
 
 import (
 	"bytes"
@@ -16,12 +16,9 @@ import (
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
-
-// interruptedClass is the stable obs error class for jobs failed by the startup
-// sweep, so they group together in the journal and metrics.
-const interruptedClass = "interrupted"
 
 const (
 	interruptedQueuedJobReason  = "interrupted: the orchestrator restarted before queued work started"
@@ -89,7 +86,7 @@ func sweepInterruptedJobs(ctx context.Context, repo interruptSweeper, rec *obs.R
 				_ = rec.RecordError(obs.Event{
 					JobID:   j.ID.String(),
 					Stage:   interruptedStages[status],
-					Class:   interruptedClass,
+					Class:   obs.ClassInterrupted,
 					Message: reason,
 					Demo:    j.DemoPath,
 					Target:  j.TargetSteamID,
@@ -243,7 +240,7 @@ func sweepInterruptedGenerateRuns(ctx context.Context, repo interruptSweeper, st
 			_ = rec.RecordError(obs.Event{
 				JobID:   j.ID.String(),
 				Stage:   obs.StageRecord,
-				Class:   interruptedClass,
+				Class:   obs.ClassInterrupted,
 				Message: interruptedGenerateReason,
 				Demo:    j.DemoPath,
 				Target:  j.TargetSteamID,
@@ -316,7 +313,7 @@ func sweepInterruptedStreamJobsAfterRenderStates(
 				_ = rec.RecordError(obs.Event{
 					JobID:   j.ID.String(),
 					Stage:   stage,
-					Class:   interruptedClass,
+					Class:   obs.ClassInterrupted,
 					Message: reason,
 					Demo:    j.SourcePath,
 				})
@@ -513,29 +510,23 @@ func recordInterruptedRender(rec *obs.Recorder, jobID uuid.UUID, source, target,
 	_ = rec.RecordError(obs.Event{
 		JobID:   jobID.String(),
 		Stage:   obs.StageRender,
-		Class:   interruptedClass,
+		Class:   obs.ClassInterrupted,
 		Message: message,
 		Demo:    source,
 		Target:  target,
 	})
 }
 
+// ListAllDemoJobs walks every defined job status so a render or generate
+// artifact is swept regardless of the parent job's lifecycle position.
+func ListAllDemoJobs(ctx context.Context, repo store.JobRepository) ([]job.Job, error) {
+	return listAllDemoJobs(ctx, repo)
+}
+
 func listAllDemoJobs(ctx context.Context, repo interruptSweeper) ([]job.Job, error) {
 	var jobs []job.Job
 	var errs []error
-	for _, status := range []job.Status{
-		job.StatusQueued,
-		job.StatusScanning,
-		job.StatusScanned,
-		job.StatusParsing,
-		job.StatusParsed,
-		job.StatusRecording,
-		job.StatusRecorded,
-		job.StatusComposing,
-		job.StatusComposed,
-		job.StatusDone,
-		job.StatusFailed,
-	} {
+	for _, status := range job.Statuses() {
 		found, err := repo.ListByStatus(ctx, status)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("list %s jobs for render sweep: %w", status, err))

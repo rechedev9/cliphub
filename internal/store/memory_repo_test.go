@@ -1,8 +1,9 @@
-package main
+package store
 
 import (
 	"context"
 	"errors"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestMemoryJobRepositoryStoresJobLifecycle(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	j := &job.Job{
 		Status:        job.StatusQueued,
@@ -74,7 +75,7 @@ func TestMemoryJobRepositoryStoresJobLifecycle(t *testing.T) {
 }
 
 func TestMemoryJobRepositoryDelete(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	series := uuid.NewString()
 
@@ -104,7 +105,7 @@ func TestMemoryJobRepositoryDelete(t *testing.T) {
 }
 
 func TestMemoryJobRepositoryListBySeries(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	series := uuid.NewString()
 
@@ -160,7 +161,7 @@ func TestMemoryJobRepositoryListBySeries(t *testing.T) {
 }
 
 func TestMemoryJobRepositoryListBySeriesBreaksCreatedAtTiesByID(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	series := uuid.NewString()
 
@@ -194,5 +195,28 @@ func TestMemoryJobRepositoryListBySeriesBreaksCreatedAtTiesByID(t *testing.T) {
 		if got[i].ID.String() != want {
 			t.Fatalf("ListBySeries[%d].ID = %s, want %s (id tie-break ascending)", i, got[i].ID, want)
 		}
+	}
+}
+
+// The memory repository clones through JSON like the SQLite row; a plan that
+// cannot be encoded must be refused at write time, never panic on read.
+func TestMemoryJobRepositorySetKillPlanRejectsNonFiniteFloats(t *testing.T) {
+	repo := NewMemoryJobRepository()
+	ctx := context.Background()
+	j := &job.Job{Status: job.StatusParsed, Rules: rules.Default()}
+	if err := repo.Create(ctx, j); err != nil {
+		t.Fatal(err)
+	}
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001", Kills: []killplan.Kill{{KillerPos: [3]float64{math.NaN(), 0, 0}}}}}
+	if err := repo.SetKillPlan(ctx, j.ID, plan); err == nil {
+		t.Fatal("SetKillPlan accepted a NaN position")
+	}
+	got, err := repo.Get(ctx, j.ID)
+	if err != nil {
+		t.Fatalf("Get after refused plan: %v", err)
+	}
+	if got.KillPlan != nil {
+		t.Fatal("refused plan was stored")
 	}
 }

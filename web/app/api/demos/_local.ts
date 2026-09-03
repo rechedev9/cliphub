@@ -70,18 +70,21 @@ export async function localStatus(jobId: string): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  // Whitelist status, failure_reason, and capture progress; drop anything else.
+  // Whitelist status, failure text/code, and capture progress; drop anything else.
   const data = (await res.json()) as {
     status: string;
     failure_reason?: string;
+    failure_code?: string;
     progress?: { done?: number; total?: number; percent?: number };
   };
   const body: {
     status: string;
     failure_reason?: string;
+    failure_code?: string;
     progress?: { done: number; total: number; percent?: number };
   } = { status: data.status };
   if (data.failure_reason) body.failure_reason = data.failure_reason;
+  if (data.failure_code) body.failure_code = data.failure_code;
   const parsed = parseCaptureProgress(data.progress);
   if (parsed) body.progress = parsed;
   return NextResponse.json(body);

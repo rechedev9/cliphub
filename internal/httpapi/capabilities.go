@@ -96,6 +96,17 @@ func (h *Handlers) requireRecordEnabled(w http.ResponseWriter) bool {
 	return false
 }
 
+// requireComposeEnabled mirrors requireRecordEnabled for the compose stage:
+// with no compose worker configured the inline queue would reject the task
+// with a 500, which the client cannot tell apart from a transient failure.
+func (h *Handlers) requireComposeEnabled(w http.ResponseWriter) bool {
+	if h.capabilities.ComposeEnabled {
+		return true
+	}
+	writeError(w, http.StatusConflict, "composition is not configured on this machine; set ZV_COMPOSER_PATH and ZV_FFMPEG_PATH and restart the orchestrator")
+	return false
+}
+
 // requireYtdlpEnabled reports whether acquisition-by-URL is configured. When
 // it is not, it writes a 409 naming the env var to set, so POST
 // /api/stream-jobs with a source_url fails as an actionable 4xx instead of

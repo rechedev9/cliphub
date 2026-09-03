@@ -1,4 +1,4 @@
-package main
+package reconcile
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
@@ -31,7 +32,7 @@ func TestSweepRejectsPublishedStreamRenderManifestDivergence(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := newMemoryStreamJobRepository()
+			repo := store.NewMemoryStreamJobRepository()
 			store, err := storage.NewLocal(t.TempDir())
 			if err != nil {
 				t.Fatal(err)

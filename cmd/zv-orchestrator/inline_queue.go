@@ -63,10 +63,24 @@ func defaultInlineTaskPolicy(taskType string) inlineTaskPolicy {
 	}
 }
 
+// inlineUniqueKey identifies the logical work a unique task represents. For
+// task types with a tasks.UniqueScope (one capture per job, one compose per
+// job, one render per job+variant) the identity is that scope; otherwise the
+// payload bytes.
 type inlineUniqueKey struct {
-	queue       string
-	taskType    string
-	payloadHash [sha256.Size]byte
+	queue    string
+	taskType string
+	identity [sha256.Size]byte
+}
+
+func inlineUniqueKeyFor(queue string, task *asynq.Task) inlineUniqueKey {
+	key := inlineUniqueKey{queue: queue, taskType: task.Type()}
+	if scope, ok := tasks.UniqueScope(task); ok {
+		key.identity = sha256.Sum256([]byte(scope))
+	} else {
+		key.identity = sha256.Sum256(task.Payload())
+	}
+	return key
 }
 
 type inlineUniqueLock struct {
@@ -249,11 +263,7 @@ func (q *inlineQueue) enqueue(task *asynq.Task, transition func(error) error, op
 	queued := inlineTask{task: task, id: id, policy: policy, transition: transition}
 	if options.uniqueTTL > 0 {
 		queued.unique = true
-		queued.uniqueKey = inlineUniqueKey{
-			queue:       options.queue,
-			taskType:    task.Type(),
-			payloadHash: sha256.Sum256(task.Payload()),
-		}
+		queued.uniqueKey = inlineUniqueKeyFor(options.queue, task)
 	}
 	if err := q.push(queued, options.uniqueTTL, transition); err != nil {
 		return nil, err
