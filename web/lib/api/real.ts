@@ -27,6 +27,7 @@ import {
   listableJobs,
   planReadyJobs,
   summarizeSeries,
+  enrichmentFromSummary,
   jobToMatch,
   type IndexedJob,
   type SeriesSummary,
@@ -1084,6 +1085,10 @@ export class RealApiClient implements ApiClient {
 
   /** Job to Match; a missing roster still lists a zeroed filename row. */
   private async jobToMatchEnriched(job: IndexedJob): Promise<Match> {
+    // The list row carries the roster summary inline; the per-job roster
+    // request is only the fallback for a scan still running or an older server.
+    const inline = enrichmentFromSummary(job);
+    if (inline !== null) return jobToMatch(job, inline);
     try {
       const roster = await this.fetchRoster(job.jobId);
       const enrichment: { map?: string; player?: DemoPlayer } = {};

@@ -159,6 +159,8 @@ export async function localJobs(): Promise<Response> {
     series_id?: string;
     target_steamid?: string;
     created_at?: string;
+    /** Inline roster summary; absent while the scan runs or on an older orchestrator. */
+    summary?: { match?: Record<string, unknown>; target?: Record<string, unknown> };
   };
   const body = (await res.json()) as { jobs: UpstreamJob[] };
   const jobs = body.jobs.map((job) => {
@@ -170,12 +172,16 @@ export async function localJobs(): Promise<Response> {
       seriesId?: string;
       targetSteamId?: string;
       createdAt?: string;
+      summary?: { match?: Record<string, unknown>; target?: Record<string, unknown> };
     } = { jobId: job.id, status: job.status };
     if (job.failure_reason) out.failureReason = job.failure_reason;
     if (job.demo_file_name) out.fileName = job.demo_file_name;
     if (job.series_id) out.seriesId = job.series_id;
     if (job.target_steamid) out.targetSteamId = job.target_steamid;
     if (job.created_at) out.createdAt = job.created_at;
+    if (job.summary && typeof job.summary === 'object') {
+      out.summary = forwardKeys(job.summary, ['match', 'target']);
+    }
     return out;
   });
   return NextResponse.json({ jobs });

@@ -63,6 +63,8 @@ var errGenerateRenderActive = errors.New("a render is already active for this jo
 type JobRepository interface {
 	Create(ctx context.Context, j *job.Job) error
 	Get(ctx context.Context, id uuid.UUID) (job.Job, error)
+	// GetMeta is Get without the kill plan blob.
+	GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error)
 	// GetStatus returns segmentCount only while the job is recording.
 	GetStatus(ctx context.Context, id uuid.UUID) (status job.Status, failureReason string, segmentCount int, err error)
 	List(ctx context.Context, limit int) ([]job.Job, error)
@@ -118,6 +120,7 @@ type Handlers struct {
 	streamPlanMu      sync.Mutex
 	editorPlanMu      sync.Mutex
 	renderStateMu     sync.Mutex
+	rosterCache       rosterSummaryCache
 	anticheatJobLocks *anticheat.JobLocks
 	streamJobLocks    *streamclips.JobLocks
 	storage           storage.Storage
@@ -474,7 +477,7 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 			internalError(w, "list jobs by series", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": attachJobFailureCodes(jobs)})
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": h.rosterCache.summarizeAll(h.storage, attachJobFailureCodes(jobs))})
 		return
 	}
 	limit := 50
@@ -491,7 +494,7 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": attachJobFailureCodes(jobs)})
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": h.rosterCache.summarizeAll(h.storage, attachJobFailureCodes(jobs))})
 }
 
 // ListLoadouts handles GET /api/loadouts.
@@ -716,7 +719,9 @@ func (h *Handlers) GetMoments(w http.ResponseWriter, r *http.Request) {
 // GetRoster handles GET /api/jobs/{id}/roster. It streams the roster scan
 // result stored by the scan worker, already shaped as { "players": [...] }.
 func (h *Handlers) GetRoster(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the roster never needs the kill plan blob, and this is
+	// the endpoint Studio polls per job while a parse is in flight.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2375,6 +2380,7 @@ func (h *Handlers) DeleteJob(w http.ResponseWriter, r *http.Request) {
 		if err := h.repo.Delete(r.Context(), j.ID); err != nil {
 			return fmt.Errorf("delete job: %w", err)
 		}
+		h.rosterCache.evict(j.ID)
 		return nil
 	})
 	switch {
@@ -2571,6 +2577,27 @@ func (h *Handlers) loadJob(w http.ResponseWriter, r *http.Request) (job.Job, boo
 		return job.Job{}, false
 	}
 	j, err := h.repo.Get(r.Context(), id)
+	if errors.Is(err, job.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "job not found")
+		return job.Job{}, false
+	}
+	if err != nil {
+		internalError(w, "load job", err)
+		return job.Job{}, false
+	}
+	return j, true
+}
+
+// loadJobMeta is loadJob without the kill plan: the same id parsing and error
+// mapping, backed by GetMeta so a status-only endpoint never decodes the blob.
+func (h *Handlers) loadJobMeta(w http.ResponseWriter, r *http.Request) (job.Job, bool) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid job id")
+		return job.Job{}, false
+	}
+	j, err := h.repo.GetMeta(r.Context(), id)
 	if errors.Is(err, job.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "job not found")
 		return job.Job{}, false
