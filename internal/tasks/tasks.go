@@ -60,12 +60,12 @@ var renderVariantPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 var sha256HexPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // UniqueScope names the logical work a task represents for queue uniqueness:
-// one capture per job, one render per job+variant, one timeline render per
-// project. Two admissions with different editorial choices (HUD, segments,
-// music, overlay source) still describe the same physical work on the single
-// cs2.exe / ffmpeg lane, so keying uniqueness on the payload bytes let them
-// both in (53dc00d). ok is false for task types whose payload is already the
-// whole identity; callers then fall back to hashing the payload.
+// one capture per job, one compose per job, one render per job+variant, one
+// timeline render per project. Two admissions with different editorial choices
+// (HUD, segments, music, overlay source) still describe the same physical work
+// on the single cs2.exe / ffmpeg lane, so keying uniqueness on the payload
+// bytes let them both in (53dc00d). ok is false for task types whose payload
+// is already the whole identity; callers then fall back to hashing the payload.
 func UniqueScope(task *asynq.Task) (scope string, ok bool) {
 	if task == nil {
 		return "", false
@@ -77,6 +77,12 @@ func UniqueScope(task *asynq.Task) (scope string, ok bool) {
 			return "", false
 		}
 		return TypeRecordDemo + ":" + p.JobID.String(), true
+	case TypeComposeFinal:
+		var p ComposeFinalPayload
+		if json.Unmarshal(task.Payload(), &p) != nil || p.JobID == uuid.Nil {
+			return "", false
+		}
+		return TypeComposeFinal + ":" + p.JobID.String(), true
 	case TypeRenderVariant:
 		var p RenderVariantPayload
 		if json.Unmarshal(task.Payload(), &p) != nil || p.JobID == uuid.Nil || p.Variant == "" {

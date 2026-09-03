@@ -15,6 +15,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2358,6 +2360,107 @@ func TestStartCompositionAdmission(t *testing.T) {
 				t.Fatalf("task type = %q, want %q", queue.enqueued[0].Type(), tasks.TypeComposeFinal)
 			}
 		})
+	}
+}
+
+func TestStartCompositionIsUniquePerJob(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &uniqueScopeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{ComposeEnabled: true}))
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/compose", h.StartComposition)
+	post := func() *httptest.ResponseRecorder {
+		t.Helper()
+		rw := httptest.NewRecorder()
+		r.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil))
+		return rw
+	}
+
+	first := post()
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("first status = %d, want 202; body=%s", first.Code, first.Body.String())
+	}
+	if len(queue.enqueued) != 1 || queue.enqueued[0].Type() != tasks.TypeComposeFinal {
+		t.Fatalf("enqueued = %#v, want one compose:final", queue.enqueued)
+	}
+	if len(queue.options) != 1 || !hasAsynqOption(queue.options[0], "Unique(") {
+		t.Fatalf("enqueue options = %#v, want Unique option", queue.options)
+	}
+	if !hasAsynqOption(queue.options[0], "MaxRetry(0)") {
+		t.Fatalf("enqueue options = %#v, want MaxRetry(0)", queue.options)
+	}
+
+	// Two POSTs can both load recorded before either claims composing. Reset
+	// the row so the second request still looks ready; uniqueness, not the
+	// status check, must stop the second task.
+	ready := repo.jobs[j.ID]
+	ready.Status = job.StatusRecorded
+	repo.jobs[j.ID] = ready
+
+	second := post()
+	if second.Code != http.StatusAccepted || !strings.Contains(second.Body.String(), `"duplicate":true`) {
+		t.Fatalf("second status = %d body=%s, want 202 duplicate", second.Code, second.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want 1 after the raced second POST", len(queue.enqueued))
+	}
+}
+
+type lockedJobRepo struct {
+	*fakeRepo
+	mu sync.Mutex
+}
+
+func (r *lockedJobRepo) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fakeRepo.Get(ctx, id)
+}
+
+func (r *lockedJobRepo) UpdateStatus(ctx context.Context, id uuid.UUID, s job.Status, reason string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fakeRepo.UpdateStatus(ctx, id, s, reason)
+}
+
+func TestStartCompositionConcurrentPostsEnqueueOnce(t *testing.T) {
+	base := newFakeRepo()
+	repo := &lockedJobRepo{fakeRepo: base}
+	queue := &uniqueScopeQueue{}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	base.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue, WithCapabilities(Capabilities{ComposeEnabled: true}))
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/compose", h.StartComposition)
+	const callers = 16
+	var accepted, duplicates, unexpected atomic.Int32
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/compose", nil))
+			switch {
+			case rw.Code == http.StatusAccepted && strings.Contains(rw.Body.String(), `"duplicate":true`):
+				duplicates.Add(1)
+			case rw.Code == http.StatusAccepted:
+				accepted.Add(1)
+			default:
+				unexpected.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if accepted.Load() != 1 || duplicates.Load() != callers-1 || unexpected.Load() != 0 {
+		t.Fatalf("accepted=%d duplicates=%d unexpected=%d, want 1/%d/0", accepted.Load(), duplicates.Load(), unexpected.Load(), callers-1)
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
 	}
 }
 

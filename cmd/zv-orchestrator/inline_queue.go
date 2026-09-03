@@ -64,8 +64,9 @@ func defaultInlineTaskPolicy(taskType string) inlineTaskPolicy {
 }
 
 // inlineUniqueKey identifies the logical work a unique task represents. For
-// task types with a tasks.UniqueScope (one capture per job, one render per
-// job+variant) the identity is that scope; otherwise the payload bytes.
+// task types with a tasks.UniqueScope (one capture per job, one compose per
+// job, one render per job+variant) the identity is that scope; otherwise the
+// payload bytes.
 type inlineUniqueKey struct {
 	queue    string
 	taskType string
