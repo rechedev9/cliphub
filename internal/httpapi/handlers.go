@@ -79,6 +79,7 @@ type StreamJobRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, s streamclips.Status, failureReason string) error
 	SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error
 	SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type EditorAssetRepository interface {
@@ -86,6 +87,7 @@ type EditorAssetRepository interface {
 	Get(ctx context.Context, id uuid.UUID) (mediaassets.Asset, error)
 	GetBySHA256(ctx context.Context, sha256 string) (mediaassets.Asset, error)
 	List(ctx context.Context, limit int) ([]mediaassets.Asset, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type EditorProjectRepository interface {
@@ -94,6 +96,7 @@ type EditorProjectRepository interface {
 	List(ctx context.Context, limit int) ([]timelineplan.Project, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, s timelineplan.Status, failureReason string) error
 	SetPlan(ctx context.Context, id uuid.UUID, plan timelineplan.Document) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // Enqueuer is the desktop queue contract used by handlers. A transition runs
@@ -999,9 +1002,25 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "build record task", err)
 		return
 	}
-	// The job stays in its parsed/recorded state on enqueue failure so the
-	// client can retry the POST once the queue recovers.
-	if _, err := h.queue.Enqueue(task, asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL)); err != nil {
+	// Admission claims the job as recording so the pending capture is visible
+	// to the Studio poll and to the startup sweep: the task itself lives only in
+	// the in-process queue, so without the claim a restart left the job idle at
+	// parsed with nothing to retry. A rejection at admission leaves the state
+	// untouched so the client can retry the POST once the queue recovers.
+	var admitted atomic.Bool
+	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
+		if decision == nil {
+			if err := h.repo.UpdateStatus(r.Context(), j.ID, job.StatusRecording, ""); err != nil {
+				return err
+			}
+			admitted.Store(true)
+			return nil
+		}
+		if !admitted.Load() {
+			return nil
+		}
+		return h.persistJobQueueDecision(j.ID, "record", decision)
+	}, asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL)); err != nil {
 		// A duplicate is success: the reconcile loop re-POSTs record on every tick
 		// until the worker dequeues the unique task, so a 202 here keeps the reel
 		// advancing instead of being marked failed mid-capture.
@@ -1193,7 +1212,11 @@ func (h *Handlers) readGenerateIntent(id uuid.UUID) (renderplan.GenerateIntent, 
 	return h.generateIntents.Read(id)
 }
 
-// StartComposition handles POST /api/jobs/{id}/compose.
+// StartComposition handles POST /api/jobs/{id}/compose. Admission claims the
+// job as composing so a second POST is a 409 instead of a second task; a
+// rejection at admission leaves the recorded/composed state untouched so the
+// client can retry once the queue recovers, while a shutdown discard of
+// admitted work fails the job like every other queued stage.
 func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadJob(w, r)
 	if !ok {
@@ -1203,20 +1226,35 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to compose (status=%s)", j.Status))
 		return
 	}
+	if !h.requireComposeEnabled(w) {
+		return
+	}
 	task, err := tasks.NewComposeFinalTask(j.ID)
 	if err != nil {
 		internalError(w, "build compose task", err)
 		return
 	}
-	// The job stays in its recorded/composed state on enqueue failure so the
-	// client can retry the POST once the queue recovers.
-	if _, err := h.queue.Enqueue(task); err != nil {
+	var admitted atomic.Bool
+	if _, err := h.queue.EnqueueWithTransition(task, func(decision error) error {
+		if decision == nil {
+			if err := h.repo.UpdateStatus(r.Context(), j.ID, job.StatusComposing, ""); err != nil {
+				return err
+			}
+			admitted.Store(true)
+			return nil
+		}
+		if !admitted.Load() {
+			return nil
+		}
+		return h.persistJobQueueDecision(j.ID, "compose", decision)
+	}); err != nil {
 		internalError(w, "enqueue compose task", err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"id":   j.ID,
-		"task": tasks.TypeComposeFinal,
+		"id":     j.ID,
+		"task":   tasks.TypeComposeFinal,
+		"status": job.StatusComposing,
 	})
 }
 
@@ -1289,6 +1327,7 @@ type renderEditRequest struct {
 	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds"`
 	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds"`
 	DemoSource          *string  `json:"demo_source"`
+	OverlayTheme        *string  `json:"overlay_theme"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
@@ -1361,6 +1400,9 @@ func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditReq
 	}
 	if r.DemoSource != nil {
 		base.DemoSource = *r.DemoSource
+	}
+	if r.OverlayTheme != nil {
+		base.OverlayTheme = *r.OverlayTheme
 	}
 	return renderplan.NormalizeEditRequest(base)
 }
@@ -1719,6 +1761,46 @@ func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant str
 	h.renderStateMu.Lock()
 	defer h.renderStateMu.Unlock()
 	return h.readOrMaterializeRenderVariantStateLocked(id, variant)
+}
+
+// MaterializeRenderVariantStates runs the legacy render-state migration for
+// every variant of the given jobs once, at startup, so a Studio poll finds the
+// durable state already settled and GetRenderVariant is a read in steady
+// state. The per-request path keeps the same migration as a safety net for a
+// result the worker writes after this pass. Returns how many states were
+// rewritten; errors are joined so one corrupt document cannot hide the rest.
+func (h *Handlers) MaterializeRenderVariantStates(ctx context.Context, jobs []job.Job) (int, error) {
+	migrated := 0
+	var errs []error
+	for _, j := range jobs {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, err)
+			break
+		}
+		for _, loadout := range renderplan.LoadoutCatalog() {
+			before, hadState, err := h.readRenderVariantState(j.ID, loadout.Variant)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("read render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
+				continue
+			}
+			after, ok, err := h.readOrMaterializeRenderVariantState(j.ID, loadout.Variant)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("materialize render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
+				continue
+			}
+			if !ok {
+				continue
+			}
+			// A missing state only materializes on disk when it lands in review;
+			// a present one is rewritten when its status or warnings moved.
+			rewritten := (!hadState && after.Status == renderplan.RenderVariantStatusReview) ||
+				(hadState && (before.Status != after.Status || !slices.Equal(before.Warnings, after.Warnings)))
+			if rewritten {
+				migrated++
+			}
+		}
+	}
+	return migrated, errors.Join(errs...)
 }
 
 // readOrMaterializeRenderVariantStateLocked performs the durable migration.
@@ -2190,7 +2272,11 @@ func jobIsInFlight(s job.Status) bool {
 // artifact tree (jobs/<id>) and its stored demo copy (demos/<id>.dem) so the
 // user can clear a demo from the library and reclaim disk space. Settled jobs
 // (scanned, parsed, recorded, composed, done, failed) delete; a job with work
-// in flight is refused with 409 until it settles. The job row is removed last
+// in flight is refused with 409 until it settles. Render variants and guided
+// generate runs have their own lifecycle that never moves job.Status, so the
+// delete also holds the render-state lock and the generate intent lock and
+// refuses while either reports active work: otherwise a running render worker
+// keeps writing into a tree that no longer exists. The job row is removed last
 // so a failed artifact delete leaves the row in place to retry. Idempotent —
 // a repeat delete after success returns 404.
 func (h *Handlers) DeleteJob(w http.ResponseWriter, r *http.Request) {
@@ -2207,19 +2293,31 @@ func (h *Handlers) DeleteJob(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "storage backend does not support delete")
 		return
 	}
-	if err := deleter.DeleteTree(fmt.Sprintf("jobs/%s", j.ID)); err != nil {
-		internalError(w, "delete job artifacts", err)
-		return
-	}
-	if err := deleter.Delete(fmt.Sprintf("demos/%s.dem", j.ID)); err != nil {
-		internalError(w, "delete job demo", err)
-		return
-	}
-	if err := h.repo.Delete(r.Context(), j.ID); err != nil {
+	h.renderStateMu.Lock()
+	defer h.renderStateMu.Unlock()
+	err := h.generateIntents.WhileIdle(j.ID, func() error {
+		if err := h.requireGenerateRenderIdle(j.ID); err != nil {
+			return err
+		}
+		if err := deleter.DeleteTree(fmt.Sprintf("jobs/%s", j.ID)); err != nil {
+			return fmt.Errorf("delete job artifacts: %w", err)
+		}
+		if err := deleter.Delete(fmt.Sprintf("demos/%s.dem", j.ID)); err != nil {
+			return fmt.Errorf("delete job demo: %w", err)
+		}
+		if err := h.repo.Delete(r.Context(), j.ID); err != nil {
+			return fmt.Errorf("delete job: %w", err)
+		}
+		return nil
+	})
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, generateintent.ErrActiveRun), errors.Is(err, errGenerateRenderActive):
+		writeCodedError(w, http.StatusConflict, generateWorkActive, "job has an active render or generate run; wait for it to settle before deleting")
+	default:
 		internalError(w, "delete job", err)
-		return
 	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // GetRenderCover streams one render variant cover artifact.
@@ -2423,8 +2521,32 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
+// Default error codes by HTTP status. Every error body carries a `code` so a
+// client can branch on it instead of grepping Spanish or English text; a
+// handler with a more specific class uses writeCodedError. 503 deliberately
+// has no default: the Studio proxy reserves `service_unavailable` for "the
+// orchestrator is unreachable", so a Go 503 must name what is missing.
+var defaultErrorCodes = map[int]string{
+	http.StatusBadRequest:            "invalid_request",
+	http.StatusUnauthorized:          "unauthorized",
+	http.StatusForbidden:             "forbidden",
+	http.StatusNotFound:              "not_found",
+	http.StatusConflict:              "conflict",
+	http.StatusRequestEntityTooLarge: "payload_too_large",
+	http.StatusMisdirectedRequest:    "misdirected_request",
+	http.StatusTooManyRequests:       "rate_limited",
+	http.StatusInternalServerError:   "internal_error",
+	http.StatusNotImplemented:        "not_implemented",
+	http.StatusServiceUnavailable:    "not_configured",
+	http.StatusGatewayTimeout:        "timeout",
+}
+
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	code, ok := defaultErrorCodes[status]
+	if !ok {
+		code = "error"
+	}
+	writeCodedError(w, status, code, msg)
 }
 
 func writeCodedError(w http.ResponseWriter, status int, code, msg string) {

@@ -23,8 +23,6 @@ export interface ApiClient {
   listPlanReadyMatches(): Promise<Match[]>;
   listSeriesSummaries(): Promise<SeriesSummary[]>;
   getMatch(id: string): Promise<Match | null>;
-  /** @deprecated Superseded by scanDemo + parseDemo. */
-  uploadDemo(input: { fileName: string }): Promise<Match>;
   /** Pass `opts.seriesId` to tag a bo3/bo5 part. */
   scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }>;
   getSeries(seriesId: string): Promise<SeriesDemo[]>;

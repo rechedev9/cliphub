@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -355,6 +356,70 @@ func TestPublishBoardFirstAccessMaterializesLegacyReviewToken(t *testing.T) {
 				t.Fatalf("publish board after review = %d %s, want ready", rw.Code, rw.Body.String())
 			}
 		})
+	}
+}
+
+// The startup pass settles legacy render state so the request path is a read:
+// one migration on the first run, none on the second, and the resulting state
+// is byte-for-byte what the publish board would have materialized on demand.
+func TestMaterializeRenderVariantStatesSettlesLegacyReviewOnceAtStartup(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+	untouched := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default()}
+	repo.jobs[untouched.ID] = untouched
+	h := NewHandlers(repo, store, &fakeQueue{})
+	variant := editor.PresetViral60Clean
+	loadout, err := renderplan.LoadoutForVariant(variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:   j.ID,
+		Loadout: loadout,
+		Status:  renderplan.RenderVariantStatusReady,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	putAssistantJSON(t, store, legacy.RenderResultKey, editor.Result{
+		Preset:   variant,
+		Warnings: []string{"freeze at 00:12"},
+		Shorts: []editor.ShortResult{{
+			SegmentID:    "seg-001",
+			OutputFormat: editor.OutputFormatShort9x16,
+			PublishArtifact: recording.RecordingArtifact{Path: "seg-001.mp4", SizeBytes: 10, Width: 1080, Height: 1920},
+		}},
+	})
+	putReadyPublishArtifacts(t, store, legacy, "seg-001")
+
+	jobs := []job.Job{j, untouched}
+	migrated, err := h.MaterializeRenderVariantStates(context.Background(), jobs)
+	if err != nil {
+		t.Fatalf("MaterializeRenderVariantStates: %v", err)
+	}
+	if migrated != 1 {
+		t.Fatalf("migrated = %d, want 1", migrated)
+	}
+	state, exists, err := h.readRenderVariantState(j.ID, variant)
+	if err != nil || !exists {
+		t.Fatalf("render state after startup pass: exists=%v err=%v", exists, err)
+	}
+	if state.Status != renderplan.RenderVariantStatusReview || !slices.Equal(state.Warnings, []string{"freeze at 00:12"}) {
+		t.Fatalf("state = %#v, want review with the legacy warning", state)
+	}
+	if _, exists, err := h.readRenderVariantState(untouched.ID, variant); err != nil || exists {
+		t.Fatalf("job without a render grew a state file: exists=%v err=%v", exists, err)
+	}
+
+	writesBefore := len(store.puts)
+	migrated, err = h.MaterializeRenderVariantStates(context.Background(), jobs)
+	if err != nil || migrated != 0 {
+		t.Fatalf("second pass migrated = %d err = %v, want 0 and nil", migrated, err)
+	}
+	if len(store.puts) != writesBefore {
+		t.Fatalf("second pass wrote %d new artifacts; startup materialization must be idempotent", len(store.puts)-writesBefore)
 	}
 }
 

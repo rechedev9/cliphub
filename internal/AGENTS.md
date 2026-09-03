@@ -4,7 +4,7 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 
 ## OVERVIEW
 
-45 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
+47 flat packages. Demo plan is durable JSON; recording/render consume it. Anticheat and tactical are side lanes and must not write `job.Status`. For the AI-agent-oriented target design, keep packages aligned with `docs/AI_AGENT_ARCHITECTURE.md`: durable plans are contracts, execution packages consume approved plans, and artifact/provenance state must be inspectable by a fresh agent session.
 
 ## WHERE TO LOOK
 
@@ -21,6 +21,8 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 | Multitrack editor | `mediaassets`, `timelineplan`, `timelinerender` | Persisted `timelineplan.Document` is canonical; preview evaluates the same stack FFmpeg composites |
 | Local API | `httpapi` | Plus HTMX workbench assets |
 | Job handlers | `workers`, `tasks`, `job` | One capture lane. Record `MaxRetry(0)` |
+| SQLite/memory repositories, schema migrations | `store` | `OpenSQLite`/`NewMemory` return one `Repositories` bundle; schema is versioned in `migrate.go` (`PRAGMA user_version`, FKs on, one tx per step); never `ALTER` ad hoc in a constructor. Memory and SQLite share `contract_test.go`; a divergence is a bug, not a test fixture |
+| Startup repair of interrupted work | `reconcile` | `InterruptedWork` runs before the HTTP server: fails queued/recording/composing jobs, queued/rendering render states, active generate runs, stream renders, editor renders; walks `job.Statuses()` so a new status is swept by construction |
 | Guided generate state | `generateintent` | Shared HTTP+worker store; record task gets an immutable copy |
 | Artifact keys / FS root | `artifacts`, `storage`, `filecommit` | Keys only in `artifacts`; no I/O there |
 | Tool detect (HLAE/CS2/ffmpeg) | `capturetools` | Same resolver for CLI and orchestrator |
@@ -48,7 +50,9 @@ Go domain packages. Root `CLAUDE.md` owns product policy; this file is the packa
 - No nested Go packages. One directory = one package.
 - Durable docs (`killplan`, `moments`, `streamclips.EditPlan`, `tacticalplan.Document`, `timelineplan.Document`) are the contracts later stages must honor.
 - Agent-ready stage outputs should expose schema version, input refs, decision basis, effective config, safety gates, resume policy, QA status, and provenance when that stage is meant to be driven by CLI/API automation.
-- `cmd/zv-orchestrator` owns SQLite repos + inline queue today; moving those into a narrow internal owner is an accepted behavior-preserving refactor seam, but do not create vague service layers.
+- `cmd/zv-orchestrator` still owns the inline queue; repositories live in `store` and startup sweeps in `reconcile`. Do not create vague service layers around them.
+- Queue uniqueness is the logical scope from `tasks.UniqueScope` (one capture per job, one render per job+variant), not the payload bytes; admission that accepts work must claim it in the row (`recording`, `composing`, editor `rendering`) with a discard compensation.
+- Every HTTP error body carries `code`; `service_unavailable` is reserved for the Studio proxy meaning "orchestrator unreachable" and must never be emitted by Go.
 
 ## ANTI-PATTERNS
 

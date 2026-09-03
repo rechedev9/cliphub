@@ -129,6 +129,8 @@ export interface StreamsApiClient {
   createFromFile(file: File, title?: string): Promise<StreamJob>;
   listJobs(): Promise<StreamJob[]>;
   getJob(id: string): Promise<StreamJob | null>;
+  /** 404 is success; 409 (still acquiring/rendering) and 503 throw with `code`. */
+  deleteJob(id: string): Promise<void>;
   /** Same-origin URL for a <video> element to pull the job's source MP4. */
   sourceUrl(id: string): string;
   getEditPlan(id: string): Promise<StreamEditPlan>;
@@ -182,6 +184,11 @@ export class RealStreamsApiClient implements StreamsApiClient {
     const res = await fetch(`/api/streams/${id}`, { cache: 'no-store' });
     if (res.status === 404) return null;
     return readJson<StreamJob>(res);
+  }
+
+  async deleteJob(id: string): Promise<void> {
+    const res = await fetch(`/api/streams/${id}`, { method: 'DELETE' });
+    if (res.status !== 404 && !res.ok) await throwResponseError(res);
   }
 
   sourceUrl(id: string): string {

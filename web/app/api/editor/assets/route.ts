@@ -7,6 +7,7 @@ import {
   forwardError,
   serviceUnavailable,
   callOrchestratorStreamingUpload,
+  publicEditorAsset,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from '../_lib';
 
@@ -18,7 +19,8 @@ export async function GET(): Promise<Response> {
   const res = await callOrchestrator(`${orchestratorUrl()}/api/editor/assets`);
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
-  return NextResponse.json((await res.json()) as unknown);
+  const data = (await res.json()) as { assets?: unknown[] };
+  return NextResponse.json({ assets: Array.isArray(data.assets) ? data.assets.map(publicEditorAsset) : [] });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -42,5 +44,5 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
-  return NextResponse.json((await res.json()) as unknown, { status: res.status });
+  return NextResponse.json(publicEditorAsset(await res.json()), { status: res.status });
 }

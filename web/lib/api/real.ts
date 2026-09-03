@@ -5,9 +5,8 @@ import {
   titleWithMusicSuffix,
   type MusicChoice,
 } from './reel-music.ts';
-import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, ScannedDemo, SeriesDemo } from './types.ts';
-import { PLAN_READY_STATUSES } from './types.ts';
-import { MockApiClient } from './mock.ts';
+import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
+import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
@@ -25,7 +24,6 @@ import {
 import { dataPlane, type DataPlane } from './dataplane.ts';
 import { parsePublishAssistant, type PublishAssistant } from './publish-assistant.ts';
 import {
-  ROSTER_READY,
   listableJobs,
   planReadyJobs,
   summarizeSeries,
@@ -168,7 +166,6 @@ function videoFromIntent(intent: ReelIntent): Video {
 
 /** Local orchestrator client: persist intents, reconcile live status via proxy. */
 export class RealApiClient implements ApiClient {
-  private readonly fallback = new MockApiClient();
   /** Live, derived view of each tracked reel (status/downloadUrl/failureReason). */
   private readonly reels = new Map<string, Video>();
   /** Durable facts the user asked for, mirrored to localStorage via reel-store. */
@@ -244,7 +241,7 @@ export class RealApiClient implements ApiClient {
         const cached = this.seriesMatches.get(raw.jobId);
         if (cached) {
           demo.match = cached;
-        } else if (ROSTER_READY.has(raw.status)) {
+        } else if (ROSTER_READY_STATUSES.has(raw.status)) {
           try {
             const roster = await this.fetchRoster(raw.jobId);
             const match = toRosterMatch(roster.match);
@@ -262,11 +259,11 @@ export class RealApiClient implements ApiClient {
   }
 
   async getScan(jobId: string): Promise<ScannedDemo | null> {
-    if (!isJobId(jobId)) return this.fallback.getScan(jobId);
+    if (!isJobId(jobId)) return null;
     const status = await this.fetchStatus(jobId);
     if (status === null) return null;
     // Before the scan finishes the roster proxy answers 409; report the status alone.
-    if (!ROSTER_READY.has(status)) return { status, players: [] };
+    if (!ROSTER_READY_STATUSES.has(status)) return { status, players: [] };
     const roster = await this.fetchRoster(jobId);
     return { status, players: roster.players.map(toDemoPlayer), match: toRosterMatch(roster.match) };
   }
@@ -296,11 +293,11 @@ export class RealApiClient implements ApiClient {
   }
 
   async getMatch(id: string): Promise<Match | null> {
-    if (!isJobId(id)) return this.fallback.getMatch(id);
+    if (!isJobId(id)) return null;
 
     const status = await this.fetchStatus(id);
     if (status === null) return null;
-    if (!ROSTER_READY.has(status)) return null;
+    if (!ROSTER_READY_STATUSES.has(status)) return null;
 
     // Parsing / scanned: listable in Partidas but no kill plan yet.
     if (!PLAN_READY_STATUSES.has(status)) {
@@ -340,7 +337,7 @@ export class RealApiClient implements ApiClient {
   }
 
   async findClips(matchId: string): Promise<Play[]> {
-    if (!isJobId(matchId)) return this.fallback.findClips(matchId);
+    if (!isJobId(matchId)) return [];
 
     const status = await this.fetchStatus(matchId);
     // No plan until parsing finishes; it persists through record/render.
@@ -351,7 +348,7 @@ export class RealApiClient implements ApiClient {
   }
 
   async findRecapClips(matchId: string): Promise<Play[]> {
-    if (!isJobId(matchId)) return this.fallback.findRecapClips(matchId);
+    if (!isJobId(matchId)) return [];
 
     const status = await this.fetchStatus(matchId);
     if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
@@ -375,7 +372,7 @@ export class RealApiClient implements ApiClient {
 
   /** Register a durable reel intent; reconcile drives record→render. */
   async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
-    if (!isJobId(input.matchId)) return this.fallback.createVideo(input);
+    if (!isJobId(input.matchId)) throw new Error('Partida desconocida.');
 
     const editConfig = constrainEditConfig(input.editConfig ?? DEFAULT_EDIT_CONFIG);
     const normalized = { ...input, editConfig };
@@ -435,13 +432,12 @@ export class RealApiClient implements ApiClient {
 
   async getVideo(id: string): Promise<Video | null> {
     const reel = this.reels.get(id);
-    if (reel) return { ...reel };
-    return this.fallback.getVideo(id);
+    return reel ? { ...reel } : null;
   }
 
   async getPublishAssistant(id: string): Promise<PublishAssistant> {
     const intent = this.intents.get(id);
-    if (!intent) return this.fallback.getPublishAssistant(id);
+    if (!intent) throw new Error('Reel desconocido.');
     const reel = this.reels.get(id);
     if (!reel || reel.status !== 'ready') throw new Error('video is not ready for publication');
     const variant = variantOf(intent);
@@ -459,7 +455,7 @@ export class RealApiClient implements ApiClient {
   /** Re-drive a failed reel: re-record a failed job, else re-render. */
   async retryVideo(id: string): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) return this.fallback.retryVideo(id);
+    if (!intent) throw new Error('Reel desconocido.');
 
     // Gone jobs cannot be re-driven; return the latch instead of re-failing.
     const current = this.reels.get(id);
@@ -490,7 +486,7 @@ export class RealApiClient implements ApiClient {
 
   async resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) return this.fallback.resolveVideoReview(id, resolution);
+    if (!intent) throw new Error('Reel desconocido.');
     const current = this.reels.get(id);
     if (!current || current.status !== 'review_required') {
       throw new Error('El reel ya no está pendiente de revisión.');
@@ -563,7 +559,7 @@ export class RealApiClient implements ApiClient {
   /** Re-render a ready reel with a new mix; persist only after POST accepts. */
   async rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) return this.fallback.rerenderVideoMusic(id, choice);
+    if (!intent) throw new Error('Reel desconocido.');
     const current = this.reels.get(id);
     if (!current || current.status !== 'ready') {
       throw new Error('El reel tiene que estar listo para añadir o cambiar la música.');
@@ -651,7 +647,7 @@ export class RealApiClient implements ApiClient {
 
   async deleteVideo(id: string): Promise<void> {
     const intent = this.intents.get(id);
-    if (!intent) return this.fallback.deleteVideo(id);
+    if (!intent) return;
     try {
       const variant = variantOf(intent);
       const name = await this.resolveArtifactName(intent, variant);
@@ -709,7 +705,7 @@ export class RealApiClient implements ApiClient {
   private async reconcile(): Promise<void> {
     const active = Array.from(this.intents.values()).filter((intent) => {
       const v = this.reels.get(intent.videoId);
-      return shouldReconcileVideoStatus(v?.status) && !v?.unrecoverable;
+      return shouldReconcileVideoStatus(v) && !v?.unrecoverable;
     });
     await reconcileReels(active.map((intent) => this.reconcileOne(intent)));
   }
@@ -768,6 +764,7 @@ export class RealApiClient implements ApiClient {
     const decision = decideReelReconcile({
       jobStatus: job.status,
       jobFailureReason: job.failureReason,
+      jobFailureCode: job.failureCode,
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
       renderWarnings: render.warnings,
@@ -814,6 +811,7 @@ export class RealApiClient implements ApiClient {
       ...base,
       status: view.status,
       failureReason: view.failureReason,
+      failureCode: view.failureCode,
       warnings: view.warnings,
       reviewArtifactPrefix: view.reviewArtifactPrefix,
       captureProgress: view.captureProgress,
@@ -928,21 +926,19 @@ export class RealApiClient implements ApiClient {
     return render.videoName;
   }
 
-  /** Job status, failure, and capture progress; null on 404. */
-  private async fetchStatusFull(
-    jobId: string,
-  ): Promise<{ status: string; failureReason?: string; captureProgress?: CaptureProgress } | null> {
+  /** Job status, failure text/code, and capture progress; null on 404. */
+  private async fetchStatusFull(jobId: string): Promise<JobStatusView | null> {
     const res = await this.send((dp) => ({ url: dp.jobStatusUrl(jobId) }));
     if (res.status === 404) return null;
     const data = await readJson<{
       status: string;
       failure_reason?: string;
+      failure_code?: string;
       progress?: { done?: number; total?: number; percent?: number };
     }>(res);
-    const full: { status: string; failureReason?: string; captureProgress?: CaptureProgress } = {
-      status: data.status,
-      failureReason: data.failure_reason,
-    };
+    const full: JobStatusView = { status: data.status };
+    if (data.failure_reason) full.failureReason = data.failure_reason;
+    if (data.failure_code) full.failureCode = data.failure_code;
     const parsed = parseCaptureProgress(data.progress);
     if (parsed) full.captureProgress = parsed;
     return full;
@@ -975,7 +971,8 @@ export class RealApiClient implements ApiClient {
     if (!res.ok) await readJson<never>(res);
     const data = (await res.json()) as {
       status?: string;
-      failure_reason?: string;
+      /** `renderplan.RenderVariantState.Error`: the render failure text. */
+      error?: string;
       warnings?: string[];
       videos?: string[];
       covers?: string[];
@@ -1011,7 +1008,7 @@ export class RealApiClient implements ApiClient {
       : undefined;
     return {
       status,
-      failureReason: data.failure_reason,
+      failureReason: data.error,
       warnings: data.warnings,
       videoName: data.videos?.[0],
       coverName: coverNames?.[0],
@@ -1084,11 +1081,7 @@ export class RealApiClient implements ApiClient {
       return jobToMatch(job);
     }
   }
-  /** @deprecated Superseded by scanDemo + parseDemo. */
-  uploadDemo(input: { fileName: string }): Promise<Match> {
-    return this.fallback.uploadDemo(input);
-  }
-  /** Real music catalog from the orchestrator; falls back to the mock offline. */
+  /** Real music catalog from the orchestrator; offline reads as an empty catalog, never fixtures. */
   async listSongs(): Promise<Song[]> {
     try {
       const res = await fetch('/api/songs', { cache: 'no-store' });
@@ -1105,11 +1098,11 @@ export class RealApiClient implements ApiClient {
         license: s.license,
       }));
     } catch {
-      return this.fallback.listSongs();
+      return [];
     }
   }
 
-  /** Real preset registry from the orchestrator; falls back to the mock offline. */
+  /** Real preset registry from the orchestrator; offline reads as an empty registry, never fixtures. */
   async listPresets(): Promise<Preset[]> {
     try {
       const res = await fetch('/api/presets', { cache: 'no-store' });
@@ -1135,7 +1128,7 @@ export class RealApiClient implements ApiClient {
         height: typeof p.height === 'number' && p.height > 0 ? p.height : undefined,
       }));
     } catch {
-      return this.fallback.listPresets();
+      return [];
     }
   }
 

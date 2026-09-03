@@ -3,7 +3,7 @@
 // polling/linking decisions the series view needs. Pure and unit-tested so the
 // UI never sprinkles status string literals across components.
 
-import { PLAN_READY_STATUSES, type VideoStatus } from './api/types.ts';
+import { PLAN_READY_STATUSES, type JobStatus, type VideoStatus } from './api/types.ts';
 
 /** Series ids are client-minted UUIDs; anything else is a bad/guessed URL. */
 const SERIES_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +21,7 @@ export function isSeriesId(value: string): boolean {
  * will never happen. Unknown/older statuses fall back to "analizando" via
  * {@link seriesStatusLabel}.
  */
-const SERIES_STATUS_LABELS = {
+const SERIES_STATUS_LABELS: Record<JobStatus, string> = {
   queued: 'analizando',
   scanning: 'analizando',
   scanned: 'sin jugador elegido',
@@ -31,9 +31,10 @@ const SERIES_STATUS_LABELS = {
   recorded: 'grabando',
   composing: 'renderizando',
   composed: 'renderizando',
+  review_required: 'completada con avisos',
   done: 'completada',
   failed: 'fallida',
-} as const;
+};
 
 /** The visual tone of a status pill, mapped to concrete classes in the view. */
 export type SeriesStatusTone = 'pending' | 'ready' | 'progress' | 'done' | 'failed';
@@ -71,7 +72,7 @@ export function seriesTitle(mapCount: number): string {
 /** The pill tone for a raw status; drives the pill colour in the series view. */
 export function seriesStatusTone(status: string): SeriesStatusTone {
   if (status === 'failed') return 'failed';
-  if (status === 'done') return 'done';
+  if (status === 'done' || status === 'review_required') return 'done';
   if (status === 'parsed') return 'ready';
   if (status === 'recording' || status === 'recorded' || status === 'composing' || status === 'composed') {
     return 'progress';

@@ -1,4 +1,4 @@
-package main
+package reconcile
 
 import (
 	"context"
@@ -14,11 +14,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
 type startupFailingJobRepository struct {
-	orchestratorJobRepository
+	store.JobRepository
 	failID uuid.UUID
 }
 
@@ -38,15 +39,16 @@ func (r startupFailingJobRepository) UpdateStatus(ctx context.Context, id uuid.U
 	if id == r.failID {
 		return errors.New("injected startup update failure")
 	}
-	return r.orchestratorJobRepository.UpdateStatus(ctx, id, status, reason)
+	return r.JobRepository.UpdateStatus(ctx, id, status, reason)
+
 }
 
 func TestReconcileInterruptedWorkRequiresStreamRepository(t *testing.T) {
-	result, err := reconcileInterruptedWork(context.Background(), nil, nil, nil, nil)
+	result, err := InterruptedWork(context.Background(), nil, nil, nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "stream repository is required") {
-		t.Fatalf("reconcileInterruptedWork error = %v, want missing stream repository", err)
+		t.Fatalf("InterruptedWork error = %v, want missing stream repository", err)
 	}
-	if result.total() != 0 {
+	if result.Total() != 0 {
 		t.Fatalf("reconciliation result = %#v, want no partial work", result)
 	}
 }
@@ -57,14 +59,14 @@ func TestReconcileInterruptedWorkPromotesCompletedStreamAfterSQLiteRestart(t *te
 	databasePath := filepath.Join(dir, "jobs.db")
 	storagePath := filepath.Join(dir, "artifacts")
 
-	before, err := newSQLiteJobRepository(databasePath)
+	before, err := store.NewSQLiteJobRepository(databasePath)
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository before restart: %v", err)
+		t.Fatalf("store.NewSQLiteJobRepository before restart: %v", err)
 	}
-	streamBefore, err := newSQLiteStreamJobRepository(before.db)
+	streamBefore, err := store.NewSQLiteStreamJobRepository(before.DB())
 	if err != nil {
 		_ = before.Close()
-		t.Fatalf("newSQLiteStreamJobRepository before restart: %v", err)
+		t.Fatalf("store.NewSQLiteStreamJobRepository before restart: %v", err)
 	}
 	storeBefore, err := storage.NewLocal(storagePath)
 	if err != nil {
@@ -99,14 +101,14 @@ func TestReconcileInterruptedWorkPromotesCompletedStreamAfterSQLiteRestart(t *te
 		t.Fatalf("close SQLite before restart: %v", err)
 	}
 
-	after, err := newSQLiteJobRepository(databasePath)
+	after, err := store.NewSQLiteJobRepository(databasePath)
 	if err != nil {
-		t.Fatalf("newSQLiteJobRepository after restart: %v", err)
+		t.Fatalf("store.NewSQLiteJobRepository after restart: %v", err)
 	}
 	t.Cleanup(func() { _ = after.Close() })
-	streamAfter, err := newSQLiteStreamJobRepository(after.db)
+	streamAfter, err := store.NewSQLiteStreamJobRepository(after.DB())
 	if err != nil {
-		t.Fatalf("newSQLiteStreamJobRepository after restart: %v", err)
+		t.Fatalf("store.NewSQLiteStreamJobRepository after restart: %v", err)
 	}
 	storeAfter, err := storage.NewLocal(storagePath)
 	if err != nil {
@@ -117,8 +119,8 @@ func TestReconcileInterruptedWorkPromotesCompletedStreamAfterSQLiteRestart(t *te
 		t.Fatalf("obs.New: %v", err)
 	}
 
-	if _, err := reconcileInterruptedWork(ctx, after, streamAfter, storeAfter, rec); err != nil {
-		t.Fatalf("reconcileInterruptedWork: %v", err)
+	if _, err := InterruptedWork(ctx, after, streamAfter, store.NewMemoryEditorProjectRepository(), storeAfter, rec); err != nil {
+		t.Fatalf("InterruptedWork: %v", err)
 	}
 	gotJob, err := streamAfter.Get(ctx, j.ID)
 	if err != nil {
@@ -139,9 +141,10 @@ func TestReconcileInterruptedWorkPromotesCompletedStreamAfterSQLiteRestart(t *te
 
 func TestReconcileInterruptedWorkRecordsOneEventForActiveStreamStateAndParent(t *testing.T) {
 	ctx := context.Background()
-	repo := newMemoryJobRepository()
-	streamRepo := newMemoryStreamJobRepository()
-	store, err := storage.NewLocal(t.TempDir())
+	repo := store.NewMemoryJobRepository()
+	streamRepo := store.NewMemoryStreamJobRepository()
+	editorProjects := store.NewMemoryEditorProjectRepository()
+	files, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage.NewLocal: %v", err)
 	}
@@ -155,15 +158,16 @@ func TestReconcileInterruptedWorkRecordsOneEventForActiveStreamStateAndParent(t 
 	if err != nil {
 		t.Fatalf("RenderStateKey: %v", err)
 	}
-	putRestartJSON(t, store, stateKey, state)
+	putRestartJSON(t, files, stateKey, state)
 	rec, err := obs.New(t.TempDir())
 	if err != nil {
 		t.Fatalf("obs.New: %v", err)
 	}
 
-	result, err := reconcileInterruptedWork(ctx, repo, streamRepo, store, rec)
+	result, err := InterruptedWork(ctx, repo, streamRepo, editorProjects, files, rec)
+
 	if err != nil {
-		t.Fatalf("reconcileInterruptedWork: %v", err)
+		t.Fatalf("InterruptedWork: %v", err)
 	}
 	if result.StreamRenderStates != 1 || result.StreamJobs != 1 {
 		t.Fatalf("reconciled stream counts = states %d jobs %d, want 1/1", result.StreamRenderStates, result.StreamJobs)
@@ -179,7 +183,8 @@ func TestReconcileInterruptedWorkRecordsOneEventForActiveStreamStateAndParent(t 
 		t.Fatalf("active stream parent = status %q reason %q, want failed/%q", gotJob.Status, gotJob.FailureReason, interruptedStreamRender)
 	}
 	var gotState streamclips.RenderState
-	readRestartJSON(t, store, stateKey, &gotState)
+	readRestartJSON(t, files, stateKey, &gotState)
+
 	if gotState.Status != streamclips.StatusFailed || gotState.Error != interruptedStreamRender {
 		t.Fatalf("active stream state = status %q error %q, want failed/%q", gotState.Status, gotState.Error, interruptedStreamRender)
 	}
@@ -187,9 +192,11 @@ func TestReconcileInterruptedWorkRecordsOneEventForActiveStreamStateAndParent(t 
 
 func TestReconcileInterruptedWorkPreservesRenderingParentsWhenStateAuditFails(t *testing.T) {
 	ctx := context.Background()
-	repo := newMemoryJobRepository()
-	streamRepo := newMemoryStreamJobRepository()
-	store, err := storage.NewLocal(t.TempDir())
+	repo := store.NewMemoryJobRepository()
+	streamRepo := store.NewMemoryStreamJobRepository()
+	editorProjects := store.NewMemoryEditorProjectRepository()
+	files, err := storage.NewLocal(t.TempDir())
+
 	if err != nil {
 		t.Fatalf("storage.NewLocal: %v", err)
 	}
@@ -215,17 +222,18 @@ func TestReconcileInterruptedWorkPreservesRenderingParentsWhenStateAuditFails(t 
 	if err != nil {
 		t.Fatalf("RenderStateKey: %v", err)
 	}
-	putRestartJSON(t, store, stateKey, state)
+	putRestartJSON(t, files, stateKey, state)
 
-	result, err := reconcileInterruptedWork(
+	result, err := InterruptedWork(
 		ctx,
 		repo,
 		streamRepo,
-		startupFailingOpenStorage{Storage: store, failKey: stateKey},
+		editorProjects,
+		startupFailingOpenStorage{Storage: files, failKey: stateKey},
 		nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "injected render state read failure") {
-		t.Fatalf("reconcileInterruptedWork error = %v, want render state audit failure", err)
+		t.Fatalf("InterruptedWork error = %v, want render state audit failure", err)
 	}
 	if result.StreamJobs != 0 || len(result.StreamAcquisitions) != 1 || result.StreamAcquisitions[0] != acquiring.ID {
 		t.Fatalf("reconciliation = stream jobs %d acquisitions %v, want acquiring job queued for recovery", result.StreamJobs, result.StreamAcquisitions)
@@ -249,27 +257,30 @@ func TestReconcileInterruptedWorkPreservesRenderingParentsWhenStateAuditFails(t 
 
 func TestReconcileInterruptedWorkContinuesAfterCategoryFailure(t *testing.T) {
 	ctx := context.Background()
-	base := newMemoryJobRepository()
+	base := store.NewMemoryJobRepository()
 	failedDemo := seedJob(t, base, job.StatusQueued)
 	repairedDemo := seedJob(t, base, job.StatusQueued)
 	repo := startupFailingJobRepository{
-		orchestratorJobRepository: base,
-		failID:                    failedDemo.ID,
+		JobRepository: base,
+		failID:        failedDemo.ID,
 	}
-	streamRepo := newMemoryStreamJobRepository()
+
+	streamRepo := store.NewMemoryStreamJobRepository()
+	editorProjects := store.NewMemoryEditorProjectRepository()
 	repairedStream := createStartupStreamJob(t, streamRepo, streamclips.StatusAcquiring)
-	store, err := storage.NewLocal(t.TempDir())
+	files, err := storage.NewLocal(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage.NewLocal: %v", err)
 	}
 
-	result, err := reconcileInterruptedWork(ctx, repo, streamRepo, store, nil)
+	result, err := InterruptedWork(ctx, repo, streamRepo, editorProjects, files, nil)
+
 	if err == nil {
-		t.Fatal("reconcileInterruptedWork error = nil, want contextual startup failure")
+		t.Fatal("InterruptedWork error = nil, want contextual startup failure")
 	}
 	for _, want := range []string{"demo jobs", failedDemo.ID.String(), "injected startup update failure"} {
 		if !strings.Contains(err.Error(), want) {
-			t.Errorf("reconcileInterruptedWork error %q does not contain %q", err, want)
+			t.Errorf("InterruptedWork error %q does not contain %q", err, want)
 		}
 	}
 	if result.DemoJobs != 1 || result.StreamJobs != 0 ||

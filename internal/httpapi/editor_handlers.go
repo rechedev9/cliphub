@@ -2,14 +2,17 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -413,14 +416,36 @@ func (h *Handlers) StartEditorRender(w http.ResponseWriter, r *http.Request) {
 		ResultKey:   previous.ResultKey,
 		UpdatedAt:   time.Now().UTC(),
 	}
+	// The admission call runs inside the request; a later shutdown discard runs
+	// without it, so the compensating write uses its own context like
+	// persistJobQueueDecision. Only admitted work has anything to revert:
+	// a duplicate or full-queue rejection never wrote `rendering`.
+	var admitted atomic.Bool
 	_, err = h.queue.EnqueueWithTransition(task, func(decision error) error {
-		if decision != nil {
+		if decision == nil {
+			if err := h.editorProjects.UpdateStatus(r.Context(), p.ID, timelineplan.StatusRendering, ""); err != nil {
+				return err
+			}
+			if err := h.writeEditorRenderState(state); err != nil {
+				return err
+			}
+			admitted.Store(true)
 			return nil
 		}
-		if err := h.editorProjects.UpdateStatus(r.Context(), p.ID, timelineplan.StatusRendering, ""); err != nil {
-			return err
+		if !admitted.Load() {
+			return nil
 		}
-		return h.writeEditorRenderState(state)
+		reason := "enqueue editor render task: " + decision.Error()
+		markCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.editorProjects.UpdateStatus(markCtx, p.ID, timelineplan.StatusFailed, reason); err != nil {
+			return fmt.Errorf("mark editor project failed after queue discard: %w", err)
+		}
+		failed := state
+		failed.Status = timelineplan.StatusFailed
+		failed.Error = reason
+		failed.UpdatedAt = time.Now().UTC()
+		return h.writeEditorRenderState(failed)
 	}, asynq.MaxRetry(0), asynq.Unique(editorRenderUniqueTTL))
 	if err != nil {
 		if errors.Is(err, asynq.ErrDuplicateTask) {

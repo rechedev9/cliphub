@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { streamJobUrl, callOrchestrator, forwardError, serviceUnavailable } from '../_lib';
+import { localAPIRequestError } from '@/lib/api/local-request-guard';
+import { streamJobUrl, callOrchestrator, forwardError, serviceUnavailable, publicStreamJob } from '../_lib';
 
 export const runtime = 'nodejs';
 
@@ -13,5 +14,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ job
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  return NextResponse.json((await res.json()) as unknown);
+  return NextResponse.json(publicStreamJob(await res.json()));
+}
+
+/** DELETE /api/streams/{jobId} — 204, or 409 while the job is still acquiring or rendering. */
+export async function DELETE(request: Request, { params }: { params: Promise<{ jobId: string }> }): Promise<Response> {
+  const localError = await localAPIRequestError(request.headers, request.method);
+  if (localError !== undefined) return NextResponse.json({ error: localError }, { status: 403 });
+  const { jobId } = await params;
+  const url = streamJobUrl(jobId);
+  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
+
+  const res = await callOrchestrator(url, { method: 'DELETE' });
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  return new Response(null, { status: 204 });
 }

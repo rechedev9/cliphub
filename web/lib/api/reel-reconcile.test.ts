@@ -71,6 +71,18 @@ test('recorded + no render → let generate validate the cached capture', () => 
   assert.deepEqual(view({ jobStatus: 'recorded' }), { status: 'queued', action: 'record' });
 });
 
+test('failed job → carries the orchestrator failure code next to the human reason', () => {
+  assert.deepEqual(
+    view({ jobStatus: 'failed', jobFailureReason: 'HLAE lost the observer target', jobFailureCode: 'capture_flake' }),
+    { status: 'failed', action: 'none', failureReason: 'HLAE lost the observer target', failureCode: 'capture_flake' },
+  );
+  // A failed render belongs to the variant, not the job: no job code is attached.
+  assert.deepEqual(
+    view({ jobStatus: 'recorded', jobFailureCode: 'stale', renderStatus: 'failed', renderFailureReason: 'ffmpeg exited 1' }),
+    { status: 'failed', action: 'none', failureReason: 'ffmpeg exited 1' },
+  );
+});
+
 test('composed + no render → let generate validate the cached capture', () => {
   assert.deepEqual(view({ jobStatus: 'composed' }), { status: 'queued', action: 'record' });
 });
@@ -116,11 +128,19 @@ test('render warnings stay terminal but block publication', () => {
   );
 });
 
-test('review-required and failed reels remain on reconciliation so retries are not stuck', () => {
-  assert.equal(shouldReconcileVideoStatus('review_required'), true);
-  assert.equal(shouldReconcileVideoStatus('ready'), false);
-  assert.equal(shouldReconcileVideoStatus('failed'), true);
-  assert.equal(shouldReconcileVideoStatus('recording'), true);
+test('reels leave reconciliation only when ready with an MP4 URL; review/failed/active stay so retries are not stuck', () => {
+  const cases: Array<[Parameters<typeof shouldReconcileVideoStatus>[0], boolean]> = [
+    [undefined, true],
+    [{ status: 'review_required' }, true],
+    [{ status: 'failed' }, true],
+    [{ status: 'recording' }, true],
+    // Ready before the artifact names arrived: nothing else would fetch them.
+    [{ status: 'ready' }, true],
+    [{ status: 'ready', downloadUrl: '/api/demos/j/renders/v/videos/a.mp4' }, false],
+  ];
+  for (const [video, want] of cases) {
+    assert.equal(shouldReconcileVideoStatus(video), want, JSON.stringify(video));
+  }
 });
 
 test('admitted record keeps a still-failed job in capture instead of latching FALLO', () => {

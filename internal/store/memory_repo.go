@@ -1,8 +1,9 @@
-package main
+package store
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -18,30 +19,16 @@ import (
 	"github.com/rechedev9/cliphub/internal/vodfetch"
 )
 
-type orchestratorJobRepository interface {
-	Create(context.Context, *job.Job) error
-	Get(context.Context, uuid.UUID) (job.Job, error)
-	GetMeta(context.Context, uuid.UUID) (job.Job, error)
-	GetStatus(context.Context, uuid.UUID) (job.Status, string, int, error)
-	List(context.Context, int) ([]job.Job, error)
-	ListBySeries(context.Context, string) ([]job.Job, error)
-	ListByStatus(context.Context, job.Status) ([]job.Job, error)
-	UpdateStatus(context.Context, uuid.UUID, job.Status, string) error
-	SetParseInputs(context.Context, uuid.UUID, string, rules.Rules) error
-	SetKillPlan(context.Context, uuid.UUID, killplan.Plan) error
-	Delete(context.Context, uuid.UUID) error
-}
-
-type memoryJobRepository struct {
+type MemoryJobRepository struct {
 	mu   sync.RWMutex
 	jobs map[uuid.UUID]job.Job
 }
 
-func newMemoryJobRepository() *memoryJobRepository {
-	return &memoryJobRepository{jobs: map[uuid.UUID]job.Job{}}
+func NewMemoryJobRepository() *MemoryJobRepository {
+	return &MemoryJobRepository{jobs: map[uuid.UUID]job.Job{}}
 }
 
-func (r *memoryJobRepository) Create(ctx context.Context, j *job.Job) error {
+func (r *MemoryJobRepository) Create(ctx context.Context, j *job.Job) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -49,6 +36,9 @@ func (r *memoryJobRepository) Create(ctx context.Context, j *job.Job) error {
 	defer r.mu.Unlock()
 	if j.ID == uuid.Nil {
 		j.ID = uuid.New()
+	} else if _, exists := r.jobs[j.ID]; exists {
+		// Same contract as the SQLite primary key: a job id is minted once.
+		return fmt.Errorf("create job %s: id already exists", j.ID)
 	}
 	now := time.Now().UTC()
 	j.CreatedAt = now
@@ -59,7 +49,7 @@ func (r *memoryJobRepository) Create(ctx context.Context, j *job.Job) error {
 	return nil
 }
 
-func (r *memoryJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
+func (r *MemoryJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return job.Job{}, err
 	}
@@ -72,7 +62,7 @@ func (r *memoryJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, e
 	return cloneJob(j), nil
 }
 
-func (r *memoryJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
+func (r *MemoryJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return job.Job{}, err
 	}
@@ -82,11 +72,14 @@ func (r *memoryJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Jo
 	if !ok {
 		return job.Job{}, job.ErrNotFound
 	}
+	j = cloneJob(j)
 	j.KillPlan = nil
 	return j, nil
 }
 
-func (r *memoryJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.Status, string, int, error) {
+// GetStatus mirrors the SQLite projection: the failure reason is only
+// meaningful on a failed job and the segment count only while recording.
+func (r *MemoryJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.Status, string, int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, "", 0, err
 	}
@@ -96,14 +89,18 @@ func (r *memoryJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.
 	if !ok {
 		return 0, "", 0, job.ErrNotFound
 	}
+	failureReason := ""
+	if j.Status == job.StatusFailed {
+		failureReason = j.FailureReason
+	}
 	segmentCount := 0
 	if j.Status == job.StatusRecording && j.KillPlan != nil {
 		segmentCount = len(j.KillPlan.Segments)
 	}
-	return j.Status, j.FailureReason, segmentCount, nil
+	return j.Status, failureReason, segmentCount, nil
 }
 
-func (r *memoryJobRepository) List(ctx context.Context, limit int) ([]job.Job, error) {
+func (r *MemoryJobRepository) List(ctx context.Context, limit int) ([]job.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -117,6 +114,7 @@ func (r *memoryJobRepository) List(ctx context.Context, limit int) ([]job.Job, e
 	defer r.mu.RUnlock()
 	out := make([]job.Job, 0, len(r.jobs))
 	for _, j := range r.jobs {
+		j = cloneJob(j)
 		j.KillPlan = nil
 		out = append(out, j)
 	}
@@ -138,7 +136,7 @@ func (r *memoryJobRepository) List(ctx context.Context, limit int) ([]job.Job, e
 // plan is stripped and the result is capped at 100 jobs, matching List: a
 // series is a handful of demos, so the cap only guards against a pathological
 // job set.
-func (r *memoryJobRepository) ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error) {
+func (r *MemoryJobRepository) ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -163,7 +161,9 @@ func (r *memoryJobRepository) ListBySeries(ctx context.Context, seriesID string)
 	return out, nil
 }
 
-func (r *memoryJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
+// ListByStatus returns metadata-only jobs in the same order as List; the
+// startup sweep re-sorts by id, but any other consumer sees the SQLite order.
+func (r *MemoryJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -172,13 +172,21 @@ func (r *memoryJobRepository) ListByStatus(ctx context.Context, status job.Statu
 	out := []job.Job{}
 	for _, j := range r.jobs {
 		if j.Status == status {
-			out = append(out, cloneJob(j))
+			j = cloneJob(j)
+			j.KillPlan = nil
+			out = append(out, j)
 		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].UpdatedAt.After(out[j].UpdatedAt)
+	})
 	return out, nil
 }
 
-func (r *memoryJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status job.Status, failureReason string) error {
+func (r *MemoryJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status job.Status, failureReason string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -196,7 +204,7 @@ func (r *memoryJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 	return nil
 }
 
-func (r *memoryJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, rl rules.Rules) error {
+func (r *MemoryJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, rl rules.Rules) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -219,7 +227,7 @@ func (r *memoryJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, 
 
 // Delete removes the job from the map. A missing id is not an error, so deletes
 // are idempotent and safe to retry after a failed artifact cleanup.
-func (r *memoryJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *MemoryJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -229,7 +237,7 @@ func (r *memoryJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r *memoryJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, plan killplan.Plan) error {
+func (r *MemoryJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, plan killplan.Plan) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -246,28 +254,35 @@ func (r *memoryJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, pla
 	return nil
 }
 
+// cloneJob is a deep copy through the same JSON the SQLite repository stores,
+// so a caller mutating the returned plan, segments or rules cannot corrupt the
+// map, exactly as it cannot corrupt a row.
 func cloneJob(j job.Job) job.Job {
-	if j.KillPlan != nil {
-		plan := *j.KillPlan
-		j.KillPlan = &plan
+	raw, err := json.Marshal(j)
+	if err != nil {
+		panic(fmt.Sprintf("memory job repository: marshal job %s: %v", j.ID, err))
 	}
-	return j
+	var out job.Job
+	if err := json.Unmarshal(raw, &out); err != nil {
+		panic(fmt.Sprintf("memory job repository: unmarshal job %s: %v", j.ID, err))
+	}
+	return out
 }
 
-// memoryStreamJobRepository is the in-memory equivalent of
+// MemoryStreamJobRepository is the in-memory equivalent of
 // streamclips.Repository, used when ZV_DATABASE_URL=memory (Local Studio)
 // so the streamer-clips flow, including acquisition-by-URL, works without
 // Postgres.
-type memoryStreamJobRepository struct {
+type MemoryStreamJobRepository struct {
 	mu   sync.RWMutex
 	jobs map[uuid.UUID]streamclips.Job
 }
 
-func newMemoryStreamJobRepository() *memoryStreamJobRepository {
-	return &memoryStreamJobRepository{jobs: map[uuid.UUID]streamclips.Job{}}
+func NewMemoryStreamJobRepository() *MemoryStreamJobRepository {
+	return &MemoryStreamJobRepository{jobs: map[uuid.UUID]streamclips.Job{}}
 }
 
-func (r *memoryStreamJobRepository) Create(ctx context.Context, j *streamclips.Job) error {
+func (r *MemoryStreamJobRepository) Create(ctx context.Context, j *streamclips.Job) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -293,7 +308,7 @@ func (r *memoryStreamJobRepository) Create(ctx context.Context, j *streamclips.J
 	return nil
 }
 
-func (r *memoryStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (streamclips.Job, error) {
+func (r *MemoryStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (streamclips.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return streamclips.Job{}, err
 	}
@@ -306,7 +321,7 @@ func (r *memoryStreamJobRepository) Get(ctx context.Context, id uuid.UUID) (stre
 	return cloneStreamJob(j), nil
 }
 
-func (r *memoryStreamJobRepository) List(ctx context.Context, limit int) ([]streamclips.Job, error) {
+func (r *MemoryStreamJobRepository) List(ctx context.Context, limit int) ([]streamclips.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -334,7 +349,7 @@ func (r *memoryStreamJobRepository) List(ctx context.Context, limit int) ([]stre
 	return out, nil
 }
 
-func (r *memoryStreamJobRepository) ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error) {
+func (r *MemoryStreamJobRepository) ListByStatus(ctx context.Context, status streamclips.Status) ([]streamclips.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -355,7 +370,7 @@ func (r *memoryStreamJobRepository) ListByStatus(ctx context.Context, status str
 	return out, nil
 }
 
-func (r *memoryStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status streamclips.Status, failureReason string) error {
+func (r *MemoryStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status streamclips.Status, failureReason string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -380,7 +395,7 @@ func (r *memoryStreamJobRepository) UpdateStatus(ctx context.Context, id uuid.UU
 	return nil
 }
 
-func (r *memoryStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error {
+func (r *MemoryStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUID, plan streamclips.EditPlan) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -407,7 +422,7 @@ func (r *memoryStreamJobRepository) SetEditPlan(ctx context.Context, id uuid.UUI
 	return nil
 }
 
-func (r *memoryStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error {
+func (r *MemoryStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUID, probe streamclips.SourceProbe, sha256, discoveredTitle string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -428,6 +443,17 @@ func (r *memoryStreamJobRepository) SetAcquired(ctx context.Context, id uuid.UUI
 	j.SourceURL = ""
 	j.UpdatedAt = time.Now().UTC()
 	r.jobs[id] = j
+	return nil
+}
+
+// Delete removes the stream job; a missing id is not an error.
+func (r *MemoryStreamJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.jobs, id)
 	return nil
 }
 

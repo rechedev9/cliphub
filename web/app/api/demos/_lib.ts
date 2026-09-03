@@ -120,25 +120,34 @@ export function mutationHeaders(): Record<string, string> {
  * code?: string } JSON object plus its status. For 4xx it extracts the upstream `error` string
  * when present, otherwise wraps the raw text (or a generic message). The proxy
  * never forwards an arbitrary upstream JSON object verbatim, so the upstream's
- * body shape cannot leak through this layer. For 5xx it returns a generic error
- * so upstream internals never leak to the client. Never logs demo bytes.
+ * body shape cannot leak through this layer. 5xx is a generic error so upstream
+ * internals never leak to the client, except a 503: the orchestrator answers
+ * 503 with its own `code` (`faceit_not_configured`, `not_configured`, ...) for
+ * a feature that is not set up, which the UI must not confuse with the
+ * proxy's `service_unavailable` (orchestrator unreachable). Never logs demo bytes.
  */
 export async function forwardError(res: Response): Promise<Response> {
-  if (res.status >= 500) {
+  if (res.status >= 500 && res.status !== 503) {
     return NextResponse.json({ error: 'upstream error' }, { status: res.status });
   }
   const text = await res.text().catch(() => '');
+  let body: unknown;
   try {
-    const body = JSON.parse(text) as unknown;
-    if (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string') {
-      const error = (body as { error: string }).error;
-      const code = 'code' in body && typeof (body as { code: unknown }).code === 'string'
-        ? (body as { code: string }).code
-        : undefined;
-      return NextResponse.json(code === undefined ? { error } : { error, code }, { status: res.status });
-    }
+    body = JSON.parse(text);
   } catch {
-    // not JSON; fall through to a wrapped text error
+    body = undefined; // not JSON; fall through to a wrapped text error
+  }
+  if (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string') {
+    const error = body.error;
+    const code = 'code' in body && typeof body.code === 'string' ? body.code : undefined;
+    if (res.status === 503 && code === SERVICE_UNAVAILABLE_CODE) {
+      // Reserved for this proxy; an upstream claiming it would masquerade as downtime.
+      return NextResponse.json({ error, code: 'not_configured' }, { status: res.status });
+    }
+    return NextResponse.json(code === undefined ? { error } : { error, code }, { status: res.status });
+  }
+  if (res.status === 503) {
+    return NextResponse.json({ error: 'upstream error', code: 'not_configured' }, { status: res.status });
   }
   return NextResponse.json({ error: text || `orchestrator error (${res.status})` }, { status: res.status });
 }

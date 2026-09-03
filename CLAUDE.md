@@ -16,7 +16,7 @@ The demo is the source of truth for player, camera, tick ranges, kills, and util
 stream video -> persisted edit plan -> render -> publish pack
 ```
 
-- `cmd/` is thin flags + `os.Exit`; domain stays in `internal/`. Recorder launch, orchestrator SQLite/queue, analysis-viewer, and demo-players roster parse already leak — see `cmd/AGENTS.md`. Do not copy that pattern.
+- `cmd/` is thin flags + `os.Exit`; domain stays in `internal/`. Recorder launch, the orchestrator's inline queue, analysis-viewer, and demo-players roster parse already leak; see `cmd/AGENTS.md`. Do not copy that pattern. Orchestrator persistence is `internal/store` (versioned SQLite schema) and startup repair is `internal/reconcile`.
 - `internal/parser`, `internal/killplan`, and `internal/moments` own the durable plan passed to every later demo stage.
 - `internal/recording` owns HLAE/CS2 scripts and capture validation; `internal/editor`, `internal/renderplan`, and `internal/composition` own post-capture effects, variants, QA, and FFmpeg composition.
 - `effects/` contains sandboxed `gopher-lua` scripts with no filesystem or process access.

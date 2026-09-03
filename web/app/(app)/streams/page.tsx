@@ -126,7 +126,7 @@ export default function StreamsPage(): ReactNode {
     list = (
       <ul className="flex flex-col gap-2.5">
         {jobs.map((job) => (
-          <StreamListRow key={job.id} job={job} onOpen={() => open(job)} />
+          <StreamListRow key={job.id} job={job} onOpen={() => open(job)} onDeleted={() => setPollGeneration((g) => g + 1)} />
         ))}
       </ul>
     );

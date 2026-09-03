@@ -21,6 +21,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -33,7 +34,8 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 	}
 
 	dataDir := t.TempDir()
-	store, err := storage.NewLocal(dataDir)
+	jobs := store.NewMemoryJobRepository()
+	files, err := storage.NewLocal(dataDir)
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}
@@ -46,12 +48,13 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 		t.Fatalf("follow store: %v", err)
 	}
 	handlers := httpapi.NewHandlers(
-		newMemoryJobRepository(),
-		store,
+		jobs,
+		files,
 		newInlineQueue(map[string]taskHandler{}, 1),
 		httpapi.WithFaceit(client, follows),
 		httpapi.WithCapabilities(httpapi.Capabilities{FaceitEnabled: true}),
 	)
+
 	srv := httptest.NewServer(httpapi.Routes(handlers))
 	t.Cleanup(srv.Close)
 	httpClient := srv.Client()
@@ -172,18 +175,19 @@ func TestFaceitZstdUploadE2E(t *testing.T) {
 	}
 
 	dataDir := t.TempDir()
-	store, err := storage.NewLocal(dataDir)
+	repo := store.NewMemoryJobRepository()
+	files, err := storage.NewLocal(dataDir)
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}
-	repo := newMemoryJobRepository()
 	queue := newInlineQueue(map[string]taskHandler{
 		tasks.TypeScanRoster: func(context.Context, *asynq.Task) error { return nil },
 	}, 1)
 	queueCtx, cancelQueue := context.WithCancel(context.Background())
 	t.Cleanup(cancelQueue)
 	queue.Start(queueCtx)
-	handlers := httpapi.NewHandlers(repo, store, queue)
+	handlers := httpapi.NewHandlers(repo, files, queue)
+
 	srv := httptest.NewServer(httpapi.Routes(handlers))
 	t.Cleanup(srv.Close)
 	httpClient := srv.Client()
@@ -242,7 +246,8 @@ func TestFaceitZstdUploadE2E(t *testing.T) {
 	if stored.DemoFileName != "1-b5604ae7-c676-454b-901a-0b02014abd94-1-2.dem" {
 		t.Fatalf("DemoFileName = %q, want stripped .zst", stored.DemoFileName)
 	}
-	rc, err := store.Open(stored.DemoPath)
+	rc, err := files.Open(stored.DemoPath)
+
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import {
   forwardError,
   serviceUnavailable,
   callOrchestratorStreamingUpload,
+  publicStreamJob,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from './_lib';
 
@@ -52,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (res === null) return serviceUnavailable();
     if (!res.ok) return forwardError(res);
-    return NextResponse.json((await res.json()) as unknown, { status: res.status });
+    return NextResponse.json(publicStreamJob(await res.json()), { status: res.status });
   } else {
     const incoming = await readBoundedText(request);
     if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
@@ -75,7 +76,7 @@ export async function POST(request: Request): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  return NextResponse.json((await res.json()) as unknown, { status: res.status });
+  return NextResponse.json(publicStreamJob(await res.json()), { status: res.status });
 }
 
 /** GET /api/streams — list stream-clip jobs. */
@@ -87,5 +88,6 @@ export async function GET(request: Request): Promise<Response> {
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  return NextResponse.json((await res.json()) as unknown);
+  const data = (await res.json()) as { jobs?: unknown[] };
+  return NextResponse.json({ jobs: Array.isArray(data.jobs) ? data.jobs.map(publicStreamJob) : [] });
 }

@@ -2,7 +2,7 @@
 // Run: node --test jobs-index.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { DemoPlayer } from './types.ts';
+import { JOB_STATUSES, type DemoPlayer } from './types.ts';
 import {
   jobHasRoster,
   jobCreatedAtMs,
@@ -47,13 +47,12 @@ function player(overrides: Partial<DemoPlayer> & { steamId: string }): DemoPlaye
   };
 }
 
-test('jobHasRoster admits scanned..done and rejects queued/scanning/failed', () => {
-  for (const status of ['scanned', 'parsing', 'parsed', 'recording', 'recorded', 'composing', 'composed', 'done']) {
-    assert.equal(jobHasRoster(status), true, status);
+test('jobHasRoster classifies every orchestrator status', () => {
+  const rejected: Record<string, true> = { queued: true, scanning: true, failed: true };
+  for (const status of JOB_STATUSES) {
+    assert.equal(jobHasRoster(status), !rejected[status], status);
   }
-  for (const status of ['queued', 'scanning', 'failed', 'something-new']) {
-    assert.equal(jobHasRoster(status), false, status);
-  }
+  assert.equal(jobHasRoster('something-new'), false);
 });
 
 test('listableJobs keeps only roster-ready jobs, newest first', () => {

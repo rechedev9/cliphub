@@ -1,4 +1,4 @@
-package main
+package reconcile
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
@@ -520,22 +521,16 @@ func recordInterruptedRender(rec *obs.Recorder, jobID uuid.UUID, source, target,
 	})
 }
 
+// ListAllDemoJobs walks every defined job status so a render or generate
+// artifact is swept regardless of the parent job's lifecycle position.
+func ListAllDemoJobs(ctx context.Context, repo store.JobRepository) ([]job.Job, error) {
+	return listAllDemoJobs(ctx, repo)
+}
+
 func listAllDemoJobs(ctx context.Context, repo interruptSweeper) ([]job.Job, error) {
 	var jobs []job.Job
 	var errs []error
-	for _, status := range []job.Status{
-		job.StatusQueued,
-		job.StatusScanning,
-		job.StatusScanned,
-		job.StatusParsing,
-		job.StatusParsed,
-		job.StatusRecording,
-		job.StatusRecorded,
-		job.StatusComposing,
-		job.StatusComposed,
-		job.StatusDone,
-		job.StatusFailed,
-	} {
+	for _, status := range job.Statuses() {
 		found, err := repo.ListByStatus(ctx, status)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("list %s jobs for render sweep: %w", status, err))

@@ -14,7 +14,7 @@ Twelve `package main` binaries → `bin/zv*`. Contract: thin flags + `os.Exit`; 
 | `zv-composer` | Concat → `final.mp4` | `internal/composition` |
 | `zv-stream` | Thin `streamcli.Run` | `internal/streamcli` |
 | `zv-rhythm` | Beats/onsets | `internal/rhythm` |
-| `zv-orchestrator` | `zv serve` | **Leak:** SQLite + `inline_queue.go`. HTTP/workers in `internal/` |
+| `zv-orchestrator` | `zv serve` | Repos in `internal/store`, startup sweeps in `internal/reconcile`, HTTP/workers in `internal/`. **Leak:** `inline_queue.go` (process-local queue) still here |
 | `zv-tui` | Bubble Tea client | Views here; HTTP in `internal/tuiclient` |
 | `zv-tactical-data` | Tick-window JSON export | `internal/tactical` |
 | `zv-analysis-viewer` | Loopback HTML death viewer | **Leak:** no `internal/` import |

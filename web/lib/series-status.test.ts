@@ -28,6 +28,7 @@ test('maps every known status to its Spanish label', () => {
   assert.equal(seriesStatusLabel('recorded'), 'grabando');
   assert.equal(seriesStatusLabel('composing'), 'renderizando');
   assert.equal(seriesStatusLabel('composed'), 'renderizando');
+  assert.equal(seriesStatusLabel('review_required'), 'completada con avisos');
   assert.equal(seriesStatusLabel('done'), 'completada');
   assert.equal(seriesStatusLabel('failed'), 'fallida');
 });
@@ -44,6 +45,7 @@ test('tone distinguishes ready, progress, done and failed from pending', () => {
   assert.equal(seriesStatusTone('recording'), 'progress');
   assert.equal(seriesStatusTone('composing'), 'progress');
   assert.equal(seriesStatusTone('done'), 'done');
+  assert.equal(seriesStatusTone('review_required'), 'done');
   assert.equal(seriesStatusTone('failed'), 'failed');
 });
 
@@ -58,6 +60,7 @@ test('pending drives polling and excludes the stuck/transient statuses', () => {
   assert.equal(seriesStatusIsPending('recorded'), false);
   assert.equal(seriesStatusIsPending('parsed'), false);
   assert.equal(seriesStatusIsPending('done'), false);
+  assert.equal(seriesStatusIsPending('review_required'), false);
   assert.equal(seriesStatusIsPending('failed'), false);
 });
 

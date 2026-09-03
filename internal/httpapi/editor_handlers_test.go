@@ -71,6 +71,13 @@ func (r *fakeEditorAssets) List(_ context.Context, _ int) ([]mediaassets.Asset, 
 	return out, nil
 }
 
+func (r *fakeEditorAssets) Delete(_ context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.assets, id)
+	return nil
+}
+
 type fakeEditorProjects struct {
 	mu       sync.Mutex
 	projects map[uuid.UUID]timelineplan.Project
@@ -108,6 +115,13 @@ func (r *fakeEditorProjects) List(_ context.Context, _ int) ([]timelineplan.Proj
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+func (r *fakeEditorProjects) Delete(_ context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.projects, id)
+	return nil
 }
 
 func (r *fakeEditorProjects) UpdateStatus(_ context.Context, id uuid.UUID, s timelineplan.Status, reason string) error {
@@ -306,6 +320,83 @@ func TestStartEditorRenderDoesNotMarkRenderingWhenEnqueueFails(t *testing.T) {
 	}
 	if got.Status == timelineplan.StatusRendering {
 		t.Fatalf("status = %s after enqueue failure, want draft", got.Status)
+	}
+}
+
+// Accepted editor renders live only in the process-local queue; a shutdown
+// discard must move the project off `rendering` or the next POST is a
+// permanent 409.
+func TestStartEditorRenderDiscardFailsAdmittedProject(t *testing.T) {
+	t.Parallel()
+	assets := newFakeEditorAssets()
+	projects := newFakeEditorProjects()
+	queue := &fakeQueue{}
+	store := newFakeStorage()
+	h := NewHandlers(newFakeRepo(), store, queue, WithEditorRepositories(assets, projects))
+	srv := httptest.NewServer(Routes(h))
+	t.Cleanup(srv.Close)
+
+	create, err := http.NewRequest(http.MethodPost, srv.URL+"/api/editor/projects", strings.NewReader(`{"title":"Ace reel"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	create.Header.Set("Content-Type", "application/json")
+	resp, err := srv.Client().Do(create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	list, err := projects.List(context.Background(), 1)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("list projects: %v %#v", err, list)
+	}
+	plan := timelineplan.DefaultDocument()
+	plan.Tracks[0].Items = []timelineplan.Item{{
+		ID: "clip-1", AssetID: "11111111-1111-1111-1111-111111111111", SourceIn: 0, SourceOut: 1,
+	}}
+	if err := projects.SetPlan(context.Background(), list[0].ID, plan); err != nil {
+		t.Fatal(err)
+	}
+
+	render, err := http.NewRequest(http.MethodPost, srv.URL+"/api/editor/projects/"+list[0].ID.String()+"/render", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendResp, err := srv.Client().Do(render)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendResp.Body.Close()
+	if rendResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("render status = %d, want 202", rendResp.StatusCode)
+	}
+	admitted, err := projects.Get(context.Background(), list[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admitted.Status != timelineplan.StatusRendering {
+		t.Fatalf("status after admission = %s, want rendering", admitted.Status)
+	}
+	if len(queue.transitions) != 1 {
+		t.Fatalf("queue transitions = %d, want 1", len(queue.transitions))
+	}
+
+	if err := queue.transitions[0](errors.New("inline queue task discarded during shutdown")); err != nil {
+		t.Fatalf("discard transition error = %v", err)
+	}
+	got, err := projects.Get(context.Background(), list[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != timelineplan.StatusFailed || !strings.Contains(got.FailureReason, "discarded during shutdown") {
+		t.Fatalf("project after discard = status %s, reason %q; want failed discard reason", got.Status, got.FailureReason)
+	}
+	state, ok, err := h.readEditorRenderState(list[0].ID)
+	if err != nil || !ok {
+		t.Fatalf("read editor render state: ok=%v err=%v", ok, err)
+	}
+	if state.Status != timelineplan.StatusFailed || !strings.Contains(state.Error, "discarded during shutdown") {
+		t.Fatalf("render state after discard = status %q, error %q; want failed discard reason", state.Status, state.Error)
 	}
 }
 

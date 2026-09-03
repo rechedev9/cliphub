@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 )
 
 func TestMemoryJobRepositoryStoresJobLifecycle(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	j := &job.Job{
 		Status:        job.StatusQueued,
@@ -74,7 +74,7 @@ func TestMemoryJobRepositoryStoresJobLifecycle(t *testing.T) {
 }
 
 func TestMemoryJobRepositoryDelete(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	series := uuid.NewString()
 
@@ -104,7 +104,7 @@ func TestMemoryJobRepositoryDelete(t *testing.T) {
 }
 
 func TestMemoryJobRepositoryListBySeries(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	series := uuid.NewString()
 
@@ -160,7 +160,7 @@ func TestMemoryJobRepositoryListBySeries(t *testing.T) {
 }
 
 func TestMemoryJobRepositoryListBySeriesBreaksCreatedAtTiesByID(t *testing.T) {
-	repo := newMemoryJobRepository()
+	repo := NewMemoryJobRepository()
 	ctx := context.Background()
 	series := uuid.NewString()
 

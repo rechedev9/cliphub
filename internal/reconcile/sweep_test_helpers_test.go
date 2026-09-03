@@ -1,0 +1,40 @@
+package reconcile
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
+)
+
+func sweepInterruptedStreamJobs(ctx context.Context, repo streamInterruptSweeper, rec *obs.Recorder) (int, error) {
+	return sweepInterruptedStreamJobsAfterRenderStates(ctx, repo, rec, streamRenderSweepResult{auditComplete: true})
+}
+
+func sweepInterruptedStreamRenderStates(ctx context.Context, repo streamInterruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
+	result, err := reconcileInterruptedStreamRenderStates(ctx, repo, store, rec)
+	return result.Reconciled, err
+}
+
+func newTestSQLiteRepo(t *testing.T) *store.SQLiteJobRepository {
+	t.Helper()
+	repo, err := store.NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))
+	if err != nil {
+		t.Fatalf("newSQLiteJobRepository: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+	return repo
+}
+
+func newTestSQLiteStreamRepo(t *testing.T) *store.SQLiteStreamJobRepository {
+	t.Helper()
+	jobRepo := newTestSQLiteRepo(t)
+	streamRepo, err := store.NewSQLiteStreamJobRepository(jobRepo.DB())
+	if err != nil {
+		t.Fatalf("newSQLiteStreamJobRepository: %v", err)
+	}
+	return streamRepo
+}

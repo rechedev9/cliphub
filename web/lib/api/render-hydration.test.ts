@@ -8,7 +8,8 @@ import {
   parseEffectiveRenderMusic,
 } from './render-hydration.ts';
 import { DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
-import type { Video } from './types.ts';
+import { buildEditRequest } from './edit-request.ts';
+import type { EditConfig, Video } from './types.ts';
 
 function intent(): ReelIntent {
   return {
@@ -200,6 +201,36 @@ test('effective edit parser reads the Go mixed wire fields', () => {
     })?.demoSource,
     undefined,
   );
+});
+
+test('a fully populated edit survives the wire round trip through buildEditRequest and the parser', () => {
+  // Anything dropped here becomes a mismatch redrive (or a silently different
+  // reel) the next time the Library adopts the server's effective edit.
+  const full: EditConfig = {
+    format: 'short-9x16',
+    killEffect: 'punch-in',
+    transition: 'whip',
+    coverStrategy: 'generated-gameplay',
+    intro: true,
+    outro: true,
+    hookText: true,
+    killCounter: true,
+    matchRecap: false,
+    voiceComms: true,
+    voiceVolume: 0.6,
+    nativeHud: false,
+    introText: 'GO',
+    outroText: 'GG',
+    keyDropFamily: 'KEYDROP',
+    keyDropStyle: 'tigerr',
+    keyDropCode: 'ZACK',
+    keyDropPositionY: 0.72,
+    keyDropStartSeconds: 2.5,
+    keyDropEndSeconds: 11,
+    demoSource: 'faceit',
+    overlayTheme: 'neon-violet',
+  };
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(full)), full);
 });
 
 test('effective render music replaces stale cross-tab intent fields', () => {

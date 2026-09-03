@@ -74,6 +74,9 @@ No magic strings:
 
 - A string literal that crosses a boundary or repeats (an error code, a status value, a query param, a storage key) must be a named `const`, ideally an `as const` map with a derived union type, imported at every use site.
   `SERVICE_UNAVAILABLE_CODE` is the house example; inline duplicates of such strings are a review finding.
+- Orchestrator job statuses come from `JOB_STATUSES` in `lib/api/types.ts` (mirrors `internal/job/job.go`). Every status gate (`PLAN_READY_STATUSES`, `ROSTER_READY_STATUSES`, series labels typed `Record<JobStatus, …>`) derives from it so a new Go status cannot be silently absent on the client; a hand-written status list is a review finding.
+- `RealApiClient` never falls back to `MockApiClient`; a non-UUID id is an unknown job (`null`/`[]`), an offline catalog is empty, never fixtures. The mock exists only for `.design-sync` previews.
+- Render failures arrive as `error` on `GET /renders/{variant}` (Go `RenderVariantState.Error`); job failures arrive as `failure_reason` + `failure_code` on the status view. Do not rename one to look like the other.
 
 Comments:
 

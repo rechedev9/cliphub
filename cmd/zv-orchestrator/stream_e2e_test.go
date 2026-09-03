@@ -23,6 +23,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/httpapi"
 	"github.com/rechedev9/cliphub/internal/storage"
+	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 	"github.com/rechedev9/cliphub/internal/tasks"
 	"github.com/rechedev9/cliphub/internal/workers"
@@ -243,16 +244,17 @@ func newStreamE2EServer(t *testing.T, ffmpegPath, ffprobePath string) (*httptest
 	t.Helper()
 
 	dataDir := t.TempDir()
-	store, err := storage.NewLocal(dataDir)
+	jobRepo := store.NewMemoryJobRepository()
+	streamRepo := store.NewMemoryStreamJobRepository()
+	files, err := storage.NewLocal(dataDir)
 	if err != nil {
 		t.Fatalf("storage.NewLocal: %v", err)
 	}
 
-	jobRepo := newMemoryJobRepository()
-	streamRepo := newMemoryStreamJobRepository()
 	streamJobLocks := streamclips.NewJobLocks()
 
-	streamWorker := workers.NewStreamRenderWorker(streamRepo, store, workers.StreamRenderWorkerConfig{
+	streamWorker := workers.NewStreamRenderWorker(streamRepo, files, workers.StreamRenderWorkerConfig{
+
 		WorkDir:    filepath.Join(dataDir, "work"),
 		FFmpegPath: ffmpegPath,
 		Timeout:    "2m",
@@ -269,7 +271,8 @@ func newStreamE2EServer(t *testing.T, ffmpegPath, ffprobePath string) (*httptest
 	queue.Start(ctx)
 	t.Cleanup(cancel)
 
-	handlers := httpapi.NewHandlers(jobRepo, store, queue,
+	handlers := httpapi.NewHandlers(jobRepo, files, queue,
+
 		httpapi.WithStreamRepository(streamRepo),
 		httpapi.WithStreamJobLocks(streamJobLocks),
 		httpapi.WithStreamProber(streamclips.FFprobeProber{Path: ffprobePath}),

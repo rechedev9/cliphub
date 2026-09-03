@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
-// sqliteJobRepository persists jobs in a local SQLite file so job state survives
+// SQLiteJobRepository persists jobs in a local SQLite file so job state survives
 // an orchestrator restart, unlike the in-memory repository. It is the default
 // for the local desktop studio, which has no Postgres: job metadata lives in
 // the `data` JSON document, and the kill plan is a sibling `job_kill_plans`
@@ -25,135 +25,26 @@ import (
 // updated_at are mirrored into columns for List ordering. modernc.org/sqlite is
 // a pure-Go driver, so no CGO or C toolchain is needed on Windows or in the
 // static build.
-type sqliteJobRepository struct {
+type SQLiteJobRepository struct {
 	db *sql.DB
 }
 
-// newSQLiteJobRepository opens (creating if needed) the SQLite database at path
-// and ensures the jobs table exists. A single connection fully serializes
-// access, which for a local single-user studio removes all "database is locked"
-// contention; WAL keeps that durable and fast.
-func newSQLiteJobRepository(path string) (*sqliteJobRepository, error) {
-	db, err := sql.Open("sqlite", path)
+// NewSQLiteJobRepository opens (creating if needed) the SQLite database at path
+// and brings its schema to the current version; see migrate.go.
+func NewSQLiteJobRepository(path string) (*SQLiteJobRepository, error) {
+	db, err := openSQLite(path)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	db.SetMaxOpenConns(1)
-	for _, pragma := range []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA busy_timeout=5000",
-		"PRAGMA synchronous=NORMAL",
-	} {
-		if _, err := db.Exec(pragma); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("sqlite %s: %w", pragma, err)
-		}
-	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS jobs (
-		id         TEXT PRIMARY KEY,
-		data       BLOB    NOT NULL,
-		status     TEXT    NOT NULL,
-		created_at INTEGER NOT NULL,
-		updated_at INTEGER NOT NULL
-	)`); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("create jobs table: %w", err)
-	}
-	if err := ensureJobKillPlansTable(db); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
-	if err := migrateKillPlansOffJobsRow(db); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	return &sqliteJobRepository{db: db}, nil
-}
-
-func ensureJobKillPlansTable(db *sql.DB) error {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS job_kill_plans (
-		job_id TEXT PRIMARY KEY,
-		plan   BLOB NOT NULL
-	)`); err != nil {
-		return fmt.Errorf("create job_kill_plans: %w", err)
-	}
-	return nil
-}
-
-func jobsColumnExists(db *sql.DB, column string) (bool, error) {
-	rows, err := db.Query(`PRAGMA table_info(jobs)`)
-	if err != nil {
-		return false, fmt.Errorf("inspect jobs columns: %w", err)
-	}
-	defer rows.Close()
-	found := false
-	for rows.Next() {
-		var cid, notNull, primaryKey int
-		var name, columnType string
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return false, fmt.Errorf("scan jobs column: %w", err)
-		}
-		found = found || name == column
-	}
-	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("iterate jobs columns: %w", err)
-	}
-	return found, nil
-}
-
-// migrateKillPlansOffJobsRow moves a kill plan out of the jobs row — from a
-// leftover `kill_plan` column or an embedded `data.kill_plan` — into
-// job_kill_plans, then strips both sources. Idempotent: a second open is a
-// no-op once the sibling table holds the plan and `data` has no `$.kill_plan`.
-func migrateKillPlansOffJobsRow(db *sql.DB) error {
-	hasColumn, err := jobsColumnExists(db, "kill_plan")
-	if err != nil {
-		return err
-	}
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("begin kill plan migrate: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if hasColumn {
-		if _, err := tx.Exec(`
-			INSERT INTO job_kill_plans (job_id, plan)
-			SELECT id, kill_plan FROM jobs
-			WHERE kill_plan IS NOT NULL
-			  AND id NOT IN (SELECT job_id FROM job_kill_plans)`); err != nil {
-			return fmt.Errorf("move kill_plan column: %w", err)
-		}
-	}
-	if _, err := tx.Exec(`
-		INSERT INTO job_kill_plans (job_id, plan)
-		SELECT id, json_extract(data, '$.kill_plan')
-		FROM jobs
-		WHERE json_extract(data, '$.kill_plan') IS NOT NULL
-		  AND id NOT IN (SELECT job_id FROM job_kill_plans)`); err != nil {
-		return fmt.Errorf("extract embedded kill plan: %w", err)
-	}
-	if _, err := tx.Exec(`
-		UPDATE jobs
-		SET data = json_remove(data, '$.kill_plan')
-		WHERE json_type(data, '$.kill_plan') IS NOT NULL`); err != nil {
-		return fmt.Errorf("strip embedded kill plan: %w", err)
-	}
-	if hasColumn {
-		if _, err := tx.Exec(`UPDATE jobs SET kill_plan = NULL WHERE kill_plan IS NOT NULL`); err != nil {
-			return fmt.Errorf("clear jobs kill_plan column: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit kill plan migrate: %w", err)
-	}
-	return nil
+	return &SQLiteJobRepository{db: db}, nil
 }
 
 // Close releases the underlying database handle.
-func (r *sqliteJobRepository) Close() error { return r.db.Close() }
+func (r *SQLiteJobRepository) Close() error { return r.db.Close() }
 
-func (r *sqliteJobRepository) Create(ctx context.Context, j *job.Job) error {
+func (r *SQLiteJobRepository) DB() *sql.DB { return r.db }
+
+func (r *SQLiteJobRepository) Create(ctx context.Context, j *job.Job) error {
 	if j.ID == uuid.Nil {
 		j.ID = uuid.New()
 	}
@@ -189,7 +80,7 @@ func (r *sqliteJobRepository) Create(ctx context.Context, j *job.Job) error {
 	return nil
 }
 
-func (r *sqliteJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
+func (r *SQLiteJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	var data, planJSON []byte
 	err := r.db.QueryRowContext(ctx, `
 		SELECT jobs.data, job_kill_plans.plan
@@ -209,7 +100,7 @@ func (r *sqliteJobRepository) Get(ctx context.Context, id uuid.UUID) (job.Job, e
 	return j, nil
 }
 
-func (r *sqliteJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
+func (r *SQLiteJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	var data []byte
 	err := r.db.QueryRowContext(ctx, `SELECT data FROM jobs WHERE id = ?`, id.String()).Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -225,7 +116,7 @@ func (r *sqliteJobRepository) GetMeta(ctx context.Context, id uuid.UUID) (job.Jo
 	return j, nil
 }
 
-func (r *sqliteJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.Status, string, int, error) {
+func (r *SQLiteJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.Status, string, int, error) {
 	var rawStatus, failureReason string
 	var segmentCount int
 	err := r.db.QueryRowContext(ctx, `
@@ -248,7 +139,7 @@ func (r *sqliteJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.
 	return status, failureReason, segmentCount, nil
 }
 
-func (r *sqliteJobRepository) List(ctx context.Context, limit int) ([]job.Job, error) {
+func (r *SQLiteJobRepository) List(ctx context.Context, limit int) ([]job.Job, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -266,21 +157,21 @@ func (r *sqliteJobRepository) List(ctx context.Context, limit int) ([]job.Job, e
 // is the UnixNano mirror column. The kill plan is not selected and the result
 // is capped at 100 jobs, matching List: a series is a handful of demos, so the
 // cap only guards against a pathological document set.
-func (r *sqliteJobRepository) ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error) {
+func (r *SQLiteJobRepository) ListBySeries(ctx context.Context, seriesID string) ([]job.Job, error) {
 	return r.scanJobs(ctx,
 		`SELECT data FROM jobs WHERE json_extract(data, '$.series_id') = ? ORDER BY created_at ASC, id ASC LIMIT 100`,
 		seriesID,
 	)
 }
 
-func (r *sqliteJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
+func (r *SQLiteJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
 	return r.scanJobs(ctx,
 		`SELECT data FROM jobs WHERE status = ? ORDER BY updated_at DESC, created_at DESC`,
 		status.String(),
 	)
 }
 
-func (r *sqliteJobRepository) scanJobs(ctx context.Context, query string, args ...any) ([]job.Job, error) {
+func (r *SQLiteJobRepository) scanJobs(ctx context.Context, query string, args ...any) ([]job.Job, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query jobs: %w", err)
@@ -305,7 +196,7 @@ func (r *sqliteJobRepository) scanJobs(ctx context.Context, query string, args .
 	return out, nil
 }
 
-func (r *sqliteJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status job.Status, failureReason string) error {
+func (r *SQLiteJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status job.Status, failureReason string) error {
 	now := time.Now().UTC()
 	var result sql.Result
 	var err error
@@ -368,7 +259,7 @@ func (r *sqliteJobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, st
 	return nil
 }
 
-func (r *sqliteJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, rl rules.Rules) error {
+func (r *SQLiteJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, steamID string, rl rules.Rules) error {
 	return r.mutate(ctx, id, func(j *job.Job) error {
 		// Same status guard as the memory/Postgres repos: only a scanned or
 		// already-parsed job can be (re)claimed for a parse.
@@ -384,7 +275,7 @@ func (r *sqliteJobRepository) SetParseInputs(ctx context.Context, id uuid.UUID, 
 
 // Delete removes the job row and its kill plan. A missing row is not an error,
 // so deletes are idempotent and safe to retry after a failed artifact cleanup.
-func (r *sqliteJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *SQLiteJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin delete job: %w", err)
@@ -402,7 +293,7 @@ func (r *sqliteJobRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r *sqliteJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, plan killplan.Plan) error {
+func (r *SQLiteJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, plan killplan.Plan) error {
 	now := time.Now().UTC()
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
@@ -448,7 +339,7 @@ func (r *sqliteJobRepository) SetKillPlan(ctx context.Context, id uuid.UUID, pla
 // written: SetKillPlan is the only writer for that blob. The single-connection
 // pool serializes writers, so the read-modify-write is race-free. fn's error
 // (e.g. job.ErrConflict) is returned verbatim so callers can errors.Is on it.
-func (r *sqliteJobRepository) mutate(ctx context.Context, id uuid.UUID, fn func(*job.Job) error) error {
+func (r *SQLiteJobRepository) mutate(ctx context.Context, id uuid.UUID, fn func(*job.Job) error) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
