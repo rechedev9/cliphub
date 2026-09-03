@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { isOverlayTheme, OVERLAY_THEME, type Match, type OverlayTheme, type Play } from '@/lib/api/types';
-import { hubHref } from '@/lib/clips/routes';
+import { hubHref, seriesHref } from '@/lib/clips/routes';
 import { PRODUCE_FULL_ROUNDS_NOTE, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import {
   canStartFullDemoCapture,
@@ -47,11 +47,14 @@ export type FullPovProducerProps = {
   recapFailure: Exclude<FullDemoLoadFailure, null> | null;
   /** Another Full POV is on CS2: this one queues behind it. */
   recBusy: boolean;
+  /** From a bo3/bo5 series map: producing returns to the series, not the hub. */
+  seriesId: string | null;
 };
 
 /** The Full POV constructor: every round of the plan, one overlay theme, locked contract, REC. */
-export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy }: FullPovProducerProps): ReactNode {
+export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy, seriesId }: FullPovProducerProps): ReactNode {
   const router = useRouter();
+  const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
   const [overlayTheme, setOverlayTheme] = useState<OverlayTheme>(OVERLAY_THEME.faceitOrange);
   const [briefApproved, setBriefApproved] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -84,7 +87,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy 
       });
       if (recBusy) toast('Full POV en cola', { description: 'Empieza al acabar el REC actual' });
       else toast('REC iniciado', { description: 'CS2 + HLAE grabando · no toques el juego' });
-      router.push(hubHref({ open: matchId }));
+      router.push(returnHref);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'No se pudo encolar el Full POV.');
       setCreating(false);
@@ -221,7 +224,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy 
         briefApproved={briefApproved}
         briefReady={roundCount > 0}
         onBriefApprovedChange={setBriefApproved}
-        backHref={hubHref({ open: matchId })}
+        backHref={returnHref}
         busy={creating}
         error={createError}
         cta={

@@ -36,6 +36,8 @@ export const MUSIC_VOLUMES: readonly { value: number; label: string }[] = [
 ];
 
 /** The one offline sentence every stream call falls back to. */
+export const STREAM_LIST_FAIL_MESSAGE =
+  'No se pudo cargar la lista de streams. Reintenta o revisa el servicio local.';
 export const STREAM_OFFLINE_MESSAGE =
   'El servicio de Clips de stream está offline. Arráncalo y vuelve a intentarlo.';
 export const STREAM_INVALID_URL_MESSAGE =

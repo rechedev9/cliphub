@@ -8,6 +8,7 @@ import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
 import { sortStreamJobs, streamListCadence } from '@/lib/streams/list';
 import {
+  STREAM_LIST_FAIL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
   errorMessage,
   isServiceUnavailable,
@@ -26,6 +27,7 @@ export default function StreamsPage(): ReactNode {
   const router = useRouter();
   const [jobs, setJobs] = useState<StreamJob[] | null>(null);
   const [offline, setOffline] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [pollGeneration, setPollGeneration] = useState(0);
   const [sourceUrl, setSourceUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -41,9 +43,11 @@ export default function StreamsPage(): ReactNode {
           const next = sortStreamJobs(await streamsApi.listJobs());
           setJobs(next);
           setOffline(false);
+          setListError(null);
           return streamListCadence(next);
         } catch (err) {
-          if (isServiceUnavailable(err)) setOffline(true);
+          setOffline(isServiceUnavailable(err));
+          setListError(errorMessage(err, STREAM_LIST_FAIL_MESSAGE));
           return 'idle';
         }
       },
@@ -99,7 +103,13 @@ export default function StreamsPage(): ReactNode {
   );
 
   let list: ReactNode;
-  if (jobs === null) {
+  if (jobs === null && listError !== null) {
+    list = (
+      <p role="alert" className="max-w-[1080px] border border-dashed border-destructive/45 px-4 py-6 text-center text-body-sm text-destructive">
+        {listError}
+      </p>
+    );
+  } else if (jobs === null) {
     list = (
       <p role="status" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
         <span aria-hidden className="studio-spinner" />
@@ -144,13 +154,13 @@ export default function StreamsPage(): ReactNode {
         </div>
       </header>
 
-      {offline ? (
+      {listError !== null ? (
         <div
           role="alert"
           className="flex max-w-[1080px] flex-wrap items-center gap-3 border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
         >
           <AlertTriangle aria-hidden className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1">{STREAM_OFFLINE_MESSAGE}</span>
+          <span className="min-w-0 flex-1">{offline ? STREAM_OFFLINE_MESSAGE : listError}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => setPollGeneration((g) => g + 1)}>
             Reintentar
           </Button>

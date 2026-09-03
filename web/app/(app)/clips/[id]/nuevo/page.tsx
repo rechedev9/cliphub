@@ -179,7 +179,16 @@ export default function ProducePage({
       />
     );
   } else if (format === PRODUCE_FORMAT.full) {
-    body = <FullPovProducer matchId={id} match={match} rounds={rounds} recapFailure={recapFailure} recBusy={recBusy} />;
+    body = (
+      <FullPovProducer
+        matchId={id}
+        match={match}
+        rounds={rounds}
+        recapFailure={recapFailure}
+        recBusy={recBusy}
+        seriesId={seriesId}
+      />
+    );
   } else if (playsError) {
     body = (
       <StudioEmptyState

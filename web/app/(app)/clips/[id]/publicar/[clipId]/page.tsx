@@ -42,6 +42,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const [video, setVideo] = useState<Video | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -55,10 +56,13 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
           orphan ? Promise.resolve<Match | null>(null) : api.getMatch(id),
         ]);
         if (!active) return 'idle';
-        const next = videoResult.status === 'fulfilled' ? videoResult.value : null;
-        setVideo(next);
+        // A rejected fetch keeps the last clip on screen; only a real miss (null) clears it.
+        if (videoResult.status === 'fulfilled') setVideo(videoResult.value);
+        setLoadFailed(videoResult.status === 'rejected');
         if (matchResult.status === 'fulfilled') setMatch(matchResult.value);
         setLoaded(true);
+        if (videoResult.status === 'rejected') return 'fast';
+        const next = videoResult.value;
         return next !== null && outputState(next.status) !== OUTPUT_STATE.ready && outputState(next.status) !== OUTPUT_STATE.failed
           ? 'fast'
           : 'idle';
@@ -78,10 +82,23 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
     return (
       <div className="studio-enter">
         <StudioEmptyState
-          icon={SearchX}
-          title="Clip no encontrado"
-          description="Este clip ya no está en este PC. Puede que se haya borrado con sus artefactos."
-          actions={<Button onClick={() => router.push(backHref)}>Volver</Button>}
+          icon={loadFailed ? AlertTriangle : SearchX}
+          title={loadFailed ? 'No se pudo cargar el clip' : 'Clip no encontrado'}
+          description={
+            loadFailed
+              ? 'El servicio local no respondió. Reintenta o vuelve a la partida.'
+              : 'Este clip ya no está en este PC. Puede que se haya borrado con sus artefactos.'
+          }
+          actions={
+            <>
+              {loadFailed ? (
+                <Button variant="outline-primary" onClick={() => setRefreshKey((k) => k + 1)}>
+                  Reintentar
+                </Button>
+              ) : null}
+              <Button onClick={() => router.push(backHref)}>Volver</Button>
+            </>
+          }
         />
       </div>
     );
