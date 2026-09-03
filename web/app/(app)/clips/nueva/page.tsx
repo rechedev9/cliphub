@@ -1,14 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, FileVideo, Loader2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
+import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
-import { CLIPS_HREF, hubHref, PRODUCE_FORMAT, produceHref, seriesHref } from '@/lib/clips/routes';
+import {
+  CLIPS_HREF,
+  hubHref,
+  isJobIdParam,
+  NEW_DEMO_QUERY,
+  PRODUCE_FORMAT,
+  produceHref,
+  seriesHref,
+} from '@/lib/clips/routes';
 import {
   DEMO_EMPTY_ROSTER_HINT,
   DEMO_SERVICE_OFFLINE_HINT,
@@ -17,6 +26,8 @@ import {
   isDemoServiceUnavailable,
 } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
+import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
+import { PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
 import { MapCover } from '@/components/brand/map-cover';
@@ -25,12 +36,17 @@ import { RecentSteamMatches } from '@/components/onboarding/recent-matches';
 import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
 import { StudioDataRow } from '@/components/studio/data-row';
+import { StudioEmptyState } from '@/components/studio/empty-state';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { PlayerPicker } from '@/components/upload/player-picker';
 
 /** Pipeline stage; seriesMode, not the stage, picks the layout. */
 type Stage = 'idle' | 'scanning' | 'picking' | 'parsing';
+
+/** Why `?job=` could not resume: the job is gone, or its roster could not be read. */
+type ResumeFailure = Exclude<FullDemoLoadFailure, null> | 'missing' | null;
 
 type ScanRow =
   | { fileName: string; status: 'scanning' }
@@ -45,10 +61,22 @@ function rowLabel(row: Extract<ScanRow, { status: 'scanned' }>): string {
   return row.match ? prettyMapName(row.match.map) : row.fileName;
 }
 
-/** Cargar demo → escanear → elegir POV → parsear; series bo3/bo5 walk the same page. */
-export default function NewDemoPage(): ReactNode {
+/**
+ * Cargar demo → escanear → elegir POV → parsear; series bo3/bo5 walk the same page.
+ * `?job=` skips the upload and resumes a `scanned` job at the same picker.
+ */
+export default function NewDemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): ReactNode {
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>('idle');
+  const jobParam = use(searchParams)[NEW_DEMO_QUERY.job];
+  const resuming = jobParam !== undefined;
+  const resumeJobId = isJobIdParam(jobParam) ? jobParam : null;
+
+  const [stage, setStage] = useState<Stage>(resuming ? 'scanning' : 'idle');
+  const [resumeFailure, setResumeFailure] = useState<ResumeFailure>(resuming && resumeJobId === null ? 'missing' : null);
   const [seriesId, setSeriesId] = useState<string | null>(null);
 
   const [fileName, setFileName] = useState<string | null>(null);
@@ -226,10 +254,48 @@ export default function NewDemoPage(): ReactNode {
     if (handed.length > 0) onFiles(handed);
   }, [onFiles]);
 
+  // Resume: the roster already exists, so load it and land on the same picker the upload uses.
+  useEffect(() => {
+    if (resumeJobId === null) return;
+    let active = true;
+    api
+      .getScan(resumeJobId)
+      .then((scan) => {
+        if (!active) return;
+        if (scan === null) {
+          setResumeFailure('missing');
+          return;
+        }
+        if (scan.status !== MATCH_STATUS_SCANNED) {
+          router.replace(produceHref(resumeJobId));
+          return;
+        }
+        if (scan.players.length === 0) {
+          setResumeFailure('error');
+          return;
+        }
+        setJobId(resumeJobId);
+        setPlayers(scan.players);
+        setMatch(scan.match ?? null);
+        setStage('picking');
+      })
+      .catch((err: unknown) => {
+        if (active) setResumeFailure(classifyFullDemoLoadFailure(err));
+      });
+    return () => {
+      active = false;
+    };
+  }, [resumeJobId, router]);
+
   const mapCount = logicalMapGroups.length;
   let title = 'Carga una demo';
   let description = 'La escaneamos en segundos para sacar el roster; luego eliges la POV y la parseamos entera.';
-  if (seriesMode) {
+  if (resuming) {
+    title = '¿A quién clipeamos?';
+    if (resumeFailure !== null) description = 'No pudimos recuperar el roster de esta partida.';
+    else if (stage === 'scanning') description = 'Cargando el roster de la partida…';
+    else description = 'Roster listo. Elige la POV: parseamos sus highlights y la partida aparece en tu lista.';
+  } else if (seriesMode) {
     if (stage === 'scanning') {
       title = 'Escaneando la serie';
       description = `Escaneando ${scanRows.length} demos de la serie…`;
@@ -246,7 +312,18 @@ export default function NewDemoPage(): ReactNode {
   }
 
   let body: ReactNode;
-  if (stage === 'idle') {
+  if (resumeFailure !== null) {
+    const empty = resumeEmptyState(resumeFailure);
+    body = (
+      <StudioEmptyState
+        icon={empty.icon}
+        title={empty.title}
+        description={empty.description}
+        compact
+        actions={<Button onClick={() => router.push(CLIPS_HREF)}>Volver</Button>}
+      />
+    );
+  } else if (stage === 'idle') {
     body = (
       <div className="flex flex-col gap-5">
         <DemoDropzone onFiles={onFiles} minHeightClass="min-h-[260px]" />
@@ -267,7 +344,7 @@ export default function NewDemoPage(): ReactNode {
       </Card>
     );
   } else if (stage === 'scanning') {
-    body = <SingleDemoProgress label="Escaneando el roster…" fileName={fileName} />;
+    body = <SingleDemoProgress label={resuming ? 'Cargando el roster…' : 'Escaneando el roster…'} fileName={fileName} />;
   } else if (stage === 'parsing') {
     body = <SingleDemoProgress label="Parseando la POV…" fileName={fileName} />;
   } else {
@@ -307,6 +384,14 @@ export default function NewDemoPage(): ReactNode {
       {body}
     </div>
   );
+}
+
+function resumeEmptyState(
+  failure: Exclude<ResumeFailure, null>,
+): { icon: typeof SearchX; title: string; description: string } {
+  if (failure === 'offline') return { icon: Unplug, ...fullDemoEmptyState(failure) };
+  if (failure === 'error') return { icon: AlertTriangle, ...fullDemoEmptyState(failure) };
+  return { icon: SearchX, ...PRODUCE_MATCH_MISSING };
 }
 
 function ErrorBanner({ message }: { message: string }): ReactNode {

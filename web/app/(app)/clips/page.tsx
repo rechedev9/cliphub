@@ -5,9 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
-import type { Match, Video } from '@/lib/api/types';
-import { activeJobCount, buildHubModel, hubTransitions, isWorking, type HubModel } from '@/lib/clips/hub';
-import { HUB_LENS, HUB_QUERY, hubHref, isHubLens, type HubLens } from '@/lib/clips/routes';
+import { HUB_ORPHANS_HINT, HUB_ORPHANS_TITLE } from '@/lib/clips/copy';
+import {
+  activeJobCount,
+  buildHubModel,
+  HUB_ROW_STAGE,
+  hubTransitions,
+  isWorking,
+  settleHubSnapshot,
+  type HubModel,
+  type HubSnapshot,
+} from '@/lib/clips/hub';
+import { HUB_LENS, HUB_QUERY, hubHref, isHubLens, ORPHAN_MATCH_SEGMENT, type HubLens } from '@/lib/clips/routes';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -18,36 +27,22 @@ import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { HubEmpty } from '@/components/clips-hub/hub-empty';
 import { LensToggle } from '@/components/clips-hub/lens-toggle';
 import { MatchRow, matchRowId } from '@/components/clips-hub/match-row';
+import { OutputItem } from '@/components/clips-hub/output-item';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
 
 type LoadError = { offline: boolean };
 
-type Snapshot = { matches: Match[]; videos: Video[]; streams: StreamJob[]; failure: unknown };
-
-/** One source failing keeps the other on screen; both failing throws. */
-async function fetchSnapshot(): Promise<Snapshot> {
-  const [matches, videos, streams] = await Promise.allSettled([
-    api.listMatches(),
-    api.listVideos(),
-    streamsApi.listJobs(),
-  ]);
-  if (matches.status === 'rejected' && videos.status === 'rejected') throw matches.reason;
-  let failure: unknown = null;
-  if (matches.status === 'rejected') failure = matches.reason;
-  else if (videos.status === 'rejected') failure = videos.reason;
-  else if (streams.status === 'rejected') failure = streams.reason;
-  return {
-    matches: matches.status === 'fulfilled' ? matches.value : [],
-    videos: videos.status === 'fulfilled' ? videos.value : [],
-    streams: streams.status === 'fulfilled' ? streams.value : [],
-    failure,
-  };
+async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
+  return settleHubSnapshot(
+    await Promise.allSettled([api.listMatches(), api.listVideos(), streamsApi.listJobs()]),
+    prev,
+  );
 }
 
 function anyoneWorking(model: HubModel): boolean {
-  if (model.rows.some((row) => row.parsing)) return true;
+  if (model.rows.some((row) => row.stage === HUB_ROW_STAGE.parsing)) return true;
   return model.clips.some((clip) => isWorking(clip.state));
 }
 
@@ -88,17 +83,21 @@ function ClipsHub(): ReactNode {
   const [streams, setStreams] = useState<StreamJob[]>([]);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
   const modelRef = useRef<HubModel | null>(null);
+  /** Last accepted poll; a rejected source falls back to it. */
+  const snapshotRef = useRef<HubSnapshot | null>(null);
   const scrolledTo = useRef<string | null>(null);
   const inFlight = useRef(false);
 
-  const accept = useCallback((snapshot: Snapshot) => {
+  const accept = useCallback((snapshot: HubSnapshot) => {
     const next = buildHubModel(snapshot.matches, snapshot.videos);
     if (modelRef.current !== null) announceTransitions(modelRef.current, next);
     modelRef.current = next;
+    snapshotRef.current = snapshot;
     setModel(next);
     setStreams(snapshot.streams);
     setLoadError(snapshot.failure === null ? null : { offline: isDemoServiceUnavailable(snapshot.failure) });
-    publishShellJobs(collectShellJobs(snapshot), Date.now());
+    // A partial poll carries stale sources; the shell monitor fetches for itself instead.
+    if (snapshot.failure === null) publishShellJobs(collectShellJobs(snapshot), Date.now());
     return next;
   }, []);
 
@@ -106,7 +105,7 @@ function ClipsHub(): ReactNode {
     if (inFlight.current) return null;
     inFlight.current = true;
     try {
-      return accept(await fetchSnapshot());
+      return accept(await fetchSnapshot(snapshotRef.current));
     } catch (err) {
       setLoadError({ offline: isDemoServiceUnavailable(err) });
       return null;
@@ -195,16 +194,34 @@ function ClipsHub(): ReactNode {
           }}
         />
       ) : (
-        <div className="flex flex-col gap-3" aria-busy={loadError !== null || undefined}>
-          {model.rows.map((row) => (
-            <MatchRow
-              key={row.match.id}
-              row={row}
-              open={open === row.match.id}
-              onToggle={() => navigate(open === row.match.id ? {} : { open: row.match.id })}
-              onChange={onChange}
-            />
-          ))}
+        <div className="flex flex-col gap-5" aria-busy={loadError !== null || undefined}>
+          <div className="flex flex-col gap-3">
+            {model.rows.map((row) => (
+              <MatchRow
+                key={row.match.id}
+                row={row}
+                open={open === row.match.id}
+                onToggle={() => navigate(open === row.match.id ? {} : { open: row.match.id })}
+                onChange={onChange}
+              />
+            ))}
+          </div>
+          {/* No row and a source down: "no partida" may only mean the jobs index never listed. */}
+          {model.orphans.length > 0 && (model.rows.length > 0 || loadError === null) ? (
+            <section aria-label={HUB_ORPHANS_TITLE} className="flex flex-col gap-2">
+              <header className="flex flex-col gap-0.5">
+                <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">
+                  {HUB_ORPHANS_TITLE} · {model.orphans.length}
+                </h2>
+                <p className="text-meta text-fg-4">{HUB_ORPHANS_HINT}</p>
+              </header>
+              <div className="flex flex-col gap-2">
+                {model.orphans.map((output) => (
+                  <OutputItem key={output.id} output={output} matchId={ORPHAN_MATCH_SEGMENT} onChange={onChange} />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       )}
     </div>

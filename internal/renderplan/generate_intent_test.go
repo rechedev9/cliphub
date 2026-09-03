@@ -1,6 +1,7 @@
 package renderplan
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestGenerateIntentNormalizeDefaultsEdit(t *testing.T) {
 			CoverStrategy: CoverStrategyGenerated,
 		},
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("intent = %#v, want %#v", got, want)
 	}
 }

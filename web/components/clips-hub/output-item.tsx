@@ -102,7 +102,7 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
   );
 }
 
-/** Ready: MP4 + Publicar. Failed: Reintentar (when it can help) + delete. Working: nothing. */
+/** Ready: MP4 + Publicar. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
 export function OutputActions({ output, matchId, onChange, className }: OutputItemProps & { className?: string }): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
@@ -163,5 +163,10 @@ export function OutputActions({ output, matchId, onChange, className }: OutputIt
     );
   }
 
-  return null;
+  // Queue/REC/render: still no result, but the intent must stay removable.
+  return (
+    <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+      <DeleteVideoButton video={video} onDeleted={onChange} />
+    </span>
+  );
 }

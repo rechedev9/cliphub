@@ -38,9 +38,23 @@ export type MatchOutput = {
   video: Video;
 };
 
+/** Row stage: still being parsed, `scanned` with no POV picked, or plan-ready. */
+export const HUB_ROW_STAGE = { parsing: 'parsing', unpicked: 'unpicked', ready: 'ready' } as const;
+export type HubRowStage = (typeof HUB_ROW_STAGE)[keyof typeof HUB_ROW_STAGE];
+
+/** Roster scanned, no POV picked: settled, never advances on its own. */
+export const MATCH_STATUS_SCANNED = 'scanned';
+
+/** Unknown statuses stay `parsing`, matching the produce page's plan gate. */
+export function matchRowStage(status: string | undefined): HubRowStage {
+  if (matchPlanReady(status)) return HUB_ROW_STAGE.ready;
+  if (status === MATCH_STATUS_SCANNED) return HUB_ROW_STAGE.unpicked;
+  return HUB_ROW_STAGE.parsing;
+}
+
 export type HubMatch = {
   match: Match;
-  parsing: boolean;
+  stage: HubRowStage;
   shorts: MatchOutput[];
   fulls: MatchOutput[];
 };
@@ -52,6 +66,30 @@ export type HubModel = {
   /** Every output, for the Clips lens. */
   clips: Array<MatchOutput & { match: Match | null }>;
 };
+
+/** One poll of the three hub sources; `failure` is the first rejection, if any. */
+export type HubSnapshot = { matches: Match[]; videos: Video[]; streams: StreamJob[]; failure: unknown };
+
+type SettledSources = [
+  PromiseSettledResult<Match[]>,
+  PromiseSettledResult<Video[]>,
+  PromiseSettledResult<StreamJob[]>,
+];
+
+/** A rejected source keeps `prev`'s value so a blip never empties the list; both demo sources failing throws. */
+export function settleHubSnapshot([matches, videos, streams]: SettledSources, prev: HubSnapshot | null): HubSnapshot {
+  if (matches.status === 'rejected' && videos.status === 'rejected') throw matches.reason;
+  let failure: unknown = null;
+  if (matches.status === 'rejected') failure = matches.reason;
+  else if (videos.status === 'rejected') failure = videos.reason;
+  else if (streams.status === 'rejected') failure = streams.reason;
+  return {
+    matches: matches.status === 'fulfilled' ? matches.value : (prev?.matches ?? []),
+    videos: videos.status === 'fulfilled' ? videos.value : (prev?.videos ?? []),
+    streams: streams.status === 'fulfilled' ? streams.value : (prev?.streams ?? []),
+    failure,
+  };
+}
 
 export function outputType(video: Video): OutputType {
   return video.editConfig !== undefined && isLandscapeRecap(video.editConfig)
@@ -118,7 +156,7 @@ export function buildHubModel(matches: readonly Match[], videos: readonly Video[
     const outputs = (byJob.get(match.id) ?? []).sort(byNewest);
     return {
       match,
-      parsing: !matchPlanReady(match.status),
+      stage: matchRowStage(match.status),
       shorts: outputs.filter((output) => output.type === OUTPUT_TYPE.short),
       fulls: outputs.filter((output) => output.type === OUTPUT_TYPE.full),
     };
@@ -159,7 +197,7 @@ export function matchesClipFilter(output: MatchOutput, filter: ClipFilter): bool
     case CLIP_FILTER.ready:
       return output.state === OUTPUT_STATE.ready;
     case CLIP_FILTER.working:
-      return output.state !== OUTPUT_STATE.ready;
+      return isWorking(output.state);
   }
 }
 
@@ -183,13 +221,15 @@ export function recBusy(model: Pick<HubModel, 'rows' | 'orphans'>): boolean {
   return all.some((output) => output.state === OUTPUT_STATE.rec);
 }
 
-/** Active work count for the hub summary line: parsing partidas plus non-terminal outputs. */
+/** Hub summary count: partidas being parsed plus outputs and streams on REC/render. Queued is backlog, not work. */
 export function activeJobCount(model: HubModel, streams: readonly StreamJob[] = []): number {
   const outputs = [...model.rows.flatMap((row) => [...row.shorts, ...row.fulls]), ...model.orphans];
-  const parsing = model.rows.filter((row) => row.parsing).length;
-  const working = outputs.filter((output) => isWorking(output.state)).length;
+  const parsing = model.rows.filter((row) => row.stage === HUB_ROW_STAGE.parsing).length;
+  const running = outputs.filter(
+    (output) => output.state === OUTPUT_STATE.rec || output.state === OUTPUT_STATE.render,
+  ).length;
   const streaming = streams.filter((job) => job.status === 'acquiring' || job.status === 'rendering').length;
-  return parsing + working + streaming;
+  return parsing + running + streaming;
 }
 
 /** Full POV chip label for a collapsed row. */
@@ -210,8 +250,9 @@ export function fullChipLabel(fulls: readonly MatchOutput[]): string {
   }
 }
 
-export function pluralClips(count: number): string {
-  return `${count} ${count === 1 ? 'clip' : 'clips'}`;
+/** Shorts-column count, worded as "shorts" so it never reads as the Clips lens total. */
+export function pluralShorts(count: number): string {
+  return `${count} ${count === 1 ? 'short' : 'shorts'}`;
 }
 
 /** Tone vocabulary for an output's tag; mirrors `StatusTagTone` by name. */
@@ -268,10 +309,12 @@ export type HubTransitions = {
 
 /** What changed between two polls; the page turns these into toasts. */
 export function hubTransitions(prev: HubModel, next: HubModel): HubTransitions {
-  const wasParsing = new Set(prev.rows.filter((row) => row.parsing).map((row) => row.match.id));
+  const wasParsing = new Set(
+    prev.rows.filter((row) => row.stage === HUB_ROW_STAGE.parsing).map((row) => row.match.id),
+  );
   const prevState = new Map(prev.clips.map((clip) => [clip.id, clip.state]));
   return {
-    parsed: next.rows.filter((row) => !row.parsing && wasParsing.has(row.match.id)),
+    parsed: next.rows.filter((row) => row.stage === HUB_ROW_STAGE.ready && wasParsing.has(row.match.id)),
     ready: next.clips.filter((clip) => {
       const before = prevState.get(clip.id);
       return clip.state === OUTPUT_STATE.ready && before !== undefined && before !== OUTPUT_STATE.ready;

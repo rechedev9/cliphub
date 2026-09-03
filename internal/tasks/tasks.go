@@ -112,7 +112,9 @@ type ComposeFinalPayload struct {
 // orchestrator. MusicKey, when set, names a music track the render worker mixes
 // into the reel (resolved from its music directory). MusicVolume is the music
 // gain in (0,1]; 0 means the render default. GameVolume is the captured-game
-// gain in [0,1] when music is mixed; nil keeps the 0.70 mix.
+// gain in [0,1] when music is mixed; nil keeps the 0.70 mix. SegmentIDs, when
+// non-empty, narrows the render to exactly these recorded segments, compiled
+// in this order; empty renders every recorded segment.
 type RenderVariantPayload struct {
 	JobID       uuid.UUID              `json:"job_id"`
 	Variant     string                 `json:"variant"`
@@ -120,6 +122,7 @@ type RenderVariantPayload struct {
 	MusicVolume float64                `json:"music_volume,omitempty"`
 	GameVolume  *float64               `json:"game_volume,omitempty"`
 	Edit        renderplan.EditRequest `json:"edit,omitempty"`
+	SegmentIDs  []string               `json:"segment_ids,omitempty"`
 }
 
 type RenderStreamClipPayload struct {
@@ -276,8 +279,10 @@ func NewComposeFinalTask(id uuid.UUID) (*asynq.Task, error) {
 // variant for a job. musicKey is optional; when non-empty the render worker
 // mixes the named track into the reel. musicVolume is the music gain in (0,1];
 // 0 means the render default. gameVolume is the captured-game gain in [0,1]
-// when music is mixed; nil keeps the 0.70 mix.
-func NewRenderVariantTask(id uuid.UUID, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest) (*asynq.Task, error) {
+// when music is mixed; nil keeps the 0.70 mix. segmentIDs, when non-empty,
+// narrows the render to exactly those recorded segments, compiled in this
+// order; nil or empty renders every recorded segment.
+func NewRenderVariantTask(id uuid.UUID, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest, segmentIDs []string) (*asynq.Task, error) {
 	if !renderVariantPattern.MatchString(variant) {
 		return nil, fmt.Errorf("invalid render variant %q", variant)
 	}
@@ -294,7 +299,7 @@ func NewRenderVariantTask(id uuid.UUID, variant, musicKey string, musicVolume fl
 	if err := edit.Validate(); err != nil {
 		return nil, err
 	}
-	payload, err := json.Marshal(RenderVariantPayload{JobID: id, Variant: variant, MusicKey: musicKey, MusicVolume: musicVolume, GameVolume: gameVolume, Edit: edit})
+	payload, err := json.Marshal(RenderVariantPayload{JobID: id, Variant: variant, MusicKey: musicKey, MusicVolume: musicVolume, GameVolume: gameVolume, Edit: edit, SegmentIDs: segmentIDs})
 	if err != nil {
 		return nil, err
 	}

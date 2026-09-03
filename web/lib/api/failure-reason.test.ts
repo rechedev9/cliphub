@@ -5,10 +5,37 @@ import assert from 'node:assert/strict';
 import {
   DEMO_INCOMPATIBLE_PREFIX,
   FAILED_STRIP_LABEL,
+  MISMATCH_REDRIVE_FAILURE_REASON,
   UNPLAYABLE_START_PREFIX,
   failedStripLabel,
   parseFailureReason,
 } from './failure-reason.ts';
+
+test('parseFailureReason classifies each reason into its kind and retry hint', () => {
+  const cases: Array<{ name: string; reason: string; kind: string; retryCanHelp: boolean; message: RegExp }> = [
+    {
+      name: 'render mismatch latched by the reconcile loop breaker keeps its own message',
+      reason: MISMATCH_REDRIVE_FAILURE_REASON,
+      kind: 'render-mismatch',
+      retryCanHelp: true,
+      message: /no coincide con las jugadas/,
+    },
+    {
+      name: 'a mismatch-looking raw string that is not the latched reason stays generic',
+      reason: 'render does not match the intent',
+      kind: 'generic',
+      retryCanHelp: true,
+      message: /No se pudo completar el vídeo/,
+    },
+  ];
+  for (const { name, reason, kind, retryCanHelp, message } of cases) {
+    const result = parseFailureReason(reason);
+    assert.equal(result.kind, kind, name);
+    assert.equal(result.retryCanHelp, retryCanHelp, name);
+    assert.match(result.message, message, name);
+    assert.equal(failedStripLabel(reason), FAILED_STRIP_LABEL.pipeline, name);
+  }
+});
 
 test('demo-incompatible reason with a captured clause yields counts and no retry', () => {
   const reason =

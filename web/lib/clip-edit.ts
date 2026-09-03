@@ -1,4 +1,4 @@
-import type { StreamClipRange } from './api/streams';
+import type { StreamClipRange, StreamTextOverlay } from './api/streams';
 
 /**
  * Client-side mirror of the clip-edit limits in internal/streamclips/types.go
@@ -29,13 +29,55 @@ export function streamRangeIssue(clip: StreamClipRange, durationSeconds: number,
   return null;
 }
 
+/** Index pair of the first two cuts that overlap on the source timeline, or null. */
+function findOverlap(clips: readonly StreamClipRange[]): [number, number] | null {
+  for (let i = 0; i < clips.length; i += 1) {
+    for (let j = i + 1; j < clips.length; j += 1) {
+      if (clips[i].start_seconds < clips[j].end_seconds && clips[j].start_seconds < clips[i].end_seconds) {
+        return [i, j];
+      }
+    }
+  }
+  return null;
+}
+
 export function streamRangesIssue(clips: StreamClipRange[], durationSeconds: number): string | null {
   if (clips.length === 0) return 'Añade al menos un rango de clip.';
   for (const [index, clip] of clips.entries()) {
     const issue = streamRangeIssue(clip, durationSeconds, index);
     if (issue !== null) return issue;
   }
+  const overlap = findOverlap(clips);
+  if (overlap !== null) {
+    const [i, j] = overlap;
+    const labelA = clips[i].title?.trim() || `Clip ${i + 1}`;
+    const labelB = clips[j].title?.trim() || `Clip ${j + 1}`;
+    return `${labelA} y ${labelB} se solapan en la fuente.`;
+  }
   return null;
+}
+
+/** Per-card overlap warning for the cut at `index`, or null when it does not overlap another. */
+export function streamRangeOverlapIssue(clips: readonly StreamClipRange[], index: number): string | null {
+  const clip = clips[index];
+  if (!clip) return null;
+  for (const [otherIndex, other] of clips.entries()) {
+    if (otherIndex === index) continue;
+    if (clip.start_seconds < other.end_seconds && other.start_seconds < clip.end_seconds) {
+      const label = other.title?.trim() || `Clip ${otherIndex + 1}`;
+      return `Se solapa con ${label} en la fuente.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Overlays with blank text are rejected server-side ("text overlay text is
+ * required"); drop them before a text-overlay list is written into the plan
+ * so a still-empty draft never reaches autosave.
+ */
+export function withoutEmptyTextOverlays(overlays: readonly StreamTextOverlay[]): StreamTextOverlay[] {
+  return overlays.filter((overlay) => overlay.text.trim() !== '');
 }
 
 /**

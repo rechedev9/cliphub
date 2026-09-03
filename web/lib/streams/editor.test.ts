@@ -6,8 +6,10 @@ import {
   STREAM_STEP,
   streamBriefCanBeApproved,
   streamCtaLabel,
+  streamCtaTarget,
   streamEditorSteps,
   streamOutputSummary,
+  type StreamStep,
 } from './editor.ts';
 
 function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
@@ -59,7 +61,7 @@ test('facecam layouts stay pending until the crop is confirmed', () => {
     renderState: null,
     stale: false,
   });
-  assert.equal(pending[0].detail, 'Facecam 40 · recorte pendiente');
+  assert.equal(pending[0].detail, 'Facecam 40 · sin confirmar');
   assert.equal(pending[0].done, false);
   const noCam = streamEditorSteps({
     plan: plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false }),
@@ -86,6 +88,16 @@ test('the CTA names the first blocker, then the action', () => {
   for (const [state, expected] of cases) assert.equal(streamCtaLabel(state), expected);
 });
 
+test('the CTA target jumps to the layout step only while a facecam crop is unconfirmed', () => {
+  const cases: [Parameters<typeof streamCtaTarget>[0], StreamStep | null][] = [
+    [plan(), null],
+    [plan({ face_crop_reviewed: false }), STREAM_STEP.layout],
+    [plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false }), null],
+    [plan({ clips: [] }), null],
+  ];
+  for (const [state, expected] of cases) assert.equal(streamCtaTarget(state), expected);
+});
+
 test('the brief is approvable only with cuts and a confirmed facecam', () => {
   assert.equal(streamBriefCanBeApproved(plan()), true);
   assert.equal(streamBriefCanBeApproved(plan({ clips: [] })), false);
@@ -97,10 +109,10 @@ test('the brief is approvable only with cuts and a confirmed facecam', () => {
 });
 
 test('the output summary lists one Short per cut and flags a stale render', () => {
-  assert.equal(streamOutputSummary(plan(), false), '01 · 0:17  ·  02 · 0:19');
+  assert.equal(streamOutputSummary(plan(), false), '01 · 0:17 — 02 · 0:19');
   assert.equal(
     streamOutputSummary(plan(), true),
-    '01 · 0:17  ·  02 · 0:19  ·  plan cambiado desde el último render',
+    '01 · 0:17 — 02 · 0:19 — plan cambiado desde el último render',
   );
   assert.match(streamOutputSummary(plan({ clips: [] }), false), /Añade un corte/);
 });

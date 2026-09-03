@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { StreamStep, StreamStepEntry } from '@/lib/streams/editor';
 import { cn } from '@/lib/utils';
 
-export type StreamAutosaveState = 'saving' | 'saved';
+export type StreamAutosaveState = 'saving' | 'saved' | 'failed';
 
 type StepTone = 'active' | 'done' | 'idle';
 
@@ -25,6 +25,18 @@ const LABEL_CLASS = {
   done: 'text-fg-2',
   idle: 'text-fg-3',
 } as const satisfies Record<StepTone, string>;
+
+const AUTOSAVE_LABEL = {
+  saving: 'Guardando borrador…',
+  saved: '✓ Guardado · local + servidor',
+  failed: 'Sin guardar en el servidor',
+} as const satisfies Record<StreamAutosaveState, string>;
+
+const AUTOSAVE_TONE = {
+  saving: 'text-stream-text',
+  saved: 'text-fg-3',
+  failed: 'text-destructive',
+} as const satisfies Record<StreamAutosaveState, string>;
 
 /** Left rail: numbered steps (magenta = active, green = done) plus the source and autosave readout. */
 export function StreamStepsRail({
@@ -81,7 +93,12 @@ export function StreamStepsRail({
               >
                 {step.label}
               </span>
-              <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">{step.detail}</span>
+              <span
+                className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3"
+                title={step.detail}
+              >
+                {step.detail}
+              </span>
             </span>
           </button>
         );
@@ -92,16 +109,18 @@ export function StreamStepsRail({
         <h1 className="truncate font-display text-label font-semibold uppercase text-fg-1" title={sourceTitle}>
           {sourceTitle}
         </h1>
-        <p className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">{sourceMeta}</p>
+        <p className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3" title={sourceMeta}>
+          {sourceMeta}
+        </p>
         <p
           role="status"
           aria-live="polite"
           className={cn(
             'font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-base) ease-standard',
-            autosave === 'saving' ? 'text-stream-text' : 'text-fg-3',
+            AUTOSAVE_TONE[autosave],
           )}
         >
-          {autosave === 'saving' ? 'Guardando borrador…' : '✓ Guardado · local + servidor'}
+          {AUTOSAVE_LABEL[autosave]}
         </p>
       </div>
     </nav>

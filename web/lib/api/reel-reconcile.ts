@@ -1,5 +1,5 @@
 import { GENERATE_WORK_ACTIVE_CODE, SERVICE_UNAVAILABLE_CODE, type EditConfig, type VideoStatus, type CaptureProgress } from './types.ts';
-import { requiresRecapture } from './failure-reason.ts';
+import { MISMATCH_REDRIVE_FAILURE_REASON, requiresRecapture } from './failure-reason.ts';
 import { editConfigsEqual } from './edit-request.ts';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
 
@@ -85,19 +85,35 @@ function failed(reason?: string): ReelView {
 
 const IN_FLIGHT_RECORD_CONFLICT = /^job is not ready to record \(status=recording\)$/;
 
-/** HTTP POST /record result → reel view. Null keeps the current poll (202/503). */
-export function viewForRecordAdmission(
-  httpStatus: number,
-  body: { error?: string; code?: string } = {},
-): ReelView | null {
+type AdmissionBody = { error?: string; code?: string };
+
+/** Shared POST admission mapping. Null keeps the current poll (202/503/work active). */
+function viewForAdmission(httpStatus: number, body: AdmissionBody, fallbackReason: string): ReelView | null {
   if (httpStatus === 202 || httpStatus === 200) return null;
   if (httpStatus === 503 || body.code === SERVICE_UNAVAILABLE_CODE) return null;
   if (httpStatus === 409 && body.code === GENERATE_WORK_ACTIVE_CODE) return null;
   if (httpStatus === 404) return unrecoverableJobGoneView();
+  return failed(body.error || fallbackReason);
+}
+
+/** HTTP POST /record (generate) result → reel view. */
+export function viewForRecordAdmission(httpStatus: number, body: AdmissionBody = {}): ReelView | null {
   if (httpStatus === 409 && IN_FLIGHT_RECORD_CONFLICT.test(body.error ?? '')) {
     return { status: 'recording', action: 'none' };
   }
-  return failed(body.error || 'failed to start recording');
+  return viewForAdmission(httpStatus, body, 'failed to start recording');
+}
+
+/** HTTP POST /renders/{variant} result → reel view. */
+export function viewForRenderAdmission(httpStatus: number, body: AdmissionBody = {}): ReelView | null {
+  return viewForAdmission(httpStatus, body, 'failed to start rendering');
+}
+
+/** A durable, retryable rejection (e.g. capture unconfigured): neither transient nor job-gone. */
+export function isDurableAdmissionFailure(
+  view: ReelView | null,
+): view is ReelView & { status: 'failed'; failureReason: string } {
+  return view !== null && view.status === 'failed' && view.unrecoverable !== true && view.failureReason !== undefined;
 }
 
 /** Retry drive: never re-POST record while capture is already running. */
@@ -143,9 +159,21 @@ function renderDeliveryMatches(
   return musicChoicesEqual(intentMusic, renderMusic);
 }
 
+/** The mismatching revision a reel already re-drove `record` from. */
+export type RedrivenRevision = { artifactPrefix?: string };
+
+/**
+ * Next step for a ready/review render that disagrees with the intent: re-drive
+ * once per explicit user action, wait while that revision is still current, and
+ * fail once a different revision still mismatches (the backend ignored the intent).
+ */
+export type MismatchRedrive = 'drive' | 'wait' | 'fail';
+
 export type ReelReconcileDecision = {
   view: ReelView;
   adoptEffective: boolean;
+  /** Present only when the ready/review render mismatched the intent. */
+  mismatchRedrive?: MismatchRedrive;
 };
 
 export type DecideReelReconcileInput = ReconcileInput & {
@@ -155,7 +183,20 @@ export type DecideReelReconcileInput = ReconcileInput & {
   renderSegmentIds?: readonly string[];
   intentMusic?: MusicChoice;
   renderMusic?: MusicChoice;
+  /** Revision this reel already re-drove from since the last explicit user action. */
+  redrivenRevision?: RedrivenRevision;
 };
+
+function mismatchDecision(input: DecideReelReconcileInput): ReelReconcileDecision {
+  const previous = input.redrivenRevision;
+  if (previous === undefined) {
+    return { view: { status: 'queued', action: 'record' }, adoptEffective: false, mismatchRedrive: 'drive' };
+  }
+  if (previous.artifactPrefix === input.renderArtifactPrefix) {
+    return { view: { status: 'queued', action: 'none' }, adoptEffective: false, mismatchRedrive: 'wait' };
+  }
+  return { view: failed(MISMATCH_REDRIVE_FAILURE_REASON), adoptEffective: false, mismatchRedrive: 'fail' };
+}
 
 /** Reconcile a local reel intent with the durable variant and capture facts. */
 export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconcileDecision {
@@ -167,7 +208,7 @@ export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconc
     if (input.jobStatus === 'recording' || input.jobStatus === 'failed') {
       return { view: deriveReelView({ ...input, renderStatus: 'none' }), adoptEffective: false };
     }
-    return { view: { status: 'queued', action: 'record' }, adoptEffective: false };
+    return mismatchDecision(input);
   }
   const delivery = renderDeliveryMatches(
     input.intentEdit,
@@ -181,7 +222,7 @@ export function decideReelReconcile(input: DecideReelReconcileInput): ReelReconc
     }
     // The single current recording may belong to another variant. Generate
     // validates it server-side and either reuses it or recaptures from the DEM.
-    return { view: { status: 'queued', action: 'record' }, adoptEffective: false };
+    return mismatchDecision(input);
   }
   return {
     view: deriveReelView(input),

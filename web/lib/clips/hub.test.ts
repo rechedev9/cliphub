@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { StreamJob } from '../api/streams.ts';
 import type { Match, Video } from '../api/types.ts';
 import { FULL_DEMO_EDIT } from '../full-demo.ts';
 import {
@@ -7,15 +8,19 @@ import {
   buildHubModel,
   clipFilterCounts,
   fullChipLabel,
+  HUB_ROW_STAGE,
   hubTransitions,
   matchesClipFilter,
+  matchRowStage,
   outputState,
   outputTagLabel,
   outputType,
   recBusy,
   roundsFromScore,
+  settleHubSnapshot,
   shortsChipTone,
   toOutput,
+  type HubSnapshot,
 } from './hub.ts';
 
 function match(id: string, status?: string): Match {
@@ -64,6 +69,96 @@ test('outputState maps the video pipeline onto the handoff vocabulary', () => {
   }
 });
 
+test('matchRowStage: plan-ready is ready, scanned is unpicked, anything earlier or unknown is parsing', () => {
+  const cases: Array<[string | undefined, string]> = [
+    [undefined, HUB_ROW_STAGE.ready],
+    ['queued', HUB_ROW_STAGE.parsing],
+    ['scanning', HUB_ROW_STAGE.parsing],
+    ['parsing', HUB_ROW_STAGE.parsing],
+    ['scanned', HUB_ROW_STAGE.unpicked],
+    ['parsed', HUB_ROW_STAGE.ready],
+    ['recording', HUB_ROW_STAGE.ready],
+    ['recorded', HUB_ROW_STAGE.ready],
+    ['composing', HUB_ROW_STAGE.ready],
+    ['composed', HUB_ROW_STAGE.ready],
+    ['done', HUB_ROW_STAGE.ready],
+    // Same gate as the produce page: an unknown status is not a plan.
+    ['validating', HUB_ROW_STAGE.parsing],
+  ];
+  for (const [status, want] of cases) assert.equal(matchRowStage(status), want, status);
+});
+
+test('hubTransitions announces a parse only when a parsing row becomes ready, not unpicked', () => {
+  const before = buildHubModel([match('m1', 'parsing'), match('m2', 'parsing'), match('m3', 'scanned')], []);
+  const after = buildHubModel([match('m1', 'parsed'), match('m2', 'scanned'), match('m3', 'parsed')], []);
+  assert.deepEqual(
+    hubTransitions(before, after).parsed.map((row) => row.match.id),
+    ['m1'],
+  );
+});
+
+function fulfilled<T>(value: T): PromiseSettledResult<T> {
+  return { status: 'fulfilled', value };
+}
+
+function rejected<T>(reason: string): PromiseSettledResult<T> {
+  return { status: 'rejected', reason };
+}
+
+type Sources = Parameters<typeof settleHubSnapshot>[0];
+
+test('settleHubSnapshot keeps the previous value of every rejected source', () => {
+  const prev: HubSnapshot = {
+    matches: [match('m1')],
+    videos: [reel({ id: 'v1', status: 'ready', jobId: 'm1' })],
+    streams: [{ id: 's1', status: 'rendering', created_at: '' }],
+    failure: null,
+  };
+  const fresh = {
+    matches: [match('m2')],
+    videos: [reel({ id: 'v2', status: 'queued', jobId: 'm2' })],
+    streams: [] as StreamJob[],
+  };
+  const cases: Array<{ name: string; results: Sources; want: HubSnapshot }> = [
+    {
+      name: 'all fulfilled',
+      results: [fulfilled(fresh.matches), fulfilled(fresh.videos), fulfilled(fresh.streams)],
+      want: { ...fresh, failure: null },
+    },
+    {
+      name: 'matches rejected',
+      results: [rejected('m'), fulfilled(fresh.videos), fulfilled(fresh.streams)],
+      want: { matches: prev.matches, videos: fresh.videos, streams: fresh.streams, failure: 'm' },
+    },
+    {
+      name: 'videos rejected',
+      results: [fulfilled(fresh.matches), rejected('v'), fulfilled(fresh.streams)],
+      want: { matches: fresh.matches, videos: prev.videos, streams: fresh.streams, failure: 'v' },
+    },
+    {
+      name: 'streams rejected',
+      results: [fulfilled(fresh.matches), fulfilled(fresh.videos), rejected('s')],
+      want: { matches: fresh.matches, videos: fresh.videos, streams: prev.streams, failure: 's' },
+    },
+  ];
+  for (const { name, results, want } of cases) {
+    assert.deepEqual(settleHubSnapshot(results, prev), want, name);
+  }
+});
+
+test('settleHubSnapshot throws only when both demo sources fail; a first load starts from empty', () => {
+  const videos = [reel({ id: 'v1', status: 'ready', jobId: 'm1' })];
+  const prev: HubSnapshot = { matches: [match('m1')], videos, streams: [], failure: null };
+  for (const previous of [prev, null]) {
+    assert.throws(() => settleHubSnapshot([rejected('m'), rejected('v'), fulfilled([])], previous), /^m$/);
+  }
+  // Local reels still list when the jobs index is down: the Clips lens works offline.
+  const reelsOnly = settleHubSnapshot([rejected('m'), fulfilled(videos), fulfilled([])], null);
+  assert.deepEqual(reelsOnly, { matches: [], videos, streams: [], failure: 'm' });
+  const matchesOnly = settleHubSnapshot([fulfilled([match('m1')]), rejected('v'), rejected('s')], null);
+  assert.deepEqual(matchesOnly, { matches: [match('m1')], videos: [], streams: [], failure: 'v' });
+});
+
 test('toOutput carries progress only while REC or render report one', () => {
   const rec = toOutput(reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 10 } }));
   assert.equal(rec.percent, 30);
@@ -80,7 +175,7 @@ test('toOutput carries progress only while REC or render report one', () => {
 
 test('buildHubModel groups reels under their partida and keeps orphans apart', () => {
   const model = buildHubModel(
-    [match('m1', 'parsed'), match('m2', 'parsing')],
+    [match('m1', 'parsed'), match('m2', 'parsing'), match('m3', 'scanned')],
     [
       reel({ id: 'v1', status: 'ready', jobId: 'm1', createdAt: 1 }),
       reel({ id: 'v2', status: 'recording', jobId: 'm1', editConfig: FULL_DEMO_EDIT, createdAt: 2 }),
@@ -88,11 +183,14 @@ test('buildHubModel groups reels under their partida and keeps orphans apart', (
       reel({ id: 'v4', status: 'ready', createdAt: 4 }),
     ],
   );
-  assert.equal(model.rows.length, 2);
+  assert.equal(model.rows.length, 3);
   assert.equal(model.rows[0].shorts.map((o) => o.id).join(','), 'v1');
   assert.equal(model.rows[0].fulls.map((o) => o.id).join(','), 'v2');
-  assert.equal(model.rows[0].parsing, false);
-  assert.equal(model.rows[1].parsing, true);
+  assert.equal(model.rows[0].stage, HUB_ROW_STAGE.ready);
+  assert.equal(model.rows[1].stage, HUB_ROW_STAGE.parsing);
+  // scanned: roster returned, nobody picked a POV yet — not "still parsing".
+  assert.equal(model.rows[2].stage, HUB_ROW_STAGE.unpicked);
+  // Orphans (jobId matches no listed partida) stay out of every row.
   assert.deepEqual(model.orphans.map((o) => o.id), ['v4', 'v3']);
   assert.deepEqual(model.clips.map((o) => o.id), ['v4', 'v3', 'v2', 'v1']);
   assert.equal(model.clips[3].match?.id, 'm1');
@@ -117,29 +215,31 @@ test('clip filters and counts agree with each other', () => {
     toOutput(reel({ id: 'c', status: 'ready', editConfig: FULL_DEMO_EDIT })),
     toOutput(reel({ id: 'd', status: 'failed' })),
   ];
-  assert.deepEqual(clipFilterCounts(outputs), { all: 4, short: 3, full: 1, ready: 2, working: 2 });
+  // A failed output is done, not "en marcha": it must not count as working.
+  assert.deepEqual(clipFilterCounts(outputs), { all: 4, short: 3, full: 1, ready: 2, working: 1 });
   assert.equal(matchesClipFilter(outputs[1], 'working'), true);
-  assert.equal(matchesClipFilter(outputs[3], 'working'), true);
+  assert.equal(matchesClipFilter(outputs[3], 'working'), false);
   assert.equal(matchesClipFilter(outputs[2], 'short'), false);
 });
 
 test('recBusy and activeJobCount count what is actually moving', () => {
   const model = buildHubModel(
-    [match('m1', 'parsing'), match('m2')],
+    [match('m1', 'parsing'), match('m2', 'scanned'), match('m3')],
     [
-      reel({ id: 'a', status: 'recording', jobId: 'm2' }),
-      reel({ id: 'b', status: 'queued', jobId: 'm2' }),
-      reel({ id: 'c', status: 'ready', jobId: 'm2' }),
+      reel({ id: 'a', status: 'recording', jobId: 'm3' }),
+      reel({ id: 'b', status: 'queued', jobId: 'm3' }),
+      reel({ id: 'c', status: 'ready', jobId: 'm3' }),
     ],
   );
   assert.equal(recBusy(model), true);
-  assert.equal(activeJobCount(model), 3);
+  // m1 parsing + 'a' on REC; the queued 'b' and unpicked m2 are backlog.
+  assert.equal(activeJobCount(model), 2);
   assert.equal(
     activeJobCount(model, [
       { id: 's1', status: 'rendering', created_at: '' },
       { id: 's2', status: 'ready', created_at: '' },
     ]),
-    4,
+    3,
   );
 });
 

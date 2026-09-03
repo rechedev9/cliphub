@@ -67,7 +67,7 @@ export function streamEditorSteps({
       number: '01',
       label: 'Layout',
       detail: needsFace
-        ? `${streamVariantLabel(plan)} · ${faceReviewed ? 'recorte ✓' : 'recorte pendiente'}`
+        ? `${streamVariantLabel(plan)} · ${faceReviewed ? 'recorte ✓' : 'sin confirmar'}`
         : streamVariantLabel(plan),
       done: !needsFace || faceReviewed,
     },
@@ -107,14 +107,16 @@ export function streamEditorSteps({
   return steps;
 }
 
-/** `01 · 0:17  ·  02 · 0:19`, or the nudge to add a first cut. */
+/** `01 · 0:17 — 02 · 0:19`, or the nudge to add a first cut. */
 export function streamOutputSummary(plan: StreamEditPlan, stale: boolean): string {
   if (plan.clips.length === 0) return 'Añade un corte en la timeline · cada corte es un Short';
   const parts = plan.clips.map(
     (clip, index) => `${String(index + 1).padStart(2, '0')} · ${formatStreamClock(clipOutputDuration(clip))}`,
   );
   if (stale) parts.push('plan cambiado desde el último render');
-  return parts.join('  ·  ');
+  // A double-space separator collapses under HTML whitespace rules, so each
+  // clip's group reads as one run with no visible boundary; use a real glyph.
+  return parts.join(' — ');
 }
 
 export type StreamCtaState = {
@@ -135,4 +137,14 @@ export function streamCtaLabel({ plan, briefApproved, rendering, hasRender }: St
 /** The brief can only be approved once the plan is renderable in principle. */
 export function streamBriefCanBeApproved(plan: StreamEditPlan): boolean {
   return plan.clips.length > 0 && (!streamVariantNeedsFaceCrop(plan) || plan.face_crop_reviewed === true);
+}
+
+/**
+ * Where the footer CTA should navigate when it names a blocker instead of
+ * acting, so "Confirma el recorte primero" is a real link to step 01 rather
+ * than a disabled dead end; null once nothing blocks the CTA's own action.
+ */
+export function streamCtaTarget(plan: StreamEditPlan): StreamStep | null {
+  if (streamVariantNeedsFaceCrop(plan) && plan.face_crop_reviewed !== true) return STREAM_STEP.layout;
+  return null;
 }

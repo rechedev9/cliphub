@@ -18,7 +18,7 @@ export function estimatedSelectionSeconds(plays: ReadonlyArray<Pick<Play, 'kills
   return plays.reduce((total, play) => total + estimatedPlaySeconds(play), 0);
 }
 
-/** `m:ss`, e.g. 47 → "0:47", 75 → "1:15". */
+/** `m:ss`, e.g. 47 → "0:47", 75 → "1:15". Clamped to zero first, so -0 or a tiny negative never prints "-0:00". */
 export function formatClock(totalSeconds: number): string {
   const whole = Math.max(0, Math.round(totalSeconds));
   const minutes = Math.floor(whole / 60);

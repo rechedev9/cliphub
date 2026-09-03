@@ -27,17 +27,24 @@ test('estimated duration grows with kills from a fixed base', () => {
   assert.equal(estimatedSelectionSeconds([{ kills: 1 }, { kills: 3 }]), 24);
 });
 
-test('formatClock renders m:ss', () => {
+test('formatClock renders m:ss and never emits a minus sign, even at zero', () => {
   const cases = [
     { seconds: 0, want: '0:00' },
     { seconds: 47, want: '0:47' },
     { seconds: 60, want: '1:00' },
     { seconds: 75.4, want: '1:15' },
     { seconds: -3, want: '0:00' },
+    { seconds: -0, want: '0:00' },
+    { seconds: -0.4, want: '0:00' },
   ];
   for (const { seconds, want } of cases) {
     assert.equal(formatClock(seconds), want, String(seconds));
   }
+});
+
+test('an empty selection estimates zero seconds, which formats as 0:00', () => {
+  assert.equal(estimatedSelectionSeconds([]), 0);
+  assert.equal(formatClock(estimatedSelectionSeconds([])), '0:00');
 });
 
 test('auto pick takes the biggest frags first and never exceeds the target', () => {

@@ -1,18 +1,19 @@
-import type { ApiClient, VideoReviewResolution } from './client';
+import type { ApiClient, VideoReviewResolution } from './client.ts';
 import {
   applyMusicChoice,
   musicChoicesEqual,
   titleWithMusicSuffix,
   type MusicChoice,
 } from './reel-music.ts';
-import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, SeriesDemo } from './types';
-import { SERVICE_UNAVAILABLE_CODE, PLAN_READY_STATUSES } from './types';
-import { MockApiClient } from './mock';
-import { planToMatch, planToPlays, type KillPlan } from './map';
-import { canHaveRenderState, decideReelReconcile, retryReelAction, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, viewForRecordAdmission, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile';
-import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store';
-import { buildEditRequest, editConfigsEqual } from './edit-request';
-import { reelIdentity, shouldReuseReelIntent } from './reel-identity';
+import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, CaptureProgress, ScannedDemo, SeriesDemo } from './types.ts';
+import { PLAN_READY_STATUSES } from './types.ts';
+import { MockApiClient } from './mock.ts';
+import { planToMatch, planToPlays, type KillPlan } from './map.ts';
+import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
+import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
+import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
+import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
+import { reelIdentity, shouldReuseReelIntent } from './reel-identity.ts';
 import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
@@ -20,9 +21,9 @@ import {
   parseEffectiveEditConfig,
   parseEffectiveRenderMusic,
   type EffectiveRenderMusic,
-} from './render-hydration';
-import { dataPlane, type DataPlane } from './dataplane';
-import { parsePublishAssistant, type PublishAssistant } from './publish-assistant';
+} from './render-hydration.ts';
+import { dataPlane, type DataPlane } from './dataplane.ts';
+import { parsePublishAssistant, type PublishAssistant } from './publish-assistant.ts';
 import {
   ROSTER_READY,
   listableJobs,
@@ -31,11 +32,11 @@ import {
   jobToMatch,
   type IndexedJob,
   type SeriesSummary,
-} from './jobs-index';
-import { reconcileReels } from './reconcile-batch';
-import { parseCaptureProgress } from '@/lib/capture-progress';
-import { playsSelectionLabel } from '@/lib/format';
-import { constrainEditConfig, isLandscapeRecap } from '@/lib/reel-brief';
+} from './jobs-index.ts';
+import { reconcileReels } from './reconcile-batch.ts';
+import { parseCaptureProgress } from '../capture-progress.ts';
+import { playsSelectionLabel } from '../format.ts';
+import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
 
 /** Server roster row as returned by /api/demos/{jobId}/roster (steamid64). */
 type RosterPlayer = {
@@ -131,6 +132,11 @@ function buildMusicRequest(
   };
 }
 
+/** Segment ids for a render POST; a recap's empty selection means "every round", not "no segments". */
+function renderSegmentIdsRequest(intent: ReelIntent): string[] | undefined {
+  return intent.editConfig.matchRecap && intent.segmentIds.length === 0 ? undefined : intent.segmentIds;
+}
+
 function musicChoiceFromEffective(music: EffectiveRenderMusic | undefined): MusicChoice | undefined {
   if (!music) return undefined;
   if (music.mode === 'clean') return {};
@@ -178,6 +184,10 @@ export class RealApiClient implements ApiClient {
   private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[] }>();
   /** Cached per-job series match (map/score); immutable once a job has one. */
   private readonly seriesMatches = new Map<string, RosterMatch>();
+  /** Mismatching revision each reel already re-drove from; bounds automatic /generate re-POSTs. */
+  private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
+  /** Why automatic driving stopped (durable POST rejection or repeated mismatch); explicit actions clear it. */
+  private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
 
   constructor() {
     // Rehydrate persisted intents so the Library survives a hard reload.
@@ -249,6 +259,16 @@ export class RealApiClient implements ApiClient {
         return demo;
       }),
     );
+  }
+
+  async getScan(jobId: string): Promise<ScannedDemo | null> {
+    if (!isJobId(jobId)) return this.fallback.getScan(jobId);
+    const status = await this.fetchStatus(jobId);
+    if (status === null) return null;
+    // Before the scan finishes the roster proxy answers 409; report the status alone.
+    if (!ROSTER_READY.has(status)) return { status, players: [] };
+    const roster = await this.fetchRoster(jobId);
+    return { status, players: roster.players.map(toDemoPlayer), match: toRosterMatch(roster.match) };
   }
 
   async parseDemo(input: { jobId: string; steamId: string }): Promise<Match> {
@@ -397,6 +417,7 @@ export class RealApiClient implements ApiClient {
       targetName: match?.player,
       createdAt: Date.now(),
     };
+    this.forgetDriveState(videoId);
     this.intents.set(videoId, intent);
     saveReelIntents(Array.from(this.intents.values()));
     this.reels.set(videoId, videoFromIntent(intent));
@@ -445,16 +466,22 @@ export class RealApiClient implements ApiClient {
     if (current?.unrecoverable) return { ...current };
 
     this.applyView(intent, { status: 'queued', action: 'none' });
+    const latched = this.driveLatch.get(id);
+    this.forgetDriveState(id);
     const [job, render] = await Promise.all([
       this.fetchStatusFull(intent.jobId),
       this.fetchRenderStatus(intent.jobId, variantOf(intent)),
     ]);
-    const retryAction = retryReelAction({
+    const derived = retryReelAction({
       jobStatus: job?.status ?? '',
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
     });
-    if (retryAction !== 'none') {
+    // A latched reel reads healthy server-side; re-issue the POST the latch stopped.
+    const retryAction = derived === 'none' && latched ? latched.retryAction : derived;
+    if (retryAction === 'record') {
+      await this.drive(intent, retryAction, { artifactPrefix: render.artifactPrefix });
+    } else if (retryAction === 'render') {
       await this.drive(intent, retryAction);
     }
     await this.reconcile();
@@ -487,6 +514,7 @@ export class RealApiClient implements ApiClient {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 music: buildMusicRequest(intent),
+                segment_ids: renderSegmentIdsRequest(intent),
                 edit: buildEditRequest(resolution.editConfig),
                 expected_artifact_prefix: resolution.expectedArtifactPrefix,
                 expected_warnings: resolution.expectedWarnings,
@@ -494,6 +522,7 @@ export class RealApiClient implements ApiClient {
             },
           })),
         );
+        this.forgetDriveState(intent.videoId);
         this.artifactNames.delete(intent.videoId);
         const previousRevision = this.reels.get(intent.videoId);
         if (previousRevision) {
@@ -569,6 +598,7 @@ export class RealApiClient implements ApiClient {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               music: buildMusicRequest(nextIntent),
+              segment_ids: renderSegmentIdsRequest(intent),
               edit: buildEditRequest(intent.editConfig),
             }),
           },
@@ -577,6 +607,7 @@ export class RealApiClient implements ApiClient {
       if (accepted.duplicate && accepted.accepted !== true) {
         throw new Error('No se pudo encolar un render nuevo. Espera o cambia pista o volumen.');
       }
+      this.forgetDriveState(intent.videoId);
       this.artifactNames.delete(intent.videoId);
       applyMusicChoice(intent, nextChoice);
       intent.title = nextIntent.title;
@@ -634,6 +665,7 @@ export class RealApiClient implements ApiClient {
     this.artifactNames.delete(id);
     this.intents.delete(id);
     this.reels.delete(id);
+    this.forgetDriveState(id);
     saveReelIntents(Array.from(this.intents.values()));
   }
 
@@ -661,9 +693,16 @@ export class RealApiClient implements ApiClient {
       this.reels.delete(videoId);
       this.artifactNames.delete(videoId);
       this.jobGoneTicks.delete(videoId);
+      this.forgetDriveState(videoId);
     }
     this.seriesMatches.delete(jobId);
     saveReelIntents(Array.from(this.intents.values()));
+  }
+
+  /** An explicit user action grants a fresh automatic re-drive and lifts any latch. */
+  private forgetDriveState(videoId: string): void {
+    this.redrivenRevisions.delete(videoId);
+    this.driveLatch.delete(videoId);
   }
 
   /** Reconcile non-terminal reels against the orchestrator and drive the next step. */
@@ -689,6 +728,12 @@ export class RealApiClient implements ApiClient {
       return;
     }
     this.jobGoneTicks.delete(intent.videoId);
+    // Job/render state would re-derive `record` every tick; the latch holds until an explicit action.
+    const latched = this.driveLatch.get(intent.videoId);
+    if (latched !== undefined) {
+      this.applyView(intent, { status: 'failed', action: 'none', failureReason: latched.failureReason });
+      return;
+    }
     // Skip render GET until recorded; earlier it is a guaranteed 404.
     const render: {
       status: RenderStatus;
@@ -739,7 +784,11 @@ export class RealApiClient implements ApiClient {
         gameVolume: intent.gameVolume,
       },
       renderMusic: musicChoiceFromEffective(render.effectiveMusic),
+      redrivenRevision: this.redrivenRevisions.get(intent.videoId),
     });
+    if (decision.mismatchRedrive === 'fail') {
+      this.driveLatch.set(intent.videoId, { failureReason: MISMATCH_REDRIVE_FAILURE_REASON, retryAction: 'record' });
+    }
     if (decision.adoptEffective && (render.status === 'ready' || render.status === 'review_required')) {
       let intentChanged = false;
       if (render.editConfig && !editConfigsEqual(intent.editConfig, render.editConfig)) {
@@ -752,7 +801,9 @@ export class RealApiClient implements ApiClient {
       if (intentChanged) saveReelIntents(Array.from(this.intents.values()));
     }
     this.applyView(intent, decision.view);
-    if (decision.view.action !== 'none') void this.drive(intent, decision.view.action);
+    if (decision.view.action === 'none') return;
+    const redriveFrom = decision.mismatchRedrive === 'drive' ? { artifactPrefix: render.artifactPrefix } : undefined;
+    void this.drive(intent, decision.view.action, redriveFrom);
   }
 
   /** Writes a reel's derived view onto its live Video, wiring URLs once ready. */
@@ -812,8 +863,11 @@ export class RealApiClient implements ApiClient {
     }
   }
 
-  /** Issues the single pipeline POST for `action`, guarded so it fires at most once. */
-  private async drive(intent: ReelIntent, action: ReelAction): Promise<void> {
+  /**
+   * Issues the single pipeline POST for `action`, guarded so it fires at most once.
+   * `redriveFrom` is the mismatching revision this POST replaces; it is recorded only once accepted.
+   */
+  private async drive(intent: ReelIntent, action: ReelAction, redriveFrom?: RedrivenRevision): Promise<void> {
     if (this.driving.has(intent.videoId)) return;
     this.driving.add(intent.videoId);
     const variant = variantOf(intent);
@@ -840,41 +894,25 @@ export class RealApiClient implements ApiClient {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   music: buildMusicRequest(intent),
+                  segment_ids: renderSegmentIdsRequest(intent),
                   edit: buildEditRequest(intent.editConfig),
                 }),
               },
             }));
-      if (res.ok && action === 'record') {
-        this.pendingCapture.add(intent.videoId);
-        this.applyView(intent, { status: 'recording', action: 'none' });
+      if (res.ok) {
+        if (redriveFrom) this.redrivenRevisions.set(intent.videoId, redriveFrom);
+        if (action === 'record') this.pendingCapture.add(intent.videoId);
+        this.applyView(intent, { status: action === 'record' ? 'recording' : 'composing', action: 'none' });
         return;
       }
-      if (res.ok && action === 'render') {
-        this.applyView(intent, { status: 'composing', action: 'none' });
-        return;
+      const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      const view = action === 'record' ? viewForRecordAdmission(res.status, body) : viewForRenderAdmission(res.status, body);
+      // Transient (503 / work active): the next tick re-evaluates and may POST again.
+      if (view === null) return;
+      if (isDurableAdmissionFailure(view)) {
+        this.driveLatch.set(intent.videoId, { failureReason: view.failureReason, retryAction: action });
       }
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-        if (action === 'record') {
-          const view = viewForRecordAdmission(res.status, body);
-          if (view === null) return;
-          this.applyView(intent, view);
-          return;
-        }
-        // 503 is transient; the next reconcile tick retries.
-        if (body.code === SERVICE_UNAVAILABLE_CODE) return;
-        // Job vanished mid-POST: latch unrecoverable so Retry cannot spin.
-        if (res.status === 404) {
-          this.applyView(intent, unrecoverableJobGoneView());
-          return;
-        }
-        // Durable failure (e.g. capture unconfigured): surface it on the card.
-        this.applyView(intent, {
-          status: 'failed',
-          action: 'none',
-          failureReason: body.error || 'failed to start rendering',
-        });
-      }
+      this.applyView(intent, view);
     } catch {
       // network blip; the next reconcile tick re-evaluates from server truth.
     } finally {

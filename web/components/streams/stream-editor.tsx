@@ -45,6 +45,7 @@ import {
   shortsWord,
   streamBriefCanBeApproved,
   streamCtaLabel,
+  streamCtaTarget,
   streamEditorSteps,
   streamOutputSummary,
   type StreamStep,
@@ -109,7 +110,9 @@ export function StreamEditor({
   const probedDuration = job.probe?.duration_seconds ?? 0;
   const sourceDuration = Number.isFinite(probedDuration) && probedDuration > 0 ? probedDuration : 0;
 
-  const [activeStep, setActiveStep] = useState<StreamStep>(hasRender ? STREAM_STEP.results : STREAM_STEP.cuts);
+  const [activeStep, setActiveStep] = useState<StreamStep>(
+    hasRender ? STREAM_STEP.results : (streamCtaTarget(plan) ?? STREAM_STEP.cuts),
+  );
   const [selectedClipId, setSelectedClipId] = useState<string | null>(plan.clips[0]?.id ?? null);
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [previewSeconds, setPreviewSeconds] = useState(() => representativeFrameTime(sourceDuration));
@@ -123,6 +126,17 @@ export function StreamEditor({
   const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
   const briefLine = useMemo(() => streamCreativeBriefLine(plan), [plan]);
   const planKey = useMemo(() => planFingerprint(plan), [plan]);
+  // Only start/end/speed/volume should restart the playback transport; a title
+  // edit must not pause the montage that is already playing.
+  const clipsPlaybackKey = useMemo(
+    () =>
+      plan.clips
+        .map((c) => `${c.id}:${c.start_seconds}:${c.end_seconds}:${c.edit?.speed ?? 1}:${c.edit?.source_volume ?? 1}`)
+        .join('|'),
+    [plan.clips],
+  );
+  const playbackClipsRef = useRef(plan.clips);
+  playbackClipsRef.current = plan.clips;
 
   // Any plan mutation invalidates the creative brief (same contract as demo reels).
   useEffect(() => {
@@ -151,7 +165,8 @@ export function StreamEditor({
   useEffect(() => {
     if (!previewPlaying || sourceDuration <= 0) return;
     const audio = previewAudioRef.current;
-    let cursor = startMontagePlayback(plan.clips, previewSecondsRef.current);
+    const clips = playbackClipsRef.current;
+    let cursor = startMontagePlayback(clips, previewSecondsRef.current);
     if (!cursor) {
       setPreviewPlaying(false);
       return;
@@ -163,7 +178,7 @@ export function StreamEditor({
       if (audio) {
         audio.currentTime = next.sourceSeconds;
         audio.playbackRate = next.playbackRate;
-        audio.volume = Math.min(1, Math.max(0, plan.clips[next.clipIndex]?.edit?.source_volume ?? 1));
+        audio.volume = Math.min(1, Math.max(0, clips[next.clipIndex]?.edit?.source_volume ?? 1));
         void audio.play().catch(() => {
           setPreviewPlaying(false);
           setPreviewError('El navegador no pudo iniciar el audio de la preview. Pulsa reintentar y vuelve a reproducir.');
@@ -177,9 +192,9 @@ export function StreamEditor({
         audio && !audio.paused
           ? audio.currentTime
           : previewSecondsRef.current + 0.125 * cursor.playbackRate;
-      const next = advanceMontagePlayback(plan.clips, cursor.clipIndex, sourceSeconds);
+      const next = advanceMontagePlayback(clips, cursor.clipIndex, sourceSeconds);
       if (!next) {
-        const restart = startMontagePlayback(plan.clips, Number.NaN);
+        const restart = startMontagePlayback(clips, Number.NaN);
         if (restart) setPreviewSeconds(restart.sourceSeconds);
         setPreviewPlaying(false);
         return;
@@ -195,7 +210,7 @@ export function StreamEditor({
       clearInterval(timer);
       audio?.pause();
     };
-  }, [plan.clips, previewPlaying, sourceDuration]);
+  }, [clipsPlaybackKey, previewPlaying, sourceDuration]);
 
   const busy = stage === 'rendering' || saving;
 
@@ -352,6 +367,10 @@ export function StreamEditor({
       : 0;
   const briefApprovable = streamBriefCanBeApproved(plan);
   const ctaLabel = streamCtaLabel({ plan, briefApproved, rendering: stage === 'rendering', hasRender });
+  // While the crop is unconfirmed the CTA names that blocker but stays a real
+  // link to step 01 instead of a disabled dead end.
+  const ctaTarget = streamCtaTarget(plan);
+  const ctaDisabled = busy ? true : ctaTarget === null && !canCreateStreamShorts({ briefApproved, busy });
   const sourceMeta = [streamSourceLabel(job.source_url) ?? 'Archivo local', sourceDuration > 0 ? formatStreamClock(sourceDuration) : null]
     .filter((part): part is string => part !== null)
     .join(' · ');
@@ -547,11 +566,17 @@ export function StreamEditor({
           countLabel={shortsWord(plan.clips.length)}
           summary={streamOutputSummary(plan, stale)}
           ctaLabel={ctaLabel}
-          ctaDisabled={!canCreateStreamShorts({ briefApproved, busy })}
+          ctaDisabled={ctaDisabled}
           rendering={stage === 'rendering'}
           busy={saving}
           onBriefApprovedChange={setBriefApproved}
-          onCreate={onCreate}
+          onCreate={() => {
+            if (ctaTarget !== null) {
+              setActiveStep(ctaTarget);
+              return;
+            }
+            onCreate();
+          }}
           onBack={onBack}
         />
       </div>

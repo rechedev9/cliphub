@@ -21,12 +21,6 @@ type KillPlanSegment = {
   kills?: { weapon?: string }[];
 };
 
-const THUMB_BASE = 'https://picsum.photos/seed';
-
-function thumb(seed: string): string {
-  return `${THUMB_BASE}/${encodeURIComponent(seed)}/640/360`;
-}
-
 /** Pretty CS2 map name: "de_inferno" → "Inferno". Falls back to the raw value. */
 export function prettifyMap(raw: string): string {
   if (!raw) return raw;
@@ -111,7 +105,6 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment): Play {
     kills,
     weapon: topWeapon(segment),
     label: `${kills}K · Ronda ${segment.round}`,
-    thumbnailUrl: thumb(segment.id),
   };
 }
 
@@ -153,7 +146,6 @@ export function planToMatch(jobId: string, plan: KillPlan, player: DemoPlayer): 
       hsPct: player.hsPct,
     },
     decentPlays: plays.length,
-    thumbnailUrl: thumb(jobId),
     source: 'upload',
   };
   // The chosen player's name (roster row, or the plan's target name it was

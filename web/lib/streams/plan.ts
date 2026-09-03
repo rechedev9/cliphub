@@ -66,6 +66,22 @@ export function isServiceUnavailable(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === SERVICE_UNAVAILABLE_CODE;
 }
 
+/**
+ * The Go handlers return these exact English bodies with no `code` field
+ * (`internal/httpapi/stream_handlers.go`); map each to its Spanish copy so the
+ * editor never surfaces raw backend text.
+ */
+export const KNOWN_STREAM_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  'stream edit plan cannot change while a render is running':
+    'El plan no se puede editar mientras hay un render en marcha. Espera a que termine y vuelve a intentarlo.',
+  'stream edit plan changed after approval; review the latest plan before rendering':
+    'El plan cambió después de aprobarlo. Revísalo y vuelve a crear los Shorts.',
+  'stream edit plan requires migration after approval; save and review the migrated plan before rendering':
+    'El plan necesita actualizarse tras la aprobación. Guárdalo y revísalo antes de renderizar.',
+  'facecam crop requires explicit review before rendering':
+    'Confirma manualmente el recorte de facecam antes de renderizar.',
+};
+
 /** Localized message for a failed API call, preferring the offline hint. */
 export function errorMessage(err: unknown, fallback: string): string {
   if (isServiceUnavailable(err)) {
@@ -75,7 +91,7 @@ export function errorMessage(err: unknown, fallback: string): string {
     return STREAM_INVALID_URL_MESSAGE;
   }
   if (err instanceof Error) {
-    return err.message;
+    return KNOWN_STREAM_ERROR_MESSAGES[err.message] ?? err.message;
   }
   return fallback;
 }
@@ -275,7 +291,9 @@ export function clipTimelineGeometry(
 
 /** `m:ss` (or `h:mm:ss`) clock for rails, rulers and cut cards. */
 export function formatStreamClock(seconds: number): string {
-  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  // Round to the nearest second so this matches the decimal clocks shown
+  // elsewhere (e.g. formatStreamTimestamp) instead of always truncating down.
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0;
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = String(total % 60).padStart(2, '0');

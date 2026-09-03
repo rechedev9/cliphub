@@ -11,6 +11,7 @@ import {
   formatStreamTimestamp,
   insertClipSorted,
   isServiceUnavailable,
+  KNOWN_STREAM_ERROR_MESSAGES,
   nextClipId,
   nonVideoExtension,
   planFingerprint,
@@ -74,6 +75,16 @@ test('an offline code wins over the generic fallback message', () => {
   assert.equal(errorMessage({ code: 'invalid_source_url' }, 'fallback'), STREAM_INVALID_URL_MESSAGE);
   assert.equal(errorMessage(new Error('boom'), 'fallback'), 'boom');
   assert.equal(errorMessage('weird', 'fallback'), 'fallback');
+});
+
+test('the known 409 bodies from the stream handlers are translated instead of shown raw', () => {
+  for (const [raw, spanish] of Object.entries(KNOWN_STREAM_ERROR_MESSAGES)) {
+    assert.equal(errorMessage(new Error(raw), 'fallback'), spanish);
+  }
+  assert.equal(
+    errorMessage(new Error('stream edit plan cannot change while a render is running'), 'fallback'),
+    'El plan no se puede editar mientras hay un render en marcha. Espera a que termine y vuelve a intentarlo.',
+  );
 });
 
 test('clip ids are unique so a new range never collides with an existing one', () => {
@@ -207,8 +218,9 @@ test('fade wedges are measured against the output duration, so speed shrinks the
   assert.equal(clipOutputDuration(clip({ start_seconds: 0, end_seconds: 20, edit: { speed: 2 } })), 10);
 });
 
-test('the clock drops fractional seconds and adds hours only past sixty minutes', () => {
-  assert.equal(formatStreamClock(7.9), '0:07');
+test('the clock rounds to the nearest second and adds hours only past sixty minutes', () => {
+  assert.equal(formatStreamClock(7.9), '0:08');
+  assert.equal(formatStreamClock(7.4), '0:07');
   assert.equal(formatStreamClock(84), '1:24');
   assert.equal(formatStreamClock(3725), '1:02:05');
   assert.equal(formatStreamClock(Number.NaN), '0:00');

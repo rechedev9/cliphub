@@ -2,12 +2,14 @@
 
 import { use, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, SearchX, Unplug } from 'lucide-react';
+import { AlertTriangle, SearchX, Unplug, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Match, Play } from '@/lib/api/types';
+import { HUB_ROW_STAGE, matchRowStage } from '@/lib/clips/hub';
 import {
   hubHref,
   isProduceFormat,
+  newDemoHref,
   PRODUCE_FORMAT,
   PRODUCE_QUERY,
   produceHref,
@@ -22,10 +24,15 @@ import {
   MATCH_PLAYS_EMPTY_TITLE,
   MATCH_PLAYS_ERROR_DESCRIPTION,
   MATCH_PLAYS_ERROR_TITLE,
-  matchPlanReady,
 } from '@/lib/match-plays-empty';
 import { startPollLoop } from '@/lib/poll-loop';
-import { PRODUCE_MATCH_MISSING, PRODUCE_POLL_ERROR, PRODUCE_POLL_OFFLINE } from '@/lib/produce/copy';
+import {
+  PRODUCE_MATCH_MISSING,
+  PRODUCE_MATCH_NO_POV,
+  PRODUCE_PICK_POV_CTA,
+  PRODUCE_POLL_ERROR,
+  PRODUCE_POLL_OFFLINE,
+} from '@/lib/produce/copy';
 import { isSeriesId } from '@/lib/series-status';
 import {
   serverShellActivitySnapshot,
@@ -89,13 +96,14 @@ export default function ProducePage({
           setMatch(nextMatch);
           setLoadFailure(null);
           setPollError(null);
-          if (!nextMatch || !matchPlanReady(nextMatch.status)) {
+          if (!nextMatch || matchRowStage(nextMatch.status) !== HUB_ROW_STAGE.ready) {
             setPlays([]);
             setPlaysError(false);
             setRounds([]);
             setRecapFailure(null);
             setLoaded(true);
-            return nextMatch ? 'fast' : 'idle';
+            // `scanned` never advances without a POV pick, so only a real parse polls fast.
+            return nextMatch !== null && matchRowStage(nextMatch.status) === HUB_ROW_STAGE.parsing ? 'fast' : 'idle';
           }
           const [planResult, recapResult] = await Promise.allSettled([api.findClips(id), api.findRecapClips(id)]);
           if (!active) return 'idle';
@@ -161,9 +169,26 @@ export default function ProducePage({
     );
   }
 
-  const analyzing = !matchPlanReady(match.status);
+  const stage = matchRowStage(match.status);
   let body: ReactNode;
-  if (analyzing) {
+  if (stage === HUB_ROW_STAGE.unpicked) {
+    body = (
+      <StudioEmptyState
+        icon={Users}
+        title={PRODUCE_MATCH_NO_POV.title}
+        description={PRODUCE_MATCH_NO_POV.description}
+        compact
+        actions={
+          <>
+            <Button onClick={() => router.push(newDemoHref({ job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
+            <Button variant="outline" onClick={() => router.push(backHref)}>
+              Volver
+            </Button>
+          </>
+        }
+      />
+    );
+  } else if (stage === HUB_ROW_STAGE.parsing) {
     body = (
       <StudioEmptyState
         icon={SearchX}

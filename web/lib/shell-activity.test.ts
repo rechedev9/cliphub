@@ -68,20 +68,20 @@ test('jobs are ordered most-advanced first, then oldest first', () => {
   );
 });
 
-test('capture progress is carried only where the API reports it', () => {
+test('capture progress is carried for recording and composing, never for queued', () => {
   publishReels(
     [
       reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 8, percent: 41 } }),
-      reel({ id: 'b', status: 'composing', captureProgress: { done: 8, total: 8 } }),
+      // Composing's captureProgress is the render percent (done/total 100/percent
+      // from internal/httpapi/progress.go), not a stale capture segment count.
+      reel({ id: 'b', status: 'composing', captureProgress: { done: 72, total: 100, percent: 72 } }),
       reel({ id: 'c', status: 'queued' }),
     ],
     10,
   );
   const [recording, composing, queued] = shellActivitySnapshot().jobs;
   assert.deepEqual(recording?.progress, { done: 3, total: 8, percent: 41 });
-  // Composing has no segment counter of its own; a stale capture count there
-  // would be fabricated progress.
-  assert.equal(composing?.progress, null);
+  assert.deepEqual(composing?.progress, { done: 72, total: 100, percent: 72 });
   assert.equal(queued?.progress, null);
 });
 
@@ -106,8 +106,12 @@ test('a live percent change wakes subscribers even when the clip count does not'
 });
 
 test('a zero-segment capture reports no progress instead of dividing by zero', () => {
-  publishReels([reel({ id: 'a', status: 'recording', captureProgress: { done: 0, total: 0 } })], 10);
-  assert.equal(shellActivitySnapshot().jobs[0]?.progress, null);
+  const cases: Array<Pick<Video, 'status'>> = [{ status: 'recording' }, { status: 'composing' }];
+  for (const { status } of cases) {
+    resetShellActivity();
+    publishReels([reel({ id: 'a', status, captureProgress: { done: 0, total: 0 } })], 10);
+    assert.equal(shellActivitySnapshot().jobs[0]?.progress, null, status);
+  }
 });
 
 test('an unchanged payload refreshes freshness without waking subscribers', () => {

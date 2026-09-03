@@ -2385,6 +2385,111 @@ func TestStartRenderVariantEnqueuesRenderTaskWhenRecorded(t *testing.T) {
 	}
 }
 
+func TestStartRenderVariantPropagatesSegmentIDs(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001"}, {ID: "seg-002"}}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue)
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(`{"segment_ids":["seg-002"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.SegmentIDs) != 1 || payload.SegmentIDs[0] != "seg-002" {
+		t.Fatalf("payload.SegmentIDs = %v, want [seg-002]", payload.SegmentIDs)
+	}
+}
+
+func TestStartRenderVariantOmittedSegmentIDsRendersEverySegment(t *testing.T) {
+	repo := newFakeRepo()
+	queue := &fakeQueue{}
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: "seg-001"}, {ID: "seg-002"}}
+	j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, newFakeStorage(), queue)
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
+	var payload tasks.RenderVariantPayload
+	if err := json.Unmarshal(queue.enqueued[0].Payload(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.SegmentIDs) != 0 {
+		t.Fatalf("payload.SegmentIDs = %v, want empty (every recorded segment)", payload.SegmentIDs)
+	}
+}
+
+func TestStartRenderVariantRejectsBadSegmentSelection(t *testing.T) {
+	cases := []struct {
+		name     string
+		body     string
+		wantText string
+	}{
+		{name: "unknown id", body: `{"segment_ids":["seg-404"]}`, wantText: `unknown segment id "seg-404"`},
+		{name: "duplicate id", body: `{"segment_ids":["seg-001","seg-001"]}`, wantText: `duplicate segment id "seg-001"`},
+		{name: "empty id", body: `{"segment_ids":[""]}`, wantText: `unknown segment id ""`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			queue := &fakeQueue{}
+			plan := killplan.NewPlan()
+			plan.Segments = []killplan.Segment{{ID: "seg-001"}, {ID: "seg-002"}}
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, newFakeStorage(), queue)
+
+			r := chi.NewRouter()
+			r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
+			req := httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/renders/viral-60-clean", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+			r.ServeHTTP(rw, req)
+
+			if rw.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+			}
+			var body struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode error body %s: %v", rw.Body.String(), err)
+			}
+			if body.Error != tc.wantText {
+				t.Fatalf("error = %q, want %q", body.Error, tc.wantText)
+			}
+			if len(queue.enqueued) != 0 {
+				t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
+			}
+		})
+	}
+}
+
 func TestStartRenderVariantRejectsOutOfRangeMusicVolume(t *testing.T) {
 	repo := newFakeRepo()
 	queue := &fakeQueue{}

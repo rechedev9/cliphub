@@ -51,7 +51,7 @@ export function StreamMonitor({
         onError={onAudioError}
       />
 
-      <div className="flex max-w-[8rem] flex-col gap-2 self-end pb-1.5">
+      <div className="flex w-max min-w-[10rem] flex-col gap-2 self-end pb-1.5">
         <Button
           type="button"
           variant="outline"

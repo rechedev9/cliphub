@@ -88,7 +88,8 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
   const estimatedSeconds = estimatedSelectionSeconds(selectedPlays);
   const overTarget = estimatedSeconds > SHORT_TARGET_SECONDS;
-  const clock = `~${formatClock(estimatedSeconds)} / ${CLOCK_TARGET}`;
+  // No tilde: under uppercase mono it reads as a minus sign ("-0:00").
+  const clock = `${formatClock(estimatedSeconds)} / ${CLOCK_TARGET} aprox.`;
   const visiblePresets = presets === null ? null : shortsPresetsForFormat(presets, SHORT_FORMAT);
   const selectedPreset = visiblePresets?.find((preset) => preset.name === variant) ?? null;
   const presetLabel = selectedPreset?.label ?? null;
@@ -164,7 +165,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
     <>
       {roundsSummary(selectedPlays)}
       <span className="text-fg-3"> · </span>
-      <span className={overTarget ? 'text-warning' : undefined}>~{formatClock(estimatedSeconds)}</span>
+      <span className={overTarget ? 'text-warning' : undefined}>{formatClock(estimatedSeconds)} aprox.</span>
       <span className="text-fg-3"> · </span>
       <span className="text-primary">{presetLabel}</span>
       <span className="text-fg-3"> · </span>

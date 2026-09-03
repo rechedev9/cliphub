@@ -1,8 +1,21 @@
 // Unit tests for the pure reel-reconcile core. Run: node --test reel-reconcile.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canHaveRenderState, decideReelReconcile, deriveReelView, requiresRecapture, retryReelAction, shouldReconcileVideoStatus, unrecoverableJobGoneView, viewForJobGone, viewForRecordAdmission } from './reel-reconcile.ts';
-import type { ReconcileInput } from './reel-reconcile.ts';
+import {
+  canHaveRenderState,
+  decideReelReconcile,
+  deriveReelView,
+  isDurableAdmissionFailure,
+  requiresRecapture,
+  retryReelAction,
+  shouldReconcileVideoStatus,
+  unrecoverableJobGoneView,
+  viewForJobGone,
+  viewForRecordAdmission,
+  viewForRenderAdmission,
+} from './reel-reconcile.ts';
+import type { DecideReelReconcileInput, MismatchRedrive, ReconcileInput, RedrivenRevision, ReelAction } from './reel-reconcile.ts';
+import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
 import type { EditConfig } from './types.ts';
 import type { MusicChoice } from './reel-music.ts';
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
@@ -560,3 +573,190 @@ test('viewForRecordAdmission treats in-flight capture as progress, not a failed 
     }
   }
 });
+
+test('decideReelReconcile: a mismatching ready/review render re-drives once per explicit action, then fails', () => {
+  const shortsEdit: EditConfig = { ...DEFAULT_EDIT_CONFIG };
+  const recapEdit: EditConfig = { ...DEFAULT_EDIT_CONFIG, format: 'landscape-16x9', matchRecap: true, nativeHud: true };
+  const everySegment = ['seg-001', 'seg-002', 'seg-003', 'seg-004', 'seg-005', 'seg-006'];
+  const selectionMismatch: DecideReelReconcileInput = {
+    jobStatus: 'recorded',
+    renderStatus: 'ready',
+    intentEdit: shortsEdit,
+    renderEdit: shortsEdit,
+    intentSegmentIds: ['seg-001'],
+    renderSegmentIds: everySegment,
+    renderArtifactPrefix: 'jobs/j/renders/v/revisions/rev-2',
+  };
+  const musicMismatch: DecideReelReconcileInput = {
+    ...selectionMismatch,
+    renderSegmentIds: ['seg-001'],
+    intentMusic: { songId: 'track-a', musicVolume: 0.5 },
+    renderMusic: {},
+  };
+  const cases: Array<{
+    name: string;
+    input: DecideReelReconcileInput;
+    redrivenRevision?: RedrivenRevision;
+    wantStatus: string;
+    wantAction: ReelAction;
+    wantMismatch?: MismatchRedrive;
+    wantAdopt?: boolean;
+  }> = [
+    {
+      name: 'first mismatch since the last explicit action re-drives record',
+      input: selectionMismatch,
+      wantStatus: 'queued',
+      wantAction: 'record',
+      wantMismatch: 'drive',
+    },
+    {
+      name: 'same revision still current after the re-drive waits without a second POST',
+      input: selectionMismatch,
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-2' },
+      wantStatus: 'queued',
+      wantAction: 'none',
+      wantMismatch: 'wait',
+    },
+    {
+      name: 'a different revision that still mismatches latches failed',
+      input: selectionMismatch,
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-1' },
+      wantStatus: 'failed',
+      wantAction: 'none',
+      wantMismatch: 'fail',
+    },
+    {
+      name: 'legacy render states without a prefix cannot be told apart: wait, never loop',
+      input: { ...selectionMismatch, renderArtifactPrefix: undefined },
+      redrivenRevision: {},
+      wantStatus: 'queued',
+      wantAction: 'none',
+      wantMismatch: 'wait',
+    },
+    {
+      name: 'a prefixed revision after a prefix-less re-drive still counts as different',
+      input: selectionMismatch,
+      redrivenRevision: {},
+      wantStatus: 'failed',
+      wantAction: 'none',
+      wantMismatch: 'fail',
+    },
+    {
+      name: 'a music-only mismatch follows the same breaker (drive)',
+      input: musicMismatch,
+      wantStatus: 'queued',
+      wantAction: 'record',
+      wantMismatch: 'drive',
+    },
+    {
+      name: 'a music-only mismatch follows the same breaker (fail)',
+      input: musicMismatch,
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-1' },
+      wantStatus: 'failed',
+      wantAction: 'none',
+      wantMismatch: 'fail',
+    },
+    {
+      name: 'review_required mismatch fails the same way as ready',
+      input: { ...selectionMismatch, renderStatus: 'review_required' },
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-1' },
+      wantStatus: 'failed',
+      wantAction: 'none',
+      wantMismatch: 'fail',
+    },
+    {
+      name: 'job still recording wins over the stale ready render; the breaker is not consulted',
+      input: { ...selectionMismatch, jobStatus: 'recording' },
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-1' },
+      wantStatus: 'recording',
+      wantAction: 'none',
+    },
+    {
+      name: 'a matching revision is ready even when an older re-driven revision is recorded',
+      input: { ...selectionMismatch, renderSegmentIds: ['seg-001'] },
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-1' },
+      wantStatus: 'ready',
+      wantAction: 'none',
+      wantAdopt: true,
+    },
+    {
+      name: 'a Full Demo recap has no segment selection: every-round renders never mismatch',
+      input: {
+        ...selectionMismatch,
+        intentEdit: recapEdit,
+        renderEdit: recapEdit,
+        intentSegmentIds: [],
+        renderSegmentIds: everySegment,
+      },
+      redrivenRevision: { artifactPrefix: 'jobs/j/renders/v/revisions/rev-1' },
+      wantStatus: 'ready',
+      wantAction: 'none',
+      wantAdopt: true,
+    },
+  ];
+  for (const tc of cases) {
+    const got = decideReelReconcile({ ...tc.input, redrivenRevision: tc.redrivenRevision });
+    assert.equal(got.view.status, tc.wantStatus, `${tc.name}: status`);
+    assert.equal(got.view.action, tc.wantAction, `${tc.name}: action`);
+    assert.equal(got.mismatchRedrive, tc.wantMismatch, `${tc.name}: mismatchRedrive`);
+    assert.equal(got.adoptEffective, tc.wantAdopt ?? false, `${tc.name}: adoptEffective`);
+    if (tc.wantMismatch === 'fail') {
+      assert.equal(got.view.failureReason, MISMATCH_REDRIVE_FAILURE_REASON, `${tc.name}: failure reason`);
+    }
+  }
+});
+
+test('POST admission: transient, job-gone, in-flight and durable rejections', () => {
+  const unconfigured =
+    'recording is not configured on this machine; set ZV_RECORDER_PATH, ZV_HLAE_PATH and ZV_CS2_PATH and restart the orchestrator';
+  const cases: Array<{
+    name: string;
+    view: ReturnType<typeof viewForRecordAdmission>;
+    wantStatus: string | null;
+    wantDurable: boolean;
+  }> = [
+    { name: 'record 202 accepted', view: viewForRecordAdmission(202, {}), wantStatus: null, wantDurable: false },
+    { name: 'render 202 accepted', view: viewForRenderAdmission(202, {}), wantStatus: null, wantDurable: false },
+    { name: 'record 503 offline', view: viewForRecordAdmission(503, {}), wantStatus: null, wantDurable: false },
+    { name: 'render 503 offline', view: viewForRenderAdmission(503, {}), wantStatus: null, wantDurable: false },
+    {
+      name: 'render 409 work active',
+      view: viewForRenderAdmission(409, { code: 'generate_work_active' }),
+      wantStatus: null,
+      wantDurable: false,
+    },
+    { name: 'record 404 job gone', view: viewForRecordAdmission(404, {}), wantStatus: 'failed', wantDurable: false },
+    { name: 'render 404 job gone', view: viewForRenderAdmission(404, {}), wantStatus: 'failed', wantDurable: false },
+    {
+      name: 'record 409 already recording is progress',
+      view: viewForRecordAdmission(409, { error: 'job is not ready to record (status=recording)' }),
+      wantStatus: 'recording',
+      wantDurable: false,
+    },
+    {
+      name: 'record 409 capture unconfigured is durable',
+      view: viewForRecordAdmission(409, { error: unconfigured }),
+      wantStatus: 'failed',
+      wantDurable: true,
+    },
+    {
+      name: 'render 409 bad preset is durable',
+      view: viewForRenderAdmission(409, { error: 'ffmpeg preset not found' }),
+      wantStatus: 'failed',
+      wantDurable: true,
+    },
+    {
+      name: 'render 500 without a body falls back to a reason',
+      view: viewForRenderAdmission(500, {}),
+      wantStatus: 'failed',
+      wantDurable: true,
+    },
+  ];
+  for (const tc of cases) {
+    assert.equal(tc.view?.status ?? null, tc.wantStatus, `${tc.name}: status`);
+    assert.equal(isDurableAdmissionFailure(tc.view), tc.wantDurable, `${tc.name}: durable`);
+    if (tc.wantDurable) assert.ok(tc.view?.failureReason, `${tc.name}: durable failures carry a reason`);
+  }
+  assert.deepEqual(viewForRenderAdmission(404, {}), unrecoverableJobGoneView());
+});
+

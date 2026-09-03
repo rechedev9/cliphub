@@ -23,6 +23,7 @@ import {
 } from '@/lib/stream-draft';
 import { isCurrentStreamEditorLoad, nextStreamEditorLoad, type StreamEditorLoad } from '@/lib/stream-editor-load';
 import { streamRenderCanRetry } from '@/lib/stream-recovery';
+import { shouldAutosaveStreamPlan, type AckedStreamPlanFingerprint } from '@/lib/streams/autosave';
 import {
   STREAMER_NICK_RE,
   STREAM_OFFLINE_MESSAGE,
@@ -63,7 +64,10 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveGeneration = useRef(0);
   const autosaveChain = useRef<Promise<void>>(Promise.resolve());
-  const serverPlanFingerprint = useRef<{ jobId: string; fingerprint: string } | null>(null);
+  const autosaveInFlight = useRef(false);
+  /** The banner text the last failed autosave wrote, so a later success can clear only that. */
+  const autosaveError = useRef<string | null>(null);
+  const serverPlanFingerprint = useRef<AckedStreamPlanFingerprint>(null);
   const draftSessionId = useRef('');
   const draftRevision = useRef(0);
   const editorLoad = useRef<StreamEditorLoad>({ generation: 0, jobId: '' });
@@ -151,7 +155,10 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   const pollRender = useCallback(
     async (jobId: string, variant: StreamVariant, attemptedPlan: StreamEditPlan, announce: boolean) => {
       const gen = ++pollGen.current;
-      for (let attempt = 0; attempt < 300; attempt++) {
+      // No attempt cap: a real render can outlast any fixed budget, and a
+      // capped loop previously reported a live render as failed. `pollGen`
+      // still stops this loop on unmount, reset, or a superseding poll.
+      for (;;) {
         try {
           const state = await streamsApi.getRenderState(jobId, variant);
           if (pollGen.current !== gen) return;
@@ -186,8 +193,6 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         await sleep(1500);
         if (pollGen.current !== gen) return;
       }
-      setStage('failed');
-      setFailureReason('se agotó el tiempo esperando a que terminara el render');
     },
     [fail],
   );
@@ -272,6 +277,11 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     }
     setError(null);
     setSaving(true);
+    // Only restored on failure if the optimistic render state below actually
+    // ran; a throw earlier (e.g. the missing-revision check) must not clobber
+    // whatever render state was already showing.
+    let priorRenderState: StreamRenderState | null = null;
+    let appliedOptimisticRenderState = false;
     try {
       autosaveGeneration.current += 1;
       if (autosaveTimer.current !== null) {
@@ -285,17 +295,20 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         reconcileStreamDraftAfterSave(window.localStorage, job.id, fittedPlan, saved, submittedRevision);
       }
       serverPlanFingerprint.current = { jobId: job.id, fingerprint: streamEditPlanFingerprint(saved) };
+      autosaveError.current = null;
       setPlan(saved);
       setAutosave('saved');
       if (!saved.updated_at) {
         throw new Error('El plan guardado no incluye una revisión verificable.');
       }
       setStage('rendering');
-      setRenderState((previous) =>
-        previous && (previous.published || previous.status === 'rendered')
+      setRenderState((previous) => {
+        priorRenderState = previous;
+        appliedOptimisticRenderState = true;
+        return previous && (previous.published || previous.status === 'rendered')
           ? { ...previous, published: true, status: 'queued' }
-          : { status: 'queued', videos: [] },
-      );
+          : { status: 'queued', videos: [] };
+      });
       await streamsApi.startRender(job.id, saved.variant, saved.updated_at);
       toast(`${shortsWord(saved.clips.length)} en render`, {
         description: `FFmpeg · ${streamVariantLabel(saved)} · 1080×1920`,
@@ -303,6 +316,9 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       void pollRender(job.id, saved.variant, saved, true);
     } catch (err) {
       setStage('editing');
+      // The render never actually started; the optimistic "queued" state was
+      // a lie the POST just disproved, so put the prior render state back.
+      if (appliedOptimisticRenderState) setRenderState(priorRenderState);
       setError(errorMessage(err, 'No se pudo iniciar el render.'));
     } finally {
       setSaving(false);
@@ -314,18 +330,21 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
     const revision = ++draftRevision.current;
     const submittedRevision = { editorSessionId: draftSessionId.current, revision };
     const requestedLoad = editorLoad.current;
+    const fingerprint = streamEditPlanFingerprint(plan);
     if (typeof window !== 'undefined') {
       saveStreamDraft(
         window.localStorage,
         job.id,
         plan,
         undefined,
-        serverPlanFingerprint.current?.jobId === job.id
-          ? serverPlanFingerprint.current.fingerprint
-          : streamEditPlanFingerprint(plan),
+        serverPlanFingerprint.current?.jobId === job.id ? serverPlanFingerprint.current.fingerprint : fingerprint,
         submittedRevision,
       );
     }
+    // Skip the PUT when the plan already matches the last server-acknowledged
+    // revision: otherwise every open (initial load) and every bare `stage`
+    // flip re-PUTs an unchanged plan and rewrites the server artifact.
+    if (!shouldAutosaveStreamPlan(job.id, fingerprint, serverPlanFingerprint.current, autosaveInFlight.current)) return;
     const generation = ++autosaveGeneration.current;
     if (autosaveTimer.current !== null) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
@@ -335,20 +354,36 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         .catch(() => undefined)
         .then(async () => {
           if (autosaveGeneration.current !== generation) return;
-          const saved = await streamsApi.putEditPlan(job.id, plan);
+          autosaveInFlight.current = true;
+          let saved: StreamEditPlan;
+          try {
+            saved = await streamsApi.putEditPlan(job.id, plan);
+          } finally {
+            autosaveInFlight.current = false;
+          }
           if (typeof window !== 'undefined') {
             reconcileStreamDraftAfterSave(window.localStorage, job.id, plan, saved, submittedRevision);
           }
           if (isCurrentStreamEditorLoad(requestedLoad, editorLoad.current)) {
             serverPlanFingerprint.current = { jobId: job.id, fingerprint: streamEditPlanFingerprint(saved) };
           }
+          if (autosaveGeneration.current !== generation) return;
+          setAutosave('saved');
+          if (autosaveError.current !== null) {
+            const stale = autosaveError.current;
+            autosaveError.current = null;
+            setError((current) => (current === stale ? null : current));
+          }
         })
-        .finally(() => {
-          if (autosaveGeneration.current === generation) setAutosave('saved');
+        .catch((err: unknown) => {
+          if (autosaveGeneration.current !== generation) return;
+          // The local draft above still protects navigation/restart recovery;
+          // surface the rejected save instead of silently claiming it landed.
+          const message = errorMessage(err, 'No se pudo guardar el plan automáticamente.');
+          autosaveError.current = message;
+          setAutosave('failed');
+          setError(message);
         });
-      void autosaveChain.current.catch(() => {
-        // The synchronous local draft still protects navigation/restart recovery.
-      });
     }, 500);
     return () => {
       if (autosaveTimer.current !== null) {

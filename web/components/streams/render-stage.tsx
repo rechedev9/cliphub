@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Film } from 'lucide-react';
 import type { StreamClipRange, StreamRenderState } from '@/lib/api/streams';
-import { clipOutputDuration } from '@/lib/streams/plan';
+import { clipOutputDuration, formatStreamClock } from '@/lib/streams/plan';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { LongOperation } from '@/components/studio/long-operation';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -68,7 +68,7 @@ export function StreamRenderStage({
             />
             <p className="truncate text-body-sm text-fg-2">{clip.title?.trim() || `Clip ${index + 1}`}</p>
             <p className="font-mono text-meta tabular-nums text-fg-3">
-              {clipOutputDuration(clip).toFixed(2)} S
+              {formatStreamClock(clipOutputDuration(clip))}
             </p>
           </li>
         ))}

@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -239,9 +240,10 @@ func TestNewRecordDemoTaskRoundtripWithSegmentIDs(t *testing.T) {
 func TestNewGenerateRecordDemoTaskCarriesIntentOutsideUniquePayload(t *testing.T) {
 	id := uuid.New()
 	want := renderplan.GenerateIntent{
-		Variant:  testRenderVariant,
-		MusicKey: "track-01",
-		Edit:     renderplan.DefaultEditRequest(),
+		Variant:    testRenderVariant,
+		MusicKey:   "track-01",
+		Edit:       renderplan.DefaultEditRequest(),
+		SegmentIDs: []string{"seg-001"},
 	}
 	task, err := NewGenerateRecordDemoTaskWithRecap(id, "deathnotices", []string{"seg-001"}, true, false, want)
 	if err != nil {
@@ -251,7 +253,7 @@ func TestNewGenerateRecordDemoTaskCarriesIntentOutsideUniquePayload(t *testing.T
 	if err != nil {
 		t.Fatalf("GenerateIntentFromTask error = %v", err)
 	}
-	if !ok || got != want {
+	if !ok || !reflect.DeepEqual(got, want) {
 		t.Fatalf("GenerateIntentFromTask = (%#v, %v), want (%#v, true)", got, ok, want)
 	}
 
@@ -298,7 +300,8 @@ func TestNewComposeFinalTaskRoundtrip(t *testing.T) {
 func TestNewRenderVariantTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
 	edit := renderplan.EditRequest{Format: renderplan.FormatLandscape16x9, KillEffect: renderplan.KillEffectVelocity, Transition: renderplan.TransitionWhip, Intro: true, HookText: true, KillCounter: true, CoverStrategy: renderplan.CoverStrategyNone}
-	tk, err := NewRenderVariantTask(id, testRenderVariant, "concrete-teeth", 0.35, nil, edit)
+	segmentIDs := []string{"seg-002", "seg-001"}
+	tk, err := NewRenderVariantTask(id, testRenderVariant, "concrete-teeth", 0.35, nil, edit, segmentIDs)
 	if err != nil {
 		t.Fatalf("NewRenderVariantTask error = %v", err)
 	}
@@ -322,6 +325,9 @@ func TestNewRenderVariantTaskRoundtrip(t *testing.T) {
 	if payload.Edit != edit {
 		t.Errorf("Edit = %#v, want %#v", payload.Edit, edit)
 	}
+	if len(payload.SegmentIDs) != 2 || payload.SegmentIDs[0] != "seg-002" || payload.SegmentIDs[1] != "seg-001" {
+		t.Errorf("SegmentIDs = %v, want [seg-002 seg-001] preserved in order", payload.SegmentIDs)
+	}
 	if !strings.Contains(string(tk.Payload()), `"hook_text":true`) || !strings.Contains(string(tk.Payload()), `"kill_counter":true`) {
 		t.Errorf("payload missing automatic text fields: %s", tk.Payload())
 	}
@@ -333,7 +339,7 @@ func TestNewRenderVariantTaskRoundtrip(t *testing.T) {
 func TestNewRenderVariantTaskRejectsUnsafeVariant(t *testing.T) {
 	id := uuid.New()
 	for _, variant := range []string{"", "../x", "x/y", `x\y`, "-bad", "x.mp4"} {
-		if _, err := NewRenderVariantTask(id, variant, "", 0, nil, renderplan.EditRequest{}); err == nil {
+		if _, err := NewRenderVariantTask(id, variant, "", 0, nil, renderplan.EditRequest{}, nil); err == nil {
 			t.Fatalf("NewRenderVariantTask(%q) error = nil, want error", variant)
 		}
 	}
@@ -342,7 +348,7 @@ func TestNewRenderVariantTaskRejectsUnsafeVariant(t *testing.T) {
 func TestNewRenderVariantTaskRejectsOutOfRangeMusicVolume(t *testing.T) {
 	id := uuid.New()
 	for _, volume := range []float64{-0.1, 1.5} {
-		if _, err := NewRenderVariantTask(id, testRenderVariant, "", volume, nil, renderplan.EditRequest{}); err == nil {
+		if _, err := NewRenderVariantTask(id, testRenderVariant, "", volume, nil, renderplan.EditRequest{}, nil); err == nil {
 			t.Fatalf("NewRenderVariantTask(volume=%v) error = nil, want error", volume)
 		}
 	}
@@ -352,7 +358,7 @@ func TestNewRenderVariantTaskRejectsOutOfRangeGameVolume(t *testing.T) {
 	id := uuid.New()
 	for _, volume := range []float64{-0.1, 1.5} {
 		v := volume
-		if _, err := NewRenderVariantTask(id, testRenderVariant, "track01", 1, &v, renderplan.EditRequest{}); err == nil {
+		if _, err := NewRenderVariantTask(id, testRenderVariant, "track01", 1, &v, renderplan.EditRequest{}, nil); err == nil {
 			t.Fatalf("NewRenderVariantTask(gameVolume=%v) error = nil, want error", volume)
 		}
 	}

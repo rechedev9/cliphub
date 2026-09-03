@@ -1,6 +1,6 @@
 import type { ApiClient, VideoReviewResolution } from './client';
 import { musicChoicesEqual, type MusicChoice } from './reel-music.ts';
-import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, SeriesDemo } from './types';
+import type { Session, Match, Play, Song, Video, FeedItem, RenderMode, VideoStatus, DemoPlayer, Preset, EditConfig, CaptureReadiness, RosterMatch, ScannedDemo, SeriesDemo } from './types';
 import type { SeriesSummary } from './jobs-index';
 import { DEFAULT_EDIT_CONFIG } from './reel-store.ts';
 import {
@@ -332,6 +332,13 @@ export class MockApiClient implements ApiClient {
       seriesScans.set(opts.seriesId, list);
     }
     return { jobId, players: players.map((p) => ({ ...p })), match: { ...match } };
+  }
+
+  async getScan(jobId: string): Promise<ScannedDemo | null> {
+    await delay();
+    const pending = pendingScans.get(jobId);
+    if (!pending) return null;
+    return { status: 'scanned', players: pending.players.map((p) => ({ ...p })), match: { ...pending.match } };
   }
 
   async getSeries(seriesId: string): Promise<SeriesDemo[]> {

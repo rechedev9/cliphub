@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
+import { FULL_DEMO_EMPTY } from '../lib/full-demo.ts';
+import { PRODUCE_MATCH_MISSING } from '../lib/produce/copy.ts';
 
 /** Roster picker on /clips/nueva. Network is stubbed; this is the presentation contract. */
 const JOB_ID = '3f2b9c14-7d6e-4a52-9b81-0c5e8f7a1d23';
@@ -99,6 +101,59 @@ test.describe('roster flow', () => {
       }));
       expect(root.scrollWidth, `roster overflows at ${width}px`).toBeLessThanOrEqual(root.clientWidth);
     }
+  });
+});
+
+test.describe('resume a scanned job', () => {
+  test('?job= loads the existing roster into the same picker without an upload', async ({ page }) => {
+    await stubRosterScan(page);
+    await gotoStudio(page, `/clips/nueva?job=${JOB_ID}`);
+
+    await expect(page.locator('[data-testid="player-avatar"]')).toHaveCount(ROSTER_PLAYERS.length);
+    await expect(page.getByText('Mirage', { exact: false }).first()).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  });
+
+  test('a job that is gone shows the not-found panel', async ({ page }) => {
+    await page.route('**/api/demos/*/status', (route) =>
+      route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'job not found' }) }),
+    );
+    await gotoStudio(page, `/clips/nueva?job=${JOB_ID}`);
+
+    await expect(page.getByText(PRODUCE_MATCH_MISSING.title)).toBeVisible();
+    await expect(page.locator('[data-testid="player-avatar"]')).toHaveCount(0);
+  });
+
+  test('a malformed job id is treated as not found, never sent upstream', async ({ page }) => {
+    const upstream: string[] = [];
+    await page.route('**/api/demos/**', (route) => {
+      upstream.push(route.request().url());
+      return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'nope' }) });
+    });
+    await gotoStudio(page, '/clips/nueva?job=..%2Fjobs');
+
+    await expect(page.getByText(PRODUCE_MATCH_MISSING.title)).toBeVisible();
+    // The shell's activity monitor lists jobs on every page; nothing else may be called.
+    expect(upstream.filter((url) => !url.endsWith('/api/demos/jobs'))).toEqual([]);
+  });
+
+  test('a job that already has its POV redirects to its produce page', async ({ page }) => {
+    await stubRosterScan(page);
+    await page.route('**/api/demos/*/status', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'parsed' }) }),
+    );
+    await gotoStudio(page, `/clips/nueva?job=${JOB_ID}`);
+
+    await expect(page).toHaveURL(new RegExp(`/clips/${JOB_ID}/nuevo$`));
+  });
+
+  test('a dead local service is told apart from a missing job', async ({ page }) => {
+    await page.route('**/api/demos/*/status', (route) =>
+      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'service_unavailable' }) }),
+    );
+    await gotoStudio(page, `/clips/nueva?job=${JOB_ID}`);
+
+    await expect(page.getByText(FULL_DEMO_EMPTY.offline.title)).toBeVisible();
   });
 });
 

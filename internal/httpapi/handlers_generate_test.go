@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -110,14 +111,14 @@ func TestStartGenerateEnqueuesRecordAndWritesIntent(t *testing.T) {
 	}
 	want.ActiveRunID = intent.ActiveRunID
 	want.AcceptedAt = intent.AcceptedAt
-	if intent != want {
+	if !reflect.DeepEqual(intent, want) {
 		t.Fatalf("intent = %#v, want %#v", intent, want)
 	}
 	taskIntent, ok, err := tasks.GenerateIntentFromTask(queue.enqueued[0])
 	if err != nil || !ok {
 		t.Fatalf("GenerateIntentFromTask = (%#v, %v, %v)", taskIntent, ok, err)
 	}
-	if taskIntent != want {
+	if !reflect.DeepEqual(taskIntent, want) {
 		t.Fatalf("task intent = %#v, want %#v", taskIntent, want)
 	}
 }
@@ -150,7 +151,7 @@ func TestStartGenerateDuplicatePreservesAcceptedIntent(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("readGenerateIntent = (%#v, %v, %v)", got, ok, err)
 	}
-	if got != existing {
+	if !reflect.DeepEqual(got, existing) {
 		t.Fatalf("intent = %#v, want preserved %#v", got, existing)
 	}
 }
@@ -427,26 +428,81 @@ func TestStartGenerateRejectsUnknownPreset(t *testing.T) {
 	}
 }
 
-func TestStartGenerateRejectsUnknownSegmentID(t *testing.T) {
+func TestStartGeneratePersistsSegmentIDsIntoIntent(t *testing.T) {
 	repo := newFakeRepo()
 	store := newFakeStorage()
 	queue := &fakeQueue{}
 	plan := killplan.NewPlan()
-	plan.Segments = []killplan.Segment{{ID: "seg-001"}}
+	plan.Segments = []killplan.Segment{{ID: "seg-001"}, {ID: "seg-002"}, {ID: "seg-003"}}
 	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
 	repo.jobs[j.ID] = j
 	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 
-	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","segment_ids":["seg-404"]}`)
+	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean","segment_ids":["seg-001"]}`)
+	if rw.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rw.Code, rw.Body.String())
+	}
 
-	if rw.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 for unknown segment id; body=%s", rw.Code, rw.Body.String())
+	intent, ok, err := h.readGenerateIntent(j.ID)
+	if err != nil || !ok {
+		t.Fatalf("readGenerateIntent = (%#v, %v, %v)", intent, ok, err)
 	}
-	if len(queue.enqueued) != 0 {
-		t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
+	if len(intent.SegmentIDs) != 1 || intent.SegmentIDs[0] != "seg-001" {
+		t.Fatalf("intent.SegmentIDs = %v, want [seg-001]", intent.SegmentIDs)
 	}
-	if _, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]; ok {
-		t.Fatal("intent written for a rejected request")
+
+	// The record task carries the same selection so the record worker can
+	// chain a render scoped to exactly this segment (chainRender).
+	taskIntent, ok, err := tasks.GenerateIntentFromTask(queue.enqueued[0])
+	if err != nil || !ok {
+		t.Fatalf("GenerateIntentFromTask = (%#v, %v, %v)", taskIntent, ok, err)
+	}
+	if len(taskIntent.SegmentIDs) != 1 || taskIntent.SegmentIDs[0] != "seg-001" {
+		t.Fatalf("task intent.SegmentIDs = %v, want [seg-001]", taskIntent.SegmentIDs)
+	}
+}
+
+func TestStartGenerateRejectsBadSegmentSelection(t *testing.T) {
+	cases := []struct {
+		name     string
+		body     string
+		wantText string
+	}{
+		{name: "unknown id", body: `{"preset":"viral-60-clean","segment_ids":["seg-404"]}`, wantText: `unknown segment id "seg-404"`},
+		{name: "duplicate id", body: `{"preset":"viral-60-clean","segment_ids":["seg-001","seg-001"]}`, wantText: `duplicate segment id "seg-001"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			queue := &fakeQueue{}
+			plan := killplan.NewPlan()
+			plan.Segments = []killplan.Segment{{ID: "seg-001"}}
+			j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+			rw := postGenerate(t, h, j.ID, tc.body)
+
+			if rw.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", rw.Code, rw.Body.String())
+			}
+			var body struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode error body %s: %v", rw.Body.String(), err)
+			}
+			if body.Error != tc.wantText {
+				t.Fatalf("error = %q, want %q", body.Error, tc.wantText)
+			}
+			if len(queue.enqueued) != 0 {
+				t.Fatalf("enqueued = %d, want 0", len(queue.enqueued))
+			}
+			if _, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]; ok {
+				t.Fatal("intent written for a rejected request")
+			}
+		})
 	}
 }
 

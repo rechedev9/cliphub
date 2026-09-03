@@ -411,7 +411,7 @@ func (w *RecordWorker) chainRender(id uuid.UUID, intent renderplan.GenerateInten
 		w.failGenerateHandoff(id, intent, errors.New("render queue is not configured"))
 		return
 	}
-	task, err := tasks.NewRenderVariantTask(id, intent.Variant, intent.MusicKey, intent.MusicVolume, intent.GameVolume, intent.Edit)
+	task, err := tasks.NewRenderVariantTask(id, intent.Variant, intent.MusicKey, intent.MusicVolume, intent.GameVolume, intent.Edit, intent.SegmentIDs)
 	if err != nil {
 		w.failGenerateHandoff(id, intent, fmt.Errorf("build chained render task: %w", err))
 		return
@@ -475,7 +475,7 @@ func (w *RecordWorker) chainRecapRender(id uuid.UUID, demoSource string) {
 		demoSource = loadFullDemoSource(w.storage, id)
 	}
 	edit := renderplan.RecapEditRequestWithSource(demoSource)
-	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, edit)
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "", 0, nil, edit, nil)
 	if err != nil {
 		logWorkerError(id, "build recap render task", err)
 		return
@@ -1809,7 +1809,7 @@ func (w *RenderWorker) HandleRenderVariant(ctx context.Context, t *asynq.Task) e
 	if variant == "" {
 		variant = editor.DefaultPreset().Name
 	}
-	if err := w.render(ctx, j, variant, payload.MusicKey, payload.MusicVolume, payload.GameVolume, payload.Edit); err != nil {
+	if err := w.render(ctx, j, variant, payload.MusicKey, payload.MusicVolume, payload.GameVolume, payload.Edit, payload.SegmentIDs); err != nil {
 		recordStageFailure(j.ID, obs.StageWorker, tasks.TypeRenderVariant, errorClass(tasks.TypeRenderVariant, err), err)
 		logWorkerError(j.ID, tasks.TypeRenderVariant, err)
 		return err
@@ -1817,7 +1817,7 @@ func (w *RenderWorker) HandleRenderVariant(ctx context.Context, t *asynq.Task) e
 	return nil
 }
 
-func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest) (err error) {
+func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey string, musicVolume float64, gameVolume *float64, edit renderplan.EditRequest, segmentIDs []string) (err error) {
 	edit = renderplan.NormalizeEditRequest(edit)
 	if err := edit.Validate(); err != nil {
 		return err
@@ -1829,7 +1829,41 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if j.KillPlan == nil {
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
+	previousState, _, err := w.readRenderVariantState(j.ID, variant)
+	if err != nil {
+		return fmt.Errorf("read render state: %w", err)
+	}
+	// The request handler already published Queued and Studio polls that
+	// document for the outcome, so from here every failure must land in the
+	// durable render state or the reel stays queued forever.
+	currentState := previousState
+	var result editor.Result
+	defer func() {
+		if err == nil {
+			return
+		}
+		failedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+			JobID:    j.ID,
+			Loadout:  loadout,
+			Status:   renderplan.RenderVariantStatusFailed,
+			Warnings: result.Warnings,
+			Error:    renderplan.RenderVariantFailureMessage(result, err),
+			Previous: currentState,
+		})
+		if stateErr != nil {
+			err = fmt.Errorf("%w; build failed render state: %v", err, stateErr)
+			return
+		}
+		preserveRenderArtifactPointer(&failedState, previousState)
+		if writeErr := w.writeRenderVariantState(failedState); writeErr != nil {
+			err = fmt.Errorf("%w; write failed render state: %v", err, writeErr)
+		}
+	}()
 	recordingResult, err := readStoredRecordingResult(w.storage, j.ID)
+	if err != nil {
+		return err
+	}
+	recordingResult, err = selectRenderSegments(recordingResult, segmentIDs)
 	if err != nil {
 		return err
 	}
@@ -1852,10 +1886,6 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, gameVolume, edit)
 	if err != nil {
 		return fmt.Errorf("fingerprint render inputs: %w", err)
-	}
-	previousState, _, err := w.readRenderVariantState(j.ID, variant)
-	if err != nil {
-		return fmt.Errorf("read render state: %w", err)
 	}
 	ready, cachedWarnings, keys, err := renderVariantOutputsReady(w.storage, j.ID, variant, inputFingerprint, previousState)
 	if err != nil {
@@ -1904,29 +1934,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err := w.writeRenderVariantState(state); err != nil {
 		return fmt.Errorf("write rendering state: %w", err)
 	}
-	currentState := &state
-	var result editor.Result
-	defer func() {
-		if err == nil {
-			return
-		}
-		failedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
-			JobID:    j.ID,
-			Loadout:  loadout,
-			Status:   renderplan.RenderVariantStatusFailed,
-			Warnings: result.Warnings,
-			Error:    renderplan.RenderVariantFailureMessage(result, err),
-			Previous: currentState,
-		})
-		if stateErr != nil {
-			err = fmt.Errorf("%w; build failed render state: %v", err, stateErr)
-			return
-		}
-		preserveRenderArtifactPointer(&failedState, previousState)
-		if writeErr := w.writeRenderVariantState(failedState); writeErr != nil {
-			err = fmt.Errorf("%w; write failed render state: %v", err, writeErr)
-		}
-	}()
+	currentState = &state
 
 	workDir, cleanup, err := prepareStageDir(cfg.WorkDir, j.ID, "render")
 	if err != nil {
@@ -1966,7 +1974,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		"--outro=" + strconv.FormatBool(edit.Outro),
 	}
 	args = append(args, explicitCoverArgs(loadout, edit)...)
-	args = append(args, compileSegmentsArgs(recording.SegmentIDs(recordingResult))...)
+	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(recordingResult))...)
 	if overlayPath, overlayErr := w.writeFullDemoOverlay(j, workDir, loadout.Preset, edit); overlayErr != nil {
 		return overlayErr
 	} else if overlayPath != "" {
@@ -2447,7 +2455,7 @@ func (w *RenderWorker) writeEditDocument(outDir string, id uuid.UUID, loadout re
 	doc, err := renderplan.NewEditDocumentForLoadout(renderplan.NewEditDocumentForLoadoutOptions{
 		JobID:      id,
 		Loadout:    loadout,
-		SegmentIDs: recording.SegmentIDs(result),
+		SegmentIDs: recording.EditorialSegmentIDs(result),
 		Edit:       edit,
 		Music:      music,
 	})
@@ -2967,6 +2975,23 @@ func readStoredRecordingResult(store storage.Storage, id uuid.UUID) (recording.R
 		return recording.RecordingResult{}, recording.MarkNotReusable(err)
 	}
 	return result, nil
+}
+
+// selectRenderSegments narrows the job's accumulated recording result to the
+// segments a render task asked for; an empty selection renders every recorded
+// segment. A selected segment the stored capture never recorded is marked not
+// reusable so Studio re-records instead of retrying the same render, while a
+// malformed selection stays an ordinary render failure.
+func selectRenderSegments(result recording.RecordingResult, segmentIDs []string) (recording.RecordingResult, error) {
+	selected, err := recording.FilterResultSegments(result, segmentIDs)
+	if err != nil {
+		err = fmt.Errorf("select requested segments: %w", err)
+		if errors.Is(err, recording.ErrSegmentNotRecorded) {
+			err = recording.MarkNotReusable(err)
+		}
+		return recording.RecordingResult{}, err
+	}
+	return selected, nil
 }
 
 func isFullDemoNativeMix(preset string, edit renderplan.EditRequest) bool {

@@ -3,9 +3,12 @@ package workers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,9 +17,11 @@ import (
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/rules"
+	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
 // multiSegmentKillPlan builds a kill plan with one segment per id, so tests can
@@ -136,6 +141,283 @@ func TestMergeRecordingPerformancePreservesEveryPhysicalRun(t *testing.T) {
 	}
 	if mergeRecordingPerformance(nil, nil) != nil {
 		t.Fatal("nil legacy performance should remain nil")
+	}
+}
+
+// segmentIDOnly is a minimal edit/pack manifest entry: every downstream check
+// in this render path (validateRenderManifestSegmentIDs) only reads segment
+// ids, so the fake editor's fixtures need not populate the rest of the shape.
+type segmentIDOnly struct {
+	SegmentID string `json:"segment_id"`
+}
+
+func segmentIDOnlyDocJSON(t *testing.T, listKey string, ids []string) string {
+	t.Helper()
+	docs := make([]segmentIDOnly, len(ids))
+	for i, id := range ids {
+		docs[i] = segmentIDOnly{SegmentID: id}
+	}
+	b, err := json.Marshal(map[string][]segmentIDOnly{listKey: docs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// TestRenderWorkerNarrowsToSelectedSegments is the render-side regression for
+// the bug this task fixes: a Studio generate for one (or a few) reel segments
+// must render exactly that selection, not every segment the job has ever
+// recorded. It covers both ends of CLAUDE.md's requirement: a single selected
+// segment renders its own short with no --compile-segments, and two or more
+// selected segments compile only those, in the requested order.
+func TestRenderWorkerNarrowsToSelectedSegments(t *testing.T) {
+	cases := []struct {
+		name       string
+		segmentIDs []string
+		// wantCapture is the narrowed plan in capture (tick) order, which the
+		// recording plan contract requires regardless of the requested order.
+		wantCapture    []string
+		wantCompileArg bool
+	}{
+		{name: "single segment renders its own short", segmentIDs: []string{"seg-002"}, wantCapture: []string{"seg-002"}, wantCompileArg: false},
+		{name: "multi segment compiles only the selection in the requested order", segmentIDs: []string{"seg-003", "seg-001"}, wantCapture: []string{"seg-001", "seg-003"}, wantCompileArg: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			plan := multiSegmentKillPlan("seg-001", "seg-002", "seg-003")
+			repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+
+			// A job-level recording result that accumulated all three segments
+			// across separate reels (mergeRecordingResults), mirroring the bug
+			// report evidence: capture-selection.json names one segment, but the
+			// durable recording result names every segment ever recorded.
+			recordingPlan, err := recording.NewPlanFromKillPlan(plan, "demo.dem", "out", recording.DefaultStreamConfig())
+			if err != nil {
+				t.Fatal(err)
+			}
+			rec := recording.RecordingResult{
+				Plan:            recordingPlan,
+				CaptureMode:     recording.CaptureModeReal,
+				CaptureVerified: true,
+			}
+			for _, sid := range []string{"seg-001", "seg-002", "seg-003"} {
+				rec.Artifacts = append(rec.Artifacts, recording.RecordingArtifact{
+					SegmentID: sid, Role: "segment", Type: "video", Path: sid + ".mp4", SizeBytes: 4,
+				})
+				if err := store.Put(mustSegmentClipKey(t, id, sid), bytes.NewReader([]byte("clip-"+sid))); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rec.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(rec.Plan)
+			if err := putRecordingResult(store, id, rec); err != nil {
+				t.Fatal(err)
+			}
+
+			var seenArgs []string
+			var seenRecordingResult recording.RecordingResult
+			var seenEditDocument renderplan.EditDocument
+			runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				seenArgs = args
+				if err := readJSONFile(argValue(args, "--recording-result"), &seenRecordingResult); err != nil {
+					t.Fatal(err)
+				}
+				outDir := argValue(args, "--out")
+				publishDir := argValue(args, "--publish-dir")
+				// The render worker writes edit-document.json before invoking the
+				// editor, so it is already on disk here (and outDir is torn down
+				// once render() returns).
+				if err := readJSONFile(filepath.Join(outDir, "edit-document.json"), &seenEditDocument); err != nil {
+					t.Fatal(err)
+				}
+
+				var shorts []editor.ShortResult
+				for _, sid := range tc.segmentIDs {
+					videoPath := filepath.Join(publishDir, sid+".mp4")
+					coverPath := filepath.Join(publishDir, sid+".cover.jpg")
+					captionPath := filepath.Join(publishDir, sid+".caption.txt")
+					logPath := filepath.Join(outDir, "logs", sid+"-render.log")
+					for _, file := range []struct{ path, body string }{
+						{videoPath, "video"}, {coverPath, "cover"}, {captionPath, "caption"}, {logPath, "log"},
+					} {
+						if err := os.MkdirAll(filepath.Dir(file.path), 0o755); err != nil {
+							t.Fatal(err)
+						}
+						if err := os.WriteFile(file.path, []byte(file.body), 0o644); err != nil {
+							t.Fatal(err)
+						}
+					}
+					shorts = append(shorts, editor.ShortResult{
+						SegmentID:     sid,
+						Output:        videoPath,
+						PublishPath:   videoPath,
+						CoverPath:     coverPath,
+						CaptionPath:   captionPath,
+						RenderLogPath: logPath,
+					})
+				}
+				for _, file := range []struct{ path, body string }{
+					{filepath.Join(outDir, "edit-manifest.json"), segmentIDOnlyDocJSON(t, "shorts", tc.segmentIDs)},
+					{filepath.Join(publishDir, "pack-manifest.json"), segmentIDOnlyDocJSON(t, "items", tc.segmentIDs)},
+					{filepath.Join(publishDir, "index.html"), `<html></html>`},
+					{filepath.Join(publishDir, "publish-summary.md"), `summary`},
+				} {
+					if err := os.MkdirAll(filepath.Dir(file.path), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(file.path, []byte(file.body), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				rendered := editor.Result{
+					Preset:      editor.PresetViral60Clean,
+					OutputDir:   outDir,
+					PublishDir:  publishDir,
+					GalleryPath: filepath.Join(publishDir, "index.html"),
+					SummaryPath: filepath.Join(publishDir, "publish-summary.md"),
+					Shorts:      shorts,
+				}
+				if err := writeJSONFile(filepath.Join(outDir, "shorts-result.json"), rendered); err != nil {
+					t.Fatal(err)
+				}
+				return []byte("rendered"), nil
+			}}
+
+			w := NewRenderWorker(repo, store, RenderWorkerConfig{
+				WorkDir:    t.TempDir(),
+				EditorPath: "zv-editor",
+				FFmpegPath: "ffmpeg",
+			})
+			w.runner = runner
+
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "", 0, nil, renderplan.DefaultEditRequest(), tc.segmentIDs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := w.HandleRenderVariant(context.Background(), task); err != nil {
+				t.Fatalf("HandleRenderVariant error = %v", err)
+			}
+
+			// The recording-result.json handed to zv-editor must list exactly the
+			// requested segments — never every segment the job has ever recorded.
+			// Capture order stays chronological (the plan contract); the requested
+			// order travels as the editorial order the editor compiles.
+			if got := recording.SegmentIDs(seenRecordingResult); !slices.Equal(got, tc.wantCapture) {
+				t.Fatalf("recording-result handed to editor lists capture segments %v, want %v", got, tc.wantCapture)
+			}
+			if got := recording.EditorialSegmentIDs(seenRecordingResult); !slices.Equal(got, tc.segmentIDs) {
+				t.Fatalf("recording-result handed to editor compiles segments %v, want requested order %v", got, tc.segmentIDs)
+			}
+			if err := seenRecordingResult.Plan.Validate(); err != nil {
+				t.Fatalf("narrowed recording plan handed to editor is invalid: %v", err)
+			}
+			if len(seenRecordingResult.Artifacts) != len(tc.segmentIDs) {
+				t.Fatalf("recording-result artifacts = %#v, want exactly the %d requested segment(s)", seenRecordingResult.Artifacts, len(tc.segmentIDs))
+			}
+
+			// The edit document's selection must match the request too, not the
+			// job's full recorded history.
+			if !slices.Equal(seenEditDocument.Selection.SegmentIDs, tc.segmentIDs) {
+				t.Fatalf("edit document selection = %v, want %v", seenEditDocument.Selection.SegmentIDs, tc.segmentIDs)
+			}
+
+			if hasArg(seenArgs, "--compile-segments") != tc.wantCompileArg {
+				t.Fatalf("editor args --compile-segments present = %v, want %v: %#v", hasArg(seenArgs, "--compile-segments"), tc.wantCompileArg, seenArgs)
+			}
+			if tc.wantCompileArg {
+				if got, want := argValue(seenArgs, "--segments"), strings.Join(tc.segmentIDs, ","); got != want {
+					t.Fatalf("--segments = %q, want %q", got, want)
+				}
+			}
+
+			var state renderplan.RenderVariantState
+			if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
+				t.Fatal(err)
+			}
+			if got, want := state.Status, renderplan.RenderVariantStatusReady; got != want {
+				t.Fatalf("render state = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestRenderWorkerFailsRenderWhenSelectedSegmentIsNotRecorded(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	plan := multiSegmentKillPlan("seg-001")
+	repo.jobs[id] = &job.Job{ID: id, Status: job.StatusRecorded, Rules: rules.Default(), KillPlan: &plan}
+
+	recordingPlan, err := recording.NewPlanFromKillPlan(plan, "demo.dem", "out", recording.DefaultStreamConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := recording.RecordingResult{
+		Plan:            recordingPlan,
+		CaptureMode:     recording.CaptureModeReal,
+		CaptureVerified: true,
+		Artifacts: []recording.RecordingArtifact{{
+			SegmentID: "seg-001", Role: "segment", Type: "video", Path: "seg-001.mp4", SizeBytes: 4,
+		}},
+	}
+	rec.CaptureInputFingerprint, _ = recording.CaptureInputFingerprint(rec.Plan)
+	if err := putRecordingResult(store, id, rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip"))); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{fn: func(context.Context, string, ...string) ([]byte, error) {
+		t.Fatal("editor must not run when a requested segment was never recorded")
+		return nil, nil
+	}}
+	w := NewRenderWorker(repo, store, RenderWorkerConfig{
+		WorkDir:    t.TempDir(),
+		EditorPath: "zv-editor",
+		FFmpegPath: "ffmpeg",
+	})
+	w.runner = runner
+
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "", 0, nil, renderplan.DefaultEditRequest(), []string{"seg-999"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.HandleRenderVariant(context.Background(), task)
+	if err == nil {
+		t.Fatal("HandleRenderVariant error = nil, want a failure naming the missing segment")
+	}
+	if !strings.Contains(err.Error(), "seg-999") {
+		t.Fatalf("error = %q, want it to name the missing segment seg-999", err.Error())
+	}
+	// The stored capture cannot serve this selection, so the failure must be
+	// the stable re-record class, land in the durable render state Studio
+	// polls (not stay Queued forever), and hit the obs journal exactly once.
+	if !recording.IsNotReusableMessage(err.Error()) {
+		t.Fatalf("error = %q, want the %q prefix so Studio re-records", err.Error(), recording.NotReusablePrefix)
+	}
+	var state renderplan.RenderVariantState
+	if err := json.Unmarshal(store.files[mustRenderVariantStatusKey(t, id, editor.PresetViral60Clean)], &state); err != nil {
+		t.Fatalf("render state missing or unreadable after failed narrowing: %v", err)
+	}
+	if state.Status != renderplan.RenderVariantStatusFailed {
+		t.Fatalf("render state = %q, want %q", state.Status, renderplan.RenderVariantStatusFailed)
+	}
+	if !strings.Contains(state.Error, "seg-999") || !recording.IsNotReusableMessage(state.Error) {
+		t.Fatalf("render state error = %q, want a not-reusable failure naming seg-999", state.Error)
+	}
+	journal := obs.Default()
+	if journal == nil {
+		t.Fatal("obs.Default is nil")
+	}
+	found, err := journal.SelectErrors(id.String(), obs.ClassRecordingNotReusable)
+	if err != nil {
+		t.Fatalf("SelectErrors: %v", err)
+	}
+	if len(found) != 1 || found[0].Task != tasks.TypeRenderVariant || found[0].Stage != obs.StageWorker {
+		t.Fatalf("obs journal for %s/%s = %#v, want exactly one %s event", id, obs.ClassRecordingNotReusable, found, tasks.TypeRenderVariant)
 	}
 }
 

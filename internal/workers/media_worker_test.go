@@ -1035,7 +1035,7 @@ func TestRenderWorkerLocalizesSegmentsAndStoresVariantOutputs(t *testing.T) {
 		OutroText:   "follow for more",
 		HookText:    true,
 		KillCounter: false,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2024,7 +2024,7 @@ func TestRenderWorkerRerunsWhenCachedInputsChange(t *testing.T) {
 				MusicDir:   musicDir,
 			})
 			w.runner = runner
-			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, tc.musicKey, 0, nil, edit)
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, tc.musicKey, 0, nil, edit, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2103,7 +2103,7 @@ func TestRenderWorkerPassesMusicVolume(t *testing.T) {
 			})
 			w.runner = runner
 
-			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "phonk", tc.volume, nil, renderplan.DefaultEditRequest())
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "phonk", tc.volume, nil, renderplan.DefaultEditRequest(), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2324,7 +2324,7 @@ func TestRenderWorkerPassesVoiceDir(t *testing.T) {
 			if preset == "" {
 				preset = editor.PresetViral60Clean
 			}
-			task, err := tasks.NewRenderVariantTask(id, preset, tc.musicKey, 0.8, nil, edit)
+			task, err := tasks.NewRenderVariantTask(id, preset, tc.musicKey, 0.8, nil, edit, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2519,7 +2519,7 @@ func TestRenderWorkerPassesFullDemoOverlay(t *testing.T) {
 				edit.Outro = false
 				edit.DemoSource = tc.source
 			}
-			task, err := tasks.NewRenderVariantTask(id, tc.preset, "", 0, nil, edit)
+			task, err := tasks.NewRenderVariantTask(id, tc.preset, "", 0, nil, edit, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2613,7 +2613,7 @@ func TestRenderWorkerNativePOVDropsMusicBed(t *testing.T) {
 	edit.KillEffect = renderplan.KillEffectClean
 	edit.VoiceComms = false
 	gameDuck := 0.2
-	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "phonk", 0.8, &gameDuck, edit)
+	task, err := tasks.NewRenderVariantTask(id, editor.PresetGameplayPOV60, "phonk", 0.8, &gameDuck, edit, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2720,7 +2720,7 @@ func TestRenderWorkerPassesGameAndVoiceVolume(t *testing.T) {
 				edit.KillEffect = renderplan.KillEffectClean
 			}
 			gameVol := tc.gameVol
-			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "phonk", tc.musicVol, &gameVol, edit)
+			task, err := tasks.NewRenderVariantTask(id, editor.PresetViral60Clean, "phonk", tc.musicVol, &gameVol, edit, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2810,6 +2810,7 @@ func TestRenderWorkerTreatsDefaultAndUnityMusicVolumeAsSameCacheIdentity(t *test
 					volume,
 					nil,
 					renderplan.DefaultEditRequest(),
+					nil,
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -3049,7 +3050,7 @@ func composeTask(t *testing.T, id uuid.UUID) *asynq.Task {
 
 func renderTask(t *testing.T, id uuid.UUID, variant string) *asynq.Task {
 	t.Helper()
-	task, err := tasks.NewRenderVariantTask(id, variant, "", 0, nil, renderplan.EditRequest{})
+	task, err := tasks.NewRenderVariantTask(id, variant, "", 0, nil, renderplan.EditRequest{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

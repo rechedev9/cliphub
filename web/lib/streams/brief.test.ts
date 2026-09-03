@@ -99,6 +99,13 @@ test('stream shorts require brief approval', () => {
 test('the brief line joins every decision with a middle dot', () => {
   assert.equal(
     streamCreativeBriefLine(plan()),
-    'Facecam 40 · Recorte confirmado · 1 clip · ~10.0s salida · pro_player · Twitch · slide · No · phonk-01 · 25% · Sí',
+    'Facecam 40 · Recorte confirmado · 1 clip · 0:10 de salida aprox. · pro_player · Twitch · slide · No · phonk-01 · 25% · Sí',
   );
+});
+
+test('the clip summary reads as a clock, never a unit glued to digits', () => {
+  const items = streamCreativeBrief(plan());
+  const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
+  assert.equal(byLabel.Clips, '1 clip · 0:10 de salida aprox.');
+  assert.doesNotMatch(byLabel.Clips, /\ds salida/);
 });

@@ -849,6 +849,10 @@ func (h *Handlers) GetFinal(w http.ResponseWriter, r *http.Request) {
 // job's kill plan, writing a 400 and returning false. An empty selection means
 // "record every segment" and always passes. Callers guarantee a non-nil kill
 // plan via their readiness check before calling this.
+// validateSegmentSelection rejects a segment selection that names a segment
+// outside the job's kill plan or names one segment twice; an empty selection
+// means every segment. It writes the 400 itself and reports whether the
+// selection is usable.
 func validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string) bool {
 	if len(ids) == 0 {
 		return true
@@ -857,11 +861,17 @@ func validateSegmentSelection(w http.ResponseWriter, j job.Job, ids []string) bo
 	for _, s := range j.KillPlan.Segments {
 		valid[s.ID] = true
 	}
+	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		if !valid[id] {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("unknown segment id %q", id))
 			return false
 		}
+		if seen[id] {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("duplicate segment id %q", id))
+			return false
+		}
+		seen[id] = true
 	}
 	return true
 }
@@ -1067,12 +1077,6 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// Build the render task now so an invalid music key fails fast here rather
-	// than silently dropping the chained render later in the record worker.
-	if _, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, intent.MusicKey, intent.MusicVolume, intent.GameVolume, intent.Edit); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
 	hudMode, useRecapPlan := applyCaptureOverrides(preset.HUDMode, intent.Edit)
 	segmentIDs := req.SegmentIDs
 	if useRecapPlan {
@@ -1089,6 +1093,13 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if !validateSegmentSelection(w, j, segmentIDs) {
+		return
+	}
+	intent.SegmentIDs = segmentIDs
+	// Build the render task now so an invalid music key fails fast here rather
+	// than silently dropping the chained render later in the record worker.
+	if _, err := tasks.NewRenderVariantTask(j.ID, intent.Variant, intent.MusicKey, intent.MusicVolume, intent.GameVolume, intent.Edit, intent.SegmentIDs); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	portraitSafeKillfeed := preset.KillfeedSource && intent.Edit.Format == renderplan.FormatShort9x16
@@ -1390,17 +1401,21 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	// track to mix in. "music" also accepts an object
 	// {"key","volume","game_volume"} so the client can set mix gains; volume
 	// is in (0,1], 0 means the default. game_volume is in [0,1]; omitted keeps
-	// the 0.70 mix.
+	// the 0.70 mix. An optional "segment_ids" narrows the render to exactly
+	// those recorded segments, compiled in the given order; omitted or empty
+	// renders every recorded segment.
 	var musicRequest renderMusicRequest
 	var editPatch renderEditRequest
 	var expectedArtifactPrefix string
 	var expectedWarnings []string
+	var segmentIDs []string
 	if r.Body != nil {
 		var req struct {
 			Music                  renderMusicRequest `json:"music"`
 			Edit                   renderEditRequest  `json:"edit"`
 			ExpectedArtifactPrefix string             `json:"expected_artifact_prefix"`
 			ExpectedWarnings       []string           `json:"expected_warnings"`
+			SegmentIDs             []string           `json:"segment_ids"`
 		}
 		switch err := decodeSingleJSONBody(w, r, &req, true); {
 		case err == nil, errors.Is(err, io.EOF):
@@ -1414,6 +1429,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, "game volume must be between 0 and 1")
 				return
 			}
+			if !validateSegmentSelection(w, j, req.SegmentIDs) {
+				return
+			}
+			segmentIDs = req.SegmentIDs
 			expectedArtifactPrefix = req.ExpectedArtifactPrefix
 			expectedWarnings = req.ExpectedWarnings
 		default:
@@ -1476,7 +1495,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		musicVolume = musicRequest.Volume
 		gameVolume = musicRequest.GameVolume
 	}
-	task, err := tasks.NewRenderVariantTask(j.ID, variant, musicKey, musicVolume, gameVolume, editRequest)
+	task, err := tasks.NewRenderVariantTask(j.ID, variant, musicKey, musicVolume, gameVolume, editRequest, segmentIDs)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

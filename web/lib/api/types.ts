@@ -328,6 +328,13 @@ export type RosterMatch = {
   rounds: number;
 };
 
+/** An existing job's status plus its roster; `players` is empty until the scan has run. */
+export type ScannedDemo = {
+  status: string;
+  players: DemoPlayer[];
+  match?: RosterMatch;
+};
+
 /** One demo of a bulk series; `match` is filled once the roster scan exists. */
 export type SeriesDemo = {
   jobId: string;

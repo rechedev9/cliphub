@@ -15,6 +15,9 @@ import { cn } from '@/lib/utils';
  * cut at the playhead. Clicking a band only selects it; cuts are removed from
  * their card. The scale is the full probed duration.
  */
+const ADD_CUT_HINT = 'clic en hueco: nuevo corte · clic en corte: seleccionar';
+const NO_DURATION_HINT = 'Sin duración de la fuente';
+
 export function StreamSourceTimeline({
   clips,
   sourceDuration,
@@ -55,8 +58,11 @@ export function StreamSourceTimeline({
     <section className="studio-panel flex flex-col gap-2 p-3.5" aria-label="Timeline de la fuente">
       <div className="flex min-w-0 items-center justify-between gap-3 font-mono text-meta uppercase tracking-widest text-fg-3">
         <span className="shrink-0">Timeline de la fuente · {formatStreamClock(sourceDuration)}</span>
-        <span className="min-w-0 truncate text-stream-text">
-          clic en hueco: nuevo corte · clic en corte: seleccionar
+        <span
+          className="hidden min-w-0 truncate text-stream-text lg:inline"
+          title={hasScale ? ADD_CUT_HINT : NO_DURATION_HINT}
+        >
+          {hasScale ? ADD_CUT_HINT : NO_DURATION_HINT}
         </span>
         <Button
           type="button"

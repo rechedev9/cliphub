@@ -7,6 +7,11 @@ export const UNPLAYABLE_START_PREFIX = 'unplayable_start:' as const;
 /** Stable prefix the orchestrator stamps when a stored capture must be re-recorded. */
 const RECORDING_NOT_REUSABLE_PREFIX = 'recording_not_reusable:' as const;
 
+/** Latched by the reconcile loop breaker when one automatic re-drive still produced a mismatching render. */
+export const MISMATCH_REDRIVE_FAILURE_REASON =
+  'El vídeo renderizado no coincide con las jugadas o los ajustes elegidos para este clip. ' +
+  'Reintenta; si vuelve a fallar, elimina el clip y créalo de nuevo.';
+
 /** True when compose/render must re-record; re-rendering the stored capture cannot recover. */
 export function requiresRecapture(reason: string | undefined): boolean {
   if (reason === undefined || reason.trim() === '') return false;
@@ -31,6 +36,7 @@ export type FailureReason = {
     | 'recording-not-reusable'
     | 'pov-verification'
     | 'capture-flake'
+    | 'render-mismatch'
     | 'generic';
   /** Spanish message the failed-reel card should surface to the user. */
   message: string;
@@ -98,6 +104,11 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
 
   if (reason.startsWith(UNPLAYABLE_START_PREFIX)) {
     return { kind: 'unplayable-start', message: UNPLAYABLE_START_MESSAGE, retryCanHelp: false };
+  }
+
+  // Client-minted and already user-facing Spanish: surface it verbatim.
+  if (reason === MISMATCH_REDRIVE_FAILURE_REASON) {
+    return { kind: 'render-mismatch', message: MISMATCH_REDRIVE_FAILURE_REASON, retryCanHelp: true };
   }
 
   if (reason.startsWith(DEMO_INCOMPATIBLE_PREFIX)) {

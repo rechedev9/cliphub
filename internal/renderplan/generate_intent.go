@@ -19,8 +19,12 @@ type GenerateIntent struct {
 	MusicVolume float64     `json:"music_volume,omitempty"`
 	GameVolume  *float64    `json:"game_volume,omitempty"`
 	Edit        EditRequest `json:"edit"`
-	ActiveRunID uuid.UUID   `json:"active_run_id,omitzero"`
-	AcceptedAt  time.Time   `json:"accepted_at,omitzero"`
+	// SegmentIDs, when non-empty, scopes the chained render to exactly these
+	// recorded plan segments in this order; empty means every recorded segment
+	// (the CLI all-kills default and Full Demo recap).
+	SegmentIDs  []string  `json:"segment_ids,omitempty"`
+	ActiveRunID uuid.UUID `json:"active_run_id,omitzero"`
+	AcceptedAt  time.Time `json:"accepted_at,omitzero"`
 }
 
 // Normalize fills unset edit fields with their defaults and returns the result.

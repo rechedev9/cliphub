@@ -7,6 +7,22 @@
 export const CLIPS_HREF = '/clips' as const;
 export const NEW_DEMO_HREF = '/clips/nueva' as const;
 
+/** `?job=` resumes a `scanned` job's POV pick instead of uploading. */
+export const NEW_DEMO_QUERY = { job: 'job' } as const;
+
+const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True when a `?job=` value is a well-formed orchestrator job id; anything else is a bad/guessed URL. */
+export function isJobIdParam(value: string | string[] | null | undefined): value is string {
+  return typeof value === 'string' && JOB_ID_RE.test(value);
+}
+
+export function newDemoHref(opts: { job?: string } = {}): string {
+  if (opts.job === undefined) return NEW_DEMO_HREF;
+  const params = new URLSearchParams({ [NEW_DEMO_QUERY.job]: opts.job });
+  return `${NEW_DEMO_HREF}?${params.toString()}`;
+}
+
 /** `?vista=` picks the hub lens; `?partida=` opens one row. */
 export const HUB_QUERY = {
   lens: 'vista',

@@ -5,7 +5,7 @@ import {
 } from '../api/streams.ts';
 import { affiliateFamilyLabel, affiliateStyleLabel } from '../api/types.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
-import { clipOutputDuration } from './plan.ts';
+import { clipOutputDuration, formatStreamClock } from './plan.ts';
 
 export function canCreateStreamShorts({
   briefApproved,
@@ -36,7 +36,7 @@ export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
   const clipSummary =
     plan.clips.length === 0
       ? 'Sin clips'
-      : `${plan.clips.length} clip${plan.clips.length === 1 ? '' : 's'} · ~${totalOut.toFixed(1)}s salida`;
+      : `${plan.clips.length} clip${plan.clips.length === 1 ? '' : 's'} · ${formatStreamClock(totalOut)} de salida aprox.`;
 
   let facecam = 'Sin facecam';
   if (needsFace) {

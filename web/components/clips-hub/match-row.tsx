@@ -4,16 +4,18 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
+import { MATCH_ROW_UNPICKED_CTA, MATCH_ROW_UNPICKED_HINT, MATCH_ROW_UNPICKED_TITLE } from '@/lib/clips/copy';
 import {
   fullChipLabel,
+  HUB_ROW_STAGE,
   OUTPUT_STATE,
   OUTPUT_TONE,
-  pluralClips,
+  pluralShorts,
   roundsFromScore,
   shortsChipTone,
   type HubMatch,
 } from '@/lib/clips/hub';
-import { PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
+import { newDemoHref, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
@@ -37,118 +39,157 @@ export type MatchRowProps = {
 
 /** One partida: collapsed scoreboard header, expanded Shorts + Full POV columns. */
 export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): ReactNode {
-  const { match, parsing, shorts, fulls } = row;
+  const { match, stage, shorts, fulls } = row;
   const { ours, theirs } = parseScore(match.score);
   const hasScore = ours !== null && theirs !== null;
   const win = hasScore && ours > theirs;
   const loss = hasScore && ours < theirs;
-  const player = match.player ?? '—';
-  const expanded = open && !parsing;
+  const player = match.player;
+  const expandable = stage === HUB_ROW_STAGE.ready;
+  const expanded = open && expandable;
 
   let bar = 'bg-border-strong';
-  if (!parsing && win) bar = 'bg-success';
-  else if (!parsing && loss) bar = 'bg-destructive';
+  if (expandable && win) bar = 'bg-success';
+  else if (expandable && loss) bar = 'bg-destructive';
+
+  let headerBlock: ReactNode;
+  if (stage === HUB_ROW_STAGE.parsing) headerBlock = <ParsingBlock player={player} />;
+  else if (stage === HUB_ROW_STAGE.unpicked) headerBlock = <UnpickedBlock />;
+  else headerBlock = <ReadyHeaderBlock hasScore={hasScore} ours={ours} theirs={theirs} win={win} loss={loss} shorts={shorts} fulls={fulls} />;
 
   return (
     <article
       id={matchRowId(match.id)}
       className={cn('studio-panel studio-enter flex flex-col overflow-hidden rounded-[10px]', expanded && 'studio-panel-raised')}
     >
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-disabled={parsing || undefined}
-        onClick={() => {
-          if (!parsing) onToggle();
-        }}
-        className={cn(
-          'flex w-full items-stretch gap-4 px-[18px] py-3 text-left transition-colors duration-(--dur-fast)',
-          parsing ? 'cursor-default' : 'cursor-pointer hover:bg-surface-3',
-        )}
-      >
-        <span aria-hidden className={cn('w-1 shrink-0 self-stretch', bar)} />
-
-        <span aria-hidden className="relative h-[47px] w-[84px] shrink-0 self-center overflow-hidden border border-border-strong">
-          <MapCover map={match.map} />
-          <span className="absolute inset-0">
-            <CoverImage src={match.thumbnailUrl} />
-          </span>
-        </span>
-
-        <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
-          <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
-          <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-            {[player, matchDateLabel(match), match.decentPlays > 0 ? `${match.decentPlays} highlights` : null]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
-        </span>
-
-        {parsing ? (
-          <ParsingBlock player={player} />
-        ) : (
-          <>
-            {hasScore ? (
-              <span
-                role="img"
-                aria-label={`Marcador ${ours} a ${theirs}`}
-                className="self-center font-mono text-title font-bold leading-none tabular-nums"
-              >
-                <span className={cn(win && 'text-success', loss && 'text-destructive', !win && !loss && 'text-fg-1')}>{ours}</span>
-                <span className="text-fg-4"> : </span>
-                <span className="text-fg-1">{theirs}</span>
-              </span>
-            ) : null}
-            <span className="flex items-center gap-2 self-center">
-              <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag>
-              <StatusTag tone={fulls[0] === undefined ? OUTPUT_TONE.queue : OUTPUT_TONE[fulls[0].state]}>
-                {fulls[0]?.state === OUTPUT_STATE.rec ? (
-                  <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
-                ) : null}
-                {fullChipLabel(fulls)}
-              </StatusTag>
-            </span>
-          </>
-        )}
-
-        <ChevronRight
-          aria-hidden
+      <div className="flex w-full items-stretch">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-disabled={!expandable || undefined}
+          onClick={() => {
+            if (expandable) onToggle();
+          }}
           className={cn(
-            'size-4 shrink-0 self-center text-fg-3 transition-transform duration-(--dur-fast)',
-            expanded && 'rotate-90',
+            'flex min-w-0 flex-1 items-stretch gap-4 py-3 pr-3 pl-[18px] text-left transition-colors duration-(--dur-fast)',
+            expandable ? 'cursor-pointer hover:bg-surface-3' : 'cursor-default',
           )}
-        />
-      </button>
+        >
+          <span aria-hidden className={cn('w-1 shrink-0 self-stretch', bar)} />
+
+          <span aria-hidden className="relative h-[47px] w-[84px] shrink-0 self-center overflow-hidden border border-border-strong">
+            <MapCover map={match.map} />
+            <span className="absolute inset-0">
+              <CoverImage src={match.thumbnailUrl} />
+            </span>
+          </span>
+
+          <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
+            <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
+            <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+              {[player, matchDateLabel(match), match.decentPlays > 0 ? `${match.decentPlays} highlights` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </span>
+
+          {headerBlock}
+
+          {expandable ? (
+            <ChevronRight
+              aria-hidden
+              className={cn('size-4 shrink-0 self-center text-fg-3 transition-transform duration-(--dur-fast)', expanded && 'rotate-90')}
+            />
+          ) : null}
+        </button>
+
+        <span className="flex shrink-0 items-center gap-2 py-3 pr-[18px]">
+          {stage === HUB_ROW_STAGE.unpicked ? (
+            <Button asChild size="xs" variant="outline-primary">
+              <Link href={newDemoHref({ job: match.id })}>{MATCH_ROW_UNPICKED_CTA}</Link>
+            </Button>
+          ) : null}
+          <DeleteMatchButton
+            label={prettyMapName(match.map)}
+            onConfirm={() => api.deleteMatch(match.id)}
+            onDeleted={onChange}
+          />
+        </span>
+      </div>
 
       {expanded ? (
         <div className="studio-enter grid grid-cols-1 border-t border-border-subtle @[44rem]/content:grid-cols-2">
           <ShortsColumn row={row} onChange={onChange} />
           <FullColumn row={row} onChange={onChange} />
-          <div className="col-span-full flex items-center justify-end gap-3 border-t border-border-subtle px-4 py-2">
-            <span className="font-mono text-meta uppercase tracking-wider text-fg-4">Quitar partida</span>
-            <DeleteMatchButton
-              label={prettyMapName(match.map)}
-              onConfirm={() => api.deleteMatch(match.id)}
-              onDeleted={onChange}
-            />
-          </div>
         </div>
       ) : null}
     </article>
   );
 }
 
-function ParsingBlock({ player }: { player: string }): ReactNode {
+function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (
     <span role="status" className="flex w-[280px] shrink-0 flex-col justify-center gap-1.5 self-center">
       <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary">
         <span aria-hidden className="studio-spinner" />
-        Parseando POV de {player}
+        {player === undefined ? 'Parseando la demo' : `Parseando POV de ${player}`}
       </span>
       <span className="studio-bar text-primary">
         <span className="studio-indeterminate" />
       </span>
       <span className="font-mono text-meta uppercase tracking-wider text-fg-3">parseando la demo · highlights al terminar</span>
+    </span>
+  );
+}
+
+function ReadyHeaderBlock({
+  hasScore,
+  ours,
+  theirs,
+  win,
+  loss,
+  shorts,
+  fulls,
+}: {
+  hasScore: boolean;
+  ours: number | null;
+  theirs: number | null;
+  win: boolean;
+  loss: boolean;
+  shorts: HubMatch['shorts'];
+  fulls: HubMatch['fulls'];
+}): ReactNode {
+  return (
+    <>
+      {hasScore ? (
+        <span
+          role="img"
+          aria-label={`Marcador ${ours} a ${theirs}`}
+          className="self-center font-mono text-title font-bold leading-none tabular-nums"
+        >
+          <span className={cn(win && 'text-success', loss && 'text-destructive', !win && !loss && 'text-fg-1')}>{ours}</span>
+          <span className="text-fg-4"> : </span>
+          <span className="text-fg-1">{theirs}</span>
+        </span>
+      ) : null}
+      <span className="flex items-center gap-2 self-center">
+        <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag>
+        <StatusTag tone={fulls[0] === undefined ? OUTPUT_TONE.queue : OUTPUT_TONE[fulls[0].state]}>
+          {fulls[0]?.state === OUTPUT_STATE.rec ? (
+            <span aria-hidden className="neon-pulse size-1.5 shrink-0 rounded-full bg-current shadow-[0_0_6px_currentColor]" />
+          ) : null}
+          {fullChipLabel(fulls)}
+        </StatusTag>
+      </span>
+    </>
+  );
+}
+
+function UnpickedBlock(): ReactNode {
+  return (
+    <span className="flex w-[280px] shrink-0 flex-col justify-center gap-1.5 self-center">
+      <span className="font-mono text-meta uppercase tracking-wider text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
+      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
     </span>
   );
 }
@@ -165,7 +206,7 @@ function ColumnHead({ label, accent, trailing }: { label: string; accent?: boole
 function ShortsColumn({ row, onChange }: { row: HubMatch; onChange: () => void }): ReactNode {
   return (
     <div className="flex flex-col gap-2 border-border-subtle px-4 py-3 @[44rem]/content:border-r">
-      <ColumnHead label="Shorts" accent trailing={pluralClips(row.shorts.length)} />
+      <ColumnHead label="Shorts" accent trailing={pluralShorts(row.shorts.length)} />
       {row.shorts.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}

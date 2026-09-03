@@ -26,7 +26,7 @@ export interface ShellJob {
   readonly stage: ShellJobStage;
   /** Epoch ms the job was created — real API data, used for elapsed time. */
   readonly startedAt: number;
-  /** Capture done/total/percent while recording; null on every other stage. */
+  /** Capture done/total/percent while recording or composing; null on every other stage. */
   readonly progress: { readonly done: number; readonly total: number; readonly percent?: number } | null;
   /** Where the job lives; the transport's row links there. */
   readonly href: string;
@@ -119,7 +119,9 @@ function reelJob(video: Video): ShellJob[] {
   if (stage === null) return [];
   const capture = video.captureProgress;
   let progress: ShellJob['progress'] = null;
-  if (stage === 'recording' && capture !== undefined && capture.total > 0) {
+  // `composing` carries the render percent (internal/httpapi/progress.go
+  // reports it as done/total 100/percent), not a stale capture segment count.
+  if ((stage === 'recording' || stage === 'composing') && capture !== undefined && capture.total > 0) {
     progress = { done: capture.done, total: capture.total };
     if (capture.percent !== undefined) {
       progress = { ...progress, percent: capture.percent };
