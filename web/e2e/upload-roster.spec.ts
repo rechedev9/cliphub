@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
 
-/** Roster picker on /upload. Network is stubbed; this is the presentation contract. */
+/** Roster picker on /clips/nueva. Network is stubbed; this is the presentation contract. */
 const JOB_ID = '3f2b9c14-7d6e-4a52-9b81-0c5e8f7a1d23';
 
 const ROSTER_PLAYERS = [
@@ -46,7 +46,7 @@ async function stubRosterScan(page: Page): Promise<void> {
 /** Drops a demo through the real file input and waits for the picker. */
 async function scanDemo(page: Page): Promise<void> {
   await stubRosterScan(page);
-  await gotoStudio(page, '/upload');
+  await gotoStudio(page, '/clips/nueva');
 
   await page.locator('input[type="file"]').setInputFiles({
     name: 'match.dem',
@@ -108,7 +108,7 @@ test.describe('scan failure states', () => {
     await page.route('**/api/demos/*/roster', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ players: [] }) });
     });
-    await gotoStudio(page, '/upload');
+    await gotoStudio(page, '/clips/nueva');
 
     await page.locator('input[type="file"]').setInputFiles({
       name: 'empty.dem',
@@ -130,7 +130,7 @@ test.describe('scan failure states', () => {
         body: JSON.stringify({ code: 'service_unavailable' }),
       });
     });
-    await gotoStudio(page, '/upload');
+    await gotoStudio(page, '/clips/nueva');
 
     await page.locator('input[type="file"]').setInputFiles({
       name: 'offline.dem',

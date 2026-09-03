@@ -19,6 +19,7 @@ import {
   seriesTitle,
   type SeriesStatusTone,
 } from '@/lib/series-status';
+import { PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -495,7 +496,7 @@ function ForgeLink({
   if (!seriesStatusIsForgeable(demo.status)) return null;
   return (
     <Button asChild size="sm" variant={reel ? 'outline' : 'hero'}>
-      <Link href={`/matches/${demo.jobId}?series=${seriesId}`}>
+      <Link href={produceHref(demo.jobId, PRODUCE_FORMAT.short, seriesId)}>
         {reel ? 'OTRO REEL' : 'ELEGIR JUGADAS'}
         <ChevronRight className="size-4" />
       </Link>

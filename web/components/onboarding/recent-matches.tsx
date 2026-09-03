@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { loadSteamAccount, type SteamStoredMatch } from '@/lib/api/steam-account';
 import { importShareCode } from '@/lib/api/steam-import';
+import { CLIPS_HREF } from '@/lib/clips/routes';
 
 export function RecentSteamMatches(): ReactElement | null {
   const router = useRouter();
@@ -35,7 +36,7 @@ export function RecentSteamMatches(): ReactElement | null {
     const result = await importShareCode(code);
     setPending(null);
     if (result.kind === 'queued') {
-      router.push('/matches');
+      router.push(CLIPS_HREF);
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -72,7 +73,7 @@ export function RecentSteamMatches(): ReactElement | null {
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={() => { router.push('/matches'); }}
+        onQueued={() => { router.push(CLIPS_HREF); }}
       />
     </section>
   );

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { NAV_SECTIONS } from '../lib/nav.ts';
 
-/** Every shell route, plus the standalone `/upload` entry, keyed by nav order. */
+/** Every shell route, keyed by nav order. */
 export const NAV_ROUTES = NAV_SECTIONS.map((section) => ({
   name: `${section.number} ${section.label}`,
   href: section.href,

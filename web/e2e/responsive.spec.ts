@@ -34,7 +34,7 @@ test.describe('horizontal overflow', () => {
     // 200% zoom on a 1280px window is a 640px CSS viewport with everything at
     // double scale; emulating the resulting layout viewport is the measurable half.
     await page.setViewportSize({ width: 640, height: 450 });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     const root = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
@@ -46,7 +46,7 @@ test.describe('horizontal overflow', () => {
 test.describe('container-keyed breakpoints', () => {
   test('the content column is a named container, not the viewport', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
 
     const containerType = await page
       .locator('main.\\@container\\/content')

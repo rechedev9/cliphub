@@ -5,7 +5,7 @@ const INTERACTIVE = 'a[href], button, input, select, textarea, [role="button"], 
 
 test.describe('focus', () => {
   test('keyboard focus paints a 2px outline with a 2px offset, not a ring', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
 
     // Walk far enough into the shell to land on a real control rather than a
     // skip link, then measure whatever actually holds focus.
@@ -112,10 +112,10 @@ test.describe('names and live regions', () => {
 });
 
 test.describe('preserved E2E hooks', () => {
-  // The /upload file input is contract, not incidental markup.
+  // The /clips/nueva file input is contract, not incidental markup.
   // The hooks that only exist once a roster arrives live in upload-roster.spec.
   test('the upload flow keeps its file input', async ({ page }) => {
-    await gotoStudio(page, '/upload');
+    await gotoStudio(page, '/clips/nueva');
     const input = page.locator('input[type="file"]');
     await expect(input).toHaveCount(1);
     // The real input is visually hidden behind the dropzone, so the contract is

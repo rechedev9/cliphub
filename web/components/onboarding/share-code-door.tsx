@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { resolveShareCode, type ShareCodeResolution } from '@/lib/api/share-code-resolve';
 import { importShareCode } from '@/lib/api/steam-import';
+import { CLIPS_HREF } from '@/lib/clips/routes';
 import { checkShareCode } from '@/lib/sharecode';
 
 const STEPS = [
@@ -56,7 +57,7 @@ export function ShareCodeDoor(): ReactElement {
     const result = await importShareCode(code);
     setDownloading(false);
     if (result.kind === 'queued') {
-      router.push('/matches');
+      router.push(CLIPS_HREF);
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -136,7 +137,7 @@ export function ShareCodeDoor(): ReactElement {
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={() => { router.push('/matches'); }}
+        onQueued={() => { router.push(CLIPS_HREF); }}
       />
 
       <p className="text-meta text-fg-3">

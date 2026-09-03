@@ -19,7 +19,7 @@ async function fulfillJson(page: Page, path: string, status: number, body: unkno
   });
 }
 
-test.describe('Matches Shorts constructor empty states', () => {
+test.describe('Produce screen empty states', () => {
   test('pending parse shows analyzing, not Sin jugadas destacables', async ({ page }) => {
     await fulfillJson(page, '/status', 200, { status: 'parsing' });
     await fulfillJson(page, '/roster', 200, {
@@ -35,11 +35,13 @@ test.describe('Matches Shorts constructor empty states', () => {
       ],
       match: { map: 'de_inferno', score_team_a: 7, score_team_b: 5 },
     });
-    await gotoStudio(page, `/matches/${JOB}`);
+    await gotoStudio(page, `/clips/${JOB}/nuevo`);
     await expect(page.getByRole('heading', { name: MATCH_PLAYS_ANALYZING_TITLE })).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_ANALYZING_DESCRIPTION)).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_EMPTY_TITLE)).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /Vídeo completo 16:9/i })).toBeVisible();
+    const formats = page.getByRole('group', { name: 'Formato' });
+    await expect(formats.getByRole('button', { name: 'Short 9:16' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(formats.getByRole('button', { name: 'Full POV 16:9' })).toBeVisible();
   });
 
   test('plan-ready with zero plays keeps Sin jugadas destacables', async ({ page }) => {
@@ -62,14 +64,15 @@ test.describe('Matches Shorts constructor empty states', () => {
         },
       ],
     });
-    await gotoStudio(page, `/matches/${JOB}`);
+    await fulfillJson(page, '/recap-plan', 409, { error: 'recap plan not ready' });
+    await gotoStudio(page, `/clips/${JOB}/nuevo`);
     await expect(page.getByRole('heading', { name: MATCH_PLAYS_EMPTY_TITLE })).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_ANALYZING_TITLE)).toHaveCount(0);
   });
 });
 
-test.describe('Library Full Demo identity', () => {
-  test('marks landscape recap cards as PARTIDA COMPLETA', async ({ page }) => {
+test.describe('Clips lens Full POV identity', () => {
+  test('marks landscape recap clips as Full POV', async ({ page }) => {
     await page.addInitScript((value) => {
       window.localStorage.setItem('cliphub.reels.v1', JSON.stringify(value));
     }, [
@@ -93,9 +96,8 @@ test.describe('Library Full Demo identity', () => {
         body: JSON.stringify({ status: 'recording', progress: { done: 1, total: 10, percent: 10 } }),
       }),
     );
-    await gotoStudio(page, '/videos');
-    await expect(page.getByRole('heading', { name: 'BIBLIOTECA' })).toBeVisible();
-    await expect(page.getByLabel('Vídeos').getByText('PARTIDA COMPLETA')).toBeVisible();
-    await expect(page.getByLabel('Vídeos').getByText('16:9', { exact: true })).toBeVisible();
+    await gotoStudio(page, '/clips?vista=clips');
+    await expect(page.locator('main').getByText('24 rondas - POV nativo')).toBeVisible();
+    await expect(page.locator('main').getByText(/Full POV/).first()).toBeVisible();
   });
 });

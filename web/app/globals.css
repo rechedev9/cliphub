@@ -805,6 +805,51 @@ html[data-capture-active="true"] {
     animation: studio-indeterminate calc(var(--dur-data) * 2) var(--ease-standard) infinite;
   }
 
+  /* Route and list entrance: fade plus an 8px rise. The rise multiplies
+   * --shell-depth, so reduced motion and the efficiency profile keep only the
+   * fade, and the duration token collapses it to 1ms under reduced motion. */
+  /* Same entrance as .studio-reveal at a larger travel amplitude; both stay. */
+  .studio-enter {
+    animation: studio-enter var(--dur-slow) var(--ease-entrance) both;
+  }
+
+  /* Determinate-less activity ring, 12px by default: cyan for local work,
+   * magenta (via `text-stream`) for CS2 recording. Colour comes from
+   * currentColor so one class serves every tone. */
+  /* 0.9s is the spec's spinner cadence, deliberately off the --dur-* scale. */
+  .studio-spinner {
+    display: inline-block;
+    flex: none;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in oklch, currentColor 20%, transparent);
+    border-top-color: currentColor;
+    animation: studio-spin 0.9s linear infinite;
+  }
+
+  /* 3px progress track. Give the fill its width inline; add
+   * `.studio-indeterminate` to the fill when there is no percent to show. */
+  .studio-bar {
+    position: relative;
+    display: block;
+    height: 3px;
+    overflow: hidden;
+    background-color: var(--surface-3);
+  }
+
+  .studio-bar > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    background-color: currentColor;
+    transition: width var(--dur-base) linear;
+  }
+
+  .studio-bar > span.studio-indeterminate {
+    width: 34%;
+  }
+
   .studio-op-check-path {
     fill: none;
     stroke: currentColor;
@@ -920,6 +965,24 @@ html:has([data-slot="sidebar-inset"][data-dialog-open]) .ff-ambient-layer {
   }
 }
 
+@keyframes studio-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(8px * var(--shell-depth)));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes studio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes studio-check-draw {
   from {
     stroke-dashoffset: calc(24 * var(--shell-depth));
@@ -986,6 +1049,13 @@ html[data-window-activity="inactive"] *::before,
 html[data-window-activity="inactive"] *::after {
   animation-play-state: paused !important;
   transition-duration: 0s !important;
+}
+
+/* An entrance paused on its first frame is invisible content, not a saved
+ * frame: a route mounted while Studio sits behind another window would stay
+ * blank until focus. Skip the entrance instead of pausing it. */
+html[data-window-activity="inactive"] .studio-enter {
+  animation: none !important;
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"] [class*="backdrop-blur"] {
@@ -1082,7 +1152,8 @@ html[data-runtime="desktop"][data-performance-profile="efficiency"] .pipeline-ra
 
   /* A frozen spinner reads as a hung app. Keep one slow rotation: it is the
    * only signal that a long local render is still alive. */
-  .animate-spin {
+  .animate-spin,
+  .studio-spinner {
     animation-duration: 1.8s !important;
     animation-iteration-count: infinite !important;
   }

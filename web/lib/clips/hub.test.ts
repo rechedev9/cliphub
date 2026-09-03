@@ -1,0 +1,199 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import type { Match, Video } from '../api/types.ts';
+import { FULL_DEMO_EDIT } from '../full-demo.ts';
+import {
+  activeJobCount,
+  buildHubModel,
+  clipFilterCounts,
+  fullChipLabel,
+  hubTransitions,
+  matchesClipFilter,
+  outputState,
+  outputTagLabel,
+  outputType,
+  recBusy,
+  roundsFromScore,
+  shortsChipTone,
+  toOutput,
+} from './hub.ts';
+
+function match(id: string, status?: string): Match {
+  return {
+    id,
+    map: 'de_mirage',
+    score: '13-9',
+    playedAt: '2026-09-01T10:00:00Z',
+    stats: { kills: 20, deaths: 10, assists: 3, mvps: 2, kd: 2 },
+    decentPlays: 5,
+    ...(status === undefined ? {} : { status }),
+  };
+}
+
+function reel(overrides: Partial<Video> & Pick<Video, 'id' | 'status'>): Video {
+  return {
+    title: `reel ${overrides.id}`,
+    map: 'de_mirage',
+    score: '13-9',
+    mode: 'clean',
+    createdAt: 1000,
+    ...overrides,
+  };
+}
+
+test('outputType: a landscape recap is a Full POV, everything else a Short', () => {
+  assert.equal(outputType(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT })), 'full');
+  assert.equal(outputType(reel({ id: 'b', status: 'ready' })), 'short');
+  assert.equal(
+    outputType(reel({ id: 'c', status: 'ready', editConfig: { ...FULL_DEMO_EDIT, matchRecap: false } })),
+    'short',
+  );
+});
+
+test('outputState maps the video pipeline onto the handoff vocabulary', () => {
+  const cases: Array<[Video['status'], string]> = [
+    ['queued', 'queue'],
+    ['recording', 'rec'],
+    ['composing', 'render'],
+    ['ready', 'ready'],
+    ['review_required', 'ready'],
+    ['failed', 'failed'],
+  ];
+  for (const [status, state] of cases) {
+    assert.equal(outputState(status), state, status);
+  }
+});
+
+test('toOutput carries progress only while REC or render report one', () => {
+  const rec = toOutput(reel({ id: 'a', status: 'recording', captureProgress: { done: 3, total: 10 } }));
+  assert.equal(rec.percent, 30);
+  assert.deepEqual(rec.rounds, { done: 3, total: 10 });
+  const render = toOutput(reel({ id: 'b', status: 'composing', captureProgress: { done: 10, total: 10, percent: 41 } }));
+  assert.equal(render.percent, 41);
+  assert.equal(render.rounds, null);
+  const queued = toOutput(reel({ id: 'c', status: 'queued', captureProgress: { done: 0, total: 10 } }));
+  assert.equal(queued.percent, null);
+  const review = toOutput(reel({ id: 'd', status: 'review_required' }));
+  assert.equal(review.reviewRequired, true);
+  assert.equal(review.state, 'ready');
+});
+
+test('buildHubModel groups reels under their partida and keeps orphans apart', () => {
+  const model = buildHubModel(
+    [match('m1', 'parsed'), match('m2', 'parsing')],
+    [
+      reel({ id: 'v1', status: 'ready', jobId: 'm1', createdAt: 1 }),
+      reel({ id: 'v2', status: 'recording', jobId: 'm1', editConfig: FULL_DEMO_EDIT, createdAt: 2 }),
+      reel({ id: 'v3', status: 'ready', jobId: 'gone', createdAt: 3 }),
+      reel({ id: 'v4', status: 'ready', createdAt: 4 }),
+    ],
+  );
+  assert.equal(model.rows.length, 2);
+  assert.equal(model.rows[0].shorts.map((o) => o.id).join(','), 'v1');
+  assert.equal(model.rows[0].fulls.map((o) => o.id).join(','), 'v2');
+  assert.equal(model.rows[0].parsing, false);
+  assert.equal(model.rows[1].parsing, true);
+  assert.deepEqual(model.orphans.map((o) => o.id), ['v4', 'v3']);
+  assert.deepEqual(model.clips.map((o) => o.id), ['v4', 'v3', 'v2', 'v1']);
+  assert.equal(model.clips[3].match?.id, 'm1');
+  assert.equal(model.clips[0].match, null);
+});
+
+test('buildHubModel lists the newest output first inside a row', () => {
+  const model = buildHubModel(
+    [match('m1')],
+    [
+      reel({ id: 'old', status: 'ready', jobId: 'm1', createdAt: 1 }),
+      reel({ id: 'new', status: 'ready', jobId: 'm1', createdAt: 9 }),
+    ],
+  );
+  assert.deepEqual(model.rows[0].shorts.map((o) => o.id), ['new', 'old']);
+});
+
+test('clip filters and counts agree with each other', () => {
+  const outputs = [
+    toOutput(reel({ id: 'a', status: 'ready' })),
+    toOutput(reel({ id: 'b', status: 'composing' })),
+    toOutput(reel({ id: 'c', status: 'ready', editConfig: FULL_DEMO_EDIT })),
+    toOutput(reel({ id: 'd', status: 'failed' })),
+  ];
+  assert.deepEqual(clipFilterCounts(outputs), { all: 4, short: 3, full: 1, ready: 2, working: 2 });
+  assert.equal(matchesClipFilter(outputs[1], 'working'), true);
+  assert.equal(matchesClipFilter(outputs[3], 'working'), true);
+  assert.equal(matchesClipFilter(outputs[2], 'short'), false);
+});
+
+test('recBusy and activeJobCount count what is actually moving', () => {
+  const model = buildHubModel(
+    [match('m1', 'parsing'), match('m2')],
+    [
+      reel({ id: 'a', status: 'recording', jobId: 'm2' }),
+      reel({ id: 'b', status: 'queued', jobId: 'm2' }),
+      reel({ id: 'c', status: 'ready', jobId: 'm2' }),
+    ],
+  );
+  assert.equal(recBusy(model), true);
+  assert.equal(activeJobCount(model), 3);
+  assert.equal(
+    activeJobCount(model, [
+      { id: 's1', status: 'rendering', created_at: '' },
+      { id: 's2', status: 'ready', created_at: '' },
+    ]),
+    4,
+  );
+});
+
+test('fullChipLabel follows the latest Full POV state', () => {
+  assert.equal(fullChipLabel([]), 'Full POV · —');
+  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'recording', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · REC');
+  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · listo');
+  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'queued', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · en cola');
+});
+
+test('outputTagLabel: one uppercase tag per state, with progress when reported', () => {
+  const cases: Array<[Parameters<typeof outputTagLabel>[0], string]> = [
+    [{ state: 'ready', percent: null, rounds: null }, 'LISTO'],
+    [{ state: 'ready', percent: null, rounds: null, reviewRequired: true }, 'REVISIÓN QA'],
+    [{ state: 'render', percent: 41, rounds: null }, 'RENDER 41%'],
+    [{ state: 'render', percent: null, rounds: null }, 'RENDER'],
+    [{ state: 'rec', percent: 15, rounds: { done: 3, total: 20 } }, 'REC R3/20'],
+    [{ state: 'rec', percent: null, rounds: null }, 'REC'],
+    [{ state: 'queue', percent: null, rounds: null }, 'EN COLA'],
+    [{ state: 'failed', percent: null, rounds: null }, 'FALLÓ'],
+  ];
+  for (const [input, want] of cases) assert.equal(outputTagLabel(input), want);
+});
+
+test('shortsChipTone: working > existing > none', () => {
+  const ready = toOutput(reel({ id: 'a', status: 'ready' }));
+  const working = toOutput(reel({ id: 'b', status: 'composing' }));
+  assert.equal(shortsChipTone([]), 'neutral');
+  assert.equal(shortsChipTone([ready]), 'success');
+  assert.equal(shortsChipTone([ready, working]), 'primary');
+});
+
+test('roundsFromScore: sums both halves, null when unparseable', () => {
+  const cases: Array<[string, number | null]> = [
+    ['13-9', 22],
+    ['16 - 14', 30],
+    ['', null],
+    ['13', null],
+  ];
+  for (const [score, want] of cases) assert.equal(roundsFromScore(score), want);
+});
+
+test('hubTransitions: reports rows that finished parsing and outputs that became ready', () => {
+  const prev = buildHubModel([match('m1', 'parsing'), match('m2')], [
+    reel({ id: 'v1', jobId: 'm2', status: 'composing' }),
+    reel({ id: 'v2', jobId: 'm2', status: 'ready' }),
+  ]);
+  const next = buildHubModel([match('m1', 'parsed'), match('m2')], [
+    reel({ id: 'v1', jobId: 'm2', status: 'ready' }),
+    reel({ id: 'v2', jobId: 'm2', status: 'ready' }),
+    reel({ id: 'v3', jobId: 'm2', status: 'ready' }),
+  ]);
+  const got = hubTransitions(prev, next);
+  assert.deepEqual(got.parsed.map((row) => row.match.id), ['m1']);
+  // v2 was already ready and v3 is new (first seen ready), so only v1 flipped.
+  assert.deepEqual(got.ready.map((clip) => clip.id), ['v1']);
+});

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { SURFACE_RAMP, gotoStudio, parseOklch, rootToken } from './contract.ts';
+import { HUB_EMPTY_TITLE } from '../lib/clips/copy.ts';
 
 const GENERIC_FONTS = ['inter', 'roboto', 'open sans', 'lato'];
 
@@ -24,7 +25,7 @@ function computedAlpha(color: string): number {
 }
 
 test.describe('anti-slop chrome', () => {
-  for (const href of ['/matches', '/upload'] as const) {
+  for (const href of ['/clips', '/clips/nueva'] as const) {
     test(`${href} body is Chakra Petch, not a generic AI typeface`, async ({ page }) => {
       await gotoStudio(page, href);
       const family = (await fontFamilyOf(page, 'body')).toLowerCase().replace(/_/g, ' ');
@@ -55,15 +56,15 @@ test.describe('anti-slop chrome', () => {
   }
 
   test('surface ramp steps are opaque', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     for (const { token } of SURFACE_RAMP) {
       const served = parseOklch(await rootToken(page, token));
       expect(served.a, token).toBe(1);
     }
   });
 
-  test('keyboard focus on /matches is a visible cyan outline', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+  test('keyboard focus on /clips is a visible cyan outline', async ({ page }) => {
+    await gotoStudio(page, '/clips');
     let measured = false;
     for (let i = 0; i < 12 && !measured; i += 1) {
       await page.keyboard.press('Tab');
@@ -94,7 +95,7 @@ test.describe('anti-slop chrome', () => {
   });
 
   test('the command strip is an opaque ceiling', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     const strip = page.locator('[data-slot="shell-strip"]');
     await expect(strip).toBeVisible();
     const style = await strip.evaluate((node) => {
@@ -108,13 +109,13 @@ test.describe('anti-slop chrome', () => {
     expect(computedAlpha(style.backgroundColor)).toBe(1);
   });
 
-  test('/matches empty state is the shared kit', async ({ page }) => {
-    await gotoStudio(page, '/matches');
-    await expect(page.locator('[data-slot="empty"]')).toBeVisible();
+  test('/clips empty state invites the first demo', async ({ page }) => {
+    await gotoStudio(page, '/clips');
+    await expect(page.locator(`section[aria-label="${HUB_EMPTY_TITLE}"]`)).toBeVisible();
   });
 
-  test('/upload dropzone keeps the real file input', async ({ page }) => {
-    await gotoStudio(page, '/upload');
+  test('/clips/nueva dropzone keeps the real file input', async ({ page }) => {
+    await gotoStudio(page, '/clips/nueva');
     await expect(page.locator('[data-slot="dropzone"]')).toBeVisible();
     const input = page.locator('input[type="file"]');
     await expect(input).toHaveCount(1);
@@ -127,12 +128,12 @@ const SCRATCH = process.env.GOAL_SCRATCH;
 test.describe('studio screenshots', () => {
   test.skip(!SCRATCH, 'GOAL_SCRATCH is unset');
 
-  test('matches and upload paint the navy room', async ({ page }) => {
-    await gotoStudio(page, '/matches');
-    expect(page.url()).toContain('/matches');
-    await page.screenshot({ path: `${SCRATCH}/matches.png`, fullPage: true });
-    await gotoStudio(page, '/upload');
-    expect(page.url()).toContain('/upload');
-    await page.screenshot({ path: `${SCRATCH}/upload.png`, fullPage: true });
+  test('the hub and nueva partida paint the navy room', async ({ page }) => {
+    await gotoStudio(page, '/clips');
+    expect(page.url()).toContain('/clips');
+    await page.screenshot({ path: `${SCRATCH}/clips.png`, fullPage: true });
+    await gotoStudio(page, '/clips/nueva');
+    expect(page.url()).toContain('/clips/nueva');
+    await page.screenshot({ path: `${SCRATCH}/clips-nueva.png`, fullPage: true });
   });
 });

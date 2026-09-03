@@ -2,29 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamClipRange, StreamEditPlan } from '../api/streams.ts';
 import {
-  blankClip,
-  blankPlan,
   clipOutputDuration,
   clipTimelineGeometry,
   errorMessage,
   fitPlanToSourceDuration,
   withDefaultStreamTitle,
+  formatStreamClock,
   formatStreamTimestamp,
+  insertClipSorted,
   isServiceUnavailable,
   nextClipId,
   nonVideoExtension,
-  overlayMarkerGeometry,
   planFingerprint,
   pruneClipEdit,
   resolveStreamerBannerPlatform,
   streamSourceLabel,
+  timelineClipAt,
   STREAM_INVALID_URL_MESSAGE,
   STREAM_OFFLINE_MESSAGE,
 } from './plan.ts';
 
 test('applies job title defaults only to editable plans', () => {
-  const plan = blankPlan(30);
-  plan.clips[0].title = '';
+  const plan: StreamEditPlan = {
+    schema_version: '1.1',
+    variant: 'streamer-vertical-stack-40-60',
+    clips: [{ id: 'clip-1', start_seconds: 0, end_seconds: 20, title: '' }],
+  };
   const editable = withDefaultStreamTitle(plan, '  Título del trabajo  ', true);
   assert.equal(editable.clips[0].title, 'Título del trabajo');
   assert.equal(plan.clips[0].title, '');
@@ -75,21 +78,6 @@ test('an offline code wins over the generic fallback message', () => {
 
 test('clip ids are unique so a new range never collides with an existing one', () => {
   assert.notEqual(nextClipId(), nextClipId());
-});
-
-test('a blank plan starts with one valid range awaiting facecam review', () => {
-  const plan = blankPlan(120);
-  assert.equal(plan.clips.length, 1);
-  assert.equal(plan.face_crop_reviewed, false);
-  assert.equal(plan.clips[0].start_seconds, 0);
-  assert.ok(plan.clips[0].end_seconds > plan.clips[0].start_seconds);
-});
-
-test('a fresh range keeps the 20-second default while respecting short sources', () => {
-  assert.equal(blankClip(15.15).end_seconds, 15.15);
-  assert.equal(blankClip(120).end_seconds, 20);
-  assert.equal(blankClip(0).end_seconds, 20);
-  assert.equal(blankClip(Number.NaN).end_seconds, 20);
 });
 
 test('fitting to the source clamps legacy endpoints and upgrades the schema version', () => {
@@ -219,14 +207,65 @@ test('fade wedges are measured against the output duration, so speed shrinks the
   assert.equal(clipOutputDuration(clip({ start_seconds: 0, end_seconds: 20, edit: { speed: 2 } })), 10);
 });
 
-test('an overlay without bounds spans its whole clip', () => {
-  assert.deepEqual(overlayMarkerGeometry({ text: 'GG', position_y: 0.5 }, 10), {
-    startPercent: 0,
-    widthPercent: 100,
-  });
-  assert.deepEqual(
-    overlayMarkerGeometry({ text: 'GG', position_y: 0.5, start_seconds: 2, end_seconds: 4 }, 10),
-    { startPercent: 20, widthPercent: 20 },
-  );
-  assert.equal(overlayMarkerGeometry({ text: 'GG', position_y: 0.5 }, 0), null);
+test('the clock drops fractional seconds and adds hours only past sixty minutes', () => {
+  assert.equal(formatStreamClock(7.9), '0:07');
+  assert.equal(formatStreamClock(84), '1:24');
+  assert.equal(formatStreamClock(3725), '1:02:05');
+  assert.equal(formatStreamClock(Number.NaN), '0:00');
+});
+
+test('a timeline click opens a cut around the second, clamped to the source and its neighbours', () => {
+  const clips: StreamClipRange[] = [
+    { id: 'a', start_seconds: 10, end_seconds: 20 },
+    { id: 'b', start_seconds: 40, end_seconds: 50 },
+  ];
+  const cases: [number, number, ReturnType<typeof timelineClipAt>][] = [
+    [30, 90, { start_seconds: 26, end_seconds: 38 }],
+    [22, 90, { start_seconds: 20, end_seconds: 30 }],
+    [2, 90, { start_seconds: 0, end_seconds: 10 }],
+    [88, 90, { start_seconds: 84, end_seconds: 90 }],
+    [15, 90, null],
+    [30, 0, null],
+  ];
+  for (const [seconds, duration, expected] of cases) {
+    assert.deepEqual(timelineClipAt(clips, seconds, duration), expected);
+  }
+  const tight: StreamClipRange[] = [
+    { id: 'a', start_seconds: 0, end_seconds: 20 },
+    { id: 'b', start_seconds: 20.5, end_seconds: 30 },
+  ];
+  assert.equal(timelineClipAt(tight, 20.2, 90), null);
+});
+
+test('a cut clamped to non-decimal neighbours rounds inwards and never overlaps them', () => {
+  const clips: StreamClipRange[] = [
+    { id: 'a', start_seconds: 0, end_seconds: 3.04 },
+    { id: 'b', start_seconds: 5.06, end_seconds: 10 },
+  ];
+  const cases: [readonly StreamClipRange[], number, ReturnType<typeof timelineClipAt>][] = [
+    [clips, 4.5, { start_seconds: 3.1, end_seconds: 5 }],
+    [clips, 3.05, { start_seconds: 3.1, end_seconds: 5 }],
+    // A gap under the minimum collapses to nothing instead of stealing a frame.
+    [
+      [{ id: 'a', start_seconds: 0, end_seconds: 3.04 }, { id: 'b', start_seconds: 3.9, end_seconds: 10 }],
+      3.5,
+      null,
+    ],
+  ];
+  for (const [ranges, seconds, expected] of cases) {
+    const range = timelineClipAt(ranges, seconds, 20);
+    assert.deepEqual(range, expected);
+    if (range !== null) {
+      for (const neighbour of ranges) {
+        assert.ok(range.end_seconds <= neighbour.start_seconds || range.start_seconds >= neighbour.end_seconds);
+      }
+    }
+  }
+});
+
+test('inserted cuts keep source order so numbering follows the timeline', () => {
+  const clips: StreamClipRange[] = [{ id: 'b', start_seconds: 40, end_seconds: 50 }];
+  const next = insertClipSorted(clips, { id: 'a', start_seconds: 10, end_seconds: 20 });
+  assert.deepEqual(next.map((clip) => clip.id), ['a', 'b']);
+  assert.equal(clips.length, 1);
 });

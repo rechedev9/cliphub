@@ -6,7 +6,6 @@ import {
   type StreamEditPlan,
   type StreamerBannerPlatform,
   type StreamTextOverlay,
-  type StreamVariant,
 } from '../api/streams.ts';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '../clip-edit.ts';
 
@@ -15,7 +14,6 @@ import { DEFAULT_OVERLAY_FONT_SIZE } from '../clip-edit.ts';
 /** Schema the editor writes; mirrors streamclips.EditPlan. */
 export const EDIT_PLAN_SCHEMA_VERSION = '1.1';
 
-const FULL_FRAME: NormalizedRect = { x: 0, y: 0, width: 1, height: 1 };
 export const DEFAULT_FACE_CROP: NormalizedRect = { x: 0.62, y: 0.03, width: 0.34, height: 0.3 };
 
 /** Nicks the streamer banner accepts, matching the Go validator. */
@@ -38,6 +36,8 @@ export const MUSIC_VOLUMES: readonly { value: number; label: string }[] = [
 ];
 
 /** The one offline sentence every stream call falls back to. */
+export const STREAM_LIST_FAIL_MESSAGE =
+  'No se pudo cargar la lista de streams. Reintenta o revisa el servicio local.';
 export const STREAM_OFFLINE_MESSAGE =
   'El servicio de Clips de stream está offline. Arráncalo y vuelve a intentarlo.';
 export const STREAM_INVALID_URL_MESSAGE =
@@ -138,37 +138,11 @@ export function resolveStreamerBannerPlatform(
   return streamerBannerPlatformFromSourceURL(sourceUrl);
 }
 
-/** Default clip end: 20s, or the probed duration when shorter. */
-function initialStreamClipEnd(durationSeconds: number): number {
-  return Number.isFinite(durationSeconds) && durationSeconds > 0
-    ? Math.min(durationSeconds, 20)
-    : 20;
-}
-
 let clipSeq = 0;
 
 export function nextClipId(): string {
   clipSeq += 1;
   return `clip-${Date.now()}-${clipSeq}`;
-}
-
-/** A fresh range covering the head of the source, as the editor first offers it. */
-export function blankClip(durationSeconds: number): StreamClipRange {
-  return { id: nextClipId(), start_seconds: 0, end_seconds: initialStreamClipEnd(durationSeconds), title: '' };
-}
-
-export function blankPlan(
-  durationSeconds = 0,
-  variant: StreamVariant = 'streamer-vertical-stack-40-60',
-): StreamEditPlan {
-  return {
-    schema_version: EDIT_PLAN_SCHEMA_VERSION,
-    variant,
-    face_crop: DEFAULT_FACE_CROP,
-    face_crop_reviewed: false,
-    gameplay_crop: FULL_FRAME,
-    clips: [blankClip(durationSeconds)],
-  };
 }
 
 /** Upgrade schema and clamp only the legacy 20s endpoint to a shorter source. */
@@ -299,20 +273,46 @@ export function clipTimelineGeometry(
   };
 }
 
-export type OverlayMarkerGeometry = { startPercent: number; widthPercent: number };
+/** `m:ss` (or `h:mm:ss`) clock for rails, rulers and cut cards. */
+export function formatStreamClock(seconds: number): string {
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = String(total % 60).padStart(2, '0');
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${secs}` : `${minutes}:${secs}`;
+}
 
-/** Overlay placement inside its clip band; missing bounds extend to the edge. */
-export function overlayMarkerGeometry(
-  overlay: StreamTextOverlay,
-  clipDuration: number,
-): OverlayMarkerGeometry | null {
-  if (!Number.isFinite(clipDuration) || clipDuration <= 0) return null;
-  const rawStart = overlay.start_seconds ?? 0;
-  const rawEnd = overlay.end_seconds ?? clipDuration;
-  const start = Math.min(Math.max(rawStart, 0), clipDuration);
-  const end = Math.min(Math.max(rawEnd, start), clipDuration);
-  return {
-    startPercent: (start / clipDuration) * 100,
-    widthPercent: Math.max(1, ((end - start) / clipDuration) * 100),
-  };
+/** A timeline click opens a cut from 4 s before to 8 s after the clicked second. */
+export const TIMELINE_CLIP_BEFORE_SECONDS = 4;
+export const TIMELINE_CLIP_AFTER_SECONDS = 8;
+const TIMELINE_MIN_CLIP_SECONDS = 1;
+
+/**
+ * Range for a new cut around `seconds`, clamped to the source and to the
+ * neighbouring cuts; null when the click lands on a cut or in a gap too small.
+ */
+export function timelineClipAt(
+  clips: readonly StreamClipRange[],
+  seconds: number,
+  sourceDuration: number,
+): { start_seconds: number; end_seconds: number } | null {
+  if (!Number.isFinite(seconds) || !Number.isFinite(sourceDuration) || sourceDuration <= 0) return null;
+  const t = Math.min(Math.max(seconds, 0), sourceDuration);
+  if (clips.some((clip) => t >= clip.start_seconds && t < clip.end_seconds)) return null;
+  let start = Math.max(0, t - TIMELINE_CLIP_BEFORE_SECONDS);
+  let end = Math.min(sourceDuration, t + TIMELINE_CLIP_AFTER_SECONDS);
+  for (const clip of clips) {
+    if (clip.end_seconds <= t) start = Math.max(start, clip.end_seconds);
+    if (clip.start_seconds >= t) end = Math.min(end, clip.start_seconds);
+  }
+  // Round inwards: a cut must never grow back over a neighbour it was clamped to.
+  start = Math.ceil(start * 10) / 10;
+  end = Math.floor(end * 10) / 10;
+  if (end - start < TIMELINE_MIN_CLIP_SECONDS) return null;
+  return { start_seconds: start, end_seconds: end };
+}
+
+/** Cuts stay in source order so their numbers match the timeline left to right. */
+export function insertClipSorted(clips: readonly StreamClipRange[], clip: StreamClipRange): StreamClipRange[] {
+  return [...clips, clip].sort((a, b) => a.start_seconds - b.start_seconds);
 }

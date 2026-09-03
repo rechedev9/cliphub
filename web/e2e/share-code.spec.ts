@@ -33,7 +33,7 @@ async function submitCode(page: Page, code: string): Promise<void> {
 test.describe('share code door', () => {
   test('explains where the code comes from before asking for it', async ({ page }) => {
     // The three retrieval steps are shown up front, not hidden behind an error.
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     const section = page.locator('main section', {
       hasText: '¿YA TIENES EL CÓDIGO DE UNA PARTIDA?',
     });
@@ -46,7 +46,7 @@ test.describe('share code door', () => {
 
   test('links the official Steam page and never opens it unsafely', async ({ page }) => {
     // target="_blank" without rel is the reverse-tabnabbing defect this guards.
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     const anchor = page.locator(`main a[href="${STEAM_HELP_HREF}"]`);
     await expect(anchor).toBeVisible();
     await expect(anchor).toHaveAttribute('target', '_blank');
@@ -57,7 +57,7 @@ test.describe('share code door', () => {
   test('rejects a malformed code locally, without a round trip', async ({ page }) => {
     // A malformed code gets a visible field error, no success tag, no request.
     const stub = await stubShareCode(page, { status: 200, body: {} });
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     await submitCode(page, 'CSGO-nope');
     await expect(page.locator('main [data-slot="field-error"]')).toBeVisible();
     await expect(page.getByText('Código válido')).toHaveCount(0);
@@ -69,7 +69,7 @@ test.describe('share code door', () => {
       status: 200,
       body: { status: 'decoded', matchId: MATCH_ID, outcomeId: OUTCOME_ID, tokenId: 31463 },
     });
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     await submitCode(page, WELL_FORMED_CODE);
     await expect(page.getByText('Código válido')).toBeVisible();
     const live = page.locator('main [aria-live="polite"]');
@@ -100,11 +100,11 @@ test.describe('share code door', () => {
         body: JSON.stringify({ id: 'job-1', status: 'queued', matchId: MATCH_ID }),
       });
     });
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     await submitCode(page, WELL_FORMED_CODE);
     await expect(page.getByText('Código válido')).toBeVisible();
     await page.getByRole('button', { name: 'DESCARGAR DEMO' }).click();
-    await expect(page).toHaveURL(/\/matches/);
+    await expect(page).toHaveURL(/\/clips$/);
     expect(imported).toEqual([{ code: WELL_FORMED_CODE }]);
   });
 
@@ -120,7 +120,7 @@ test.describe('share code door', () => {
         body: JSON.stringify({ code: 'steam_credentials_required', error: 'Steam login is required' }),
       });
     });
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     await submitCode(page, WELL_FORMED_CODE);
     await page.getByRole('button', { name: 'DESCARGAR DEMO' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -134,7 +134,7 @@ test.describe('share code door', () => {
       status: 400,
       body: { code: 'invalid_share_code', message: 'Ese código no corresponde a ninguna partida.' },
     });
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     await submitCode(page, WELL_FORMED_CODE);
     await expect(page.locator('main [data-slot="field-error"]')).toContainText(
       'Ese código no corresponde a ninguna partida.',
@@ -147,7 +147,7 @@ test.describe('share code door', () => {
       status: 503,
       body: { error: 'analysis service unavailable', code: 'service_unavailable' },
     });
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips/nueva');
     await submitCode(page, WELL_FORMED_CODE);
     const live = page.locator('main [aria-live="polite"]');
     await expect(live).toContainText('El servicio local de ClipHub no está en marcha');
@@ -159,7 +159,7 @@ test.describe('share code door', () => {
     test(`stays usable without overflow at ${width}px`, async ({ page }) => {
       // The form works at every validated width with no x-scroll.
       await page.setViewportSize({ width, height: 900 });
-      await gotoStudio(page, '/onboarding');
+      await gotoStudio(page, '/clips/nueva');
       await expect(page.getByLabel('Código de partida')).toBeVisible();
       await expect(page.getByRole('button', { name: 'COMPROBAR' })).toBeVisible();
       const overflow = await page.evaluate(() => {

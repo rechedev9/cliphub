@@ -17,7 +17,7 @@ import {
 /** Pin served CSS tokens so a ramp edit is a deliberate contract change. */
 test.describe('foundations', () => {
   test.beforeEach(async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
   });
 
   for (const { token, value } of [...SURFACE_RAMP, ...FOREGROUND_RAMP, ...BORDER_TOKENS, ...SIGNAL_TOKENS]) {

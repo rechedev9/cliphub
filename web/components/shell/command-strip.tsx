@@ -1,8 +1,10 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
 import { AppUpdateControl } from '@/components/shell/app-update-control';
 import { JobTransport } from '@/components/shell/job-transport';
 import {
@@ -10,13 +12,22 @@ import {
   shellActivitySnapshot,
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
+import { CLIPS_HREF, NEW_DEMO_HREF, PRODUCE_FORMAT, PRODUCE_QUERY } from '@/lib/clips/routes';
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
+
+const TRAIL = {
+  newMatch: 'nueva partida',
+  newShort: 'nuevo short',
+  newFull: 'nuevo full pov',
+  publish: 'publicar',
+} as const;
 
 // Full-inset 56px ceiling: own padding, no max-w, opaque --surface-0 (no backdrop-blur).
 export function CommandStrip(): ReactElement {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const section = sectionForPath(pathname);
-  const trail = trailForPath(pathname, section);
+  const trail = trailForPath(pathname, section, searchParams.get(PRODUCE_QUERY.format));
   const activity = useSyncExternalStore(
     subscribeToShellActivity,
     shellActivitySnapshot,
@@ -52,7 +63,7 @@ export function CommandStrip(): ReactElement {
             <span className="shrink-0 px-1 text-fg-4" aria-hidden>
               ›
             </span>
-            <span className="max-w-[14ch] truncate font-[family-name:var(--font-mono)] text-meta text-fg-3">
+            <span className="max-w-[16ch] truncate font-[family-name:var(--font-mono)] text-meta text-fg-3">
               {trail}
             </span>
           </>
@@ -61,6 +72,11 @@ export function CommandStrip(): ReactElement {
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <JobTransport />
+        {pathname === CLIPS_HREF ? (
+          <Button asChild variant="hero" size="sm" className="neon-notch max-sm:hidden">
+            <Link href={NEW_DEMO_HREF}>+ Cargar demo</Link>
+          </Button>
+        ) : null}
         {activity.capturing ? <CapturePip /> : null}
         <AppUpdateControl />
       </div>
@@ -90,10 +106,16 @@ function sectionForPath(pathname: string): NavSection | null {
   return null;
 }
 
-// Nested URL segment as-is: the shell has no entity name without an extra fetch.
-function trailForPath(pathname: string, section: NavSection | null): string | null {
+// Screen names for the 01 section; other sections show the nested segment as-is.
+function trailForPath(pathname: string, section: NavSection | null, format: string | null): string | null {
   if (section === null) return null;
   const rest = pathname.slice(section.href.length).replace(/^\/+|\/+$/g, '');
   if (rest === '') return null;
-  return decodeURIComponent(rest.split('/')[0] ?? '');
+  const segments = rest.split('/');
+  if (section.href === CLIPS_HREF) {
+    if (pathname === NEW_DEMO_HREF) return TRAIL.newMatch;
+    if (segments[1] === 'nuevo') return format === PRODUCE_FORMAT.full ? TRAIL.newFull : TRAIL.newShort;
+    if (segments[1] === 'publicar') return TRAIL.publish;
+  }
+  return decodeURIComponent(segments[0] ?? '');
 }

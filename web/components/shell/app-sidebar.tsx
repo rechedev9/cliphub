@@ -5,16 +5,10 @@ import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 import {
   Clapperboard,
-  Compass,
-  Crosshair,
   Film,
-  Layers,
-  MonitorPlay,
   Radar,
-  Rocket,
   Settings,
   ShieldAlert,
-  UploadCloud,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -32,34 +26,26 @@ import {
 } from '@/components/ui/sidebar';
 import { BrandMark, Wordmark } from '@/components/brand/wordmark';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
+import { CLIPS_HREF } from '@/lib/clips/routes';
 import { NAV_SECTIONS, type NavHref, type NavSection } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
-/** The two phases of the Studio flow, in rail order. */
-const NAV_GROUPS = [
-  { id: 'production', label: 'Producción' },
-  { id: 'output', label: 'Salida' },
-] as const;
+const ANALYSIS_GROUP_LABEL = 'Análisis';
 
-type NavGroupId = (typeof NAV_GROUPS)[number]['id'];
+type NavGroup = 'entry' | 'analysis' | 'chrome';
 
-/** Icons and grouping. `entry` has no heading; `chrome` docks to the footer. */
-const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroupId | 'chrome' | 'entry'; stream?: boolean }> = {
-  '/onboarding': { icon: Rocket, group: 'entry' },
-  '/matches': { icon: Crosshair, group: 'production' },
-  '/upload': { icon: UploadCloud, group: 'production' },
-  '/full-demo': { icon: MonitorPlay, group: 'production' },
-  '/tactical': { icon: Radar, group: 'production' },
-  '/cheaters': { icon: ShieldAlert, group: 'production' },
-  '/players': { icon: Users, group: 'production' },
-  '/streams': { icon: Clapperboard, group: 'production', stream: true },
-  '/editor': { icon: Layers, group: 'output' },
-  '/videos': { icon: Film, group: 'output' },
-  '/feed': { icon: Compass, group: 'output' },
+/** `entry` has no heading, `analysis` is the one labelled group, `chrome` docks to the footer. */
+const NAV_META: Record<NavHref, { icon: LucideIcon; group: NavGroup; trailing?: 'stream' | 'faceit' }> = {
+  '/clips': { icon: Film, group: 'entry' },
+  '/streams': { icon: Clapperboard, group: 'entry', trailing: 'stream' },
+  '/players': { icon: Users, group: 'entry', trailing: 'faceit' },
+  '/tactical': { icon: Radar, group: 'analysis' },
+  '/cheaters': { icon: ShieldAlert, group: 'analysis' },
   '/settings': { icon: Settings, group: 'chrome' },
 };
 
 const ENTRY_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'entry');
+const ANALYSIS_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'analysis');
 const CHROME_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].group === 'chrome');
 
 /** A nav href is active for its exact page and any nested route under it. */
@@ -67,7 +53,7 @@ function isActiveHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Brand lockup, numbered nav grouped by NAV_META, settings + capture footer. */
+/** Brand lockup, numbered nav, Análisis group, settings + capture pill footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
 
@@ -77,8 +63,8 @@ export function AppSidebar(): ReactElement {
           breadcrumb share one baseline across the shell. */}
       <SidebarHeader className="h-(--shell-strip-height) justify-center border-b border-sidebar-border p-0 px-4 group-data-[collapsible=icon]:px-2">
         <Link
-          href="/matches"
-          aria-label="Ir a Partidas"
+          href={CLIPS_HREF}
+          aria-label="Ir a Clips y vídeos"
           className="inline-flex min-h-10 items-center group-data-[collapsible=icon]:justify-center"
         >
           <Wordmark className="group-data-[collapsible=icon]:hidden" />
@@ -95,23 +81,18 @@ export function AppSidebar(): ReactElement {
           </SidebarMenu>
         </SidebarGroup>
 
-        {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.id} className="gap-1.5 p-0 pb-4">
-            {/* [font-size:…] rather than `text-meta`: tailwind-merge files an
-                unknown `text-*` under text-colour, so inside cn() a size step
-                and a colour step cannot coexist (see .shell-nav-key). */}
-            <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tracking-widest text-fg-3 uppercase">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarMenu className="gap-0.5">
-              {NAV_SECTIONS.filter((section) => NAV_META[section.href].group === group.id).map(
-                (section) => (
-                  <NavRow key={section.href} section={section} pathname={pathname} />
-                ),
-              )}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
+        <SidebarGroup className="gap-1.5 p-0 pb-4">
+          {/* [font-size:…] rather than `text-meta`: tailwind-merge files an
+              unknown `text-*` under text-colour (see .shell-nav-key). */}
+          <SidebarGroupLabel className="h-auto px-4 pb-0.5 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tracking-widest text-fg-3 uppercase">
+            {ANALYSIS_GROUP_LABEL}
+          </SidebarGroupLabel>
+          <SidebarMenu className="gap-0.5">
+            {ANALYSIS_SECTIONS.map((section) => (
+              <NavRow key={section.href} section={section} pathname={pathname} />
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="gap-2 border-t border-sidebar-border p-0 pt-2 pb-4">
@@ -163,17 +144,31 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
             {section.label}
           </span>
-          {meta.stream ? (
-            <span
-              className="size-1.5 shrink-0 rounded-full bg-stream group-data-[collapsible=icon]:hidden"
-              aria-hidden
-            />
-          ) : null}
+          <NavTrailing kind={meta.trailing} />
           <NavPending />
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
+}
+
+function NavTrailing({ kind }: { kind: 'stream' | 'faceit' | undefined }): ReactElement | null {
+  if (kind === 'stream') {
+    return (
+      <span
+        className="size-1.5 shrink-0 rounded-full bg-stream group-data-[collapsible=icon]:hidden"
+        aria-hidden
+      />
+    );
+  }
+  if (kind === 'faceit') {
+    return (
+      <span className="shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] font-normal tracking-wider text-fg-3 group-data-[collapsible=icon]:hidden">
+        FACEIT
+      </span>
+    );
+  }
+  return null;
 }
 
 /** Route-transition feedback so a click is visible before the new page mounts. */

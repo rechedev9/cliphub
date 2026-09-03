@@ -1,13 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { NAV_ROUTES, gotoStudio, parseNumber, rootToken, squash } from './contract.ts';
 
-/** `/upload` is deliberately outside the authenticated group, so
- *  it has a compact standalone bar instead of the sidebar and command strip. */
-const SHELL_ROUTES = NAV_ROUTES.filter((route) => route.href !== '/upload');
-
 test.describe('shell geometry', () => {
   test('the sidebar is a 240px wall', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     const sidebar = page.locator('[data-slot="sidebar-container"]').first();
     await expect(sidebar).toBeVisible();
     const box = await sidebar.boundingBox();
@@ -15,7 +11,7 @@ test.describe('shell geometry', () => {
   });
 
   test('sidebar rows are 48px', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     const rows = page.locator('[data-slot="sidebar-menu-button"]');
     const count = await rows.count();
     expect(count).toBeGreaterThanOrEqual(NAV_ROUTES.length);
@@ -29,7 +25,7 @@ test.describe('shell geometry', () => {
   });
 
   test('the command strip is a 56px opaque band, never a backdrop blur', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     expect(parseNumber(await rootToken(page, '--shell-strip-height')) * 16).toBeCloseTo(56, 6);
 
     const strip = page.locator('header.shell-strip');
@@ -44,7 +40,7 @@ test.describe('shell geometry', () => {
 
   test('the content column is capped at 1440px and pinned to the sidebar edge', async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     const main = page.locator('main.\\@container\\/content').first();
     await expect(main).toBeVisible();
     const geometry = await main.evaluate((node) => {
@@ -58,13 +54,13 @@ test.describe('shell geometry', () => {
   });
 
   test('the content gutter is the fluid shell token', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     expect(squash(await rootToken(page, '--shell-gutter'))).toBe('clamp(1.5rem,3.2vw,4rem)');
   });
 });
 
 test.describe('navigation state', () => {
-  for (const { name, href } of SHELL_ROUTES) {
+  for (const { name, href } of NAV_ROUTES) {
     test(`${name} marks exactly one nav entry with aria-current`, async ({ page }) => {
       await gotoStudio(page, href);
       const current = page.locator('[data-slot="sidebar"] a[aria-current="page"]');
@@ -74,33 +70,27 @@ test.describe('navigation state', () => {
   }
 
   test('the sidebar exposes every numbered section', async ({ page }) => {
-    await gotoStudio(page, '/matches');
+    await gotoStudio(page, '/clips');
     for (const { href } of NAV_ROUTES) {
       await expect(page.locator(`[data-slot="sidebar"] a[href="${href}"]`).first()).toBeVisible();
     }
   });
 
-  test('/upload runs outside the shell', async ({ page }) => {
-    await gotoStudio(page, '/upload');
-    await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCount(0);
-    await expect(page.locator('header.shell-strip')).toHaveCount(0);
-  });
-
-  test('the root route lands on Inicio', async ({ page }) => {
+  test('the root route lands on Clips y vídeos', async ({ page }) => {
     await gotoStudio(page, '/');
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page).toHaveURL(/\/clips$/);
   });
 });
 
 test.describe('app updates', () => {
   test('the command strip has no update control in the browser', async ({ page }) => {
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips');
     await expect(page.getByTestId('app-update-control')).toHaveCount(0);
   });
 
   test('the command strip shows an update control when a release is available', async ({ page }) => {
     await page.addInitScript(installUpdateBridge);
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips');
     const control = page.getByTestId('app-update-control');
     await expect(control).toBeVisible();
     await expect(control).toContainText(/Actualizar/i);
@@ -111,7 +101,7 @@ test.describe('app updates', () => {
   test('the update control stays visible at 390px without horizontal overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addInitScript(installUpdateBridge);
-    await gotoStudio(page, '/onboarding');
+    await gotoStudio(page, '/clips');
     await expect(page.getByTestId('app-update-control')).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

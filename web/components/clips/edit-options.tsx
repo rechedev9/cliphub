@@ -46,7 +46,7 @@ const transitionItems: Array<{ value: EditConfig['transition']; label: string }>
   { value: 'zoom-whip', label: 'Zoom-whip' },
 ];
 
-/** Kill-effect, transition, and bookend controls. Aspect lives in CreateReelBar. */
+/** Kill-effect, transition, and bookend controls. Aspect is the produce format. */
 export function EditOptions({
   value,
   onChange,
@@ -370,7 +370,7 @@ export function EditOptions({
               </div>
             </div>
             <p className="text-body-sm text-fg-3">
-              La placa solo se ve entre esos segundos del reel (por defecto 0–4s).
+              La placa solo se ve entre esos segundos del short (por defecto 0–4s).
             </p>
           </div>
         ) : null}
