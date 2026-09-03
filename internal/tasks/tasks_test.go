@@ -278,6 +278,51 @@ func TestGenerateIntentFromTaskRejectsInvalidHeader(t *testing.T) {
 	}
 }
 
+func TestUniqueScope(t *testing.T) {
+	jobA, jobB := uuid.New(), uuid.New()
+	projectID := uuid.New()
+	edit := renderplan.DefaultEditRequest()
+	must := func(task *asynq.Task, err error) *asynq.Task {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return task
+	}
+	recordA := must(NewRecordDemoTaskWithRecap(jobA, "clean", nil, false, false))
+	composeA := must(NewComposeFinalTask(jobA))
+	composeB := must(NewComposeFinalTask(jobB))
+	renderA := must(NewRenderVariantTask(jobA, testRenderVariant, "", 0, nil, edit, nil))
+	streamA := must(NewRenderStreamClipTask(jobA, "streamer-40-60"))
+	timeline := must(NewRenderTimelineTask(projectID, strings.Repeat("ab", 32)))
+	parseA := must(NewParseDemoTask(jobA))
+
+	cases := []struct {
+		name      string
+		task      *asynq.Task
+		wantOK    bool
+		wantScope string
+	}{
+		{name: "record is per job", task: recordA, wantOK: true, wantScope: TypeRecordDemo + ":" + jobA.String()},
+		{name: "compose is per job", task: composeA, wantOK: true, wantScope: TypeComposeFinal + ":" + jobA.String()},
+		{name: "compose other job", task: composeB, wantOK: true, wantScope: TypeComposeFinal + ":" + jobB.String()},
+		{name: "render is per job+variant", task: renderA, wantOK: true, wantScope: TypeRenderVariant + ":" + jobA.String() + ":" + testRenderVariant},
+		{name: "stream render is per job+variant", task: streamA, wantOK: true, wantScope: TypeRenderStreamClip + ":" + jobA.String() + ":streamer-40-60"},
+		{name: "timeline is per project", task: timeline, wantOK: true, wantScope: TypeRenderTimeline + ":" + projectID.String()},
+		{name: "parse falls back to payload hash", task: parseA},
+		{name: "nil task", task: nil},
+		{name: "compose missing job", task: asynq.NewTask(TypeComposeFinal, []byte(`{"job_id":"00000000-0000-0000-0000-000000000000"}`))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := UniqueScope(tc.task)
+			if ok != tc.wantOK || got != tc.wantScope {
+				t.Fatalf("UniqueScope = (%q, %v), want (%q, %v)", got, ok, tc.wantScope, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestNewComposeFinalTaskRoundtrip(t *testing.T) {
 	id := uuid.New()
 	tk, err := NewComposeFinalTask(id)

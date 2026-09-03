@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -755,10 +756,13 @@ func TestWorkbenchShowsInlinePreviewWhenReady(t *testing.T) {
 // rejected transition applied before the duplicate error is returned.
 type uniqueScopeQueue struct {
 	fakeQueue
+	mu   sync.Mutex
 	seen map[string]struct{}
 }
 
 func (q *uniqueScopeQueue) EnqueueWithTransition(t *asynq.Task, transition func(error) error, opts ...asynq.Option) (*asynq.TaskInfo, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.seen == nil {
 		q.seen = map[string]struct{}{}
 	}
@@ -810,5 +814,75 @@ func TestStartGenerateRefusesDifferentIntentBehindQueuedCapture(t *testing.T) {
 	}
 	if current.Variant != "clean-pov-60" || current.MusicKey != "first-track" {
 		t.Fatalf("active intent changed after refused overlap: %+v", current)
+	}
+}
+
+// A queued record:demo without a generate header (or stored intent) is not a
+// generate admission. Per-job uniqueness still answers ErrDuplicateTask, but
+// 202 would tell the client the render will chain when capture will just end.
+func TestStartGenerateDuplicateWithoutIntentIsConflict(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &fakeQueue{err: asynq.ErrDuplicateTask}
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean"}`)
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", rw.Code, rw.Body.String())
+	}
+	var response struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != generateWorkActive {
+		t.Fatalf("code = %q, want %q", response.Code, generateWorkActive)
+	}
+	if strings.Contains(rw.Body.String(), `"duplicate":true`) {
+		t.Fatalf("body claimed generate admission: %s", rw.Body.String())
+	}
+	if _, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]; ok {
+		t.Fatal("duplicate-without-intent published a generate intent")
+	}
+}
+
+func TestStartGenerateRefusesPlainQueuedCaptureWithoutIntent(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &uniqueScopeQueue{}
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/record", h.StartRecording)
+	record := httptest.NewRecorder()
+	r.ServeHTTP(record, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", nil))
+	if record.Code != http.StatusAccepted {
+		t.Fatalf("record status = %d, want 202; body=%s", record.Code, record.Body.String())
+	}
+	// Capture uniqueness outlives the recording claim. A later generate that
+	// sees a completed-looking job still collides with the queued record:demo.
+	current := repo.jobs[j.ID]
+	current.Status = job.StatusRecorded
+	repo.jobs[j.ID] = current
+
+	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean"}`)
+	if rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), generateWorkActive) {
+		t.Fatalf("generate status = %d body=%s, want 409 %s", rw.Code, rw.Body.String(), generateWorkActive)
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want only the plain record", len(queue.enqueued))
+	}
+	if _, ok, err := tasks.GenerateIntentFromTask(queue.enqueued[0]); err != nil || ok {
+		t.Fatalf("queued record carried a generate header: ok=%v err=%v", ok, err)
+	}
+	if _, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]; ok {
+		t.Fatal("plain-record collision published a generate intent")
 	}
 }

@@ -1159,16 +1159,19 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 			if readErr != nil {
 				return readErr
 			}
-			// Record uniqueness is per job, so a capture queued for another reel
-			// also answers duplicate. Adopting that reel's choices would silently
-			// drop this request; refuse it the way the intent store refuses an
-			// overlapping run so the client keeps polling and re-POSTs later.
-			if ok && !sameCapture(existing, intent) {
+			// Record uniqueness is per job, so any in-flight record:demo
+			// answers duplicate. Only a stored generate intent that would
+			// enqueue the same capture is this generate already in flight.
+			// A plain queued record has no header and will not chain a
+			// render; answering 202 here would claim generate admission
+			// that never happened.
+			if !ok {
+				return fmt.Errorf("%w for job %s: queued capture is not a generate run", generateintent.ErrActiveRun, j.ID)
+			}
+			if !sameCapture(existing, intent) {
 				return fmt.Errorf("%w for job %s: queued capture carries a different intent", generateintent.ErrActiveRun, j.ID)
 			}
-			if ok {
-				intent = existing
-			}
+			intent = existing
 			return nil
 		default:
 			if accepted {
@@ -1271,10 +1274,12 @@ func (h *Handlers) readGenerateIntent(id uuid.UUID) (renderplan.GenerateIntent, 
 }
 
 // StartComposition handles POST /api/jobs/{id}/compose. Admission claims the
-// job as composing so a second POST is a 409 instead of a second task; a
-// rejection at admission leaves the recorded/composed state untouched so the
-// client can retry once the queue recovers, while a shutdown discard of
-// admitted work fails the job like every other queued stage.
+// job as composing and is unique per job (same shape as record/render) so two
+// concurrent POSTs that both see recorded cannot enqueue two compose tasks
+// against the same final artifact. A rejection at admission leaves the
+// recorded/composed state untouched so the client can retry once the queue
+// recovers, while a shutdown discard of admitted work fails the job like
+// every other queued stage.
 func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadJob(w, r)
 	if !ok {
@@ -1295,7 +1300,15 @@ func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.queue.EnqueueWithTransition(task, claimQueueStage(
 		func() error { return h.repo.UpdateStatus(r.Context(), j.ID, job.StatusComposing, "") },
 		func(decision error) error { return h.persistJobQueueDecision(j.ID, "compose", decision) },
-	)); err != nil {
+	), asynq.MaxRetry(0), asynq.Unique(renderUniqueTTL)); err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			writeJSON(w, http.StatusAccepted, map[string]any{
+				"id":        j.ID,
+				"task":      tasks.TypeComposeFinal,
+				"duplicate": true,
+			})
+			return
+		}
 		internalError(w, "enqueue compose task", err)
 		return
 	}
