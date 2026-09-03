@@ -69,7 +69,7 @@ pnpm --dir landing run build
 
 Electron UI E2E (`pnpm --dir desktop run assemble` then `test:e2e:ui`) is manual and only for flows that need it.
 
-## CLI-first
+## Codex Desktop: CLI-first
 
 The `zv` CLI is the primary interface for parsing, capture, render, QA, and publishing; Studio is not a prerequisite. `flows show` and `workflows show` are the executable command contract; never guess flags from prose. Validate the exact argv, keep `--dry-run --format json` until real media work is approved, then preserve the approved argv when executing.
 
@@ -154,3 +154,12 @@ Capture hardware rules:
 - Before frontend work read `web/CLAUDE.md`; before visual work read `~/.grok/design.md`, load `frontend-design`, restyle onto `web/app/globals.css`. Before Electron/packaging/release work read `desktop/GUIDE.md`.
 - Committing or pushing requires an explicit user request. There is no commit-time gate and a push to `main` lands immediately, so run focused tests plus affected package checks first, stage only in-scope paths, and never disturb unrelated work. Temporary worktrees are fine; never remove or repurpose one holding uncommitted work.
 - Review findings use `BLOCKER`, `WARNING`, or `NIT` with file/path, problem, why it matters, and a practical fix; if clean, say `No blocking issues found.`
+
+## Codex Harness
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Doctor
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Preview -Playbook tdd "behavior change"
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Run -Playbook bugfix "bug fix"
+powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Check
+```
