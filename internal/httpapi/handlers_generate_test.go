@@ -133,9 +133,10 @@ func TestStartGenerateDuplicatePreservesAcceptedIntent(t *testing.T) {
 	repo.jobs[j.ID] = j
 	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
 	existing := renderplan.GenerateIntent{
-		Variant:  editor.PresetCleanPOV60,
-		MusicKey: "first-track",
-		Edit:     renderplan.DefaultEditRequest(),
+		Variant:     editor.PresetCleanPOV60,
+		MusicKey:    "first-track",
+		Edit:        renderplan.DefaultEditRequest(),
+		ActiveRunID: uuid.New(),
 	}
 	if err := h.generateIntents.Begin(j.ID, existing, nil); err != nil {
 		t.Fatalf("seed generate intent: %v", err)
@@ -884,5 +885,56 @@ func TestStartGenerateRefusesPlainQueuedCaptureWithoutIntent(t *testing.T) {
 	}
 	if _, ok := store.puts[artifacts.GenerateIntentKey(j.ID)]; ok {
 		t.Fatal("plain-record collision published a generate intent")
+	}
+}
+
+// Finish leaves the latest generate choice on disk with ActiveRunID cleared.
+// A later /generate that collides with a plain queued record:demo and happens
+// to match that leftover capture is still not a generate admission: the plain
+// capture will not chain a render.
+func TestStartGenerateRefusesStaleIntentBehindPlainQueuedCapture(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	queue := &uniqueScopeQueue{}
+	plan := killplan.NewPlan()
+	j := job.Job{ID: uuid.New(), Status: job.StatusParsed, Rules: rules.Default(), KillPlan: &plan}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, queue, WithCapabilities(Capabilities{RecordEnabled: true}))
+
+	stale := renderplan.GenerateIntent{
+		Variant: editor.PresetViral60Clean,
+		Edit:    renderplan.DefaultEditRequest(),
+	}
+	if err := h.generateIntents.Begin(j.ID, stale, nil); err != nil {
+		t.Fatalf("seed stale generate intent: %v", err)
+	}
+
+	r := chi.NewRouter()
+	r.Post("/api/jobs/{id}/record", h.StartRecording)
+	record := httptest.NewRecorder()
+	r.ServeHTTP(record, httptest.NewRequest(http.MethodPost, "/api/jobs/"+j.ID.String()+"/record", nil))
+	if record.Code != http.StatusAccepted {
+		t.Fatalf("record status = %d, want 202; body=%s", record.Code, record.Body.String())
+	}
+
+	rw := postGenerate(t, h, j.ID, `{"preset":"viral-60-clean"}`)
+	if rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), generateWorkActive) {
+		t.Fatalf("generate status = %d body=%s, want 409 %s", rw.Code, rw.Body.String(), generateWorkActive)
+	}
+	if strings.Contains(rw.Body.String(), `"duplicate":true`) {
+		t.Fatalf("body claimed generate admission: %s", rw.Body.String())
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued = %d, want only the plain record", len(queue.enqueued))
+	}
+	if _, ok, err := tasks.GenerateIntentFromTask(queue.enqueued[0]); err != nil || ok {
+		t.Fatalf("queued record carried a generate header: ok=%v err=%v", ok, err)
+	}
+	got, ok, err := h.readGenerateIntent(j.ID)
+	if err != nil || !ok {
+		t.Fatalf("stale intent = (%#v, %v, %v)", got, ok, err)
+	}
+	if got.ActiveRunID != uuid.Nil || got.Variant != editor.PresetViral60Clean {
+		t.Fatalf("stale display intent mutated: %+v", got)
 	}
 }

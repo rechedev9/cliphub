@@ -1160,12 +1160,14 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 				return readErr
 			}
 			// Record uniqueness is per job, so any in-flight record:demo
-			// answers duplicate. Only a stored generate intent that would
-			// enqueue the same capture is this generate already in flight.
-			// A plain queued record has no header and will not chain a
-			// render; answering 202 here would claim generate admission
-			// that never happened.
-			if !ok {
+			// answers duplicate. Only a live generate run (ActiveRunID set)
+			// whose stored capture matches this request is this generate
+			// already in flight. Finish leaves the latest choice on disk
+			// with a cleared ActiveRunID; that leftover is workbench
+			// display, not a chained render. A plain queued record has no
+			// header and will not chain either. Answering 202 here would
+			// claim generate admission that never happened.
+			if !ok || existing.ActiveRunID == uuid.Nil {
 				return fmt.Errorf("%w for job %s: queued capture is not a generate run", generateintent.ErrActiveRun, j.ID)
 			}
 			if !sameCapture(existing, intent) {
