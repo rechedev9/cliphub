@@ -536,7 +536,8 @@ export function StreamEditor({
                 onChange={setFaceCrop}
                 preview={{
                   variant: plan.variant,
-                  faceCrop: plan.face_crop,
+                  // The same resolved rect the picker edits, so both panes agree before the first drag.
+                  faceCrop: plan.face_crop ?? DEFAULT_FACE_CROP,
                   gameplayCrop: plan.gameplay_crop,
                   clips: plan.clips,
                   frameSeconds: previewSeconds,
