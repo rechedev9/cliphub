@@ -16,6 +16,11 @@ export const EDIT_PLAN_SCHEMA_VERSION = '1.1';
 
 export const DEFAULT_FACE_CROP: NormalizedRect = { x: 0.62, y: 0.03, width: 0.34, height: 0.3 };
 
+/** Guide box shown in CropPicker and the 9:16 preview before the first drag. */
+export function resolveFaceCrop(faceCrop?: NormalizedRect): NormalizedRect {
+  return faceCrop ?? DEFAULT_FACE_CROP;
+}
+
 /** Nicks the streamer banner accepts, matching the Go validator. */
 export const STREAMER_NICK_RE = /^[A-Za-z0-9_]{0,25}$/;
 

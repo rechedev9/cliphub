@@ -31,7 +31,7 @@ export function StreamCropStage({
       </div>
       <div className="hidden h-full max-h-[420px] min-h-[160px] flex-none flex-col gap-2 @[64rem]/content:flex">
         <span className="font-mono text-meta uppercase tracking-widest text-fg-3">Salida 9:16</span>
-        <StreamPreview {...preview} />
+        <StreamPreview {...preview} faceCrop={rect} />
       </div>
     </div>
   );

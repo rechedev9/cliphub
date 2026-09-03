@@ -27,7 +27,6 @@ import {
   startMontagePlayback,
 } from '@/lib/stream-preview';
 import {
-  DEFAULT_FACE_CROP,
   DEFAULT_KEYDROP_CODE,
   DEFAULT_KEYDROP_END_SECONDS,
   DEFAULT_KEYDROP_START_SECONDS,
@@ -36,6 +35,7 @@ import {
   insertClipSorted,
   nextClipId,
   planFingerprint,
+  resolveFaceCrop,
   resolveStreamerBannerPlatform,
   streamSourceLabel,
   timelineClipAt,
@@ -227,9 +227,10 @@ export function StreamEditor({
   const busy = stage === 'rendering' || saving;
 
   const setVariant = (variant: StreamVariant) => onPlanChange({ ...plan, variant });
+  const faceCrop = resolveFaceCrop(plan.face_crop);
   const setFaceCrop = (rect: NormalizedRect) =>
     onPlanChange({ ...plan, face_crop: rect, face_crop_reviewed: false });
-  const confirmFaceCrop = () => onPlanChange({ ...plan, face_crop_reviewed: true });
+  const confirmFaceCrop = () => onPlanChange({ ...plan, face_crop: faceCrop, face_crop_reviewed: true });
 
   const bannerPosition = resolveStreamerBannerPosition(plan.variant, plan.streamer_banner?.position_y);
   const bannerPlatform = resolveStreamerBannerPlatform(plan.streamer_banner?.platform, job.source_url);
@@ -531,13 +532,12 @@ export function StreamEditor({
           <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden px-7 pt-4" aria-label="Monitor">
             {cropStage ? (
               <StreamCropStage
-                rect={plan.face_crop ?? DEFAULT_FACE_CROP}
+                rect={faceCrop}
                 disabled={busy}
                 onChange={setFaceCrop}
                 preview={{
                   variant: plan.variant,
-                  // The same resolved rect the picker edits, so both panes agree before the first drag.
-                  faceCrop: plan.face_crop ?? DEFAULT_FACE_CROP,
+                  faceCrop,
                   gameplayCrop: plan.gameplay_crop,
                   clips: plan.clips,
                   frameSeconds: previewSeconds,
@@ -552,7 +552,7 @@ export function StreamEditor({
             <StreamMonitor
               preview={{
                 variant: plan.variant,
-                faceCrop: plan.face_crop,
+                faceCrop,
                 gameplayCrop: plan.gameplay_crop,
                 clips: plan.clips,
                 frameSeconds: previewSeconds,
