@@ -5,6 +5,26 @@ import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
 import { prettifyMap } from './map.ts';
 import { groupSeriesDemos } from '../series-grouping.ts';
 
+/** Roster summary the orchestrator inlines per listed job (server field names). */
+export type IndexedJobSummary = {
+  match?: { map?: string; score_ct?: number; score_t?: number; rounds?: number };
+  target?: {
+    steamid64: string;
+    name: string;
+    team?: string;
+    kills?: number;
+    deaths?: number;
+    assists?: number;
+    headshots?: number;
+    mvps?: number;
+    rounds?: number;
+    adr?: number;
+    hs_pct?: number;
+    kast?: number;
+    rating?: number;
+  };
+};
+
 /** One /api/demos/jobs row: listing fields only, no kill plan. */
 export type IndexedJob = {
   jobId: string;
@@ -15,7 +35,36 @@ export type IndexedJob = {
   targetSteamId?: string;
   /** ISO-8601 upload time; the Partidas list sorts newest first by it. */
   createdAt?: string;
+  /** Present once the roster scan finished; saves the per-job roster request. */
+  summary?: IndexedJobSummary;
 };
+
+/** The list enrichment carried inline by the job row, or null when the roster must still be fetched. */
+export function enrichmentFromSummary(job: IndexedJob): { map?: string; player?: DemoPlayer } | null {
+  const summary = job.summary;
+  if (summary === undefined) return null;
+  const out: { map?: string; player?: DemoPlayer } = {};
+  if (summary.match?.map) out.map = summary.match.map;
+  const target = summary.target;
+  if (target !== undefined) {
+    out.player = {
+      steamId: target.steamid64,
+      name: target.name,
+      team: target.team === 'CT' || target.team === 'T' ? target.team : '',
+      kills: target.kills ?? 0,
+      deaths: target.deaths ?? 0,
+      assists: target.assists ?? 0,
+      headshots: target.headshots ?? 0,
+      mvps: target.mvps ?? 0,
+      rounds: target.rounds ?? 0,
+      adr: target.adr ?? 0,
+      hsPct: target.hs_pct ?? 0,
+      kast: target.kast ?? 0,
+      rating: target.rating ?? 0,
+    };
+  }
+  return out;
+}
 
 /** True once a demo has a roster scan, so it belongs in the Partidas list. */
 export function jobHasRoster(status: string): boolean {

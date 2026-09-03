@@ -10,6 +10,7 @@ import {
   planReadyJobs,
   summarizeSeries,
   statsFromPlayer,
+  enrichmentFromSummary,
   jobToMatch,
   ZERO_STATS,
   type IndexedJob,
@@ -25,6 +26,7 @@ function job(overrides: Partial<IndexedJob> & { jobId: string }): IndexedJob {
     seriesId: overrides.seriesId,
     targetSteamId: overrides.targetSteamId,
     createdAt: overrides.createdAt,
+    summary: overrides.summary,
   };
 }
 
@@ -185,4 +187,27 @@ test('summarizeSeries folds split demo parts into one logical map', () => {
   assert.deepEqual(summarizeSeries(jobs), [
     { seriesId: 'S1', mapCount: 2, createdAt: Date.parse('2026-07-16T10:00:00Z') },
   ]);
+});
+
+test('enrichmentFromSummary maps the inline roster summary and skips the fetch fallback', () => {
+  assert.equal(enrichmentFromSummary(job({ jobId: 'j1' })), null);
+  const scanned = enrichmentFromSummary(job({ jobId: 'j2', summary: { match: { map: 'de_cache', score_ct: 13, score_t: 9, rounds: 22 } } }));
+  assert.deepEqual(scanned, { map: 'de_cache' });
+  const parsed = enrichmentFromSummary(
+    job({
+      jobId: 'j3',
+      summary: {
+        match: { map: 'de_cache' },
+        target: { steamid64: '76561198000000002', name: 'donk', team: 'T', kills: 25, deaths: 13, assists: 4, rating: 1.31 },
+      },
+    }),
+  );
+  assert.equal(parsed?.map, 'de_cache');
+  assert.equal(parsed?.player?.name, 'donk');
+  assert.equal(parsed?.player?.team, 'T');
+  assert.equal(parsed?.player?.kills, 25);
+  assert.equal(parsed?.player?.adr, 0);
+  const listed = jobToMatch(job({ jobId: 'j3', status: 'parsed' }), parsed ?? undefined);
+  assert.equal(listed.player, 'donk');
+  assert.equal(listed.stats.kd, Number((25 / 13).toFixed(2)));
 });
