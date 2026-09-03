@@ -2437,7 +2437,7 @@ func TestStartCompositionConcurrentPostsEnqueueOnce(t *testing.T) {
 	r := chi.NewRouter()
 	r.Post("/api/jobs/{id}/compose", h.StartComposition)
 	const callers = 16
-	var accepted, duplicates, unexpected atomic.Int32
+	var accepted, duplicates, conflicts, unexpected atomic.Int32
 	var wg sync.WaitGroup
 	for range callers {
 		wg.Add(1)
@@ -2450,14 +2450,19 @@ func TestStartCompositionConcurrentPostsEnqueueOnce(t *testing.T) {
 				duplicates.Add(1)
 			case rw.Code == http.StatusAccepted:
 				accepted.Add(1)
+			case rw.Code == http.StatusConflict:
+				conflicts.Add(1)
 			default:
 				unexpected.Add(1)
 			}
 		}()
 	}
 	wg.Wait()
-	if accepted.Load() != 1 || duplicates.Load() != callers-1 || unexpected.Load() != 0 {
-		t.Fatalf("accepted=%d duplicates=%d unexpected=%d, want 1/%d/0", accepted.Load(), duplicates.Load(), unexpected.Load(), callers-1)
+	if accepted.Load() != 1 || unexpected.Load() != 0 {
+		t.Fatalf("accepted=%d duplicates=%d conflicts=%d unexpected=%d, want one admission and no 5xx", accepted.Load(), duplicates.Load(), conflicts.Load(), unexpected.Load())
+	}
+	if accepted.Load()+duplicates.Load()+conflicts.Load() != callers {
+		t.Fatalf("responses = %d, want %d", accepted.Load()+duplicates.Load()+conflicts.Load(), callers)
 	}
 	if len(queue.enqueued) != 1 {
 		t.Fatalf("enqueued = %d, want 1", len(queue.enqueued))
