@@ -55,14 +55,17 @@ export function StreamRenderStage({
       <ul className="grid grid-cols-2 gap-3">
         {clips.map((clip, index) => (
           <li key={clip.id} className="flex flex-col gap-2">
+            {/* The header above already says RENDERIZANDO three ways; a magenta
+                edge, badge, wash and glyph on every pending tile spends the
+                accent N more times and says nothing new. */}
             <MediaFrame
               aspect="9:16"
               scanline
-              className="studio-rim border border-stream/30"
-              badge={<StatusTag tone="stream">{String(index + 1).padStart(2, '0')}</StatusTag>}
+              className="studio-rim border border-border"
+              badge={<StatusTag>{String(index + 1).padStart(2, '0')}</StatusTag>}
               fallback={
-                <span className="grid size-full place-items-center bg-[linear-gradient(180deg,color-mix(in_oklch,var(--stream)_12%,transparent),transparent_72%)]">
-                  <Film aria-hidden className="size-6 text-stream-text" />
+                <span className="grid size-full place-items-center">
+                  <Film aria-hidden className="size-6 text-fg-3" />
                 </span>
               }
             />

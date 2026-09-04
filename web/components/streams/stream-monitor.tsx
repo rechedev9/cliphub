@@ -36,7 +36,7 @@ function Transport({
         size="sm"
         disabled={!canPlay}
         onClick={onTogglePlay}
-        className="justify-start border-stream/45 font-mono uppercase tracking-wider text-stream-text hover:border-stream hover:bg-stream/10"
+        className="justify-start font-mono uppercase tracking-wider"
       >
         {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
         {playing ? 'Pausar' : 'Reproducir montaje'}
@@ -118,7 +118,7 @@ export function StreamMonitor({
     <div className="flex min-h-0 flex-1 items-center justify-center gap-5">
       {cropEditor ? (
         <div className="flex min-h-0 max-h-full min-w-0 flex-1 max-w-[min(720px,calc((100vh-560px)*16/9))] flex-col gap-2">
-          <span className="font-mono text-meta uppercase tracking-widest text-stream-text">Recorte de facecam · fuente 16:9</span>
+          <span className="font-mono text-meta uppercase tracking-widest text-fg-3">Recorte de facecam · fuente 16:9</span>
           <CropPicker rect={cropEditor.rect} onChange={cropEditor.onChange} disabled={cropEditor.disabled} />
           <div className="flex flex-wrap items-center gap-2">
             {transport}

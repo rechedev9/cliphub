@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 export function StreamStepPanel({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
     <aside className="flex min-h-0 flex-col gap-2.5 overflow-y-auto bg-surface-1 p-4 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
-      <h2 className="font-mono text-meta uppercase tracking-widest text-stream-text">{title}</h2>
+      <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">{title}</h2>
       {children}
     </aside>
   );

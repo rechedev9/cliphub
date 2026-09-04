@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 /** Both fades the chip toggles at once; the disclosure still edits each one. */
 const CHIP_FADE_SECONDS = 0.5;
 
-const CHIP_CLASS = 'font-mono uppercase tracking-wider hover:border-stream';
+const CHIP_CLASS = 'font-mono uppercase tracking-wider';
 
 /**
  * One card per cut. The card head selects the cut on the monitor; the chips
@@ -153,9 +153,13 @@ function ClipCard({
           aria-pressed={selected}
           className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
+          {/* The index is an ordinal every card carries; only one card is selected. */}
           <span
             aria-hidden
-            className="grid size-7 shrink-0 place-items-center border border-stream/45 bg-stream/10 font-mono text-label tabular-nums text-stream-text"
+            className={cn(
+              'grid size-7 shrink-0 place-items-center border font-mono text-label tabular-nums',
+              selected ? 'border-stream/45 bg-stream/10 text-stream-text' : 'border-border-strong text-fg-2',
+            )}
           >
             {number}
           </span>
@@ -305,7 +309,7 @@ function ClipCard({
               <Label htmlFor={`${clip.id}-source-volume`} className="text-label text-fg-2">
                 Volumen original
               </Label>
-              <output htmlFor={`${clip.id}-source-volume`} className="font-mono text-label tabular-nums text-stream-text">
+              <output htmlFor={`${clip.id}-source-volume`} className="font-mono text-label tabular-nums text-fg-1">
                 {sourceVolume === 0 ? 'Silencio' : `${Math.round(sourceVolume * 100)}%`}
               </output>
             </div>
@@ -591,7 +595,7 @@ function OverlayRow({
         />
         <output
           htmlFor={`${idBase}-position`}
-          className="w-11 shrink-0 text-right font-mono text-label tabular-nums text-stream-text"
+          className="w-11 shrink-0 text-right font-mono text-label tabular-nums text-fg-1"
         >
           {Math.round(overlay.position_y * 100)}%
         </output>

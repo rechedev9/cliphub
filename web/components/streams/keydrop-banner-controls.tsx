@@ -153,7 +153,7 @@ export function StreamKeyDropBannerControls({
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-label text-fg-2">Visible en el clip</Label>
-              <output className="font-mono text-label tabular-nums text-stream-text">
+              <output className="font-mono text-label tabular-nums text-fg-1">
                 {startSeconds.toFixed(1)}s → {endSeconds.toFixed(1)}s
               </output>
             </div>
@@ -237,7 +237,7 @@ export function StreamKeyDropBannerControls({
             </Label>
             <output
               htmlFor="keydrop-banner-position"
-              className="font-mono text-label tabular-nums text-stream-text"
+              className="font-mono text-label tabular-nums text-fg-1"
             >
               {Math.round(position * 100)}%
             </output>
