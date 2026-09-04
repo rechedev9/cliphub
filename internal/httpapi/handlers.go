@@ -581,14 +581,27 @@ func (h *Handlers) GetJob(w http.ResponseWriter, r *http.Request) {
 // writeJobStatus serves the lightweight ?view=status representation. The
 // default GetJob response remains the complete job for existing API/MCP users.
 func (h *Handlers) writeJobStatus(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
-	status, failureReason, segmentCount, err := h.repo.GetStatus(r.Context(), id)
-	if errors.Is(err, job.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "job not found")
-		return
-	}
+	resp, found, err := h.jobStatusView(r.Context(), id)
 	if err != nil {
 		internalError(w, "get job status", err)
 		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "job not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// jobStatusView builds the ?view=status document; found is false for an
+// unknown job so a batch caller can report it per item instead of failing.
+func (h *Handlers) jobStatusView(ctx context.Context, id uuid.UUID) (jobStatusResponse, bool, error) {
+	status, failureReason, segmentCount, err := h.repo.GetStatus(ctx, id)
+	if errors.Is(err, job.ErrNotFound) {
+		return jobStatusResponse{}, false, nil
+	}
+	if err != nil {
+		return jobStatusResponse{}, false, err
 	}
 	resp := jobStatusResponse{
 		Status:        status,
@@ -602,7 +615,7 @@ func (h *Handlers) writeJobStatus(w http.ResponseWriter, r *http.Request, id uui
 	} else if progress, ok := renderProgressDocument(h.storage, id); ok {
 		resp.Progress = &progress
 	}
-	writeJSON(w, http.StatusOK, resp)
+	return resp, true, nil
 }
 
 type jobStatusResponse struct {
@@ -1826,9 +1839,34 @@ func (h *Handlers) GetRenderVariant(w http.ResponseWriter, r *http.Request) {
 // lock makes that migration atomic with correction and review-resolution POSTs:
 // the API never exposes a review CAS token that those endpoints cannot consume.
 func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant string) (*renderplan.RenderVariantState, bool, error) {
+	// Steady state is a settled durable document: serve it without the
+	// process-wide lock so one job's migration or review write never stalls
+	// every other job's render poll. Artifacts are replaced atomically, so a
+	// concurrent write yields either revision, never a torn one; anything that
+	// is not provably settled takes the lock and runs the full path.
+	if state, ok, err := h.readRenderVariantState(id, variant); err == nil && ok && h.renderVariantStateSettled(state) {
+		return state, true, nil
+	}
 	h.renderStateMu.Lock()
 	defer h.renderStateMu.Unlock()
 	return h.readOrMaterializeRenderVariantStateLocked(id, variant)
+}
+
+// renderVariantStateSettled reports whether the locked path would return the
+// state unchanged: every non-ready state, and a ready state whose warnings
+// already match the complete-render result and its review resolution.
+func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantState) bool {
+	if state.Status != renderplan.RenderVariantStatusReady {
+		return true
+	}
+	warnings, err := h.readCompleteRenderWarnings(*state)
+	if err != nil {
+		return false
+	}
+	if state.ReviewResolvedFor(warnings) {
+		return slices.Equal(state.Warnings, warnings)
+	}
+	return len(warnings) == 0 && len(state.Warnings) == 0 && state.ReviewResolution == nil
 }
 
 // MaterializeRenderVariantStates runs the legacy render-state migration for
@@ -2017,20 +2055,28 @@ const artifactNamePlaceholder = "placeholder"
 // writeRenderVariant writes the render-variant state plus the reel's real video
 // and cover artifact names (empty arrays when the variant has none yet).
 func (h *Handlers) writeRenderVariant(w http.ResponseWriter, state *renderplan.RenderVariantState) {
+	view, err := h.renderVariantView(state)
+	if err != nil {
+		internalError(w, "read render state", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+// renderVariantView is the GET /renders/{variant} document: the durable state
+// plus the artifact names and the effective edit document behind it.
+func (h *Handlers) renderVariantView(state *renderplan.RenderVariantState) (renderVariantResponse, error) {
 	videos, err := h.listRenderArtifactNames(*state, renderplan.RenderVariantArtifactVideo)
 	if err != nil {
-		internalError(w, "list render videos", err)
-		return
+		return renderVariantResponse{}, fmt.Errorf("list render videos: %w", err)
 	}
 	covers, err := h.listRenderArtifactNames(*state, renderplan.RenderVariantArtifactCover)
 	if err != nil {
-		internalError(w, "list render covers", err)
-		return
+		return renderVariantResponse{}, fmt.Errorf("list render covers: %w", err)
 	}
 	document, err := h.readRenderVariantDocument(state.EditDocumentKey)
 	if err != nil {
-		internalError(w, "read effective render document", err)
-		return
+		return renderVariantResponse{}, fmt.Errorf("read effective render document: %w", err)
 	}
 	var edit *renderplan.EditRequest
 	var music *renderplan.MusicSnapshot
@@ -2040,14 +2086,14 @@ func (h *Handlers) writeRenderVariant(w http.ResponseWriter, state *renderplan.R
 		music = document.Music
 		segmentIDs = document.Selection.SegmentIDs
 	}
-	writeJSON(w, http.StatusOK, renderVariantResponse{
+	return renderVariantResponse{
 		RenderVariantState: state,
 		Videos:             videos,
 		Covers:             covers,
 		SegmentIDs:         segmentIDs,
 		Edit:               edit,
 		Music:              music,
-	})
+	}, nil
 }
 
 func (h *Handlers) readRenderVariantDocument(key string) (*renderplan.EditDocument, error) {

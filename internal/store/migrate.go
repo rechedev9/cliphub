@@ -28,10 +28,15 @@ var migrations = []func(tx *sql.Tx) error{
 	migrateV2Constraints,
 }
 
+// sqliteMaxOpenConns is the connection pool size. WAL lets readers run while
+// one writer commits, so Studio's status polls no longer queue behind a worker
+// transaction; SQLite itself still serializes writers.
+const sqliteMaxOpenConns = 4
+
 // openSQLite opens (creating if needed) the SQLite database at path and brings
-// its schema to the current version. A single connection fully serializes
-// access, which for a local single-user studio removes all "database is locked"
-// contention; WAL keeps that durable and fast.
+// its schema to the current version. Every transaction begins IMMEDIATE, so a
+// read-modify-write transaction holds the write lock from its first statement
+// and two writers wait on busy_timeout instead of deadlocking on lock upgrade.
 func openSQLite(path string) (*sql.DB, error) {
 	// Pragmas travel in the DSN so the driver re-applies them on every
 	// connection: database/sql replaces a connection the driver marks bad
@@ -43,11 +48,18 @@ func openSQLite(path string) (*sql.DB, error) {
 		"_pragma=journal_mode(WAL)",
 		"_pragma=synchronous(NORMAL)",
 		"_pragma=foreign_keys(1)",
+		"_txlock=immediate",
 	}, "&"))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	db.SetMaxOpenConns(1)
+	// An in-memory database is private to its connection: a pool would open
+	// several empty databases, so it keeps the single connection.
+	if strings.Contains(path, ":memory:") || strings.Contains(path, "mode=memory") {
+		db.SetMaxOpenConns(1)
+	} else {
+		db.SetMaxOpenConns(sqliteMaxOpenConns)
+	}
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("open sqlite: %w", err)

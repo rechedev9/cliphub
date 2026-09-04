@@ -11,6 +11,8 @@ export type DataPlane = {
   /** Reads the job id out of a scan response. */
   scanJobId(body: unknown): string;
   jobStatusUrl(jobId: string): string;
+  /** One request for every active reel's job status + render state. */
+  batchStatusUrl(items: ReadonlyArray<{ jobId: string; variant: string }>): string;
   /** DELETE target for removing a demo job (match) and its server-side artifacts. */
   jobDeleteUrl(jobId: string): string;
   rosterUrl(jobId: string): string;
@@ -47,6 +49,8 @@ export function dataPlane(): DataPlane {
     scanSeriesField: 'series_id',
     scanJobId: (body) => str(body, 'jobId'),
     jobStatusUrl: (jobId) => `/api/demos/${jobId}/status`,
+    batchStatusUrl: (items) =>
+      `/api/demos/batch-status?items=${encodeURIComponent(items.map((item) => `${item.jobId}:${item.variant}`).join(','))}`,
     jobDeleteUrl: (jobId) => `/api/demos/${jobId}`,
     rosterUrl: (jobId) => `/api/demos/${jobId}/roster`,
     jobsUrl: '/api/demos/jobs',

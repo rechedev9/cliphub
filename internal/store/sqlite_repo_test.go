@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -883,5 +885,64 @@ func assertKillPlanOutsideData(t *testing.T, repo *SQLiteJobRepository, id uuid.
 	}
 	if hasColumn {
 		t.Fatal("jobs.kill_plan column survived the schema migration")
+	}
+}
+
+// TestSQLiteRepoReadersDoNotBlockOnWriters pins the pool contract: with WAL
+// and IMMEDIATE transactions, concurrent readers and writers settle without a
+// "database is locked" error and every write lands exactly once.
+func TestSQLiteRepoReadersDoNotBlockOnWriters(t *testing.T) {
+	repo := newTestSQLiteRepo(t)
+	ctx := context.Background()
+	const jobs = 8
+	ids := make([]uuid.UUID, 0, jobs)
+	for i := 0; i < jobs; i++ {
+		j := &job.Job{Status: job.StatusScanned, DemoPath: "m.dem", DemoSHA256: "abc"}
+		if err := repo.Create(ctx, j); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		ids = append(ids, j.ID)
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, jobs*4)
+	for _, id := range ids {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			// A read-modify-write transaction per job, racing the readers.
+			if err := repo.SetParseInputs(ctx, id, "76561198000000001", rules.Default()); err != nil {
+				errs <- fmt.Errorf("SetParseInputs %s: %w", id, err)
+			}
+			if err := repo.UpdateStatus(ctx, id, job.StatusParsed, ""); err != nil {
+				errs <- fmt.Errorf("UpdateStatus %s: %w", id, err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				if _, err := repo.List(ctx, 50); err != nil {
+					errs <- fmt.Errorf("List: %w", err)
+					return
+				}
+				if _, _, _, err := repo.GetStatus(ctx, id); err != nil {
+					errs <- fmt.Errorf("GetStatus %s: %w", id, err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	for _, id := range ids {
+		status, _, _, err := repo.GetStatus(ctx, id)
+		if err != nil {
+			t.Fatalf("GetStatus %s: %v", id, err)
+		}
+		if status != job.StatusParsed {
+			t.Fatalf("job %s status = %s, want parsed", id, status)
+		}
 	}
 }

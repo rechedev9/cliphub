@@ -19,9 +19,9 @@ import (
 // in the same local SQLite database as SQLiteJobRepository, so the
 // stream-jobs API works on the local desktop studio, which has no Postgres.
 // It shares the *sql.DB opened by NewSQLiteJobRepository (see main.go)
-// instead of opening the database file a second time: a single connection
-// (db.SetMaxOpenConns(1) is set once, by the job repository) serializes all
-// writers across both tables.
+// instead of opening the database file a second time: one pool (sized once by
+// the job repository, IMMEDIATE transactions) serializes writers across both
+// tables while readers proceed under WAL.
 type SQLiteStreamJobRepository struct {
 	db *sql.DB
 }
