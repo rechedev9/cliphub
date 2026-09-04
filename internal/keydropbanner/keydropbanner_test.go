@@ -240,14 +240,19 @@ func TestTigerrAndJcorkoCoverStayInsideBar(t *testing.T) {
 		}
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
-			if style.CoverX < 0.12 || style.CoverX > 0.28 {
-				t.Fatalf("CoverX = %v, want in [0.12, 0.28]", style.CoverX)
+			// The partner art bakes its label across the bar, so the cover
+			// spans it edge to edge but must stay inside the plate's own bar.
+			if style.CoverX < 0.10 || style.CoverX > 0.28 {
+				t.Fatalf("CoverX = %v, want in [0.10, 0.28]", style.CoverX)
 			}
-			if style.CoverW < 0.45 || style.CoverW > 0.70 {
-				t.Fatalf("CoverW = %v, want in [0.45, 0.70]", style.CoverW)
+			if style.CoverW < 0.45 || style.CoverW > 0.82 {
+				t.Fatalf("CoverW = %v, want in [0.45, 0.82]", style.CoverW)
 			}
-			if right := style.CoverX + style.CoverW; right > 0.88 {
-				t.Fatalf("CoverX+CoverW = %v, want ≤ 0.88 so side art stays clear", right)
+			if right := style.CoverX + style.CoverW; right > 0.93 {
+				t.Fatalf("CoverX+CoverW = %v, want ≤ 0.93 so the bar's rounded edge stays clear", right)
+			}
+			if style.CoverColorBottom == "" {
+				t.Fatalf("%s covers a gradient band and needs CoverColorBottom", id)
 			}
 		})
 	}

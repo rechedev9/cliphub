@@ -321,6 +321,9 @@ export function StreamPreview({
               draggable={false}
               className="pointer-events-none block h-auto w-full select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.55)]"
             />
+            {keyDropPlate?.coverClass ? (
+              <span aria-hidden className={`pointer-events-none absolute ${keyDropPlate.textClass} ${keyDropPlate.coverClass}`} />
+            ) : null}
             <span
               className={`pointer-events-none absolute flex items-center justify-center truncate text-center font-[family-name:var(--font-display)] text-[clamp(6px,2.5vw,11px)] font-black leading-none tracking-[0.03em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] ${keyDropPlate?.textClass ?? 'left-[28%] right-[10%] top-[44%] h-[15%]'}`}
               aria-hidden

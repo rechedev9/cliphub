@@ -66,7 +66,9 @@ export const KEYDROP_STYLE_CATALOG = [
     label: 'Tigerr',
     subtitle: 'Tiger Tooth naranja',
     preview: '/brand/keydrop/tigerr.png',
-    textClass: 'left-[20%] right-[20%] top-[48%] h-[24%]',
+    textClass: 'left-[16.5%] right-[13%] top-[55.5%] h-[25%]',
+    // The partner art bakes its label over a gradient; the preview covers it like the render does.
+    coverClass: 'bg-gradient-to-b from-[#4a1604] to-[#9a3808]',
     codePrefix: 'CODE: ',
   },
   {
@@ -74,7 +76,8 @@ export const KEYDROP_STYLE_CATALOG = [
     label: 'Jcorko',
     subtitle: 'Cebra azul',
     preview: '/brand/keydrop/jcorko.png',
-    textClass: 'left-[20%] right-[20%] top-[48%] h-[24%]',
+    textClass: 'left-[11%] right-[8%] top-[52%] h-[26%]',
+    coverClass: 'bg-gradient-to-b from-[#06182c] to-[#1180b8]',
     codePrefix: 'CODIGO: ',
   },
 ] as const;
@@ -135,6 +138,8 @@ export function stylesForFamily(family: string): readonly {
   subtitle: string;
   preview: string;
   textClass: string;
+  /** Painted under the live code when the plate bakes its own label into the art. */
+  coverClass?: string;
   codePrefix: string;
 }[] {
   const id = effectiveAffiliateFamily(family, '') || normalizeAffiliateFamily(family);
