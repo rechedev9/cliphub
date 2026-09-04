@@ -311,3 +311,59 @@ export async function localAnticheatDossier(jobId: string, steamId: string): Pro
   if (!res.ok) return forwardError(res);
   return NextResponse.json(await res.json());
 }
+
+const BATCH_VARIANT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const BATCH_JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BATCH_MAX_ITEMS = 100;
+
+/**
+ * GET /api/demos/batch-status?items=<jobId>:<variant>,… — one request for every
+ * active reel's status view and render state, validated pair by pair before
+ * anything reaches the orchestrator. The status half is whitelisted exactly
+ * like /status; the render half passes through like /renders/{variant}.
+ */
+export async function localBatchStatus(itemsParam: string | null): Promise<Response> {
+  const raw = (itemsParam ?? '').trim();
+  if (raw === '') return NextResponse.json({ items: [] });
+  const pairs = raw.split(',');
+  if (pairs.length > BATCH_MAX_ITEMS) return NextResponse.json({ error: 'too many items' }, { status: 400 });
+  for (const pair of pairs) {
+    const [jobId, variant, ...rest] = pair.split(':');
+    if (rest.length > 0 || !jobId || !variant || !BATCH_JOB_ID_RE.test(jobId) || !BATCH_VARIANT_RE.test(variant)) {
+      return NextResponse.json({ error: 'invalid batch item' }, { status: 400 });
+    }
+  }
+  const res = await callOrchestrator(`${orchestratorUrl()}/api/jobs/batch-status?items=${encodeURIComponent(pairs.join(','))}`);
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+
+  type UpstreamItem = {
+    job_id: string;
+    variant: string;
+    job?: {
+      status: string;
+      failure_reason?: string;
+      failure_code?: string;
+      progress?: { done?: number; total?: number; percent?: number };
+    } | null;
+    render?: unknown;
+  };
+  const data = (await res.json()) as { items?: UpstreamItem[] };
+  const items = (Array.isArray(data.items) ? data.items : []).map((item) => {
+    const out: {
+      job_id: string;
+      variant: string;
+      job: { status: string; failure_reason?: string; failure_code?: string; progress?: { done: number; total: number; percent?: number } } | null;
+      render: unknown;
+    } = { job_id: item.job_id, variant: item.variant, job: null, render: item.render ?? null };
+    if (item.job) {
+      out.job = { status: item.job.status };
+      if (item.job.failure_reason) out.job.failure_reason = item.job.failure_reason;
+      if (item.job.failure_code) out.job.failure_code = item.job.failure_code;
+      const parsed = parseCaptureProgress(item.job.progress);
+      if (parsed) out.job.progress = parsed;
+    }
+    return out;
+  });
+  return NextResponse.json({ items });
+}

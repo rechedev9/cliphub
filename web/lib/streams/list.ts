@@ -36,3 +36,9 @@ export function sortStreamJobs(jobs: readonly StreamJob[]): StreamJob[] {
     (a, b) => Date.parse(b.updated_at ?? b.created_at) - Date.parse(a.updated_at ?? a.created_at),
   );
 }
+
+/** Cuts in a listed job: the list row's `clip_count`, else the plan a full job carries. */
+export function streamClipCount(job: Pick<StreamJob, 'clip_count' | 'edit_plan'>): number {
+  if (typeof job.clip_count === 'number') return job.clip_count;
+  return job.edit_plan?.clips.length ?? 0;
+}

@@ -101,7 +101,9 @@ export type StreamJob = {
   title?: string;
   source_url?: string;
   probe?: StreamProbe;
+  /** Full plan on GET /api/streams/{id}; the list omits it and sends `clip_count` instead. */
   edit_plan?: StreamEditPlan;
+  clip_count?: number;
   failure_reason?: string;
   created_at: string;
   updated_at?: string;

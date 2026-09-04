@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronRight, Film } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
-import { streamJobTag } from '@/lib/streams/list';
+import { streamClipCount, streamJobTag } from '@/lib/streams/list';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { MediaFrame } from '@/components/studio/media-frame';
@@ -41,7 +41,7 @@ function useSeen<T extends Element>(): { ref: React.RefObject<T | null>; seen: b
 export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOpen: () => void; onDeleted: () => void }): ReactNode {
   const tag = streamJobTag(job);
   const acquiring = job.status === 'acquiring';
-  const cuts = job.edit_plan?.clips.length ?? 0;
+  const cuts = streamClipCount(job);
   const duration = job.probe?.duration_seconds;
   // The source only loads for rows on screen: a long list must not range-fetch every MP4 at once.
   const { ref, seen } = useSeen<HTMLLIElement>();
