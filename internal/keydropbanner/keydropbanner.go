@@ -33,7 +33,7 @@ const (
 	DefaultCode = "ZACKCSGO"
 
 	// Version bumps force re-materialization when embedded plates change.
-	Version = "v6"
+	Version = "v7"
 
 	maxCodeRunes = 16
 )
@@ -47,6 +47,9 @@ var styleClassicPNG []byte
 //go:embed style-jcorko.png
 var styleJcorkoPNG []byte
 
+//go:embed style-tigerr.png
+var styleTigerrPNG []byte
+
 // codePattern accepts the short sponsor codes streamers type by hand.
 // Letters, digits, and a few separators; no spaces or control chars.
 var codePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`)
@@ -55,21 +58,24 @@ var codePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`)
 // used to replace the baked-in code at render time. Coordinates are fractions
 // of the plate's own width/height so they survive any output scale.
 type Style struct {
-	Family       string
-	ID           string
-	FileName     string
-	SHA256       string
-	Data         []byte
-	Width        int
-	Height       int
-	CoverX       float64 // left of baked-code cover, 0..1 of plate width
-	CoverY       float64
-	CoverW       float64
-	CoverH       float64
-	CoverColor   string // 0xRRGGBB for FFmpeg drawbox
-	TextCenterY  float64
-	FontSizeFrac float64 // fontsize ≈ plate_height * FontSizeFrac after scale
-	LabelPrefix  string  // empty means "CODE: "
+	Family     string
+	ID         string
+	FileName   string
+	SHA256     string
+	Data       []byte
+	Width      int
+	Height     int
+	CoverX     float64 // left of baked-code cover, 0..1 of plate width
+	CoverY     float64
+	CoverW     float64
+	CoverH     float64
+	CoverColor string // 0xRRGGBB for FFmpeg drawbox
+	// CoverColorBottom, when set, turns the cover into a vertical gradient from
+	// CoverColor down to it, so a code bay painted over gradient art blends in.
+	CoverColorBottom string
+	TextCenterY      float64
+	FontSizeFrac     float64 // fontsize ≈ plate_height * FontSizeFrac after scale
+	LabelPrefix      string  // empty means "CODE: "
 }
 
 var styles = map[string]Style{
@@ -105,35 +111,44 @@ var styles = map[string]Style{
 		TextCenterY:  0.65,
 		FontSizeFrac: 0.12,
 	},
+	// Tigerr and Jcorko are the partners' own promo banners: the code is baked
+	// into the art over a vertical gradient, so the cover runs a gradient too
+	// (CoverColor at the top, CoverColorBottom at the bottom) and spans the
+	// full baked label, which the art itself lets overlap the side weapons.
 	"KEYDROP/tigerr": {
-		Family:       FamilyKeyDrop,
-		ID:           StyleTigerr,
-		FileName:     "style-tigerr.png",
-		Width:        1080,
-		Height:       520,
-		CoverX:       0.20,
-		CoverY:       0.46,
-		CoverW:       0.60,
-		CoverH:       0.24,
-		CoverColor:   "0x2a1408",
-		TextCenterY:  0.58,
-		FontSizeFrac: 0.12,
+		Family:           FamilyKeyDrop,
+		ID:               StyleTigerr,
+		FileName:         "style-tigerr.png",
+		SHA256:           "ee24fe754c4684097bd6b058e5879ec3d67fbbbc88c321dfc8d54a7dabe764be",
+		Data:             styleTigerrPNG,
+		Width:            1080,
+		Height:           520,
+		CoverX:           0.165,
+		CoverY:           0.555,
+		CoverW:           0.705,
+		CoverH:           0.25,
+		CoverColor:       "0x4a1604",
+		CoverColorBottom: "0x9a3808",
+		TextCenterY:      0.68,
+		FontSizeFrac:     0.15,
 	},
 	"KEYDROP/jcorko": {
-		Family:       FamilyKeyDrop,
-		ID:           StyleJcorko,
-		FileName:     "style-jcorko.png",
-		Data:         styleJcorkoPNG,
-		Width:        1080,
-		Height:       520,
-		CoverX:       0.20,
-		CoverY:       0.46,
-		CoverW:       0.60,
-		CoverH:       0.24,
-		CoverColor:   "0x081428",
-		TextCenterY:  0.58,
-		FontSizeFrac: 0.12,
-		LabelPrefix:  "CODIGO: ",
+		Family:           FamilyKeyDrop,
+		ID:               StyleJcorko,
+		FileName:         "style-jcorko.png",
+		SHA256:           "cc94d1cbe99d7861b8f1673e818abb4b9c870a499708f98dda0f441bec98bbaa",
+		Data:             styleJcorkoPNG,
+		Width:            1080,
+		Height:           520,
+		CoverX:           0.11,
+		CoverY:           0.52,
+		CoverW:           0.81,
+		CoverH:           0.26,
+		CoverColor:       "0x06182c",
+		CoverColorBottom: "0x1180b8",
+		TextCenterY:      0.65,
+		FontSizeFrac:     0.16,
+		LabelPrefix:      "CODIGO: ",
 	},
 }
 
