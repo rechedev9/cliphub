@@ -56,18 +56,43 @@ test.describe('anti-slop chrome', () => {
   }
 
   test('the route entrance is one shell-owned moment, played once per navigation', async ({ page }) => {
-    for (const { name, href } of NAV_ROUTES) {
+    // Sidebar routes plus the Demo → 9:16 / Full Demo / stream nested
+    // entrances. Dummy produce/publish ids render the empty wrapper, which is
+    // the page root that used to replay `.studio-enter` beside RouteFrame.
+    const missingJob = '00000000-0000-0000-0000-000000000000';
+    const missingClip = '00000000-0000-0000-0000-000000000001';
+    const routes = [
+      ...NAV_ROUTES,
+      { name: 'Cargar demo', href: '/clips/nueva' },
+      { name: 'Produce', href: `/clips/${missingJob}/nuevo` },
+      { name: 'Publish', href: `/clips/${missingJob}/publicar/${missingClip}` },
+      { name: 'Stream editor', href: `/streams/${missingJob}` },
+    ];
+
+    for (const { name, href } of routes) {
       await gotoStudio(page, href);
       const frame = page.locator('main [data-slot="route-frame"]');
       await expect(frame, `${name} is not inside the shell route frame`).toHaveCount(1);
       await expect(frame).toHaveClass(/studio-enter/);
 
-      // A page that re-runs the entrance on its own container plays the same
-      // reveal twice over the same pixels; stacked reveals read as generated.
-      const duplicated = await frame.evaluate((node) =>
-        [...node.children].filter((child) => child.classList.contains('studio-enter')).length,
-      );
+      // Direct children and the single-child wrapper chain: a page that
+      // re-runs the entrance on its own container plays the same reveal twice.
+      const duplicated = await frame.evaluate((node) => {
+        let extras = 0;
+        let cursor: Element | null = node.firstElementChild;
+        while (cursor !== null) {
+          if (cursor.classList.contains('studio-enter')) extras += 1;
+          cursor = cursor.children.length === 1 ? cursor.firstElementChild : null;
+        }
+        return extras;
+      });
       expect(duplicated, `${name} repeats the shell's route entrance on its own container`).toBe(0);
+    }
+
+    await gotoStudio(page, '/clips');
+    const empty = page.locator(`section[aria-label="${HUB_EMPTY_TITLE}"]`);
+    if ((await empty.count()) > 0) {
+      await expect(empty, 'HubEmpty must not replay the shell route entrance').not.toHaveClass(/studio-enter/);
     }
   });
 

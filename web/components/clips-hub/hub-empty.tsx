@@ -17,7 +17,7 @@ const HUB_EMPTY_DESCRIPTION =
 export function HubEmpty(): ReactNode {
   const router = useRouter();
   return (
-    <section aria-label={HUB_EMPTY_TITLE} className="studio-enter measure-list flex flex-col gap-5">
+    <section aria-label={HUB_EMPTY_TITLE} className="measure-list flex flex-col gap-5">
       <StudioPageHeader title={HUB_EMPTY_TITLE} description={HUB_EMPTY_DESCRIPTION} />
       <DemoDropzone
         minHeightClass="min-h-[240px]"

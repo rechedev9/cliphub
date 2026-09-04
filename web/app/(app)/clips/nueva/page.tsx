@@ -360,7 +360,7 @@ export default function NewDemoPage({
   }
 
   return (
-    <div className="studio-enter measure-list flex flex-col gap-5">
+    <div className="measure-list flex flex-col gap-5">
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-display font-bold uppercase text-fg-1">{title}</h1>
         <p className="measure-read text-body text-fg-2">{description}</p>
