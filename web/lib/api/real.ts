@@ -74,6 +74,93 @@ type RosterResponse = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** `/status` and batch-status job half, as the proxy whitelists it. */
+type RawStatusView = {
+  status: string;
+  failure_reason?: string;
+  failure_code?: string;
+  progress?: { done?: number; total?: number; percent?: number };
+};
+
+/** `/renders/{variant}` and batch-status render half. */
+type RawRenderView = {
+  status?: string;
+  /** `renderplan.RenderVariantState.Error`: the render failure text. */
+  error?: string;
+  warnings?: string[];
+  videos?: string[];
+  covers?: string[];
+  artifact_prefix?: string;
+  segment_ids?: unknown;
+  music?: unknown;
+  edit?: {
+    format?: EditConfig['format'];
+    killEffect?: EditConfig['killEffect'];
+    transition?: EditConfig['transition'];
+    intro?: boolean;
+    outro?: boolean;
+    hook_text?: boolean;
+    kill_counter?: boolean;
+    cover_strategy?: EditConfig['coverStrategy'];
+    intro_text?: string;
+    outro_text?: string;
+  };
+};
+
+type RenderView = {
+  status: RenderStatus;
+  failureReason?: string;
+  warnings?: string[];
+  videoName?: string;
+  coverName?: string;
+  coverNames?: string[];
+  artifactPrefix?: string;
+  segmentIds?: string[];
+  editConfig?: EditConfig;
+  effectiveMusic?: EffectiveRenderMusic;
+};
+
+/** One reel's prefetched reconcile inputs; job null means the orchestrator no longer knows it. */
+type BatchStatusEntry = { job: JobStatusView | null; render: RenderView | null };
+
+function batchKey(jobId: string, variant: string): string {
+  return `${jobId}:${variant}`;
+}
+
+function parseStatusView(data: RawStatusView): JobStatusView {
+  const full: JobStatusView = { status: data.status };
+  if (data.failure_reason) full.failureReason = data.failure_reason;
+  if (data.failure_code) full.failureCode = data.failure_code;
+  const parsed = parseCaptureProgress(data.progress);
+  if (parsed) full.captureProgress = parsed;
+  return full;
+}
+
+const KNOWN_RENDER_STATUSES = new Set<RenderStatus>(['queued', 'rendering', 'ready', 'review_required', 'failed']);
+
+function parseRenderView(data: RawRenderView): RenderView {
+  const status: RenderStatus =
+    data.status && KNOWN_RENDER_STATUSES.has(data.status as RenderStatus) ? (data.status as RenderStatus) : 'none';
+  const coverNames = Array.isArray(data.covers)
+    ? data.covers.filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : undefined;
+  const segmentIds = Array.isArray(data.segment_ids)
+    ? data.segment_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : undefined;
+  return {
+    status,
+    failureReason: data.error,
+    warnings: data.warnings,
+    videoName: data.videos?.[0],
+    coverName: coverNames?.[0],
+    coverNames,
+    artifactPrefix: data.artifact_prefix,
+    segmentIds,
+    editConfig: parseEffectiveEditConfig(data.edit),
+    effectiveMusic: parseEffectiveRenderMusic(data.music),
+  };
+}
+
 /** Default vertical-reel preset/variant when an intent predates preset selection. */
 const REEL_VARIANT = DEFAULT_VARIANT;
 
@@ -711,12 +798,18 @@ export class RealApiClient implements ApiClient {
       const v = this.reels.get(intent.videoId);
       return shouldReconcileVideoStatus(v) && !v?.unrecoverable;
     });
-    await reconcileReels(active.map((intent) => this.reconcileOne(intent)));
+    if (active.length === 0) return;
+    // One request for every active reel; a server without the batch route
+    // (or a transport failure) leaves the per-reel fetches as the fallback.
+    const batch = await this.fetchBatchStatus(active.map((intent) => ({ jobId: intent.jobId, variant: variantOf(intent) })));
+    await reconcileReels(
+      active.map((intent) => this.reconcileOne(intent, batch?.get(batchKey(intent.jobId, variantOf(intent))))),
+    );
   }
 
-  private async reconcileOne(intent: ReelIntent): Promise<void> {
+  private async reconcileOne(intent: ReelIntent, prefetched?: BatchStatusEntry): Promise<void> {
     const [job] = await Promise.all([
-      this.fetchStatusFull(intent.jobId),
+      prefetched === undefined ? this.fetchStatusFull(intent.jobId) : Promise.resolve(prefetched.job),
       this.hydrateIntentTarget(intent),
     ]);
     if (job === null) {
@@ -734,7 +827,6 @@ export class RealApiClient implements ApiClient {
       this.applyView(intent, { status: 'failed', action: 'none', failureReason: latched.failureReason });
       return;
     }
-    // Skip render GET until recorded; earlier it is a guaranteed 404.
     const render: {
       status: RenderStatus;
       failureReason?: string;
@@ -746,10 +838,7 @@ export class RealApiClient implements ApiClient {
       segmentIds?: string[];
       editConfig?: EditConfig;
       effectiveMusic?: EffectiveRenderMusic;
-    } =
-      canHaveRenderState(job.status)
-        ? await this.fetchRenderStatus(intent.jobId, variantOf(intent))
-        : { status: 'none' };
+    } = await this.renderForReconcile(intent, job.status, prefetched);
     // Use the editor's real artifact names instead of guessing from segment ids.
     if (render.videoName) {
       const names: { video: string; cover?: string; covers?: string[] } = { video: render.videoName };
@@ -946,18 +1035,42 @@ export class RealApiClient implements ApiClient {
   private async fetchStatusFull(jobId: string): Promise<JobStatusView | null> {
     const res = await this.send((dp) => ({ url: dp.jobStatusUrl(jobId) }));
     if (res.status === 404) return null;
-    const data = await readJson<{
-      status: string;
-      failure_reason?: string;
-      failure_code?: string;
-      progress?: { done?: number; total?: number; percent?: number };
-    }>(res);
-    const full: JobStatusView = { status: data.status };
-    if (data.failure_reason) full.failureReason = data.failure_reason;
-    if (data.failure_code) full.failureCode = data.failure_code;
-    const parsed = parseCaptureProgress(data.progress);
-    if (parsed) full.captureProgress = parsed;
-    return full;
+    return parseStatusView(await readJson<RawStatusView>(res));
+  }
+
+  /** Prefetched or fetched render; leftover docs before recorded stay 'none'. */
+  private async renderForReconcile(intent: ReelIntent, jobStatus: string, prefetched?: BatchStatusEntry): Promise<RenderView> {
+    if (!canHaveRenderState(jobStatus)) return { status: 'none' };
+    if (prefetched !== undefined) return prefetched.render ?? { status: 'none' };
+    return this.fetchRenderStatus(intent.jobId, variantOf(intent));
+  }
+
+  /**
+   * Every active reel's status + render in one request. null means the batch
+   * route is unavailable (older orchestrator, transport error): the caller
+   * falls back to the per-reel fetches, which keep the offline contract.
+   */
+  private async fetchBatchStatus(
+    items: ReadonlyArray<{ jobId: string; variant: string }>,
+  ): Promise<Map<string, BatchStatusEntry> | null> {
+    try {
+      const res = await this.send((dp) => ({ url: dp.batchStatusUrl(items) }));
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        items?: Array<{ job_id: string; variant: string; job: RawStatusView | null; render: RawRenderView | null }>;
+      };
+      if (!Array.isArray(data.items)) return null;
+      const out = new Map<string, BatchStatusEntry>();
+      for (const item of data.items) {
+        out.set(batchKey(item.job_id, item.variant), {
+          job: item.job ? parseStatusView(item.job) : null,
+          render: item.render ? parseRenderView(item.render) : null,
+        });
+      }
+      return out;
+    } catch {
+      return null;
+    }
   }
 
   /** Reads the job status string; null when the job is unknown (404). */
@@ -985,55 +1098,7 @@ export class RealApiClient implements ApiClient {
     const res = await this.send((dp) => ({ url: dp.renderUrl(jobId, variant) }));
     if (res.status === 404) return { status: 'none' };
     if (!res.ok) await readJson<never>(res);
-    const data = (await res.json()) as {
-      status?: string;
-      /** `renderplan.RenderVariantState.Error`: the render failure text. */
-      error?: string;
-      warnings?: string[];
-      videos?: string[];
-      covers?: string[];
-      artifact_prefix?: string;
-      segment_ids?: unknown;
-      music?: unknown;
-      edit?: {
-        format?: EditConfig['format'];
-        killEffect?: EditConfig['killEffect'];
-        transition?: EditConfig['transition'];
-        intro?: boolean;
-        outro?: boolean;
-        hook_text?: boolean;
-        kill_counter?: boolean;
-        cover_strategy?: EditConfig['coverStrategy'];
-        intro_text?: string;
-        outro_text?: string;
-      };
-    };
-    const known = new Set<RenderStatus>([
-      'queued',
-      'rendering',
-      'ready',
-      'review_required',
-      'failed',
-    ]);
-    const status: RenderStatus = data.status && known.has(data.status as RenderStatus) ? (data.status as RenderStatus) : 'none';
-    const coverNames = Array.isArray(data.covers)
-      ? data.covers.filter((name): name is string => typeof name === 'string' && name.length > 0)
-      : undefined;
-    const segmentIds = Array.isArray(data.segment_ids)
-      ? data.segment_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
-      : undefined;
-    return {
-      status,
-      failureReason: data.error,
-      warnings: data.warnings,
-      videoName: data.videos?.[0],
-      coverName: coverNames?.[0],
-      coverNames,
-      artifactPrefix: data.artifact_prefix,
-      segmentIds,
-      editConfig: parseEffectiveEditConfig(data.edit),
-      effectiveMusic: parseEffectiveRenderMusic(data.music),
-    };
+    return parseRenderView((await res.json()) as RawRenderView);
   }
 
   /** Capture readiness from /api/capabilities; 503 is offline, not unconfigured. */

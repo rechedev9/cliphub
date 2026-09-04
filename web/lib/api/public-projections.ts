@@ -12,6 +12,7 @@ const STREAM_JOB_PUBLIC_KEYS = [
   'title',
   'probe',
   'edit_plan',
+  'clip_count',
   'created_at',
   'updated_at',
 ] as const;

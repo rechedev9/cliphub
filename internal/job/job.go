@@ -94,6 +94,18 @@ func ParseStatus(name string) (Status, error) {
 	return 0, fmt.Errorf("unknown job status %q", name)
 }
 
+// CanHaveRenderState is true once a capture has finished (or the job failed
+// after one). Studio hides leftover render documents before this point so a
+// recapture cannot adopt a previous ready, failed, or queued variant.
+func (s Status) CanHaveRenderState() bool {
+	switch s {
+	case StatusRecorded, StatusComposing, StatusComposed, StatusReviewRequired, StatusDone, StatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Statuses returns every defined Status in declaration order. Exhaustive
 // walks (startup sweeps, contract tests) must range over this instead of a
 // hand-written list, which is how review_required was silently skipped.

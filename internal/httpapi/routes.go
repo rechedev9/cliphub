@@ -50,6 +50,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Post("/api/steam/import", h.ImportShareCode)
 	r.Post("/api/jobs", h.CreateJob)
 	r.Get("/api/jobs", h.ListJobs)
+	r.Get("/api/jobs/batch-status", h.BatchStatus)
 	r.Get("/api/jobs/{id}", h.GetJob)
 	r.Delete("/api/jobs/{id}", h.DeleteJob)
 	r.Get("/api/jobs/{id}/plan", h.GetPlan)

@@ -274,7 +274,41 @@ func (h *Handlers) ListStreamJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list stream jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": attachStreamFailureCodes(jobs)})
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": streamJobListItems(attachStreamFailureCodes(jobs))})
+}
+
+// streamJobListItem is one GET /api/stream-jobs row. The list needs the cut
+// count, not the plan: the edit plan is the editor's document and can be
+// kilobytes per job, so the row carries `clip_count` and drops `edit_plan`.
+type streamJobListItem struct {
+	streamclips.Job
+	EditPlan  json.RawMessage `json:"edit_plan,omitempty"`
+	ClipCount int             `json:"clip_count"`
+}
+
+func streamJobListItems(jobs []streamclips.Job) []streamJobListItem {
+	items := make([]streamJobListItem, 0, len(jobs))
+	for _, j := range jobs {
+		item := streamJobListItem{Job: j, ClipCount: streamClipCount(j.EditPlan)}
+		item.Job.EditPlan = nil
+		items = append(items, item)
+	}
+	return items
+}
+
+// streamClipCount counts the plan's clips without decoding the whole plan;
+// a missing or malformed plan counts as zero, which is what an empty draft is.
+func streamClipCount(plan json.RawMessage) int {
+	if len(plan) == 0 {
+		return 0
+	}
+	var doc struct {
+		Clips []json.RawMessage `json:"clips"`
+	}
+	if err := json.Unmarshal(plan, &doc); err != nil {
+		return 0
+	}
+	return len(doc.Clips)
 }
 
 func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
