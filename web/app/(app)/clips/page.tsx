@@ -152,6 +152,14 @@ function ClipsHub(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  /** One stable callback for every row: a fresh closure per row would defeat their memo. */
+  const onToggle = useCallback(
+    (matchId: string) => {
+      navigate(open === matchId ? {} : { open: matchId });
+    },
+    [navigate, open],
+  );
+
   if (model === null) {
     if (loadError === null) return <HubSkeleton />;
     return (
@@ -206,7 +214,7 @@ function ClipsHub(): ReactNode {
                 key={row.match.id}
                 row={row}
                 open={open === row.match.id}
-                onToggle={() => navigate(open === row.match.id ? {} : { open: row.match.id })}
+                onToggle={onToggle}
                 onChange={onChange}
               />
             ))}

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { mapPlateKey, resolveMapPlate, type MapPlate } from '@/lib/map-plate';
 
@@ -12,7 +12,7 @@ export type MapCoverProps = {
  * uploaded demos, so each known map gets its own palette and silhouette instead
  * of the generic horizon plate that made Ancient and Mirage look identical.
  */
-export function MapCover({ map, className }: MapCoverProps): ReactNode {
+function MapCoverPlate({ map, className }: MapCoverProps): ReactNode {
   const plate = resolveMapPlate(map);
   const skyId = `mc-sky-${plate.id === 'unknown' ? mapPlateKey(map) || 'x' : plate.id}`;
   return (
@@ -36,6 +36,9 @@ export function MapCover({ map, className }: MapCoverProps): ReactNode {
     </div>
   );
 }
+
+/** Pure over its props and on the Partidas poll path: never redraw the glyph for an unchanged map. */
+export const MapCover = memo(MapCoverPlate);
 
 function MapGlyph({ plate }: { plate: MapPlate }): ReactNode {
   const { id, accent, rim, ground } = plate;

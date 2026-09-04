@@ -1,10 +1,14 @@
 package editor
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
+	"image/png"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -643,6 +647,194 @@ func TestRefineKillfeedEffectsFindsLateDeathNotice(t *testing.T) {
 	}
 	if math.Abs(freezeAt-probed[len(probed)-1]) > 1e-9 {
 		t.Fatalf("freeze sample = %.3f, want last successful probe %.3f", freezeAt, probed[len(probed)-1])
+	}
+}
+
+// TestKillfeedFrameProbeCommandStreamsToPipe pins the probe argv: the frame
+// leaves FFmpeg through the image2pipe muxer on stdout, so no temp file is
+// created, written and read back once per sample (up to
+// killfeedSampleMaxCount samples per kill, one killfeed effect per kill).
+func TestKillfeedFrameProbeCommandStreamsToPipe(t *testing.T) {
+	tests := []struct {
+		name       string
+		ffmpegPath string
+		input      string
+		atSeconds  float64
+		wantFirst  string
+		wantSeek   string
+	}{
+		{
+			name:       "configured ffmpeg path",
+			ffmpegPath: `C:\tools\ffmpeg.exe`,
+			input:      "seg-001.mp4",
+			atSeconds:  1.35,
+			wantFirst:  `C:\tools\ffmpeg.exe`,
+			wantSeek:   "1.350",
+		},
+		{
+			name:      "empty path falls back to ffmpeg",
+			input:     "seg-002.mp4",
+			atSeconds: 0.35,
+			wantFirst: "ffmpeg",
+			wantSeek:  "0.350",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			command := killfeedFrameProbeCommand(tt.ffmpegPath, tt.input, tt.atSeconds)
+			if command[0] != tt.wantFirst {
+				t.Fatalf("command[0] = %q, want %q", command[0], tt.wantFirst)
+			}
+			if command[len(command)-1] != "pipe:1" {
+				t.Fatalf("command = %v, want it to output to pipe:1", command)
+			}
+			joined := strings.Join(command, " ")
+			for _, want := range []string{
+				"-ss " + tt.wantSeek,
+				"-i " + tt.input,
+				"-frames:v 1",
+				"-f image2pipe",
+				"-c:v png",
+			} {
+				if !strings.Contains(joined, want) {
+					t.Fatalf("command = %v, want it to contain %q", command, want)
+				}
+			}
+			for _, arg := range command {
+				if strings.HasSuffix(arg, ".png") {
+					t.Fatalf("command = %v, want no PNG file path (arg %q)", command, arg)
+				}
+				if strings.HasPrefix(arg, os.TempDir()) {
+					t.Fatalf("command = %v, want no temp path (arg %q)", command, arg)
+				}
+			}
+		})
+	}
+}
+
+// TestDecodeKillfeedFrameCommand drives the probe over a real process pipe
+// using this test binary as a fake FFmpeg (never the real one): the frame the
+// probe decodes must be pixel-identical to the PNG fed into stdout, and a
+// failing or non-PNG command must report the child's stderr / decode error.
+func TestDecodeKillfeedFrameCommand(t *testing.T) {
+	notice := image.Rect(1700, 115, 1910, 152)
+	want := killfeedTestFrame(t, notice)
+	payload := writeKillfeedProbePNG(t, want)
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "streams the png over stdout", args: []string{"png", payload}},
+		{name: "process failure surfaces stderr", args: []string{"fail"}, wantErr: "No such file or directory"},
+		{name: "non-png stdout reports a decode error", args: []string{"garbage"}, wantErr: "decode killfeed frame"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeKillfeedFrameCommand(killfeedProbeHelperCommand(t, tt.args...))
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("err = nil, want one containing %q", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertSameFrame(t, got, want)
+			wantRect, wantOK := detectKillfeedHighlight(want)
+			gotRect, gotOK := detectKillfeedHighlight(got)
+			if gotOK != wantOK || gotRect != wantRect {
+				t.Fatalf("detected crop = %v/%v over the pipe, want %v/%v", gotRect, gotOK, wantRect, wantOK)
+			}
+		})
+	}
+}
+
+// killfeedProbeHelperCommand builds an argv that re-executes this test binary
+// as the fake frame-probe command (see TestKillfeedProbeHelperProcess).
+func killfeedProbeHelperCommand(t *testing.T, args ...string) []string {
+	t.Helper()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatalf("locate test binary: %v", err)
+	}
+	return append([]string{self, "-test.run=^TestKillfeedProbeHelperProcess$", "--"}, args...)
+}
+
+// TestKillfeedProbeHelperProcess is the fake frame-probe command: re-executed
+// with positional arguments it stands in for FFmpeg and writes PNG bytes, a
+// failure, or junk to the pipe decodeKillfeedFrameCommand reads. Without those
+// arguments (a normal test run) it does nothing.
+func TestKillfeedProbeHelperProcess(t *testing.T) {
+	args := flag.Args()
+	if len(args) == 0 {
+		t.Skip("fake frame-probe command; driven by TestDecodeKillfeedFrameCommand")
+	}
+	switch args[0] {
+	case "png":
+		frame, err := os.ReadFile(args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "read probe payload: %v\n", err)
+			os.Exit(3)
+		}
+		if _, err := os.Stdout.Write(frame); err != nil {
+			fmt.Fprintf(os.Stderr, "write probe payload: %v\n", err)
+			os.Exit(3)
+		}
+	case "garbage":
+		_, _ = os.Stdout.Write([]byte("this is not a PNG frame"))
+	case "fail":
+		fmt.Fprintln(os.Stderr, "seg-001.mp4: No such file or directory")
+		os.Exit(3)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown fake probe mode %q\n", args[0])
+		os.Exit(3)
+	}
+	// Exit before the testing framework writes its own report to stdout, so
+	// the pipe carries exactly the bytes this mode produced.
+	os.Exit(0)
+}
+
+// writeKillfeedProbePNG encodes frame with the same PNG encoder FFmpeg's png
+// muxer uses and returns the file the fake probe streams back.
+func writeKillfeedProbePNG(t *testing.T, frame image.Image) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "frame.png")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, frame); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// assertSameFrame fails unless every pixel of got matches want, which is what
+// "the crop measurement is unchanged" means for the piped probe.
+func assertSameFrame(t *testing.T, got, want image.Image) {
+	t.Helper()
+	if got.Bounds() != want.Bounds() {
+		t.Fatalf("bounds = %v, want %v", got.Bounds(), want.Bounds())
+	}
+	bounds := want.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			gr, gg, gb, ga := got.At(x, y).RGBA()
+			wr, wg, wb, wa := want.At(x, y).RGBA()
+			if gr != wr || gg != wg || gb != wb || ga != wa {
+				t.Fatalf("pixel (%d,%d) = %d/%d/%d/%d, want %d/%d/%d/%d", x, y, gr, gg, gb, ga, wr, wg, wb, wa)
+			}
+		}
 	}
 }
 

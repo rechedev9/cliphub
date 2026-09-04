@@ -1,11 +1,14 @@
 package editor
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"image"
 	"image/png"
-	"os"
+	"io"
 	"os/exec"
+	"strings"
 	"sync"
 )
 
@@ -485,42 +488,69 @@ func redPixelBounds(frame image.Image, region image.Rectangle, minRed, maxGreenB
 }
 
 // ffmpegFrameProbe extracts a single source frame as PNG via FFmpeg for
-// killfeed crop measurement.
+// killfeed crop measurement. Up to killfeedSampleMaxCount frames are probed
+// per killfeed effect and a compilation carries one effect per kill, so this
+// runs dozens of times per render; the PNG is streamed over the process stdout
+// pipe instead of round-tripping a full-frame temp file. It is the same PNG
+// encoder feeding the same PNG decoder, so the measured pixels are unchanged.
 func ffmpegFrameProbe(ffmpegPath string) func(input string, atSeconds float64) (image.Image, error) {
-	if ffmpegPath == "" {
-		ffmpegPath = "ffmpeg"
-	}
 	return func(input string, atSeconds float64) (image.Image, error) {
-		tmp, err := os.CreateTemp("", "zv-killfeed-*.png")
+		frame, err := decodeKillfeedFrameCommand(killfeedFrameProbeCommand(ffmpegPath, input, atSeconds))
 		if err != nil {
-			return nil, fmt.Errorf("create killfeed frame file: %w", err)
-		}
-		tmpPath := tmp.Name()
-		if err := tmp.Close(); err != nil {
-			return nil, fmt.Errorf("close killfeed frame file: %w", err)
-		}
-		defer func() { _ = os.Remove(tmpPath) }()
-		// #nosec G204 -- ffmpegPath and input are local pipeline configuration, not untrusted input.
-		out, err := exec.Command(ffmpegPath,
-			"-y", "-v", "error",
-			"-ss", fmt.Sprintf("%.3f", atSeconds),
-			"-i", input,
-			"-frames:v", "1",
-			tmpPath,
-		).CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("extract frame from %s at %.3fs: %v: %s", input, atSeconds, err, out)
-		}
-		// #nosec G304 -- tmpPath was created by os.CreateTemp above.
-		f, err := os.Open(tmpPath)
-		if err != nil {
-			return nil, fmt.Errorf("open killfeed frame: %w", err)
-		}
-		defer func() { _ = f.Close() }()
-		frame, err := png.Decode(f)
-		if err != nil {
-			return nil, fmt.Errorf("decode killfeed frame: %w", err)
+			return nil, fmt.Errorf("extract frame from %s at %.3fs: %w", input, atSeconds, err)
 		}
 		return frame, nil
 	}
+}
+
+// killfeedFrameProbeCommand builds the single-frame PNG probe argv. The frame
+// goes to stdout through the image2pipe muxer rather than to a file, so no
+// temp path appears in the command.
+func killfeedFrameProbeCommand(ffmpegPath, input string, atSeconds float64) []string {
+	if ffmpegPath == "" {
+		ffmpegPath = "ffmpeg"
+	}
+	return []string{
+		ffmpegPath,
+		"-y", "-v", "error",
+		"-ss", fmt.Sprintf("%.3f", atSeconds),
+		"-i", input,
+		"-frames:v", "1",
+		"-f", "image2pipe",
+		"-c:v", "png",
+		"pipe:1",
+	}
+}
+
+// decodeKillfeedFrameCommand runs a frame-probe command and decodes the PNG
+// straight off its stdout pipe. Stdout is read to completion (png.Decode stops
+// at IEND) before Wait so the child never blocks on a full pipe, and stderr is
+// buffered so a probe failure still reports what FFmpeg said.
+func decodeKillfeedFrameCommand(command []string) (image.Image, error) {
+	if len(command) == 0 || command[0] == "" {
+		return nil, fmt.Errorf("killfeed frame probe command is empty")
+	}
+	// #nosec G204 -- ffmpegPath and input are local pipeline configuration, not untrusted input.
+	cmd := exec.Command(command[0], command[1:]...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open killfeed frame pipe: %w", err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start killfeed frame probe: %w", err)
+	}
+	frame, decodeErr := png.Decode(bufio.NewReader(stdout))
+	_, _ = io.Copy(io.Discard, stdout)
+	if err := cmd.Wait(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("run killfeed frame probe: %w: %s", err, msg)
+		}
+		return nil, fmt.Errorf("run killfeed frame probe: %w", err)
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("decode killfeed frame: %w", decodeErr)
+	}
+	return frame, nil
 }

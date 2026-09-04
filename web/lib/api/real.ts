@@ -120,8 +120,15 @@ type RenderView = {
   effectiveMusic?: EffectiveRenderMusic;
 };
 
-/** One reel's prefetched reconcile inputs; job null means the orchestrator no longer knows it. */
-type BatchStatusEntry = { job: JobStatusView | null; render: RenderView | null };
+/**
+ * One reel's prefetched reconcile inputs. `job: null` means the orchestrator no
+ * longer knows the job; `error` means the server could not read this item at
+ * all, which is neither "job gone" nor "no render yet" but "unknown".
+ */
+type BatchStatusEntry = { error: string; job?: undefined; render?: undefined } | ReadBatchStatusEntry;
+
+/** A row the server did read: the job's status view and its render state. */
+type ReadBatchStatusEntry = { error?: undefined; job: JobStatusView | null; render: RenderView | null };
 
 function batchKey(jobId: string, variant: string): string {
   return `${jobId}:${variant}`;
@@ -159,6 +166,28 @@ function parseRenderView(data: RawRenderView): RenderView {
     editConfig: parseEffectiveEditConfig(data.edit),
     effectiveMusic: parseEffectiveRenderMusic(data.music),
   };
+}
+
+/**
+ * The item-level read failure of one `/batch-status` row, or undefined when the
+ * row was read cleanly. The server sends a message string; an object body is
+ * still read as a failure so a shape change degrades to "unknown", never to
+ * "job gone" (which latches the reel) or "no render yet" (which re-drives it).
+ */
+function batchItemError(raw: unknown, code: unknown): string | undefined {
+  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+    const text = String(raw).trim();
+    return text === '' || text === 'false' ? undefined : text;
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    const fields = raw as { message?: unknown; error?: unknown; code?: unknown };
+    for (const field of [fields.message, fields.error, fields.code]) {
+      if (typeof field === 'string' && field.trim() !== '') return field.trim();
+    }
+    return 'batch-status could not read this reel';
+  }
+  if (typeof code === 'string' && code.trim() !== '') return code.trim();
+  return undefined;
 }
 
 /** Default vertical-reel preset/variant when an intent predates preset selection. */
@@ -275,6 +304,8 @@ export class RealApiClient implements ApiClient {
   private readonly redrivenRevisions = new Map<string, RedrivenRevision>();
   /** Why automatic driving stopped (durable POST rejection or repeated mismatch); explicit actions clear it. */
   private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
+  /** GETs the constructor beat still has open, so its three reads share them (see sharedRead). */
+  private readonly beatReads = new Map<string, Promise<unknown>>();
 
   constructor() {
     // Rehydrate persisted intents so the Library survives a hard reload.
@@ -300,6 +331,45 @@ export class RealApiClient implements ApiClient {
   /** Reads a job's roster scan (players + optional match context) from the proxy. */
   private async fetchRoster(jobId: string): Promise<RosterResponse> {
     return readJson<RosterResponse>(await this.send((dp) => ({ url: dp.rosterUrl(jobId) })));
+  }
+
+  /** Reads a job's durable kill plan; the caller decides whether to share the read. */
+  private async fetchPlan(jobId: string): Promise<KillPlan> {
+    return readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(jobId) })));
+  }
+
+  /**
+   * Shares one in-flight GET between the callers of a single poll beat. The
+   * constructor asks for the match, the Short plays and the recap rounds at the
+   * same time; they all need `/status` first and two of them need the same kill
+   * plan, so this turns a beat into one status read plus one document wave
+   * instead of three independent status → document waterfalls.
+   *
+   * The promise is dropped the moment it settles, so nothing is ever served
+   * from an earlier beat. That is deliberate: re-picking a POV rewrites the
+   * kill plan while the job walks parsed → parsing → parsed, so a memo keyed on
+   * the job (or on the job and its status) would hand out the previous target's
+   * kills. Sharing only what is still open cannot return anything older than a
+   * request issued right now.
+   */
+  private sharedRead<T>(key: string, read: () => Promise<T>): Promise<T> {
+    const open = this.beatReads.get(key) as Promise<T> | undefined;
+    if (open) return open;
+    const started = read().finally(() => {
+      this.beatReads.delete(key);
+    });
+    this.beatReads.set(key, started);
+    return started;
+  }
+
+  /** This beat's job status, shared by the three constructor reads; null when unknown (404). */
+  private beatStatus(jobId: string): Promise<string | null> {
+    return this.sharedRead(`status:${jobId}`, () => this.fetchStatus(jobId));
+  }
+
+  /** This beat's kill plan: the Match and the Plays are derived from one parsed document. */
+  private beatPlan(jobId: string): Promise<KillPlan> {
+    return this.sharedRead(`plan:${jobId}`, () => this.fetchPlan(jobId));
   }
 
   async scanDemo(file: File, opts?: { seriesId?: string }): Promise<{ jobId: string; players: DemoPlayer[]; match?: RosterMatch }> {
@@ -372,10 +442,8 @@ export class RealApiClient implements ApiClient {
 
     await this.waitForStatus(input.jobId, 'parsed');
 
-    const [plan, roster] = await Promise.all([
-      readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(input.jobId) }))),
-      readJson<RosterResponse>(await this.send((dp) => ({ url: dp.rosterUrl(input.jobId) }))),
-    ]);
+    // Unshared reads: this plan was just rewritten for the picked POV.
+    const [plan, roster] = await Promise.all([this.fetchPlan(input.jobId), this.fetchRoster(input.jobId)]);
 
     const picked = roster.players.find((p) => p.steamid64 === input.steamId);
     if (!picked) throw new Error('chosen player not found in roster');
@@ -385,7 +453,7 @@ export class RealApiClient implements ApiClient {
   async getMatch(id: string): Promise<Match | null> {
     if (!isJobId(id)) return null;
 
-    const status = await this.fetchStatus(id);
+    const status = await this.beatStatus(id);
     if (status === null) return null;
     if (!ROSTER_READY_STATUSES.has(status)) return null;
 
@@ -394,53 +462,31 @@ export class RealApiClient implements ApiClient {
       return this.jobToMatchEnriched({ jobId: id, status });
     }
 
-    const plan = await readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(id) })));
-    const match = planToMatch(id, plan, await this.summaryPlayer(id, plan));
+    // One wave. The roster only enriches the plan's target, so a roster miss
+    // falls back to the plan itself instead of failing the whole match.
+    const [plan, roster] = await Promise.all([
+      this.beatPlan(id),
+      this.fetchRoster(id).catch(() => undefined),
+    ]);
+    const match = planToMatch(id, plan, summaryPlayer(plan, roster));
     match.status = status;
     return match;
-  }
-
-  /** Plan target from roster when present; otherwise the plan's own target. */
-  private async summaryPlayer(jobId: string, plan: KillPlan): Promise<DemoPlayer> {
-    try {
-      const { players } = await readJson<RosterResponse>(await this.send((dp) => ({ url: dp.rosterUrl(jobId) })));
-      const row = players.find((p) => p.steamid64 === plan.target?.steamid64) ?? players[0];
-      if (row) return toDemoPlayer(row);
-    } catch {
-      // No roster for this job; fall back to the plan's target below.
-    }
-    return {
-      steamId: plan.target?.steamid64 ?? '',
-      name: plan.target?.name_in_demo ?? '',
-      team: normalizeTeam(plan.target?.team_at_start ?? ''),
-      kills: plan.stats?.total_kills_target ?? 0,
-      deaths: 0,
-      assists: 0,
-      headshots: 0,
-      mvps: 0,
-      rounds: 0,
-      adr: 0,
-      hsPct: 0,
-      kast: 0,
-      rating: 0,
-    };
   }
 
   async findClips(matchId: string): Promise<Play[]> {
     if (!isJobId(matchId)) return [];
 
-    const status = await this.fetchStatus(matchId);
+    const status = await this.beatStatus(matchId);
     // No plan until parsing finishes; it persists through record/render.
     if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
 
-    const plan = await readJson<KillPlan>(await this.send((dp) => ({ url: dp.planUrl(matchId) })));
-    return planToPlays(matchId, plan);
+    return planToPlays(matchId, await this.beatPlan(matchId));
   }
 
   async findRecapClips(matchId: string): Promise<Play[]> {
     if (!isJobId(matchId)) return [];
 
-    const status = await this.fetchStatus(matchId);
+    const status = await this.beatStatus(matchId);
     if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
 
     const res = await this.send((dp) => ({ url: dp.recapPlanUrl(matchId) }));
@@ -808,6 +854,11 @@ export class RealApiClient implements ApiClient {
   }
 
   private async reconcileOne(intent: ReelIntent, prefetched?: BatchStatusEntry): Promise<void> {
+    // The batch could not read this reel: unknown, not gone and not "no render
+    // yet". Both of those would move the reel (latch it unrecoverable, or
+    // re-drive an unrequested capture), so leave the view and its 404 strikes
+    // exactly as they are and re-read on the next tick.
+    if (prefetched?.error !== undefined) return;
     const [job] = await Promise.all([
       prefetched === undefined ? this.fetchStatusFull(intent.jobId) : Promise.resolve(prefetched.job),
       this.hydrateIntentTarget(intent),
@@ -954,9 +1005,7 @@ export class RealApiClient implements ApiClient {
   private async hydrateIntentTarget(intent: ReelIntent): Promise<void> {
     if (intent.targetName) return;
     try {
-      const plan = await readJson<KillPlan>(
-        await this.send((dp) => ({ url: dp.planUrl(intent.jobId) })),
-      );
+      const plan = await this.fetchPlan(intent.jobId);
       const targetName = plan.target?.name_in_demo?.trim();
       if (!targetName) return;
       intent.targetName = targetName;
@@ -1039,7 +1088,7 @@ export class RealApiClient implements ApiClient {
   }
 
   /** Prefetched or fetched render; leftover docs before recorded stay 'none'. */
-  private async renderForReconcile(intent: ReelIntent, jobStatus: string, prefetched?: BatchStatusEntry): Promise<RenderView> {
+  private async renderForReconcile(intent: ReelIntent, jobStatus: string, prefetched?: ReadBatchStatusEntry): Promise<RenderView> {
     if (!canHaveRenderState(jobStatus)) return { status: 'none' };
     if (prefetched !== undefined) return prefetched.render ?? { status: 'none' };
     return this.fetchRenderStatus(intent.jobId, variantOf(intent));
@@ -1057,15 +1106,29 @@ export class RealApiClient implements ApiClient {
       const res = await this.send((dp) => ({ url: dp.batchStatusUrl(items) }));
       if (!res.ok) return null;
       const data = (await res.json()) as {
-        items?: Array<{ job_id: string; variant: string; job: RawStatusView | null; render: RawRenderView | null }>;
+        items?: Array<{
+          job_id: string;
+          variant: string;
+          job: RawStatusView | null;
+          render: RawRenderView | null;
+          /** Set when the server could not read this row; the halves are then meaningless. */
+          error?: unknown;
+          code?: unknown;
+        }>;
       };
       if (!Array.isArray(data.items)) return null;
       const out = new Map<string, BatchStatusEntry>();
       for (const item of data.items) {
-        out.set(batchKey(item.job_id, item.variant), {
-          job: item.job ? parseStatusView(item.job) : null,
-          render: item.render ? parseRenderView(item.render) : null,
-        });
+        const failure = batchItemError(item.error, item.code);
+        out.set(
+          batchKey(item.job_id, item.variant),
+          failure !== undefined
+            ? { error: failure }
+            : {
+                job: item.job ? parseStatusView(item.job) : null,
+                render: item.render ? parseRenderView(item.render) : null,
+              },
+        );
       }
       return out;
     } catch {
@@ -1221,6 +1284,27 @@ export class RealApiClient implements ApiClient {
     // The community feed was a cloud surface; the desktop app shows no feed.
     return Promise.resolve([]);
   }
+}
+
+/** Plan target from the roster when it loaded; otherwise the plan's own target. */
+function summaryPlayer(plan: KillPlan, roster: RosterResponse | undefined): DemoPlayer {
+  const row = roster?.players.find((p) => p.steamid64 === plan.target?.steamid64) ?? roster?.players[0];
+  if (row) return toDemoPlayer(row);
+  return {
+    steamId: plan.target?.steamid64 ?? '',
+    name: plan.target?.name_in_demo ?? '',
+    team: normalizeTeam(plan.target?.team_at_start ?? ''),
+    kills: plan.stats?.total_kills_target ?? 0,
+    deaths: 0,
+    assists: 0,
+    headshots: 0,
+    mvps: 0,
+    rounds: 0,
+    adr: 0,
+    hsPct: 0,
+    kast: 0,
+    rating: 0,
+  };
 }
 
 /** Server roster row (steamid64) → the UI's DemoPlayer (steamId). */

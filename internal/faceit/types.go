@@ -65,6 +65,42 @@ type Player struct {
 	ELO        int    `json:"elo,omitempty"`
 }
 
+// RankedPlayer is one row of a FACEIT CS2 regional leaderboard. Position is
+// the rank inside Region, which is the only ranking FACEIT publishes: there is
+// no region-less global leaderboard endpoint.
+//
+// The leaderboard response carries neither an avatar nor a SteamID64, so a row
+// on its own can seed a name and an ELO but never a demo lookup.
+type RankedPlayer struct {
+	PlayerID   string `json:"player_id"`
+	Nickname   string `json:"nickname"`
+	Country    string `json:"country,omitempty"`
+	Region     string `json:"region"`
+	Position   int    `json:"position"`
+	ELO        int    `json:"faceit_elo"`
+	SkillLevel int    `json:"game_skill_level"`
+}
+
+// SeedDocument is the default roster the Players section starts from: the
+// FACEIT global top N merged out of every regional leaderboard. GeneratedAt
+// and Regions travel with the players so a stale or partially covered refresh
+// is visible to whoever reads it, and GeneratedAt is what a seeded row reports
+// as its FollowedAt so the list does not reshuffle on every restart.
+type SeedDocument struct {
+	SchemaVersion string       `json:"schema_version"`
+	GeneratedAt   time.Time    `json:"generated_at"`
+	Regions       []string     `json:"regions"`
+	Players       []SeedPlayer `json:"players"`
+}
+
+// SeedPlayer is a leaderboard row as the seed document stores it. Rank is the
+// player's place in the merged global order, which Position cannot express
+// because Position counts within one region.
+type SeedPlayer struct {
+	RankedPlayer
+	Rank int `json:"rank,omitempty"`
+}
+
 type RecentMatch struct {
 	ID          string      `json:"id"`
 	RoomURL     string      `json:"room_url"`
