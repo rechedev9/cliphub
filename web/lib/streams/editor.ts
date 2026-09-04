@@ -158,11 +158,6 @@ export function streamCtaLabel({ plan, briefApproved, rendering, hasRender }: St
   return hasRender ? 'Crear Shorts de nuevo →' : 'Crear Shorts →';
 }
 
-/** The brief can only be approved once the plan is renderable in principle. */
-export function streamBriefCanBeApproved(plan: StreamEditPlan): boolean {
-  return streamPlanBlocker(plan) === null;
-}
-
 /** Steps that can block a render; a new member forces every consumer to name its hint. */
 export type StreamBlocker = typeof STREAM_STEP.layout | typeof STREAM_STEP.cuts;
 
@@ -173,11 +168,13 @@ export function streamPlanBlocker(plan: StreamEditPlan): StreamBlocker | null {
   return null;
 }
 
-/**
- * Where the footer CTA navigates when it names a blocker instead of acting,
- * so "Confirma el recorte primero" is a real link rather than a dead end;
- * null once the CTA's own action applies.
- */
-export function streamCtaTarget(plan: StreamEditPlan): StreamBlocker | null {
-  return streamPlanBlocker(plan);
+const BLOCKER_HINT: Record<StreamBlocker, string> = {
+  layout: 'Confirma el recorte de facecam en el paso 01 para poder aprobar',
+  cuts: 'Añade al menos un corte en la timeline para poder aprobar',
+};
+
+/** Why the brief cannot be approved yet, or null once the plan is renderable. */
+export function streamBlockerHint(plan: StreamEditPlan): string | null {
+  const blocker = streamPlanBlocker(plan);
+  return blocker === null ? null : BLOCKER_HINT[blocker];
 }

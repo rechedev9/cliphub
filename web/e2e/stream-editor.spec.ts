@@ -123,12 +123,19 @@ test.describe('stream editor', () => {
     await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
 
-    const briefLine = page.getByTitle(/de salida aprox\./);
+    const briefLine = page.getByTitle(/^Facecam 40 — .*de salida aprox\./);
     await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
-    await page.getByRole('button', { name: 'Ver el brief completo' }).click();
+    await page.getByText('Brief creativo', { exact: true }).click();
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);
+    const summaryBox = await page.getByText('Brief creativo', { exact: true }).boundingBox();
+    const checkboxBox = await briefCheckbox(page).boundingBox();
+    expect(summaryBox).not.toBeNull();
+    expect(checkboxBox).not.toBeNull();
+    if (summaryBox !== null && checkboxBox !== null) {
+      expect(Math.abs(checkboxBox.y - summaryBox.y)).toBeLessThan(12);
+    }
   });
 
   test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({ page }) => {

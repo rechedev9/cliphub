@@ -7,6 +7,7 @@ import { formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { CropPicker } from '@/components/streams/crop-picker';
 import { StreamPreview } from '@/components/streams/stream-preview';
+import { cn } from '@/lib/utils';
 
 export type StreamCropEditor = {
   rect: NormalizedRect;
@@ -69,7 +70,8 @@ function PreviewStatus({ previewError, onRetry }: { previewError: string | null;
  * The 9:16 monitor plus its transport: play the montage, read the source
  * clock. With `cropEditor` the facecam crop is edited on the source frame
  * beside the 9:16 result, and the transport moves under that frame so the
- * timeline below never leaves the screen.
+ * timeline below never leaves the screen. The crop column is width-capped from
+ * the viewport height because an aspect-ratio box cannot shrink to its row.
  */
 export function StreamMonitor({
   preview,
@@ -115,7 +117,7 @@ export function StreamMonitor({
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center gap-5">
       {cropEditor ? (
-        <div className="flex min-w-0 flex-1 max-w-[720px] flex-col gap-2">
+        <div className="flex min-h-0 max-h-full min-w-0 flex-1 max-w-[min(720px,calc((100vh-560px)*16/9))] flex-col gap-2">
           <span className="font-mono text-meta uppercase tracking-widest text-stream-text">Recorte de facecam · fuente 16:9</span>
           <CropPicker rect={cropEditor.rect} onChange={cropEditor.onChange} disabled={cropEditor.disabled} />
           <div className="flex flex-wrap items-center gap-2">
@@ -128,7 +130,7 @@ export function StreamMonitor({
         </div>
       ) : null}
 
-      <div className="flex h-full max-h-full min-h-[120px] flex-none">
+      <div className={cn('h-full max-h-full min-h-[120px] flex-none', cropEditor ? 'hidden @[64rem]/content:flex' : 'flex')}>
         <StreamPreview {...preview} />
       </div>
 

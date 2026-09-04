@@ -1,22 +1,23 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { BRIEF_APPROVAL_LABEL, type CreativeBriefItem } from '@/lib/reel-brief';
+import { useId, type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
+import type { CreativeBriefItem } from '@/lib/reel-brief';
+import { BriefApprovalCheckbox, CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+
+/** Outer separator for the one-line brief; values already use ` · ` inside. */
+const BRIEF_LINE_SEPARATOR = ' — ';
 
 /**
  * The approval gate and the one action this screen exists for. The brief is
  * summarised always and shown in full on demand; the checkbox only becomes
- * available once the plan is renderable, and the caller resets it on any
+ * available once nothing blocks the render, and the caller resets it on any
  * plan change. While something blocks approval the row names it.
  */
 export function StreamFooter({
-  briefLine,
   briefItems,
   briefApproved,
-  briefApprovable,
   blockerHint,
   countLabel,
   summary,
@@ -28,11 +29,9 @@ export function StreamFooter({
   onCreate,
   onBack,
 }: {
-  briefLine: string;
   briefItems: CreativeBriefItem[];
   briefApproved: boolean;
-  briefApprovable: boolean;
-  /** What still blocks approval; shown while `briefApprovable` is false. */
+  /** What still blocks approval; null once the brief can be approved. */
   blockerHint: string | null;
   countLabel: string;
   summary: string;
@@ -44,60 +43,38 @@ export function StreamFooter({
   onCreate: () => void;
   onBack: () => void;
 }): ReactNode {
-  const [briefOpen, setBriefOpen] = useState(false);
+  const briefId = useId();
+  const briefLine = briefItems.map((item) => item.value).join(BRIEF_LINE_SEPARATOR);
+  const approvable = blockerHint === null;
 
   return (
     <footer className="flex shrink-0 flex-col gap-2.5 border-t border-stream/45 bg-surface-1 px-(--shell-gutter) py-3 shadow-[var(--elev-3)]">
-      <section className="studio-panel flex flex-col gap-2 px-3.5 py-2.5" aria-labelledby="stream-creative-brief-title">
-        <div className="flex items-center gap-4">
-          <span id="stream-creative-brief-title" className="shrink-0 font-mono text-meta uppercase tracking-widest text-stream-text">
-            Brief creativo
-          </span>
-          <span className="min-w-0 flex-1 truncate font-mono text-label uppercase text-fg-2" title={briefLine}>
-            {briefLine}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-expanded={briefOpen}
-            aria-label={briefOpen ? 'Ocultar el brief completo' : 'Ver el brief completo'}
-            onClick={() => setBriefOpen((open) => !open)}
-          >
-            <ChevronDown aria-hidden className={cn('transition-transform duration-(--dur-fast)', briefOpen && 'rotate-180')} />
-          </Button>
-          <label
-            className={cn(
-              'flex min-h-10 shrink-0 items-center gap-2 font-mono text-meta uppercase tracking-wider',
-              briefApproved ? 'text-success' : 'text-fg-2',
-              !briefApprovable && 'text-fg-4',
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={briefApproved}
-              disabled={busy || rendering || !briefApprovable}
-              onChange={(event) => onBriefApprovedChange(event.target.checked)}
-              className="size-[18px] shrink-0 cursor-pointer accent-success disabled:cursor-not-allowed"
-            />
-            {BRIEF_APPROVAL_LABEL}
-          </label>
+      <section className="studio-panel flex flex-col gap-2 px-3.5 py-2.5" aria-labelledby={briefId}>
+        <div className="flex items-start gap-4">
+          <details className="group/brief min-w-0 flex-1">
+            <summary
+              id={briefId}
+              className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-widest text-stream-text [&::-webkit-details-marker]:hidden"
+            >
+              <ChevronRight aria-hidden className="size-4 shrink-0 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
+              <span className="shrink-0">Brief creativo</span>
+              <span className="min-w-0 flex-1 truncate text-label tracking-normal text-fg-2" title={briefLine}>
+                {briefLine}
+              </span>
+            </summary>
+            <CreativeBriefList items={briefItems} className="mt-2 border-t border-border-subtle pt-2 sm:grid-cols-2 lg:grid-cols-4" />
+          </details>
+          <BriefApprovalCheckbox
+            checked={briefApproved}
+            disabled={busy || rendering || !approvable}
+            accent="stream"
+            className="shrink-0 font-mono text-meta uppercase tracking-wider"
+            onChange={onBriefApprovedChange}
+          />
         </div>
-        {blockerHint === null || briefApprovable ? null : (
+        {blockerHint === null ? null : (
           <p className="font-mono text-meta uppercase tracking-wider text-warning">{blockerHint}</p>
         )}
-        {briefOpen ? (
-          <dl className="grid gap-x-6 gap-y-1 border-t border-border-subtle pt-2 text-body-sm sm:grid-cols-2 lg:grid-cols-4">
-            {briefItems.map((item) => (
-              <div key={item.label} className="flex min-w-0 gap-1.5">
-                <dt className="shrink-0 text-fg-3">{item.label}:</dt>
-                <dd className="truncate text-fg-1" title={item.value}>
-                  {item.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
       </section>
 
       <div className="flex items-center gap-5">
