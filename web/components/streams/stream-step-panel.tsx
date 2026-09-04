@@ -4,23 +4,12 @@ import type { ReactNode } from 'react';
 import { CircleCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-/** Right column shell: the active step's title, its scrollable content, and one action pinned at the foot. */
-export function StreamStepPanel({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}): ReactNode {
+/** Right column shell: the active step's title over its scrollable content. */
+export function StreamStepPanel({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <aside className="flex min-h-0 flex-col bg-surface-1 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-4">
-        <h2 className="font-mono text-meta uppercase tracking-widest text-stream-text">{title}</h2>
-        {children}
-      </div>
-      {action ? <div className="shrink-0 border-t border-border-subtle p-4">{action}</div> : null}
+    <aside className="flex min-h-0 flex-col gap-2.5 overflow-y-auto bg-surface-1 p-4 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
+      <h2 className="font-mono text-meta uppercase tracking-widest text-stream-text">{title}</h2>
+      {children}
     </aside>
   );
 }

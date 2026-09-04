@@ -90,12 +90,17 @@ test.describe('stream editor', () => {
     await expect(stepTitle(page, '01 · Layout y facecam')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirmar recorte de facecam' })).toBeVisible();
     await expect(cta(page, 'Confirma el recorte primero')).toBeEnabled();
-    await railStep(page, /Revisar/).click();
-    await expect(stepTitle(page, '05 · Revisar y renderizar')).toBeVisible();
     await expect(briefCheckbox(page)).toBeDisabled();
+    await expect(page.getByText('Confirma el recorte de facecam en el paso 01 para poder aprobar')).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name: /Revisar/ })).toHaveCount(0);
+
+    // The crop is edited on the monitor while the timeline stays on screen.
+    await expect(page.getByLabel('Mover región de recorte del facecam')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Timeline de la fuente' })).toBeVisible();
 
     await railStep(page, /Cortes/).click();
     await expect(stepTitle(page, '03 · Cortes → Shorts')).toBeVisible();
+    await expect(page.getByLabel('Mover región de recorte del facecam')).toHaveCount(0);
     await cta(page, 'Confirma el recorte primero').click();
     await expect(stepTitle(page, '01 · Layout y facecam')).toBeVisible();
 
@@ -111,8 +116,6 @@ test.describe('stream editor', () => {
     await page.getByRole('button', { name: 'Confirmar recorte de facecam' }).click();
     await expect(page.getByRole('button', { name: 'Recorte confirmado' })).toBeVisible();
     await expect(railStep(page, /Layout/)).toContainText('recorte ✓');
-    await cta(page, 'Revisar y renderizar').click();
-    await expect(stepTitle(page, '05 · Revisar y renderizar')).toBeVisible();
     await expect(cta(page, 'Aprueba el brief')).toBeDisabled();
 
     await briefCheckbox(page).check();
@@ -120,6 +123,9 @@ test.describe('stream editor', () => {
     await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
 
+    const briefLine = page.getByTitle(/de salida aprox\./);
+    await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
+    await page.getByRole('button', { name: 'Ver el brief completo' }).click();
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);

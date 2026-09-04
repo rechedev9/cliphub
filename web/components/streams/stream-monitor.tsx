@@ -2,13 +2,78 @@
 
 import type { ComponentProps, RefObject, ReactNode } from 'react';
 import { Pause, Play } from 'lucide-react';
+import type { NormalizedRect } from '@/lib/api/streams';
 import { formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
+import { CropPicker } from '@/components/streams/crop-picker';
 import { StreamPreview } from '@/components/streams/stream-preview';
 
-/** The 9:16 monitor plus its transport: play the montage, read the source clock. */
+export type StreamCropEditor = {
+  rect: NormalizedRect;
+  disabled: boolean;
+  onChange: (rect: NormalizedRect) => void;
+};
+
+function Transport({
+  frameSeconds,
+  sourceDuration,
+  playing,
+  canPlay,
+  onTogglePlay,
+}: {
+  frameSeconds: number;
+  sourceDuration: number;
+  playing: boolean;
+  canPlay: boolean;
+  onTogglePlay: () => void;
+}): ReactNode {
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={!canPlay}
+        onClick={onTogglePlay}
+        className="justify-start border-stream/45 font-mono uppercase tracking-wider text-stream-text hover:border-stream hover:bg-stream/10"
+      >
+        {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+        {playing ? 'Pausar' : 'Reproducir montaje'}
+      </Button>
+      <span className="inline-flex h-8 items-center border border-border-strong px-2 font-mono text-meta tabular-nums text-fg-2">
+        {formatStreamClock(frameSeconds)} / {formatStreamClock(sourceDuration)}
+      </span>
+    </>
+  );
+}
+
+function PreviewStatus({ previewError, onRetry }: { previewError: string | null; onRetry: () => void }): ReactNode {
+  if (previewError) {
+    return (
+      <div role="alert" className="flex flex-col items-start gap-2 border border-destructive/45 bg-destructive/10 p-2 text-body-sm text-destructive">
+        <span>{previewError}</span>
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
+      La preview replica bandas, recortes y banners del render.
+    </p>
+  );
+}
+
+/**
+ * The 9:16 monitor plus its transport: play the montage, read the source
+ * clock. With `cropEditor` the facecam crop is edited on the source frame
+ * beside the 9:16 result, and the transport moves under that frame so the
+ * timeline below never leaves the screen.
+ */
 export function StreamMonitor({
   preview,
+  cropEditor,
   frameSeconds,
   sourceDuration,
   playing,
@@ -23,6 +88,7 @@ export function StreamMonitor({
   onRetry,
 }: {
   preview: ComponentProps<typeof StreamPreview>;
+  cropEditor?: StreamCropEditor;
   frameSeconds: number;
   sourceDuration: number;
   playing: boolean;
@@ -36,8 +102,32 @@ export function StreamMonitor({
   onAudioError: () => void;
   onRetry: () => void;
 }): ReactNode {
+  const transport = (
+    <Transport
+      frameSeconds={frameSeconds}
+      sourceDuration={sourceDuration}
+      playing={playing}
+      canPlay={canPlay}
+      onTogglePlay={onTogglePlay}
+    />
+  );
+
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center gap-5">
+      {cropEditor ? (
+        <div className="flex min-w-0 flex-1 max-w-[720px] flex-col gap-2">
+          <span className="font-mono text-meta uppercase tracking-widest text-stream-text">Recorte de facecam · fuente 16:9</span>
+          <CropPicker rect={cropEditor.rect} onChange={cropEditor.onChange} disabled={cropEditor.disabled} />
+          <div className="flex flex-wrap items-center gap-2">
+            {transport}
+            <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              Arrastra el marco · esquina para redimensionar · flechas en teclado
+            </span>
+          </div>
+          {previewError ? <PreviewStatus previewError={previewError} onRetry={onRetry} /> : null}
+        </div>
+      ) : null}
+
       <div className="flex h-full max-h-full min-h-[120px] flex-none">
         <StreamPreview {...preview} />
       </div>
@@ -51,34 +141,12 @@ export function StreamMonitor({
         onError={onAudioError}
       />
 
-      <div className="flex w-max min-w-[10rem] flex-col gap-2 self-end pb-1.5">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!canPlay}
-          onClick={onTogglePlay}
-          className="justify-start border-stream/45 font-mono uppercase tracking-wider text-stream-text hover:border-stream hover:bg-stream/10"
-        >
-          {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-          {playing ? 'Pausar' : 'Reproducir montaje'}
-        </Button>
-        <span className="inline-flex h-8 items-center border border-border-strong px-2 font-mono text-meta tabular-nums text-fg-2">
-          {formatStreamClock(frameSeconds)} / {formatStreamClock(sourceDuration)}
-        </span>
-        {previewError ? (
-          <div role="alert" className="flex flex-col items-start gap-2 border border-destructive/45 bg-destructive/10 p-2 text-body-sm text-destructive">
-            <span>{previewError}</span>
-            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-              Reintentar
-            </Button>
-          </div>
-        ) : (
-          <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
-            La preview replica bandas, recortes y banners del render.
-          </p>
-        )}
-      </div>
+      {cropEditor ? null : (
+        <div className="flex w-max min-w-[10rem] flex-col gap-2 self-end pb-1.5">
+          {transport}
+          <PreviewStatus previewError={previewError} onRetry={onRetry} />
+        </div>
+      )}
     </div>
   );
 }
