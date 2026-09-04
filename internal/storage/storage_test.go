@@ -2,8 +2,13 @@ package storage
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -273,6 +278,107 @@ func TestLocalDeleteTreeRejectsEmptyAndTraversalKeys(t *testing.T) {
 	}
 	if _, err := os.Stat(dir); err != nil {
 		t.Fatalf("storage root missing after rejected DeleteTree: %v", err)
+	}
+}
+
+func TestOpenLocalFileRetriesUntilAnExclusiveHandleIsReleased(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows denies a new handle while a file is being replaced")
+	}
+	path := filepath.Join(t.TempDir(), "status.json")
+	want := []byte(`{"status":"rendering","progress":42}`)
+	if err := os.WriteFile(path, want, 0o600); err != nil {
+		t.Fatalf("write status document: %v", err)
+	}
+	// 120ms is well inside the open retry budget, so a status poll landing on
+	// the window must wait the lock out instead of failing the read.
+	holdFileExclusively(t, path, 120*time.Millisecond)
+
+	file, err := openLocalFile(path)
+	if err != nil {
+		t.Fatalf("openLocalFile during a transient exclusive lock = %v, want success", err)
+	}
+	got, readErr := io.ReadAll(file)
+	closeErr := file.Close()
+	if readErr != nil {
+		t.Fatalf("read reopened status document: %v", readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close reopened status document: %v", closeErr)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("openLocalFile returned %q, want %q", got, want)
+	}
+}
+
+func TestOpenLocalFileReturnsPathErrorWhenTheLockOutlastsTheBudget(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows denies a new handle while a file is being replaced")
+	}
+	path := filepath.Join(t.TempDir(), "status.json")
+	if err := os.WriteFile(path, []byte(`{"status":"rendering"}`), 0o600); err != nil {
+		t.Fatalf("write status document: %v", err)
+	}
+	// The holder outlives any retry budget; test cleanup ends it.
+	holdFileExclusively(t, path, 30*time.Second)
+
+	start := time.Now()
+	file, err := openLocalFile(path)
+	elapsed := time.Since(start)
+	if err == nil {
+		_ = file.Close()
+		t.Fatal("openLocalFile succeeded while the file stayed exclusively locked")
+	}
+	var pathErr *os.PathError
+	if !errors.As(err, &pathErr) {
+		t.Fatalf("openLocalFile error = %v (%T), want *os.PathError", err, err)
+	}
+	if pathErr.Op != "open" || pathErr.Path != path {
+		t.Fatalf("openLocalFile error = %+v, want op \"open\" on %q", pathErr, path)
+	}
+	if elapsed < 100*time.Millisecond {
+		t.Fatalf("openLocalFile gave up after %v, want it to retry across the open budget", elapsed)
+	}
+	if elapsed > 5*time.Second {
+		t.Fatalf("openLocalFile waited %v, want the retry budget to stay bounded", elapsed)
+	}
+}
+
+// holdFileExclusively keeps path open in another process with no sharing for
+// hold, the way a virus scanner or filesystem filter driver briefly does after
+// a replace, and returns once the handle is really held.
+func holdFileExclusively(t *testing.T, path string, hold time.Duration) {
+	t.Helper()
+	shell, err := exec.LookPath("powershell")
+	if err != nil {
+		t.Skipf("powershell is unavailable to hold an exclusive handle: %v", err)
+	}
+	held := path + ".held"
+	script := fmt.Sprintf(
+		"$f=[System.IO.File]::Open('%s','Open','ReadWrite','None');"+
+			"Set-Content -LiteralPath '%s' -Value held;"+
+			"Start-Sleep -Milliseconds %d;$f.Close()",
+		path, held, hold.Milliseconds(),
+	)
+	// #nosec G204 -- fixed shell running a fixed script over test-owned temp paths.
+	holder := exec.Command(shell, "-NoProfile", "-NonInteractive", "-Command", script)
+	if err := holder.Start(); err != nil {
+		t.Fatalf("start exclusive holder: %v", err)
+	}
+	t.Cleanup(func() {
+		// Kill then reap, so the handle is gone before TempDir cleanup runs.
+		_ = holder.Process.Kill()
+		_ = holder.Wait()
+	})
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(held); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("exclusive holder never reported the handle as held")
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
 }
 

@@ -89,52 +89,56 @@ export default function ProducePage({
     let active = true;
     const stop = startPollLoop({
       tick: async () => {
-        try {
-          const nextMatch = await api.getMatch(id);
-          if (!active) return 'idle';
-          matchRef.current = nextMatch;
-          setMatch(nextMatch);
-          setLoadFailure(null);
-          setPollError(null);
-          if (!nextMatch || matchRowStage(nextMatch.status) !== HUB_ROW_STAGE.ready) {
-            setPlays([]);
-            setPlaysError(false);
-            setRounds([]);
-            setRecapFailure(null);
-            setLoaded(true);
-            // `scanned` never advances without a POV pick, so only a real parse polls fast.
-            return nextMatch !== null && matchRowStage(nextMatch.status) === HUB_ROW_STAGE.parsing ? 'fast' : 'idle';
-          }
-          const [planResult, recapResult] = await Promise.allSettled([api.findClips(id), api.findRecapClips(id)]);
-          if (!active) return 'idle';
-          if (planResult.status === 'fulfilled') {
-            setPlays(planResult.value);
-            setPlaysError(false);
-          } else {
-            setPlays([]);
-            setPlaysError(true);
-          }
-          let recapPending = false;
-          if (recapResult.status === 'fulfilled') {
-            setRounds(recapResult.value);
-            setRecapFailure(null);
-            recapPending = recapResult.value.length === 0;
-          } else {
-            setRounds([]);
-            setRecapFailure(classifyFullDemoLoadFailure(recapResult.reason));
-          }
-          setLoaded(true);
-          return recapPending && formatRef.current === PRODUCE_FORMAT.full ? 'fast' : 'idle';
-        } catch (err) {
-          if (!active) return 'idle';
+        // One wave: the client shares this beat's status and kill-plan reads
+        // across the three calls, so asking for everything at once costs one
+        // status request plus one document wave instead of a waterfall.
+        const [matchResult, planResult, recapResult] = await Promise.allSettled([
+          api.getMatch(id),
+          api.findClips(id),
+          api.findRecapClips(id),
+        ]);
+        if (!active) return 'idle';
+        if (matchResult.status === 'rejected') {
           // A transient tick must not wipe a loaded partida: only a definitive
-          // `null` from the API (handled above) turns this into "no encontrada".
-          const failure = classifyFullDemoLoadFailure(err);
+          // `null` from the API (handled below) turns this into "no encontrada".
+          const failure = classifyFullDemoLoadFailure(matchResult.reason);
           if (matchRef.current === null) setLoadFailure(failure);
           else setPollError(failure);
           setLoaded(true);
           return 'idle';
         }
+        const nextMatch = matchResult.value;
+        matchRef.current = nextMatch;
+        setMatch(nextMatch);
+        setLoadFailure(null);
+        setPollError(null);
+        if (!nextMatch || matchRowStage(nextMatch.status) !== HUB_ROW_STAGE.ready) {
+          setPlays([]);
+          setPlaysError(false);
+          setRounds([]);
+          setRecapFailure(null);
+          setLoaded(true);
+          // `scanned` never advances without a POV pick, so only a real parse polls fast.
+          return nextMatch !== null && matchRowStage(nextMatch.status) === HUB_ROW_STAGE.parsing ? 'fast' : 'idle';
+        }
+        if (planResult.status === 'fulfilled') {
+          setPlays(planResult.value);
+          setPlaysError(false);
+        } else {
+          setPlays([]);
+          setPlaysError(true);
+        }
+        let recapPending = false;
+        if (recapResult.status === 'fulfilled') {
+          setRounds(recapResult.value);
+          setRecapFailure(null);
+          recapPending = recapResult.value.length === 0;
+        } else {
+          setRounds([]);
+          setRecapFailure(classifyFullDemoLoadFailure(recapResult.reason));
+        }
+        setLoaded(true);
+        return recapPending && formatRef.current === PRODUCE_FORMAT.full ? 'fast' : 'idle';
       },
       fastMs: FAST_POLL_MS,
       idleMs: IDLE_POLL_MS,

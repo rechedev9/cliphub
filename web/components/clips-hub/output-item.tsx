@@ -1,12 +1,19 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Download, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { parseFailureReason } from '@/lib/api/failure-reason';
-import { isWorking, OUTPUT_STATE, OUTPUT_TYPE, type MatchOutput, type OutputState } from '@/lib/clips/hub';
+import {
+  isWorking,
+  OUTPUT_STATE,
+  OUTPUT_TYPE,
+  sameHubProps,
+  type MatchOutput,
+  type OutputState,
+} from '@/lib/clips/hub';
 import { publishHref } from '@/lib/clips/routes';
 import { timeAgo } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
@@ -42,7 +49,7 @@ export type OutputItemProps = {
 };
 
 /** One Short or Full POV inside an open partida row. */
-export function OutputItem({ output, matchId, onChange }: OutputItemProps): ReactNode {
+function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNode {
   const { video } = output;
   const isShort = output.type === OUTPUT_TYPE.short;
   return (
@@ -100,6 +107,9 @@ export function OutputItem({ output, matchId, onChange }: OutputItemProps): Reac
     </div>
   );
 }
+
+/** The hub rebuilds its model on every poll, so props compare by value, not identity. */
+export const OutputItem = memo(OutputItemCard, sameHubProps);
 
 function FailureLine({ output }: { output: MatchOutput }): ReactNode {
   const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full });

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -21,6 +21,7 @@ import {
   OUTPUT_TONE,
   pluralShorts,
   roundsFromScore,
+  sameHubProps,
   shortsChipTone,
   type HubMatch,
 } from '@/lib/clips/hub';
@@ -42,12 +43,12 @@ export function matchRowId(matchId: string): string {
 export type MatchRowProps = {
   row: HubMatch;
   open: boolean;
-  onToggle: () => void;
+  onToggle: (matchId: string) => void;
   onChange: () => void;
 };
 
 /** One partida: collapsed scoreboard header, expanded Shorts + Full POV columns. */
-export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): ReactNode {
+function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNode {
   const { match, stage, shorts, fulls } = row;
   const { ours, theirs } = parseScore(match.score);
   const hasScore = ours !== null && theirs !== null;
@@ -79,7 +80,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
           aria-expanded={expanded}
           aria-disabled={!expandable || undefined}
           onClick={() => {
-            if (expandable) onToggle();
+            if (expandable) onToggle(match.id);
           }}
           className={cn(
             'flex min-w-0 flex-1 flex-wrap items-stretch gap-4 py-3 pr-3 pl-[18px] text-left transition-colors duration-(--dur-fast) @[44rem]/content:flex-nowrap',
@@ -143,6 +144,9 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
     </article>
   );
 }
+
+/** The hub rebuilds its model on every poll, so props compare by value, not identity. */
+export const MatchRow = memo(MatchRowCard, sameHubProps);
 
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (

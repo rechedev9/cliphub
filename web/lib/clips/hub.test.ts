@@ -21,6 +21,7 @@ import {
   outputType,
   recBusy,
   roundsFromScore,
+  sameHubProps,
   settleHubSnapshot,
   shortsChipTone,
   toOutput,
@@ -344,4 +345,52 @@ test('firstRunProgress flips each step from hub data and completes only with a c
   assert.equal(firstRunComplete(firstRunProgress(parsed)), false);
   const produced = buildHubModel([match('m1', 'parsed')], [reel({ id: 'v1', status: 'queued', jobId: 'm1' })]);
   assert.equal(firstRunComplete(firstRunProgress(produced)), true);
+});
+
+test('sameHubProps compares every own key and falls back to identity elsewhere', () => {
+  const onChange = (): void => {};
+  const cases: Array<{ name: string; a: unknown; b: unknown; want: boolean }> = [
+    { name: 'the same callback', a: onChange, b: onChange, want: true },
+    { name: 'two callbacks of the same shape', a: (): void => {}, b: (): void => {}, want: false },
+    { name: 'nested objects, field by field', a: { s: { n: 1, t: 'a' } }, b: { s: { n: 1, t: 'a' } }, want: true },
+    { name: 'a differing nested field', a: { s: { n: 1 } }, b: { s: { n: 2 } }, want: false },
+    { name: 'an extra key', a: { n: 1 }, b: { n: 1, t: 'a' }, want: false },
+    // A key that only exists as `undefined` reports unequal: an extra render, never a stale row.
+    { name: 'an undefined-valued key against a missing one', a: { n: 1, t: undefined }, b: { n: 1 }, want: false },
+    { name: 'arrays element by element', a: [{ n: 1 }, { n: 2 }], b: [{ n: 1 }, { n: 2 }], want: true },
+    { name: 'a longer array', a: [{ n: 1 }], b: [{ n: 1 }, { n: 2 }], want: false },
+    { name: 'a reordered array', a: [{ n: 1 }, { n: 2 }], b: [{ n: 2 }, { n: 1 }], want: false },
+    { name: 'an array against an object', a: [], b: {}, want: false },
+    { name: 'null against an object', a: null, b: {}, want: false },
+    { name: 'NaN against NaN', a: Number.NaN, b: Number.NaN, want: true },
+    { name: 'primitives of different types', a: 1, b: '1', want: false },
+    // Not a plain object: identity is the only safe answer, so it re-renders.
+    { name: 'equal dates', a: new Date(0), b: new Date(0), want: false },
+  ];
+  for (const { name, a, b, want } of cases) assert.equal(sameHubProps(a, b), want, name);
+});
+
+test('sameHubProps holds a rebuilt hub model stable without hiding a real change', () => {
+  const model = (percent: number): ReturnType<typeof buildHubModel> =>
+    buildHubModel(
+      [match('m1', 'parsed'), match('m2', 'parsed')],
+      [reel({ id: 'v1', status: 'composing', jobId: 'm1', captureProgress: { done: 1, total: 4, percent } })],
+    );
+  const first = model(25);
+  const again = model(25);
+  // buildHubModel is pure but allocates: an unchanged poll rebuilds an equal model from new objects.
+  assert.notEqual(first.rows[0], again.rows[0]);
+  assert.equal(sameHubProps(first, again), true);
+  const onToggle = (): void => {};
+  const onChange = (): void => {};
+  assert.equal(
+    sameHubProps(
+      { row: first.rows[0], open: false, onToggle, onChange },
+      { row: again.rows[0], open: false, onToggle, onChange },
+    ),
+    true,
+  );
+  const moved = model(50);
+  assert.equal(sameHubProps(first.rows[0], moved.rows[0]), false);
+  assert.equal(sameHubProps(first.rows[1], moved.rows[1]), true);
 });

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/golang/geo/r3"
+	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
 )
 
 // pushSamples fills a track's ring with one sample per tick, starting at
@@ -165,4 +166,257 @@ func normalisePitch(pitch float64) float64 {
 		pitch -= 360
 	}
 	return pitch
+}
+
+// fixtureCollector builds a collector that can fold synthetic ticks: sampleTick
+// needs only the ring size and the track map, never the parser.
+func fixtureCollector() *collector {
+	return &collector{
+		tickRate: 64,
+		ringSize: 32,
+		tracks:   map[uint64]*track{},
+		lastTick: -1,
+	}
+}
+
+// fixturePlayer builds a player carrying only the plain struct fields
+// sampleTick reads. A demo-backed entity cannot be constructed outside
+// demoinfocs, which is why eye positions and view angles reach sampleTick as
+// playerTick values instead of being read off the player.
+func fixturePlayer(id uint64, name string, team common.Team) *common.Player {
+	return &common.Player{SteamID64: id, Name: name, Team: team}
+}
+
+// aimTick is one fixture player aiming level at the given yaw from the given
+// eye position.
+func aimTick(pl *common.Player, eyes r3.Vector, yaw float64) playerTick {
+	return playerTick{pl: pl, eyes: eyes, yaw: yaw}
+}
+
+// spottedPairs answers the visibility query from a set of enemy→observer
+// SteamID pairs. Anything absent from the set is unseen, which is the case the
+// wall-tracking metric cares about.
+type spottedPairs map[[2]uint64]bool
+
+func (s spottedPairs) spottedBy(enemy, observer *common.Player) bool {
+	return s[[2]uint64{enemy.SteamID64, observer.SteamID64}]
+}
+
+// TestSampleTickReadsEachEnemysOwnEyePosition pins the observer/enemy pairing.
+// Eye positions are resolved once per player per tick and indexed in the pair
+// loop; reading the wrong one collapses the offset to the observer's own
+// position and every lock silently disappears.
+func TestSampleTickReadsEachEnemysOwnEyePosition(t *testing.T) {
+	// Two T players, each with exactly one enemy on its crosshair through
+	// cover, and two CT players whose crosshairs are on nobody.
+	a := fixturePlayer(1, "a", common.TeamTerrorists)
+	b := fixturePlayer(2, "b", common.TeamTerrorists)
+	x := fixturePlayer(3, "x", common.TeamCounterTerrorists)
+	y := fixturePlayer(4, "y", common.TeamCounterTerrorists)
+
+	alive := []playerTick{
+		aimTick(a, r3.Vector{}, 0),         // looks +X, straight at x
+		aimTick(b, r3.Vector{Y: 500}, 90),  // looks +Y, straight at y
+		aimTick(x, r3.Vector{X: 1000}, 90), // looks +Y, at nobody
+		aimTick(y, r3.Vector{Y: 1500}, 0),  // looks +X, at nobody
+	}
+
+	c := fixtureCollector()
+	for tick := 100; tick < 103; tick++ {
+		c.sampleTick(tick, alive, spottedPairs{}.spottedBy)
+	}
+
+	if c.sampledTicks != 3 {
+		t.Fatalf("sampledTicks = %d, want 3", c.sampledTicks)
+	}
+	for _, id := range []uint64{1, 2, 3, 4} {
+		if got := c.tracks[id].aliveTicks; got != 3 {
+			t.Fatalf("player %d aliveTicks = %d, want 3", id, got)
+		}
+	}
+
+	wantPreaim := map[uint64]map[uint64]int{
+		1: {3: 3},
+		2: {4: 3},
+		3: {},
+		4: {},
+	}
+	wantWallTrack := map[uint64]int{1: 3, 2: 3, 3: 0, 4: 0}
+	for id, want := range wantPreaim {
+		tr := c.tracks[id]
+		if len(tr.preaimTicks) != len(want) {
+			t.Fatalf("player %d preaimTicks = %v, want %v", id, tr.preaimTicks, want)
+		}
+		for enemy, ticks := range want {
+			if tr.preaimTicks[enemy] != ticks {
+				t.Fatalf("player %d preaimTicks[%d] = %d, want %d", id, enemy, tr.preaimTicks[enemy], ticks)
+			}
+		}
+		if tr.wallTrackTicks != wantWallTrack[id] {
+			t.Fatalf("player %d wallTrackTicks = %d, want %d", id, tr.wallTrackTicks, wantWallTrack[id])
+		}
+	}
+	if c.tracks[1].team != "T" || c.tracks[3].team != "CT" {
+		t.Fatalf("teams recorded as %q/%q, want T/CT", c.tracks[1].team, c.tracks[3].team)
+	}
+}
+
+func TestSampleTickPairGeometry(t *testing.T) {
+	tests := []struct {
+		name          string
+		observerEyes  r3.Vector
+		enemyEyes     r3.Vector
+		spotted       bool
+		wantPreaim    int
+		wantWallTrack int
+		wantSpotted   bool
+	}{
+		{
+			name:          "crosshair locked through cover",
+			enemyEyes:     r3.Vector{X: 1000},
+			wantPreaim:    1,
+			wantWallTrack: 1,
+		},
+		{
+			name:          "just inside the crosshair cone",
+			enemyEyes:     r3.Vector{X: 1000, Y: 50},
+			wantPreaim:    1,
+			wantWallTrack: 1,
+		},
+		{
+			name:      "crosshair off the enemy",
+			enemyEyes: r3.Vector{X: 1000, Y: 200},
+		},
+		{
+			name:      "beyond the wall-track range",
+			enemyEyes: r3.Vector{X: wallTrackMaxUnits + 100},
+		},
+		{
+			name:        "visible enemy is information, not wall tracking",
+			enemyEyes:   r3.Vector{X: 1000},
+			spotted:     true,
+			wantSpotted: true,
+		},
+		{
+			// A player with no pawn yields the zero vector from PositionEyes;
+			// the distance guard drops the pair instead of scoring a lock at
+			// the map origin.
+			name: "no pawn leaves both at the origin",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observer := fixturePlayer(1, "observer", common.TeamTerrorists)
+			enemy := fixturePlayer(2, "enemy", common.TeamCounterTerrorists)
+			alive := []playerTick{
+				aimTick(observer, tt.observerEyes, 0),
+				aimTick(enemy, tt.enemyEyes, 180),
+			}
+			spotted := spottedPairs{}
+			if tt.spotted {
+				spotted[[2]uint64{2, 1}] = true
+			}
+
+			c := fixtureCollector()
+			c.sampleTick(100, alive, spotted.spottedBy)
+
+			tr := c.tracks[1]
+			if got := tr.preaimTicks[2]; got != tt.wantPreaim {
+				t.Fatalf("preaimTicks = %d, want %d", got, tt.wantPreaim)
+			}
+			if tr.wallTrackTicks != tt.wantWallTrack {
+				t.Fatalf("wallTrackTicks = %d, want %d", tr.wallTrackTicks, tt.wantWallTrack)
+			}
+			since, ok := tr.spottedSince[2]
+			if ok != tt.wantSpotted {
+				t.Fatalf("spottedSince present = %v, want %v", ok, tt.wantSpotted)
+			}
+			if ok && since != 100 {
+				t.Fatalf("spottedSince = %d, want the sampled tick 100", since)
+			}
+			if _, ever := tr.everSpotted[2]; ever != tt.wantSpotted {
+				t.Fatalf("everSpotted = %v, want %v", ever, tt.wantSpotted)
+			}
+		})
+	}
+}
+
+func TestSampleTickPreaimRunBreaksWhenTheEnemyBecomesVisible(t *testing.T) {
+	observer := fixturePlayer(1, "observer", common.TeamTerrorists)
+	enemy := fixturePlayer(2, "enemy", common.TeamCounterTerrorists)
+	alive := []playerTick{
+		aimTick(observer, r3.Vector{}, 0),
+		aimTick(enemy, r3.Vector{X: 1000}, 180),
+	}
+	spotted := spottedPairs{}
+
+	c := fixtureCollector()
+	for tick := 100; tick < 103; tick++ {
+		c.sampleTick(tick, alive, spotted.spottedBy)
+	}
+	if got := c.tracks[1].preaimTicks[2]; got != 3 {
+		t.Fatalf("preaimTicks after three locked ticks = %d, want 3", got)
+	}
+
+	spotted[[2]uint64{2, 1}] = true
+	c.sampleTick(103, alive, spotted.spottedBy)
+	if got := c.tracks[1].preaimTicks[2]; got != 0 {
+		t.Fatalf("preaimTicks after the enemy became visible = %d, want 0", got)
+	}
+	if since := c.tracks[1].spottedSince[2]; since != 103 {
+		t.Fatalf("spottedSince = %d, want 103", since)
+	}
+
+	delete(spotted, [2]uint64{2, 1})
+	c.sampleTick(104, alive, spotted.spottedBy)
+	if got := c.tracks[1].preaimTicks[2]; got != 1 {
+		t.Fatalf("preaimTicks after visibility broke = %d, want a fresh run of 1", got)
+	}
+	if _, ok := c.tracks[1].spottedSince[2]; ok {
+		t.Fatal("spottedSince survived the enemy going unseen again")
+	}
+	if _, ok := c.tracks[1].everSpotted[2]; !ok {
+		t.Fatal("everSpotted forgot a sighting that happened this round")
+	}
+	if got := c.tracks[1].wallTrackTicks; got != 4 {
+		t.Fatalf("wallTrackTicks = %d, want 4: every tick but the visible one", got)
+	}
+}
+
+func TestSampleTickIgnoresTeammatesAndItself(t *testing.T) {
+	observer := fixturePlayer(1, "observer", common.TeamTerrorists)
+	mate := fixturePlayer(2, "mate", common.TeamTerrorists)
+	alive := []playerTick{
+		aimTick(observer, r3.Vector{}, 0),
+		aimTick(mate, r3.Vector{X: 1000}, 180), // squarely on the crosshair
+	}
+
+	c := fixtureCollector()
+	c.sampleTick(100, alive, spottedPairs{}.spottedBy)
+
+	for _, id := range []uint64{1, 2} {
+		tr := c.tracks[id]
+		if len(tr.preaimTicks) != 0 {
+			t.Fatalf("player %d preaimTicks = %v, want none", id, tr.preaimTicks)
+		}
+		if tr.wallTrackTicks != 0 {
+			t.Fatalf("player %d wallTrackTicks = %d, want 0", id, tr.wallTrackTicks)
+		}
+		if tr.aliveTicks != 1 {
+			t.Fatalf("player %d aliveTicks = %d, want 1", id, tr.aliveTicks)
+		}
+	}
+}
+
+func TestSampleTickWithNobodyAliveIsNotCounted(t *testing.T) {
+	c := fixtureCollector()
+	c.sampleTick(100, nil, spottedPairs{}.spottedBy)
+
+	if c.sampledTicks != 0 {
+		t.Fatalf("sampledTicks = %d, want 0 for a tick with nobody alive", c.sampledTicks)
+	}
+	if len(c.tracks) != 0 {
+		t.Fatalf("tracks = %v, want none", c.tracks)
+	}
 }

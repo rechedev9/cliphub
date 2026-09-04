@@ -17,13 +17,39 @@ const (
 	windowsSharingViolation syscall.Errno = 32
 )
 
+// Retry shape for a denied open of a file that is being replaced: exponential
+// backoff from a sub-millisecond-scale first wait, capped per sleep so a long
+// wait stays responsive, and bounded overall by openRetryBudget.
+const (
+	openRetryBudget    = 250 * time.Millisecond
+	openRetryFirstWait = time.Millisecond
+	openRetryMaxWait   = 25 * time.Millisecond
+)
+
+// openLocalFile opens a stored artifact for reading, tolerating the short
+// windows in which Windows refuses a new handle on a file that is being
+// replaced.
+//
+// ReplaceFileW is atomic: a reader sees either the previous or the next
+// complete generation, never a partial one. The operating system around it is
+// not as quiet. Virus scanners and filesystem filter drivers hold transient
+// handles on a file that was just written, and while they do CreateFile answers
+// ERROR_SHARING_VIOLATION (32) or ERROR_ACCESS_DENIED (5). Studio polls render
+// status.json continuously for the whole length of a render, so that
+// millisecond-scale window must not turn into a terminal 500 response: for a
+// localhost status document, waiting a few hundred milliseconds is strictly
+// better than failing the poll. Every other error, a missing key above all, is
+// returned on the first attempt, and when the budget is spent the caller still
+// gets the original *os.PathError.
 func openLocalFile(path string) (*os.File, error) {
 	name, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
 	var handle syscall.Handle
-	for attempt := 0; attempt < 5; attempt++ {
+	deadline := time.Now().Add(openRetryBudget)
+	wait := openRetryFirstWait
+	for {
 		handle, err = syscall.CreateFile(
 			name,
 			syscall.GENERIC_READ,
@@ -36,11 +62,21 @@ func openLocalFile(path string) (*os.File, error) {
 		if err == nil || (!errors.Is(err, windowsSharingViolation) && !errors.Is(err, windowsAccessDenied)) {
 			break
 		}
-		// ReplaceFileW is atomic, but virus scanners and filesystem filters can
-		// briefly deny a new handle while a generation JSON is being replaced.
-		// Polling endpoints should not turn that millisecond-scale window into a
-		// terminal 500 response.
-		time.Sleep(time.Duration(attempt+1) * time.Millisecond)
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		sleep := wait
+		if sleep > remaining {
+			sleep = remaining
+		}
+		time.Sleep(sleep)
+		if wait < openRetryMaxWait {
+			wait *= 2
+			if wait > openRetryMaxWait {
+				wait = openRetryMaxWait
+			}
+		}
 	}
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: path, Err: err}

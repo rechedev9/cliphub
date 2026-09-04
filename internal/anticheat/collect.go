@@ -216,6 +216,20 @@ func (c *collector) register(p demoinfocs.Parser) {
 	p.RegisterEventHandler(func(e events.Kill) { c.recordKill(e) })
 }
 
+// playerTick is one living player's state for a single sampled tick.
+//
+// Eye position and view angles are resolved once per player here instead of
+// once per ordered player pair: on a given tick a player's eye position is the
+// same for every observer looking at them, while PositionEyes resolves the
+// pawn entity and walks its property table on every call. In a 5v5 that is 10
+// resolves per tick instead of 60.
+type playerTick struct {
+	pl    *common.Player
+	eyes  r3.Vector
+	yaw   float64
+	pitch float64
+}
+
 // sample snapshots every living player's view angles and their aim relative to
 // every living enemy. It runs once per in-game tick even when the demo
 // dispatches several frames for the same tick.
@@ -227,53 +241,72 @@ func (c *collector) sample() {
 	}
 	c.lastTick = tick
 
-	alive := make([]*common.Player, 0, 10)
+	alive := make([]playerTick, 0, 10)
 	for _, pl := range gs.Participants().Playing() {
-		if pl != nil && pl.SteamID64 != 0 && pl.IsAlive() {
-			alive = append(alive, pl)
+		if pl == nil || pl.SteamID64 == 0 || !pl.IsAlive() {
+			continue
 		}
+		yaw, pitch := viewAngles(pl)
+		// The bool is discarded: a player without a pawn contributes the zero
+		// vector, which the distance guard in sampleTick filters out. Skipping
+		// them here instead would change what the metrics count.
+		eyes, _ := pl.PositionEyes()
+		alive = append(alive, playerTick{pl: pl, eyes: eyes, yaw: yaw, pitch: pitch})
 	}
+
+	// Visibility stays the demoinfocs call: the spotted mask lives behind
+	// entity-handle resolution and a split bitmask in library internals.
+	c.sampleTick(tick, alive, (*common.Player).IsSpottedBy)
+}
+
+// sampleTick folds one sampled tick into the tracks of the players alive on
+// it. sample resolves the demo state; this half is bookkeeping over playerTick
+// values, so it can be driven from a synthetic fixture in tests.
+//
+// spottedBy reports whether enemy is currently visible to observer. The demo
+// path passes (*common.Player).IsSpottedBy.
+func (c *collector) sampleTick(tick int, alive []playerTick, spottedBy func(enemy, observer *common.Player) bool) {
 	if len(alive) == 0 {
 		return
 	}
 	c.sampledTicks++
 
-	for _, pl := range alive {
-		t := c.track(pl)
-		yaw, pitch := viewAngles(pl)
-		t.push(angleSample{tick: tick, yaw: yaw, pitch: pitch}, c.ringSize)
+	for i := range alive {
+		ob := &alive[i]
+		t := c.track(ob.pl)
+		t.push(angleSample{tick: tick, yaw: ob.yaw, pitch: ob.pitch}, c.ringSize)
 		t.aliveTicks++
 
-		eyes, _ := pl.PositionEyes()
-		view := viewVector(yaw, pitch)
+		view := viewVector(ob.yaw, ob.pitch)
 
 		tracking := false
-		for _, enemy := range alive {
-			if enemy.Team == pl.Team || enemy.SteamID64 == pl.SteamID64 {
+		for j := range alive {
+			enemy := &alive[j]
+			if enemy.pl.Team == ob.pl.Team || enemy.pl.SteamID64 == ob.pl.SteamID64 {
 				continue
 			}
-			if enemy.IsSpottedBy(pl) {
-				if _, ok := t.spottedSince[enemy.SteamID64]; !ok {
-					t.spottedSince[enemy.SteamID64] = tick
+			id := enemy.pl.SteamID64
+			if spottedBy(enemy.pl, ob.pl) {
+				if _, ok := t.spottedSince[id]; !ok {
+					t.spottedSince[id] = tick
 				}
-				t.everSpotted[enemy.SteamID64] = struct{}{}
-				delete(t.preaimTicks, enemy.SteamID64)
+				t.everSpotted[id] = struct{}{}
+				delete(t.preaimTicks, id)
 				continue
 			}
-			delete(t.spottedSince, enemy.SteamID64)
+			delete(t.spottedSince, id)
 
-			target, _ := enemy.PositionEyes()
-			offset := target.Sub(eyes)
+			offset := enemy.eyes.Sub(ob.eyes)
 			distance := offset.Norm()
 			if distance > wallTrackMaxUnits || distance == 0 {
-				delete(t.preaimTicks, enemy.SteamID64)
+				delete(t.preaimTicks, id)
 				continue
 			}
 			if angleBetween(view, offset) > crosshairLockDegrees {
-				delete(t.preaimTicks, enemy.SteamID64)
+				delete(t.preaimTicks, id)
 				continue
 			}
-			t.preaimTicks[enemy.SteamID64]++
+			t.preaimTicks[id]++
 			tracking = true
 		}
 		if tracking {

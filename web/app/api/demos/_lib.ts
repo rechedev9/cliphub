@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
-import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE} from '@/lib/api/types';
+// Node-resolvable specifiers (explicit extension, no "@/" alias) so the
+// colocated node:test suite can import this module directly, exactly as
+// proxy.ts does. Webpack resolves both forms identically.
+import { NextResponse } from 'next/server.js';
+import { SERVICE_UNAVAILABLE_CODE, NOT_CONFIGURED_CODE } from '../../../lib/api/types.ts';
 
 /** Server-side orchestrator base; local-first default. */
 export function orchestratorUrl(): string {
@@ -153,17 +156,44 @@ export async function forwardError(res: Response): Promise<Response> {
 }
 
 /**
+ * Default Cache-Control for proxied binaries. The orchestrator serves most
+ * artifacts through http.ServeContent with a zero modtime, so there is no
+ * ETag or Last-Modified for a browser to revalidate against: a cached copy
+ * could never be checked, and a render that rewrites its output under the same
+ * key would be served stale. no-store is the only safe policy there.
+ */
+const NO_STORE_CACHE_CONTROL = 'no-store';
+
+/**
+ * Cache-Control for a proxied binary whose durable key can never be rewritten,
+ * so the bytes behind a given URL are fixed for the life of that URL. `private`
+ * keeps it out of any shared cache, and `immutable` stops the browser
+ * revalidating on a reload it cannot validate anyway. Only for keys that are
+ * written once under a freshly minted id — the stream job's source video is the
+ * one such artifact today (`streamclips.SourceKey` under a per-acquisition
+ * UUID, never overwritten). Range requests are still served from the cache,
+ * which is what the stream editor's three media pipelines (shared decoder,
+ * preview audio, per-row thumbnails) hammer on every scrub.
+ */
+export const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable';
+
+/**
  * Streams a binary artifact (reel mp4 / cover jpg / song audio) from the
  * orchestrator, preserving content-type and length when present. Forwards the
  * client's Range header and mirrors the upstream status (200/206) plus range
  * headers, because the browser <video>/<audio> element needs range support to
- * start playback and seek. Non-2xx is forwarded as a JSON error so the client
- * can surface it. Never logs bytes.
+ * start playback and seek. `cacheControl` defaults to no-store; pass
+ * IMMUTABLE_CACHE_CONTROL only for a write-once key, and note it is applied on
+ * the 2xx branch alone so an error answered while the job is still working
+ * (a 404 for a source that has not landed yet) is never pinned in the cache.
+ * Non-2xx is forwarded as a JSON error so the client can surface it. Never
+ * logs bytes.
  */
 export async function proxyStream(
   url: string,
   fallbackContentType: string,
   request?: Request,
+  cacheControl: string = NO_STORE_CACHE_CONTROL,
 ): Promise<Response> {
   const range = request?.headers.get('range');
   const res = await callOrchestrator(url, range ? { headers: { range } } : undefined);
@@ -171,7 +201,7 @@ export async function proxyStream(
   if (!res.ok) return forwardError(res);
   const headers: Record<string, string> = {
     'content-type': res.headers.get('content-type') ?? fallbackContentType,
-    'cache-control': 'no-store',
+    'cache-control': cacheControl,
   };
   for (const name of ['content-length', 'content-range', 'accept-ranges'] as const) {
     const value = res.headers.get(name);

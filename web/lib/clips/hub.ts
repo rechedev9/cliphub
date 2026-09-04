@@ -172,6 +172,32 @@ export function buildHubModel(matches: readonly Match[], videos: readonly Video[
   return { rows, orphans: orphans.sort(byNewest), clips };
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Render-prop equality for the memoized hub rows. `buildHubModel` allocates a
+ * fresh model on every poll, so identity always misses; this walks every own key
+ * of every plain object and array and compares everything else (callbacks,
+ * primitives, non-plain objects) by identity. It is complete by construction, not
+ * by a field list, so a new field can never freeze a stale row in the UI: an
+ * unrecognised shape or a differing key set reports unequal and re-renders.
+ */
+export function sameHubProps(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, index) => sameHubProps(item, b[index]));
+  }
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((key) => Object.hasOwn(b, key) && sameHubProps(a[key], b[key]));
+}
+
 /** Clips lens filters, with the label the chip shows. */
 export const CLIP_FILTER = {
   all: 'all',

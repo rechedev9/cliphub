@@ -1,0 +1,113 @@
+{
+  "schema_version": "cliphub.faceit-top10/v1",
+  "generated_at": "2026-09-04T00:00:00Z",
+  "regions": [
+    "EU",
+    "NA",
+    "SA",
+    "OCE",
+    "SEA"
+  ],
+  "players": [
+    {
+      "player_id": "e5e8e2a6-d716-4493-b949-e16965f41654",
+      "nickname": "donk666",
+      "country": "kr",
+      "region": "EU",
+      "position": 1,
+      "faceit_elo": 4636,
+      "game_skill_level": 10,
+      "rank": 1
+    },
+    {
+      "player_id": "be994de3-89c8-4d40-9286-c14035208743",
+      "nickname": "-SYPH0",
+      "country": "kz",
+      "region": "EU",
+      "position": 2,
+      "faceit_elo": 4409,
+      "game_skill_level": 10,
+      "rank": 2
+    },
+    {
+      "player_id": "74df0e6b-5b41-42d7-93b4-05dc78b9a699",
+      "nickname": "dem0nnnnnnnn",
+      "country": "mm",
+      "region": "EU",
+      "position": 3,
+      "faceit_elo": 4348,
+      "game_skill_level": 10,
+      "rank": 3
+    },
+    {
+      "player_id": "ae86bf74-eeda-444f-8db4-a4703a74fc95",
+      "nickname": "1769-",
+      "country": "cn",
+      "region": "EU",
+      "position": 4,
+      "faceit_elo": 4253,
+      "game_skill_level": 10,
+      "rank": 4
+    },
+    {
+      "player_id": "64000660-f2d2-4c9b-8e29-6ad5ec2b49cf",
+      "nickname": "CEMEN_BAKIN",
+      "country": "cn",
+      "region": "EU",
+      "position": 5,
+      "faceit_elo": 4247,
+      "game_skill_level": 10,
+      "rank": 5
+    },
+    {
+      "player_id": "e5b855bd-3dbc-4928-a216-241d615b431b",
+      "nickname": "nipl",
+      "country": "ua",
+      "region": "EU",
+      "position": 6,
+      "faceit_elo": 4213,
+      "game_skill_level": 10,
+      "rank": 6
+    },
+    {
+      "player_id": "58dabfcf-c6d3-4a31-bb0e-9c95ff9c891b",
+      "nickname": "whyhurt",
+      "country": "ru",
+      "region": "EU",
+      "position": 7,
+      "faceit_elo": 4157,
+      "game_skill_level": 10,
+      "rank": 7
+    },
+    {
+      "player_id": "34f9fcd0-4f1f-4693-bd96-c2e29df992e5",
+      "nickname": "bluewh1te",
+      "country": "hk",
+      "region": "EU",
+      "position": 8,
+      "faceit_elo": 4148,
+      "game_skill_level": 10,
+      "rank": 8
+    },
+    {
+      "player_id": "ac784f9e-2975-4e9d-b3bc-f2b4a2e8c83b",
+      "nickname": "73ddd",
+      "country": "ua",
+      "region": "EU",
+      "position": 9,
+      "faceit_elo": 4143,
+      "game_skill_level": 10,
+      "rank": 9
+    },
+    {
+      "player_id": "821d2f75-a314-48d7-8a90-5d2f152e761a",
+      "nickname": "em0k1d",
+      "country": "ru",
+      "region": "EU",
+      "position": 10,
+      "faceit_elo": 4107,
+      "game_skill_level": 10,
+      "rank": 10
+    }
+  ]
+}
