@@ -65,3 +65,9 @@ Playwright CLI verificó inicio, carga, importación de streams y los tres const
 Evidencias locales (fuera de Git): `/tmp/cliphub-after.png`, `/tmp/cliphub-short-desktop.png`, `/tmp/cliphub-full-desktop.png`, `/tmp/cliphub-full-mobile.png`, `/tmp/cliphub-stream-editor-desktop.png`, `/tmp/cliphub-stream-editor-mobile.png`. Logs: `/tmp/cliphub-e2e.log`, `/tmp/cliphub-final-e2e.log` y `/tmp/cliphub-final-build.log`. Las sesiones de navegador de verificación se cerraron.
 
 No se ha realizado captura ni render real en Windows. La comprobación con Studio + CS2/HLAE (`zv verify doctor` / `prove`) requiere ese entorno y autorización para usarlo. Los tests de navegador no certifican el resultado multimedia.
+
+### Correcciones de la review de Bugbot
+
+Se corrigieron dos hallazgos: los contenedores de los constructores vuelven a ser columnas flexibles para situar la barra de creación al fondo, y un Short ya inicializado permanece montado cuando una actualización temporal devuelve un plan vacío o falla. Mientras no hay jugadas, se muestra el estado vacío/error y se oculta el constructor; no se ofrece crear con un plan vacío.
+
+Las pruebas reprodujeron los fallos antes de corregirlos. Después pasaron 18 E2E de constructores y estados, incluidas cuatro regresiones nuevas para posición de las barras y conservación de selección/música tras actualizaciones vacías o fallidas. Lint, TypeScript, unitarios y build correctos. Se repitió la inspección visual con Playwright CLI en escritorio/móvil y seis anchos, sin desbordamiento ni excepciones JavaScript en los recorridos instrumentados.

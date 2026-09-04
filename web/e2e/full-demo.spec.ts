@@ -194,3 +194,51 @@ test('switching formats preserves the long video theme and approval independentl
   await expect(theme).toContainText('Neón violeta');
   await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeChecked();
 });
+
+for (const format of ['short', 'full']) {
+  test(`the ${format} create bar stays at the bottom of a short work area`, async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1440 });
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, `/clips/${JOB}/nuevo?formato=${format}`);
+    const action = page.getByRole('button', { name: format === 'full' ? REC_CTA : 'Clipear short →', exact: true });
+    await expect(action).toBeVisible();
+    const work = await page.locator('.measure-work').boundingBox();
+    const button = await action.boundingBox();
+    expect(work).not.toBeNull();
+    expect(button).not.toBeNull();
+    if (work === null || button === null) return;
+    expect(work.y + work.height - button.y - button.height).toBeLessThan(48);
+  });
+}
+
+for (const interruption of ['empty', 'failed']) {
+  test(`the Short draft survives an ${interruption} plan poll while editing a long video`, async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    let phase = 'ready';
+    let interruptedReads = 0;
+    await page.route(`**/api/demos/${JOB}/plan`, (route) => {
+      if (phase !== 'ready') interruptedReads += 1;
+      if (phase === 'failed') return route.fulfill({ status: 503, json: { code: 'service_unavailable' } });
+      return route.fulfill({ json: phase === 'empty' ? { ...PLAN, segments: [] } : PLAN });
+    });
+    await gotoStudio(page, `/clips/${JOB}/nuevo`);
+    await page.getByRole('button', { name: 'Limpiar', exact: true }).click();
+    await page.getByRole('button', { name: 'Sin música', exact: true }).click();
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    phase = interruption;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(() => interruptedReads).toBeGreaterThan(0);
+    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+    if (interruption === 'empty') {
+      await expect(page.getByRole('heading', { name: 'Sin jugadas destacables' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Clipear short →', exact: true })).toHaveCount(0);
+    } else {
+      await expect(page.getByRole('alert').filter({ hasText: 'Seguimos mostrando los últimos datos cargados' })).toBeVisible();
+    }
+    phase = 'ready';
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
+    await expect(page.getByText('Solo el audio de la partida.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Elige al menos un highlight', { exact: true })).toBeVisible();
+  });
+}

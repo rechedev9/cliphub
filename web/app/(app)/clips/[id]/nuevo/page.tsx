@@ -70,6 +70,7 @@ export default function ProducePage({
   const [match, setMatch] = useState<Match | null>(null);
   const [plays, setPlays] = useState<Play[]>([]);
   const [playsError, setPlaysError] = useState(false);
+  const [shortPlanJobId, setShortPlanJobId] = useState<string | null>(null);
   const [rounds, setRounds] = useState<Play[]>([]);
   const [recapFailure, setRecapFailure] = useState<RecapFailure>(null);
   const [loaded, setLoaded] = useState(false);
@@ -123,6 +124,7 @@ export default function ProducePage({
         }
         if (planResult.status === 'fulfilled') {
           setPlays(planResult.value);
+          if (planResult.value.length > 0) setShortPlanJobId(id);
           setPlaysError(false);
         } else {
           setPlays([]);
@@ -208,21 +210,29 @@ export default function ProducePage({
       />
     );
   } else {
-    let shortContent: ReactNode;
+    let shortContent: ReactNode = null;
     if (playsError) {
       shortContent = <StudioEmptyState icon={AlertTriangle} title={MATCH_PLAYS_ERROR_TITLE}
         description={MATCH_PLAYS_ERROR_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
     } else if (plays.length === 0) {
       shortContent = <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
         description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
-    } else {
-      shortContent = <ShortProducer matchId={id} match={match} plays={plays} seriesId={seriesId} />;
     }
+    const shortUnavailable = playsError || plays.length === 0;
     // Keep each format's choices mounted while switching; their approval and configuration stay independent.
     body = (
       <>
-        <div hidden={format !== PRODUCE_FORMAT.short}>{shortContent}</div>
-        <div hidden={format !== PRODUCE_FORMAT.full}>
+        <div hidden={format !== PRODUCE_FORMAT.short}
+          className={format === PRODUCE_FORMAT.short ? 'flex flex-1 flex-col' : 'hidden'}>
+          {shortContent}
+          {shortPlanJobId === id ? (
+            <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
+              <ShortProducer matchId={id} match={match} plays={plays} seriesId={seriesId} />
+            </div>
+          ) : null}
+        </div>
+        <div hidden={format !== PRODUCE_FORMAT.full}
+          className={format === PRODUCE_FORMAT.full ? 'flex flex-1 flex-col' : 'hidden'}>
           <FullPovProducer matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
             recBusy={recBusy} seriesId={seriesId} />
         </div>
