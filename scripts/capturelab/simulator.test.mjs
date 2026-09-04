@@ -50,6 +50,23 @@ test('runs JavaScript with deterministic MIRV events and delayed quit', async ()
   assert.deepEqual(first, second);
 });
 
+test('tick overrides deliver rewinds and stalls before the frame callback', async () => {
+  const source = `mirv.events.clientFrameStageNotify.on('ticks', () => mirv.message(mirv.getDemoTick()));`;
+  const result = await runSimulation(source, scenario({
+    max_frames: 5, expect: { outcome: 'incomplete' },
+    tick_overrides: [{ frame: 2, tick: 4 }, { frame: 3, tick: 4 }, { frame: 5, tick: 90 }],
+  }));
+  assert.deepEqual(result.events.map(({ tick, value }) => [tick, value]), [
+    [10, '10'], [4, '4'], [4, '4'], [5, '5'], [90, '90'],
+  ]);
+});
+
+test('rejects malformed tick overrides', () => {
+  for (const tick_overrides of [{}, [null], [{ frame: 0, tick: 1 }], [{ frame: 1, tick: -1 }], [{ frame: 1.5, tick: 2 }]]) {
+    assert.throws(() => validateScenario(scenario({ tick_overrides })), /tick_overrides/);
+  }
+});
+
 test('rejects marker-only scripts that never execute balanced recording commands', async () => {
   const source = `
     mirv.events.clientFrameStageNotify.on("x", () => {

@@ -35,6 +35,14 @@ export function validateScenario(raw) {
   requireInteger(scenario.tick_step ?? 1, 'scenario.tick_step', 1);
   requireInteger(scenario.max_frames ?? 10000, 'scenario.max_frames', 1);
   requireInteger(scenario.seek_delay_frames ?? 0, 'scenario.seek_delay_frames', 0);
+  if (scenario.tick_overrides !== undefined && !Array.isArray(scenario.tick_overrides)) {
+    throw new Error('scenario.tick_overrides must be an array');
+  }
+  for (const [index, override] of (scenario.tick_overrides ?? []).entries()) {
+    requireObject(override, `scenario.tick_overrides[${index}]`);
+    requireInteger(override.frame, `scenario.tick_overrides[${index}].frame`, 1);
+    requireInteger(override.tick, `scenario.tick_overrides[${index}].tick`, 0);
+  }
   if (scenario.demo_end_tick !== undefined) {
     requireInteger(scenario.demo_end_tick, 'scenario.demo_end_tick', 0);
   }
@@ -251,7 +259,9 @@ export async function runSimulation(scriptSource, rawScenario) {
   if (callbacks.size !== 1) throw new Error(`recording.js registered ${callbacks.size} frame callbacks, want 1`);
 
   const maxFrames = scenario.max_frames ?? 10000;
+  const tickOverrides = new Map((scenario.tick_overrides ?? []).map(({ frame, tick }) => [frame, tick]));
   for (frame = 1; frame <= maxFrames && !quit; frame++) {
+    if (tickOverrides.has(frame)) tick = tickOverrides.get(frame);
     for (const callback of [...callbacks.values()]) callback({ isBefore: false });
     if (pendingSeek) {
       if (pendingSeek.remaining <= 0) {

@@ -1,6 +1,7 @@
 package recording
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -18,11 +19,17 @@ type captureLabScenario struct {
 	TargetSteamID     string                   `json:"target_steamid"`
 	StartTick         int                      `json:"start_tick"`
 	TickStep          int                      `json:"tick_step"`
+	TickOverrides     []captureLabTickOverride `json:"tick_overrides,omitempty"`
 	MaxFrames         int                      `json:"max_frames"`
 	SeekDelayFrames   int                      `json:"seek_delay_frames,omitempty"`
 	DemoEndTick       *int                     `json:"demo_end_tick,omitempty"`
 	ObserverOverrides []captureLabObserverSpan `json:"observer_overrides,omitempty"`
 	Expected          captureLabExpected       `json:"expect"`
+}
+
+type captureLabTickOverride struct {
+	Frame int `json:"frame"`
+	Tick  int `json:"tick"`
 }
 
 type captureLabObserverSpan struct {
@@ -176,6 +183,34 @@ func TestGeneratedHLAEScriptRunsInMIRVSimulator(t *testing.T) {
 			},
 		},
 		{
+			name: "rewind and stalled ticks do not repeat consumed commands",
+			plan: one,
+			scenario: captureLabScenario{
+				Name: "rewind-stall", MaxFrames: 700, DemoEndTick: ptr(6000),
+				TickOverrides: []captureLabTickOverride{{Frame: 90, Tick: 40}, {Frame: 91, Tick: 40}, {Frame: 92, Tick: 40}},
+				Expected:      captureLabExpected{Outcome: "verified", RecordedSegments: []string{"seg-001"}, SoftQuit: true},
+			},
+		},
+		{
+			name: "coarse frames execute all due commands in order",
+			plan: two,
+			scenario: captureLabScenario{
+				Name: "coarse-frames", TickStep: 16, MaxFrames: 700, DemoEndTick: ptr(6000),
+				Expected: captureLabExpected{Outcome: "verified", RecordedSegments: []string{"seg-001", "seg-002"}, SoftQuit: true},
+			},
+		},
+		{
+			name: "full round windows without kills preserve boundaries",
+			plan: captureLabPlan(
+				RecordingSegment{ID: "round-01", TickStart: 64, TickEnd: 1500},
+				RecordingSegment{ID: "round-02", TickStart: 1800, TickEnd: 3500},
+			),
+			scenario: captureLabScenario{
+				Name: "full-rounds", MaxFrames: 4000, DemoEndTick: ptr(6000),
+				Expected: captureLabExpected{Outcome: "verified", RecordedSegments: []string{"round-01", "round-02"}, SoftQuit: true},
+			},
+		},
+		{
 			name: "demo ends before segment completion",
 			plan: one,
 			scenario: captureLabScenario{
@@ -201,7 +236,9 @@ func TestGeneratedHLAEScriptRunsInMIRVSimulator(t *testing.T) {
 			}
 			test.scenario.SchemaVersion = 1
 			test.scenario.TargetSteamID = target
-			test.scenario.TickStep = 1
+			if test.scenario.TickStep == 0 {
+				test.scenario.TickStep = 1
+			}
 			dir := t.TempDir()
 			scriptPath := filepath.Join(dir, "recording.js")
 			scenarioPath := filepath.Join(dir, "scenario.json")
@@ -221,6 +258,22 @@ func TestGeneratedHLAEScriptRunsInMIRVSimulator(t *testing.T) {
 			if err != nil {
 				t.Fatalf("MIRV simulator: %v\n%s", err, output)
 			}
+			// Compare the entire transcript, including command ordering, failure
+			// diagnostics, record boundaries and soft-quit frames, to the former
+			// scan-every-frame dispatcher. Only the dispatch loop is substituted.
+			referencePath := filepath.Join(dir, "reference.js")
+			if err := os.WriteFile(referencePath, []byte(legacyScheduleDispatcher(t, script)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			referenceCommand := exec.Command(node, runner, "--script", referencePath, "--scenario", scenarioPath)
+			referenceCommand.Dir = repoRoot
+			referenceOutput, err := referenceCommand.CombinedOutput()
+			if err != nil {
+				t.Fatalf("reference MIRV simulator: %v\n%s", err, referenceOutput)
+			}
+			if !bytes.Equal(output, referenceOutput) {
+				t.Fatalf("dispatch changed the simulator transcript\ncurrent: %s\nreference: %s", output, referenceOutput)
+			}
 			var summary captureLabSummary
 			if err := json.Unmarshal(output, &summary); err != nil {
 				t.Fatalf("decode simulator summary: %v\n%s", err, output)
@@ -233,4 +286,19 @@ func TestGeneratedHLAEScriptRunsInMIRVSimulator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func legacyScheduleDispatcher(t *testing.T, script string) string {
+	t.Helper()
+	const current = `        while (scheduleIndex < schedule.length) {
+            const item = schedule[scheduleIndex];
+            if (tick < item.tick) break;
+            scheduleIndex++;
+            if (fired[item.key]) continue;`
+	const reference = `        for (const item of schedule) {
+            if (fired[item.key] || tick < item.tick) continue;`
+	if strings.Count(script, current) != 1 {
+		t.Fatal("expected exactly one dispatcher to replace with the pre-optimization reference")
+	}
+	return strings.Replace(script, current, reference, 1)
 }
