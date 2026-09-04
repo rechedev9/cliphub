@@ -43,7 +43,7 @@ export function StreamRenderResults({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-meta uppercase tracking-widest text-stream-text">
+        <span className="font-mono text-meta uppercase tracking-widest text-fg-3">
           05 · Shorts renderizados
         </span>
         <StatusTag tone={stale ? 'warning' : 'success'} dot>
@@ -107,7 +107,7 @@ export function StreamRenderResults({
                         MP4
                       </Button>
                     ) : (
-                      <Button asChild variant="outline" size="sm" className={cn(CHIP_CLASS, 'border-stream/45 text-stream-text')}>
+                      <Button asChild variant="outline" size="sm" className={CHIP_CLASS}>
                         <a href={url} download aria-label={`Descargar ${label}`}>
                           <Download aria-hidden />
                           MP4

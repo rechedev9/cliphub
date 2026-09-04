@@ -214,7 +214,7 @@ export function StreamPreview({
     <div
       ref={containerRef}
       className={cn(
-        'relative aspect-[9/16] overflow-hidden border border-stream/45 bg-surface-0 shadow-[var(--elev-2),var(--glow-stream-md)]',
+        'relative aspect-[9/16] overflow-hidden border border-stream/45 bg-surface-0 shadow-[var(--elev-2)]',
         className ?? 'mx-auto w-full max-w-[220px]',
       )}
       style={{ containerType: 'size' }}
