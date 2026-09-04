@@ -129,6 +129,13 @@ test.describe('stream editor', () => {
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);
+    const summaryBox = await page.getByText('Brief creativo', { exact: true }).boundingBox();
+    const checkboxBox = await briefCheckbox(page).boundingBox();
+    expect(summaryBox).not.toBeNull();
+    expect(checkboxBox).not.toBeNull();
+    if (summaryBox !== null && checkboxBox !== null) {
+      expect(Math.abs(checkboxBox.y - summaryBox.y)).toBeLessThan(12);
+    }
   });
 
   test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({ page }) => {

@@ -50,7 +50,7 @@ export function StreamFooter({
   return (
     <footer className="flex shrink-0 flex-col gap-2.5 border-t border-stream/45 bg-surface-1 px-(--shell-gutter) py-3 shadow-[var(--elev-3)]">
       <section className="studio-panel flex flex-col gap-2 px-3.5 py-2.5" aria-labelledby={briefId}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <details className="group/brief min-w-0 flex-1">
             <summary
               id={briefId}
