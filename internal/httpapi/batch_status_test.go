@@ -411,9 +411,40 @@ func TestBatchStatusReadsEveryJobStatusInOneQuery(t *testing.T) {
 	if plain.Code != http.StatusOK {
 		t.Fatalf("fallback status = %d, want 200; body=%s", plain.Code, plain.Body.String())
 	}
-	if plain.Body.String() != bulk.Body.String() {
-		t.Fatalf("fallback body differs:\n one query: %s\n per item:  %s", bulk.Body.String(), plain.Body.String())
+	// A render state is materialized on first read, so its created_at and
+	// updated_at are stamped per handler instance and legitimately differ
+	// between the two responses. Everything else must match exactly.
+	if got, want := withoutRenderStateTimestamps(t, plain.Body.String()), withoutRenderStateTimestamps(t, bulk.Body.String()); got != want {
+		t.Fatalf("fallback body differs:\n one query: %s\n per item:  %s", want, got)
 	}
+}
+
+// withoutRenderStateTimestamps blanks the materialization timestamps so two
+// responses can be compared for the content the client actually reconciles on.
+func withoutRenderStateTimestamps(t *testing.T, body string) string {
+	t.Helper()
+	var decoded struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("decode batch body: %v; body=%s", err, body)
+	}
+	for _, item := range decoded.Items {
+		render, ok := item["render"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, field := range []string{"created_at", "updated_at"} {
+			if _, present := render[field]; present {
+				render[field] = ""
+			}
+		}
+	}
+	normalized, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatalf("re-encode batch body: %v", err)
+	}
+	return string(normalized)
 }
 
 // A client that navigated away stops the walk: the remaining render-state reads
