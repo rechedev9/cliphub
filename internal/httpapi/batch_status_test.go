@@ -51,8 +51,8 @@ func TestBatchStatusFoldsJobAndRenderPerItem(t *testing.T) {
 	}
 	var resp struct {
 		Items []struct {
-			JobID  uuid.UUID `json:"job_id"`
-			Job    *struct {
+			JobID uuid.UUID `json:"job_id"`
+			Job   *struct {
 				Status string `json:"status"`
 			} `json:"job"`
 			Render *struct {
@@ -75,6 +75,58 @@ func TestBatchStatusFoldsJobAndRenderPerItem(t *testing.T) {
 	}
 	if resp.Items[2].JobID != gone || resp.Items[2].Job != nil || resp.Items[2].Render != nil {
 		t.Fatalf("gone item = %+v, want null job and render", resp.Items[2])
+	}
+}
+
+func TestBatchStatusOmitsLeftoverRenderBeforeRecorded(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	recording := uuid.New()
+	repo.jobs[recording] = job.Job{ID: recording, Status: job.StatusRecording}
+	state := renderplan.NewRenderVariantState(renderplan.NewRenderVariantStateOptions{
+		JobID:   recording,
+		Variant: "viral-60-clean",
+		Status:  renderplan.RenderVariantStatusReady,
+	})
+	key, err := renderplan.RenderVariantStateKey(recording, "viral-60-clean")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put(key, bytes.NewReader(b)); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	r := chi.NewRouter()
+	r.Get("/api/jobs/batch-status", h.BatchStatus)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs/batch-status?items="+recording.String()+":viral-60-clean", nil)
+	rw := httptest.NewRecorder()
+	r.ServeHTTP(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	var resp struct {
+		Items []struct {
+			Job *struct {
+				Status string `json:"status"`
+			} `json:"job"`
+			Render *struct {
+				Status string `json:"status"`
+			} `json:"render"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v; body=%s", err, rw.Body.String())
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(resp.Items))
+	}
+	if resp.Items[0].Job == nil || resp.Items[0].Job.Status != "recording" || resp.Items[0].Render != nil {
+		t.Fatalf("item = %+v, want recording job and no leftover render", resp.Items[0])
 	}
 }
 

@@ -827,7 +827,6 @@ export class RealApiClient implements ApiClient {
       this.applyView(intent, { status: 'failed', action: 'none', failureReason: latched.failureReason });
       return;
     }
-    // Skip render GET until recorded; earlier it is a guaranteed 404.
     const render: {
       status: RenderStatus;
       failureReason?: string;
@@ -1039,11 +1038,10 @@ export class RealApiClient implements ApiClient {
     return parseStatusView(await readJson<RawStatusView>(res));
   }
 
-  /** Render state for one reel during reconcile: prefetched, fetched, or 'none' before a capture. */
+  /** Prefetched or fetched render; leftover docs before recorded stay 'none'. */
   private async renderForReconcile(intent: ReelIntent, jobStatus: string, prefetched?: BatchStatusEntry): Promise<RenderView> {
-    if (prefetched !== undefined) return prefetched.render ?? { status: 'none' };
-    // Skip render GET until recorded; earlier it is a guaranteed 404.
     if (!canHaveRenderState(jobStatus)) return { status: 'none' };
+    if (prefetched !== undefined) return prefetched.render ?? { status: 'none' };
     return this.fetchRenderStatus(intent.jobId, variantOf(intent));
   }
 

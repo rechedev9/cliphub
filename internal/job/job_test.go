@@ -31,6 +31,32 @@ func TestStatusStringMapping(t *testing.T) {
 	}
 }
 
+func TestCanHaveRenderStateCoversEveryStatus(t *testing.T) {
+	want := map[Status]bool{
+		StatusQueued:         false,
+		StatusParsing:        false,
+		StatusParsed:         false,
+		StatusRecording:      false,
+		StatusRecorded:       true,
+		StatusComposing:      true,
+		StatusComposed:       true,
+		StatusDone:           true,
+		StatusFailed:         true,
+		StatusScanning:       false,
+		StatusScanned:        false,
+		StatusReviewRequired: true,
+	}
+	for _, s := range Statuses() {
+		expected, ok := want[s]
+		if !ok {
+			t.Fatalf("Statuses() includes %s with no CanHaveRenderState expectation", s)
+		}
+		if got := s.CanHaveRenderState(); got != expected {
+			t.Errorf("%s.CanHaveRenderState() = %v, want %v", s, got, expected)
+		}
+	}
+}
+
 func TestParseStatusValid(t *testing.T) {
 	s, err := ParseStatus("parsed")
 	if err != nil {

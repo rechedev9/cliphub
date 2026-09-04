@@ -25,7 +25,9 @@ type batchStatusItem struct {
 
 // BatchStatus handles GET /api/jobs/batch-status?items=<job>:<variant>,...
 // It folds the per-reel status + render polls Studio used to issue into one
-// request; each item is served exactly as its individual endpoints would.
+// request. The job half matches GET ?view=status; the render half is omitted
+// until the job can have render state so leftover documents during recapture
+// stay hidden the same way the client's canHaveRenderState guard hides them.
 func (h *Handlers) BatchStatus(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimSpace(r.URL.Query().Get("items"))
 	if raw == "" {
@@ -61,18 +63,20 @@ func (h *Handlers) BatchStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		if found {
 			item.Job = &status
-			state, exists, err := h.readOrMaterializeRenderVariantState(id, variant)
-			if err != nil {
-				internalError(w, "read render state", err)
-				return
-			}
-			if exists {
-				view, err := h.renderVariantView(state)
+			if status.Status.CanHaveRenderState() {
+				state, exists, err := h.readOrMaterializeRenderVariantState(id, variant)
 				if err != nil {
 					internalError(w, "read render state", err)
 					return
 				}
-				item.Render = &view
+				if exists {
+					view, err := h.renderVariantView(state)
+					if err != nil {
+						internalError(w, "read render state", err)
+						return
+					}
+					item.Render = &view
+				}
 			}
 		}
 		items = append(items, item)
