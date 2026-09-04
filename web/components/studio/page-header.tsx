@@ -30,7 +30,7 @@ export function StudioPageHeader({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0">
           <h1 className="font-display text-display-sm font-bold text-fg-1 sm:text-display">{title}</h1>
-          <div className="mt-3 max-w-2xl text-body text-fg-2">{description}</div>
+          <div className="measure-read mt-3 text-body text-fg-2">{description}</div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>

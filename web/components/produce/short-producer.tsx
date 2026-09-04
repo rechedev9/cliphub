@@ -194,13 +194,13 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               {match.player ? ` · ${match.player}` : ''}
             </p>
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
-            <p className="max-w-[640px] text-body text-fg-2">
-              Ya tienes preseleccionado el mejor minuto. Toca una fila para quitarla o añadirla; el guion de la derecha
-              enseña el orden final.
+            <p className="measure-read text-body text-fg-2">
+              Ya tienes preseleccionado el mejor minuto. Toca una fila para quitarla o añadirla; el guion enseña el orden
+              final.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex">
             <Button
               type="button"
               size="xs"
@@ -211,9 +211,6 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               <Sparkles aria-hidden />
               {AUTO_PICK_LABEL}
             </Button>
-            <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
-              {plays.length} {plays.length === 1 ? 'highlight detectado' : 'highlights detectados'}
-            </span>
           </div>
 
           <PlayList
@@ -222,7 +219,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             title={STEP.highlights}
             counter={
               <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-primary')}>
-                {selectedPlays.length} {selectedPlays.length === 1 ? 'elegido' : 'elegidos'} · {clock}
+                {selectedPlays.length} de {plays.length} elegidos · {clock}
               </span>
             }
             onToggle={toggleSelect}

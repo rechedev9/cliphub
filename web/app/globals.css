@@ -152,6 +152,11 @@
   --elev-5: var(--elev-bevel), 0 16px 28px -10px oklch(0.02 0.02 264 / 0.85),
     0 48px 96px -20px oklch(0.02 0.02 264 / 0.7);
 
+  /* An upward lift for a sticky band that floats over a scrolled list — the
+   * ceiling's shadow, mirrored. Declared here rather than as a `shadow-[…]`
+   * literal in a component so the efficiency profile can reach it. */
+  --elev-band-up: 0 -12px 28px -18px oklch(0.02 0.02 264 / 0.9);
+
   --glow-primary-sm: 0 0 12px oklch(0.811 0.135 207.6 / 0.18);
   --glow-primary-md: 0 0 26px oklch(0.811 0.135 207.6 / 0.26), 0 0 2px oklch(0.811 0.135 207.6 / 0.55);
   --glow-primary-lg: 0 0 48px oklch(0.811 0.135 207.6 / 0.32), 0 0 3px oklch(0.811 0.135 207.6 / 0.7);
@@ -190,6 +195,24 @@
    * 1440 and 1920 all got the same 48px. */
   --shell-strip-height: 3.5rem;
   --shell-gutter: clamp(1.5rem, 3.2vw, 4rem);
+
+  /* ── Content measure ─────────────────────────────────────────────────────
+   * The stage is capped at 1440px, but a page is not obliged to fill it, and
+   * before these tokens every route picked its own number: `max-w-[1080px]`
+   * twelve times, `max-w-[1160px]` twice, `max-w-2xl` on Ajustes, and no cap
+   * at all on Táctica / Anti-cheat / Players. At 1920 the right edge of the
+   * content therefore moved on every navigation — 1080, then 1320, then 672 —
+   * which is the single loudest reason the app read as unfinished.
+   *
+   * Three named widths, one per kind of surface. A page picks the one that
+   * matches its job; it never writes a pixel width.
+   *   read — a form or a definition list, held near a comfortable line length
+   *   list — a stack of rows, where the gap between an identity on the left
+   *          and its state on the right is what has to stay scannable
+   *   work — a two-column workspace: subject plus its inspector rail */
+  --measure-read: 42rem; /* 672px */
+  --measure-list: 67.5rem; /* 1080px */
+  --measure-work: 72.5rem; /* 1160px */
 }
 
 html[data-runtime="desktop"][data-performance-profile="efficiency"],
@@ -377,6 +400,84 @@ html[data-capture-active="true"] {
 }
 
 @layer components {
+  /* ── Content measure ─────────────────────────────────────────────────────
+   * `width: 100%` first so the cap only ever binds on a wide stage; these are
+   * ceilings, not fixed columns. Left-pinned like the stage itself, so the
+   * H1, the rows under it and the sidebar edge share one optical spine. */
+  .measure-read,
+  .measure-list,
+  .measure-work {
+    width: 100%;
+  }
+
+  .measure-read {
+    max-width: var(--measure-read);
+  }
+
+  .measure-list {
+    max-width: var(--measure-list);
+  }
+
+  .measure-work {
+    max-width: var(--measure-work);
+  }
+
+  /* ── Row rail ────────────────────────────────────────────────────────────
+   * A list row is identity on the left, state and actions on the right. When
+   * the trailing slots size to their content, every row parks its controls at
+   * a different x and the column reads as ragged — the defect visible on the
+   * hub, where one row's "Clipear short" sat 60px left of the next one's.
+   * These two reserve the columns instead, and only from `@[44rem]/content`:
+   * below that the cluster wraps and a reserved width would be a hole.
+   *
+   * The reservation is a flex BASIS that may shrink, never a fixed width: a
+   * rail keyed to the content container but used inside a narrower nested
+   * column — a half-width expanded partida, a two-column scoreboard cell —
+   * would otherwise reserve 280px it does not have and push its siblings out
+   * of the card. `flex: 0 1 <basis>` reserves the column wherever it fits and
+   * gives it back where it does not, which is the whole point of asking for a
+   * column instead of a width. */
+  .row-state {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.375rem;
+    align-self: center;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  /* The stages that own a whole wrapped line on a narrow row — a progress
+   * block, a two-line hint — rather than sitting inline beside a score. */
+  .row-state-block {
+    width: 100%;
+  }
+
+  .row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex: 0 1 auto;
+    /* Never below the controls themselves: the rail aligns a column, it does
+     * not get to clip a button. */
+    min-width: min-content;
+  }
+
+  @container content (min-width: 44rem) {
+    .row-state {
+      flex-basis: 17.5rem; /* 280px */
+    }
+
+    .row-state-block {
+      width: auto;
+    }
+
+    .row-actions {
+      flex-basis: 12.5rem; /* 200px */
+    }
+  }
+
   /* ── Studio surfaces ─────────────────────────────────────────────────────
    * Opaque --surface-2 + bevel + elevation. The v3 recipe composited
    * --surface at 94% over the canvas and landed at 1.023:1; depth now comes
@@ -1073,6 +1174,7 @@ html[data-runtime="desktop"][data-performance-profile="efficiency"] {
   --elev-3: var(--elev-bevel);
   --elev-4: var(--elev-bevel), 0 2px 8px -4px oklch(0.02 0.02 264 / 0.8);
   --elev-5: var(--elev-bevel), 0 4px 12px -6px oklch(0.02 0.02 264 / 0.85);
+  --elev-band-up: 0 -2px 8px -6px oklch(0.02 0.02 264 / 0.9);
   --glow-primary-sm: none;
   --glow-primary-md: none;
   --glow-primary-lg: none;

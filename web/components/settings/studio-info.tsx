@@ -60,7 +60,7 @@ export function StudioInfo(): ReactNode {
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-5 sm:p-6" aria-labelledby="studio-info-title">
+    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="studio-info-title">
       <div className="flex items-center gap-4">
         <IconTile icon={MonitorCog} size="md" depth="inset" />
         <div className="flex min-w-0 flex-col gap-1">
@@ -69,6 +69,7 @@ export function StudioInfo(): ReactNode {
             ClipHub Studio
           </h2>
         </div>
+
       </div>
 
       {body}

@@ -10,20 +10,25 @@ export function prettyMapName(map: string): string {
   return stripped.charAt(0).toUpperCase() + stripped.slice(1);
 }
 
-/** Tailwind text-colour class for an HLTV-1.0 rating, by performance band. */
+/**
+ * Text-colour class for an HLTV-1.0 rating, by performance band. The bands read
+ * on the semantic tokens, not on Tailwind's own palette: `emerald-400` and
+ * `rose-400` are outside the Studio ramp, so a rating sat at a green no other
+ * signal in the app uses.
+ */
 export function ratingClass(rating: number): string {
-  if (rating >= 1.15) return 'text-emerald-400';
-  if (rating >= 0.95) return 'text-foreground';
-  if (rating >= 0.8) return 'text-amber-400';
-  return 'text-rose-400';
+  if (rating >= 1.15) return 'text-success';
+  if (rating >= 0.95) return 'text-fg-1';
+  if (rating >= 0.8) return 'text-warning';
+  return 'text-destructive';
 }
 
-/** Tailwind background-colour class for a rating bar fill, matching ratingClass's bands. */
+/** Background-colour class for a rating bar fill, matching ratingClass's bands. */
 export function ratingBarClass(rating: number): string {
-  if (rating >= 1.15) return 'bg-emerald-400';
-  if (rating >= 0.95) return 'bg-foreground';
-  if (rating >= 0.8) return 'bg-amber-400';
-  return 'bg-rose-400';
+  if (rating >= 1.15) return 'bg-success';
+  if (rating >= 0.95) return 'bg-fg-1';
+  if (rating >= 0.8) return 'bg-warning';
+  return 'bg-destructive';
 }
 
 /** 0-100 fill for a rating bar, scaled so a 2.0 rating (an elite pace) fills it. */

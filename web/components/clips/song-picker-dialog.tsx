@@ -96,7 +96,7 @@ export function SongCatalog({ active, selectedSongId, onChoose }: SongCatalogPro
     list = <SongRowSkeletons />;
   } else if (songs.length === 0) {
     list = (
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
+      <p className="px-2 py-8 text-center text-body-sm text-fg-2">
         No hay temas disponibles. Añade audio al directorio de música y recarga.
       </p>
     );
@@ -184,10 +184,11 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
       </Button>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{song.title}</p>
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="truncate text-body-sm font-semibold text-fg-1">{song.title}</p>
+        <p className="truncate font-mono text-meta tracking-wider text-fg-3">
           {song.artist}
-          {meta ? <span className="text-muted-foreground/70"> · {meta}</span> : null}
+          {/* No dimmer step below --fg-3 exists for text; the separator does the work. */}
+          {meta ? <span> · {meta}</span> : null}
         </p>
       </div>
 

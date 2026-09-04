@@ -157,7 +157,7 @@ export default function ProducePage({
   if (!match) {
     const empty = matchEmptyState(loadFailure);
     return (
-      <div className="studio-enter flex flex-col gap-8">
+      <div className="measure-work flex flex-col gap-8">
         <StudioBackLink href={backHref}>{seriesId ? 'Serie' : 'Clips y vídeos'}</StudioBackLink>
         <StudioEmptyState
           icon={empty.icon}
@@ -239,9 +239,9 @@ export default function ProducePage({
   }
 
   return (
-    <div className="studio-enter flex min-h-[calc(100vh-9rem)] flex-col">
+    <div className="measure-work flex min-h-[calc(100vh-9rem)] flex-col">
       <ProduceFormatBar value={format} onChange={changeFormat} />
-      <div key={format} className="studio-enter flex max-w-[1160px] flex-1 flex-col gap-6 pt-6">
+      <div key={format} className="flex flex-1 flex-col gap-6 pt-6">
         {pollError !== null ? (
           <p
             role="alert"
@@ -265,9 +265,9 @@ function matchEmptyState(failure: FullDemoLoadFailure): { icon: typeof SearchX; 
 
 function LoadingState(): ReactNode {
   return (
-    <div className="flex flex-col gap-6" role="status" aria-label="Cargando la partida">
+    <div className="measure-work flex flex-col gap-6" role="status" aria-label="Cargando la partida">
       <Skeleton className="h-12 w-full" />
-      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-4">
           <Skeleton className="h-8 w-72" />
           <div className="flex flex-col gap-px overflow-hidden border border-border">

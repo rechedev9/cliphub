@@ -108,7 +108,7 @@ function MusicDecision({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="font-display text-body-sm font-semibold uppercase text-fg-1">Sin música</p>
-          <p className="text-meta text-fg-3">Solo el audio de la partida.</p>
+          <p className="text-body-sm text-fg-3">Solo el audio de la partida.</p>
         </div>
         <div className="flex shrink-0 gap-1">
           <Button variant="ghost" size="sm" disabled={busy} onClick={onOpenPicker}>

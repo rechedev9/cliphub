@@ -9,6 +9,14 @@ import { StudioDataRow } from '@/components/studio/data-row';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
+/** The readouts, in the order an operator reads them; the skeleton reserves the same block. */
+const TELEMETRY_ROWS: ReadonlyArray<{ label: string; value: (status: StudioTelemetryStatus) => string }> = [
+  { label: 'Estado', value: (status) => (status.enabled ? 'Activado' : 'Desactivado') },
+  { label: 'Código de soporte', value: (status) => status.supportCode },
+  { label: 'Retención', value: (status) => `${status.retentionDays} días` },
+  { label: 'Muestra de rendimiento', value: (status) => `${status.performanceSamplePercent} %` },
+];
+
 export function TelemetrySettings(): ReactNode {
   const [status, setStatus] = useState<StudioTelemetryStatus | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -36,14 +44,14 @@ export function TelemetrySettings(): ReactNode {
   };
 
   let body: ReactNode;
+  let headerStatus: ReactNode = null;
   if (status?.available) {
     body = (
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <StudioDataRow label="Estado" value={status.enabled ? 'Activado' : 'Desactivado'} />
-          <StudioDataRow label="Código de soporte" value={status.supportCode} />
-          <StudioDataRow label="Retención" value={`${status.retentionDays} días`} />
-          <StudioDataRow label="Muestra de rendimiento" value={`${status.performanceSamplePercent} %`} />
+          {TELEMETRY_ROWS.map((row) => (
+            <StudioDataRow key={row.label} label={row.label} value={row.value(status)} />
+          ))}
         </div>
         <p className="text-body-sm text-fg-2">
           Se envían códigos de error estructurados y tiempos de ejecución. Nunca se incluyen demos, vídeos, rutas,
@@ -62,7 +70,7 @@ export function TelemetrySettings(): ReactNode {
             loadingText="GUARDANDO"
             onClick={() => update(!status.enabled)}
           >
-            {status.enabled ? 'Desactivar diagnósticos' : 'Activar diagnósticos'}
+            {status.enabled ? 'DESACTIVAR DIAGNÓSTICOS' : 'ACTIVAR DIAGNÓSTICOS'}
           </Button>
         </div>
       </div>
@@ -75,15 +83,20 @@ export function TelemetrySettings(): ReactNode {
     );
   } else {
     body = (
-      <div role="status" aria-label="Leyendo configuración de diagnósticos" className="flex flex-col gap-2">
-        <Skeleton className="h-11 w-full rounded-none" />
-        <Skeleton className="h-11 w-full rounded-none" />
+      <div role="status" aria-label="Leyendo configuración de diagnósticos" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          {TELEMETRY_ROWS.map((row) => (
+            <Skeleton key={row.label} className="h-11 w-full rounded-none" />
+          ))}
+        </div>
+        <Skeleton className="h-12 w-full rounded-none" />
+        <Skeleton className="h-11 w-[15rem] rounded-none" />
       </div>
     );
   }
 
   return (
-    <section className="studio-panel flex flex-col gap-5 p-5 sm:p-6" aria-labelledby="telemetry-settings-title">
+    <section className="studio-panel flex flex-col gap-5 p-4 @[34rem]/content:p-6" aria-labelledby="telemetry-settings-title">
       <div className="flex items-center gap-4">
         <IconTile icon={Activity} size="md" depth="inset" />
         <div className="flex min-w-0 flex-col gap-1">
@@ -92,6 +105,7 @@ export function TelemetrySettings(): ReactNode {
             Diagnósticos
           </h2>
         </div>
+        {headerStatus ? <div className="ml-auto shrink-0">{headerStatus}</div> : null}
       </div>
       {body}
     </section>

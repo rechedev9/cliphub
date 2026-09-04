@@ -72,7 +72,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
       id={matchRowId(match.id)}
       className={cn('studio-panel studio-enter flex flex-col overflow-hidden rounded-[10px]', expanded && 'studio-panel-raised')}
     >
-      {/* Narrow content: the action cluster wraps under the header instead of overlaying the title. */}
+      {/* One gate for the whole row, matching .row-state / .row-actions in globals.css: below it the cluster wraps under the header and nothing is reserved. */}
       <div className="flex w-full flex-wrap items-stretch @[44rem]/content:flex-nowrap">
         <button
           type="button"
@@ -112,14 +112,14 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
           ) : null}
         </button>
 
-        <span className="flex w-full shrink-0 items-center justify-end gap-2 px-[18px] pb-3 @[44rem]/content:w-auto @[44rem]/content:pl-0 @[44rem]/content:py-3">
+        <span className="row-actions w-full px-[18px] pb-3 @[44rem]/content:w-auto @[44rem]/content:py-3 @[44rem]/content:pl-0">
           {nextStep === HUB_NEXT_STEP.pick ? (
-            <Button asChild size="xs" variant="outline-primary">
+            <Button asChild size="sm" variant="outline-primary">
               <Link href={newDemoHref({ job: match.id })}>{MATCH_ROW_UNPICKED_CTA}</Link>
             </Button>
           ) : null}
           {nextStep === HUB_NEXT_STEP.firstClip ? (
-            <Button asChild size="xs" variant="outline-primary">
+            <Button asChild size="sm" variant="outline-primary">
               <Link href={produceHref(match.id, PRODUCE_FORMAT.short)}>
                 <Plus aria-hidden />
                 {MATCH_ROW_FIRST_CLIP_CTA}
@@ -135,7 +135,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
       </div>
 
       {expanded ? (
-        <div className="studio-enter grid grid-cols-1 border-t border-border-subtle @[44rem]/content:grid-cols-2">
+        <div className="grid grid-cols-1 border-t border-border-subtle @[44rem]/content:grid-cols-2">
           <ShortsColumn row={row} onChange={onChange} />
           <FullColumn row={row} onChange={onChange} />
         </div>
@@ -146,7 +146,7 @@ export function MatchRow({ row, open, onToggle, onChange }: MatchRowProps): Reac
 
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (
-    <span role="status" className="flex w-full shrink-0 flex-col justify-center gap-1.5 self-center @[44rem]/content:w-[280px]">
+    <span role="status" className="row-state row-state-block">
       <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary">
         <span aria-hidden className="studio-spinner" />
         {player === undefined ? 'Parseando la demo' : `Parseando POV de ${player}`}
@@ -177,21 +177,21 @@ function ReadyHeaderBlock({
   fulls: HubMatch['fulls'];
 }): ReactNode {
   return (
-    <>
+    <span className="row-state flex-row flex-wrap items-center justify-start gap-3">
       {hasScore ? (
         <span
           role="img"
           aria-label={`Marcador ${ours} a ${theirs}`}
-          className="self-center font-mono text-title font-bold leading-none tabular-nums"
+          className="font-mono text-title font-bold leading-none tabular-nums"
         >
           <span className={cn(win && 'text-success', loss && 'text-destructive', !win && !loss && 'text-fg-1')}>{ours}</span>
-          <span className="text-fg-4"> : </span>
+          <span className="text-fg-3"> : </span>
           <span className="text-fg-1">{theirs}</span>
         </span>
       ) : null}
       {/* An empty chip says nothing; the row's CTA carries "nothing yet". */}
       {shorts.length > 0 || fulls[0] !== undefined ? (
-        <span className="flex items-center gap-2 self-center">
+        <span className="flex items-center gap-2">
           {shorts.length > 0 ? <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag> : null}
           {fulls[0] !== undefined ? (
             <StatusTag tone={OUTPUT_TONE[fulls[0].state]}>
@@ -203,13 +203,13 @@ function ReadyHeaderBlock({
           ) : null}
         </span>
       ) : null}
-    </>
+    </span>
   );
 }
 
 function UnpickedBlock(): ReactNode {
   return (
-    <span className="flex w-full shrink-0 flex-col justify-center gap-1.5 self-center @[44rem]/content:w-[280px]">
+    <span className="row-state row-state-block">
       <span className="font-mono text-meta uppercase tracking-wider text-warning">{MATCH_ROW_UNPICKED_TITLE}</span>
       <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{MATCH_ROW_UNPICKED_HINT}</span>
     </span>
@@ -232,7 +232,7 @@ function ShortsColumn({ row, onChange }: { row: HubMatch; onChange: () => void }
       {row.shorts.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}
-      <Button asChild variant="ghost" className="h-9 border border-dashed border-primary/50 font-display text-meta font-semibold uppercase tracking-wide text-primary hover:bg-primary/8 hover:text-primary">
+      <Button asChild variant="outline-primary" size="sm" className="border-dashed">
         <Link href={produceHref(row.match.id, PRODUCE_FORMAT.short)}>
           <Plus aria-hidden />
           Clipear otro short
@@ -252,13 +252,13 @@ function FullColumn({ row, onChange }: { row: HubMatch; onChange: () => void }):
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}
       {latest === undefined ? (
-        <div className="flex flex-col gap-2.5 rounded-lg border border-border-subtle bg-surface-1 p-3.5">
+        <div className="flex flex-col gap-2.5 rounded-lg border border-border-subtle bg-surface-2 p-3.5">
           <p className="text-label text-fg-2">
             {rounds === null
               ? 'POV completa con HUD nativo, comms y overlays automáticos.'
               : `${rounds} rondas de POV con HUD nativo, comms y overlays automáticos.`}
           </p>
-          <Button asChild variant="hero" size="sm" className="neon-notch h-9 self-start">
+          <Button asChild variant="hero" size="sm" className="neon-notch self-start">
             <Link href={produceHref(row.match.id, PRODUCE_FORMAT.full)}>Grabar Full POV</Link>
           </Button>
         </div>

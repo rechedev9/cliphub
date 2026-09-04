@@ -12,7 +12,7 @@ export const metadata = {
  */
 export default function TacticalIndexPage() {
   return (
-    <div className="flex flex-col gap-8 sm:gap-10">
+    <div className="measure-list flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
         title="ANÁLISIS TÁCTICO"
         description="Rondas clasificadas, repetición 2D y tendencias, derivadas solo de la demo. Elige una partida para abrir su análisis."

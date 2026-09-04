@@ -8,8 +8,8 @@ import { BriefApprovalCheckbox, CreativeBriefList } from '@/components/studio/cr
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** Same lift as the old CreateReelBar: the bar floats over the scrolled list. */
-const FOOTER_SHADOW = 'shadow-[0_-12px_28px_-18px_oklch(0.02_0.02_264/0.9)]';
+/** The band floats over the scrolled list; the value is a token, not a literal. */
+const FOOTER_SHADOW = 'shadow-[var(--elev-band-up)]';
 
 export type ProduceFooterProps = {
   /** Cyan for Short, magenta for Full POV (REC). */
@@ -54,11 +54,16 @@ export function ProduceFooter({
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-20 -mx-(--shell-gutter) mt-2 border-t bg-surface-1 px-(--shell-gutter) py-3.5',
+        'sticky bottom-0 z-20 mt-2 border-t bg-surface-1 py-3.5',
         FOOTER_SHADOW,
         tone === 'full' ? 'border-stream/45' : 'border-border-accent',
       )}
     >
+      {/* The list is cut flat by the opaque band; this says rows continue below. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-gradient-to-t from-surface-1 to-transparent"
+      />
       <div className="flex flex-col gap-3">
         {error ? (
           <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
@@ -101,7 +106,7 @@ export function ProduceFooter({
               <p className="mt-0.5 truncate text-body-sm text-fg-2">{hint}</p>
             )}
           </div>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="lg" asChild>
             <Link href={backHref}>Volver</Link>
           </Button>
           {cta}

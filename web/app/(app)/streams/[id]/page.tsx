@@ -411,7 +411,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
         title="Ese stream ya no está"
         description="El trabajo no existe o se ha borrado. Vuelve a la lista para traer otro clip."
         actions={
-          <Button asChild variant="stream">
+          <Button asChild>
             <Link href={STREAMS_HREF}>Volver a Stream clips</Link>
           </Button>
         }
@@ -429,7 +429,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           className="border-destructive/45"
           actions={
             <>
-              <Button type="button" variant="stream" onClick={() => setOpenAttempt((n) => n + 1)}>
+              <Button type="button" onClick={() => setOpenAttempt((n) => n + 1)}>
                 Reintentar
               </Button>
               <Button asChild variant="outline">
@@ -443,7 +443,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   }
   if (stage === 'acquiring') {
     return (
-      <section className="studio-enter studio-panel studio-panel-raised flex max-w-4xl flex-col gap-4 border-stream/45 p-5 sm:p-7" aria-label="Trayendo el vídeo">
+      <section className="studio-panel studio-panel-raised measure-read flex flex-col gap-4 p-5 @[44rem]/content:p-7" aria-label="Trayendo el vídeo">
         <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-widest text-stream-text">
           <span aria-hidden className="studio-spinner" />
           Trayendo el vídeo
@@ -471,7 +471,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           description={failureReason ?? 'Algo salió mal.'}
           className="border-destructive/45"
           actions={
-            <Button type="button" variant="stream" onClick={goBack}>
+            <Button type="button" onClick={goBack}>
               Empezar de nuevo
             </Button>
           }

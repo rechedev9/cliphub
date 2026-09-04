@@ -53,13 +53,12 @@ export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOp
     .join(' · ');
 
   return (
-    <li ref={ref} className="studio-enter studio-panel flex max-w-[1080px] items-stretch overflow-hidden">
+    <li ref={ref} className="studio-enter studio-panel flex items-stretch overflow-hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-4 py-2.5 pr-4 pl-0 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        className="flex min-w-0 flex-1 flex-wrap items-center gap-4 px-4 py-2.5 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring @[44rem]/content:flex-nowrap"
       >
-        <span aria-hidden className="w-1 self-stretch bg-stream" />
         <MediaFrame
           aspect="16:9"
           className="w-[84px] shrink-0 border border-border-strong"
@@ -88,7 +87,7 @@ export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOp
         </span>
 
         {acquiring ? (
-          <span className="flex w-[260px] shrink-0 flex-col gap-1.5 text-stream-text" role="status">
+          <span className="row-state text-stream-text" role="status">
             <span className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider">
               <span aria-hidden className="studio-spinner" />
               {tag.label}
@@ -98,7 +97,7 @@ export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOp
             </span>
           </span>
         ) : (
-          <span className="flex shrink-0 gap-2">
+          <span className="row-state flex-row items-center justify-start gap-2">
             <StatusTag>Cortes · {cuts}</StatusTag>
             <StatusTag tone={tag.tone}>
               {tag.busy ? <span aria-hidden className="studio-spinner" /> : null}

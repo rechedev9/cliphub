@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/tactical';
 import type { TacticalState } from '@/lib/api/tactical';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { IconTile } from '@/components/studio/icon-tile';
 import { TacticalStateBadge } from '@/components/tactical/tactical-state-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -89,24 +90,20 @@ export function TacticalDemoPicker(): ReactNode {
         <Link
           key={match.id}
           href={`/tactical/${match.id}`}
-          className="studio-panel studio-panel-interactive flex min-h-[72px] items-center justify-between gap-4 px-4 py-4 transition-colors sm:px-5"
+          className="studio-panel studio-panel-interactive flex min-h-[72px] flex-wrap items-center gap-4 px-4 py-4 transition-colors @[44rem]/content:flex-nowrap sm:px-5"
         >
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-              <Radar className="size-5" aria-hidden />
-            </span>
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <IconTile icon={Radar} size="md" />
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="truncate font-display text-lg font-bold uppercase leading-tight tracking-tight text-foreground">
-                {match.map}
-              </span>
+              <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{match.map}</span>
               <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
                 {[match.player, matchDateLabel(match)].filter(Boolean).join(' · ')}
               </span>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <TacticalStateBadge state={state} className="hidden sm:inline-flex" />
-            <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+          <div className="row-state w-full flex-row items-center justify-end gap-3 @[44rem]/content:w-auto">
+            <TacticalStateBadge state={state} />
+            <ChevronRight className="size-4 shrink-0 text-fg-3" aria-hidden />
           </div>
         </Link>
       ))}

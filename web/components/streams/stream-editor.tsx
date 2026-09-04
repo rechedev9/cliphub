@@ -479,7 +479,7 @@ export function StreamEditor({
         setPreviewError('No se pudo decodificar o leer el MP4 de origen. Comprueba que el archivo siga disponible y reintenta la vista previa.');
       }}
     >
-      <div className="studio-enter -mx-(--shell-gutter) -my-10 flex flex-col @[64rem]/content:h-[calc(100vh-var(--shell-strip-height))]">
+      <div className="-mx-(--shell-gutter) -my-10 flex flex-col @[64rem]/content:h-[calc(100vh-var(--shell-strip-height))]">
         <StreamLayoutBar variant={plan.variant} disabled={busy} onVariantChange={setVariant} />
 
         <div className="flex min-h-0 flex-1 flex-col @[64rem]/content:grid @[64rem]/content:grid-cols-[clamp(150px,17vw,236px)_minmax(260px,1fr)_clamp(220px,25vw,320px)] @[64rem]/content:grid-rows-[minmax(0,1fr)] @[64rem]/content:overflow-hidden">

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { NAV_ROUTES, gotoStudio, parseNumber, rootToken, squash } from './contract.ts';
+import { MEASURE_SCALE, NAV_ROUTES, gotoStudio, parseNumber, rootToken, squash } from './contract.ts';
 
 test.describe('shell geometry', () => {
   test('the sidebar is a 240px wall', async ({ page }) => {
@@ -56,6 +56,57 @@ test.describe('shell geometry', () => {
   test('the content gutter is the fluid shell token', async ({ page }) => {
     await gotoStudio(page, '/clips');
     expect(squash(await rootToken(page, '--shell-gutter'))).toBe('clamp(1.5rem,3.2vw,4rem)');
+  });
+
+  for (const { token, className, px } of MEASURE_SCALE) {
+    test(`${token} is ${px}px and .${className} serves it`, async ({ page }) => {
+      await gotoStudio(page, '/clips');
+      expect(parseNumber(await rootToken(page, token)) * 16).toBeCloseTo(px, 6);
+
+      const served = await page.evaluate((name) => {
+        const probe = document.createElement('div');
+        probe.className = name;
+        document.body.append(probe);
+        const style = getComputedStyle(probe);
+        const geometry = { maxWidth: style.maxWidth, width: style.width };
+        probe.remove();
+        return geometry;
+      }, className);
+      expect(served.maxWidth).toBe(`${px}px`);
+    });
+  }
+
+  test('every shell route spines on the measure scale, never its own pixel width', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const allowed = new Set<number>(MEASURE_SCALE.map((step) => step.px));
+
+    for (const { name, href } of NAV_ROUTES) {
+      await gotoStudio(page, href);
+      // Only the page's own spine — the direct children of <main>. A bounded
+      // paragraph or a dialog deeper in the tree is line length, not measure.
+      const spine = await page.evaluate(() => {
+        const main = document.querySelector('main');
+        if (main === null) return [];
+        // The route entrance frame is chrome, not a page container; the page's
+        // own spine is one level in when it is mounted.
+        const root = main.querySelector('[data-slot="route-frame"]') ?? main;
+        return [...root.children]
+          .filter((node): node is HTMLElement => node instanceof HTMLElement)
+          .map((node) => ({
+            max: getComputedStyle(node).maxWidth,
+            tag: node.tagName,
+            cls: node.className.slice(0, 140),
+          }));
+      });
+
+      for (const node of spine) {
+        if (node.max === 'none') continue;
+        expect(
+          node.max.endsWith('px') && allowed.has(Math.round(Number.parseFloat(node.max))),
+          `${name} (${href}) spines <${node.tag}> at max-width ${node.max}, off the measure scale: ${node.cls}`,
+        ).toBe(true);
+      }
+    }
   });
 });
 

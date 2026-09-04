@@ -104,28 +104,25 @@ export default function StreamsPage(): ReactNode {
   );
 
   let list: ReactNode;
-  if (jobs === null && listError !== null) {
-    list = (
-      <p role="alert" className="max-w-[1080px] border border-dashed border-destructive/45 px-4 py-6 text-center text-body-sm text-destructive">
-        {listError}
-      </p>
-    );
-  } else if (jobs === null) {
-    list = (
-      <p role="status" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-        <span aria-hidden className="studio-spinner" />
-        Cargando streams
-      </p>
-    );
+  if (jobs === null) {
+    // A failed first poll leaves `jobs` null forever; the alert above is then
+    // the only truthful report, and a spinner beside it claims work in flight.
+    list =
+      listError !== null ? null : (
+        <p role="status" className="measure-list flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+          <span aria-hidden className="studio-spinner" />
+          Cargando streams
+        </p>
+      );
   } else if (jobs.length === 0) {
     list = (
-      <p className="max-w-[1080px] border border-dashed border-border px-4 py-6 text-center text-body-sm text-fg-2">
+      <p className="measure-list border border-dashed border-border px-4 py-6 text-center text-body-sm text-fg-2">
         Todavía no hay streams. Pega una URL o sube un MP4.
       </p>
     );
   } else {
     list = (
-      <ul className="flex flex-col gap-2.5">
+      <ul className="measure-list flex flex-col gap-2.5">
         {jobs.map((job) => (
           <StreamListRow key={job.id} job={job} onOpen={() => open(job)} onDeleted={() => setPollGeneration((g) => g + 1)} />
         ))}
@@ -134,9 +131,9 @@ export default function StreamsPage(): ReactNode {
   }
 
   return (
-    <div className="studio-enter flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3.5">
       <StudioPageHeader
-        className="max-w-[1080px]"
+        className="measure-list"
         title="De stream a Short"
         description="Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Marcas los cortes y cada uno sale como un Short 9:16 a 1080p con tu facecam, banners y música, todo procesado en este PC."
       />
@@ -144,7 +141,7 @@ export default function StreamsPage(): ReactNode {
       {listError !== null ? (
         <div
           role="alert"
-          className="flex max-w-[1080px] flex-wrap items-center gap-3 border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
+          className="measure-list flex flex-wrap items-center gap-3 border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
         >
           <AlertTriangle aria-hidden className="size-4 shrink-0" />
           <span className="min-w-0 flex-1">{offline ? STREAM_OFFLINE_MESSAGE : listError}</span>
@@ -168,7 +165,7 @@ export default function StreamsPage(): ReactNode {
         onSubmitFile={(file) => void submitFile(file)}
       />
 
-      <p className="mt-1 max-w-[1080px] font-mono text-meta uppercase tracking-widest text-fg-3">
+      <p className="measure-list mt-1 font-mono text-meta uppercase tracking-widest text-fg-3">
         Tus streams · {jobs?.length ?? 0}
       </p>
 

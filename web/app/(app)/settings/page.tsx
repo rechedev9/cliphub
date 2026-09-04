@@ -12,8 +12,7 @@ export default function SettingsPage(): ReactNode {
         title="CONFIGURACIÓN"
         description="Consulta la versión, controla los diagnósticos y conecta la cuenta de Steam con la que juegas."
       />
-      {/* Bound like the empty state; a full-width dl would be a band of labels. */}
-      <div className="flex max-w-2xl flex-col gap-8">
+      <div className="measure-read flex flex-col gap-8">
         <StudioInfo />
         <TelemetrySettings />
         <SteamAccount />

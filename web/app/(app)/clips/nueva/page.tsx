@@ -328,7 +328,7 @@ export default function NewDemoPage({
       <div className="flex flex-col gap-5">
         <DemoDropzone onFiles={onFiles} minHeightClass="min-h-[260px]" />
         {error ? <ErrorBanner message={error} /> : null}
-        <SectionEyebrow label="O importa desde Steam" className="mt-3" />
+        <SectionEyebrow label="O importa desde Steam" />
         <ShareCodeDoor />
         <RecentSteamMatches />
       </div>
@@ -360,10 +360,10 @@ export default function NewDemoPage({
   }
 
   return (
-    <div className="studio-enter flex max-w-[1080px] flex-col gap-5">
+    <div className="measure-list flex flex-col gap-5">
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-display font-bold uppercase text-fg-1">{title}</h1>
-        <p className="max-w-[640px] text-body text-fg-2">{description}</p>
+        <p className="measure-read text-body text-fg-2">{description}</p>
       </header>
       {warning ? (
         <div
@@ -416,7 +416,7 @@ function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: R
             <>
               {prettyMapName(match.map)}{' '}
               <span className={match.scoreT > match.scoreCt ? 'text-warning' : 'text-fg-3'}>{match.scoreT}</span>
-              <span className="text-fg-4"> : </span>
+              <span className="text-fg-3"> : </span>
               <span className={match.scoreCt > match.scoreT ? 'text-primary' : 'text-fg-3'}>{match.scoreCt}</span>
             </>
           ) : (
