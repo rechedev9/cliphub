@@ -59,7 +59,9 @@ export function StreamSourceTimeline({
       <div className="flex min-w-0 items-center justify-between gap-3 font-mono text-meta uppercase tracking-widest text-fg-3">
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="shrink-0">Timeline de la fuente · {formatStreamClock(sourceDuration)}</span>
-          <span className="text-stream-text normal-case tracking-wider">{hasScale ? ADD_CUT_HINT : NO_DURATION_HINT}</span>
+          {/* An instruction, not a state: the cuts on the track below are what
+              the accent is spent on. */}
+          <span className="normal-case tracking-wider">{hasScale ? ADD_CUT_HINT : NO_DURATION_HINT}</span>
         </span>
         <Button
           type="button"
@@ -67,7 +69,7 @@ export function StreamSourceTimeline({
           size="sm"
           disabled={!canAdd}
           onClick={() => onAddAt(playheadSeconds)}
-          className="shrink-0 border-stream/45 font-mono uppercase tracking-wider text-stream-text hover:border-stream hover:bg-stream/10"
+          className="shrink-0 font-mono uppercase tracking-wider"
         >
           <Scissors aria-hidden />
           Añadir corte aquí
