@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -137,6 +138,77 @@ func (r *SQLiteJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.
 		return 0, "", 0, fmt.Errorf("parse stored job status: %w", err)
 	}
 	return status, failureReason, segmentCount, nil
+}
+
+// getStatusesChunk caps one IN (...) list. Callers already bound their ids (the
+// batch-status endpoint at 100), so this only guards against a pathological
+// caller hitting SQLite's variable limit.
+const getStatusesChunk = 100
+
+// GetStatuses returns the same projection as GetStatus for many ids, in one
+// query per chunk instead of one per id. Ids repeat freely (one job can appear
+// under several render variants) and are read once; an id with no job row is
+// absent from the map, which is how a caller sees the ErrNotFound a single
+// GetStatus would have returned for it.
+func (r *SQLiteJobRepository) GetStatuses(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]job.StatusRow, error) {
+	out := make(map[uuid.UUID]job.StatusRow, len(ids))
+	unique := make([]string, 0, len(ids))
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id.String())
+	}
+	for start := 0; start < len(unique); start += getStatusesChunk {
+		end := min(start+getStatusesChunk, len(unique))
+		chunk := unique[start:end]
+		args := make([]any, 0, len(chunk)+2)
+		args = append(args, job.StatusFailed.String(), job.StatusRecording.String())
+		for _, id := range chunk {
+			args = append(args, id)
+		}
+		query := `
+		SELECT id,
+		       status,
+		       CASE WHEN status = ? THEN COALESCE(json_extract(data, '$.failure_reason'), '') ELSE '' END,
+		       CASE WHEN status = ? THEN COALESCE((SELECT json_array_length(plan, '$.segments') FROM job_kill_plans WHERE job_id = jobs.id), 0) ELSE 0 END
+		FROM jobs WHERE id IN (?` + strings.Repeat(",?", len(chunk)-1) + `)`
+		if err := r.scanStatusRows(ctx, query, args, out); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// scanStatusRows runs one GetStatuses chunk and folds its rows into out.
+func (r *SQLiteJobRepository) scanStatusRows(ctx context.Context, query string, args []any, out map[uuid.UUID]job.StatusRow) error {
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("query job statuses: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rawID, rawStatus, failureReason string
+		var segmentCount int
+		if err := rows.Scan(&rawID, &rawStatus, &failureReason, &segmentCount); err != nil {
+			return fmt.Errorf("scan job status row: %w", err)
+		}
+		id, err := uuid.Parse(rawID)
+		if err != nil {
+			return fmt.Errorf("parse stored job id %q: %w", rawID, err)
+		}
+		status, err := job.ParseStatus(rawStatus)
+		if err != nil {
+			return fmt.Errorf("parse stored job status for %s: %w", id, err)
+		}
+		out[id] = job.StatusRow{Status: status, FailureReason: failureReason, SegmentCount: segmentCount}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read job status rows: %w", err)
+	}
+	return nil
 }
 
 func (r *SQLiteJobRepository) List(ctx context.Context, limit int) ([]job.Job, error) {

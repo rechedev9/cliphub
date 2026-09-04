@@ -2048,11 +2048,19 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	progressPath := filepath.Join(workDir, "editor-progress.json")
 	args = append(args, "--progress-out", progressPath)
 	progressCtx, progressCancel := context.WithCancel(ctx)
+	progressDone := make(chan struct{})
 	reporter := newRenderProgressReporter(w.storage, j.ID, progressPath)
-	go reporter.watch(progressCtx)
+	// Own the watcher the way the capture path does: cancelling only asks it to
+	// stop, so without the join it can still be writing the progress artifact
+	// after this function returns and the work dir is being torn down.
+	go func() {
+		defer close(progressDone)
+		reporter.watch(progressCtx)
+	}()
 
 	_, runErr := w.runner.Run(runCtx, cfg.EditorPath, args...)
 	progressCancel()
+	<-progressDone
 
 	resultPath := filepath.Join(outDir, "shorts-result.json")
 	if err := readJSONFile(resultPath, &result); err != nil {

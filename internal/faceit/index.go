@@ -339,13 +339,32 @@ func (c *Client) RecentMatches(ctx context.Context, playerID string, limit int) 
 		return nil, fmt.Errorf("FACEIT player id is invalid")
 	}
 	limit = clampRecentMatchLimit(limit)
-	history, err := c.fetchRecentHistory(ctx, playerID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("fetch FACEIT match history: %w", err)
+	// History and statistics are independent endpoints and buildRecentMatches
+	// merges them by match id, so arrival order is not load-bearing. Each
+	// goroutine writes only its own pair of variables and is joined below;
+	// getJSON keeps the pair inside the client's shared request budget.
+	var (
+		history    []apiHistoryItem
+		historyErr error
+		stats      []apiMatchStats
+		statsErr   error
+		wg         sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		history, historyErr = c.fetchRecentHistory(ctx, playerID, limit)
+	}()
+	go func() {
+		defer wg.Done()
+		stats, statsErr = c.fetchRecentStats(ctx, playerID, limit)
+	}()
+	wg.Wait()
+	if historyErr != nil {
+		return nil, fmt.Errorf("fetch FACEIT match history: %w", historyErr)
 	}
-	stats, err := c.fetchRecentStats(ctx, playerID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("fetch FACEIT match statistics: %w", err)
+	if statsErr != nil {
+		return nil, fmt.Errorf("fetch FACEIT match statistics: %w", statsErr)
 	}
 	matches := buildRecentMatches(playerID, history, stats, limit)
 	if recentMatchesContainCredential(matches, c.apiKey) {

@@ -31,7 +31,7 @@ const anticheatClaimTTL = 30 * time.Minute
 // pipeline's own status. Re-posting while a screening is in flight is rejected
 // so a demo is never parsed twice for the same answer.
 func (h *Handlers) StartAnticheat(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -80,7 +80,7 @@ func (h *Handlers) StartAnticheat(w http.ResponseWriter, r *http.Request) {
 // screening document, whatever state it is in. A job that was never screened
 // answers 409 so the UI can tell "not started" from "running".
 func (h *Handlers) GetAnticheat(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (h *Handlers) GetAnticheat(w http.ResponseWriter, r *http.Request) {
 // It renders the evidence pack for one screened player: the material a user
 // needs to file their own report, never a submission of one.
 func (h *Handlers) GetAnticheatDossier(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
