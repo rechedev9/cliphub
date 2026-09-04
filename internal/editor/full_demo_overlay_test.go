@@ -1,10 +1,13 @@
 package editor
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -230,7 +233,7 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 		Round:     1,
 		TickStart: 1000,
 		TickEnd:   1000 + int(duration*64),
-		Kills:     []killplan.Kill{{Tick: 1400, Weapon: "ak47"}},
+		Kills:     []killplan.Kill{{Tick: 1064, Weapon: "ak47"}},
 	}}
 	result.Artifacts = []recording.RecordingArtifact{{
 		SegmentID:       "seg-001",
@@ -287,6 +290,7 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 	if st, err := os.Stat(short.Output); err != nil || st.Size() < 1024 {
 		t.Fatalf("compiled Full Demo output missing or tiny: %v", err)
 	}
+	assertPlayableMedia(t, ffmpeg, short.Output, short.DurationSeconds)
 	w, h := probeVideoSize(t, ffmpeg, short.Output)
 	if w != 1920 || h != 1080 {
 		t.Fatalf("compiled Full Demo = %dx%d, want 1920x1080", w, h)
@@ -389,6 +393,7 @@ func TestShortsParsePlanPortraitSeam(t *testing.T) {
 		t.Fatal(err)
 	}
 	runFFmpegCommand(t, short.FFmpegCommand)
+	assertPlayableMedia(t, ffmpeg, short.Output, short.DurationSeconds)
 	w, h := probeVideoSize(t, ffmpeg, short.Output)
 	if w != 1080 || h != 1920 {
 		t.Fatalf("shorts output = %dx%d, want 1080x1920 portrait", w, h)
@@ -417,7 +422,7 @@ func writeLavfiCapture(t *testing.T, ffmpeg, path string, width, height int, sec
 		t.Fatal(err)
 	}
 	cmd := exec.Command(ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-		"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%dx%d:rate=30:duration=%.3f", width, height, seconds),
+		"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%dx%d:rate=60:duration=%.3f", width, height, seconds),
 		"-f", "lavfi", "-i", fmt.Sprintf("sine=frequency=220:duration=%.3f", seconds),
 		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p",
 		"-c:a", "aac", "-ac", "2", "-shortest",
@@ -494,5 +499,54 @@ func copyEvidence(t *testing.T, dest string, files map[string]string) {
 		if err := os.WriteFile(filepath.Join(dest, name), raw, 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// Check the encoded artifact, including both streams, rather than only its argv.
+func assertPlayableMedia(t *testing.T, ffmpeg, path string, wantDuration float64) {
+	t.Helper()
+	out, err := exec.Command("ffprobe", "-v", "error", "-show_streams", "-of", "json", path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("probe media: %v: %s", err, out)
+	}
+	var probe struct {
+		Streams []struct {
+			CodecType string `json:"codec_type"`
+			CodecName string `json:"codec_name"`
+			Duration  string `json:"duration"`
+			FrameRate string `json:"avg_frame_rate"`
+			Channels  int    `json:"channels"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &probe); err != nil {
+		t.Fatal(err)
+	}
+	video, audio := 0, 0
+	for _, stream := range probe.Streams {
+		if stream.CodecType != "video" && stream.CodecType != "audio" {
+			continue
+		}
+		duration, err := strconv.ParseFloat(stream.Duration, 64)
+		if err != nil || math.IsNaN(duration) || math.Abs(duration-wantDuration) > 0.25 {
+			t.Errorf("%s duration = %q, want %.3f ± 0.25s", stream.CodecType, stream.Duration, wantDuration)
+		}
+		switch stream.CodecType {
+		case "video":
+			video++
+			if stream.CodecName != "h264" || stream.FrameRate != "60/1" {
+				t.Errorf("video = %s at %s, want h264 at 60 fps", stream.CodecName, stream.FrameRate)
+			}
+		case "audio":
+			audio++
+			if stream.CodecName != "aac" || stream.Channels != 2 {
+				t.Errorf("audio = %s, %d channels, want stereo AAC", stream.CodecName, stream.Channels)
+			}
+		}
+	}
+	if video != 1 || audio != 1 {
+		t.Fatalf("streams: video=%d audio=%d, want one each", video, audio)
+	}
+	if out, err := exec.Command(ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-").CombinedOutput(); err != nil {
+		t.Fatalf("decode complete media: %v: %s", err, out)
 	}
 }

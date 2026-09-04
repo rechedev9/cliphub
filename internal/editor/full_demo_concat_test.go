@@ -322,9 +322,11 @@ func TestFullDemoConcatsTwoFixtureRounds(t *testing.T) {
 	writeLavfiCapture(t, ffmpeg, p2, 1920, 1080, partDur)
 
 	result := testRecordingResult(dir)
+	// A kill one second after each start avoids camera-settle trimming, so
+	// these fixture clips represent the entire declared capture window.
 	result.Plan.Segments = []recording.RecordingSegment{
-		{ID: "seg-001", Round: 1, TickStart: 1000, TickEnd: 1000 + int(partDur*64), Kills: []killplan.Kill{{Tick: 1400, Weapon: "ak47"}}},
-		{ID: "seg-002", Round: 2, TickStart: 2000, TickEnd: 2000 + int(partDur*64), Kills: []killplan.Kill{{Tick: 2400, Weapon: "ak47"}}},
+		{ID: "seg-001", Round: 1, TickStart: 1000, TickEnd: 1000 + int(partDur*64), Kills: []killplan.Kill{{Tick: 1064, Weapon: "ak47"}}},
+		{ID: "seg-002", Round: 2, TickStart: 2000, TickEnd: 2000 + int(partDur*64), Kills: []killplan.Kill{{Tick: 2064, Weapon: "ak47"}}},
 	}
 	result.Artifacts = []recording.RecordingArtifact{
 		{SegmentID: "seg-001", Role: "segment", Type: "video", Path: p1, SizeBytes: 1, DurationSeconds: partDur, Codec: "h264", Width: 1920, Height: 1080, FrameRate: "60/1"},
@@ -367,6 +369,7 @@ func TestFullDemoConcatsTwoFixtureRounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	runFFmpegCommand(t, short.FFmpegCommand)
+	assertPlayableMedia(t, ffmpeg, short.Output, 2*partDur)
 	w, h := probeVideoSize(t, ffmpeg, short.Output)
 	if w != 1920 || h != 1080 {
 		t.Fatalf("compiled Full Demo = %dx%d, want 1920x1080", w, h)

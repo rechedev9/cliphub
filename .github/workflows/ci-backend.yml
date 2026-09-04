@@ -15,6 +15,9 @@ on:
       - 'AGENTS.md'
       - '.claude/**'
       - 'scripts/go-*.sh'
+      - 'scripts/capturelab/**'
+      - 'scripts/ci-backend-*'
+      - 'docs/CAPTURE_LAB.md'
       - '.github/workflows/ci-backend.yml'
   push:
     branches:
@@ -30,6 +33,9 @@ on:
       - 'AGENTS.md'
       - '.claude/**'
       - 'scripts/go-*.sh'
+      - 'scripts/capturelab/**'
+      - 'scripts/ci-backend-*'
+      - 'docs/CAPTURE_LAB.md'
       - '.github/workflows/ci-backend.yml'
 
 permissions:
@@ -41,7 +47,7 @@ concurrency:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       GOTOOLCHAIN: local
@@ -56,11 +62,31 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Setup Node for the capture simulator
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+          ffmpeg -version
+          ffprobe -version
+
+      - name: Capture simulator contracts
+        run: node --test scripts/capturelab/*.test.mjs scripts/ci-backend-evidence.test.mjs
+
       - name: go vet
         run: go vet ./...
 
       - name: go test
-        run: go test ./... -count=1 -timeout 3m
+        shell: bash
+        run: go test ./... -count=1 -timeout 5m -json | tee "$RUNNER_TEMP/backend-tests.jsonl"
+
+      - name: Require critical flow evidence
+        if: ${{ !cancelled() }}
+        run: node scripts/ci-backend-evidence.mjs "$RUNNER_TEMP/backend-tests.jsonl"
 
       - name: zv check
         run: go run ./cmd/zv check

@@ -46,6 +46,41 @@ simulator transcripts --> normalized replay corpus
 
 L4 without L5 must be reported as “simulated end-to-end verified; current HLAE/CS2 compatibility not recertified.”
 
+## Hosted backend CI
+
+`CI backend` uses Ubuntu 24.04, installs Node 24 and the distribution's
+FFmpeg/ffprobe, and runs the simulator's Node
+contracts plus the complete Go suite (five-minute timeout per package). It does
+not need a GPU, Redis, Steam credentials, a real demo, or a browser.
+`scripts/ci-backend-evidence.mjs` reads the Go JSON output and requires successful,
+unskipped execution of the generated-script simulator and three media canaries:
+Shorts portrait, Full Demo overlays, and two-round Full Demo concatenation.
+Missing tests and skipped simulator scenarios fail the lane. Changes to the
+simulator or evidence checker also trigger backend CI.
+
+These canaries exercise L2 and selected L3 seams. They check real encoded H.264
+video at 60 fps, stereo AAC, stream duration, complete decoding, and 9:16/16:9
+geometry. Full Demo concatenation must retain both rounds' duration. The complete
+suite also runs existing HTTP admission, worker failure/publication, persistence,
+and interrupted-work recovery tests. This is not a continuous real capture flow
+or L5 HLAE/CS2 certification; the Windows canary remains separate.
+
+To reproduce the evidence gate locally with Go, Node and FFmpeg on PATH:
+
+Use a build with `drawtext` and `filter_complex_script` support. On macOS,
+Homebrew's `ffmpeg@7` works with `PATH="/opt/homebrew/opt/ffmpeg@7/bin:$PATH"`.
+The minimal FFmpeg 8 Homebrew build may omit `drawtext`; FFmpeg 9 rejects the
+pipeline's existing `filter_complex_script` option. Those are failures to
+investigate, not reasons to skip the required canaries.
+
+```sh
+node --test scripts/capturelab/*.test.mjs scripts/ci-backend-evidence.test.mjs
+# Use a disposable log outside the repository; pipefail preserves Go failures.
+set -o pipefail
+go test ./... -count=1 -timeout 5m -json | tee /tmp/cliphub-backend-tests.jsonl
+node scripts/ci-backend-evidence.mjs /tmp/cliphub-backend-tests.jsonl
+```
+
 ## Components
 
 ### 1. MIRV simulator
