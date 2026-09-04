@@ -42,9 +42,9 @@ export function StreamSourcePanel({
   return (
     <section
       aria-labelledby="stream-source-title"
-      className="studio-panel studio-panel-raised flex max-w-[1080px] flex-col gap-2.5 border-stream/45 px-4.5 py-3.5 shadow-[var(--elev-3),var(--glow-stream-md)]"
+      className="studio-panel studio-panel-raised measure-list flex flex-col gap-2.5 px-4.5 py-3.5"
     >
-      <h2 id="stream-source-title" className="font-mono text-meta uppercase tracking-widest text-stream-text">
+      <h2 id="stream-source-title" className="font-mono text-meta uppercase tracking-widest text-fg-3">
         Nueva fuente
       </h2>
 
@@ -110,8 +110,10 @@ export function StreamSourcePanel({
         onDrop={handleDrop}
         className={cn(
           'flex min-h-11 w-full items-center justify-center gap-2 border border-dashed bg-surface-2 font-display text-body-sm font-semibold uppercase tracking-wide text-fg-2 transition-colors duration-(--dur-fast) ease-standard',
-          'hover:border-stream hover:bg-stream/10 hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50',
-          dragging ? 'border-stream bg-stream/10 text-fg-1' : 'border-stream/45',
+          // surface-4, not -3: the panel around this well is already -3, so a
+          // hover into -3 flattens the control into its own parent.
+          'hover:border-primary/60 hover:bg-surface-4 hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50',
+          dragging ? 'border-primary bg-surface-4 text-fg-1' : 'border-border-strong',
         )}
       >
         <UploadCloud aria-hidden className="size-4" />

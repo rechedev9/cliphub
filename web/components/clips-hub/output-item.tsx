@@ -48,7 +48,7 @@ export function OutputItem({ output, matchId, onChange }: OutputItemProps): Reac
   return (
     <div
       className={cn(
-        'studio-enter flex items-center gap-3 rounded-lg border bg-surface-2 px-3 py-2.5 transition-colors duration-(--dur-base)',
+        'studio-enter flex flex-wrap items-center gap-3 rounded-lg border bg-surface-2 px-3 py-2.5 transition-colors duration-(--dur-base)',
         BORDER_CLASS[output.state],
       )}
     >
@@ -66,10 +66,10 @@ export function OutputItem({ output, matchId, onChange }: OutputItemProps): Reac
         </span>
       </span>
 
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="flex items-center justify-between gap-2">
-          <span className="truncate font-display text-label font-bold uppercase text-fg-1">{output.title}</span>
-          <OutputTag output={output} />
+      <span className="flex min-w-[10rem] flex-1 flex-col gap-1.5">
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 truncate font-display text-label font-bold uppercase text-fg-1">{output.title}</span>
+          <OutputTag output={output} className="shrink-0" />
         </span>
 
         {isWorking(output.state) ? (
@@ -81,17 +81,22 @@ export function OutputItem({ output, matchId, onChange }: OutputItemProps): Reac
           </span>
         ) : null}
 
-        <span className="flex justify-between gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-          {/* A failure reason is the only useful line of a failed card: it wraps, never truncates. */}
-          {output.state === OUTPUT_STATE.failed ? (
-            <FailureLine output={output} />
-          ) : (
-            <span className="truncate">{`${video.map} · ${timeAgo(video.createdAt)}`}</span>
-          )}
-        </span>
-
-        <OutputActions output={output} matchId={matchId} onChange={onChange} />
+        {/* A failure reason is the only useful line of a failed card: it wraps, never truncates. */}
+        {output.state === OUTPUT_STATE.failed ? (
+          <FailureLine output={output} />
+        ) : (
+          <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+            {`${video.map} · ${timeAgo(video.createdAt)}`}
+          </span>
+        )}
       </span>
+
+      <OutputActions
+        output={output}
+        matchId={matchId}
+        onChange={onChange}
+        className="row-actions ml-auto w-full @[44rem]/content:w-auto"
+      />
     </div>
   );
 }
@@ -99,9 +104,7 @@ export function OutputItem({ output, matchId, onChange }: OutputItemProps): Reac
 function FailureLine({ output }: { output: MatchOutput }): ReactNode {
   const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full });
   return (
-    <span className="normal-case tracking-normal text-destructive" title={failure.message}>
-      {failure.message}
-    </span>
+    <span className="text-body-sm text-destructive">{failure.message}</span>
   );
 }
 

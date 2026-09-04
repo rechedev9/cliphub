@@ -33,39 +33,37 @@ function formatBaseline(metric: AnticheatMetric): string {
   }
 }
 
-/** Bar colour by suspicion: alarm only once a metric clears the pro spread. */
+/** Bar tone by suspicion: alarm only once a metric clears the pro spread.
+ *  `.studio-bar` fills with currentColor, so the tone is a text colour. */
 function suspicionBarClass(suspicion: number): string {
-  if (suspicion >= 80) return 'bg-destructive';
-  if (suspicion >= 50) return 'bg-stream';
-  return 'bg-primary';
+  if (suspicion >= 80) return 'text-destructive';
+  if (suspicion >= 50) return 'text-stream';
+  return 'text-primary';
 }
 
 /** One metric row: value, reference, and a bar for its 0..100 suspicion. */
 function MetricRow({ metric }: { metric: AnticheatMetric }) {
   return (
-    <li className="flex flex-col gap-1.5 border-t border-border/60 py-3 first:border-t-0">
+    <li className="flex flex-col gap-1.5 border-t border-border-subtle py-3 first:border-t-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="text-sm font-medium text-foreground">{metric.label}</span>
-        <span className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
-          {formatValue(metric)} <span className="opacity-60">vs {formatBaseline(metric)}</span>
+        <span className="text-body-sm font-medium text-fg-1">{metric.label}</span>
+        <span className="font-mono text-meta text-fg-2">
+          {formatValue(metric)} <span className="text-fg-3">vs {formatBaseline(metric)}</span>
         </span>
       </div>
-      <p className="text-xs leading-5 text-muted-foreground">{metric.description}</p>
+      <p className="text-body-sm text-fg-2">{metric.description}</p>
       {metric.applied ? (
         <div className="flex items-center gap-3">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/60">
-            <div
-              className={cn('h-full rounded-full transition-[width]', suspicionBarClass(metric.suspicion))}
-              style={{ width: `${Math.max(2, Math.min(100, metric.suspicion))}%` }}
-            />
-          </div>
-          <span className="w-24 shrink-0 text-right font-[family-name:var(--font-mono)] text-[11px] text-muted-foreground">
+          <span className={cn('studio-bar flex-1', suspicionBarClass(metric.suspicion))}>
+            <span style={{ width: `${Math.max(2, Math.min(100, metric.suspicion))}%` }} />
+          </span>
+          <span className="w-24 shrink-0 text-right font-mono text-meta text-fg-2">
             z {metric.z >= 0 ? '+' : ''}
             {metric.z.toFixed(2)}
           </span>
         </div>
       ) : (
-        <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
           muestra insuficiente ({metric.samples})
         </span>
       )}
@@ -87,7 +85,7 @@ export type PlayerDetailProps = {
  */
 export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDetailProps): ReactNode {
   return (
-    <div className="flex flex-col gap-5 border-t border-border/60 bg-background/40 px-4 py-5 sm:px-5">
+    <div className="flex flex-col gap-5 border-t border-border-subtle bg-surface-1 px-4 py-5 sm:px-5">
       <ul className="flex flex-col">
         {player.metrics.map((metric) => (
           <MetricRow key={metric.id} metric={metric} />
@@ -95,16 +93,14 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
       </ul>
 
       <section className="flex flex-col gap-2">
-        <h4 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          Momentos revisables
-        </h4>
+        <h4 className="font-mono text-meta uppercase tracking-widest text-fg-3">Momentos revisables</h4>
         {player.evidence.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No se ha marcado ningún momento concreto.</p>
+          <p className="text-body-sm text-fg-2">No se ha marcado ningún momento concreto.</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {player.evidence.map((e) => (
-              <li key={`${e.tick}-${e.kind}`} className="text-sm leading-6 text-muted-foreground">
-                <span className="font-[family-name:var(--font-mono)] text-xs text-foreground">
+              <li key={`${e.tick}-${e.kind}`} className="text-body-sm text-fg-2">
+                <span className="font-mono text-meta text-fg-1">
                   R{e.round} · tick {e.tick}
                 </span>{' '}
                 — {e.detail}
@@ -121,12 +117,12 @@ export function PlayerDetail({ player, onOpenDossier, dossierPending }: PlayerDe
             onClick={() => onOpenDossier(player)}
             loading={dossierPending}
             loadingText="PREPARANDO EXPEDIENTE…"
-            className="font-[family-name:var(--font-display)] tracking-[0.06em]"
+            className="font-display tracking-wide"
           >
             <FileText aria-hidden />
             PREPARAR EXPEDIENTE
           </Button>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-body-sm text-fg-2">
             Reúne la evidencia para que la denuncies tú desde tu cuenta. ClipHub no envía nada.
           </span>
         </div>
@@ -149,18 +145,20 @@ export function PlayerSummaryRow({
       type="button"
       onClick={onToggle}
       aria-expanded={expanded}
-      className="flex w-full items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-accent/40 sm:px-5"
+      className="flex w-full flex-wrap items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-surface-3 @[44rem]/content:flex-nowrap sm:px-5"
     >
-      <span className="w-12 shrink-0 font-[family-name:var(--font-mono)] text-lg font-semibold tabular-nums text-foreground">
+      <span className="w-12 shrink-0 font-mono text-title font-semibold tabular-nums text-fg-1">
         {player.score.toFixed(0)}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-medium text-foreground">{player.name || player.steamid64}</span>
-        <span className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
+        <span className="truncate font-medium text-fg-1">{player.name || player.steamid64}</span>
+        <span className="font-mono text-meta text-fg-3">
           {player.steamid64} · {player.gun_kills} bajas · confianza {Math.round(player.confidence * 100)} %
         </span>
       </span>
-      <VerdictBadge verdict={player.verdict} className="shrink-0" />
+      <span className="shrink-0 self-center">
+        <VerdictBadge verdict={player.verdict} />
+      </span>
     </button>
   );
 }

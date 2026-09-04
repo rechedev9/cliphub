@@ -76,7 +76,7 @@ function SchedulePanel({ assistant }: { assistant: PublishAssistant }): ReactEle
             <div key={day.date} className="border border-border bg-surface-1 px-2.5 py-2 text-meta">
               <span className="block text-fg-3">{localDayLabel(day.date, assistant.schedule.timeZone)}</span>
               <strong className="font-mono text-fg-1">{slot.localTime}</strong>
-              <span className="block text-fg-4">confianza {confidenceLabel(slot.confidence)}</span>
+              <span className="block text-fg-3">confianza {confidenceLabel(slot.confidence)}</span>
             </div>
           ))}
         </div>

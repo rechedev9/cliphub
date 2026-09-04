@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -140,30 +141,21 @@ export function CaptureReadiness(): ReactElement {
           {TOOL_GUIDE.map((tool) => {
             const state = toolState.get(tool.name);
             const found = Boolean(state?.accessible);
-            let badge: { label: string; cls: string };
-            if (found) {
-              badge = { label: state?.source === 'env' ? 'Configurada' : 'Detectada', cls: 'bg-primary/10 text-primary' };
-            } else if (state?.configured) {
-              badge = { label: 'Falta', cls: 'bg-amber-400/10 text-amber-400' };
-            } else {
-              badge = { label: 'No encontrada', cls: 'bg-destructive/10 text-destructive' };
-            }
+            const badge = toolBadge(found, Boolean(state?.configured), state?.source === 'env');
             return (
-              <div key={tool.name} className="studio-panel p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[15px] font-medium text-foreground">{tool.label}</span>
-                  <span className={cn('shrink-0 px-1.5 py-0.5 font-[family-name:var(--font-mono)] text-[0.6rem] font-semibold uppercase tracking-wider', badge.cls)}>
-                    {badge.label}
-                  </span>
+              <div key={tool.name} className="studio-panel flex flex-col gap-2 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate font-display text-body font-bold uppercase text-fg-1">{tool.label}</span>
+                  <StatusTag tone={badge.tone}>{badge.label}</StatusTag>
                 </div>
                 {found ? (
-                  <p className="mt-1 text-sm text-muted-foreground">Lista para usar.</p>
+                  <p className="text-body-sm text-fg-2">Lista para usar.</p>
                 ) : (
                   <>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      No encontrada. Instálala, o apunta <code className="font-[family-name:var(--font-mono)]">{tool.name}</code> a su ruta.
+                    <p className="text-body-sm text-fg-2">
+                      No encontrada. Instálala, o apunta <code className="font-mono text-fg-1">{tool.name}</code> a su ruta.
                     </p>
-                    <p className="mt-1 break-all font-[family-name:var(--font-mono)] text-[0.7rem] text-muted-foreground/70">normalmente {tool.example}</p>
+                    <p className="break-all font-mono text-meta tracking-wider text-fg-3">normalmente {tool.example}</p>
                   </>
                 )}
               </div>
@@ -171,9 +163,9 @@ export function CaptureReadiness(): ReactElement {
           })}
         </div>
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-body-sm text-fg-2">
           ¿Instalada en el sitio habitual? Se detecta automáticamente. Para usar una ruta propia, define la variable de entorno de
-          arriba y reinicia el orquestador (vuelve a lanzar <code className="font-[family-name:var(--font-mono)]">zv serve</code>); la
+          arriba y reinicia el orquestador (vuelve a lanzar <code className="font-mono text-fg-1">zv serve</code>); la
           configuración del worker se lee al arrancar.
         </p>
 
@@ -196,4 +188,10 @@ export function CaptureReadiness(): ReactElement {
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** Detected / configured-but-missing / absent, as one of the kit's tag tones. */
+function toolBadge(found: boolean, configured: boolean, fromEnv: boolean): { label: string; tone: StatusTagTone } {
+  if (found) return { label: fromEnv ? 'Configurada' : 'Detectada', tone: 'primary' };
+  return configured ? { label: 'Falta', tone: 'warning' } : { label: 'No encontrada', tone: 'danger' };
 }

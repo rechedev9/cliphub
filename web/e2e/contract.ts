@@ -65,6 +65,18 @@ export const TYPE_SCALE = [
   { step: 'text-stat', px: 28, lineHeight: 1, tracking: 0.01 },
 ] as const;
 
+/**
+ * Content measure scale. The stage is capped at 1440px but a page picks the
+ * width that suits its job from these three, so the right edge of the content
+ * stops moving between routes. A route that reaches for its own pixel width
+ * again is a contract break.
+ */
+export const MEASURE_SCALE = [
+  { token: '--measure-read', className: 'measure-read', px: 672 },
+  { token: '--measure-list', className: 'measure-list', px: 1080 },
+  { token: '--measure-work', className: 'measure-work', px: 1160 },
+] as const;
+
 /** Motion vocabulary; an ad-hoc duration is a contract break. */
 export const DURATION_TOKENS = [
   { token: '--dur-instant', ms: 80 },

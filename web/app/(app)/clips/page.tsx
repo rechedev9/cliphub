@@ -155,7 +155,7 @@ function ClipsHub(): ReactNode {
   if (model === null) {
     if (loadError === null) return <HubSkeleton />;
     return (
-      <div className="flex max-w-[1080px] flex-col gap-3">
+      <div className="measure-list flex flex-col gap-5">
         <HubBanner offline={loadError.offline} onRetry={onChange} />
         <HubEmpty />
       </div>
@@ -164,7 +164,7 @@ function ClipsHub(): ReactNode {
 
   if (model.rows.length === 0 && model.clips.length === 0) {
     return (
-      <div className="flex max-w-[1080px] flex-col gap-3">
+      <div className="measure-list flex flex-col gap-5">
         {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
         <HubEmpty />
       </div>
@@ -175,8 +175,8 @@ function ClipsHub(): ReactNode {
   const jobs = activeJobCount(model, streams);
 
   return (
-    <div className="studio-enter flex max-w-[1080px] flex-col gap-3">
-      <HubHeader />
+    <div className="measure-list flex flex-col gap-6">
+      <HubHeader lens={lens} />
       <HubGuide model={model} />
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -218,7 +218,7 @@ function ClipsHub(): ReactNode {
                 <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">
                   {HUB_ORPHANS_TITLE} · {model.orphans.length}
                 </h2>
-                <p className="text-meta text-fg-4">{HUB_ORPHANS_HINT}</p>
+                <p className="text-meta text-fg-3">{HUB_ORPHANS_HINT}</p>
               </header>
               <div className="flex flex-col gap-2">
                 {model.orphans.map((output) => (
@@ -233,13 +233,20 @@ function ClipsHub(): ReactNode {
   );
 }
 
+/** Same blocks and heights as the loaded hub, so the first poll does not shift the list. */
 function HubSkeleton(): ReactNode {
   return (
-    <div role="status" aria-label="Cargando partidas" className="flex max-w-[1080px] flex-col gap-3">
-      <Skeleton className="h-9 w-56" />
-      {Array.from({ length: 3 }).map((_, index) => (
-        <Skeleton key={index} className="h-[72px] w-full rounded-[10px]" />
-      ))}
+    <div role="status" aria-label="Cargando partidas" className="measure-list flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="measure-read h-5 w-full" />
+      </div>
+      <Skeleton className="h-10 w-56" />
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index} className="h-[85px] w-full rounded-[10px]" />
+        ))}
+      </div>
     </div>
   );
 }

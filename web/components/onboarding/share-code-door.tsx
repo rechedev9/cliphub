@@ -140,7 +140,7 @@ export function ShareCodeDoor(): ReactElement {
         onQueued={() => { router.push(CLIPS_HREF); }}
       />
 
-      <p className="text-meta text-fg-3">
+      <p className="text-body-sm text-fg-3">
         Sincronizar tu historial completo, en vez de pegar códigos uno a uno, necesitaría el{' '}
         <a
           href={STEAM_AUTH_CODE_URL}
@@ -173,7 +173,7 @@ function ResolutionOutcome({
     case 'resolved':
       return (
         <>
-          <StatusTag tone="success">Código válido</StatusTag>
+          <StatusTag tone="success" className="self-start">Código válido</StatusTag>
           <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {result.matchId}</p>
           <p className="text-body-sm text-fg-2">
             {result.kind === 'resolved'
@@ -190,7 +190,7 @@ function ResolutionOutcome({
                 </>
               )}
           </p>
-          <Button type="button" loading={downloading} loadingText="ENCOLANDO" onClick={onDownload}>
+          <Button type="button" className="self-start" loading={downloading} loadingText="ENCOLANDO" onClick={onDownload}>
             DESCARGAR DEMO
           </Button>
           {downloadError ? <p className="text-body-sm text-destructive">{downloadError}</p> : null}
@@ -199,7 +199,7 @@ function ResolutionOutcome({
     case 'offline':
       return (
         <>
-          <StatusTag tone="warning">Servicio apagado</StatusTag>
+          <StatusTag tone="warning" className="self-start">Servicio apagado</StatusTag>
           <p className="text-body-sm text-fg-2">
             El servicio local de ClipHub no está en marcha, así que el código no se pudo comprobar.
             Ábrelo y vuelve a intentarlo.

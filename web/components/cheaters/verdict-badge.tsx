@@ -1,31 +1,23 @@
-import { Badge } from '@/components/ui/badge';
+import type { ReactNode } from 'react';
+import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { ANTICHEAT_VERDICT, VERDICT_LABEL, type AnticheatVerdict } from '@/lib/api/anticheat';
-import { cn } from '@/lib/utils';
 
 /**
- * Per-band colour. Only the two reviewable bands carry alarm colour; the
- * inconclusive band stays amber and the clean and thin-sample bands stay
- * neutral, so a scoreboard never reads as an accusation at a glance.
+ * Per-band tone. Only the two reviewable bands carry alarm colour, so a
+ * scoreboard never reads as an accusation at a glance.
  */
-const VERDICT_CLASS: Record<AnticheatVerdict, string> = {
-  [ANTICHEAT_VERDICT.highlyAnomalous]: 'border-destructive/50 bg-destructive/15 text-destructive',
-  [ANTICHEAT_VERDICT.anomalous]: 'border-stream/50 bg-stream/15 text-stream',
-  [ANTICHEAT_VERDICT.inconclusive]: 'border-amber-500/45 bg-amber-500/12 text-amber-500',
-  [ANTICHEAT_VERDICT.clean]: 'border-primary/35 bg-primary/10 text-primary',
-  [ANTICHEAT_VERDICT.insufficient]: 'border-border/80 bg-muted/40 text-muted-foreground',
+const VERDICT_TONE: Record<AnticheatVerdict, StatusTagTone> = {
+  [ANTICHEAT_VERDICT.highlyAnomalous]: 'danger',
+  [ANTICHEAT_VERDICT.anomalous]: 'stream',
+  [ANTICHEAT_VERDICT.inconclusive]: 'warning',
+  [ANTICHEAT_VERDICT.clean]: 'primary',
+  [ANTICHEAT_VERDICT.insufficient]: 'neutral',
 };
 
-export function VerdictBadge({ verdict, className }: { verdict: AnticheatVerdict; className?: string }) {
+export function VerdictBadge({ verdict, className }: { verdict: AnticheatVerdict; className?: string }): ReactNode {
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        'font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.1em]',
-        VERDICT_CLASS[verdict],
-        className,
-      )}
-    >
+    <StatusTag tone={VERDICT_TONE[verdict]} className={className}>
       {VERDICT_LABEL[verdict]}
-    </Badge>
+    </StatusTag>
   );
 }

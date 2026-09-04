@@ -3,6 +3,7 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/shell/app-sidebar';
 import { CommandStrip } from '@/components/shell/command-strip';
+import { RouteFrame } from '@/components/shell/route-frame';
 import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor';
 import { TelemetryNotice } from '@/components/shell/telemetry-notice';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
@@ -49,7 +50,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
           edge gives the app one optical spine that survives a resize.
         */}
         <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10">
-          {children}
+          <RouteFrame>{children}</RouteFrame>
         </main>
       </SidebarInset>
     </SidebarProvider>

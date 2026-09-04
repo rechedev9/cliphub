@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { StatusTag } from '@/components/studio/status-tag';
 import { VerdictBadge } from '@/components/cheaters/verdict-badge';
 import type { AnticheatDossier } from '@/lib/api/anticheat';
 import { writeClipboardText } from '@/lib/clipboard-write';
@@ -66,9 +67,9 @@ export function DossierDialog({
       <DialogContent className="max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-3xl">
         {dossier === null ? null : (
           <>
-            <DialogHeader className="gap-2 border-b border-border/70 px-6 py-5">
+            <DialogHeader className="gap-2 border-b border-border px-6 py-5">
               <div className="flex flex-wrap items-center gap-3">
-                <DialogTitle className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight">
+                <DialogTitle className="font-display text-title font-bold uppercase text-fg-1">
                   Expediente · {dossier.name || dossier.steamid64}
                 </DialogTitle>
                 <VerdictBadge verdict={dossier.verdict} />
@@ -79,38 +80,36 @@ export function DossierDialog({
             <ScrollArea className="max-h-[55vh]">
               <div className="flex flex-col gap-6 px-6 py-5">
                 <section className="flex flex-col gap-2">
-                  <h3 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
                     Antes de denunciar
                   </h3>
-                  <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-muted-foreground">
+                  <ul className="flex list-disc flex-col gap-1.5 pl-5 text-body-sm text-fg-2">
                     {dossier.policy.rules.map((rule) => (
                       <li key={rule}>{rule}</li>
                     ))}
                   </ul>
-                  <p className="text-sm leading-6 text-foreground/80">{dossier.policy.rejected}</p>
+                  <p className="text-body-sm text-fg-2">{dossier.policy.rejected}</p>
                 </section>
 
                 <section className="flex flex-col gap-3">
-                  <h3 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
                     Dónde denunciar
                   </h3>
                   {dossier.channels.map((channel) => (
                     <div key={channel.id} className="studio-panel flex flex-col gap-2 rounded-lg px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-foreground">{channel.label}</span>
+                        <span className="text-body font-semibold text-fg-1">{channel.label}</span>
                         {channel.effective ? (
-                          <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.12em] text-primary">
-                            vía efectiva
-                          </span>
+                          <StatusTag tone="primary">vía efectiva</StatusTag>
                         ) : null}
                       </div>
-                      <p className="text-sm leading-6 text-muted-foreground">{channel.instructions}</p>
+                      <p className="text-body-sm text-fg-2">{channel.instructions}</p>
                       {channel.url ? (
                         <a
                           href={channel.url}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="inline-flex w-fit items-center gap-1.5 text-sm text-primary underline-offset-4 hover:underline"
+                          className="inline-flex w-fit items-center gap-1.5 text-body-sm text-primary underline-offset-4 hover:underline"
                         >
                           {channel.url}
                           <ExternalLink className="size-3.5" aria-hidden />
@@ -121,19 +120,19 @@ export function DossierDialog({
                 </section>
 
                 <section className="flex flex-col gap-2">
-                  <h3 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">
                     Evidencia
                   </h3>
-                  <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border/70 bg-background/60 p-4 font-[family-name:var(--font-mono)] text-xs leading-5 text-muted-foreground">
+                  <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-surface-0 p-4 font-mono text-body-sm text-fg-2">
                     {dossier.markdown}
                   </pre>
                 </section>
               </div>
             </ScrollArea>
 
-            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 px-6 py-4">
+            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border px-6 py-4">
               {copyFailed ? (
-                <span role="alert" className="mr-auto text-sm text-destructive">
+                <span role="alert" className="mr-auto text-body-sm text-destructive">
                   No se pudo copiar al portapapeles; selecciona el texto del expediente y cópialo a mano.
                 </span>
               ) : null}

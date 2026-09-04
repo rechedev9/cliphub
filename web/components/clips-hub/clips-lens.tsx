@@ -32,16 +32,20 @@ const FILTER_LABEL = {
   working: 'En marcha',
 } as const satisfies Record<ClipFilter, string>;
 
+/** A floor per density step, never a track count: two clips must not leave half the measure empty. */
 const GRID_COLUMNS = {
-  S: 'repeat(6, minmax(0, 1fr))',
-  M: 'repeat(4, minmax(0, 1fr))',
-  L: 'repeat(3, minmax(0, 1fr))',
+  S: 'repeat(auto-fill, minmax(9.5rem, 1fr))',
+  M: 'repeat(auto-fill, minmax(14rem, 1fr))',
+  L: 'repeat(auto-fill, minmax(19rem, 1fr))',
 } as const satisfies Record<ClipSize, string>;
 
 const CHIP_CLASS =
-  'inline-flex h-8 items-center border px-2.5 font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  'inline-flex h-10 items-center border px-3 font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 const CLIPS_EMPTY_COPY = 'Ningún clip con ese filtro. Los clips nacen desde una partida: abre una y clipea.';
+
+const OPEN_MATCH_LABEL = 'Partida';
+const OPEN_MATCH_ARIA = 'Abrir la partida';
 
 export type ClipsLensProps = {
   clips: HubModel['clips'];
@@ -59,7 +63,7 @@ export function ClipsLens({ clips, onOpenMatch, onChange }: ClipsLensProps): Rea
   const gridStyle: CSSProperties = { gridTemplateColumns: GRID_COLUMNS[size] };
 
   return (
-    <div className="studio-enter flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         {Object.values(CLIP_FILTER).map((key) => (
           <button
@@ -72,26 +76,23 @@ export function ClipsLens({ clips, onOpenMatch, onChange }: ClipsLensProps): Rea
             {FILTER_LABEL[key]} · {counts[key]}
           </button>
         ))}
-        <span className="ml-auto flex items-center gap-3 font-mono text-meta uppercase tracking-wider text-fg-3">
-          <span className="hidden @[40rem]/content:inline">Guardados en este PC</span>
-          <span className="flex items-center gap-2">
-            Tamaño
-            <span className="flex">
-              {Object.values(CLIP_SIZE).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={size === key}
-                  onClick={() => setSize(key)}
-                  className={cn(
-                    '-ml-px grid h-8 w-8 place-items-center border font-mono text-meta transition-colors duration-(--dur-fast) first:ml-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                    size === key ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong text-fg-3 hover:text-fg-1',
-                  )}
-                >
-                  {key}
-                </button>
-              ))}
-            </span>
+        <span className="ml-auto flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+          Tamaño
+          <span className="flex">
+            {Object.values(CLIP_SIZE).map((key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={size === key}
+                onClick={() => setSize(key)}
+                className={cn(
+                  '-ml-px grid size-10 place-items-center border font-mono text-meta transition-colors duration-(--dur-fast) first:ml-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                  size === key ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong text-fg-3 hover:text-fg-1',
+                )}
+              >
+                {key}
+              </button>
+            ))}
           </span>
         </span>
       </div>
@@ -101,7 +102,15 @@ export function ClipsLens({ clips, onOpenMatch, onChange }: ClipsLensProps): Rea
           {CLIPS_EMPTY_COPY}
         </p>
       ) : (
-        <section aria-label="Clips" className={cn('grid', small ? 'gap-2' : 'gap-3')} style={gridStyle}>
+        <section
+          aria-label="Clips"
+          /* items-start, not the default stretch: a 9:16 card is ~200px taller
+             than its 16:9 neighbour, and stretching the short one just prints
+             an empty box under its controls. Cards end where their content
+             ends. */
+          className={cn('grid items-start', small ? 'gap-2' : 'gap-3')}
+          style={gridStyle}
+        >
           {visible.map((clip) => (
             <ClipCard key={clip.id} clip={clip} small={small} onOpenMatch={onOpenMatch} onChange={onChange} />
           ))}
@@ -130,16 +139,19 @@ function ClipCard({
 
   return (
     <article className={cn('studio-panel studio-enter flex flex-col rounded-[10px]', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
+      {/* A true 9:16 frame, narrowed rather than capped. `capHeight` pins the
+          height of a full-width box, so the frame stops being 9:16 and
+          object-cover eats a third of the reel — a Shorts tool must not show a
+          reel it did not make (media-frame.tsx). Constraining the width keeps
+          the shape honest and still lands the card near its landscape row. */}
       <span className={cn('relative', isShort && 'w-[54%] self-center')}>
         <MediaFrame
           aspect={isShort ? '9:16' : '16:9'}
+          badge={<OutputTag output={clip} />}
           className="border border-border"
           fallback={<ReelCover seed={video.id} plain />}
           media={video.thumbnailUrl === undefined ? undefined : <CoverImage src={video.thumbnailUrl} />}
         />
-        <span className="absolute top-2 left-2">
-          <OutputTag output={clip} />
-        </span>
         {isWorking(clip.state) ? (
           <span className={cn('studio-bar absolute inset-x-0 bottom-0', clip.state === OUTPUT_STATE.rec ? 'text-stream-text' : 'text-primary')}>
             <span
@@ -157,16 +169,20 @@ function ClipCard({
         </span>
       </span>
 
+      {/* S is the contact sheet: a 152px track cannot hold three controls
+          without wrapping them into more chrome than thumbnail, which is the
+          opposite of what the density step was asked for. */}
       {small ? null : (
         <span className="flex flex-wrap items-center gap-1.5">
           <OutputActions output={clip} matchId={matchId ?? ORPHAN_MATCH_SEGMENT} onChange={onChange} />
           {matchId !== null ? (
             <button
               type="button"
+              aria-label={OPEN_MATCH_ARIA}
               onClick={() => onOpenMatch(matchId)}
-              className="ml-auto inline-flex h-8 items-center gap-1 px-1 font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors duration-(--dur-fast) hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="ml-auto inline-flex h-10 items-center gap-1 px-2 font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors duration-(--dur-fast) hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              Partida
+              {OPEN_MATCH_LABEL}
               <ArrowRight aria-hidden className="size-3" />
             </button>
           ) : null}

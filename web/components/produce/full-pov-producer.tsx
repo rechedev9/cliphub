@@ -116,7 +116,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
 
   return (
     <>
-      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_320px]">
         <section className="flex min-w-0 flex-col gap-3.5">
           <div className="flex flex-col gap-1.5">
             <p className="font-mono text-meta uppercase tracking-ultra text-fg-3">
@@ -126,12 +126,12 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_FULL_TITLE}</h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 font-mono text-meta uppercase tracking-wider">
-            <span className="border border-primary px-2.5 py-1.5 text-primary">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <StatusTag tone="primary">
               <span className="tabular-nums">{roundCount}</span> {roundCount === 1 ? 'ronda' : 'rondas'}
-            </span>
-            <span className="border border-border-strong px-2.5 py-1.5 text-fg-3">Todas las rondas del POV</span>
-            <span className="text-fg-3 normal-case tracking-normal">{PRODUCE_FULL_ROUNDS_NOTE}</span>
+            </StatusTag>
+            <StatusTag>Todas las rondas del POV</StatusTag>
+            <span className="font-mono text-meta tracking-normal text-fg-3">{PRODUCE_FULL_ROUNDS_NOTE}</span>
           </div>
 
           {recapAlert ? (
@@ -193,7 +193,10 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
             </Select>
           </div>
 
-          <div className="studio-panel flex flex-col divide-y divide-border-subtle">
+          <div className="studio-panel flex flex-col">
+            <p className="px-3.5 pt-3 pb-2.5 font-mono text-meta uppercase tracking-ultra text-fg-3">
+              Contrato Full POV · fijado
+            </p>
             <dl className="flex flex-col divide-y divide-border-subtle" aria-label="Contrato Full POV">
               {LOCKED_ROWS.map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-3 px-3.5 py-3">
@@ -202,7 +205,6 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
                 </div>
               ))}
             </dl>
-            <p className="px-3.5 py-2.5 font-mono text-meta uppercase tracking-wider text-fg-3">Contrato Full POV · fijado</p>
           </div>
         </aside>
       </div>

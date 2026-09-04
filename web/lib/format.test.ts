@@ -2,7 +2,7 @@
 // (Spanish NEON HUD skin). Run: node --test "lib/**/*.test.ts"
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { timeAgo, matchDateLabel, playsSelectionLabel, formatKd, ratingBarClass, ratingBarPct, prettyMapName, formatShortDate } from './format.ts';
+import { timeAgo, matchDateLabel, playsSelectionLabel, formatKd, ratingClass, ratingBarClass, ratingBarPct, prettyMapName, formatShortDate } from './format.ts';
 import type { Play } from './api/types.ts';
 
 function play(overrides: Partial<Play>): Play {
@@ -110,8 +110,15 @@ test('formatShortDate rejects unparseable input', () => {
 });
 
 test('ratingBarClass matches ratingClass band boundaries', () => {
-  assert.equal(ratingBarClass(1.15), 'bg-emerald-400');
-  assert.equal(ratingBarClass(0.95), 'bg-foreground');
-  assert.equal(ratingBarClass(0.8), 'bg-amber-400');
-  assert.equal(ratingBarClass(0.79), 'bg-rose-400');
+  assert.equal(ratingBarClass(1.15), 'bg-success');
+  assert.equal(ratingBarClass(0.95), 'bg-fg-1');
+  assert.equal(ratingBarClass(0.8), 'bg-warning');
+  assert.equal(ratingBarClass(0.79), 'bg-destructive');
+});
+
+test('no rating band reaches outside the token ramp', () => {
+  for (const rating of [1.4, 1.15, 1.0, 0.95, 0.85, 0.8, 0.5]) {
+    assert.match(ratingClass(rating), /^text-(success|warning|destructive|fg-1)$/);
+    assert.match(ratingBarClass(rating), /^bg-(success|warning|destructive|fg-1)$/);
+  }
 });

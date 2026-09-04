@@ -78,6 +78,7 @@ export function DeleteMatchButton({
         <Button
           type="button"
           variant="destructive"
+          size="sm"
           autoFocus
           loading={deleting}
           onClick={() => void confirm()}
@@ -92,7 +93,7 @@ export function DeleteMatchButton({
         <Button
           type="button"
           variant="outline"
-          size="icon"
+          size="icon-sm"
           onClick={arm}
           aria-label={`Borrar ${label}`}
           className="text-fg-3 hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"

@@ -51,7 +51,7 @@ export function RecentSteamMatches(): ReactElement | null {
       <SectionEyebrow label="TUS PARTIDAS RECIENTES" />
       <ol className="flex flex-col gap-2">
         {matches.map((match) => (
-          <li key={match.shareCode} className="flex flex-col gap-2 border border-border bg-surface-1 px-3 py-3 sm:flex-row sm:items-center">
+          <li key={match.shareCode} className="flex flex-col gap-2 border border-border bg-surface-1 px-3 py-3 @[34rem]/content:flex-row @[34rem]/content:items-center">
             <div className="min-w-0 flex-1">
               <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {match.matchId}</p>
               <p className="truncate font-mono text-meta text-fg-3">{match.shareCode}</p>
@@ -68,7 +68,7 @@ export function RecentSteamMatches(): ReactElement | null {
           </li>
         ))}
       </ol>
-      {error ? <p className="text-body-sm text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
       <SteamDownloadDialog
         open={downloadCode !== null}
         code={downloadCode ?? ''}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { SURFACE_RAMP, gotoStudio, parseOklch, rootToken } from './contract.ts';
+import { NAV_ROUTES, SURFACE_RAMP, gotoStudio, parseOklch, rootToken } from './contract.ts';
 import { HUB_EMPTY_TITLE } from '../lib/clips/copy.ts';
 
 const GENERIC_FONTS = ['inter', 'roboto', 'open sans', 'lato'];
@@ -54,6 +54,22 @@ test.describe('anti-slop chrome', () => {
       expect(chrome.backgroundImage.toLowerCase()).not.toContain('backdrop');
     });
   }
+
+  test('the route entrance is one shell-owned moment, played once per navigation', async ({ page }) => {
+    for (const { name, href } of NAV_ROUTES) {
+      await gotoStudio(page, href);
+      const frame = page.locator('main [data-slot="route-frame"]');
+      await expect(frame, `${name} is not inside the shell route frame`).toHaveCount(1);
+      await expect(frame).toHaveClass(/studio-enter/);
+
+      // A page that re-runs the entrance on its own container plays the same
+      // reveal twice over the same pixels; stacked reveals read as generated.
+      const duplicated = await frame.evaluate((node) =>
+        [...node.children].filter((child) => child.classList.contains('studio-enter')).length,
+      );
+      expect(duplicated, `${name} repeats the shell's route entrance on its own container`).toBe(0);
+    }
+  });
 
   test('surface ramp steps are opaque', async ({ page }) => {
     await gotoStudio(page, '/clips');

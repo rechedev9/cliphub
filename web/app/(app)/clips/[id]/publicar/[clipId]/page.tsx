@@ -128,7 +128,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   }
 
   return (
-    <div className="studio-enter grid max-w-[1160px] items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="studio-enter measure-work grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_380px]">
       <section className="flex min-w-0 flex-col gap-3.5">
         <div className="flex flex-col gap-1.5">
           {ready ? (
@@ -190,7 +190,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
         </div>
       </section>
 
-      <aside className="studio-panel p-4.5">
+      <aside className="studio-panel p-4">
         <PublishAssistantPanel video={video} />
       </aside>
 
@@ -216,7 +216,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
 
 function LoadingState(): ReactNode {
   return (
-    <div className="grid max-w-[1160px] items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-label="Cargando el clip">
+    <div className="measure-work grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-label="Cargando el clip">
       <div className="flex flex-col gap-4">
         <Skeleton className="h-4 w-20" />
         <Skeleton className="h-9 w-80" />

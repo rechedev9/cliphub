@@ -97,7 +97,7 @@ export function StreamStepsRail({
                   {step.label}
                 </span>
                 {step.optional && !step.done ? (
-                  <span className="shrink-0 border border-border-strong px-1 font-mono text-meta uppercase tracking-wider text-fg-4">
+                  <span className="shrink-0 border border-border-strong px-1 font-mono text-meta uppercase tracking-wider text-fg-3">
                     {OPTIONAL_LABEL}
                   </span>
                 ) : null}

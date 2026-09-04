@@ -6,21 +6,19 @@ import { setPendingDemoFiles } from '@/lib/clips/pending-upload';
 import { HUB_EMPTY_TITLE } from '@/lib/clips/copy';
 import { FIRST_RUN_NONE } from '@/lib/clips/hub';
 import { NEW_DEMO_HREF } from '@/lib/clips/routes';
+import { StudioPageHeader } from '@/components/studio/page-header';
 import { DemoDropzone } from '@/components/upload/demo-dropzone';
 import { FirstRunGuide } from '@/components/clips-hub/first-run-guide';
+
+const HUB_EMPTY_DESCRIPTION =
+  'Un .dem de CS2. Lo parseamos en este PC, eliges tu POV y sacas Shorts o el Full POV. Sin login, nada sale de tu equipo.';
 
 /** First-run hub: the dropzone is the only door, and it hands its files to /clips/nueva. */
 export function HubEmpty(): ReactNode {
   const router = useRouter();
   return (
-    <section aria-label={HUB_EMPTY_TITLE} className="studio-enter flex max-w-[1080px] flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <h1 className="font-display text-display font-bold uppercase text-fg-1">{HUB_EMPTY_TITLE}</h1>
-        <p className="max-w-[640px] text-body text-fg-2">
-          Un .dem de CS2. Lo parseamos en este PC, eliges tu POV y sacas Shorts o el Full POV. Sin login, nada sale de
-          tu equipo.
-        </p>
-      </div>
+    <section aria-label={HUB_EMPTY_TITLE} className="studio-enter measure-list flex flex-col gap-5">
+      <StudioPageHeader title={HUB_EMPTY_TITLE} description={HUB_EMPTY_DESCRIPTION} />
       <DemoDropzone
         minHeightClass="min-h-[240px]"
         onFiles={(files) => {

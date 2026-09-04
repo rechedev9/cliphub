@@ -310,7 +310,7 @@ export function EditOptions({
         {value.keyDropStyle ? (
           <div className="flex max-w-md flex-col gap-3 pt-1">
             <div className="flex max-w-sm flex-col gap-1.5">
-              <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
                 Código
               </span>
               <Input
@@ -335,7 +335,7 @@ export function EditOptions({
             </div>
             <div className="grid max-w-sm gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
                   Entra (s)
                 </span>
                 <Input
@@ -352,7 +352,7 @@ export function EditOptions({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
                   Sale (s)
                 </span>
                 <Input
@@ -404,13 +404,15 @@ function BookendTextField({
     >
       <div className="flex flex-col gap-1.5 pt-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
             {label}
           </span>
           {near ? (
             <span
               className={cn(
-                'font-[family-name:var(--font-mono)] text-[10px] tabular-nums text-muted-foreground',
+                // [font-size:…] not `text-meta`: tailwind-merge files an unknown
+                // `text-*` under text-COLOUR, so the step would lose to text-fg-3.
+                'font-mono [font-size:var(--text-meta)] tabular-nums text-fg-3',
                 value.length >= BOOKEND_TEXT_MAX_LENGTH && 'text-destructive',
               )}
             >
@@ -435,9 +437,7 @@ function BookendTextField({
 function OptionBlock({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-2', className)}>
-      <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{label}</span>
       {children}
     </div>
   );

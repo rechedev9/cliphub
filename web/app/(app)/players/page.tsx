@@ -22,30 +22,45 @@ import { StudioPageHeader } from '@/components/studio/page-header';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 type LoadState = 'loading' | 'ready' | 'offline' | 'unconfigured';
 
-const HEAD =
-  'px-3 py-2.5 text-left font-[family-name:var(--font-mono)] text-meta font-normal uppercase tracking-wider text-fg-4';
-const CELL = 'px-3 py-3 font-[family-name:var(--font-mono)] text-meta tabular-nums';
+const HEAD = 'px-3 py-2.5 text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-3';
+const CELL = 'px-3 py-3 font-mono text-meta tabular-nums';
 
-const LEVEL_COLOR: Record<number, string> = {
-  1: 'bg-zinc-500',
-  2: 'bg-emerald-500',
-  3: 'bg-emerald-500',
-  4: 'bg-amber-400',
-  5: 'bg-amber-400',
-  6: 'bg-amber-400',
-  7: 'bg-orange-500',
-  8: 'bg-orange-500',
-  9: 'bg-rose-500',
-  10: 'bg-rose-500',
+const FACEIT_UNCONFIGURED_HINT = 'Configura FACEIT_API_KEY y reinicia el orquestador.';
+const FACEIT_OFFLINE_HINT = 'Servicio local sin conexión.';
+
+/* Four ordered bands off the semantic ramp; the numeral beside the swatch is
+ * what actually carries the level. */
+const LEVEL_BAND_LOW = 'bg-chart-4 text-fg-1';
+const LEVEL_BAND_MID = 'bg-success text-success-foreground';
+const LEVEL_BAND_HIGH = 'bg-warning text-warning-foreground';
+const LEVEL_BAND_TOP = 'bg-destructive text-destructive-foreground';
+const LEVEL_BAND_UNKNOWN = 'bg-chart-5 text-fg-1';
+
+const LEVEL_BAND: Record<number, string> = {
+  1: LEVEL_BAND_LOW,
+  2: LEVEL_BAND_MID,
+  3: LEVEL_BAND_MID,
+  4: LEVEL_BAND_HIGH,
+  5: LEVEL_BAND_HIGH,
+  6: LEVEL_BAND_HIGH,
+  7: LEVEL_BAND_TOP,
+  8: LEVEL_BAND_TOP,
+  9: LEVEL_BAND_TOP,
+  10: LEVEL_BAND_TOP,
 };
 
-function levelBg(level: number | undefined): string {
-  if (level === undefined) return 'bg-fg-4';
-  return LEVEL_COLOR[level] ?? 'bg-fg-4';
+const WORKSPACE_GRID = 'grid gap-6 @[44rem]/content:grid-cols-[minmax(220px,280px)_1fr] @[44rem]/content:gap-8';
+
+const SKELETON_SLOTS = [0, 1, 2, 3];
+
+function levelBand(level: number | undefined): string {
+  if (level === undefined) return LEVEL_BAND_UNKNOWN;
+  return LEVEL_BAND[level] ?? LEVEL_BAND_UNKNOWN;
 }
 
 export default function PlayersPage(): ReactNode {
@@ -153,7 +168,38 @@ export default function PlayersPage(): ReactNode {
 
   let body: ReactNode;
   if (state === 'loading') {
-    body = <p className="text-body-sm text-fg-3">Cargando jugadores…</p>;
+    body = (
+      <div role="status" aria-label="Cargando jugadores" className={WORKSPACE_GRID}>
+        <div className="flex flex-col gap-1.5">
+          {SKELETON_SLOTS.map((row) => (
+            <Skeleton key={row} className="h-[60px] w-full" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-5">
+          <Skeleton className="h-[132px] w-full" />
+          <Skeleton className="h-[86px] w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  } else if (players.length === 0 && state === 'unconfigured') {
+    body = (
+      <StudioEmptyState
+        icon={Users}
+        title="FACEIT no está configurado"
+        description={FACEIT_UNCONFIGURED_HINT}
+        compact
+      />
+    );
+  } else if (players.length === 0 && state === 'offline') {
+    body = (
+      <StudioEmptyState
+        icon={Users}
+        title="Servicio local sin conexión"
+        description="Arranca el servicio local y recarga para ver a los jugadores que sigues."
+        compact
+      />
+    );
   } else if (players.length === 0) {
     body = (
       <StudioEmptyState
@@ -165,7 +211,7 @@ export default function PlayersPage(): ReactNode {
     );
   } else {
     body = (
-      <div className="grid gap-6 lg:grid-cols-[minmax(220px,280px)_1fr] lg:gap-8">
+      <div className={WORKSPACE_GRID}>
         <nav aria-label="Jugadores seguidos" className="flex flex-col gap-1.5">
           {players.map((player) => (
             <button
@@ -175,18 +221,16 @@ export default function PlayersPage(): ReactNode {
               aria-current={selectedID === player.id ? 'true' : undefined}
               className={cn(
                 'studio-panel studio-panel-interactive flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
-                selectedID === player.id
-                  ? 'border-primary/50 bg-primary/8 shadow-[var(--elev-2),var(--glow-primary-sm)]'
-                  : '',
+                selectedID === player.id && 'border-primary/45 bg-primary/10',
               )}
             >
               <PlayerAvatar nickname={player.nickname} playerID={player.id} size={40} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-body-sm font-semibold text-fg-1">{player.nickname}</span>
-                <span className="flex items-center gap-2 font-[family-name:var(--font-mono)] text-meta tabular-nums text-fg-3">
-                  <span className={cn('inline-block size-2 shrink-0 rounded-full', levelBg(player.skill_level))} aria-hidden />
+                <span className="flex items-center gap-2 font-mono text-meta tabular-nums text-fg-3">
+                  <span className={cn('inline-block size-2 shrink-0 rounded-full', levelBand(player.skill_level))} aria-hidden />
                   {player.skill_level ?? '—'}
-                  <span className="text-fg-4">/</span>
+                  <span className="text-fg-3">/</span>
                   {player.elo ?? '—'}
                 </span>
               </span>
@@ -204,7 +248,7 @@ export default function PlayersPage(): ReactNode {
   }
 
   return (
-    <div className="flex flex-col gap-8 sm:gap-10">
+    <div className="measure-work flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
         title="JUGADORES"
         description="Historial FACEIT de los jugadores que sigues. Abre la sala para descargar la demo y súbela a ClipHub."
@@ -217,7 +261,12 @@ export default function PlayersPage(): ReactNode {
               aria-label="Buscar jugador FACEIT"
               disabled={state === 'unconfigured' || state === 'offline' || busy}
             />
-            <Button type="submit" disabled={state !== 'ready' || busy || query.trim() === ''} loading={busy} loadingText="…">
+            <Button
+              type="submit"
+              disabled={state !== 'ready' || busy || query.trim() === ''}
+              loading={busy}
+              loadingText="SIGUIENDO…"
+            >
               <Search className="size-4" />
               Seguir
             </Button>
@@ -226,10 +275,11 @@ export default function PlayersPage(): ReactNode {
       />
 
       {error ? <p className="text-body-sm text-destructive">{error}</p> : null}
-      {state === 'unconfigured' ? (
-        <StatusTag tone="danger">Configura FACEIT_API_KEY y reinicia el orquestador.</StatusTag>
+      {/* With no players the empty state already names the reason and the fix. */}
+      {players.length > 0 && state === 'unconfigured' ? (
+        <StatusTag tone="danger">{FACEIT_UNCONFIGURED_HINT}</StatusTag>
       ) : null}
-      {state === 'offline' ? <StatusTag tone="danger">Servicio local sin conexión.</StatusTag> : null}
+      {players.length > 0 && state === 'offline' ? <StatusTag tone="danger">{FACEIT_OFFLINE_HINT}</StatusTag> : null}
 
       {body}
     </div>
@@ -244,23 +294,16 @@ function PlayerHeader({
   onUnfollow: () => void;
 }): ReactNode {
   return (
-    <section className="studio-panel studio-panel-raised relative overflow-hidden p-5 sm:p-6">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          background: 'linear-gradient(135deg, color-mix(in oklch, var(--primary) 6%, transparent), transparent 60%)',
-        }}
-        aria-hidden
-      />
-      <div className="relative flex flex-wrap items-center gap-5">
+    <section className="studio-panel studio-panel-raised p-5 sm:p-6">
+      <div className="flex flex-wrap items-center gap-5">
         <div className="relative">
           <PlayerAvatar nickname={player.nickname} playerID={player.id} size={80} />
           <span
             className={cn(
-              'absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-md font-[family-name:var(--font-mono)] text-[11px] font-bold text-white shadow-md',
-              levelBg(player.skill_level),
+              'absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-md font-mono text-meta font-bold shadow-md',
+              levelBand(player.skill_level),
             )}
-            title={`FACEIT Level ${player.skill_level ?? '?'}`}
+            title={`Nivel FACEIT ${player.skill_level ?? '?'}`}
           >
             {player.skill_level ?? '?'}
           </span>
@@ -270,7 +313,7 @@ function PlayerHeader({
           <div className="flex flex-wrap items-baseline gap-3">
             <h2 className="font-display text-display-sm font-bold text-fg-1">{player.nickname}</h2>
             {player.country ? (
-              <span className="font-[family-name:var(--font-mono)] text-body-sm uppercase tracking-wider text-fg-3">
+              <span className="font-mono text-body-sm uppercase tracking-wider text-fg-3">
                 {player.country}
               </span>
             ) : null}
@@ -282,7 +325,7 @@ function PlayerHeader({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="font-[family-name:var(--font-display)] uppercase tracking-wide">
+          <Button asChild variant="outline" size="sm" className="font-display uppercase tracking-wide">
             <a href={player.profile_url} target="_blank" rel="noreferrer">
               <ExternalLink className="size-3.5" />
               FACEIT
@@ -306,12 +349,12 @@ function PlayerHeader({
 function StatPill({ label, value, highlight, mono }: { label: string; value: string; highlight?: boolean; mono?: boolean }): ReactNode {
   return (
     <div className="flex flex-col">
-      <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.14em] text-fg-4">{label}</span>
+      <span className="font-mono text-meta uppercase tracking-widest text-fg-3">{label}</span>
       <span
         className={cn(
           'text-body font-semibold',
           highlight ? 'text-primary' : 'text-fg-1',
-          mono ? 'font-[family-name:var(--font-mono)] text-body-sm tracking-normal' : 'font-[family-name:var(--font-display)]',
+          mono ? 'font-mono text-body-sm tracking-normal' : 'font-display',
         )}
       >
         {value}
@@ -322,13 +365,30 @@ function StatPill({ label, value, highlight, mono }: { label: string; value: str
 
 function MatchSection({ matches }: { matches: FaceitMatch[] | 'loading' | 'error' | null }): ReactNode {
   if (matches === null || matches === 'loading') {
-    return <p className="text-body-sm text-fg-3">Cargando partidas…</p>;
+    return (
+      <div role="status" aria-label="Cargando partidas" className="flex flex-col gap-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {SKELETON_SLOTS.map((card) => (
+            <Skeleton key={card} className="h-[86px] w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
   }
   if (matches === 'error') {
-    return <p className="text-body-sm text-destructive">No se pudieron cargar las partidas.</p>;
+    return (
+      <p role="alert" className="text-body-sm text-destructive">
+        No se pudieron cargar las partidas.
+      </p>
+    );
   }
   if (matches.length === 0) {
-    return <p className="text-body-sm text-fg-3">Sin partidas recientes en FACEIT.</p>;
+    return (
+      <p className="text-body-sm text-fg-2">
+        Sin partidas recientes en FACEIT. Cuando este jugador termine una partida aparecerá aquí.
+      </p>
+    );
   }
 
   const wins = matches.filter((match) => match.stats?.result === 'win').length;
@@ -369,18 +429,11 @@ function MatchSection({ matches }: { matches: FaceitMatch[] | 'loading' | 'error
             </thead>
             <tbody>
               {matches.map((match) => {
-                const isWin = match.stats?.result === 'win';
-                const isLoss = match.stats?.result === 'loss';
                 const mapName = prettyMapName(match.stats?.map ?? '') || 'partida';
                 return (
                   <tr
                     key={match.id}
-                    className={cn(
-                      'cursor-pointer border-b border-border/60 transition-colors last:border-b-0',
-                      isWin && 'bg-success/[0.04] hover:bg-success/[0.08]',
-                      isLoss && 'bg-destructive/[0.04] hover:bg-destructive/[0.08]',
-                      !isWin && !isLoss && 'hover:bg-surface-2',
-                    )}
+                    className="cursor-pointer border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3"
                     onClick={(event) => {
                       const link = event.currentTarget.querySelector('a');
                       const target = event.target;
@@ -390,6 +443,9 @@ function MatchSection({ matches }: { matches: FaceitMatch[] | 'loading' | 'error
                     }}
                   >
                     <td className={cn(CELL, 'text-fg-3')}>
+                      {match.finished_at ? formatShortDate(match.finished_at) : '—'}
+                    </td>
+                    <td className={cn(CELL, 'font-semibold text-fg-1')}>
                       <a
                         href={match.room_url}
                         target="_blank"
@@ -397,10 +453,9 @@ function MatchSection({ matches }: { matches: FaceitMatch[] | 'loading' | 'error
                         aria-label={`Abrir sala FACEIT de ${mapName}`}
                         className="text-inherit no-underline"
                       >
-                        {match.finished_at ? formatShortDate(match.finished_at) : '—'}
+                        {prettyMapName(match.stats?.map ?? '') || '—'}
                       </a>
                     </td>
-                    <td className={cn(CELL, 'font-semibold text-fg-1')}>{prettyMapName(match.stats?.map ?? '') || '—'}</td>
                     <td className={cn(CELL, 'font-bold', resultClass(match.stats?.result))}>{resultLabel(match.stats?.result)}</td>
                     <td className={cn(CELL, 'text-fg-2')}>{scoreLabel(match)}</td>
                     <td className={cn(CELL, 'text-fg-1')}>{match.stats?.kills ?? '—'}</td>
@@ -432,16 +487,16 @@ function SummaryCard({
   tone: 'good' | 'bad' | 'neutral';
 }): ReactNode {
   const toneStyles: Record<typeof tone, { border: string; value: string }> = {
-    good: { border: 'border-success/30', value: 'text-success' },
-    bad: { border: 'border-destructive/30', value: 'text-destructive' },
+    good: { border: 'border-success/45', value: 'text-success' },
+    bad: { border: 'border-destructive/45', value: 'text-destructive' },
     neutral: { border: 'border-border', value: 'text-fg-1' },
   };
   const { border, value: valueColor } = toneStyles[tone];
   return (
     <div className={cn('studio-panel flex flex-col items-center gap-1 border px-4 py-3 text-center', border)}>
-      <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.14em] text-fg-4">{label}</span>
-      <span className={cn('font-[family-name:var(--font-display)] text-section font-bold', valueColor)}>{value}</span>
-      {sub ? <span className="font-[family-name:var(--font-mono)] text-meta text-fg-3">{sub}</span> : null}
+      <span className="font-mono text-meta uppercase tracking-widest text-fg-3">{label}</span>
+      <span className={cn('font-display text-section font-bold', valueColor)}>{value}</span>
+      {sub ? <span className="font-mono text-meta text-fg-3">{sub}</span> : null}
     </div>
   );
 }
@@ -496,14 +551,14 @@ function resultClass(result: FaceitMatchStats['result'] | undefined): string {
 
 function kdClass(kd: number | undefined): string {
   if (kd === undefined) return 'text-fg-3';
-  if (kd >= 1.3) return 'text-emerald-400';
+  if (kd >= 1.3) return 'text-success';
   if (kd >= 1.0) return 'text-fg-1';
   return 'text-fg-2';
 }
 
 function adrClass(adr: number | undefined): string {
   if (adr === undefined) return 'text-fg-3';
-  if (adr >= 100) return 'text-emerald-400';
+  if (adr >= 100) return 'text-success';
   if (adr >= 80) return 'text-fg-1';
   return 'text-fg-2';
 }
@@ -522,8 +577,8 @@ function followErrorMessage(err: unknown): string {
   if (!(err instanceof FaceitServiceError)) {
     return err instanceof Error ? err.message : 'No se pudo seguir al jugador';
   }
-  if (err.code === FACEIT_NOT_CONFIGURED_CODE) return 'Configura FACEIT_API_KEY y reinicia el orquestador.';
-  if (err.code === SERVICE_UNAVAILABLE_CODE) return 'Servicio local sin conexión.';
+  if (err.code === FACEIT_NOT_CONFIGURED_CODE) return FACEIT_UNCONFIGURED_HINT;
+  if (err.code === SERVICE_UNAVAILABLE_CODE) return FACEIT_OFFLINE_HINT;
   if (err.code === FACEIT_CODES.rateLimited) return 'FACEIT está limitando peticiones.';
   if (err.status === 404) return 'Jugador no encontrado.';
   if (err.status === 409) return 'Límite de jugadores seguidos.';

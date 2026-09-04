@@ -47,13 +47,13 @@ function DemoPicker({
           aria-current={selected === match.id ? 'true' : undefined}
           className={cn(
             'studio-panel studio-panel-interactive flex flex-col items-start gap-1 rounded-lg px-4 py-3 text-left transition-colors',
-            selected === match.id && 'border-primary/50 bg-primary/8',
+            selected === match.id && 'border-primary/45 bg-primary/10',
           )}
         >
-          <span className="font-[family-name:var(--font-display)] text-sm font-semibold uppercase tracking-tight text-foreground">
+          <span className="font-display text-body-sm font-semibold uppercase tracking-tight text-fg-1">
             {match.map}
           </span>
-          <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
             {match.score ? `${match.score} · ` : ''}
             {matchDateLabel(match)}
           </span>
@@ -170,12 +170,12 @@ function AnalysisPanel({
   return (
     <div className="flex flex-col gap-6">
       <div className="studio-panel flex flex-col gap-2 rounded-lg px-4 py-3.5">
-        <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
           {report.match.map} · {report.match.rounds} rondas · línea base {report.baseline.id}
         </span>
-        <p className="text-sm leading-6 text-muted-foreground">{report.baseline.description}</p>
+        <p className="text-body-sm text-fg-2">{report.baseline.description}</p>
         {report.baseline.measured ? null : (
-          <p className="text-sm leading-6 text-foreground/80">
+          <p className="text-body-sm text-fg-2">
             Esta línea base no está medida sobre un corpus de demos: es una estimación. Las puntuaciones son
             orientativas hasta que la calibres con <code>zv demo anticheat calibrate</code>.
           </p>
@@ -183,12 +183,12 @@ function AnalysisPanel({
       </div>
 
       {dossierError === null ? null : (
-        <p role="alert" className="text-sm leading-6 text-destructive">
+        <p role="alert" className="text-body-sm text-destructive">
           No se pudo preparar el expediente: {dossierError}
         </p>
       )}
 
-      <ul className="studio-panel divide-y divide-border/60 overflow-hidden rounded-xl">
+      <ul className="studio-panel divide-y divide-border-subtle overflow-hidden">
         {report.players.map((player) => (
           <li key={player.steamid64} className="flex flex-col">
             <PlayerSummaryRow
@@ -207,11 +207,9 @@ function AnalysisPanel({
         ))}
       </ul>
 
-      <section className="flex flex-col gap-2 border-t border-border/60 pt-5">
-        <h3 className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          Qué es y qué no es esto
-        </h3>
-        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-muted-foreground">
+      <section className="flex flex-col gap-2 border-t border-border-subtle pt-5">
+        <h3 className="font-mono text-meta uppercase tracking-widest text-fg-3">Qué es y qué no es esto</h3>
+        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-body-sm text-fg-2">
           {report.limitations.map((limitation) => (
             <li key={limitation}>{limitation}</li>
           ))}
@@ -244,7 +242,7 @@ function IngestError({ message }: { message: string }): ReactNode {
   return (
     <p
       role="alert"
-      className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/8 px-4 py-3 text-body-sm text-destructive"
+      className="flex items-start gap-2.5 border border-destructive/45 bg-destructive/10 px-4 py-3 text-body-sm text-destructive"
     >
       <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
       {message}
@@ -452,7 +450,7 @@ export default function CheatersPage(): ReactNode {
     );
   } else {
     body = (
-      <div className="grid gap-8 lg:grid-cols-[minmax(200px,260px)_1fr] lg:gap-10">
+      <div className="grid gap-6 @[44rem]/content:grid-cols-[minmax(200px,260px)_1fr] @[44rem]/content:gap-8">
         <div className="flex flex-col gap-3">
           {ingestError ? <IngestError message={ingestError} /> : null}
           {ingesting ? <IngestStatus fileName={ingestName} /> : dropzone}
@@ -475,7 +473,7 @@ export default function CheatersPage(): ReactNode {
   }
 
   return (
-    <div className="flex flex-col gap-8 sm:gap-10">
+    <div className="measure-work flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
         title="CHEATERDETECT"
         description="Analiza una demo subida y compara la puntería, la información y los tiempos de reacción de cada jugador con una distribución de referencia medida. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto."

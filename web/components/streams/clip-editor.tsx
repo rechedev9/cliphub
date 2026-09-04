@@ -197,9 +197,9 @@ function ClipCard({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         <Select value={String(speed)} disabled={disabled} onValueChange={(value) => onEditChange({ speed: Number(value) })}>
-          <SelectTrigger aria-label="Velocidad de reproducción" className="h-10 w-auto gap-1 px-2.5 font-mono tracking-wider">
+          <SelectTrigger aria-label="Velocidad de reproducción" className="h-10 w-full gap-1 px-2.5 font-mono tracking-wider">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -250,18 +250,19 @@ function ClipCard({
         >
           {overlays.length > 0 ? `Texto · ${overlays.length}/${MAX_TEXT_OVERLAYS}` : '+ Texto'}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-expanded={rangeOpen}
-          onClick={() => setRangeOpen((open) => !open)}
-          className="ml-auto font-mono uppercase tracking-wider text-fg-3"
-        >
-          Ajustar rango
-          <ChevronDown aria-hidden className={cn('transition-transform duration-(--dur-fast)', rangeOpen && 'rotate-180')} />
-        </Button>
       </div>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-expanded={rangeOpen}
+        onClick={() => setRangeOpen((open) => !open)}
+        className="justify-start font-mono uppercase tracking-wider text-fg-3"
+      >
+        Ajustar rango
+        <ChevronDown aria-hidden className={cn('transition-transform duration-(--dur-fast)', rangeOpen && 'rotate-180')} />
+      </Button>
 
       {rangeOpen ? (
         <div className="flex flex-col gap-3 border-t border-border-subtle pt-3">
