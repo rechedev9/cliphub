@@ -290,11 +290,11 @@ func run() error {
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),
 	)
 	// Settle every legacy render state once so Studio polls read durable
-	// state instead of migrating it on the request path. Best-effort: a
-	// corrupt document is logged and left for the per-request safety net.
-	if allJobs, err := reconcile.ListAllDemoJobs(ctx, repo); err != nil {
-		log.Printf("startup: list jobs for render state materialization: %v", err)
-	} else if migrated, err := handlers.MaterializeRenderVariantStates(ctx, allJobs); err != nil {
+	// state instead of migrating it on the request path. Reuses the job
+	// listing reconciliation already took, statuses included, so the jobs the
+	// sweeps just failed are settled here too. Best-effort: a corrupt document
+	// is logged and left for the per-request safety net.
+	if migrated, err := handlers.MaterializeRenderVariantStates(ctx, reconciled.DemoJobSnapshot); err != nil {
 		log.Printf("startup: materialize render states (migrated=%d): %v", migrated, err)
 	} else if migrated > 0 {
 		log.Printf("startup: materialized %d legacy render states", migrated)
