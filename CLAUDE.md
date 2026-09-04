@@ -16,7 +16,7 @@ Windows-local, deterministic CS2 demo/stream-to-video pipeline, mostly Go. The `
 VOD   -> persisted edit plan -> render -> publish pack                                        (stream clips)
 ```
 
-Studio ships no assistant surface: it is a GUI over the same pipeline, and no publish text is model-generated. Do not resurrect the retired external MCP server; drive the product through Studio or the `zv` CLI. Current Studio (as of 2026-09-03): 2.4.53.
+Studio ships no assistant surface: it is a GUI over the same pipeline, and no publish text is model-generated. Do not resurrect the retired external MCP server; drive the product through Studio or the `zv` CLI. Current Studio (as of 2026-09-04): 2.4.54.
 
 ## Repo Map
 
