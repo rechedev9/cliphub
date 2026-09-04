@@ -2,12 +2,12 @@
 
 import type { ReactNode } from 'react';
 import { PRODUCE_FORMAT, type ProduceFormat } from '@/lib/clips/routes';
-import { cn } from '@/lib/utils';
+import { SelectableCard } from '@/components/studio/selectable-card';
 
-const FORMAT_ITEMS: ReadonlyArray<{ value: ProduceFormat; label: string }> = [
-  { value: PRODUCE_FORMAT.short, label: 'Short 9:16' },
-  { value: PRODUCE_FORMAT.full, label: 'Full POV 16:9' },
-];
+const FORMAT_ITEMS = [
+  { value: PRODUCE_FORMAT.short, label: 'Short 9:16', description: 'Jugadas seleccionadas · un vídeo vertical · estilo y música a tu elección' },
+  { value: PRODUCE_FORMAT.full, label: 'Vídeo largo 16:9', description: 'Todas las rondas · vista de un jugador · HUD y voces del equipo' },
+] as const;
 
 export type ProduceFormatBarProps = {
   value: ProduceFormat;
@@ -15,35 +15,16 @@ export type ProduceFormatBarProps = {
   disabled?: boolean;
 };
 
-/** 48px bar under the command strip: "Formato" + the Short / Full POV segmented control. */
 export function ProduceFormatBar({ value, onChange, disabled = false }: ProduceFormatBarProps): ReactNode {
   return (
-    <div className="flex h-12 shrink-0 items-center justify-end gap-2.5 border-b border-border-subtle">
-      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">Formato</span>
-      <div role="group" aria-label="Formato" className="flex font-mono text-meta uppercase tracking-widest">
-        {FORMAT_ITEMS.map((item) => {
-          const active = item.value === value;
-          return (
-            <button
-              key={item.value}
-              type="button"
-              aria-pressed={active}
-              disabled={disabled}
-              onClick={() => onChange(item.value)}
-              className={cn(
-                'inline-flex h-10 items-center border px-3.5 transition-colors duration-(--dur-fast) ease-standard',
-                'focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-                'disabled:pointer-events-none disabled:opacity-50 [&+&]:border-l-0',
-                active
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border-strong text-fg-2 hover:border-primary/55 hover:text-fg-1',
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+    <div role="group" aria-label="Tipo de vídeo" className="grid gap-3 @[40rem]/content:grid-cols-2">
+      {FORMAT_ITEMS.map((item) => (
+        <SelectableCard key={item.value} selected={value === item.value} onSelect={() => onChange(item.value)}
+          label={item.label} disabled={disabled} tilt={false} className="gap-1 p-4">
+          <span className="font-display text-body-lg font-semibold text-fg-1">{item.label}</span>
+          <span className="text-body-sm text-fg-2">{item.description}</span>
+        </SelectableCard>
+      ))}
     </div>
   );
 }

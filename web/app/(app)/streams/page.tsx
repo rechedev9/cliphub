@@ -15,6 +15,8 @@ import {
   isStreamURLValidationError,
   nonVideoExtension,
 } from '@/lib/streams/plan';
+import Link from 'next/link';
+import { CLIPS_HREF } from '@/lib/clips/routes';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { StreamListRow } from '@/components/streams/stream-list-row';
@@ -134,8 +136,9 @@ export default function StreamsPage(): ReactNode {
     <div className="flex flex-col gap-3.5">
       <StudioPageHeader
         className="measure-list"
-        title="De stream a Short"
-        description="Pega un clip o VOD de Twitch, YouTube o Kick, o sube un MP4. Marcas los cortes y cada uno sale como un Short 9:16 a 1080p con tu facecam, banners y música, todo procesado en este PC."
+        title="Clips de stream"
+        actions={<Button asChild variant="outline"><Link href={CLIPS_HREF}>Crear desde una demo</Link></Button>}
+        description="Convierte una grabación en Shorts verticales: importa el vídeo, marca los cortes y ajusta el encuadre. Facecam, banners y música son opcionales."
       />
 
       {listError !== null ? (
@@ -166,7 +169,7 @@ export default function StreamsPage(): ReactNode {
       />
 
       <p className="measure-list mt-1 font-mono text-meta uppercase tracking-widest text-fg-3">
-        Tus streams · {jobs?.length ?? 0}
+        {jobs === null ? 'Tus proyectos de stream' : `Tus proyectos de stream · ${jobs.length}`}
       </p>
 
       {list}

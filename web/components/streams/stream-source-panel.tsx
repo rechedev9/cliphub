@@ -5,6 +5,7 @@ import { UploadCloud } from 'lucide-react';
 import { isStreamURLValidationError } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 /** NUEVA FUENTE: paste a URL or drop an MP4. E2E reads #stream-url. */
@@ -45,47 +46,54 @@ export function StreamSourcePanel({
       className="studio-panel studio-panel-raised measure-list flex flex-col gap-2.5 px-4.5 py-3.5"
     >
       <h2 id="stream-source-title" className="font-mono text-meta uppercase tracking-widest text-fg-3">
-        Nueva fuente
+        Importar vídeo de origen
       </h2>
 
       <form
-        className="grid items-center gap-3 @[44rem]/content:grid-cols-[minmax(0,1fr)_220px_auto]"
+        className="grid items-end gap-3 @[44rem]/content:grid-cols-[minmax(0,1fr)_220px_auto]"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmitUrl();
         }}
       >
-        <Input
-          id="stream-url"
-          aria-label="URL de clip o VOD de Twitch, YouTube o Kick"
-          placeholder="https://kick.com/canal/clips/…"
-          value={sourceUrl}
-          disabled={submitting}
-          aria-invalid={urlError !== null || undefined}
-          aria-describedby={urlError ? 'stream-url-error' : undefined}
-          onChange={(e) => onSourceUrlChange(e.target.value)}
-          className="font-mono"
-        />
-        <Input
-          id="stream-title"
-          aria-label="Título (opcional)"
-          placeholder="Título (opcional)"
-          value={title}
-          disabled={submitting}
-          onChange={(e) => onTitleChange(e.target.value)}
-          className="font-mono"
-        />
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="stream-url">Enlace de Twitch, YouTube o Kick</Label>
+          <Input
+            id="stream-url"
+            aria-label="URL de clip o VOD de Twitch, YouTube o Kick"
+            placeholder="https://kick.com/canal/clips/…"
+            value={sourceUrl}
+            disabled={submitting}
+            aria-invalid={urlError !== null || undefined}
+            aria-describedby={urlError ? 'stream-url-error' : undefined}
+            onChange={(e) => onSourceUrlChange(e.target.value)}
+            className="font-mono"
+          />
+        </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="stream-title">Nombre del proyecto (opcional)</Label>
+          <Input
+            id="stream-title"
+            aria-label="Título (opcional)"
+            placeholder="Título (opcional)"
+            value={title}
+            disabled={submitting}
+            onChange={(e) => onTitleChange(e.target.value)}
+            className="font-mono"
+          />
+        </div>
         <Button
           type="submit"
           variant="stream"
           className="neon-notch h-11 font-display uppercase tracking-wide"
           disabled={submitting}
           loading={submitting}
-          loadingText="Trayendo clip…"
+          loadingText="Importando…"
         >
-          Traer clip
+          Importar vídeo
         </Button>
       </form>
+      <p className="text-body-sm text-fg-3">Después elegirás los fragmentos. Cada corte se exporta como un Short independiente.</p>
       {urlError ? (
         <p id="stream-url-error" role="alert" className="text-body-sm text-destructive">
           {urlError}

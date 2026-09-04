@@ -56,7 +56,7 @@ export function StreamSourceTimeline({
 
   return (
     <section className="studio-panel flex flex-col gap-2 p-3.5" aria-label="Timeline de la fuente">
-      <div className="flex min-w-0 items-center justify-between gap-3 font-mono text-meta uppercase tracking-widest text-fg-3">
+      <div className="flex min-w-0 flex-col items-start justify-between gap-3 @[48rem]/content:flex-row @[48rem]/content:items-center font-mono text-meta uppercase tracking-widest text-fg-3">
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="shrink-0">Timeline de la fuente · {formatStreamClock(sourceDuration)}</span>
           {/* An instruction, not a state: the cuts on the track below are what

@@ -13,9 +13,9 @@ export const STREAM_STEP = {
 export type StreamStep = (typeof STREAM_STEP)[keyof typeof STREAM_STEP];
 
 export const STREAM_STEP_LABEL = {
-  layout: 'Layout',
+  layout: 'Encuadre',
   banners: 'Banners',
-  cuts: 'Cortes → Shorts',
+  cuts: 'Cortes',
   music: 'Música',
   results: 'Resultados',
 } as const satisfies Record<StreamStep, string>;
@@ -154,7 +154,7 @@ export function streamCtaLabel({ plan, briefApproved, rendering, hasRender }: St
   const blocker = streamPlanBlocker(plan);
   if (blocker === STREAM_STEP.layout) return 'Confirma el recorte primero';
   if (blocker === STREAM_STEP.cuts) return 'Añade un corte primero';
-  if (!briefApproved) return 'Aprueba el brief';
+  if (!briefApproved) return 'Revisa y aprueba los ajustes';
   return hasRender ? 'Crear Shorts de nuevo →' : 'Crear Shorts →';
 }
 

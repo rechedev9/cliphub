@@ -27,7 +27,7 @@ type HubClip = HubModel['clips'][number];
 const FILTER_LABEL = {
   all: 'Todos',
   short: 'Shorts',
-  full: 'Full POV',
+  full: 'Vídeos largos',
   ready: 'Listos',
   working: 'En marcha',
 } as const satisfies Record<ClipFilter, string>;
@@ -134,7 +134,7 @@ function ClipCard({
   const isShort = clip.type === OUTPUT_TYPE.short;
   const { video } = clip;
   const player = clip.match?.player ?? video.targetName ?? '—';
-  const sub = isShort ? 'Short' : 'Full POV';
+  const sub = isShort ? 'Short · 9:16' : 'Vídeo largo · 16:9';
   const matchId = clip.match?.id ?? null;
 
   return (

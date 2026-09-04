@@ -18,8 +18,8 @@ import {
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
-const REC_CTA = 'Grabar Full POV';
-const BRIEF_CHECKBOX = /Apruebo el brief/;
+const REC_CTA = 'Crear vídeo largo';
+const BRIEF_CHECKBOX = /He revisado y apruebo los ajustes/;
 
 const PLAN = {
   demo: { map: 'de_inferno' },
@@ -71,8 +71,8 @@ test.describe('Full POV constructor', () => {
   test('the format control switches between Short and Full POV without a reload', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, PRODUCE_FULL);
-    const formats = page.getByRole('group', { name: 'Formato' });
-    await expect(formats.getByRole('button', { name: 'Full POV 16:9' })).toHaveAttribute('aria-pressed', 'true');
+    const formats = page.getByRole('group', { name: 'Tipo de vídeo' });
+    await expect(formats.getByRole('button', { name: 'Vídeo largo 16:9' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await formats.getByRole('button', { name: 'Short 9:16' }).click();
     await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo$`));
@@ -135,8 +135,8 @@ test.describe('Full POV constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await expect(page.getByText(PRODUCE_FULL_ROUNDS_NOTE)).toBeVisible();
-    await expect(page.getByText('R01', { exact: true })).toBeVisible();
-    await expect(page.getByText('Contrato Full POV · fijado')).toBeVisible();
+    await expect(page.getByText('R01', { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Incluido en tu vídeo largo')).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
@@ -144,8 +144,8 @@ test.describe('Full POV constructor', () => {
 
     const cta = page.getByRole('button', { name: REC_CTA });
     await expect(cta).toBeDisabled();
-    await page.getByText('Brief creativo').click();
-    const brief = page.getByRole('region', { name: /Brief creativo/ });
+    await page.getByText('Revisar antes de crear').filter({ visible: true }).click();
+    const brief = page.getByRole('region', { name: /Revisar antes de crear/ });
     for (const row of FULL_DEMO_CONTRACT) {
       await expect(brief.getByText(row.value, { exact: true })).toBeVisible();
     }
@@ -179,3 +179,66 @@ test.describe('Full POV constructor', () => {
     await expect(page.getByRole('switch')).toHaveCount(0);
   });
 });
+
+
+test('switching formats preserves the long video theme and approval independently', async ({ page }) => {
+  await stubParsedMatch(page, { status: 200, body: PLAN });
+  await gotoStudio(page, PRODUCE_FULL);
+  const theme = page.getByRole('combobox', { name: 'Tema de overlays FACEIT' });
+  await theme.click();
+  await page.getByRole('option', { name: /Neón violeta/ }).click();
+  await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+  await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+  await expect(theme).toContainText('Neón violeta');
+  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeChecked();
+});
+
+for (const format of ['short', 'full']) {
+  test(`the ${format} create bar stays at the bottom of a short work area`, async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1440 });
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, `/clips/${JOB}/nuevo?formato=${format}`);
+    const action = page.getByRole('button', { name: format === 'full' ? REC_CTA : 'Clipear short →', exact: true });
+    await expect(action).toBeVisible();
+    const work = await page.locator('.measure-work').boundingBox();
+    const button = await action.boundingBox();
+    expect(work).not.toBeNull();
+    expect(button).not.toBeNull();
+    if (work === null || button === null) return;
+    expect(work.y + work.height - button.y - button.height).toBeLessThan(48);
+  });
+}
+
+for (const interruption of ['empty', 'failed']) {
+  test(`the Short draft survives an ${interruption} plan poll while editing a long video`, async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    let phase = 'ready';
+    let interruptedReads = 0;
+    await page.route(`**/api/demos/${JOB}/plan`, (route) => {
+      if (phase !== 'ready') interruptedReads += 1;
+      if (phase === 'failed') return route.fulfill({ status: 503, json: { code: 'service_unavailable' } });
+      return route.fulfill({ json: phase === 'empty' ? { ...PLAN, segments: [] } : PLAN });
+    });
+    await gotoStudio(page, `/clips/${JOB}/nuevo`);
+    await page.getByRole('button', { name: 'Limpiar', exact: true }).click();
+    await page.getByRole('button', { name: 'Sin música', exact: true }).click();
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    phase = interruption;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(() => interruptedReads).toBeGreaterThan(0);
+    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+    if (interruption === 'empty') {
+      await expect(page.getByRole('heading', { name: 'Sin jugadas destacables' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Clipear short →', exact: true })).toHaveCount(0);
+    } else {
+      await expect(page.getByRole('alert').filter({ hasText: 'Seguimos mostrando los últimos datos cargados' })).toBeVisible();
+    }
+    phase = 'ready';
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
+    await expect(page.getByText('Solo el audio de la partida.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Elige al menos un highlight', { exact: true })).toBeVisible();
+  });
+}

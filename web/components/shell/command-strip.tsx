@@ -14,9 +14,9 @@ import { CLIPS_HREF, NEW_DEMO_HREF, PRODUCE_FORMAT, PRODUCE_QUERY } from '@/lib/
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
-  newMatch: 'nueva partida',
+  newMatch: 'cargar demo',
   newShort: 'nuevo short',
-  newFull: 'nuevo full pov',
+  newFull: 'vídeo largo',
   publish: 'publicar',
 } as const;
 

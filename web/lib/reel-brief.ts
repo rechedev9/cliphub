@@ -139,4 +139,4 @@ export function reelCreativeBrief(
 }
 
 /** The approval checkbox label shared by the Short, Full POV and stream briefs; E2E keys on it. */
-export const BRIEF_APPROVAL_LABEL = 'Apruebo el brief antes de renderizar';
+export const BRIEF_APPROVAL_LABEL = 'He revisado y apruebo los ajustes';

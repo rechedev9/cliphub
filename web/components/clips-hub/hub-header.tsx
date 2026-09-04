@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 const LENS_COPY = {
   partidas: { title: HUB_TITLE, description: HUB_DESCRIPTION },
   clips: {
-    title: 'Tus clips',
-    description: 'Cada Short y Full POV que sacas de tus partidas. Descarga el MP4 o prepara su publicación.',
+    title: 'Tus vídeos de demos',
+    description: 'Shorts y vídeos largos creados desde tus partidas. Descarga el MP4 o prepara su publicación.',
   },
 } as const satisfies Record<HubLens, { title: string; description: string }>;
 

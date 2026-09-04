@@ -16,12 +16,12 @@ export function StreamLayoutBar({
   onVariantChange: (variant: StreamVariant) => void;
 }): ReactNode {
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-(--shell-gutter)">
-      <span className="min-w-0 truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 py-2 border-b border-border-subtle px-(--shell-gutter)">
+      <span className="min-w-0 basis-full font-mono text-meta uppercase tracking-wider text-fg-3 @[48rem]/content:basis-auto">
         Salida 1080×1920 · un Short por corte
       </span>
-      <span className="ml-auto font-mono text-meta uppercase tracking-wider text-fg-3">Layout</span>
-      <div role="group" aria-label="Layout" className="flex">
+      <span className="font-mono text-meta uppercase tracking-wider text-fg-3">Encuadre</span>
+      <div role="group" aria-label="Encuadre" className="flex min-w-0 flex-wrap">
         {STREAM_VARIANTS.map((entry) => {
           const active = entry.value === variant;
           return (

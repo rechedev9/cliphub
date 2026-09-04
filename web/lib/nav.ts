@@ -1,8 +1,8 @@
 /** Numbered Studio nav. The index is the rail order, padded to two digits. */
 export const NAV_SECTIONS = [
   { number: '01', label: 'Clips y vídeos', href: '/clips' },
-  { number: '02', label: 'Stream clips', href: '/streams' },
-  { number: '03', label: 'Players', href: '/players' },
+  { number: '02', label: 'Clips de stream', href: '/streams' },
+  { number: '03', label: 'Jugadores', href: '/players' },
   { number: '04', label: 'Táctica', href: '/tactical' },
   { number: '05', label: 'Anti-cheat', href: '/cheaters' },
   { number: '06', label: 'Ajustes', href: '/settings' },

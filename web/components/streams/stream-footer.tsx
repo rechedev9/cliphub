@@ -50,14 +50,14 @@ export function StreamFooter({
   return (
     <footer className="flex shrink-0 flex-col gap-2.5 border-t border-border bg-surface-1 px-(--shell-gutter) py-3 shadow-[var(--elev-3)]">
       <section className="studio-panel flex flex-col gap-2 px-3.5 py-2.5" aria-labelledby={briefId}>
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-3 @[48rem]/content:flex-row @[48rem]/content:items-start">
           <details className="group/brief min-w-0 flex-1">
             <summary
               id={briefId}
               className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-widest text-fg-3 [&::-webkit-details-marker]:hidden"
             >
               <ChevronRight aria-hidden className="size-4 shrink-0 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
-              <span className="shrink-0">Brief creativo</span>
+              <span className="shrink-0">Revisar antes de crear</span>
               <span className="min-w-0 flex-1 truncate text-label tracking-normal text-fg-2" title={briefLine}>
                 {briefLine}
               </span>
@@ -77,15 +77,15 @@ export function StreamFooter({
         )}
       </section>
 
-      <div className="flex items-center gap-5">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 basis-full flex-col gap-0.5 @[40rem]/content:basis-auto @[40rem]/content:flex-1">
           <span className="font-mono text-meta uppercase tracking-widest text-fg-3">{countLabel}</span>
           <span className="truncate font-mono text-body uppercase text-fg-2" title={summary}>
             {summary}
           </span>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={onBack} disabled={busy} className="font-display uppercase tracking-wide">
-          Volver
+          Volver a streams
         </Button>
         <Button
           type="button"

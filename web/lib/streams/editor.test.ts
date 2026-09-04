@@ -83,7 +83,7 @@ test('the CTA names the first blocker, then the approval, then the action', () =
     [{ ...base, plan: plan(), rendering: true }, 'Renderizando…'],
     [{ ...base, plan: plan({ face_crop_reviewed: false }), briefApproved: true }, 'Confirma el recorte primero'],
     [{ ...base, plan: plan({ clips: [] }) }, 'Añade un corte primero'],
-    [{ ...base, plan: plan() }, 'Aprueba el brief'],
+    [{ ...base, plan: plan() }, 'Revisa y aprueba los ajustes'],
     [{ ...base, plan: plan(), briefApproved: true }, 'Crear Shorts →'],
     [{ ...base, plan: plan(), briefApproved: true, hasRender: true }, 'Crear Shorts de nuevo →'],
   ];

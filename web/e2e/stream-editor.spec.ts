@@ -78,7 +78,7 @@ const stepTitle = (page: Page, name: string) => page.getByRole('heading', { leve
 const railStep = (page: Page, name: RegExp) => page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name });
 const autosaveStatus = (page: Page) => page.getByRole('navigation', { name: 'Pasos' }).getByRole('status');
 const cta = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
-const briefCheckbox = (page: Page) => page.getByRole('checkbox', { name: 'Apruebo el brief antes de renderizar' });
+const briefCheckbox = (page: Page) => page.getByRole('checkbox', { name: 'He revisado y apruebo los ajustes' });
 
 test.describe('stream editor', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
@@ -87,7 +87,7 @@ test.describe('stream editor', () => {
     const stub = await stubStreamJob(page, false);
     await gotoStudio(page, `/streams/${JOB_ID}`);
 
-    await expect(stepTitle(page, '01 · Layout y facecam')).toBeVisible();
+    await expect(stepTitle(page, '01 · Encuadre y facecam')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirmar recorte de facecam' })).toBeVisible();
     await expect(cta(page, 'Confirma el recorte primero')).toBeEnabled();
     await expect(briefCheckbox(page)).toBeDisabled();
@@ -99,10 +99,10 @@ test.describe('stream editor', () => {
     await expect(page.getByRole('region', { name: 'Timeline de la fuente' })).toBeVisible();
 
     await railStep(page, /Cortes/).click();
-    await expect(stepTitle(page, '03 · Cortes → Shorts')).toBeVisible();
+    await expect(stepTitle(page, '03 · Cortes')).toBeVisible();
     await expect(page.getByLabel('Mover región de recorte del facecam')).toHaveCount(0);
     await cta(page, 'Confirma el recorte primero').click();
-    await expect(stepTitle(page, '01 · Layout y facecam')).toBeVisible();
+    await expect(stepTitle(page, '01 · Encuadre y facecam')).toBeVisible();
 
     // Opening an unchanged plan must not rewrite the server artifact.
     await page.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2);
@@ -115,21 +115,21 @@ test.describe('stream editor', () => {
 
     await page.getByRole('button', { name: 'Confirmar recorte de facecam' }).click();
     await expect(page.getByRole('button', { name: 'Recorte confirmado' })).toBeVisible();
-    await expect(railStep(page, /Layout/)).toContainText('recorte ✓');
-    await expect(cta(page, 'Aprueba el brief')).toBeDisabled();
+    await expect(railStep(page, /Encuadre/)).toContainText('recorte ✓');
+    await expect(cta(page, 'Revisa y aprueba los ajustes')).toBeDisabled();
 
     await briefCheckbox(page).check();
     await expect(cta(page, 'Crear Shorts →')).toBeEnabled();
-    await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
+    await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
 
     const briefLine = page.getByTitle(/^Facecam 40 — .*de salida aprox\./);
     await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
-    await page.getByText('Brief creativo', { exact: true }).click();
+    await page.getByText('Revisar antes de crear', { exact: true }).click();
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);
-    const summaryBox = await page.getByText('Brief creativo', { exact: true }).boundingBox();
+    const summaryBox = await page.getByText('Revisar antes de crear', { exact: true }).boundingBox();
     const checkboxBox = await briefCheckbox(page).boundingBox();
     expect(summaryBox).not.toBeNull();
     expect(checkboxBox).not.toBeNull();
@@ -142,7 +142,7 @@ test.describe('stream editor', () => {
     const stub = await stubStreamJob(page, true);
     await gotoStudio(page, `/streams/${JOB_ID}`);
 
-    await expect(stepTitle(page, '03 · Cortes → Shorts')).toBeVisible();
+    await expect(stepTitle(page, '03 · Cortes')).toBeVisible();
     await page.getByRole('button', { name: '+ Texto' }).click();
     await page.getByRole('button', { name: 'Añadir texto' }).click();
     const textField = page.getByLabel('Texto', { exact: true });
@@ -153,13 +153,13 @@ test.describe('stream editor', () => {
 
     await textField.fill('NICE SHOT');
     await expect.poll(() => stub.puts.at(-1)?.clips[0]?.edit?.text_overlays?.[0]?.text).toBe('NICE SHOT');
-    await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
+    await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
 
     await textField.fill('');
     await expect.poll(() => stub.puts.length).toBeGreaterThan(1);
     expect(stub.puts.at(-1)?.clips[0]?.edit).toBeUndefined();
     await expect(textField).toBeVisible();
-    await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
+    await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
   });
 
   test('a rejected autosave PUT shows the failed state, then clears once a save lands', async ({ page }) => {
@@ -168,13 +168,13 @@ test.describe('stream editor', () => {
     await gotoStudio(page, `/streams/${JOB_ID}`);
 
     await page.getByLabel('Título del corte 01').fill('Clutch 1v3 final');
-    await expect(autosaveStatus(page)).toHaveText('Sin guardar en el servidor');
+    await expect(autosaveStatus(page)).toHaveText('Borrador local · guardado pendiente');
     await expect(page.getByRole('alert').filter({ hasText: OVERLAY_REQUIRED_ERROR })).toBeVisible();
     expect(stub.puts.length).toBeGreaterThan(0);
 
     stub.rejectPuts(null);
     await page.getByLabel('Título del corte 01').fill('Clutch 1v3 final ronda 30');
-    await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
+    await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
     await expect(page.getByRole('alert').filter({ hasText: OVERLAY_REQUIRED_ERROR })).toHaveCount(0);
   });
 });

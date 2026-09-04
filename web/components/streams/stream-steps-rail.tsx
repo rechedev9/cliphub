@@ -30,8 +30,8 @@ const OPTIONAL_LABEL = 'opcional';
 
 const AUTOSAVE_LABEL = {
   saving: 'Guardando borrador…',
-  saved: '✓ Guardado · local + servidor',
-  failed: 'Sin guardar en el servidor',
+  saved: 'Borrador guardado en este PC',
+  failed: 'Borrador local · guardado pendiente',
 } as const satisfies Record<StreamAutosaveState, string>;
 
 const AUTOSAVE_TONE = {

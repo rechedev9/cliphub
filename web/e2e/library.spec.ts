@@ -71,7 +71,7 @@ test.describe('Clips lens', () => {
     });
     const clips = page.getByLabel('Clips', { exact: true });
     await expect(clips.getByText('REC', { exact: true })).toBeVisible();
-    await expect(clips.getByText(/Full POV/).first()).toBeVisible();
+    await expect(clips.getByText(/Vídeo largo/).first()).toBeVisible();
     await expect(clips.getByText('RENDER', { exact: true })).toHaveCount(0);
   });
 

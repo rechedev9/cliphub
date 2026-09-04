@@ -35,7 +35,7 @@ import { ProduceFooter } from './produce-footer';
  */
 const LOCKED_ROWS = [
   { label: 'Intro / outro', value: 'No' },
-  { label: 'Comms del equipo', value: `${Math.round(FULL_DEMO_VOICE_VOLUME * 100)}%` },
+  { label: 'Voces del equipo', value: `${Math.round(FULL_DEMO_VOICE_VOLUME * 100)}%` },
   { label: 'HUD nativo', value: 'Visible' },
 ] as const;
 
@@ -85,11 +85,11 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
         variant: FULL_DEMO_VARIANT,
         editConfig: fullDemoEdit(overlayTheme),
       });
-      if (recBusy) toast('Full POV en cola', { description: 'Empieza al acabar el REC actual' });
+      if (recBusy) toast('Vídeo largo en cola', { description: 'Empieza al acabar el REC actual' });
       else toast('REC iniciado', { description: 'CS2 + HLAE grabando · no toques el juego' });
       router.push(returnHref);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'No se pudo encolar el Full POV.');
+      setCreateError(err instanceof Error ? err.message : 'No se pudo encolar el vídeo largo.');
       setCreating(false);
     }
   }
@@ -120,10 +120,11 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
         <section className="flex min-w-0 flex-col gap-3.5">
           <div className="flex flex-col gap-1.5">
             <p className="font-mono text-meta uppercase tracking-ultra text-fg-3">
-              Nuevo Full POV · {match.map}
+              Vídeo largo · {match.map}
               {match.player ? ` · ${match.player}` : ''}
             </p>
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_FULL_TITLE}</h1>
+            <p className="text-body-sm text-fg-2">Un vídeo horizontal con todas las rondas del jugador, HUD nativo y voces del equipo. Revisa el plan y confirma los ajustes para iniciar la grabación.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -195,9 +196,9 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
 
           <div className="studio-panel flex flex-col">
             <p className="px-3.5 pt-3 pb-2.5 font-mono text-meta uppercase tracking-ultra text-fg-3">
-              Contrato Full POV · fijado
+              Incluido en tu vídeo largo
             </p>
-            <dl className="flex flex-col divide-y divide-border-subtle" aria-label="Contrato Full POV">
+            <dl className="flex flex-col divide-y divide-border-subtle" aria-label="Ajustes del vídeo largo">
               {LOCKED_ROWS.map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-3 px-3.5 py-3">
                   <dt className="font-mono text-meta uppercase tracking-ultra text-fg-3">{row.label}</dt>
@@ -213,7 +214,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
 
       <ProduceFooter
         tone="full"
-        eyebrow="Full POV"
+        eyebrow="Vídeo largo · 16:9"
         summary={summary}
         hint={recapFailure ? FULL_DEMO_FORGE_HINT_ERROR : FULL_DEMO_FORGE_HINT_EMPTY}
         briefItems={briefItems}
@@ -240,7 +241,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
             className="neon-notch shrink-0 font-display uppercase tracking-wide focus-visible:-outline-offset-4"
           >
             <span aria-hidden className="size-2.5 rounded-full bg-current" />
-            {recBusy ? 'Poner en cola el Full POV' : 'Grabar Full POV'}
+            {recBusy ? 'Poner en cola el vídeo' : 'Crear vídeo largo'}
           </Button>
         }
       />
