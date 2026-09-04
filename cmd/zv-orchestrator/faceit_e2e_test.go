@@ -113,7 +113,7 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 	if err := json.Unmarshal(listed, &list); err != nil {
 		t.Fatalf("decode followed: %v", err)
 	}
-	if !list.Enabled || len(list.Players) != 1 || list.Players[0].ID != lookup.Player.ID {
+	if !list.Enabled || len(list.Players) < 1 || list.Players[0].ID != lookup.Player.ID {
 		t.Fatalf("followed = %#v", list)
 	}
 
@@ -162,9 +162,22 @@ func TestFaceitStudioSidebarE2E(t *testing.T) {
 	if delRes.StatusCode != http.StatusNoContent {
 		t.Fatalf("unfollow status = %d body=%s", delRes.StatusCode, delBody)
 	}
-	empty := getJSON(t, httpClient, srv.URL+"/api/faceit/followed", http.StatusOK)
-	if !bytes.Contains(empty, []byte(`"players":[]`)) && !bytes.Contains(empty, []byte(`"players": []`)) {
-		t.Fatalf("followed after unfollow = %s", empty)
+	after := getJSON(t, httpClient, srv.URL+"/api/faceit/followed", http.StatusOK)
+	var remaining struct {
+		Players []struct {
+			ID string `json:"id"`
+		} `json:"players"`
+	}
+	if err := json.Unmarshal(after, &remaining); err != nil {
+		t.Fatalf("decode followed after unfollow: %v", err)
+	}
+	for _, player := range remaining.Players {
+		if player.ID == lookup.Player.ID {
+			t.Fatalf("followed after unfollow still includes %s: %s", lookup.Player.ID, after)
+		}
+	}
+	if len(remaining.Players) == 0 {
+		t.Fatalf("followed after unfollow = %s, want the seeded default roster", after)
 	}
 }
 

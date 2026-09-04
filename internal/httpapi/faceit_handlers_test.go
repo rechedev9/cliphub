@@ -121,17 +121,17 @@ func TestFaceitLookupAndFollowFlow(t *testing.T) {
 		t.Fatalf("list status = %d body=%s", listed.Code, listed.Body.String())
 	}
 	var listBody struct {
-		Enabled bool `json:"enabled"`
-		Players []struct {
-			ID       string `json:"id"`
-			Nickname string `json:"nickname"`
-		} `json:"players"`
+		Enabled bool                 `json:"enabled"`
+		Players []listedFaceitPlayer `json:"players"`
 	}
 	if err := json.Unmarshal(listed.Body.Bytes(), &listBody); err != nil {
 		t.Fatal(err)
 	}
-	if !listBody.Enabled || len(listBody.Players) != 1 || listBody.Players[0].ID != "player-1" {
+	if !listBody.Enabled || len(listBody.Players) < 1 || listBody.Players[0].ID != "player-1" {
 		t.Fatalf("followed = %#v", listBody)
+	}
+	if seededCount(listBody.Players) != len(faceit.DefaultSeed().Players) {
+		t.Fatalf("seeded after follow = %d, want the default top 10 still projected", seededCount(listBody.Players))
 	}
 
 	matches := httptest.NewRecorder()
@@ -153,13 +153,16 @@ func TestFaceitLookupAndFollowFlow(t *testing.T) {
 	empty := httptest.NewRecorder()
 	router.ServeHTTP(empty, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
 	var emptyBody struct {
-		Players []json.RawMessage `json:"players"`
+		Players []listedFaceitPlayer `json:"players"`
 	}
 	if err := json.Unmarshal(empty.Body.Bytes(), &emptyBody); err != nil {
 		t.Fatal(err)
 	}
-	if len(emptyBody.Players) != 0 {
-		t.Fatalf("players after unfollow = %s", empty.Body.String())
+	if containsPlayer(emptyBody.Players, "player-1") {
+		t.Fatalf("players after unfollow still include the follow: %s", empty.Body.String())
+	}
+	if seededCount(emptyBody.Players) != len(faceit.DefaultSeed().Players) {
+		t.Fatalf("players after unfollow = %s, want the default seed roster", empty.Body.String())
 	}
 }
 
@@ -244,4 +247,100 @@ func TestFollowedListWorksWithoutAPIKey(t *testing.T) {
 	if !strings.Contains(rw.Body.String(), `"enabled":false`) || !strings.Contains(rw.Body.String(), "m0NESY") {
 		t.Fatalf("body = %s", rw.Body.String())
 	}
+}
+
+func TestFollowedListSeedsDefaultRosterOnColdStart(t *testing.T) {
+	t.Parallel()
+	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(nil, follows))
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rw.Code, rw.Body.String())
+	}
+	var body struct {
+		Enabled bool                 `json:"enabled"`
+		Players []listedFaceitPlayer `json:"players"`
+	}
+	if err := json.Unmarshal(rw.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	seed := faceit.DefaultSeed()
+	if body.Enabled || len(body.Players) != len(seed.Players) {
+		t.Fatalf("cold-start list = %#v, want %d seeded rows without an API key", body, len(seed.Players))
+	}
+	for i, want := range seed.Players {
+		got := body.Players[i]
+		if got.ID != want.PlayerID || got.Nickname != want.Nickname || !got.Seeded {
+			t.Fatalf("players[%d] = %#v, want seeded %#v", i, got, want)
+		}
+	}
+}
+
+func TestUnfollowDismissesSeededPlayer(t *testing.T) {
+	t.Parallel()
+	follows, err := faceit.NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{}, WithFaceit(nil, follows))
+	router := Routes(h)
+
+	first := faceit.DefaultSeed().Players[0]
+	rw := httptest.NewRecorder()
+	router.ServeHTTP(rw, httptest.NewRequest(http.MethodDelete, "/api/faceit/followed/"+first.PlayerID, nil))
+	if rw.Code != http.StatusNoContent {
+		t.Fatalf("dismiss status = %d body=%s", rw.Code, rw.Body.String())
+	}
+
+	listed := httptest.NewRecorder()
+	router.ServeHTTP(listed, httptest.NewRequest(http.MethodGet, "/api/faceit/followed", nil))
+	var body struct {
+		Players []listedFaceitPlayer `json:"players"`
+	}
+	if err := json.Unmarshal(listed.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if containsPlayer(body.Players, first.PlayerID) {
+		t.Fatalf("dismissed seed %q still listed: %#v", first.PlayerID, body.Players)
+	}
+	if len(body.Players) != len(faceit.DefaultSeed().Players)-1 {
+		t.Fatalf("players after dismiss = %d, want %d", len(body.Players), len(faceit.DefaultSeed().Players)-1)
+	}
+
+	raw, err := follows.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 0 {
+		t.Fatalf("followed.json after seed dismiss = %#v, want empty", raw)
+	}
+}
+
+type listedFaceitPlayer struct {
+	ID       string `json:"id"`
+	Nickname string `json:"nickname"`
+	Seeded   bool   `json:"seeded"`
+}
+
+func seededCount(players []listedFaceitPlayer) int {
+	n := 0
+	for _, player := range players {
+		if player.Seeded {
+			n++
+		}
+	}
+	return n
+}
+
+func containsPlayer(players []listedFaceitPlayer, id string) bool {
+	for _, player := range players {
+		if player.ID == id {
+			return true
+		}
+	}
+	return false
 }

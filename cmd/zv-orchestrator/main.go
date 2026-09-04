@@ -110,6 +110,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("faceit follow store: %w", err)
 	}
+	faceitSeeds, err := faceit.NewSeedStore(filepath.Join(cfg.DataDir, "faceit", "top10.json"))
+	if err != nil {
+		return fmt.Errorf("faceit seed store: %w", err)
+	}
 	steamAccounts, err := steamresolve.NewAccountStore(filepath.Join(cfg.DataDir, "steam", "account.json"), time.Now)
 	if err != nil {
 		return fmt.Errorf("steam account store: %w", err)
@@ -280,6 +284,7 @@ func run() error {
 		httpapi.WithGenerateIntentStore(generateIntents),
 		httpapi.WithPublishAssistantTrends(youtubeTrends),
 		httpapi.WithFaceit(faceitClient, faceitFollows),
+		httpapi.WithFaceitSeeds(faceitSeeds),
 		httpapi.WithSteamResolver(steamResolver),
 		httpapi.WithSteamTransportFactory(steamFactory),
 		httpapi.WithSteamAccount(steamAccounts, steamresolve.NewHistoryClient(nil), steamresolve.NewFetcher(nil)),

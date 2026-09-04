@@ -106,13 +106,13 @@ func (h *Handlers) ListFollowedFaceitPlayers(w http.ResponseWriter, r *http.Requ
 		writeCodedError(w, http.StatusServiceUnavailable, faceitNotConfigured, "FACEIT follow list is not configured")
 		return
 	}
-	players, err := h.faceitFollows.List()
+	players, err := h.faceitFollows.Roster(h.faceitSeeds.Document())
 	if err != nil {
 		internalError(w, "list followed FACEIT players", err)
 		return
 	}
 	if players == nil {
-		players = []faceit.FollowedPlayer{}
+		players = []faceit.RosterPlayer{}
 	}
 	for _, player := range players {
 		if player.Avatar != "" {
@@ -174,6 +174,12 @@ func (h *Handlers) UnfollowFaceitPlayer(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := h.faceitFollows.Unfollow(playerID); err != nil {
+		writeFaceitError(w, err)
+		return
+	}
+	// A seeded row was never in followed.json, so Unfollow alone would no-op
+	// and the player would reappear on the next Roster read.
+	if err := h.faceitFollows.DismissSeed(playerID); err != nil {
 		writeFaceitError(w, err)
 		return
 	}

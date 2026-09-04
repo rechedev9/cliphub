@@ -31,7 +31,12 @@ export type FaceitPlayer = {
   elo?: number;
 };
 
-export type FaceitFollowedPlayer = FaceitPlayer & { followed_at?: string };
+export type FaceitFollowedPlayer = FaceitPlayer & {
+  followed_at?: string;
+  seeded?: boolean;
+  region?: string;
+  position?: number;
+};
 
 type FaceitMatchScore = {
   player_team?: string;
@@ -167,6 +172,9 @@ function parsePlayer(raw: unknown, key: string): FaceitFollowedPlayer {
     skill_level: optionalNumber(player.skill_level),
     elo: optionalNumber(player.elo),
     followed_at: optionalString(player.followed_at),
+    seeded: player.seeded === true ? true : undefined,
+    region: optionalString(player.region),
+    position: optionalNumber(player.position),
   };
 }
 
