@@ -116,8 +116,13 @@ export default function PlayersPage(): ReactNode {
         try {
           const live = await lookupFaceitPlayer(nickname);
           if (cancelled) return;
-          setPlayers((current) => current.map((player) => (player.id === live.id ? { ...player, ...live } : player)));
-          await followFaceitPlayer(live.nickname);
+          const selected = playersRef.current.find((player) => player.id === selectedID);
+          setPlayers((current) => current.map((player) => (
+            player.id === live.id ? { ...player, ...live, seeded: player.seeded } : player
+          )));
+          if (selected?.seeded !== true) {
+            await followFaceitPlayer(live.nickname);
+          }
         } catch {
           void 0;
         }

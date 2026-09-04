@@ -64,7 +64,13 @@ test('lookup encodes the nickname and parses the player', async () => {
 test('followed list and follow/unfollow map the proxy surface', async () => {
   const stub = stubFetch((call) => {
     if (call.url === '/api/faceit/followed' && call.init?.method === undefined) {
-      return json({ enabled: true, players: [player] });
+      return json({
+        enabled: true,
+        players: [
+          player,
+          { ...player, id: 'seed-1', nickname: 'donk666', seeded: true, region: 'EU', position: 1 },
+        ],
+      });
     }
     if (call.url === '/api/faceit/followed' && call.init?.method === 'POST') {
       return json({ player: { ...player, followed_at: '2026-08-17T12:00:00Z' } });
@@ -78,6 +84,9 @@ test('followed list and follow/unfollow map the proxy surface', async () => {
     const listed = await listFollowedFaceitPlayers();
     assert.equal(listed.enabled, true);
     assert.equal(listed.players[0]?.id, 'player-1');
+    assert.equal(listed.players[1]?.seeded, true);
+    assert.equal(listed.players[1]?.region, 'EU');
+    assert.equal(listed.players[1]?.position, 1);
     const followed = await followFaceitPlayer('m0NESY');
     assert.equal(followed.followed_at, '2026-08-17T12:00:00Z');
     await unfollowFaceitPlayer('player-1');

@@ -138,6 +138,7 @@ type Handlers struct {
 	publishAssistant  *publishAssistantCache
 	faceit            *faceit.Client
 	faceitFollows     *faceit.FollowStore
+	faceitSeeds       *faceit.SeedStore
 	faceitCache       faceitResponseCache
 	steamResolver     *steamresolve.Service
 	steamTransport    steamresolve.Transport
@@ -245,6 +246,14 @@ func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
 	return func(h *Handlers) {
 		h.faceit = client
 		h.faceitFollows = follows
+	}
+}
+
+// WithFaceitSeeds supplies the refreshable default roster. A nil store still
+// projects the embedded top 10: SeedStore.Document degrades to DefaultSeed.
+func WithFaceitSeeds(seeds *faceit.SeedStore) Option {
+	return func(h *Handlers) {
+		h.faceitSeeds = seeds
 	}
 }
 
