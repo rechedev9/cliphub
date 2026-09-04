@@ -40,18 +40,16 @@ import {
   streamSourceLabel,
   timelineClipAt,
 } from '@/lib/streams/plan';
-import { canCreateStreamShorts, streamCreativeBrief, streamCreativeBriefLine } from '@/lib/streams/brief';
+import { canCreateStreamShorts, streamCreativeBrief } from '@/lib/streams/brief';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
   shortsWord,
-  streamBriefCanBeApproved,
+  streamBlockerHint,
   streamCtaLabel,
-  streamCtaTarget,
   streamEditorSteps,
   streamOutputSummary,
   streamPlanBlocker,
-  type StreamBlocker,
   type StreamStep,
 } from '@/lib/streams/editor';
 import { persistAffiliateFamily, selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
@@ -74,12 +72,6 @@ const STEP_SUBTITLE: Partial<Record<StreamStep, string>> = {
   layout: 'Layout y facecam',
   music: 'Música y efectos',
   results: 'Shorts renderizados',
-};
-
-/** One hint per blocker; the compiler refuses a new blocker without one. */
-const BLOCKER_HINT: Record<StreamBlocker, string> = {
-  layout: 'Confirma el recorte de facecam en el paso 01 para poder aprobar',
-  cuts: 'Añade al menos un corte en la timeline para poder aprobar',
 };
 
 /** Stream edit workspace: rail, monitor + timeline, active step, approval footer. */
@@ -133,7 +125,6 @@ export function StreamEditor({
   const [previewReload, setPreviewReload] = useState(0);
   const [briefApproved, setBriefApproved] = useState(false);
   const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
-  const briefLine = useMemo(() => streamCreativeBriefLine(plan), [plan]);
   const planKey = useMemo(() => planFingerprint(plan), [plan]);
   // Only start/end/speed/volume should restart the playback transport; a title
   // edit must not pause the montage that is already playing.
@@ -375,13 +366,11 @@ export function StreamEditor({
     activeClip && activeClip.end_seconds > activeClip.start_seconds
       ? ((previewSeconds - activeClip.start_seconds) / (activeClip.end_seconds - activeClip.start_seconds)) * 100
       : 0;
-  const briefApprovable = streamBriefCanBeApproved(plan);
   const ctaLabel = streamCtaLabel({ plan, briefApproved, rendering: stage === 'rendering', hasRender });
   // While something blocks the render the CTA names it but stays a real link
   // to that step instead of a disabled dead end.
-  const ctaTarget = streamCtaTarget(plan);
-  const ctaDisabled = busy ? true : ctaTarget === null && !canCreateStreamShorts({ briefApproved, busy });
   const blocker = streamPlanBlocker(plan);
+  const ctaDisabled = busy || (blocker === null && !canCreateStreamShorts({ briefApproved, busy }));
   const activeEntry = steps.find((step) => step.key === activeStep);
   const panelTitle =
     activeEntry === undefined
@@ -523,9 +512,9 @@ export function StreamEditor({
                 keyDropSlideEnabled: plan.keydrop_banner?.slide_enabled,
                 keyDropStartSeconds: keyDropStart,
                 keyDropEndSeconds: keyDropEnd,
-                onKeyDropPositionChange: busy ? undefined : setKeyDropPosition,
-                onStreamerPositionChange: setStreamerPosition,
-                disabled: busy,
+                onKeyDropPositionChange: busy || cropEditor ? undefined : setKeyDropPosition,
+                onStreamerPositionChange: cropEditor ? undefined : setStreamerPosition,
+                disabled: busy || cropEditor !== undefined,
                 playheadPercent: clipProgress,
                 className: 'h-full w-auto min-h-[120px]',
               }}
@@ -578,11 +567,9 @@ export function StreamEditor({
         ) : null}
 
         <StreamFooter
-          briefLine={briefLine}
           briefItems={briefItems}
           briefApproved={briefApproved}
-          briefApprovable={briefApprovable}
-          blockerHint={blocker === null ? null : BLOCKER_HINT[blocker]}
+          blockerHint={streamBlockerHint(plan)}
           countLabel={shortsWord(plan.clips.length)}
           summary={streamOutputSummary(plan, stale)}
           ctaLabel={ctaLabel}
@@ -591,8 +578,8 @@ export function StreamEditor({
           busy={saving}
           onBriefApprovedChange={setBriefApproved}
           onCreate={() => {
-            if (ctaTarget !== null) {
-              setActiveStep(ctaTarget);
+            if (blocker !== null) {
+              setActiveStep(blocker);
               return;
             }
             onCreate();

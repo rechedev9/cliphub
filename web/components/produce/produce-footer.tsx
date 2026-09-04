@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { BRIEF_APPROVAL_LABEL, type CreativeBriefItem } from '@/lib/reel-brief';
+import type { CreativeBriefItem } from '@/lib/reel-brief';
+import { BriefApprovalCheckbox, CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -78,30 +79,17 @@ export function ProduceFooter({
               </span>
             </summary>
             <section aria-labelledby={briefId} className="studio-panel mt-2 px-4 py-3">
-              <dl className="grid gap-x-6 gap-y-1.5 text-body-sm @[42rem]/content:grid-cols-2 @[70rem]/content:grid-cols-3">
-                {briefItems.map((item) => (
-                  <div key={item.label} className="flex min-w-0 gap-1.5">
-                    <dt className="shrink-0 text-fg-3">{item.label}:</dt>
-                    <dd className="truncate text-fg-1" title={item.value}>
-                      {item.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+              <CreativeBriefList items={briefItems} className="@[42rem]/content:grid-cols-2 @[70rem]/content:grid-cols-3" />
               {briefNote}
             </section>
           </details>
 
-          <label className="flex min-h-10 shrink-0 items-center gap-2.5 text-body-sm text-fg-1">
-            <input
-              type="checkbox"
-              checked={briefApproved}
-              disabled={!briefReady || busy}
-              onChange={(event) => onBriefApprovedChange(event.target.checked)}
-              className="size-5 shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            {BRIEF_APPROVAL_LABEL}
-          </label>
+          <BriefApprovalCheckbox
+            checked={briefApproved}
+            disabled={!briefReady || busy}
+            className="shrink-0"
+            onChange={onBriefApprovedChange}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">

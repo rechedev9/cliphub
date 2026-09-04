@@ -123,9 +123,9 @@ test.describe('stream editor', () => {
     await expect(autosaveStatus(page)).toHaveText('✓ Guardado · local + servidor');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
 
-    const briefLine = page.getByTitle(/de salida aprox\./);
+    const briefLine = page.getByTitle(/^Facecam 40 — .*de salida aprox\./);
     await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
-    await page.getByRole('button', { name: 'Ver el brief completo' }).click();
+    await page.getByText('Brief creativo', { exact: true }).click();
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);

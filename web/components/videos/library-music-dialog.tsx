@@ -23,6 +23,7 @@ import {
 } from '@/lib/api/reel-music';
 import { canRerenderWithMusic, reelCreativeBrief } from '@/lib/reel-brief';
 import { SongCatalog } from '@/components/clips/song-picker-dialog';
+import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -209,14 +210,7 @@ export function LibraryMusicDialog({
           >
             Brief creativo exacto
           </p>
-          <dl className="mt-2.5 grid gap-x-6 gap-y-1.5 text-body-sm">
-            {briefItems.map((item) => (
-              <div key={item.label} className="flex min-w-0 gap-1.5">
-                <dt className="shrink-0 text-fg-3">{item.label}:</dt>
-                <dd className="truncate text-fg-1" title={item.value}>{item.value}</dd>
-              </div>
-            ))}
-          </dl>
+          <CreativeBriefList items={briefItems} className="mt-2.5" />
           <label className="mt-3.5 flex min-h-10 items-center gap-2.5 text-body-sm text-fg-1">
             <input
               type="checkbox"

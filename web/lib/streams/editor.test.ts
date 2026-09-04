@@ -4,9 +4,8 @@ import type { StreamEditPlan } from '../api/streams.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
 import {
   STREAM_STEP,
-  streamBriefCanBeApproved,
+  streamBlockerHint,
   streamCtaLabel,
-  streamCtaTarget,
   streamEditorSteps,
   streamOutputSummary,
   streamPlanBlocker,
@@ -91,7 +90,7 @@ test('the CTA names the first blocker, then the approval, then the action', () =
   for (const [state, expected] of cases) assert.equal(streamCtaLabel(state), expected);
 });
 
-test('the CTA target is the first blocker, else nothing', () => {
+test('the blocker is the first unmet requirement, and names its hint', () => {
   const cases: [StreamEditPlan, StreamStep | null][] = [
     [plan(), null],
     [plan({ face_crop_reviewed: false }), STREAM_STEP.layout],
@@ -99,20 +98,10 @@ test('the CTA target is the first blocker, else nothing', () => {
     [plan({ clips: [] }), STREAM_STEP.cuts],
     [plan({ face_crop_reviewed: false, clips: [] }), STREAM_STEP.layout],
   ];
-  for (const [state, expected] of cases) {
-    assert.equal(streamCtaTarget(state), expected);
-    assert.equal(streamPlanBlocker(state), expected);
-  }
-});
-
-test('the brief is approvable only with cuts and a confirmed facecam', () => {
-  assert.equal(streamBriefCanBeApproved(plan()), true);
-  assert.equal(streamBriefCanBeApproved(plan({ clips: [] })), false);
-  assert.equal(streamBriefCanBeApproved(plan({ face_crop_reviewed: false })), false);
-  assert.equal(
-    streamBriefCanBeApproved(plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false })),
-    true,
-  );
+  for (const [state, expected] of cases) assert.equal(streamPlanBlocker(state), expected);
+  assert.equal(streamBlockerHint(plan()), null);
+  assert.match(streamBlockerHint(plan({ face_crop_reviewed: false })) ?? '', /paso 01/);
+  assert.match(streamBlockerHint(plan({ clips: [] })) ?? '', /corte/);
 });
 
 test('the output summary lists one Short per cut and flags a stale render', () => {
