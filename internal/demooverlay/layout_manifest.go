@@ -60,18 +60,25 @@ type paletteSpec struct {
 	Text             string `json:"text"`
 	MutedText        string `json:"muted_text"`
 	StatText         string `json:"stat_text"`
+	StatPositive     string `json:"stat_positive"`
+	StatNegative     string `json:"stat_negative"`
 	TargetText       string `json:"target_text"`
 	POVFill          string `json:"pov_fill"`
 	POVText          string `json:"pov_text"`
 	RankFill         string `json:"rank_fill"`
+	RankText         string `json:"rank_text"`
 	Level10Fill      string `json:"level_10_fill"`
 	Level8Fill       string `json:"level_8_fill"`
 	Level4Fill       string `json:"level_4_fill"`
+	Level2Fill       string `json:"level_2_fill"`
 	LevelDefaultFill string `json:"level_default_fill"`
+	LevelRingFill    string `json:"level_ring_fill"`
 	IntroPanelFill   string `json:"intro_panel_fill"`
 	IntroPanelBorder string `json:"intro_panel_border"`
 	IntroCardFill    string `json:"intro_card_fill"`
+	IntroCardBorder  string `json:"intro_card_border"`
 	IntroCardDivider string `json:"intro_card_divider"`
+	IntroStatsBand   string `json:"intro_stats_band"`
 	IntroTexture     string `json:"intro_texture"`
 	AvatarFill       string `json:"avatar_fill"`
 	OutroBackdrop    string `json:"outro_backdrop"`
@@ -81,9 +88,10 @@ type paletteSpec struct {
 	OutroRowEven     string `json:"outro_row_even"`
 	OutroRowOdd      string `json:"outro_row_odd"`
 	OutroCTName      string `json:"outro_ct_name"`
+	OutroCTStripe    string `json:"outro_ct_stripe"`
 	OutroTName       string `json:"outro_t_name"`
+	OutroTStripe     string `json:"outro_t_stripe"`
 	OutroDivider     string `json:"outro_divider"`
-	OutroColumnGuide string `json:"outro_column_guide"`
 }
 
 type textAnchorSpec struct {
@@ -99,26 +107,29 @@ type rectSpec struct {
 	Height int `json:"height"`
 }
 
+// badgeSpec is a filled rect whose text is centered inside it by the ffmpeg
+// drawtext text_w/text_h expressions, so the manifest never guesses glyph
+// metrics.
 type badgeSpec struct {
 	Rect     rectSpec `json:"rect"`
-	TextX    int      `json:"text_x"`
-	TextY    int      `json:"text_y"`
 	FontSize int      `json:"font_size"`
 }
 
 type introLayoutSpec struct {
-	ZOrder  []string        `json:"z_order"`
-	Panel   introPanelSpec  `json:"panel"`
-	Header  introHeaderSpec `json:"header"`
-	Card    rectSpec        `json:"card"`
-	Avatar  rectSpec        `json:"avatar"`
-	Name    textAnchorSpec  `json:"name"`
-	Country badgeSpec       `json:"country"`
-	ELO     textAnchorSpec  `json:"elo"`
-	POV     badgeSpec       `json:"pov"`
-	Level   badgeSpec       `json:"level"`
-	Stats   introStatsSpec  `json:"stats"`
-	Chrome  introChromeSpec `json:"chrome"`
+	ZOrder   []string        `json:"z_order"`
+	Panel    introPanelSpec  `json:"panel"`
+	Header   introHeaderSpec `json:"header"`
+	Card     rectSpec        `json:"card"`
+	Avatar   rectSpec        `json:"avatar"`
+	Name     textAnchorSpec  `json:"name"`
+	Country  badgeSpec       `json:"country"`
+	ELO      rightTextSpec   `json:"elo"`
+	ELOLabel rightTextSpec   `json:"elo_label"`
+	POV      badgeSpec       `json:"pov"`
+	Level    badgeSpec       `json:"level"`
+	Rank     badgeSpec       `json:"rank"`
+	Stats    introStatsSpec  `json:"stats"`
+	Chrome   introChromeSpec `json:"chrome"`
 }
 
 type introPanelSpec struct {
@@ -139,7 +150,10 @@ type introHeaderSpec struct {
 }
 
 type introStatsSpec struct {
-	X         int       `json:"x"`
+	X int `json:"x"`
+	// BandY is the top of the darker stats band, relative to the row origin;
+	// the band runs to the card bottom.
+	BandY     int       `json:"band_y"`
 	TitleY    int       `json:"title_y"`
 	ValueY    int       `json:"value_y"`
 	Right     int       `json:"right"`
@@ -155,32 +169,48 @@ type introChromeSpec struct {
 	PanelBorder     int `json:"panel_border"`
 	AccentWidth     int `json:"accent_width"`
 	HeaderDivider   int `json:"header_divider"`
+	CardRadius      int `json:"card_radius"`
 	CardAccentWidth int `json:"card_accent_width"`
+	AvatarRing      int `json:"avatar_ring"`
+	LevelRing       int `json:"level_ring"`
 	TextureSpacing  int `json:"texture_spacing"`
 }
 
 type outroLayoutSpec struct {
-	ZOrder          []string          `json:"z_order"`
-	Margin          int               `json:"margin"`
-	HeaderY         int               `json:"header_y"`
-	RowY            int               `json:"row_y"`
-	RowHeight       int               `json:"row_height"`
-	TeamYGap        int               `json:"team_y_gap"`
-	MaxPlayers      int               `json:"max_players"`
-	NameWidth       int               `json:"name_width"`
-	Header          textAnchorSpec    `json:"header"`
-	TeamAverage     rightTextSpec     `json:"team_average"`
-	ColumnLabelsY   int               `json:"column_labels_y"`
-	ColumnLabelSize int               `json:"column_label_size"`
-	StatSize        int               `json:"stat_size"`
-	Name            textAnchorSpec    `json:"name"`
-	POV             badgeSpec         `json:"pov"`
-	Columns         []outroColumnSpec `json:"columns"`
-	Chrome          outroChromeSpec   `json:"chrome"`
+	ZOrder           []string          `json:"z_order"`
+	Margin           int               `json:"margin"`
+	HeaderY          int               `json:"header_y"`
+	RowY             int               `json:"row_y"`
+	RowHeight        int               `json:"row_height"`
+	TeamYGap         int               `json:"team_y_gap"`
+	MaxPlayers       int               `json:"max_players"`
+	NameWidth        int               `json:"name_width"`
+	Header           textAnchorSpec    `json:"header"`
+	Score            badgeSpec         `json:"score"`
+	TeamAverage      rightTextSpec     `json:"team_average"`
+	TeamAverageLabel rightTextSpec     `json:"team_average_label"`
+	MapLabel         centeredTextSpec  `json:"map_label"`
+	ColumnLabelsY    int               `json:"column_labels_y"`
+	ColumnLabelSize  int               `json:"column_label_size"`
+	StatSize         int               `json:"stat_size"`
+	Name             textAnchorSpec    `json:"name"`
+	POVNameX         int               `json:"pov_name_x"`
+	POV              badgeSpec         `json:"pov"`
+	Columns          []outroColumnSpec `json:"columns"`
+	Chrome           outroChromeSpec   `json:"chrome"`
 }
 
+// rightTextSpec places text so its right edge sits Right pixels from the
+// right edge of its container.
 type rightTextSpec struct {
 	Right    int `json:"right"`
+	Y        int `json:"y"`
+	FontSize int `json:"font_size"`
+}
+
+// centeredTextSpec places text centered horizontally on the canvas at an
+// absolute Y.
+type centeredTextSpec struct {
 	Y        int `json:"y"`
 	FontSize int `json:"font_size"`
 }
@@ -193,17 +223,18 @@ type outroColumnSpec struct {
 }
 
 type outroChromeSpec struct {
-	BoardLeft        int `json:"board_left"`
-	BoardTop         int `json:"board_top"`
-	BoardRight       int `json:"board_right"`
-	BoardBottom      int `json:"board_bottom"`
-	AccentWidth      int `json:"accent_width"`
-	LabelTop         int `json:"label_top"`
-	LabelBottom      int `json:"label_bottom"`
-	RowBottomGap     int `json:"row_bottom_gap"`
-	NameRightGap     int `json:"name_right_gap"`
-	DividerHeight    int `json:"divider_height"`
-	ColumnGuideWidth int `json:"column_guide_width"`
+	BoardLeft       int `json:"board_left"`
+	BoardTop        int `json:"board_top"`
+	BoardRight      int `json:"board_right"`
+	BoardBottom     int `json:"board_bottom"`
+	BoardRadius     int `json:"board_radius"`
+	AccentWidth     int `json:"accent_width"`
+	LabelTop        int `json:"label_top"`
+	LabelBottom     int `json:"label_bottom"`
+	RowBottomGap    int `json:"row_bottom_gap"`
+	NameRightGap    int `json:"name_right_gap"`
+	SideStripeWidth int `json:"side_stripe_width"`
+	DividerHeight   int `json:"divider_height"`
 }
 
 func mustDecodeLayoutSpec(raw []byte) layoutSpec {
@@ -310,7 +341,7 @@ func validateIntroSpec(spec introLayoutSpec, canvas canvasSpec) error {
 	}
 	for name, rect := range map[string]rectSpec{
 		"card": spec.Card, "avatar": spec.Avatar, "country": spec.Country.Rect,
-		"pov": spec.POV.Rect, "level": spec.Level.Rect,
+		"pov": spec.POV.Rect, "level": spec.Level.Rect, "rank": spec.Rank.Rect,
 	} {
 		if rect.Width <= 0 || rect.Height <= 0 || rect.X < 0 || rect.X+rect.Width > p.Width || rect.Y < -p.HeaderHeight || rect.Y+rect.Height > p.RowHeight {
 			return fmt.Errorf("intro %s rect %+v exceeds its slot", name, rect)
@@ -318,7 +349,7 @@ func validateIntroSpec(spec introLayoutSpec, canvas canvasSpec) error {
 	}
 	for name, anchor := range map[string]textAnchorSpec{
 		"header name": spec.Header.Name, "header subtitle": spec.Header.Subtitle,
-		"player name": spec.Name, "elo": spec.ELO,
+		"player name": spec.Name,
 	} {
 		maxY := p.RowHeight
 		if strings.HasPrefix(name, "header ") {
@@ -328,8 +359,13 @@ func validateIntroSpec(spec introLayoutSpec, canvas canvasSpec) error {
 			return err
 		}
 	}
+	for name, text := range map[string]rightTextSpec{"elo": spec.ELO, "elo label": spec.ELOLabel} {
+		if err := validateRightText("intro "+name, text, p.Width, p.RowHeight); err != nil {
+			return err
+		}
+	}
 	for name, badge := range map[string]badgeSpec{
-		"country": spec.Country, "pov": spec.POV, "level": spec.Level,
+		"country": spec.Country, "pov": spec.POV, "level": spec.Level, "rank": spec.Rank,
 	} {
 		if err := validateBadge("intro "+name, badge); err != nil {
 			return err
@@ -338,7 +374,13 @@ func validateIntroSpec(spec introLayoutSpec, canvas canvasSpec) error {
 	if rectsOverlap(spec.POV.Rect, spec.Level.Rect) {
 		return fmt.Errorf("intro POV and level badges overlap")
 	}
-	if spec.Name.X < 0 || spec.ELO.X < 0 || spec.Stats.X < 0 || spec.Stats.Right < 0 || spec.Stats.X+spec.Stats.Right >= p.Width {
+	if rectsOverlap(spec.Country.Rect, spec.POV.Rect) {
+		return fmt.Errorf("intro country and POV badges overlap")
+	}
+	if rectsOverlap(spec.Level.Rect, spec.Rank.Rect) {
+		return fmt.Errorf("intro level and rank badges overlap")
+	}
+	if spec.Name.X < 0 || spec.Stats.X < 0 || spec.Stats.Right < 0 || spec.Stats.X+spec.Stats.Right >= p.Width {
 		return fmt.Errorf("intro text anchors exceed panel width")
 	}
 	if len(spec.Stats.Weights) != 6 {
@@ -349,12 +391,18 @@ func validateIntroSpec(spec introLayoutSpec, canvas canvasSpec) error {
 			return fmt.Errorf("intro stat weight %d = %g, want positive", i, weight)
 		}
 	}
-	if spec.Stats.TitleY < 0 || spec.Stats.ValueY < 0 || spec.Stats.TitleY >= p.RowHeight || spec.Stats.ValueY >= p.RowHeight ||
+	cardBottom := spec.Card.Y + spec.Card.Height
+	if spec.Stats.BandY < 0 || spec.Stats.BandY >= cardBottom || spec.Stats.TitleY < spec.Stats.BandY || spec.Stats.ValueY < spec.Stats.TitleY ||
+		spec.Stats.ValueY+spec.Stats.ValueSize+spec.Stats.LabelGap+spec.Stats.LabelSize > cardBottom ||
 		spec.Stats.TitleSize <= 0 || spec.Stats.ValueSize <= 0 || spec.Stats.LabelSize <= 0 || spec.Stats.LabelGap < 0 {
-		return fmt.Errorf("intro stat typography exceeds its slot")
+		return fmt.Errorf("intro stat typography exceeds its band")
+	}
+	if spec.Avatar.Y+spec.Avatar.Height+spec.Chrome.AvatarRing > spec.Stats.BandY {
+		return fmt.Errorf("intro avatar ring overlaps the stats band")
 	}
 	c := spec.Chrome
-	if c.PanelRadius < 0 || c.PanelBorder <= 0 || c.AccentWidth <= 0 || c.HeaderDivider <= 0 || c.CardAccentWidth <= 0 || c.TextureSpacing <= 0 {
+	if c.PanelRadius < 0 || c.PanelBorder <= 0 || c.AccentWidth <= 0 || c.HeaderDivider <= 0 || c.CardRadius < 0 ||
+		c.CardAccentWidth <= 0 || c.AvatarRing <= 0 || c.LevelRing <= 0 || c.TextureSpacing <= 0 {
 		return fmt.Errorf("intro chrome dimensions are invalid")
 	}
 	return nil
@@ -380,14 +428,31 @@ func validateOutroSpec(spec outroLayoutSpec, canvas canvasSpec) error {
 	if err := validateBadge("outro pov", spec.POV); err != nil {
 		return err
 	}
-	if err := validateTextAnchor("outro header", spec.Header, tableWidth, spec.RowY-spec.HeaderY); err != nil {
+	headerHeight := spec.RowY - spec.HeaderY
+	if err := validateTextAnchor("outro header", spec.Header, tableWidth, headerHeight); err != nil {
 		return err
+	}
+	if err := validateBadge("outro score", spec.Score); err != nil {
+		return err
+	}
+	if spec.Score.Rect.X < 0 || spec.Score.Rect.Y < 0 || spec.Score.Rect.X+spec.Score.Rect.Width > spec.Header.X || spec.Score.Rect.Y+spec.Score.Rect.Height > headerHeight {
+		return fmt.Errorf("outro score chip must sit left of the team name inside the header")
 	}
 	if err := validateTextAnchor("outro name", spec.Name, spec.NameWidth, spec.RowHeight); err != nil {
 		return err
 	}
-	if spec.TeamAverage.Right < 0 || spec.TeamAverage.Right >= tableWidth || spec.TeamAverage.Y < 0 || spec.TeamAverage.FontSize <= 0 ||
-		spec.ColumnLabelsY < 0 || spec.ColumnLabelsY >= spec.RowY-spec.HeaderY || spec.ColumnLabelSize <= 0 || spec.StatSize <= 0 {
+	if spec.POVNameX < spec.POV.Rect.X+spec.POV.Rect.Width || spec.POVNameX >= spec.NameWidth {
+		return fmt.Errorf("outro POV name x = %d must clear the POV badge", spec.POVNameX)
+	}
+	for name, text := range map[string]rightTextSpec{"team average": spec.TeamAverage, "team average label": spec.TeamAverageLabel} {
+		if err := validateRightText("outro "+name, text, tableWidth, headerHeight); err != nil {
+			return err
+		}
+	}
+	if spec.MapLabel.Y < 0 || spec.MapLabel.Y >= canvas.Height || spec.MapLabel.FontSize <= 0 {
+		return fmt.Errorf("outro map label exceeds the canvas")
+	}
+	if spec.ColumnLabelsY < 0 || spec.ColumnLabelsY >= headerHeight || spec.ColumnLabelSize <= 0 || spec.StatSize <= 0 {
 		return fmt.Errorf("outro typography exceeds its slot")
 	}
 	allowed := map[string]bool{
@@ -410,7 +475,7 @@ func validateOutroSpec(spec outroLayoutSpec, canvas canvasSpec) error {
 		return fmt.Errorf("outro columns = %d, want %d", len(seen), len(allowed))
 	}
 	c := spec.Chrome
-	if c.AccentWidth <= 0 || c.RowBottomGap < 0 || c.NameRightGap < 0 || c.DividerHeight <= 0 || c.ColumnGuideWidth <= 0 ||
+	if c.AccentWidth <= 0 || c.BoardRadius < 0 || c.RowBottomGap < 0 || c.NameRightGap < 0 || c.SideStripeWidth <= 0 || c.DividerHeight <= 0 ||
 		spec.Margin+c.BoardLeft < 0 || canvas.Width-spec.Margin+c.BoardRight > canvas.Width ||
 		spec.HeaderY+c.BoardTop < 0 || spec.RowY+spec.TeamYGap+spec.MaxPlayers*spec.RowHeight+c.BoardBottom > canvas.Height {
 		return fmt.Errorf("outro chrome exceeds the canvas")
@@ -426,8 +491,15 @@ func validateTextAnchor(name string, anchor textAnchorSpec, maxX, maxY int) erro
 }
 
 func validateBadge(name string, badge badgeSpec) error {
-	if badge.FontSize <= 0 || badge.TextX < 0 || badge.TextY < 0 || badge.TextX >= badge.Rect.Width || badge.TextY >= badge.Rect.Height {
+	if badge.FontSize <= 0 || badge.FontSize > badge.Rect.Height {
 		return fmt.Errorf("%s text exceeds its badge", name)
+	}
+	return nil
+}
+
+func validateRightText(name string, text rightTextSpec, maxX, maxY int) error {
+	if text.Right < 0 || text.Right >= maxX || text.Y < 0 || text.Y >= maxY || text.FontSize <= 0 {
+		return fmt.Errorf("%s anchor exceeds its slot", name)
 	}
 	return nil
 }
@@ -454,17 +526,20 @@ func validOverlayColor(value string) bool {
 
 func (p paletteSpec) colors() map[string]string {
 	return map[string]string{
-		"text": p.Text, "muted_text": p.MutedText, "stat_text": p.StatText, "target_text": p.TargetText,
-		"pov_fill": p.POVFill, "pov_text": p.POVText, "rank_fill": p.RankFill,
+		"text": p.Text, "muted_text": p.MutedText, "stat_text": p.StatText,
+		"stat_positive": p.StatPositive, "stat_negative": p.StatNegative, "target_text": p.TargetText,
+		"pov_fill": p.POVFill, "pov_text": p.POVText, "rank_fill": p.RankFill, "rank_text": p.RankText,
 		"level_10_fill": p.Level10Fill, "level_8_fill": p.Level8Fill, "level_4_fill": p.Level4Fill,
-		"level_default_fill": p.LevelDefaultFill, "intro_panel_fill": p.IntroPanelFill,
-		"intro_panel_border": p.IntroPanelBorder, "intro_card_fill": p.IntroCardFill,
-		"intro_card_divider": p.IntroCardDivider, "intro_texture": p.IntroTexture,
-		"avatar_fill":    p.AvatarFill,
+		"level_2_fill": p.Level2Fill, "level_default_fill": p.LevelDefaultFill, "level_ring_fill": p.LevelRingFill,
+		"intro_panel_fill": p.IntroPanelFill, "intro_panel_border": p.IntroPanelBorder,
+		"intro_card_fill": p.IntroCardFill, "intro_card_border": p.IntroCardBorder,
+		"intro_card_divider": p.IntroCardDivider, "intro_stats_band": p.IntroStatsBand,
+		"intro_texture": p.IntroTexture, "avatar_fill": p.AvatarFill,
 		"outro_backdrop": p.OutroBackdrop, "outro_board_fill": p.OutroBoardFill,
 		"outro_board_border": p.OutroBoardBorder, "outro_label_fill": p.OutroLabelFill,
 		"outro_row_even": p.OutroRowEven, "outro_row_odd": p.OutroRowOdd,
-		"outro_ct_name": p.OutroCTName, "outro_t_name": p.OutroTName,
-		"outro_divider": p.OutroDivider, "outro_column_guide": p.OutroColumnGuide,
+		"outro_ct_name": p.OutroCTName, "outro_ct_stripe": p.OutroCTStripe,
+		"outro_t_name": p.OutroTName, "outro_t_stripe": p.OutroTStripe,
+		"outro_divider": p.OutroDivider,
 	}
 }

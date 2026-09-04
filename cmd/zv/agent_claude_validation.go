@@ -87,9 +87,9 @@ func webClaudeStyleRequiredText() []string {
 
 type claudeSettingsFile struct {
 	Permissions struct {
-		Allow []string `json:"allow"`
-		Ask   []string `json:"ask"`
-		Deny  []string `json:"deny"`
+		Allow       []string `json:"allow"`
+		Ask         []string `json:"ask"`
+		DefaultMode string   `json:"defaultMode"`
 	} `json:"permissions"`
 }
 
@@ -114,34 +114,16 @@ func checkClaudeSettings() ([]skillIssue, error) {
 	}
 
 	var issues []skillIssue
-	for section, values := range map[string][]string{
-		"allow": settings.Permissions.Allow,
-		"ask":   settings.Permissions.Ask,
-		"deny":  settings.Permissions.Deny,
-	} {
-		if len(values) == 0 {
-			issues = append(issues, skillIssue{Path: relPath, Message: fmt.Sprintf("permissions.%s is empty", section)})
-		}
-	}
 	for _, permission := range claudeRequiredAllowPermissions() {
 		if !containsString(settings.Permissions.Allow, permission) {
 			issues = append(issues, skillIssue{Path: relPath, Message: fmt.Sprintf("missing allow permission %q", permission)})
 		}
 	}
-	for _, permission := range claudeRequiredAskPermissions() {
-		if !containsString(settings.Permissions.Ask, permission) {
-			issues = append(issues, skillIssue{Path: relPath, Message: fmt.Sprintf("missing ask permission %q", permission)})
-		}
+	if len(settings.Permissions.Ask) > 0 {
+		issues = append(issues, skillIssue{Path: relPath, Message: "permissions.ask must be empty: the harness runs without permission prompts"})
 	}
-	for _, permission := range claudeRequiredDenyPermissions() {
-		if !containsString(settings.Permissions.Deny, permission) {
-			issues = append(issues, skillIssue{Path: relPath, Message: fmt.Sprintf("missing deny permission %q", permission)})
-		}
-	}
-	for _, permission := range settings.Permissions.Allow {
-		if containsString(claudeRequiredAskPermissions(), permission) || containsString(claudeRequiredDenyPermissions(), permission) {
-			issues = append(issues, skillIssue{Path: relPath, Message: fmt.Sprintf("dangerous permission %q must not be allowed", permission)})
-		}
+	if settings.Permissions.DefaultMode != "bypassPermissions" {
+		issues = append(issues, skillIssue{Path: relPath, Message: fmt.Sprintf("permissions.defaultMode = %q, want \"bypassPermissions\"", settings.Permissions.DefaultMode)})
 	}
 	return issues, nil
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -923,5 +925,82 @@ func TestRunSkillsCheckCreativeBriefGate(t *testing.T) {
 				t.Fatalf("code = %d, want %d", code, exitInvalidArgs)
 			}
 		})
+	}
+}
+
+func TestRunSkillsSkipUncatalogedClaudeCodeSkills(t *testing.T) {
+	tempDir := t.TempDir()
+	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
+		"---",
+		"name: alpha",
+		`description: "Alpha workflow"`,
+		"---",
+		"",
+		"```powershell",
+		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
+		"```",
+		"",
+	}, "\n"))
+	// A Claude Code-only skill never touches the zv CLI; it opts out of the
+	// catalog instead of failing the "documents a workflow run" contract.
+	writeSkillBody(t, tempDir, "design", strings.Join([]string{
+		"---",
+		"name: design",
+		`description: "Design work"`,
+		"metadata:",
+		`  zv-catalog: "false"`,
+		"---",
+		"",
+		"# design",
+		"",
+		"No zv commands here.",
+		"",
+	}, "\n"))
+	withWorkingDir(t, tempDir)
+
+	tests := []struct {
+		name string
+		argv []string
+		want string
+	}{
+		{name: "list", argv: []string{"zv", "skills", "list"}, want: "alpha\tAlpha workflow\n"},
+		{name: "check", argv: []string{"zv", "skills", "check"}, want: "OK: 1 skills checked"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := Run(tt.argv, &stdout, &stderr, nil, &fakeRunner{})
+			if got, want := code, exitSuccess; got != want {
+				t.Fatalf("code = %d, want %d; stderr=%s", got, want, stderr.String())
+			}
+			if !strings.Contains(stdout.String(), tt.want) {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), tt.want)
+			}
+			if strings.Contains(stdout.String(), "design") {
+				t.Fatalf("stdout = %q, uncataloged skill leaked into %s", stdout.String(), tt.name)
+			}
+		})
+	}
+}
+
+func TestFindSkillsDirIgnoresUserGlobalClaudeSkills(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	globalSkills := filepath.Join(home, ".claude", "skills")
+	if err := os.MkdirAll(globalSkills, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	work := filepath.Join(home, "work")
+	if err := os.MkdirAll(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withWorkingDir(t, work)
+
+	if dir, err := findSkillsDir(); err == nil && filepath.Clean(dir) == filepath.Clean(globalSkills) {
+		t.Fatalf("findSkillsDir resolved the user-global %s as the repo catalog", dir)
+	}
+	if hasWorkflowRootMarker(home) {
+		t.Fatalf("%s treated as workflow root because of the user-global skills dir", home)
 	}
 }

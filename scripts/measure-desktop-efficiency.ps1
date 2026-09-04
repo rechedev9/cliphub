@@ -51,7 +51,6 @@ function Get-Role {
     if ($commandLine -match "--type=gpu-process") { return "electron-gpu" }
     if ($commandLine -match "--type=renderer") { return "electron-renderer" }
     if ($commandLine -match "server\.js") { return "next-server" }
-    if ($commandLine -match "codex") { return "codex-agent" }
     if ([string]$Process.Name -match "^zv-orchestrator") { return "orchestrator" }
     return "other-child"
 }

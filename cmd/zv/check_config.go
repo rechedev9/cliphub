@@ -1,90 +1,14 @@
 package main
 
+// claudeRequiredAllowPermissions is the harness contract for
+// .claude/settings.json: the operator wants zero permission prompts, so the
+// blanket tool allows must be present and no ask/deny lists are required.
 func claudeRequiredAllowPermissions() []string {
 	return []string{
-		"Read",
-		"Edit",
-		"Write",
-		"Bash(git status*)",
-		"Bash(git diff*)",
-		"Bash(go test*)",
-		"Bash(go vet*)",
-		"Bash(gofmt*)",
-		"Bash(scripts/go-format-changed.sh*)",
-		"Bash(scripts/go-gate.sh*)",
-		"Bash(scripts/go-tools-check.sh*)",
-	}
-}
-
-func claudeRequiredAskPermissions() []string {
-	return []string{
-		"Bash(go mod tidy*)",
-		"Bash(go get*)",
-		"Bash(go install*)",
-		"Bash(git commit*)",
-		"Bash(git push*)",
-		"Bash(git reset*)",
-		"Bash(git clean*)",
-		"Bash(docker*)",
-		"Bash(docker compose*)",
-		"Bash(ffmpeg*)",
-		"Bash(powershell.exe*)",
-		"Bash(pwsh*)",
-		"Bash(scripts/build.ps1*)",
-		"Bash(scripts/cleanup-artifacts.ps1*)",
-		"Bash(scripts/audit-security-performance.ps1*)",
-	}
-}
-
-func claudeRequiredDenyPermissions() []string {
-	return []string{
-		"Read(.env)",
-		"Read(**/.env)",
-		"Read(**/*id_rsa*)",
-		"Read(**/*id_ed25519*)",
-		"Read(**/*secret*)",
-		"Read(**/*token*)",
-		"Bash(rm -rf *)",
-		"Bash(git reset --hard*)",
-		"Bash(git push --force*)",
-	}
-}
-
-func codexPromptContentRules() []codexPromptContentRule {
-	return []codexPromptContentRule{
-		{
-			Path: ".codex/prompts/go-tdd.md",
-			Required: []string{
-				"scripts/go-gate.sh --no-format",
-				"`zv check`",
-				"scripts/go-gate.sh --race --no-format",
-			},
-			Forbidden: []string{
-				"`go test ./... -count=1`",
-				"`go vet ./...`",
-			},
-		},
-		{
-			Path: ".codex/prompts/go-bugfix.md",
-			Required: []string{
-				"scripts/go-gate.sh --no-format",
-				"`zv check`",
-				"scripts/go-gate.sh --race --no-format",
-			},
-			Forbidden: []string{
-				"`go test ./... -count=1`",
-				"`go vet ./...`",
-			},
-		},
-		{
-			Path: ".codex/prompts/go-pr-ready.md",
-			Required: []string{
-				"scripts/go-gate.sh",
-				"scripts/go-gate.sh --no-format",
-				"scripts/go-gate.sh --race",
-				"scripts/go-gate.sh --security",
-			},
-		},
+		"Bash(*)",
+		"Read(*)",
+		"Edit(*)",
+		"Write(*)",
 	}
 }
 

@@ -7,8 +7,8 @@ package verify
 const SchemaVersion = 2
 
 const (
-	SkillRelPath       = ".cursor/skills/verify-cliphub/SKILL.md"
-	FeatureMapRelDir   = ".cursor/skills/verify-cliphub/references/features"
+	SkillRelPath       = ".claude/skills/verify-cliphub/SKILL.md"
+	FeatureMapRelDir   = ".claude/skills/verify-cliphub/references/features"
 	StudioAppDir       = "cliphub-studio"
 	StudioPortsFile    = "ports.json"
 	StudioJobsDBRel    = "data/jobs.db"

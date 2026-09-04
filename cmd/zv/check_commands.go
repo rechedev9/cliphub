@@ -24,19 +24,18 @@ func runWorkflowContractCheck(args []string, stdout, stderr io.Writer, usage str
 		fmt.Fprint(stderr, usage)
 		return exitInvalidArgs
 	}
-	skills, workflows, docs, agentPromptWrappersChecked, issues, err := checkWorkflows()
+	skills, workflows, docs, issues, err := checkWorkflows()
 	if err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return exitUnexpected
 	}
 	if format == "json" {
 		result := workflowCheckResult{
-			OK:                         len(issues) == 0,
-			SkillsChecked:              len(skills),
-			WorkflowsChecked:           len(workflows),
-			WorkflowDocsChecked:        len(docs),
-			AgentPromptWrappersChecked: agentPromptWrappersChecked,
-			Issues:                     issues,
+			OK:                  len(issues) == 0,
+			SkillsChecked:       len(skills),
+			WorkflowsChecked:    len(workflows),
+			WorkflowDocsChecked: len(docs),
+			Issues:              issues,
 		}
 		if result.Issues == nil {
 			result.Issues = []skillIssue{}
@@ -56,6 +55,6 @@ func runWorkflowContractCheck(args []string, stdout, stderr io.Writer, usage str
 		}
 		return exitInvalidArgs
 	}
-	fmt.Fprintf(stdout, "OK: %d skills, %d workflows, %d workflow docs, and %d agent prompt wrappers checked\n", len(skills), len(workflows), len(docs), agentPromptWrappersChecked)
+	fmt.Fprintf(stdout, "OK: %d skills, %d workflows, and %d workflow docs checked\n", len(skills), len(workflows), len(docs))
 	return exitSuccess
 }

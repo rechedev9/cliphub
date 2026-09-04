@@ -61,7 +61,7 @@ exact loopback origin before writing.
 ## No embedded assistant
 
 Studio ships no assistant surface.
-There is no agent rail, no chat, no embedded `codex app-server` connection, and no typed operation gateway; the preload bridge exposes `cliphubSettings.getAppInfo`, the clipboard write, and `cliphubUpdate` for GitHub Release checks.
+There is no agent rail, no chat, no embedded agent connection, and no typed operation gateway; the preload bridge exposes `cliphubSettings.getAppInfo`, the clipboard write, and `cliphubUpdate` for GitHub Release checks.
 The pipeline is driven through the interface itself and, for scripted work, the `zv` CLI in the repository build.
 No publish text is model-generated: the render writes each pack's title, caption, and hashtags deterministically from demo facts, and the publication assistant above offers factual, reel-derived metadata alternatives.
 

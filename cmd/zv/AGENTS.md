@@ -11,7 +11,7 @@ Unified CLI. Feature binaries remain behavioral owners; `zv` is the stable comma
 | Demo/stream flows | `flow_commands.go`, `flow_run.go` |
 | `short` orchestration | `short_command.go`, `short_prompt.go` |
 | `zv check` | `check_commands.go`, `command_validation.go`, `skill_validation.go`, `doc_validation.go`, `agent_*.go` |
-| Claude/Codex perms | `check_config.go` |
+| Claude perms | `check_config.go` |
 | Anticheat CLI | `anticheat_commands.go` → `internal/anticheat` |
 | FACEIT index | `faceit_command.go` → `internal/faceit` |
 | Demo review | `demo_review_commands.go`, `demo_probe.go`, `voice_commands.go` |

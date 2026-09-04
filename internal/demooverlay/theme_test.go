@@ -1,6 +1,11 @@
 package demooverlay
 
-import "testing"
+import (
+	"bytes"
+	"image/color"
+	"image/png"
+	"testing"
+)
 
 func TestUsesProgrammaticIntroChrome(t *testing.T) {
 	if !UsesProgrammaticIntroChrome(Document{Source: SourceFACEIT, Theme: ThemeFaceitOrange}) {
@@ -38,5 +43,39 @@ func TestRenderIntroChromePNG(t *testing.T) {
 	}
 	if len(data) < 8 || string(data[:8]) != "\x89PNG\r\n\x1a\n" {
 		t.Fatalf("expected PNG header, got %d bytes", len(data))
+	}
+}
+
+// Non-FACEIT docs keep the generic drawtext column on DefaultLayout geometry,
+// so the generated chrome must stay a bare panel for them or badges draw twice.
+func TestRenderIntroChromePNGSkipsCardsForNonFACEITSources(t *testing.T) {
+	roster := Intro{
+		Left:  []PlayerCard{{Name: "left", Kills: 20, Deaths: 10}},
+		Right: []PlayerCard{{Name: "right", Kills: 12, Deaths: 18}},
+	}
+	render := func(doc Document, l IntroLayout) color.Color {
+		t.Helper()
+		data, err := renderIntroChromePNG(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		img, err := png.Decode(bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Inside the first roster row, away from the panel border and accent.
+		return img.At(l.LeftPanelX+l.PanelWidth/2, l.PanelTop+l.HeaderH+60)
+	}
+	generic := DefaultLayout().Intro
+	bare := render(Document{Source: SourcePremier, Theme: ThemeNeonViolet}, generic)
+	withRoster := render(Document{Source: SourcePremier, Theme: ThemeNeonViolet, Intro: roster}, generic)
+	if bare != withRoster {
+		t.Fatalf("premier intro chrome painted a FACEIT card: %v != %v", withRoster, bare)
+	}
+	faceit := faceitIntroLayout()
+	faceitBare := render(Document{Source: SourceFACEIT, Theme: ThemeNeonViolet}, faceit)
+	faceitRoster := render(Document{Source: SourceFACEIT, Theme: ThemeNeonViolet, Intro: roster}, faceit)
+	if faceitBare == faceitRoster {
+		t.Fatal("faceit intro chrome missing card in the first roster row")
 	}
 }

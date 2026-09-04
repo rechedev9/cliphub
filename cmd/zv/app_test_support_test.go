@@ -145,7 +145,7 @@ func repoRoot(t *testing.T) string {
 
 func currentRepoSkills(t *testing.T, root string) []skillInfo {
 	t.Helper()
-	skillsDir := filepath.Join(root, ".codex", "skills")
+	skillsDir := filepath.Join(root, ".claude", "skills")
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
 		t.Fatalf("read skills dir: %v", err)
@@ -166,6 +166,9 @@ func currentRepoSkills(t *testing.T, root string) []skillInfo {
 		if err != nil {
 			t.Fatalf("parse skill %s: %v", path, err)
 		}
+		if skill.Uncataloged {
+			continue
+		}
 		if skill.Name == "" {
 			skill.Name = entry.Name()
 		}
@@ -177,46 +180,9 @@ func currentRepoSkills(t *testing.T, root string) []skillInfo {
 	return skills
 }
 
-func currentAgentPromptWrappers(t *testing.T, root string) []string {
-	t.Helper()
-	var wrappers []string
-	for _, fixture := range currentCodexPromptWrappers(t, root) {
-		wrappers = append(wrappers, fixture.wrapper)
-	}
-	return wrappers
-}
-
-func currentCodexPromptWrappers(t *testing.T, root string) []codexPromptWrapperFixture {
-	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(root, "scripts", "codex*.sh"))
-	if err != nil {
-		t.Fatalf("glob codex wrappers: %v", err)
-	}
-	var fixtures []codexPromptWrapperFixture
-	for _, wrapper := range matches {
-		if filepath.Base(wrapper) == "codex-run.sh" {
-			continue
-		}
-		relWrapper := filepath.ToSlash(mustRel(root, wrapper))
-		body := readFileString(t, wrapper)
-		prompt, ok := codexWrapperPromptPath(body)
-		if !ok {
-			t.Fatalf("%s does not exec scripts/codex-run.sh with a prompt", relWrapper)
-		}
-		fixtures = append(fixtures, codexPromptWrapperFixture{
-			wrapper: relWrapper,
-			prompt:  prompt,
-		})
-	}
-	if len(fixtures) == 0 {
-		t.Fatalf("no codex prompt wrappers found")
-	}
-	return fixtures
-}
-
 func repoSkillWorkflowRunCommands(t *testing.T, root string) [][]string {
 	t.Helper()
-	skillsDir := filepath.Join(root, ".codex", "skills")
+	skillsDir := filepath.Join(root, ".claude", "skills")
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
 		t.Fatalf("read skills dir: %v", err)
@@ -249,7 +215,7 @@ type repoSkillWorkflowRunCommand struct {
 
 func repoSkillWorkflowRunCommandsBySkill(t *testing.T, root string) []repoSkillWorkflowRunCommand {
 	t.Helper()
-	skillsDir := filepath.Join(root, ".codex", "skills")
+	skillsDir := filepath.Join(root, ".claude", "skills")
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
 		t.Fatalf("read skills dir: %v", err)
@@ -505,7 +471,7 @@ func currentWorkflowDocBodies(t *testing.T, root string) []workflowDocBody {
 
 func currentRepoSkillBodies(t *testing.T, root string) []workflowDocBody {
 	t.Helper()
-	skillsDir := filepath.Join(root, ".codex", "skills")
+	skillsDir := filepath.Join(root, ".claude", "skills")
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
 		t.Fatalf("read skills dir: %v", err)
@@ -515,13 +481,16 @@ func currentRepoSkillBodies(t *testing.T, root string) []workflowDocBody {
 		if !entry.IsDir() {
 			continue
 		}
-		relPath := filepath.ToSlash(filepath.Join(".codex", "skills", entry.Name(), "SKILL.md"))
+		relPath := filepath.ToSlash(filepath.Join(".claude", "skills", entry.Name(), "SKILL.md"))
 		path := filepath.Join(root, filepath.FromSlash(relPath))
-		b, err := os.ReadFile(path)
+		skill, err := parseSkill(path)
 		if err != nil {
-			t.Fatalf("read %s: %v", relPath, err)
+			t.Fatalf("parse %s: %v", relPath, err)
 		}
-		docs = append(docs, workflowDocBody{path: relPath, body: string(b)})
+		if skill.Uncataloged {
+			continue
+		}
+		docs = append(docs, workflowDocBody{path: relPath, body: skill.Body})
 	}
 	return docs
 }
@@ -1028,53 +997,6 @@ func isolateDocumentedFlowRunDir(command []string, runDir string) []string {
 	return isolated
 }
 
-type codexPromptWrapperFixture struct {
-	wrapper string
-	prompt  string
-}
-
-func agentPromptWrapperFixtures() []string {
-	var out []string
-	for _, fixture := range codexPromptWrapperFixtures() {
-		out = append(out, fixture.wrapper)
-	}
-	return out
-}
-
-func codexPromptWrapperFixtures() []codexPromptWrapperFixture {
-	return []codexPromptWrapperFixture{
-		{wrapper: "scripts/codex-go-bugfix.sh", prompt: ".codex/prompts/go-bugfix.md"},
-		{wrapper: "scripts/codex-go-pr-ready.sh", prompt: ".codex/prompts/go-pr-ready.md"},
-		{wrapper: "scripts/codex-go-tdd.sh", prompt: ".codex/prompts/go-tdd.md"},
-		{wrapper: "scripts/codex-plan.sh", prompt: ".codex/prompts/go-plan.md"},
-		{wrapper: "scripts/codex-spike.sh", prompt: ".codex/prompts/go-spike.md"},
-	}
-}
-
-func codexPromptFixtureBody(prompt string) string {
-	switch prompt {
-	case ".codex/prompts/go-tdd.md", ".codex/prompts/go-bugfix.md":
-		return strings.Join([]string{
-			"# Prompt",
-			"",
-			"Run `scripts/go-gate.sh --no-format` so tests, vet, `zv check`, and static analysis share the project contract.",
-			"If concurrency/shared state changed, run `scripts/go-gate.sh --race --no-format`.",
-			"",
-		}, "\n")
-	case ".codex/prompts/go-pr-ready.md":
-		return strings.Join([]string{
-			"# Prompt",
-			"",
-			"Run `scripts/go-gate.sh`; use `scripts/go-gate.sh --no-format` in dirty repos.",
-			"If concurrency changed, run `scripts/go-gate.sh --race`.",
-			"If security changed, run `scripts/go-gate.sh --security`.",
-			"",
-		}, "\n")
-	default:
-		return "# " + prompt + "\n"
-	}
-}
-
 func writeSkill(t *testing.T, root, name, description string) {
 	t.Helper()
 	writeSkillBody(t, root, name, strings.Join([]string{
@@ -1092,7 +1014,7 @@ func writeSkill(t *testing.T, root, name, description string) {
 
 func writeSkillBody(t *testing.T, root, name, body string) {
 	t.Helper()
-	dir := filepath.Join(root, ".codex", "skills", name)
+	dir := filepath.Join(root, ".claude", "skills", name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir skill dir: %v", err)
 	}
@@ -1296,51 +1218,12 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"}",
 		"",
 	}, "\n"))
-	writeFile(t, filepath.Join(root, "scripts", "check-codex-harness.sh"), strings.Join([]string{
-		"mapfile -t shell_scripts < <(find scripts -maxdepth 1 -type f -name '*.sh' | sort)",
-		`bash -n "${shell_scripts[@]}"`,
-		`echo "== ClipHub workflow contract =="`,
-		"go run ./cmd/zv check",
+	writeFile(t, filepath.Join(root, ".claude", "GUIDE.md"), strings.Join([]string{
+		"# Claude Code Guide",
 		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(root, "scripts", "codex-run.sh"), strings.Join([]string{
-		"#!/usr/bin/env bash",
-		"set -euo pipefail",
-		`prompt_file="$1"`,
-		`shift || true`,
-		`exec codex --cd "$(git rev-parse --show-toplevel)" exec - < "$prompt_file"`,
+		"Style and operational rules live in CLAUDE.md.",
 		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(root, "scripts", "codex-harness.ps1"), strings.Join([]string{
-		`[ValidateSet("Doctor", "Preview", "Run", "Check")]`,
-		`[string]$Action = "Preview"`,
-		`if ($Action -eq "Run") {`,
-		`    $arguments += "--execute"`,
-		`}`,
-		"",
-	}, "\n"))
-	for _, fixture := range codexPromptWrapperFixtures() {
-		writeFile(t, filepath.Join(root, filepath.FromSlash(fixture.prompt)), codexPromptFixtureBody(fixture.prompt))
-		writeFile(t, filepath.Join(root, filepath.FromSlash(fixture.wrapper)), strings.Join([]string{
-			"#!/usr/bin/env bash",
-			"set -euo pipefail",
-			`root="$(git rev-parse --show-toplevel)"`,
-			fmt.Sprintf(`exec "$root/scripts/codex-run.sh" %s "$@"`, fixture.prompt),
-			"",
-		}, "\n"))
-	}
-	writeFile(t, filepath.Join(root, ".codex", "GUIDE.md"), strings.Join([]string{
-		"# Codex",
-		"",
-		"```bash",
-		"scripts/codex-run.sh",
-		"scripts/codex-harness.ps1",
-		"scripts/codex-plan.sh",
-		"scripts/codex-go-tdd.sh",
-		"scripts/codex-go-bugfix.sh",
-		"scripts/codex-go-pr-ready.sh",
-		"scripts/codex-spike.sh",
-		"```",
+		"Claude Code loads CLAUDE.md and uses .claude/settings.json.",
 		"",
 		"```bash",
 		"./bin/zv skills list",
@@ -1457,10 +1340,6 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"# Agents",
 		"",
 		"```bash",
-		`scripts/codex-harness.ps1 -Action Doctor`,
-		`scripts/codex-harness.ps1 -Action Preview`,
-		`scripts/codex-harness.ps1 -Action Run`,
-		`scripts/codex-harness.ps1 -Action Check`,
 		`highest installed HLAE version`,
 		`latest official HLAE release`,
 		`creative brief gate`,
@@ -1470,14 +1349,6 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		`scripts/go-gate.sh --race`,
 		`scripts/go-gate.sh --security`,
 		"```",
-		"",
-	}, "\n"))
-	writeFile(t, filepath.Join(root, ".claude", "GUIDE.md"), strings.Join([]string{
-		"# Claude",
-		"",
-		"Style and operational rules live in CLAUDE.md.",
-		"",
-		"Claude Code loads CLAUDE.md and uses .claude/settings.json.",
 		"",
 	}, "\n"))
 	writeFile(t, filepath.Join(root, "CLAUDE.md"), strings.Join([]string{
@@ -1491,10 +1362,6 @@ func writeWorkflowDocs(t *testing.T, root string) {
 		"Do not add generated video/audio/image artifacts to git.",
 		"",
 		"```bash",
-		`scripts/codex-harness.ps1 -Action Doctor`,
-		`scripts/codex-harness.ps1 -Action Preview`,
-		`scripts/codex-harness.ps1 -Action Run`,
-		`scripts/codex-harness.ps1 -Action Check`,
 		`highest installed HLAE version`,
 		`latest official HLAE release`,
 		`creative brief gate`,
@@ -1541,38 +1408,14 @@ func claudeSettingsFixture() string {
 		`      "Bash(scripts/go-format-changed.sh*)",`,
 		`      "Bash(scripts/go-gate.sh*)",`,
 		`      "Bash(scripts/go-tools-check.sh*)",`,
-		`      "Bash(scripts/check-codex-harness.sh*)",`,
 		`      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check-toolchain.ps1*)",`,
-		`      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-toolchain.ps1*)"`,
+		`      "Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-toolchain.ps1*)",`,
+		`      "Bash(*)",`,
+		`      "Read(*)",`,
+		`      "Edit(*)",`,
+		`      "Write(*)"`,
 		`    ],`,
-		`    "ask": [`,
-		`      "Bash(go mod tidy*)",`,
-		`      "Bash(go get*)",`,
-		`      "Bash(go install*)",`,
-		`      "Bash(git commit*)",`,
-		`      "Bash(git push*)",`,
-		`      "Bash(git reset*)",`,
-		`      "Bash(git clean*)",`,
-		`      "Bash(docker*)",`,
-		`      "Bash(docker compose*)",`,
-		`      "Bash(ffmpeg*)",`,
-		`      "Bash(powershell.exe*)",`,
-		`      "Bash(pwsh*)",`,
-		`      "Bash(scripts/build.ps1*)",`,
-		`      "Bash(scripts/cleanup-artifacts.ps1*)",`,
-		`      "Bash(scripts/audit-security-performance.ps1*)"`,
-		`    ],`,
-		`    "deny": [`,
-		`      "Read(.env)",`,
-		`      "Read(**/.env)",`,
-		`      "Read(**/*id_rsa*)",`,
-		`      "Read(**/*id_ed25519*)",`,
-		`      "Read(**/*secret*)",`,
-		`      "Read(**/*token*)",`,
-		`      "Bash(rm -rf *)",`,
-		`      "Bash(git reset --hard*)",`,
-		`      "Bash(git push --force*)"`,
-		`    ]`,
+		`    "defaultMode": "bypassPermissions"`,
 		`  }`,
 		"}",
 		"",
@@ -1934,86 +1777,6 @@ func runZVBinaryFailureSplitWithEnv(t *testing.T, exe, dir string, env []string,
 		t.Fatalf("%s %s failed without exit code: %v\nstdout:\n%s\nstderr:\n%s", exe, strings.Join(args, " "), err, stdout.String(), stderr.String())
 	}
 	return stdout.String(), stderr.String(), exitErr.ExitCode()
-}
-
-func runAgentWrapperDryRun(t *testing.T, root, wrapper string, env []string, task string) string {
-	t.Helper()
-	var script strings.Builder
-	script.WriteString("set -euo pipefail\n")
-	for _, item := range env {
-		script.WriteString("export ")
-		script.WriteString(item)
-		script.WriteString("\n")
-	}
-	script.WriteString("bash ")
-	script.WriteString(shellQuote(filepath.ToSlash(wrapper)))
-	script.WriteString(" ")
-	script.WriteString(shellQuote(task))
-	cmd := exec.Command(testBashExecutable(), "-c", script.String())
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%s dry run failed: %v\n%s", wrapper, err, out)
-	}
-	return string(out)
-}
-
-func runAgentRunnerDryRunWithInput(t *testing.T, root, env, runner, prompt, task, input string) (string, string) {
-	t.Helper()
-	cmd := exec.Command(testBashExecutable(), "-c", env+" "+shellQuote(runner)+" "+shellQuote(prompt)+" "+shellQuote(task))
-	cmd.Dir = root
-	cmd.Stdin = strings.NewReader(input)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("%s dry run failed: %v\nstdout:\n%s\nstderr:\n%s", runner, err, stdout.String(), stderr.String())
-	}
-	return stdout.String(), stripHostShellWarnings(stderr.String())
-}
-
-func stripHostShellWarnings(stderr string) string {
-	lines := strings.Split(stderr, "\n")
-	out := lines[:0]
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "wsl: Failed to mount ") && strings.HasSuffix(trimmed, "see dmesg for more details.") {
-			continue
-		}
-		out = append(out, line)
-	}
-	if len(out) == 0 {
-		return ""
-	}
-	return strings.Join(out, "\n") + "\n"
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
-}
-
-func normalizedText(value string) string {
-	return strings.ReplaceAll(value, "\r\n", "\n")
-}
-
-// bashPath converts a Windows path to the POSIX form a spawned "bash" expects
-// on PATH. Which convention applies depends on which bash actually runs the
-// command: Git Bash/MSYS (the default on GitHub-hosted windows-latest
-// runners, and this project's supported bash per CLAUDE.md) mounts drives at
-// "/c/...", while WSL mounts them at "/mnt/c/...". Return both, colon-joined,
-// so the caller's PATH prefix works under either — same defensive pattern as
-// scripts/go-env.sh's candidate list.
-func bashPath(path string) string {
-	path = filepath.ToSlash(path)
-	if len(path) >= 3 && path[1] == ':' && path[2] == '/' {
-		drive := strings.ToLower(path[:1])
-		rest := path[3:]
-		return "/" + drive + "/" + rest + ":/mnt/" + drive + "/" + rest
-	}
-	return path
 }
 
 func testBashExecutable() string {

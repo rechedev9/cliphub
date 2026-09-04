@@ -69,7 +69,7 @@ pnpm --dir landing run build
 
 Electron UI E2E (`pnpm --dir desktop run assemble` then `test:e2e:ui`) is manual and only for flows that need it.
 
-## Codex Desktop: CLI-first
+## CLI-first
 
 The `zv` CLI is the primary interface for parsing, capture, render, QA, and publishing; Studio is not a prerequisite. `flows show` and `workflows show` are the executable command contract; never guess flags from prose. Validate the exact argv, keep `--dry-run --format json` until real media work is approved, then preserve the approved argv when executing.
 
@@ -99,7 +99,7 @@ The `zv` CLI is the primary interface for parsing, capture, render, QA, and publ
 - **Prove it works.** Verify the real path, not a proxy. CI, mocks, lint, "it compiles" are supplemental. For parser/capture/render that means real ClipHub Studio on Windows + HLAE/CS2, or name the gap and do not call the work done.
 - **Verification lever.** `zv verify` is the Windows-first control CLI; close the loop with `zv verify doctor` and `zv verify prove` before calling a change done. Host of record is King's Windows Studio (live orchestrator from `%APPDATA%\cliphub-studio\ports.json`, detected `C:\HLAE-*\HLAE.exe`, running `cs2.exe`). Doctor passes only when all three are up; Linux and a Windows host with Studio down fail-close as `hlae_cs2_windows_studio`. Do not drive King's PC, HLAE, or CS2 without an explicit grant on that run. No bot court, no Playwright-in-CI, no second local bot farm.
 - **Structural flows:** (1) Demo parser → 9:16 Shorts, (2) Full Demo → 16:9 recap. A PR touching a flow must prove that flow; unknown on a touched flow blocks merge.
-- **Hosted CI** (PRs and `main`): `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`; triggers on `CLAUDE.md`, `AGENTS.md`, `.claude/**` too), `CI infra` (actionlint + release contract + the `Go 1.26.6` pin in this file). Not HLAE/CS2 E2E, not Playwright. `main` is unprotected with no required checks.
+- **Hosted CI** (PRs and `main`): `CI frontend` (web + desktop typecheck/lint/unit), `CI backend` (`go vet`, `go test ./...`, `zv check`; triggers on `CLAUDE.md`, `AGENTS.md`, `.claude/**` too), `CI infra` (actionlint + release contract). The `Go 1.26.6` pin in this file is checked by `desktop/scripts/go-toolchain.test.mjs` under `pnpm --dir desktop run test:unit` (`CI frontend`). Not HLAE/CS2 E2E, not Playwright. `main` is unprotected with no required checks.
 - **PR body** (`.github/pull_request_template.md`): exactly four H2s - What Problem This Solves, Why This Change Was Made, User Impact, Evidence. Empty Evidence is a blocker.
 - **Release:** unsigned Windows NSIS installer only, via `.github/workflows/desktop-release.yml` (`workflow_dispatch` or a `v*.*.*` tag matching `desktop/package.json`) to GitHub Releases in `rechedev9/cliphub`. `dist` must rebuild every Go executable in the same invocation before `assemble` stages `bin/`. Never code-sign (no Authenticode, no `signtool`, no cert purchase); integrity is the release asset plus `SHA256SUMS.txt`. Actualizar reads `releases/latest`; landing is not the updater.
 - **Capture Lab.** For demo/capture/render changes read `docs/CAPTURE_LAB.md`, run the cheapest relevant level, escalate through `scripts/capture-lab.ps1 -Mode Full` when end-to-end is in scope. Report the highest completed level; L1-L4 simulation is never HLAE/CS2 certification, and `capture_mode: "fake"` evidence never crosses the production-real gate. The real Windows canary is a separate explicit approval.
@@ -154,12 +154,3 @@ Capture hardware rules:
 - Before frontend work read `web/CLAUDE.md`; before visual work read `~/.grok/design.md`, load `frontend-design`, restyle onto `web/app/globals.css`. Before Electron/packaging/release work read `desktop/GUIDE.md`.
 - Committing or pushing requires an explicit user request. There is no commit-time gate and a push to `main` lands immediately, so run focused tests plus affected package checks first, stage only in-scope paths, and never disturb unrelated work. Temporary worktrees are fine; never remove or repurpose one holding uncommitted work.
 - Review findings use `BLOCKER`, `WARNING`, or `NIT` with file/path, problem, why it matters, and a practical fix; if clean, say `No blocking issues found.`
-
-## Codex Harness
-
-```bash
-powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Doctor
-powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Preview -Playbook tdd "behavior change"
-powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Run -Playbook bugfix "bug fix"
-powershell -ExecutionPolicy Bypass -File scripts/codex-harness.ps1 -Action Check
-```

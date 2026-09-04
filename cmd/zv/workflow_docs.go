@@ -47,14 +47,7 @@ func workflowDocs() []workflowDoc {
 			},
 		},
 		{
-			Path: "scripts/check-codex-harness.sh",
-			Required: []string{
-				"== ClipHub workflow contract ==",
-				"go run ./cmd/zv check",
-			},
-		},
-		{
-			Path: ".codex/GUIDE.md",
+			Path: ".claude/GUIDE.md",
 			Required: []string{
 				"./bin/zv skills list",
 				"./bin/zv skills show",
@@ -100,10 +93,6 @@ func workflowDocs() []workflowDoc {
 		{
 			Path: "AGENTS.md",
 			Required: []string{
-				"scripts/codex-harness.ps1 -Action Doctor",
-				"scripts/codex-harness.ps1 -Action Preview",
-				"scripts/codex-harness.ps1 -Action Run",
-				"scripts/codex-harness.ps1 -Action Check",
 				"highest installed HLAE version",
 				"latest official HLAE release",
 				"creative brief gate",
@@ -117,10 +106,6 @@ func workflowDocs() []workflowDoc {
 		{
 			Path: "CLAUDE.md",
 			Required: []string{
-				"scripts/codex-harness.ps1 -Action Doctor",
-				"scripts/codex-harness.ps1 -Action Preview",
-				"scripts/codex-harness.ps1 -Action Run",
-				"scripts/codex-harness.ps1 -Action Check",
 				"highest installed HLAE version",
 				"latest official HLAE release",
 				"creative brief gate",

@@ -219,7 +219,7 @@ func TestIntroFilterUsesDenseFACEITStats(t *testing.T) {
 		}},
 	})
 	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "Last 20 FACEIT matches", "Matches", "Wins", "K/D/A", "K/D", "K/R", "ADR", "1,66", "0,93", "POV"} {
+	for _, want := range []string{"Counter-Terrorists", "3500 avg ELO", "ZywOo", "3500", "10", "LAST 20 FACEIT MATCHES", "MATCHES", "WINS", "K/D/A", "K/D", "K/R", "ADR", "1,66", "0,93", "POV"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("intro missing %q:\n%s", want, got)
 		}
@@ -229,30 +229,73 @@ func TestIntroFilterUsesDenseFACEITStats(t *testing.T) {
 	}
 }
 
-func TestFACEITIntroPOVAndLevelBadgesDoNotOverlap(t *testing.T) {
+func TestFACEITIntroBadgesShareChromeGeometry(t *testing.T) {
 	layout := faceitIntroLayout()
-	povX, levelX := faceitIntroBadgePositions(layout.LeftPanelX)
-	if povX+introPlatePOVBadgeW > levelX {
-		t.Fatalf("POV badge [%d,%d) overlaps level badge at %d", povX, povX+introPlatePOVBadgeW, levelX)
-	}
-
+	spec := defaultFaceitLayout.Intro
 	level := 10
+	ranking := 1
 	doc := BuildForSource(Roster{
 		TargetSteamID64: "1",
 		Players: []RosterPlayer{
 			{SteamID64: "1", Name: "ZywOo", Team: "CT"},
+			{SteamID64: "2", Name: "apEX", Team: "CT"},
 		},
 	}, SourceFACEIT, map[string]Enrichment{
-		"1": {Nickname: "ZywOo", ELO: 3500, SkillLevel: level},
+		"1": {Nickname: "ZywOo", Country: "fr", ELO: 3500, SkillLevel: level, Ranking: &ranking},
+		"2": {Nickname: "apEX", ELO: 2900, SkillLevel: 9},
 	})
+	cy := layout.PanelTop + layout.HeaderH
+	pov := faceitIntroCardGeometry(layout.LeftPanelX, cy, doc.Intro.Left[0], true)
+	if rectsOverlap(pov.Country, pov.POV) || rectsOverlap(pov.POV, pov.Level) || rectsOverlap(pov.Level, pov.Rank) {
+		t.Fatalf("POV card badges overlap: %+v", pov)
+	}
+	if pov.POV.X != layout.LeftPanelX+spec.POV.Rect.X {
+		t.Fatalf("POV badge with a country code must sit after the chip: x=%d", pov.POV.X)
+	}
+	noCountry := faceitIntroCardGeometry(layout.LeftPanelX, cy+layout.RowHeight, doc.Intro.Left[1], true)
+	if noCountry.POV.X != layout.LeftPanelX+spec.Country.Rect.X {
+		t.Fatalf("POV badge without a country code must take the chip slot: x=%d", noCountry.POV.X)
+	}
+
 	got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
 	for _, want := range []string{
-		drawbox(povX, layout.PanelTop+layout.HeaderH+10, introPlatePOVBadgeW, introPlatePOVBadgeH, "0xF59E0B@0.95"),
-		drawbox(levelX, layout.PanelTop+layout.HeaderH+16, layout.BadgeSize, layout.BadgeSize, skillFill(level)),
+		drawtextInRect("/fonts/Montserrat-ExtraBold.ttf", "POV", pov.POV, spec.POV.FontSize, defaultFaceitLayout.Palette.POVText),
+		drawtextInRect("/fonts/Montserrat-ExtraBold.ttf", "10", pov.Level, spec.Level.FontSize, levelTextColor(level)),
+		drawtextInRect("/fonts/Montserrat-ExtraBold.ttf", "#1", pov.Rank, spec.Rank.FontSize, defaultFaceitLayout.Palette.RankText),
+		drawtextInRect("/fonts/Montserrat-ExtraBold.ttf", "FR", pov.Country, spec.Country.FontSize, defaultFaceitLayout.Palette.Text),
+		drawtextRight("/fonts/Montserrat-ExtraBold.ttf", "3500", pov.ELORight, cy+spec.ELO.Y, spec.ELO.FontSize, defaultFaceitLayout.Palette.Text),
 	} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("intro filter missing separated badge %q:\n%s", want, got)
+			t.Fatalf("intro filter missing %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "drawbox=") {
+		t.Fatalf("FACEIT chrome intro must leave boxes to the chrome bitmap:\n%s", got)
+	}
+}
+
+func TestFACEITSkillFillFollowsTierColors(t *testing.T) {
+	palette := defaultFaceitLayout.Palette
+	tests := []struct {
+		level int
+		want  string
+	}{
+		{level: 10, want: palette.Level10Fill},
+		{level: 9, want: palette.Level8Fill},
+		{level: 8, want: palette.Level8Fill},
+		{level: 7, want: palette.Level4Fill},
+		{level: 4, want: palette.Level4Fill},
+		{level: 3, want: palette.Level2Fill},
+		{level: 2, want: palette.Level2Fill},
+		{level: 1, want: palette.LevelDefaultFill},
+	}
+	for _, tt := range tests {
+		if got := skillFill(tt.level); got != tt.want {
+			t.Fatalf("skillFill(%d) = %q, want %q", tt.level, got, tt.want)
+		}
+	}
+	if levelTextColor(10) != strings.SplitN(palette.Level10Fill, "@", 2)[0] {
+		t.Fatalf("levelTextColor(10) = %q", levelTextColor(10))
 	}
 }
 
@@ -291,7 +334,7 @@ func TestIntroLast20ADRDoesNotFallBackToMatch(t *testing.T) {
 				},
 			}, map[string]Enrichment{"1": {Last20: tt.last20}})
 			got := introFilter(doc, "/fonts/Montserrat-ExtraBold.ttf", false)
-			if !strings.Contains(got, "Last 20 FACEIT matches") || !strings.Contains(got, "ADR") {
+			if !strings.Contains(got, "LAST 20 FACEIT MATCHES") || !strings.Contains(got, "ADR") {
 				t.Fatalf("missing Last 20 ADR column:\n%s", got)
 			}
 			if tt.wantADR != "" && !strings.Contains(got, tt.wantADR) {

@@ -568,7 +568,7 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 			"",
 		}, "\n"))
 		writeWorkflowDocs(t, root)
-		appendFile(t, filepath.Join(root, ".codex", "GUIDE.md"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
+		appendFile(t, filepath.Join(root, ".claude", "GUIDE.md"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
 
 		tests := []struct {
 			name string
@@ -603,7 +603,7 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 				if err := json.Unmarshal([]byte(stdout), &row); err != nil {
 					t.Fatalf("unmarshal %s failure json schema: %v\n%s", tt.name, err, stdout)
 				}
-				assertJSONKeys(t, tt.name+" failure json", row, "ok", "skills_checked", "workflows_checked", "workflow_docs_checked", "agent_prompt_wrappers_checked", "issues")
+				assertJSONKeys(t, tt.name+" failure json", row, "ok", "skills_checked", "workflows_checked", "workflow_docs_checked", "issues")
 				assertIssueJSONKeys(t, tt.name+" failure json issues", row["issues"])
 			})
 		}
@@ -1050,7 +1050,7 @@ func TestZVBinaryWorkflowsCheckEndToEnd(t *testing.T) {
 
 	exe := buildZVBinary(t, tempDir)
 	out := runZVBinary(t, exe, tempDir, "workflows", "check")
-	want := fmt.Sprintf("OK: 1 skills, %d workflows, %d workflow docs, and %d agent prompt wrappers checked", len(workflowCatalog()), len(workflowDocs()), len(agentPromptWrapperFixtures()))
+	want := fmt.Sprintf("OK: 1 skills, %d workflows, and %d workflow docs checked", len(workflowCatalog()), len(workflowDocs()))
 	if !strings.Contains(out, want) {
 		t.Fatalf("output = %q, want workflow OK count", out)
 	}
@@ -1072,9 +1072,6 @@ func TestZVBinaryWorkflowsCheckEndToEnd(t *testing.T) {
 	}
 	if got, want := result.WorkflowDocsChecked, len(workflowDocs()); got != want {
 		t.Fatalf("result.WorkflowDocsChecked = %d, want %d", got, want)
-	}
-	if got, want := result.AgentPromptWrappersChecked, len(agentPromptWrapperFixtures()); got != want {
-		t.Fatalf("result.AgentPromptWrappersChecked = %d, want %d", got, want)
 	}
 
 	runJSONOut := runZVBinary(t, exe, tempDir, "workflows", "run", "workflows-check", "--", "--format", "json")
@@ -1122,9 +1119,6 @@ func TestZVBinaryCurrentRepoCheckEndToEnd(t *testing.T) {
 	if got, want := result.WorkflowDocsChecked, len(workflowDocs()); got != want {
 		t.Fatalf("WorkflowDocsChecked = %d, want %d", got, want)
 	}
-	if got, want := result.AgentPromptWrappersChecked, len(currentAgentPromptWrappers(t, root)); got != want {
-		t.Fatalf("AgentPromptWrappersChecked = %d, want %d", got, want)
-	}
 	if got := len(result.Issues); got != 0 {
 		t.Fatalf("issues len = %d, want 0: %#v", got, result.Issues)
 	}
@@ -1135,8 +1129,7 @@ func TestZVBinaryCurrentRepoWorkflowChecksEndToEnd(t *testing.T) {
 	exe := buildZVBinary(t, tempDir)
 	root := repoRoot(t)
 	wantSkills := currentRepoSkills(t, root)
-	wantWrappers := currentAgentPromptWrappers(t, root)
-	wantText := fmt.Sprintf("OK: %d skills, %d workflows, %d workflow docs, and %d agent prompt wrappers checked\n", len(wantSkills), len(workflowCatalog()), len(workflowDocs()), len(wantWrappers))
+	wantText := fmt.Sprintf("OK: %d skills, %d workflows, and %d workflow docs checked\n", len(wantSkills), len(workflowCatalog()), len(workflowDocs()))
 
 	workflowText, workflowTextStderr := runZVBinarySplit(t, exe, root, "workflows", "check")
 	if workflowTextStderr != "" {
@@ -1186,9 +1179,6 @@ func TestZVBinaryCurrentRepoWorkflowChecksEndToEnd(t *testing.T) {
 	}
 	if got, want := result.WorkflowDocsChecked, len(workflowDocs()); got != want {
 		t.Fatalf("WorkflowDocsChecked = %d, want %d", got, want)
-	}
-	if got, want := result.AgentPromptWrappersChecked, len(wantWrappers); got != want {
-		t.Fatalf("AgentPromptWrappersChecked = %d, want %d", got, want)
 	}
 	if got := len(result.Issues); got != 0 {
 		t.Fatalf("issues len = %d, want 0: %#v", got, result.Issues)
@@ -1380,7 +1370,7 @@ func TestZVBinaryCurrentRepoPublicJSONSchemasEndToEnd(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &row); err != nil {
 			t.Fatalf("unmarshal %s schema: %v\n%s", tt.name, err, stdout)
 		}
-		assertJSONKeys(t, tt.name, row, "ok", "skills_checked", "workflows_checked", "workflow_docs_checked", "agent_prompt_wrappers_checked", "issues")
+		assertJSONKeys(t, tt.name, row, "ok", "skills_checked", "workflows_checked", "workflow_docs_checked", "issues")
 	}
 }
 

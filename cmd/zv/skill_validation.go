@@ -47,6 +47,9 @@ func loadSkills() ([]skillInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+		if skill.Uncataloged {
+			continue
+		}
 		if skill.Name == "" {
 			skill.Name = entry.Name()
 		}
@@ -62,7 +65,7 @@ func checkSkills() ([]skillInfo, []skillIssue, error) {
 	}
 	var issues []skillIssue
 	if len(skills) == 0 {
-		issues = append(issues, skillIssue{Path: ".codex/skills", Message: "no skills found"})
+		issues = append(issues, skillIssue{Path: ".claude/skills", Message: "no skills found"})
 		return skills, issues, nil
 	}
 	seenSkills := make(map[string]string, len(skills))
@@ -307,8 +310,8 @@ func findSkillsDir() (string, error) {
 	}
 	for _, start := range starts {
 		for dir := start; ; dir = filepath.Dir(dir) {
-			candidate := filepath.Join(dir, ".codex", "skills")
-			if st, err := os.Stat(candidate); err == nil && st.IsDir() {
+			candidate := filepath.Join(dir, ".claude", "skills")
+			if isRepoSkillsDir(candidate) {
 				return candidate, nil
 			}
 			parent := filepath.Dir(dir)
@@ -317,7 +320,7 @@ func findSkillsDir() (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("skills dir not found: .codex/skills")
+	return "", fmt.Errorf("skills dir not found: .claude/skills")
 }
 
 func parseSkill(path string) (skillInfo, error) {
@@ -354,6 +357,10 @@ func parseSkill(path string) (skillInfo, error) {
 			skill.Name = value
 		case "description":
 			skill.Description = value
+		case "zv-catalog":
+			// .claude/skills also holds Claude Code skills that never touch the
+			// zv CLI; they opt out of the zv contract instead of failing it.
+			skill.Uncataloged = strings.EqualFold(value, "false")
 		}
 	}
 	if err := scanner.Err(); err != nil {

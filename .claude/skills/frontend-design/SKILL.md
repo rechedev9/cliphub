@@ -2,6 +2,8 @@
 name: frontend-design
 description: ClipHub Studio visual work. Use when changing UI, CSS, layout, components, copy, empty states, or anything the user sees in web/. Reads ~/.grok/design.md then tokens in web/app/globals.css. Never invent tokens or use Claude Design.
 license: MIT
+metadata:
+  zv-catalog: "false"
 ---
 
 # Frontend Design

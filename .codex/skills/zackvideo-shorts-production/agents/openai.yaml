@@ -1,4 +1,0 @@
-interface:
-  display_name: "ClipHub Shorts Production"
-  short_description: "Generate clean viral-60-clean CS2 kill Shorts, utility packs, long compilations, and split-by-map outputs with ClipHub."
-  default_prompt: "Generate a clean viral-60-clean CS2 Shorts pack or long compilation from a demo or recording result using the ClipHub pipeline: deathnotice POV capture, clean vertical render, gallery, split-by-map/player outputs when requested, and upload-ready assets."
