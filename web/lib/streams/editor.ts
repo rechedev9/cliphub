@@ -8,7 +8,6 @@ export const STREAM_STEP = {
   banners: 'banners',
   cuts: 'cuts',
   music: 'music',
-  review: 'review',
   results: 'results',
 } as const;
 export type StreamStep = (typeof STREAM_STEP)[keyof typeof STREAM_STEP];
@@ -18,24 +17,8 @@ export const STREAM_STEP_LABEL = {
   banners: 'Banners',
   cuts: 'Cortes → Shorts',
   music: 'Música',
-  review: 'Revisar y renderizar',
   results: 'Resultados',
 } as const satisfies Record<StreamStep, string>;
-
-/** Editing order; `results` only exists after a render and has no successor. */
-const STEP_ORDER: readonly StreamStep[] = [
-  STREAM_STEP.layout,
-  STREAM_STEP.banners,
-  STREAM_STEP.cuts,
-  STREAM_STEP.music,
-  STREAM_STEP.review,
-];
-
-export function streamNextStep(step: StreamStep): StreamStep | null {
-  const index = STEP_ORDER.indexOf(step);
-  if (index === -1) return null;
-  return STEP_ORDER[index + 1] ?? null;
-}
 
 export type StreamStepEntry = {
   key: StreamStep;
@@ -70,14 +53,12 @@ export function streamEditorSteps({
   renderState,
   stale,
   rendering = false,
-  briefApproved = false,
 }: {
   plan: StreamEditPlan;
   musicLabel: string;
   renderState: StreamRenderState | null;
   stale: boolean;
   rendering?: boolean;
-  briefApproved?: boolean;
 }): StreamStepEntry[] {
   const needsFace = streamVariantNeedsFaceCrop(plan);
   const faceReviewed = plan.face_crop_reviewed === true;
@@ -89,10 +70,6 @@ export function streamEditorSteps({
   const count = plan.clips.length;
   const grade = plan.effects?.grade ? ' · grade' : '';
   const hasMusic = (plan.music?.key?.trim() ?? '') !== '';
-
-  let reviewDetail = 'faltan pasos';
-  if (briefApproved) reviewDetail = 'brief aprobado';
-  else if (streamBriefCanBeApproved(plan)) reviewDetail = 'brief pendiente';
 
   const steps: StreamStepEntry[] = [
     {
@@ -129,19 +106,11 @@ export function streamEditorSteps({
       done: hasMusic,
       optional: true,
     },
-    {
-      key: STREAM_STEP.review,
-      number: '05',
-      label: STREAM_STEP_LABEL.review,
-      detail: reviewDetail,
-      done: briefApproved,
-      optional: false,
-    },
   ];
   if (rendering) {
     steps.push({
       key: STREAM_STEP.results,
-      number: '06',
+      number: '05',
       label: STREAM_STEP_LABEL.results,
       detail: 'Renderizando…',
       done: false,
@@ -150,7 +119,7 @@ export function streamEditorSteps({
   } else if (renderState && (renderState.status === 'rendered' || renderState.published)) {
     steps.push({
       key: STREAM_STEP.results,
-      number: '06',
+      number: '05',
       label: STREAM_STEP_LABEL.results,
       detail: `${shortsWord(renderState.videos.length)}${stale ? ' · desactualizados' : ''}`,
       done: true,
@@ -177,17 +146,14 @@ export type StreamCtaState = {
   briefApproved: boolean;
   rendering: boolean;
   hasRender: boolean;
-  /** True while the review step is the active one; elsewhere the CTA leads there. */
-  onReview: boolean;
 };
 
 /** Footer CTA copy: the label names the next blocker before it names the action. */
-export function streamCtaLabel({ plan, briefApproved, rendering, hasRender, onReview }: StreamCtaState): string {
+export function streamCtaLabel({ plan, briefApproved, rendering, hasRender }: StreamCtaState): string {
   if (rendering) return 'Renderizando…';
   const blocker = streamPlanBlocker(plan);
   if (blocker === STREAM_STEP.layout) return 'Confirma el recorte primero';
   if (blocker === STREAM_STEP.cuts) return 'Añade un corte primero';
-  if (!onReview) return hasRender ? 'Revisar y renderizar de nuevo' : 'Revisar y renderizar';
   if (!briefApproved) return 'Aprueba el brief';
   return hasRender ? 'Crear Shorts de nuevo →' : 'Crear Shorts →';
 }
@@ -209,11 +175,9 @@ export function streamPlanBlocker(plan: StreamEditPlan): StreamBlocker | null {
 
 /**
  * Where the footer CTA navigates when it names a blocker instead of acting,
- * so "Confirma el recorte primero" is a real link rather than a dead end.
- * Off the review step it leads there; null once the CTA's own action applies.
+ * so "Confirma el recorte primero" is a real link rather than a dead end;
+ * null once the CTA's own action applies.
  */
-export function streamCtaTarget(plan: StreamEditPlan, activeStep: StreamStep): StreamStep | null {
-  const blocker = streamPlanBlocker(plan);
-  if (blocker !== null) return blocker;
-  return activeStep === STREAM_STEP.review ? null : STREAM_STEP.review;
+export function streamCtaTarget(plan: StreamEditPlan): StreamBlocker | null {
+  return streamPlanBlocker(plan);
 }

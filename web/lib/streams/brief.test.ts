@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canCreateStreamShorts, streamCreativeBrief } from './brief.ts';
+import { canCreateStreamShorts, streamCreativeBrief, streamCreativeBriefLine } from './brief.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
 import type { StreamEditPlan } from '../api/streams.ts';
 
@@ -94,6 +94,13 @@ test('stream shorts require brief approval', () => {
   assert.equal(canCreateStreamShorts({ briefApproved: true, busy: false }), true);
   assert.equal(canCreateStreamShorts({ briefApproved: false, busy: false }), false);
   assert.equal(canCreateStreamShorts({ briefApproved: true, busy: true }), false);
+});
+
+test('the brief line joins every decision with a middle dot', () => {
+  assert.equal(
+    streamCreativeBriefLine(plan()),
+    'Facecam 40 · Recorte confirmado · 1 clip · 0:10 de salida aprox. · pro_player · Twitch · slide · No · phonk-01 · 25% · Sí',
+  );
 });
 
 test('the clip summary reads as a clock, never a unit glued to digits', () => {

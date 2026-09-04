@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   STREAM_VARIANTS,
@@ -40,7 +40,7 @@ import {
   streamSourceLabel,
   timelineClipAt,
 } from '@/lib/streams/plan';
-import { canCreateStreamShorts, streamCreativeBrief } from '@/lib/streams/brief';
+import { canCreateStreamShorts, streamCreativeBrief, streamCreativeBriefLine } from '@/lib/streams/brief';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
@@ -49,7 +49,6 @@ import {
   streamCtaLabel,
   streamCtaTarget,
   streamEditorSteps,
-  streamNextStep,
   streamOutputSummary,
   streamPlanBlocker,
   type StreamBlocker,
@@ -57,8 +56,6 @@ import {
 } from '@/lib/streams/editor';
 import { persistAffiliateFamily, selectAffiliateFamily, selectAffiliateOff, selectAffiliateStyle } from '@/lib/affiliate-banner';
 import { StreamFrameSession } from '@/components/streams/stream-frame-session';
-import { StreamCropStage } from '@/components/streams/stream-crop-stage';
-import { StreamReviewStep } from '@/components/streams/stream-review-step';
 import { StreamLayoutBar } from '@/components/streams/stream-layout-bar';
 import { StreamStepsRail, type StreamAutosaveState } from '@/components/streams/stream-steps-rail';
 import { StreamMonitor } from '@/components/streams/stream-monitor';
@@ -71,7 +68,6 @@ import { StreamMusicCard } from '@/components/streams/music-card';
 import { StreamRenderStage } from '@/components/streams/render-stage';
 import { StreamRenderResults } from '@/components/streams/render-results';
 import { StreamFooter } from '@/components/streams/stream-footer';
-import { Button } from '@/components/ui/button';
 
 /** Panel titles that say more than the rail label; every other step reuses its rail entry. */
 const STEP_SUBTITLE: Partial<Record<StreamStep, string>> = {
@@ -82,8 +78,8 @@ const STEP_SUBTITLE: Partial<Record<StreamStep, string>> = {
 
 /** One hint per blocker; the compiler refuses a new blocker without one. */
 const BLOCKER_HINT: Record<StreamBlocker, string> = {
-  layout: 'Confirma el recorte de facecam en el paso 01 para poder aprobar.',
-  cuts: 'Añade al menos un corte en la timeline para poder aprobar.',
+  layout: 'Confirma el recorte de facecam en el paso 01 para poder aprobar',
+  cuts: 'Añade al menos un corte en la timeline para poder aprobar',
 };
 
 /** Stream edit workspace: rail, monitor + timeline, active step, approval footer. */
@@ -137,6 +133,7 @@ export function StreamEditor({
   const [previewReload, setPreviewReload] = useState(0);
   const [briefApproved, setBriefApproved] = useState(false);
   const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
+  const briefLine = useMemo(() => streamCreativeBriefLine(plan), [plan]);
   const planKey = useMemo(() => planFingerprint(plan), [plan]);
   // Only start/end/speed/volume should restart the playback transport; a title
   // edit must not pause the montage that is already playing.
@@ -370,7 +367,7 @@ export function StreamEditor({
 
   const musicKey = plan.music?.key ?? '';
   const musicLabel = songs?.find((song) => song.id === musicKey)?.title ?? musicKey;
-  const steps = streamEditorSteps({ plan, musicLabel, renderState, stale, rendering: stage === 'rendering', briefApproved });
+  const steps = streamEditorSteps({ plan, musicLabel, renderState, stale, rendering: stage === 'rendering' });
   const activeClip =
     plan.clips.find((c) => previewSeconds >= c.start_seconds && previewSeconds < c.end_seconds) ??
     plan.clips.find((c) => c.id === selectedClipId);
@@ -379,11 +376,10 @@ export function StreamEditor({
       ? ((previewSeconds - activeClip.start_seconds) / (activeClip.end_seconds - activeClip.start_seconds)) * 100
       : 0;
   const briefApprovable = streamBriefCanBeApproved(plan);
-  const onReview = activeStep === STREAM_STEP.review;
-  const ctaLabel = streamCtaLabel({ plan, briefApproved, rendering: stage === 'rendering', hasRender, onReview });
+  const ctaLabel = streamCtaLabel({ plan, briefApproved, rendering: stage === 'rendering', hasRender });
   // While something blocks the render the CTA names it but stays a real link
   // to that step instead of a disabled dead end.
-  const ctaTarget = streamCtaTarget(plan, activeStep);
+  const ctaTarget = streamCtaTarget(plan);
   const ctaDisabled = busy ? true : ctaTarget === null && !canCreateStreamShorts({ briefApproved, busy });
   const blocker = streamPlanBlocker(plan);
   const activeEntry = steps.find((step) => step.key === activeStep);
@@ -391,21 +387,10 @@ export function StreamEditor({
     activeEntry === undefined
       ? STREAM_STEP_LABEL[activeStep]
       : `${activeEntry.number} · ${STEP_SUBTITLE[activeStep] ?? activeEntry.label}`;
-  const cropStage = activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop;
-  const nextStep = stage === 'rendering' ? null : streamNextStep(activeStep);
-  const stepAction =
-    nextStep === null ? null : (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setActiveStep(nextStep)}
-        className="w-full justify-between border-stream/45 font-display uppercase tracking-wide text-stream-text hover:border-stream hover:bg-stream/10"
-      >
-        Siguiente · {STREAM_STEP_LABEL[nextStep]}
-        <ArrowRight aria-hidden />
-      </Button>
-    );
+  const cropEditor =
+    activeStep === STREAM_STEP.layout && variantMeta.needsFaceCrop
+      ? { rect: faceCrop, disabled: busy, onChange: setFaceCrop }
+      : undefined;
   const sourceMeta = [streamSourceLabel(job.source_url) ?? 'Archivo local', sourceDuration > 0 ? formatStreamClock(sourceDuration) : null]
     .filter((part): part is string => part !== null)
     .join(' · ');
@@ -485,17 +470,6 @@ export function StreamEditor({
         onGrade={setGrade}
       />
     );
-  } else if (activeStep === STREAM_STEP.review) {
-    stepContent = (
-      <StreamReviewStep
-        items={briefItems}
-        approved={briefApproved}
-        approvable={briefApprovable}
-        blockerHint={blocker === null ? null : BLOCKER_HINT[blocker]}
-        busy={busy}
-        onApprovedChange={setBriefApproved}
-      />
-    );
   } else if (stage === 'rendering') {
     stepContent = (
       <StreamRenderStage clips={plan.clips} renderState={renderState} variantLabel={variantMeta.label.toUpperCase()} />
@@ -530,26 +504,8 @@ export function StreamEditor({
           />
 
           <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden px-7 pt-4" aria-label="Monitor">
-            {cropStage ? (
-              <StreamCropStage
-                rect={faceCrop}
-                disabled={busy}
-                onChange={setFaceCrop}
-                preview={{
-                  variant: plan.variant,
-                  faceCrop,
-                  gameplayCrop: plan.gameplay_crop,
-                  clips: plan.clips,
-                  frameSeconds: previewSeconds,
-                  streamerNick: plan.streamer_banner?.nick?.trim(),
-                  streamerPlatform: bannerPlatform,
-                  streamerPositionY: plan.streamer_banner?.position_y,
-                  disabled: true,
-                  className: 'h-full w-auto min-h-[120px]',
-                }}
-              />
-            ) : (
             <StreamMonitor
+              cropEditor={cropEditor}
               preview={{
                 variant: plan.variant,
                 faceCrop,
@@ -595,8 +551,6 @@ export function StreamEditor({
                 setPreviewReload((current) => current + 1);
               }}
             />
-            )}
-            {cropStage ? null : (
             <div className="pb-3">
               <StreamSourceTimeline
                 clips={plan.clips}
@@ -608,12 +562,9 @@ export function StreamEditor({
                 onSelect={selectClip}
               />
             </div>
-            )}
           </section>
 
-          <StreamStepPanel title={panelTitle} action={stepAction}>
-            {stepContent}
-          </StreamStepPanel>
+          <StreamStepPanel title={panelTitle}>{stepContent}</StreamStepPanel>
         </div>
 
         {error ? (
@@ -627,12 +578,18 @@ export function StreamEditor({
         ) : null}
 
         <StreamFooter
+          briefLine={briefLine}
+          briefItems={briefItems}
+          briefApproved={briefApproved}
+          briefApprovable={briefApprovable}
+          blockerHint={blocker === null ? null : BLOCKER_HINT[blocker]}
           countLabel={shortsWord(plan.clips.length)}
           summary={streamOutputSummary(plan, stale)}
           ctaLabel={ctaLabel}
           ctaDisabled={ctaDisabled}
           rendering={stage === 'rendering'}
           busy={saving}
+          onBriefApprovedChange={setBriefApproved}
           onCreate={() => {
             if (ctaTarget !== null) {
               setActiveStep(ctaTarget);
