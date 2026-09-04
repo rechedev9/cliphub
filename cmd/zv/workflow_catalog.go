@@ -198,7 +198,7 @@ func buildWorkflowCatalog() []workflowInfo {
 		},
 		{
 			Name:        "skills-check",
-			Description: "Validate repo-local Codex skills.",
+			Description: "Validate repo-local skills.",
 			Command:     "zv skills check",
 			RunArgs:     []string{"skills", "check"},
 		},

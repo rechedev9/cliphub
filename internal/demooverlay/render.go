@@ -369,14 +369,15 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 	if len(cards) > layout.MaxPlayers {
 		cards = cards[:layout.MaxPlayers]
 	}
-	var parts []string
 	header := strings.TrimSpace(teamName)
 	if header == "" {
 		header = introHeader(doc.Source)
 	}
+	if NormalizeSource(doc.Source) == SourceFACEIT && !hasPlate {
+		return faceitIntroColumn(cards, header, subtitle, x, y, layout, fontPath, doc)
+	}
+	var parts []string
 	geo, useGeo := IntroPlateGeo(doc.Source, hasPlate)
-	isFaceit := NormalizeSource(doc.Source) == SourceFACEIT && !useGeo
-	faceit := defaultFaceitLayout.Intro
 	palette := defaultFaceitLayout.Palette
 	if useGeo {
 		nameSize := geo.TeamNameSize
@@ -388,20 +389,13 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 			parts = appendFilter(parts, drawtext(fontPath, sub, x+geo.TeamNameXOff, geo.SubtitleY, layout.LabelSize+2, mutedColor))
 		}
 	} else {
-		headerName := textAnchorSpec{X: 20, Y: 18, FontSize: layout.NameSize + 2}
-		headerSubtitle := textAnchorSpec{X: 20, Y: 50, FontSize: layout.LabelSize + 2}
-		if isFaceit {
-			headerName = faceit.Header.Name
-			headerSubtitle = faceit.Header.Subtitle
-		}
-		parts = appendFilter(parts, drawtext(fontPath, header, x+headerName.X, y+headerName.Y, headerName.FontSize, palette.Text))
+		parts = appendFilter(parts, drawtext(fontPath, header, x+20, y+18, layout.NameSize+2, palette.Text))
 		if sub := strings.TrimSpace(subtitle); sub != "" {
-			parts = appendFilter(parts, drawtext(fontPath, sub, x+headerSubtitle.X, y+headerSubtitle.Y, headerSubtitle.FontSize, palette.MutedText))
+			parts = appendFilter(parts, drawtext(fontPath, sub, x+20, y+50, layout.LabelSize+2, palette.MutedText))
 		}
 	}
 	textInset := IntroTextInset(layout, doc.Source, hasPlate)
 	skipMonogram := hasPlate && NormalizeSource(doc.Source) == SourceFACEIT
-	useChromeCards := !hasPlate && NormalizeSource(doc.Source) == SourceFACEIT
 	for i, card := range cards {
 		var cy, nameY int
 		if useGeo && i < len(geo.RowNameCenterY) {
@@ -410,34 +404,15 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 		} else {
 			cy = y + layout.HeaderH + i*layout.RowHeight
 			nameY = cy + 10
-			if isFaceit {
-				nameY = cy + faceit.Name.Y
-			}
-		}
-		if useChromeCards {
-			card := faceit.Card
-			rowX := x + card.X
-			rowY := cy + card.Y
-			rowW := card.Width
-			rowH := card.Height
-			if useGeo && i < len(geo.RowNameCenterY) {
-				rowY = geo.RowNameCenterY[i] - layout.RowHeight/2 + layout.HeaderH/2
-			}
-			parts = append(parts, introPlayerCardChrome(rowX, rowY, rowW, rowH, theme)...)
 		}
 		nx := x + textInset
 		ax := x + layout.AvatarXOff
 		ay := cy + layout.AvatarYOff
-		if isFaceit {
-			nx = x + faceit.Name.X
-			ax = x + faceit.Avatar.X
-			ay = cy + faceit.Avatar.Y
-		}
 		if useGeo && i < len(geo.RowNameCenterY) {
 			ay = geo.RowNameCenterY[i] - layout.AvatarSize/2
 		}
 		if !skipMonogram && strings.TrimSpace(card.AvatarFile) == "" && strings.TrimSpace(card.AvatarURL) == "" {
-			parts = append(parts, monogramFilters(fontPath, ax, ay, layout.AvatarSize, card.Name)...)
+			parts = append(parts, monogramFilters(fontPath, ax, ay, layout.AvatarSize, card.Name, true)...)
 		}
 		nameColor := palette.Text
 		if doc.IsPOV(card) {
@@ -445,44 +420,21 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 		}
 		parts = appendFilter(parts, drawtext(fontPath, card.Name, nx, nameY, layout.NameSize, nameColor))
 		if doc.IsPOV(card) {
-			tagX := introPlatePOVBadgeX(x, layout.PanelWidth)
-			tagY := nameY
-			tagW := introPlatePOVBadgeW
-			tagH := introPlatePOVBadgeH
-			textX, textY, fontSize := 5, 2, 10
-			if isFaceit {
-				tagX, _ = faceitIntroBadgePositions(x)
-				tagY = cy + faceit.POV.Rect.Y
-				tagW = faceit.POV.Rect.Width
-				tagH = faceit.POV.Rect.Height
-				textX, textY, fontSize = faceit.POV.TextX, faceit.POV.TextY, faceit.POV.FontSize
-			}
-			parts = append(parts, drawbox(tagX, tagY, tagW, tagH, palette.POVFill))
-			parts = appendFilter(parts, drawtext(fontPath, "POV", tagX+textX, tagY+textY, fontSize, palette.POVText))
+			tag := rectSpec{X: introPlatePOVBadgeX(x, layout.PanelWidth), Y: nameY, Width: introPlatePOVBadgeW, Height: introPlatePOVBadgeH}
+			parts = append(parts, drawbox(tag.X, tag.Y, tag.Width, tag.Height, "0xF59E0B@0.95"))
+			parts = appendFilter(parts, drawtextInRect(fontPath, "POV", tag, 10, "white"))
 		}
 		if card.Country != "" {
 			countryY := nameY + layout.NameSize + 4
-			countryX := nx
-			country := badgeSpec{Rect: rectSpec{Width: 34, Height: 16}, TextX: 5, TextY: 1, FontSize: 10}
-			if isFaceit {
-				country = faceit.Country
-				countryX = x + country.Rect.X
-				countryY = cy + country.Rect.Y
-			} else if !useGeo {
+			if !useGeo {
 				countryY = cy + 10 + layout.NameSize + 4
 			}
-			parts = append(parts, countryBadgeFilters(fontPath, countryX, countryY, card.Country, theme, country)...)
+			country := badgeSpec{Rect: rectSpec{X: nx, Y: countryY, Width: 34, Height: 16}, FontSize: 10}
+			parts = append(parts, countryBadgeFilters(fontPath, card.Country, theme, country)...)
 		}
 		if card.ELO != nil {
 			eloX := x + layout.PanelWidth - layout.BadgeSize - 132
-			eloY := nameY + 8
-			eloSize := 18
-			if isFaceit {
-				eloX = x + faceit.ELO.X
-				eloY = cy + faceit.ELO.Y
-				eloSize = faceit.ELO.FontSize
-			}
-			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, eloY, eloSize, palette.Text))
+			parts = appendFilter(parts, drawtext(fontPath, strconv.Itoa(*card.ELO), eloX, nameY+8, 18, palette.Text))
 		}
 		badge := ""
 		badgeFill := skillFill(10)
@@ -494,59 +446,91 @@ func introColumn(cards []PlayerCard, teamName, subtitle string, x, y int, layout
 			badgeFill = skillFill(*card.SkillLevel)
 		}
 		if badge != "" {
-			bx := x + layout.PanelWidth - layout.BadgeSize - 18
-			by := nameY + 6
-			bw, bh := layout.BadgeSize, layout.BadgeSize
-			textX, textY, fontSize := 2, 5, 12
-			if isFaceit {
-				_, bx = faceitIntroBadgePositions(x)
-				by = cy + faceit.Level.Rect.Y
-				bw, bh = faceit.Level.Rect.Width, faceit.Level.Rect.Height
-				textX, textY, fontSize = faceit.Level.TextX, faceit.Level.TextY, faceit.Level.FontSize
-			}
-			parts = append(parts, drawbox(bx, by, bw, bh, badgeFill))
-			parts = appendFilter(parts, drawtext(fontPath, badge, bx+textX, by+textY, fontSize, palette.Text))
+			box := rectSpec{X: x + layout.PanelWidth - layout.BadgeSize - 18, Y: nameY + 6, Width: layout.BadgeSize, Height: layout.BadgeSize}
+			parts = append(parts, drawbox(box.X, box.Y, box.Width, box.Height, badgeFill))
+			parts = appendFilter(parts, drawtextInRect(fontPath, badge, box, 12, palette.Text))
 		}
 		statsY := cy + 112
 		titleY := statsY - 14
-		titleSize := 9
-		statsX := nx
 		statsWidth := layout.PanelWidth - textInset - 16
 		if useGeo && i < len(geo.RowNameCenterY) {
 			statsY = geo.RowNameCenterY[i] + layout.NameSize/2 + 12
 			titleY = statsY - 14
-		} else if isFaceit {
-			statsX = x + faceit.Stats.X
-			statsY = cy + faceit.Stats.ValueY
-			titleY = cy + faceit.Stats.TitleY
-			titleSize = faceit.Stats.TitleSize
-			statsWidth = layout.PanelWidth - faceit.Stats.X - faceit.Stats.Right
 		}
 		if title := introStatsSectionTitle(card, doc.Source); title != "" {
-			parts = appendFilter(parts, drawtext(fontPath, title, statsX, titleY, titleSize, palette.MutedText))
+			parts = appendFilter(parts, drawtext(fontPath, title, nx, titleY, 9, palette.MutedText))
 		}
-		parts = append(parts, introStatGrid(card, statsX, statsY, statsWidth, fontPath, layout, doc.Source)...)
+		parts = append(parts, introStatGrid(card, nx, statsY, statsWidth, fontPath, layout, doc.Source)...)
 	}
 	return parts
 }
 
-func faceitIntroBadgePositions(panelX int) (povX, levelX int) {
-	return panelX + defaultFaceitLayout.Intro.POV.Rect.X, panelX + defaultFaceitLayout.Intro.Level.Rect.X
+// faceitIntroColumn draws the text layer of one FACEIT roster panel. Every
+// box, ring and band already exists in the generated chrome bitmap
+// (renderIntroChromePNG); this only places text into the same geometry.
+func faceitIntroColumn(cards []PlayerCard, header, subtitle string, x, y int, layout IntroLayout, fontPath string, doc Document) []string {
+	spec := defaultFaceitLayout.Intro
+	palette := defaultFaceitLayout.Palette
+	var parts []string
+	parts = appendFilter(parts, drawtext(fontPath, header, x+spec.Header.Name.X, y+spec.Header.Name.Y, spec.Header.Name.FontSize, palette.Text))
+	if sub := strings.TrimSpace(subtitle); sub != "" {
+		parts = appendFilter(parts, drawtext(fontPath, sub, x+spec.Header.Subtitle.X, y+spec.Header.Subtitle.Y, spec.Header.Subtitle.FontSize, palette.MutedText))
+	}
+	for i, card := range cards {
+		cy := y + layout.HeaderH + i*layout.RowHeight
+		isPOV := doc.IsPOV(card)
+		geo := faceitIntroCardGeometry(x, cy, card, isPOV)
+		if strings.TrimSpace(card.AvatarFile) == "" && strings.TrimSpace(card.AvatarURL) == "" {
+			parts = append(parts, monogramFilters(fontPath, geo.Avatar.X, geo.Avatar.Y, geo.Avatar.Width, card.Name, false)...)
+		}
+		nameColor := palette.Text
+		if isPOV {
+			nameColor = palette.TargetText
+		}
+		parts = appendFilter(parts, drawtext(fontPath, card.Name, x+spec.Name.X, cy+spec.Name.Y, spec.Name.FontSize, nameColor))
+		if card.Country != "" {
+			parts = appendFilter(parts, drawtextInRect(fontPath, strings.ToUpper(strings.TrimSpace(card.Country)), geo.Country, spec.Country.FontSize, palette.Text))
+		}
+		if isPOV {
+			parts = appendFilter(parts, drawtextInRect(fontPath, "POV", geo.POV, spec.POV.FontSize, palette.POVText))
+		}
+		if card.ELO != nil {
+			parts = appendFilter(parts, drawtextRight(fontPath, strconv.Itoa(*card.ELO), geo.ELORight, cy+spec.ELO.Y, spec.ELO.FontSize, palette.Text))
+			parts = appendFilter(parts, drawtextRight(fontPath, "ELO", geo.ELORight, cy+spec.ELOLabel.Y, spec.ELOLabel.FontSize, palette.MutedText))
+		}
+		if card.SkillLevel != nil {
+			parts = appendFilter(parts, drawtextInRect(fontPath, strconv.Itoa(*card.SkillLevel), geo.Level, spec.Level.FontSize, levelTextColor(*card.SkillLevel)))
+		}
+		if card.Ranking != nil {
+			parts = appendFilter(parts, drawtextInRect(fontPath, "#"+formatThousands(*card.Ranking), geo.Rank, spec.Rank.FontSize, palette.RankText))
+		}
+		statsX := x + spec.Stats.X
+		statsWidth := layout.PanelWidth - spec.Stats.X - spec.Stats.Right
+		if title := introStatsSectionTitle(card, doc.Source); title != "" {
+			parts = appendFilter(parts, drawtext(fontPath, strings.ToUpper(title), statsX, cy+spec.Stats.TitleY, spec.Stats.TitleSize, palette.MutedText))
+		}
+		parts = append(parts, introStatGrid(card, statsX, cy+spec.Stats.ValueY, statsWidth, fontPath, layout, doc.Source)...)
+	}
+	return parts
 }
 
-func monogramFilters(fontPath string, x, y, size int, name string) []string {
+// monogramFilters draws the fallback initial for a roster slot without an
+// avatar. withDisc also paints the placeholder box; generated FACEIT chrome
+// already carries an anti-aliased disc, so it passes false.
+func monogramFilters(fontPath string, x, y, size int, name string, withDisc bool) []string {
 	initial := monogramInitial(name)
 	if initial == "" {
 		return nil
 	}
-	parts := []string{drawbox(x, y, size, size, defaultFaceitLayout.Palette.AvatarFill)}
+	var parts []string
+	if withDisc {
+		parts = append(parts, drawbox(x, y, size, size, defaultFaceitLayout.Palette.AvatarFill))
+	}
 	fontSize := size / 2
 	if fontSize < 18 {
 		fontSize = 18
 	}
-	textX := x + (size-fontSize)/2 - 2
-	textY := y + (size-fontSize)/2 + 2
-	parts = appendFilter(parts, drawtext(fontPath, initial, textX, textY, fontSize, "white"))
+	parts = appendFilter(parts, drawtextInRect(fontPath, initial, rectSpec{X: x, Y: y, Width: size, Height: size}, fontSize, "white"))
 	return parts
 }
 
@@ -601,7 +585,11 @@ func introStatGrid(card PlayerCard, x, y, width int, fontPath string, layout Int
 		sx := x + offsets[i]
 		sy := y
 		parts = appendFilter(parts, drawtext(fontPath, stat.value, sx, sy, valueSize, palette.Text))
-		parts = appendFilter(parts, drawtext(fontPath, stat.label, sx, sy+valueSize+labelGap, labelSize, palette.MutedText))
+		label := stat.label
+		if NormalizeSource(source) == SourceFACEIT {
+			label = strings.ToUpper(label)
+		}
+		parts = appendFilter(parts, drawtext(fontPath, label, sx, sy+valueSize+labelGap, labelSize, palette.MutedText))
 	}
 	return parts
 }
@@ -799,6 +787,7 @@ func outroFilter(doc Document, fontPath string, layout OutroLayout, hasPlate boo
 func faceitOutroFilter(doc Document, fontPath string) string {
 	layout := faceitOutroLayout()
 	spec := defaultFaceitLayout.Outro
+	palette := defaultFaceitLayout.Palette
 	cols := faceitOutroGridColumns(doc.Outro.Columns)
 	var parts []string
 	for i, team := range doc.Outro.Teams {
@@ -809,6 +798,9 @@ func faceitOutroFilter(doc Document, fontPath string) string {
 		shifted.HeaderY += i * spec.TeamYGap
 		shifted.Row0 += i * spec.TeamYGap
 		parts = append(parts, faceitOutroTeam(team, cols, shifted, fontPath, doc)...)
+	}
+	if mapLabel := displayMapName(doc.Map); mapLabel != "" && len(doc.Outro.Teams) >= 2 {
+		parts = appendFilter(parts, drawtextCentered(fontPath, strings.ToUpper(mapLabel), FrameWidth/2, spec.MapLabel.Y, spec.MapLabel.FontSize, palette.MutedText))
 	}
 	if len(parts) == 0 {
 		return "null"
@@ -830,23 +822,30 @@ func faceitOutroGridColumns(columns []string) []string {
 	return out
 }
 
+// faceitOutroTeam draws the text layer of one FACEIT scoreboard. The score
+// chip, label band, side stripes and POV pill live in renderOutroChromePNG;
+// text is centered into that geometry with drawtext text_w/text_h.
 func faceitOutroTeam(team TeamBoard, columns []string, layout OutroLayout, fontPath string, doc Document) []string {
 	spec := defaultFaceitLayout.Outro
 	palette := defaultFaceitLayout.Palette
-	header := fmt.Sprintf("%s  %d", team.Name, team.Score)
-	parts := []string{drawtext(fontPath, header, layout.Margin+spec.Header.X, layout.HeaderY+spec.Header.Y, spec.Header.FontSize, palette.Text)}
+	scoreChip := rectSpec{X: layout.Margin + spec.Score.Rect.X, Y: layout.HeaderY + spec.Score.Rect.Y, Width: spec.Score.Rect.Width, Height: spec.Score.Rect.Height}
+	parts := []string{drawtextInRect(fontPath, strconv.Itoa(team.Score), scoreChip, spec.Score.FontSize, palette.Text)}
+	nameRow := rectSpec{X: layout.Margin + spec.Header.X, Y: scoreChip.Y + spec.Header.Y, Width: FrameWidth - 2*layout.Margin - spec.Header.X, Height: scoreChip.Height}
+	parts = appendFilter(parts, drawtextLeftMiddle(fontPath, team.Name, nameRow, spec.Header.FontSize, palette.Text))
 	if team.AverageELO != nil {
-		avg := fmt.Sprintf("TEAM AVG  %d ELO", *team.AverageELO)
-		parts = appendFilter(parts, drawtext(fontPath, avg, FrameWidth-layout.Margin-spec.TeamAverage.Right, layout.HeaderY+spec.TeamAverage.Y, spec.TeamAverage.FontSize, palette.MutedText))
+		right := FrameWidth - layout.Margin - spec.TeamAverage.Right
+		parts = appendFilter(parts, drawtextRight(fontPath, strconv.Itoa(*team.AverageELO), right, layout.HeaderY+spec.TeamAverage.Y, spec.TeamAverage.FontSize, palette.Text))
+		parts = appendFilter(parts, drawtextRight(fontPath, "AVG ELO", FrameWidth-layout.Margin-spec.TeamAverageLabel.Right, layout.HeaderY+spec.TeamAverageLabel.Y, spec.TeamAverageLabel.FontSize, palette.MutedText))
 	}
 	labelY := layout.HeaderY + spec.ColumnLabelsY
+	parts = appendFilter(parts, drawtext(fontPath, "PLAYER", layout.Margin+spec.Name.X, labelY, spec.ColumnLabelSize, palette.MutedText))
 	for _, col := range columns {
 		column, ok := faceitOutroColumn(col)
 		if !ok {
 			continue
 		}
-		cx := layout.Margin + column.X
-		parts = appendFilter(parts, drawtext(fontPath, column.Label, cx, labelY, spec.ColumnLabelSize, palette.MutedText))
+		cx := layout.Margin + column.X + column.Width/2
+		parts = appendFilter(parts, drawtextCentered(fontPath, column.Label, cx, labelY, spec.ColumnLabelSize, palette.MutedText))
 	}
 	players := team.Players
 	if len(players) > spec.MaxPlayers {
@@ -854,29 +853,51 @@ func faceitOutroTeam(team TeamBoard, columns []string, layout OutroLayout, fontP
 	}
 	for row, card := range players {
 		rowY := layout.Row0 + row*layout.RowHeight
-		y := rowY + spec.Name.Y
+		rowH := layout.RowHeight - spec.Chrome.RowBottomGap
+		isPOV := doc.IsPOV(card)
 		nameColor := palette.Text
-		if doc.IsPOV(card) {
+		nameX := layout.Margin + spec.Name.X
+		if isPOV {
 			nameColor = palette.TargetText
+			nameX = layout.Margin + spec.POVNameX
+			pov := rectSpec{X: layout.Margin + spec.POV.Rect.X, Y: rowY + spec.POV.Rect.Y, Width: spec.POV.Rect.Width, Height: spec.POV.Rect.Height}
+			parts = appendFilter(parts, drawtextInRect(fontPath, "POV", pov, spec.POV.FontSize, palette.POVText))
 		}
-		parts = appendFilter(parts, drawtext(fontPath, card.Name, layout.Margin+spec.Name.X, y, spec.Name.FontSize, nameColor))
-		if doc.IsPOV(card) {
-			badge := spec.POV
-			tagX := layout.Margin + badge.Rect.X
-			tagY := rowY + badge.Rect.Y
-			parts = append(parts, drawbox(tagX, tagY, badge.Rect.Width, badge.Rect.Height, palette.POVFill))
-			parts = appendFilter(parts, drawtext(fontPath, "POV", tagX+badge.TextX, tagY+badge.TextY, badge.FontSize, palette.POVText))
-		}
+		nameCell := rectSpec{X: nameX, Y: rowY + spec.Name.Y, Width: layout.Margin + layout.NameWidth - nameX, Height: rowH}
+		parts = appendFilter(parts, drawtextLeftMiddle(fontPath, card.Name, nameCell, spec.Name.FontSize, nameColor))
 		for _, col := range columns {
 			column, ok := faceitOutroColumn(col)
 			if !ok {
 				continue
 			}
-			cx := layout.Margin + column.X
-			parts = appendFilter(parts, drawtext(fontPath, outroCell(card, col), cx, y, spec.StatSize, palette.StatText))
+			cell := rectSpec{X: layout.Margin + column.X, Y: rowY, Width: column.Width, Height: rowH}
+			parts = appendFilter(parts, drawtextInRect(fontPath, outroCell(card, col), cell, spec.StatSize, outroCellColor(card, col)))
 		}
 	}
 	return parts
+}
+
+// outroCellColor tints the cells that carry a judgment: FACEIT level in its
+// tier color, rating green above 1.15 and red below 0.85. Everything else
+// stays the neutral stat color so the table does not turn into a rainbow.
+func outroCellColor(card PlayerCard, col string) string {
+	palette := defaultFaceitLayout.Palette
+	switch col {
+	case ColLevel:
+		if card.SkillLevel != nil {
+			return levelTextColor(*card.SkillLevel)
+		}
+	case ColRating:
+		if card.HasRating {
+			switch {
+			case card.Rating >= 1.15:
+				return palette.StatPositive
+			case card.Rating <= 0.85:
+				return palette.StatNegative
+			}
+		}
+	}
+	return palette.StatText
 }
 
 func faceitOutroColumn(id string) (outroColumnSpec, bool) {
@@ -1039,6 +1060,8 @@ func outroCell(card PlayerCard, col string) string {
 	return "-"
 }
 
+// skillFill maps a FACEIT skill level onto the official tier colors: 10 red,
+// 8-9 orange, 4-7 yellow, 2-3 green, 1 grey.
 func skillFill(level int) string {
 	palette := defaultFaceitLayout.Palette
 	switch {
@@ -1048,39 +1071,37 @@ func skillFill(level int) string {
 		return palette.Level8Fill
 	case level >= 4:
 		return palette.Level4Fill
+	case level >= 2:
+		return palette.Level2Fill
 	default:
 		return palette.LevelDefaultFill
 	}
 }
 
-// countryBadgeFilters draws a compact country-code insignia. Full flag image
-// assets remain pending license approval.
-func countryBadgeFilters(fontPath string, x, y int, country string, theme CardTheme, badge badgeSpec) []string {
+// levelTextColor is the tier color without its fill alpha, for drawtext.
+func levelTextColor(level int) string {
+	fill := skillFill(level)
+	if i := strings.Index(fill, "@"); i >= 0 {
+		return fill[:i]
+	}
+	return fill
+}
+
+// countryBadgeFilters draws a compact country-code insignia for the plate and
+// legacy chrome paths. Full flag image assets remain pending license approval.
+func countryBadgeFilters(fontPath string, country string, theme CardTheme, badge badgeSpec) []string {
 	code := strings.ToUpper(strings.TrimSpace(country))
 	if code == "" {
 		return nil
 	}
-	w, h := badge.Rect.Width, badge.Rect.Height
+	r := badge.Rect
 	parts := []string{
-		drawbox(x, y, w, h, defaultFaceitLayout.Palette.IntroCardFill),
-		drawbox(x, y, w, 1, theme.Accent+"@0.55"),
-		drawbox(x, y+h-1, w, 1, theme.AccentSoft+"@0.45"),
+		drawbox(r.X, r.Y, r.Width, r.Height, defaultFaceitLayout.Palette.IntroCardFill),
+		drawbox(r.X, r.Y, r.Width, 1, theme.Accent+"@0.55"),
+		drawbox(r.X, r.Y+r.Height-1, r.Width, 1, theme.AccentSoft+"@0.45"),
 	}
-	parts = appendFilter(parts, drawtext(fontPath, code, x+badge.TextX, y+badge.TextY, badge.FontSize, defaultFaceitLayout.Palette.Text))
+	parts = appendFilter(parts, drawtextInRect(fontPath, code, r, badge.FontSize, defaultFaceitLayout.Palette.Text))
 	return parts
-}
-
-func introPlayerCardChrome(x, y, w, h int, theme CardTheme) []string {
-	if w < 8 || h < 8 {
-		return nil
-	}
-	chrome := defaultFaceitLayout.Intro.Chrome
-	palette := defaultFaceitLayout.Palette
-	return []string{
-		drawbox(x, y, w, h, palette.IntroCardFill),
-		drawbox(x, y, chrome.CardAccentWidth, h, theme.Accent+"@0.72"),
-		drawbox(x, y+h-1, w, 1, palette.IntroCardDivider),
-	}
 }
 
 func drawbox(x, y, w, h int, color string) string {
@@ -1094,18 +1115,67 @@ func drawbox(x, y, w, h int, color string) string {
 }
 
 func drawtext(fontPath, text string, x, y, size int, color string) string {
+	return drawtextExpr(fontPath, text, strconv.Itoa(x), strconv.Itoa(y), size, color)
+}
+
+// drawtextRight right-aligns text so its last glyph ends at right.
+func drawtextRight(fontPath, text string, right, y, size int, color string) string {
+	return drawtextExpr(fontPath, text, fmt.Sprintf("%d-text_w", right), strconv.Itoa(y), size, color)
+}
+
+// drawtextCentered centers text horizontally on cx.
+func drawtextCentered(fontPath, text string, cx, y, size int, color string) string {
+	return drawtextExpr(fontPath, text, fmt.Sprintf("%d-text_w/2", cx), strconv.Itoa(y), size, color)
+}
+
+// drawtextInRect centers text on both axes inside rect, which is how every
+// badge, pill and table cell keeps its glyphs centered without guessing
+// font metrics.
+func drawtextInRect(fontPath, text string, rect rectSpec, size int, color string) string {
+	return drawtextExpr(fontPath, text,
+		fmt.Sprintf("%d+(%d-text_w)/2", rect.X, rect.Width),
+		fmt.Sprintf("%d+(%d-line_h)/2", rect.Y, rect.Height),
+		size, color)
+}
+
+// drawtextLeftMiddle left-aligns text at rect.X, vertically centered in rect.
+func drawtextLeftMiddle(fontPath, text string, rect rectSpec, size int, color string) string {
+	return drawtextExpr(fontPath, text, strconv.Itoa(rect.X), fmt.Sprintf("%d+(%d-line_h)/2", rect.Y, rect.Height), size, color)
+}
+
+// drawtextExpr emits one drawtext clause. xExpr and yExpr are ffmpeg
+// expressions (text_w/text_h allowed); they must not contain commas.
+func drawtextExpr(fontPath, text, xExpr, yExpr string, size int, color string) string {
 	if strings.TrimSpace(text) == "" {
 		return ""
 	}
+	// Light text gets a faint dark outline for legibility over gameplay; dark
+	// text on a bright pill would only smear under the same outline.
+	border := ":borderw=1:bordercolor=black@0.55"
+	if isDarkOverlayColor(color) {
+		border = ""
+	}
 	return fmt.Sprintf(
-		"drawtext=fontfile='%s':text='%s':fontsize=%d:fontcolor=%s:x=%d:y=%d:expansion=none:borderw=1:bordercolor=black@0.55",
+		"drawtext=fontfile='%s':text='%s':fontsize=%d:fontcolor=%s:x=%s:y=%s:expansion=none%s",
 		ffmpegFilterPath(fontPath),
 		ffmpegDrawtextText(text),
 		size,
 		color,
-		x,
-		y,
+		xExpr,
+		yExpr,
+		border,
 	)
+}
+
+// isDarkOverlayColor reports whether a 0xRRGGBB[@a] color reads as dark
+// (relative luminance below ~30%), i.e. text meant for a bright pill.
+func isDarkOverlayColor(value string) bool {
+	c := parseOverlayColor(value)
+	if !strings.HasPrefix(value, "0x") {
+		return false
+	}
+	luma := 0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)
+	return luma < 76
 }
 
 func appendFilter(parts []string, part string) []string {

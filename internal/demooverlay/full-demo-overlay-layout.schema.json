@@ -80,29 +80,38 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "text", "muted_text", "stat_text", "target_text", "pov_fill", "pov_text",
-        "rank_fill", "level_10_fill", "level_8_fill", "level_4_fill", "level_default_fill",
-        "intro_panel_fill", "intro_panel_border", "intro_card_fill", "intro_card_divider", "intro_texture",
-        "avatar_fill", "outro_backdrop", "outro_board_fill", "outro_board_border",
-        "outro_label_fill", "outro_row_even", "outro_row_odd", "outro_ct_name",
-        "outro_t_name", "outro_divider", "outro_column_guide"
+        "text", "muted_text", "stat_text", "stat_positive", "stat_negative", "target_text",
+        "pov_fill", "pov_text", "rank_fill", "rank_text",
+        "level_10_fill", "level_8_fill", "level_4_fill", "level_2_fill", "level_default_fill", "level_ring_fill",
+        "intro_panel_fill", "intro_panel_border", "intro_card_fill", "intro_card_border", "intro_card_divider",
+        "intro_stats_band", "intro_texture", "avatar_fill",
+        "outro_backdrop", "outro_board_fill", "outro_board_border",
+        "outro_label_fill", "outro_row_even", "outro_row_odd", "outro_ct_name", "outro_ct_stripe",
+        "outro_t_name", "outro_t_stripe", "outro_divider"
       ],
       "properties": {
         "text": { "$ref": "#/$defs/overlayColor" },
         "muted_text": { "$ref": "#/$defs/overlayColor" },
         "stat_text": { "$ref": "#/$defs/overlayColor" },
+        "stat_positive": { "$ref": "#/$defs/overlayColor" },
+        "stat_negative": { "$ref": "#/$defs/overlayColor" },
         "target_text": { "$ref": "#/$defs/overlayColor" },
         "pov_fill": { "$ref": "#/$defs/overlayColor" },
         "pov_text": { "$ref": "#/$defs/overlayColor" },
         "rank_fill": { "$ref": "#/$defs/overlayColor" },
+        "rank_text": { "$ref": "#/$defs/overlayColor" },
         "level_10_fill": { "$ref": "#/$defs/overlayColor" },
         "level_8_fill": { "$ref": "#/$defs/overlayColor" },
         "level_4_fill": { "$ref": "#/$defs/overlayColor" },
+        "level_2_fill": { "$ref": "#/$defs/overlayColor" },
         "level_default_fill": { "$ref": "#/$defs/overlayColor" },
+        "level_ring_fill": { "$ref": "#/$defs/overlayColor" },
         "intro_panel_fill": { "$ref": "#/$defs/overlayColor" },
         "intro_panel_border": { "$ref": "#/$defs/overlayColor" },
         "intro_card_fill": { "$ref": "#/$defs/overlayColor" },
+        "intro_card_border": { "$ref": "#/$defs/overlayColor" },
         "intro_card_divider": { "$ref": "#/$defs/overlayColor" },
+        "intro_stats_band": { "$ref": "#/$defs/overlayColor" },
         "intro_texture": { "$ref": "#/$defs/overlayColor" },
         "avatar_fill": { "$ref": "#/$defs/overlayColor" },
         "outro_backdrop": { "$ref": "#/$defs/overlayColor" },
@@ -112,9 +121,10 @@
         "outro_row_even": { "$ref": "#/$defs/overlayColor" },
         "outro_row_odd": { "$ref": "#/$defs/overlayColor" },
         "outro_ct_name": { "$ref": "#/$defs/overlayColor" },
+        "outro_ct_stripe": { "$ref": "#/$defs/overlayColor" },
         "outro_t_name": { "$ref": "#/$defs/overlayColor" },
-        "outro_divider": { "$ref": "#/$defs/overlayColor" },
-        "outro_column_guide": { "$ref": "#/$defs/overlayColor" }
+        "outro_t_stripe": { "$ref": "#/$defs/overlayColor" },
+        "outro_divider": { "$ref": "#/$defs/overlayColor" }
       }
     },
     "textAnchor": {
@@ -139,20 +149,30 @@
       }
     },
     "badge": {
+      "description": "A filled rect whose text is centered inside it with ffmpeg text_w/text_h expressions.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["rect", "text_x", "text_y", "font_size"],
+      "required": ["rect", "font_size"],
       "properties": {
         "rect": { "$ref": "#/$defs/rect" },
-        "text_x": { "type": "integer" },
-        "text_y": { "type": "integer" },
+        "font_size": { "$ref": "#/$defs/positiveInteger" }
+      }
+    },
+    "rightText": {
+      "description": "Text whose right edge sits `right` pixels from the right edge of its container.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["right", "y", "font_size"],
+      "properties": {
+        "right": { "$ref": "#/$defs/nonNegativeInteger" },
+        "y": { "type": "integer" },
         "font_size": { "$ref": "#/$defs/positiveInteger" }
       }
     },
     "intro": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["z_order", "panel", "header", "card", "avatar", "name", "country", "elo", "pov", "level", "stats", "chrome"],
+      "required": ["z_order", "panel", "header", "card", "avatar", "name", "country", "elo", "elo_label", "pov", "level", "rank", "stats", "chrome"],
       "properties": {
         "z_order": {
           "type": "array",
@@ -188,15 +208,18 @@
         "avatar": { "$ref": "#/$defs/rect" },
         "name": { "$ref": "#/$defs/textAnchor" },
         "country": { "$ref": "#/$defs/badge" },
-        "elo": { "$ref": "#/$defs/textAnchor" },
+        "elo": { "$ref": "#/$defs/rightText" },
+        "elo_label": { "$ref": "#/$defs/rightText" },
         "pov": { "$ref": "#/$defs/badge" },
         "level": { "$ref": "#/$defs/badge" },
+        "rank": { "$ref": "#/$defs/badge" },
         "stats": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["x", "title_y", "value_y", "right", "title_size", "value_size", "label_size", "label_gap", "weights"],
+          "required": ["x", "band_y", "title_y", "value_y", "right", "title_size", "value_size", "label_size", "label_gap", "weights"],
           "properties": {
             "x": { "type": "integer" },
+            "band_y": { "type": "integer" },
             "title_y": { "type": "integer" },
             "value_y": { "type": "integer" },
             "right": { "$ref": "#/$defs/nonNegativeInteger" },
@@ -215,13 +238,16 @@
         "chrome": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["panel_radius", "panel_border", "accent_width", "header_divider", "card_accent_width", "texture_spacing"],
+          "required": ["panel_radius", "panel_border", "accent_width", "header_divider", "card_radius", "card_accent_width", "avatar_ring", "level_ring", "texture_spacing"],
           "properties": {
             "panel_radius": { "$ref": "#/$defs/nonNegativeInteger" },
             "panel_border": { "$ref": "#/$defs/positiveInteger" },
             "accent_width": { "$ref": "#/$defs/positiveInteger" },
             "header_divider": { "$ref": "#/$defs/positiveInteger" },
+            "card_radius": { "$ref": "#/$defs/nonNegativeInteger" },
             "card_accent_width": { "$ref": "#/$defs/positiveInteger" },
+            "avatar_ring": { "$ref": "#/$defs/positiveInteger" },
+            "level_ring": { "$ref": "#/$defs/positiveInteger" },
             "texture_spacing": { "$ref": "#/$defs/positiveInteger" }
           }
         }
@@ -241,7 +267,7 @@
     "outro": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["z_order", "margin", "header_y", "row_y", "row_height", "team_y_gap", "max_players", "name_width", "header", "team_average", "column_labels_y", "column_label_size", "stat_size", "name", "pov", "columns", "chrome"],
+      "required": ["z_order", "margin", "header_y", "row_y", "row_height", "team_y_gap", "max_players", "name_width", "header", "score", "team_average", "team_average_label", "map_label", "column_labels_y", "column_label_size", "stat_size", "name", "pov_name_x", "pov", "columns", "chrome"],
       "properties": {
         "z_order": {
           "type": "array",
@@ -256,13 +282,16 @@
         "max_players": { "type": "integer", "minimum": 1, "maximum": 5 },
         "name_width": { "$ref": "#/$defs/positiveInteger" },
         "header": { "$ref": "#/$defs/textAnchor" },
-        "team_average": {
+        "score": { "$ref": "#/$defs/badge" },
+        "team_average": { "$ref": "#/$defs/rightText" },
+        "team_average_label": { "$ref": "#/$defs/rightText" },
+        "map_label": {
+          "description": "Map name centered horizontally between the two boards; y is absolute canvas space.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["right", "y", "font_size"],
+          "required": ["y", "font_size"],
           "properties": {
-            "right": { "$ref": "#/$defs/nonNegativeInteger" },
-            "y": { "type": "integer" },
+            "y": { "$ref": "#/$defs/nonNegativeInteger" },
             "font_size": { "$ref": "#/$defs/positiveInteger" }
           }
         },
@@ -270,6 +299,7 @@
         "column_label_size": { "$ref": "#/$defs/positiveInteger" },
         "stat_size": { "$ref": "#/$defs/positiveInteger" },
         "name": { "$ref": "#/$defs/textAnchor" },
+        "pov_name_x": { "$ref": "#/$defs/nonNegativeInteger" },
         "pov": { "$ref": "#/$defs/badge" },
         "columns": {
           "type": "array",
@@ -280,19 +310,20 @@
         "chrome": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["board_left", "board_top", "board_right", "board_bottom", "accent_width", "label_top", "label_bottom", "row_bottom_gap", "name_right_gap", "divider_height", "column_guide_width"],
+          "required": ["board_left", "board_top", "board_right", "board_bottom", "board_radius", "accent_width", "label_top", "label_bottom", "row_bottom_gap", "name_right_gap", "side_stripe_width", "divider_height"],
           "properties": {
             "board_left": { "type": "integer" },
             "board_top": { "type": "integer" },
             "board_right": { "type": "integer" },
             "board_bottom": { "type": "integer" },
+            "board_radius": { "$ref": "#/$defs/nonNegativeInteger" },
             "accent_width": { "$ref": "#/$defs/positiveInteger" },
             "label_top": { "type": "integer" },
             "label_bottom": { "type": "integer" },
             "row_bottom_gap": { "$ref": "#/$defs/nonNegativeInteger" },
             "name_right_gap": { "$ref": "#/$defs/nonNegativeInteger" },
-            "divider_height": { "$ref": "#/$defs/positiveInteger" },
-            "column_guide_width": { "$ref": "#/$defs/positiveInteger" }
+            "side_stripe_width": { "$ref": "#/$defs/positiveInteger" },
+            "divider_height": { "$ref": "#/$defs/positiveInteger" }
           }
         }
       }

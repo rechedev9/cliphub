@@ -31,7 +31,7 @@ This is not a request to delete `web/` or `desktop/`. It is a request to stop de
 
 ### Current state
 
-The product contract is already CLI-first (`CLAUDE.md`, `.codex/GUIDE.md`, `cmd/zv/flow_commands.go`):
+The product contract is already CLI-first (`CLAUDE.md`, `.claude/GUIDE.md`, `cmd/zv/flow_commands.go`):
 
 ```text
 .dem -> parse/score -> selected kill plan -> HLAE/CS2 capture -> FFmpeg/Lua render -> publish pack
@@ -836,7 +836,7 @@ Rollback: stop using probe/wrapper; staged `zv` commands remain. Recorder exit 8
 ## References
 
 - `CLAUDE.md` — product contract, gates, HLAE rules, MaxRetry(0), FACEIT limits
-- `.codex/GUIDE.md` — workflow command surface, staged commands, capabilities
+- `.claude/GUIDE.md` — workflow command surface, staged commands, capabilities
 - `cmd/zv/flow_commands.go` — canonical demo/stream phases
 - `cmd/zv/workflow_catalog.go` — workflow list (`short`, analysis, gallery-open, flows-run, serve, …)
 - `cmd/zv/workflows_commands.go` — `--` separator on `workflows run`
@@ -861,7 +861,7 @@ This repository integrates on **`main`**. There are no GitHub pull requests for 
 ### Slice 1 — Operator wrapper and session pin (process unblocked today)
 
 - **title:** Add `scripts/zv.cmd` and an HLAE 2.192.1 session pin helper
-- **files:** `scripts/zv.cmd`, `scripts/operator-session.ps1` (new, tiny), optionally a short pointer in `.codex/GUIDE.md` only if we are asked to document it later
+- **files:** `scripts/zv.cmd`, `scripts/operator-session.ps1` (new, tiny), optionally a short pointer in `.claude/GUIDE.md` only if we are asked to document it later
 - **dependencies:** none
 - **description:** `zv.cmd` forwards `%*` to `bin\zv.exe` for cmd.exe quoting and direct commands. It is not a pwsh `--` fix. `operator-session.ps1` allow-lists `%APPDATA%\cliphub-studio\tools\hlae\2.192.1\HLAE.exe` with `Test-Path` only. It must not `Get-FileHash` the exe against `hlae-tool.json` `sha256` (that digest is `hlae_2_192_1.zip`) or `treeSha256` (Studio's unpacked-tree hash). Sets `ZV_HLAE_PATH`, runs `zv capabilities --format json`, and prints `Get-Process cs2`. It does not denylist 2.191.1 as a substitute for the allow-list. No Go. Operator can follow the rest of this design immediately.
 

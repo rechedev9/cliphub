@@ -13,10 +13,8 @@ on:
       - 'testdata/**'
       - 'CLAUDE.md'
       - 'AGENTS.md'
-      - '.codex/**'
       - '.claude/**'
       - 'scripts/go-*.sh'
-      - 'scripts/check-codex-harness.sh'
       - '.github/workflows/ci-backend.yml'
   push:
     branches:
@@ -30,10 +28,8 @@ on:
       - 'testdata/**'
       - 'CLAUDE.md'
       - 'AGENTS.md'
-      - '.codex/**'
       - '.claude/**'
       - 'scripts/go-*.sh'
-      - 'scripts/check-codex-harness.sh'
       - '.github/workflows/ci-backend.yml'
 
 permissions:

@@ -12,8 +12,10 @@ import (
 )
 
 // renderIntroChromePNG draws left/right intro panel chrome on a transparent
-// 1920x1080 canvas. Flag image assets remain pending license approval; country
-// codes are rendered as text badges in the ffmpeg filter graph instead.
+// 1920x1080 canvas: panel, header divider, one rounded card per roster slot
+// with its avatar ring, FACEIT level ring, badge pills and stats band. Text
+// stays in the ffmpeg filter graph. Flag image assets remain pending license
+// approval; country codes are rendered as text badges instead.
 func renderIntroChromePNG(doc Document) ([]byte, error) {
 	l := DefaultLayout().Intro
 	if NormalizeSource(doc.Source) == SourceFACEIT {
@@ -22,8 +24,15 @@ func renderIntroChromePNG(doc Document) ([]byte, error) {
 	theme := ResolveTheme(doc)
 	img := image.NewRGBA(image.Rect(0, 0, FrameWidth, FrameHeight))
 	draw.Draw(img, img.Bounds(), &image.Uniform{C: color.RGBA{}}, image.Point{}, draw.Src)
-	drawIntroPanel(img, l.LeftPanelX, l.PanelTop, l, theme, defaultFaceitLayout.Intro)
-	drawIntroPanel(img, l.RightPanelX, l.PanelTop, l, theme, defaultFaceitLayout.Intro)
+	// Card chrome follows the FACEIT layout; non-FACEIT docs keep the generic
+	// drawtext column (introColumn) on DefaultLayout geometry, so they only get
+	// the bare panel here or the two layers would draw badges twice.
+	left, right := doc.Intro.Left, doc.Intro.Right
+	if NormalizeSource(doc.Source) != SourceFACEIT {
+		left, right = nil, nil
+	}
+	drawIntroPanel(img, l.LeftPanelX, l.PanelTop, l, theme, defaultFaceitLayout.Intro, left, doc)
+	drawIntroPanel(img, l.RightPanelX, l.PanelTop, l, theme, defaultFaceitLayout.Intro, right, doc)
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return nil, err
@@ -31,21 +40,117 @@ func renderIntroChromePNG(doc Document) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func drawIntroPanel(img *image.RGBA, x, y int, layout IntroLayout, theme CardTheme, spec introLayoutSpec) {
+func drawIntroPanel(img *image.RGBA, x, y int, layout IntroLayout, theme CardTheme, spec introLayoutSpec, cards []PlayerCard, doc Document) {
 	w, h := layout.PanelWidth, layout.PanelHeight
 	accent := parseOverlayColor(theme.Accent)
 	soft := parseOverlayColor(theme.AccentSoft)
 	chrome := spec.Chrome
 	palette := defaultFaceitLayout.Palette
+	panel := image.Rect(x, y, x+w, y+h)
 	drawRoundedRect(img, x, y, w, h, chrome.PanelRadius, parseOverlayColor(palette.IntroPanelFill))
-	drawPanelTexture(img, image.Rect(x, y, x+w, y+h), chrome.TextureSpacing, parseOverlayColor(palette.IntroTexture))
+	drawPanelTexture(img, panel, chrome.TextureSpacing, parseOverlayColor(palette.IntroTexture))
 	drawRoundedRectBorder(img, x, y, w, h, chrome.PanelRadius, chrome.PanelBorder, parseOverlayColor(palette.IntroPanelBorder))
-	drawRectOver(img, image.Rect(x, y, x+chrome.AccentWidth, y+h), withAlpha(accent, 0.92))
-	drawRectOver(img, image.Rect(x+chrome.AccentWidth, y+layout.HeaderH-1, x+w, y+layout.HeaderH-1+chrome.HeaderDivider), withAlpha(soft, 0.40))
+	drawRoundedRectClipped(img, x, y, w, h, chrome.PanelRadius, withAlpha(accent, 0.92), image.Rect(x, y, x+chrome.AccentWidth, y+h))
+	dividerY := y + layout.HeaderH - chrome.HeaderDivider
+	drawRectOver(img, image.Rect(x+chrome.AccentWidth, dividerY, x+w, dividerY+chrome.HeaderDivider), withAlpha(soft, 0.55))
+
+	if len(cards) > layout.MaxPlayers {
+		cards = cards[:layout.MaxPlayers]
+	}
+	for i, card := range cards {
+		cy := y + layout.HeaderH + i*layout.RowHeight
+		drawIntroCard(img, x, cy, card, doc.IsPOV(card), theme, spec)
+	}
 }
 
-// renderOutroChromePNG draws the dense, stacked FACEIT scoreboard surface.
-// All text remains in the ffmpeg filter graph; this bitmap is chrome only.
+func drawIntroCard(img *image.RGBA, panelX, cy int, card PlayerCard, isPOV bool, theme CardTheme, spec introLayoutSpec) {
+	chrome := spec.Chrome
+	palette := defaultFaceitLayout.Palette
+	accent := parseOverlayColor(theme.Accent)
+	cx, cyTop := panelX+spec.Card.X, cy+spec.Card.Y
+	cw, ch := spec.Card.Width, spec.Card.Height
+
+	drawRoundedRect(img, cx, cyTop, cw, ch, chrome.CardRadius, parseOverlayColor(palette.IntroCardFill))
+	bandTop := cy + spec.Stats.BandY
+	drawRoundedRectClipped(img, cx, cyTop, cw, ch, chrome.CardRadius, parseOverlayColor(palette.IntroStatsBand), image.Rect(cx, bandTop, cx+cw, cyTop+ch))
+	drawRectOver(img, image.Rect(cx+chrome.CardAccentWidth, bandTop, cx+cw, bandTop+1), parseOverlayColor(palette.IntroCardDivider))
+	border := parseOverlayColor(palette.IntroCardBorder)
+	barAlpha := 0.5
+	if isPOV {
+		drawRoundedRect(img, cx, cyTop, cw, ch, chrome.CardRadius, withAlpha(accent, 0.14))
+		border = withAlpha(accent, 0.7)
+		barAlpha = 1
+	}
+	drawRoundedRectBorder(img, cx, cyTop, cw, ch, chrome.CardRadius, 1, border)
+	drawRoundedRectClipped(img, cx, cyTop, cw, ch, chrome.CardRadius, withAlpha(accent, barAlpha), image.Rect(cx, cyTop, cx+chrome.CardAccentWidth, cyTop+ch))
+
+	geo := faceitIntroCardGeometry(panelX, cy, card, isPOV)
+	avatarR := float64(spec.Avatar.Width) / 2
+	avatarCX := float64(geo.Avatar.X) + avatarR
+	avatarCY := float64(geo.Avatar.Y) + avatarR
+	drawDisc(img, avatarCX, avatarCY, avatarR, parseOverlayColor(palette.AvatarFill))
+	ringAlpha := 0.7
+	if isPOV {
+		ringAlpha = 1
+	}
+	drawRing(img, avatarCX, avatarCY, avatarR, avatarR+float64(chrome.AvatarRing), withAlpha(accent, ringAlpha))
+
+	if card.SkillLevel != nil {
+		r := float64(spec.Level.Rect.Width) / 2
+		lx := float64(geo.Level.X) + r
+		ly := float64(geo.Level.Y) + r
+		drawDisc(img, lx, ly, r, parseOverlayColor(palette.LevelRingFill))
+		drawRing(img, lx, ly, r-float64(chrome.LevelRing), r, parseOverlayColor(skillFill(*card.SkillLevel)))
+	}
+	if card.Ranking != nil {
+		rk := geo.Rank
+		drawRoundedRect(img, rk.X, rk.Y, rk.Width, rk.Height, rk.Height/2, parseOverlayColor(palette.RankFill))
+	}
+	if card.Country != "" {
+		c := geo.Country
+		drawRoundedRect(img, c.X, c.Y, c.Width, c.Height, 4, color.NRGBA{R: 255, G: 255, B: 255, A: 20})
+		drawRoundedRectBorder(img, c.X, c.Y, c.Width, c.Height, 4, 1, color.NRGBA{R: 255, G: 255, B: 255, A: 38})
+	}
+	if isPOV {
+		p := geo.POV
+		drawRoundedRect(img, p.X, p.Y, p.Width, p.Height, 4, parseOverlayColor(palette.POVFill))
+	}
+}
+
+// faceitIntroCardGeometry resolves the frame-space rects of one FACEIT intro
+// card so the chrome bitmap and the ffmpeg text filter agree on placement.
+type introCardGeometry struct {
+	Avatar  rectSpec
+	Country rectSpec
+	POV     rectSpec
+	Level   rectSpec
+	Rank    rectSpec
+	// ELORight is the frame-space right edge shared by the ELO value and label.
+	ELORight int
+}
+
+func faceitIntroCardGeometry(panelX, cy int, card PlayerCard, isPOV bool) introCardGeometry {
+	spec := defaultFaceitLayout.Intro
+	at := func(r rectSpec) rectSpec {
+		return rectSpec{X: panelX + r.X, Y: cy + r.Y, Width: r.Width, Height: r.Height}
+	}
+	geo := introCardGeometry{
+		Avatar:   at(spec.Avatar),
+		Country:  at(spec.Country.Rect),
+		POV:      at(spec.POV.Rect),
+		Level:    at(spec.Level.Rect),
+		Rank:     at(spec.Rank.Rect),
+		ELORight: panelX + spec.Panel.Width - spec.ELO.Right,
+	}
+	if isPOV && strings.TrimSpace(card.Country) == "" {
+		geo.POV.X = geo.Country.X
+	}
+	return geo
+}
+
+// renderOutroChromePNG draws the stacked FACEIT scoreboard surface: one
+// rounded board per team with an accent score chip, a label band, side-tinted
+// name cells and an accent-tinted POV row. All text stays in the ffmpeg filter.
 func renderOutroChromePNG(doc Document) ([]byte, error) {
 	layout := faceitOutroLayout()
 	spec := defaultFaceitLayout.Outro
@@ -60,32 +165,49 @@ func renderOutroChromePNG(doc Document) ([]byte, error) {
 	for teamIndex := 0; teamIndex < min(2, len(doc.Outro.Teams)); teamIndex++ {
 		team := doc.Outro.Teams[teamIndex]
 		shift := teamIndex * spec.TeamYGap
+		rows := min(spec.MaxPlayers, len(team.Players))
 		boardTop := layout.HeaderY + shift + chrome.BoardTop
-		boardBottom := layout.Row0 + shift + min(spec.MaxPlayers, len(team.Players))*layout.RowHeight + chrome.BoardBottom
-		board := image.Rect(layout.Margin+chrome.BoardLeft, boardTop, FrameWidth-layout.Margin+chrome.BoardRight, boardBottom)
-		drawRectOver(img, board, parseOverlayColor(palette.OutroBoardFill))
-		drawRectBorder(img, board, 1, parseOverlayColor(palette.OutroBoardBorder))
-		drawRectOver(img, image.Rect(board.Min.X, board.Min.Y, board.Min.X+chrome.AccentWidth, board.Max.Y), withAlpha(accent, 0.90))
+		boardBottom := layout.Row0 + shift + rows*layout.RowHeight + chrome.BoardBottom
+		bx, by := layout.Margin+chrome.BoardLeft, boardTop
+		bw, bh := FrameWidth-layout.Margin+chrome.BoardRight-bx, boardBottom-boardTop
+		drawRoundedRect(img, bx, by, bw, bh, chrome.BoardRadius, parseOverlayColor(palette.OutroBoardFill))
+		drawRoundedRectBorder(img, bx, by, bw, bh, chrome.BoardRadius, 1, parseOverlayColor(palette.OutroBoardBorder))
+		drawRoundedRectClipped(img, bx, by, bw, bh, chrome.BoardRadius, withAlpha(accent, 0.95), image.Rect(bx, by, bx+chrome.AccentWidth, by+bh))
+
+		score := spec.Score.Rect
+		drawRoundedRect(img, layout.Margin+score.X, layout.HeaderY+shift+score.Y, score.Width, score.Height, 6, accent)
 
 		labelTop := layout.HeaderY + shift + chrome.LabelTop
 		drawRectOver(img, image.Rect(layout.Margin, labelTop, FrameWidth-layout.Margin, layout.Row0+shift+chrome.LabelBottom), parseOverlayColor(palette.OutroLabelFill))
-		for _, column := range spec.Columns {
-			x := layout.Margin + column.X
-			drawRectOver(img, image.Rect(x, labelTop, x+chrome.ColumnGuideWidth, boardBottom), parseOverlayColor(palette.OutroColumnGuide))
+
+		sideFill, sideStripe := parseOverlayColor(palette.OutroTName), parseOverlayColor(palette.OutroTStripe)
+		if team.Side == "CT" {
+			sideFill, sideStripe = parseOverlayColor(palette.OutroCTName), parseOverlayColor(palette.OutroCTStripe)
 		}
-		for row := 0; row < min(spec.MaxPlayers, len(team.Players)); row++ {
+		for row := 0; row < rows; row++ {
+			card := team.Players[row]
 			y := layout.Row0 + shift + row*layout.RowHeight
+			rowBottom := y + layout.RowHeight - chrome.RowBottomGap
 			rowFill := parseOverlayColor(palette.OutroRowEven)
 			if row%2 == 1 {
 				rowFill = parseOverlayColor(palette.OutroRowOdd)
 			}
-			drawRectOver(img, image.Rect(layout.Margin, y, FrameWidth-layout.Margin, y+layout.RowHeight-chrome.RowBottomGap), rowFill)
-			nameFill := parseOverlayColor(palette.OutroTName)
-			if team.Side == "CT" {
-				nameFill = parseOverlayColor(palette.OutroCTName)
+			drawRectOver(img, image.Rect(layout.Margin, y, FrameWidth-layout.Margin, rowBottom), rowFill)
+			isPOV := doc.IsPOV(card)
+			if isPOV {
+				drawRectOver(img, image.Rect(layout.Margin, y, FrameWidth-layout.Margin, rowBottom), withAlpha(accent, 0.16))
 			}
-			drawRectOver(img, image.Rect(layout.Margin, y, layout.Margin+layout.NameWidth-chrome.NameRightGap, y+layout.RowHeight-chrome.RowBottomGap), nameFill)
-			drawRectOver(img, image.Rect(layout.Margin, y+layout.RowHeight-chrome.RowBottomGap-chrome.DividerHeight, FrameWidth-layout.Margin, y+layout.RowHeight-chrome.RowBottomGap), parseOverlayColor(palette.OutroDivider))
+			drawRectOver(img, image.Rect(layout.Margin, y, layout.Margin+layout.NameWidth-chrome.NameRightGap, rowBottom), sideFill)
+			stripe := sideStripe
+			if isPOV {
+				stripe = accent
+			}
+			drawRectOver(img, image.Rect(layout.Margin, y, layout.Margin+chrome.SideStripeWidth, rowBottom), stripe)
+			if isPOV {
+				p := spec.POV.Rect
+				drawRoundedRect(img, layout.Margin+p.X, y+p.Y, p.Width, p.Height, 4, parseOverlayColor(palette.POVFill))
+			}
+			drawRectOver(img, image.Rect(layout.Margin, rowBottom-chrome.DividerHeight, FrameWidth-layout.Margin, rowBottom), parseOverlayColor(palette.OutroDivider))
 		}
 	}
 	var buf bytes.Buffer
@@ -97,16 +219,6 @@ func renderOutroChromePNG(doc Document) ([]byte, error) {
 
 func drawRectOver(img *image.RGBA, rect image.Rectangle, c color.Color) {
 	draw.Draw(img, rect.Intersect(img.Bounds()), &image.Uniform{C: c}, image.Point{}, draw.Over)
-}
-
-func drawRectBorder(img *image.RGBA, rect image.Rectangle, thickness int, c color.Color) {
-	if thickness < 1 || rect.Empty() {
-		return
-	}
-	drawRectOver(img, image.Rect(rect.Min.X, rect.Min.Y, rect.Max.X, rect.Min.Y+thickness), c)
-	drawRectOver(img, image.Rect(rect.Min.X, rect.Max.Y-thickness, rect.Max.X, rect.Max.Y), c)
-	drawRectOver(img, image.Rect(rect.Min.X, rect.Min.Y, rect.Min.X+thickness, rect.Max.Y), c)
-	drawRectOver(img, image.Rect(rect.Max.X-thickness, rect.Min.Y, rect.Max.X, rect.Max.Y), c)
 }
 
 func parseOverlayColor(value string) color.NRGBA {
@@ -149,74 +261,97 @@ func drawPanelTexture(img *image.RGBA, bounds image.Rectangle, spacing int, c co
 	}
 }
 
-func drawRoundedRect(img *image.RGBA, x, y, w, h, radius int, c color.Color) {
-	if w <= 0 || h <= 0 {
+// roundedRectDistance is the signed distance from a pixel center to the edge
+// of a rounded rectangle: negative inside, positive outside.
+func roundedRectDistance(px, py float64, x, y, w, h, radius int) float64 {
+	r := math.Min(float64(radius), math.Min(float64(w), float64(h))/2)
+	cx := float64(x) + float64(w)/2
+	cy := float64(y) + float64(h)/2
+	hx := float64(w)/2 - r
+	hy := float64(h)/2 - r
+	dx := math.Abs(px-cx) - hx
+	dy := math.Abs(py-cy) - hy
+	outside := math.Hypot(math.Max(dx, 0), math.Max(dy, 0))
+	inside := math.Min(math.Max(dx, dy), 0)
+	return outside + inside - r
+}
+
+func coverage(v float64) float64 {
+	return math.Max(0, math.Min(1, v))
+}
+
+func drawRoundedRect(img *image.RGBA, x, y, w, h, radius int, c color.NRGBA) {
+	drawRoundedRectClipped(img, x, y, w, h, radius, c, image.Rect(x, y, x+w, y+h))
+}
+
+// drawRoundedRectClipped fills an anti-aliased rounded rectangle but only
+// paints pixels inside clip, so accent bars and bands inherit the corners.
+func drawRoundedRectClipped(img *image.RGBA, x, y, w, h, radius int, c color.NRGBA, clip image.Rectangle) {
+	if w <= 0 || h <= 0 || c.A == 0 {
 		return
 	}
-	bounds := image.Rect(x, y, x+w, y+h)
+	bounds := image.Rect(x, y, x+w, y+h).Intersect(clip).Intersect(img.Bounds())
 	for py := bounds.Min.Y; py < bounds.Max.Y; py++ {
 		for px := bounds.Min.X; px < bounds.Max.X; px++ {
-			if insideRoundedRect(px, py, x, y, w, h, radius) {
-				img.Set(px, py, c)
+			cov := coverage(0.5 - roundedRectDistance(float64(px)+0.5, float64(py)+0.5, x, y, w, h, radius))
+			if cov <= 0 {
+				continue
 			}
+			blendPixel(img, px, py, scaleAlpha(c, cov))
 		}
 	}
 }
 
 func drawRoundedRectBorder(img *image.RGBA, x, y, w, h, radius, thickness int, c color.NRGBA) {
-	if w <= 0 || h <= 0 || thickness <= 0 {
+	if w <= 0 || h <= 0 || thickness <= 0 || c.A == 0 {
 		return
 	}
-	outer := image.Rect(x, y, x+w, y+h)
-	for py := outer.Min.Y; py < outer.Max.Y; py++ {
-		for px := outer.Min.X; px < outer.Max.X; px++ {
-			if !insideRoundedRect(px, py, x, y, w, h, radius) {
+	bounds := image.Rect(x, y, x+w, y+h).Intersect(img.Bounds())
+	t := float64(thickness)
+	for py := bounds.Min.Y; py < bounds.Max.Y; py++ {
+		for px := bounds.Min.X; px < bounds.Max.X; px++ {
+			d := roundedRectDistance(float64(px)+0.5, float64(py)+0.5, x, y, w, h, radius)
+			cov := coverage(0.5-d) - coverage(0.5-(d+t))
+			if cov <= 0 {
 				continue
 			}
-			onBorder := false
-			for t := 1; t <= thickness; t++ {
-				if !insideRoundedRect(px, py, x+t, y+t, w-2*t, h-2*t, max(0, radius-t)) {
-					onBorder = true
-					break
-				}
-			}
-			if onBorder {
-				blendPixel(img, px, py, c)
-			}
+			blendPixel(img, px, py, scaleAlpha(c, cov))
 		}
 	}
 }
 
-func insideRoundedRect(px, py, x, y, w, h, radius int) bool {
-	if px < x || py < y || px >= x+w || py >= y+h {
-		return false
-	}
-	if radius <= 0 {
-		return true
-	}
-	if px-x < radius && py-y < radius {
-		return cornerInside(px, py, x+radius, y+radius, radius)
-	}
-	if px >= x+w-radius && py-y < radius {
-		return cornerInside(px, py, x+w-radius-1, y+radius, radius)
-	}
-	if px-x < radius && py >= y+h-radius {
-		return cornerInside(px, py, x+radius, y+h-radius-1, radius)
-	}
-	if px >= x+w-radius && py >= y+h-radius {
-		return cornerInside(px, py, x+w-radius-1, y+h-radius-1, radius)
-	}
-	return true
+func drawDisc(img *image.RGBA, cx, cy, r float64, c color.NRGBA) {
+	drawRing(img, cx, cy, 0, r, c)
 }
 
-func cornerInside(px, py, cx, cy, radius int) bool {
-	dx := float64(px - cx)
-	dy := float64(py - cy)
-	return dx*dx+dy*dy <= float64(radius*radius)
+// drawRing fills the anti-aliased annulus between inner and outer radius.
+func drawRing(img *image.RGBA, cx, cy, inner, outer float64, c color.NRGBA) {
+	if outer <= 0 || c.A == 0 {
+		return
+	}
+	bounds := image.Rect(int(math.Floor(cx-outer))-1, int(math.Floor(cy-outer))-1, int(math.Ceil(cx+outer))+1, int(math.Ceil(cy+outer))+1).Intersect(img.Bounds())
+	for py := bounds.Min.Y; py < bounds.Max.Y; py++ {
+		for px := bounds.Min.X; px < bounds.Max.X; px++ {
+			d := math.Hypot(float64(px)+0.5-cx, float64(py)+0.5-cy)
+			cov := coverage(outer + 0.5 - d)
+			if inner > 0 {
+				cov = math.Min(cov, coverage(d-inner+0.5))
+			}
+			if cov <= 0 {
+				continue
+			}
+			blendPixel(img, px, py, scaleAlpha(c, cov))
+		}
+	}
+}
+
+func scaleAlpha(c color.NRGBA, factor float64) color.NRGBA {
+	c.A = uint8(math.Round(float64(c.A) * factor))
+	return c
 }
 
 func blendPixel(img *image.RGBA, x, y int, c color.NRGBA) {
-	if !image.Pt(x, y).In(img.Bounds()) {
+	if !image.Pt(x, y).In(img.Bounds()) || c.A == 0 {
 		return
 	}
 	dst := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)

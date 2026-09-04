@@ -5,6 +5,9 @@ type skillInfo struct {
 	Description string `json:"description"`
 	Path        string `json:"-"`
 	Body        string `json:"-"`
+	// Uncataloged marks a Claude Code skill (frontmatter metadata
+	// zv-catalog: "false") that the zv skill contract does not validate.
+	Uncataloged bool `json:"-"`
 }
 
 type skillDetail struct {
@@ -31,12 +34,11 @@ type workflowDoc struct {
 }
 
 type workflowCheckResult struct {
-	OK                         bool         `json:"ok"`
-	SkillsChecked              int          `json:"skills_checked"`
-	WorkflowsChecked           int          `json:"workflows_checked"`
-	WorkflowDocsChecked        int          `json:"workflow_docs_checked"`
-	AgentPromptWrappersChecked int          `json:"agent_prompt_wrappers_checked"`
-	Issues                     []skillIssue `json:"issues"`
+	OK                  bool         `json:"ok"`
+	SkillsChecked       int          `json:"skills_checked"`
+	WorkflowsChecked    int          `json:"workflows_checked"`
+	WorkflowDocsChecked int          `json:"workflow_docs_checked"`
+	Issues              []skillIssue `json:"issues"`
 }
 
 type workflowInfo struct {

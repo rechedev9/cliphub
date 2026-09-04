@@ -6,14 +6,6 @@ import (
 	"path/filepath"
 )
 
-func mustRel(root, path string) string {
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return path
-	}
-	return rel
-}
-
 func findWorkflowRoot() (string, error) {
 	var starts []string
 	if cwd, err := os.Getwd(); err == nil {
@@ -37,11 +29,40 @@ func findWorkflowRoot() (string, error) {
 }
 
 func hasWorkflowRootMarker(dir string) bool {
-	if st, err := os.Stat(filepath.Join(dir, ".codex", "skills")); err == nil && st.IsDir() {
+	if isRepoSkillsDir(filepath.Join(dir, ".claude", "skills")) {
 		return true
 	}
 	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 		return true
 	}
 	return false
+}
+
+// isRepoSkillsDir reports whether candidate is a repo-local skills catalog.
+// The user-global Claude Code skills dir (~/.claude/skills) has the same
+// shape and sits on the walk-up path of every directory under the home
+// folder, so it is never accepted as the zv catalog.
+func isRepoSkillsDir(candidate string) bool {
+	st, err := os.Stat(candidate)
+	if err != nil || !st.IsDir() {
+		return false
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if same, err := samePath(candidate, filepath.Join(home, ".claude", "skills")); err == nil && same {
+			return false
+		}
+	}
+	return true
+}
+
+func samePath(a, b string) (bool, error) {
+	absA, err := filepath.Abs(a)
+	if err != nil {
+		return false, err
+	}
+	absB, err := filepath.Abs(b)
+	if err != nil {
+		return false, err
+	}
+	return filepath.Clean(absA) == filepath.Clean(absB), nil
 }

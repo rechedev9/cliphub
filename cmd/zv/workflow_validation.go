@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-func checkWorkflows() ([]skillInfo, []workflowInfo, []workflowDoc, int, []skillIssue, error) {
+func checkWorkflows() ([]skillInfo, []workflowInfo, []workflowDoc, []skillIssue, error) {
 	skills, issues, err := checkSkills()
 	if err != nil {
-		return nil, nil, nil, 0, nil, err
+		return nil, nil, nil, nil, err
 	}
 	workflows := workflowCatalog()
 	issues = append(issues, validateWorkflowCatalog(workflows)...)
@@ -21,40 +21,30 @@ func checkWorkflows() ([]skillInfo, []workflowInfo, []workflowDoc, int, []skillI
 	issues = append(issues, validateLegacyPassThroughUsage(usage)...)
 	docs, docIssues, err := checkWorkflowDocs()
 	if err != nil {
-		return nil, nil, nil, 0, nil, err
+		return nil, nil, nil, nil, err
 	}
 	issues = append(issues, docIssues...)
 	buildIssues, err := checkCommandBuildTargets()
 	if err != nil {
-		return nil, nil, nil, 0, nil, err
+		return nil, nil, nil, nil, err
 	}
 	issues = append(issues, buildIssues...)
 	commandCoverageIssues, err := checkCommandEntrypointCoverage(workflows)
 	if err != nil {
-		return nil, nil, nil, 0, nil, err
+		return nil, nil, nil, nil, err
 	}
 	issues = append(issues, commandCoverageIssues...)
-	agentPromptWrappersChecked, promptIssues, err := checkAgentPromptWrappers()
-	if err != nil {
-		return nil, nil, nil, 0, nil, err
-	}
-	issues = append(issues, promptIssues...)
-	promptContentIssues, err := checkCodexPromptContents()
-	if err != nil {
-		return nil, nil, nil, 0, nil, err
-	}
-	issues = append(issues, promptContentIssues...)
 	claudeRuleIssues, err := checkClaudeRuleDocs()
 	if err != nil {
-		return nil, nil, nil, 0, nil, err
+		return nil, nil, nil, nil, err
 	}
 	issues = append(issues, claudeRuleIssues...)
 	claudeSettingsIssues, err := checkClaudeSettings()
 	if err != nil {
-		return nil, nil, nil, 0, nil, err
+		return nil, nil, nil, nil, err
 	}
 	issues = append(issues, claudeSettingsIssues...)
-	return skills, workflows, docs, agentPromptWrappersChecked, issues, nil
+	return skills, workflows, docs, issues, nil
 }
 
 func validateWorkflowCatalog(workflows []workflowInfo) []skillIssue {

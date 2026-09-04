@@ -1546,8 +1546,7 @@ func TestZVBinaryCurrentWorkflowDocListAndCheckExamplesEndToEnd(t *testing.T) {
 		workflowByName[workflow.Name] = workflow
 	}
 	wantSkills := currentRepoSkills(t, root)
-	wantWrappers := currentAgentPromptWrappers(t, root)
-	wantCheckText := fmt.Sprintf("OK: %d skills, %d workflows, %d workflow docs, and %d agent prompt wrappers checked\n", len(wantSkills), len(workflows), len(workflowDocs()), len(wantWrappers))
+	wantCheckText := fmt.Sprintf("OK: %d skills, %d workflows, and %d workflow docs checked\n", len(wantSkills), len(workflows), len(workflowDocs()))
 
 	seen := make(map[string]bool)
 	for _, command := range commands {
@@ -1605,7 +1604,6 @@ func TestZVBinaryCurrentWorkflowDocListAndCheckExamplesEndToEnd(t *testing.T) {
 					got.SkillsChecked != len(wantSkills) ||
 					got.WorkflowsChecked != len(workflows) ||
 					got.WorkflowDocsChecked != len(workflowDocs()) ||
-					got.AgentPromptWrappersChecked != len(wantWrappers) ||
 					len(got.Issues) != 0 {
 					t.Fatalf("documented workflows check json = %#v, want ok with current repo counts", got)
 				}
@@ -1636,8 +1634,7 @@ func TestZVBinaryCurrentProjectCheckDocExamplesEndToEnd(t *testing.T) {
 
 	wantSkills := currentRepoSkills(t, root)
 	wantWorkflows := workflowCatalog()
-	wantWrappers := currentAgentPromptWrappers(t, root)
-	wantText := fmt.Sprintf("OK: %d skills, %d workflows, %d workflow docs, and %d agent prompt wrappers checked\n", len(wantSkills), len(wantWorkflows), len(workflowDocs()), len(wantWrappers))
+	wantText := fmt.Sprintf("OK: %d skills, %d workflows, and %d workflow docs checked\n", len(wantSkills), len(wantWorkflows), len(workflowDocs()))
 
 	seen := make(map[string]bool)
 	for _, command := range commands {
@@ -1666,7 +1663,6 @@ func TestZVBinaryCurrentProjectCheckDocExamplesEndToEnd(t *testing.T) {
 				got.SkillsChecked != len(wantSkills) ||
 				got.WorkflowsChecked != len(wantWorkflows) ||
 				got.WorkflowDocsChecked != len(workflowDocs()) ||
-				got.AgentPromptWrappersChecked != len(wantWrappers) ||
 				len(got.Issues) != 0 {
 				t.Fatalf("documented project check json = %#v, want ok with current repo counts", got)
 			}
@@ -1694,9 +1690,8 @@ func TestZVBinaryCurrentInternalCheckWorkflowDocRunExamplesEndToEnd(t *testing.T
 
 	wantSkills := currentRepoSkills(t, root)
 	wantWorkflows := workflowCatalog()
-	wantWrappers := currentAgentPromptWrappers(t, root)
 	wantSkillText := fmt.Sprintf("OK: %d skills checked\n", len(wantSkills))
-	wantWorkflowText := fmt.Sprintf("OK: %d skills, %d workflows, %d workflow docs, and %d agent prompt wrappers checked\n", len(wantSkills), len(wantWorkflows), len(workflowDocs()), len(wantWrappers))
+	wantWorkflowText := fmt.Sprintf("OK: %d skills, %d workflows, and %d workflow docs checked\n", len(wantSkills), len(wantWorkflows), len(workflowDocs()))
 
 	seen := make(map[string]bool)
 	for _, command := range commands {
@@ -1745,7 +1740,6 @@ func TestZVBinaryCurrentInternalCheckWorkflowDocRunExamplesEndToEnd(t *testing.T
 					got.SkillsChecked != len(wantSkills) ||
 					got.WorkflowsChecked != len(wantWorkflows) ||
 					got.WorkflowDocsChecked != len(workflowDocs()) ||
-					got.AgentPromptWrappersChecked != len(wantWrappers) ||
 					len(got.Issues) != 0 {
 					t.Fatalf("documented %s workflow json = %#v, want ok with current repo counts", workflowName, got)
 				}

@@ -1,6 +1,8 @@
 ---
 name: verify-cliphub
 description: "Prove ClipHub Studio and zv changes against the real user path before calling work done. Use when finishing a ClipHub change, verifying Studio routes (Inicio, Partidas, Shorts wait, Full Demo), or when compile/lint/CI is being treated as the feature."
+metadata:
+  zv-catalog: "false"
 ---
 
 # Verify ClipHub

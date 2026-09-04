@@ -1,6 +1,6 @@
 ---
 name: zackvideo-youtube-shorts-publish
-description: "Prepare ClipHub YouTube Shorts publish packs with titles, captions, hashtags, covers, and manual YouTube Studio guidance. Use when Codex needs to create or review upload-ready metadata and guide a user through the official browser-based publication flow."
+description: "Prepare ClipHub YouTube Shorts publish packs with titles, captions, hashtags, covers, and manual YouTube Studio guidance. Use when an agent needs to create or review upload-ready metadata and guide a user through the official browser-based publication flow."
 ---
 
 # ClipHub YouTube Shorts Publish
