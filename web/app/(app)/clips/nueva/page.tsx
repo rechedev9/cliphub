@@ -11,8 +11,10 @@ import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
 import {
   CLIPS_HREF,
-  hubHref,
   isJobIdParam,
+  isProduceFormat,
+  PRODUCE_QUERY,
+  newDemoHref,
   NEW_DEMO_QUERY,
   PRODUCE_FORMAT,
   produceHref,
@@ -35,6 +37,10 @@ import { SectionEyebrow } from '@/components/brand/section-eyebrow';
 import { RecentSteamMatches } from '@/components/onboarding/recent-matches';
 import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
+import { StudioPageHeader } from '@/components/studio/page-header';
+import { StudioBackLink } from '@/components/studio/back-link';
+import { WorkflowProgress } from '@/components/studio/workflow-progress';
+import { ProduceFormatBar } from '@/components/produce/format-bar';
 import { StudioDataRow } from '@/components/studio/data-row';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { Button } from '@/components/ui/button';
@@ -71,7 +77,10 @@ export default function NewDemoPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): ReactNode {
   const router = useRouter();
-  const jobParam = use(searchParams)[NEW_DEMO_QUERY.job];
+  const query = use(searchParams);
+  const jobParam = query[NEW_DEMO_QUERY.job];
+  const formatParam = query[PRODUCE_QUERY.format];
+  const format = typeof formatParam === 'string' && isProduceFormat(formatParam) ? formatParam : PRODUCE_FORMAT.short;
   const resuming = jobParam !== undefined;
   const resumeJobId = isJobIdParam(jobParam) ? jobParam : null;
 
@@ -128,25 +137,20 @@ export default function NewDemoPage({
   );
 
   const onPickSingle = useCallback(
-    async (steamId: string, destination: 'highlights' | 'full-demo' = 'highlights') => {
+    async (steamId: string) => {
       if (stage !== 'picking' || seriesMode || !jobId) return;
       setError(null);
       setStage('parsing');
       try {
         const parsed = await api.parseDemo({ jobId, steamId });
-        const mapName = prettyMapName(parsed.map);
-        if (destination === 'full-demo') {
-          router.push(produceHref(parsed.id, PRODUCE_FORMAT.full));
-          return;
-        }
-        toast(`Parseando ${mapName}`, { description: `POV de ${parsed.player ?? '—'} · sigue en la fila` });
-        router.push(hubHref({ open: parsed.id }));
+        toast(`Demo analizada: ${prettyMapName(parsed.map)}`, { description: `Jugador: ${parsed.player ?? '—'}` });
+        router.push(produceHref(parsed.id, format));
       } catch (err) {
         setStage('picking');
         setError(demoParseError(err));
       }
     },
-    [stage, seriesMode, jobId, router],
+    [stage, seriesMode, jobId, router, format],
   );
 
   const runSeriesScan = useCallback(
@@ -267,7 +271,7 @@ export default function NewDemoPage({
           return;
         }
         if (scan.status !== MATCH_STATUS_SCANNED) {
-          router.replace(produceHref(resumeJobId));
+          router.replace(produceHref(resumeJobId, format));
           return;
         }
         if (scan.players.length === 0) {
@@ -285,16 +289,16 @@ export default function NewDemoPage({
     return () => {
       active = false;
     };
-  }, [resumeJobId, router]);
+  }, [resumeJobId, router, format]);
 
   const mapCount = logicalMapGroups.length;
-  let title = 'Carga una demo';
-  let description = 'La escaneamos en segundos para sacar el roster; luego eliges la POV y la parseamos entera.';
+  let title = format === PRODUCE_FORMAT.full ? 'Crea un vídeo largo' : 'Crea un Short';
+  let description = 'Carga una demo de CS2 y elige el jugador. Después revisarás el contenido y los ajustes antes de grabar.';
   if (resuming) {
-    title = '¿A quién clipeamos?';
+    title = 'Elige el jugador';
     if (resumeFailure !== null) description = 'No pudimos recuperar el roster de esta partida.';
     else if (stage === 'scanning') description = 'Cargando el roster de la partida…';
-    else description = 'Roster listo. Elige la POV: parseamos sus highlights y la partida aparece en tu lista.';
+    else description = 'Elige de quién será el vídeo. Después podrás revisar el contenido antes de crearlo.';
   } else if (seriesMode) {
     if (stage === 'scanning') {
       title = 'Escaneando la serie';
@@ -307,9 +311,13 @@ export default function NewDemoPage({
           : 'Parseando la POV en cada mapa de la serie…';
     }
   } else if (stage === 'picking' || stage === 'parsing') {
-    title = '¿A quién clipeamos?';
-    description = 'Demo escaneada. Elige la POV: parseamos sus highlights y la partida aparece en tu lista.';
+    title = 'Elige el jugador';
+    description = 'Elige de quién será el vídeo. Después podrás revisar el contenido antes de crearlo.';
   }
+
+  let progressStep = 0;
+  if (stage === 'picking') progressStep = 1;
+  if (stage === 'parsing') progressStep = 2;
 
   let body: ReactNode;
   if (resumeFailure !== null) {
@@ -353,7 +361,7 @@ export default function NewDemoPage({
         <ScannedDemoRow fileName={fileName} match={match} />
         {error ? <ErrorBanner message={error} /> : null}
         <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-          <PlayerPicker players={players} onPick={onPickSingle} match={match ?? undefined} cancelHref={CLIPS_HREF} />
+          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSingle} match={match ?? undefined} cancelHref={CLIPS_HREF} />
         </Card>
       </div>
     );
@@ -361,10 +369,13 @@ export default function NewDemoPage({
 
   return (
     <div className="measure-list flex flex-col gap-5">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-display text-display font-bold uppercase text-fg-1">{title}</h1>
-        <p className="measure-read text-body text-fg-2">{description}</p>
-      </header>
+      <StudioBackLink href={CLIPS_HREF}>Demos y vídeos</StudioBackLink>
+      <StudioPageHeader title={title} description={description} />
+      <WorkflowProgress steps={['Cargar demo', 'Elegir jugador', 'Preparar vídeo']} current={progressStep} />
+      {stage === 'idle' && !resuming ? (
+        <ProduceFormatBar value={format} onChange={(next) => router.replace(newDemoHref({ format: next }), { scroll: false })} />
+      ) : null}
+      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás Short o vídeo largo para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div
           role="alert"

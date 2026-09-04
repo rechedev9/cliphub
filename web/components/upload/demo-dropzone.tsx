@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowUp } from 'lucide-react';
 import { MAX_DEMO_FILES } from '@/lib/upload/demo-names';
 import { expandDemoUploads } from '@/lib/upload/expand-archives';
@@ -25,10 +25,12 @@ export function DemoDropzone({
   minHeightClass = 'min-h-[260px]',
 }: DemoDropzoneProps): ReactNode {
   const inputId = useId();
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => setInteractive(true), []);
   const [dragging, setDragging] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const busy = extracting || disabled;
+  const busy = !interactive || extracting || disabled;
 
   const accept = useCallback(
     (fileList: FileList | null | undefined) => {
@@ -67,7 +69,7 @@ export function DemoDropzone({
           if (!busy) accept(e.dataTransfer.files);
         }}
         aria-busy={busy || undefined}
-        aria-disabled={disabled || undefined}
+        aria-disabled={busy || undefined}
         className={cn(
           'group flex cursor-pointer items-center justify-center rounded-[10px] border border-dashed text-center',
           'transition-[background-color,border-color] duration-(--dur-base) ease-standard',

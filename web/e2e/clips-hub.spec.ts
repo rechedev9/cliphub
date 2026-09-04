@@ -167,15 +167,14 @@ async function stubParsedMatchWithReadyShort(page: Page): Promise<void> {
 }
 
 test.describe('clips hub', () => {
-  test('first run shows the demo door and nothing else', async ({ page }) => {
+  test('the empty hub offers three distinct creation paths without onboarding', async ({ page }) => {
     await gotoStudio(page, '/clips');
     const empty = page.locator(`section[aria-label="${HUB_EMPTY_TITLE}"]`);
     await expect(empty).toBeVisible();
     await expect(empty.locator('input[type="file"]')).toHaveCount(1);
-    const links = empty.locator('a');
-    const count = await links.count();
-    expect(count).toBeLessThanOrEqual(1);
-    if (count === 1) await expect(links).toHaveAttribute('href', '/clips/nueva');
+    await expect(empty.getByRole('link', { name: /Crear Short/ })).toHaveAttribute('href', '/clips/nueva?formato=short');
+    await expect(empty.getByRole('link', { name: /Crear vídeo largo/ })).toHaveAttribute('href', '/clips/nueva?formato=full');
+    await expect(empty.getByRole('link', { name: /Recortar un stream/ })).toHaveAttribute('href', '/streams');
     await expect(page.getByRole('tab', { name: /Partidas/ })).toHaveCount(0);
   });
 
@@ -241,7 +240,7 @@ test.describe('clips hub', () => {
     const parsePost = page.waitForRequest(
       (request) => request.method() === 'POST' && request.url().includes(`/api/demos/${SCANNED_JOB_ID}/parse`),
     );
-    await page.getByRole('button', { name: /^Parsear POV/ }).click();
+    await page.getByRole('button', { name: 'Continuar al Short' }).click();
     expect((await parsePost).postDataJSON()).toEqual({ steamId: '76561198000000003' });
     await expect(page.getByText('Parseando la POV…')).toBeVisible();
   });

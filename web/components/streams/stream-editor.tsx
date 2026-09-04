@@ -69,7 +69,7 @@ import { StreamFooter } from '@/components/streams/stream-footer';
 
 /** Panel titles that say more than the rail label; every other step reuses its rail entry. */
 const STEP_SUBTITLE: Partial<Record<StreamStep, string>> = {
-  layout: 'Layout y facecam',
+  layout: 'Encuadre y facecam',
   music: 'Música y efectos',
   results: 'Shorts renderizados',
 };

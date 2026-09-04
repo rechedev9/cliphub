@@ -18,8 +18,8 @@ import {
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
-const REC_CTA = 'Grabar Full POV';
-const BRIEF_CHECKBOX = /Apruebo el brief/;
+const REC_CTA = 'Crear vídeo largo';
+const BRIEF_CHECKBOX = /He revisado y apruebo los ajustes/;
 
 const PLAN = {
   demo: { map: 'de_inferno' },
@@ -71,8 +71,8 @@ test.describe('Full POV constructor', () => {
   test('the format control switches between Short and Full POV without a reload', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, PRODUCE_FULL);
-    const formats = page.getByRole('group', { name: 'Formato' });
-    await expect(formats.getByRole('button', { name: 'Full POV 16:9' })).toHaveAttribute('aria-pressed', 'true');
+    const formats = page.getByRole('group', { name: 'Tipo de vídeo' });
+    await expect(formats.getByRole('button', { name: 'Vídeo largo 16:9' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await formats.getByRole('button', { name: 'Short 9:16' }).click();
     await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo$`));
@@ -135,8 +135,8 @@ test.describe('Full POV constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
     await expect(page.getByText(PRODUCE_FULL_ROUNDS_NOTE)).toBeVisible();
-    await expect(page.getByText('R01', { exact: true })).toBeVisible();
-    await expect(page.getByText('Contrato Full POV · fijado')).toBeVisible();
+    await expect(page.getByText('R01', { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Incluido en tu vídeo largo')).toBeVisible();
     await expect(page.getByText(FULL_DEMO_RECAP_ERROR)).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'ELEGIR MÚSICA' })).toHaveCount(0);
@@ -144,8 +144,8 @@ test.describe('Full POV constructor', () => {
 
     const cta = page.getByRole('button', { name: REC_CTA });
     await expect(cta).toBeDisabled();
-    await page.getByText('Brief creativo').click();
-    const brief = page.getByRole('region', { name: /Brief creativo/ });
+    await page.getByText('Revisar antes de crear').filter({ visible: true }).click();
+    const brief = page.getByRole('region', { name: /Revisar antes de crear/ });
     for (const row of FULL_DEMO_CONTRACT) {
       await expect(brief.getByText(row.value, { exact: true })).toBeVisible();
     }
@@ -178,4 +178,19 @@ test.describe('Full POV constructor', () => {
     await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
     await expect(page.getByRole('switch')).toHaveCount(0);
   });
+});
+
+
+test('switching formats preserves the long video theme and approval independently', async ({ page }) => {
+  await stubParsedMatch(page, { status: 200, body: PLAN });
+  await gotoStudio(page, PRODUCE_FULL);
+  const theme = page.getByRole('combobox', { name: 'Tema de overlays FACEIT' });
+  await theme.click();
+  await page.getByRole('option', { name: /Neón violeta/ }).click();
+  await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+  await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+  await expect(theme).toContainText('Neón violeta');
+  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeChecked();
 });

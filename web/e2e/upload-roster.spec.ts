@@ -50,6 +50,7 @@ async function scanDemo(page: Page): Promise<void> {
   await stubRosterScan(page);
   await gotoStudio(page, '/clips/nueva');
 
+  await expect(page.locator('input[type="file"]')).toBeEnabled();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'match.dem',
     mimeType: 'application/octet-stream',
@@ -165,7 +166,8 @@ test.describe('scan failure states', () => {
     });
     await gotoStudio(page, '/clips/nueva');
 
-    await page.locator('input[type="file"]').setInputFiles({
+    await expect(page.locator('input[type="file"]')).toBeEnabled();
+  await page.locator('input[type="file"]').setInputFiles({
       name: 'empty.dem',
       mimeType: 'application/octet-stream',
       buffer: Buffer.from('HL2DEMO\0empty'),
@@ -187,7 +189,8 @@ test.describe('scan failure states', () => {
     });
     await gotoStudio(page, '/clips/nueva');
 
-    await page.locator('input[type="file"]').setInputFiles({
+    await expect(page.locator('input[type="file"]')).toBeEnabled();
+  await page.locator('input[type="file"]').setInputFiles({
       name: 'offline.dem',
       mimeType: 'application/octet-stream',
       buffer: Buffer.from('HL2DEMO\0offline'),
@@ -196,3 +199,22 @@ test.describe('scan failure states', () => {
     await expect(page.locator('[role="alert"]').first()).toBeVisible();
   });
 });
+
+for (const format of ['short', 'full']) {
+  test(`creation intent ${format} survives a resumed player selection`, async ({ page }) => {
+    await stubRosterScan(page);
+    await page.route(`**/api/demos/${JOB_ID}/parse`, (route) =>
+      route.fulfill({ json: { jobId: JOB_ID } }),
+    );
+    await gotoStudio(page, `/clips/nueva?job=${JOB_ID}&formato=${format}`);
+    const next = page.getByRole('button', { name: format === 'full' ? 'Continuar al vídeo largo' : 'Continuar al Short' });
+    await expect(next).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Preparar vídeo largo', exact: true })).toHaveCount(0);
+    const request = page.waitForRequest((req) => req.method() === 'POST' && req.url().endsWith('/parse'));
+    await next.click();
+    expect((await request).postDataJSON()).toHaveProperty('steamId');
+    await page.route(`**/api/demos/${JOB_ID}/status`, (route) => route.fulfill({ json: { status: 'parsed' } }));
+    await page.route(`**/api/demos/${JOB_ID}/plan`, (route) => route.fulfill({ json: { demo: { map: 'de_mirage' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz' }, stats: {}, segments: [] } }));
+    await expect(page).toHaveURL(new RegExp(`/clips/${JOB_ID}/nuevo${format === 'full' ? '\\?formato=full' : ''}$`));
+  });
+}

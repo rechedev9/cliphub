@@ -23,7 +23,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
-import { HubGuide } from '@/components/clips-hub/hub-guide';
+import { CreationPaths } from '@/components/studio/creation-paths';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { HubEmpty } from '@/components/clips-hub/hub-empty';
 import { HubHeader } from '@/components/clips-hub/hub-header';
@@ -185,7 +185,7 @@ function ClipsHub(): ReactNode {
   return (
     <div className="measure-list flex flex-col gap-6">
       <HubHeader lens={lens} />
-      <HubGuide model={model} />
+      <CreationPaths />
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <LensToggle lens={lens} counts={counts} />

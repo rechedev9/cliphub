@@ -249,10 +249,10 @@ test('recBusy and activeJobCount count what is actually moving', () => {
 });
 
 test('fullChipLabel follows the latest Full POV state', () => {
-  assert.equal(fullChipLabel([]), 'Full POV · sin generar');
-  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'recording', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · REC');
-  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · listo');
-  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'queued', editConfig: FULL_DEMO_EDIT }))]), 'Full POV · en cola');
+  assert.equal(fullChipLabel([]), 'Vídeo largo · sin generar');
+  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'recording', editConfig: FULL_DEMO_EDIT }))]), 'Vídeo largo · REC');
+  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'ready', editConfig: FULL_DEMO_EDIT }))]), 'Vídeo largo · listo');
+  assert.equal(fullChipLabel([toOutput(reel({ id: 'a', status: 'queued', editConfig: FULL_DEMO_EDIT }))]), 'Vídeo largo · en cola');
 });
 
 test('outputTagLabel: one uppercase tag per state, with progress when reported', () => {

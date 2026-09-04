@@ -66,7 +66,7 @@ export function JobTransport(): ReactElement | null {
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={top === undefined ? 'Trabajos: todo listo' : `Trabajos: ${pillTag(top)}, ${top.title}`}
+        aria-label={top === undefined ? 'Trabajos: sin trabajos activos' : `Trabajos: ${pillTag(top)}, ${top.title}`}
         onClick={() => setOpen((value) => !value)}
         className={cn(
           PILL_CLASS,
@@ -77,8 +77,8 @@ export function JobTransport(): ReactElement | null {
       >
         {top === undefined ? (
           <>
-            <span aria-hidden className="size-2 shrink-0 rounded-full bg-success" />
-            <span className="text-success">Todo listo</span>
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-fg-3" />
+            <span className="text-fg-3">Sin trabajos activos</span>
           </>
         ) : (
           <>
@@ -117,7 +117,7 @@ export function JobTransport(): ReactElement | null {
             </Link>
           </div>
           {activity.jobs.length === 0 ? (
-            <p className="px-3.5 py-4 text-label text-fg-2">Nada en marcha. Todo listo.</p>
+            <p className="px-3.5 py-4 text-label text-fg-2">Aquí aparecerá el progreso de tus vídeos.</p>
           ) : (
             <ul>
               {activity.jobs.map((job) => (

@@ -320,7 +320,7 @@ export function fullStateLabel(fulls: readonly MatchOutput[]): string {
 
 /** Full POV chip label for a collapsed row. */
 export function fullChipLabel(fulls: readonly MatchOutput[]): string {
-  return `Full POV · ${fullStateLabel(fulls)}`;
+  return `Vídeo largo · ${fullStateLabel(fulls)}`;
 }
 
 /** Shorts-column count, worded as "shorts" so it never reads as the Clips lens total. */

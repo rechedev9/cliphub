@@ -39,9 +39,9 @@ test.describe('Produce screen empty states', () => {
     await expect(page.getByRole('heading', { name: MATCH_PLAYS_ANALYZING_TITLE })).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_ANALYZING_DESCRIPTION)).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_EMPTY_TITLE)).toHaveCount(0);
-    const formats = page.getByRole('group', { name: 'Formato' });
+    const formats = page.getByRole('group', { name: 'Tipo de vídeo' });
     await expect(formats.getByRole('button', { name: 'Short 9:16' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(formats.getByRole('button', { name: 'Full POV 16:9' })).toBeVisible();
+    await expect(formats.getByRole('button', { name: 'Vídeo largo 16:9' })).toBeVisible();
   });
 
   test('plan-ready with zero plays keeps Sin jugadas destacables', async ({ page }) => {
@@ -98,6 +98,6 @@ test.describe('Clips lens Full POV identity', () => {
     );
     await gotoStudio(page, '/clips?vista=clips');
     await expect(page.locator('main').getByText('24 rondas - POV nativo')).toBeVisible();
-    await expect(page.locator('main').getByText(/Full POV/).first()).toBeVisible();
+    await expect(page.locator('main').getByText(/Vídeo largo/).first()).toBeVisible();
   });
 });

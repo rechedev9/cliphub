@@ -115,7 +115,7 @@ export function StreamMonitor({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center gap-5">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 @[48rem]/content:flex-row">
       {cropEditor ? (
         <div className="flex min-h-0 max-h-full min-w-0 flex-1 max-w-[min(720px,calc((100vh-560px)*16/9))] flex-col gap-2">
           <span className="font-mono text-meta uppercase tracking-widest text-fg-3">Recorte de facecam · fuente 16:9</span>
@@ -130,7 +130,7 @@ export function StreamMonitor({
         </div>
       ) : null}
 
-      <div className={cn('h-full max-h-full min-h-[120px] flex-none', cropEditor ? 'hidden @[64rem]/content:flex' : 'flex')}>
+      <div className={cn('h-64 max-h-full min-h-[120px] flex-none @[48rem]/content:h-full', cropEditor ? 'hidden @[64rem]/content:flex' : 'flex')}>
         <StreamPreview {...preview} />
       </div>
 
@@ -144,7 +144,7 @@ export function StreamMonitor({
       />
 
       {cropEditor ? null : (
-        <div className="flex w-max min-w-[10rem] flex-col gap-2 self-end pb-1.5">
+        <div className="flex w-full min-w-0 flex-col gap-2 pb-1.5 @[48rem]/content:w-max @[48rem]/content:min-w-[10rem] @[48rem]/content:self-end">
           {transport}
           <PreviewStatus previewError={previewError} onRetry={onRetry} />
         </div>

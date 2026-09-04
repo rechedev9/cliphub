@@ -17,10 +17,12 @@ export function isJobIdParam(value: string | string[] | null | undefined): value
   return typeof value === 'string' && JOB_ID_RE.test(value);
 }
 
-export function newDemoHref(opts: { job?: string } = {}): string {
-  if (opts.job === undefined) return NEW_DEMO_HREF;
-  const params = new URLSearchParams({ [NEW_DEMO_QUERY.job]: opts.job });
-  return `${NEW_DEMO_HREF}?${params.toString()}`;
+export function newDemoHref(opts: { job?: string; format?: ProduceFormat } = {}): string {
+  const params = new URLSearchParams();
+  if (opts.job !== undefined) params.set(NEW_DEMO_QUERY.job, opts.job);
+  if (opts.format !== undefined) params.set(PRODUCE_QUERY.format, opts.format);
+  const query = params.toString();
+  return query === '' ? NEW_DEMO_HREF : `${NEW_DEMO_HREF}?${query}`;
 }
 
 /** `?vista=` picks the hub lens; `?partida=` opens one row. */

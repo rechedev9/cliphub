@@ -184,7 +184,7 @@ export default function ProducePage({
         compact
         actions={
           <>
-            <Button onClick={() => router.push(newDemoHref({ job: id }))}>{PRODUCE_PICK_POV_CTA}</Button>
+            <Button onClick={() => router.push(newDemoHref({ job: id, format }))}>{PRODUCE_PICK_POV_CTA}</Button>
             <Button variant="outline" onClick={() => router.push(backHref)}>
               Volver
             </Button>
@@ -207,45 +207,33 @@ export default function ProducePage({
         compact
       />
     );
-  } else if (format === PRODUCE_FORMAT.full) {
-    body = (
-      <FullPovProducer
-        matchId={id}
-        match={match}
-        rounds={rounds}
-        recapFailure={recapFailure}
-        recBusy={recBusy}
-        seriesId={seriesId}
-      />
-    );
-  } else if (playsError) {
-    body = (
-      <StudioEmptyState
-        icon={AlertTriangle}
-        title={MATCH_PLAYS_ERROR_TITLE}
-        description={MATCH_PLAYS_ERROR_DESCRIPTION}
-        compact
-        actions={<Button onClick={() => router.push(backHref)}>Volver</Button>}
-      />
-    );
-  } else if (plays.length === 0) {
-    body = (
-      <StudioEmptyState
-        icon={SearchX}
-        title={MATCH_PLAYS_EMPTY_TITLE}
-        description={MATCH_PLAYS_EMPTY_DESCRIPTION}
-        compact
-        actions={<Button onClick={() => router.push(backHref)}>Volver</Button>}
-      />
-    );
   } else {
-    body = <ShortProducer matchId={id} match={match} plays={plays} seriesId={seriesId} />;
+    let shortContent: ReactNode;
+    if (playsError) {
+      shortContent = <StudioEmptyState icon={AlertTriangle} title={MATCH_PLAYS_ERROR_TITLE}
+        description={MATCH_PLAYS_ERROR_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
+    } else if (plays.length === 0) {
+      shortContent = <StudioEmptyState icon={SearchX} title={MATCH_PLAYS_EMPTY_TITLE}
+        description={MATCH_PLAYS_EMPTY_DESCRIPTION} compact actions={<Button onClick={() => router.push(backHref)}>Volver</Button>} />;
+    } else {
+      shortContent = <ShortProducer matchId={id} match={match} plays={plays} seriesId={seriesId} />;
+    }
+    // Keep each format's choices mounted while switching; their approval and configuration stay independent.
+    body = (
+      <>
+        <div hidden={format !== PRODUCE_FORMAT.short}>{shortContent}</div>
+        <div hidden={format !== PRODUCE_FORMAT.full}>
+          <FullPovProducer matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
+            recBusy={recBusy} seriesId={seriesId} />
+        </div>
+      </>
+    );
   }
 
   return (
     <div className="measure-work flex min-h-[calc(100vh-9rem)] flex-col">
       <ProduceFormatBar value={format} onChange={changeFormat} />
-      <div key={format} className="flex flex-1 flex-col gap-6 pt-6">
+      <div className="flex flex-1 flex-col gap-6 pt-6">
         {pollError !== null ? (
           <p
             role="alert"

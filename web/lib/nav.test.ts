@@ -5,8 +5,8 @@ import { NAV_SECTIONS, RETIRED_ROUTES } from './nav.ts';
 /** Rail order: the number is the padded index, not a historical slot. */
 const RAIL = [
   ['01', 'Clips y vídeos', '/clips'],
-  ['02', 'Stream clips', '/streams'],
-  ['03', 'Players', '/players'],
+  ['02', 'Clips de stream', '/streams'],
+  ['03', 'Jugadores', '/players'],
   ['04', 'Táctica', '/tactical'],
   ['05', 'Anti-cheat', '/cheaters'],
   ['06', 'Ajustes', '/settings'],

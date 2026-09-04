@@ -37,10 +37,10 @@ const AUTO_PICK_LABEL = 'Auto: mejores 60 s';
 
 /** Step eyebrows: the list is 01, the aside walks 02 → 04, the footer brief closes. */
 const STEP = {
-  highlights: '01 · Highlights detectados',
-  preset: '02 · Preset',
+  highlights: '01 · Elige las jugadas',
+  preset: '02 · Estilo del vídeo',
   music: '03 · Música',
-  overlays: '04 · Overlays',
+  overlays: '04 · Textos y gráficos',
 } as const;
 
 export type ShortProducerProps = {
@@ -194,6 +194,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               {match.player ? ` · ${match.player}` : ''}
             </p>
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
+            <p className="text-body-sm text-fg-2">Las jugadas seleccionadas se unen en un único vídeo vertical. Revisa la selección automática antes de continuar.</p>
             <p className="measure-read text-body text-fg-2">
               Ya tienes preseleccionado el mejor minuto. Toca una fila para quitarla o añadirla; el guion enseña el orden
               final.
@@ -237,12 +238,12 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             </label>
             {visiblePresets !== null && visiblePresets.length === 0 ? (
               <p role="alert" className="text-body-sm text-fg-2">
-                No se pudieron cargar los presets. Recarga la página.
+                No se pudieron cargar los estilos. Recarga la página.
               </p>
             ) : (
               <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={creating || visiblePresets === null}>
                 <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">
-                  <SelectValue placeholder="Cargando presets…" />
+                  <SelectValue placeholder="Cargando estilos…" />
                 </SelectTrigger>
                 <SelectContent>
                   {(visiblePresets ?? []).map((preset) => (

@@ -27,6 +27,7 @@ export type PlayerPickerProps = {
   purpose?: 'highlights' | 'full-demo';
   /** Where "Cancelar" leads; omitted when the host owns the way back. */
   cancelHref?: string;
+  allowDestinationSwitch?: boolean;
 };
 
 /** Tooltip copy for the abbreviated stat column headers. */
@@ -169,6 +170,7 @@ export function PlayerPicker({
   match,
   seriesMapCount,
   purpose = 'highlights',
+  allowDestinationSwitch = true,
   cancelHref,
 }: PlayerPickerProps): ReactNode {
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
@@ -186,10 +188,9 @@ export function PlayerPicker({
   let contextLabel = 'Demo';
   if (isSeries) contextLabel = `Serie · ${seriesMapCount} mapas`;
   else if (match) contextLabel = prettyMapName(match.map);
-  let ctaLabel = purpose === 'full-demo' ? 'Grabar Full POV' : 'Parsear POV';
-  if (selectedPlayer) {
-    ctaLabel = purpose === 'full-demo' ? `Grabar Full POV de ${selectedPlayer.name}` : `Parsear POV de ${selectedPlayer.name} →`;
-  }
+  let ctaLabel = purpose === 'full-demo' ? 'Continuar al vídeo largo' : 'Continuar al Short';
+  if (isSeries) ctaLabel = 'Continuar con la serie';
+
 
   const showMvp = players.some((p) => p.mvps > 0);
   const columns: Column[] = [
@@ -375,7 +376,7 @@ export function PlayerPicker({
             <Link href={cancelHref}>Cancelar</Link>
           </Button>
         ) : null}
-        {purpose === 'highlights' && !isSeries ? (
+        {allowDestinationSwitch && purpose === 'highlights' && !isSeries ? (
           <Button
             type="button"
             variant="outline-primary"
@@ -383,7 +384,7 @@ export function PlayerPicker({
             disabled={selected === null}
             onClick={() => selected && onPick(selected, 'full-demo')}
           >
-            Grabar Full POV
+            Preparar vídeo largo
           </Button>
         ) : null}
         <Button

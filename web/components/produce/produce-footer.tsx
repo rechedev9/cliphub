@@ -54,7 +54,7 @@ export function ProduceFooter({
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-20 mt-2 border-t bg-surface-1 py-3.5',
+        'relative bottom-0 z-20 mt-2 border-t bg-surface-1 py-3.5 @[56rem]/content:sticky',
         FOOTER_SHADOW,
         tone === 'full' ? 'border-stream/45' : 'border-border-accent',
       )}
@@ -71,14 +71,14 @@ export function ProduceFooter({
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
+        <div className="flex flex-col gap-3 @[56rem]/content:flex-row @[56rem]/content:items-start">
           <details className="group/brief min-w-0 flex-1">
             <summary
               id={briefId}
               className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary [&::-webkit-details-marker]:hidden"
             >
               <ChevronRight aria-hidden className="size-4 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
-              Brief creativo
+              Revisar antes de crear
               <span className="tracking-wider text-fg-3">
                 · <span className="tabular-nums">{briefItems.length}</span> decisiones
               </span>
@@ -98,12 +98,12 @@ export function ProduceFooter({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 basis-full @[40rem]/content:basis-auto @[40rem]/content:flex-1">
             <p className="font-mono text-meta uppercase tracking-widest text-fg-3">{eyebrow}</p>
             {summary !== null ? (
-              <p className="mt-0.5 truncate font-mono text-body uppercase text-fg-2">{summary}</p>
+              <p className="mt-0.5 break-words font-mono text-body uppercase text-fg-2">{summary}</p>
             ) : (
-              <p className="mt-0.5 truncate text-body-sm text-fg-2">{hint}</p>
+              <p className="mt-0.5 break-words text-body-sm text-fg-2">{hint}</p>
             )}
           </div>
           <Button variant="outline" size="lg" asChild>

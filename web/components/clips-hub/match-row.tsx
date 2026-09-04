@@ -239,7 +239,7 @@ function ShortsColumn({ row, onChange }: { row: HubMatch; onChange: () => void }
       <Button asChild variant="outline-primary" size="sm" className="border-dashed">
         <Link href={produceHref(row.match.id, PRODUCE_FORMAT.short)}>
           <Plus aria-hidden />
-          Clipear otro short
+          Crear otro Short
         </Link>
       </Button>
     </div>
@@ -251,7 +251,7 @@ function FullColumn({ row, onChange }: { row: HubMatch; onChange: () => void }):
   const rounds = roundsFromScore(row.match.score);
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
-      <ColumnHead label="Full POV" trailing={fullStateLabel(row.fulls)} />
+      <ColumnHead label="Vídeos largos · 16:9" trailing={fullStateLabel(row.fulls)} />
       {row.fulls.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}
@@ -263,7 +263,7 @@ function FullColumn({ row, onChange }: { row: HubMatch; onChange: () => void }):
               : `${rounds} rondas de POV con HUD nativo, comms y overlays automáticos.`}
           </p>
           <Button asChild variant="hero" size="sm" className="neon-notch self-start">
-            <Link href={produceHref(row.match.id, PRODUCE_FORMAT.full)}>Grabar Full POV</Link>
+            <Link href={produceHref(row.match.id, PRODUCE_FORMAT.full)}>Preparar vídeo largo</Link>
           </Button>
         </div>
       ) : null}
