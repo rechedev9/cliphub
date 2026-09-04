@@ -130,6 +130,80 @@ func TestJobRepositoryContract(t *testing.T) {
 			},
 		},
 		{
+			name: "GetStatuses returns the same rows as one GetStatus per id and omits an unknown id",
+			run: func(t *testing.T, repo JobRepository) {
+				failed := contractJob(job.StatusFailed, "seg-001")
+				recording := contractJob(job.StatusParsed, "seg-001", "seg-002", "seg-003")
+				parsed := contractJob(job.StatusParsed)
+				for _, j := range []*job.Job{failed, recording, parsed} {
+					if err := repo.Create(ctx, j); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := repo.UpdateStatus(ctx, failed.ID, job.StatusFailed, "capture_flake: lost POV"); err != nil {
+					t.Fatal(err)
+				}
+				if err := repo.UpdateStatus(ctx, recording.ID, job.StatusRecording, "stale reason must not leak"); err != nil {
+					t.Fatal(err)
+				}
+				missing := uuid.New()
+				// The same id twice: one job can be polled under two variants.
+				ids := []uuid.UUID{failed.ID, recording.ID, parsed.ID, missing, recording.ID}
+				rows, err := repo.GetStatuses(ctx, ids)
+				if err != nil {
+					t.Fatalf("GetStatuses: %v", err)
+				}
+				if len(rows) != 3 {
+					t.Fatalf("rows = %d, want 3 (the unknown id is omitted, not an error): %+v", len(rows), rows)
+				}
+				if _, ok := rows[missing]; ok {
+					t.Fatalf("unknown id %s is in the map: %+v", missing, rows[missing])
+				}
+				for _, id := range []uuid.UUID{failed.ID, recording.ID, parsed.ID} {
+					status, reason, segments, err := repo.GetStatus(ctx, id)
+					if err != nil {
+						t.Fatalf("GetStatus %s: %v", id, err)
+					}
+					want := job.StatusRow{Status: status, FailureReason: reason, SegmentCount: segments}
+					if got := rows[id]; got != want {
+						t.Fatalf("GetStatuses[%s] = %+v, want the single read %+v", id, got, want)
+					}
+				}
+				empty, err := repo.GetStatuses(ctx, nil)
+				if err != nil || len(empty) != 0 {
+					t.Fatalf("GetStatuses(nil) = %+v, %v; want an empty map and no error", empty, err)
+				}
+			},
+		},
+		{
+			name: "GetStatuses reads more ids than one IN list holds",
+			run: func(t *testing.T, repo JobRepository) {
+				// The batch-status endpoint caps items at 100; the repository
+				// chunks anyway so a larger caller cannot exhaust SQLite's
+				// bound-variable limit or silently drop the tail.
+				ids := make([]uuid.UUID, 0, 205)
+				for range 205 {
+					j := contractJob(job.StatusParsed)
+					if err := repo.Create(ctx, j); err != nil {
+						t.Fatal(err)
+					}
+					ids = append(ids, j.ID)
+				}
+				rows, err := repo.GetStatuses(ctx, ids)
+				if err != nil {
+					t.Fatalf("GetStatuses: %v", err)
+				}
+				if len(rows) != len(ids) {
+					t.Fatalf("rows = %d, want %d", len(rows), len(ids))
+				}
+				for _, id := range ids {
+					if rows[id].Status != job.StatusParsed {
+						t.Fatalf("row %s = %+v, want parsed", id, rows[id])
+					}
+				}
+			},
+		},
+		{
 			name: "ListByStatus orders newest update first like List",
 			run: func(t *testing.T, repo JobRepository) {
 				first := contractJob(job.StatusParsed)

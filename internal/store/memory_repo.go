@@ -89,15 +89,45 @@ func (r *MemoryJobRepository) GetStatus(ctx context.Context, id uuid.UUID) (job.
 	if !ok {
 		return 0, "", 0, job.ErrNotFound
 	}
-	failureReason := ""
+	row := statusRow(j)
+	return row.Status, row.FailureReason, row.SegmentCount, nil
+}
+
+// GetStatuses reads every requested id under one read lock. An id with no job
+// is left out of the map, matching the ErrNotFound a single GetStatus returns,
+// so a batched caller reports it per item instead of failing the whole read.
+func (r *MemoryJobRepository) GetStatuses(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]job.StatusRow, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]job.StatusRow, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, id := range ids {
+		j, ok := r.jobs[id]
+		if !ok {
+			continue
+		}
+		out[id] = statusRow(j)
+	}
+	return out, nil
+}
+
+// statusRow is the lifecycle projection both status reads return: the failure
+// reason survives only on a failed job and the segment count only while
+// recording, so a stale reason from an earlier attempt never leaks.
+func statusRow(j job.Job) job.StatusRow {
+	row := job.StatusRow{Status: j.Status}
 	if j.Status == job.StatusFailed {
-		failureReason = j.FailureReason
+		row.FailureReason = j.FailureReason
 	}
-	segmentCount := 0
 	if j.Status == job.StatusRecording && j.KillPlan != nil {
-		segmentCount = len(j.KillPlan.Segments)
+		row.SegmentCount = len(j.KillPlan.Segments)
 	}
-	return j.Status, failureReason, segmentCount, nil
+	return row
 }
 
 func (r *MemoryJobRepository) List(ctx context.Context, limit int) ([]job.Job, error) {

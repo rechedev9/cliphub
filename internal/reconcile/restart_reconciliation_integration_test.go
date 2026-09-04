@@ -123,8 +123,25 @@ func TestSQLiteRestartReconcilesPersistedInlineWork(t *testing.T) {
 		StreamRenderStates: 1,
 		StreamAcquisitions: []uuid.UUID{acquiring.ID},
 	}
+	// The shared job snapshot is asserted on its own below; compare the repair
+	// counters here so a listing detail cannot fail the restart contract.
+	snapshot := reconciled.DemoJobSnapshot
+	reconciled.DemoJobSnapshot = nil
 	if !reflect.DeepEqual(reconciled, wantReconciled) {
 		t.Fatalf("reconciled = %+v, want %+v", reconciled, wantReconciled)
+	}
+	snapshotStatus := map[uuid.UUID]job.Status{}
+	for _, j := range snapshot {
+		snapshotStatus[j.ID] = j.Status
+	}
+	for id, want := range map[uuid.UUID]job.Status{
+		queued.ID:     job.StatusFailed,
+		generating.ID: job.StatusFailed,
+		rendering.ID:  job.StatusRecorded,
+	} {
+		if got := snapshotStatus[id]; got != want {
+			t.Fatalf("snapshot status for %s = %s, want %s", id, got, want)
+		}
 	}
 
 	assertRestartDemoFailed(t, after, queued.ID, interruptedQueuedJobReason)

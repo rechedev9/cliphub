@@ -53,7 +53,7 @@ type tacticalRoundResponse struct {
 // retry policy; it also never touches cs2.exe, so it runs on the default queue
 // lane instead of the serial capture lane.
 func (h *Handlers) StartTacticalAnalysis(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -106,7 +106,7 @@ func (h *Handlers) StartTacticalAnalysis(w http.ResponseWriter, r *http.Request)
 // GetTacticalDocument handles GET /api/jobs/{id}/tactical, streaming the stored
 // document as written by the worker.
 func (h *Handlers) GetTacticalDocument(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -129,7 +129,7 @@ func (h *Handlers) GetTacticalDocument(w http.ResponseWriter, r *http.Request) {
 // analysis was never requested reports the "none" state rather than 404, so a
 // poller has one shape to read.
 func (h *Handlers) GetTacticalStatus(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -153,7 +153,7 @@ func (h *Handlers) GetTacticalStatus(w http.ResponseWriter, r *http.Request) {
 // decodes only the requested round's frames out of the position blob, using the
 // byte range the document records for it.
 func (h *Handlers) GetTacticalRound(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -190,7 +190,7 @@ func (h *Handlers) GetTacticalRound(w http.ResponseWriter, r *http.Request) {
 // out a seekable file, so serveArtifact answers Range requests through
 // http.ServeContent and the orchestrator never buffers the whole stream.
 func (h *Handlers) GetTacticalPositions(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -209,7 +209,7 @@ func (h *Handlers) GetTacticalPositions(w http.ResponseWriter, r *http.Request) 
 // GetTacticalAggregate handles GET /api/jobs/{id}/tactical/aggregate, computing
 // tendencies over the rounds the query filter selects.
 func (h *Handlers) GetTacticalAggregate(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}

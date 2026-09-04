@@ -79,6 +79,11 @@ type fakeRepo struct {
 	getErr          error
 	deleteErr       error
 	updateHonorsCtx bool
+	// getCalls and getMetaCalls record which job read a handler chose. Get
+	// decodes the whole kill plan blob and GetMeta does not, so a handler that
+	// never dereferences j.KillPlan must show up here as a GetMeta.
+	getCalls     atomic.Int64
+	getMetaCalls atomic.Int64
 }
 
 type fakeStreamRepo struct {
@@ -201,7 +206,10 @@ func (f *fakeRepo) Create(_ context.Context, j *job.Job) error {
 	f.jobs[j.ID] = *j
 	return nil
 }
-func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (job.Job, error) {
+
+// lookup is the shared read behind Get, GetMeta and GetStatus, so the two
+// counters only move for the entry point a handler actually called.
+func (f *fakeRepo) lookup(id uuid.UUID) (job.Job, error) {
 	if f.getErr != nil {
 		return job.Job{}, f.getErr
 	}
@@ -212,8 +220,14 @@ func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (job.Job, error) {
 	return j, nil
 }
 
-func (f *fakeRepo) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
-	j, err := f.Get(ctx, id)
+func (f *fakeRepo) Get(_ context.Context, id uuid.UUID) (job.Job, error) {
+	f.getCalls.Add(1)
+	return f.lookup(id)
+}
+
+func (f *fakeRepo) GetMeta(_ context.Context, id uuid.UUID) (job.Job, error) {
+	f.getMetaCalls.Add(1)
+	j, err := f.lookup(id)
 	if err != nil {
 		return job.Job{}, err
 	}
@@ -221,8 +235,8 @@ func (f *fakeRepo) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
 	return j, nil
 }
 
-func (f *fakeRepo) GetStatus(ctx context.Context, id uuid.UUID) (job.Status, string, int, error) {
-	j, err := f.Get(ctx, id)
+func (f *fakeRepo) GetStatus(_ context.Context, id uuid.UUID) (job.Status, string, int, error) {
+	j, err := f.lookup(id)
 	if err != nil {
 		return 0, "", 0, err
 	}
@@ -302,9 +316,32 @@ type fakeStorage struct {
 	puts     map[string][]byte
 	deleted  []string
 	onDelete func(string)
+
+	// opens counts Open per key so a test can assert how many times a request
+	// decoded one durable document. Guarded because the render fast-path tests
+	// read from a second goroutine.
+	openMu sync.Mutex
+	opens  map[string]int
 }
 
-func newFakeStorage() *fakeStorage { return &fakeStorage{puts: map[string][]byte{}} }
+func newFakeStorage() *fakeStorage {
+	return &fakeStorage{puts: map[string][]byte{}, opens: map[string]int{}}
+}
+
+// openCount reports how many times Open was called for key.
+func (f *fakeStorage) openCount(key string) int {
+	f.openMu.Lock()
+	defer f.openMu.Unlock()
+	return f.opens[key]
+}
+
+// resetOpenCounts clears the per-key Open tally so the next request is counted
+// on its own.
+func (f *fakeStorage) resetOpenCounts() {
+	f.openMu.Lock()
+	defer f.openMu.Unlock()
+	f.opens = map[string]int{}
+}
 func (f *fakeStorage) Put(key string, r io.Reader) error {
 	b, err := io.ReadAll(r)
 	if err != nil {
@@ -314,6 +351,12 @@ func (f *fakeStorage) Put(key string, r io.Reader) error {
 	return nil
 }
 func (f *fakeStorage) Open(key string) (io.ReadCloser, error) {
+	f.openMu.Lock()
+	if f.opens == nil {
+		f.opens = map[string]int{}
+	}
+	f.opens[key]++
+	f.openMu.Unlock()
 	b, ok := f.puts[key]
 	if !ok {
 		return nil, os.ErrNotExist
@@ -2418,6 +2461,20 @@ func (r *lockedJobRepo) Get(ctx context.Context, id uuid.UUID) (job.Job, error) 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.fakeRepo.Get(ctx, id)
+}
+
+// GetMeta and GetStatus must take the same lock as Get: every read path a
+// handler can take reaches the same fakeRepo map that UpdateStatus writes.
+func (r *lockedJobRepo) GetMeta(ctx context.Context, id uuid.UUID) (job.Job, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fakeRepo.GetMeta(ctx, id)
+}
+
+func (r *lockedJobRepo) GetStatus(ctx context.Context, id uuid.UUID) (job.Status, string, int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.fakeRepo.GetStatus(ctx, id)
 }
 
 func (r *lockedJobRepo) UpdateStatus(ctx context.Context, id uuid.UUID, s job.Status, reason string) error {
@@ -6093,5 +6150,717 @@ func assertMultipartTempDirEmpty(t *testing.T) {
 		if strings.HasPrefix(entry.Name(), "multipart-") || strings.HasPrefix(entry.Name(), "zv-stream-upload-") {
 			t.Fatalf("temporary upload file still exists: %s", filepath.Join(os.TempDir(), entry.Name()))
 		}
+	}
+}
+
+// killPlanBlobSegmentID is the one segment the kill-plan fixture below records;
+// seedReadyRender writes its reel artifacts under the same id.
+const killPlanBlobSegmentID = "seg-001"
+
+// killPlanBlobFixture builds a finished job whose stored kill plan is real,
+// plus the render state and artifacts the read endpoints resolve, so a row in
+// the tables below exercises a genuine response instead of an early 404. The
+// repository counters are reset after seeding so they only reflect the request.
+func killPlanBlobFixture(t *testing.T) (*fakeRepo, *fakeStorage, *Handlers, job.Job) {
+	t.Helper()
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	plan := killplan.NewPlan()
+	plan.Segments = []killplan.Segment{{ID: killPlanBlobSegmentID, TickStart: 100, TickEnd: 200}}
+	j := job.Job{
+		ID:            uuid.New(),
+		Status:        job.StatusDone,
+		DemoPath:      "demos/match.dem",
+		TargetSteamID: "76561198000000000",
+		Rules:         rules.Default(),
+		KillPlan:      &plan,
+	}
+	repo.jobs[j.ID] = j
+	h := NewHandlers(repo, store, &fakeQueue{})
+	seedReadyRender(t, h, store, j.ID, nil)
+	if err := store.Put(composition.FinalArtifactKey(j.ID), strings.NewReader("mp4")); err != nil {
+		t.Fatal(err)
+	}
+	repo.getCalls.Store(0)
+	repo.getMetaCalls.Store(0)
+	return repo, store, h, j
+}
+
+// TestJobReadsThatIgnoreTheKillPlanUseGetMeta pins the repository call a
+// handler makes: a media, artifact, status or side-lane endpoint never
+// dereferences j.KillPlan, so it must read the job through GetMeta and leave
+// the (hundreds of kilobytes of) plan blob in the database. A handler that
+// switched to GetMeta while still reading the plan would nil-panic here rather
+// than quietly serve a wrong answer.
+func TestJobReadsThatIgnoreTheKillPlanUseGetMeta(t *testing.T) {
+	variant := editor.PresetViral60Clean
+	revision := uuid.New()
+	cases := []struct {
+		name       string
+		method     string
+		path       func(j job.Job) string
+		wantStatus int
+	}{
+		{
+			name:   "final video",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/final", j.ID)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "render variant status",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s", j.ID, variant)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "render publish board",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/publish", j.ID, variant)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "render quality report",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/quality", j.ID, variant)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "reel video",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/videos/%s", j.ID, variant, killPlanBlobSegmentID)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "reel caption",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/captions/%s", j.ID, variant, killPlanBlobSegmentID)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "missing reel cover",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/covers/%s", j.ID, variant, killPlanBlobSegmentID)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "publish gallery",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/gallery", j.ID, variant)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "pack manifest",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/pack", j.ID, variant)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "revision reel video",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/revisions/%s/videos/%s", j.ID, variant, revision, killPlanBlobSegmentID)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "render review resolution",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/review", j.ID, variant)
+			},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "reel delete",
+			method: http.MethodDelete,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/videos/%s", j.ID, variant, killPlanBlobSegmentID)
+			},
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:   "job delete",
+			method: http.MethodDelete,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s", j.ID)
+			},
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:   "parse start",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/parse", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "tactical start",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/tactical", j.ID)
+			},
+			wantStatus: http.StatusAccepted,
+		},
+		{
+			name:   "tactical document",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/tactical", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "tactical status",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/tactical/status", j.ID)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "tactical round",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/tactical/rounds/1", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "tactical positions",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/tactical/positions", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "tactical aggregate",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/tactical/aggregate", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "anticheat start",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/anticheat", j.ID)
+			},
+			wantStatus: http.StatusAccepted,
+		},
+		{
+			name:   "anticheat document",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/anticheat", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "anticheat dossier",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/anticheat/dossier/76561198000000000", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, _, h, j := killPlanBlobFixture(t)
+			rw := httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, httptest.NewRequest(tc.method, tc.path(j), nil))
+			if rw.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantStatus, rw.Body.String())
+			}
+			if got := repo.getCalls.Load(); got != 0 {
+				t.Fatalf("repo.Get calls = %d, want 0: this endpoint must not decode the kill plan blob", got)
+			}
+			if got := repo.getMetaCalls.Load(); got != 1 {
+				t.Fatalf("repo.GetMeta calls = %d, want 1", got)
+			}
+		})
+	}
+}
+
+// TestJobReadsThatNeedTheKillPlanUseGet is the other half of the contract: the
+// handlers that do read the plan (directly, or through
+// validateSegmentSelection) must keep loading it, so trimming the read path
+// never turns a plan-backed endpoint into a nil dereference.
+func TestJobReadsThatNeedTheKillPlanUseGet(t *testing.T) {
+	variant := editor.PresetViral60Clean
+	cases := []struct {
+		name       string
+		method     string
+		path       func(j job.Job) string
+		wantStatus int
+	}{
+		{
+			name:   "kill plan",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/plan", j.ID)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "recap plan",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/recap-plan", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "moments",
+			method: http.MethodGet,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/moments", j.ID)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "record start",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/record", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "generate start",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/generate", j.ID)
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "render start",
+			method: http.MethodPost,
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s", j.ID, variant)
+			},
+			wantStatus: http.StatusAccepted,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, _, h, j := killPlanBlobFixture(t)
+			rw := httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, httptest.NewRequest(tc.method, tc.path(j), nil))
+			if rw.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantStatus, rw.Body.String())
+			}
+			if got := repo.getCalls.Load(); got != 1 {
+				t.Fatalf("repo.Get calls = %d, want 1: this endpoint needs the kill plan", got)
+			}
+			if got := repo.getMetaCalls.Load(); got != 0 {
+				t.Fatalf("repo.GetMeta calls = %d, want 0", got)
+			}
+		})
+	}
+}
+
+// renderArtifactCacheFixture seeds a finished render on the local filesystem
+// backend — the one that hands out a seekable, stat-able file — with the reel
+// artifacts under an immutable revision prefix that the current-pointer state
+// points at, exactly as a real render leaves them.
+func renderArtifactCacheFixture(t *testing.T, variant string, revision uuid.UUID, bodies map[renderplan.RenderVariantArtifactKind]string) (*storage.Local, *Handlers, job.Job) {
+	t.Helper()
+	store, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := newFakeRepo()
+	j := job.Job{ID: uuid.New(), Status: job.StatusDone, Rules: rules.Default()}
+	repo.jobs[j.ID] = j
+
+	loadout, err := renderplan.LoadoutForVariant(variant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+		JobID:      j.ID,
+		Loadout:    loadout,
+		Status:     renderplan.RenderVariantStatusReady,
+		RevisionID: revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandlers(repo, store, &fakeQueue{})
+	if err := h.writeRenderVariantState(state); err != nil {
+		t.Fatal(err)
+	}
+	for kind, body := range bodies {
+		if err := store.Put(renderRevisionKey(t, j.ID, variant, revision, kind), strings.NewReader(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return store, h, j
+}
+
+// renderRevisionKey is the storage key of one artifact inside a render
+// revision; the gallery has no segment, every reel artifact does.
+func renderRevisionKey(t *testing.T, id uuid.UUID, variant string, revision uuid.UUID, kind renderplan.RenderVariantArtifactKind) string {
+	t.Helper()
+	segmentID := killPlanBlobSegmentID
+	if kind == renderplan.RenderVariantArtifactGallery {
+		segmentID = ""
+	}
+	ref, err := renderplan.NewRenderVariantRevisionArtifactRef(id, variant, revision, kind, segmentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ref.Key
+}
+
+// artifactLastModified is the Last-Modified a stored artifact must advertise:
+// the mtime of the file the storage backend opens.
+func artifactLastModified(t *testing.T, store *storage.Local, key string) string {
+	t.Helper()
+	path, err := store.ResolvePath(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.ModTime().UTC().Format(http.TimeFormat)
+}
+
+// TestRenderArtifactServesValidatorAndCachePolicy pins the browser-facing
+// caching contract of the reel artifact routes. Every body carries a
+// Last-Modified validator, a current-pointer URL must be revalidated (the reel
+// behind it is replaced by a rerender) while a revisions/{revision} URL is
+// immutable, and Range plus If-Modified-Since keep being answered by
+// http.ServeContent. Without the validator a cover or reel could only ever be
+// re-downloaded in full.
+func TestRenderArtifactServesValidatorAndCachePolicy(t *testing.T) {
+	const videoBody = "0123456789abcdef"
+	const coverBody = "cover-bytes"
+	const galleryBody = "<!doctype html><p>gallery</p>"
+	variant := editor.PresetViral60Clean
+	revision := uuid.New()
+	bodies := map[renderplan.RenderVariantArtifactKind]string{
+		renderplan.RenderVariantArtifactVideo:   videoBody,
+		renderplan.RenderVariantArtifactCover:   coverBody,
+		renderplan.RenderVariantArtifactGallery: galleryBody,
+	}
+
+	cases := []struct {
+		name            string
+		path            func(j job.Job) string
+		kind            renderplan.RenderVariantArtifactKind
+		reqHeaders      map[string]string
+		ifModifiedSince bool
+		wantStatus      int
+		wantCache       string
+		wantBody        string
+	}{
+		{
+			name:       "current reel video must be revalidated",
+			path:       func(j job.Job) string { return currentReelPath(j.ID, variant, "videos") },
+			kind:       renderplan.RenderVariantArtifactVideo,
+			wantStatus: http.StatusOK,
+			wantCache:  artifactCacheRevalidate,
+			wantBody:   videoBody,
+		},
+		{
+			name:       "current cover must be revalidated",
+			path:       func(j job.Job) string { return currentReelPath(j.ID, variant, "covers") },
+			kind:       renderplan.RenderVariantArtifactCover,
+			wantStatus: http.StatusOK,
+			wantCache:  artifactCacheRevalidate,
+			wantBody:   coverBody,
+		},
+		{
+			name: "current gallery must be revalidated",
+			path: func(j job.Job) string {
+				return fmt.Sprintf("/api/jobs/%s/renders/%s/gallery", j.ID, variant)
+			},
+			kind:       renderplan.RenderVariantArtifactGallery,
+			wantStatus: http.StatusOK,
+			wantCache:  artifactCacheRevalidate,
+			wantBody:   galleryBody,
+		},
+		{
+			name:       "revision reel video is immutable",
+			path:       func(j job.Job) string { return revisionReelPath(j.ID, variant, revision, "videos") },
+			kind:       renderplan.RenderVariantArtifactVideo,
+			wantStatus: http.StatusOK,
+			wantCache:  artifactCacheImmutable,
+			wantBody:   videoBody,
+		},
+		{
+			name:       "revision cover is immutable",
+			path:       func(j job.Job) string { return revisionReelPath(j.ID, variant, revision, "covers") },
+			kind:       renderplan.RenderVariantArtifactCover,
+			wantStatus: http.StatusOK,
+			wantCache:  artifactCacheImmutable,
+			wantBody:   coverBody,
+		},
+		{
+			name:            "unchanged reel revalidates to 304 with no body",
+			path:            func(j job.Job) string { return currentReelPath(j.ID, variant, "videos") },
+			kind:            renderplan.RenderVariantArtifactVideo,
+			ifModifiedSince: true,
+			wantStatus:      http.StatusNotModified,
+			wantCache:       artifactCacheRevalidate,
+			wantBody:        "",
+		},
+		{
+			name:       "range request still serves partial content",
+			path:       func(j job.Job) string { return currentReelPath(j.ID, variant, "videos") },
+			kind:       renderplan.RenderVariantArtifactVideo,
+			reqHeaders: map[string]string{"Range": "bytes=2-5"},
+			wantStatus: http.StatusPartialContent,
+			wantCache:  artifactCacheRevalidate,
+			wantBody:   videoBody[2:6],
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, h, j := renderArtifactCacheFixture(t, variant, revision, bodies)
+			lastModified := artifactLastModified(t, store, renderRevisionKey(t, j.ID, variant, revision, tc.kind))
+
+			req := httptest.NewRequest(http.MethodGet, tc.path(j), nil)
+			for name, value := range tc.reqHeaders {
+				req.Header.Set(name, value)
+			}
+			if tc.ifModifiedSince {
+				req.Header.Set("If-Modified-Since", lastModified)
+			}
+			rw := httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, req)
+
+			if rw.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rw.Code, tc.wantStatus, rw.Body.String())
+			}
+			if got := rw.Header().Get("Cache-Control"); got != tc.wantCache {
+				t.Fatalf("Cache-Control = %q, want %q", got, tc.wantCache)
+			}
+			if got := rw.Header().Get("Last-Modified"); got != lastModified {
+				t.Fatalf("Last-Modified = %q, want %q", got, lastModified)
+			}
+			if got := rw.Body.String(); got != tc.wantBody {
+				t.Fatalf("body = %q, want %q", got, tc.wantBody)
+			}
+		})
+	}
+}
+
+func currentReelPath(id uuid.UUID, variant, kind string) string {
+	return fmt.Sprintf("/api/jobs/%s/renders/%s/%s/%s", id, variant, kind, killPlanBlobSegmentID)
+}
+
+func revisionReelPath(id uuid.UUID, variant string, revision uuid.UUID, kind string) string {
+	return fmt.Sprintf("/api/jobs/%s/renders/%s/revisions/%s/%s/%s", id, variant, revision, kind, killPlanBlobSegmentID)
+}
+
+// TestArtifactWithoutAModTimeKeepsItsCachePolicy covers a storage backend that
+// hands out a plain stream: there is no validator to advertise, so the response
+// carries the cache policy alone and is otherwise byte-for-byte what it was.
+func TestArtifactWithoutAModTimeKeepsItsCachePolicy(t *testing.T) {
+	_, store, h, j := killPlanBlobFixture(t)
+	variant := editor.PresetViral60Clean
+	ref, err := renderplan.NewRenderVariantArtifactRef(j.ID, variant, renderplan.RenderVariantArtifactGallery, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const galleryBody = "<!doctype html><p>gallery</p>"
+	if err := store.Put(ref.Key, strings.NewReader(galleryBody)); err != nil {
+		t.Fatal(err)
+	}
+
+	rw := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/jobs/%s/renders/%s/gallery", j.ID, variant), nil))
+
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+	}
+	if got := rw.Header().Get("Cache-Control"); got != artifactCacheRevalidate {
+		t.Fatalf("Cache-Control = %q, want %q", got, artifactCacheRevalidate)
+	}
+	if got := rw.Header().Get("Last-Modified"); got != "" {
+		t.Fatalf("Last-Modified = %q, want empty: a backend with no mtime has no validator", got)
+	}
+	if got := rw.Body.String(); got != galleryBody {
+		t.Fatalf("body = %q, want %q", got, galleryBody)
+	}
+}
+
+// The render poll is the hottest read Studio issues. It must open the state
+// document and the render result once each, on both the settled fast path and
+// the migrating one: the fast path hands the warnings it already decoded to
+// the locked migration, which re-reads only the state document because its
+// review token has to be one coherent revision with the state a correction or
+// resolution POST consumes.
+func TestRenderVariantPollDecodesTheRenderResultOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		warnings             []string
+		wantStatus           string
+		wantStateOpens       int
+		wantSecondResultOpen int
+	}{
+		{
+			// A ready state is only provably settled once its render result
+			// has been read, so a steady-state poll costs both documents.
+			name:                 "settled ready state is served from the fast path",
+			wantStatus:           renderplan.RenderVariantStatusReady,
+			wantStateOpens:       1,
+			wantSecondResultOpen: 1,
+		},
+		{
+			// The migration re-reads the state under the lock, never the
+			// result; once the document lands in review it is settled on
+			// sight and the result is not opened again at all.
+			name:                 "unsettled state migrates with the warnings already decoded",
+			warnings:             []string{"freeze at 00:12"},
+			wantStatus:           renderplan.RenderVariantStatusReview,
+			wantStateOpens:       2,
+			wantSecondResultOpen: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			j := job.Job{ID: uuid.New(), Status: job.StatusRecorded, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, store, &fakeQueue{})
+			variant := editor.PresetViral60Clean
+			seeded := seedReadyRender(t, h, store, j.ID, tc.warnings)
+			stateKey := mustRenderVariantStatusKey(j.ID, variant)
+			path := fmt.Sprintf("/api/jobs/%s/renders/%s", j.ID, variant)
+
+			store.resetOpenCounts()
+			rw := httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, path, nil))
+			if rw.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", rw.Code, rw.Body.String())
+			}
+			var got struct {
+				Status   string   `json:"status"`
+				Warnings []string `json:"warnings"`
+			}
+			if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
+				t.Fatalf("decode render poll: %v", err)
+			}
+			if got.Status != tc.wantStatus || !slices.Equal(got.Warnings, tc.warnings) {
+				t.Fatalf("poll = status %q warnings %v, want %q %v", got.Status, got.Warnings, tc.wantStatus, tc.warnings)
+			}
+			if n := store.openCount(seeded.RenderResultKey); n != 1 {
+				t.Fatalf("render result opened %d times, want 1", n)
+			}
+			if n := store.openCount(stateKey); n != tc.wantStateOpens {
+				t.Fatalf("render state opened %d times, want %d", n, tc.wantStateOpens)
+			}
+
+			// The next poll finds a settled document: same body, one read of
+			// the state, and no second decode of the render result.
+			first := rw.Body.String()
+			store.resetOpenCounts()
+			rw = httptest.NewRecorder()
+			Routes(h).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, path, nil))
+			if rw.Code != http.StatusOK || rw.Body.String() != first {
+				t.Fatalf("second poll = %d %s, want an identical 200 body", rw.Code, rw.Body.String())
+			}
+			if n := store.openCount(seeded.RenderResultKey); n != tc.wantSecondResultOpen {
+				t.Fatalf("second poll opened the render result %d times, want %d", n, tc.wantSecondResultOpen)
+			}
+			if n := store.openCount(stateKey); n != 1 {
+				t.Fatalf("second poll opened the render state %d times, want 1", n)
+			}
+		})
+	}
+}
+
+// The startup pass gates on the status the caller hands it, which is the
+// post-sweep one: a job startup reconciliation just failed must still be
+// settled, and a job that cannot have render state is skipped without touching
+// either document. It reads each document once - the pre-read the per-request
+// path needed is gone.
+func TestMaterializeRenderVariantStatesGatesOnPostSweepJobStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		status          job.Status
+		wantMigrated    int
+		wantStatus      string
+		wantResultOpens int
+		wantStateOpens  int
+	}{
+		{
+			name:            "job the startup sweep just failed is still settled",
+			status:          job.StatusFailed,
+			wantMigrated:    1,
+			wantStatus:      renderplan.RenderVariantStatusReview,
+			wantResultOpens: 1,
+			wantStateOpens:  1,
+		},
+		{
+			name:       "job that cannot have render state is skipped untouched",
+			status:     job.StatusParsed,
+			wantStatus: renderplan.RenderVariantStatusReady,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			j := job.Job{ID: uuid.New(), Status: tc.status, Rules: rules.Default()}
+			repo.jobs[j.ID] = j
+			h := NewHandlers(repo, store, &fakeQueue{})
+			variant := editor.PresetViral60Clean
+			seeded := seedReadyRender(t, h, store, j.ID, []string{"freeze at 00:12"})
+			stateKey := mustRenderVariantStatusKey(j.ID, variant)
+
+			store.resetOpenCounts()
+			migrated, err := h.MaterializeRenderVariantStates(context.Background(), []job.Job{j})
+			if err != nil {
+				t.Fatalf("MaterializeRenderVariantStates: %v", err)
+			}
+			resultOpens := store.openCount(seeded.RenderResultKey)
+			stateOpens := store.openCount(stateKey)
+
+			if migrated != tc.wantMigrated {
+				t.Fatalf("migrated = %d, want %d", migrated, tc.wantMigrated)
+			}
+			if resultOpens != tc.wantResultOpens {
+				t.Fatalf("render result opened %d times, want %d", resultOpens, tc.wantResultOpens)
+			}
+			if stateOpens != tc.wantStateOpens {
+				t.Fatalf("render state opened %d times, want %d", stateOpens, tc.wantStateOpens)
+			}
+			state, exists, err := h.readRenderVariantState(j.ID, variant)
+			if err != nil || !exists {
+				t.Fatalf("render state after startup pass: exists=%v err=%v", exists, err)
+			}
+			if state.Status != tc.wantStatus {
+				t.Fatalf("state status = %q, want %q", state.Status, tc.wantStatus)
+			}
+		})
 	}
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { localAPIRequestError } from '@/lib/api/local-request-guard';
+import { projectBatchStatusItem, type BatchStatusUpstreamItem } from '@/lib/api/batch-status';
 import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
 import { ANTICHEAT_DOCUMENT_KEYS } from '@/lib/api/anticheat';
 import {
@@ -337,33 +338,8 @@ export async function localBatchStatus(itemsParam: string | null): Promise<Respo
   if (res === null) return serviceUnavailable();
   if (!res.ok) return forwardError(res);
 
-  type UpstreamItem = {
-    job_id: string;
-    variant: string;
-    job?: {
-      status: string;
-      failure_reason?: string;
-      failure_code?: string;
-      progress?: { done?: number; total?: number; percent?: number };
-    } | null;
-    render?: unknown;
-  };
-  const data = (await res.json()) as { items?: UpstreamItem[] };
-  const items = (Array.isArray(data.items) ? data.items : []).map((item) => {
-    const out: {
-      job_id: string;
-      variant: string;
-      job: { status: string; failure_reason?: string; failure_code?: string; progress?: { done: number; total: number; percent?: number } } | null;
-      render: unknown;
-    } = { job_id: item.job_id, variant: item.variant, job: null, render: item.render ?? null };
-    if (item.job) {
-      out.job = { status: item.job.status };
-      if (item.job.failure_reason) out.job.failure_reason = item.job.failure_reason;
-      if (item.job.failure_code) out.job.failure_code = item.job.failure_code;
-      const parsed = parseCaptureProgress(item.job.progress);
-      if (parsed) out.job.progress = parsed;
-    }
-    return out;
-  });
+  const data = (await res.json()) as { items?: BatchStatusUpstreamItem[] };
+  const items = (Array.isArray(data.items) ? data.items : []).map((item) => projectBatchStatusItem(item, parseCaptureProgress));
   return NextResponse.json({ items });
 }
+

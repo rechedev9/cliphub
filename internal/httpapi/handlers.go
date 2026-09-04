@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"path"
@@ -773,7 +774,9 @@ type startParseRequest struct {
 // StartParse handles POST /api/jobs/{id}/parse. After a roster scan it records
 // the picked target (and optional rules) and enqueues the full parse.
 func (h *Handlers) StartParse(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: parse reads the status and the stored rules, never the
+	// kill plan a previous parse left behind.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -877,7 +880,9 @@ func (h *Handlers) persistJobQueueDecision(id uuid.UUID, taskKind string, decisi
 
 // GetFinal handles GET /api/jobs/{id}/final.
 func (h *Handlers) GetFinal(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the final MP4 is gated on the status and streamed from
+	// storage, so decoding the kill plan blob would be pure overhead.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -1310,7 +1315,9 @@ func (h *Handlers) readGenerateIntent(id uuid.UUID) (renderplan.GenerateIntent, 
 // recovers, while a shutdown discard of admitted work fails the job like
 // every other queued stage.
 func (h *Handlers) StartComposition(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: compose is gated on the status and the worker reloads
+	// whatever it needs from the durable artifacts.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -1513,6 +1520,8 @@ func (r renderEditRequest) complete() bool {
 
 // StartRenderVariant handles POST /api/jobs/{id}/renders/{variant}.
 func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
+	// The full job: an explicit segment selection is validated against
+	// j.KillPlan.Segments below, so this one cannot drop to loadJobMeta.
 	j, ok := h.loadJob(w, r)
 	if !ok {
 		return
@@ -1572,7 +1581,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	previous, _, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant)
+	previous, _, _, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant, nil)
 	if err != nil {
 		internalError(w, "read render state", err)
 		return
@@ -1760,7 +1769,9 @@ const maxRenderReviewNoteLength = 1000
 // artifact revision and warnings it showed, so a racing or later render can
 // never inherit a stale approval.
 func (h *Handlers) ResolveRenderReview(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the review resolution is written against the render state
+	// document, which is keyed by job id alone.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -1790,7 +1801,7 @@ func (h *Handlers) ResolveRenderReview(w http.ResponseWriter, r *http.Request) {
 
 	h.renderStateMu.Lock()
 	defer h.renderStateMu.Unlock()
-	state, exists, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant)
+	state, exists, _, err := h.readOrMaterializeRenderVariantStateLocked(j.ID, variant, nil)
 	if err != nil {
 		internalError(w, "read render state for review", err)
 		return
@@ -1822,7 +1833,9 @@ func (h *Handlers) ResolveRenderReview(w http.ResponseWriter, r *http.Request) {
 
 // GetRenderVariant handles GET /api/jobs/{id}/renders/{variant}.
 func (h *Handlers) GetRenderVariant(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: this is the endpoint Studio polls while a render runs, and
+	// it answers entirely out of the render state document.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -1853,29 +1866,45 @@ func (h *Handlers) readOrMaterializeRenderVariantState(id uuid.UUID, variant str
 	// every other job's render poll. Artifacts are replaced atomically, so a
 	// concurrent write yields either revision, never a torn one; anything that
 	// is not provably settled takes the lock and runs the full path.
-	if state, ok, err := h.readRenderVariantState(id, variant); err == nil && ok && h.renderVariantStateSettled(state) {
-		return state, true, nil
+	var knownWarnings []string
+	if state, ok, err := h.readRenderVariantState(id, variant); err == nil && ok {
+		settled, warnings := h.renderVariantStateSettled(state)
+		if settled {
+			return state, true, nil
+		}
+		// Carry down only the warnings this read already decoded, never the
+		// state: the locked path must re-read the state document so its review
+		// token and the revision a correction or resolution POST consumes are
+		// one revision.
+		knownWarnings = warnings
 	}
 	h.renderStateMu.Lock()
 	defer h.renderStateMu.Unlock()
-	return h.readOrMaterializeRenderVariantStateLocked(id, variant)
+	state, exists, _, err := h.readOrMaterializeRenderVariantStateLocked(id, variant, knownWarnings)
+	return state, exists, err
 }
 
 // renderVariantStateSettled reports whether the locked path would return the
 // state unchanged: every non-ready state, and a ready state whose warnings
 // already match the complete-render result and its review resolution.
-func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantState) bool {
+//
+// It also returns the complete-render warnings it decoded so an unsettled
+// caller can hand them to the locked migration instead of opening and decoding
+// the same render result again. They are nil when nothing was decoded (a
+// non-ready state, an unreadable result) and when the result carries no
+// warnings at all; the locked path reads them itself in that case.
+func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantState) (bool, []string) {
 	if state.Status != renderplan.RenderVariantStatusReady {
-		return true
+		return true, nil
 	}
 	warnings, err := h.readCompleteRenderWarnings(*state)
 	if err != nil {
-		return false
+		return false, nil
 	}
 	if state.ReviewResolvedFor(warnings) {
-		return slices.Equal(state.Warnings, warnings)
+		return slices.Equal(state.Warnings, warnings), warnings
 	}
-	return len(warnings) == 0 && len(state.Warnings) == 0 && state.ReviewResolution == nil
+	return len(warnings) == 0 && len(state.Warnings) == 0 && state.ReviewResolution == nil, warnings
 }
 
 // MaterializeRenderVariantStates runs the legacy render-state migration for
@@ -1884,33 +1913,32 @@ func (h *Handlers) renderVariantStateSettled(state *renderplan.RenderVariantStat
 // state. The per-request path keeps the same migration as a safety net for a
 // result the worker writes after this pass. Returns how many states were
 // rewritten; errors are joined so one corrupt document cannot hide the rest.
+//
+// Callers must pass jobs whose Status is the one the repository holds now: a
+// startup sweep that just failed a job has to hand over the post-sweep status,
+// because a job that cannot have render state is skipped here.
 func (h *Handlers) MaterializeRenderVariantStates(ctx context.Context, jobs []job.Job) (int, error) {
 	migrated := 0
 	var errs []error
+	loadouts := renderplan.LoadoutCatalog()
 	for _, j := range jobs {
 		if err := ctx.Err(); err != nil {
 			errs = append(errs, err)
 			break
 		}
-		for _, loadout := range renderplan.LoadoutCatalog() {
-			before, hadState, err := h.readRenderVariantState(j.ID, loadout.Variant)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("read render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
-				continue
-			}
-			after, ok, err := h.readOrMaterializeRenderVariantState(j.ID, loadout.Variant)
+		// Same invariant BatchStatus enforces: before a capture finishes there
+		// is no render state worth settling, and Studio hides any leftover
+		// document so a recapture cannot adopt it.
+		if !j.Status.CanHaveRenderState() {
+			continue
+		}
+		for _, loadout := range loadouts {
+			wrote, err := h.materializeRenderVariantState(j.ID, loadout.Variant)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("materialize render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
 				continue
 			}
-			if !ok {
-				continue
-			}
-			// A missing state only materializes on disk when it lands in review;
-			// a present one is rewritten when its status or warnings moved.
-			rewritten := (!hadState && after.Status == renderplan.RenderVariantStatusReview) ||
-				(hadState && (before.Status != after.Status || !slices.Equal(before.Warnings, after.Warnings)))
-			if rewritten {
+			if wrote {
 				migrated++
 			}
 		}
@@ -1918,58 +1946,86 @@ func (h *Handlers) MaterializeRenderVariantStates(ctx context.Context, jobs []jo
 	return migrated, errors.Join(errs...)
 }
 
-// readOrMaterializeRenderVariantStateLocked performs the durable migration.
-// The caller must hold renderStateMu so the returned review token and the state
-// consumed by correction or resolution requests are one coherent revision.
-func (h *Handlers) readOrMaterializeRenderVariantStateLocked(id uuid.UUID, variant string) (*renderplan.RenderVariantState, bool, error) {
-	if state, ok, err := h.readRenderVariantState(id, variant); err != nil {
-		return nil, false, err
-	} else if ok {
-		if state.Status == renderplan.RenderVariantStatusReady {
-			warnings, err := h.readCompleteRenderWarnings(*state)
-			if err != nil {
-				return nil, false, err
-			}
-			switch {
-			case state.ReviewResolvedFor(warnings):
-				if slices.Equal(state.Warnings, warnings) {
-					return state, true, nil
-				}
-				state.Warnings = append([]string(nil), warnings...)
-			case len(warnings) == 0:
-				if len(state.Warnings) == 0 && state.ReviewResolution == nil {
-					return state, true, nil
-				}
-				state.Warnings = nil
-				state.ReviewResolution = nil
-			default:
-				state.Status = renderplan.RenderVariantStatusReview
-				state.Warnings = append([]string(nil), warnings...)
-				state.ReviewResolution = nil
-			}
-			state.UpdatedAt = time.Now().UTC()
-			if err := h.writeRenderVariantState(*state); err != nil {
-				return nil, false, err
-			}
+// materializeRenderVariantState settles one variant under renderStateMu and
+// reports whether the durable document was rewritten. The startup pass uses it
+// instead of readOrMaterializeRenderVariantState so a variant costs one state
+// read, not the lock-free probe plus a second read under the lock: nothing is
+// serving traffic yet, so the fast path buys nothing here.
+func (h *Handlers) materializeRenderVariantState(id uuid.UUID, variant string) (bool, error) {
+	h.renderStateMu.Lock()
+	defer h.renderStateMu.Unlock()
+	_, _, wrote, err := h.readOrMaterializeRenderVariantStateLocked(id, variant, nil)
+	return wrote, err
+}
+
+// readOrMaterializeRenderVariantStateLocked performs the durable migration and
+// reports whether it rewrote the state document. The caller must hold
+// renderStateMu so the returned review token and the state consumed by
+// correction or resolution requests are one coherent revision.
+//
+// knownWarnings is the complete-render warning set a caller already decoded
+// from the same render result; nil means "decode it here". Only the warnings
+// may be carried in — the state document is always re-read under the lock.
+func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
+	id uuid.UUID,
+	variant string,
+	knownWarnings []string,
+) (state *renderplan.RenderVariantState, exists, wrote bool, err error) {
+	stored, ok, err := h.readRenderVariantState(id, variant)
+	if err != nil {
+		return nil, false, false, err
+	}
+	if ok {
+		if stored.Status != renderplan.RenderVariantStatusReady {
+			return stored, true, false, nil
 		}
-		return state, true, nil
+		warnings := knownWarnings
+		if warnings == nil {
+			decoded, err := h.readCompleteRenderWarnings(*stored)
+			if err != nil {
+				return nil, false, false, err
+			}
+			warnings = decoded
+		}
+		switch {
+		case stored.ReviewResolvedFor(warnings):
+			if slices.Equal(stored.Warnings, warnings) {
+				return stored, true, false, nil
+			}
+			stored.Warnings = append([]string(nil), warnings...)
+		case len(warnings) == 0:
+			if len(stored.Warnings) == 0 && stored.ReviewResolution == nil {
+				return stored, true, false, nil
+			}
+			stored.Warnings = nil
+			stored.ReviewResolution = nil
+		default:
+			stored.Status = renderplan.RenderVariantStatusReview
+			stored.Warnings = append([]string(nil), warnings...)
+			stored.ReviewResolution = nil
+		}
+		stored.UpdatedAt = time.Now().UTC()
+		if err := h.writeRenderVariantState(*stored); err != nil {
+			return nil, false, false, err
+		}
+		return stored, true, true, nil
 	}
 	resultRef, err := renderplan.NewRenderVariantArtifactRef(id, variant, renderplan.RenderVariantArtifactResult, "")
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
 	rc, err := h.storage.Open(resultRef.Key)
 	if err != nil {
 		if storage.IsNotExist(err) {
-			return nil, false, nil
+			return nil, false, false, nil
 		}
-		return nil, false, err
+		return nil, false, false, err
 	}
 	defer rc.Close()
 
 	var result editor.Result
 	if err := json.NewDecoder(rc).Decode(&result); err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
 	warnings := renderplan.CompleteRenderWarnings(result)
 	status := "ready"
@@ -1980,9 +2036,9 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(id uuid.UUID, varia
 	}
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
-	state, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
+	materialized, err := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 		JobID:    id,
 		Loadout:  loadout,
 		Status:   status,
@@ -1990,14 +2046,15 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(id uuid.UUID, varia
 		Error:    result.Error,
 	})
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
-	if state.Status == renderplan.RenderVariantStatusReview {
-		if err := h.writeRenderVariantState(state); err != nil {
-			return nil, false, err
+	if materialized.Status == renderplan.RenderVariantStatusReview {
+		if err := h.writeRenderVariantState(materialized); err != nil {
+			return nil, false, false, err
 		}
+		return &materialized, true, true, nil
 	}
-	return &state, true, nil
+	return &materialized, true, false, nil
 }
 
 func (h *Handlers) readCompleteRenderWarnings(state renderplan.RenderVariantState) ([]string, error) {
@@ -2198,7 +2255,9 @@ func mustRenderVariantStatusKey(id uuid.UUID, variant string) string {
 
 // GetRenderPublishBoard handles GET /api/jobs/{id}/renders/{variant}/publish.
 func (h *Handlers) GetRenderPublishBoard(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the board is built from the render state and the render
+	// result artifact, both keyed by job id.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2276,7 +2335,8 @@ func unresolvedRenderWarnings(state *renderplan.RenderVariantState, warnings []s
 
 // GetRenderQuality handles GET /api/jobs/{id}/renders/{variant}/quality.
 func (h *Handlers) GetRenderQuality(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the quality report is derived from the render result.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2321,7 +2381,9 @@ type renderArtifactDeleter interface {
 // can clear finished reels from the library and free disk space. Idempotent —
 // deleting an already-deleted reel succeeds.
 func (h *Handlers) DeleteRenderVideo(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the artifacts to remove are addressed by job id, variant
+	// and reel name.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2403,7 +2465,9 @@ func jobIsInFlight(s job.Status) bool {
 // so a failed artifact delete leaves the row in place to retry. Idempotent —
 // a repeat delete after success returns 404.
 func (h *Handlers) DeleteJob(w http.ResponseWriter, r *http.Request) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the in-flight guard reads the status and everything
+	// deleted is addressed by job id, so the plan blob is never needed.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2481,7 +2545,9 @@ func (h *Handlers) GetRenderRevisionCaption(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handlers) streamRenderVariantRevisionArtifact(w http.ResponseWriter, r *http.Request, contentType string, kind renderplan.RenderVariantArtifactKind, segmentID string) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the artifact key is built from the URL, so a reel download
+	// must not pay for decoding the kill plan blob.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2505,11 +2571,13 @@ func (h *Handlers) streamRenderVariantRevisionArtifact(w http.ResponseWriter, r 
 		writeError(w, http.StatusNotFound, "render revision artifact not found")
 		return
 	}
-	serveArtifact(w, r, contentType, rc)
+	serveArtifactWithCache(w, r, contentType, rc, artifactCacheImmutable)
 }
 
 func (h *Handlers) streamRenderVariantArtifact(w http.ResponseWriter, r *http.Request, contentType string, kind renderplan.RenderVariantArtifactKind, segmentID string) {
-	j, ok := h.loadJob(w, r)
+	// Metadata only: the artifact key comes from the URL and the render state,
+	// so a video, cover, caption, gallery or pack read never decodes the plan.
+	j, ok := h.loadJobMeta(w, r)
 	if !ok {
 		return
 	}
@@ -2540,19 +2608,48 @@ func (h *Handlers) streamRenderVariantArtifact(w http.ResponseWriter, r *http.Re
 	serveArtifact(w, r, contentType, rc)
 }
 
-// serveArtifact writes an artifact body with the given content type. An empty
-// type asks Go to sniff the stored bytes, which is useful when the durable key
-// intentionally omits the uploaded source container. When the storage reader
-// is seekable (the local filesystem backend hands out *os.File), it serves
-// through http.ServeContent so Range requests are honoured. Non-seekable
-// backends sniff a bounded prefix before streaming the complete body.
+// Cache-Control policies for stored artifacts. Both are `private`: an artifact
+// is local user media and must never be held by a shared cache.
+const (
+	// artifactCacheRevalidate is for a current-pointer URL (.../videos/{name},
+	// .../gallery, the tactical position blob). The URL keeps its name while a
+	// rerender or rescan replaces what it points at, so the browser may keep a
+	// copy but has to revalidate it every time; the Last-Modified validator is
+	// what turns that revalidation into a 304 instead of a full body.
+	artifactCacheRevalidate = "private, max-age=0, must-revalidate"
+	// artifactCacheImmutable is for a .../revisions/{revision}/... URL, whose
+	// key is minted once under a fresh revision id and never rewritten, so the
+	// bytes behind that URL are fixed for its lifetime.
+	artifactCacheImmutable = "private, max-age=31536000, immutable"
+)
+
+// serveArtifact writes an artifact body with the given content type under the
+// revalidate cache policy, for a current-pointer URL.
 func serveArtifact(w http.ResponseWriter, r *http.Request, contentType string, rc io.ReadCloser) {
+	serveArtifactWithCache(w, r, contentType, rc, artifactCacheRevalidate)
+}
+
+// serveArtifactWithCache writes an artifact body with the given content type
+// and cache policy. An empty type asks Go to sniff the stored bytes, which is
+// useful when the durable key intentionally omits the uploaded source
+// container. When the storage reader is seekable (the local filesystem backend
+// hands out *os.File), it serves through http.ServeContent so Range requests
+// are honoured and a stat-able reader also gets a Last-Modified validator, so
+// a cover or reel the browser already has is revalidated instead of
+// re-downloaded. Non-seekable backends sniff a bounded prefix before streaming
+// the complete body.
+func serveArtifactWithCache(w http.ResponseWriter, r *http.Request, contentType string, rc io.ReadCloser, cacheControl string) {
 	defer rc.Close()
 	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	}
+	w.Header().Set("Cache-Control", cacheControl)
 	if rs, ok := rc.(io.ReadSeeker); ok {
-		http.ServeContent(w, r, "", time.Time{}, rs)
+		// The name stays empty on purpose: a caller with an empty content type
+		// relies on ServeContent sniffing the stored bytes, and the durable key
+		// is normalized (a stream source is always source.mp4), so guessing a
+		// type from it would be wrong.
+		http.ServeContent(w, r, "", artifactModTime(rc), rs)
 		return
 	}
 	var body io.Reader = rc
@@ -2564,6 +2661,23 @@ func serveArtifact(w http.ResponseWriter, r *http.Request, contentType string, r
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, body)
+}
+
+// artifactModTime is the validator http.ServeContent turns into Last-Modified
+// and compares an If-Modified-Since or If-Range against. The local filesystem
+// backend hands out an *os.File, which reports the artifact's mtime; a backend
+// that cannot report one keeps the zero time, which ServeContent omits, leaving
+// the response exactly as it was before.
+func artifactModTime(rc io.ReadCloser) time.Time {
+	f, ok := rc.(interface{ Stat() (fs.FileInfo, error) })
+	if !ok {
+		return time.Time{}
+	}
+	info, err := f.Stat()
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 func (h *Handlers) loadRenderResult(w http.ResponseWriter, id uuid.UUID, variant string) (editor.Result, string, bool) {
@@ -2624,6 +2738,10 @@ func (s renderVariantSnapshot) artifactRef(kind renderplan.RenderVariantArtifact
 	return renderplan.NewRenderVariantArtifactRef(s.jobID, s.variant, kind, name)
 }
 
+// loadJob reads the whole job, kill plan included. Only a handler that actually
+// dereferences j.KillPlan should use it: the plan is hundreds of kilobytes of
+// JSON on a real match and decoding it on a status, media or artifact read is
+// pure overhead. Everything else uses loadJobMeta.
 func (h *Handlers) loadJob(w http.ResponseWriter, r *http.Request) (job.Job, bool) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)

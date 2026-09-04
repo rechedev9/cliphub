@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -344,7 +345,7 @@ func TestSweepInterruptedDemoRenderStatesFailsActiveStatesAcrossParentStatuses(t
 				fixtures = append(fixtures, fixture{key: key, before: state, wantFailed: tc.wantFailed})
 			}
 
-			swept, err := sweepInterruptedDemoRenderStates(context.Background(), repo, store, nil)
+			swept, err := sweepInterruptedDemoRenderStatesFromRepo(context.Background(), repo, store, nil)
 			if err != nil {
 				t.Fatalf("sweepInterruptedDemoRenderStates: %v", err)
 			}
@@ -402,7 +403,7 @@ func TestSweepInterruptedDemoRenderStatesRepairsCorruptDocumentsAndContinues(t *
 		t.Fatalf("obs.New: %v", err)
 	}
 
-	swept, err := sweepInterruptedDemoRenderStates(
+	swept, err := sweepInterruptedDemoRenderStatesFromRepo(
 		context.Background(),
 		repo,
 		failingPutStorage{Storage: store, failKeys: map[string]bool{unwritableKey: true}},
@@ -500,7 +501,7 @@ func TestSweepInterruptedGenerateRunsUsesActiveRunMarker(t *testing.T) {
 				t.Fatalf("Put malformed render state: %v", err)
 			}
 
-			swept, err := sweepInterruptedGenerateRuns(context.Background(), repo, store, nil)
+			swept, err := sweepInterruptedGenerateRunsFromRepo(context.Background(), repo, store, nil)
 			if err != nil {
 				t.Fatalf("sweepInterruptedGenerateRuns: %v", err)
 			}
@@ -1028,5 +1029,92 @@ func TestSweepInterruptedStreamRenderStatesRepairsCorruptDocumentsAndRecordsEach
 	}
 	if got, want := interruptedObsCount(rec, obs.StageRender), int64(2); got != want {
 		t.Errorf("render interrupted obs after job sweep = %d, want %d", got, want)
+	}
+}
+
+// countingJobRepository counts the uncapped status listings a startup pass
+// issues against the job repository.
+type countingJobRepository struct {
+	store.JobRepository
+	listByStatus atomic.Int64
+}
+
+func (r *countingJobRepository) ListByStatus(ctx context.Context, status job.Status) ([]job.Job, error) {
+	r.listByStatus.Add(1)
+	return r.JobRepository.ListByStatus(ctx, status)
+}
+
+// Every demo pass in startup reconciliation used to list all twelve statuses
+// for itself. They now share one listing, and that listing carries the status
+// each sweep left behind: a job failed while the snapshot was already in hand
+// must still read as failed, or the render-state materialization that gates on
+// Status.CanHaveRenderState() would skip exactly the jobs Studio polls first.
+func TestInterruptedWorkSharesOneDemoJobListing(t *testing.T) {
+	ctx := context.Background()
+	base := store.NewMemoryJobRepository()
+	queued := seedJob(t, base, job.StatusQueued)
+	generating := seedJob(t, base, job.StatusParsed)
+	untouched := seedJob(t, base, job.StatusDone)
+
+	files, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatalf("storage.NewLocal: %v", err)
+	}
+	loadouts := renderplan.LoadoutCatalog()
+	if len(loadouts) == 0 {
+		t.Fatal("LoadoutCatalog is empty")
+	}
+	putSweepFixture(t, files, artifacts.GenerateIntentKey(generating.ID), renderplan.GenerateIntent{
+		Variant:     loadouts[0].Variant,
+		Edit:        renderplan.DefaultEditRequest(),
+		ActiveRunID: uuid.New(),
+		AcceptedAt:  time.Now().UTC(),
+	})
+
+	repo := &countingJobRepository{JobRepository: base}
+	result, err := InterruptedWork(
+		ctx,
+		repo,
+		store.NewMemoryStreamJobRepository(),
+		store.NewMemoryEditorProjectRepository(),
+		files,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("InterruptedWork: %v", err)
+	}
+
+	// The job sweep walks its five interrupted statuses; the shared listing
+	// walks every status exactly once more, and no pass lists again.
+	wantListings := int64(5 + len(job.Statuses()))
+	if got := repo.listByStatus.Load(); got != wantListings {
+		t.Fatalf("ListByStatus calls = %d, want %d (one shared listing for every demo pass)", got, wantListings)
+	}
+
+	snapshot := map[uuid.UUID]job.Status{}
+	for _, j := range result.DemoJobSnapshot {
+		snapshot[j.ID] = j.Status
+	}
+	if len(snapshot) != 3 {
+		t.Fatalf("snapshot holds %d jobs, want every demo job", len(snapshot))
+	}
+	for id, want := range map[uuid.UUID]job.Status{
+		queued.ID:     job.StatusFailed,
+		generating.ID: job.StatusFailed,
+		untouched.ID:  job.StatusDone,
+	} {
+		if got := snapshot[id]; got != want {
+			t.Errorf("snapshot status for %s = %s, want %s", id, got, want)
+		}
+		durable, err := base.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("Get(%s): %v", id, err)
+		}
+		if durable.Status != want {
+			t.Errorf("durable status for %s = %s, want %s", id, durable.Status, want)
+		}
+		if !snapshot[id].CanHaveRenderState() {
+			t.Errorf("snapshot status %s for %s cannot have render state; the startup materialize pass would skip it", snapshot[id], id)
+		}
 	}
 }

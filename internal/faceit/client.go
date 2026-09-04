@@ -23,7 +23,29 @@ const (
 	defaultDetailWorkers    = 4
 	maxDetailWorkers        = 12
 	maxRequestAttempts      = 4
+
+	// defaultHTTPClientTimeout is a backstop only: every request already runs
+	// under a requestTimeout context, which cannot exceed maxRequestTimeout.
+	defaultHTTPClientTimeout = maxRequestTimeout + 15*time.Second
 )
+
+// defaultHTTPClient replaces http.DefaultClient for callers that do not supply
+// one. http.DefaultTransport keeps only 2 idle connections per host, so a
+// client running maxDetailWorkers requests wide would reconnect (and re-TLS)
+// on most calls. Size the idle pool to the widest concurrency this package can
+// reach.
+var defaultHTTPClient = &http.Client{
+	Timeout: defaultHTTPClientTimeout,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		MaxIdleConns:          2 * maxDetailWorkers,
+		MaxIdleConnsPerHost:   maxDetailWorkers,
+		MaxConnsPerHost:       maxDetailWorkers,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	},
+}
 
 type Client struct {
 	apiKey           string
@@ -32,6 +54,7 @@ type Client struct {
 	requestTimeout   time.Duration
 	maxResponseBytes int64
 	detailWorkers    int
+	requestSlots     chan struct{}
 	now              func() time.Time
 }
 
@@ -66,7 +89,7 @@ func New(opts Options) (*Client, error) {
 	}
 	httpClient := opts.HTTPClient
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = defaultHTTPClient
 	}
 	now := opts.Now
 	if now == nil {
@@ -79,8 +102,35 @@ func New(opts Options) (*Client, error) {
 		requestTimeout:   requestTimeout,
 		maxResponseBytes: maxResponseBytes,
 		detailWorkers:    detailWorkers,
+		requestSlots:     make(chan struct{}, detailWorkers),
 		now:              now,
 	}, nil
+}
+
+// acquire takes one of the client's request slots. The Data API has no client
+// side rate limiter here and answers a burst with 429, which getJSON can only
+// absorb by retrying (maxRequestAttempts, backoff capped at 10s) - long enough
+// to burn a caller's lookup deadline and fail-close the overlay. Callers that
+// fan out (OverlayPlayers x RecentMatches x RankingPosition, resolveDemos)
+// therefore share one budget of detailWorkers in-flight requests, which is the
+// peak this package already reached when every call site was serial.
+func (c *Client) acquire(ctx context.Context) error {
+	if c.requestSlots == nil {
+		return nil
+	}
+	select {
+	case c.requestSlots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Client) release() {
+	if c.requestSlots == nil {
+		return
+	}
+	<-c.requestSlots
 }
 
 func (c *Client) MarshalJSON() ([]byte, error) {
@@ -130,10 +180,19 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 	}
 
 	for attempt := 0; attempt < maxRequestAttempts; attempt++ {
-		requestCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
+		// The slot is held for one attempt only: a retry releases it before
+		// waiting so a backoff never occupies the shared request budget.
+		if err := c.acquire(ctx); err != nil {
+			return fmt.Errorf("FACEIT request: %w", err)
+		}
+		requestCtx, cancelRequest := context.WithTimeout(ctx, c.requestTimeout)
+		done := func() {
+			cancelRequest()
+			c.release()
+		}
 		req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, requestURL, nil)
 		if err != nil {
-			cancel()
+			done()
 			return fmt.Errorf("build FACEIT request: %w", err)
 		}
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -142,14 +201,14 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 		res, err := c.httpClient.Do(req)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				cancel()
+				done()
 				return fmt.Errorf("FACEIT request: %w", ctxErr)
 			}
 			if requestErr := requestCtx.Err(); requestErr != nil {
-				cancel()
+				done()
 				return fmt.Errorf("FACEIT request: %w", requestErr)
 			}
-			cancel()
+			done()
 			// A custom transport can reflect headers in an error. Keep the
 			// credential out of errors by returning a stable sentinel.
 			return ErrUnavailable
@@ -158,7 +217,7 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 		if res.StatusCode == http.StatusOK {
 			err = decodeBoundedJSON(res.Body, c.maxResponseBytes, dst)
 			_ = res.Body.Close()
-			cancel()
+			done()
 			return err
 		}
 
@@ -168,7 +227,7 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 			StatusCode: res.StatusCode,
 			RetryAfter: parseRetryAfter(res.Header.Get("Retry-After"), c.now()),
 		}
-		cancel()
+		done()
 		if !retryableStatus(res.StatusCode) || attempt == maxRequestAttempts-1 {
 			return apiErr
 		}

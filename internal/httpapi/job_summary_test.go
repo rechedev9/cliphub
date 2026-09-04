@@ -146,4 +146,93 @@ func TestListJobsReadsEachRosterOnceUntilDeleted(t *testing.T) {
 	if got := listJobs(t, h)[0].Summary; got == nil || got.Match.Map != "de_inferno" {
 		t.Fatalf("post-evict summary = %+v, want a fresh decode", got)
 	}
+	// Three lists, three distinct decodes: the cache served the middle one.
+	if got := store.openCount(artifacts.RosterKey(id)); got != 2 {
+		t.Fatalf("roster opens = %d, want 2 (first list + post-evict list)", got)
+	}
+}
+
+// TestListJobsRemembersAbsentRoster pins the tri-state rule: a job that is past
+// the scan window can never grow a roster, so its miss is memoized and the list
+// stops re-opening a file that is not there. A job still inside the scan window
+// must keep re-checking, because the scan worker publishes the artifact without
+// telling the API.
+func TestListJobsRemembersAbsentRoster(t *testing.T) {
+	cases := []struct {
+		name      string
+		status    job.Status
+		wantOpens int
+	}{
+		{name: "queued rechecks", status: job.StatusQueued, wantOpens: 3},
+		{name: "scanning rechecks", status: job.StatusScanning, wantOpens: 3},
+		{name: "scanned remembers", status: job.StatusScanned, wantOpens: 1},
+		{name: "parsed remembers", status: job.StatusParsed, wantOpens: 1},
+		{name: "done remembers", status: job.StatusDone, wantOpens: 1},
+		{name: "failed remembers", status: job.StatusFailed, wantOpens: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			store := newFakeStorage()
+			id := uuid.New()
+			repo.jobs = map[uuid.UUID]job.Job{id: {ID: id, Status: tc.status}}
+			h := NewHandlers(repo, store, &fakeQueue{})
+
+			for i := 0; i < 3; i++ {
+				if got := listJobs(t, h)[0].Summary; got != nil {
+					t.Fatalf("list %d summary = %+v, want none", i+1, got)
+				}
+			}
+			if got := store.openCount(artifacts.RosterKey(id)); got != tc.wantOpens {
+				t.Fatalf("roster opens = %d, want %d", got, tc.wantOpens)
+			}
+		})
+	}
+}
+
+// TestListJobsPicksUpRosterWrittenDuringScan is the case a memoized miss must
+// never break: the scan worker writes the artifact and flips the status while
+// the list is polling, and the very next poll shows the summary.
+func TestListJobsPicksUpRosterWrittenDuringScan(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	repo.jobs = map[uuid.UUID]job.Job{id: {ID: id, Status: job.StatusScanning}}
+	h := NewHandlers(repo, store, &fakeQueue{})
+
+	if got := listJobs(t, h)[0].Summary; got != nil {
+		t.Fatalf("scanning summary = %+v, want none", got)
+	}
+	// What the scan worker does, in its order: publish, then mark scanned.
+	putRoster(t, store, id, rosterArtifact{Match: rosterMatch{Map: "de_nuke"}})
+	repo.jobs[id] = job.Job{ID: id, Status: job.StatusScanned}
+	if got := listJobs(t, h)[0].Summary; got == nil || got.Match.Map != "de_nuke" {
+		t.Fatalf("scanned summary = %+v, want de_nuke", got)
+	}
+}
+
+// TestListJobsRecheckAbsentRosterAfterEvict covers the recovery path for a
+// memoized miss: evict is the one invalidation both kinds share, so a roster
+// that shows up afterwards is still picked up.
+func TestListJobsRechecksAbsentRosterAfterEvict(t *testing.T) {
+	repo := newFakeRepo()
+	store := newFakeStorage()
+	id := uuid.New()
+	repo.jobs = map[uuid.UUID]job.Job{id: {ID: id, Status: job.StatusParsed}}
+	h := NewHandlers(repo, store, &fakeQueue{})
+
+	if got := listJobs(t, h)[0].Summary; got != nil {
+		t.Fatalf("first summary = %+v, want none", got)
+	}
+	putRoster(t, store, id, rosterArtifact{Match: rosterMatch{Map: "de_ancient"}})
+	if got := listJobs(t, h)[0].Summary; got != nil {
+		t.Fatalf("summary = %+v, want the memoized absent to hold until evict", got)
+	}
+	if got := store.openCount(artifacts.RosterKey(id)); got != 1 {
+		t.Fatalf("roster opens = %d, want 1 before evict", got)
+	}
+	h.rosterCache.evict(id)
+	if got := listJobs(t, h)[0].Summary; got == nil || got.Match.Map != "de_ancient" {
+		t.Fatalf("post-evict summary = %+v, want de_ancient", got)
+	}
 }

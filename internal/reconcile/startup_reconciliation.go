@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/store"
@@ -21,6 +22,14 @@ type Result struct {
 	StreamRenderStates int
 	StreamAcquisitions []uuid.UUID
 	EditorRenders      int
+	// DemoJobSnapshot is every demo job, listed once after the job sweep and
+	// shared by the demo passes instead of re-listing all twelve statuses per
+	// pass. Each entry carries the status the repository holds when
+	// InterruptedWork returns, including jobs a sweep just failed, so a later
+	// startup pass that gates on Status.CanHaveRenderState() reads the same
+	// truth a fresh listing would. It is complete only when InterruptedWork
+	// returned a nil error; a partial listing comes back with that error.
+	DemoJobSnapshot []job.Job
 }
 
 func (r Result) Total() int {
@@ -57,14 +66,23 @@ func InterruptedWork(
 	if err != nil {
 		errs = append(errs, fmt.Errorf("demo jobs: %w", err))
 	}
-	result.DemoRenders, err = sweepInterruptedDemoRenderStates(ctx, jobs, files, rec)
+	// List every demo job once, after the job sweep so the snapshot already
+	// carries the statuses that sweep rewrote, and share it with the passes
+	// that follow. sweepInterruptedGenerateRuns patches the snapshot in place
+	// for the jobs it fails.
+	demoJobs, err := listAllDemoJobs(ctx, jobs)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("demo job listing: %w", err))
+	}
+	result.DemoRenders, err = sweepInterruptedDemoRenderStates(ctx, files, rec, demoJobs)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("demo render states: %w", err))
 	}
-	result.GenerateRuns, err = sweepInterruptedGenerateRuns(ctx, jobs, files, rec)
+	result.GenerateRuns, err = sweepInterruptedGenerateRuns(ctx, jobs, files, rec, demoJobs)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("generate runs: %w", err))
 	}
+	result.DemoJobSnapshot = demoJobs
 
 	// Inspect render states before failing parent stream jobs. The detailed
 	// result distinguishes completed durable renders from interrupted variants,

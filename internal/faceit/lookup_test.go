@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -176,9 +177,21 @@ func TestRecentMatchesMergesHistoryAndStats(t *testing.T) {
 func TestRecentMatchesClampsLimitAndRejectsInvalidID(t *testing.T) {
 	t.Parallel()
 
-	var seenLimit string
+	// RecentMatches fetches history and statistics concurrently, so both
+	// handler goroutines record the limit they were sent.
+	var (
+		mu        sync.Mutex
+		seenLimit string
+	)
+	lastLimit := func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return seenLimit
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		seenLimit = r.URL.Query().Get("limit")
+		mu.Unlock()
 		_, _ = w.Write([]byte(`{"items":[]}`))
 	}))
 	defer server.Close()
@@ -212,12 +225,12 @@ func TestRecentMatchesClampsLimitAndRejectsInvalidID(t *testing.T) {
 			}
 			switch test.limit {
 			case 99:
-				if seenLimit != "30" {
-					t.Fatalf("limit = %q, want 30", seenLimit)
+				if got := lastLimit(); got != "30" {
+					t.Fatalf("limit = %q, want 30", got)
 				}
 			case 0:
-				if seenLimit != "10" {
-					t.Fatalf("limit = %q, want 10", seenLimit)
+				if got := lastLimit(); got != "10" {
+					t.Fatalf("limit = %q, want 10", got)
 				}
 			}
 		})

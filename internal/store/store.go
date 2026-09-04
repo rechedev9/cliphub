@@ -20,6 +20,10 @@ type JobRepository interface {
 	Get(context.Context, uuid.UUID) (job.Job, error)
 	GetMeta(context.Context, uuid.UUID) (job.Job, error)
 	GetStatus(context.Context, uuid.UUID) (job.Status, string, int, error)
+	// GetStatuses is GetStatus for many ids in one query, so a batched poll
+	// costs one read instead of one per item. An id with no job is absent from
+	// the map: the same "not found" a single GetStatus reports, never an error.
+	GetStatuses(context.Context, []uuid.UUID) (map[uuid.UUID]job.StatusRow, error)
 	List(context.Context, int) ([]job.Job, error)
 	ListBySeries(context.Context, string) ([]job.Job, error)
 	ListByStatus(context.Context, job.Status) ([]job.Job, error)

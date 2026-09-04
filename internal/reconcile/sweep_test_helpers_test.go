@@ -19,6 +19,26 @@ func sweepInterruptedStreamRenderStates(ctx context.Context, repo streamInterrup
 	return result.Reconciled, err
 }
 
+// sweepInterruptedDemoRenderStatesFromRepo and sweepInterruptedGenerateRunsFromRepo
+// list the jobs themselves. Production shares one listing across both sweeps
+// (InterruptedWork owns it); these keep the per-sweep tests focused on the
+// sweep instead of the listing.
+func sweepInterruptedDemoRenderStatesFromRepo(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
+	jobs, err := listAllDemoJobs(ctx, repo)
+	if err != nil {
+		return 0, err
+	}
+	return sweepInterruptedDemoRenderStates(ctx, store, rec, jobs)
+}
+
+func sweepInterruptedGenerateRunsFromRepo(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
+	jobs, err := listAllDemoJobs(ctx, repo)
+	if err != nil {
+		return 0, err
+	}
+	return sweepInterruptedGenerateRuns(ctx, repo, store, rec, jobs)
+}
+
 func newTestSQLiteRepo(t *testing.T) *store.SQLiteJobRepository {
 	t.Helper()
 	repo, err := store.NewSQLiteJobRepository(filepath.Join(t.TempDir(), "jobs.db"))

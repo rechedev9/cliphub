@@ -16,7 +16,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/storage"
-	"github.com/rechedev9/cliphub/internal/store"
 	"github.com/rechedev9/cliphub/internal/streamclips"
 )
 
@@ -108,20 +107,20 @@ func interruptedDemoJobReason(status job.Status) string {
 // documents left by the previous process. Parent job status is deliberately
 // irrelevant: render variants have their own lifecycle and a stale render can
 // belong to a recorded, composed, done, or failed job.
-func sweepInterruptedDemoRenderStates(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
-	jobs, listErr := listAllDemoJobs(ctx, repo)
+//
+// jobs is the shared post-sweep listing owned by InterruptedWork; this sweep
+// reads it and never mutates it.
+func sweepInterruptedDemoRenderStates(ctx context.Context, store storage.Storage, rec *obs.Recorder, jobs []job.Job) (int, error) {
 	var errs []error
-	if listErr != nil {
-		errs = append(errs, listErr)
-	}
 	swept := 0
 	now := time.Now().UTC()
+	loadouts := renderplan.LoadoutCatalog()
 	for _, j := range jobs {
 		if err := ctx.Err(); err != nil {
 			errs = append(errs, err)
 			break
 		}
-		for _, loadout := range renderplan.LoadoutCatalog() {
+		for _, loadout := range loadouts {
 			key, err := renderplan.RenderVariantStateKey(j.ID, loadout.Variant)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("resolve demo render state for job %s variant %s: %w", j.ID, loadout.Variant, err))
@@ -179,15 +178,17 @@ func validDemoRenderStateIdentity(state renderplan.RenderVariantState, jobID uui
 // active run, then retires the marker so an explicit retry can be admitted.
 // Already-failed jobs and stale markers on other terminal states only need the
 // marker repair. Malformed artifacts are replaced with a valid idle intent.
-func sweepInterruptedGenerateRuns(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder) (int, error) {
-	jobs, listErr := listAllDemoJobs(ctx, repo)
+//
+// jobs is the shared post-sweep listing owned by InterruptedWork. Every job
+// this sweep fails has its in-memory Status patched to failed in that slice:
+// later startup passes gate on Status.CanHaveRenderState(), and a stale
+// pre-sweep status would make them skip exactly the jobs just failed here.
+func sweepInterruptedGenerateRuns(ctx context.Context, repo interruptSweeper, store storage.Storage, rec *obs.Recorder, jobs []job.Job) (int, error) {
 	var errs []error
-	if listErr != nil {
-		errs = append(errs, listErr)
-	}
 
 	swept := 0
-	for _, j := range jobs {
+	for i := range jobs {
+		j := &jobs[i]
 		var intent renderplan.GenerateIntent
 		found, readErr := readSweepJSON(store, artifacts.GenerateIntentKey(j.ID), &intent)
 		if !found {
@@ -211,6 +212,7 @@ func sweepInterruptedGenerateRuns(ctx context.Context, repo interruptSweeper, st
 				// the next startup's evidence that process-local work was lost.
 				continue
 			}
+			j.Status = job.StatusFailed
 		}
 
 		if readErr != nil || intentErr != nil {
@@ -517,12 +519,11 @@ func recordInterruptedRender(rec *obs.Recorder, jobID uuid.UUID, source, target,
 	})
 }
 
-// ListAllDemoJobs walks every defined job status so a render or generate
-// artifact is swept regardless of the parent job's lifecycle position.
-func ListAllDemoJobs(ctx context.Context, repo store.JobRepository) ([]job.Job, error) {
-	return listAllDemoJobs(ctx, repo)
-}
-
+// listAllDemoJobs walks every defined job status so a render or generate
+// artifact is swept regardless of the parent job's lifecycle position. It is
+// the most expensive read in startup reconciliation - one uncapped query per
+// status, each decoding whole job documents - so InterruptedWork calls it once
+// and shares the result with every pass that needs it.
 func listAllDemoJobs(ctx context.Context, repo interruptSweeper) ([]job.Job, error) {
 	var jobs []job.Job
 	var errs []error

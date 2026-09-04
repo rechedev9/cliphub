@@ -86,13 +86,34 @@ func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlay
 	if player.ID == "" {
 		return out, nil
 	}
-	matches, err := c.RecentMatches(ctx, player.ID, maxRecentMatchLimit)
-	if err != nil {
-		return OverlayPlayer{}, fmt.Errorf("recent matches: %w", err)
+	// The lookup above produced everything both calls need: recent matches and
+	// the regional ranking depend on player.ID (and Region), not on each other.
+	// Each goroutine writes only its own pair of variables and is joined below.
+	var (
+		wg         sync.WaitGroup
+		matches    []RecentMatch
+		matchesErr error
+		position   int
+		rankingErr error
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		matches, matchesErr = c.RecentMatches(ctx, player.ID, maxRecentMatchLimit)
+	}()
+	go func() {
+		defer wg.Done()
+		position, rankingErr = c.RankingPosition(ctx, player.Region, player.ID)
+	}()
+	wg.Wait()
+	if matchesErr != nil {
+		return OverlayPlayer{}, fmt.Errorf("recent matches: %w", matchesErr)
 	}
 	out.Recent = AggregateLast20(matches)
-	if pos, err := c.RankingPosition(ctx, player.Region, player.ID); err == nil && pos > 0 {
-		out.Ranking = &pos
+	// Unchanged: a ranking failure is swallowed and the card ships without a
+	// rank rather than failing the whole roster.
+	if rankingErr == nil && position > 0 {
+		out.Ranking = &position
 	}
 	return out, nil
 }
