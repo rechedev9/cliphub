@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-09-05T18:13:11.7216884Z",
+  "implementation_commit": "f2b749390793bdb97b255c79357b45345a9c7a76",
+  "base_commit": "cf412c587ac47faa707f020600e2aa3ad3c7b5f8",
+  "spec_sha256": "ca21fdecfd72aec98f1a5c2b535b13bbc48780df22712730376bee25d2a562dd",
+  "highest_completed_level": "L4",
+  "hlae_cs2_verified": false,
+  "real_capture_started": false,
+  "capture_control": "paused after physical Escape stopped Computer Use",
+  "real_demo": {
+    "name": "spirit-vs-furia-m1-ancient.dem",
+    "sha256": "1038a5ea60a758bde67a96619d03bd14cf7b9e9ccd032cc3af731f0d948fd93c",
+    "player": "donk",
+    "steamid64": "76561198386265483",
+    "full_demo_rounds": 23,
+    "zero_kill_rounds": 10,
+    "facts_complete": true
+  },
+  "checks": {
+    "go_suite": "passed",
+    "go_race": "passed",
+    "go_vet": "passed",
+    "cli_rebased": "passed",
+    "web_package": "passed",
+    "chromium_presentation_cases": 18,
+    "live_studio_download": "passed with byte equality",
+    "electron_cases": 7,
+    "capture_lab_full": "passed",
+    "installer_integrity": "passed",
+    "authenticode": "NotSigned",
+    "govulncheck_reachable": 0,
+    "staticcheck_legacy_unused": 6,
+    "gosec_findings": 27
+  },
+  "installer_sha256": "3b9c18a60f42cb43ff48b67e112905ff7c36e263d309d9dccf3e7533a0035aff",
+  "evidence_root": "data/full-demo-astra-evidence",
+  "evidence": [
+    {
+      "path": "go-tests.jsonl",
+      "sha256": "fbb8081e6704adb4e5626c772d5d57d75666e1a419ec5c079898d7afc01f9489"
+    },
+    {
+      "path": "go-race.txt",
+      "sha256": "5685ba5d93a514e64b2a76eb2ce0332e3ab0ecfd67a6d494c2b3bbbc2d89521b"
+    },
+    {
+      "path": "real-full-demo-facts.txt",
+      "sha256": "7b33784a41968544448f26c165ae5baaff5627039984c6b58aaf11a8c9daa576"
+    },
+    {
+      "path": "doctor-final.json",
+      "sha256": "18888b823e8cc18551756d0bd4b2a51c73ad0b9a65b877a3821761eb2bbbcba6"
+    },
+    {
+      "path": "prove-full-demo-final.json",
+      "sha256": "6b7512edad333ebb430ef8c1d5f17770e58be265110222670e85fc3d1de11b0c"
+    },
+    {
+      "path": "prove-shorts-final.json",
+      "sha256": "4a2940c8672390006154177243c8bab039b548b9c29e89842e1f4455993a34f7"
+    },
+    {
+      "path": "desktop-unsigned-runtime-final.json",
+      "sha256": "2696a6a063ed2bb3584f358ed1ab0dd22c030139c76a4ae5d011e98b16d14311"
+    },
+    {
+      "path": "security-review.json",
+      "sha256": "72fbf14f6c3535f1d1f3b9eb753ba3f4ef16bf9d86f0b1a351b2af09769dd827"
+    },
+    {
+      "path": "gosec-final.json",
+      "sha256": "42d57d4b1b18956424f01a5f71631a0f1415d50c2341256786d6d5b4afd01a94"
+    },
+    {
+      "path": "staticcheck-final.txt",
+      "sha256": "18fd271c0058fc5d87cc669b33d5bf2e246b660e22cf9beb83b983a061a4429f"
+    },
+    {
+      "path": "capture-lab-final-pass/summary.json",
+      "sha256": "da182ba4938047e46fe838be8118fdf57503910429677491ab7f1a2fb060836b"
+    },
+    {
+      "path": "desktop-e2e-final.txt",
+      "sha256": "2e9afc3926ee1b7f05441acf4db3d1e9b61907d8860b5ccc477b308385076a63"
+    },
+    {
+      "path": "web-e2e.txt",
+      "sha256": "d445b53467a3a1482c0be0c29dfbc454be6c5714f404fca6c99ae21383b81a6f"
+    }
+  ]
+}

@@ -313,9 +313,10 @@ async function studioPhase(context) {
     evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
   });
   steps.push(execution.record);
-  execution = await execute('studio-playwright-journeys', 'pnpm', [
-    '--dir', 'web', 'exec', 'playwright', 'test', 'e2e/full-demo.spec.ts', 'e2e/library.spec.ts', '--reporter=line',
-  ], {
+  // Use the Windows shim through cmd with fixed, repository-owned arguments.
+  const playwrightArgs = ['--dir', 'web', 'exec', 'playwright', 'test', 'e2e/full-demo.spec.ts', 'e2e/library.spec.ts', '--reporter=line'];
+  execution = await execute('studio-playwright-journeys', process.platform === 'win32' ? 'cmd.exe' : 'pnpm',
+    process.platform === 'win32' ? ['/d', '/s', '/c', `pnpm ${playwrightArgs.join(' ')}`] : playwrightArgs, {
     evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
     env: {
       PLAYWRIGHT_OUTPUT_DIR: join(evidenceDir, 'playwright-results'),

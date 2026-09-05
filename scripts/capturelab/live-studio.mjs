@@ -102,6 +102,7 @@ async function stopProcess(child) {
 const options = parseArgs(process.argv.slice(2));
 await mkdir(options.evidenceDir, { recursive: true });
 const seed = JSON.parse(await readFile(options.seed, 'utf8'));
+const sourcePlan = JSON.parse(await readFile(seed.killplan_path, 'utf8'));
 const token = randomBytes(32).toString('hex');
 const [apiPort, webPort] = await Promise.all([freePort(), freePort()]);
 const apiURL = `http://127.0.0.1:${apiPort}`;
@@ -147,6 +148,7 @@ try {
       CAPTURE_LAB_LIVE: '1',
       CAPTURE_LAB_JOB_ID: seed.job_id,
       CAPTURE_LAB_VARIANT: seed.variant,
+      CAPTURE_LAB_SEGMENT_IDS: JSON.stringify(sourcePlan.segments.map((segment) => segment.id)),
       CAPTURE_LAB_EXPECTED_VIDEO: expectedVideo,
       PLAYWRIGHT_OUTPUT_DIR: join(options.evidenceDir, 'live-playwright-results'),
       PLAYWRIGHT_HTML_OUTPUT_DIR: join(options.evidenceDir, 'live-playwright-report'),
