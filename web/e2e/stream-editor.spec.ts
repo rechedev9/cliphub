@@ -44,6 +44,7 @@ type StreamStub = {
   puts: Plan[];
   /** Make the next PUTs fail with this 400 body, or pass null to accept them again. */
   rejectPuts(error: string | null): void;
+  renderResult(mode: 'clips' | 'empty' | 'omitted'): void;
 };
 
 async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = false): Promise<StreamStub> {
@@ -53,6 +54,7 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = fals
   if (empty) plan.clips = [];
   let exported = false;
   let renderPolls = 0;
+  let renderResult: 'clips' | 'empty' | 'omitted' = 'clips';
   await page.route(`**/api/streams/${JOB_ID}`, (route) =>
     route.fulfill(
       json({
@@ -80,10 +82,13 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = fals
     if (route.request().url().includes('/videos/')) return route.fulfill({ path: mediaPath, contentType: 'video/mp4' });
     if (route.request().method() === 'POST') {
       exported = true;
+      renderPolls = 0;
       return route.fulfill(json({ status: 'queued' }));
     }
     if (!exported) return route.fulfill(json({ error: 'no render' }, 404));
     if (renderPolls++ === 0) return route.fulfill(json({ status: 'rendering' }));
+    if (renderResult === 'omitted') return route.fulfill(json({ status: 'rendered' }));
+    if (renderResult === 'empty') return route.fulfill(json({ status: 'rendered', videos: [] }));
     return route.fulfill(
       json({
         status: 'rendered',
@@ -104,6 +109,9 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = fals
     puts,
     rejectPuts(error) {
       putError = error;
+    },
+    renderResult(mode) {
+      renderResult = mode;
     },
   };
 }
@@ -164,6 +172,57 @@ test.describe('stream editor', () => {
     await railStep(page, /Guardar vídeos/).click();
     await expect(cta(page, 'Exportar 1 Short →')).toBeEnabled();
     await expect(page.getByRole('link', { name: /Guardar vídeo:/ })).toHaveCount(0);
+  });
+
+  for (const mode of ['empty', 'omitted'] as const) {
+    test(`a completed render with ${mode} videos can be retried without editing the plan`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      const stub = await stubStreamJob(page, true);
+      stub.renderResult(mode);
+      await gotoStudio(page, `/streams/${JOB_ID}`);
+      await cta(page, 'Continuar al aspecto →').click();
+      await cta(page, 'Revisar Shorts →').click();
+      await cta(page, 'Exportar 1 Short →').click();
+      await expect(stepTitle(page, 'Guardar vídeos')).toBeVisible();
+      await expect(
+        page.getByText('No se generó ningún vídeo. Vuelve a exportar para intentarlo de nuevo.'),
+      ).toBeVisible();
+      await expect(page.getByText('Tus vídeos están listos.', { exact: false })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: /Guardar vídeo:/ })).toHaveCount(0);
+      await expect(cta(page, 'Abrir YouTube Studio')).toHaveCount(0);
+      expect(errors).toEqual([]);
+      stub.renderResult('clips');
+      await cta(page, 'Exportar 1 Short →').click();
+      await expect(page.getByLabel('Vídeo final')).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Guardar vídeo: Clutch 1v3' })).toHaveCount(2);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('both download buttons use the selected untitled Short number', async ({ page }) => {
+    await stubStreamJob(page, true);
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await cta(page, 'Nuevo momento').click();
+    await page.getByLabel('Inicio (s)', { exact: true }).fill('20');
+    await page.getByLabel('Fin (s)', { exact: true }).fill('23');
+    await page.getByLabel('Fin (s)', { exact: true }).blur();
+    await cta(page, 'Añadir este momento').click();
+    await page.getByLabel('Título del corte 02').fill('');
+    await cta(page, 'Continuar al aspecto →').click();
+    await cta(page, 'Revisar Shorts →').click();
+    await cta(page, 'Exportar 2 Shorts →').click();
+    await expect(page.getByLabel('Vídeo final')).toBeVisible();
+    await page.getByRole('button', { name: 'Short 2 · 0:03', exact: true }).click();
+    await expect(stepTitle(page, 'Short 2')).toBeVisible();
+    const downloads = page.getByRole('link', { name: 'Guardar vídeo: Short 2', exact: true });
+    await expect(downloads).toHaveCount(2);
+    for (const link of await downloads.all()) {
+      await expect(link).toHaveAttribute('download', 'Short 2.mp4');
+      expect(await link.getAttribute('href')).toBe(await page.getByLabel('Vídeo final').getAttribute('src'));
+    }
+    await page.getByRole('button', { name: 'Clutch 1v3 · 0:12', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Guardar vídeo: Clutch 1v3', exact: true })).toHaveCount(2);
   });
 
   test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({

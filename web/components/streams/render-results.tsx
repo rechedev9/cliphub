@@ -21,20 +21,21 @@ export function StreamRenderResults({
   onSelect: (clipId: string) => void;
 }): ReactNode {
   if (!renderState) return null;
+  const videos = renderState.videos ?? [];
+  const empty = videos.length === 0;
+  let message = 'Tus vídeos están listos. Revísalos y guárdalos en tu equipo.';
+  if (empty) message = 'No se generó ningún vídeo. Vuelve a exportar para intentarlo de nuevo.';
+  else if (stale) message = 'Hay cambios sin exportar. Exporta de nuevo para aplicarlos.';
   return (
     <div className="flex flex-col gap-4">
-      <p className={stale ? 'text-warning' : 'text-success'}>
-        {stale
-          ? 'Hay cambios sin exportar. Exporta de nuevo para aplicarlos.'
-          : 'Tus vídeos están listos. Revísalos y guárdalos en tu equipo.'}
-      </p>
+      <p className={empty || stale ? 'text-warning' : 'text-success'}>{message}</p>
       {renderState.warnings?.map((warning, i) => (
         <p key={i} className="text-warning text-body-sm">
           {warning}
         </p>
       ))}
       <ul className="flex flex-col gap-3">
-        {renderState.videos.map((v, index) => {
+        {videos.map((v, index) => {
           const label = v.title || `Short ${index + 1}`;
           return (
             <li key={v.clip_id} className="rounded-md border border-border-subtle p-3">
@@ -57,12 +58,14 @@ export function StreamRenderResults({
           );
         })}
       </ul>
-      <div className="border-t border-border-subtle pt-3">
-        <Button variant="outline" disabled={stale} onClick={openYouTubeStudio}>
-          Abrir YouTube Studio
-        </Button>
-        <p className="mt-2 text-label text-fg-3">Guarda el vídeo y súbelo desde tu cuenta de YouTube.</p>
-      </div>
+      {!empty ? (
+        <div className="border-t border-border-subtle pt-3">
+          <Button variant="outline" disabled={stale} onClick={openYouTubeStudio}>
+            Abrir YouTube Studio
+          </Button>
+          <p className="mt-2 text-label text-fg-3">Guarda el vídeo y súbelo desde tu cuenta de YouTube.</p>
+        </div>
+      ) : null}
       {renderState.delivery?.length ? (
         <details className="rounded-md border border-border-subtle p-3">
           <summary className="cursor-pointer text-body-sm text-fg-3">Archivos adicionales</summary>

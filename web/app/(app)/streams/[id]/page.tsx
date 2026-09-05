@@ -166,7 +166,20 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           if (state.status === 'rendered') {
             setRenderedPlan(attemptedPlan);
             setStage('rendered');
-            if (announce) toast(`${shortsWord(state.videos.length)} listos`, { position: 'top-right', description: 'Revísalos y guárdalos en Guardar vídeos' });
+            if (announce) {
+              const videoCount = state.videos?.length ?? 0;
+              if (videoCount > 0) {
+                toast(`${shortsWord(videoCount)} listos`, {
+                  position: 'top-right',
+                  description: 'Revísalos y guárdalos en Guardar vídeos',
+                });
+              } else {
+                toast.error('No se generó ningún vídeo', {
+                  position: 'top-right',
+                  description: 'Vuelve a exportar para intentarlo de nuevo.',
+                });
+              }
+            }
             return;
           }
           if (state.status === 'failed') {

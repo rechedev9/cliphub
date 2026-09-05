@@ -40,6 +40,7 @@ export function streamEditorSteps({
   rendering?: boolean;
 }): StreamStepEntry[] {
   const faceReady = !streamVariantNeedsFaceCrop(plan) || plan.face_crop_reviewed === true;
+  const videoCount = renderState?.videos?.length ?? 0;
   const steps: StreamStepEntry[] = [
     {
       key: 'cuts',
@@ -62,18 +63,20 @@ export function streamEditorSteps({
       number: '3',
       label: STREAM_STEP_LABEL.review,
       detail: 'Un vídeo por momento',
-      done: !!renderState?.videos?.length && !stale,
+      done: videoCount > 0 && !stale,
       optional: false,
     },
   ];
   if (rendering || renderState?.status === 'rendered' || renderState?.published) {
-    const resultDetail = stale ? 'Hay cambios sin exportar' : shortsWord(renderState?.videos?.length ?? 0);
+    let resultDetail = shortsWord(videoCount);
+    if (!videoCount) resultDetail = 'Sin vídeos · vuelve a exportar';
+    else if (stale) resultDetail = 'Hay cambios sin exportar';
     steps.push({
       key: 'results',
       number: '4',
       label: STREAM_STEP_LABEL.results,
       detail: rendering ? 'Creando vídeos…' : resultDetail,
-      done: !rendering && !stale,
+      done: videoCount > 0 && !rendering && !stale,
       optional: false,
     });
   }

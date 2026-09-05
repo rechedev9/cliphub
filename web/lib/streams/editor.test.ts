@@ -38,6 +38,18 @@ test('moments must exist before camera confirmation, and no-camera layouts skip 
   assert.equal(streamPlanBlocker(plan({ face_crop_reviewed: false })), 'layout');
   assert.equal(streamPlanBlocker(plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false })), null);
 });
+
+test('a completed render without videos keeps review and saving incomplete', () => {
+  const steps = streamEditorSteps({
+    plan: plan(),
+    renderState: { status: 'rendered', videos: [] },
+    stale: false,
+  });
+  assert.equal(steps.find((step) => step.key === 'review')?.done, false);
+  assert.equal(steps.at(-1)?.key, 'results');
+  assert.equal(steps.at(-1)?.done, false);
+  assert.equal(steps.at(-1)?.detail, 'Sin vídeos · vuelve a exportar');
+});
 test('actions describe the next step and do not re-export an unchanged result', () => {
   const base = { plan: plan(), rendering: false, hasRender: false };
   assert.equal(streamCtaLabel({ ...base, activeStep: 'cuts' }), 'Continuar al aspecto →');

@@ -115,7 +115,14 @@ export function StreamEditor({
 
   const [activeStep, setActiveStep] = useState<StreamStep>(hasRender ? STREAM_STEP.results : STREAM_STEP.cuts);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(plan.clips[0]?.id ?? null);
-  const resultClip = renderState?.videos?.find((v) => v.clip_id === selectedClipId) ?? renderState?.videos?.[0];
+  const resultVideos = renderState?.videos ?? [];
+  const resultIndex = Math.max(
+    0,
+    resultVideos.findIndex((v) => v.clip_id === selectedClipId),
+  );
+  const resultClip = resultVideos[resultIndex];
+  const resultTitle = resultClip?.title || `Short ${resultIndex + 1}`;
+  const hasRenderedVideos = hasRender && resultVideos.length > 0;
   const [draftRange, setDraftRange] = useState({ start_seconds: 0, end_seconds: Math.min(sourceDuration, 30) });
   const [creatingMoment, setCreatingMoment] = useState(plan.clips.length === 0);
   const [playbackMode, setPlaybackMode] = useState<StreamPlaybackMode>('source');
@@ -433,7 +440,7 @@ export function StreamEditor({
   const ctaLabel =
     rangesIssue && activeStep === 'review'
       ? 'Corregir momentos →'
-      : streamCtaLabel({ plan, rendering: stage === 'rendering', hasRender, activeStep, stale });
+      : streamCtaLabel({ plan, rendering: stage === 'rendering', hasRender: hasRenderedVideos, activeStep, stale });
   // While something blocks the render the CTA names it but stays a real link
   // to that step instead of a disabled dead end.
   const blocker = rangesIssue ? STREAM_STEP.cuts : streamPlanBlocker(plan);
@@ -670,7 +677,7 @@ export function StreamEditor({
           <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-4" aria-label="Monitor">
             {activeStep === 'results' && hasRender && resultClip && renderedPlan ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-                <h2 className="font-semibold">{resultClip.title || 'Tu Short'}</h2>
+                <h2 className="font-semibold">{resultTitle}</h2>
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <video
                   key={`${resultClip.clip_id}:${renderedPlan.updated_at}`}
@@ -795,7 +802,7 @@ export function StreamEditor({
               else navigateStep('review');
               return;
             }
-            if (hasRender && !stale) {
+            if (hasRenderedVideos && !stale) {
               navigateStep('results');
               return;
             }
@@ -818,7 +825,7 @@ export function StreamEditor({
                 variant={renderedPlan.variant}
                 revision={renderedPlan.updated_at}
                 clipId={resultClip.clip_id}
-                title={resultClip.title || 'Short 1'}
+                title={resultTitle}
                 prominent
               />
             ) : undefined
