@@ -69,15 +69,15 @@ export function StreamMonitor({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(100px,0.6fr)] items-center gap-4">
-        <div className="min-w-0">
+      <div className="grid h-[min(24vh,240px)] min-h-[150px] shrink-0 grid-cols-[minmax(0,1fr)_minmax(100px,0.6fr)] items-center gap-4 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-col self-stretch">
           <p className="mb-2 text-label font-semibold text-fg-2">
             {cropEditor ? 'Selecciona la cámara en el original' : 'Vídeo original'}
           </p>
           {cropEditor ? (
             <CropPicker {...cropEditor} />
           ) : (
-            <div className="relative aspect-video overflow-hidden rounded-md bg-black">
+            <div className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-black">
               <StreamFrameCanvas mode="contain" className="size-full" />
             </div>
           )}
@@ -85,12 +85,12 @@ export function StreamMonitor({
             <p className="mt-2 text-label text-fg-3">Arrastra el marco y su esquina. También puedes usar las flechas.</p>
           ) : null}
         </div>
-        <div className="flex min-h-0 flex-col items-center">
+        <div className="flex min-h-0 self-stretch flex-col items-center">
           <p className="mb-2 text-label font-semibold text-fg-2">Vista del Short</p>
-          <StreamPreview {...preview} className="h-[min(36vh,360px)] w-auto min-h-[150px]" />
+          <StreamPreview {...preview} className="min-h-0 flex-1 w-auto" />
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué reproducir">
+      <div className="flex shrink-0 flex-wrap items-center gap-2" role="group" aria-label="Qué reproducir">
         <Button variant={mode === STREAM_PLAYBACK_MODE.source ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === STREAM_PLAYBACK_MODE.source} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.source)}>
           Vídeo original
         </Button>
@@ -103,7 +103,7 @@ export function StreamMonitor({
           </Button>
         ) : null}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Button variant="outline" disabled={!canPlay} onClick={onTogglePlay}>
             {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
@@ -117,7 +117,7 @@ export function StreamMonitor({
           {formatStreamClock(elapsedSeconds)} / {formatStreamClock(playbackDuration)}
         </output>
       </div>
-      <input type="range" aria-label="Posición del vídeo original" min={0} max={sourceDuration || 1} step={0.01} value={Math.min(sourceDuration, Math.max(0, frameSeconds))} disabled={sourceDuration <= 0} onChange={(event) => onSeek(Number(event.target.value))} className="w-full accent-stream" />
+      <input type="range" aria-label="Posición del vídeo original" min={0} max={sourceDuration || 1} step={0.01} value={Math.min(sourceDuration, Math.max(0, frameSeconds))} disabled={sourceDuration <= 0} onChange={(event) => onSeek(Number(event.target.value))} className="w-full shrink-0 accent-stream" />
       {statusLabel ? <p role="status" className="text-label text-fg-3">{statusLabel}</p> : null}
       {previewError ? (
         <div role="alert" className="text-body-sm text-destructive">

@@ -235,7 +235,7 @@ test('real Electron playback imports, previews, renders and plays one immutable 
 
     await page.getByLabel('Fin (s)').fill('2');
     await page.getByRole('button', { name: 'Añadir este momento', exact: true }).click();
-    await page.getByLabel('Título del corte 1').fill('Electron playback Short');
+    await page.getByLabel('Título del corte 01', { exact: true }).fill('Electron playback Short');
 
     const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
     await decoder.waitFor({ state: 'attached', timeout: 30_000 });
@@ -349,6 +349,18 @@ test('real Electron playback imports, previews, renders and plays one immutable 
       };
     });
 
+    await app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      win?.show();
+      win?.focus();
+    });
+    await pollValue(
+      'focused native window for fullscreen',
+      () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFocused() ?? false),
+      (focused) => focused === true,
+      5_000,
+    );
+    await page.waitForFunction(() => document.hasFocus());
     await dialog.getByRole('button', { name: 'Pantalla completa' }).click();
     await page.waitForFunction(() => document.fullscreenElement !== null);
     await page.keyboard.press('Escape');
