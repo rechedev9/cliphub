@@ -336,6 +336,73 @@ func TestStreamListIsolatesCorruptRenderedOutputsToOneJob(t *testing.T) {
 	}
 }
 
+func TestGetStreamJobIsolatesCorruptRenderedOutputs(t *testing.T) {
+	repo := newFakeStreamRepo()
+	store := newFakeStorage()
+	jobID := uuid.New()
+	plan := streamclips.DefaultEditPlan()
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.jobs[jobID] = streamclips.Job{
+		ID: jobID, Status: streamclips.StatusRendered, EditPlan: planJSON, Title: "Keep editing",
+	}
+	corruptStateKey, _ := streamclips.RenderStateKey(jobID, streamclips.DefaultVariant().Name)
+	_ = store.Put(corruptStateKey, strings.NewReader(`{"not":"valid render state"}`))
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(repo))
+
+	rr := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/stream-jobs/"+jobID.String(), nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("detail response = %d %s", rr.Code, rr.Body.String())
+	}
+	var body struct {
+		Title                      string                 `json:"title"`
+		EditPlan                   json.RawMessage        `json:"edit_plan"`
+		RenderedOutputs            []streamRenderedOutput `json:"rendered_outputs"`
+		RenderedOutputsUnavailable bool                   `json:"rendered_outputs_unavailable"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Title != "Keep editing" || len(body.EditPlan) == 0 || len(body.RenderedOutputs) != 0 || !body.RenderedOutputsUnavailable {
+		t.Fatalf("isolated detail = %+v %s", body, rr.Body.String())
+	}
+}
+
+func TestStreamListSkipsRenderCatalogForUnpublishedJobs(t *testing.T) {
+	repo := newFakeStreamRepo()
+	store := newFakeStorage()
+	jobID := uuid.New()
+	repo.jobs[jobID] = streamclips.Job{ID: jobID, Status: streamclips.StatusReady, CreatedAt: time.Now()}
+	corruptStateKey, _ := streamclips.RenderStateKey(jobID, streamclips.DefaultVariant().Name)
+	_ = store.Put(corruptStateKey, strings.NewReader(`{"not":"valid render state"}`))
+	h := NewHandlers(newFakeRepo(), store, &fakeQueue{}, WithStreamRepository(repo))
+
+	rr := httptest.NewRecorder()
+	Routes(h).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/stream-jobs?limit=10", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list response = %d %s", rr.Code, rr.Body.String())
+	}
+	var response struct {
+		Jobs []struct {
+			ID                         uuid.UUID              `json:"id"`
+			RenderedOutputs            []streamRenderedOutput `json:"rendered_outputs"`
+			RenderedOutputsUnavailable bool                   `json:"rendered_outputs_unavailable"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Jobs) != 1 || response.Jobs[0].ID != jobID {
+		t.Fatalf("jobs = %+v", response.Jobs)
+	}
+	if response.Jobs[0].RenderedOutputsUnavailable || response.Jobs[0].RenderedOutputs == nil || len(response.Jobs[0].RenderedOutputs) != 0 {
+		t.Fatalf("unpublished list row = %+v", response.Jobs[0])
+	}
+}
+
 func putStreamOutputJSON(t *testing.T, store *fakeStorage, key string, value any) {
 	t.Helper()
 	body, err := json.Marshal(value)

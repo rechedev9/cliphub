@@ -296,11 +296,7 @@ type streamJobListItem struct {
 func (h *Handlers) streamJobListItems(jobs []streamclips.Job) []streamJobListItem {
 	items := make([]streamJobListItem, 0, len(jobs))
 	for _, j := range jobs {
-		outputs, err := h.streamRenderedOutputs(j)
-		unavailable := err != nil
-		if unavailable {
-			outputs = []streamRenderedOutput{}
-		}
+		outputs, unavailable := h.streamJobRenderedOutputs(j, false)
 		item := streamJobListItem{
 			Job:                        j,
 			ClipCount:                  streamClipCount(j.EditPlan),
@@ -334,15 +330,35 @@ func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	j.FailureCode = jobFailureCode(j.FailureReason, j.FailureCode)
-	outputs, err := h.streamRenderedOutputs(j)
-	if err != nil {
-		internalError(w, "summarize stream render outputs", err)
-		return
-	}
+	outputs, unavailable := h.streamJobRenderedOutputs(j, true)
 	writeJSON(w, http.StatusOK, struct {
 		streamclips.Job
-		RenderedOutputs []streamRenderedOutput `json:"rendered_outputs"`
-	}{Job: j, RenderedOutputs: outputs})
+		RenderedOutputs            []streamRenderedOutput `json:"rendered_outputs"`
+		RenderedOutputsUnavailable bool                   `json:"rendered_outputs_unavailable,omitempty"`
+	}{Job: j, RenderedOutputs: outputs, RenderedOutputsUnavailable: unavailable})
+}
+
+// streamJobRenderedOutputs isolates catalog failures so a damaged status.json
+// cannot take down the job. List skips statuses that never publish, because
+// the hub polls this path; detail always probes so an editor can still open.
+func (h *Handlers) streamJobRenderedOutputs(j streamclips.Job, force bool) ([]streamRenderedOutput, bool) {
+	if !force && !streamJobMayHavePublishedOutputs(j.Status) {
+		return []streamRenderedOutput{}, false
+	}
+	outputs, err := h.streamRenderedOutputs(j)
+	if err != nil {
+		return []streamRenderedOutput{}, true
+	}
+	return outputs, false
+}
+
+func streamJobMayHavePublishedOutputs(status streamclips.Status) bool {
+	switch status {
+	case streamclips.StatusRendering, streamclips.StatusRendered, streamclips.StatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 // streamRenderedOutput is the bounded library projection of one committed

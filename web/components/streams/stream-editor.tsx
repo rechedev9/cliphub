@@ -200,7 +200,6 @@ export function StreamEditor({
     panelRef.current?.scrollTo(0, 0);
   }
   function seek(seconds: number) {
-    setPreviewPlaying(false);
     const bounded = Math.max(0, Math.min(sourceDuration, seconds));
     setPreviewSeconds(bounded);
     setPreviewSeek((previous) => ({ seconds: bounded, revision: previous.revision + 1 }));

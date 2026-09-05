@@ -76,6 +76,11 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
           mixer.pause();
           latest.current.onPlayingChange(false);
           latest.current.onMediaError();
+        } else if (state.status === PLAYBACK_STATUS.paused && !state.playRequested && latest.current.playing) {
+          queueMicrotask(() => {
+            if (!alive || session.playRequested || !latest.current.playing) return;
+            latest.current.onPlayingChange(false);
+          });
         }
       },
       onRangeEnd: () => {

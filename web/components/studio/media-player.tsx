@@ -22,6 +22,7 @@ import {
   parseMediaPlaybackStore,
   updateMediaPlaybackStore,
 } from '@/lib/media-playback-store';
+import { browserWindowActivity } from '@/lib/window-activity';
 import { cn } from '@/lib/utils';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,6 @@ export function MediaPlayer({
   const activeIndex = useMemo(() => items.findIndex((item) => item.id === activeId), [activeId, items]);
   const item = activeIndex >= 0 ? items[activeIndex] : undefined;
   const storageKey = item ? mediaPlaybackKey(item) : null;
-  const playbackUrl = item?.playbackUrl;
 
   const persistVideo = useCallback((video: HTMLVideoElement, key: string): void => {
     try {
@@ -174,10 +174,6 @@ export function MediaPlayer({
     }
     const video = videoRef.current;
     const key = storageKey;
-    if (video !== null && playbackUrl !== undefined && video.getAttribute('src') !== playbackUrl) {
-      video.src = playbackUrl;
-      video.load();
-    }
     return () => {
       playbackGeneration.current += 1;
       if (video !== null && key !== null) persistVideo(video, key);
@@ -186,7 +182,7 @@ export function MediaPlayer({
       video?.load();
       release();
     };
-  }, [open, persistVideo, playbackUrl, release, returnFocus, storageKey]);
+  }, [open, persistVideo, release, returnFocus, storageKey]);
 
   useEffect(() => {
     if (!open || item !== undefined) return;
@@ -199,18 +195,13 @@ export function MediaPlayer({
   useEffect(() => {
     if (!open) return;
     const suspend = (): void => {
+      if (browserWindowActivity.isActive()) return;
       persist();
       pause();
     };
-    const onVisibilityChange = (): void => {
-      if (document.visibilityState === 'hidden') suspend();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', suspend);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', suspend);
-    };
+    const unsubscribe = browserWindowActivity.subscribe(suspend);
+    suspend();
+    return unsubscribe;
   }, [open, pause, persist]);
 
   useEffect(() => {
@@ -246,8 +237,7 @@ export function MediaPlayer({
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.target instanceof HTMLInputElement) return;
-      if (event.target instanceof HTMLButtonElement && (event.key === ' ' || event.key === 'Enter')) return;
+      if (!shouldHandleMediaPlayerShortcut(event)) return;
       const video = videoRef.current;
       if (video === null) return;
       switch (event.key.toLowerCase()) {
@@ -502,10 +492,19 @@ export function MediaPlayer({
 
         {item.warnings.length > 0 ? (
           <ul className="flex list-disc flex-col gap-1 pl-5 text-body-sm text-warning">
-            {item.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            {item.warnings.map((warning, index) => <li key={`${index}:${warning}`}>{warning}</li>)}
           </ul>
         ) : null}
       </DialogContent>
     </Dialog>
   );
+}
+
+function shouldHandleMediaPlayerShortcut(event: KeyboardEvent): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  const target = event.target;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return false;
+  if (target instanceof HTMLElement && target.isContentEditable) return false;
+  if (target instanceof HTMLButtonElement && (event.key === ' ' || event.key === 'Enter')) return false;
+  return true;
 }
