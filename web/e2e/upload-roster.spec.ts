@@ -60,6 +60,98 @@ async function scanDemo(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="player-avatar"]').first()).toBeVisible();
 }
 
+test('demo drag feedback survives child boundaries and resets on exit or an outside drop', async ({ page }) => {
+  await gotoStudio(page, '/clips/nueva');
+  const dropzone = page.locator('[data-slot="dropzone"]');
+  await expect(dropzone.locator('input')).toBeEnabled();
+  const child = dropzone.locator('span').first();
+  await dropzone.dispatchEvent('dragenter');
+  await child.dispatchEvent('dragenter');
+  await child.dispatchEvent('dragleave');
+  await expect(dropzone).toHaveAttribute('data-dragging', 'true');
+  await dropzone.dispatchEvent('dragleave');
+  await expect(dropzone).not.toHaveAttribute('data-dragging');
+  await dropzone.dispatchEvent('dragenter');
+  await page.evaluate(() => window.dispatchEvent(new Event('drop')));
+  await expect(dropzone).not.toHaveAttribute('data-dragging');
+  await dropzone.dispatchEvent('dragleave');
+  await dropzone.dispatchEvent('dragenter');
+  await expect(dropzone).toHaveAttribute('data-dragging', 'true');
+});
+
+test('choosing a player advances to preparing the video while the parse request is pending', async ({ page }) => {
+  await scanDemo(page);
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(`**/api/demos/${JOB_ID}/parse`, async (route) => {
+    await pending;
+    await route.fulfill({ status: 503, json: { code: 'service_unavailable' } });
+  });
+  try {
+    await page.getByRole('button', { name: 'Continuar al Short' }).click();
+    const progress = page.getByRole('list', { name: 'Pasos de creación' });
+    await expect(progress.locator('[aria-current="step"]')).toContainText('Preparar vídeo');
+    await expect(progress.getByLabel('Completado')).toHaveCount(2);
+  } finally {
+    release();
+  }
+  await expect(page.getByRole('list', { name: 'Pasos de creación' }).locator('[aria-current="step"]')).toContainText('Elegir jugador');
+});
+
+test('opening an already parsing match shows the same preparation step', async ({ page }) => {
+  await stubRosterScan(page);
+  await page.route(`**/api/demos/${JOB_ID}/status`, (route) => route.fulfill({ json: { status: 'parsing' } }));
+  await gotoStudio(page, `/clips/${JOB_ID}/nuevo`);
+  await expect(page.getByRole('list', { name: 'Pasos de creación' }).locator('[aria-current="step"]')).toContainText('Preparar vídeo');
+});
+
+for (const scenario of ['http-error', 'failed-job', 'partial-success'] as const) {
+  test(`series handles ${scenario} without pretending a failed job can be reparsed`, async ({ page }) => {
+    const second = '22222222-2222-4222-8222-222222222222';
+    const ids = [JOB_ID, second];
+    const parsed = new Set<string>();
+    let uploaded = 0;
+    let parseRequests = 0;
+    await stubRosterScan(page);
+    await page.route('**/api/demos/scan', (route) => route.fulfill({ json: { jobId: ids[uploaded++] } }));
+    for (const id of ids) {
+      await page.route(`**/api/demos/${id}/status`, (route) => {
+        let status = 'scanned';
+        if (parsed.has(id)) status = scenario === 'partial-success' && id === JOB_ID ? 'parsed' : 'failed';
+        return route.fulfill({ json: { status } });
+      });
+      await page.route(`**/api/demos/${id}/parse`, (route) => {
+        parseRequests += 1;
+        if (scenario === 'http-error') return route.fulfill({ status: 500, json: { error: 'No se pudo iniciar el análisis' } });
+        parsed.add(id);
+        return route.fulfill({ status: 202, json: { jobId: id } });
+      });
+      await page.route(`**/api/demos/${id}/plan`, (route) => route.fulfill({ json: {
+        demo: { map: 'de_mirage' }, target: { steamid64: ROSTER_PLAYERS[1].steamid64, name_in_demo: 'donk' }, stats: {}, segments: [],
+      } }));
+    }
+    await page.route('**/api/demos/series/*', (route) => route.fulfill({ json: { demos: [] } }));
+    await gotoStudio(page, '/clips/nueva');
+    await expect(page.getByLabel('Elegir demos de CS2')).toBeEnabled();
+    await page.getByLabel('Elegir demos de CS2').setInputFiles(['mirage.dem', 'inferno.dem'].map((name) => ({
+      name, mimeType: 'application/octet-stream', buffer: Buffer.from('HL2DEMO\0fixture'),
+    })));
+    await page.getByRole('button', { name: 'Continuar con la serie' }).click();
+    if (scenario === 'partial-success') {
+      await expect(page).toHaveURL(/\/series\//);
+    } else {
+      await expect(page.getByRole('alert').filter({ hasText: 'ningún mapa' })).toBeVisible();
+      await expect(page).toHaveURL('/clips/nueva');
+      await expect(page.getByRole('button', { name: 'Reintentar', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Ver estado de la serie' })).toBeVisible();
+      expect(parseRequests).toBe(2);
+      await page.getByRole('button', { name: 'Volver a cargar demos' }).click();
+      await expect(page.getByLabel('Elegir demos de CS2')).toBeEnabled();
+      await expect(page.getByRole('alert').filter({ hasText: 'ningún mapa' })).toHaveCount(0);
+    }
+  });
+}
+
 test.describe('roster flow', () => {
   test('a scanned demo renders the picker with every player', async ({ page }) => {
     await scanDemo(page);

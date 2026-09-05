@@ -52,6 +52,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // A toast floats highest in the shell, so it carries --elev-5.
         classNames: {
           toast: "shadow-[var(--elev-5)]",
+          actionButton: "bg-primary! text-primary-foreground! font-mono uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-ring",
           success:
             "[--normal-border:var(--success)] [--normal-text:var(--success)]",
           warning:

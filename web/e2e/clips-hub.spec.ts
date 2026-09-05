@@ -256,4 +256,44 @@ test.describe('clips hub', () => {
     // No partida row claims it.
     await expect(page.locator(`#partida-${GONE_JOB_ID}`)).toHaveCount(0);
   });
+
+  test('the parse completion toast opens the corresponding match', async ({ page }) => {
+    let parsed = false;
+    await page.route('**/api/demos/jobs', (route) => route.fulfill({ json: { jobs: [{
+      jobId: JOB_ID, status: parsed ? 'parsed' : 'parsing', createdAt: '2026-09-01T10:00:00Z',
+      summary: { match: { map: 'de_mirage' }, target: { steamid64: TARGET.steamid64, name: TARGET.name } },
+    }] } }));
+    await page.route('**/api/streams', (route) => route.fulfill({ json: { jobs: [] } }));
+    await gotoStudio(page, '/clips');
+    const row = page.locator(`#partida-${JOB_ID}`);
+    await expect(row).toBeVisible();
+    await expect(row.getByRole('button').first()).toHaveAttribute('aria-disabled', 'true');
+    parsed = true;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'Partida analizada' });
+    await toast.getByRole('button', { name: 'Abrir', exact: true }).click();
+    await expect(page).toHaveURL(`/clips?partida=${JOB_ID}`);
+    await expect(row.getByRole('button', { expanded: true })).toBeVisible();
+    await expect(toast).toHaveCount(0);
+  });
+
+  for (const orphan of [false, true]) {
+    test(`the ready clip toast opens ${orphan ? 'an orphan result' : 'its match'}`, async ({ page }) => {
+      await stubParsedMatchWithReadyShort(page);
+      await page.route('**/api/streams', (route) => route.fulfill({ json: { jobs: [] } }));
+      let ready = false;
+      if (orphan) await page.route('**/api/demos/jobs', (route) => route.fulfill({ json: { jobs: [] } }));
+      await page.route(`**/api/demos/${JOB_ID}/renders/${RENDERING_VARIANT}`, (route) => route.fulfill({ json: ready ? {
+        status: 'ready', videos: ['ace.mp4'], covers: [], segment_ids: ['seg-002'],
+        edit: { format: 'short-9x16', killEffect: 'punch-in', transition: 'flash', intro: false, outro: false, hook_text: false, kill_counter: false, match_recap: false, voice_comms: false, native_hud: false, cover_strategy: 'generated-gameplay', intro_text: '', outro_text: '' },
+      } : { status: 'rendering' } }));
+      await gotoStudio(page, '/clips');
+      await expect(page.getByText(orphan ? HUB_ORPHANS_TITLE : 'Mirage', { exact: !orphan }).first()).toBeVisible();
+      ready = true;
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.locator('[data-sonner-toast]').filter({ hasText: 'Ace en humo listo' }).getByRole('button', { name: 'Abrir', exact: true }).click();
+      if (orphan) await expect(page).toHaveURL(`/clips/-/publicar/${RENDERING_VIDEO_ID}`);
+      else await expect(page.locator(`#partida-${JOB_ID}`).getByRole('button', { expanded: true })).toBeVisible();
+    });
+  }
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowUp } from 'lucide-react';
 import { MAX_DEMO_FILES } from '@/lib/upload/demo-names';
 import { expandDemoUploads } from '@/lib/upload/expand-archives';
@@ -28,9 +28,28 @@ export function DemoDropzone({
   const [interactive, setInteractive] = useState(false);
   useEffect(() => setInteractive(true), []);
   const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = !interactive || extracting || disabled;
+
+  const resetDrag = useCallback(() => {
+    dragDepth.current = 0;
+    setDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (busy) resetDrag();
+  }, [busy, resetDrag]);
+
+  useEffect(() => {
+    window.addEventListener('drop', resetDrag);
+    window.addEventListener('dragend', resetDrag);
+    return () => {
+      window.removeEventListener('drop', resetDrag);
+      window.removeEventListener('dragend', resetDrag);
+    };
+  }, [resetDrag]);
 
   const accept = useCallback(
     (fileList: FileList | null | undefined) => {
@@ -59,14 +78,20 @@ export function DemoDropzone({
         data-slot="dropzone"
         data-dragging={dragging ? 'true' : undefined}
         data-layout={compact ? 'compact' : 'full'}
-        onDragOver={(e) => {
+        onDragEnter={(e) => {
           e.preventDefault();
-          if (!busy) setDragging(true);
+          if (busy) return;
+          dragDepth.current += 1;
+          setDragging(true);
         }}
-        onDragLeave={() => setDragging(false)}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={() => {
+          dragDepth.current = Math.max(0, dragDepth.current - 1);
+          if (dragDepth.current === 0) setDragging(false);
+        }}
         onDrop={(e) => {
           e.preventDefault();
-          setDragging(false);
+          resetDrag();
           if (!busy) accept(e.dataTransfer.files);
         }}
         aria-busy={busy || undefined}

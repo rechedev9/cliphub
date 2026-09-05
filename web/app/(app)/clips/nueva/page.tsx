@@ -63,7 +63,7 @@ type ScanRow =
   | { fileName: string; status: 'scanned'; jobId: string; players: DemoPlayer[]; match?: RosterMatch }
   | { fileName: string; status: 'error'; reason?: string };
 
-type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error' };
+type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error'; reason?: string };
 
 const SOURCE_KIND = { file: 'file', steam: 'steam' } as const;
 
@@ -232,22 +232,29 @@ export default function NewDemoPage({
       setParseRows(rows);
       setStage('parsing');
 
-      await Promise.allSettled(
-        rows.map(async (row, i) => {
-          if (row.status === 'skipped') return;
-          const next: ParseRow['status'] = await api
-            .parseDemo({ jobId: row.jobId, steamId })
-            .then((): ParseRow['status'] => 'done')
-            .catch((): ParseRow['status'] => 'error');
-          setParseRows((prev) => {
-            const copy = [...prev];
-            copy[i] = { ...copy[i], status: next };
-            return copy;
-          });
+      const finished = await Promise.all(
+        rows.map(async (row): Promise<ParseRow> => {
+          if (row.status === 'skipped') return row;
+          let next: ParseRow;
+          try {
+            await api.parseDemo({ jobId: row.jobId, steamId });
+            next = { ...row, status: 'done' };
+          } catch (err) {
+            let reason = 'No se pudo analizar este mapa.';
+            if (isDemoServiceUnavailable(err)) reason = DEMO_SERVICE_OFFLINE_HINT;
+            else if (err instanceof Error) reason = err.message;
+            next = { ...row, status: 'error', reason };
+          }
+          setParseRows((prev) => prev.map((item) => item.jobId === row.jobId ? next : item));
+          return next;
         }),
       );
 
-      router.push(seriesHref(seriesId));
+      if (finished.some((row) => row.status === 'done')) {
+        router.push(seriesHref(seriesId));
+      } else {
+        setError('No se pudo completar el análisis de ningún mapa. Consulta el estado de la serie o vuelve a cargar las demos.');
+      }
     },
     [stage, seriesMode, seriesId, scannedRows, router],
   );
@@ -341,9 +348,14 @@ export default function NewDemoPage({
     description = 'Elige de quién será el vídeo. Después podrás revisar el contenido antes de crearlo.';
   }
 
+  if (stage === 'parsing') {
+    title = error ? 'No se pudo completar el análisis' : 'Analizando las jugadas';
+    description = error ? 'Revisa el resultado de cada mapa antes de continuar.' : 'Estamos preparando el contenido del jugador que has elegido.';
+  }
+
   let progressStep = 0;
   if (stage === 'picking') progressStep = 1;
-  if (stage === 'parsing') progressStep = 1;
+  if (stage === 'parsing') progressStep = 2;
 
   let body: ReactNode;
   if (resumeFailure !== null) {
@@ -380,7 +392,20 @@ export default function NewDemoPage({
   } else if (seriesMode && stage === 'scanning') {
     body = <ScanRowList rows={scanRows} />;
   } else if (seriesMode && stage === 'parsing') {
-    body = <ParseRowList rows={parseRows} />;
+    body = (
+      <div className="flex flex-col gap-3">
+        <ParseRowList rows={parseRows} />
+        {error ? (
+          <>
+            <ErrorBanner message={error} />
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => reset(null)}>Volver a cargar demos</Button>
+              <Button variant="outline" onClick={() => seriesId && router.push(seriesHref(seriesId))}>Ver estado de la serie</Button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    );
   } else if (seriesMode) {
     body = (
       <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
@@ -546,14 +571,18 @@ function ScanRowStatus({ row }: { row: ScanRow }): ReactNode {
 function ParseRowList({ rows }: { rows: ParseRow[] }): ReactNode {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2">
-      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">Analizando las jugadas en cada mapa</p>
-      {rows.map((row, i) => (
-        <StudioDataRow
-          key={`${row.jobId}-${i}`}
-          active={row.status === 'parsing'}
-          label={row.label}
-          status={<ParseRowStatus status={row.status} />}
-        />
+      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">
+        {rows.some((row) => row.status === 'parsing') ? 'Analizando las jugadas en cada mapa' : 'Resultado por mapa'}
+      </p>
+      {rows.map((row) => (
+        <div key={row.jobId} className="flex flex-col gap-1">
+          <StudioDataRow
+            active={row.status === 'parsing'}
+            label={row.label}
+            status={<ParseRowStatus status={row.status} />}
+          />
+          {row.reason ? <p className="px-3 text-body-sm text-destructive">{row.reason}</p> : null}
+        </div>
       ))}
     </div>
   );
