@@ -1,13 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Users } from 'lucide-react';
 import {
   FACEIT_CODES, FaceitServiceError, followFaceitPlayer, listFollowedFaceitPlayers,
-  lookupFaceitPlayer, unfollowFaceitPlayer, type FaceitFollowedPlayer,
+  lookupFaceitPlayer, unfollowFaceitPlayer,
 } from '@/lib/api/faceit';
 import { FACEIT_NOT_CONFIGURED_CODE, SERVICE_UNAVAILABLE_CODE } from '@/lib/api/types';
+import { followedPlayersReducer } from '@/lib/followed-players';
 import { FollowPlayerForm } from '@/components/players/follow-player-form';
 import { FollowedPlayerList } from '@/components/players/followed-player-list';
 import { PlayerMatches } from '@/components/players/player-matches';
@@ -25,8 +26,7 @@ const WORKSPACE_GRID = 'grid min-w-0 items-start gap-5 @[64rem]/content:grid-col
 
 export default function PlayersPage(): ReactNode {
   const [state, setState] = useState<LoadState>('loading');
-  const [players, setPlayers] = useState<FaceitFollowedPlayer[]>([]);
-  const [selectedID, setSelectedID] = useState<string | null>(null);
+  const [{ players, selectedID }, dispatch] = useReducer(followedPlayersReducer, { players: [], selectedID: null });
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [unfollowingID, setUnfollowingID] = useState<string | null>(null);
@@ -38,13 +38,9 @@ export default function PlayersPage(): ReactNode {
   const refresh = useCallback(async () => {
     try {
       const listed = await listFollowedFaceitPlayers();
-      setPlayers(listed.players);
+      dispatch({ type: 'listed', players: listed.players });
       setState(listed.enabled ? 'ready' : 'unconfigured');
       setError(null);
-      setSelectedID((current) => {
-        if (current !== null && listed.players.some((player) => player.id === current)) return current;
-        return listed.players[0]?.id ?? null;
-      });
     } catch (err) {
       if (err instanceof FaceitServiceError && err.code === FACEIT_NOT_CONFIGURED_CODE) {
         setState('unconfigured');
@@ -66,9 +62,7 @@ export default function PlayersPage(): ReactNode {
       try {
         const live = await lookupFaceitPlayer(player.nickname);
         if (cancelled) return;
-        setPlayers((current) => current.map((candidate) => (
-          candidate.id === live.id ? { ...candidate, ...live, seeded: candidate.seeded } : candidate
-        )));
+        dispatch({ type: 'profile', player: live });
         if (player.seeded !== true) await followFaceitPlayer(live.nickname);
       } catch {
         // A failed profile refresh must not hide the saved player or their history.
@@ -85,8 +79,7 @@ export default function PlayersPage(): ReactNode {
     setError(null);
     try {
       const followed = await followFaceitPlayer(nickname);
-      setPlayers((current) => [followed, ...current.filter((player) => player.id !== followed.id)]);
-      setSelectedID(followed.id);
+      dispatch({ type: 'followed', player: followed });
       setQuery('');
       setState('ready');
     } catch (err) {
@@ -102,9 +95,7 @@ export default function PlayersPage(): ReactNode {
     setError(null);
     try {
       await unfollowFaceitPlayer(playerID);
-      const next = playersRef.current.filter((player) => player.id !== playerID);
-      setPlayers(next);
-      setSelectedID((current) => current === playerID ? next[0]?.id ?? null : current);
+      dispatch({ type: 'unfollowed', id: playerID });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo dejar de seguir al jugador. Vuelve a intentarlo.');
     } finally {
@@ -134,7 +125,7 @@ export default function PlayersPage(): ReactNode {
       description="Busca un nick o pega una URL de FACEIT para abrir su historial aquí." compact />;
   } else {
     body = <div className={WORKSPACE_GRID}>
-      <FollowedPlayerList players={players} selectedID={selectedID} onSelect={setSelectedID} />
+      <FollowedPlayerList players={players} selectedID={selectedID} onSelect={(id) => dispatch({ type: 'selected', id })} />
       {selected ? <section aria-label={`Perfil de ${selected.nickname}`} className="studio-panel min-w-0 overflow-hidden">
         <PlayerProfile player={selected} onUnfollow={() => void onUnfollow(selected.id)} unfollowing={unfollowingID !== null} />
         <PlayerMatches key={selected.id} playerID={selected.id} enabled={state === 'ready'} />
