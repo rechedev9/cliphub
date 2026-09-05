@@ -668,6 +668,12 @@ html[data-capture-active="true"] {
       radial-gradient(120% 100% at 50% 38%, transparent 42%, oklch(0.02 0.02 264 / 0.55) 100%);
   }
 
+  /* Import is a quiet workspace: keep the decorative canvas out of this route. */
+  body:has([data-streams-home]) .shell-canvas,
+  body:has([data-streams-home]) .ff-ambient-layer {
+    display: none;
+  }
+
   .shell-canvas::before,
   .shell-canvas::after {
     content: "";
