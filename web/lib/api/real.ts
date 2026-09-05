@@ -6,7 +6,7 @@ import {
   type MusicChoice,
 } from './reel-music.ts';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
-import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
+import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
@@ -422,8 +422,8 @@ export class RealApiClient implements ApiClient {
     if (!isJobId(jobId)) return null;
     const status = await this.fetchStatus(jobId);
     if (status === null) return null;
-    // Before the scan finishes the roster proxy answers 409; report the status alone.
-    if (!ROSTER_READY_STATUSES.has(status)) return { status, players: [] };
+    // Only a scanned job needs a roster for player selection; targeted imports can skip it entirely.
+    if (SCAN_PENDING_STATUSES.has(status) || PLAN_READY_STATUSES.has(status) || !ROSTER_READY_STATUSES.has(status)) return { status, players: [] };
     const roster = await this.fetchRoster(jobId);
     return { status, players: roster.players.map(toDemoPlayer), match: toRosterMatch(roster.match) };
   }

@@ -1,9 +1,10 @@
 /** Hub copy shared with the E2E contract; a plain module so specs can import it. */
 export const HUB_EMPTY_TITLE = '¿Qué quieres crear?';
+export const DEMO_CREATION_STEPS = ['Cargar demo', 'Elegir jugador', 'Preparar vídeo', 'Crear y descargar'] as const;
 
 /** `unpicked` row: roster scanned, nobody chose a POV. The CTA resumes the pick on `/clips/nueva?job=`. */
-export const MATCH_ROW_UNPICKED_TITLE = 'Sin POV elegida';
-export const MATCH_ROW_UNPICKED_HINT = 'roster listo · elige el jugador a clipear';
+export const MATCH_ROW_UNPICKED_TITLE = 'Elige un jugador';
+export const MATCH_ROW_UNPICKED_HINT = 'Demo cargada · elige de quién será el vídeo';
 export const MATCH_ROW_UNPICKED_CTA = 'Elegir jugador';
 
 /** Partidas lens section for reels whose job is no longer listed. */
@@ -20,10 +21,10 @@ export const HUB_LOAD_DEMO_CTA = 'Cargar demo';
 export const MATCH_ROW_FIRST_CLIP_CTA = 'Crear Short';
 
 /** Three-step first-run guide, shown until every step is done or the user hides it. */
-export const FIRST_RUN_GUIDE_TITLE = 'Cómo funciona';
+export const FIRST_RUN_GUIDE_TITLE = 'De la demo a tu vídeo';
 export const FIRST_RUN_GUIDE_DISMISS = 'Ocultar guía';
 export const FIRST_RUN_STEPS = {
-  load: { title: 'Carga una demo', hint: 'Un .dem de CS2. Se parsea en este PC, nada sale de tu equipo.' },
-  pick: { title: 'Elige tu POV', hint: 'El jugador que quieres clipear. ClipHub busca sus mejores jugadas.' },
-  produce: { title: 'Saca tu primer clip', hint: 'Shorts en vertical o el Full POV con HUD nativo.' },
+  load: { title: 'Carga tu partida', hint: 'Usa una demo de CS2. El archivo se analiza en este PC.' },
+  pick: { title: 'Elige al jugador', hint: 'Su vista será la del vídeo. Revisa sus jugadas o todas las rondas.' },
+  produce: { title: 'Crea y descarga', hint: 'Confirma los ajustes, graba y descarga el MP4 desde Demos y vídeos.' },
 } as const;

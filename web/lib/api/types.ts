@@ -409,6 +409,9 @@ export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set<JobStatus>([
   'done',
 ]);
 
+/** Imported demos may parse a configured player before a roster exists. */
+export const SCAN_PENDING_STATUSES: ReadonlySet<string> = new Set<JobStatus>(['queued', 'scanning', 'parsing']);
+
 /** Statuses with a roster scan, so the demo belongs in Partidas: scanned or anything after it. */
 export const ROSTER_READY_STATUSES: ReadonlySet<string> = new Set<JobStatus>(['scanned', 'parsing', ...(PLAN_READY_STATUSES as ReadonlySet<JobStatus>)]);
 

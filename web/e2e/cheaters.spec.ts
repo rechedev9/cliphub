@@ -49,7 +49,7 @@ test.describe('CheaterDetect', () => {
     await stubJobs(page, []);
     await gotoStudio(page, '/cheaters');
     await expect(page.getByRole('heading', { name: 'CHEATERDETECT' })).toBeVisible();
-    await expect(page.getByText('Suelta la demo aquí')).toBeVisible();
+    await expect(page.getByText('Arrastra tu demo o elige un archivo')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
     await expect(page.locator('[data-layout="full"]')).toBeVisible();
     await expect(page.locator('main a[href="/upload"]')).toHaveCount(0);
@@ -69,7 +69,7 @@ test.describe('CheaterDetect', () => {
     await expect(page.getByRole('navigation', { name: 'Demos analizables' }).getByText('Inferno')).toBeVisible();
     await expect(page.locator('[data-layout="compact"]')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
-    await expect(page.getByText('Suelta la demo aquí')).toBeVisible();
+    await expect(page.getByText('Arrastra tu demo o elige un archivo')).toBeVisible();
   });
 
   test('dropping a demo adds it to the picker without opening Subir demo', async ({ page }) => {
@@ -170,7 +170,7 @@ test.describe('CheaterDetect presentation contract', () => {
       await page.setViewportSize({ width, height: 900 });
       await stubJobs(page, []);
       await gotoStudio(page, '/cheaters');
-      await expect(page.getByText('Suelta la demo aquí')).toBeVisible();
+      await expect(page.getByText('Arrastra tu demo o elige un archivo')).toBeVisible();
       const root = await pageOverflow(page);
       expect(root.scrollWidth, `overflows by ${root.scrollWidth - root.clientWidth}px`).toBeLessThanOrEqual(
         root.clientWidth,

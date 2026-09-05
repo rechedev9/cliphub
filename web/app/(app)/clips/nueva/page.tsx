@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
@@ -27,13 +28,16 @@ import {
   demoScanError,
   isDemoServiceUnavailable,
 } from '@/lib/demo-parse-flow';
+import { startPollLoop } from '@/lib/poll-loop';
+import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import { PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
 import { groupSeriesDemos } from '@/lib/series-grouping';
 import { seriesTitle } from '@/lib/series-status';
 import { MapCover } from '@/components/brand/map-cover';
-import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+import { DemoSourceHelp } from '@/components/onboarding/demo-source-help';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RecentSteamMatches } from '@/components/onboarding/recent-matches';
 import { ShareCodeDoor } from '@/components/onboarding/share-code-door';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -60,6 +64,11 @@ type ScanRow =
   | { fileName: string; status: 'error'; reason?: string };
 
 type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error' };
+
+const SOURCE_KIND = { file: 'file', steam: 'steam' } as const;
+
+const IMPORT_POLL_MS = 1500;
+const IMPORT_RETRY_MS = 10000;
 
 const ZERO_PLAYERS_HINT = 'Sin jugadores — ¿seguro que es una demo de CS2?';
 
@@ -258,36 +267,53 @@ export default function NewDemoPage({
     if (handed.length > 0) onFiles(handed);
   }, [onFiles]);
 
-  // Resume: the roster already exists, so load it and land on the same picker the upload uses.
+  // Imported jobs can still be queued; wait for a roster before offering the player picker.
   useEffect(() => {
     if (resumeJobId === null) return;
+    setStage('scanning');
+    setResumeFailure(null);
+    setJobId(null);
+    setPlayers([]);
+    setMatch(null);
     let active = true;
-    api
-      .getScan(resumeJobId)
-      .then((scan) => {
-        if (!active) return;
-        if (scan === null) {
-          setResumeFailure('missing');
-          return;
+    const stop = startPollLoop({
+      tick: async () => {
+        try {
+          const scan = await api.getScan(resumeJobId);
+          if (!active) return 'idle';
+          setResumeFailure(null);
+          if (scan === null) {
+            setResumeFailure('missing');
+            stop();
+          } else if (SCAN_PENDING_STATUSES.has(scan.status)) {
+            return 'fast';
+          } else if (!ROSTER_READY_STATUSES.has(scan.status)) {
+            setResumeFailure('error');
+            stop();
+          } else if (scan.status !== MATCH_STATUS_SCANNED) {
+            stop();
+            router.replace(produceHref(resumeJobId, format));
+          } else if (scan.players.length === 0) {
+            setResumeFailure('error');
+            stop();
+          } else {
+            setJobId(resumeJobId);
+            setPlayers(scan.players);
+            setMatch(scan.match ?? null);
+            setStage('picking');
+            stop();
+          }
+        } catch (err: unknown) {
+          if (active) setResumeFailure(classifyFullDemoLoadFailure(err));
         }
-        if (scan.status !== MATCH_STATUS_SCANNED) {
-          router.replace(produceHref(resumeJobId, format));
-          return;
-        }
-        if (scan.players.length === 0) {
-          setResumeFailure('error');
-          return;
-        }
-        setJobId(resumeJobId);
-        setPlayers(scan.players);
-        setMatch(scan.match ?? null);
-        setStage('picking');
-      })
-      .catch((err: unknown) => {
-        if (active) setResumeFailure(classifyFullDemoLoadFailure(err));
-      });
+        return 'idle';
+      },
+      fastMs: IMPORT_POLL_MS,
+      idleMs: IMPORT_RETRY_MS,
+    });
     return () => {
       active = false;
+      stop();
     };
   }, [resumeJobId, router, format]);
 
@@ -296,8 +322,8 @@ export default function NewDemoPage({
   let description = 'Carga una demo de CS2 y elige el jugador. Después revisarás el contenido y los ajustes antes de grabar.';
   if (resuming) {
     title = 'Elige el jugador';
-    if (resumeFailure !== null) description = 'No pudimos recuperar el roster de esta partida.';
-    else if (stage === 'scanning') description = 'Cargando el roster de la partida…';
+    if (resumeFailure !== null) description = 'No pudimos recuperar los jugadores de esta partida.';
+    else if (stage === 'scanning') description = 'Cargando los jugadores de la partida…';
     else description = 'Elige de quién será el vídeo. Después podrás revisar el contenido antes de crearlo.';
   } else if (seriesMode) {
     if (stage === 'scanning') {
@@ -307,8 +333,8 @@ export default function NewDemoPage({
       title = seriesTitle(mapCount);
       description =
         stage === 'picking'
-          ? `Elige la POV y parseamos sus highlights en ${scannedRows.map(rowLabel).join(', ')}.`
-          : 'Parseando la POV en cada mapa de la serie…';
+          ? `Elige al jugador para buscar sus jugadas en ${scannedRows.map(rowLabel).join(', ')}.`
+          : 'Analizando las jugadas del jugador en cada mapa…';
     }
   } else if (stage === 'picking' || stage === 'parsing') {
     title = 'Elige el jugador';
@@ -317,7 +343,7 @@ export default function NewDemoPage({
 
   let progressStep = 0;
   if (stage === 'picking') progressStep = 1;
-  if (stage === 'parsing') progressStep = 2;
+  if (stage === 'parsing') progressStep = 1;
 
   let body: ReactNode;
   if (resumeFailure !== null) {
@@ -334,11 +360,21 @@ export default function NewDemoPage({
   } else if (stage === 'idle') {
     body = (
       <div className="flex flex-col gap-5">
-        <DemoDropzone onFiles={onFiles} minHeightClass="min-h-[260px]" />
-        {error ? <ErrorBanner message={error} /> : null}
-        <SectionEyebrow label="O importa desde Steam" />
-        <ShareCodeDoor />
-        <RecentSteamMatches />
+        <Tabs defaultValue={SOURCE_KIND.file} className="gap-4">
+          <TabsList aria-label="Origen de la demo" className="h-auto! min-h-11 w-full sm:w-fit">
+            <TabsTrigger value={SOURCE_KIND.file} className="min-h-10">Archivo en mi PC</TabsTrigger>
+            <TabsTrigger value={SOURCE_KIND.steam} className="min-h-10">Importar desde Steam</TabsTrigger>
+          </TabsList>
+          <TabsContent value={SOURCE_KIND.file} className="flex flex-col gap-3">
+            <DemoDropzone onFiles={onFiles} minHeightClass="min-h-[200px]" />
+            {error ? <ErrorBanner message={error} /> : null}
+            <DemoSourceHelp />
+          </TabsContent>
+          <TabsContent value={SOURCE_KIND.steam} className="flex flex-col gap-4">
+            <ShareCodeDoor format={format} />
+            <RecentSteamMatches format={format} />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   } else if (seriesMode && stage === 'scanning') {
@@ -352,9 +388,9 @@ export default function NewDemoPage({
       </Card>
     );
   } else if (stage === 'scanning') {
-    body = <SingleDemoProgress label={resuming ? 'Cargando el roster…' : 'Escaneando el roster…'} fileName={fileName} />;
+    body = <SingleDemoProgress label={resuming ? 'Cargando jugadores…' : 'Buscando jugadores…'} fileName={fileName} />;
   } else if (stage === 'parsing') {
-    body = <SingleDemoProgress label="Parseando la POV…" fileName={fileName} />;
+    body = <SingleDemoProgress label="Analizando las jugadas…" fileName={fileName} />;
   } else {
     body = (
       <div className="flex flex-col gap-3">
@@ -371,7 +407,7 @@ export default function NewDemoPage({
     <div className="measure-list flex flex-col gap-5">
       <StudioBackLink href={CLIPS_HREF}>Demos y vídeos</StudioBackLink>
       <StudioPageHeader title={title} description={description} />
-      <WorkflowProgress steps={['Cargar demo', 'Elegir jugador', 'Preparar vídeo']} current={progressStep} />
+      <WorkflowProgress steps={DEMO_CREATION_STEPS} current={progressStep} />
       {stage === 'idle' && !resuming ? (
         <ProduceFormatBar value={format} onChange={(next) => router.replace(newDemoHref({ format: next }), { scroll: false })} />
       ) : null}
@@ -458,7 +494,7 @@ function SingleDemoProgress({ label, fileName }: { label: string; fileName: stri
           <span className="truncate">{fileName}</span>
         </p>
       ) : null}
-      <span className="studio-bar w-[320px] text-primary">
+      <span className="studio-bar w-full max-w-80 text-primary">
         <span className="studio-indeterminate" />
       </span>
     </div>
@@ -510,7 +546,7 @@ function ScanRowStatus({ row }: { row: ScanRow }): ReactNode {
 function ParseRowList({ rows }: { rows: ParseRow[] }): ReactNode {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2">
-      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">Parseando la POV en cada mapa</p>
+      <p className="mb-1 font-mono text-meta uppercase tracking-wider text-fg-3">Analizando las jugadas en cada mapa</p>
       {rows.map((row, i) => (
         <StudioDataRow
           key={`${row.jobId}-${i}`}
@@ -528,7 +564,7 @@ function ParseRowStatus({ status }: { status: ParseRow['status'] }): ReactNode {
     case 'parsing':
       return (
         <StatusTag icon={Loader2} className="[&_svg]:animate-spin">
-          Parseando
+          Analizando
         </StatusTag>
       );
     case 'done':

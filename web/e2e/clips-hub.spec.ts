@@ -242,7 +242,7 @@ test.describe('clips hub', () => {
     );
     await page.getByRole('button', { name: 'Continuar al Short' }).click();
     expect((await parsePost).postDataJSON()).toEqual({ steamId: '76561198000000003' });
-    await expect(page.getByText('Parseando la POV…')).toBeVisible();
+    await expect(page.getByText('Analizando las jugadas…')).toBeVisible();
   });
 
   test('a reel whose job is gone lists under Otros clips instead of vanishing', async ({ page }) => {

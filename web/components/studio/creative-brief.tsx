@@ -7,9 +7,9 @@ export function CreativeBriefList({ items, className }: { items: readonly Creati
   return (
     <dl className={cn('grid gap-x-6 gap-y-1.5 text-body-sm', className)}>
       {items.map((item) => (
-        <div key={item.label} className="flex min-w-0 gap-1.5">
+        <div key={item.label} className="flex min-w-0 flex-wrap gap-x-1.5">
           <dt className="shrink-0 text-fg-3">{item.label}:</dt>
-          <dd className="truncate text-fg-1" title={item.value}>
+          <dd className="min-w-0 break-words text-fg-1">
             {item.value}
           </dd>
         </div>

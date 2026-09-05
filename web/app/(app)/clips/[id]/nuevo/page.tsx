@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState, useSyncExternalStore, type ReactNode 
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, SearchX, Unplug, Users } from 'lucide-react';
 import { api } from '@/lib/api';
+import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { Match, Play } from '@/lib/api/types';
 import { HUB_ROW_STAGE, matchRowStage } from '@/lib/clips/hub';
 import {
@@ -43,6 +44,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StudioBackLink } from '@/components/studio/back-link';
 import { StudioEmptyState } from '@/components/studio/empty-state';
+import { WorkflowProgress } from '@/components/studio/workflow-progress';
 import { ProduceFormatBar } from '@/components/produce/format-bar';
 import { ShortProducer } from '@/components/produce/short-producer';
 import { FullPovProducer } from '@/components/produce/full-pov-producer';
@@ -203,7 +205,7 @@ export default function ProducePage({
         note={
           <span className="inline-flex items-center gap-2">
             <span className="studio-spinner text-primary" aria-hidden />
-            Parseando POV{match.player ? ` de ${match.player}` : ''}
+            Analizando jugadas{match.player ? ` de ${match.player}` : ''}
           </span>
         }
         compact
@@ -242,6 +244,10 @@ export default function ProducePage({
 
   return (
     <div className="measure-work flex min-h-[calc(100vh-9rem)] flex-col">
+      <div className="mb-5">
+        <WorkflowProgress steps={DEMO_CREATION_STEPS}
+          current={stage === HUB_ROW_STAGE.unpicked || stage === HUB_ROW_STAGE.parsing ? 1 : 2} />
+      </div>
       <ProduceFormatBar value={format} onChange={changeFormat} />
       <div className="flex flex-1 flex-col gap-6 pt-6">
         {pollError !== null ? (

@@ -313,11 +313,11 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             size="lg"
             disabled={!ready}
             loading={creating}
-            loadingText="Clipeando…"
+            loadingText="Preparando grabación…"
             onClick={() => void onCreate()}
             className="neon-notch shrink-0 focus-visible:-outline-offset-4"
           >
-            Clipear short →
+            Crear Short
           </Button>
         }
       />

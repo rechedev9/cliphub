@@ -17,6 +17,7 @@ import {
 } from '@/lib/streams/plan';
 import Link from 'next/link';
 import { CLIPS_HREF } from '@/lib/clips/routes';
+import { WorkflowProgress } from '@/components/studio/workflow-progress';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { Button } from '@/components/ui/button';
 import { StreamListRow } from '@/components/streams/stream-list-row';
@@ -154,6 +155,7 @@ export default function StreamsPage(): ReactNode {
         </div>
       ) : null}
 
+      <WorkflowProgress steps={['Importar vídeo', 'Elegir cortes', 'Ajustar encuadre', 'Crear y descargar']} current={0} />
       <StreamSourcePanel
         sourceUrl={sourceUrl}
         title={title}

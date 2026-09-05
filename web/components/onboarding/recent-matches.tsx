@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { loadSteamAccount, type SteamStoredMatch } from '@/lib/api/steam-account';
 import { importShareCode } from '@/lib/api/steam-import';
-import { CLIPS_HREF } from '@/lib/clips/routes';
+import { PRODUCE_FORMAT, newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
 
-export function RecentSteamMatches(): ReactElement | null {
+export function RecentSteamMatches({ format = PRODUCE_FORMAT.short }: { format?: ProduceFormat }): ReactElement | null {
   const router = useRouter();
   const [matches, setMatches] = useState<SteamStoredMatch[] | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function RecentSteamMatches(): ReactElement | null {
     const result = await importShareCode(code);
     setPending(null);
     if (result.kind === 'queued') {
-      router.push(CLIPS_HREF);
+      router.push(newDemoHref({ job: result.id, format }));
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -60,7 +60,7 @@ export function RecentSteamMatches(): ReactElement | null {
               type="button"
               size="sm"
               loading={pending === match.shareCode}
-              loadingText="ENCOLANDO"
+              loadingText="Descargando…"
               onClick={() => { void onDownload(match.shareCode); }}
             >
               DESCARGAR
@@ -73,7 +73,7 @@ export function RecentSteamMatches(): ReactElement | null {
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={() => { router.push(CLIPS_HREF); }}
+        onQueued={(jobId) => { router.push(newDemoHref({ job: jobId, format })); }}
       />
     </section>
   );

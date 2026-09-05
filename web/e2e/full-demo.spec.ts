@@ -144,13 +144,12 @@ test.describe('Full POV constructor', () => {
 
     const cta = page.getByRole('button', { name: REC_CTA });
     await expect(cta).toBeDisabled();
-    await page.getByText('Revisar antes de crear').filter({ visible: true }).click();
     const brief = page.getByRole('region', { name: /Revisar antes de crear/ });
     for (const row of FULL_DEMO_CONTRACT) {
       await expect(brief.getByText(row.value, { exact: true })).toBeVisible();
     }
     await expect(brief.getByText(NATIVE_HUD_LABEL, { exact: true })).toBeVisible();
-    await expect(brief.getByText('FACEIT obligatorio', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Este formato necesita acceso a FACEIT/)).toBeVisible();
     await expect(page.getByText('HUD completo con killfeed')).toHaveCount(0);
     await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
     await expect(cta).toBeEnabled();
@@ -200,7 +199,7 @@ for (const format of ['short', 'full']) {
     await page.setViewportSize({ width: 1920, height: 1440 });
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, `/clips/${JOB}/nuevo?formato=${format}`);
-    const action = page.getByRole('button', { name: format === 'full' ? REC_CTA : 'Clipear short →', exact: true });
+    const action = page.getByRole('button', { name: format === 'full' ? REC_CTA : 'Crear Short', exact: true });
     await expect(action).toBeVisible();
     const work = await page.locator('.measure-work').boundingBox();
     const button = await action.boundingBox();
@@ -231,7 +230,7 @@ for (const interruption of ['empty', 'failed']) {
     await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
     if (interruption === 'empty') {
       await expect(page.getByRole('heading', { name: 'Sin jugadas destacables' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Clipear short →', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Crear Short', exact: true })).toHaveCount(0);
     } else {
       await expect(page.getByRole('alert').filter({ hasText: 'Seguimos mostrando los últimos datos cargados' })).toBeVisible();
     }
@@ -239,6 +238,6 @@ for (const interruption of ['empty', 'failed']) {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
     await expect(page.getByText('Solo el audio de la partida.', { exact: true })).toBeVisible();
-    await expect(page.getByText('Elige al menos un highlight', { exact: true })).toBeVisible();
+    await expect(page.getByText('Elige al menos una jugada', { exact: true })).toBeVisible();
   });
 }
