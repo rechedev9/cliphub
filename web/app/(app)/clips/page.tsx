@@ -16,7 +16,7 @@ import {
   type HubModel,
   type HubSnapshot,
 } from '@/lib/clips/hub';
-import { HUB_LENS, HUB_QUERY, hubHref, isHubLens, ORPHAN_MATCH_SEGMENT, type HubLens } from '@/lib/clips/routes';
+import { HUB_LENS, HUB_QUERY, hubHref, isHubLens, ORPHAN_MATCH_SEGMENT, publishHref, type HubLens } from '@/lib/clips/routes';
 import { isDemoServiceUnavailable } from '@/lib/demo-parse-flow';
 import { prettyMapName } from '@/lib/format';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -48,10 +48,13 @@ function anyoneWorking(model: HubModel): boolean {
   return model.clips.some((clip) => isWorking(clip.state));
 }
 
-function announceTransitions(prev: HubModel, next: HubModel): void {
+type HubDestination = { matchId: string } | { clipId: string };
+
+function announceTransitions(prev: HubModel, next: HubModel, openResult: (destination: HubDestination) => void): void {
   const changes = hubTransitions(prev, next);
   for (const row of changes.parsed) {
-    toast('Partida parseada', {
+    toast('Partida analizada', {
+      action: { label: 'Abrir', onClick: () => openResult({ matchId: row.match.id }) },
       description: [
         prettyMapName(row.match.map),
         row.match.decentPlays > 0 ? `${row.match.decentPlays} highlights` : null,
@@ -62,7 +65,10 @@ function announceTransitions(prev: HubModel, next: HubModel): void {
     });
   }
   for (const clip of changes.ready) {
-    toast(`${clip.title} listo`, { description: `${prettyMapName(clip.video.map)} · MP4 y portada en la fila` });
+    toast(`${clip.title} listo`, {
+      description: `${prettyMapName(clip.video.map)} · Revisa el vídeo y descárgalo`,
+      action: { label: 'Abrir', onClick: () => openResult(clip.match ? { matchId: clip.match.id } : { clipId: clip.id }) },
+    });
   }
 }
 
@@ -90,9 +96,19 @@ function ClipsHub(): ReactNode {
   const scrolledTo = useRef<string | null>(null);
   const inFlight = useRef(false);
 
+  const openResult = useCallback((destination: HubDestination) => {
+    if ('matchId' in destination) {
+      scrolledTo.current = null;
+      router.replace(hubHref({ open: destination.matchId }), { scroll: false });
+    } else {
+      // The publishing page also previews/downloads outputs whose demo was deleted.
+      router.push(publishHref(ORPHAN_MATCH_SEGMENT, destination.clipId));
+    }
+  }, [router]);
+
   const accept = useCallback((snapshot: HubSnapshot) => {
     const next = buildHubModel(snapshot.matches, snapshot.videos);
-    if (modelRef.current !== null) announceTransitions(modelRef.current, next);
+    if (modelRef.current !== null) announceTransitions(modelRef.current, next, openResult);
     modelRef.current = next;
     snapshotRef.current = snapshot;
     setModel(next);
@@ -101,7 +117,7 @@ function ClipsHub(): ReactNode {
     // A partial poll carries stale sources; the shell monitor fetches for itself instead.
     if (snapshot.failure === null) publishShellJobs(collectShellJobs(snapshot), Date.now());
     return next;
-  }, []);
+  }, [openResult]);
 
   const refresh = useCallback(async (): Promise<HubModel | null> => {
     if (inFlight.current) return null;

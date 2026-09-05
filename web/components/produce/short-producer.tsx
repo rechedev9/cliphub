@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
-import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { GAME_VOLUME_DEFAULT_PERCENT } from '@/lib/api/reel-music';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
 import { forgeHint } from '@/lib/forge-hint';
-import { PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
+import { PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED, PRODUCE_SHORT_EMPTY_HINT, PRODUCE_SHORT_TITLE } from '@/lib/produce/copy';
+import { defaultShortSettings } from '@/lib/produce/short-draft';
+import { useShortDraft } from '@/hooks/use-short-draft';
 import {
   autoPickBestPlays,
   estimatedSelectionSeconds,
@@ -55,22 +56,13 @@ export type ShortProducerProps = {
 export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
-  // A first-time user lands on a renderable plan; every row stays a toggle.
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => autoPickBestPlays(plays));
-  const [variant, setVariant] = useState<string | null>(null);
-  const [songId, setSongId] = useState<string | null>(null);
-  const [songTitle, setSongTitle] = useState<string | null>(null);
-  const [musicDecided, setMusicDecided] = useState(false);
-  const [musicVolume, setMusicVolume] = useState<number>(MUSIC_VOLUME.default);
-  const [gameVolume, setGameVolume] = useState<number>(GAME_VOLUME_DEFAULT_PERCENT);
-  // The Short constructor is single-format: `SHORT_FORMAT` is the only source
-  // of truth, so the edit config can never drift to 16:9 behind the preview.
-  const [editConfig, setEditConfig] = useState<EditConfig>(() =>
-    constrainEditConfig({ ...DEFAULT_EDIT_CONFIG, format: SHORT_FORMAT }),
-  );
+  const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft(matchId, plays);
+  const { variant, songId, songTitle, musicDecided, musicVolume, gameVolume, editConfig } = settings;
+  const selectedIds = useMemo(() => new Set(settings.selectedIds), [settings.selectedIds]);
   const [songOpen, setSongOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const busy = creating || !loaded;
 
   useEffect(() => {
     let active = true;
@@ -79,7 +71,8 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
         const list = await api.listPresets();
         if (!active) return;
         setPresets(list);
-        setVariant((cur) => selectShortsFormat(SHORT_FORMAT, cur, list).variant);
+        // An unavailable catalog must not overwrite a saved preset with null.
+        if (list.length > 0) updateSettings((cur) => ({ variant: selectShortsFormat(SHORT_FORMAT, cur.variant, list).variant }), false);
       } catch {
         if (active) setPresets([]);
       }
@@ -87,7 +80,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
     return () => {
       active = false;
     };
-  }, []);
+  }, [updateSettings]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
   const cues = selectionTimeline(plays, selectedIds);
@@ -101,44 +94,49 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, musicBriefFor(musicDecided, songTitle, musicVolume, gameVolume));
   const configured = selectedPlays.length > 0 && presetLabel !== null && musicDecided;
   const ready = canForgeReel({
-    creating,
-    hasPreset: variant !== null,
+    creating: busy,
+    hasPreset: selectedPreset !== null,
     selectionCount: selectedPlays.length,
     musicDecided,
   });
 
   function toggleSelect(playId: string): void {
-    if (creating) return;
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
+    if (busy) return;
+    updateSettings((prev) => {
+      const next = new Set(prev.selectedIds);
       if (next.has(playId)) next.delete(playId);
       else next.add(playId);
-      return next;
+      return { selectedIds: [...next] };
     });
   }
 
   function changeEditConfig(next: EditConfig): void {
-    setEditConfig(constrainEditConfig({ ...next, format: SHORT_FORMAT }));
+    if (busy) return;
+    updateSettings({ editConfig: constrainEditConfig({ ...next, format: SHORT_FORMAT }) });
   }
 
   function chooseVariant(nextVariant: string): void {
     // A landscape preset is never offered here, so only the variant travels.
-    setVariant(selectShortsPreset(nextVariant, SHORT_FORMAT, presets ?? []).variant);
+    if (busy) return;
+    updateSettings({ variant: selectShortsPreset(nextVariant, SHORT_FORMAT, presets ?? []).variant });
   }
 
   function onChooseSong(chosenId: string, chosenTitle: string): void {
-    setSongId(chosenId);
-    setSongTitle(chosenTitle);
-    setMusicDecided(true);
+    if (busy) return;
+    updateSettings({ songId: chosenId, songTitle: chosenTitle, musicDecided: true });
     setSongOpen(false);
   }
 
   function resetMusic(decided: boolean): void {
-    setSongId(null);
-    setSongTitle(null);
-    setMusicVolume(MUSIC_VOLUME.default);
-    setGameVolume(GAME_VOLUME_DEFAULT_PERCENT);
-    setMusicDecided(decided);
+    if (busy) return;
+    updateSettings({ songId: null, songTitle: null, musicVolume: MUSIC_VOLUME.default, gameVolume: GAME_VOLUME_DEFAULT_PERCENT, musicDecided: decided });
+  }
+
+  function startOver(): void {
+    if (busy) return;
+    resetSettings({ ...defaultShortSettings(plays), variant: selectShortsFormat(SHORT_FORMAT, null, presets ?? []).variant });
+    setCreateError(null);
+    setSongOpen(false);
   }
 
   async function onCreate(): Promise<void> {
@@ -157,6 +155,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
         variant: variant ?? undefined,
         editConfig: constrainEditConfig({ ...editConfig, format: SHORT_FORMAT }),
       });
+      discardDraft();
       toast('Short en render', { description: 'FFmpeg montando · míralo en la fila' });
       router.push(seriesId ? seriesHref(seriesId) : hubHref({ open: matchId }));
     } catch (err) {
@@ -188,6 +187,14 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             </p>
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
             <p className="text-body-sm text-fg-2">Las jugadas seleccionadas se unen en un único vídeo vertical. Revisa la selección automática antes de continuar.</p>
+            {restored ? (
+              <p role="status" className="text-body-sm text-fg-3">
+                {PRODUCE_SHORT_DRAFT_RESTORED}{' '}
+                <button type="button" disabled={busy} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+                  {PRODUCE_SHORT_DRAFT_RESET}
+                </button>
+              </p>
+            ) : null}
             <p className="measure-read text-body text-fg-2">
               Ya tienes preseleccionado el mejor minuto. Toca una fila para quitarla o añadirla; el guion enseña el orden
               final.
@@ -199,8 +206,8 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               type="button"
               size="xs"
               variant="outline-primary"
-              disabled={creating || plays.length === 0}
-              onClick={() => setSelectedIds(autoPickBestPlays(plays))}
+              disabled={busy || plays.length === 0}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}
             >
               <Sparkles aria-hidden />
               {AUTO_PICK_LABEL}
@@ -217,8 +224,8 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               </span>
             }
             onToggle={toggleSelect}
-            onSelectAll={() => !creating && setSelectedIds(new Set(plays.map((play) => play.id)))}
-            onClear={() => !creating && setSelectedIds(new Set())}
+            onSelectAll={() => !busy && updateSettings({ selectedIds: plays.map((play) => play.id) })}
+            onClear={() => !busy && updateSettings({ selectedIds: [] })}
           />
         </section>
 
@@ -234,7 +241,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
                 No se pudieron cargar los estilos. Recarga la página.
               </p>
             ) : (
-              <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={creating || visiblePresets === null}>
+              <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
                 <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">
                   <SelectValue placeholder="Cargando estilos…" />
                 </SelectTrigger>
@@ -255,12 +262,12 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             songTitle={songTitle}
             musicVolume={musicVolume}
             gameVolume={gameVolume}
-            busy={creating}
+            busy={busy}
             onOpenPicker={() => setSongOpen(true)}
             onChooseNone={() => resetMusic(true)}
             onClear={() => resetMusic(false)}
-            onVolumeChange={setMusicVolume}
-            onGameVolumeChange={setGameVolume}
+            onVolumeChange={(value) => updateSettings({ musicVolume: value })}
+            onGameVolumeChange={(value) => updateSettings({ gameVolume: value })}
           />
 
           <details className="group/overlays studio-panel px-3.5 py-3">
@@ -275,7 +282,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
               <EditOptions
                 value={editConfig}
                 onChange={changeEditConfig}
-                disabled={creating}
+                disabled={busy}
               />
             </div>
           </details>

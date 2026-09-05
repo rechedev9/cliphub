@@ -229,7 +229,7 @@ export default function ProducePage({
           {shortContent}
           {shortPlanJobId === id ? (
             <div hidden={shortUnavailable} className={shortUnavailable ? 'hidden' : 'flex flex-1 flex-col'}>
-              <ShortProducer matchId={id} match={match} plays={plays} seriesId={seriesId} />
+              <ShortProducer key={id} matchId={id} match={match} plays={plays} seriesId={seriesId} />
             </div>
           ) : null}
         </div>
@@ -246,7 +246,7 @@ export default function ProducePage({
     <div className="measure-work flex min-h-[calc(100vh-9rem)] flex-col">
       <div className="mb-5">
         <WorkflowProgress steps={DEMO_CREATION_STEPS}
-          current={stage === HUB_ROW_STAGE.unpicked || stage === HUB_ROW_STAGE.parsing ? 1 : 2} />
+          current={stage === HUB_ROW_STAGE.unpicked ? 1 : 2} />
       </div>
       <ProduceFormatBar value={format} onChange={changeFormat} />
       <div className="flex flex-1 flex-col gap-6 pt-6">
