@@ -9,6 +9,7 @@ import (
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
@@ -52,6 +53,7 @@ type RunOptions struct {
 type DualPlan struct {
 	Kills killplan.Plan
 	Recap killplan.Plan
+	Facts recapplan.Facts
 }
 
 // RunWithContext drives the parser like RunWithOptions but aborts parsing when
@@ -97,7 +99,7 @@ func RunDualWithOptions(p demoinfocs.Parser, target string, r rules.Rules, m Pla
 	switch opts.SegmentMode {
 	case "", SegmentModeKills:
 		if opts.AlsoRecap {
-			dual.Kills, dual.Recap, err = runKillsAndRecap(p, target, r, m)
+			dual.Kills, dual.Recap, err = collectKills(p, target, r, m, SegmentModeKills, true, &dual.Facts)
 		} else {
 			dual.Kills, err = runKills(p, target, r, m)
 		}

@@ -1,6 +1,8 @@
 import { localAPIRequestError } from './local-request-guard.ts';
 
 const MAX_CONTROL_BODY_BYTES = 1 * 1024 * 1024;
+/** Matches Go render admission: a bounded plan snapshot plus its edit envelope. */
+export const MAX_RENDER_CONTROL_BODY_BYTES = 8 * 1024 * 1024;
 
 export interface RequestBodySource {
   readonly headers: Headers;

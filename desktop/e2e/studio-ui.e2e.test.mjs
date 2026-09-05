@@ -63,16 +63,16 @@ after(async () => {
   profile.dispose();
 });
 
-test('boots to Inicio, not the error screen', async () => {
-  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/onboarding/, {
+test('boots to the clips hub, not the error screen', async () => {
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/clips$/, {
     timeout: E2E_BOOT_DEADLINE_MS,
   });
   const url = page.url();
-  assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/onboarding/, `landed on ${url}`);
+  assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/clips$/, `landed on ${url}`);
   // The document titles itself with the shared web product name, while the
   // native window must keep the desktop product name (main.ts suppresses
   // page-title-updated).
-  assert.equal(await page.title(), 'Inicio · ClipHub');
+  assert.equal(await page.title(), 'Clips y vídeos · ClipHub');
   const nativeTitle = await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0];
     return win ? win.getTitle() : null;

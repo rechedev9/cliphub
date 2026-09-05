@@ -427,6 +427,7 @@ func PackManifestFromManifest(manifest Manifest, result Result) PackManifest {
 	}
 	for _, short := range manifest.Shorts {
 		pack.Items = append(pack.Items, PublishItem{
+			FullDemo:           short.FullDemo,
 			Index:              short.Index,
 			SegmentID:          short.SegmentID,
 			Preset:             short.Preset,

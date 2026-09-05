@@ -58,6 +58,12 @@ func ValidateRunResult(result RecordingResult) error {
 	if result.CaptureInputFingerprint != fingerprint {
 		return fmt.Errorf("recording result capture input fingerprint does not match its plan")
 	}
+	if result.Plan.FullDemo != nil {
+		if result.FullDemoEvidence == nil || !result.FullDemoEvidence.FilesRestored {
+			return fmt.Errorf("pov_contract_failed: Full Demo settings files were not restored")
+		}
+		return result.validateFullDemoRuns()
+	}
 	return nil
 }
 
@@ -82,6 +88,9 @@ func MarkNotReusable(err error) error {
 // this compatibility path. The legacy plan still crosses all V1 validation
 // boundaries plus today's safe artifact-token check.
 func validateLegacyRunResult(result RecordingResult) error {
+	if result.Plan.FullDemo != nil || len(result.Plan.FullDemoSources) > 0 || len(result.FullDemoRuns) > 0 || result.FullDemoEvidence != nil || result.Plan.Stream.FullDemoProfile != "" {
+		return fmt.Errorf("legacy capture cannot carry Full Demo evidence")
+	}
 	if result.CaptureMode != "" || result.CaptureInputFingerprint != "" {
 		return fmt.Errorf("legacy recording result contains fields from a newer capture contract")
 	}

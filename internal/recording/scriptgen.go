@@ -1,12 +1,18 @@
 package recording
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/rechedev9/cliphub/internal/sharecode"
 )
+
+//go:embed full_demo_runtime.js
+var fullDemoRuntime string
 
 type scheduledCommand struct {
 	Tick     int      `json:"tick"`
@@ -28,6 +34,7 @@ type seekStep struct {
 // without that proof, and any drift before the final selected event fails the
 // run instead of publishing a structurally valid clip from another POV.
 type captureWindow struct {
+	LiveEndTick int    `json:"liveEndTick,omitempty"`
 	SegmentID   string `json:"segmentId"`
 	LockFrom    int    `json:"lockFrom"`
 	RecordStart int    `json:"recordStart"`
@@ -127,9 +134,13 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    let lastLockFrame = -999;\n")
 	sb.WriteString("    let activeSegment = null;\n")
 	sb.WriteString("    let unknownObserverFrames = 0;\n")
-	sb.WriteString(fmt.Sprintf("    const maxUnknownObserverFrames = %d;\n", maxUnknownObserverFrames))
+	unknownBudget, driftBudget := maxUnknownObserverFrames, maxDriftedObserverFrames
+	if plan.FullDemo != nil {
+		unknownBudget, driftBudget = 1, 1
+	}
+	sb.WriteString(fmt.Sprintf("    const maxUnknownObserverFrames = %d;\n", unknownBudget))
 	sb.WriteString("    let driftedObserverFrames = 0;\n")
-	sb.WriteString(fmt.Sprintf("    const maxDriftedObserverFrames = %d;\n", maxDriftedObserverFrames))
+	sb.WriteString(fmt.Sprintf("    const maxDriftedObserverFrames = %d;\n", driftBudget))
 	sb.WriteString("    let demoEndedFrames = 0;\n")
 	sb.WriteString(fmt.Sprintf("    const demoEndedGraceFrames = %d;\n", demoEndedGraceFrames))
 	sb.WriteString("    let fatal = false;\n")
@@ -140,8 +151,12 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        // disconnect first; quit a few client frames later so CS2 can leave\n")
 	sb.WriteString("        // demo playback without the native Afx/CS2 hard-crash dialog.\n")
 	sb.WriteString("        if (pendingQuitFrames > 0) return;\n")
-	for _, cmd := range voiceRestoreCommands() {
-		sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", cmd))
+	if plan.FullDemo != nil {
+		sb.WriteString("        restoreFullDemoSettings();\n")
+	} else {
+		for _, cmd := range voiceRestoreCommands() {
+			sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", cmd))
+		}
 	}
 	sb.WriteString("        mirv.exec(\"disconnect\");\n")
 	sb.WriteString("        pendingQuitFrames = softQuitClientFrames;\n")
@@ -169,6 +184,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("            if (localController === null) return null;\n")
 	sb.WriteString("            const localPawn = entityFromHandle(localController.getPlayerPawnHandle());\n")
 	sb.WriteString("            if (localPawn === null || !localPawn.isPlayerPawn()) return null;\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("            if (typeof localPawn.getObserverMode !== 'function' || localPawn.getObserverMode() !== 2) return null;\n")
+	}
 	sb.WriteString("            const observedPawn = entityFromHandle(localPawn.getObserverTargetHandle());\n")
 	sb.WriteString("            if (observedPawn === null || !observedPawn.isPlayerPawn()) return null;\n")
 	sb.WriteString("            const observedController = entityFromHandle(observedPawn.getPlayerControllerHandle());\n")
@@ -202,6 +220,26 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        activeSegment = null;\n")
 	sb.WriteString("        beginSoftQuit();\n")
 	sb.WriteString("    };\n")
+	if plan.FullDemo != nil {
+		captureJSON, err := json.Marshal(plan.FullDemo.Options.Capture)
+		if err != nil {
+			return "", err
+		}
+		crosshairCvars := map[string]float64{}
+		if plan.FullDemo.Options.Capture.Crosshair.Mode == "provided-code" {
+			crosshairCvars, err = sharecode.CrosshairCvars(plan.FullDemo.Options.Capture.Crosshair.Code)
+			if err != nil {
+				return "", fmt.Errorf("decode approved crosshair: %w", err)
+			}
+		}
+		crosshairJSON, err := json.Marshal(crosshairCvars)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(fmt.Sprintf("    const fullDemoCrosshairCvars = %s;\n", crosshairJSON))
+		sb.WriteString(fmt.Sprintf("    const fullDemoCapture = %s;\n    const fullDemoAllowTailTrim = %t;\n    const fullDemoToken = %q;\n", captureJSON, plan.FullDemo.Options.Editorial.AllowSafeTailTrim, attestationToken))
+		sb.WriteString(fullDemoRuntime)
+	}
 	sb.WriteString("    const run = (item) => {\n")
 	sb.WriteString("        if (fired[item.key]) return;\n")
 	sb.WriteString("        fired[item.key] = true;\n")
@@ -212,7 +250,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        }\n")
 	sb.WriteString("    };\n\n")
 	sb.WriteString("    mirv.events.clientFrameStageNotify.on(id, (e) => {\n")
-	sb.WriteString("        if (e.isBefore) return;\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("        if (!e.isBefore || e.curStage !== 12) return;\n")
+	} else {
+		sb.WriteString("        if (e.isBefore) return;\n")
+	}
 	sb.WriteString("        // Soft-quit countdown must run after fatal/demo-end disconnect so CS2\n")
 	sb.WriteString("        // still receives quit even when the capture schedule is frozen.\n")
 	sb.WriteString("        if (pendingQuitFrames > 0) {\n")
@@ -247,6 +289,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        demoEndedFrames = 0;\n")
 	sb.WriteString("        const tick = mirv.getDemoTick();\n")
 	sb.WriteString("        if (tick === undefined || tick < 0) return;\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("        if (!ensureFullDemoSettings() || !verifyFullDemoSettings()) return;\n")
+	}
 	sb.WriteString("        if (!armed) {\n")
 	sb.WriteString("            armed = true;\n")
 	sb.WriteString("            mirv.message(`[zackvideo] armed at tick ${tick}\\n`);\n")
@@ -304,7 +349,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    unknownObserverFrames++;\n")
 	sb.WriteString("                    driftedObserverFrames = 0;\n")
 	sb.WriteString("                    if (unknownObserverFrames >= maxUnknownObserverFrames) {\n")
-	sb.WriteString("                        failCapture(`observer target remained unknown during ${captureWindow.segmentId}`);\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("                        failOrTrimFullDemo(captureWindow, tick, `observer target or first-person mode unknown during ${captureWindow.segmentId}`);\n")
+	} else {
+		sb.WriteString("                        failCapture(`observer target remained unknown during ${captureWindow.segmentId}`);\n")
+	}
 	sb.WriteString("                        return;\n")
 	sb.WriteString("                    }\n")
 	sb.WriteString("                } else if (observed !== targetSteamId) {\n")
@@ -315,7 +364,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                        lastLockFrame = frame;\n")
 	sb.WriteString("                    }\n")
 	sb.WriteString("                    if (driftedObserverFrames >= maxDriftedObserverFrames) {\n")
-	sb.WriteString("                        failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("                        failOrTrimFullDemo(captureWindow, tick, `observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+	} else {
+		sb.WriteString("                        failCapture(`observer target ${observed} drifted from ${targetSteamId} during ${captureWindow.segmentId}`);\n")
+	}
 	sb.WriteString("                        return;\n")
 	sb.WriteString("                    }\n")
 	sb.WriteString("                } else {\n")
@@ -364,6 +417,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                }\n")
 	sb.WriteString("                run(item);\n")
 	sb.WriteString("                activeSegment = null;\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("                fullDemoEnd(window, window.recordEnd, 'complete');\n")
+	}
 	sb.WriteString("                continue;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("            if (item.key === \"shutdown\") {\n")
@@ -382,7 +438,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        }\n")
 	sb.WriteString("    });\n\n")
 	sb.WriteString("    globalThis[id] = {\n")
-	sb.WriteString("        unregister: () => mirv.events.clientFrameStageNotify.off(id)\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("        unregister: () => { if (activeSegment !== null) mirv.exec(\"mirv_streams record end\"); restoreFullDemoSettings(); mirv.events.clientFrameStageNotify.off(id); }\n")
+	} else {
+		sb.WriteString("        unregister: () => mirv.events.clientFrameStageNotify.off(id)\n")
+	}
 	sb.WriteString("    };\n")
 	sb.WriteString("}\n")
 	return sb.String(), nil
@@ -420,7 +480,11 @@ func buildRuntimeSchedule(plan RecordingPlan) ([]scheduledCommand, []seekStep, [
 		// before record-end so a legitimate entity teardown at the boundary does
 		// not fail an otherwise complete capture.
 		verifyUntil := povVerifyUntilTick(s, recordStart, recordEnd)
+		if s.ExactWindow {
+			verifyUntil = recordEnd - 1
+		}
 		windows = append(windows, captureWindow{
+			LiveEndTick: s.LiveEndTick,
 			SegmentID:   s.ID,
 			LockFrom:    max(seekTarget+1, cameraWarmupTick),
 			RecordStart: recordStart,
@@ -570,6 +634,9 @@ func quoteConsoleArg(value string) string {
 // EffectiveRecordStartTick returns the actual tick where HLAE starts recording
 // a segment after applying recorder camera-settle timing.
 func EffectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
+	if segment.ExactWindow {
+		return segment.TickStart
+	}
 	if tickrate <= 0 || len(segment.Kills) == 0 {
 		return segment.TickStart
 	}
@@ -598,6 +665,9 @@ func EffectiveRecordStartTick(segment RecordingSegment, tickrate int) int {
 // short clean tail (and hard headroom before absolute duration) instead of
 // soft-capping before that event.
 func EffectiveRecordEndTick(segment RecordingSegment, plan RecordingPlan) int {
+	if segment.ExactWindow {
+		return segment.TickEnd
+	}
 	end := segment.TickEnd
 	if plan.DemoDurationTicks <= 1 || end <= 0 {
 		return end
@@ -722,6 +792,9 @@ func streamSetupCommands(plan RecordingPlan) []string {
 		"cl_trueview_show_status 0",
 	}
 	commands = append(commands, voiceMuteCommands()...)
+	if plan.FullDemo != nil {
+		commands = nil
+	} // Typed cvar snapshot/readback owns these settings.
 	commands = append(commands,
 		"mirv_panorama panelstyle panelId=trueview_row opacity=0",
 		fmt.Sprintf("mirv_streams record name %s", quoteConsoleArg(recordName)),
@@ -795,6 +868,9 @@ func ffmpegSettingsCommand(name string, crf int, encoder string) string {
 }
 
 func hudSetupCommands(plan RecordingPlan) []string {
+	if plan.FullDemo != nil {
+		return nil
+	}
 	var commands []string
 	switch plan.Stream.HUDMode {
 	case HUDModeClean:

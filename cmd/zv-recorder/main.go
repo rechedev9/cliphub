@@ -27,6 +27,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/pathguard"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -56,9 +57,10 @@ func main() {
 	os.Exit(1)
 }
 
-func run() error {
+func run() (retErr error) {
 	var (
 		killPlanPath         = flag.String("killplan", "", "path to kill plan JSON")
+		fullDemoPlanPath     = flag.String("full-demo-plan", "", "approved versioned Full Demo document; exact round windows and capture profile")
 		demoPath             = flag.String("demo", "", "path to .dem file")
 		outDir               = flag.String("out", "", "recording output directory")
 		hlaeExe              = flag.String("hlae", "", "path to HLAE.exe")
@@ -142,7 +144,15 @@ func run() error {
 	if *videoCRF > 0 {
 		stream.CRF = *videoCRF
 	}
-	plan, err := recording.NewPlanFromKillPlan(kp, absDemoPath, absOutDir, stream)
+	var fullDemo *recapplan.Document
+	if *fullDemoPlanPath != "" {
+		d, err := recapplan.ReadDocumentFile(*fullDemoPlanPath)
+		if err != nil {
+			return err
+		}
+		fullDemo = &d
+	}
+	plan, err := recording.NewPlanFromKillPlan(kp, absDemoPath, absOutDir, stream, fullDemo)
 	if err != nil {
 		return err
 	}
@@ -247,8 +257,32 @@ func run() error {
 	// desktop and glitches more than a plain window. Patch the saved settings
 	// for the run and put the originals back afterwards. validateExecutables
 	// already guaranteed cs2.exe is not running, so the file is safe to edit.
-	restoreVideoConfig := forceWindowedVideoConfig(absCS2Exe)
-	defer restoreVideoConfig()
+	var settingsJournal *recording.SettingsJournal
+	if plan.FullDemo != nil {
+		configRoot, err := os.UserConfigDir()
+		if err != nil {
+			return fmt.Errorf("locate capture settings recovery directory: %w", err)
+		}
+		settingsJournal, err = recording.BeginSettingsJournal(filepath.Join(configRoot, "cliphub-studio", "capture-settings", "journal.json"), cs2SettingsDirectories(absCS2Exe), recording.SettingsOwnerAlive)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if restoreErr := settingsJournal.Restore(); restoreErr != nil {
+				retErr = errors.Join(retErr, restoreErr)
+				result.Error = retErr.Error()
+				_ = writeResult(plan.OutputDir, result)
+			}
+		}()
+		if err := forceWindowedJournalConfigs(settingsJournal); err != nil {
+			result.Error = err.Error()
+			_ = writeResult(plan.OutputDir, result)
+			return err
+		}
+	} else {
+		restoreVideoConfig := forceWindowedVideoConfig(absCS2Exe)
+		defer restoreVideoConfig()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
@@ -310,6 +344,23 @@ func run() error {
 	perfRun.LaunchAndCaptureMS = elapsedMilliseconds(captureStarted)
 	result.CaptureVerified = true
 	stopIncrementalMux()
+	if plan.FullDemo != nil {
+		logFile, err := os.Open(cs2ConsoleLogPath(absCS2Exe))
+		if err != nil {
+			return fmt.Errorf("read Full Demo capture evidence: %w", err)
+		}
+		result.FullDemoEvidence, err = recording.ReadFullDemoCaptureEvidence(logFile, attestationToken, plan)
+		closeErr := logFile.Close()
+		if err = errors.Join(err, closeErr); err != nil {
+			result.Error = err.Error()
+			_ = writeResult(plan.OutputDir, result)
+			return err
+		}
+		if err := settingsJournal.Restore(); err != nil {
+			return fmt.Errorf("restore Full Demo settings journal: %w", err)
+		}
+		result.FullDemoEvidence.FilesRestored = true
+	}
 
 	// Post-processing (ffprobe/ffmpeg) runs after recording, so give it its own
 	// timeout budget: bounded so a hung subprocess cannot run indefinitely, but
@@ -324,7 +375,7 @@ func run() error {
 	result.Artifacts = append(result.Artifacts, recording.MuxSegmentClips(postCtx, plan, result.Artifacts, ffmpegPath, ffprobePath)...)
 	perfRun.FinalMuxMS = elapsedMilliseconds(muxStarted)
 	validationStarted := time.Now()
-	result.Warnings = recording.ValidateArtifacts(plan, result.Artifacts)
+	result.Warnings = recording.ValidateArtifacts(result.CertifiedPlan(), result.Artifacts)
 	if err := validateCaptureResult(result, absCS2Exe); err != nil {
 		perfRun.ValidationMS = elapsedMilliseconds(validationStarted)
 		finalizePerformance()
@@ -334,6 +385,13 @@ func run() error {
 	}
 	perfRun.ValidationMS = elapsedMilliseconds(validationStarted)
 	finalizePerformance()
+	if plan.FullDemo != nil {
+		if err := result.DigestSegmentFiles(postCtx); err != nil {
+			result.Error = err.Error()
+			_ = writeResult(plan.OutputDir, result)
+			return err
+		}
+	}
 	return writeResultAndReport(plan.OutputDir, result, false, *format, os.Stdout)
 }
 
@@ -757,7 +815,12 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 }
 
 func cs2LaunchCommandLine(plan recording.RecordingPlan, scriptPath string) string {
-	return fmt.Sprintf(`-insecure -condebug -windowed -w %d -h %d +cl_demo_predict 0 +playdemo "%s" +mirv_script_load "%s"`, plan.Stream.Width, plan.Stream.Height, plan.DemoPath, scriptPath)
+	prediction := " +cl_demo_predict 0"
+	if plan.FullDemo != nil {
+		// The Full Demo runtime snapshots the actual value before applying it.
+		prediction = ""
+	}
+	return fmt.Sprintf(`-insecure -condebug -windowed -w %d -h %d%s +playdemo "%s" +mirv_script_load "%s"`, plan.Stream.Width, plan.Stream.Height, prediction, plan.DemoPath, scriptPath)
 }
 
 // windowedVideoSettings are the CS2 saved video settings that must be off for
@@ -804,6 +867,43 @@ func forceWindowedVideoConfig(cs2Exe string) func() {
 	}
 }
 
+// Full Demo edits only files already snapshotted by the recovery journal.
+// Any missing, changed or unwritable file prevents launching CS2.
+func forceWindowedJournalConfigs(journal *recording.SettingsJournal) error {
+	for _, saved := range journal.Files {
+		if !strings.EqualFold(saved.Name, "cs2_video.txt") {
+			continue
+		}
+		path := filepath.Join(journal.Directories[saved.Directory], saved.Name)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("pov_contract_failed: inspect window settings: %w", err)
+		}
+		if !info.Mode().IsRegular() || info.Size() > 4<<20 {
+			return fmt.Errorf("pov_contract_failed: window settings changed after snapshot")
+		}
+		current, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("pov_contract_failed: read window settings: %w", err)
+		}
+		if string(current) != string(saved.Contents) {
+			return fmt.Errorf("pov_contract_failed: window settings changed after snapshot")
+		}
+		patched, changed := patchWindowedVideoSettings(string(current))
+		if !changed {
+			continue
+		}
+		if err := os.WriteFile(path, []byte(patched), os.FileMode(saved.Mode)&0777); err != nil {
+			return fmt.Errorf("pov_contract_failed: write window settings: %w", err)
+		}
+		readback, err := os.ReadFile(path)
+		if err != nil || string(readback) != patched {
+			return fmt.Errorf("pov_contract_failed: window settings readback failed: %v", err)
+		}
+	}
+	return nil
+}
+
 // patchWindowedVideoSettings forces the fullscreen/borderless settings to "0"
 // in a cs2_video.txt body, reporting whether anything changed. Settings that
 // are absent are left absent; CS2 then follows the launch flags.
@@ -829,6 +929,17 @@ func patchWindowedVideoSettings(content string) (string, bool) {
 // the default Steam location, since cs2 may live in a secondary library while
 // userdata stays in the main install.
 func cs2VideoConfigPaths(cs2Exe string) []string {
+	var paths []string
+	for _, dir := range cs2SettingsDirectories(cs2Exe) {
+		path := filepath.Join(dir, "cs2_video.txt")
+		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+func cs2SettingsDirectories(cs2Exe string) []string {
 	var roots []string
 	if dir := steamRootFromCS2Path(cs2Exe); dir != "" {
 		roots = append(roots, dir)
@@ -841,7 +952,7 @@ func cs2VideoConfigPaths(cs2Exe string) []string {
 	seen := map[string]bool{}
 	var paths []string
 	for _, root := range roots {
-		matches, _ := filepath.Glob(filepath.Join(root, "userdata", "*", "730", "local", "cfg", "cs2_video.txt"))
+		matches, _ := filepath.Glob(filepath.Join(root, "userdata", "*", "730", "local", "cfg"))
 		for _, match := range matches {
 			if seen[match] {
 				continue
@@ -1094,7 +1205,7 @@ func validateCaptureResult(result recording.RecordingResult, cs2Exe string) erro
 	if err := recording.ValidateUploadResult(result); err != nil {
 		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
 	}
-	if err := recording.ValidateCaptureCoverage(result.Plan, result.Artifacts); err != nil {
+	if err := recording.ValidateCaptureCoverage(result.CertifiedPlan(), result.Artifacts); err != nil {
 		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
 	}
 	return nil

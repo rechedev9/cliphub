@@ -1,3 +1,4 @@
+import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
@@ -101,7 +102,8 @@ export function coerceIntents(parsed: unknown): ReelIntent[] {
     const r = v as Record<string, unknown>;
     if (typeof r.videoId !== 'string' || typeof r.jobId !== 'string') continue;
     const segmentIds = coerceSegmentIds(r);
-    const editConfig = coerceEditConfig(r.editConfig);
+    let editConfig: EditConfig;
+    try { editConfig = coerceEditConfig(r.editConfig); } catch { continue; }
     if (segmentIds.length === 0 && !isPersistedRecapIntent(r.videoId, editConfig)) continue;
     const intent: ReelIntent = {
       videoId: r.videoId,
@@ -144,6 +146,10 @@ function coerceSegmentIds(r: Record<string, unknown>): string[] {
 export function coerceEditConfig(value: unknown): EditConfig {
   if (!value || typeof value !== 'object') return DEFAULT_EDIT_CONFIG;
   const raw = value as Partial<EditConfig>;
+  if (Object.hasOwn(raw, 'fullDemo')) {
+    if (!isFullDemoSnapshot(raw.fullDemo)) throw new Error('Stored Full Demo approval is invalid; review the plan again.');
+    return fullDemoPlanEdit(raw.fullDemo);
+  }
   const cfg: EditConfig = {
     format: raw.format === 'landscape-16x9' ? 'landscape-16x9' : DEFAULT_EDIT_CONFIG.format,
     killEffect: isKillEffect(raw.killEffect) ? raw.killEffect : DEFAULT_EDIT_CONFIG.killEffect,

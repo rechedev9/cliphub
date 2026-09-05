@@ -1,9 +1,11 @@
 package voicecomms
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -34,12 +36,53 @@ func CollectFile(demoPath, target string) (Report, []Packet, []Sighting, error) 
 }
 
 func Collect(p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (Report, []Packet, []Sighting, error) {
+	return collectContext(context.Background(), p, target, demoPath, spill)
+}
+
+func collectContext(ctx context.Context, p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (Report, []Packet, []Sighting, error) {
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		select {
+		case <-ctx.Done():
+			p.Cancel()
+		case <-stop:
+		}
+	})
+	defer func() { close(stop); wg.Wait() }()
 	var (
-		mapName   string
-		maxTick   int
-		packets   []Packet
-		sightings []Sighting
+		mapName        string
+		maxTick        int
+		packets        []Packet
+		sightings      []Sighting
+		collectionErr  error
+		collectedBytes int64
+		lastPacketTick int
 	)
+	lastSeen := map[string]Sighting{}
+	recordSighting := func(s Sighting) {
+		previous, ok := lastSeen[s.SteamID64]
+		if s.SteamID64 == "" || (ok && previous.Team == s.Team && previous.Name == s.Name) {
+			return
+		}
+		lastSeen[s.SteamID64] = s
+		sightings = append(sightings, s)
+	}
+	snapshot := func() {
+		for _, s := range snapshotPlaying(p) {
+			recordSighting(s)
+		}
+	}
+	p.RegisterEventHandler(func(e events.PlayerTeamChange) {
+		if e.Player != nil && e.Player.SteamID64 != 0 {
+			recordSighting(Sighting{SteamID64: fmt.Sprint(e.Player.SteamID64), Name: e.Player.Name, Team: teamLabel(e.NewTeam), Tick: p.GameState().IngameTick()})
+		}
+	})
+	p.RegisterEventHandler(func(e events.PlayerDisconnected) {
+		if e.Player != nil && e.Player.SteamID64 != 0 {
+			recordSighting(Sighting{SteamID64: fmt.Sprint(e.Player.SteamID64), Name: e.Player.Name, Tick: p.GameState().IngameTick()})
+		}
+	})
 
 	p.RegisterNetMessageHandler(func(info *msg.CSVCMsg_ServerInfo) {
 		if name := info.GetMapName(); name != "" {
@@ -47,19 +90,28 @@ func Collect(p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (
 		}
 	})
 	p.RegisterEventHandler(func(events.RoundStart) {
-		sightings = append(sightings, snapshotPlaying(p)...)
+		snapshot()
 		if tick := p.GameState().IngameTick(); tick > maxTick {
 			maxTick = tick
 		}
 	})
 	p.RegisterNetMessageHandler(func(m *msg.CSVCMsg_VoiceData) {
-		if m == nil {
+		if m == nil || collectionErr != nil {
 			return
 		}
+		snapshot()
 		pkt := Packet{
 			XUID: m.GetXuid(),
 			Tick: packetTick(int(m.GetTick()), p.GameState().IngameTick()),
 		}
+		pkt.ClockKind = "ingame_tick"
+		if p.GameState().IngameTick() <= 0 {
+			pkt.ClockKind = "voice_data_tick"
+		}
+		if pkt.Tick < lastPacketTick {
+			pkt.ClockKind = "discontinuous"
+		}
+		lastPacketTick = max(lastPacketTick, pkt.Tick)
 		if pkt.Tick > maxTick {
 			maxTick = pkt.Tick
 		}
@@ -72,10 +124,23 @@ func Collect(p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (
 			pkt.SampleRate = audio.GetSampleRate()
 			offsets = audio.GetPacketOffsets()
 			pkt.Offsets = append([]uint32(nil), offsets...)
+			if pkt.Format == FormatOpus {
+				for _, frame := range splitVoiceFrames(data, offsets) {
+					pkt.DurationSamples += opusFrameSamples(frame)
+				}
+			}
 		}
 		index := len(packets)
+		collectedBytes += int64(len(data))
+		if len(packets) >= 2000000 || collectedBytes > 1<<30 || len(data) > 65535 || len(offsets) > 255 {
+			collectionErr = fmt.Errorf("voice packet collection exceeds resource limits")
+			p.Cancel()
+			return
+		}
 		if spill != nil && len(data) > 0 {
 			if err := spill.write(index, pkt.XUID, pkt.Tick, data, offsets); err != nil {
+				collectionErr = fmt.Errorf("persist voice packet %d: %w", index, err)
+				p.Cancel()
 				return
 			}
 		} else if len(data) > 0 {
@@ -84,10 +149,17 @@ func Collect(p demoinfocs.Parser, target, demoPath string, spill *packetSpill) (
 		packets = append(packets, pkt)
 	})
 
-	if err := p.ParseToEnd(); err != nil {
+	parseErr := p.ParseToEnd()
+	if collectionErr != nil {
+		return Report{}, nil, nil, collectionErr
+	}
+	if err := ctx.Err(); err != nil {
+		return Report{}, nil, nil, err
+	}
+	if err := parseErr; err != nil {
 		return Report{}, nil, nil, fmt.Errorf("parse demo: %w", err)
 	}
-	sightings = append(sightings, snapshotPlaying(p)...)
+	snapshot()
 	if tick := p.GameState().IngameTick(); tick > maxTick {
 		maxTick = tick
 	}

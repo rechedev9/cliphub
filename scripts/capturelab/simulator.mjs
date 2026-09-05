@@ -73,11 +73,13 @@ function stateAtTick(scenario, tick) {
       ? scenario.target_steamid
       : scenario.default_observed_steamid,
     targetPresent: scenario.target_present !== false,
+    observerMode: scenario.observer_mode ?? 2,
   };
   for (const override of scenario.observer_overrides ?? []) {
     if (tick < override.from_tick || tick > override.to_tick) continue;
     if (Object.hasOwn(override, 'observed_steamid')) state.observedSteamID = override.observed_steamid;
     if (Object.hasOwn(override, 'target_present')) state.targetPresent = override.target_present;
+    if (Object.hasOwn(override, 'observer_mode')) state.observerMode = override.observer_mode;
   }
   return state;
 }
@@ -202,6 +204,7 @@ export async function runSimulation(scriptSource, rawScenario) {
       isPlayerController: () => false,
       isPlayerPawn: () => true,
       getObserverTargetHandle: () => state.observedSteamID === null ? -1 : 3,
+      getObserverMode: () => state.observerMode,
       getPlayerControllerHandle: () => 1,
     };
     const observedPawn = {
@@ -250,7 +253,32 @@ export async function runSimulation(scriptSource, rawScenario) {
     getEntityFromSplitScreenPlayer(index) { return index === 0 ? currentEntities().localController : null; },
   };
 
-  const context = vm.createContext({ mirv, console: Object.freeze({ log() {}, warn() {}, error() {} }) }, {
+  // Independent engine defaults for Full Demo's readback contract. Scenarios
+  // can remove or refuse individual cvars; absent APIs must fail closed.
+  const cvarValues = new Map(Object.entries({
+    voice_modenable: true, snd_voipvolume: 0.63, tv_listen_voice_indices: 7, tv_listen_voice_indices_h: 9,
+    spec_show_xray: 1, spec_autodirector: true, cl_drawhud: true, cl_draw_only_deathnotices: false,
+    cl_show_observer_crosshair: 1, crosshair: true, cl_demo_predict: 1, cl_trueview_show_status: 2, host_framerate: 0,
+    cl_spec_show_bindings: true, cl_drawhud_specvote: true, cl_teamid_overhead_mode: 3,
+    cl_drawhud_force_teamid_overhead: 0, hud_showtargetid: true, cl_crosshairsize: 4,
+    cl_crosshairgap: 0, cl_crosshair_outlinethickness: 0.5, cl_crosshaircolor_r: 0,
+    cl_crosshaircolor_g: 0, cl_crosshaircolor_b: 0, cl_crosshairalpha: 255,
+    cl_crosshair_dynamic_splitdist: 1, cl_crosshair_recoil: false, cl_fixedcrosshairgap: 0,
+    cl_crosshaircolor: 4, cl_crosshair_drawoutline: false, cl_crosshair_dynamic_splitalpha_innermod: 1,
+    cl_crosshair_dynamic_splitalpha_outermod: 0.5, cl_crosshair_dynamic_maxdist_splitratio: 0.5,
+    cl_crosshairthickness: 1, cl_crosshairdot: true, cl_crosshairgap_useweaponvalue: false,
+    cl_crosshairusealpha: false, cl_crosshair_t: true, cl_crosshairstyle: 4,
+    ...(scenario.cvars ?? {}),
+  }));
+  for (const name of scenario.missing_cvars ?? []) cvarValues.delete(name);
+  const cvarNames = [...cvarValues.keys()];
+  class AdvancedfxCVar {
+    static getIndexFromName(name) { const index = cvarNames.indexOf(name); return index < 0 ? undefined : index; }
+    constructor(index) { if (!cvarNames[index]) throw new Error('cvar unavailable'); this.name = cvarNames[index]; }
+    get value() { return cvarValues.get(this.name); }
+    set value(value) { if (!(scenario.refuse_cvar_writes ?? []).includes(this.name)) cvarValues.set(this.name, value); }
+  }
+  const context = vm.createContext({ mirv, AdvancedfxCVar: scenario.cvar_api === false ? undefined : AdvancedfxCVar, console: Object.freeze({ log() {}, warn() {}, error() {} }) }, {
     name: `cliphub-capturelab-${scenario.name}`,
     codeGeneration: { strings: false, wasm: false },
   });
@@ -262,7 +290,7 @@ export async function runSimulation(scriptSource, rawScenario) {
   const tickOverrides = new Map((scenario.tick_overrides ?? []).map(({ frame, tick }) => [frame, tick]));
   for (frame = 1; frame <= maxFrames && !quit; frame++) {
     if (tickOverrides.has(frame)) tick = tickOverrides.get(frame);
-    for (const callback of [...callbacks.values()]) callback({ isBefore: false });
+    for (const callback of [...callbacks.values()]) callback({ isBefore: scenario.frame_stage === 'render-before', curStage: 12 });
     if (pendingSeek) {
       if (pendingSeek.remaining <= 0) {
         tick = pendingSeek.target;
@@ -322,6 +350,7 @@ export async function runSimulation(scriptSource, rawScenario) {
     executed_commands: commands,
     failure_messages: events.filter((event) => event.kind === 'warning' && event.value.includes('capture_failed:')).map((event) => event.value),
     events,
+    final_cvars: Object.fromEntries(cvarValues),
     integrity_failures: integrityFailures,
   };
   summary.expectation_failures = evaluateExpectations(summary, scenario);

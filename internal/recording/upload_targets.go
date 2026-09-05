@@ -36,8 +36,12 @@ func NewUploadTargets(opts NewUploadTargetsOptions) ([]UploadTarget, error) {
 	if scriptRequired {
 		missingScriptMessage = "recording script not found at " + scriptPath
 	}
+	scriptKey, err := opts.Result.ScriptKey(opts.JobID)
+	if err != nil {
+		return nil, err
+	}
 	targets := []UploadTarget{{
-		Key:            ScriptArtifactKey(opts.JobID),
+		Key:            scriptKey,
 		Path:           scriptPath,
 		Label:          "recording script",
 		Required:       scriptRequired,
@@ -48,7 +52,7 @@ func NewUploadTargets(opts NewUploadTargetsOptions) ([]UploadTarget, error) {
 		if !isUsableSegmentClip(artifact) {
 			continue
 		}
-		key, err := SegmentClipArtifactKey(opts.JobID, artifact.SegmentID)
+		key, err := opts.Result.SegmentClipKey(opts.JobID, artifact.SegmentID)
 		if err != nil {
 			return nil, err
 		}

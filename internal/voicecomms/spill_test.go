@@ -1,11 +1,44 @@
 package voicecomms
 
 import (
+	"math"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/voiceprofile"
 )
+
+func TestPacketSpillRejectsInvalidBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		tick    int64
+		bytes   int
+		offsets int
+	}{
+		{"negative tick", -1, 1, 0},
+		{"overflow tick", int64(math.MaxUint32) + 1, 1, 0},
+		{"payload too large", 1, 65536, 0},
+		{"offsets too large", 1, 1, 256},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if strconv.IntSize < 64 && tc.tick > math.MaxInt32 {
+				t.Skip("requires 64-bit tick")
+			}
+			spill, err := newPacketSpill(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = spill.Close() })
+			if err := spill.write(0, 1, int(tc.tick), make([]byte, tc.bytes), make([]uint32, tc.offsets)); err == nil {
+				t.Fatal("invalid packet accepted")
+			}
+			if len(spill.records) != 0 || len(spill.files) != 0 {
+				t.Fatal("rejected packet changed spill state")
+			}
+		})
+	}
+}
 
 func TestPacketSpillRoundTrip(t *testing.T) {
 	dir := t.TempDir()

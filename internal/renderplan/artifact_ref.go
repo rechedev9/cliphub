@@ -13,14 +13,30 @@ import (
 type RenderVariantArtifactKind string
 
 const (
-	RenderVariantArtifactResult       RenderVariantArtifactKind = "result"
-	RenderVariantArtifactPackManifest RenderVariantArtifactKind = "pack-manifest"
-	RenderVariantArtifactEditDocument RenderVariantArtifactKind = "edit-document"
-	RenderVariantArtifactGallery      RenderVariantArtifactKind = "gallery"
-	RenderVariantArtifactVideo        RenderVariantArtifactKind = "video"
-	RenderVariantArtifactCover        RenderVariantArtifactKind = "cover"
-	RenderVariantArtifactCaption      RenderVariantArtifactKind = "caption"
+	RenderVariantArtifactResult            RenderVariantArtifactKind = "result"
+	RenderVariantArtifactPackManifest      RenderVariantArtifactKind = "pack-manifest"
+	RenderVariantArtifactEditDocument      RenderVariantArtifactKind = "edit-document"
+	RenderVariantArtifactGallery           RenderVariantArtifactKind = "gallery"
+	RenderVariantArtifactVideo             RenderVariantArtifactKind = "video"
+	RenderVariantArtifactCover             RenderVariantArtifactKind = "cover"
+	RenderVariantArtifactCaption           RenderVariantArtifactKind = "caption"
+	RenderVariantArtifactFullDemoApproved  RenderVariantArtifactKind = "full-demo-approved"
+	RenderVariantArtifactFullDemoEffective RenderVariantArtifactKind = "full-demo-effective"
+	RenderVariantArtifactFullDemoAudio     RenderVariantArtifactKind = "full-demo-audio"
+	RenderVariantArtifactFullDemoLoudness  RenderVariantArtifactKind = "full-demo-loudness"
+	RenderVariantArtifactFullDemoDelivery  RenderVariantArtifactKind = "full-demo-delivery"
 )
+
+// FullDemoArtifactKind allowlists public editorial evidence in a render revision.
+func FullDemoArtifactKind(name string) (RenderVariantArtifactKind, bool) {
+	kind := RenderVariantArtifactKind("full-demo-" + name)
+	switch kind {
+	case RenderVariantArtifactFullDemoApproved, RenderVariantArtifactFullDemoEffective, RenderVariantArtifactFullDemoAudio, RenderVariantArtifactFullDemoLoudness, RenderVariantArtifactFullDemoDelivery:
+		return kind, true
+	default:
+		return "", false
+	}
+}
 
 // RenderVariantArtifactRef identifies one durable render-variant artifact.
 type RenderVariantArtifactRef struct {
@@ -92,6 +108,8 @@ func renderVariantArtifactRefAtPrefix(jobID uuid.UUID, variant, prefix string, k
 		key = path.Join(prefix, "edit-document.json")
 	case RenderVariantArtifactGallery:
 		key = path.Join(prefix, "index.html")
+	case RenderVariantArtifactFullDemoApproved, RenderVariantArtifactFullDemoEffective, RenderVariantArtifactFullDemoAudio, RenderVariantArtifactFullDemoLoudness, RenderVariantArtifactFullDemoDelivery:
+		key = path.Join(prefix, string(kind)+".json")
 	case RenderVariantArtifactVideo, RenderVariantArtifactCover, RenderVariantArtifactCaption:
 		if err = artifacts.ValidateArtifactToken("artifact name", segmentID); err == nil {
 			switch kind {

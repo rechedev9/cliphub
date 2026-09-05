@@ -33,6 +33,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -360,6 +361,15 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 	if err != nil {
 		return fmt.Errorf("decode record task generate intent: %w", err)
 	}
+	if hasGenerateIntent && generateIntent.Edit.FullDemo != nil {
+		current, found, err := w.generateIntents.Read(payload.JobID)
+		if err != nil {
+			return err
+		}
+		if !found || current.ActiveRunID != generateIntent.ActiveRunID {
+			return errStaleGenerateHandoff
+		}
+	}
 
 	j, err := w.repo.Get(ctx, payload.JobID)
 	if err != nil {
@@ -369,7 +379,7 @@ func (w *RecordWorker) HandleRecordDemo(ctx context.Context, t *asynq.Task) (ret
 		return fmt.Errorf("job %s has no kill plan", j.ID)
 	}
 
-	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed, payload.UseRecapPlan); err != nil {
+	if err := w.record(ctx, j, payload.HUDMode, payload.SegmentIDs, payload.PortraitSafeKillfeed, payload.UseRecapPlan, generateIntent.Edit.FullDemo); err != nil {
 		return err
 	}
 	if err := w.repo.UpdateStatus(ctx, j.ID, job.StatusRecorded, ""); err != nil {
@@ -425,7 +435,7 @@ func (w *RecordWorker) chainRender(id uuid.UUID, intent renderplan.GenerateInten
 			// completing the generate marker then fails, compensate Queued to
 			// Failed before rejecting admission so the live UI is not stranded.
 			owned, handoffErr := w.generateIntents.Finish(id, intent.ActiveRunID, func() error {
-				return w.writeQueuedRenderState(id, intent.Variant)
+				return w.writeQueuedRenderState(id, intent.Variant, intent.Edit.FullDemo)
 			})
 			if !owned {
 				return errStaleGenerateHandoff
@@ -533,15 +543,15 @@ func (w *RecordWorker) completeGenerateIntent(id, runID uuid.UUID) error {
 	return w.generateIntents.Complete(id, runID)
 }
 
-func (w *RecordWorker) writeQueuedRenderState(id uuid.UUID, variant string) error {
-	return w.writeRenderState(id, variant, renderplan.RenderVariantStatusQueued, "")
+func (w *RecordWorker) writeQueuedRenderState(id uuid.UUID, variant string, fullDemo ...*recapplan.Snapshot) error {
+	return w.writeRenderState(id, variant, renderplan.RenderVariantStatusQueued, "", fullDemo...)
 }
 
 func (w *RecordWorker) writeFailedRenderState(id uuid.UUID, variant, message string) error {
 	return w.writeRenderState(id, variant, renderplan.RenderVariantStatusFailed, message)
 }
 
-func (w *RecordWorker) writeRenderState(id uuid.UUID, variant, status, message string) error {
+func (w *RecordWorker) writeRenderState(id uuid.UUID, variant, status, message string, fullDemo ...*recapplan.Snapshot) error {
 	loadout, err := renderplan.LoadoutForVariant(variant)
 	if err != nil {
 		return err
@@ -557,6 +567,9 @@ func (w *RecordWorker) writeRenderState(id uuid.UUID, variant, status, message s
 		Error:    message,
 		Previous: previous,
 	})
+	if len(fullDemo) != 0 {
+		state.FullDemo = fullDemo[0]
+	}
 	if err != nil {
 		return err
 	}
@@ -650,10 +663,23 @@ func (w *RecordWorker) invalidateReadyRender(id uuid.UUID, variant string) error
 	return nil
 }
 
-func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool) (retErr error) {
-	sourcePlan, err := recordSourcePlan(w.storage, j, useRecapPlan)
-	if err != nil {
-		return err
+func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, segmentIDs []string, portraitSafeKillfeed, useRecapPlan bool, approvals ...*recapplan.Snapshot) (retErr error) {
+	var fullDemo *recapplan.Document
+	var sourcePlan *killplan.Plan
+	var err error
+	if len(approvals) > 0 && approvals[0] != nil {
+		snapshot, err := recapplan.ResolveApproval(ctx, w.storage, j.ID, j.DemoPath, j.TargetSteamID, recording.FindFFmpeg(), *approvals[0])
+		if err != nil {
+			return err
+		}
+		fullDemo = &snapshot.Document
+		adapted := fullDemo.KillPlan(*j.KillPlan)
+		sourcePlan = &adapted
+	} else {
+		sourcePlan, err = recordSourcePlan(w.storage, j, useRecapPlan)
+		if err != nil {
+			return err
+		}
 	}
 	// Serialize recording per job: two reels for the same job (each a distinct,
 	// non-deduped task with different segment ids) must not launch the recorder
@@ -689,11 +715,11 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if err != nil {
 		return fmt.Errorf("build recording profile: %w", err)
 	}
-	expectedProfile, err := recording.NewPlanFromKillPlan(*requestedPlan, "profile.dem", "profile", expectedStream)
+	expectedProfile, err := recording.NewPlanFromKillPlan(*requestedPlan, "profile.dem", "profile", expectedStream, fullDemo)
 	if err != nil {
 		return fmt.Errorf("build expected recording identity: %w", err)
 	}
-	missing, reusedKeys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedProfile)
+	missing, reusedKeys, err := recordingOutputsReady(w.storage, j.ID, requested, expectedProfile, ctx)
 	if err != nil {
 		return err
 	}
@@ -721,7 +747,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	}
 	previousCommitReady := false
 	if hasPrev {
-		previousCommitReady, err = recordingCommitReady(w.storage, j.ID, prev)
+		previousCommitReady, err = recordingCommitReady(w.storage, j.ID, prev, ctx)
 		if err != nil {
 			return fmt.Errorf("verify previous recording commit: %w", err)
 		}
@@ -798,6 +824,13 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 	if portraitSafeKillfeed {
 		recorderArgs = append(recorderArgs, "--portrait-safe-killfeed")
 	}
+	if fullDemo != nil {
+		fullDemoPath := filepath.Join(workDir, "full-demo-approved.json")
+		if err := writeJSONFile(fullDemoPath, fullDemo); err != nil {
+			return fmt.Errorf("write Full Demo capture document: %w", err)
+		}
+		recorderArgs = append(recorderArgs, "--full-demo-plan", fullDemoPath)
+	}
 	if captureEncoder != "" {
 		recorderArgs = append(recorderArgs, "--encoder", captureEncoder)
 	}
@@ -827,7 +860,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 			attemptOutDir = filepath.Join(workDir, fmt.Sprintf("out-retry-%02d", attempt))
 			progressAttemptID = uuid.New()
 		}
-		expectedPlan, err = recording.NewPlanFromKillPlan(*recordPlan, demoPath, attemptOutDir, expectedStream)
+		expectedPlan, err = recording.NewPlanFromKillPlan(*recordPlan, demoPath, attemptOutDir, expectedStream, fullDemo)
 		if err != nil {
 			return fmt.Errorf("build launched recording plan: %w", err)
 		}
@@ -880,6 +913,11 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		return err
 	}
 	result.CaptureRevision = uuid.NewString()
+	if fullDemo != nil {
+		if err := result.DigestSegmentFiles(ctx); err != nil {
+			return err
+		}
+	}
 	durable := result
 	if hasPrev && recordingProfilesCompatible(prev, result) {
 		durable, err = mergeRecordingResults(prev, result, sourcePlan)
@@ -892,7 +930,7 @@ func (w *RecordWorker) record(ctx context.Context, j job.Job, hudMode string, se
 		return fmt.Errorf("write recording revision: %w", err)
 	}
 	uploadEntered = true
-	keys, err := uploadRecordingOutputs(w.storage, j.ID, outDir, resultPath, result, durable, prev, hasPrev)
+	keys, err := uploadRecordingOutputs(w.storage, j.ID, outDir, resultPath, result, durable, prev, previousCommitReady)
 	if err != nil {
 		return err
 	}
@@ -1112,21 +1150,28 @@ func (c ComposeWorkerConfig) validate() error {
 type voiceExtractFunc func(demoPath, target, dir string) (int, error)
 
 type RenderWorker struct {
-	repo         StatusRepository
-	storage      storage.Storage
-	cfg          RenderWorkerConfig
-	runner       commandRunner
-	voiceExtract voiceExtractFunc
+	generateIntents *generateintent.Store
+	repo            StatusRepository
+	storage         storage.Storage
+	cfg             RenderWorkerConfig
+	runner          commandRunner
+	voiceExtract    voiceExtractFunc
 }
 
 func NewRenderWorker(repo StatusRepository, store storage.Storage, cfg RenderWorkerConfig) *RenderWorker {
 	return &RenderWorker{
-		repo:         repo,
-		storage:      store,
-		cfg:          cfg,
-		runner:       execCommandRunner{},
-		voiceExtract: extractVoiceTracks,
+		generateIntents: generateintent.New(store),
+		repo:            repo,
+		storage:         store,
+		cfg:             cfg,
+		runner:          execCommandRunner{},
+		voiceExtract:    extractVoiceTracks,
 	}
+}
+
+// UseGenerateIntentStore shares admission and publication ownership at startup.
+func (w *RenderWorker) UseGenerateIntentStore(store *generateintent.Store) {
+	w.generateIntents = store
 }
 
 // StreamRenderWorker handles "render:stream-clip" tasks.
@@ -1833,6 +1878,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return fmt.Errorf("read render state: %w", err)
 	}
+	if previousState != nil && !renderplan.SameFullDemoRequest(previousState.FullDemo, edit.FullDemo) {
+		return &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Render payload differs from the current approved plan"}
+	}
 	// The request handler already published Queued and Studio polls that
 	// document for the outcome, so from here every failure must land in the
 	// durable render state or the reel stays queued forever.
@@ -1855,7 +1903,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			return
 		}
 		preserveRenderArtifactPointer(&failedState, previousState)
-		if writeErr := w.writeRenderVariantState(failedState); writeErr != nil {
+		if writeErr := w.writeOwnedRenderState(failedState, edit.FullDemo); writeErr != nil {
 			err = fmt.Errorf("%w; write failed render state: %v", err, writeErr)
 		}
 	}()
@@ -1873,6 +1921,22 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		musicVolume = 0
 		gameVolume = nil
 	}
+	if edit.FullDemo != nil {
+		ffmpeg := cfg.FFmpegPath
+		if ffmpeg == "" {
+			ffmpeg = recording.FindFFmpeg()
+		}
+		snapshot, approvalErr := recapplan.ResolveApproval(ctx, w.storage, j.ID, j.DemoPath, j.TargetSteamID, ffmpeg, *edit.FullDemo)
+		if approvalErr != nil {
+			return approvalErr
+		}
+		edit.FullDemo = &snapshot
+		adapted := snapshot.Document.KillPlan(*j.KillPlan)
+		j.KillPlan = &adapted
+		if err := w.verifyFullDemoCaptureContent(ctx, j.ID, recordingResult); err != nil {
+			return err
+		}
+	}
 	musicPath := resolveMusicFile(cfg.MusicDir, musicKey)
 	effectiveMusic := &renderplan.MusicSnapshot{}
 	effectiveMusicVolume := 0.0
@@ -1887,7 +1951,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return fmt.Errorf("fingerprint render inputs: %w", err)
 	}
-	ready, cachedWarnings, keys, err := renderVariantOutputsReady(w.storage, j.ID, variant, inputFingerprint, previousState)
+	ready, cachedWarnings, keys, err := renderVariantOutputsReadyContext(ctx, w.storage, j.ID, variant, inputFingerprint, previousState)
 	if err != nil {
 		return err
 	}
@@ -1911,7 +1975,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 			if previousState != nil && previousState.ReviewResolvedFor(cachedWarnings) {
 				migratedState.ReviewResolution = previousState.ReviewResolution
 			}
-			if stateErr := w.writeRenderVariantState(migratedState); stateErr != nil {
+			if stateErr := w.writeOwnedRenderState(migratedState, edit.FullDemo); stateErr != nil {
 				return fmt.Errorf("write migrated cached render state: %w", stateErr)
 			}
 		}
@@ -1931,7 +1995,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		return err
 	}
 	preserveRenderArtifactPointer(&state, previousState)
-	if err := w.writeRenderVariantState(state); err != nil {
+	if err := w.writeOwnedRenderState(state, edit.FullDemo); err != nil {
 		return fmt.Errorf("write rendering state: %w", err)
 	}
 	currentState = &state
@@ -1975,6 +2039,17 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	args = append(args, explicitCoverArgs(loadout, edit)...)
 	args = append(args, compileSegmentsArgs(recording.EditorialSegmentIDs(recordingResult))...)
+	if edit.FullDemo != nil {
+		ffmpeg := cfg.FFmpegPath
+		if ffmpeg == "" {
+			ffmpeg = recording.FindFFmpeg()
+		}
+		path, executionErr := w.materializeFullDemoExecution(ctx, j, *edit.FullDemo, workDir, ffmpeg)
+		if executionErr != nil {
+			return executionErr
+		}
+		args = append(args, "--full-demo-execution", path)
+	}
 	if overlayPath, overlayErr := w.writeFullDemoOverlay(j, workDir, loadout.Preset, edit); overlayErr != nil {
 		return overlayErr
 	} else if overlayPath != "" {
@@ -2029,7 +2104,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		// Requested music is unavailable; render without it rather than fail.
 		logWorkerError(j.ID, tasks.TypeRenderVariant, fmt.Errorf("music %q not found in %q; rendering without music", musicKey, cfg.MusicDir))
 	}
-	if edit.VoiceComms {
+	if edit.VoiceComms && edit.FullDemo == nil {
 		voiceDir, err := w.prepareVoiceDir(j, workDir)
 		if err != nil {
 			return err
@@ -2121,7 +2196,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	if err != nil {
 		return err
 	}
-	if err := w.writeRenderVariantState(readyState); err != nil {
+	if err := w.writeOwnedRenderState(readyState, edit.FullDemo); err != nil {
 		return fmt.Errorf("write ready render state: %w", err)
 	}
 	revisionCommitted = true
@@ -2745,19 +2820,44 @@ func uploadOptionalFile(store storage.Storage, key, path string) (bool, error) {
 // recordingCommitReady reports whether result names a complete, reusable
 // durable recording commit. Structural validation alone is insufficient:
 // downstream readers also require the canonical script and every planned clip.
-func recordingCommitReady(store storage.Storage, id uuid.UUID, result recording.RecordingResult) (bool, error) {
+func recordingCommitReady(store storage.Storage, id uuid.UUID, result recording.RecordingResult, contexts ...context.Context) (bool, error) {
 	if result.Error != "" {
 		return false, nil
 	}
 	if err := recording.ValidateUploadResult(result); err != nil {
 		return false, nil
 	}
-	exists, err := store.Exists(recording.ScriptArtifactKey(id))
+	if result.Plan.FullDemo != nil {
+		ctx := context.Background()
+		if len(contexts) > 0 {
+			ctx = contexts[0]
+		}
+		for _, artifact := range result.Artifacts {
+			if !isSegmentClip(artifact) {
+				continue
+			}
+			key, err := result.SegmentClipKey(id, artifact.SegmentID)
+			if err != nil {
+				return false, err
+			}
+			if !recapplan.ValidHash(artifact.ContentSHA256) {
+				return false, nil
+			}
+			if err := mediaassets.VerifyContent(ctx, store, key, artifact.ContentSHA256, 8<<30); err != nil {
+				return false, ctx.Err()
+			}
+		}
+	}
+	scriptKey, err := result.ScriptKey(id)
+	if err != nil {
+		return false, err
+	}
+	exists, err := store.Exists(scriptKey)
 	if err != nil || !exists {
 		return false, err
 	}
 	for _, segment := range result.Plan.Segments {
-		key, err := recording.SegmentClipArtifactKey(id, segment.ID)
+		key, err := result.SegmentClipKey(id, segment.ID)
 		if err != nil {
 			return false, err
 		}
@@ -2776,6 +2876,9 @@ func uploadRecordingOutputs(
 	attempt, durable, previous recording.RecordingResult,
 	hasPrevious bool,
 ) ([]string, error) {
+	if attempt.Plan.FullDemo != nil {
+		return uploadFullDemoRecordingOutputs(store, id, outDir, resultPath, attempt, durable, hasPrevious)
+	}
 	previousCommitRecoverable := false
 	previousClipKeys := make(map[string]struct{})
 	var previousScript []byte
@@ -2786,12 +2889,12 @@ func uploadRecordingOutputs(
 			return nil, fmt.Errorf("verify previous recording commit: %w", err)
 		}
 		if previousCommitRecoverable {
-			previousScript, err = readRecordingScriptForRollback(store, id)
+			previousScript, err = readRecordingScriptForRollback(store, id, previous)
 			if err != nil {
 				return nil, fmt.Errorf("snapshot previous recording script: %w", err)
 			}
 			for _, segment := range previous.Plan.Segments {
-				key, keyErr := recording.SegmentClipArtifactKey(id, segment.ID)
+				key, keyErr := previous.SegmentClipKey(id, segment.ID)
 				if keyErr != nil {
 					return nil, fmt.Errorf("derive previous recording clip key: %w", keyErr)
 				}
@@ -2891,8 +2994,16 @@ func (e *recordingCommitPreservedError) Unwrap() error {
 
 const maxRecordingRollbackScriptBytes = 8 << 20
 
-func readRecordingScriptForRollback(store storage.Storage, id uuid.UUID) ([]byte, error) {
-	rc, err := store.Open(recording.ScriptArtifactKey(id))
+func readRecordingScriptForRollback(store storage.Storage, id uuid.UUID, previous ...recording.RecordingResult) ([]byte, error) {
+	key := recording.ScriptArtifactKey(id)
+	if len(previous) > 0 {
+		var err error
+		key, err = previous[0].ScriptKey(id)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rc, err := store.Open(key)
 	if err != nil {
 		return nil, err
 	}
@@ -2913,7 +3024,11 @@ func restorePreviousRecordingCommit(
 	previous recording.RecordingResult,
 	script []byte,
 ) error {
-	if err := store.Put(recording.ScriptArtifactKey(id), bytes.NewReader(script)); err != nil {
+	key, err := previous.ScriptKey(id)
+	if err != nil {
+		return err
+	}
+	if err := store.Put(key, bytes.NewReader(script)); err != nil {
 		return fmt.Errorf("restore script: %w", err)
 	}
 	previous.PublicationPending = false
@@ -3025,6 +3140,9 @@ func overlayAssetsPlatesDir(store storage.Storage) string {
 
 func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, edit renderplan.EditRequest) (string, error) {
 	if !isFullDemoNativeMix(preset, edit) {
+		return "", nil
+	}
+	if edit.FullDemo != nil && !edit.FullDemo.Document.Options.Overlays.Roster && !edit.FullDemo.Document.Options.Overlays.Scoreboard {
 		return "", nil
 	}
 	rc, err := w.storage.Open(artifacts.RosterKey(j.ID))
@@ -3318,6 +3436,12 @@ func recordingProfilesCompatible(a, b recording.RecordingResult) bool {
 }
 
 func captureProfilesCompatible(a, b recording.RecordingPlan) bool {
+	if (a.FullDemo == nil) != (b.FullDemo == nil) {
+		return false
+	}
+	if a.FullDemo != nil && !reflect.DeepEqual(a.FullDemo.Crosshairs, b.FullDemo.Crosshairs) {
+		return false
+	}
 	return a.CaptureContract == recording.CaptureContractVersion &&
 		b.CaptureContract == recording.CaptureContractVersion &&
 		a.KillPlanSchemaVersion == b.KillPlanSchemaVersion &&
@@ -3388,6 +3512,13 @@ func mergeRecordingResults(prev, next recording.RecordingResult, fullPlan *killp
 			merged.Artifacts = append(merged.Artifacts, a)
 		}
 	}
+	if next.Plan.FullDemo != nil {
+		var err error
+		merged, err = mergeFullDemoCaptureRuns(prev, next, merged)
+		if err != nil {
+			return recording.RecordingResult{}, err
+		}
+	}
 	if err := merged.Plan.Validate(); err != nil {
 		return recording.RecordingResult{}, fmt.Errorf("merge recording plans: %w", err)
 	}
@@ -3452,7 +3583,11 @@ func putRecordingResult(store storage.Storage, id uuid.UUID, result recording.Re
 // stay authoritative: a clip is only reused when it was captured under the
 // exact same profile and segment definition, so HUD modes are never mixed
 // within one reel.
-func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan) ([]string, []string, error) {
+func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []string, expectedPlan recording.RecordingPlan, contexts ...context.Context) ([]string, []string, error) {
+	ctx := context.Background()
+	if len(contexts) > 0 {
+		ctx = contexts[0]
+	}
 	if len(requested) == 0 {
 		return nil, nil, nil
 	}
@@ -3487,7 +3622,10 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 			recorded[a.SegmentID] = true
 		}
 	}
-	scriptKey := recording.ScriptArtifactKey(id)
+	scriptKey, err := result.ScriptKey(id)
+	if err != nil {
+		return needAll, nil, err
+	}
 	if ok, err := store.Exists(scriptKey); err != nil || !ok {
 		return needAll, nil, err
 	}
@@ -3501,11 +3639,21 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 	for _, segID := range requested {
 		storedSegment, stored := recordedSegments[segID]
 		expectedSegment, expected := expectedSegments[segID]
-		if !recorded[segID] || !stored || !expected || !reflect.DeepEqual(storedSegment, expectedSegment) {
+		compatibleWindow := reflect.DeepEqual(storedSegment, expectedSegment)
+		if result.Plan.FullDemo != nil && expectedPlan.FullDemo != nil && stored && expected {
+			// Narrower editorial requests use an immutable broader capture. The
+			// effective render trims it using its original capture start tick.
+			certifiedEnd := result.FullDemoEvidence.CertifiedEnds[segID]
+			compatibleWindow = storedSegment.TickStart <= expectedSegment.TickStart && storedSegment.TickEnd >= expectedSegment.TickEnd && certifiedEnd >= min(expectedSegment.LiveEndTick+1, expectedSegment.TickEnd)
+			if !expectedPlan.FullDemo.Options.Editorial.AllowSafeTailTrim && certifiedEnd < expectedSegment.TickEnd {
+				compatibleWindow = false
+			}
+		}
+		if !recorded[segID] || !stored || !expected || !compatibleWindow {
 			missing = append(missing, segID)
 			continue
 		}
-		clipKey, err := recording.SegmentClipArtifactKey(id, segID)
+		clipKey, err := result.SegmentClipKey(id, segID)
 		if err != nil {
 			return needAll, nil, err
 		}
@@ -3516,6 +3664,26 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 		if !ok {
 			missing = append(missing, segID)
 			continue
+		}
+		if result.Plan.FullDemo != nil {
+			var digest string
+			for _, artifact := range result.Artifacts {
+				if isSegmentClip(artifact) && artifact.SegmentID == segID {
+					digest = artifact.ContentSHA256
+					break
+				}
+			}
+			if len(digest) != 64 {
+				missing = append(missing, segID)
+				continue
+			}
+			if err := mediaassets.VerifyContent(ctx, store, clipKey, digest, 8<<30); err != nil {
+				if ctx.Err() != nil {
+					return needAll, nil, ctx.Err()
+				}
+				missing = append(missing, segID)
+				continue
+			}
 		}
 		keys = append(keys, clipKey)
 	}
@@ -3571,6 +3739,9 @@ type renderFingerprintInput struct {
 }
 
 func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Plan, variant, musicKey, musicPath string, effectiveMusicVolume float64, gameVolume *float64, edit renderplan.EditRequest) (string, error) {
+	if edit.FullDemo != nil {
+		return fullDemoRenderFingerprint(result, variant, *edit.FullDemo)
+	}
 	music := renderMusicInput{Key: musicKey, Available: musicPath != "", Volume: effectiveMusicVolume, GameVolume: gameVolume}
 	if musicPath != "" {
 		// #nosec G304 -- musicPath is the worker-local materialization of a validated durable music artifact.
@@ -3606,6 +3777,10 @@ func renderInputFingerprint(result recording.RecordingResult, plan *killplan.Pla
 }
 
 func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, expectedFingerprint string, states ...*renderplan.RenderVariantState) (bool, []string, []string, error) {
+	return renderVariantOutputsReadyContext(context.Background(), store, id, variant, expectedFingerprint, states...)
+}
+
+func renderVariantOutputsReadyContext(ctx context.Context, store storage.Storage, id uuid.UUID, variant, expectedFingerprint string, states ...*renderplan.RenderVariantState) (bool, []string, []string, error) {
 	var state *renderplan.RenderVariantState
 	if len(states) > 0 && states[0] != nil {
 		state = states[0]
@@ -3624,7 +3799,7 @@ func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, exp
 		}
 		state = &legacy
 	}
-	if state == nil || (state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview) {
+	if state == nil || (state.FullDemo == nil && state.Status != renderplan.RenderVariantStatusReady && state.Status != renderplan.RenderVariantStatusReview) {
 		return false, nil, nil, nil
 	}
 	resultKey := state.RenderResultKey
@@ -3672,6 +3847,15 @@ func renderVariantOutputsReady(store storage.Storage, id uuid.UUID, variant, exp
 	}
 	for _, short := range result.Shorts {
 		if short.SegmentID == "" {
+			return false, nil, nil, nil
+		}
+		if short.FullDemo != nil {
+			docKeys, valid, err := fullDemoCachedArtifacts(ctx, store, *state, short)
+			if err != nil || !valid {
+				return false, nil, nil, err
+			}
+			keys = append(keys, docKeys...)
+		} else if state.FullDemo != nil {
 			return false, nil, nil, nil
 		}
 		for _, kind := range []renderplan.RenderVariantArtifactKind{

@@ -1,4 +1,5 @@
 import type { ApiClient, VideoReviewResolution } from './client.ts';
+import { pinRenderRevision, renderRevisionFromPrefix } from './render-revision.ts';
 import {
   applyMusicChoice,
   musicChoicesEqual,
@@ -12,7 +13,7 @@ import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
-import { reelIdentity, shouldReuseReelIntent } from './reel-identity.ts';
+import { reelIdentity, shouldReuseReelIntent, fullDemoIntentConflict } from './reel-identity.ts';
 import {
   applyEffectiveRenderMusic,
   clearVideoArtifactUrls,
@@ -297,7 +298,7 @@ export class RealApiClient implements ApiClient {
   /** POST /record accepted; job may still read failed until the worker dequeues. */
   private readonly pendingCapture = new Set<string>();
   /** Server-reported artifact names for each reel (the file names the editor wrote). */
-  private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[] }>();
+  private readonly artifactNames = new Map<string, { video: string; cover?: string; covers?: string[]; revision?: string }>();
   /** Cached per-job series match (map/score); immutable once a job has one. */
   private readonly seriesMatches = new Map<string, RosterMatch>();
   /** Mismatching revision each reel already re-drove from; bounds automatic /generate re-POSTs. */
@@ -515,13 +516,24 @@ export class RealApiClient implements ApiClient {
     const videoId = reelIdentity(normalized);
     const existing = this.reels.get(videoId);
     const existingIntent = this.intents.get(videoId);
+    if (existing && existingIntent && fullDemoIntentConflict(existing, existingIntent, { ...normalized, mode: input.mode })) {
+      throw new Error('Ya hay un Full Demo con otro plan en curso. Espera a que termine antes de cambiarlo.');
+    }
     if (existing && existingIntent && shouldReuseReelIntent(existing, existingIntent, { ...normalized, mode: input.mode })) {
       return { ...existing };
     }
 
     const recap = isLandscapeRecap(editConfig);
+    let playsRequest: Promise<Play[]>;
+    if (editConfig.fullDemo) {
+      playsRequest = Promise.resolve(editConfig.fullDemo.document.rounds.map((round): Play => ({
+        id: round.round_id, matchId: input.matchId, label: `R${round.source_round_number}`, kind: 'highlight', round: round.source_round_number, kills: round.kills?.length ?? 0,
+      })));
+    } else {
+      playsRequest = recap ? this.findRecapClips(input.matchId) : this.findClips(input.matchId);
+    }
     const [plays, match] = await Promise.all([
-      recap ? this.findRecapClips(input.matchId) : this.findClips(input.matchId),
+      playsRequest,
       this.getMatch(input.matchId),
     ]);
     // Recap records every stored round. Shorts keep the caller's plan order.
@@ -892,7 +904,8 @@ export class RealApiClient implements ApiClient {
     } = await this.renderForReconcile(intent, job.status, prefetched);
     // Use the editor's real artifact names instead of guessing from segment ids.
     if (render.videoName) {
-      const names: { video: string; cover?: string; covers?: string[] } = { video: render.videoName };
+      const names: { video: string; cover?: string; covers?: string[]; revision?: string } = { video: render.videoName };
+      if (intent.editConfig.fullDemo) names.revision = renderRevisionFromPrefix(render.artifactPrefix, intent.jobId, variantOf(intent));
       if (render.coverNames && render.coverNames.length > 0) {
         names.covers = render.coverNames;
         names.cover = render.coverName ?? render.coverNames[0];
@@ -982,7 +995,8 @@ export class RealApiClient implements ApiClient {
       // Same-origin proxy URLs the browser can hand straight to <video>/<img>.
       const variant = variantOf(intent);
       const dp = dataPlane();
-      next.downloadUrl = dp.videoUrl(intent.jobId, variant, names.video);
+      next.artifactRevision = names.revision;
+      next.downloadUrl = pinRenderRevision(dp.videoUrl(intent.jobId, variant, names.video), names.revision);
       if (names.covers && names.covers.length > 0) {
         next.coverCandidates = [...names.covers];
       }
@@ -992,10 +1006,10 @@ export class RealApiClient implements ApiClient {
           : undefined;
       if (approvedCover) {
         next.selectedCoverName = approvedCover;
-        next.thumbnailUrl = dp.coverUrl(intent.jobId, variant, approvedCover);
+        next.thumbnailUrl = pinRenderRevision(dp.coverUrl(intent.jobId, variant, approvedCover), names.revision);
       } else if (names.cover) {
         // Preview the first candidate without treating it as approved.
-        next.thumbnailUrl = dp.coverUrl(intent.jobId, variant, names.cover);
+        next.thumbnailUrl = pinRenderRevision(dp.coverUrl(intent.jobId, variant, names.cover), names.revision);
       }
     }
     this.reels.set(intent.videoId, next);

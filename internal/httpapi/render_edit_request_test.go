@@ -28,6 +28,9 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 	if err := json.Unmarshal([]byte(full), &patch); err != nil {
 		t.Fatal(err)
 	}
+	h, j, _, _, options := fullDemoAPIFixture(t)
+	snapshot := fullDemoAPIPlan(t, h, j, options)
+	patch.FullDemo = &snapshot
 	pv := reflect.ValueOf(patch)
 	for i := range pv.NumField() {
 		if pv.Field(i).IsNil() {
@@ -41,6 +44,7 @@ func TestRenderEditRequestMergeCoversEveryField(t *testing.T) {
 		t.Fatal(err)
 	}
 	want = renderplan.NormalizeEditRequest(want)
+	want.FullDemo = &snapshot
 	if !reflect.DeepEqual(merged, want) {
 		t.Fatalf("merge dropped or altered fields:\n got %+v\nwant %+v", merged, want)
 	}

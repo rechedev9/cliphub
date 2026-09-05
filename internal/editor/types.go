@@ -52,7 +52,7 @@ const (
 	KillEffectShake       = "shake"
 	KillEffectGlitch      = "glitch"
 
-	TransitionCut      = "cut"
+	TransitionCut = "cut"
 	// TransitionFlash applies a per-segment dip-to-white: fade=t=out on the tail
 	// of every clip except the last and fade=t=in on the head of every clip except
 	// the first, meeting at the concat cut (~0.10s each half).
@@ -64,20 +64,21 @@ const (
 )
 
 type Config struct {
-	RecordingResultPath string
-	KillPlanPath        string
-	OutputDir           string
-	PublishDir          string
-	Preset              string
-	EffectsPath         string
-	EffectsPreset       string
-	MusicPath           string
-	RhythmPath          string
-	OutputFormat        string
-	KillEffect          string
-	Transition          string
-	Intro               bool
-	Outro               bool
+	FullDemoExecutionPath string
+	RecordingResultPath   string
+	KillPlanPath          string
+	OutputDir             string
+	PublishDir            string
+	Preset                string
+	EffectsPath           string
+	EffectsPreset         string
+	MusicPath             string
+	RhythmPath            string
+	OutputFormat          string
+	KillEffect            string
+	Transition            string
+	Intro                 bool
+	Outro                 bool
 	// IntroText and OutroText customize the intro/outro overlay card text;
 	// empty falls back to the generated headline (intro) or "ClipHub"
 	// (outro). Neither auto-enables its bookend.
@@ -290,7 +291,9 @@ type Manifest struct {
 }
 
 type ShortEdit struct {
-	Index           int                         `json:"index"`
+	FullDemo *FullDemoRenderEvidence `json:"full_demo,omitempty"`
+	fullDemo *fullDemoRenderContext
+	Index    int `json:"index"`
 	// SegmentOrdinal and SegmentTotal position this clip among the rendered
 	// batch so transition-flash dip-to-white fades apply only at real cuts.
 	SegmentOrdinal  int                         `json:"segment_ordinal,omitempty"`
@@ -500,6 +503,7 @@ type RenderPerformance struct {
 }
 
 type ShortResult struct {
+	FullDemo           *FullDemoRenderEvidence     `json:"full_demo,omitempty"`
 	Index              int                         `json:"index"`
 	SegmentID          string                      `json:"segment_id"`
 	Preset             string                      `json:"preset,omitempty"`
@@ -597,6 +601,7 @@ type PackManifest struct {
 }
 
 type PublishItem struct {
+	FullDemo           *FullDemoRenderEvidence     `json:"full_demo,omitempty"`
 	Index              int                         `json:"index"`
 	SegmentID          string                      `json:"segment_id"`
 	Preset             string                      `json:"preset,omitempty"`

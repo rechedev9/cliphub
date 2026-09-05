@@ -294,3 +294,47 @@ same command contract enforced at execution time, so an agent does not need to
 guess from prose or probe the CLI with invalid calls. A JSON preflight always
 reports `scope: "arguments"` and `executed: false`; runtime tool/file readiness
 is intentionally outside that claim.
+
+## Full Demo editorial commands
+
+The `full-demo-pov-chill-v1` profile uses the existing local orchestrator,
+capture lane, editor and Library. [Full Demo CLI](../docs/FULL_DEMO_CLI.md)
+describes its versioned options, asset declarations, approval and evidence.
+The following discovery calls do not upload assets, queue work or start CS2:
+
+```powershell
+./bin/zv full-demo defaults --format json
+./bin/zv full-demo import --help
+./bin/zv full-demo asset --help
+./bin/zv full-demo plan --help
+./bin/zv full-demo inspect --help
+./bin/zv full-demo execute --help
+./bin/zv workflows run full-demo-defaults -- --format json
+./bin/zv workflows run full-demo-import -- --help
+./bin/zv workflows run full-demo-asset -- --help
+./bin/zv workflows run full-demo-plan -- --help
+./bin/zv workflows run full-demo-inspect -- --help
+./bin/zv workflows run full-demo-execute -- --help
+./bin/zv workflows run full-demo-import -- --demo testdata/agent-demo.fixture --steamid 76561198000000001 --dry-run --format json
+./bin/zv workflows run full-demo-asset -- --input testdata/agent-demo.fixture --provenance testdata/full-demo-provenance.fixture.json --dry-run --format json
+./bin/zv workflows run full-demo-plan -- --job e16560b4-6ee2-48a6-8e40-15e5d712856d --options testdata/full-demo-options.fixture.json --out data/full-demo-dry-run.json --dry-run --format json
+./bin/zv workflows run full-demo-inspect -- --plan testdata/full-demo-plan.fixture.json --format json
+./bin/zv workflows run full-demo-execute -- --job e16560b4-6ee2-48a6-8e40-15e5d712856d --plan testdata/full-demo-plan.fixture.json --approve 1f15cd7142834b03a315fe3c881927a977b300858fd3dd9614ec14bc70b2a379 --allow-safe-tail-trim=true --dry-run --format json
+./bin/zv workflows show full-demo-defaults
+./bin/zv workflows show full-demo-defaults --format json
+./bin/zv workflows show full-demo-import
+./bin/zv workflows show full-demo-import --format json
+./bin/zv workflows show full-demo-asset
+./bin/zv workflows show full-demo-asset --format json
+./bin/zv workflows show full-demo-plan
+./bin/zv workflows show full-demo-plan --format json
+./bin/zv workflows show full-demo-inspect
+./bin/zv workflows show full-demo-inspect --format json
+./bin/zv workflows show full-demo-execute
+./bin/zv workflows show full-demo-execute --format json
+```
+
+The dry-run examples use synthetic contract fixtures, including non-media upload
+bytes and invented local job/asset IDs. They validate transport and local plan
+semantics only. Never remove `--dry-run` from those fixture commands; create and
+approve a server plan from actual local inputs for execution.

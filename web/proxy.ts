@@ -10,5 +10,5 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   // Large uploads check the guard in-handler so Next does not buffer the body.
-  matcher: '/api/((?!demos/scan/?$|streams/?$|session/bootstrap/?$).*)',
+  matcher: '/api/((?!demos/scan/?$|streams/?$|editor/assets/?$|session/bootstrap/?$).*)',
 };

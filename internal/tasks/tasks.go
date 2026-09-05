@@ -343,6 +343,12 @@ func NewRenderVariantTask(id uuid.UUID, variant, musicKey string, musicVolume fl
 		return nil, fmt.Errorf("game volume must be between 0 and 1")
 	}
 	edit = renderplan.NormalizeEditRequest(edit)
+	if edit.FullDemo != nil {
+		intent := renderplan.GenerateIntent{Variant: variant, MusicKey: musicKey, MusicVolume: musicVolume, GameVolume: gameVolume, Edit: edit, SegmentIDs: segmentIDs}
+		if err := intent.Validate(); err != nil {
+			return nil, err
+		}
+	}
 	if err := edit.Validate(); err != nil {
 		return nil, err
 	}

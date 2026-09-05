@@ -218,6 +218,7 @@ func run() error {
 			MusicDir:    cfg.MusicDir,
 			Faceit:      faceitClient,
 		})
+		renderWorker.UseGenerateIntentStore(generateIntents)
 		taskHandlers[tasks.TypeRenderVariant] = renderWorker.HandleRenderVariant
 		log.Printf("worker: render enabled")
 	}

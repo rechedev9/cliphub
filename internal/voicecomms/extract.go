@@ -1,6 +1,7 @@
 package voicecomms
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,20 +13,25 @@ import (
 )
 
 func ExtractFile(demoPath, target, dir string) (Index, Report, error) {
+	result, err := extractFile(context.Background(), demoPath, target, dir, false)
+	return result.Index, result.Report, err
+}
+
+func extractFile(ctx context.Context, demoPath, target, dir string, strict bool) (ExtractionResult, error) {
 	abs, err := filepath.Abs(demoPath)
 	if err != nil {
-		return Index{}, Report{}, fmt.Errorf("resolve demo path: %w", err)
+		return ExtractionResult{}, fmt.Errorf("resolve demo path: %w", err)
 	}
 	// #nosec G304 -- demo path is an explicit local CLI input.
 	f, err := os.Open(abs)
 	if err != nil {
-		return Index{}, Report{}, fmt.Errorf("open demo: %w", err)
+		return ExtractionResult{}, fmt.Errorf("open demo: %w", err)
 	}
 	defer f.Close()
 
 	spill, err := newPacketSpill(filepath.Join(dir, ".voice-spill"))
 	if err != nil {
-		return Index{}, Report{}, err
+		return ExtractionResult{}, err
 	}
 	defer func() {
 		_ = spill.Close()
@@ -34,12 +40,19 @@ func ExtractFile(demoPath, target, dir string) (Index, Report, error) {
 
 	p := demoinfocs.NewParser(f)
 	defer p.Close()
-	report, packets, sightings, err := Collect(p, target, abs, spill)
+	report, packets, sightings, err := collectContext(ctx, p, target, abs, spill)
 	if err != nil {
-		return Index{}, Report{}, err
+		return ExtractionResult{Availability: ExtractionFailed}, err
 	}
-	index, err := writeTracksWithSpill(dir, report, packets, sightings, spill)
-	return index, report, err
+	result := classifyExtraction(report, packets, sightings)
+	if strict && (result.Availability == UnsupportedCodec || result.Availability == InvalidTimeline) {
+		return result, nil
+	}
+	result.Index, err = writeTracksWithSpillContext(ctx, dir, report, packets, sightings, spill)
+	if err != nil {
+		result.Availability = ExtractionFailed
+	}
+	return result, err
 }
 
 func WriteTracks(dir string, report Report, packets []Packet, sightings []Sighting) (Index, error) {
@@ -47,11 +60,18 @@ func WriteTracks(dir string, report Report, packets []Packet, sightings []Sighti
 }
 
 func writeTracksWithSpill(dir string, report Report, packets []Packet, sightings []Sighting, spill *packetSpill) (Index, error) {
+	return writeTracksWithSpillContext(context.Background(), dir, report, packets, sightings, spill)
+}
+
+func writeTracksWithSpillContext(ctx context.Context, dir string, report Report, packets []Packet, sightings []Sighting, spill *packetSpill) (Index, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Index{}, fmt.Errorf("create voice dir: %w", err)
 	}
 	byXUID := map[uint64][]indexedPacket{}
 	for i, pkt := range packets {
+		if err := ctx.Err(); err != nil {
+			return Index{}, err
+		}
 		if pkt.Format != FormatOpus {
 			continue
 		}
@@ -95,6 +115,9 @@ func writeTracksWithSpill(dir string, report Report, packets []Packet, sightings
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
 	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			return Index{}, err
+		}
 		pkts := byXUID[id]
 		sort.Slice(pkts, func(i, j int) bool { return pkts[i].packet.Tick < pkts[j].packet.Tick })
 		sid := strconv.FormatUint(id, 10)
@@ -105,22 +128,7 @@ func writeTracksWithSpill(dir string, report Report, packets []Packet, sightings
 		if err != nil {
 			return Index{}, fmt.Errorf("create track %s: %w", rel, err)
 		}
-		resolved := make([]Packet, len(pkts))
-		for i, item := range pkts {
-			pkt := item.packet
-			if len(pkt.Data) == 0 && spill != nil {
-				data, offsets, loadErr := spill.payload(item.index)
-				if loadErr != nil {
-					_ = out.Close()
-					return Index{}, loadErr
-				}
-				pkt.Data = data
-				pkt.Offsets = offsets
-			}
-			resolved[i] = pkt
-		}
-		frames := timelineFrames(resolved, tickrate, 0)
-		writeErr := WriteOggOpus(out, frames, sampleRate, uint32(id&0xffffffff))
+		writeErr := writeTimelineOgg(ctx, out, pkts, spill, tickrate, sampleRate, uint32(id&0xffffffff))
 		closeErr := out.Close()
 		if writeErr != nil {
 			return Index{}, fmt.Errorf("write track %s: %w", rel, writeErr)
@@ -134,9 +142,9 @@ func writeTracksWithSpill(dir string, report Report, packets []Packet, sightings
 			Name:      info.Name,
 			Team:      info.Team,
 			Path:      abs,
-			Packets:   len(resolved),
-			FirstTick: resolved[0].Tick,
-			LastTick:  resolved[len(resolved)-1].Tick,
+			Packets:   len(pkts),
+			FirstTick: pkts[0].packet.Tick,
+			LastTick:  pkts[len(pkts)-1].packet.Tick,
 		})
 	}
 
@@ -193,9 +201,6 @@ func timelineFrames(packets []Packet, tickrate, fromTick int) [][]byte {
 func silenceFramesN(n int) [][]byte {
 	if n <= 0 {
 		return nil
-	}
-	if n > 50*60*30 {
-		n = 50 * 60 * 30
 	}
 	out := make([][]byte, n)
 	for i := range out {

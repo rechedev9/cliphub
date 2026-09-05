@@ -1,4 +1,5 @@
 import type { ReelIntent } from './reel-store';
+import { fullDemoPlanEdit, isFullDemoSnapshot } from '../full-demo-plan.ts';
 import {
   isAffiliateStyle,
   isDemoSource,
@@ -17,6 +18,10 @@ export type EffectiveRenderMusic =
 export function parseEffectiveEditConfig(value: unknown): EditConfig | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const edit = value as Record<string, unknown>;
+  if (Object.hasOwn(edit, 'full_demo')) {
+    if (!isFullDemoSnapshot(edit.full_demo)) return undefined;
+    return fullDemoPlanEdit(edit.full_demo);
+  }
   const formats = new Set<EditConfig['format']>(['short-9x16', 'landscape-16x9']);
   const killEffects = new Set<EditConfig['killEffect']>(['clean', 'punch-in', 'velocity', 'freeze-flash', 'shake', 'glitch']);
   const transitions = new Set<EditConfig['transition']>(['cut', 'flash', 'whip', 'dip', 'glitch', 'zoom-whip']);
@@ -177,5 +182,6 @@ export function clearVideoArtifactUrls(video: Video): Video {
   const next = { ...video };
   delete next.downloadUrl;
   delete next.thumbnailUrl;
+  delete next.artifactRevision;
   return next;
 }

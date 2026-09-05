@@ -13,7 +13,17 @@ var errMultipleJSONValues = errors.New("request body must contain exactly one JS
 // decodeSingleJSONBody bounds a control document and requires EOF after its
 // first JSON value. Optional-body callers may treat io.EOF as an empty request.
 func decodeSingleJSONBody(w http.ResponseWriter, r *http.Request, dst any, disallowUnknownFields bool) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	return decodeJSONBody(w, r, dst, disallowUnknownFields, maxJSONBodyBytes)
+}
+
+// An approved Full Demo snapshot may contain a 4 MiB round document plus its
+// explicit edit envelope. Other control endpoints keep the legacy 1 MiB limit.
+func decodeRenderJSONBody(w http.ResponseWriter, r *http.Request, dst any, disallowUnknownFields bool) error {
+	return decodeJSONBody(w, r, dst, disallowUnknownFields, 8<<20)
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, disallowUnknownFields bool, limit int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	decoder := json.NewDecoder(r.Body)
 	if disallowUnknownFields {
 		decoder.DisallowUnknownFields()

@@ -21,6 +21,7 @@ import { StudioEmptyState } from '@/components/studio/empty-state';
 import { PublishAssistantPanel } from '@/components/videos/publish-assistant-panel';
 import { LibraryMusicDialog } from '@/components/videos/library-music-dialog';
 import { ReviewResolutionDialog } from '@/components/videos/review-resolution-dialog';
+import { FullDemoEvidence } from '@/components/videos/full-demo-evidence';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -115,9 +116,13 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const dims = isShort ? '1080×1920' : '1920×1080';
   const meta = [`${dims} · 60 fps`, map, score, timeAgo(video.createdAt)].filter((part) => part !== '').join(' · ');
   const where = `${player ? `${player} en ` : ''}${map}${score ? ` (${score})` : ''}`;
-  const description = isShort
+  let description = isShort
     ? `Highlights de ${where}.`
     : `Partida completa de ${where}, POV con HUD nativo y comms.`;
+  if (video.editConfig?.fullDemo) {
+    const voice = video.editConfig.fullDemo.document.voice.availability === 'available' && video.editConfig.voiceComms && (video.editConfig.voiceVolume ?? 0) > 0;
+    description = `Rondas de ${where}, POV con HUD nativo${voice ? ' y voces del equipo' : ''}.`;
+  }
 
   function download(): void {
     if (!video?.downloadUrl) return;
@@ -191,6 +196,8 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
       <aside className="studio-panel p-4">
         <PublishAssistantPanel video={video} />
       </aside>
+
+      <FullDemoEvidence video={video} />
 
       {reviewRequired ? (
         <ReviewResolutionDialog

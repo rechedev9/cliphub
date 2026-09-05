@@ -78,6 +78,33 @@ func RecapPlanKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "recap-plan.json")
 }
 
+func FullDemoFactsKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "full-demo", "facts.json")
+}
+
+func FullDemoPlanKey(id, planID uuid.UUID) string {
+	return path.Join(JobPrefix(id), "full-demo", "plans", planID.String()+".json")
+}
+
+func FullDemoCurrentPlanKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "full-demo", "current-plan.json")
+}
+
+func FullDemoVoicePrefix(id uuid.UUID, contentHash string) (string, error) {
+	if err := ValidateArtifactToken("voice content hash", contentHash); err != nil {
+		return "", err
+	}
+	return path.Join(JobPrefix(id), "full-demo", "voice", contentHash), nil
+}
+
+func FullDemoCapturePrefix(id, attemptID uuid.UUID) string {
+	return path.Join(JobPrefix(id), "recording", "revisions", attemptID.String())
+}
+
+func MediaAssetProvenanceKey(id uuid.UUID) string {
+	return path.Join("editor-assets", id.String(), "provenance.json")
+}
+
 // FullDemoFaceitKey is optional FACEIT enrichment for Full Demo overlays.
 // Workers read it as demooverlay.Enrichment JSON and never invent numbers.
 func FullDemoFaceitKey(id uuid.UUID) string {

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 )
@@ -46,11 +47,17 @@ func (s *packetSpill) write(index int, xuid uint64, tick int, data []byte, offse
 	if s == nil || len(data) == 0 {
 		return nil
 	}
+	if len(data) > 65535 || len(offsets) > 255 || tick < 0 || uint64(tick) > math.MaxUint32 || index < 0 || index >= 2000000 {
+		return fmt.Errorf("invalid voice spill record size or timestamp")
+	}
 	f, err := s.file(xuid)
 	if err != nil {
 		return err
 	}
-	offset := f.offset()
+	offset, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return fmt.Errorf("seek spill packet %d: %w", index, err)
+	}
 	header := make([]byte, 9+len(offsets)*4)
 	binary.LittleEndian.PutUint32(header[0:4], uint32(tick))
 	binary.LittleEndian.PutUint16(header[4:6], uint16(len(data)))
@@ -113,17 +120,15 @@ type spillFile struct {
 	*os.File
 }
 
-func (f *spillFile) offset() int64 {
-	pos, err := f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return 0
-	}
-	return pos
-}
-
 func (s *packetSpill) file(xuid uint64) (*spillFile, error) {
 	if f, ok := s.files[xuid]; ok {
 		return f, nil
+	}
+	if s.files == nil {
+		return nil, fmt.Errorf("voice spill is closed")
+	}
+	if len(s.files) >= 64 {
+		return nil, fmt.Errorf("voice spill exceeds speaker limit")
 	}
 	path := filepath.Join(s.dir, fmt.Sprintf("%d.dat", xuid))
 	// #nosec G304 -- path is spill dir + numeric xuid.

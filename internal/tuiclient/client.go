@@ -148,7 +148,14 @@ func (c *Client) send(req *http.Request, method, path string, out any) error {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
+	if err != nil {
+		return fmt.Errorf("%s %s: read response: %w", method, path, err)
+	}
+	if len(body) > 8<<20 {
+		return fmt.Errorf("%s %s: JSON response exceeds 8 MiB", method, path)
+	}
+	if err := json.Unmarshal(body, out); err != nil {
 		return fmt.Errorf("%s %s: decode response: %w", method, path, err)
 	}
 	return nil

@@ -7,6 +7,7 @@ import type { EditConfig, Video } from '@/lib/api/types';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { constrainEditConfig, isLandscapeRecap, reelCreativeBrief } from '@/lib/reel-brief';
 import { FULL_DEMO_CONTRACT, FULL_DEMO_PRESET } from '@/lib/full-demo';
+import { FullDemoEvidence } from './full-demo-evidence';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,15 @@ export function ReviewResolutionDialog({
   }, [open, original, video.reviewArtifactPrefix, video.warnings]);
 
   const lockedFullDemo = isLandscapeRecap(original);
+  const editorial = original.fullDemo?.document.options;
+  const fullDemoContract = editorial ? [
+    { label: 'Formato', value: '1920×1080 · 60 fps · 1×' },
+    { label: 'HUD', value: editorial.capture.hud_profile },
+    { label: 'Voces', value: editorial.audio.voice.enabled ? `${editorial.audio.voice.gain}×` : 'Desactivadas' },
+    { label: 'Música', value: editorial.audio.music.enabled ? `${editorial.audio.music.assets.length} pistas · ${editorial.audio.music.bed_gain_db} dB` : 'Desactivada' },
+    { label: 'Sponsor', value: editorial.sponsor.enabled ? editorial.sponsor.audio_policy : 'Desactivado' },
+    { label: 'Portada', value: editorial.outputs.cover_policy },
+  ] : FULL_DEMO_CONTRACT;
   const editChanged = JSON.stringify(draft) !== JSON.stringify(original);
   const reviewChanged = reviewSnapshot !== null && (
     reviewSnapshot.artifactPrefix !== video.reviewArtifactPrefix ||
@@ -107,7 +117,7 @@ export function ReviewResolutionDialog({
     ? { status: 'track' as const, title: video.songId, volumePercent: 100, gameVolumePercent: 100 }
     : { status: 'none' as const };
   const briefLines = lockedFullDemo
-    ? FULL_DEMO_CONTRACT.map((row) => `${row.label}: ${row.value}`)
+    ? fullDemoContract.map((row) => `${row.label}: ${row.value}`)
     : reelCreativeBrief(draft, null, musicBrief).map((item) => `${item.label}: ${item.value}`);
 
   return (
@@ -139,11 +149,11 @@ export function ReviewResolutionDialog({
             <div>
               <h3 className="font-display text-body uppercase tracking-wide">Contrato Full Demo</h3>
               <p className="text-body-sm text-fg-3">
-                16:9, rondas en vivo, HUD nativo y comms: no se pueden convertir en un Short desde este diálogo.
+                Rondas en primera persona con las decisiones del plan aprobado. Inspecciona los avisos y documenta los intervalos que aceptas.
               </p>
             </div>
             <dl className="grid gap-1.5 text-body-sm text-fg-2 sm:grid-cols-2">
-              {FULL_DEMO_CONTRACT.map((row) => (
+              {fullDemoContract.map((row) => (
                 <div key={row.label} className="flex min-w-0 gap-1.5">
                   <dt className="shrink-0 text-fg-3">{row.label}:</dt>
                   <dd className="truncate text-fg-1">{row.value}</dd>
@@ -153,6 +163,7 @@ export function ReviewResolutionDialog({
             <p className="text-body-sm text-fg-3">
               Preset de captura: {FULL_DEMO_PRESET.label} (no cambia sin recaptura).
             </p>
+            <FullDemoEvidence video={video} />
           </section>
         ) : (
           <section className="space-y-4 rounded-md border border-border p-4">

@@ -19,6 +19,10 @@ import (
 // optional groups ("[--flag <v>]") are handled structurally, not through this
 // table.
 var flowPlaceholderSubstitutions = map[string]string{
+	"uuid":                "e16560b4-6ee2-48a6-8e40-15e5d712856d",
+	"options.json":        "options.json",
+	"plan.json":           "plan.json",
+	"plan-hash":           strings.Repeat("a", 64),
 	"run":                 "run",
 	"match.dem":           "match.dem",
 	"stream.mp4":          "stream.mp4",

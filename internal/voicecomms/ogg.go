@@ -96,15 +96,32 @@ func writeOggPage(w io.Writer, headerType byte, granule int64, serial, seq uint3
 	copy(page[27+len(segs):], body)
 	crc := oggCRC(page)
 	binary.LittleEndian.PutUint32(page[22:26], crc)
-	_, err := w.Write(page)
+	n, err := w.Write(page)
+	if err == nil && n != len(page) {
+		return io.ErrShortWrite
+	}
 	return err
 }
 
 func opusFrameSamples(frame []byte) int {
 	if len(frame) == 0 {
-		return opus48kFrameSamples
+		return 0
 	}
-	return opusTOCSamples(frame[0])
+	count := 1
+	switch frame[0] & 3 {
+	case 1, 2:
+		count = 2
+	case 3:
+		if len(frame) < 2 {
+			return 0
+		}
+		count = int(frame[1] & 63)
+	}
+	samples := count * opusTOCSamples(frame[0])
+	if samples > 5760 {
+		return 0
+	}
+	return samples
 }
 
 func opusTOCSamples(toc byte) int {
@@ -114,7 +131,7 @@ func opusTOCSamples(toc byte) int {
 		// SILK: 10, 20, 40, 60 ms cycling every 4 configs
 		return []int{480, 960, 1920, 2880}[config%4]
 	case config < 16:
-		return []int{480, 960, 1920, 2880}[config-12]
+		return 480 << (config & 1)
 	default:
 		return []int{120, 240, 480, 960}[(config-16)%4]
 	}

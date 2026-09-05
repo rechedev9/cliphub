@@ -53,8 +53,9 @@ FFmpeg/ffprobe, and runs the simulator's Node
 contracts plus the complete Go suite (five-minute timeout per package). It does
 not need a GPU, Redis, Steam credentials, a real demo, or a browser.
 `scripts/ci-backend-evidence.mjs` reads the Go JSON output and requires successful,
-unskipped execution of the generated-script simulator and three media canaries:
-Shorts portrait, Full Demo overlays, and two-round Full Demo concatenation.
+unskipped execution of both generated-script simulators and the media canaries:
+Shorts portrait, Full Demo overlays, two-round concatenation, decoded-AAC
+mastering, measured ducking/zero gains, and audiovisual sponsor/playlist output.
 Missing tests and skipped simulator scenarios fail the lane. Changes to the
 simulator or evidence checker also trigger backend CI.
 

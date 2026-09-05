@@ -33,7 +33,8 @@ const (
 )
 
 type createEditorAssetConfig struct {
-	FileName string `json:"file_name,omitempty"`
+	FileName   string                  `json:"file_name,omitempty"`
+	Provenance *mediaassets.Provenance `json:"provenance,omitempty"`
 }
 
 type importEditorAssetRequest struct {
@@ -95,7 +96,19 @@ func (h *Handlers) CreateEditorAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	fileName = mediaassets.SanitizeFileName(fileName)
 
-	asset, err := h.ingestEditorAsset(r, file, fileName, mediaassets.OriginUpload, nil, "", "")
+	if cfg.Provenance != nil {
+		cfg.Provenance.SchemaVersion = "1.0"
+		cfg.Provenance.AssetSHA256 = strings.Repeat("0", 64) // Replaced with the uploaded bytes' digest below.
+		if err := cfg.Provenance.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if h.streamProber == nil {
+			writeError(w, http.StatusConflict, "Media probing is required for Full Demo assets")
+			return
+		}
+	}
+	asset, err := h.ingestEditorAsset(r, file, fileName, mediaassets.OriginUpload, nil, "", "", cfg.Provenance)
 	if err != nil {
 		if isBadRequest(err) {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -167,7 +180,7 @@ func (h *Handlers) resolveImportKey(source string, jobID uuid.UUID, variant, nam
 	}
 }
 
-func (h *Handlers) ingestEditorAsset(r *http.Request, src io.Reader, fileName string, origin mediaassets.Origin, jobID *uuid.UUID, variant, name string) (mediaassets.Asset, error) {
+func (h *Handlers) ingestEditorAsset(r *http.Request, src io.Reader, fileName string, origin mediaassets.Origin, jobID *uuid.UUID, variant, name string, declarations ...*mediaassets.Provenance) (mediaassets.Asset, error) {
 	tmp, err := os.CreateTemp("", "zv-editor-upload-*.mp4")
 	if err != nil {
 		return mediaassets.Asset{}, err
@@ -181,8 +194,30 @@ func (h *Handlers) ingestEditorAsset(r *http.Request, src io.Reader, fileName st
 		return mediaassets.Asset{}, err
 	}
 	digest := hex.EncodeToString(h256.Sum(nil))
+	var provenance *mediaassets.Provenance
+	if len(declarations) > 0 && declarations[0] != nil {
+		copy := *declarations[0]
+		copy.AssetSHA256 = digest
+		provenance = &copy
+		if err := mediaassets.VerifyDecoded(r.Context(), h.fullDemoFFmpeg(), tmp.Name()); err != nil {
+			return mediaassets.Asset{}, errBadRequest(err.Error())
+		}
+	}
 	if existing, err := h.editorAssets.GetBySHA256(r.Context(), digest); err == nil {
-		return existing, nil
+		if provenance == nil {
+			return existing, nil
+		}
+		prior, found, err := mediaassets.LoadProvenance(h.storage, existing.ID)
+		if err != nil {
+			return mediaassets.Asset{}, err
+		}
+		if found && prior == *provenance {
+			if err := mediaassets.VerifyContent(r.Context(), h.storage, existing.MediaKey, digest, maxEditorVideoBytes); err == nil {
+				return existing, nil
+			}
+			// Missing or changed media gets a fresh immutable namespace.
+		}
+		// A new declaration gets its own immutable identity, even for identical bytes.
 	} else if err != nil && !errors.Is(err, mediaassets.ErrNotFound) {
 		return mediaassets.Asset{}, err
 	}
@@ -226,6 +261,13 @@ func (h *Handlers) ingestEditorAsset(r *http.Request, src io.Reader, fileName st
 	if err := h.storage.Put(asset.MediaKey, tmp); err != nil {
 		return mediaassets.Asset{}, err
 	}
+	if provenance != nil {
+		if err := mediaassets.StoreProvenance(h.storage, asset.ID, *provenance); err != nil {
+			return mediaassets.Asset{}, err
+		}
+	}
+	// Publish the Library row last. Failed uploads/declarations never become
+	// selectable assets; an unreferenced immutable file is safe to reclaim.
 	if err := h.editorAssets.Create(r.Context(), &asset); err != nil {
 		return mediaassets.Asset{}, err
 	}
@@ -257,7 +299,22 @@ func (h *Handlers) GetEditorAssetMedia(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.streamStorageKey(w, r, "video/mp4", asset.MediaKey)
+	contentType := "video/mp4"
+	if asset.Probe.VideoCodec == "" {
+		switch asset.Probe.AudioCodec {
+		case "mp3":
+			contentType = "audio/mpeg"
+		case "opus", "vorbis":
+			contentType = "audio/ogg"
+		case "flac":
+			contentType = "audio/flac"
+		case "pcm_s16le", "pcm_s24le", "pcm_f32le":
+			contentType = "audio/wav"
+		default:
+			contentType = "audio/mp4"
+		}
+	}
+	h.streamStorageKey(w, r, contentType, asset.MediaKey)
 }
 
 func (h *Handlers) CreateEditorProject(w http.ResponseWriter, r *http.Request) {
