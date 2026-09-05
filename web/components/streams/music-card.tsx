@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Loader2, Pause, Play } from 'lucide-react';
 import type { Song } from '@/lib/api/types';
 import { MUSIC_VOLUMES, NO_MUSIC_VALUE } from '@/lib/streams/plan';
+import { claimMediaPlayback } from '@/lib/media-playback-owner';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -38,11 +39,13 @@ export function StreamMusicCard({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewRequest = useRef(0);
+  const releaseOwner = useRef<() => void>(() => {});
 
   const selectedSong = songs?.find((song) => song.id === musicKey);
 
   const stopAndResetPreview = useCallback(() => {
     previewRequest.current += 1;
+    releaseOwner.current();
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -60,6 +63,7 @@ export function StreamMusicCard({
     const audio = audioRef.current;
     return () => {
       previewRequest.current += 1;
+      releaseOwner.current();
       if (audio) {
         audio.pause();
         audio.currentTime = 0;
@@ -72,19 +76,20 @@ export function StreamMusicCard({
     if (!audio || !selectedSong?.previewUrl || busy || songs === null) return;
 
     if (previewPlaying) {
-      previewRequest.current += 1;
-      audio.pause();
-      setPreviewPlaying(false);
+      stopAndResetPreview();
       return;
     }
 
     const request = ++previewRequest.current;
     setPreviewError(null);
+    releaseOwner.current = claimMediaPlayback(audio, stopAndResetPreview);
     try {
       await audio.play();
       if (previewRequest.current === request) setPreviewPlaying(true);
+      else audio.pause();
     } catch {
       if (previewRequest.current !== request) return;
+      releaseOwner.current();
       audio.pause();
       audio.currentTime = 0;
       setPreviewPlaying(false);

@@ -302,7 +302,7 @@ export type Video = {
   failureCode?: string;
   /** Exact render QA warnings; populated only while status is review_required. */
   warnings?: string[];
-  /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */
+  /** Immutable render revision; with `warnings` it also forms the review CAS token. */
   reviewArtifactPrefix?: string;
   /** Immutable revision used for this Full Demo's MP4, cover and evidence links. */
   artifactRevision?: string;

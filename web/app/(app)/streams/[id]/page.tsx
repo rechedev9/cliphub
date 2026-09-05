@@ -164,6 +164,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           if (pollGen.current !== gen) return;
           setRenderState(state);
           if (state.status === 'rendered') {
+            const refreshedJob = await streamsApi.getJob(jobId).catch(() => null);
+            if (refreshedJob !== null) setJob(refreshedJob);
             setRenderedPlan(attemptedPlan);
             setStage('rendered');
             if (announce) {

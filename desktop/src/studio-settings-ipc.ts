@@ -2,12 +2,14 @@ export const STUDIO_SETTINGS_CHANNEL = 'cliphub:studio-settings';
 
 export const STUDIO_SETTINGS_ACTION = {
   appInfo: 'app-info',
+  playbackInfo: 'playback-info',
   telemetryStatus: 'telemetry-status',
   telemetryUpdate: 'telemetry-update',
 } as const;
 
 export type StudioSettingsRequest =
   | { action: typeof STUDIO_SETTINGS_ACTION.appInfo }
+  | { action: typeof STUDIO_SETTINGS_ACTION.playbackInfo }
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryStatus }
   | { action: typeof STUDIO_SETTINGS_ACTION.telemetryUpdate; enabled: boolean };
 
@@ -25,7 +27,9 @@ export function parseStudioSettingsRequest(value: unknown): StudioSettingsReques
     throw new Error('invalid Studio settings request');
   }
   const action = value.action;
-  if (action === STUDIO_SETTINGS_ACTION.appInfo || action === STUDIO_SETTINGS_ACTION.telemetryStatus) {
+  if (action === STUDIO_SETTINGS_ACTION.appInfo
+    || action === STUDIO_SETTINGS_ACTION.playbackInfo
+    || action === STUDIO_SETTINGS_ACTION.telemetryStatus) {
     requireExactKeys(value, ['action']);
     return { action };
   }

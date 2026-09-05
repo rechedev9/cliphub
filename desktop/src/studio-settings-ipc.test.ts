@@ -10,6 +10,9 @@ test('parses only the narrow Studio settings action shape', () => {
   assert.deepEqual(parseStudioSettingsRequest({ action: 'app-info' }), {
     action: STUDIO_SETTINGS_ACTION.appInfo,
   });
+  assert.deepEqual(parseStudioSettingsRequest({ action: 'playback-info' }), {
+    action: STUDIO_SETTINGS_ACTION.playbackInfo,
+  });
   assert.deepEqual(parseStudioSettingsRequest({ action: 'telemetry-status' }), {
     action: STUDIO_SETTINGS_ACTION.telemetryStatus,
   });
@@ -26,6 +29,7 @@ test('parses only the narrow Studio settings action shape', () => {
     { action: 'restart' },
     { action: 'save', apiKey: 'secret' },
     { action: 'app-info', extra: true },
+    { action: 'playback-info', includeGPUInfo: true },
     { action: 'telemetry-update' },
     { action: 'telemetry-update', enabled: 'yes' },
     { action: 'telemetry-update', enabled: true, extra: true },

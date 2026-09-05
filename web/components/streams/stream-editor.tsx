@@ -17,13 +17,11 @@ import {
 import { api } from '@/lib/api';
 import { isKeyDropBannerStyle, type AffiliateFamily, type Song } from '@/lib/api/types';
 import {
-  advanceMontagePlayback,
   clampKeyDropBannerPosition,
   clampStreamerBannerPosition,
   keyDropPreviewSourceSeconds,
   resolveKeyDropBannerPosition,
   resolveStreamerBannerPosition,
-  startMontagePlayback,
 } from '@/lib/stream-preview';
 import {
   DEFAULT_KEYDROP_CODE,
@@ -40,6 +38,8 @@ import {
   streamSourceLabel,
 } from '@/lib/streams/plan';
 import { streamCreativeBrief } from '@/lib/streams/brief';
+import { PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
+import { STREAM_PLAYBACK_MODE, streamPlaybackIndex, type StreamPlaybackMode } from '@/lib/stream-playback';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
@@ -60,7 +60,7 @@ import {
 import { StreamFrameSession } from '@/components/streams/stream-frame-session';
 import { StreamLayoutBar } from '@/components/streams/stream-layout-bar';
 import { StreamStepsRail, type StreamAutosaveState } from '@/components/streams/stream-steps-rail';
-import { StreamMonitor, type StreamPlaybackMode } from '@/components/streams/stream-monitor';
+import { StreamMonitor } from '@/components/streams/stream-monitor';
 import { StreamSourceTimeline } from '@/components/streams/stream-source-timeline';
 import { StreamLayoutStep, StreamStepPanel } from '@/components/streams/stream-step-panel';
 import { StreamBannerControls } from '@/components/streams/banner-controls';
@@ -125,43 +125,42 @@ export function StreamEditor({
   const hasRenderedVideos = hasRender && resultVideos.length > 0;
   const [draftRange, setDraftRange] = useState({ start_seconds: 0, end_seconds: Math.min(sourceDuration, 30) });
   const [creatingMoment, setCreatingMoment] = useState(plan.clips.length === 0);
-  const [playbackMode, setPlaybackMode] = useState<StreamPlaybackMode>('source');
+  const [playbackMode, setPlaybackMode] = useState<StreamPlaybackMode>(STREAM_PLAYBACK_MODE.source);
   const panelRef = useRef<HTMLDivElement>(null);
   const latestPlanRef = useRef(plan);
   latestPlanRef.current = plan;
   const selectedClip = plan.clips.find((c) => c.id === selectedClipId) ?? plan.clips[0];
-  const playbackClips = useMemo(() => {
-    if (playbackMode === 'source') return [{ id: 'source', start_seconds: 0, end_seconds: sourceDuration }];
-    if (playbackMode === 'clip') return selectedClip ? [selectedClip] : [];
-    return plan.clips;
-  }, [playbackMode, sourceDuration, selectedClip, plan.clips]);
-  const playbackDuration = playbackClips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [previewSeconds, setPreviewSeconds] = useState(0);
-  const playbackElapsed = playbackClips.reduce(
-    (sum, clip) =>
-      sum + Math.max(0, Math.min(previewSeconds, clip.end_seconds) - clip.start_seconds) / (clip.edit?.speed ?? 1),
-    0,
-  );
   const previewSecondsRef = useRef(previewSeconds);
   previewSecondsRef.current = previewSeconds;
   const [previewPlaying, setPreviewPlaying] = useState(false);
-  const [playbackRestart, setPlaybackRestart] = useState(0);
-  const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>(PLAYBACK_STATUS.loading);
+  const [previewSeek, setPreviewSeek] = useState({ seconds: 0, revision: 0 });
+  const [playbackLoop, setPlaybackLoop] = useState(false);
+  const [playbackClipId, setPlaybackClipId] = useState(selectedClipId);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReload, setPreviewReload] = useState(0);
   const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
-  // Only start/end/speed/volume should restart the playback transport; a title
-  // edit must not pause the montage that is already playing.
-  const clipsPlaybackKey = useMemo(
-    () =>
-      playbackClips
-        .map((c) => `${c.id}:${c.start_seconds}:${c.end_seconds}:${c.edit?.speed ?? 1}:${c.edit?.source_volume ?? 1}`)
-        .join('|'),
-    [playbackClips],
-  );
-  const playbackClipsRef = useRef(playbackClips);
-  playbackClipsRef.current = playbackClips;
+  const playbackClock = useMemo(() => {
+    if (playbackMode === STREAM_PLAYBACK_MODE.source) return { elapsed: previewSeconds, duration: sourceDuration };
+    const activeIndex = streamPlaybackIndex(plan.clips, playbackClipId ?? selectedClipId);
+    const active = plan.clips[activeIndex];
+    if (!active) return { elapsed: 0, duration: 0 };
+    const activeElapsed = Math.max(0, Math.min(previewSeconds, active.end_seconds) - active.start_seconds) / (active.edit?.speed ?? 1);
+    if (playbackMode === STREAM_PLAYBACK_MODE.selected) {
+      return { elapsed: activeElapsed, duration: clipOutputDuration(active) };
+    }
+    const prior = plan.clips.slice(0, activeIndex).reduce((sum, clip) => sum + clipOutputDuration(clip), 0);
+    return {
+      elapsed: prior + activeElapsed,
+      duration: plan.clips.reduce((sum, clip) => sum + clipOutputDuration(clip), 0),
+    };
+  }, [playbackClipId, playbackMode, plan.clips, previewSeconds, selectedClipId, sourceDuration]);
+  const previewMusic = useMemo(() => {
+    const song = songs?.find((entry) => entry.id === plan.music?.key);
+    return song?.previewUrl ? { url: song.previewUrl, volume: plan.music?.volume ?? 0.25 } : null;
+  }, [songs, plan.music?.key, plan.music?.volume]);
 
   useEffect(() => {
     if (stage === 'rendering' || stage === 'rendered') {
@@ -185,55 +184,6 @@ export function StreamEditor({
     };
   }, []);
 
-  useEffect(() => {
-    if (!previewPlaying || sourceDuration <= 0) return;
-    const audio = previewAudioRef.current;
-    const clips = playbackClipsRef.current;
-    let cursor = startMontagePlayback(clips, previewSecondsRef.current);
-    if (!cursor) {
-      setPreviewPlaying(false);
-      return;
-    }
-    const playCursor = (next: typeof cursor): void => {
-      if (!next) return;
-      cursor = next;
-      setPreviewSeconds(next.sourceSeconds);
-      if (audio) {
-        audio.currentTime = next.sourceSeconds;
-        audio.playbackRate = next.playbackRate;
-        audio.volume = Math.min(1, Math.max(0, clips[next.clipIndex]?.edit?.source_volume ?? 1));
-        void audio.play().catch(() => {
-          setPreviewPlaying(false);
-          setPreviewError(
-            'El navegador no pudo iniciar el audio de la preview. Pulsa reintentar y vuelve a reproducir.',
-          );
-        });
-      }
-    };
-    playCursor(cursor);
-    const timer = setInterval(() => {
-      if (!cursor) return;
-      const sourceSeconds =
-        audio && !audio.paused ? audio.currentTime : previewSecondsRef.current + 0.125 * cursor.playbackRate;
-      const next = advanceMontagePlayback(clips, cursor.clipIndex, sourceSeconds);
-      if (!next) {
-        setPreviewSeconds(clips.at(-1)?.end_seconds ?? 0);
-        setPreviewPlaying(false);
-        return;
-      }
-      if (next.clipIndex !== cursor.clipIndex) {
-        playCursor(next);
-        return;
-      }
-      cursor = next;
-      setPreviewSeconds(next.sourceSeconds);
-    }, 125);
-    return () => {
-      clearInterval(timer);
-      audio?.pause();
-    };
-  }, [clipsPlaybackKey, previewPlaying, sourceDuration, playbackRestart]);
-
   const busy = stage === 'rendering' || saving;
 
   const setVariant = (variant: StreamVariant) => onPlanChange({ ...plan, variant });
@@ -246,19 +196,19 @@ export function StreamEditor({
   function navigateStep(step: StreamStep) {
     setPreviewPlaying(false);
     setActiveStep(step);
-    setPlaybackMode(step === 'cuts' ? 'source' : 'clip');
+    setPlaybackMode(step === 'cuts' ? STREAM_PLAYBACK_MODE.source : STREAM_PLAYBACK_MODE.selected);
     panelRef.current?.scrollTo(0, 0);
   }
   function seek(seconds: number) {
-    setPreviewPlaying(false);
-    setPreviewSeconds(Math.max(0, Math.min(sourceDuration, seconds)));
+    const bounded = Math.max(0, Math.min(sourceDuration, seconds));
+    setPreviewSeconds(bounded);
+    setPreviewSeek((previous) => ({ seconds: bounded, revision: previous.revision + 1 }));
   }
   function playSelected() {
     if (!selectedClip) return;
-    setPlaybackMode('clip');
+    setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
     setPreviewError(null);
-    setPlaybackRestart((current) => current + 1);
-    setPreviewSeconds(selectedClip.start_seconds);
+    seek(selectedClip.start_seconds);
     setPreviewPlaying(true);
   }
 
@@ -298,7 +248,7 @@ export function StreamEditor({
   /** Keep the 9:16 monitor inside the plate's on-screen window so code edits are visible. */
   const revealKeyDropOnPreview = (start: number, end: number) => {
     setPreviewPlaying(false);
-    setPreviewSeconds(keyDropPreviewSourceSeconds(plan.clips, previewSecondsRef.current, start, end));
+    seek(keyDropPreviewSourceSeconds(plan.clips, previewSecondsRef.current, start, end));
   };
 
   const setKeyDropFamily = (family: AffiliateFamily) => {
@@ -375,7 +325,7 @@ export function StreamEditor({
   const selectClip = (clip: StreamClipRange) => {
     setSelectedClipId(clip.id);
     setCreatingMoment(false);
-    setPlaybackMode('clip');
+    setPlaybackMode(STREAM_PLAYBACK_MODE.selected);
     seek(clip.start_seconds);
     panelRef.current?.scrollTo(0, 0);
   };
@@ -655,7 +605,17 @@ export function StreamEditor({
     <StreamFrameSession
       key={previewReload}
       videoSrc={videoSrc}
-      frameSeconds={previewSeconds}
+      seek={previewSeek}
+      playing={previewPlaying}
+      mode={playbackMode}
+      loop={playbackLoop}
+      clips={plan.clips}
+      selectedClipId={selectedClipId}
+      music={previewMusic}
+      onPosition={setPreviewSeconds}
+      onStatus={setPlaybackStatus}
+      onPlayingChange={setPreviewPlaying}
+      onClipChange={setPlaybackClipId}
       onMediaError={() => {
         setPreviewPlaying(false);
         setPreviewError(
@@ -701,6 +661,7 @@ export function StreamEditor({
                     faceCrop,
                     gameplayCrop: plan.gameplay_crop,
                     clips: plan.clips,
+                    activeClipId: playbackClipId ?? selectedClipId ?? undefined,
                     frameSeconds: previewSeconds,
                     streamerNick: plan.streamer_banner?.nick?.trim(),
                     streamerPlatform: bannerPlatform,
@@ -719,31 +680,28 @@ export function StreamEditor({
                     playheadPercent: clipProgress,
                     className: 'h-full w-auto min-h-[120px]',
                   }}
-                  elapsedSeconds={playbackElapsed}
-                  playbackDuration={playbackDuration}
+                  frameSeconds={previewSeconds}
+                  sourceDuration={sourceDuration}
+                  elapsedSeconds={playbackClock.elapsed}
+                  playbackDuration={playbackClock.duration}
                   playing={previewPlaying}
-                  canPlay={sourceDuration > 0 && startMontagePlayback(playbackClips, previewSeconds) !== null}
+                  status={playbackStatus}
+                  canPlay={!busy && sourceDuration > 0 && (playbackMode === STREAM_PLAYBACK_MODE.source || streamPlaybackIndex(plan.clips, selectedClipId) >= 0)}
                   mode={playbackMode}
                   hasSelection={!!selectedClip}
                   clipCount={plan.clips.length}
                   onModeChange={(mode) => {
                     setPreviewPlaying(false);
                     setPlaybackMode(mode);
-                    if (mode === 'clip' && selectedClip) setPreviewSeconds(selectedClip.start_seconds);
+                    if (mode === STREAM_PLAYBACK_MODE.selected && selectedClip) seek(selectedClip.start_seconds);
                   }}
+                  loop={playbackLoop}
+                  onLoopChange={setPlaybackLoop}
+                  onSeek={seek}
                   previewError={previewError}
-                  videoSrc={videoSrc}
-                  audioRef={previewAudioRef}
-                  audioKey={previewReload}
                   onTogglePlay={() => {
                     setPreviewError(null);
                     setPreviewPlaying((current) => !current);
-                  }}
-                  onAudioError={() => {
-                    setPreviewPlaying(false);
-                    setPreviewError(
-                      'No se pudo decodificar la pista de audio de la preview. Revisa el MP4 y reintenta.',
-                    );
                   }}
                   onRetry={() => {
                     setPreviewError(null);
@@ -758,7 +716,7 @@ export function StreamEditor({
                     playheadSeconds={previewSeconds}
                     disabled={busy}
                     onSeek={(seconds) => {
-                      setPlaybackMode('source');
+                      setPlaybackMode(STREAM_PLAYBACK_MODE.source);
                       seek(seconds);
                     }}
                     onSelect={selectClip}

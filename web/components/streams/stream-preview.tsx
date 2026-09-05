@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { Twitch } from 'lucide-react';
 import type { NormalizedRect, StreamClipRange, StreamerBannerPlatform, StreamVariant } from '@/lib/api/streams';
 import { DEFAULT_OVERLAY_FONT_SIZE } from '@/lib/clip-edit';
-import { StreamFrameCanvas } from '@/components/streams/stream-frame-session';
+import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
+import { streamAffiliateSlide, streamAffiliateWindow, streamBannerSlide, streamPreviewFade } from '@/lib/stream-playback';
 import {
-  activeTextOverlays,
   clampKeyDropBannerPosition,
   clampStreamerBannerPosition,
   KEYDROP_BANNER_MAX_POSITION,
@@ -73,6 +73,8 @@ export function StreamPreview({
   faceCrop,
   gameplayCrop,
   clips = EMPTY_CLIPS,
+  activeClipId,
+  grade = false,
   frameSeconds,
   streamerNick,
   streamerPlatform = 'twitch',
@@ -95,6 +97,8 @@ export function StreamPreview({
   faceCrop?: NormalizedRect;
   gameplayCrop?: NormalizedRect;
   clips?: StreamClipRange[];
+  activeClipId?: string;
+  grade?: boolean;
   frameSeconds: number;
   streamerNick?: string;
   streamerPlatform?: StreamerBannerPlatform;
@@ -117,6 +121,13 @@ export function StreamPreview({
   playheadPercent?: number;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
+  const compositionRef = useRef<HTMLDivElement>(null);
+  const streamerSlideRef = useRef<HTMLDivElement>(null);
+  const affiliateRef = useRef<HTMLDivElement>(null);
+  const affiliateSlideRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLSpanElement>(null);
+  const overlayRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const { session } = useStreamFrame();
   const dragRef = useRef<{ startClientY: number; startPosition: number } | null>(null);
   const keyDropDragRef = useRef<{ startClientY: number; startPosition: number } | null>(null);
   const gameplay = gameplayCrop ?? FULL_FRAME;
@@ -129,22 +140,45 @@ export function StreamPreview({
   const keyDropPosition = resolveKeyDropBannerPosition(keyDropPositionY);
   const keyDropPlate = stylesForFamily(keyDropFamily ?? '').find((entry) => entry.id === keyDropStyle);
   const keyDropLabel = affiliateDisplayLabel(keyDropFamily ?? '', keyDropStyle ?? '', keyDropCode ?? '');
-  const activeOverlays = activeTextOverlays(clips, frameSeconds);
-  // KeyDrop times are relative to each clip start (same as the FFmpeg enable window).
-  const activeClip = clips.find(
-    (c) => frameSeconds >= c.start_seconds && frameSeconds < c.end_seconds,
-  );
-  const clipLocalT = activeClip ? frameSeconds - activeClip.start_seconds : frameSeconds;
+  // Clip identity is explicit: overlapping or reordered cuts are distinct Shorts.
+  const activeClip = clips.find((clip) => clip.id === activeClipId);
+  const activeOverlays = activeClip?.edit?.text_overlays ?? [];
   const clipLen = activeClip ? activeClip.end_seconds - activeClip.start_seconds : 0;
-  const kdStart = keyDropStartSeconds ?? 0;
-  let kdEnd = Number.POSITIVE_INFINITY;
-  if (keyDropEndSeconds !== undefined && keyDropEndSeconds > 0) {
-    kdEnd = keyDropEndSeconds;
-  } else if (clipLen > 0) {
-    kdEnd = clipLen;
-  }
-  const keyDropVisible =
-    Boolean(keyDropStyle) && clipLocalT >= kdStart && clipLocalT < kdEnd;
+  const kdWindow = streamAffiliateWindow(keyDropStartSeconds, keyDropEndSeconds ?? 0, clipLen);
+  const updateLayers = useRef<(seconds: number) => void>(() => {});
+  updateLayers.current = (seconds) => {
+    const local = seconds - (activeClip?.start_seconds ?? 0);
+    const inClip = activeClip !== undefined && local >= 0 && local < clipLen;
+    if (compositionRef.current) compositionRef.current.style.opacity = String(activeClip ? streamPreviewFade(activeClip, seconds) : 1);
+    if (streamerSlideRef.current) streamerSlideRef.current.style.transform = 'translateX(' + (streamerSlideEnabled ? streamBannerSlide(local, clipLen) : 0) + '%)';
+    if (affiliateRef.current) affiliateRef.current.style.visibility = inClip && local >= kdWindow.start && local <= kdWindow.end ? 'visible' : 'hidden';
+    if (affiliateSlideRef.current) affiliateSlideRef.current.style.transform = 'translateX(' + (keyDropSlideEnabled ? streamAffiliateSlide(local, keyDropStartSeconds, keyDropEndSeconds ?? 0, clipLen) : 0) + '%)';
+    activeOverlays.forEach((overlay, index) => {
+      const element = overlayRefs.current[index];
+      if (element) element.style.visibility = inClip && local >= (overlay.start_seconds ?? 0) && local <= (overlay.end_seconds ?? clipLen) ? 'visible' : 'hidden';
+    });
+    if (progressRef.current) progressRef.current.style.width = String(clipLen > 0 ? Math.min(100, Math.max(0, local / clipLen * 100)) : 0) + '%';
+  };
+  useEffect(() => {
+    if (!session) return;
+    const update = (): void => updateLayers.current(session.frame.seconds);
+    update();
+    return session.subscribeFrames(update);
+  }, [session]);
+  useEffect(() => { updateLayers.current(session?.frame.seconds ?? frameSeconds); });
+  useEffect(() => {
+    const plate = affiliateRef.current;
+    const container = containerRef.current;
+    if (!plate || !container) return;
+    const resize = (): void => {
+      // FFmpeg keeps the full plate inside the output even at edge positions.
+      container.style.setProperty('--affiliate-half-height', String(plate.offsetHeight / 2) + 'px');
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(plate);
+    resize();
+    return () => observer.disconnect();
+  }, [keyDropStyle]);
 
   const beginBannerDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled || !onStreamerPositionChange) return;
@@ -214,11 +248,12 @@ export function StreamPreview({
     <div
       ref={containerRef}
       className={cn(
-        'relative aspect-[9/16] overflow-hidden border border-stream/45 bg-surface-0 shadow-[var(--elev-2)]',
+        'relative aspect-[9/16] overflow-hidden border border-stream/45 bg-black shadow-[var(--elev-2)]',
         className ?? 'mx-auto w-full max-w-[220px]',
       )}
       style={{ containerType: 'size' }}
     >
+      <div ref={compositionRef} className="absolute inset-0" style={{ filter: grade ? 'contrast(1.05) saturate(1.15)' : undefined }}>
       <div className="flex h-full w-full flex-col">
         {faceLayout ? (
           <div style={{ height: `${facePct}%` }} className="w-full">
@@ -242,6 +277,7 @@ export function StreamPreview({
       {activeOverlays.map((overlay, i) => (
         <span
           key={i}
+          ref={(element) => { overlayRefs.current[i] = element; }}
           className="pointer-events-none absolute left-0 w-full -translate-y-1/2 px-[4%] text-center font-[family-name:var(--font-display)] font-black leading-tight text-white"
           style={{
             top: `${overlay.position_y * 100}%`,
@@ -273,7 +309,8 @@ export function StreamPreview({
           style={{ top: `${bannerPosition * 100}%` }}
         >
           <div
-            className={`flex h-full w-full items-center shadow-sm ${streamerSlideEnabled ? 'streamer-banner-slide-preview' : ''} ${
+            ref={streamerSlideRef}
+            className={`flex h-full w-full items-center shadow-sm ${
               streamerPlatform === 'kick' ? 'bg-[#53fc18] text-black' : 'bg-[#9146ff] text-white'
             }`}
           >
@@ -294,8 +331,9 @@ export function StreamPreview({
           </div>
         </div>
       ) : null}
-      {keyDropVisible ? (
+      {keyDropStyle ? (
         <div
+          ref={affiliateRef}
           role="slider"
           tabIndex={disabled ? -1 : 0}
           aria-label="Posición del banner afiliado en la vista previa"
@@ -311,10 +349,10 @@ export function StreamPreview({
           onPointerCancel={endKeyDropDrag}
           onKeyDown={moveKeyDropWithKeyboard}
           className={`absolute left-1/2 w-[55%] -translate-x-1/2 -translate-y-1/2 touch-none select-none ${disabled ? 'cursor-default opacity-90' : 'cursor-ns-resize'}`}
-          style={{ top: `${keyDropPosition * 100}%` }}
+          style={{ top: `clamp(var(--affiliate-half-height, 0px), ${keyDropPosition * 100}%, calc(100% - var(--affiliate-half-height, 0px)))` }}
         >
           {/* Same plates the Go renderer embeds; live code is drawn on top. */}
-          <div className={`relative w-full ${keyDropSlideEnabled ? 'keydrop-banner-slide-preview' : ''}`}>
+          <div ref={affiliateSlideRef} className="relative w-full">
             <img
               src={keyDropPlate?.preview ?? ''}
               alt=""
@@ -333,37 +371,15 @@ export function StreamPreview({
           </div>
         </div>
       ) : null}
+      </div>
       {playheadPercent !== undefined ? (
         <span
+          ref={progressRef}
           aria-hidden
-          className="pointer-events-none absolute bottom-0 left-0 h-[3px] bg-stream transition-[width] duration-(--dur-base) linear"
+          className="pointer-events-none absolute bottom-0 left-0 h-[3px] bg-stream"
           style={{ width: `${Math.min(100, Math.max(0, playheadPercent))}%` }}
         />
       ) : null}
-      <style>{`
-        .streamer-banner-slide-preview {
-          animation: streamer-banner-slide-preview 2.8s ease-in-out 1;
-        }
-        .keydrop-banner-slide-preview {
-          animation: keydrop-banner-slide-preview 2.8s ease-in-out 1;
-        }
-
-        @keyframes streamer-banner-slide-preview {
-          0%, 10% { transform: translateX(-105%); }
-          24%, 76% { transform: translateX(0); }
-          90%, 100% { transform: translateX(-105%); }
-        }
-        @keyframes keydrop-banner-slide-preview {
-          0%, 10% { transform: translateX(-105%); }
-          24%, 76% { transform: translateX(0); }
-          90%, 100% { transform: translateX(-105%); }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .streamer-banner-slide-preview,
-          .keydrop-banner-slide-preview { animation: none; }
-        }
-      `}</style>
     </div>
   );
 }

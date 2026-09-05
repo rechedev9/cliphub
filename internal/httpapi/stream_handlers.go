@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -274,7 +275,8 @@ func (h *Handlers) ListStreamJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list stream jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": streamJobListItems(attachStreamFailureCodes(jobs))})
+	items := h.streamJobListItems(attachStreamFailureCodes(jobs))
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": items})
 }
 
 // streamJobListItem is one GET /api/stream-jobs row. The list needs the cut
@@ -282,14 +284,25 @@ func (h *Handlers) ListStreamJobs(w http.ResponseWriter, r *http.Request) {
 // kilobytes per job, so the row carries `clip_count` and drops `edit_plan`.
 type streamJobListItem struct {
 	streamclips.Job
-	EditPlan  json.RawMessage `json:"edit_plan,omitempty"`
-	ClipCount int             `json:"clip_count"`
+	EditPlan        json.RawMessage        `json:"edit_plan,omitempty"`
+	ClipCount       int                    `json:"clip_count"`
+	RenderedOutputs []streamRenderedOutput `json:"rendered_outputs"`
+	// RenderedOutputsUnavailable distinguishes an unreadable render catalog
+	// from a project which has never published an output. List enrichment is
+	// isolated per job so one damaged artifact cannot take down the library.
+	RenderedOutputsUnavailable bool `json:"rendered_outputs_unavailable,omitempty"`
 }
 
-func streamJobListItems(jobs []streamclips.Job) []streamJobListItem {
+func (h *Handlers) streamJobListItems(jobs []streamclips.Job) []streamJobListItem {
 	items := make([]streamJobListItem, 0, len(jobs))
 	for _, j := range jobs {
-		item := streamJobListItem{Job: j, ClipCount: streamClipCount(j.EditPlan)}
+		outputs, unavailable := h.streamJobRenderedOutputs(j, false)
+		item := streamJobListItem{
+			Job:                        j,
+			ClipCount:                  streamClipCount(j.EditPlan),
+			RenderedOutputs:            outputs,
+			RenderedOutputsUnavailable: unavailable,
+		}
 		item.Job.EditPlan = nil
 		items = append(items, item)
 	}
@@ -317,7 +330,229 @@ func (h *Handlers) GetStreamJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	j.FailureCode = jobFailureCode(j.FailureReason, j.FailureCode)
-	writeJSON(w, http.StatusOK, j)
+	outputs, unavailable := h.streamJobRenderedOutputs(j, true)
+	writeJSON(w, http.StatusOK, struct {
+		streamclips.Job
+		RenderedOutputs            []streamRenderedOutput `json:"rendered_outputs"`
+		RenderedOutputsUnavailable bool                   `json:"rendered_outputs_unavailable,omitempty"`
+	}{Job: j, RenderedOutputs: outputs, RenderedOutputsUnavailable: unavailable})
+}
+
+// streamJobRenderedOutputs isolates catalog failures so a damaged status.json
+// cannot take down the job. List skips statuses that never publish, because
+// the hub polls this path; detail always probes so an editor can still open.
+func (h *Handlers) streamJobRenderedOutputs(j streamclips.Job, force bool) ([]streamRenderedOutput, bool) {
+	if !force && !streamJobMayHavePublishedOutputs(j.Status) {
+		return []streamRenderedOutput{}, false
+	}
+	outputs, err := h.streamRenderedOutputs(j)
+	if err != nil {
+		return []streamRenderedOutput{}, true
+	}
+	return outputs, false
+}
+
+func streamJobMayHavePublishedOutputs(status streamclips.Status) bool {
+	switch status {
+	case streamclips.StatusRendering, streamclips.StatusRendered, streamclips.StatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// streamRenderedOutput is the bounded library projection of one committed
+// stream MP4. It deliberately contains no storage key or draft clip data.
+type streamRenderedOutput struct {
+	ArtifactRevision string             `json:"artifact_revision"`
+	Variant          string             `json:"variant"`
+	ClipID           string             `json:"clip_id"`
+	ArtifactName     string             `json:"artifact_name"`
+	Title            string             `json:"title,omitempty"`
+	DurationSeconds  float64            `json:"duration_seconds,omitempty"`
+	Format           string             `json:"format"`
+	AspectRatio      string             `json:"aspect_ratio"`
+	VideoURL         string             `json:"video_url"`
+	CoverURL         string             `json:"cover_url,omitempty"`
+	RenderStatus     streamclips.Status `json:"render_status"`
+	Stale            bool               `json:"stale"`
+	ReviewRequired   bool               `json:"review_required"`
+	Warnings         []string           `json:"warnings,omitempty"`
+}
+
+// streamRenderedOutputs checks the finite variant registry and opens only
+// status/result/plan JSON plus metadata existence checks. It never reads a
+// source or video body, so list cost is bounded by jobs*registered variants.
+func (h *Handlers) streamRenderedOutputs(j streamclips.Job) ([]streamRenderedOutput, error) {
+	outputs := make([]streamRenderedOutput, 0)
+	for _, variant := range streamclips.VariantNames() {
+		layout, _ := streamclips.VariantByName(variant)
+		aspectRatio := "9:16"
+		if layout.OutputWidth > layout.GameOutputHeight+layout.FaceOutputHeight {
+			aspectRatio = "16:9"
+		}
+		state, exists, err := h.readStreamRenderState(j.ID, variant)
+		if err != nil {
+			return nil, fmt.Errorf("read %s render state for job %s: %w", variant, j.ID, err)
+		}
+		if !exists || !state.HasPublishedRender() {
+			continue
+		}
+		result, exists, err := h.readPublishedStreamResult(state)
+		if err != nil {
+			return nil, fmt.Errorf("read %s published result for job %s: %w", variant, j.ID, err)
+		}
+		if !exists {
+			continue
+		}
+		revision, err := streamArtifactRevision(state)
+		if err != nil {
+			return nil, err
+		}
+		stale := h.publishedStreamPlanIsStale(j, state)
+		warnings := append([]string(nil), result.Warnings...)
+		coverURL := ""
+		for _, artifact := range state.Delivery {
+			if artifact.Kind == "cover" {
+				coverURL = streamRevisionDeliveryURL(j.ID, variant, revision, artifact.Name)
+				break
+			}
+		}
+		stateVideos := make(map[string]string, len(state.Videos))
+		for _, video := range state.Videos {
+			stateVideos[video.ClipID] = video.Key
+		}
+		for _, video := range result.Clips {
+			if _, err := streamclips.RenderVideoKey(j.ID, variant, video.ClipID); err != nil {
+				continue
+			}
+			if len(stateVideos) > 0 && stateVideos[video.ClipID] != video.Key {
+				continue
+			}
+			if path.Dir(video.Key) != path.Join(state.ArtifactDir, "videos") || path.Ext(video.Key) != ".mp4" {
+				continue
+			}
+			available, err := h.storage.Exists(video.Key)
+			if err != nil {
+				return nil, fmt.Errorf("check published stream video %s: %w", video.ClipID, err)
+			}
+			if !available {
+				continue
+			}
+			outputs = append(outputs, streamRenderedOutput{
+				ArtifactRevision: revision,
+				Variant:          variant,
+				ClipID:           video.ClipID,
+				ArtifactName:     video.ClipID + ".mp4",
+				Title:            video.Title,
+				DurationSeconds:  video.DurationSeconds,
+				Format:           "video/mp4",
+				AspectRatio:      aspectRatio,
+				VideoURL:         streamRevisionVideoURL(j.ID, variant, revision, video.ClipID),
+				CoverURL:         coverURL,
+				RenderStatus:     streamclips.StatusRendered,
+				Stale:            stale,
+				ReviewRequired:   stale || len(warnings) > 0,
+				Warnings:         append([]string(nil), warnings...),
+			})
+		}
+	}
+	slices.SortFunc(outputs, func(a, b streamRenderedOutput) int {
+		if c := strings.Compare(a.Variant, b.Variant); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ClipID, b.ClipID)
+	})
+	return outputs, nil
+}
+
+func (h *Handlers) readPublishedStreamResult(state streamclips.RenderState) (streamclips.RenderResult, bool, error) {
+	rc, err := h.storage.Open(state.ResultKey)
+	if err != nil {
+		if storageNotExist(err) {
+			return streamclips.RenderResult{}, false, nil
+		}
+		return streamclips.RenderResult{}, false, err
+	}
+	defer rc.Close()
+	var result streamclips.RenderResult
+	if err := json.NewDecoder(rc).Decode(&result); err != nil {
+		return streamclips.RenderResult{}, false, fmt.Errorf("decode published stream result: %w", err)
+	}
+	if result.JobID != state.JobID || result.Variant != state.Variant {
+		return streamclips.RenderResult{}, false, nil
+	}
+	return result, true, nil
+}
+
+// publishedStreamPlanIsStale compares render inputs rather than UpdatedAt, so
+// saving an equivalent normalized plan does not invalidate a published MP4.
+func (h *Handlers) publishedStreamPlanIsStale(j streamclips.Job, state streamclips.RenderState) bool {
+	if len(j.EditPlan) == 0 {
+		return true
+	}
+	var current streamclips.EditPlan
+	if err := json.Unmarshal(j.EditPlan, &current); err != nil {
+		return true
+	}
+	currentFingerprint, err := streamclips.EditPlanFingerprint(current)
+	if err != nil {
+		return true
+	}
+	for _, artifact := range state.Delivery {
+		if artifact.Kind != "plan" {
+			continue
+		}
+		rc, err := h.storage.Open(artifact.Key)
+		if err != nil {
+			return true
+		}
+		var published streamclips.EditPlan
+		decodeErr := json.NewDecoder(rc).Decode(&published)
+		_ = rc.Close()
+		if decodeErr != nil {
+			return true
+		}
+		publishedFingerprint, err := streamclips.EditPlanFingerprint(published)
+		return err != nil || publishedFingerprint != currentFingerprint
+	}
+	return true
+}
+
+// streamArtifactRevision returns the immutable UUID for current renders. Old
+// canonical renders receive an opaque pointer identity which changes when the
+// state begins pointing at a revision-scoped publication.
+func streamArtifactRevision(state streamclips.RenderState) (string, error) {
+	base, err := streamclips.RenderPrefix(state.JobID, state.Variant)
+	if err != nil {
+		return "", err
+	}
+	revisionPrefix := base + "/revisions/"
+	if strings.HasPrefix(state.ArtifactDir, revisionPrefix) {
+		revision := strings.TrimPrefix(state.ArtifactDir, revisionPrefix)
+		id, err := uuid.Parse(revision)
+		if err != nil || id == uuid.Nil {
+			return "", fmt.Errorf("stream render artifact dir has invalid revision")
+		}
+		return id.String(), nil
+	}
+	if state.ArtifactDir != base {
+		return "", fmt.Errorf("stream render artifact dir does not identify a revision")
+	}
+	h256 := sha256.New()
+	_, _ = h256.Write([]byte(state.ResultKey + "\x00" + state.GalleryKey))
+	for _, video := range state.Videos {
+		_, _ = h256.Write([]byte("\x00" + video.ClipID + "\x00" + video.Key))
+	}
+	return "legacy-" + hex.EncodeToString(h256.Sum(nil)[:12]), nil
+}
+
+func streamRevisionVideoURL(id uuid.UUID, variant, revision, clipID string) string {
+	return "/api/streams/" + id.String() + "/renders/" + variant + "/revisions/" + revision + "/videos/" + clipID
+}
+
+func streamRevisionDeliveryURL(id uuid.UUID, variant, revision, name string) string {
+	return "/api/streams/" + id.String() + "/renders/" + variant + "/revisions/" + revision + "/delivery/" + name
 }
 
 func attachStreamFailureCodes(jobs []streamclips.Job) []streamclips.Job {
@@ -671,6 +906,108 @@ func (h *Handlers) GetStreamVideo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetStreamRevisionVideo serves an immutable render revision. Unlike the
+// compatibility video route, a later status.json pointer swap cannot change
+// which bytes this URL addresses.
+func (h *Handlers) GetStreamRevisionVideo(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadStreamJob(w, r)
+	if !ok {
+		return
+	}
+	variant := chi.URLParam(r, "variant")
+	revision := chi.URLParam(r, "revision")
+	clipID := chi.URLParam(r, "clip_id")
+	key, ok, err := h.streamRevisionArtifactKey(j.ID, variant, revision, clipID, "")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "stream render revision artifact not found")
+		return
+	}
+	h.streamStorageKeyWithCache(w, r, "video/mp4", key, artifactCacheImmutable)
+}
+
+// GetStreamRevisionDeliveryArtifact serves a sidecar from the same immutable
+// revision as a library video (currently the shared cover is exposed here).
+func (h *Handlers) GetStreamRevisionDeliveryArtifact(w http.ResponseWriter, r *http.Request) {
+	j, ok := h.loadStreamJob(w, r)
+	if !ok {
+		return
+	}
+	variant := chi.URLParam(r, "variant")
+	revision := chi.URLParam(r, "revision")
+	name := chi.URLParam(r, "name")
+	key, ok, err := h.streamRevisionArtifactKey(j.ID, variant, revision, "", name)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "stream render revision artifact not found")
+		return
+	}
+	contentType := "application/octet-stream"
+	switch path.Ext(name) {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".json":
+		contentType = "application/json"
+	case ".txt", ".ass":
+		contentType = "text/plain; charset=utf-8"
+	case ".mp4":
+		contentType = "video/mp4"
+	}
+	h.streamStorageKeyWithCache(w, r, contentType, key, artifactCacheImmutable)
+}
+
+// streamRevisionArtifactKey resolves UUID revisions directly into their
+// retained namespace. Legacy tokens are accepted only while status.json still
+// carries that exact opaque identity, so their URL fails instead of following
+// a replacement render.
+func (h *Handlers) streamRevisionArtifactKey(id uuid.UUID, variant, revision, clipID, deliveryName string) (string, bool, error) {
+	if _, ok := streamclips.VariantByName(variant); !ok {
+		return "", false, fmt.Errorf("unsupported stream render variant %q", variant)
+	}
+	if revisionID, err := uuid.Parse(revision); err == nil && revisionID != uuid.Nil {
+		if deliveryName != "" {
+			key, err := streamclips.RenderRevisionDeliveryKey(id, variant, revisionID, deliveryName)
+			return key, err == nil, err
+		}
+		key, err := streamclips.RenderRevisionVideoKey(id, variant, revisionID, clipID)
+		return key, err == nil, err
+	}
+	if !strings.HasPrefix(revision, "legacy-") {
+		return "", false, fmt.Errorf("invalid stream render revision")
+	}
+	state, exists, err := h.readStreamRenderState(id, variant)
+	if err != nil || !exists || !state.HasPublishedRender() {
+		return "", false, err
+	}
+	currentRevision, err := streamArtifactRevision(state)
+	if err != nil {
+		return "", false, err
+	}
+	if currentRevision != revision {
+		return "", false, nil
+	}
+	if deliveryName != "" {
+		for _, artifact := range state.Delivery {
+			if artifact.Name == deliveryName {
+				return artifact.Key, true, nil
+			}
+		}
+		return "", false, nil
+	}
+	for _, video := range state.Videos {
+		if video.ClipID == clipID {
+			return video.Key, true, nil
+		}
+	}
+	return "", false, nil
+}
+
 func (h *Handlers) GetStreamDeliveryArtifact(w http.ResponseWriter, r *http.Request) {
 	j, ok := h.loadStreamJob(w, r)
 	if !ok {
@@ -811,12 +1148,16 @@ func (h *Handlers) streamStreamRenderArtifact(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handlers) streamStorageKey(w http.ResponseWriter, r *http.Request, contentType, key string) {
+	h.streamStorageKeyWithCache(w, r, contentType, key, artifactCacheRevalidate)
+}
+
+func (h *Handlers) streamStorageKeyWithCache(w http.ResponseWriter, r *http.Request, contentType, key, cacheControl string) {
 	rc, err := h.storage.Open(key)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "stream artifact not found")
 		return
 	}
-	serveArtifact(w, r, contentType, rc)
+	serveArtifactWithCache(w, r, contentType, rc, cacheControl)
 }
 
 func (h *Handlers) writeStreamEditPlanArtifact(id uuid.UUID, plan streamclips.EditPlan) error {

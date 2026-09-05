@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
+import { streamPlaybackItem } from '@/lib/api/playback';
 import { HUB_ORPHANS_HINT, HUB_ORPHANS_TITLE } from '@/lib/clips/copy';
 import {
   activeJobCount,
@@ -46,6 +47,13 @@ async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
 function anyoneWorking(model: HubModel): boolean {
   if (model.rows.some((row) => row.stage === HUB_ROW_STAGE.parsing)) return true;
   return model.clips.some((clip) => isWorking(clip.state));
+}
+
+function streamLibraryCount(streams: readonly StreamJob[]): number {
+  return streams.reduce(
+    (count, job) => count + (job.rendered_outputs ?? []).filter((output) => streamPlaybackItem(job, output) !== null).length,
+    0,
+  );
 }
 
 type HubDestination = { matchId: string } | { clipId: string };
@@ -186,7 +194,7 @@ function ClipsHub(): ReactNode {
     );
   }
 
-  if (model.rows.length === 0 && model.clips.length === 0) {
+  if (model.rows.length === 0 && model.clips.length === 0 && streamLibraryCount(streams) === 0) {
     return (
       <div className="measure-list flex flex-col gap-5">
         {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
@@ -195,7 +203,7 @@ function ClipsHub(): ReactNode {
     );
   }
 
-  const counts: Record<HubLens, number> = { partidas: model.rows.length, clips: model.clips.length };
+  const counts: Record<HubLens, number> = { partidas: model.rows.length, clips: model.clips.length + streamLibraryCount(streams) };
   const jobs = activeJobCount(model, streams);
 
   return (
@@ -216,6 +224,7 @@ function ClipsHub(): ReactNode {
       {lens === HUB_LENS.clips ? (
         <ClipsLens
           clips={model.clips}
+          streams={streams}
           onChange={onChange}
           onOpenMatch={(matchId) => {
             scrolledTo.current = null;

@@ -68,9 +68,17 @@ import {
   parseTelemetryEventRequest,
   STUDIO_TELEMETRY_EVENT_CHANNEL,
 } from './telemetry-ipc';
+import { createPlaybackDiagnostics } from './playback-diagnostics';
+import { isAllowedStudioPermission } from './studio-permission-policy';
 
 // ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
+
+// Electron documents GPU feature status as usable only after this event.
+let gpuInformationReady = false;
+app.on('gpu-info-update', () => {
+  gpuInformationReady = true;
+});
 
 // Every loopback bind and health check uses this host.
 const LOOPBACK_HOST = '127.0.0.1';
@@ -694,6 +702,16 @@ function registerStudioSettingsIPC(): void {
         return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
       }
     }
+    if (request.action === 'playback-info') {
+      const featureStatus = gpuInformationReady ? app.getGPUFeatureStatus() : null;
+      return createPlaybackDiagnostics({
+        gpuInformationReady,
+        electronVersion: process.versions.electron,
+        chromiumVersion: process.versions.chrome,
+        hardwareAccelerationEnabled: gpuInformationReady && app.isHardwareAccelerationEnabled(),
+        videoDecodeStatus: featureStatus?.video_decode,
+      });
+    }
     return {
       version: app.getVersion(),
       build: app.isPackaged ? 'production' : 'development',
@@ -853,11 +871,39 @@ app.whenReady().then(() => {
     if (request.action === 'reveal') shell.showItemInFolder(savedPath);
     return true;
   });
-  // Keep web permissions closed; clipboard writes go through preload IPC.
+  // Electron 43 exposes URL/main-frame details here, but no user-gesture flag.
+  // Chromium still requires transient user activation for ordinary DOM fullscreen.
   session.defaultSession.setPermissionRequestHandler(
-    (_webContents, _permission, callback) => callback(false),
+    (webContents, permission, callback, details) => {
+      const win = aliveWindow();
+      callback(
+        isAllowedStudioPermission({
+          permission,
+          expectedOrigin: activeWebOrigin,
+          expectedWebContentsID: win?.webContents.id ?? null,
+          requestingWebContentsID: webContents.id,
+          requestingOrigin: details.requestingUrl,
+          isMainFrame: details.isMainFrame,
+          windowFocused: win?.isFocused() === true,
+        }),
+      );
+    },
   );
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler(
+    (webContents, permission, requestingOrigin, details) => {
+      const win = aliveWindow();
+      return isAllowedStudioPermission({
+        permission,
+        expectedOrigin: activeWebOrigin,
+        expectedWebContentsID: win?.webContents.id ?? null,
+        requestingWebContentsID: webContents?.id ?? null,
+        requestingOrigin,
+        requestingURL: details.requestingUrl,
+        isMainFrame: details.isMainFrame,
+        windowFocused: win?.isFocused() === true,
+      });
+    },
+  );
   registerStudioSettingsIPC();
   registerStudioTelemetryIPC();
   registerStudioClipboardIPC();

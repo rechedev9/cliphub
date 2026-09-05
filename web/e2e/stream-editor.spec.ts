@@ -272,9 +272,15 @@ test.describe('stream editor', () => {
 test('plays and seeks the original before any moments, then uses the whole short source', async ({ page }) => {
   const stub = await stubStreamJob(page, false, true);
   await gotoStudio(page, `/streams/${JOB_ID}`);
+  const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
+  await expect(decoder).toHaveCount(1);
+  await expect(page.locator('audio')).toHaveCount(0);
   await cta(page, 'Reproducir vídeo original').click();
   await expect
-    .poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+    .poll(() => decoder.evaluate((element) => {
+      if (!(element instanceof HTMLVideoElement)) throw new Error('expected the shared video decoder');
+      return element.currentTime;
+    }))
     .toBeGreaterThan(0.5);
   await cta(page, 'Pausar').click();
   const timeline = page.getByRole('slider', { name: 'Posición en el vídeo original' });
@@ -308,7 +314,15 @@ test('a selected Short stops at its end and selecting another exposes only its c
   await expect(cta(page, 'Pausar')).toBeVisible();
   await expect(cta(page, 'Reproducir este Short')).toBeVisible();
   await expect(page.getByLabel('Tiempo de reproducción')).toContainText('0:01');
-  await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+  const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
+  await expect(decoder).toHaveCount(1);
+  await expect(page.locator('audio')).toHaveCount(0);
+  const stopped = await decoder.evaluate((element) => {
+    if (!(element instanceof HTMLVideoElement)) throw new Error('expected the shared video decoder');
+    return { paused: element.paused, seconds: element.currentTime };
+  });
+  expect(stopped.paused).toBe(true);
+  expect(stopped.seconds).toBeGreaterThanOrEqual(0.9);
   await expect(page.getByLabel('Inicio (s)', { exact: true })).toHaveCount(1);
   await page.getByRole('button', { name: /Seleccionar el corte 2:/ }).click();
   await expect(page.getByLabel('Inicio (s)', { exact: true })).toHaveValue('5');

@@ -22,8 +22,22 @@ export type StudioTelemetryStatus = {
   performanceSamplePercent: 10;
 };
 
+export type StudioPlaybackInfo =
+  | { available: false; state: 'initializing' }
+  | {
+    available: true;
+    state: 'ready';
+    electronVersion: string;
+    chromiumVersion: string;
+    hardwareAcceleration: 'enabled' | 'disabled';
+    videoDecode: 'hardware-accelerated' | 'software-only' | 'unavailable' | 'unknown';
+    scope: 'global';
+  };
+
 export interface DesktopSettingsBridge {
   getAppInfo(): Promise<StudioAppInfo>;
+  /** Optional so a current UI can still use settings exposed by an older preload. */
+  getPlaybackInfo?(): Promise<StudioPlaybackInfo>;
   getTelemetry(): Promise<StudioTelemetryStatus>;
   updateTelemetry(enabled: boolean): Promise<StudioTelemetryStatus>;
 }
@@ -42,6 +56,7 @@ export function getDesktopSettingsBridge(scope: unknown = globalThis): DesktopSe
 function isDesktopSettingsBridge(value: unknown): value is DesktopSettingsBridge {
   if (!isRecord(value)) return false;
   return typeof value.getAppInfo === 'function'
+    && (value.getPlaybackInfo === undefined || typeof value.getPlaybackInfo === 'function')
     && typeof value.getTelemetry === 'function'
     && typeof value.updateTelemetry === 'function';
 }

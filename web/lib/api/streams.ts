@@ -107,10 +107,30 @@ export type StreamJob = {
   failure_reason?: string;
   created_at: string;
   updated_at?: string;
+  /** Immutable, published render artifacts available to the Library. */
+  rendered_outputs?: StreamRenderedOutput[];
+  /** The server could not safely recover this job's published output metadata. */
+  rendered_outputs_unavailable?: boolean;
 };
 
 type StreamRenderVideo = { clip_id: string; title?: string; key: string; duration_seconds?: number };
-type StreamRenderStatus = 'queued' | 'rendering' | 'rendered' | 'failed' | 'none';
+export type StreamRenderStatus = 'queued' | 'rendering' | 'rendered' | 'failed' | 'none';
+export type StreamRenderedOutput = {
+  artifact_revision: string;
+  variant: string;
+  clip_id: string;
+  artifact_name: string;
+  title?: string;
+  duration_seconds?: number;
+  format: 'video/mp4';
+  aspect_ratio: '9:16' | '16:9';
+  video_url: string;
+  cover_url?: string;
+  render_status: StreamRenderStatus | string;
+  stale: boolean;
+  review_required: boolean;
+  warnings?: string[];
+};
 export const STREAM_RENDER_ERROR_CODE = {
   superseded: 'render_superseded',
 } as const;
