@@ -356,7 +356,7 @@ export function PlayerPicker({
 
       <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-[calc(var(--radius)-1px)] border-t border-border-accent bg-surface-1 px-4 py-3 shadow-[var(--elev-4)] @[40rem]/content:-mx-6 @[40rem]/content:-mb-6 @[40rem]/content:px-6">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="font-mono text-meta uppercase tracking-widest text-fg-3">POV elegida</span>
+          <span className="font-mono text-meta uppercase tracking-widest text-fg-3">Jugador elegido</span>
           <p className="truncate font-mono text-body uppercase text-fg-1">
             {selectedPlayer ? (
               <>

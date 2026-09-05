@@ -11,12 +11,12 @@ import { Input } from '@/components/ui/input';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { resolveShareCode, type ShareCodeResolution } from '@/lib/api/share-code-resolve';
 import { importShareCode } from '@/lib/api/steam-import';
-import { CLIPS_HREF } from '@/lib/clips/routes';
+import { PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
 import { checkShareCode } from '@/lib/sharecode';
 
 const STEPS = [
   'Abre CS2 y ve a VER → Tus partidas.',
-  'Pulsa el icono de descarga de la partida: copia un código que empieza por CSGO-.',
+  'Abre las opciones para compartir la partida y copia su código, que empieza por CSGO-.',
   'Pégalo aquí abajo.',
 ] as const;
 
@@ -29,7 +29,7 @@ type DoorState =
   | { phase: 'done'; result: ShareCodeResolution };
 
 /** Paste a CS2 match share code, then enqueue its demo. */
-export function ShareCodeDoor(): ReactElement {
+export function ShareCodeDoor({ format = PRODUCE_FORMAT.short }: { format?: ProduceFormat }): ReactElement {
   const router = useRouter();
   const [state, setState] = useState<DoorState>({ phase: 'idle' });
   const [downloadCode, setDownloadCode] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export function ShareCodeDoor(): ReactElement {
     const result = await importShareCode(code);
     setDownloading(false);
     if (result.kind === 'queued') {
-      router.push(CLIPS_HREF);
+      router.push(produceHref(result.id, format));
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -137,7 +137,7 @@ export function ShareCodeDoor(): ReactElement {
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={() => { router.push(CLIPS_HREF); }}
+        onQueued={(jobId) => { router.push(produceHref(jobId, format)); }}
       />
 
       <p className="text-body-sm text-fg-3">
@@ -177,7 +177,7 @@ function ResolutionOutcome({
           <p className="font-mono text-body-sm tabular-nums text-fg-1">Partida {result.matchId}</p>
           <p className="text-body-sm text-fg-2">
             {result.kind === 'resolved'
-              ? 'La demo está en los servidores de Valve. Encolarla usa el mismo flujo que Subir demo.'
+              ? 'La demo está en los servidores de Valve. Después de descargarla podrás elegir al jugador y preparar el vídeo.'
               : (
                 <>
                   ClipHub ya sabe qué partida es. Para bajarla, la primera vez te pedirá el login de
@@ -190,7 +190,7 @@ function ResolutionOutcome({
                 </>
               )}
           </p>
-          <Button type="button" className="self-start" loading={downloading} loadingText="ENCOLANDO" onClick={onDownload}>
+          <Button type="button" className="self-start" loading={downloading} loadingText="Descargando…" onClick={onDownload}>
             DESCARGAR DEMO
           </Button>
           {downloadError ? <p className="text-body-sm text-destructive">{downloadError}</p> : null}

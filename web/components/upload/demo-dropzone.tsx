@@ -15,7 +15,7 @@ export type DemoDropzoneProps = {
   minHeightClass?: string;
 };
 
-const DROPZONE_TITLE = 'Suelta la demo aquí';
+const DROPZONE_TITLE = 'Arrastra tu demo o elige un archivo';
 
 /** Drop zone for .dem / archives; the label opens the native file dialog. */
 export function DemoDropzone({
@@ -46,6 +46,7 @@ export function DemoDropzone({
           }
           onFiles(result.files);
         })
+        .catch(() => setError('No se pudo leer el archivo. Comprueba que la descarga esté completa y vuelve a elegirlo.'))
         .finally(() => setExtracting(false));
     },
     [busy, onFiles],
@@ -84,16 +85,17 @@ export function DemoDropzone({
         <span
           aria-hidden
           className={cn(
-            'grid shrink-0 place-items-center border border-border-accent bg-surface-0 text-primary shadow-[var(--glow-primary-md)] transition-transform duration-(--dur-base) ease-standard group-hover:-translate-y-0.5',
+            'grid shrink-0 place-items-center border border-border-accent bg-surface-0 text-primary',
             compact ? 'size-10' : 'size-14',
           )}
         >
           <ArrowUp className={compact ? 'size-5' : 'size-7'} strokeWidth={1.7} />
         </span>
         <span className={cn('flex min-w-0 flex-col', compact ? 'items-start gap-1 text-left' : 'items-center gap-3.5')}>
-          <span className={cn('font-display font-bold uppercase text-fg-1', compact ? 'text-body' : 'text-title')}>
+          <span className={cn('font-display font-semibold text-fg-1', compact ? 'text-body' : 'text-title')}>
             {extracting ? 'Extrayendo archivo…' : DROPZONE_TITLE}
           </span>
+          {!compact && !extracting ? <span className="rounded-md border border-border-strong bg-surface-3 px-4 py-2 text-body-sm font-semibold text-primary">Elegir archivo</span> : null}
           <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
             .dem · .dem.zst · .rar · .zip · hasta {MAX_DEMO_FILES} demos
           </span>
@@ -102,6 +104,7 @@ export function DemoDropzone({
         <input
           id={inputId}
           type="file"
+          aria-label="Elegir demos de CS2"
           multiple
           accept=".dem,.zst,.rar,.zip"
           disabled={busy}

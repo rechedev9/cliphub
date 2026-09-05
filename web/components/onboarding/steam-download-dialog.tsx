@@ -37,7 +37,7 @@ export function SteamDownloadDialog({
     const password = String(form.get('password') ?? '');
     const guard = String(form.get('guard') ?? '').trim();
     if (username === '' || password === '' || guard === '') {
-      setError('Haz falta usuario, contraseña y Steam Guard.');
+      setError('Hacen falta usuario, contraseña y Steam Guard.');
       return;
     }
     setPending(true);

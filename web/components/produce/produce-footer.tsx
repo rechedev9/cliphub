@@ -8,7 +8,6 @@ import { BriefApprovalCheckbox, CreativeBriefList } from '@/components/studio/cr
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** The band floats over the scrolled list; the value is a token, not a literal. */
 const FOOTER_SHADOW = 'shadow-[var(--elev-band-up)]';
 
 export type ProduceFooterProps = {
@@ -32,7 +31,7 @@ export type ProduceFooterProps = {
 };
 
 /**
- * Sticky produce footer. Approval must answer the shown brief, so the checkbox
+ * In-flow review keeps expanded decisions from covering the editor. The checkbox
  * is always visible and resets whenever the caller changes any decision.
  */
 export function ProduceFooter({
@@ -51,19 +50,17 @@ export function ProduceFooter({
   cta,
 }: ProduceFooterProps): ReactNode {
   const briefId = `produce-brief-${tone}`;
+  let nextStep = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.';
+  if (!briefReady) nextStep = hint;
+  else if (!briefApproved) nextStep = 'Revisa el resumen y marca la confirmación para activar la creación.';
   return (
     <div
       className={cn(
-        'relative bottom-0 z-20 mt-2 border-t bg-surface-1 py-3.5 @[56rem]/content:sticky',
+        'relative mt-2 border-t bg-surface-1 py-3.5',
         FOOTER_SHADOW,
         tone === 'full' ? 'border-stream/45' : 'border-border-accent',
       )}
     >
-      {/* The list is cut flat by the opaque band; this says rows continue below. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-gradient-to-t from-surface-1 to-transparent"
-      />
       <div className="flex flex-col gap-3">
         {error ? (
           <p role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-body-sm text-destructive">
@@ -72,7 +69,7 @@ export function ProduceFooter({
         ) : null}
 
         <div className="flex flex-col gap-3 @[56rem]/content:flex-row @[56rem]/content:items-start">
-          <details className="group/brief min-w-0 flex-1">
+          <details open className="group/brief min-w-0 flex-1">
             <summary
               id={briefId}
               className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary [&::-webkit-details-marker]:hidden"
@@ -85,7 +82,6 @@ export function ProduceFooter({
             </summary>
             <section aria-labelledby={briefId} className="studio-panel mt-2 px-4 py-3">
               <CreativeBriefList items={briefItems} className="@[42rem]/content:grid-cols-2 @[70rem]/content:grid-cols-3" />
-              {briefNote}
             </section>
           </details>
 
@@ -96,6 +92,12 @@ export function ProduceFooter({
             onChange={onBriefApprovedChange}
           />
         </div>
+        {briefNote}
+        {!busy && (summary !== null || briefReady) ? (
+          <p role="status" className="text-body-sm text-fg-2">
+            {nextStep}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <div className="min-w-0 basis-full @[40rem]/content:basis-auto @[40rem]/content:flex-1">

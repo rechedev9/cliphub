@@ -30,7 +30,7 @@ type LoadState = 'loading' | 'ready' | 'offline' | 'unconfigured';
 const HEAD = 'px-3 py-2.5 text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-3';
 const CELL = 'px-3 py-3 font-mono text-meta tabular-nums';
 
-const FACEIT_UNCONFIGURED_HINT = 'Configura FACEIT_API_KEY y reinicia el orquestador.';
+const FACEIT_UNCONFIGURED_HINT = 'La conexión con FACEIT no está activada en este PC. Puedes cargar una demo descargada desde una sala de FACEIT para empezar a crear.';
 const FACEIT_OFFLINE_HINT = 'Servicio local sin conexión.';
 
 /* Four ordered bands off the semantic ramp; the numeral beside the swatch is
@@ -104,7 +104,7 @@ export default function PlayersPage(): ReactNode {
   }, [refresh]);
 
   useEffect(() => {
-    if (selectedID === null) {
+    if (selectedID === null || state !== 'ready') {
       setMatches(null);
       return;
     }
@@ -137,7 +137,7 @@ export default function PlayersPage(): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [selectedID]);
+  }, [selectedID, state]);
 
   async function onFollow(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -187,12 +187,19 @@ export default function PlayersPage(): ReactNode {
         </div>
       </div>
     );
-  } else if (players.length === 0 && state === 'unconfigured') {
+  } else if (state === 'unconfigured') {
     body = (
       <StudioEmptyState
         icon={Users}
         title="FACEIT no está configurado"
         description={FACEIT_UNCONFIGURED_HINT}
+        actions={<Button asChild><Link href="/clips/nueva">Cargar una demo</Link></Button>}
+        note={
+          <details className="text-left normal-case tracking-normal">
+            <summary className="min-h-10 cursor-pointer py-2">Configuración avanzada de FACEIT</summary>
+            <p className="break-words text-body-sm">Configura FACEIT_API_KEY en el servicio local y reinicia ClipHub para consultar perfiles e historial.</p>
+          </details>
+        }
         compact
       />
     );
@@ -281,9 +288,6 @@ export default function PlayersPage(): ReactNode {
 
       {error ? <p className="text-body-sm text-destructive">{error}</p> : null}
       {/* With no players the empty state already names the reason and the fix. */}
-      {players.length > 0 && state === 'unconfigured' ? (
-        <StatusTag tone="danger">{FACEIT_UNCONFIGURED_HINT}</StatusTag>
-      ) : null}
       {players.length > 0 && state === 'offline' ? <StatusTag tone="danger">{FACEIT_OFFLINE_HINT}</StatusTag> : null}
 
       {body}

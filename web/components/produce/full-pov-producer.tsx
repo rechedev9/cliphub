@@ -131,7 +131,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
             <StatusTag tone="primary">
               <span className="tabular-nums">{roundCount}</span> {roundCount === 1 ? 'ronda' : 'rondas'}
             </StatusTag>
-            <StatusTag>Todas las rondas del POV</StatusTag>
+            <StatusTag>Vista del jugador</StatusTag>
             <span className="font-mono text-meta tracking-normal text-fg-3">{PRODUCE_FULL_ROUNDS_NOTE}</span>
           </div>
 
@@ -220,8 +220,8 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
         briefItems={briefItems}
         briefNote={
           <div className="mt-3 border-l-2 border-primary bg-primary/8 px-3 py-2.5 text-body-sm text-fg-2">
-            <span className="font-mono text-meta uppercase tracking-wider text-primary">FACEIT obligatorio</span>
-            <span className="ml-2">ClipHub verifica el perfil y el historial de todos los jugadores antes de abrir HLAE.</span>
+            <span className="font-medium text-fg-1">Antes de grabar</span>
+            <span className="ml-2">Este formato necesita acceso a FACEIT para verificar los perfiles y el historial de los jugadores. También requiere CS2 y HLAE en este PC.</span>
           </div>
         }
         briefApproved={briefApproved}

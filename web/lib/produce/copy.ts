@@ -6,7 +6,7 @@ export const PRODUCE_MATCH_MISSING = {
 
 export const PRODUCE_SHORT_TITLE = 'Prepara tu Short';
 export const PRODUCE_FULL_TITLE = 'Prepara tu vídeo largo';
-export const PRODUCE_SHORT_EMPTY_HINT = 'Elige al menos un highlight';
+export const PRODUCE_SHORT_EMPTY_HINT = 'Elige al menos una jugada';
 /** Round omission is not an API capability; the Full POV always records the whole plan. */
 export const PRODUCE_FULL_ROUNDS_NOTE = 'El vídeo largo incluye todas las rondas del plan, en orden';
 
@@ -16,7 +16,7 @@ export const PRODUCE_POLL_OFFLINE = 'Servicio local sin conexión. Seguimos most
 
 /** `scanned` partida: roster read, no POV picked. Settled, so it never advances on its own. */
 export const PRODUCE_MATCH_NO_POV = {
-  title: 'Esta partida no tiene POV elegida',
-  description: 'El roster está listo, pero no se eligió el jugador a clipear. Elige su POV y parseamos la partida.',
+  title: 'Elige de quién será el vídeo',
+  description: 'La demo ya está cargada. Elige un jugador para analizar sus jugadas y preparar el vídeo.',
 } as const;
 export const PRODUCE_PICK_POV_CTA = 'Elegir jugador';
