@@ -47,7 +47,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
           edge drifts rightward as the window grows. Pinning it to the sidebar
           edge gives the app one optical spine that survives a resize.
         */}
-        <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10">
+        <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10 [&:has([data-players-workspace])]:max-w-none [&:has([data-players-workspace])]:p-6">
           <RouteFrame>{children}</RouteFrame>
         </main>
       </SidebarInset>

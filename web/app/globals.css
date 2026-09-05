@@ -422,6 +422,16 @@ html[data-capture-active="true"] {
     max-width: var(--measure-work);
   }
 
+  body:has([data-players-workspace]) .shell-canvas,
+  body:has([data-players-workspace]) .ff-ambient-layer {
+    display: none;
+  }
+
+  [data-players-workspace] .studio-panel {
+    background-image: none;
+    box-shadow: var(--elev-0);
+  }
+
   /* ── Row rail ────────────────────────────────────────────────────────────
    * A list row is identity on the left, state and actions on the right. When
    * the trailing slots size to their content, every row parks its controls at
