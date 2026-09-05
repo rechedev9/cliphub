@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Clapperboard } from 'lucide-react';
 import { toast } from 'sonner';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -112,20 +112,20 @@ export default function StreamsPage(): ReactNode {
     // the only truthful report, and a spinner beside it claims work in flight.
     list =
       listError !== null ? null : (
-        <p role="status" className="measure-list flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+        <p role="status" className="flex items-center gap-2 py-6 text-body-sm text-fg-2">
           <span aria-hidden className="studio-spinner" />
           Cargando streams
         </p>
       );
   } else if (jobs.length === 0) {
     list = (
-      <p className="measure-list border border-dashed border-border px-4 py-6 text-center text-body-sm text-fg-2">
-        Todavía no hay streams. Pega una URL o sube un MP4.
+      <p className="rounded-lg border border-dashed border-border px-6 py-8 text-center text-body text-fg-2">
+        Tus proyectos aparecerán aquí. Importa un vídeo para crear el primero.
       </p>
     );
   } else {
     list = (
-      <ul className="measure-list flex flex-col gap-2.5">
+      <ul className="flex flex-col gap-3">
         {jobs.map((job) => (
           <StreamListRow key={job.id} job={job} onOpen={() => open(job)} onDeleted={() => setPollGeneration((g) => g + 1)} />
         ))}
@@ -134,18 +134,21 @@ export default function StreamsPage(): ReactNode {
   }
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div data-streams-home className="measure-work flex flex-col gap-7">
       <StudioPageHeader
-        className="measure-list"
         title="Clips de stream"
-        actions={<Button asChild variant="outline"><Link href={CLIPS_HREF}>Crear desde una demo</Link></Button>}
-        description="Convierte una grabación en Shorts verticales: importa el vídeo, marca los cortes y ajusta el encuadre. Facecam, banners y música son opcionales."
+        actions={(
+          <Button asChild variant="outline" className="bg-surface-1">
+            <Link href={CLIPS_HREF}><Clapperboard aria-hidden />Crear desde una demo</Link>
+          </Button>
+        )}
+        description="Convierte tus mejores momentos en Shorts verticales."
       />
 
       {listError !== null ? (
         <div
           role="alert"
-          className="measure-list flex flex-wrap items-center gap-3 border border-destructive/45 bg-destructive/10 px-3.5 py-2.5 text-body-sm text-destructive"
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/45 bg-destructive/10 px-4 py-3 text-body-sm text-destructive"
         >
           <AlertTriangle aria-hidden className="size-4 shrink-0" />
           <span className="min-w-0 flex-1">{offline ? STREAM_OFFLINE_MESSAGE : listError}</span>
@@ -155,7 +158,11 @@ export default function StreamsPage(): ReactNode {
         </div>
       ) : null}
 
-      <WorkflowProgress steps={['Importar vídeo', 'Elegir cortes', 'Ajustar encuadre', 'Crear y descargar']} current={0} />
+      <WorkflowProgress
+        steps={['Importar vídeo', 'Elegir cortes', 'Ajustar encuadre', 'Crear y descargar']}
+        current={0}
+        variant="connected"
+      />
       <StreamSourcePanel
         sourceUrl={sourceUrl}
         title={title}
@@ -170,11 +177,17 @@ export default function StreamsPage(): ReactNode {
         onSubmitFile={(file) => void submitFile(file)}
       />
 
-      <p className="measure-list mt-1 font-mono text-meta uppercase tracking-widest text-fg-3">
-        {jobs === null ? 'Tus proyectos de stream' : `Tus proyectos de stream · ${jobs.length}`}
-      </p>
-
-      {list}
+      <section aria-labelledby="stream-projects-title" className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <h2 id="stream-projects-title" className="font-display text-title font-semibold text-fg-1">Tus proyectos</h2>
+          {jobs !== null ? (
+            <span className="min-w-8 rounded-md bg-surface-3 px-2 py-0.5 text-center text-body-sm tabular-nums text-fg-2">
+              {jobs.length}
+            </span>
+          ) : null}
+        </div>
+        {list}
+      </section>
     </div>
   );
 }
