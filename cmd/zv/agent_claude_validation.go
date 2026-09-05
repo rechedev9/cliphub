@@ -20,15 +20,9 @@ func readWorkflowDocBody(root, relPath string) (string, error) {
 	return string(b), nil
 }
 
-// Style and operational norms live directly in CLAUDE.md; the .claude/rules
-// mirrors were removed. Validate that the load-bearing guidance is present in
-// CLAUDE.md and that no rules mirror reappears.
+// Validate the remaining web guidance and reject retired rule mirrors.
 func checkClaudeRuleDocs() ([]skillIssue, error) {
 	root, err := findWorkflowRoot()
-	if err != nil {
-		return nil, err
-	}
-	claudeBody, err := readWorkflowDocBody(root, "CLAUDE.md")
 	if err != nil {
 		return nil, err
 	}
@@ -37,11 +31,6 @@ func checkClaudeRuleDocs() ([]skillIssue, error) {
 		return nil, err
 	}
 	var issues []skillIssue
-	for _, required := range claudeStyleRequiredText() {
-		if !strings.Contains(claudeBody, required) {
-			issues = append(issues, skillIssue{Path: "CLAUDE.md", Message: fmt.Sprintf("missing style guidance %q", required)})
-		}
-	}
 	for _, required := range webClaudeStyleRequiredText() {
 		if !strings.Contains(webClaudeBody, required) {
 			issues = append(issues, skillIssue{Path: "web/CLAUDE.md", Message: fmt.Sprintf("missing style guidance %q", required)})
@@ -60,19 +49,9 @@ func checkClaudeRuleDocs() ([]skillIssue, error) {
 			continue
 		}
 		relPath := filepath.ToSlash(filepath.Join(".claude", "rules", entry.Name()))
-		issues = append(issues, skillIssue{Path: relPath, Message: "style rules live in CLAUDE.md; remove this .claude/rules mirror"})
+		issues = append(issues, skillIssue{Path: relPath, Message: "retired rule mirror; remove this .claude/rules file"})
 	}
 	return issues, nil
-}
-
-func claudeStyleRequiredText() []string {
-	return []string{
-		"Write boring, idiomatic Go.",
-		"Do not introduce `util`, `common`, `helper`, `manager`",
-		"Add useful context when returning errors.",
-		"Every goroutine must have a clear owner and stop condition.",
-		"Do not add generated video/audio/image artifacts to git.",
-	}
 }
 
 // The web frontend style guidance lives in web/CLAUDE.md so it only loads when

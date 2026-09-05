@@ -669,46 +669,23 @@ func TestRunWorkflowsCheckRejectsUncoveredCommandEntrypoint(t *testing.T) {
 	}
 }
 
-func TestRunWorkflowsCheckRejectsAgentInstructionHLAEDrift(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "CLAUDE.md"), strings.Join([]string{
-		"# Claude",
-		"",
-		"```bash",
-		`scripts/go-gate.sh --no-format`,
-		`scripts/go-gate.sh --race`,
-		`scripts/go-gate.sh --security`,
-		"```",
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	for _, want := range []string{
-		`CLAUDE.md: missing canonical workflow command highest installed HLAE version`,
-		`CLAUDE.md: missing canonical workflow command latest official HLAE release`,
-		`CLAUDE.md: missing canonical workflow command C:\HLAE\HLAE.exe`,
-	} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-		}
+func TestRunChecksWithoutRootAgentInstructions(t *testing.T) {
+	for _, command := range [][]string{{"zv", "workflows", "check"}, {"zv", "check"}} {
+		t.Run(strings.Join(command, " "), func(t *testing.T) {
+			root := t.TempDir()
+			writeSkillBody(t, root, "alpha", "---\nname: alpha\ndescription: Alpha workflow\n---\n\n```powershell\n.\\bin\\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json\n```\n")
+			writeWorkflowDocs(t, root)
+			for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
+				if _, err := os.Stat(filepath.Join(root, name)); !os.IsNotExist(err) {
+					t.Fatalf("root instructions %s must be absent: %v", name, err)
+				}
+			}
+			withWorkingDir(t, root)
+			var stdout, stderr strings.Builder
+			if code := Run(command, &stdout, &stderr, nil, &fakeRunner{}); code != exitSuccess {
+				t.Fatalf("code = %d; stderr = %s", code, stderr.String())
+			}
+		})
 	}
 }
 
@@ -729,7 +706,7 @@ func TestRunWorkflowsCheckRejectsClaudeRulesMirror(t *testing.T) {
 	writeFile(t, filepath.Join(tempDir, ".claude", "rules", "go-style.md"), strings.Join([]string{
 		"# Go style rule",
 		"",
-		"A stray mirror of the CLAUDE.md style section.",
+		"A retired style rules mirror.",
 		"",
 	}, "\n"))
 	withWorkingDir(t, tempDir)
@@ -740,7 +717,7 @@ func TestRunWorkflowsCheckRejectsClaudeRulesMirror(t *testing.T) {
 	if got, want := code, exitInvalidArgs; got != want {
 		t.Fatalf("code = %d, want %d", got, want)
 	}
-	if want := `.claude/rules/go-style.md: style rules live in CLAUDE.md; remove this .claude/rules mirror`; !strings.Contains(stderr.String(), want) {
+	if want := `.claude/rules/go-style.md: retired rule mirror; remove this .claude/rules file`; !strings.Contains(stderr.String(), want) {
 		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
@@ -759,13 +736,6 @@ func TestRunWorkflowsCheckRejectsMissingClaudeStyleGuidance(t *testing.T) {
 		"",
 	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
-	claudePath := filepath.Join(tempDir, "CLAUDE.md")
-	body, err := os.ReadFile(claudePath)
-	if err != nil {
-		t.Fatalf("read CLAUDE.md fixture: %v", err)
-	}
-	stripped := strings.ReplaceAll(string(body), "Every goroutine must have a clear owner and stop condition.", "")
-	writeFile(t, claudePath, stripped)
 	webClaudePath := filepath.Join(tempDir, "web", "CLAUDE.md")
 	webBody, err := os.ReadFile(webClaudePath)
 	if err != nil {
@@ -782,7 +752,6 @@ func TestRunWorkflowsCheckRejectsMissingClaudeStyleGuidance(t *testing.T) {
 		t.Fatalf("code = %d, want %d", got, want)
 	}
 	for _, want := range []string{
-		`CLAUDE.md: missing style guidance "Every goroutine must have a clear owner and stop condition."`,
 		`web/CLAUDE.md: missing style guidance "No ` + "`any`" + `, ever"`,
 	} {
 		if !strings.Contains(stderr.String(), want) {

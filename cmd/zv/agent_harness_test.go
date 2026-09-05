@@ -29,30 +29,6 @@ func TestRepoSkillsUseUnifiedCLI(t *testing.T) {
 	}
 }
 
-func TestAgentInstructionsUseCLIAndNoExternalMCP(t *testing.T) {
-	root := repoRoot(t)
-
-	agentPath := filepath.Join(root, "CLAUDE.md")
-	agentInstructions, err := os.ReadFile(agentPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", agentPath, err)
-	}
-	agentBody := string(agentInstructions)
-	for _, want := range []string{
-		"## CLI-first",
-		`.\bin\zv.exe capabilities --format json`,
-		`.\bin\zv.exe workflows show short --format json`,
-		`.\bin\zv.exe workflows validate short --format json -- match.dem --prompt "all kills 76561198000000000" --dry-run --format json`,
-		`.\bin\zv.exe workflows run short -- match.dem --prompt "all kills 76561198000000000" --dry-run --format json`,
-		"retired external MCP server",
-		"Studio ships no assistant surface",
-	} {
-		if !strings.Contains(agentBody, want) {
-			t.Fatalf("%s does not contain %q", agentPath, want)
-		}
-	}
-}
-
 func TestGoGateRunsProjectCheck(t *testing.T) {
 	root := repoRoot(t)
 	path := filepath.Join(root, "scripts", "go-gate.sh")

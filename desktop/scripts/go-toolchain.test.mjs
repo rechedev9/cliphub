@@ -55,12 +55,6 @@ test('Windows installer rebuild pin agrees with go.mod 1.26.6', () => {
       mustNot: ['1.26.5'],
     },
     {
-      path: 'CLAUDE.md',
-      body: readRepo('CLAUDE.md'),
-      must: [`Go ${version}`],
-      mustNot: ['1.26.5'],
-    },
-    {
       path: 'README.md',
       body: readRepo('README.md'),
       must: [`Go ${version}`],

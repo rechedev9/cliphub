@@ -90,31 +90,5 @@ func workflowDocs() []workflowDoc {
 				"./bin/zv workflows check --format json",
 			},
 		},
-		{
-			Path: "AGENTS.md",
-			Required: []string{
-				"highest installed HLAE version",
-				"latest official HLAE release",
-				"creative brief gate",
-				"Thumbnail approval is a second gate",
-				`C:\HLAE\HLAE.exe`,
-				"scripts/go-gate.sh --no-format",
-				"scripts/go-gate.sh --race",
-				"scripts/go-gate.sh --security",
-			},
-		},
-		{
-			Path: "CLAUDE.md",
-			Required: []string{
-				"highest installed HLAE version",
-				"latest official HLAE release",
-				"creative brief gate",
-				"Thumbnail approval is a second gate",
-				`C:\HLAE\HLAE.exe`,
-				"scripts/go-gate.sh --no-format",
-				"scripts/go-gate.sh --race",
-				"scripts/go-gate.sh --security",
-			},
-		},
 	}
 }
