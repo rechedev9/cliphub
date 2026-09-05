@@ -55,24 +55,6 @@ test('Windows installer rebuild pin agrees with go.mod 1.26.6', () => {
       mustNot: ['1.26.5'],
     },
     {
-      path: 'README.md',
-      body: readRepo('README.md'),
-      must: [`Go ${version}`],
-      mustNot: ['1.26.5'],
-    },
-    {
-      path: 'desktop/GUIDE.md',
-      body: readRepo('desktop/GUIDE.md'),
-      must: [
-        `Go ${version}`,
-        `https://go.dev/dl/go${version}.windows-amd64.msi`,
-        `https://go.dev/dl/go${version}.windows-amd64.zip`,
-        pin.sha256,
-        pin.archiveSha256,
-      ],
-      mustNot: ['1.26.5'],
-    },
-    {
       path: '.github/workflows/desktop-release.yml',
       body: readRepo('.github/workflows/desktop-release.yml'),
       must: ['go-version-file: go.mod', 'GOTOOLCHAIN: local'],

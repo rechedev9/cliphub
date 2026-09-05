@@ -13,32 +13,28 @@ export type MusicBrief =
   | { status: 'track'; title: string; volumePercent: number; gameVolumePercent: number };
 
 export function canForgeReel({
-  briefApproved,
   creating,
   hasPreset,
   selectionCount,
   musicDecided,
 }: {
-  briefApproved: boolean;
   creating: boolean;
   hasPreset: boolean;
   selectionCount: number;
   musicDecided: boolean;
 }): boolean {
-  return !creating && briefApproved && hasPreset && selectionCount > 0 && musicDecided;
+  return !creating && hasPreset && selectionCount > 0 && musicDecided;
 }
 
 /** Library music rerender: the capture already exists; only a changed mix may proceed. */
 export function canRerenderWithMusic({
-  briefApproved,
   busy,
   musicChanged,
 }: {
-  briefApproved: boolean;
   busy: boolean;
   musicChanged: boolean;
 }): boolean {
-  return briefApproved && !busy && musicChanged;
+  return !busy && musicChanged;
 }
 
 const FORMAT_LABEL: Record<EditConfig['format'], string> = {
@@ -94,7 +90,7 @@ export function constrainEditConfig(edit: EditConfig): EditConfig {
   return next;
 }
 
-/** Exact, reviewable values that must be approved before capture or render. */
+/** The exact values used for capture and rendering. */
 export function reelCreativeBrief(
   raw: EditConfig,
   preset: Preset | null,
@@ -137,6 +133,3 @@ export function reelCreativeBrief(
     },
   ];
 }
-
-/** The approval checkbox label shared by the Short, Full POV and stream briefs; E2E keys on it. */
-export const BRIEF_APPROVAL_LABEL = 'He revisado y apruebo los ajustes';

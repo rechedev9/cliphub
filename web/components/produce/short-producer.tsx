@@ -51,7 +51,7 @@ export type ShortProducerProps = {
   seriesId: string | null;
 };
 
-/** The Short constructor: the best minute is preselected, then preset, music and overlays, approve, render. */
+/** The Short constructor: the best minute is preselected, then preset, music and overlays, render. */
 export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
@@ -71,12 +71,6 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   const [songOpen, setSongOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [briefApproved, setBriefApproved] = useState(false);
-
-  // Any decision change invalidates the approval: the checkbox answers the shown brief.
-  useEffect(() => {
-    setBriefApproved(false);
-  }, [selectedIds, variant, songId, musicDecided, musicVolume, gameVolume, editConfig]);
 
   useEffect(() => {
     let active = true;
@@ -107,7 +101,6 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
   const briefItems = reelCreativeBrief(editConfig, selectedPreset, musicBriefFor(musicDecided, songTitle, musicVolume, gameVolume));
   const configured = selectedPlays.length > 0 && presetLabel !== null && musicDecided;
   const ready = canForgeReel({
-    briefApproved,
     creating,
     hasPreset: variant !== null,
     selectionCount: selectedPlays.length,
@@ -292,6 +285,8 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
       <div className="flex-1" />
 
       <ProduceFooter
+        ready={ready}
+        busy={creating}
         tone="short"
         eyebrow="Short"
         summary={summary}
@@ -301,11 +296,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             : forgeHint(roundsSummary(selectedPlays), presetLabel)
         }
         briefItems={briefItems}
-        briefApproved={briefApproved}
-        briefReady={configured}
-        onBriefApprovedChange={setBriefApproved}
         backHref={seriesId ? seriesHref(seriesId) : hubHref({ open: matchId })}
-        busy={creating}
         error={createError}
         cta={
           <Button

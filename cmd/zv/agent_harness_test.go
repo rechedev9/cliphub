@@ -11,24 +11,6 @@ import (
 	"time"
 )
 
-func TestRepoSkillsUseUnifiedCLI(t *testing.T) {
-	root := repoRoot(t)
-	for _, skill := range currentRepoSkills(t, root) {
-		path, body := skill.Path, skill.Body
-		if !strings.Contains(body, `.\bin\zv.exe`) {
-			t.Errorf("%s does not document the unified zv CLI", path)
-		}
-		if !strings.Contains(body, `.\bin\zv.exe workflows run`) {
-			t.Errorf("%s does not document a cataloged workflow run command", path)
-		}
-		for _, legacy := range legacySkillBinaries() {
-			if strings.Contains(body, legacy) {
-				t.Errorf("%s documents legacy direct binary %s", path, legacy)
-			}
-		}
-	}
-}
-
 func TestGoGateRunsProjectCheck(t *testing.T) {
 	root := repoRoot(t)
 	path := filepath.Join(root, "scripts", "go-gate.sh")
@@ -250,39 +232,6 @@ func TestCurrentBuildScriptsCoverCommandEntrypoints(t *testing.T) {
 	for _, command := range buildScriptCommandEntries(buildScriptBody) {
 		if _, ok := known[command]; !ok {
 			t.Fatalf("scripts/build.ps1 includes stale command entry %q", command)
-		}
-	}
-}
-
-// TestAgentGuideUsesUnifiedCLI keeps the agent-facing guide free of the retired
-// per-stage binaries. It replaces the PRODUCT.md variant that was dropped with
-// the product guide itself; .claude/GUIDE.md is now the only tracked doc that
-// enumerates the workflow command surface.
-func TestAgentGuideUsesUnifiedCLI(t *testing.T) {
-	root := repoRoot(t)
-	guidePath := filepath.Join(root, ".claude", "GUIDE.md")
-	b, err := os.ReadFile(guidePath)
-	if err != nil {
-		t.Fatalf("read .claude/GUIDE.md: %v", err)
-	}
-	body := string(b)
-	for _, legacy := range legacyWorkflowCommands() {
-		if strings.Contains(body, legacy) {
-			t.Fatalf(".claude/GUIDE.md contains legacy workflow command %q; use ./bin/zv instead", legacy)
-		}
-	}
-	for _, want := range []string{
-		"./bin/zv workflows run demo-parse",
-		"./bin/zv workflows run demo-players",
-		"./bin/zv workflows run record",
-		"./bin/zv workflows run compose-final",
-		"./bin/zv workflows run music-analyze",
-		"./bin/zv workflows run shorts-render",
-		"./bin/zv check",
-		"./bin/zv workflows run serve",
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf(".claude/GUIDE.md does not contain unified workflow command %q", want)
 		}
 	}
 }

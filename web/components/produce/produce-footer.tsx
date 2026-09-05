@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import type { CreativeBriefItem } from '@/lib/reel-brief';
-import { BriefApprovalCheckbox, CreativeBriefList } from '@/components/studio/creative-brief';
+import { CreativeBriefList } from '@/components/studio/creative-brief';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -20,20 +20,14 @@ export type ProduceFooterProps = {
   briefItems: ReadonlyArray<CreativeBriefItem>;
   /** Extra brief content below the items (e.g. the FACEIT note). */
   briefNote?: ReactNode;
-  briefApproved: boolean;
-  /** The checkbox stays inert until every decision exists. */
-  briefReady: boolean;
-  onBriefApprovedChange: (approved: boolean) => void;
-  backHref: string;
+  ready: boolean;
   busy: boolean;
+  backHref: string;
   error: string | null;
   cta: ReactNode;
 };
 
-/**
- * In-flow review keeps expanded decisions from covering the editor. The checkbox
- * is always visible and resets whenever the caller changes any decision.
- */
+/** In-flow configuration summary keeps expanded settings from covering the editor. */
 export function ProduceFooter({
   tone,
   eyebrow,
@@ -41,18 +35,16 @@ export function ProduceFooter({
   hint,
   briefItems,
   briefNote,
-  briefApproved,
-  briefReady,
-  onBriefApprovedChange,
-  backHref,
+  ready,
   busy,
+  backHref,
   error,
   cta,
 }: ProduceFooterProps): ReactNode {
   const briefId = `produce-brief-${tone}`;
-  let nextStep = 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.';
-  if (!briefReady) nextStep = hint;
-  else if (!briefApproved) nextStep = 'Revisa el resumen y marca la confirmación para activar la creación.';
+  const nextStep = ready
+    ? 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.'
+    : hint;
   return (
     <div
       className={cn(
@@ -75,7 +67,7 @@ export function ProduceFooter({
               className="flex min-h-10 cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-wider text-primary [&::-webkit-details-marker]:hidden"
             >
               <ChevronRight aria-hidden className="size-4 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
-              Revisar antes de crear
+              Configuración del render
               <span className="tracking-wider text-fg-3">
                 · <span className="tabular-nums">{briefItems.length}</span> decisiones
               </span>
@@ -84,16 +76,9 @@ export function ProduceFooter({
               <CreativeBriefList items={briefItems} className="@[42rem]/content:grid-cols-2 @[70rem]/content:grid-cols-3" />
             </section>
           </details>
-
-          <BriefApprovalCheckbox
-            checked={briefApproved}
-            disabled={!briefReady || busy}
-            className="shrink-0"
-            onChange={onBriefApprovedChange}
-          />
         </div>
         {briefNote}
-        {!busy && (summary !== null || briefReady) ? (
+        {!busy && (summary !== null || ready) ? (
           <p role="status" className="text-body-sm text-fg-2">
             {nextStep}
           </p>

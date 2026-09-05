@@ -164,10 +164,10 @@ func TestProveDryRunDriveReadsPortsWithoutHTTP(t *testing.T) {
 	if probe.healthN != 0 || probe.getN != 0 {
 		t.Fatalf("drive lookup issued HTTP health=%d get=%d", probe.healthN, probe.getN)
 	}
-	if report.Drive == nil || report.Drive.Route != "/onboarding" {
+	if report.Drive == nil || report.Drive.Route != "/clips" {
 		t.Fatalf("drive = %#v", report.Drive)
 	}
-	if report.Drive.OpenURL != "http://127.0.0.1:42002/onboarding" {
+	if report.Drive.OpenURL != "http://127.0.0.1:42002/clips" {
 		t.Fatalf("open_url = %q", report.Drive.OpenURL)
 	}
 }

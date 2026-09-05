@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canCreateStreamShorts, streamCreativeBrief } from './brief.ts';
+import { streamCreativeBrief } from './brief.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
 import type { StreamEditPlan } from '../api/streams.ts';
 
@@ -90,11 +90,6 @@ test('stream creative brief marks unreviewed facecam and empty music', () => {
   assert.equal(byLabel.Banner, 'Sin nick');
 });
 
-test('stream shorts require brief approval', () => {
-  assert.equal(canCreateStreamShorts({ briefApproved: true, busy: false }), true);
-  assert.equal(canCreateStreamShorts({ briefApproved: false, busy: false }), false);
-  assert.equal(canCreateStreamShorts({ briefApproved: true, busy: true }), false);
-});
 
 test('the clip summary reads as a clock, never a unit glued to digits', () => {
   const items = streamCreativeBrief(plan());

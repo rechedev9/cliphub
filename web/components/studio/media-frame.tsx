@@ -56,8 +56,7 @@ export type MediaFrameProps = {
  * action layer. The action layer fades with opacity rather than unmounting, so
  * the buttons stay in the tab order and `group-focus-within` reveals them for
  * keyboard users; `(hover: none)` pins them visible because a touch device has
- * no hover to reveal them with (design.md: never hide essential controls behind
- * hover only).
+ * no hover to reveal them with.
  */
 export function MediaFrame({
   aspect = '16:9',

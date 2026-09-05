@@ -1,4 +1,6 @@
 // Package mediafont provides the bundled fonts used by generated media.
+// Montserrat comes from github.com/JulietaUla/Montserrat, fonts/ttf at
+// SourceCommit, under SIL Open Font License 1.1 (reproduced in OFL.txt).
 package mediafont
 
 import (

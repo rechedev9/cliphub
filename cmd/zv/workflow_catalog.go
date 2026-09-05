@@ -210,13 +210,13 @@ func buildWorkflowCatalog() []workflowInfo {
 		},
 		{
 			Name:        "workflows-check",
-			Description: "Validate skills, workflow catalog, and current workflow docs.",
+			Description: "Validate optional skills, the workflow catalog, and executable scripts.",
 			Command:     "zv workflows check",
 			RunArgs:     []string{"workflows", "check"},
 		},
 		{
 			Name:        "project-check",
-			Description: "Run the full ClipHub CLI, workflow, docs, and skills contract.",
+			Description: "Validate the ClipHub CLI, compiled workflows, build scripts, and optional skills.",
 			Command:     "zv check",
 			RunArgs:     []string{"check"},
 		},
@@ -436,13 +436,13 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 	case "full-demo-execute":
 		contract.RequiredArtifacts = []string{"server-persisted plan", "matching approval hash and explicit safety-tail choice", "local orchestrator session"}
 		contract.ProducedArtifactKeys = []string{"generate-intent", "recording-result", "render-result", "full-demo-approved", "full-demo-effective", "full-demo-audio", "full-demo-loudness", "full-demo-delivery", "publish-pack"}
-		contract.SafetyGates = []string{"complete creative brief and plan hash approval", "current-run Windows HLAE/CS2 hardware grant", "long FFmpeg render approval", "thumbnail selection for CLI delivery when covers are enabled"}
+		contract.SafetyGates = []string{"valid saved plan and matching hash", "current-run Windows HLAE/CS2 hardware grant", "long FFmpeg render approval", "thumbnail selection for CLI delivery when covers are enabled"}
 		contract.LiveBehavior = "revalidates immutable approval at HTTP admission and queues the existing capture/render workers"
 		contract.ResumePolicy = "same approved snapshot on retry; bytes and capture coverage control reuse; failed replacement preserves the previous committed revision"
 	case "short":
 		contract.RequiredArtifacts = []string{"demo path or existing recording result"}
 		contract.ProducedArtifactKeys = []string{"killplan", "selected-plan", "recording-result", "publish-pack"}
-		contract.SafetyGates = []string{"creative brief approval", "live HLAE/CS2 capture approval", "long FFmpeg render approval", "thumbnail selection when covers are enabled"}
+		contract.SafetyGates = []string{"live HLAE/CS2 capture approval", "long FFmpeg render approval", "thumbnail selection when covers are enabled"}
 		contract.LiveBehavior = "runs parse, capture, render, and publish-pack stages using explicit approved flags"
 	case "capabilities":
 		contract.ProducedArtifactKeys = []string{"tool-readiness-report"}
@@ -473,7 +473,7 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 	case "record":
 		contract.RequiredArtifacts = []string{"selected killplan", "demo"}
 		contract.ProducedArtifactKeys = []string{"recording-result", "capture-script", "segment-clips"}
-		contract.SafetyGates = []string{"creative brief HUD/killfeed choices", "live HLAE/CS2 capture approval"}
+		contract.SafetyGates = []string{"live HLAE/CS2 capture approval"}
 		contract.LiveBehavior = "launches HLAE/CS2 and records selected POV ranges; all captures contend for one cs2.exe lane"
 	case "compose-final":
 		contract.RequiredArtifacts = []string{"recording-result"}
@@ -484,7 +484,7 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 	case "shorts-render":
 		contract.RequiredArtifacts = []string{"recording-result"}
 		contract.ProducedArtifactKeys = []string{"render-manifest", "qa-report", "publish-pack"}
-		contract.SafetyGates = []string{"creative brief approval", "long FFmpeg render approval", "thumbnail selection when covers are enabled", "third-party music provenance when music is supplied"}
+		contract.SafetyGates = []string{"long FFmpeg render approval", "thumbnail selection when covers are enabled", "third-party music provenance when music is supplied"}
 		contract.LiveBehavior = "renders the approved recording result into a local publish pack and QA artifacts"
 	case "stream-fetch":
 		contract.RequiredArtifacts = []string{"allowlisted stream URL"}
@@ -499,7 +499,7 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 	case "stream-render":
 		contract.RequiredArtifacts = []string{"stream-mp4", "stream-edit-plan"}
 		contract.ProducedArtifactKeys = []string{"stream-render-manifest", "publish-pack"}
-		contract.SafetyGates = []string{"approved persisted edit plan", "long FFmpeg render approval", "third-party music provenance when music is supplied"}
+		contract.SafetyGates = []string{"valid persisted edit plan", "long FFmpeg render approval", "third-party music provenance when music is supplied"}
 	case "analysis-tactical":
 		contract.RequiredArtifacts = []string{"demo"}
 		contract.ProducedArtifactKeys = []string{"tactical-document", "position-blob"}

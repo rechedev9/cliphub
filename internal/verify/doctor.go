@@ -38,7 +38,6 @@ type DoctorReport struct {
 	Gaps          []Gap              `json:"gaps"`
 	Remaining     []Gap              `json:"remaining,omitempty"`
 	Available     []Check            `json:"available"`
-	Skill         SkillReport        `json:"skill"`
 	Features      []FeatureMapStatus `json:"features"`
 	Orchestrator  HTTPReport         `json:"orchestrator"`
 	Gates         GateReport         `json:"gates"`
@@ -77,7 +76,6 @@ func Doctor(opts DoctorOptions) DoctorReport {
 		CS2Running: cs2.Running,
 	})
 
-	skill := InspectSkill(opts.Root)
 	features := InspectFeatureMap(opts.Root)
 	gates := InspectGates(true)
 	report := DoctorReport{
@@ -87,7 +85,6 @@ func Doctor(opts DoctorOptions) DoctorReport {
 		Studio:        studio,
 		HLAE:          hlae,
 		CS2:           cs2,
-		Skill:         skill,
 		Features:      features.Features,
 		Orchestrator:  studio.Healthz,
 		Gates:         gates,
@@ -97,8 +94,7 @@ func Doctor(opts DoctorOptions) DoctorReport {
 	}
 
 	report.Available = append(report.Available,
-		Check{ID: "skill", Status: statusFromOK(skill.OK), Detail: SkillRelPath},
-		Check{ID: "feature_map", Status: statusFromOK(features.OK), Detail: FeatureMapRelDir},
+		Check{ID: "feature_catalog", Status: statusFromOK(features.OK), Detail: FeatureCatalogSource},
 		Check{ID: "hosted_gates", Status: "cataloged", Detail: "CI frontend/backend/infra; no Playwright; no HLAE"},
 		Check{ID: "studio_ports", Status: statusFromOK(studio.PortsPresent), Detail: studio.PortsPath},
 		Check{ID: "studio_jobs_db", Status: statusFromOK(studio.JobsDBPresent), Detail: studio.JobsDBPath},
@@ -123,7 +119,7 @@ func Doctor(opts DoctorOptions) DoctorReport {
 
 	report.Remaining = append(report.Remaining, closedGap(OverlayWalkGapID, "studio_walk", OverlayWalkGap))
 	report.Closed = len(report.Gaps) > 0
-	report.OK = host.CanRecertifyCapture() && skill.OK && features.OK && !opts.DryRun
+	report.OK = host.CanRecertifyCapture() && features.OK && !opts.DryRun
 	if !host.CanRecertifyCapture() {
 		report.OK = false
 		report.Closed = true

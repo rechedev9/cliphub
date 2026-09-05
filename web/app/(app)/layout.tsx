@@ -8,9 +8,7 @@ import { ShellActivityMonitor } from '@/components/shell/shell-activity-monitor'
 import { TelemetryNotice } from '@/components/shell/telemetry-notice';
 import { SIDEBAR_COOKIE_NAME } from '@/components/shell/shell-cookies';
 
-/** Typed rather than cast: CSSProperties has no index signature for custom
- *  properties, and `as React.CSSProperties` is exactly the silencing cast
- *  web/CLAUDE.md rules out. */
+/** Extend CSSProperties explicitly so custom properties are type-checked. */
 const SHELL_VARS: CSSProperties & { '--sidebar-width': string } = { '--sidebar-width': '240px' };
 
 /**
@@ -41,7 +39,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
           binds, then two --shell-gutter columns. At 1920 that is 1440 − 2×61.44
           = 1317px, not 1920. Every `xl:` rule in a card or row evaluated
           against the viewport instead is what produced horizontal overflow at
-          the 1440px width design.md names as a validation target.
+          a 1440px viewport.
 
           mr-auto, not mx-auto: SidebarInset is a flex column, so the auto
           margin decides the cross-axis position. With `mx-auto` the column

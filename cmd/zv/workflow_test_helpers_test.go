@@ -2,16 +2,6 @@ package main
 
 import "strings"
 
-func isExecutableDirectWorkflowCommand(command []string, workflow workflowInfo) bool {
-	if !hasPrefixArgs(command, workflow.RunArgs) {
-		return false
-	}
-	if isSingleHelp(command[len(workflow.RunArgs):]) {
-		return false
-	}
-	return validateSkillCommand(command) == ""
-}
-
 func documentedWorkflowCommand(command string) string {
 	fields, ok := splitCommandFields(command)
 	if !ok || len(fields) == 0 || fields[0] != "zv" {

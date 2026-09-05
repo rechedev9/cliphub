@@ -15,8 +15,8 @@ func TestZVBinaryWorkflowsCatalogEndToEnd(t *testing.T) {
 	listOut := runZVBinary(t, exe, tempDir, "workflows", "list")
 	for _, want := range []string{
 		"demo-parse\tParse a CS2 demo",
-		"workflows-check\tValidate skills, workflow catalog, and current workflow docs.",
-		"project-check\tRun the full ClipHub CLI, workflow, docs, and skills contract.",
+		"workflows-check\tValidate optional skills, the workflow catalog, and executable scripts.",
+		"project-check\tValidate the ClipHub CLI, compiled workflows, build scripts, and optional skills.",
 	} {
 		if !strings.Contains(listOut, want) {
 			t.Fatalf("list output = %q, want %q", listOut, want)

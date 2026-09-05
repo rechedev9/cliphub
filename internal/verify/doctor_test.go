@@ -110,7 +110,7 @@ func TestDoctorSchemaAndNamedGap(t *testing.T) {
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"schema_version", "ok", "closed", "host", "studio", "hlae", "cs2", "gaps", "available", "skill", "features", "orchestrator", "gates"} {
+	for _, key := range []string{"schema_version", "ok", "closed", "host", "studio", "hlae", "cs2", "gaps", "available", "features", "orchestrator", "gates"} {
 		if _, ok := decoded[key]; !ok {
 			t.Fatalf("doctor JSON missing key %q", key)
 		}

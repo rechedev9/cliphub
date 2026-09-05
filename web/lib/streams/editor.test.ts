@@ -77,15 +77,14 @@ test('facecam layouts stay pending until the crop is confirmed', () => {
   assert.equal(noCam[0].done, true);
 });
 
-test('the CTA names the first blocker, then the approval, then the action', () => {
-  const base = { briefApproved: false, rendering: false, hasRender: false };
+test('the CTA names the first blocker or the render action without separate approval', () => {
+  const base = { rendering: false, hasRender: false };
   const cases: [Parameters<typeof streamCtaLabel>[0], string][] = [
     [{ ...base, plan: plan(), rendering: true }, 'Renderizando…'],
-    [{ ...base, plan: plan({ face_crop_reviewed: false }), briefApproved: true }, 'Confirma el recorte primero'],
+    [{ ...base, plan: plan({ face_crop_reviewed: false }) }, 'Confirma el recorte primero'],
     [{ ...base, plan: plan({ clips: [] }) }, 'Añade un corte primero'],
-    [{ ...base, plan: plan() }, 'Revisa y aprueba los ajustes'],
-    [{ ...base, plan: plan(), briefApproved: true }, 'Crear Shorts →'],
-    [{ ...base, plan: plan(), briefApproved: true, hasRender: true }, 'Crear Shorts de nuevo →'],
+    [{ ...base, plan: plan() }, 'Crear Shorts →'],
+    [{ ...base, plan: plan(), hasRender: true }, 'Crear Shorts de nuevo →'],
   ];
   for (const [state, expected] of cases) assert.equal(streamCtaLabel(state), expected);
 });

@@ -49,7 +49,6 @@ export function LibraryMusicDialog({
   const [volumePercent, setVolumePercent] = useState(MUSIC_VOLUME_DEFAULT_PERCENT);
   const [gameVolumePercent, setGameVolumePercent] = useState(GAME_VOLUME_DEFAULT_PERCENT);
   const [preset, setPreset] = useState<Preset | null>(null);
-  const [briefApproved, setBriefApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wasOpen = useRef(false);
@@ -59,7 +58,7 @@ export function LibraryMusicDialog({
       setSong(video.songId ? { id: video.songId, title: video.songId, artist: '', genre: '', previewUrl: '', durationSec: 0 } : null);
       setVolumePercent(musicVolumeRequestToPercent(video.musicVolume));
       setGameVolumePercent(gameVolumeRequestToPercent(video.gameVolume));
-      setBriefApproved(false);
+
       setError(null);
     }
     wasOpen.current = open;
@@ -92,10 +91,6 @@ export function LibraryMusicDialog({
     };
   }, [open, video.variant]);
 
-  useEffect(() => {
-    setBriefApproved(false);
-  }, [song?.id, volumePercent, gameVolumePercent]);
-
   const draft: MusicChoice = song
     ? {
         songId: song.id,
@@ -111,7 +106,7 @@ export function LibraryMusicDialog({
       ? { status: 'track', title: song.title, volumePercent, gameVolumePercent }
       : { status: 'none' },
   );
-  const ready = canRerenderWithMusic({ briefApproved, busy, musicChanged });
+  const ready = canRerenderWithMusic({ busy, musicChanged });
 
   async function apply(): Promise<void> {
     if (!ready) return;
@@ -208,19 +203,9 @@ export function LibraryMusicDialog({
             id={`library-music-brief-${video.id}`}
             className="font-mono text-meta uppercase tracking-wider text-primary"
           >
-            Brief creativo exacto
+            Configuración del render
           </p>
           <CreativeBriefList items={briefItems} className="mt-2.5" />
-          <label className="mt-3.5 flex min-h-10 items-center gap-2.5 text-body-sm text-fg-1">
-            <input
-              type="checkbox"
-              checked={briefApproved}
-              disabled={!musicChanged || busy}
-              onChange={(event) => setBriefApproved(event.target.checked)}
-              className="size-5 shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            Apruebo este brief exacto para el nuevo render.
-          </label>
         </section>
 
         {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}

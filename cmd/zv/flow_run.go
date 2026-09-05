@@ -186,7 +186,7 @@ func runFlowsRun(args []string, stdout, stderr io.Writer, stdin io.Reader, runne
 }
 
 // demoFlowRunSteps mirrors the demo journey's chain: playability probe, parse
-// (skipped when a kill plan is supplied), moments, the creative-brief gate,
+// (skipped when a kill plan is supplied), moments,
 // select (every segment in plan order, the documented dry-run default), the
 // capture and render dry runs, and the thumbnail gate.
 func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep {
@@ -241,9 +241,6 @@ func demoFlowRunSteps(runDir, demo, steamid, killplanFlag string) []flowRunStep 
 			}
 			return action, nil
 		}},
-		{id: "creative-brief", build: func() (flowRunAction, error) {
-			return flowRunAction{gate: true, reason: "creative gate: approve delivery format, HUD/killfeed, kill effect, transition, counter, intro/outro, music, and thumbnail strategy; ambiguous go/hazlo is not approval until it answers a shown brief"}, nil
-		}},
 		{id: "select", build: func() (flowRunAction, error) {
 			if strings.TrimSpace(killplanFlag) == "" {
 				return flowRunAction{
@@ -288,16 +285,13 @@ func containsArg(args []string, want string) bool {
 	return false
 }
 
-// streamFlowRunSteps mirrors the stream journey's chain: the creative gate, a
+// streamFlowRunSteps mirrors the stream journey's chain: a
 // read-only plan preflight, and the dependent render phase.
 func streamFlowRunSteps(runDir, input string) []flowRunStep {
 	editPlan := filepath.Join(runDir, "edit-plan.json")
 	renderDir := filepath.Join(runDir, "render")
 
 	return []flowRunStep{
-		{id: "creative-brief", build: func() (flowRunAction, error) {
-			return flowRunAction{gate: true, reason: "creative gate: approve stream layout, clip bounds/title, clean crop, music, delivery shape, and cover strategy; ambiguous go/hazlo is not approval until it answers a shown brief"}, nil
-		}},
 		{id: "plan", build: func() (flowRunAction, error) {
 			if strings.TrimSpace(input) == "" {
 				return flowRunAction{}, fmt.Errorf("stream plan requires --input")

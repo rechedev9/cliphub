@@ -6,7 +6,7 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 /**
- * design.md:80 — the single focus recipe every control in `components/ui` uses.
+ * The shared focus recipe for controls in `components/ui`.
  *
  * It is an outline, not a ring, on purpose. `ring-offset-*` has to paint the
  * offset gap with a solid colour, so the recipe this replaces

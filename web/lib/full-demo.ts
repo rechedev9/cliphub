@@ -52,14 +52,12 @@ export function fullDemoEdit(overlayTheme: OverlayTheme = OVERLAY_THEME.faceitOr
 
 export function canStartFullDemoCapture({
   roundCount,
-  briefApproved,
   creating,
 }: {
   roundCount: number;
-  briefApproved: boolean;
   creating: boolean;
 }): boolean {
-  return roundCount > 0 && briefApproved && !creating;
+  return roundCount > 0 && !creating;
 }
 
 export const FULL_DEMO_PRESET: Preset = {

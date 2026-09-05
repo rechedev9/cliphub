@@ -186,10 +186,10 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 			flow:  "demo",
 			steps: demoFlowRunSteps("run", "match.dem", "76561198000000000", ""),
 			runnerPhase: map[string]string{
-				"probe":               "probe",
-				"parse":               "parse",
-				"moments":             "moments",
-				"creative-brief":      "creative-brief",
+				"probe":   "probe",
+				"parse":   "parse",
+				"moments": "moments",
+
 				"select":              "select",
 				"record":              "capture",
 				"shorts-render":       "edit",
@@ -201,9 +201,9 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 			flow:  "stream",
 			steps: streamFlowRunSteps("run", "stream.mp4"),
 			runnerPhase: map[string]string{
-				"creative-brief": "creative-brief",
-				"plan":           "plan",
-				"render":         "render",
+
+				"plan":   "plan",
+				"render": "render",
 			},
 			exempt: setOf("doctor", "layouts", "plan-preflight", "plan-review", "render-preflight", "review"),
 		},
@@ -383,7 +383,7 @@ func TestFlowsRunDryRunStopsAtInvalidSuppliedKillPlan(t *testing.T) {
 		t.Fatalf("parse = %#v, want supplied-plan preflight failure", parse)
 	}
 	// Every phase after the failure is reported as not run.
-	for _, id := range []string{"moments", "creative-brief", "select", "record", "shorts-render", "thumbnail-selection"} {
+	for _, id := range []string{"moments", "select", "record", "shorts-render", "thumbnail-selection"} {
 		phase, ok := phaseByName(report, id)
 		if !ok {
 			t.Fatalf("phase %s missing from report", id)

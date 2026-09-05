@@ -37,7 +37,6 @@ export function ReviewResolutionDialog({
     artifactPrefix: string;
     warnings: string[];
   } | null>(null);
-  const [briefApproved, setBriefApproved] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<'rerender' | 'accept' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +53,7 @@ export function ReviewResolutionDialog({
             }
           : null,
       );
-      setBriefApproved(false);
+
       setNote('');
       setError(null);
     } else if (!open) {
@@ -82,7 +81,7 @@ export function ReviewResolutionDialog({
   function changeDraft(next: EditConfig) {
     if (lockedFullDemo) return;
     setDraft(constrainEditConfig(next));
-    setBriefApproved(false);
+
   }
 
   async function resolveReview(kind: 'rerender' | 'accept') {
@@ -169,7 +168,7 @@ export function ReviewResolutionDialog({
           <section className="space-y-4 rounded-md border border-border p-4">
             <div>
               <h3 className="font-display text-body uppercase tracking-wide">Corregir y volver a renderizar</h3>
-              <p className="text-body-sm text-fg-3">Debes cambiar al menos una opción y aprobar el brief completo.</p>
+              <p className="text-body-sm text-fg-3">Cambia al menos una opción para generar el nuevo render.</p>
             </div>
             <div>
               <p className="mb-2 font-mono text-meta uppercase tracking-wider text-fg-3">Formato</p>
@@ -190,26 +189,16 @@ export function ReviewResolutionDialog({
               disabled={busy !== null || reviewChanged}
             />
             <div className="rounded-md bg-surface-2 p-3">
-              <p className="mb-2 font-mono text-meta uppercase tracking-wider text-primary">Brief efectivo</p>
+              <p className="mb-2 font-mono text-meta uppercase tracking-wider text-primary">Configuración del render</p>
               <ul className="grid gap-1 text-body-sm text-fg-2 sm:grid-cols-2">
                 {briefLines.map((item) => <li key={item}>• {item}</li>)}
               </ul>
             </div>
-            <label className="flex items-start gap-2 text-body-sm text-fg-2">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 accent-primary"
-                checked={briefApproved}
-                onChange={(event) => setBriefApproved(event.target.checked)}
-                disabled={busy !== null || reviewChanged}
-              />
-              Apruebo este brief exacto para el nuevo render.
-            </label>
             <Button
               type="button"
               variant="hero"
               className="w-full"
-              disabled={!editChanged || !briefApproved || reviewChanged}
+              disabled={!editChanged || reviewChanged}
               loading={busy === 'rerender'} loadingText="RENDERIZANDO DE NUEVO…"
               onClick={() => void resolveReview('rerender')}
             >

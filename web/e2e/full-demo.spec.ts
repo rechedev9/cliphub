@@ -32,7 +32,7 @@ async function stubParsedMatch(page: Page, recap: { status: number; body: unknow
 }
 
 test.describe('Full POV editorial constructor', () => {
-  test('retries an offline editorial load without approving defaults', async ({ page }) => {
+  test('retries an offline editorial load without allowing unplanned defaults', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     let offline = true;
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => route.fulfill(offline
@@ -43,7 +43,8 @@ test.describe('Full POV editorial constructor', () => {
     offline = false;
     await page.getByRole('button', { name: 'Reintentar conexión y cargar plan' }).click();
     await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toBeVisible();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
   });
   test('previews the approved assets without queueing capture', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
@@ -61,7 +62,8 @@ test.describe('Full POV editorial constructor', () => {
     await page.getByRole('option', { name: 'Reemplazar por narración', exact: true }).click();
     await expect.poll(() => video.evaluate((element) => element instanceof HTMLMediaElement ? element.volume : -1)).toBe(0);
     expect(captures).toBe(0);
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
   });
   test('switches formats and preserves the numbered Clips section', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
@@ -89,12 +91,12 @@ test.describe('Full POV editorial constructor', () => {
     { status: 503, code: 'service_unavailable', error: 'Servicio de análisis sin conexión' },
     { status: 409, code: 'full_demo_facts_insufficient', error: 'Vuelve a analizar el jugador para obtener hechos de rondas' },
   ]) {
-    test(`editorial ${failure.code} blocks approval without legacy defaults`, async ({ page }) => {
+    test(`editorial ${failure.code} blocks creation without legacy defaults`, async ({ page }) => {
       await stubParsedMatch(page, { status: 200, body: PLAN });
       await fulfillJson(page, '/full-demo/plan', failure.status, failure);
       await gotoStudio(page, PRODUCE_FULL);
       await expect(page.getByRole('alert').filter({ hasText: failure.error })).toBeVisible();
-      await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeDisabled();
+      await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
       await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
     });
   }
@@ -105,8 +107,7 @@ test.describe('Full POV editorial constructor', () => {
     await expect(page.getByText('R02', { exact: true })).toBeVisible();
     await expect(page.getByText('0 kills', { exact: true })).toHaveCount(2);
     const cta = page.getByRole('button', { name: REC_CTA });
-    await expect(cta).toBeDisabled();
-    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
     await expect(cta).toBeEnabled();
     await expect(page.getByText(/Este formato necesita acceso a FACEIT/)).toHaveCount(0);
   });
@@ -119,9 +120,10 @@ test.describe('Full POV editorial constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await expect(page.getByText('Añade al menos una pista o desactiva la música.')).toBeVisible();
     await expect(page.getByText('Añade el vídeo del sponsor o desactívalo.')).toBeVisible();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeDisabled();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
   });
-  test('approval follows content beyond IDs and resets after reloading the saved draft', async ({ page }) => {
+  test('changed options require a validated saved plan but no separate brief approval', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     let document = editorial();
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
@@ -133,20 +135,21 @@ test.describe('Full POV editorial constructor', () => {
       } else await route.fulfill({ json: { document, defaults: document.options, compatibility: 'editorial-v1' } });
     });
     await gotoStudio(page, PRODUCE_FULL);
-    const brief = page.getByRole('checkbox', { name: BRIEF_CHECKBOX });
-    await brief.check();
+    const create = page.getByRole('button', { name: REC_CTA });
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
+    await expect(create).toBeEnabled();
     await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0');
-    await expect(brief).not.toBeChecked();
-    await expect(brief).toBeDisabled();
+    await expect(create).toBeDisabled();
     await page.getByRole('button', { name: 'Actualizar y guardar plan' }).click();
-    await brief.check();
+    await expect(create).toBeEnabled();
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(brief).toBeChecked();
+    await expect(create).toBeEnabled();
     await page.reload();
     await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0');
-    await expect(brief).not.toBeChecked();
+    await expect(create).toBeEnabled();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
   });
-  test('submits the approved document through generate and persists it for Library', async ({ page }) => {
+  test('creating binds the validated document hash through generate and persists it for Library', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     let generated: unknown;
     await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
@@ -156,7 +159,7 @@ test.describe('Full POV editorial constructor', () => {
       await route.fulfill({ status: 202, json: { accepted: true } });
     });
     await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
     await page.getByRole('button', { name: REC_CTA }).click();
     await expect.poll(() => generated).toBeDefined();
     expect(generated).toMatchObject({ preset: 'gameplay-pov-60', segment_ids: [], edit: {
@@ -169,11 +172,14 @@ test.describe('Full POV editorial constructor', () => {
   test('manual options remain independent across format switches', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+    await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0');
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
     await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
     await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeChecked();
+    await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0');
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
   });
 });
 for (const interruption of ['empty', 'failed']) {

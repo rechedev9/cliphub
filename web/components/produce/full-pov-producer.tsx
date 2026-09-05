@@ -30,7 +30,6 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
-  const [approvedHash, setApprovedHash] = useState<string | null>(null);
   const [busy, setBusy] = useState<'load' | 'plan' | 'create' | 'asset' | null>('load');
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -38,7 +37,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
 
   useEffect(() => {
     const controller = new AbortController();
-    setBusy('load'); setError(null); setDocument(null); setOptions(null); setApprovedHash(null);
+    setBusy('load'); setError(null); setDocument(null); setOptions(null);
     void loadFullDemoPlan(matchId, controller.signal).then((loaded) => {
       if (controller.signal.aborted) return;
       let initial = loaded.document?.options ?? loaded.defaults;
@@ -56,17 +55,18 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   }, [matchId, draftKey, loadAttempt]);
 
   function change(next: FullDemoOptions): void {
-    setOptions(next); setApprovedHash(null);
+    setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { /* Saving the server plan is still explicit and durable. */ }
   }
-  const approvalKey = document && options ? fullDemoApprovalKey(document, options) : null;
-  const approved = approvalKey !== null && approvedHash === approvalKey;
+  // The saved plan must match every current option and have no blockers.
+  // Creating binds that validated document to the capture request directly.
+  const ready = document !== null && options !== null && fullDemoApprovalKey(document, options) !== null && busy === null;
   const dirty = options !== null && (document === null || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(options));
   const rounds = document?.rounds ?? [];
 
   async function plan(): Promise<void> {
     if (!options || busy) return;
-    setBusy('plan'); setError(null); setApprovedHash(null);
+    setBusy('plan'); setError(null);
     try {
       const planned = await saveFullDemoPlan(matchId, options);
       setDocument(planned); setOptions(planned.options);
@@ -75,7 +75,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
     finally { setBusy(null); }
   }
   async function create(): Promise<void> {
-    if (!document || !approved || busy) return;
+    if (!document || !ready) return;
     setBusy('create'); setError(null);
     try {
       await api.createVideo({ matchId, playIds: rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(document)) });
@@ -105,7 +105,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
     <div className="space-y-2">
       <p className="font-mono text-meta uppercase tracking-ultra text-fg-3">Vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
       <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">Full POV Chill</h1>
-      <p className="max-w-3xl text-body-sm text-fg-2">Todas las rondas del jugador en orden, con su HUD y audio continuo. Ajusta el montaje, revisa sus intervalos y aprueba el plan antes de grabar.</p>
+      <p className="max-w-3xl text-body-sm text-fg-2">Todas las rondas del jugador en orden, con su HUD y audio continuo. Ajusta el montaje y guarda el plan para calcular sus intervalos antes de grabar.</p>
     </div>
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando el plan guardado…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión y cargar plan</Button> : null}
@@ -161,9 +161,8 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
     </div>
     <ProduceFooter tone="full" eyebrow="Full POV Chill · 16:9" summary={document ? `${rounds.length} rondas · ${recBusy ? 'CS2 ocupado: entrará en cola' : 'listo para revisar'}` : null}
       hint="Completa los ajustes y guarda un plan sin bloqueos para continuar." briefItems={briefItems}
-      briefApproved={approved} briefReady={approvalKey !== null && busy === null} onBriefApprovedChange={(value) => setApprovedHash(value ? approvalKey : null)}
-      backHref={returnHref} busy={busy === 'create'} error={error}
-      cta={<Button variant="stream" size="lg" disabled={!approved || busy !== null} loading={busy === 'create'} loadingText="Encolando…" onClick={() => void create()}>{recBusy ? 'Poner Full Demo en cola' : 'Crear Full Demo'}</Button>} />
+      ready={ready} backHref={returnHref} busy={busy !== null} error={error}
+      cta={<Button variant="stream" size="lg" disabled={!ready} loading={busy === 'create'} loadingText="Encolando…" onClick={() => void create()}>{recBusy ? 'Poner Full Demo en cola' : 'Crear Full Demo'}</Button>} />
   </>;
 }
 

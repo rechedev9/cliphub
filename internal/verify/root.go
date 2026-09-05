@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 )
 
-// FindRepoRoot walks from cwd and the executable looking for go.mod plus the
-// in-repo verification skill. The skill is the lever; a go.mod alone is not.
+// FindRepoRoot walks from cwd and the executable looking for the Go module.
 func FindRepoRoot() (string, error) {
 	var starts []string
 	if cwd, err := os.Getwd(); err == nil {
@@ -27,13 +26,10 @@ func FindRepoRoot() (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("cliphub repo root not found: missing go.mod or %s", SkillRelPath)
+	return "", fmt.Errorf("cliphub repo root not found: missing go.mod")
 }
 
 func isRepoRoot(dir string) bool {
-	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
-		return false
-	}
-	st, err := os.Stat(filepath.Join(dir, filepath.FromSlash(SkillRelPath)))
+	st, err := os.Stat(filepath.Join(dir, "go.mod"))
 	return err == nil && st.Mode().IsRegular()
 }

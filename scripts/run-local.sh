@@ -39,7 +39,8 @@ for c in zv-orchestrator zv-recorder zv-editor zv-composer; do
   go build -o "$BIN/$c.exe" "./cmd/$c"
 done
 
-# Provision the shipped Suno music catalog (see data/music/ATTRIBUTION.md)
+# Provision the shipped Suno instrumental music catalog, generated for ClipHub
+# on 2026-08-05 under its earlier TickCut/FragForge names.
 # into $MUSIC so the UI song picker has real tracks.
 # Idempotent: skips tracks already downloaded. The orchestrator's /api/songs
 # reads $MUSIC/catalog.json for the metadata it serves the web app.

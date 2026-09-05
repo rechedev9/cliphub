@@ -1,21 +1,21 @@
 package verify
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-func TestFeatureMapExistsAndMatchesCatalog(t *testing.T) {
-	root, err := FindRepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	report := InspectFeatureMap(root)
+func TestFeatureMapUsesCompiledCatalogWithoutDocuments(t *testing.T) {
+	report := InspectFeatureMap(t.TempDir())
 	if !report.OK {
 		t.Fatalf("feature map issues: %s", strings.Join(report.Issues, "; "))
 	}
-	if !report.IndexPresent {
-		t.Fatal("missing references/features/INDEX.md")
+	if report.Source != FeatureCatalogSource {
+		t.Fatalf("source = %q", report.Source)
 	}
 	if got, want := len(report.Features), len(Features()); got != want {
 		t.Fatalf("features = %d, want %d", got, want)
@@ -26,11 +26,8 @@ func TestFeatureMapExistsAndMatchesCatalog(t *testing.T) {
 			t.Fatalf("duplicate feature %s", feature.ID)
 		}
 		seen[feature.ID] = true
-		if !feature.MapPresent || !feature.CheapOK {
-			t.Fatalf("feature %s map_present=%t cheap_ok=%t issues=%v", feature.ID, feature.MapPresent, feature.CheapOK, feature.Issues)
-		}
-		if got, want := len(feature.Headings), len(RequiredFeatureHeadings); got != want {
-			t.Fatalf("feature %s headings = %d, want %d", feature.ID, got, want)
+		if !feature.CatalogValid || !feature.CheapOK {
+			t.Fatalf("feature %s catalog_valid=%t cheap_ok=%t issues=%v", feature.ID, feature.CatalogValid, feature.CheapOK, feature.Issues)
 		}
 		if feature.RequiresHLAECS2 && feature.UserPath == "pass" {
 			t.Fatalf("feature %s leaked a Pass user_path", feature.ID)
@@ -63,38 +60,75 @@ func TestCatalogCheapFeaturesHaveProbePath(t *testing.T) {
 	}
 }
 
-func TestCatalogCoversStudioNav(t *testing.T) {
-	t.Parallel()
-	want := []string{
-		"/onboarding", "/matches", "/upload", "/full-demo", "/tactical",
-		"/cheaters", "/players", "/streams", "/editor", "/videos",
-		"/feed", "/settings",
+func TestFeatureCatalogValidationRejectsIncompleteMetadata(t *testing.T) {
+	valid := Features()[0]
+	cases := []struct {
+		name     string
+		features []Feature
+	}{
+		{name: "empty"},
+		{name: "duplicate", features: []Feature{valid, valid}},
+		{name: "missing identity", features: []Feature{{Route: "/onboarding", ProbePath: "/api/steam/account"}}},
+		{name: "external route", features: []Feature{{ID: "external", Title: "External", Route: "//example.com", CheapProof: "probe", ProbePath: "/api/test"}}},
+		{name: "missing probe", features: []Feature{{ID: "missing-probe", Title: "Missing probe", Route: "/onboarding", CheapProof: "probe"}}},
 	}
-	have := map[string]bool{}
-	for _, feature := range Features() {
-		have[feature.Route] = true
-	}
-	for _, route := range want {
-		if !have[route] {
-			t.Fatalf("catalog missing nav route %s", route)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			report := inspectFeatures(tc.features)
+			if report.OK || len(report.Issues) == 0 {
+				t.Fatalf("invalid catalog accepted: %#v", report)
+			}
+		})
 	}
 }
 
-func TestInspectSkillContract(t *testing.T) {
+func TestCatalogCoversStudioNav(t *testing.T) {
+	t.Parallel()
 	root, err := FindRepoRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	skill := InspectSkill(root)
-	if !skill.OK {
-		t.Fatalf("skill issues: %s", strings.Join(skill.Issues, "; "))
+	nav, err := os.ReadFile(filepath.Join(root, "web", "lib", "nav.ts"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if skill.Name != "verify-cliphub" {
-		t.Fatalf("skill name = %q", skill.Name)
+	// Read the actual rail so this check cannot bless another stale copy.
+	sections := regexp.MustCompile(`\{ number: '[0-9]+', label: '([^']+)', href: '([^']+)' \}`).FindAllStringSubmatch(string(nav), -1)
+	if len(sections) == 0 {
+		t.Fatal("no Studio nav sections found")
 	}
-	if skill.Description == "" {
-		t.Fatal("empty skill description")
+	have := map[string]bool{}
+	for _, feature := range Features() {
+		route, err := url.Parse(feature.Route)
+		if err != nil {
+			t.Fatalf("%s route: %v", feature.ID, err)
+		}
+		page := filepath.Join(root, "web", "app", "(app)", filepath.FromSlash(strings.TrimPrefix(route.Path, "/")), "page.tsx")
+		body, err := os.ReadFile(page)
+		if err != nil {
+			t.Fatalf("%s route %s has no Studio page: %v", feature.ID, feature.Route, err)
+		}
+		if strings.Contains(string(body), "redirect(") {
+			t.Errorf("%s points to retired route %s", feature.ID, feature.Route)
+		}
+		if feature.NavLabel == "" {
+			continue
+		}
+		matched := false
+		for _, section := range sections {
+			if feature.NavLabel == section[1] && (route.Path == section[2] || strings.HasPrefix(route.Path, section[2]+"/")) {
+				matched = true
+				have[section[2]] = true
+			}
+		}
+		if !matched {
+			t.Errorf("%s route %s has no matching Studio nav label %q", feature.ID, feature.Route, feature.NavLabel)
+		}
+	}
+	for _, section := range sections {
+		if !have[section[2]] {
+			t.Errorf("catalog missing nav route %s (%s)", section[2], section[1])
+		}
 	}
 }
 
@@ -146,7 +180,7 @@ func TestProveInicioCheapProof(t *testing.T) {
 	if !strings.Contains(report.Detail, "unproven") {
 		t.Fatalf("detail = %q, want an honest unproven user-path note", report.Detail)
 	}
-	if report.Drive == nil || report.Drive.Route != "/onboarding" || report.Drive.NavLabel != "Inicio" {
-		t.Fatalf("drive = %#v, want Inicio /onboarding", report.Drive)
+	if report.Drive == nil || report.Drive.Route != "/clips" || report.Drive.NavLabel != "Clips y vídeos" {
+		t.Fatalf("drive = %#v, want Clips y vídeos /clips", report.Drive)
 	}
 }

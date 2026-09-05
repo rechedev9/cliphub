@@ -30,6 +30,25 @@ func TestWorkflowsValidateDemoMomentsMatchesTypedExecutionContract(t *testing.T)
 	}
 }
 
+func TestProjectChecksWorkWithoutSkillsOrMarkdown(t *testing.T) {
+	root := t.TempDir()
+	writeWorkflowDocs(t, root)
+	withWorkingDir(t, root)
+	for _, args := range [][]string{
+		{"zv", "check", "--format", "json"},
+		{"zv", "workflows", "check", "--format", "json"},
+	} {
+		var stdout, stderr strings.Builder
+		if code := Run(args, &stdout, &stderr, nil, &fakeRunner{}); code != exitSuccess {
+			t.Fatalf("%v failed: %s %s", args, stdout.String(), stderr.String())
+		}
+		result := decodeWorkflowCheckResult(t, stdout.String())
+		if !result.OK || result.SkillsChecked != 0 || result.WorkflowsChecked == 0 {
+			t.Fatalf("%v = %#v", args, result)
+		}
+	}
+}
+
 func TestRunWorkflowsCheckAcceptsStandardRepoContracts(t *testing.T) {
 	tempDir := t.TempDir()
 	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
@@ -172,22 +191,22 @@ func TestRunWorkflowsCheckRejectsLegacyWorkflowDocs(t *testing.T) {
 		{
 			name:    "parser",
 			command: "./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000",
-			want:    ".claude/GUIDE.md: documents legacy direct command ./bin/zv-parser",
+			want:    "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-parser",
 		},
 		{
 			name:    "demo players",
 			command: "./bin/zv-demo-players --demo demo.dem",
-			want:    ".claude/GUIDE.md: documents legacy direct command ./bin/zv-demo-players",
+			want:    "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-demo-players",
 		},
 		{
 			name:    "analysis viewer",
 			command: "./bin/zv-analysis-viewer --input data/analysis.json",
-			want:    ".claude/GUIDE.md: documents legacy direct command ./bin/zv-analysis-viewer",
+			want:    "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-analysis-viewer",
 		},
 		{
 			name:    "windows bin path",
 			command: `bin\zv-recorder --killplan plan.json --demo demo.dem --out recording`,
-			want:    `.claude/GUIDE.md: documents legacy direct command bin\zv-recorder`,
+			want:    `scripts/smoke-real.ps1: documents legacy direct command bin\zv-recorder`,
 		},
 	}
 	for _, tt := range tests {
@@ -205,7 +224,7 @@ func TestRunWorkflowsCheckRejectsLegacyWorkflowDocs(t *testing.T) {
 				"",
 			}, "\n"))
 			writeWorkflowDocs(t, tempDir)
-			appendFile(t, filepath.Join(tempDir, ".claude", "GUIDE.md"), "\n"+tt.command+"\n")
+			appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), "\n"+tt.command+"\n")
 			withWorkingDir(t, tempDir)
 
 			var stdout, stderr strings.Builder
@@ -218,34 +237,6 @@ func TestRunWorkflowsCheckRejectsLegacyWorkflowDocs(t *testing.T) {
 				t.Fatalf("stderr = %q, want %q", stderr.String(), tt.want)
 			}
 		})
-	}
-}
-
-func TestRunWorkflowsCheckRejectsReadmeFiles(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, "notes", "README.md"), "# Ambiguous documentation\n")
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if want := "notes/README.md: README files are not allowed; use a purpose-specific document name"; !strings.Contains(stderr.String(), want) {
-		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
 
@@ -315,7 +306,7 @@ func TestRunWorkflowsCheckRejectsDiscoveredLegacyCommandEntrypoint(t *testing.T)
 		`}`,
 		"",
 	}, "\n"))
-	appendFile(t, filepath.Join(tempDir, ".claude", "GUIDE.md"), "\n./bin/zv-new-flow --demo demo.dem\n")
+	appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), "\n./bin/zv-new-flow --demo demo.dem\n")
 	withWorkingDir(t, tempDir)
 
 	var stdout, stderr strings.Builder
@@ -324,7 +315,7 @@ func TestRunWorkflowsCheckRejectsDiscoveredLegacyCommandEntrypoint(t *testing.T)
 	if got, want := code, exitInvalidArgs; got != want {
 		t.Fatalf("code = %d, want %d", got, want)
 	}
-	if want := ".claude/GUIDE.md: documents legacy direct command ./bin/zv-new-flow"; !strings.Contains(stderr.String(), want) {
+	if want := "scripts/smoke-real.ps1: documents legacy direct command ./bin/zv-new-flow"; !strings.Contains(stderr.String(), want) {
 		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
@@ -343,7 +334,7 @@ func TestRunWorkflowsCheckRejectsNonCanonicalWorkflowDocCommands(t *testing.T) {
 		"",
 	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
-	appendFile(t, filepath.Join(tempDir, ".claude", "GUIDE.md"), strings.Join([]string{
+	appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), strings.Join([]string{
 		"",
 		"```bash",
 		"./bin/zv parser parse --demo demo.dem --steamid 76561198000000000",
@@ -358,7 +349,7 @@ func TestRunWorkflowsCheckRejectsNonCanonicalWorkflowDocCommands(t *testing.T) {
 	if got, want := code, exitInvalidArgs; got != want {
 		t.Fatalf("code = %d, want %d", got, want)
 	}
-	if !strings.Contains(stderr.String(), `.claude/GUIDE.md: uses non-standard zv command "parser"`) {
+	if !strings.Contains(stderr.String(), `scripts/smoke-real.ps1: uses non-standard zv command "parser"`) {
 		t.Fatalf("stderr = %q, want noncanonical doc command error", stderr.String())
 	}
 }
@@ -669,97 +660,6 @@ func TestRunWorkflowsCheckRejectsUncoveredCommandEntrypoint(t *testing.T) {
 	}
 }
 
-func TestRunChecksWithoutRootAgentInstructions(t *testing.T) {
-	for _, command := range [][]string{{"zv", "workflows", "check"}, {"zv", "check"}} {
-		t.Run(strings.Join(command, " "), func(t *testing.T) {
-			root := t.TempDir()
-			writeSkillBody(t, root, "alpha", "---\nname: alpha\ndescription: Alpha workflow\n---\n\n```powershell\n.\\bin\\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json\n```\n")
-			writeWorkflowDocs(t, root)
-			for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
-				if _, err := os.Stat(filepath.Join(root, name)); !os.IsNotExist(err) {
-					t.Fatalf("root instructions %s must be absent: %v", name, err)
-				}
-			}
-			withWorkingDir(t, root)
-			var stdout, stderr strings.Builder
-			if code := Run(command, &stdout, &stderr, nil, &fakeRunner{}); code != exitSuccess {
-				t.Fatalf("code = %d; stderr = %s", code, stderr.String())
-			}
-		})
-	}
-}
-
-func TestRunWorkflowsCheckRejectsClaudeRulesMirror(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	writeFile(t, filepath.Join(tempDir, ".claude", "rules", "go-style.md"), strings.Join([]string{
-		"# Go style rule",
-		"",
-		"A retired style rules mirror.",
-		"",
-	}, "\n"))
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	if want := `.claude/rules/go-style.md: retired rule mirror; remove this .claude/rules file`; !strings.Contains(stderr.String(), want) {
-		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-	}
-}
-
-func TestRunWorkflowsCheckRejectsMissingClaudeStyleGuidance(t *testing.T) {
-	tempDir := t.TempDir()
-	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
-		"---",
-		"name: alpha",
-		`description: "Alpha workflow"`,
-		"---",
-		"",
-		"```powershell",
-		`.\bin\zv.exe workflows run demo-parse -- --demo demo.dem --steamid 76561198000000000 --out plan.json`,
-		"```",
-		"",
-	}, "\n"))
-	writeWorkflowDocs(t, tempDir)
-	webClaudePath := filepath.Join(tempDir, "web", "CLAUDE.md")
-	webBody, err := os.ReadFile(webClaudePath)
-	if err != nil {
-		t.Fatalf("read web/CLAUDE.md fixture: %v", err)
-	}
-	webStripped := strings.ReplaceAll(string(webBody), "No `any`, ever: use `unknown` and narrow it.", "")
-	writeFile(t, webClaudePath, webStripped)
-	withWorkingDir(t, tempDir)
-
-	var stdout, stderr strings.Builder
-	code := Run([]string{"zv", "workflows", "check"}, &stdout, &stderr, nil, &fakeRunner{})
-
-	if got, want := code, exitInvalidArgs; got != want {
-		t.Fatalf("code = %d, want %d", got, want)
-	}
-	for _, want := range []string{
-		`web/CLAUDE.md: missing style guidance "No ` + "`any`" + `, ever"`,
-	} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-		}
-	}
-}
-
 func TestRunWorkflowsCheckRejectsPromptingClaudeSettings(t *testing.T) {
 	tempDir := t.TempDir()
 	writeSkillBody(t, tempDir, "alpha", strings.Join([]string{
@@ -832,7 +732,7 @@ func TestRunWorkflowsCheckJSONReportsIssues(t *testing.T) {
 		"",
 	}, "\n"))
 	writeWorkflowDocs(t, tempDir)
-	appendFile(t, filepath.Join(tempDir, ".claude", "GUIDE.md"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
+	appendFile(t, filepath.Join(tempDir, "scripts", "smoke-real.ps1"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
 	withWorkingDir(t, tempDir)
 
 	var stdout, stderr strings.Builder
@@ -902,7 +802,7 @@ func TestRunWorkflowsListShowsCanonicalCatalog(t *testing.T) {
 		"shorts-render\tRender vertical or landscape videos",
 		"analysis-tactical-data\tExport sampled tactical data",
 		"analysis-viewer\tServe a local analysis review UI.",
-		"workflows-check\tValidate skills, workflow catalog, and current workflow docs.",
+		"workflows-check\tValidate optional skills, the workflow catalog, and executable scripts.",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
@@ -998,7 +898,7 @@ func TestWorkflowCatalogExposesAgentExecutionMetadata(t *testing.T) {
 	if !short.Safety.SupportsDryRun || !short.Safety.LongRunning || short.Safety.ReadOnly {
 		t.Fatalf("short safety = %#v, want mutating long-running workflow with dry-run", short.Safety)
 	}
-	if got, want := strings.Join(short.Contract.SafetyGates, " | "), "creative brief approval | live HLAE/CS2 capture approval | long FFmpeg render approval | thumbnail selection when covers are enabled"; got != want {
+	if got, want := strings.Join(short.Contract.SafetyGates, " | "), "live HLAE/CS2 capture approval | long FFmpeg render approval | thumbnail selection when covers are enabled"; got != want {
 		t.Fatalf("short safety gates = %q, want %q", got, want)
 	}
 	if !containsString(short.Contract.ProducedArtifactKeys, "publish-pack") || !strings.Contains(short.Contract.ResumePolicy, "fresh failed-recording namespace") {

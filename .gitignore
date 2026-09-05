@@ -5,12 +5,11 @@
 **/data/obs/
 !/data/lineups/
 !/data/lineups/*.json
-# Music: commit only the catalog metadata + attribution (text), never the audio.
+# Music: commit only the catalog metadata, never the audio.
 # scripts/fetch-music.sh re-downloads tracks from catalog.json into ZV_MUSIC_DIR.
 !/data/music/
 /data/music/*
 !/data/music/catalog.json
-!/data/music/ATTRIBUTION.md
 /.env
 /.env.*
 !/.env.example
@@ -43,7 +42,7 @@ overlays/**/render/
 overlays/**/renders/
 overlays/**/out/
 
-# Local demos and goldens (per testdata/GUIDE.md)
+# Local demos and goldens
 /testdata/*.dem
 /testdata/*.expected.json
 

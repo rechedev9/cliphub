@@ -3263,7 +3263,7 @@ func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
 }
 
 // compileSegmentsArgs returns the zv-editor flags that compile a render's
-// segments into one upload-ready Short. Per CLAUDE.md, a multi-segment
+// segments into one upload-ready Short. A multi-segment
 // selection renders as a single concatenated Short (matching the "zv short"
 // CLI's --compile-segments behavior); a single segment keeps today's
 // per-segment short unchanged.

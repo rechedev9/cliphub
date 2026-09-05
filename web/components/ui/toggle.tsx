@@ -22,7 +22,7 @@ const toggleVariants = cva(
         default: "border border-transparent bg-transparent text-fg-2 hover:bg-surface-3 hover:text-fg-1",
         outline:
           "border border-border-strong bg-surface-3 text-fg-1 shadow-[var(--elev-0)] hover:border-primary/60 hover:bg-surface-4",
-        // The Studio segmented control (design.md:110). This is the variant that
+        // The Studio segmented control. This is the variant that
         // retires STUDIO_FILTER_CHIP_CLASS, a 400-character single-line string
         // pasted onto every filter chip in the app.
         filter:

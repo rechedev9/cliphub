@@ -85,7 +85,7 @@ func runVerifyFeatures(args []string, stdout, stderr io.Writer) int {
 			if feature.ID == flags.Feature {
 				filtered.Features = []verify.FeatureMapStatus{feature}
 				filtered.Issues = append([]string(nil), feature.Issues...)
-				filtered.OK = feature.CheapOK && report.IndexPresent
+				filtered.OK = feature.CheapOK && feature.CatalogValid
 				break
 			}
 		}

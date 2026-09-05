@@ -97,10 +97,9 @@ test('buildEditRequest is the native-HUD wire: recap, gameplay HUD, comms, no sh
   assert.equal('song_id' in body, false);
 });
 
-test('full-demo capture stays gated by rounds, approval, and active capture', () => {
-	const ready = { roundCount: 1, briefApproved: true, creating: false };
+test('full-demo capture needs rounds and no active capture, without separate approval', () => {
+	const ready = { roundCount: 1, creating: false };
 	assert.equal(canStartFullDemoCapture(ready), true);
-	assert.equal(canStartFullDemoCapture({ ...ready, briefApproved: false }), false);
 	assert.equal(canStartFullDemoCapture({ ...ready, roundCount: 0 }), false);
 	assert.equal(canStartFullDemoCapture({ ...ready, creating: true }), false);
 });

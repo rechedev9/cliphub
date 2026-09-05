@@ -19,18 +19,16 @@ const PRESET: Preset = {
   hudMode: 'deathnotices',
 };
 
-test('library music rerender stays blocked until the mix changes and the brief is approved', () => {
-  const ready = { briefApproved: true, busy: false, musicChanged: true };
+test('library music rerender needs a changed mix and no active operation', () => {
+  const ready = { busy: false, musicChanged: true };
   assert.equal(canRerenderWithMusic(ready), true);
-  assert.equal(canRerenderWithMusic({ ...ready, briefApproved: false }), false);
   assert.equal(canRerenderWithMusic({ ...ready, busy: true }), false);
   assert.equal(canRerenderWithMusic({ ...ready, musicChanged: false }), false);
 });
 
-test('forging stays blocked until the exact brief is approved', () => {
-  const ready = { briefApproved: true, creating: false, hasPreset: true, selectionCount: 1, musicDecided: true };
+test('forging starts with configured options and no separate approval', () => {
+  const ready = { creating: false, hasPreset: true, selectionCount: 1, musicDecided: true };
   assert.equal(canForgeReel(ready), true);
-  assert.equal(canForgeReel({ ...ready, briefApproved: false }), false);
   assert.equal(canForgeReel({ ...ready, creating: true }), false);
   assert.equal(canForgeReel({ ...ready, hasPreset: false }), false);
   assert.equal(canForgeReel({ ...ready, selectionCount: 0 }), false);

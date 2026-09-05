@@ -7,62 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 )
-
-func readWorkflowDocBody(root, relPath string) (string, error) {
-	path := filepath.Join(root, filepath.FromSlash(relPath))
-	// #nosec G304 -- root is the checked repository and relPath comes from the fixed workflow catalog.
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("read %s: %w", relPath, err)
-	}
-	return string(b), nil
-}
-
-// Validate the remaining web guidance and reject retired rule mirrors.
-func checkClaudeRuleDocs() ([]skillIssue, error) {
-	root, err := findWorkflowRoot()
-	if err != nil {
-		return nil, err
-	}
-	webClaudeBody, err := readWorkflowDocBody(root, "web/CLAUDE.md")
-	if err != nil {
-		return nil, err
-	}
-	var issues []skillIssue
-	for _, required := range webClaudeStyleRequiredText() {
-		if !strings.Contains(webClaudeBody, required) {
-			issues = append(issues, skillIssue{Path: "web/CLAUDE.md", Message: fmt.Sprintf("missing style guidance %q", required)})
-		}
-	}
-	rulesDir := filepath.Join(root, ".claude", "rules")
-	entries, err := os.ReadDir(rulesDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return issues, nil
-		}
-		return nil, fmt.Errorf("read claude rules: %w", err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
-			continue
-		}
-		relPath := filepath.ToSlash(filepath.Join(".claude", "rules", entry.Name()))
-		issues = append(issues, skillIssue{Path: relPath, Message: "retired rule mirror; remove this .claude/rules file"})
-	}
-	return issues, nil
-}
-
-// The web frontend style guidance lives in web/CLAUDE.md so it only loads when
-// working under web/; validate it there rather than in the root file.
-func webClaudeStyleRequiredText() []string {
-	return []string{
-		"## TypeScript style (web/)",
-		"No `any`, ever",
-		"No re-exports",
-	}
-}
 
 type claudeSettingsFile struct {
 	Permissions struct {

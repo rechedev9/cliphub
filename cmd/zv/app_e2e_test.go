@@ -568,7 +568,7 @@ func TestZVBinaryJSONCheckFailuresEndToEnd(t *testing.T) {
 			"",
 		}, "\n"))
 		writeWorkflowDocs(t, root)
-		appendFile(t, filepath.Join(root, ".claude", "GUIDE.md"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
+		appendFile(t, filepath.Join(root, "scripts", "smoke-real.ps1"), "\n./bin/zv-parser parse --demo demo.dem --steamid 76561198000000000\n")
 
 		tests := []struct {
 			name string
@@ -1482,11 +1482,6 @@ func TestZVBinaryCurrentRepoDiscoveryJSONEqualsFormatMatchesSpaceFormatEndToEnd(
 			name:      "skills list",
 			spaceArgs: []string{"skills", "list", "--format", "json"},
 			eqArgs:    []string{"skills", "list", "--format=json"},
-		},
-		{
-			name:      "skills show",
-			spaceArgs: []string{"skills", "show", "zackvideo-cs2-utility-shorts", "--format", "json"},
-			eqArgs:    []string{"skills", "show", "zackvideo-cs2-utility-shorts", "--format=json"},
 		},
 		{
 			name:      "workflows list",
