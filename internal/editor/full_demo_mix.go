@@ -182,7 +182,11 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 		}
 		sourceOffset = offset + item.SourceOffsetFrames
 		command = append(command, "-i", input)
-		voiceSample := (int64(item.SourceStartTick)*recapplan.SampleRate+int64(short.Tickrate)/2)/int64(short.Tickrate) + item.SourceOffsetFrames*recapplan.SamplesPerFrame
+		voiceFrame, err := recapplan.TickFrames(item.SourceStartTick, short.FullDemo.Effective.Clock.TickRate)
+		if err != nil {
+			return nil, err
+		}
+		voiceSample := (voiceFrame + item.SourceOffsetFrames) * recapplan.SamplesPerFrame
 		for _, voice := range runtime.voicePaths {
 			command = append(command, "-ss", decimal(float64(voiceSample)/recapplan.SampleRate), "-i", voice)
 		}

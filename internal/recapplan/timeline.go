@@ -48,19 +48,19 @@ func resolveSponsor(o SponsorOptions, candidates []Boundary, total int64) (int64
 		for _, i := range []int{1, 0} {
 			if i < len(candidates) {
 				c := candidates[i]
-				if c.Frame >= low && c.Frame <= high && c.Frame < total {
+				if c.Frame >= low && c.Frame <= high && c.Frame <= total {
 					return c.Frame, c.AfterRoundID, true
 				}
 			}
 		}
 	case "round-boundary":
 		for _, c := range candidates {
-			if c.AfterRoundID == o.AfterRoundID && c.Frame < total {
+			if c.AfterRoundID == o.AfterRoundID && c.Frame <= total {
 				return c.Frame, c.AfterRoundID, true
 			}
 		}
 	case "manual-frame":
-		if o.ManualStartFrame == nil || *o.ManualStartFrame < 0 || *o.ManualStartFrame >= total {
+		if o.ManualStartFrame == nil || *o.ManualStartFrame < 0 || *o.ManualStartFrame > total {
 			return 0, "", false
 		}
 		for _, c := range candidates {
@@ -68,7 +68,7 @@ func resolveSponsor(o SponsorOptions, candidates []Boundary, total int64) (int64
 				return c.Frame, c.AfterRoundID, true
 			}
 		}
-		if o.AllowSplitRound {
+		if o.AllowSplitRound && *o.ManualStartFrame < total {
 			return *o.ManualStartFrame, "manual-inside-round", true
 		}
 	}
@@ -97,6 +97,9 @@ func (d *Document) insertSponsor(frame int64) {
 			item.EndFrame += duration
 		}
 		out = append(out, item)
+	}
+	if !inserted && len(out) > 0 && frame == out[len(out)-1].EndFrame {
+		out = append(out, sponsor)
 	}
 	d.Timeline = out
 }

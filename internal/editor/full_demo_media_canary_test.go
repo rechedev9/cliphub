@@ -24,7 +24,7 @@ import (
 // attestation or pass synthetic capture through the production-real gate.
 func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 	ffmpeg := fullDemoTestFFmpeg(t)
-	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "playlist-once"} {
+	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "playlist-once", "final-boundary"} {
 		t.Run(scenario, func(t *testing.T) {
 			audioPolicy := "embedded"
 			if scenario == "replace-narration" {
@@ -57,6 +57,9 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			options.Audio.Music.Ducking.Enabled = false
 			options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "round-boundary", "round-001"
 			options.Sponsor.AudioPolicy = audioPolicy
+			if scenario == "final-boundary" {
+				options.Sponsor.AfterRoundID = "round-002"
+			}
 			if scenario == "manual-split" {
 				frame := int64(60)
 				options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "manual-frame", ""
@@ -153,8 +156,14 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 						t.Fatal("one-shot playlist continued after EOF")
 					}
 				}
-			} else if fullDemoFrequencyPower(pcm, 330) < fullDemoFrequencyPower(pcm, 220)*20 {
-				t.Fatal("playlist restarted instead of resuming after sponsor")
+			} else {
+				wantMusic, otherMusic := 330.0, 220.0
+				if scenario == "final-boundary" {
+					wantMusic, otherMusic = otherMusic, wantMusic
+				}
+				if fullDemoFrequencyPower(pcm, wantMusic) < fullDemoFrequencyPower(pcm, otherMusic)*20 {
+					t.Fatal("playlist did not follow gameplay time across sponsor placement")
+				}
 			}
 			if fullDemoFrequencyPower(pcm, 880) < fullDemoFrequencyPower(pcm, 1320)*100 {
 				t.Fatal("team voice is missing or unexpected voice frequency entered the mix")
@@ -167,7 +176,11 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				t.Fatal(err)
 			}
 			pixel, err := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-i", short.CoverPath, "-frames:v", "1", "-vf", "scale=1:1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1").Output()
-			if err != nil || len(pixel) != 3 || pixel[0] < 150 || pixel[1] > 80 {
+			coverChannel := 0
+			if scenario == "final-boundary" {
+				coverChannel = 2
+			}
+			if err != nil || len(pixel) != 3 || pixel[coverChannel] < 150 || pixel[1] > 80 {
 				t.Fatalf("automatic cover entered sponsor: %v %v", pixel, err)
 			}
 			if root := os.Getenv("FULL_DEMO_EVIDENCE_DIR"); root != "" {

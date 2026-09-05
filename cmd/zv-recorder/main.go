@@ -345,21 +345,9 @@ func run() (retErr error) {
 	result.CaptureVerified = true
 	stopIncrementalMux()
 	if plan.FullDemo != nil {
-		logFile, err := os.Open(cs2ConsoleLogPath(absCS2Exe))
-		if err != nil {
-			return fmt.Errorf("read Full Demo capture evidence: %w", err)
-		}
-		result.FullDemoEvidence, err = recording.ReadFullDemoCaptureEvidence(logFile, attestationToken, plan)
-		closeErr := logFile.Close()
-		if err = errors.Join(err, closeErr); err != nil {
-			result.Error = err.Error()
-			_ = writeResult(plan.OutputDir, result)
+		if err := finalizeFullDemoCaptureEvidence(&result, cs2ConsoleLogPath(absCS2Exe), attestationToken, settingsJournal.Restore); err != nil {
 			return err
 		}
-		if err := settingsJournal.Restore(); err != nil {
-			return fmt.Errorf("restore Full Demo settings journal: %w", err)
-		}
-		result.FullDemoEvidence.FilesRestored = true
 	}
 
 	// Post-processing (ffprobe/ffmpeg) runs after recording, so give it its own
@@ -1597,6 +1585,32 @@ func parseTasklistVerboseCSV(out, image string) (running bool, title string) {
 		}
 		return running, title
 	}
+}
+
+// finalizeFullDemoCaptureEvidence persists every evidence failure before the
+// deferred settings recovery can retry, even when that retry succeeds.
+func finalizeFullDemoCaptureEvidence(result *recording.RecordingResult, logPath, token string, restoreSettings func() error) (retErr error) {
+	defer func() {
+		if retErr != nil {
+			result.Error = retErr.Error()
+			if err := writeResult(result.Plan.OutputDir, *result); err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("write Full Demo recording result: %w", err))
+			}
+		}
+	}()
+	logFile, err := os.Open(logPath)
+	if err != nil {
+		return fmt.Errorf("read Full Demo capture evidence: %w", err)
+	}
+	result.FullDemoEvidence, err = recording.ReadFullDemoCaptureEvidence(logFile, token, result.Plan)
+	if err = errors.Join(err, logFile.Close()); err != nil {
+		return err
+	}
+	if err := restoreSettings(); err != nil {
+		return fmt.Errorf("restore Full Demo settings journal: %w", err)
+	}
+	result.FullDemoEvidence.FilesRestored = true
+	return nil
 }
 
 func writeResult(outDir string, result recording.RecordingResult) error {

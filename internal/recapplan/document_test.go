@@ -261,6 +261,69 @@ func TestSponsorTimelineAndSafeTail(t *testing.T) {
 	}
 }
 
+func TestSponsorAppendsAfterFinalRound(t *testing.T) {
+	ref := AssetRef{uuid.NewString(), strings.Repeat("d", 64)}
+	asset := AssetEvidence{Ref: ref, DurationFrames: 20 * 60, HasAudio: true, HasVideo: true, Title: "Synthetic sponsor", Creator: "ClipHub tests", SourceURL: "local:test-fixture", Permission: "test-only"}
+	for _, tc := range []struct {
+		name   string
+		rounds int
+		policy string
+		start  int64
+	}{
+		{"default one round", 1, "first-two-rounds", 110 * 60},
+		{"default two rounds", 2, "first-two-rounds", 110 * 60},
+		{"explicit final round", 3, "round-boundary", 137 * 60},
+		{"manual final boundary without splitting", 3, "manual-frame", 137 * 60},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			facts, options := fixtureFacts(), fixtureOptions()
+			facts.Rounds = facts.Rounds[:tc.rounds]
+			if tc.rounds == 1 {
+				facts.Rounds[0].RoundEndTick = 12800
+				facts.Rounds[0].NextStartTick = 0
+			}
+			options.Sponsor.Enabled, options.Sponsor.Video = true, &ref
+			options.Sponsor.PlacementPolicy = tc.policy
+			lastRound := facts.Rounds[len(facts.Rounds)-1].ID
+			if tc.policy == "round-boundary" {
+				options.Sponsor.AfterRoundID = lastRound
+			} else if tc.policy == "manual-frame" {
+				options.Sponsor.ManualStartFrame = &tc.start
+			}
+			d, err := Plan(facts, options, VoiceEvidence{Availability: "no_packets"}, []AssetEvidence{asset}, "facts")
+			if err != nil || len(d.Blockers) > 0 {
+				t.Fatalf("plan: %v; blockers: %+v", err, d.Blockers)
+			}
+			if len(d.Timeline) != tc.rounds+1 || d.SponsorPlacement.Boundary != lastRound || d.SponsorPlacement.StartFrame != tc.start {
+				t.Fatalf("final boundary missing: %+v; timeline: %+v", d.SponsorPlacement, d.Timeline)
+			}
+			sponsor := d.Timeline[len(d.Timeline)-1]
+			if sponsor.Role != "sponsor" || sponsor.SourceRef != ref.ID || sponsor.StartFrame != tc.start || sponsor.EndFrame != tc.start+20*60 || sponsor.StartSample != tc.start*800 || sponsor.EndSample != (tc.start+20*60)*800 {
+				t.Fatalf("appended sponsor timing: %+v", sponsor)
+			}
+			if d.Timeline[len(d.Timeline)-2].EndFrame != tc.start {
+				t.Fatal("sponsor consumed gameplay frames")
+			}
+			if err := d.Validate(); err != nil {
+				t.Fatalf("appended timeline does not survive document validation: %v", err)
+			}
+		})
+	}
+}
+
+func TestSponsorRejectsManualFrameBeyondProgram(t *testing.T) {
+	frame := int64(601)
+	options := DefaultOptions().Sponsor
+	options.PlacementPolicy, options.ManualStartFrame, options.AllowSplitRound = "manual-frame", &frame, true
+	if _, _, found := resolveSponsor(options, []Boundary{{AfterRoundID: "round-001", Frame: 600}}, 600); found {
+		t.Fatal("sponsor accepted a frame beyond the final round")
+	}
+	frame = 0
+	if _, _, found := resolveSponsor(options, nil, 0); found {
+		t.Fatal("sponsor accepted a boundary in an empty program")
+	}
+}
+
 func TestUnavailableAssetsAndVoiceRemainEnabled(t *testing.T) {
 	for _, availability := range []string{"no_packets", "no_team_packets", "silent", "unsupported_codec", "invalid_timeline", "failed"} {
 		t.Run(availability, func(t *testing.T) {
