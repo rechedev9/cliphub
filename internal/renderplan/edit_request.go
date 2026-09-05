@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
 // maxBookendTextLength caps the intro/outro custom text length so an overlay
@@ -12,25 +13,25 @@ import (
 const maxBookendTextLength = 80
 
 const (
-	FormatShort9x16        = "short-9x16"
-	FormatLandscape16x9    = "landscape-16x9"
-	KillEffectClean        = "clean"
-	KillEffectPunchIn      = "punch-in"
-	KillEffectVelocity     = "velocity"
-	KillEffectFreezeFlash  = "freeze-flash"
-	KillEffectShake        = "shake"
-	KillEffectGlitch       = "glitch"
-	TransitionCut          = "cut"
-	TransitionFlash        = "flash"
-	TransitionWhip         = "whip"
-	TransitionDip          = "dip"
-	TransitionGlitch       = "glitch"
-	TransitionZoomWhip     = "zoom-whip"
-	CoverStrategyGenerated = "generated-gameplay"
-	CoverStrategyNone      = "no-cover"
-	DemoSourcePremier      = "premier"
-	DemoSourceProfessional = "professional"
-	DemoSourceFACEIT       = "faceit"
+	FormatShort9x16          = "short-9x16"
+	FormatLandscape16x9      = "landscape-16x9"
+	KillEffectClean          = "clean"
+	KillEffectPunchIn        = "punch-in"
+	KillEffectVelocity       = "velocity"
+	KillEffectFreezeFlash    = "freeze-flash"
+	KillEffectShake          = "shake"
+	KillEffectGlitch         = "glitch"
+	TransitionCut            = "cut"
+	TransitionFlash          = "flash"
+	TransitionWhip           = "whip"
+	TransitionDip            = "dip"
+	TransitionGlitch         = "glitch"
+	TransitionZoomWhip       = "zoom-whip"
+	CoverStrategyGenerated   = "generated-gameplay"
+	CoverStrategyNone        = "no-cover"
+	DemoSourcePremier        = "premier"
+	DemoSourceProfessional   = "professional"
+	DemoSourceFACEIT         = "faceit"
 	OverlayThemeFaceitOrange = "faceit-orange"
 	OverlayThemeNeonViolet   = "neon-violet"
 	// DefaultRecapVoiceVolume is the locked Full Demo team-comms gain.
@@ -41,29 +42,30 @@ const (
 // one render. Workers snapshot it into the edit document so a render is
 // reproducible without knowing which screen launched it.
 type EditRequest struct {
-	Format              string   `json:"format"`
-	KillEffect          string   `json:"killEffect"`
-	Transition          string   `json:"transition"`
-	Intro               bool     `json:"intro"`
-	Outro               bool     `json:"outro"`
-	HookText            bool     `json:"hook_text"`
-	KillCounter         bool     `json:"kill_counter"`
-	MatchRecap          bool     `json:"match_recap"`
-	VoiceComms          bool     `json:"voice_comms"`
-	VoiceVolume         *float64 `json:"voice_volume,omitempty"`
-	NativeHUD           bool     `json:"native_hud"`
-	CoverStrategy       string   `json:"cover_strategy"`
-	CoverFirstFrame     bool     `json:"cover_first_frame"`
-	IntroText           string   `json:"intro_text,omitempty"`
-	OutroText           string   `json:"outro_text,omitempty"`
-	KeyDropFamily       string   `json:"keydrop_family,omitempty"`
-	KeyDropStyle        string   `json:"keydrop_style,omitempty"`
-	KeyDropCode         string   `json:"keydrop_code,omitempty"`
-	KeyDropPositionY    *float64 `json:"keydrop_position_y,omitempty"`
-	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds,omitempty"`
-	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds,omitempty"`
-	DemoSource          string   `json:"demo_source,omitempty"`
-	OverlayTheme        string   `json:"overlay_theme,omitempty"`
+	FullDemo            *recapplan.Snapshot `json:"full_demo,omitempty"`
+	Format              string              `json:"format"`
+	KillEffect          string              `json:"killEffect"`
+	Transition          string              `json:"transition"`
+	Intro               bool                `json:"intro"`
+	Outro               bool                `json:"outro"`
+	HookText            bool                `json:"hook_text"`
+	KillCounter         bool                `json:"kill_counter"`
+	MatchRecap          bool                `json:"match_recap"`
+	VoiceComms          bool                `json:"voice_comms"`
+	VoiceVolume         *float64            `json:"voice_volume,omitempty"`
+	NativeHUD           bool                `json:"native_hud"`
+	CoverStrategy       string              `json:"cover_strategy"`
+	CoverFirstFrame     bool                `json:"cover_first_frame"`
+	IntroText           string              `json:"intro_text,omitempty"`
+	OutroText           string              `json:"outro_text,omitempty"`
+	KeyDropFamily       string              `json:"keydrop_family,omitempty"`
+	KeyDropStyle        string              `json:"keydrop_style,omitempty"`
+	KeyDropCode         string              `json:"keydrop_code,omitempty"`
+	KeyDropPositionY    *float64            `json:"keydrop_position_y,omitempty"`
+	KeyDropStartSeconds *float64            `json:"keydrop_start_seconds,omitempty"`
+	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds,omitempty"`
+	DemoSource          string              `json:"demo_source,omitempty"`
+	OverlayTheme        string              `json:"overlay_theme,omitempty"`
 }
 
 func DefaultEditRequest() EditRequest {
@@ -128,6 +130,20 @@ func NormalizeEditRequest(req EditRequest) EditRequest {
 }
 
 func (r EditRequest) Validate() error {
+	if r.FullDemo != nil {
+		if err := r.FullDemo.Validate(); err != nil {
+			return err
+		}
+		o := r.FullDemo.Document.Options
+		if r.Format != FormatLandscape16x9 || r.KillEffect != KillEffectClean || r.Transition != TransitionCut ||
+			!r.MatchRecap || !r.NativeHUD || r.Intro || r.Outro || r.HookText || r.KillCounter || r.CoverFirstFrame ||
+			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
+			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
+			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
+			r.CoverStrategy != o.Outputs.CoverPolicy || r.DemoSource != fullDemoOverlaySource(o.Overlays.Source) || r.OverlayTheme != o.Overlays.Theme {
+			return fmt.Errorf("full demo edit fields contradict the approved document")
+		}
+	}
 	switch r.Format {
 	case FormatShort9x16, FormatLandscape16x9:
 	default:
@@ -189,8 +205,12 @@ func (r EditRequest) Validate() error {
 	if r.KeyDropStartSeconds != nil && r.KeyDropEndSeconds != nil && *r.KeyDropEndSeconds <= *r.KeyDropStartSeconds {
 		return fmt.Errorf("keydrop end_seconds must be greater than start_seconds")
 	}
-	if v := r.VoiceVolume; v != nil && (*v < 0 || *v > 1) {
-		return fmt.Errorf("voice volume must be between 0 and 1")
+	voiceMax := 1.0
+	if r.FullDemo != nil {
+		voiceMax = 2
+	}
+	if v := r.VoiceVolume; v != nil && (*v < 0 || *v > voiceMax) {
+		return fmt.Errorf("voice volume must be between 0 and %g", voiceMax)
 	}
 	switch r.DemoSource {
 	case "", DemoSourcePremier, DemoSourceProfessional, DemoSourceFACEIT:
@@ -203,6 +223,26 @@ func (r EditRequest) Validate() error {
 		return fmt.Errorf("unknown overlay theme %q", r.OverlayTheme)
 	}
 	return nil
+}
+
+// FullDemoEditRequest projects the approved document onto the existing render
+// contract. The document remains canonical for capture and editorial choices.
+func FullDemoEditRequest(snapshot recapplan.Snapshot) EditRequest {
+	o := snapshot.Document.Options
+	voice := o.Audio.Voice.Gain
+	return EditRequest{
+		FullDemo: &snapshot, Format: FormatLandscape16x9, KillEffect: KillEffectClean,
+		Transition: TransitionCut, MatchRecap: true, NativeHUD: true,
+		VoiceComms: o.Audio.Voice.Enabled, VoiceVolume: &voice,
+		CoverStrategy: o.Outputs.CoverPolicy, DemoSource: fullDemoOverlaySource(o.Overlays.Source), OverlayTheme: o.Overlays.Theme,
+	}
+}
+
+func fullDemoOverlaySource(source string) string {
+	if source == "demo" {
+		return ""
+	}
+	return source
 }
 
 func (r EditRequest) UsesFACEITOverlay() bool {

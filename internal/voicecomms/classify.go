@@ -116,13 +116,15 @@ func sameSideAt(sightings []Sighting, targetID, speakerID string, tick int) bool
 }
 
 func sightingAt(sightings []Sighting, steamID string, tick int) (name, team string) {
+	latest := -1
 	for _, s := range sightings {
 		if s.SteamID64 != steamID {
 			continue
 		}
-		if tick > 0 && s.Tick > tick {
+		if s.Tick > tick || s.Tick < latest || s.Tick < 0 {
 			continue
 		}
+		latest = s.Tick
 		name, team = s.Name, s.Team
 	}
 	return name, team

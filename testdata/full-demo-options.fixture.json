@@ -1,0 +1,96 @@
+{
+  "profile_id": "full-demo-pov-chill-v1",
+  "source_kind": "demo",
+  "capture": {
+    "hud_profile": "native-clean-spectator",
+    "xray": false,
+    "camera_policy": "strict-first-person",
+    "crosshair": {
+      "mode": "observed",
+      "code": "",
+      "allow_capture_default": true
+    },
+    "contract_version": "full-demo-observer-v1"
+  },
+  "editorial": {
+    "freeze_seconds": 0,
+    "keep_freeze_voice": false,
+    "voice_context_seconds": 0.5,
+    "max_freeze_seconds": 20,
+    "death_tail_seconds": 3,
+    "round_tail_seconds": 0,
+    "allow_safe_tail_trim": true,
+    "manual_ranges": []
+  },
+  "audio": {
+    "voice": {
+      "enabled": true,
+      "gain": 0.85,
+      "team_policy": "same-side-at-packet",
+      "normalization": "none",
+      "approved_fallback": "block"
+    },
+    "game": {
+      "gain": 1,
+      "voice_priority": false
+    },
+    "music": {
+      "enabled": true,
+      "assets": [
+        {
+          "id": "e8dfc551-0393-4e2a-bb43-92490afdd503",
+          "sha256": "759f7c1cce1ea5b759cc47c8b261fb8dea8db789285aa98ef7d62032abab6a73"
+        },
+        {
+          "id": "10f30a27-a313-4360-8918-d7a436530c0d",
+          "sha256": "56bfbe4059802c884989f36d5a9f92f6febb5ae9bf1d3d6e73d0b8abd64a2578"
+        }
+      ],
+      "reference_level": "track-lufs-minus-16-v1",
+      "bed_gain_db": -21,
+      "loop_policy": "ordered-loop",
+      "ducking": {
+        "enabled": false,
+        "game_contribution": 0,
+        "attack_ms": 20,
+        "release_ms": 800,
+        "threshold": 0.025,
+        "ratio": 8
+      }
+    },
+    "loudness": {
+      "target_i_lufs": -14,
+      "target_tp_dbtp": -1.5,
+      "target_lra": 11,
+      "policy_version": "program-aac-v1"
+    }
+  },
+  "sponsor": {
+    "enabled": true,
+    "video": {
+      "id": "ce0ea91d-7d61-43c1-a88d-bf08df692130",
+      "sha256": "42376033397ab99f8d95df563f61eb3e5feaa9135a676a98b4837c95cc146dec"
+    },
+    "narration": null,
+    "audio_policy": "embedded",
+    "short_narration_policy": "block",
+    "placement_policy": "round-boundary",
+    "window_start_seconds": 90,
+    "window_end_seconds": 130,
+    "after_round_id": "round-001",
+    "manual_start_frame": null,
+    "allow_split_round": false,
+    "music_policy": "pause-resume"
+  },
+  "overlays": {
+    "roster": false,
+    "scoreboard": false,
+    "theme": "faceit-orange",
+    "source": "demo"
+  },
+  "outputs": {
+    "media_profile": "h264-1080p60-aac48-stereo",
+    "cover_policy": "no-cover",
+    "metadata_policy": "factual-v1"
+  }
+}

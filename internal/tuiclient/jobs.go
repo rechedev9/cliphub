@@ -159,6 +159,8 @@ func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath,
 	defer f.Close()
 
 	pr, pw := io.Pipe()
+	defer pr.Close()
+	defer pw.Close()
 	mw := multipart.NewWriter(pw)
 
 	// Build the request before starting the writer goroutine: if the request
@@ -171,7 +173,9 @@ func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath,
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		var werr error
 		defer func() { _ = pw.CloseWithError(werr) }()
 		if config != "" {
@@ -190,5 +194,10 @@ func (c *Client) uploadMultipart(ctx context.Context, path, fileField, filePath,
 		werr = mw.Close()
 	}()
 
-	return c.send(req, http.MethodPost, path, out)
+	err = c.send(req, http.MethodPost, path, out)
+	// A rejection or cancelled transport may stop reading before EOF. Closing
+	// the reader releases the owned writer before its input file is closed.
+	_ = pr.Close()
+	<-done
+	return err
 }

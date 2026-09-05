@@ -120,7 +120,7 @@ func workflowDelegatedCommand(args []string) string {
 		return ""
 	}
 	switch args[0] {
-	case "short":
+	case "short", "full-demo":
 		return "zv"
 	case "demo":
 		if len(args) < 2 {

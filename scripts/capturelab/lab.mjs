@@ -158,7 +158,7 @@ async function scriptPhase(context) {
     evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
   });
   steps.push(execution.record);
-  execution = await executeGoTests(context, 'go-exact-script-tests', './internal/recording', 'TestGeneratedHLAEScriptRunsInMIRVSimulator');
+  execution = await executeGoTests(context, 'go-exact-script-tests', './internal/recording', 'TestGeneratedHLAEScriptRunsInMIRVSimulator|TestFullDemoExactRuntimeInExistingMIRVSimulator');
   steps.push(execution.record);
   execution = await execute('generate-exact-script', 'go', [
     'run', './cmd/zv-recorder',
@@ -200,25 +200,35 @@ async function scriptPhase(context) {
 
 async function mediaPhase(context) {
   const { evidenceDir, options, steps } = context;
+  const editorial = await executeGoTests(context, 'full-demo-editorial-media', './internal/editor', 'TestFullDemoMasterDecodedAAC|TestFullDemoSponsorAndPlaylistMediaCanary|TestFullDemoDecodedDuckingAndExplicitZero');
+  steps.push(editorial.record);
+  const voice = await executeGoTests(context, 'full-demo-team-voice-clock', './internal/voicecomms', 'TestDecodedTeamVoiceAfterLongSilenceAndSideChange');
+  steps.push(voice.record);
   const recordingDir = join(evidenceDir, 'fake-recording');
   const renderDir = join(evidenceDir, 'render');
   const publishDir = join(evidenceDir, 'publish');
   const killPlanPath = join(evidenceDir, 'capturelab-killplan.json');
   const demoPath = join(evidenceDir, 'capturelab-demo.fixture');
   const killPlan = JSON.parse(await readFile(resolve(repoRoot, 'testdata', 'agent-killplan.json'), 'utf8'));
+  // Fake capture creates five-second clips. Keep its source clock and the
+  // editorial tick windows identical so the oracle checks actual hard cuts.
+  killPlan.segments[0].tick_end = 384;
+  killPlan.segments[0].kills[0].tick = 128;
+  // Preserve the legacy one-second protected lead and leave EOF headroom.
+  killPlan.demo.duration_ticks = 1024;
   const secondSegment = structuredClone(killPlan.segments[0]);
   secondSegment.id = 'seg-002';
   secondSegment.round = 2;
-  secondSegment.tick_start = 256;
-  secondSegment.tick_end = 448;
-  secondSegment.kills[0].tick = 320;
+  secondSegment.tick_start = 448;
+  secondSegment.tick_end = 768;
+  secondSegment.kills[0].tick = 512;
   secondSegment.kills[0].weapon = 'm4a1';
   secondSegment.kills[0].victim.steamid64 = '76561198000000002';
   secondSegment.kills[0].victim.name_in_demo = 'second-opponent';
   killPlan.segments.push(secondSegment);
   killPlan.stats.kills_after_filters = 2;
   killPlan.stats.segments_created = 2;
-  killPlan.stats.duration_seconds_total = 5;
+  killPlan.stats.duration_seconds_total = 10;
   await Promise.all([
     writeFile(killPlanPath, `${JSON.stringify(killPlan, null, 2)}\n`, 'utf8'),
     writeFile(demoPath, await readFile(resolve(repoRoot, 'testdata', 'agent-demo.fixture'))),
@@ -283,6 +293,8 @@ async function appPhase(context) {
     ['cli-demo-journey', './cmd/zv', 'TestDemoJourneyChainsStagesMediaFree'],
     ['real-http-render-journey', './cmd/zv-orchestrator', 'TestEditorRenderE2E'],
     ['inline-queue-http-journey', './cmd/zv-orchestrator', 'TestInlineQueueShutdownCompensatesAccepted.*ThroughHTTP'],
+    ['full-demo-plan-admission', './internal/httpapi', 'TestFullDemo'],
+    ['full-demo-durable-reuse', './internal/workers', 'TestFullDemo|TestRenderVariantOutputsReady'],
     ['capturelab-seed-boundary', './cmd/zv-orchestrator', 'TestSeedCaptureLab|TestCaptureLabBuild', ['-tags', 'capturelab']],
   ]) {
     const execution = await executeGoTests(context, name, pkg, pattern, extraArgs);
@@ -301,9 +313,10 @@ async function studioPhase(context) {
     evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
   });
   steps.push(execution.record);
-  execution = await execute('studio-playwright-journeys', 'pnpm', [
-    '--dir', 'web', 'exec', 'playwright', 'test', 'e2e/full-demo.spec.ts', 'e2e/library.spec.ts', '--reporter=line',
-  ], {
+  // Use the Windows shim through cmd with fixed, repository-owned arguments.
+  const playwrightArgs = ['--dir', 'web', 'exec', 'playwright', 'test', 'e2e/full-demo.spec.ts', 'e2e/library.spec.ts', '--reporter=line'];
+  execution = await execute('studio-playwright-journeys', process.platform === 'win32' ? 'cmd.exe' : 'pnpm',
+    process.platform === 'win32' ? ['/d', '/s', '/c', `pnpm ${playwrightArgs.join(' ')}`] : playwrightArgs, {
     evidenceDir, index: steps.length + 1, timeoutMS: options.timeoutMS,
     env: {
       PLAYWRIGHT_OUTPUT_DIR: join(evidenceDir, 'playwright-results'),

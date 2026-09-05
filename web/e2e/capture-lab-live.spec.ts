@@ -14,11 +14,15 @@ test.describe('Capture Lab live Studio boundary', () => {
   test('shows and downloads the synthetic render through real same-origin proxies', async ({ page }, testInfo) => {
     expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
     expect(expectedVideo).not.toBe('');
-    await page.addInitScript(({ id, renderVariant }) => {
+    const sourceSegments: unknown = JSON.parse(process.env.CAPTURE_LAB_SEGMENT_IDS ?? '[]');
+    if (!Array.isArray(sourceSegments) || sourceSegments.length === 0 || !sourceSegments.every((id): id is string => typeof id === 'string')) {
+      throw new Error('Capture Lab requires the source plan segment IDs');
+    }
+    await page.addInitScript(({ id, renderVariant, segments }) => {
       window.localStorage.setItem('cliphub.reels.v1', JSON.stringify([{
         videoId: `${id}__capturelab`,
         jobId: id,
-        segmentIds: ['seg-001'],
+        segmentIds: segments,
         mode: 'clean',
         variant: renderVariant,
         editConfig: {
@@ -30,7 +34,7 @@ test.describe('Capture Lab live Studio boundary', () => {
         title: 'Capture Lab · synthetic verified render',
         map: 'de_nuke', targetName: 'Joey-', createdAt: 1,
       }]));
-    }, { id: jobId, renderVariant: variant });
+    }, { id: jobId, renderVariant: variant, segments: sourceSegments });
 
     await gotoStudio(page, '/videos');
     const apiContract = await page.evaluate(async ({ id, renderVariant }) => {
@@ -46,7 +50,7 @@ test.describe('Capture Lab live Studio boundary', () => {
     expect(apiContract.job.status, apiContract.job.body).toBe(200);
     expect(apiContract.render.status, apiContract.render.body).toBe(200);
     expect(JSON.parse(apiContract.render.body).status).toBe('ready');
-    await expect(page.getByTitle('Capture Lab · synthetic verified render', { exact: true })).toBeVisible();
+    await expect(page.getByText('Capture Lab · synthetic verified render', { exact: true })).toBeVisible();
     const mp4 = page.getByRole('button', { name: 'MP4' });
     await expect(mp4).toBeVisible();
     await expect(mp4).toBeEnabled();

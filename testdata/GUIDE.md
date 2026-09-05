@@ -1,5 +1,12 @@
 # Test Data Guide
 
+`full-demo-*.fixture.json` are public synthetic CLI contract fixtures, derived
+from `web/lib/full-demo-plan.fixture.json`. They contain no capture attestation
+and cannot authorize a production capture. `full-demo-provenance.fixture.json`
+declares `agent-demo.fixture` as non-media bytes for upload dry-run tests; it is
+not an audio or video asset. CLI contract tests validate the plan and options
+against the same Go types used by HTTP admission.
+
 Demos `.dem` y planes esperados (`*.expected.json`) usados por los golden tests del
 demo parser. Los archivos `.dem` y `.expected.json` NO se commitean al repo —
 cada desarrollador aporta los suyos localmente.

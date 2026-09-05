@@ -12,6 +12,7 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
 
@@ -169,11 +170,7 @@ func runRecap(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (ki
 	return kills, err
 }
 
-func runKillsAndRecap(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta) (killplan.Plan, killplan.Plan, error) {
-	return collectKills(p, target, r, m, SegmentModeKills, true)
-}
-
-func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode, alsoRecap bool) (killplan.Plan, killplan.Plan, error) {
+func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta, mode SegmentMode, alsoRecap bool, factsOut ...*recapplan.Facts) (killplan.Plan, killplan.Plan, error) {
 	targetID, err := strconv.ParseUint(target, 10, 64)
 	if err != nil {
 		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("invalid target steamid %q: %w", target, err)
@@ -184,6 +181,10 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	var maxTick int
 	var activeRound int
 	var roundLive bool
+	var freezeDeaths []TargetDeath
+	var sawMatchStart bool
+	var factsLastTick int
+	var crosshairs crosshairTimeline
 	var watch *utilityWatch
 	if mode == SegmentModeRecap || alsoRecap {
 		watch = newUtilityWatch(targetID, target, &maxTick, c.RecordTargetIdentity)
@@ -196,6 +197,9 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 	})
 	p.RegisterEventHandler(func(events.MatchStart) {
 		c.resetForMatchStart()
+		freezeDeaths = nil
+		crosshairs = crosshairTimeline{}
+		sawMatchStart = true
 		activeRound = 0
 		roundLive = false
 	})
@@ -220,6 +224,8 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			// POV boundary; post-round events must not clip the following round.
 			if activeRound > 0 && roundLive {
 				c.RecordTargetDeath(TargetDeath{Round: activeRound, Tick: gi.Tick})
+			} else if activeRound > 0 {
+				freezeDeaths = append(freezeDeaths, TargetDeath{Round: activeRound, Tick: gi.Tick})
 			}
 		}
 		if e.Killer != nil && e.Killer.SteamID64 == targetID {
@@ -284,6 +290,26 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 		roundLive = false
 	})
 
+	if len(factsOut) > 0 {
+		p.RegisterEventHandler(func(events.FrameDone) {
+			tick := p.GameState().IngameTick()
+			if tick > factsLastTick {
+				factsLastTick = tick
+			}
+			code := ""
+			participants := p.GameState().Participants()
+			if participants != nil {
+				for _, player := range participants.Playing() {
+					if player == nil || player.Entity == nil || player.SteamID64 != targetID {
+						continue
+					}
+					code = player.CrosshairCode()
+					break
+				}
+			}
+			crosshairs.record(tick, code)
+		})
+	}
 	if err := parseToEnd(p); err != nil {
 		return killplan.Plan{}, killplan.Plan{}, fmt.Errorf("parsing demo: %w", err)
 	}
@@ -313,6 +339,16 @@ func collectKills(p demoinfocs.Parser, target string, r rules.Rules, m PlanMeta,
 			return killplan.Plan{}, killplan.Plan{}, ErrTargetNotFound
 		}
 		return killplan.Plan{}, killplan.Plan{}, err
+	}
+	if len(factsOut) > 0 && factsOut[0] != nil {
+		factsMeta := m
+		factsMeta.DurationTicks = max(m.DurationTicks, factsLastTick)
+		*factsOut[0] = c.fullDemoFacts(factsMeta, freezeDeaths, sawMatchStart)
+		factsOut[0].Crosshairs = crosshairs.samples
+		if crosshairs.overflow {
+			factsOut[0].Complete = false
+			factsOut[0].Warnings = append(factsOut[0].Warnings, recapplan.Notice{Code: "crosshair_evidence_limit", Message: "Observed crosshair exceeded its bounded source timeline"})
+		}
 	}
 	if !alsoRecap || mode == SegmentModeRecap {
 		return plan, killplan.Plan{}, nil

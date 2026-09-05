@@ -31,6 +31,11 @@ func validateRenderShortIdentities(shorts []editor.ShortResult) error {
 	}
 	seen := make(map[string]struct{}, len(shorts))
 	for i, short := range shorts {
+		if short.FullDemo != nil {
+			if err := short.FullDemo.ValidateCompleted(); err != nil {
+				return err
+			}
+		}
 		if err := artifacts.ValidateArtifactToken("render segment id", short.SegmentID); err != nil {
 			return fmt.Errorf("render result short %d: %w", i, err)
 		}

@@ -513,7 +513,7 @@ func BuildCoverFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	}
 	width, height := outputDimensions(short)
 	filter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1", width, height, width, height)
-	if short.HQFilters {
+	if short.HQFilters && short.FullDemo == nil {
 		filter = fmt.Sprintf("thumbnail=30,scale=%d:%d:force_original_aspect_ratio=increase:flags=%s,crop=%d:%d,setsar=1", width, height, hqScaleFlags(short), width, height)
 	}
 	return []string{
@@ -537,13 +537,21 @@ func BuildCoverSheetFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	if isLandscapeOutput(short) {
 		tileW, tileH = 640, 360
 	}
+	selection := ""
+	if short.FullDemo != nil {
+		for _, item := range short.FullDemo.Effective.Timeline {
+			if item.Role == "sponsor" {
+				selection += fmt.Sprintf("select='not(between(n,%d,%d))',", item.StartFrame, item.EndFrame-1)
+			}
+		}
+	}
 	return []string{
 		ffmpegPath,
 		"-y",
 		"-v", "error",
 		"-i", short.Output,
 		"-frames:v", "1",
-		"-vf", fmt.Sprintf("fps=2,scale=%d:%d:force_original_aspect_ratio=increase:flags=%s,crop=%d:%d,setsar=1,tile=3x3", tileW, tileH, hqScaleFlags(short), tileW, tileH),
+		"-vf", selection + fmt.Sprintf("fps=2,scale=%d:%d:force_original_aspect_ratio=increase:flags=%s,crop=%d:%d,setsar=1,tile=3x3", tileW, tileH, hqScaleFlags(short), tileW, tileH),
 		"-q:v", "3",
 		short.CoverSheetPath,
 	}

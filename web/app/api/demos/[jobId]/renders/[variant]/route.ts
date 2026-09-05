@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readBoundedText } from '@/lib/api/bounded-request-body';
+import { MAX_RENDER_CONTROL_BODY_BYTES, readBoundedText } from '@/lib/api/bounded-request-body';
 import { jobUrl, mutationHeaders, forwardError, callOrchestrator, serviceUnavailable } from '../../../_lib';
 
 export const runtime = 'nodejs';
@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
   const url = jobUrl(jobId, `/renders/${variant}`);
   if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
 
-  const incoming = await readBoundedText(request);
+  const incoming = await readBoundedText(request, MAX_RENDER_CONTROL_BODY_BYTES);
   if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: incoming.status });
   const init: RequestInit = { method: 'POST', headers: { ...mutationHeaders() } };
   if (incoming.text) {

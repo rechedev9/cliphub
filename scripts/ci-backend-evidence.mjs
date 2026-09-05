@@ -8,6 +8,11 @@ export const requiredTests = [
   ['editor', 'TestShortsParsePlanPortraitSeam'],
   ['editor', 'TestFullDemoOverlayCompositesOntoFixtureCapture'],
   ['editor', 'TestFullDemoConcatsTwoFixtureRounds'],
+  ['recording', 'TestFullDemoExactRuntimeInExistingMIRVSimulator'],
+  ['editor', 'TestFullDemoMasterDecodedAAC'],
+  ['editor', 'TestFullDemoDecodedDuckingAndExplicitZero'],
+  ['voicecomms', 'TestDecodedTeamVoiceAfterLongSilenceAndSideChange'],
+  ['editor', 'TestFullDemoSponsorAndPlaylistMediaCanary'],
 ].map(([pkg, test]) => `${prefix}${pkg}/${test}`);
 
 // A skipped, renamed or removed canary must not silently turn this lane green.

@@ -18,13 +18,15 @@ var (
 )
 
 type Packet struct {
-	XUID       uint64
-	Tick       int
-	Bytes      int
-	Format     string
-	SampleRate uint32
-	Data       []byte
-	Offsets    []uint32
+	ClockKind       string
+	DurationSamples int
+	XUID            uint64
+	Tick            int
+	Bytes           int
+	Format          string
+	SampleRate      uint32
+	Data            []byte
+	Offsets         []uint32
 }
 
 type Index struct {

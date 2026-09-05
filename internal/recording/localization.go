@@ -22,7 +22,7 @@ func NewSegmentClipLocalizations(jobID uuid.UUID, workDir string, result Recordi
 		if artifact.Role != "segment" || artifact.Type != "video" || artifact.SegmentID == "" {
 			continue
 		}
-		key, err := SegmentClipArtifactKey(jobID, artifact.SegmentID)
+		key, err := result.SegmentClipKey(jobID, artifact.SegmentID)
 		if err != nil {
 			return nil, err
 		}

@@ -179,7 +179,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 	}
 	performance := &RenderPerformance{}
 	p.result.Shorts[i].Performance = performance
-	if validatedExistingArtifact(p.previous, p.result.Shorts[i], short.Output, "video") {
+	if short.FullDemo == nil && validatedExistingArtifact(p.previous, p.result.Shorts[i], short.Output, "video") {
 		p.result.Shorts[i].RenderSkipped = true
 		performance.Reused = true
 		if p.encode != nil {
@@ -187,6 +187,9 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		}
 	} else {
 		started := time.Now()
+		if err := prepareFullDemoCompilation(ctx, short); err != nil {
+			return err
+		}
 		expectedDuration := expectedShortDuration(*short)
 		var onFraction func(float64)
 		if p.encode != nil {
@@ -194,7 +197,25 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				p.encode.setFraction(i, fraction)
 			}
 		}
-		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, short.Output, expectedDuration, onFraction)
+		destination := short.Output
+		if short.FullDemo != nil {
+			destination = fullDemoProgramPath(*short)
+		}
+		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
+		if err == nil && short.FullDemo != nil {
+			audio := short.FullDemo.Effective.Options.Audio
+			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled
+			var evidence ProgramLoudnessEvidence
+			evidence, err = masterFullDemoProgram(ctx, short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved)
+			short.FullDemo.ProgramLoudness = &evidence
+			if err == nil {
+				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
+				short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames)
+			}
+			if err == nil {
+				err = short.FullDemo.ValidateCompleted()
+			}
+		}
 		performance.RenderMS = time.Since(started).Milliseconds()
 		if err != nil {
 			return err
@@ -378,6 +399,9 @@ func (p *shortPackRenderer) probeArtifact(ctx context.Context, segmentID, role, 
 }
 
 func (p *shortPackRenderer) writeOutputs() error {
+	if err := writeFullDemoDocuments(p.opts.OutputDir, p.manifest.Shorts); err != nil {
+		return err
+	}
 	if p.opts.Progress != nil {
 		p.opts.Progress.Set("Montando cortes y ritmo", progressFinalizeStart)
 	}
