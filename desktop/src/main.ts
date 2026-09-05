@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { escapeHtml } from './escaping';
+import { StreamDownloads } from './stream-downloads';
 import {
   createBootSecurityCapabilities,
   installProxyCapabilityCookie,
@@ -833,6 +834,25 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  const downloads = new StreamDownloads();
+  session.defaultSession.on('will-download', (_event, item, contents) => {
+    if (contents?.id !== aliveWindow()?.webContents.id) return;
+    const key = downloads.key(item.getURL(), activeWebOrigin);
+    if (!key) return;
+    item.once('done', (_doneEvent, state) => {
+      if (state === 'completed' && item.getSavePath()) downloads.completed(key, item.getSavePath());
+    });
+  });
+  ipcMain.handle('cliphub:stream-download', (event, value: unknown): boolean => {
+    if (!trustedSettingsSender(event) || typeof value !== 'object' || value === null) return false;
+    const request = value as { action?: unknown; url?: unknown };
+    if (request.action !== 'status' && request.action !== 'reveal') return false;
+    const key = downloads.key(request.url, activeWebOrigin);
+    const savedPath = key ? downloads.savedPath(key) : undefined;
+    if (!savedPath || !fs.existsSync(savedPath)) return false;
+    if (request.action === 'reveal') shell.showItemInFolder(savedPath);
+    return true;
+  });
   // Keep web permissions closed; clipboard writes go through preload IPC.
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, _permission, callback) => callback(false),

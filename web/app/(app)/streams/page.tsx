@@ -159,7 +159,7 @@ export default function StreamsPage(): ReactNode {
       ) : null}
 
       <WorkflowProgress
-        steps={['Importar vídeo', 'Elegir cortes', 'Ajustar encuadre', 'Crear y descargar']}
+        steps={['Importar vídeo', 'Elegir momentos', 'Ajustar aspecto', 'Revisar y exportar']}
         current={0}
         variant="connected"
       />

@@ -2,15 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamEditPlan } from '../api/streams.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
-import {
-  STREAM_STEP,
-  streamBlockerHint,
-  streamCtaLabel,
-  streamEditorSteps,
-  streamOutputSummary,
-  streamPlanBlocker,
-  type StreamStep,
-} from './editor.ts';
+import { streamCtaLabel, streamEditorSteps, streamOutputSummary, streamPlanBlocker } from './editor.ts';
 
 function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
   return {
@@ -19,95 +11,59 @@ function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
     face_crop_reviewed: true,
     clips: [
       { id: 'c1', start_seconds: 7, end_seconds: 24 },
-      { id: 'c2', start_seconds: 40, end_seconds: 59, edit: { speed: 1 } },
+      { id: 'c2', start_seconds: 40, end_seconds: 59 },
     ],
     ...overrides,
   };
 }
-
-test('rail steps describe the plan and only list results after a render', () => {
-  const steps = streamEditorSteps({ plan: plan(), musicLabel: 'Night Drive', renderState: null, stale: false });
+test('the editor starts with moments, then aspect and review; results appear only for an export', () => {
+  const state = { plan: plan(), renderState: null, stale: false };
   assert.deepEqual(
-    steps.map((step) => [step.key, step.detail, step.done]),
-    [
-      [STREAM_STEP.layout, 'Facecam 40 · recorte ✓', true],
-      [STREAM_STEP.banners, 'sin banner', false],
-      [STREAM_STEP.cuts, '2 cortes → 2 Shorts', true],
-      [STREAM_STEP.music, 'Sin música', false],
-    ],
+    streamEditorSteps(state).map((s) => s.key),
+    ['cuts', 'layout', 'review'],
   );
   assert.deepEqual(
-    steps.map((step) => step.optional),
-    [false, true, false, true],
+    streamEditorSteps(state).map((s) => s.done),
+    [true, true, false],
   );
-  const withRender = streamEditorSteps({
-    plan: plan({
-      streamer_banner: { nick: 'zack', platform: 'kick' },
-      keydrop_banner: { family: 'KEYDROP', style: 'classic' },
-      music: { key: 'm1' },
-      effects: { grade: true },
-    }),
-    musicLabel: 'Night Drive',
-    renderState: { status: 'rendered', videos: [{ clip_id: 'c1', key: 'k' }] },
-    stale: true,
-  });
-  assert.equal(withRender[1].detail, '@zack · Kick · KeyDrop');
-  assert.equal(withRender[3].detail, 'Night Drive · grade');
-  assert.deepEqual([withRender[4]?.number, withRender[4]?.detail], ['05', '1 Short · desactualizados']);
-  const inFlight = streamEditorSteps({ plan: plan(), musicLabel: '', renderState: null, stale: false, rendering: true });
-  assert.deepEqual([inFlight[4]?.detail, inFlight[4]?.done], ['Renderizando…', false]);
+  const rendering = streamEditorSteps({ ...state, rendering: true });
+  assert.equal(rendering.at(-1)?.key, 'results');
+  assert.equal(rendering.at(-1)?.done, false);
+  const rendered = { ...state, renderState: { status: 'rendered' as const, videos: [{ clip_id: 'c1', key: 'v' }] } };
+  assert.equal(streamEditorSteps(rendered).at(-1)?.done, true);
+  assert.equal(streamEditorSteps({ ...rendered, stale: true }).at(-1)?.done, false);
+});
+test('moments must exist before camera confirmation, and no-camera layouts skip it', () => {
+  assert.equal(streamPlanBlocker(plan({ clips: [], face_crop_reviewed: false })), 'cuts');
+  assert.equal(streamPlanBlocker(plan({ face_crop_reviewed: false })), 'layout');
+  assert.equal(streamPlanBlocker(plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false })), null);
 });
 
-test('facecam layouts stay pending until the crop is confirmed', () => {
-  const pending = streamEditorSteps({
-    plan: plan({ face_crop_reviewed: false }),
-    musicLabel: '',
-    renderState: null,
+test('a completed render without videos keeps review and saving incomplete', () => {
+  const steps = streamEditorSteps({
+    plan: plan(),
+    renderState: { status: 'rendered', videos: [] },
     stale: false,
   });
-  assert.equal(pending[0].detail, 'Facecam 40 · sin confirmar');
-  assert.equal(pending[0].done, false);
-  const noCam = streamEditorSteps({
-    plan: plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false }),
-    musicLabel: '',
-    renderState: null,
-    stale: false,
-  });
-  assert.equal(noCam[0].detail, 'Full-frame');
-  assert.equal(noCam[0].done, true);
+  assert.equal(steps.find((step) => step.key === 'review')?.done, false);
+  assert.equal(steps.at(-1)?.key, 'results');
+  assert.equal(steps.at(-1)?.done, false);
+  assert.equal(steps.at(-1)?.detail, 'Sin vídeos · vuelve a exportar');
 });
-
-test('the CTA names the first blocker or the render action without separate approval', () => {
-  const base = { rendering: false, hasRender: false };
-  const cases: [Parameters<typeof streamCtaLabel>[0], string][] = [
-    [{ ...base, plan: plan(), rendering: true }, 'Renderizando…'],
-    [{ ...base, plan: plan({ face_crop_reviewed: false }) }, 'Confirma el recorte primero'],
-    [{ ...base, plan: plan({ clips: [] }) }, 'Añade un corte primero'],
-    [{ ...base, plan: plan() }, 'Crear Shorts →'],
-    [{ ...base, plan: plan(), hasRender: true }, 'Crear Shorts de nuevo →'],
-  ];
-  for (const [state, expected] of cases) assert.equal(streamCtaLabel(state), expected);
-});
-
-test('the blocker is the first unmet requirement, and names its hint', () => {
-  const cases: [StreamEditPlan, StreamStep | null][] = [
-    [plan(), null],
-    [plan({ face_crop_reviewed: false }), STREAM_STEP.layout],
-    [plan({ variant: 'streamer-fullframe-nocam', face_crop_reviewed: false }), null],
-    [plan({ clips: [] }), STREAM_STEP.cuts],
-    [plan({ face_crop_reviewed: false, clips: [] }), STREAM_STEP.layout],
-  ];
-  for (const [state, expected] of cases) assert.equal(streamPlanBlocker(state), expected);
-  assert.equal(streamBlockerHint(plan()), null);
-  assert.match(streamBlockerHint(plan({ face_crop_reviewed: false })) ?? '', /paso 01/);
-  assert.match(streamBlockerHint(plan({ clips: [] })) ?? '', /corte/);
-});
-
-test('the output summary lists one Short per cut and flags a stale render', () => {
-  assert.equal(streamOutputSummary(plan(), false), '01 · 0:17 — 02 · 0:19');
+test('actions describe the next step and do not re-export an unchanged result', () => {
+  const base = { plan: plan(), rendering: false, hasRender: false };
+  assert.equal(streamCtaLabel({ ...base, activeStep: 'cuts' }), 'Continuar al aspecto →');
   assert.equal(
-    streamOutputSummary(plan(), true),
-    '01 · 0:17 — 02 · 0:19 — plan cambiado desde el último render',
+    streamCtaLabel({ ...base, activeStep: 'layout', plan: plan({ face_crop_reviewed: false }) }),
+    'Confirmar cámara y continuar →',
   );
-  assert.match(streamOutputSummary(plan({ clips: [] }), false), /Añade un corte/);
+  assert.equal(streamCtaLabel(base), 'Exportar 2 Shorts →');
+  assert.equal(streamCtaLabel({ ...base, hasRender: true }), 'Ver vídeos terminados →');
+  assert.equal(streamCtaLabel({ ...base, hasRender: true, stale: true }), 'Exportar 2 Shorts →');
+  assert.equal(streamCtaLabel({ ...base, rendering: true }), 'Creando vídeos…');
+});
+test('the summary shows output durations, including speed, and unsaved exports', () => {
+  assert.equal(streamOutputSummary(plan(), false), '01 · 0:17 — 02 · 0:19');
+  assert.match(streamOutputSummary(plan(), true), /Cambios sin exportar/);
+  assert.match(streamOutputSummary(plan({ clips: [] }), false), /Marca el inicio y el final/);
 });

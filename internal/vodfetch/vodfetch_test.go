@@ -120,12 +120,12 @@ func TestDownload_Success(t *testing.T) {
 
 func TestDownload_CapturesProviderTitle(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "clip.mp4")
-	runner := &fakeRunner{fileContent: []byte("video"), stdout: "Clutch imposible en Mirage\n"}
+	runner := &fakeRunner{fileContent: []byte("video"), stdout: "DALE NIÑO ! – acción 🎮\n"}
 	got, err := (Fetcher{Runner: runner}).Download(context.Background(), "https://clips.twitch.tv/SomeClipSlug", dest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Title != "Clutch imposible en Mirage" {
+	if got.Title != "DALE NIÑO ! – acción 🎮" {
 		t.Fatalf("Title = %q, want provider title", got.Title)
 	}
 }
@@ -374,6 +374,7 @@ func TestDownload_ArgsShape(t *testing.T) {
 
 	want := []string{
 		"--ignore-config",
+		"--encoding", "utf-8",
 		"-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
 		"--merge-output-format", "mp4",
 		"--no-playlist",

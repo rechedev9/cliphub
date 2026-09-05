@@ -20,6 +20,7 @@
 # Generated media and overlay renders
 *.dem
 *.mp4
+!web/e2e/fixtures/stream-source.mp4
 *.mov
 *.webm
 *.avi

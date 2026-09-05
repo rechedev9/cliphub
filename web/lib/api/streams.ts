@@ -140,7 +140,7 @@ export interface StreamsApiClient {
   startRender(id: string, variant: StreamVariant, expectedEditPlanUpdatedAt: string): Promise<StreamRenderState>;
   getRenderState(id: string, variant: StreamVariant): Promise<StreamRenderState>;
   /** Same-origin URL for a <video>/download link to a rendered Short. */
-  videoUrl(id: string, variant: StreamVariant, clipId: string): string;
+  videoUrl(id: string, variant: StreamVariant, clipId: string, revision?: string): string;
   deliveryUrl(id: string, variant: StreamVariant, name: string): string;
 }
 
@@ -227,8 +227,8 @@ export class RealStreamsApiClient implements StreamsApiClient {
     return readJson<StreamRenderState>(res);
   }
 
-  videoUrl(id: string, variant: StreamVariant, clipId: string): string {
-    return `/api/streams/${id}/renders/${variant}/videos/${clipId}`;
+  videoUrl(id: string, variant: StreamVariant, clipId: string, revision?: string): string {
+    return `/api/streams/${id}/renders/${variant}/videos/${clipId}${revision ? `?v=${encodeURIComponent(revision)}` : ''}`;
   }
 
   deliveryUrl(id: string, variant: StreamVariant, name: string): string {

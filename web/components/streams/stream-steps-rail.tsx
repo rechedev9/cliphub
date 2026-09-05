@@ -1,46 +1,13 @@
 'use client';
-
 import type { ReactNode } from 'react';
 import type { StreamStep, StreamStepEntry } from '@/lib/streams/editor';
 import { cn } from '@/lib/utils';
-
 export type StreamAutosaveState = 'saving' | 'saved' | 'failed';
-
-type StepTone = 'active' | 'done' | 'idle';
-
-const RAIL_CLASS = {
-  active: 'border-stream bg-stream/8',
-  done: 'border-success',
-  idle: 'border-transparent',
-} as const satisfies Record<StepTone, string>;
-
-const NUMBER_CLASS = {
-  active: 'text-stream-text',
-  done: 'text-success',
-  idle: 'text-fg-3',
-} as const satisfies Record<StepTone, string>;
-
-const LABEL_CLASS = {
-  active: 'text-fg-1',
-  done: 'text-fg-2',
-  idle: 'text-fg-3',
-} as const satisfies Record<StepTone, string>;
-
-const OPTIONAL_LABEL = 'opcional';
-
 const AUTOSAVE_LABEL = {
   saving: 'Guardando borrador…',
   saved: 'Borrador guardado en este PC',
   failed: 'Borrador local · guardado pendiente',
-} as const satisfies Record<StreamAutosaveState, string>;
-
-const AUTOSAVE_TONE = {
-  saving: 'text-stream-text',
-  saved: 'text-fg-3',
-  failed: 'text-destructive',
-} as const satisfies Record<StreamAutosaveState, string>;
-
-/** Left rail: numbered steps (magenta = active, green = done) plus the source and autosave readout. */
+};
 export function StreamStepsRail({
   steps,
   activeStep,
@@ -57,80 +24,38 @@ export function StreamStepsRail({
   onSelectStep: (step: StreamStep) => void;
 }): ReactNode {
   return (
-    <nav
-      aria-label="Pasos"
-      className="flex min-h-0 flex-col overflow-y-auto bg-surface-1 py-4 shadow-[inset_-1px_0_0_0_var(--border-subtle)]"
-    >
-      <p className="px-4 pb-2.5 font-mono text-meta uppercase tracking-widest text-fg-3">Pasos</p>
-      {steps.map((step) => {
-        const active = step.key === activeStep;
-        let tone: StepTone = 'idle';
-        if (active) tone = 'active';
-        else if (step.done) tone = 'done';
-        return (
+    <nav aria-label="Pasos" className="shrink-0 border-b border-border-subtle bg-surface-1 px-4 py-3">
+      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-body font-semibold" title={sourceTitle}>
+            {sourceTitle}
+          </h1>
+          <p className="text-label text-fg-3">{sourceMeta}</p>
+        </div>
+        <p role="status" className={cn('text-label', autosave === 'failed' ? 'text-destructive' : 'text-fg-3')}>
+          {AUTOSAVE_LABEL[autosave]}
+        </p>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {steps.map((step) => (
           <button
             key={step.key}
             type="button"
-            aria-current={active ? 'step' : undefined}
+            aria-current={step.key === activeStep ? 'step' : undefined}
             onClick={() => onSelectStep(step.key)}
             className={cn(
-              'flex min-h-11 items-center gap-3 border-l-[3px] px-3.5 py-3 text-left transition-colors duration-(--dur-fast) ease-standard hover:bg-stream/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-              RAIL_CLASS[tone],
+              'flex min-h-11 flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-label focus-visible:outline-2 focus-visible:outline-ring',
+              step.key === activeStep
+                ? 'border-stream bg-stream/10 text-fg-1'
+                : 'border-border-subtle text-fg-2 hover:bg-surface-3',
             )}
           >
-            <span
-              className={cn(
-                'w-[18px] shrink-0 font-mono text-meta tabular-nums',
-                NUMBER_CLASS[tone],
-              )}
-            >
-              {step.done && !active ? '✓' : step.number}
+            <span className={step.done ? 'text-success' : 'text-fg-3'}>
+              {step.done && step.key !== activeStep ? '✓' : step.number}
             </span>
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex min-w-0 items-center gap-2">
-                <span
-                  className={cn(
-                    'truncate font-display text-label font-semibold uppercase tracking-wide',
-                    LABEL_CLASS[tone],
-                  )}
-                >
-                  {step.label}
-                </span>
-                {step.optional && !step.done ? (
-                  <span className="shrink-0 border border-border-strong px-1 font-mono text-meta uppercase tracking-wider text-fg-3">
-                    {OPTIONAL_LABEL}
-                  </span>
-                ) : null}
-              </span>
-              <span
-                className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3"
-                title={step.detail}
-              >
-                {step.detail}
-              </span>
-            </span>
+            {step.label}
           </button>
-        );
-      })}
-
-      <div className="mt-auto flex flex-col gap-2 px-4 pt-4">
-        <p className="font-mono text-meta uppercase tracking-widest text-fg-3">Fuente</p>
-        <h1 className="truncate font-display text-label font-semibold uppercase text-fg-1" title={sourceTitle}>
-          {sourceTitle}
-        </h1>
-        <p className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3" title={sourceMeta}>
-          {sourceMeta}
-        </p>
-        <p
-          role="status"
-          aria-live="polite"
-          className={cn(
-            'font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-base) ease-standard',
-            AUTOSAVE_TONE[autosave],
-          )}
-        >
-          {AUTOSAVE_LABEL[autosave]}
-        </p>
+        ))}
       </div>
     </nav>
   );

@@ -166,7 +166,20 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           if (state.status === 'rendered') {
             setRenderedPlan(attemptedPlan);
             setStage('rendered');
-            if (announce) toast(`${shortsWord(state.videos.length)} listos`, { description: 'Descárgalos en Resultados' });
+            if (announce) {
+              const videoCount = state.videos?.length ?? 0;
+              if (videoCount > 0) {
+                toast(`${shortsWord(videoCount)} listos`, {
+                  position: 'top-right',
+                  description: 'Revísalos y guárdalos en Guardar vídeos',
+                });
+              } else {
+                toast.error('No se generó ningún vídeo', {
+                  position: 'top-right',
+                  description: 'Vuelve a exportar para intentarlo de nuevo.',
+                });
+              }
+            }
             return;
           }
           if (state.status === 'failed') {
@@ -311,6 +324,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
       });
       await streamsApi.startRender(job.id, saved.variant, saved.updated_at);
       toast(`${shortsWord(saved.clips.length)} en render`, {
+        position: 'top-right',
         description: `FFmpeg · ${streamVariantLabel(saved)} · 1080×1920`,
       });
       void pollRender(job.id, saved.variant, saved, true);
