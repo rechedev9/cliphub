@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } f
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
-import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
+import type { DemoPlayer, JobStatus, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
@@ -28,6 +28,8 @@ import {
   demoScanError,
   isDemoServiceUnavailable,
 } from '@/lib/demo-parse-flow';
+import { startPollLoop } from '@/lib/poll-loop';
+import { ROSTER_READY_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import { PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
@@ -64,6 +66,10 @@ type ScanRow =
 type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'skipped' | 'error' };
 
 const SOURCE_KIND = { file: 'file', steam: 'steam' } as const;
+
+const IMPORT_PENDING_STATUSES: ReadonlySet<string> = new Set<JobStatus>(['queued', 'scanning']);
+const IMPORT_POLL_MS = 1500;
+const IMPORT_RETRY_MS = 10000;
 
 const ZERO_PLAYERS_HINT = 'Sin jugadores — ¿seguro que es una demo de CS2?';
 
@@ -262,36 +268,53 @@ export default function NewDemoPage({
     if (handed.length > 0) onFiles(handed);
   }, [onFiles]);
 
-  // Resume: the roster already exists, so load it and land on the same picker the upload uses.
+  // Imported jobs can still be queued; wait for a roster before offering the player picker.
   useEffect(() => {
     if (resumeJobId === null) return;
+    setStage('scanning');
+    setResumeFailure(null);
+    setJobId(null);
+    setPlayers([]);
+    setMatch(null);
     let active = true;
-    api
-      .getScan(resumeJobId)
-      .then((scan) => {
-        if (!active) return;
-        if (scan === null) {
-          setResumeFailure('missing');
-          return;
+    const stop = startPollLoop({
+      tick: async () => {
+        try {
+          const scan = await api.getScan(resumeJobId);
+          if (!active) return 'idle';
+          setResumeFailure(null);
+          if (scan === null) {
+            setResumeFailure('missing');
+            stop();
+          } else if (IMPORT_PENDING_STATUSES.has(scan.status)) {
+            return 'fast';
+          } else if (!ROSTER_READY_STATUSES.has(scan.status)) {
+            setResumeFailure('error');
+            stop();
+          } else if (scan.status !== MATCH_STATUS_SCANNED) {
+            stop();
+            router.replace(produceHref(resumeJobId, format));
+          } else if (scan.players.length === 0) {
+            setResumeFailure('error');
+            stop();
+          } else {
+            setJobId(resumeJobId);
+            setPlayers(scan.players);
+            setMatch(scan.match ?? null);
+            setStage('picking');
+            stop();
+          }
+        } catch (err: unknown) {
+          if (active) setResumeFailure(classifyFullDemoLoadFailure(err));
         }
-        if (scan.status !== MATCH_STATUS_SCANNED) {
-          router.replace(produceHref(resumeJobId, format));
-          return;
-        }
-        if (scan.players.length === 0) {
-          setResumeFailure('error');
-          return;
-        }
-        setJobId(resumeJobId);
-        setPlayers(scan.players);
-        setMatch(scan.match ?? null);
-        setStage('picking');
-      })
-      .catch((err: unknown) => {
-        if (active) setResumeFailure(classifyFullDemoLoadFailure(err));
-      });
+        return 'idle';
+      },
+      fastMs: IMPORT_POLL_MS,
+      idleMs: IMPORT_RETRY_MS,
+    });
     return () => {
       active = false;
+      stop();
     };
   }, [resumeJobId, router, format]);
 

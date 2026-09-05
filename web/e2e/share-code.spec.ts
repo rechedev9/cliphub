@@ -109,7 +109,7 @@ test.describe('share code door', () => {
     await submitCode(page, WELL_FORMED_CODE);
     await expect(page.getByText('Código válido')).toBeVisible();
     await page.getByRole('button', { name: 'DESCARGAR DEMO' }).click();
-    await expect(page).toHaveURL(/\/clips\/11111111-1111-4111-8111-111111111111\/nuevo$/);
+    await expect(page).toHaveURL(/\/clips\/nueva\?job=11111111-1111-4111-8111-111111111111&formato=short$/);
     expect(imported).toEqual([{ code: WELL_FORMED_CODE }]);
   });
 

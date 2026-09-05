@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { loadSteamAccount, type SteamStoredMatch } from '@/lib/api/steam-account';
 import { importShareCode } from '@/lib/api/steam-import';
-import { PRODUCE_FORMAT, produceHref, type ProduceFormat } from '@/lib/clips/routes';
+import { PRODUCE_FORMAT, newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
 
 export function RecentSteamMatches({ format = PRODUCE_FORMAT.short }: { format?: ProduceFormat }): ReactElement | null {
   const router = useRouter();
@@ -36,7 +36,7 @@ export function RecentSteamMatches({ format = PRODUCE_FORMAT.short }: { format?:
     const result = await importShareCode(code);
     setPending(null);
     if (result.kind === 'queued') {
-      router.push(produceHref(result.id, format));
+      router.push(newDemoHref({ job: result.id, format }));
       return;
     }
     if (result.kind === 'needCredentials') {
@@ -73,7 +73,7 @@ export function RecentSteamMatches({ format = PRODUCE_FORMAT.short }: { format?:
         open={downloadCode !== null}
         code={downloadCode ?? ''}
         onOpenChange={(open) => { if (!open) setDownloadCode(null); }}
-        onQueued={(jobId) => { router.push(produceHref(jobId, format)); }}
+        onQueued={(jobId) => { router.push(newDemoHref({ job: jobId, format })); }}
       />
     </section>
   );

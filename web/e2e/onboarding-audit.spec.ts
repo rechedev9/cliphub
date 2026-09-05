@@ -35,18 +35,35 @@ test('file and Steam inputs are separate and keep the chosen format', async ({ p
 test('Steam import preserves long-video intent through the player handoff', async ({ page }) => {
   await page.route('**/api/steam/sharecode', route => route.fulfill({ json: { status: 'decoded', matchId: '3230642215713767581', outcomeId: '3230642252279119992', tokenId: 31463 } }));
   await page.route('**/api/steam/import', route => route.fulfill({ status: 201, json: { id: JOB, status: 'queued' } }));
-  await page.route(`**/api/demos/${JOB}/status`, route => route.fulfill({ json: { status: 'scanned' } }));
+  let status = 'queued';
+  await page.route(`**/api/demos/${JOB}/status`, route => route.fulfill({ json: { status } }));
   await page.route(`**/api/demos/${JOB}/roster`, route => route.fulfill({ json: { players: [{ steamid64: '76561198000000001', name: 'ropz', kills: 12, deaths: 8, assists: 4, team: 'CT' }] } }));
   await gotoStudio(page, '/clips/nueva?formato=full');
   await page.getByRole('tab', { name: 'Importar desde Steam' }).click();
   await page.getByLabel('Código de partida').fill(CODE);
   await page.getByRole('button', { name: 'COMPROBAR' }).click();
   await page.getByRole('button', { name: 'DESCARGAR DEMO' }).click();
-  await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo\\?formato=full$`));
-  await expect(page.locator('[aria-current="step"]')).toHaveText('2Elegir jugador');
-  await page.getByRole('button', { name: 'Elegir jugador', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/clips/nueva\\?job=${JOB}&formato=full$`));
+  await expect(page.getByText('Cargando los jugadores de la partida…', { exact: true })).toBeVisible();
+  await expect(page.getByText('Cargando jugadores…', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continuar al vídeo largo' })).toHaveCount(0);
+  status = 'scanning';
+  await page.waitForResponse(response => response.url().endsWith(`/api/demos/${JOB}/status`) && response.ok());
+  await expect(page.getByText('Cargando los jugadores de la partida…', { exact: true })).toBeVisible();
+  status = 'scanned';
   await expect(page.getByRole('button', { name: 'Continuar al vídeo largo' })).toBeEnabled();
+});
+
+test('a queued Steam import that fails leaves the waiting state', async ({ page }) => {
+  let status = 'queued';
+  await page.route(`**/api/demos/${JOB}/status`, route => route.fulfill({ json: { status } }));
+  await gotoStudio(page, `/clips/nueva?job=${JOB}&formato=full`);
+  await expect(page.getByText('Cargando jugadores…', { exact: true })).toBeVisible();
+  status = 'failed';
+  await expect(page.getByRole('heading', { name: 'No se pudo cargar la demo' })).toBeVisible();
+  await expect(page.getByText('Cargando jugadores…', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Volver', exact: true })).toBeEnabled();
+  await expect(page).toHaveURL(new RegExp(`/clips/nueva\\?job=${JOB}&formato=full$`));
 });
 
 test('disabled FACEIT offers a next step without requesting profiles, matches or avatars', async ({ page }) => {
