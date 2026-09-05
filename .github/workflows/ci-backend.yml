@@ -11,13 +11,10 @@ on:
       - 'Makefile'
       - 'effects/**'
       - 'testdata/**'
-      - 'CLAUDE.md'
-      - 'AGENTS.md'
       - '.claude/**'
       - 'scripts/go-*.sh'
       - 'scripts/capturelab/**'
       - 'scripts/ci-backend-*'
-      - 'docs/CAPTURE_LAB.md'
       - '.github/workflows/ci-backend.yml'
   push:
     branches:
@@ -29,13 +26,10 @@ on:
       - 'Makefile'
       - 'effects/**'
       - 'testdata/**'
-      - 'CLAUDE.md'
-      - 'AGENTS.md'
       - '.claude/**'
       - 'scripts/go-*.sh'
       - 'scripts/capturelab/**'
       - 'scripts/ci-backend-*'
-      - 'docs/CAPTURE_LAB.md'
       - '.github/workflows/ci-backend.yml'
 
 permissions:

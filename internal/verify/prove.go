@@ -155,9 +155,9 @@ func Prove(opts ProveOptions) (ProveReport, error) {
 		return report, nil
 	}
 
-	report.OK = row.CheapOK && row.MapPresent
+	report.OK = row.CheapOK && row.CatalogValid
 	if !report.OK {
-		report.Detail = "cheap proof failed: feature map or headings are incomplete"
+		report.Detail = "cheap proof failed: feature catalog entry is invalid"
 		return report, nil
 	}
 	userData := resolveUserData(goos, opts.UserData)
@@ -165,7 +165,7 @@ func Prove(opts ProveOptions) (ProveReport, error) {
 	report.Studio = &studio
 	if !studioIsUp(studio) {
 		report.Executed = true
-		report.Detail = "cheap proof only: map and headings exist. Studio API not live. A user-path walk remains unproven."
+		report.Detail = "cheap proof only: compiled feature catalog is valid. Studio API not live. A user-path walk remains unproven."
 		return report, nil
 	}
 	live := inspectLiveAPI(probe, studio.WebURL, feature.ProbePath)

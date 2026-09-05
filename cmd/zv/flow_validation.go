@@ -19,14 +19,14 @@ import (
 // optional groups ("[--flag <v>]") are handled structurally, not through this
 // table.
 var flowPlaceholderSubstitutions = map[string]string{
-	"run":                 "run",
-	"match.dem":           "match.dem",
-	"stream.mp4":          "stream.mp4",
-	"SteamID64":           "76561198000000000",
-	"seg-ids":             "seg-1",
-	"approved-format":     editor.OutputFormatShort9x16,
-	"approved-effect":     editor.KillEffectPunchIn,
-	"approved-transition": editor.TransitionCut,
+	"run":        "run",
+	"match.dem":  "match.dem",
+	"stream.mp4": "stream.mp4",
+	"SteamID64":  "76561198000000000",
+	"seg-ids":    "seg-1",
+	"format":     editor.OutputFormatShort9x16,
+	"effect":     editor.KillEffectPunchIn,
+	"transition": editor.TransitionCut,
 }
 
 var flowPlaceholderPattern = regexp.MustCompile(`<[^<>]*>`)

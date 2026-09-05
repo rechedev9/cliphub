@@ -8,8 +8,8 @@
  * v4 changes: the 1.44:1 tinted edge became `--border-strong` (4.01:1, the WCAG
  * 1.4.11 floor for a control boundary), the invented `text-xs` +
  * `tracking-[0.12em]` pair became the `text-meta` step, and the transition reads
- * the motion tokens instead of Tailwind's default timing. 44px tall per
- * design.md's segmented-control rule.
+ * the motion tokens instead of Tailwind's default timing. The 44px height
+ * provides a usable touch target.
  *
  * KNOWN GAP, and the reason the variant should land soon: `ToggleGroupItem`
  * pipes this through `cn()`, and tailwind-merge classifies a custom `--text-*`

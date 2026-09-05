@@ -25,6 +25,9 @@ func findSkill(name string) (skillInfo, bool, error) {
 func loadSkills() ([]skillInfo, error) {
 	dir, err := findSkillsDir()
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []skillInfo{}, nil
+		}
 		return nil, err
 	}
 	entries, err := os.ReadDir(dir)
@@ -65,7 +68,6 @@ func checkSkills() ([]skillInfo, []skillIssue, error) {
 	}
 	var issues []skillIssue
 	if len(skills) == 0 {
-		issues = append(issues, skillIssue{Path: ".claude/skills", Message: "no skills found"})
 		return skills, issues, nil
 	}
 	seenSkills := make(map[string]string, len(skills))
@@ -128,9 +130,6 @@ func checkSkills() ([]skillInfo, []skillIssue, error) {
 		if !hasWorkflowRun {
 			issues = append(issues, skillIssue{Path: skill.Path, Message: "does not document a cataloged workflow run command"})
 		}
-		if skillRequiresCreativeBriefGate(skill.Name, documentedWorkflowRunOrder) && !hasCreativeBriefGateHeading(body) {
-			issues = append(issues, skillIssue{Path: skill.Path, Message: fmt.Sprintf("does not document a %q section for capture/render workflows", creativeBriefGateHeading)})
-		}
 		for _, required := range skillWorkflowRequirements(skill.Name) {
 			if _, ok := documentedWorkflowRuns[required]; ok {
 				continue
@@ -153,50 +152,6 @@ func checkSkills() ([]skillInfo, []skillIssue, error) {
 
 func skillWorkflowRequirements(name string) []string {
 	return skillWorkflowRequirementMap()[name]
-}
-
-// creativeBriefGateHeading marks the section where a skill instructs the agent
-// to ask the user for the final-output creative choices before capture/render.
-const creativeBriefGateHeading = "## Creative Brief Gate"
-
-// skillRequiresCreativeBriefGate reports whether the skill drives capture or
-// render workflows — via its registered requirements or the workflow runs it
-// actually documents — and therefore must document a creative brief gate.
-func skillRequiresCreativeBriefGate(name string, documentedWorkflowRuns []string) bool {
-	for _, workflowName := range skillWorkflowRequirements(name) {
-		if workflowRequiresCreativeBriefGate(workflowName) {
-			return true
-		}
-	}
-	for _, workflowName := range documentedWorkflowRuns {
-		if workflowRequiresCreativeBriefGate(workflowName) {
-			return true
-		}
-	}
-	return false
-}
-
-// workflowRequiresCreativeBriefGate lists the workflows that perform capture or
-// final rendering; keep it in sync when a new capture/render workflow joins the
-// catalog, or its skills silently skip the creative brief gate.
-func workflowRequiresCreativeBriefGate(name string) bool {
-	switch name {
-	case "short", "record", "shorts-render", "stream-render":
-		return true
-	default:
-		return false
-	}
-}
-
-// hasCreativeBriefGateHeading requires the gate heading as its own line, so a
-// prose mention or a deeper "###" heading does not satisfy the contract.
-func hasCreativeBriefGateHeading(body string) bool {
-	for _, line := range strings.Split(body, "\n") {
-		if strings.TrimSpace(line) == creativeBriefGateHeading {
-			return true
-		}
-	}
-	return false
 }
 
 func validateSkillRequiredWorkflowRunSet(skillName string, documented []string) string {
@@ -320,7 +275,7 @@ func findSkillsDir() (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("skills dir not found: .claude/skills")
+	return "", fmt.Errorf("skills dir not found: .claude/skills: %w", os.ErrNotExist)
 }
 
 func parseSkill(path string) (skillInfo, error) {

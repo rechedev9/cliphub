@@ -6,7 +6,6 @@
   "srcDir": "../../components",
   "tsconfig": "../../.design-sync/tsconfig.bundle.json",
   "cssEntry": "styles.css",
-  "readmeHeader": ".design-sync/conventions.md",
   "overrides": {
     "Dialog": { "cardMode": "single", "viewport": "560x440" },
     "Sheet": { "cardMode": "single", "viewport": "680x460" },

@@ -167,7 +167,7 @@ func segmentIDOnlyDocJSON(t *testing.T, listKey string, ids []string) string {
 // TestRenderWorkerNarrowsToSelectedSegments is the render-side regression for
 // the bug this task fixes: a Studio generate for one (or a few) reel segments
 // must render exactly that selection, not every segment the job has ever
-// recorded. It covers both ends of CLAUDE.md's requirement: a single selected
+// recorded. It covers both selection cases: a single selected
 // segment renders its own short with no --compile-segments, and two or more
 // selected segments compile only those, in the requested order.
 func TestRenderWorkerNarrowsToSelectedSegments(t *testing.T) {

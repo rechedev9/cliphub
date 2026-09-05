@@ -79,8 +79,7 @@ function PlayFrame({ play, selected }: { play: Play; selected: boolean }) {
 }
 
 /**
- * PlayRow — one highlight in the vertical selector (the layout the E2E suite
- * and design.md pin down; the horizontal filmstrip stays retired).
+ * PlayRow — one highlight in the vertical selector covered by the E2E suite.
  *
  * Selection is staged as a physical action rather than as a checkbox tint:
  * unselected frames sit turned away and pushed back, as if racked in a film bin,

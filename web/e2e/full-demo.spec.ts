@@ -117,7 +117,7 @@ test.describe('Full POV constructor', () => {
     await expect(page.getByText(FULL_DEMO_ROUNDS_PENDING)).toHaveCount(0);
     await expect(page.getByText(FULL_DEMO_FORGE_HINT_ERROR)).toBeVisible();
     await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeDisabled();
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
   });
 
   test('a recap-plan 409 talks about rondas, not Shorts highlights', async ({ page }) => {
@@ -130,7 +130,7 @@ test.describe('Full POV constructor', () => {
     await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
   });
 
-  test('a ready recap-plan lists every round and gates REC behind the brief', async ({ page }) => {
+  test('a ready recap-plan enables REC directly and lists every round', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     await gotoStudio(page, PRODUCE_FULL);
     await expect(page.getByRole('heading', { name: PRODUCE_FULL_TITLE })).toBeVisible();
@@ -143,15 +143,14 @@ test.describe('Full POV constructor', () => {
     await expect(page.getByRole('button', { name: 'Sin música' })).toHaveCount(0);
 
     const cta = page.getByRole('button', { name: REC_CTA });
-    await expect(cta).toBeDisabled();
-    const brief = page.getByRole('region', { name: /Revisar antes de crear/ });
+    await expect(cta).toBeEnabled();
+    const brief = page.getByRole('region', { name: /Configuración del render/ });
     for (const row of FULL_DEMO_CONTRACT) {
       await expect(brief.getByText(row.value, { exact: true })).toBeVisible();
     }
     await expect(brief.getByText(NATIVE_HUD_LABEL, { exact: true })).toBeVisible();
     await expect(page.getByText(/Este formato necesita acceso a FACEIT/)).toBeVisible();
     await expect(page.getByText('HUD completo con killfeed')).toHaveCount(0);
-    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
     await expect(cta).toBeEnabled();
   });
 
@@ -168,30 +167,30 @@ test.describe('Full POV constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     const theme = page.getByRole('combobox', { name: 'Tema de overlays FACEIT' });
     await expect(theme).toContainText('FACEIT naranja');
-    await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
     await theme.click();
     await page.getByRole('option', { name: /Neón violeta/ }).click();
     await expect(theme).toContainText('Neón violeta');
-    // Any decision change revokes the approval.
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
+    // Changing settings keeps a complete plan ready to record.
+    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
     await expect(page.getByRole('switch')).toHaveCount(0);
   });
 });
 
 
-test('switching formats preserves the long video theme and approval independently', async ({ page }) => {
+test('switching formats preserves the long video theme without an approval step', async ({ page }) => {
   await stubParsedMatch(page, { status: 200, body: PLAN });
   await gotoStudio(page, PRODUCE_FULL);
   const theme = page.getByRole('combobox', { name: 'Tema de overlays FACEIT' });
   await theme.click();
   await page.getByRole('option', { name: /Neón violeta/ }).click();
-  await page.getByRole('checkbox', { name: BRIEF_CHECKBOX }).check();
+  await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
   await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
   await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
   await expect(theme).toContainText('Neón violeta');
-  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
 });
 
 for (const format of ['short', 'full']) {

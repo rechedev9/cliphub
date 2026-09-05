@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -56,22 +56,14 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
   const router = useRouter();
   const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
   const [overlayTheme, setOverlayTheme] = useState<OverlayTheme>(OVERLAY_THEME.faceitOrange);
-  const [briefApproved, setBriefApproved] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-
-  // The rounds array identity changes on every poll, so approval keys on the
-  // plan's digest instead: a real round change revokes it, a re-fetch does not.
-  const roundsDigest = rounds.map((round) => round.id).join(',');
-  useEffect(() => {
-    setBriefApproved(false);
-  }, [overlayTheme, roundsDigest, recBusy]);
 
   const roundCount = rounds.length;
   const roundsPending = recapFailure === null && roundCount === 0;
   const themeLabel = fullDemoOverlayThemeLabel(overlayTheme);
   const briefItems = [...fullDemoBriefItems(), { label: 'Tema overlays', value: themeLabel }];
-  const ready = canStartFullDemoCapture({ roundCount, briefApproved, creating });
+  const ready = canStartFullDemoCapture({ roundCount, creating });
 
   async function onCreate(): Promise<void> {
     if (!ready) return;
@@ -124,7 +116,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
               {match.player ? ` · ${match.player}` : ''}
             </p>
             <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_FULL_TITLE}</h1>
-            <p className="text-body-sm text-fg-2">Un vídeo horizontal con todas las rondas del jugador, HUD nativo y voces del equipo. Revisa el plan y confirma los ajustes para iniciar la grabación.</p>
+            <p className="text-body-sm text-fg-2">Un vídeo horizontal con todas las rondas del jugador, HUD nativo y voces del equipo. Ajusta el tema visual e inicia la grabación cuando quieras.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -213,6 +205,8 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
       <div className="flex-1" />
 
       <ProduceFooter
+        ready={ready}
+        busy={creating}
         tone="full"
         eyebrow="Vídeo largo · 16:9"
         summary={summary}
@@ -224,11 +218,7 @@ export function FullPovProducer({ matchId, match, rounds, recapFailure, recBusy,
             <span className="ml-2">Este formato necesita acceso a FACEIT para verificar los perfiles y el historial de los jugadores. También requiere CS2 y HLAE en este PC.</span>
           </div>
         }
-        briefApproved={briefApproved}
-        briefReady={roundCount > 0}
-        onBriefApprovedChange={setBriefApproved}
         backHref={returnHref}
-        busy={creating}
         error={createError}
         cta={
           <Button

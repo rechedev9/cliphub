@@ -40,7 +40,7 @@ import {
   streamSourceLabel,
   timelineClipAt,
 } from '@/lib/streams/plan';
-import { canCreateStreamShorts, streamCreativeBrief } from '@/lib/streams/brief';
+import { streamCreativeBrief } from '@/lib/streams/brief';
 import {
   STREAM_STEP,
   STREAM_STEP_LABEL,
@@ -123,9 +123,7 @@ export function StreamEditor({
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReload, setPreviewReload] = useState(0);
-  const [briefApproved, setBriefApproved] = useState(false);
   const briefItems = useMemo(() => streamCreativeBrief(plan), [plan]);
-  const planKey = useMemo(() => planFingerprint(plan), [plan]);
   // Only start/end/speed/volume should restart the playback transport; a title
   // edit must not pause the montage that is already playing.
   const clipsPlaybackKey = useMemo(
@@ -137,11 +135,6 @@ export function StreamEditor({
   );
   const playbackClipsRef = useRef(plan.clips);
   playbackClipsRef.current = plan.clips;
-
-  // Any plan mutation invalidates the creative brief (same contract as demo reels).
-  useEffect(() => {
-    setBriefApproved(false);
-  }, [planKey]);
 
   useEffect(() => {
     if (stage === 'rendering') setActiveStep(STREAM_STEP.results);
@@ -366,11 +359,11 @@ export function StreamEditor({
     activeClip && activeClip.end_seconds > activeClip.start_seconds
       ? ((previewSeconds - activeClip.start_seconds) / (activeClip.end_seconds - activeClip.start_seconds)) * 100
       : 0;
-  const ctaLabel = streamCtaLabel({ plan, briefApproved, rendering: stage === 'rendering', hasRender });
+  const ctaLabel = streamCtaLabel({ plan, rendering: stage === 'rendering', hasRender });
   // While something blocks the render the CTA names it but stays a real link
   // to that step instead of a disabled dead end.
   const blocker = streamPlanBlocker(plan);
-  const ctaDisabled = busy || (blocker === null && !canCreateStreamShorts({ briefApproved, busy }));
+  const ctaDisabled = busy;
   const activeEntry = steps.find((step) => step.key === activeStep);
   const panelTitle =
     activeEntry === undefined
@@ -568,7 +561,6 @@ export function StreamEditor({
 
         <StreamFooter
           briefItems={briefItems}
-          briefApproved={briefApproved}
           blockerHint={streamBlockerHint(plan)}
           countLabel={shortsWord(plan.clips.length)}
           summary={streamOutputSummary(plan, stale)}
@@ -576,8 +568,8 @@ export function StreamEditor({
           ctaDisabled={ctaDisabled}
           rendering={stage === 'rendering'}
           busy={saving}
-          onBriefApprovedChange={setBriefApproved}
           onCreate={() => {
+            if (busy) return;
             if (blocker !== null) {
               setActiveStep(blocker);
               return;

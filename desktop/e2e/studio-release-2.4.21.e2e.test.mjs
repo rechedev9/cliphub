@@ -110,7 +110,7 @@ test('installed release exposes version-only desktop settings with no MCP surfac
   }
 });
 
-test('demo reel requires the exact creative brief and keeps publication metadata isolated', async () => {
+test('demo reel uses the selected settings and keeps publication metadata isolated', async () => {
   await goto('/matches/m-inferno');
   await page.getByRole('heading', { name: 'Inferno' }).waitFor();
   const matchText = await page.locator('body').innerText();
@@ -118,16 +118,14 @@ test('demo reel requires the exact creative brief and keeps publication metadata
   assert.match(matchText, /HACE \d+ D/);
 
   await page.locator('button:has(.lucide-crosshair)').first().click();
-  await page.getByText('Brief creativo exacto', { exact: true }).waitFor();
+  await page.getByText('Configuración del render', { exact: true }).waitFor();
   const forge = page.getByRole('button', { name: 'FORJAR REEL' });
-  const approval = page.getByLabel(/Apruebo todas estas decisiones/);
-  assert.equal(await forge.isDisabled(), true);
-  assert.equal(await approval.isEnabled(), true);
+  assert.equal(await page.getByLabel(/Apruebo/).count(), 0);
+  assert.equal(await forge.isEnabled(), true);
   const brief = page.locator('[aria-labelledby="creative-brief-title"]');
   for (const label of ['Formato', 'HUD / killfeed', 'Efecto de kill', 'Transición', 'Título / contador', 'Intro', 'Outro', 'Música', 'Portada']) {
     assert.equal(await brief.getByText(`${label}:`, { exact: true }).isVisible(), true, `missing ${label}`);
   }
-  await approval.check();
   assert.equal(await forge.isEnabled(), true);
 
   await page.setViewportSize({ width: 960, height: 900 });
@@ -137,9 +135,7 @@ test('demo reel requires the exact creative brief and keeps publication metadata
   await page.setViewportSize({ width: 1280, height: 900 });
 
   await page.getByRole('button', { name: '16:9' }).click();
-  assert.equal(await approval.isChecked(), false, 'changing the brief must revoke approval');
-  assert.equal(await forge.isDisabled(), true);
-  await approval.check();
+  assert.equal(await forge.isEnabled(), true, 'changing settings must not require another approval');
 
   const alphaJob = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const betaJob = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -340,10 +336,9 @@ test('stream editor validates, recovers, previews, reports progress, switches la
   assert.equal(Number(await endInput.inputValue()), 15.112);
   assert.equal(await titleInput.inputValue(), 'vaya saco..');
 
-  const streamApproval = page.getByLabel(/Apruebo todas estas decisiones/);
   const createShorts = page.getByRole('button', { name: 'CREAR SHORTS' });
-  assert.equal(await createShorts.isDisabled(), true);
-  await streamApproval.check();
+  assert.equal(await page.getByLabel(/Apruebo/).count(), 0);
+  assert.equal(await createShorts.isEnabled(), true);
   await createShorts.click();
   await page.getByText(/Confirma manualmente el recorte de facecam/).waitFor();
   assert.equal(await page.getByText(/podría coincidir con el radar/).isVisible(), true);

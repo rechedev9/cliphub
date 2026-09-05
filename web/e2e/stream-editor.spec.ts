@@ -90,8 +90,8 @@ test.describe('stream editor', () => {
     await expect(stepTitle(page, '01 · Encuadre y facecam')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirmar recorte de facecam' })).toBeVisible();
     await expect(cta(page, 'Confirma el recorte primero')).toBeEnabled();
-    await expect(briefCheckbox(page)).toBeDisabled();
-    await expect(page.getByText('Confirma el recorte de facecam en el paso 01 para poder aprobar')).toBeVisible();
+    await expect(briefCheckbox(page)).toHaveCount(0);
+    await expect(page.getByText('Confirma el recorte de facecam en el paso 01 para renderizar')).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name: /Revisar/ })).toHaveCount(0);
 
     // The crop is edited on the monitor while the timeline stays on screen.
@@ -109,33 +109,25 @@ test.describe('stream editor', () => {
     expect(stub.puts).toHaveLength(0);
   });
 
-  test('confirming the crop unlocks the brief, approving it enables the CTA, and the brief reads as a clock', async ({ page }) => {
+  test('confirming the crop enables render directly and the summary reads as a clock', async ({ page }) => {
     const stub = await stubStreamJob(page, false);
     await gotoStudio(page, `/streams/${JOB_ID}`);
 
     await page.getByRole('button', { name: 'Confirmar recorte de facecam' }).click();
     await expect(page.getByRole('button', { name: 'Recorte confirmado' })).toBeVisible();
     await expect(railStep(page, /Encuadre/)).toContainText('recorte ✓');
-    await expect(cta(page, 'Revisa y aprueba los ajustes')).toBeDisabled();
 
-    await briefCheckbox(page).check();
+    await expect(briefCheckbox(page)).toHaveCount(0);
     await expect(cta(page, 'Crear Shorts →')).toBeEnabled();
     await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
 
     const briefLine = page.getByTitle(/^Facecam 40 — .*de salida aprox\./);
     await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
-    await page.getByText('Revisar antes de crear', { exact: true }).click();
+    await page.getByText('Configuración del render', { exact: true }).click();
     const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
     await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
     await expect(clipsItem).not.toHaveText(/-\d/);
-    const summaryBox = await page.getByText('Revisar antes de crear', { exact: true }).boundingBox();
-    const checkboxBox = await briefCheckbox(page).boundingBox();
-    expect(summaryBox).not.toBeNull();
-    expect(checkboxBox).not.toBeNull();
-    if (summaryBox !== null && checkboxBox !== null) {
-      expect(Math.abs(checkboxBox.y - summaryBox.y)).toBeLessThan(12);
-    }
   });
 
   test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({ page }) => {

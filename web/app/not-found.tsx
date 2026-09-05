@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Ruta desconocida' };
 
 /**
  * The 404 for routes outside the app group. Two corrections over v3: the wash
- * and the eyebrow no longer use `--destructive` — design.md reserves red for
+ * and the eyebrow no longer use `--destructive` — red signals
  * "error, failure, delete", and a stale bookmark is none of those, so painting
  * one red makes a mistyped URL look like data loss — and the two actions are
  * real `Button`s instead of hand-rolled 40px anchors with no focus ring.

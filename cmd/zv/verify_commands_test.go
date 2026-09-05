@@ -21,9 +21,6 @@ func TestRunVerifyDoctorJSONSchemaAndGap(t *testing.T) {
 	if report.SchemaVersion != verify.SchemaVersion {
 		t.Fatalf("schema_version = %d, want %d", report.SchemaVersion, verify.SchemaVersion)
 	}
-	if !report.Skill.OK {
-		t.Fatalf("skill = %#v", report.Skill)
-	}
 	if len(report.Features) != len(verify.Features()) {
 		t.Fatalf("features = %d, want %d", len(report.Features), len(verify.Features()))
 	}
@@ -65,7 +62,7 @@ func TestRunVerifyFeaturesJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout.String()), &report); err != nil {
 		t.Fatal(err)
 	}
-	if !report.OK || !report.IndexPresent {
+	if !report.OK || report.Source != verify.FeatureCatalogSource {
 		t.Fatalf("feature map = %#v", report)
 	}
 }

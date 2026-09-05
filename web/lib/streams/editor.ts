@@ -143,18 +143,16 @@ export function streamOutputSummary(plan: StreamEditPlan, stale: boolean): strin
 
 export type StreamCtaState = {
   plan: StreamEditPlan;
-  briefApproved: boolean;
   rendering: boolean;
   hasRender: boolean;
 };
 
 /** Footer CTA copy: the label names the next blocker before it names the action. */
-export function streamCtaLabel({ plan, briefApproved, rendering, hasRender }: StreamCtaState): string {
+export function streamCtaLabel({ plan, rendering, hasRender }: StreamCtaState): string {
   if (rendering) return 'Renderizando…';
   const blocker = streamPlanBlocker(plan);
   if (blocker === STREAM_STEP.layout) return 'Confirma el recorte primero';
   if (blocker === STREAM_STEP.cuts) return 'Añade un corte primero';
-  if (!briefApproved) return 'Revisa y aprueba los ajustes';
   return hasRender ? 'Crear Shorts de nuevo →' : 'Crear Shorts →';
 }
 
@@ -169,11 +167,11 @@ export function streamPlanBlocker(plan: StreamEditPlan): StreamBlocker | null {
 }
 
 const BLOCKER_HINT: Record<StreamBlocker, string> = {
-  layout: 'Confirma el recorte de facecam en el paso 01 para poder aprobar',
-  cuts: 'Añade al menos un corte en la timeline para poder aprobar',
+  layout: 'Confirma el recorte de facecam en el paso 01 para renderizar',
+  cuts: 'Añade al menos un corte en la timeline para renderizar',
 };
 
-/** Why the brief cannot be approved yet, or null once the plan is renderable. */
+/** Why the plan cannot be rendered yet, or null once the plan is renderable. */
 export function streamBlockerHint(plan: StreamEditPlan): string | null {
   const blocker = streamPlanBlocker(plan);
   return blocker === null ? null : BLOCKER_HINT[blocker];

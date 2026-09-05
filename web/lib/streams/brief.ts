@@ -7,21 +7,11 @@ import { affiliateFamilyLabel, affiliateStyleLabel } from '../api/types.ts';
 import type { CreativeBriefItem } from '../reel-brief.ts';
 import { clipOutputDuration, formatStreamClock } from './plan.ts';
 
-export function canCreateStreamShorts({
-  briefApproved,
-  busy,
-}: {
-  briefApproved: boolean;
-  busy: boolean;
-}): boolean {
-  return !busy && briefApproved;
-}
-
 function variantLabel(variant: StreamVariant): string {
   return STREAM_VARIANTS.find((entry) => entry.value === variant)?.label ?? variant;
 }
 
-/** Exact, reviewable stream production choices that must be approved before render. */
+/** The stream production choices used by the persisted render plan. */
 export function streamCreativeBrief(plan: StreamEditPlan): CreativeBriefItem[] {
   const needsFace =
     STREAM_VARIANTS.find((entry) => entry.value === plan.variant)?.needsFaceCrop ?? false;

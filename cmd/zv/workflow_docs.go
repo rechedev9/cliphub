@@ -1,5 +1,7 @@
 package main
 
+// workflowDocs retains its CLI JSON name but only validates executable sources.
+// Product behavior lives in the command catalog and these build/run scripts.
 func workflowDocs() []workflowDoc {
 	return []workflowDoc{
 		{
@@ -44,50 +46,6 @@ func workflowDocs() []workflowDoc {
 			Required: []string{
 				`Invoke-Step "zv check"`,
 				"go run ./cmd/zv check",
-			},
-		},
-		{
-			Path: ".claude/GUIDE.md",
-			Required: []string{
-				"./bin/zv skills list",
-				"./bin/zv skills show",
-				"./bin/zv skills check",
-				"./bin/zv check",
-				"./bin/zv check --format json",
-				"./bin/zv skills list --format json",
-				"./bin/zv skills show",
-				"./bin/zv skills check --format json",
-				"./bin/zv workflows list",
-				"./bin/zv workflows list --format json",
-				"./bin/zv workflows show",
-				"./bin/zv workflows show demo-parse --format json",
-				"./bin/zv workflows show faceit-index",
-				"./bin/zv workflows run faceit-index",
-				"./bin/zv workflows run demo-parse",
-				"./bin/zv workflows run demo-players",
-				"./bin/zv workflows run demo-probe",
-				"./bin/zv workflows run demo-voice",
-				"./bin/zv workflows run utility-audit",
-				"./bin/zv workflows run record",
-				"./bin/zv workflows run compose-final",
-				"./bin/zv workflows run music-analyze",
-				"./bin/zv workflows run shorts-render",
-				"./bin/zv workflows run stream-fetch",
-				"./bin/zv workflows run stream-variants",
-				"./bin/zv workflows run stream-plan",
-				"./bin/zv workflows run stream-render",
-				"./bin/zv workflows run analysis-tactical",
-				"./bin/zv workflows run analysis-rounds",
-				"./bin/zv workflows run analysis-tendencies",
-				"./bin/zv workflows run analysis-tactical-data",
-				"./bin/zv workflows run analysis-viewer",
-				"./bin/zv workflows run gallery-open",
-				"./bin/zv workflows run serve",
-				"./bin/zv workflows run skills-check",
-				"./bin/zv workflows run workflows-check",
-				"./bin/zv workflows run project-check",
-				"./bin/zv workflows check",
-				"./bin/zv workflows check --format json",
 			},
 		},
 	}

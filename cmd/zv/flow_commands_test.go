@@ -26,8 +26,8 @@ func TestRunFlowsShowDemoJSONIsCompleteAgentJourney(t *testing.T) {
 	if !result.OK || result.Flow.Name != "demo" || len(result.Flow.Phases) < 8 {
 		t.Fatalf("result = %#v", result)
 	}
-	if !containsString(result.Flow.ProducedArtifactKeys, "publish-pack") || !containsString(result.Flow.SafetyGates, "creative brief approval") {
-		t.Fatalf("demo flow contract = %#v, want publish pack and creative gate", result.Flow)
+	if !containsString(result.Flow.ProducedArtifactKeys, "publish-pack") || containsString(result.Flow.SafetyGates, "creative brief approval") {
+		t.Fatalf("demo flow contract = %#v, want publish pack without brief approval", result.Flow)
 	}
 	if !strings.Contains(result.Flow.ResumePolicy, "demo_incompatible") || !strings.Contains(result.Flow.DryRunBehavior, "flows run --dry-run") {
 		t.Fatalf("demo flow behavior = dry-run %q resume %q, want agent-safe policy", result.Flow.DryRunBehavior, result.Flow.ResumePolicy)
@@ -41,8 +41,7 @@ func TestRunFlowsShowDemoJSONIsCompleteAgentJourney(t *testing.T) {
 		"zv record",
 		"parse-preflight",
 		"moments-preflight",
-		"creative-brief",
-		"kill numbering or counter",
+
 		"thumbnail-selection",
 		editor.OutputFormatShort9x16,
 		editor.OutputFormatLandscape16x9,
@@ -86,7 +85,27 @@ func TestDemoFlowKeepsPreflightPersistRhythm(t *testing.T) {
 	}
 }
 
-func TestDemoFlowRequiresCreativeAndThumbnailGates(t *testing.T) {
+func TestProductionFlowsDoNotRequireBriefApproval(t *testing.T) {
+	for _, flow := range productionFlows() {
+		for _, phase := range flow.Phases {
+			if phase.ID == "creative-brief" || (phase.ID == "plan-review" && phase.Gate) {
+				t.Fatalf("%s still requires brief approval: %#v", flow.Name, phase)
+			}
+		}
+	}
+	for _, steps := range [][]flowRunStep{
+		demoFlowRunSteps("run", "match.dem", "76561198000000000", ""),
+		streamFlowRunSteps("run", "stream.mp4"),
+	} {
+		for _, step := range steps {
+			if step.id == "creative-brief" {
+				t.Fatal("flow runner still pauses for brief approval")
+			}
+		}
+	}
+}
+
+func TestDemoFlowKeepsThumbnailGateWithoutBriefApproval(t *testing.T) {
 	flow, ok := findProductionFlow("demo")
 	if !ok {
 		t.Fatal("demo flow missing")
@@ -97,7 +116,7 @@ func TestDemoFlowRequiresCreativeAndThumbnailGates(t *testing.T) {
 			gates[phase.ID] = phase
 		}
 	}
-	for _, id := range []string{"creative-brief", "thumbnail-selection"} {
+	for _, id := range []string{"thumbnail-selection"} {
 		phase, ok := gates[id]
 		if !ok || phase.Decision == "" {
 			t.Fatalf("gate %q = %#v, want required decision", id, phase)
@@ -107,7 +126,7 @@ func TestDemoFlowRequiresCreativeAndThumbnailGates(t *testing.T) {
 	for _, phase := range flow.Phases {
 		phases[phase.ID] = phase
 	}
-	for _, want := range []string{"--hud <gameplay|clean|deathnotices>", "--kill-effect <approved-effect>", "--hook=<true|false>", "--kill-counter=<true|false>", "--covers=<true|false>"} {
+	for _, want := range []string{"--hud <gameplay|clean|deathnotices>", "--kill-effect <effect>", "--hook=<true|false>", "--kill-counter=<true|false>", "--covers=<true|false>"} {
 		commands := phases["capture-preflight"].Command + phases["edit-preflight"].Command + phases["edit"].Command
 		if !strings.Contains(commands, want) {
 			t.Fatalf("approved choice %q missing from downstream commands: %s", want, commands)
@@ -124,7 +143,7 @@ func TestDemoFlowRequiresCreativeAndThumbnailGates(t *testing.T) {
 	}
 }
 
-func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T) {
+func TestRunFlowsShowStreamIncludesLandscapeVariantAndPersistedPlan(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"zv", "flows", "show", "stream", "--format=json"}, &stdout, &stderr, nil, &fakeRunner{})
 	if code != exitSuccess || stderr.Len() != 0 {
@@ -139,7 +158,7 @@ func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T)
 	if !containsString(result.Flow.RequiredArtifacts, "persisted stream edit plan") || !containsString(result.Flow.ProducedArtifactKeys, "stream-edit-plan") {
 		t.Fatalf("stream flow contract = %#v, want persisted plan contract", result.Flow)
 	}
-	if !strings.Contains(result.Flow.DryRunBehavior, "do not create the --out edit plan artifact") || !strings.Contains(result.Flow.ResumePolicy, "invalidates the creative brief") {
+	if !strings.Contains(result.Flow.DryRunBehavior, "do not create the --out edit plan artifact") || !strings.Contains(result.Flow.ResumePolicy, "updated plan") {
 		t.Fatalf("stream flow behavior = dry-run %q resume %q, want plan caveats", result.Flow.DryRunBehavior, result.Flow.ResumePolicy)
 	}
 	commands := make(map[string]string, len(result.Flow.Phases))
@@ -163,8 +182,8 @@ func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T)
 			break
 		}
 	}
-	if planReview.ID != "plan-review" || !planReview.Gate || !planReview.ReadOnly || planReview.Decision == "" {
-		t.Fatalf("plan review = %#v, want a read-only approval gate", planReview)
+	if planReview.ID != "plan-review" || planReview.Gate || !planReview.ReadOnly || planReview.Decision == "" {
+		t.Fatalf("plan review = %#v, want a read-only configuration check", planReview)
 	}
 	for _, want := range []string{"zv stream render", "--plan <run>/edit-plan.json", "--dry-run"} {
 		if !strings.Contains(planReview.Command, want) {
@@ -179,7 +198,6 @@ func TestRunFlowsShowStreamIncludesLandscapeVariantAndCreativeGate(t *testing.T)
 	body := stdout.String()
 	for _, want := range []string{
 		streamclips.VariantStreamerLandscape16x9,
-		"creative-brief",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("flow JSON missing %q: %s", want, body)

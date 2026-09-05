@@ -55,7 +55,7 @@ if (process.env.CLIPHUB_ASSEMBLE_ALLOW_STALE_BIN !== '1') {
       '(rebuilds Go runtimes first). Set CLIPHUB_ASSEMBLE_ALLOW_STALE_BIN=1 to silence.',
   );
 }
-// electron-builder picks up build/icon.ico automatically (see desktop/GUIDE.md);
+// electron-builder picks up build/icon.ico automatically;
 // it does not fail loudly if it's missing, it just ships an installer with the
 // default Electron icon. Fail here instead, before the (slow) Next.js build
 // below, so a missing icon is caught in seconds rather than discovered by

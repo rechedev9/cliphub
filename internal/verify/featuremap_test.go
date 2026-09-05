@@ -5,17 +5,13 @@ import (
 	"testing"
 )
 
-func TestFeatureMapExistsAndMatchesCatalog(t *testing.T) {
-	root, err := FindRepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	report := InspectFeatureMap(root)
+func TestFeatureMapUsesCompiledCatalogWithoutDocuments(t *testing.T) {
+	report := InspectFeatureMap(t.TempDir())
 	if !report.OK {
 		t.Fatalf("feature map issues: %s", strings.Join(report.Issues, "; "))
 	}
-	if !report.IndexPresent {
-		t.Fatal("missing references/features/INDEX.md")
+	if report.Source != FeatureCatalogSource {
+		t.Fatalf("source = %q", report.Source)
 	}
 	if got, want := len(report.Features), len(Features()); got != want {
 		t.Fatalf("features = %d, want %d", got, want)
@@ -26,11 +22,8 @@ func TestFeatureMapExistsAndMatchesCatalog(t *testing.T) {
 			t.Fatalf("duplicate feature %s", feature.ID)
 		}
 		seen[feature.ID] = true
-		if !feature.MapPresent || !feature.CheapOK {
-			t.Fatalf("feature %s map_present=%t cheap_ok=%t issues=%v", feature.ID, feature.MapPresent, feature.CheapOK, feature.Issues)
-		}
-		if got, want := len(feature.Headings), len(RequiredFeatureHeadings); got != want {
-			t.Fatalf("feature %s headings = %d, want %d", feature.ID, got, want)
+		if !feature.CatalogValid || !feature.CheapOK {
+			t.Fatalf("feature %s catalog_valid=%t cheap_ok=%t issues=%v", feature.ID, feature.CatalogValid, feature.CheapOK, feature.Issues)
 		}
 		if feature.RequiresHLAECS2 && feature.UserPath == "pass" {
 			t.Fatalf("feature %s leaked a Pass user_path", feature.ID)
@@ -63,6 +56,28 @@ func TestCatalogCheapFeaturesHaveProbePath(t *testing.T) {
 	}
 }
 
+func TestFeatureCatalogValidationRejectsIncompleteMetadata(t *testing.T) {
+	valid := Features()[0]
+	cases := []struct {
+		name     string
+		features []Feature
+	}{
+		{name: "empty"},
+		{name: "duplicate", features: []Feature{valid, valid}},
+		{name: "missing identity", features: []Feature{{Route: "/onboarding", ProbePath: "/api/steam/account"}}},
+		{name: "external route", features: []Feature{{ID: "external", Title: "External", Route: "//example.com", CheapProof: "probe", ProbePath: "/api/test"}}},
+		{name: "missing probe", features: []Feature{{ID: "missing-probe", Title: "Missing probe", Route: "/onboarding", CheapProof: "probe"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			report := inspectFeatures(tc.features)
+			if report.OK || len(report.Issues) == 0 {
+				t.Fatalf("invalid catalog accepted: %#v", report)
+			}
+		})
+	}
+}
+
 func TestCatalogCoversStudioNav(t *testing.T) {
 	t.Parallel()
 	want := []string{
@@ -78,23 +93,6 @@ func TestCatalogCoversStudioNav(t *testing.T) {
 		if !have[route] {
 			t.Fatalf("catalog missing nav route %s", route)
 		}
-	}
-}
-
-func TestInspectSkillContract(t *testing.T) {
-	root, err := FindRepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	skill := InspectSkill(root)
-	if !skill.OK {
-		t.Fatalf("skill issues: %s", strings.Join(skill.Issues, "; "))
-	}
-	if skill.Name != "verify-cliphub" {
-		t.Fatalf("skill name = %q", skill.Name)
-	}
-	if skill.Description == "" {
-		t.Fatal("empty skill description")
 	}
 }
 

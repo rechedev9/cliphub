@@ -93,7 +93,7 @@ export type MatchScoreProps = {
  * and a 3px under-rule in the outcome tone.
  *
  * `role="img"` + `aria-label` because the outcome is otherwise carried by colour
- * and geometry alone, which design.md forbids: the label spells out "13 a 7 ·
+ * and geometry alone: the label spells out "13 a 7 ·
  * victoria" for assistive tech while the visual stays two numbers and a rule.
  */
 export function MatchScore({ score, size = 'md', className }: MatchScoreProps): ReactNode {

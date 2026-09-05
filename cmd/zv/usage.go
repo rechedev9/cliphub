@@ -120,7 +120,7 @@ only when Studio + HLAE + CS2 are actually up. Never fake CS2. Hosted CI
 green is not HLAE/CS2 proof. JSON is the agent contract.
 
 Subcommands:
-  doctor    live Studio surface, HLAE, running CS2, skill, feature map, named gaps
+  doctor    live Studio surface, HLAE, running CS2, feature catalog, named gaps
   features  dump the Studio feature map
   http      GET /healthz on a loopback orchestrator if one is running
   gates     list cheap hosted CI commands (no Playwright, no HLAE)
@@ -179,7 +179,7 @@ const verifyGatesUsage = `usage: zv verify gates [--run] [--dry-run] [--format t
 
 const verifyProveUsage = `usage: zv verify prove --feature <id> [--job-id <uuid>] [--dry-run] [--user-data <dir>] [--format text|json]
 
-Inspect one mapped Studio feature. Cheap features prove the feature-map
+Inspect one mapped Studio feature. Cheap features prove the compiled catalog
 contract, emit drive.open_url, and GET probe_path (read-only) when Studio
 is up. That inspect is never a capture Pass and never a UI walk. HLAE/CS2
 features GET live job status and capture-progress percent when Studio is up.

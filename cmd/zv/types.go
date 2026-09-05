@@ -34,9 +34,10 @@ type workflowDoc struct {
 }
 
 type workflowCheckResult struct {
-	OK                  bool         `json:"ok"`
-	SkillsChecked       int          `json:"skills_checked"`
-	WorkflowsChecked    int          `json:"workflows_checked"`
+	OK               bool `json:"ok"`
+	SkillsChecked    int  `json:"skills_checked"`
+	WorkflowsChecked int  `json:"workflows_checked"`
+	// The legacy JSON key counts executable workflow source files, not Markdown.
 	WorkflowDocsChecked int          `json:"workflow_docs_checked"`
 	Issues              []skillIssue `json:"issues"`
 }
