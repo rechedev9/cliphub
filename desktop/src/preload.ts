@@ -18,6 +18,7 @@ interface PreloadBrowserScope {
 
 contextBridge.exposeInMainWorld('cliphubSettings', {
   getAppInfo: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'app-info' }),
+  getPlaybackInfo: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'playback-info' }),
   getTelemetry: (): Promise<unknown> => ipcRenderer.invoke(STUDIO_SETTINGS_CHANNEL, { action: 'telemetry-status' }),
   updateTelemetry: (enabled: unknown): Promise<unknown> => ipcRenderer.invoke(
     STUDIO_SETTINGS_CHANNEL,

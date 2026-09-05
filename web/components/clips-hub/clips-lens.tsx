@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import Link from 'next/link';
+import { AlertTriangle, ArrowRight, Play } from 'lucide-react';
+import { PLAYBACK_REVIEW, demoPlaybackItem, streamPlaybackItem, type MediaPlaybackItem } from '@/lib/api/playback';
+import type { StreamJob } from '@/lib/api/streams';
 import {
   CLIP_FILTER,
   CLIP_SIZE,
@@ -19,6 +22,9 @@ import { cn } from '@/lib/utils';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { MediaFrame } from '@/components/studio/media-frame';
+import { MediaPlayer } from '@/components/studio/media-player';
+import { StatusTag } from '@/components/studio/status-tag';
+import { Button } from '@/components/ui/button';
 import { OutputActions } from '@/components/clips-hub/output-item';
 import { OutputTag } from '@/components/clips-hub/output-tag';
 
@@ -42,28 +48,62 @@ const GRID_COLUMNS = {
 const CHIP_CLASS =
   'inline-flex h-10 items-center border px-3 font-mono text-meta uppercase tracking-wider transition-colors duration-(--dur-fast) hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
-const CLIPS_EMPTY_COPY = 'Ningún clip con ese filtro. Los clips nacen desde una partida: abre una y clipea.';
+const CLIPS_EMPTY_COPY = 'Ningún vídeo con ese filtro. Cambia el filtro o crea un clip desde una partida o un stream.';
 
 const OPEN_MATCH_LABEL = 'Partida';
 const OPEN_MATCH_ARIA = 'Abrir la partida';
 
 export type ClipsLensProps = {
   clips: HubModel['clips'];
+  streams: readonly StreamJob[];
   onOpenMatch: (matchId: string) => void;
   onChange: () => void;
 };
 
 /** The Clips lens: every output as a card, filtered and sized locally. */
-export function ClipsLens({ clips, onOpenMatch, onChange }: ClipsLensProps): ReactNode {
+export function ClipsLens({ clips, streams, onOpenMatch, onChange }: ClipsLensProps): ReactNode {
   const [filter, setFilter] = useState<ClipFilter>(CLIP_FILTER.all);
   const [size, setSize] = useState<ClipSize>(CLIP_SIZE.m);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
+  const streamItems = useMemo(
+    () => streams.flatMap((job) => (job.rendered_outputs ?? []).map((output) => streamPlaybackItem(job, output)).filter((item): item is MediaPlaybackItem => item !== null)),
+    [streams],
+  );
+  const unavailableStreamOutputs = streams.filter((job) => job.rendered_outputs_unavailable === true).length;
   const counts = clipFilterCounts(clips);
+  for (const streamItem of streamItems) {
+    counts.all += 1;
+    if (streamItem.format === '9:16') counts.short += 1;
+    if (streamItem.format === '16:9') counts.full += 1;
+    if (streamItem.review === PLAYBACK_REVIEW.ready) counts.ready += 1;
+  }
   const visible = clips.filter((clip) => matchesClipFilter(clip, filter));
+  const visibleStreams = streamItems.filter((streamItem) => {
+    if (filter === CLIP_FILTER.all) return true;
+    if (filter === CLIP_FILTER.short) return streamItem.format === '9:16';
+    if (filter === CLIP_FILTER.full) return streamItem.format === '16:9';
+    if (filter === CLIP_FILTER.ready) return streamItem.review === PLAYBACK_REVIEW.ready;
+    return false;
+  });
+  const playable = [
+    ...visible.map((clip) => demoPlaybackItem(clip.video)).filter((item): item is MediaPlaybackItem => item !== null),
+    ...visibleStreams,
+  ];
   const small = size === CLIP_SIZE.s;
   const gridStyle: CSSProperties = { gridTemplateColumns: GRID_COLUMNS[size] };
 
   return (
     <div className="flex flex-col gap-3">
+      {unavailableStreamOutputs > 0 ? (
+        <div className="flex items-start gap-2 border border-warning/45 bg-warning/10 px-3 py-2 text-body-sm text-warning" role="status">
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span>
+            No se pudo cargar el historial de vídeos de {unavailableStreamOutputs === 1 ? 'un stream' : `${unavailableStreamOutputs} streams`}.
+          </span>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         {Object.values(CLIP_FILTER).map((key) => (
           <button
@@ -97,7 +137,7 @@ export function ClipsLens({ clips, onOpenMatch, onChange }: ClipsLensProps): Rea
         </span>
       </div>
 
-      {visible.length === 0 ? (
+      {visible.length === 0 && visibleStreams.length === 0 ? (
         <p className="rounded-[10px] border border-dashed border-border-subtle p-8 text-center text-body-sm text-fg-2">
           {CLIPS_EMPTY_COPY}
         </p>
@@ -112,10 +152,41 @@ export function ClipsLens({ clips, onOpenMatch, onChange }: ClipsLensProps): Rea
           style={gridStyle}
         >
           {visible.map((clip) => (
-            <ClipCard key={clip.id} clip={clip} small={small} onOpenMatch={onOpenMatch} onChange={onChange} />
+            <ClipCard
+              key={clip.id}
+              clip={clip}
+              small={small}
+              onOpenMatch={onOpenMatch}
+              onChange={onChange}
+              onPlay={(item, button) => {
+                setActiveId(item.id);
+                setReturnFocus(button);
+                setPlayerOpen(true);
+              }}
+            />
+          ))}
+          {visibleStreams.map((item) => (
+            <StreamClipCard
+              key={item.id}
+              item={item}
+              small={small}
+              onPlay={(button) => {
+                setActiveId(item.id);
+                setReturnFocus(button);
+                setPlayerOpen(true);
+              }}
+            />
           ))}
         </section>
       )}
+      <MediaPlayer
+        items={playable}
+        activeId={activeId}
+        open={playerOpen}
+        onActiveChange={setActiveId}
+        onOpenChange={setPlayerOpen}
+        returnFocus={returnFocus}
+      />
     </div>
   );
 }
@@ -125,17 +196,20 @@ function ClipCard({
   small,
   onOpenMatch,
   onChange,
+  onPlay,
 }: {
   clip: HubClip;
   small: boolean;
   onOpenMatch: (matchId: string) => void;
   onChange: () => void;
+  onPlay: (item: MediaPlaybackItem, button: HTMLElement) => void;
 }): ReactNode {
   const isShort = clip.type === OUTPUT_TYPE.short;
   const { video } = clip;
   const player = clip.match?.player ?? video.targetName ?? '—';
   const sub = isShort ? 'Short · 9:16' : 'Vídeo largo · 16:9';
   const matchId = clip.match?.id ?? null;
+  const playback = demoPlaybackItem(video);
 
   return (
     <article className={cn('studio-panel studio-enter flex flex-col rounded-[10px]', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
@@ -144,7 +218,15 @@ function ClipCard({
           object-cover eats a third of the reel — a Shorts tool must not show a
           reel it did not make (media-frame.tsx). Constraining the width keeps
           the shape honest and still lands the card near its landscape row. */}
-      <span className={cn('relative', isShort && 'w-[54%] self-center')}>
+      <button
+        type="button"
+        disabled={playback === null}
+        aria-label={playback === null ? clip.title : `Reproducir ${clip.title}`}
+        onClick={(event) => {
+          if (playback) onPlay(playback, event.currentTarget);
+        }}
+        className={cn('relative text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default', isShort && 'w-[54%] self-center')}
+      >
         <MediaFrame
           aspect={isShort ? '9:16' : '16:9'}
           badge={<OutputTag output={clip} />}
@@ -160,7 +242,7 @@ function ClipCard({
             />
           </span>
         ) : null}
-      </span>
+      </button>
 
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate font-display text-body-sm font-bold uppercase text-fg-1">{clip.title}</span>
@@ -174,7 +256,12 @@ function ClipCard({
           opposite of what the density step was asked for. */}
       {small ? null : (
         <span className="flex flex-wrap items-center gap-1.5">
-          <OutputActions output={clip} matchId={matchId ?? ORPHAN_MATCH_SEGMENT} onChange={onChange} />
+          <OutputActions
+            output={clip}
+            matchId={matchId ?? ORPHAN_MATCH_SEGMENT}
+            onChange={onChange}
+            onPlay={playback === null ? undefined : (button) => onPlay(playback, button)}
+          />
           {matchId !== null ? (
             <button
               type="button"
@@ -186,6 +273,46 @@ function ClipCard({
               <ArrowRight aria-hidden className="size-3" />
             </button>
           ) : null}
+        </span>
+      )}
+    </article>
+  );
+}
+
+function StreamClipCard({ item, small, onPlay }: { item: MediaPlaybackItem; small: boolean; onPlay: (button: HTMLElement) => void }): ReactNode {
+  const warning = item.review !== PLAYBACK_REVIEW.ready;
+  const isShort = item.format === '9:16';
+  let reviewLabel = 'Stream';
+  if (item.review === PLAYBACK_REVIEW.stale) reviewLabel = 'Desactualizado';
+  else if (item.review === PLAYBACK_REVIEW.pending) reviewLabel = 'Revisión QA';
+  return (
+    <article className={cn('studio-panel studio-enter flex flex-col rounded-[10px]', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3', warning && 'border-warning/45')}>
+      <button
+        type="button"
+        aria-label={`Reproducir ${item.title}`}
+        onClick={(event) => onPlay(event.currentTarget)}
+        className={cn('relative text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', isShort && 'w-[54%] self-center')}
+      >
+        <MediaFrame
+          aspect={item.format}
+          badge={<StatusTag tone={warning ? 'warning' : 'success'}>{reviewLabel}</StatusTag>}
+          className="border border-border"
+          fallback={<ReelCover seed={item.id} plain />}
+          media={item.posterUrl ? <CoverImage src={item.posterUrl} /> : undefined}
+        />
+      </button>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate font-display text-body-sm font-bold uppercase text-fg-1">{item.title}</span>
+        <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">Stream · {isShort ? 'Short' : 'Full POV'}</span>
+      </span>
+      {small ? null : (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <Button type="button" size="xs" variant="outline-primary" onClick={(event) => onPlay(event.currentTarget)}>
+            <Play aria-hidden /> Reproducir
+          </Button>
+          <Button asChild size="xs" variant="outline" className="ml-auto">
+            <Link href={`/streams/${item.jobId}`}>Proyecto</Link>
+          </Button>
         </span>
       )}
     </article>

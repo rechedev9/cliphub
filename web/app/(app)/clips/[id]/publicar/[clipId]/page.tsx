@@ -2,10 +2,11 @@
 
 import { use, useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Download, Music, SearchX, Settings2 } from 'lucide-react';
+import { AlertTriangle, Check, Download, Music, Play, SearchX, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { Match, Video } from '@/lib/api/types';
+import { demoPlaybackItem } from '@/lib/api/playback';
 import { HUB_LENS, hubHref, ORPHAN_MATCH_SEGMENT } from '@/lib/clips/routes';
 import { OUTPUT_STATE, OUTPUT_TYPE, outputState, outputType, type OutputState } from '@/lib/clips/hub';
 import { timeAgo } from '@/lib/format';
@@ -16,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { MediaFrame } from '@/components/studio/media-frame';
+import { MediaPlayer } from '@/components/studio/media-player';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { PublishAssistantPanel } from '@/components/videos/publish-assistant-panel';
@@ -46,6 +48,8 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const [loadFailed, setLoadFailed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -123,6 +127,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
     const voice = video.editConfig.fullDemo.document.voice.availability === 'available' && video.editConfig.voiceComms && (video.editConfig.voiceVolume ?? 0) > 0;
     description = `Rondas de ${where}, POV con HUD nativo${voice ? ' y voces del equipo' : ''}.`;
   }
+  const playback = demoPlaybackItem(video);
 
   function download(): void {
     if (!video?.downloadUrl) return;
@@ -176,6 +181,18 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
               </div>
             ) : null}
             <div className="mt-auto flex flex-wrap gap-2 pt-1">
+              {playback ? (
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={(event) => {
+                    setReturnFocus(event.currentTarget);
+                    setPlayerOpen(true);
+                  }}
+                >
+                  <Play className="size-4" aria-hidden /> Reproducir
+                </Button>
+              ) : null}
               <Button variant="hero" size="sm" disabled={!video.downloadUrl} onClick={download} className="neon-notch focus-visible:-outline-offset-4">
                 <Download className="size-4" /> Descargar MP4
               </Button>
@@ -213,6 +230,15 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
           video={video}
           onOpenChange={setMusicOpen}
           onApplied={() => setRefreshKey((key) => key + 1)}
+        />
+      ) : null}
+      {playback ? (
+        <MediaPlayer
+          items={[playback]}
+          activeId={playback.id}
+          open={playerOpen}
+          onOpenChange={setPlayerOpen}
+          returnFocus={returnFocus}
         />
       ) : null}
     </div>

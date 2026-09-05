@@ -1,268 +1,191 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
-import type { NormalizedRect } from '@/lib/api/streams';
+import { createContext, useContext, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import type { NormalizedRect, StreamClipRange } from '@/lib/api/streams';
 import { browserWindowActivity } from '@/lib/window-activity';
-import { LatestFrameRequest } from '@/lib/stream-frame-session';
+import { claimMediaPlayback } from '@/lib/media-playback-owner';
+import { PlaybackSession, PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
+import { StreamAudioMixer } from '@/lib/stream-audio';
+import { nextStreamPlaybackIndex, streamClipRange, streamPlaybackIndex, STREAM_PLAYBACK_MODE, type StreamPlaybackMode } from '@/lib/stream-playback';
 
-const HAVE_METADATA = 1;
-const HAVE_CURRENT_DATA = 2;
-const MAX_CANVAS_WIDTH = 720;
-
-interface StreamFrameState {
-  requestSnapshot(
-    seconds: number,
-    rect: NormalizedRect,
-    outputWidth: number,
-    outputHeight: number,
-  ): Promise<ImageBitmap | null>;
-  revision: number;
+const MAX_CANVAS_WIDTH = 1440;
+type StreamFrameState = {
   sourceHeight: number;
   sourceWidth: number;
   video: HTMLVideoElement | null;
-}
-
+  session: PlaybackSession | null;
+};
+type StreamFrameProps = {
+  children: ReactNode;
+  seek: { seconds: number; revision: number };
+  playing: boolean;
+  mode: StreamPlaybackMode;
+  loop: boolean;
+  clips: StreamClipRange[];
+  selectedClipId: string | null;
+  music: { url: string; volume: number } | null;
+  onPosition: (seconds: number) => void;
+  onStatus: (status: PlaybackStatus) => void;
+  onPlayingChange: (playing: boolean) => void;
+  onClipChange: (clipId: string | null) => void;
+  onMediaError: () => void;
+  videoSrc: string;
+};
+type StreamRuntime = {
+  play: () => void;
+  pause: () => void;
+  seek: (seconds: number) => void;
+  configure: () => void;
+};
 const StreamFrameContext = createContext<StreamFrameState | null>(null);
 
-interface SnapshotRequest {
-  outputHeight: number;
-  outputWidth: number;
-  rect: NormalizedRect;
-  resolve: (bitmap: ImageBitmap | null) => void;
-  seconds: number;
-}
-
-export function StreamFrameSession({
-  children,
-  frameSeconds,
-  onMediaError,
-  videoSrc,
-}: {
-  children: ReactNode;
-  frameSeconds: number;
-  onMediaError?: () => void;
-  videoSrc: string;
-}): ReactElement {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const desiredSecondsRef = useRef(frameSeconds);
-  const requestsRef = useRef(new LatestFrameRequest());
-  const activeRef = useRef(browserWindowActivity.isActive());
-  const seekingRef = useRef(false);
-  const snapshotInFlightRef = useRef<SnapshotRequest | null>(null);
-  const snapshotQueueRef = useRef<SnapshotRequest[]>([]);
-  const scheduledRef = useRef<number | null>(null);
-  const [activityRevision, setActivityRevision] = useState(0);
-  const [state, setState] = useState<StreamFrameState>({
-    requestSnapshot: async () => null,
-    revision: 0,
-    sourceHeight: 0,
-    sourceWidth: 0,
-    video: null,
-  });
-
-  const requestSnapshot = useCallback((
-    seconds: number,
-    rect: NormalizedRect,
-    outputWidth: number,
-    outputHeight: number,
-  ): Promise<ImageBitmap | null> => new Promise((resolve) => {
-    for (const obsolete of snapshotQueueRef.current.splice(0)) obsolete.resolve(null);
-    snapshotQueueRef.current.push({ outputHeight, outputWidth, rect, resolve, seconds });
-    const video = videoRef.current;
-    if (video) startNextSnapshot(video);
-  }), []);
-
-  function startNextSnapshot(video: HTMLVideoElement): boolean {
-    if (!activeRef.current || seekingRef.current || snapshotInFlightRef.current !== null) return false;
-    const request = snapshotQueueRef.current.shift();
-    if (!request) return false;
-    snapshotInFlightRef.current = request;
-    const target = Math.min(
-      Math.max(0, Number.isFinite(request.seconds) ? request.seconds : 0),
-      Math.max(0, video.duration - 0.001),
-    );
-    if (Math.abs(video.currentTime - target) <= 0.005) {
-      void finishSnapshot(video, request);
-      return true;
-    }
-    seekingRef.current = true;
-    video.currentTime = target;
-    return true;
-  }
-
-  async function finishSnapshot(video: HTMLVideoElement, request: SnapshotRequest): Promise<void> {
-    let bitmap: ImageBitmap | null = null;
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.min(MAX_CANVAS_WIDTH, Math.round(request.outputWidth)));
-      canvas.height = Math.max(1, Math.round(canvas.width * request.outputHeight / request.outputWidth));
-      const context = canvas.getContext('2d', { alpha: false });
-      if (context) {
-        context.drawImage(
-          video,
-          request.rect.x * video.videoWidth,
-          request.rect.y * video.videoHeight,
-          request.rect.width * video.videoWidth,
-          request.rect.height * video.videoHeight,
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        );
-        bitmap = await createImageBitmap(canvas);
-      }
-    } catch {
-      bitmap = null;
-    }
-    request.resolve(bitmap);
-    if (snapshotInFlightRef.current === request) snapshotInFlightRef.current = null;
-    seekingRef.current = false;
-    if (startNextSnapshot(video)) return;
-    requestsRef.current.reset(desiredSecondsRef.current);
-    const liveTarget = requestsRef.current.next(video.currentTime, video.duration);
-    if (liveTarget !== null) {
-      seekingRef.current = true;
-      video.currentTime = liveTarget;
-      return;
-    }
-    setState((current) => ({ ...current, revision: current.revision + 1 }));
-  }
+export function StreamFrameSession(props: StreamFrameProps): ReactElement {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const latest = useRef(props);
+  latest.current = props;
+  const runtimeRef = useRef<StreamRuntime | null>(null);
+  const [frame, setFrame] = useState<StreamFrameState>({ sourceHeight: 0, sourceWidth: 0, video: null, session: null });
 
   useEffect(() => {
-    desiredSecondsRef.current = frameSeconds;
-    const video = videoRef.current;
-    if (!video || !activeRef.current || video.readyState < HAVE_METADATA) return;
-    scheduleSeek(video);
-
-    function scheduleSeek(target: HTMLVideoElement): void {
-      if (scheduledRef.current !== null) cancelAnimationFrame(scheduledRef.current);
-      scheduledRef.current = requestAnimationFrame(() => {
-        scheduledRef.current = null;
-        if (!activeRef.current || seekingRef.current) return;
-        requestsRef.current.request(desiredSecondsRef.current);
-        const next = requestsRef.current.next(target.currentTime, target.duration);
-        target.pause();
-        if (next === null) {
-          setState((current) => ({ ...current, revision: current.revision + 1 }));
+    const host = hostRef.current;
+    if (!host) return;
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.playsInline = true;
+    video.width = 1;
+    video.height = 1;
+    video.dataset.streamFrame = 'shared-decoder';
+    video.setAttribute('aria-hidden', 'true');
+    let alive = true;
+    let playGeneration = 0;
+    let clipIndex = -1;
+    let playbackClipId: string | null = null;
+    let videoPlaying = false;
+    let rangeKey = '';
+    let selectionKey = '';
+    let releaseOwner = (): void => {};
+    const mixer = new StreamAudioMixer(video, () => { if (alive) latest.current.onMediaError(); });
+    const session = new PlaybackSession(video, {
+      onState: (state) => {
+        if (!alive) return;
+        latest.current.onPosition(state.requestedSeconds ?? state.seconds);
+        latest.current.onStatus(state.status);
+        videoPlaying = state.status === PLAYBACK_STATUS.playing;
+        mixer.sync(state.seconds, videoPlaying);
+        if (state.status === PLAYBACK_STATUS.error) {
+          mixer.pause();
+          latest.current.onPlayingChange(false);
+          latest.current.onMediaError();
+        }
+      },
+      onRangeEnd: () => {
+        const current = latest.current;
+        if (current.mode === STREAM_PLAYBACK_MODE.source && current.loop) {
+          session.seek(0);
+          session.play();
           return;
         }
-        seekingRef.current = true;
-        target.currentTime = next;
-      });
-    }
-  }, [activityRevision, frameSeconds, videoSrc]);
+        clipIndex = nextStreamPlaybackIndex(current.clips, clipIndex, current.mode, current.loop);
+        if (clipIndex < 0) { runtime.pause(); latest.current.onPlayingChange(false); return; }
+        applyClip();
+        const clip = current.clips[clipIndex];
+        if (clip) session.seek(clip.start_seconds);
+        session.play();
+      },
+    });
 
-  useEffect(() => {
-    const video = videoRef.current;
-    const snapshotQueue = snapshotQueueRef.current;
-    const onActivity = (): void => {
-      activeRef.current = browserWindowActivity.isActive();
-      if (!activeRef.current) {
-        video?.pause();
-        if (scheduledRef.current !== null) cancelAnimationFrame(scheduledRef.current);
-        scheduledRef.current = null;
-        return;
-      }
-      if (video && video.readyState >= HAVE_METADATA) {
-        if (startNextSnapshot(video)) return;
-        setActivityRevision((current) => current + 1);
-      }
+    function applyClip(): void {
+      const current = latest.current;
+      const clip = current.mode === STREAM_PLAYBACK_MODE.source ? undefined : current.clips[clipIndex];
+      playbackClipId = clip?.id ?? null;
+      session.setRange(streamClipRange(clip));
+      mixer.configure(clip ?? null, clip ? current.music : null);
+      latest.current.onClipChange(clip?.id ?? null);
+    }
+
+    const runtime: StreamRuntime = {
+      configure: () => {
+        const current = latest.current;
+        const nextSelection = current.mode + ':' + (current.selectedClipId ?? '');
+        const requestedId = current.mode === STREAM_PLAYBACK_MODE.selected || nextSelection !== selectionKey
+          ? current.selectedClipId : playbackClipId;
+        clipIndex = streamPlaybackIndex(current.clips, requestedId);
+        selectionKey = nextSelection;
+        const clip = current.mode === STREAM_PLAYBACK_MODE.source ? undefined : current.clips[clipIndex];
+        const nextRange = JSON.stringify([current.mode, clip?.id, streamClipRange(clip)]);
+        const changed = rangeKey !== '' && rangeKey !== nextRange;
+        rangeKey = nextRange;
+        applyClip();
+        if (changed && clip && (video.currentTime < clip.start_seconds || video.currentTime >= clip.end_seconds)) session.seek(clip.start_seconds);
+        if (current.mode !== STREAM_PLAYBACK_MODE.source && !clip) {
+          runtime.pause();
+          current.onPlayingChange(false);
+        }
+      },
+      play: () => {
+        if (!alive || !browserWindowActivity.isActive()) { latest.current.onPlayingChange(false); return; }
+        const generation = ++playGeneration;
+        releaseOwner = claimMediaPlayback(session, () => { runtime.pause(); latest.current.onPlayingChange(false); });
+        void mixer.resume().then(() => {
+          if (alive && generation === playGeneration && latest.current.playing) session.play();
+        }).catch(() => {
+          if (!alive || generation !== playGeneration) return;
+          runtime.pause();
+          latest.current.onPlayingChange(false);
+          latest.current.onMediaError();
+        });
+      },
+      pause: () => {
+        playGeneration += 1;
+        session.pause();
+        mixer.pause();
+        releaseOwner();
+      },
+      seek: (seconds) => { session.seek(seconds); mixer.sync(seconds, false); },
     };
-    const unsubscribe = browserWindowActivity.subscribe(onActivity);
+    runtimeRef.current = runtime;
+    const unsubscribeFrames = session.subscribeFrames((next) => mixer.sync(next.seconds, videoPlaying && session.playRequested && !video.paused));
+    const onMetadata = (): void => {
+      if (!alive) return;
+      setFrame({ video, session, sourceWidth: video.videoWidth, sourceHeight: video.videoHeight });
+    };
+    video.addEventListener('loadedmetadata', onMetadata);
+    const unsubscribeActivity = browserWindowActivity.subscribe(() => {
+      if (!browserWindowActivity.isActive()) { runtime.pause(); latest.current.onPlayingChange(false); }
+    });
+    host.append(video);
+    runtime.configure();
+    session.seek(latest.current.seek.seconds);
+    video.src = props.videoSrc;
+    video.load();
+    if (latest.current.playing) runtime.play();
     return () => {
-      unsubscribe();
-      if (scheduledRef.current !== null) cancelAnimationFrame(scheduledRef.current);
-      video?.pause();
-      video?.removeAttribute('src');
-      video?.load();
-      snapshotInFlightRef.current?.resolve(null);
-      snapshotInFlightRef.current = null;
-      for (const request of snapshotQueue.splice(0)) request.resolve(null);
+      alive = false;
+      playGeneration += 1;
+      runtimeRef.current = null;
+      releaseOwner();
+      unsubscribeActivity();
+      unsubscribeFrames();
+      video.removeEventListener('loadedmetadata', onMetadata);
+      session.dispose();
+      mixer.dispose();
+      video.removeAttribute('src');
+      video.load();
+      video.remove();
     };
-  }, []);
+  }, [props.videoSrc]);
+
+  useEffect(() => { runtimeRef.current?.configure(); }, [props.mode, props.selectedClipId, props.clips, props.music]);
+  useEffect(() => { runtimeRef.current?.seek(props.seek.seconds); }, [props.seek]);
+  useEffect(() => {
+    if (props.playing) runtimeRef.current?.play();
+    else runtimeRef.current?.pause();
+  }, [props.playing]);
 
   return (
-    <StreamFrameContext.Provider value={{ ...state, requestSnapshot }}>
-      <video
-        ref={videoRef}
-        src={videoSrc}
-        muted
-        playsInline
-        preload="metadata"
-        aria-hidden="true"
-        data-stream-frame="shared-decoder"
-        className="hidden"
-        onError={onMediaError}
-        onLoadedMetadata={(event) => {
-          const video = event.currentTarget;
-          video.pause();
-          requestsRef.current.reset(desiredSecondsRef.current);
-          setState((current) => ({
-            ...current,
-            revision: current.revision + 1,
-            sourceHeight: video.videoHeight,
-            sourceWidth: video.videoWidth,
-            video,
-          }));
-          const requested = requestsRef.current.next(video.currentTime, video.duration);
-          if (requested !== null) {
-            seekingRef.current = true;
-            video.currentTime = requested;
-          } else if (video.readyState < HAVE_CURRENT_DATA && video.duration > 0) {
-            // loadedmetadata does not promise a drawable frame. A tiny seek
-            // forces Chromium to decode the first frame without preloading
-            // the full source.
-            seekingRef.current = true;
-            video.currentTime = Math.min(0.001, Math.max(0, video.duration - 0.001));
-          }
-        }}
-        onLoadedData={() => {
-          if (activeRef.current) setState((current) => ({ ...current, revision: current.revision + 1 }));
-        }}
-        onSeeked={(event) => {
-          event.currentTarget.pause();
-          const snapshotRequest = snapshotInFlightRef.current;
-          if (snapshotRequest !== null) {
-            if (!activeRef.current) {
-              seekingRef.current = false;
-              snapshotInFlightRef.current = null;
-              snapshotQueueRef.current.unshift(snapshotRequest);
-              return;
-            }
-            void finishSnapshot(event.currentTarget, snapshotRequest);
-            return;
-          }
-          seekingRef.current = false;
-          requestsRef.current.request(desiredSecondsRef.current);
-          if (!activeRef.current) {
-            requestsRef.current.reset(desiredSecondsRef.current);
-            return;
-          }
-          const requested = requestsRef.current.settled(event.currentTarget.currentTime, event.currentTarget.duration);
-          setState((current) => ({ ...current, revision: current.revision + 1 }));
-          if (snapshotQueueRef.current.length > 0) {
-            // The snapshot temporarily preempts the coalesced live seek. Reset
-            // its in-flight marker so finishing the snapshot can seek back to
-            // the latest preview time instead of leaving the decoder stuck.
-            requestsRef.current.reset(desiredSecondsRef.current);
-            if (startNextSnapshot(event.currentTarget)) return;
-          }
-          if (requested !== null) {
-            seekingRef.current = true;
-            event.currentTarget.currentTime = requested;
-          }
-        }}
-      />
-      {children}
+    <StreamFrameContext.Provider value={frame}>
+      <div ref={hostRef} className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0" aria-hidden />
+      {props.children}
     </StreamFrameContext.Provider>
   );
 }
@@ -273,13 +196,7 @@ export function useStreamFrame(): StreamFrameState {
   return state;
 }
 
-export function StreamFrameCanvas({
-  className,
-  mode,
-  outputHeight,
-  outputWidth,
-  rect,
-}: {
+export function StreamFrameCanvas({ className, mode, outputHeight, outputWidth, rect }: {
   className?: string;
   mode: 'contain' | 'cover' | 'stretch';
   outputHeight?: number;
@@ -288,56 +205,59 @@ export function StreamFrameCanvas({
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frame = useStreamFrame();
+  const geometry = useRef({ mode, outputHeight, outputWidth, rect });
+  geometry.current = { mode, outputHeight, outputWidth, rect };
+  const drawRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const video = frame.video;
-    if (!canvas
-      || !video
-      || video.readyState < HAVE_CURRENT_DATA
-      || frame.sourceWidth <= 0
-      || frame.sourceHeight <= 0) return;
+    const { video, session } = frame;
+    if (!canvas || !video || !session) return;
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) return;
+    let visible = false;
     const draw = (): void => {
+      if (!visible || video.readyState < 2 || video.videoWidth <= 0 || video.videoHeight <= 0) return;
+      const { mode: fit, outputHeight: oh, outputWidth: ow, rect: cropRect } = geometry.current;
+      const crop = cropRect ?? { x: 0, y: 0, width: 1, height: 1 };
+      let sx = crop.x * video.videoWidth;
+      let sy = crop.y * video.videoHeight;
+      let sw = crop.width * video.videoWidth;
+      let sh = crop.height * video.videoHeight;
+      let dw = canvas.width;
+      let dh = canvas.height;
+      if (fit === 'cover') {
+        const aspect = (ow ?? dw) / (oh ?? dh);
+        if (sw / sh > aspect) { const width = sh * aspect; sx += (sw - width) / 2; sw = width; }
+        else { const height = sw / aspect; sy += (sh - height) / 2; sh = height; }
+      } else if (fit === 'contain') {
+        const scale = Math.min(dw / sw, dh / sh);
+        dw = sw * scale;
+        dh = sh * scale;
+      }
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      try { context.drawImage(video, sx, sy, sw, sh, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh); }
+      catch { return; }
+      canvas.dataset.frameSeconds = String(session.frame.seconds);
+    };
+    const resize = (): void => {
       const box = canvas.getBoundingClientRect();
-      if (box.width <= 0 || box.height <= 0) return;
-      const width = Math.max(1, Math.min(MAX_CANVAS_WIDTH, Math.round(box.width)));
+      visible = box.width > 0 && box.height > 0;
+      if (!visible) return;
+      const width = Math.max(1, Math.min(MAX_CANVAS_WIDTH, Math.round(box.width * Math.min(window.devicePixelRatio || 1, 2))));
       const height = Math.max(1, Math.round(width * box.height / box.width));
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
-      const context = canvas.getContext('2d', { alpha: false });
-      if (!context) return;
-      context.fillStyle = '#000';
-      context.fillRect(0, 0, width, height);
-      const crop = rect ?? { x: 0, y: 0, width: 1, height: 1 };
-      let sx = crop.x * frame.sourceWidth;
-      let sy = crop.y * frame.sourceHeight;
-      let sw = crop.width * frame.sourceWidth;
-      let sh = crop.height * frame.sourceHeight;
-      if (mode === 'cover') {
-        const targetAspect = (outputWidth ?? width) / (outputHeight ?? height);
-        const sourceAspect = sw / sh;
-        if (sourceAspect > targetAspect) {
-          const nextWidth = sh * targetAspect;
-          sx += (sw - nextWidth) / 2;
-          sw = nextWidth;
-        } else {
-          const nextHeight = sw / targetAspect;
-          sy += (sh - nextHeight) / 2;
-          sh = nextHeight;
-        }
-      }
-      try {
-        context.drawImage(video, sx, sy, sw, sh, 0, 0, width, height);
-      } catch {
-        // Metadata can race decoded frame availability. loadeddata/seeked
-        // publishes another revision once Chromium has a drawable frame.
-      }
+      draw();
     };
-    draw();
-    const observer = new ResizeObserver(draw);
+    drawRef.current = draw;
+    const unsubscribe = session.subscribeFrames(draw);
+    const observer = new ResizeObserver(resize);
     observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [frame, mode, outputHeight, outputWidth, rect]);
+    resize();
+    return () => { drawRef.current = null; observer.disconnect(); unsubscribe(); };
+  }, [frame]);
 
+  useEffect(() => { drawRef.current?.(); }, [mode, outputHeight, outputWidth, rect]);
   return <canvas ref={canvasRef} className={className} aria-hidden="true" data-stream-frame-canvas={mode} />;
 }

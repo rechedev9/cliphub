@@ -24,7 +24,8 @@ func TestStreamJobListItemsCarryClipCountWithoutThePlan(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			items := streamJobListItems([]streamclips.Job{{ID: uuid.New(), Status: streamclips.StatusReady, EditPlan: tc.plan}})
+			h := NewHandlers(newFakeRepo(), newFakeStorage(), &fakeQueue{})
+			items := h.streamJobListItems([]streamclips.Job{{ID: uuid.New(), Status: streamclips.StatusReady, EditPlan: tc.plan}})
 			if len(items) != 1 || items[0].ClipCount != tc.wantCount {
 				t.Fatalf("items = %+v, want one row with clip_count %d", items, tc.wantCount)
 			}

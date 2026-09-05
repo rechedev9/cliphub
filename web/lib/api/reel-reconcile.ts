@@ -265,7 +265,13 @@ export function deriveReelView(input: ReconcileInput): ReelView {
   } = input;
 
   // A finished render is terminal even if the job later fails.
-  if (renderStatus === 'ready') return { status: 'ready', action: 'none' };
+  if (renderStatus === 'ready') {
+    return {
+      status: 'ready',
+      action: 'none',
+      ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),
+    };
+  }
   if (renderStatus === 'review_required') {
     return {
       status: 'review_required',

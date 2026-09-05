@@ -4,6 +4,7 @@ import { StudioInfo } from '@/components/settings/studio-info';
 import { SteamAccount } from '@/components/settings/steam-account';
 import { TelemetrySettings } from '@/components/settings/telemetry-settings';
 import { CaptureReadiness } from '@/components/shell/capture-readiness';
+import { PlaybackDiagnostics } from '@/components/settings/playback-diagnostics';
 
 /** Desktop-only application settings. */
 export default function SettingsPage(): ReactNode {
@@ -18,6 +19,7 @@ export default function SettingsPage(): ReactNode {
         <p className="text-body-sm text-fg-2">Conectar Steam solo es necesario para importar partidas desde tu cuenta. Puedes cargar demos y archivos MP4 sin configurarlo.</p>
         <SteamAccount />
         <StudioInfo />
+        <PlaybackDiagnostics />
         <TelemetrySettings />
       </div>
     </div>

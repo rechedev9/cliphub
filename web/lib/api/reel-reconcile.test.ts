@@ -102,6 +102,13 @@ test('render ready → ready', () => {
   assert.deepEqual(view({ jobStatus: 'done', renderStatus: 'ready' }), { status: 'ready', action: 'none' });
 });
 
+test('ready render keeps its immutable artifact revision for playback progress', () => {
+  assert.deepEqual(
+    view({ jobStatus: 'done', renderStatus: 'ready', renderArtifactPrefix: 'jobs/j/renders/v/revisions/r2' }),
+    { status: 'ready', action: 'none', reviewArtifactPrefix: 'jobs/j/renders/v/revisions/r2' },
+  );
+});
+
 test('render ready wins even if job flags failed (a finished reel is ready)', () => {
   assert.deepEqual(
     view({ jobStatus: 'failed', jobFailureReason: 'x', renderStatus: 'ready' }),

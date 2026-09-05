@@ -2,9 +2,10 @@
 
 import { memo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Download, RotateCcw } from 'lucide-react';
+import { Download, Play, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { demoPlaybackItem } from '@/lib/api/playback';
 import { parseFailureReason } from '@/lib/api/failure-reason';
 import {
   isWorking,
@@ -21,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { ReelCover } from '@/components/brand/reel-cover';
 import { CoverImage } from '@/components/studio/cover-image';
 import { Button } from '@/components/ui/button';
+import { MediaPlayer } from '@/components/studio/media-player';
 import { DeleteVideoButton } from '@/components/videos/delete-video-button';
 import { OutputTag } from '@/components/clips-hub/output-tag';
 
@@ -48,63 +50,86 @@ export type OutputItemProps = {
   onChange: () => void;
 };
 
+type OutputActionsProps = OutputItemProps & { className?: string; onPlay?: (button: HTMLElement) => void };
+
 /** One Short or Full POV inside an open partida row. */
 function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNode {
   const { video } = output;
   const isShort = output.type === OUTPUT_TYPE.short;
+  const playback = output.state === OUTPUT_STATE.ready ? demoPlaybackItem(video) : null;
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
+  const play = (button: HTMLElement): void => {
+    setReturnFocus(button);
+    setPlayerOpen(true);
+  };
   return (
-    <div
-      className={cn(
-        'studio-enter flex flex-wrap items-center gap-3 rounded-lg border bg-surface-2 px-3 py-2.5 transition-colors duration-(--dur-base)',
-        BORDER_CLASS[output.state],
-      )}
-    >
-      <span
-        aria-hidden
+    <>
+      <div
         className={cn(
-          'relative shrink-0 overflow-hidden border',
-          isShort ? 'h-[50px] w-7' : 'h-[47px] w-[84px]',
+          'studio-enter flex flex-wrap items-center gap-3 rounded-lg border bg-surface-2 px-3 py-2.5 transition-colors duration-(--dur-base)',
           BORDER_CLASS[output.state],
         )}
       >
-        <ReelCover seed={video.id} plain />
-        <span className="absolute inset-0">
-          <CoverImage src={video.thumbnailUrl} />
-        </span>
-      </span>
-
-      <span className="flex min-w-[10rem] flex-1 flex-col gap-1.5">
-        <span className="flex items-center gap-2">
-          <span className="min-w-0 truncate font-display text-label font-bold uppercase text-fg-1">{output.title}</span>
-          <OutputTag output={output} className="shrink-0" />
-        </span>
-
-        {isWorking(output.state) ? (
-          <span className={cn('studio-bar', TEXT_CLASS[output.state])}>
-            <span
-              className={output.percent === null ? 'studio-indeterminate' : undefined}
-              style={output.percent === null ? undefined : { width: `${output.percent}%` }}
-            />
+        <button
+          type="button"
+          disabled={playback === null}
+          aria-label={playback === null ? video.title : `Reproducir ${video.title}`}
+          onClick={(event) => play(event.currentTarget)}
+          className={cn(
+            'relative shrink-0 overflow-hidden border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default',
+            isShort ? 'h-[50px] w-7' : 'h-[47px] w-[84px]',
+            BORDER_CLASS[output.state],
+          )}
+        >
+          <ReelCover seed={video.id} plain />
+          <span className="absolute inset-0">
+            <CoverImage src={video.thumbnailUrl} />
           </span>
-        ) : null}
+        </button>
 
-        {/* A failure reason is the only useful line of a failed card: it wraps, never truncates. */}
-        {output.state === OUTPUT_STATE.failed ? (
-          <FailureLine output={output} />
-        ) : (
-          <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-            {`${video.map} · ${timeAgo(video.createdAt)}`}
+        <span className="flex min-w-[10rem] flex-1 flex-col gap-1.5">
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 truncate font-display text-label font-bold uppercase text-fg-1">{output.title}</span>
+            <OutputTag output={output} className="shrink-0" />
           </span>
-        )}
-      </span>
 
-      <OutputActions
-        output={output}
-        matchId={matchId}
-        onChange={onChange}
-        className="row-actions ml-auto w-full @[44rem]/content:w-auto"
-      />
-    </div>
+          {isWorking(output.state) ? (
+            <span className={cn('studio-bar', TEXT_CLASS[output.state])}>
+              <span
+                className={output.percent === null ? 'studio-indeterminate' : undefined}
+                style={output.percent === null ? undefined : { width: `${output.percent}%` }}
+              />
+            </span>
+          ) : null}
+
+          {output.state === OUTPUT_STATE.failed ? (
+            <FailureLine output={output} />
+          ) : (
+            <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+              {`${video.map} · ${timeAgo(video.createdAt)}`}
+            </span>
+          )}
+        </span>
+
+        <OutputActions
+          output={output}
+          matchId={matchId}
+          onChange={onChange}
+          onPlay={playback === null ? undefined : play}
+          className="row-actions ml-auto w-full @[44rem]/content:w-auto"
+        />
+      </div>
+      {playback ? (
+        <MediaPlayer
+          items={[playback]}
+          activeId={playback.id}
+          open={playerOpen}
+          onOpenChange={setPlayerOpen}
+          returnFocus={returnFocus}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -119,7 +144,7 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
 }
 
 /** Ready: MP4 + Publicar. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
-export function OutputActions({ output, matchId, onChange, className }: OutputItemProps & { className?: string }): ReactNode {
+export function OutputActions({ output, matchId, onChange, onPlay, className }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
 
@@ -129,6 +154,12 @@ export function OutputActions({ output, matchId, onChange, className }: OutputIt
     const blocked = url === undefined || output.reviewRequired;
     return (
       <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+        {onPlay ? (
+          <Button type="button" size="xs" variant="outline-primary" onClick={(event) => onPlay(event.currentTarget)}>
+            <Play aria-hidden />
+            Reproducir
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="xs"
