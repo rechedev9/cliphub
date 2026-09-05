@@ -54,6 +54,31 @@ test('Steam import preserves long-video intent through the player handoff', asyn
   await expect(page.getByRole('button', { name: 'Continuar al vídeo largo' })).toBeEnabled();
 });
 
+test('an import with a configured player waits for parsing before opening the editor', async ({ page }) => {
+  let status = 'queued';
+  let earlyRosterRequests = 0;
+  await page.route(`**/api/demos/${JOB}/status`, route => route.fulfill({ json: { status } }));
+  await page.route(`**/api/demos/${JOB}/roster`, route => {
+    if (status !== 'parsed') {
+      earlyRosterRequests++;
+      return route.fulfill({ status: 409, json: { error: 'roster not ready' } });
+    }
+    return route.fulfill({ status: 409, json: { error: 'roster not ready' } });
+  });
+  await page.route(`**/api/demos/${JOB}/plan`, route => route.fulfill({ json: { demo: { map: 'de_inferno' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz' }, segments: [] } }));
+  await page.route(`**/api/demos/${JOB}/recap-plan`, route => route.fulfill({ json: { segments: [] } }));
+  await gotoStudio(page, `/clips/nueva?job=${JOB}&formato=full`);
+  await expect(page.getByText('Cargando jugadores…', { exact: true })).toBeVisible();
+  status = 'parsing';
+  await page.waitForResponse(response => response.url().endsWith(`/api/demos/${JOB}/status`) && response.ok());
+  await expect(page.getByText('Cargando jugadores…', { exact: true })).toBeVisible();
+  expect(earlyRosterRequests).toBe(0);
+  status = 'parsed';
+  await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo\\?formato=full$`));
+  await expect(page.getByRole('button', { name: 'Vídeo largo 16:9' })).toHaveAttribute('aria-pressed', 'true');
+  expect(earlyRosterRequests).toBe(0);
+});
+
 test('a queued Steam import that fails leaves the waiting state', async ({ page }) => {
   let status = 'queued';
   await page.route(`**/api/demos/${JOB}/status`, route => route.fulfill({ json: { status } }));

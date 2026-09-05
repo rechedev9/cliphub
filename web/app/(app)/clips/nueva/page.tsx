@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, FileVideo, Loader2, SearchX, Unplug, X } f
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
-import type { DemoPlayer, JobStatus, RosterMatch } from '@/lib/api/types';
+import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
@@ -29,7 +29,7 @@ import {
   isDemoServiceUnavailable,
 } from '@/lib/demo-parse-flow';
 import { startPollLoop } from '@/lib/poll-loop';
-import { ROSTER_READY_STATUSES } from '@/lib/api/types';
+import { ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from '@/lib/api/types';
 import { prettyMapName } from '@/lib/format';
 import { classifyFullDemoLoadFailure, fullDemoEmptyState, type FullDemoLoadFailure } from '@/lib/full-demo';
 import { PRODUCE_MATCH_MISSING } from '@/lib/produce/copy';
@@ -67,7 +67,6 @@ type ParseRow = { jobId: string; label: string; status: 'parsing' | 'done' | 'sk
 
 const SOURCE_KIND = { file: 'file', steam: 'steam' } as const;
 
-const IMPORT_PENDING_STATUSES: ReadonlySet<string> = new Set<JobStatus>(['queued', 'scanning']);
 const IMPORT_POLL_MS = 1500;
 const IMPORT_RETRY_MS = 10000;
 
@@ -286,7 +285,7 @@ export default function NewDemoPage({
           if (scan === null) {
             setResumeFailure('missing');
             stop();
-          } else if (IMPORT_PENDING_STATUSES.has(scan.status)) {
+          } else if (SCAN_PENDING_STATUSES.has(scan.status)) {
             return 'fast';
           } else if (!ROSTER_READY_STATUSES.has(scan.status)) {
             setResumeFailure('error');

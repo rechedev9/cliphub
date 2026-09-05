@@ -325,3 +325,17 @@ test('unreadable rows do not accumulate job-gone strikes', async () => {
     fake.restore();
   }
 });
+
+for (const status of ['parsing', 'parsed']) {
+  test(`getScan reports ${status} targeted imports without requiring a roster`, async () => {
+    const gate = gateFetch(url => url === STATUS_URL ? json({ status }) : json({ error: 'roster not ready' }, 409));
+    try {
+      const scan = new RealApiClient().getScan(JOB);
+      assert.deepEqual(await gate.release(), [STATUS_URL]);
+      assert.deepEqual(await gate.release(), []);
+      assert.deepEqual(await scan, { status, players: [] });
+    } finally {
+      gate.restore();
+    }
+  });
+}
