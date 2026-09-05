@@ -25,6 +25,15 @@ contextBridge.exposeInMainWorld('cliphubSettings', {
   ),
 });
 
+contextBridge.exposeInMainWorld('cliphubDownloads', {
+  isSaved: (url: unknown): Promise<boolean> => ipcRenderer.invoke('cliphub:stream-download', { action: 'status', url }),
+  reveal: (url: unknown): Promise<boolean> => {
+    const scope = globalThis as unknown as PreloadBrowserScope;
+    if (scope.navigator?.userActivation?.isActive !== true) return Promise.resolve(false);
+    return ipcRenderer.invoke('cliphub:stream-download', { action: 'reveal', url });
+  },
+});
+
 contextBridge.exposeInMainWorld('cliphubTelemetry', {
   recordError: (value: unknown): Promise<unknown> => ipcRenderer.invoke(
     STUDIO_TELEMETRY_EVENT_CHANNEL,

@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { NumberField } from '@/components/streams/number-field';
+import { MomentRange } from '@/components/streams/moment-range';
 import type { StreamClipEdit, StreamClipRange, StreamTextOverlay } from '@/lib/api/streams';
 import {
   CLIP_SPEEDS,
@@ -28,9 +30,8 @@ const CHIP_FADE_SECONDS = 0.5;
 const CHIP_CLASS = 'font-mono uppercase tracking-wider';
 
 /**
- * One card per cut. The card head selects the cut on the monitor; the chips
- * cover the everyday edits; the disclosure keeps every numeric field the
- * plan stores. Values written are exactly the ones the previous form wrote.
+ * A compact list selects one moment. Its range stays visible; optional
+ * text, speed and audio controls preserve the existing edit-plan contract.
  */
 export function StreamClipEditor({
   clips,
@@ -40,6 +41,8 @@ export function StreamClipEditor({
   onSelect,
   onRemove,
   disabled,
+  playheadSeconds,
+  onPlay,
 }: {
   clips: StreamClipRange[];
   sourceDuration: number;
@@ -49,6 +52,8 @@ export function StreamClipEditor({
   /** Owned by the editor so removing a cut also clears the monitor selection. */
   onRemove: (clip: StreamClipRange) => void;
   disabled: boolean;
+  playheadSeconds: number;
+  onPlay: () => void;
 }): ReactNode {
   const updateClip = (id: string, patch: Partial<StreamClipRange>) => {
     const next = clips.map((c) => (c.id === id ? { ...c, ...patch } : c));
@@ -62,15 +67,41 @@ export function StreamClipEditor({
     return (
       <p className="border border-dashed border-border-subtle p-3.5 text-center text-body-sm text-fg-2">
         {sourceDuration > 0
-          ? 'Haz clic en la timeline para añadir el primer corte. Cada corte sale como un Short independiente.'
+          ? 'Reproduce el vídeo y marca el inicio y el final. Cada momento se guarda como un Short independiente.'
           : 'Sin duración de la fuente: espera a que cargue el vídeo antes de añadir cortes.'}
       </p>
     );
   }
 
+  const index = Math.max(
+    0,
+    clips.findIndex((clip) => clip.id === selectedClipId),
+  );
+  const clip = clips[index];
   return (
-    <ul className="flex flex-col gap-2.5">
-      {clips.map((clip, index) => (
+    <div className="flex flex-col gap-3">
+      <ul aria-label="Tus momentos" className="flex max-h-36 flex-col gap-1 overflow-y-auto">
+        {clips.map((item, i) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              disabled={disabled}
+              aria-pressed={item.id === clip.id}
+              onClick={() => onSelect(item)}
+              className={cn(
+                'flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-label',
+                item.id === clip.id ? 'border-stream bg-stream/10' : 'border-border-subtle',
+              )}
+            >
+              <span className="truncate">
+                {i + 1}. {item.title || `Short ${i + 1}`}
+              </span>
+              <span className="shrink-0 font-mono">{formatStreamClock(clipOutputDuration(item))}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <ul>
         <ClipCard
           key={clip.id}
           clip={clip}
@@ -83,9 +114,11 @@ export function StreamClipEditor({
           onRemove={() => onRemove(clip)}
           onClipChange={(patch) => updateClip(clip.id, patch)}
           onEditChange={(patch) => updateEdit(clip.id, patch)}
+          playheadSeconds={playheadSeconds}
+          onPlay={onPlay}
         />
-      ))}
-    </ul>
+      </ul>
+    </div>
   );
 }
 
@@ -100,6 +133,8 @@ function ClipCard({
   onRemove,
   onClipChange,
   onEditChange,
+  playheadSeconds,
+  onPlay,
 }: {
   clip: StreamClipRange;
   index: number;
@@ -111,6 +146,8 @@ function ClipCard({
   onRemove: () => void;
   onClipChange: (patch: Partial<StreamClipRange>) => void;
   onEditChange: (patch: Partial<StreamClipEdit>) => void;
+  playheadSeconds: number;
+  onPlay: () => void;
 }): ReactNode {
   const rangeIssue = streamRangeIssue(clip, sourceDuration, index) ?? overlapIssue;
   const speed = clip.edit?.speed ?? 1;
@@ -120,7 +157,6 @@ function ClipCard({
   const fadesOn = fadeIn > 0 || fadeOut > 0;
   const overlays = clip.edit?.text_overlays ?? [];
   const number = String(index + 1).padStart(2, '0');
-  const [rangeOpen, setRangeOpen] = useState(false);
   // Starts open when texts exist so clearing the last one to retype it does
   // not unmount the editor (and its blank row) mid-keystroke.
   const [textOpen, setTextOpen] = useState(overlays.length > 0);
@@ -201,92 +237,87 @@ function ClipCard({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-1.5">
-        <Select value={String(speed)} disabled={disabled} onValueChange={(value) => onEditChange({ speed: Number(value) })}>
-          <SelectTrigger aria-label="Velocidad de reproducción" className="h-10 w-full gap-1 px-2.5 font-mono tracking-wider">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CLIP_SPEEDS.map((value) => (
-              <SelectItem key={value} value={String(value)}>
-                {value}×
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          aria-pressed={sourceVolume === 0}
-          aria-label={sourceVolume === 0 ? 'Quitar silencio' : 'Silenciar audio original'}
-          onClick={toggleMute}
-          className={cn(CHIP_CLASS, sourceVolume === 0 && 'border-destructive/45 text-destructive')}
-        >
-          {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)}%`}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          aria-pressed={fadesOn}
-          onClick={() =>
-            onEditChange(
-              fadesOn
-                ? { fade_in_seconds: 0, fade_out_seconds: 0 }
-                : { fade_in_seconds: CHIP_FADE_SECONDS, fade_out_seconds: CHIP_FADE_SECONDS },
-            )
-          }
-          className={cn(CHIP_CLASS, fadesOn && 'border-stream/45 text-stream-text')}
-        >
-          {fadesOn ? `Fundidos ${fadeIn === fadeOut ? fadeIn : `${fadeIn}/${fadeOut}`} s` : 'Sin fundidos'}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          aria-expanded={showText}
-          onClick={() => setTextOpen((open) => !open)}
-          className={cn(CHIP_CLASS, overlays.length > 0 && 'border-stream/45 text-stream-text')}
-        >
-          {overlays.length > 0 ? `Texto · ${overlays.length}/${MAX_TEXT_OVERLAYS}` : '+ Texto'}
-        </Button>
-      </div>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        aria-expanded={rangeOpen}
-        onClick={() => setRangeOpen((open) => !open)}
-        className="justify-start font-mono uppercase tracking-wider text-fg-3"
-      >
-        Ajustar rango
-        <ChevronDown aria-hidden className={cn('transition-transform duration-(--dur-fast)', rangeOpen && 'rotate-180')} />
+      <MomentRange
+        id={clip.id}
+        start={clip.start_seconds}
+        end={clip.end_seconds}
+        duration={sourceDuration}
+        playhead={playheadSeconds}
+        disabled={disabled}
+        invalid={rangeIssue !== null}
+        onChange={onClipChange}
+      />
+      <Button variant="outline" disabled={disabled || rangeIssue !== null} onClick={onPlay}>
+        Ver este Short
       </Button>
+      <details className="flex flex-col gap-3">
+        <summary className="min-h-10 cursor-pointer py-2 text-body-sm text-fg-2">
+          Texto, velocidad y audio · opcional
+        </summary>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Select
+            value={String(speed)}
+            disabled={disabled}
+            onValueChange={(value) => onEditChange({ speed: Number(value) })}
+          >
+            <SelectTrigger
+              aria-label="Velocidad de reproducción"
+              className="h-10 w-full gap-1 px-2.5 font-mono tracking-wider"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLIP_SPEEDS.map((value) => (
+                <SelectItem key={value} value={String(value)}>
+                  {value}×
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            aria-pressed={sourceVolume === 0}
+            aria-label={sourceVolume === 0 ? 'Quitar silencio' : 'Silenciar audio original'}
+            onClick={toggleMute}
+            className={cn(CHIP_CLASS, sourceVolume === 0 && 'border-destructive/45 text-destructive')}
+          >
+            {sourceVolume === 0 ? 'Silencio' : `Vol ${Math.round(sourceVolume * 100)}%`}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            aria-pressed={fadesOn}
+            onClick={() =>
+              onEditChange(
+                fadesOn
+                  ? { fade_in_seconds: 0, fade_out_seconds: 0 }
+                  : { fade_in_seconds: CHIP_FADE_SECONDS, fade_out_seconds: CHIP_FADE_SECONDS },
+              )
+            }
+            className={cn(CHIP_CLASS, fadesOn && 'border-stream/45 text-stream-text')}
+          >
+            {fadesOn ? `Fundidos ${fadeIn === fadeOut ? fadeIn : `${fadeIn}/${fadeOut}`} s` : 'Sin fundidos'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            aria-expanded={showText}
+            onClick={() => setTextOpen((open) => !open)}
+            className={cn(CHIP_CLASS, overlays.length > 0 && 'border-stream/45 text-stream-text')}
+          >
+            {overlays.length > 0 ? `Texto · ${overlays.length}/${MAX_TEXT_OVERLAYS}` : '+ Texto'}
+          </Button>
+        </div>
 
-      {rangeOpen ? (
         <div className="flex flex-col gap-3 border-t border-border-subtle pt-3">
           <div className="grid grid-cols-2 gap-3">
-            <NumberField
-              id={`${clip.id}-start`}
-              label="Inicio (s)"
-              value={clip.start_seconds}
-              invalid={rangeIssue !== null}
-              disabled={disabled}
-              onChange={(value) => onClipChange({ start_seconds: value })}
-            />
-            <NumberField
-              id={`${clip.id}-end`}
-              label="Fin (s)"
-              value={clip.end_seconds}
-              invalid={rangeIssue !== null}
-              disabled={disabled}
-              onChange={(value) => onClipChange({ end_seconds: value })}
-            />
             <NumberField
               id={`${clip.id}-fade-in`}
               label="Fundido entrada (s)"
@@ -327,75 +358,9 @@ function ClipCard({
             />
           </div>
         </div>
-      ) : null}
-
-      {showText ? (
-        <ClipOverlayEditor clip={clip} disabled={disabled} onEditChange={onEditChange} />
-      ) : null}
+        {showText ? <ClipOverlayEditor clip={clip} disabled={disabled} onEditChange={onEditChange} /> : null}
+      </details>
     </li>
-  );
-}
-
-function NumberField({
-  id,
-  label,
-  value,
-  max,
-  invalid,
-  disabled,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  max?: number;
-  invalid?: boolean;
-  disabled: boolean;
-  onChange: (value: number) => void;
-}): ReactNode {
-  // Local text while focused, so clearing the field to retype does not
-  // immediately commit 0 into the plan; commit only a valid number, on blur.
-  const [text, setText] = useState(String(value));
-  const [focused, setFocused] = useState(false);
-  useEffect(() => {
-    if (!focused) setText(String(value));
-  }, [value, focused]);
-
-  const commit = (): void => {
-    const parsed = Number(text);
-    if (text.trim() !== '' && Number.isFinite(parsed)) {
-      onChange(parsed);
-    } else {
-      setText(String(value));
-    }
-  };
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label htmlFor={id} className="text-label text-fg-2">
-        {label}
-      </Label>
-      <Input
-        id={id}
-        type="number"
-        min={0}
-        max={max}
-        step="0.1"
-        value={text}
-        disabled={disabled}
-        aria-invalid={invalid}
-        onFocus={() => setFocused(true)}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur();
-        }}
-        onBlur={() => {
-          setFocused(false);
-          commit();
-        }}
-        className="h-9 tabular-nums"
-      />
-    </div>
   );
 }
 
@@ -461,7 +426,13 @@ function ClipOverlayEditor({
         <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
           Textos en pantalla · {rows.length}/{MAX_TEXT_OVERLAYS}
         </span>
-        <Button type="button" variant="ghost" size="sm" onClick={addRow} disabled={disabled || rows.length >= MAX_TEXT_OVERLAYS}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={addRow}
+          disabled={disabled || rows.length >= MAX_TEXT_OVERLAYS}
+        >
           <Plus aria-hidden />
           Añadir texto
         </Button>
@@ -518,7 +489,14 @@ function OverlayRow({
             className="h-9"
           />
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} onClick={onRemove} aria-label={removeLabel}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          onClick={onRemove}
+          aria-label={removeLabel}
+        >
           <Trash2 aria-hidden />
         </Button>
       </div>

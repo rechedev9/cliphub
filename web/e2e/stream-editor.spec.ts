@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 import { gotoStudio } from './contract.ts';
 
 /**
  * Stream editor (/streams/[id]). No orchestrator: one `ready` stream job with
- * a 60 s probe and one 12.4 s cut is served through the `/api/streams/*`
+ * a 30 s probe and one 12.4 s cut is served through the `/api/streams/*`
  * proxies stubbed at the network boundary, and every edit-plan PUT is
  * recorded so the tests can prove what autosave sent (or did not send).
  */
@@ -13,7 +14,13 @@ const OVERLAY_REQUIRED_ERROR = 'clip clip-1 text overlay text is required';
 const AUTOSAVE_DEBOUNCE_MS = 500;
 
 type Overlay = { text: string; position_y: number };
-type Clip = { id: string; start_seconds: number; end_seconds: number; title: string; edit?: { text_overlays?: Overlay[] } };
+type Clip = {
+  id: string;
+  start_seconds: number;
+  end_seconds: number;
+  title: string;
+  edit?: { text_overlays?: Overlay[] };
+};
 type Plan = { face_crop_reviewed: boolean; clips: Clip[] };
 
 function editPlan(faceCropReviewed: boolean): Plan & Record<string, unknown> {
@@ -39,10 +46,13 @@ type StreamStub = {
   rejectPuts(error: string | null): void;
 };
 
-async function stubStreamJob(page: Page, faceCropReviewed: boolean): Promise<StreamStub> {
+async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = false): Promise<StreamStub> {
   const puts: Plan[] = [];
   let putError: string | null = null;
-  const plan = editPlan(faceCropReviewed);
+  let plan = editPlan(faceCropReviewed);
+  if (empty) plan.clips = [];
+  let exported = false;
+  let renderPolls = 0;
   await page.route(`**/api/streams/${JOB_ID}`, (route) =>
     route.fulfill(
       json({
@@ -50,7 +60,7 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean): Promise<Str
         status: 'ready',
         title: 'Clutch en Mirage',
         source_url: 'https://www.twitch.tv/donk/clip/ClutchOnMirage',
-        probe: { width: 1920, height: 1080, duration_seconds: 60 },
+        probe: { width: 1920, height: 1080, duration_seconds: 30 },
         edit_plan: plan,
         created_at: '2026-09-01T10:00:00Z',
       }),
@@ -61,10 +71,34 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean): Promise<Str
     const body = route.request().postDataJSON() as Plan;
     puts.push(body);
     if (putError !== null) return route.fulfill(json({ error: putError }, 400));
-    return route.fulfill(json({ ...body, updated_at: new Date().toISOString() }));
+    plan = { ...body, updated_at: new Date().toISOString() };
+    return route.fulfill(json(plan));
   });
-  await page.route(`**/api/streams/${JOB_ID}/renders/**`, (route) => route.fulfill(json({ error: 'no render' }, 404)));
-  await page.route(`**/api/streams/${JOB_ID}/source`, (route) => route.fulfill(json({ error: 'no source' }, 404)));
+  const mediaPath =
+    process.env.STREAM_QA_SOURCE || fileURLToPath(new URL('./fixtures/stream-source.mp4', import.meta.url));
+  await page.context().route(`**/api/streams/${JOB_ID}/renders/**`, (route) => {
+    if (route.request().url().includes('/videos/')) return route.fulfill({ path: mediaPath, contentType: 'video/mp4' });
+    if (route.request().method() === 'POST') {
+      exported = true;
+      return route.fulfill(json({ status: 'queued' }));
+    }
+    if (!exported) return route.fulfill(json({ error: 'no render' }, 404));
+    if (renderPolls++ === 0) return route.fulfill(json({ status: 'rendering' }));
+    return route.fulfill(
+      json({
+        status: 'rendered',
+        videos: plan.clips.map((c) => ({
+          clip_id: c.id,
+          title: c.title,
+          key: `${c.id}.mp4`,
+          duration_seconds: c.end_seconds - c.start_seconds,
+        })),
+      }),
+    );
+  });
+  await page.route(`**/api/streams/${JOB_ID}/source`, (route) =>
+    route.fulfill({ path: mediaPath, contentType: 'video/mp4' }),
+  );
   await page.route('**/api/songs', (route) => route.fulfill(json({ songs: [] })));
   return {
     puts,
@@ -75,7 +109,8 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean): Promise<Str
 }
 
 const stepTitle = (page: Page, name: string) => page.getByRole('heading', { level: 2, name });
-const railStep = (page: Page, name: RegExp) => page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name });
+const railStep = (page: Page, name: RegExp) =>
+  page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name });
 const autosaveStatus = (page: Page) => page.getByRole('navigation', { name: 'Pasos' }).getByRole('status');
 const cta = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const briefCheckbox = (page: Page) => page.getByRole('checkbox', { name: 'He revisado y apruebo los ajustes' });
@@ -83,58 +118,62 @@ const briefCheckbox = (page: Page) => page.getByRole('checkbox', { name: 'He rev
 test.describe('stream editor', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('opens on step 01 while the facecam crop is unconfirmed, and the CTA leads back there', async ({ page }) => {
+  test('starts with moments and can revisit aspect without silently confirming or saving', async ({ page }) => {
     const stub = await stubStreamJob(page, false);
     await gotoStudio(page, `/streams/${JOB_ID}`);
-
-    await expect(stepTitle(page, '01 · Encuadre y facecam')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Confirmar recorte de facecam' })).toBeVisible();
-    await expect(cta(page, 'Confirma el recorte primero')).toBeEnabled();
-    await expect(briefCheckbox(page)).toHaveCount(0);
-    await expect(page.getByText('Confirma el recorte de facecam en el paso 01 para renderizar')).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name: /Revisar/ })).toHaveCount(0);
-
-    // The crop is edited on the monitor while the timeline stays on screen.
+    await expect(stepTitle(page, 'Elegir momentos')).toBeVisible();
+    await expect(page.getByLabel('Inicio (s)', { exact: true })).toBeVisible();
+    await cta(page, 'Continuar al aspecto →').click();
+    await expect(stepTitle(page, 'Ajustar aspecto')).toBeVisible();
     await expect(page.getByLabel('Mover región de recorte del facecam')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Timeline de la fuente' })).toBeVisible();
-
-    await railStep(page, /Cortes/).click();
-    await expect(stepTitle(page, '03 · Cortes')).toBeVisible();
-    await expect(page.getByLabel('Mover región de recorte del facecam')).toHaveCount(0);
-    await cta(page, 'Confirma el recorte primero').click();
-    await expect(stepTitle(page, '01 · Encuadre y facecam')).toBeVisible();
-
-    // Opening an unchanged plan must not rewrite the server artifact.
+    await cta(page, 'Atrás').click();
+    await expect(stepTitle(page, 'Elegir momentos')).toBeVisible();
     await page.waitForTimeout(AUTOSAVE_DEBOUNCE_MS * 2);
     expect(stub.puts).toHaveLength(0);
   });
 
-  test('confirming the crop enables render directly and the summary reads as a clock', async ({ page }) => {
+  test('confirms the camera, handles pending renders, then previews and offers a titled download', async ({ page }) => {
     const stub = await stubStreamJob(page, false);
     await gotoStudio(page, `/streams/${JOB_ID}`);
-
-    await page.getByRole('button', { name: 'Confirmar recorte de facecam' }).click();
-    await expect(page.getByRole('button', { name: 'Recorte confirmado' })).toBeVisible();
-    await expect(railStep(page, /Encuadre/)).toContainText('recorte ✓');
-
+    await page.getByLabel('Título del corte 01').fill('DALE NIÑO !');
+    await cta(page, 'Continuar al aspecto →').click();
+    await page.getByRole('button', { name: 'Confirmar cámara y continuar', exact: true }).click();
+    await expect(stepTitle(page, 'Revisar y exportar')).toBeVisible();
     await expect(briefCheckbox(page)).toHaveCount(0);
-    await expect(cta(page, 'Crear Shorts →')).toBeEnabled();
-    await expect(autosaveStatus(page)).toHaveText('Borrador guardado en este PC');
     await expect.poll(() => stub.puts.at(-1)?.face_crop_reviewed).toBe(true);
-
-    const briefLine = page.getByTitle(/^Facecam 40 — .*de salida aprox\./);
-    await expect(briefLine).toContainText('1 clip · 0:12 de salida aprox.');
-    await page.getByText('Configuración del render', { exact: true }).click();
-    const clipsItem = page.getByRole('definition').filter({ hasText: 'de salida aprox.' });
-    await expect(clipsItem).toHaveText('1 clip · 0:12 de salida aprox.');
-    await expect(clipsItem).not.toHaveText(/-\d/);
+    await page.getByText('Detalles de la exportación', { exact: true }).click();
+    await expect(page.getByRole('definition').filter({ hasText: 'de salida aprox.' })).toHaveText(
+      '1 clip · 0:12 de salida aprox.',
+    );
+    await cta(page, 'Exportar 1 Short →').click();
+    await expect(stepTitle(page, 'Guardar vídeos')).toBeVisible();
+    await expect(page.getByLabel('Vídeo final')).toBeVisible();
+    await expect(cta(page, 'Exportar 1 Short →')).toHaveCount(0);
+    const downloadEvent = page.waitForEvent('download');
+    await page.getByRole('link', { name: 'Guardar vídeo: DALE NIÑO !' }).last().click();
+    const download = await downloadEvent;
+    expect(download.suggestedFilename()).toBe('DALE NIÑO !.mp4');
+    // Chromium downloads bypass route mocks. Check the UI's filename and URL
+    // here; the real file transfer and Explorer reveal are verified in Studio.
+    expect(download.url()).toContain(`/api/streams/${JOB_ID}/renders/`);
+    await download.cancel();
+    await expect(cta(page, 'Abrir YouTube Studio')).toBeVisible();
+    await railStep(page, /Elegir momentos/).click();
+    await page.getByLabel('Título del corte 01').fill('Versión nueva');
+    await railStep(page, /Guardar vídeos/).click();
+    await expect(cta(page, 'Exportar 1 Short →')).toBeEnabled();
+    await expect(page.getByRole('link', { name: /Guardar vídeo:/ })).toHaveCount(0);
   });
 
-  test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({ page }) => {
+  test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({
+    page,
+  }) => {
     const stub = await stubStreamJob(page, true);
     await gotoStudio(page, `/streams/${JOB_ID}`);
 
-    await expect(stepTitle(page, '03 · Cortes')).toBeVisible();
+    await expect(stepTitle(page, 'Elegir momentos')).toBeVisible();
+    await page.getByText('Texto, velocidad y audio · opcional', { exact: true }).click();
     await page.getByRole('button', { name: '+ Texto' }).click();
     await page.getByRole('button', { name: 'Añadir texto' }).click();
     const textField = page.getByLabel('Texto', { exact: true });
@@ -170,3 +209,75 @@ test.describe('stream editor', () => {
     await expect(page.getByRole('alert').filter({ hasText: OVERLAY_REQUIRED_ERROR })).toHaveCount(0);
   });
 });
+
+test('plays and seeks the original before any moments, then uses the whole short source', async ({ page }) => {
+  const stub = await stubStreamJob(page, false, true);
+  await gotoStudio(page, `/streams/${JOB_ID}`);
+  await cta(page, 'Reproducir vídeo original').click();
+  await expect
+    .poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+    .toBeGreaterThan(0.5);
+  await cta(page, 'Pausar').click();
+  const timeline = page.getByRole('slider', { name: 'Posición en el vídeo original' });
+  await timeline.fill('5');
+  await expect(page.getByLabel('Tiempo de reproducción')).toContainText('0:05');
+  expect(stub.puts).toHaveLength(0);
+  await cta(page, 'Marcar inicio aquí').click();
+  await expect(page.getByLabel('Inicio (s)', { exact: true })).toHaveValue('5');
+  await timeline.fill('8');
+  await cta(page, 'Marcar final aquí').click();
+  await expect(page.getByLabel('Fin (s)', { exact: true })).toHaveValue('8');
+  expect(stub.puts).toHaveLength(0);
+  await cta(page, 'Usar vídeo completo').click();
+  await expect.poll(() => stub.puts.at(-1)?.clips.length).toBe(1);
+  expect(stub.puts.at(-1)?.clips[0]).toMatchObject({ start_seconds: 0, end_seconds: 30 });
+  await expect(page.getByLabel('Título del corte 01')).toHaveValue('Clutch en Mirage');
+});
+test('a selected Short stops at its end and selecting another exposes only its controls', async ({ page }) => {
+  const stub = await stubStreamJob(page, true);
+  await gotoStudio(page, `/streams/${JOB_ID}`);
+  await page.getByLabel('Inicio (s)', { exact: true }).fill('0');
+  await page.getByLabel('Fin (s)', { exact: true }).fill('1');
+  await page.getByLabel('Fin (s)', { exact: true }).blur();
+  await cta(page, 'Nuevo momento').click();
+  await page.getByLabel('Inicio (s)', { exact: true }).fill('5');
+  await page.getByLabel('Fin (s)', { exact: true }).fill('8');
+  await page.getByLabel('Fin (s)', { exact: true }).blur();
+  await cta(page, 'Añadir este momento').click();
+  await page.getByRole('list', { name: 'Tus momentos' }).getByRole('button').first().click();
+  await cta(page, 'Ver este Short').click();
+  await expect(cta(page, 'Pausar')).toBeVisible();
+  await expect(cta(page, 'Reproducir este Short')).toBeVisible();
+  await expect(page.getByLabel('Tiempo de reproducción')).toContainText('0:01');
+  await expect(page.locator('audio')).toHaveJSProperty('paused', true);
+  await expect(page.getByLabel('Inicio (s)', { exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: /Seleccionar el corte 2:/ }).click();
+  await expect(page.getByLabel('Inicio (s)', { exact: true })).toHaveValue('5');
+  await expect.poll(() => stub.puts.at(-1)?.clips.length).toBe(2);
+  await page.getByRole('button', { name: 'Quitar corte 02' }).click();
+  await expect(page.getByRole('list', { name: 'Tus momentos' }).getByRole('button')).toHaveCount(1);
+  await cta(page, 'Deshacer').click();
+  await expect(page.getByRole('list', { name: 'Tus momentos' }).getByRole('button')).toHaveCount(2);
+});
+for (const width of [390, 768, 1266, 1920]) {
+  test(`editor layout at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stubStreamJob(page, false, true);
+    await gotoStudio(page, `/streams/${JOB_ID}`);
+    await expect(stepTitle(page, 'Elegir momentos')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const media = page.getByRole('region', { name: 'Monitor', exact: true });
+    if (width >= 1266) {
+      const bounds = await media.boundingBox();
+      expect(bounds!.y).toBeLessThan(240);
+      await expect(cta(page, 'Añadir este momento')).toBeInViewport();
+      await expect(cta(page, 'Continuar al aspecto →')).toBeInViewport();
+    }
+    await page.screenshot({ path: testInfo.outputPath(`moments-${width}.png`), fullPage: true });
+    await cta(page, 'Usar vídeo completo').click();
+    await cta(page, 'Continuar al aspecto →').click();
+    await expect(page.getByLabel('Mover región de recorte del facecam')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`aspect-${width}.png`), fullPage: true });
+  });
+}

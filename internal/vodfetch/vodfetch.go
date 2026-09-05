@@ -368,6 +368,7 @@ func (f Fetcher) Download(ctx context.Context, rawURL, destPath string) (Result,
 
 	args := []string{
 		"--ignore-config",
+		"--encoding", "utf-8",
 		"-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
 		"--merge-output-format", "mp4",
 		"--no-playlist",
