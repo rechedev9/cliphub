@@ -102,6 +102,7 @@ async function stopProcess(child) {
 const options = parseArgs(process.argv.slice(2));
 await mkdir(options.evidenceDir, { recursive: true });
 const seed = JSON.parse(await readFile(options.seed, 'utf8'));
+const sourcePlan = JSON.parse(await readFile(seed.killplan_path, 'utf8'));
 const token = randomBytes(32).toString('hex');
 const [apiPort, webPort] = await Promise.all([freePort(), freePort()]);
 const apiURL = `http://127.0.0.1:${apiPort}`;
@@ -131,9 +132,14 @@ try {
   await waitForAPI(apiURL, token, 30_000);
   const expectedVideo = seed.expected_video_path;
   if (!expectedVideo) throw new Error('seed.expected_video_path is required for the browser download oracle');
-  const playwright = await command('pnpm', [
-    '--dir', 'web', 'exec', 'playwright', 'test', 'e2e/capture-lab-live.spec.ts', '--reporter=line',
-  ], {
+  // Windows package-manager shims require cmd; this command is entirely
+  // repository-owned and contains no seed paths, tokens or user arguments.
+  const playwrightArgs = ['--dir', 'web', 'exec', 'playwright', 'test', 'e2e/capture-lab-live.spec.ts', '--reporter=line'];
+  const playwrightExecutable = process.platform === 'win32' ? 'cmd.exe' : 'pnpm';
+  const playwrightCommand = process.platform === 'win32'
+    ? ['/d', '/s', '/c', `pnpm ${playwrightArgs.join(' ')}`]
+    : playwrightArgs;
+  const playwright = await command(playwrightExecutable, playwrightCommand, {
     timeoutMS: options.timeoutMS,
     env: {
       ORCHESTRATOR_URL: apiURL,
@@ -142,6 +148,7 @@ try {
       CAPTURE_LAB_LIVE: '1',
       CAPTURE_LAB_JOB_ID: seed.job_id,
       CAPTURE_LAB_VARIANT: seed.variant,
+      CAPTURE_LAB_SEGMENT_IDS: JSON.stringify(sourcePlan.segments.map((segment) => segment.id)),
       CAPTURE_LAB_EXPECTED_VIDEO: expectedVideo,
       PLAYWRIGHT_OUTPUT_DIR: join(options.evidenceDir, 'live-playwright-results'),
       PLAYWRIGHT_HTML_OUTPUT_DIR: join(options.evidenceDir, 'live-playwright-report'),

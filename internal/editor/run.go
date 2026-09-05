@@ -140,6 +140,25 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		ffprobePath = recording.FindFFprobe()
 	}
 	coversEnabled := !cfg.DisableCovers
+	fullDemoExecution, err := readFullDemoExecution(ctx, cfg.FullDemoExecutionPath, outDir, publishDir)
+	if err != nil {
+		return Result{}, err
+	}
+	if fullDemoExecution != nil {
+		for _, artifact := range recordingResult.Artifacts {
+			if artifact.Role == "segment" && artifact.Type == "video" {
+				if err := verifyFullDemoLocalFile(ctx, resolvePath(recordingBaseDir, artifact.Path), artifact.ContentSHA256); err != nil {
+					return Result{}, fmt.Errorf("verify captured segment content: %w", err)
+				}
+			}
+		}
+		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" {
+			return Result{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")
+		}
+		if coversEnabled != (fullDemoExecution.Approved.Document.Options.Outputs.CoverPolicy != "no-cover") {
+			return Result{}, fmt.Errorf("full demo cover flag differs from approval")
+		}
+	}
 
 	// Per-kill killfeed crop measurement extracts source frames with FFmpeg,
 	// so dry runs keep the static crop defaults.
@@ -216,6 +235,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return Result{}, err
 	}
 	manifest.Warnings = append(metadataWarnings, manifest.Warnings...)
+	if err := attachFullDemoExecution(&manifest, recordingResult, fullDemoExecution, commandFFmpeg); err != nil {
+		return Result{}, err
+	}
 	result := resultFromManifest(manifest, cfg.DryRun)
 
 	resultPath := filepath.Join(outDir, "shorts-result.json")
@@ -236,6 +258,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 
 	packPath := filepath.Join(publishDir, "pack-manifest.json")
 	if cfg.DryRun {
+		if err := writeFullDemoDocuments(outDir, manifest.Shorts); err != nil {
+			return failResult(resultPath, result, err)
+		}
 		if err := WritePackManifest(packPath, PackManifestFromManifest(manifest, result)); err != nil {
 			return failResult(resultPath, result, err)
 		}
@@ -443,6 +468,7 @@ func resultFromManifest(manifest Manifest, dryRun bool) Result {
 	}
 	for _, short := range manifest.Shorts {
 		result.Shorts = append(result.Shorts, ShortResult{
+			FullDemo:          short.FullDemo,
 			Index:             short.Index,
 			SegmentID:         short.SegmentID,
 			Preset:            short.Preset,

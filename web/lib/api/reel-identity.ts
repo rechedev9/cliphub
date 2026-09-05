@@ -48,5 +48,12 @@ export function shouldReuseReelIntent(
   if (reelContractMatches(existingIntent, input)) return true;
   if (!IN_FLIGHT.has(existing.status)) return false;
   const incoming = input.editConfig ?? DEFAULT_EDIT_CONFIG;
+  if (incoming.fullDemo || existingIntent.editConfig.fullDemo) return false;
   return isLandscapeRecap(existingIntent.editConfig) && isLandscapeRecap(incoming);
+}
+
+export function fullDemoIntentConflict(
+  existing: { status: VideoStatus }, existingIntent: Parameters<typeof reelContractMatches>[0], input: ReelIdentityInput & { mode: RenderMode },
+): boolean {
+  return IN_FLIGHT.has(existing.status) && !!(existingIntent.editConfig.fullDemo || input.editConfig?.fullDemo) && !reelContractMatches(existingIntent, input);
 }

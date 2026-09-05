@@ -54,6 +54,9 @@ func buildFullDemoCompilationCommand(ffmpegPath string, short ShortEdit) []strin
 	if ffmpegPath == "" {
 		ffmpegPath = "ffmpeg"
 	}
+	if short.FullDemo != nil {
+		return buildFullDemoProgramCommand(ffmpegPath, short)
+	}
 	command := []string{
 		ffmpegPath,
 		"-y",
@@ -78,6 +81,29 @@ func buildFullDemoCompilationCommand(ffmpegPath string, short ShortEdit) []strin
 	command = append(command, "-movflags", "+faststart")
 	command = appendThreadArgs(command, short)
 	return append(command, short.Output)
+}
+
+func fullDemoProgramPath(short ShortEdit) string {
+	return filepath.Join(filepath.Dir(short.Output), "full-demo-program.nut")
+}
+
+// The existing Full Demo concat now also accepts canonical prepared items.
+// PCM remains lossless until the full-program master. No fade or other legacy
+// presentation default is applied when the approval has no overlay.
+func buildFullDemoProgramCommand(ffmpeg string, short ShortEdit) []string {
+	command := []string{ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", fullDemoConcatListPath(short)}
+	if len(short.Effects) == 0 {
+		command = append(command, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy")
+	} else {
+		for _, effect := range imageEffects(short.Effects) {
+			command = append(command, "-i", effect.Path)
+		}
+		clauses := appendCompilationProgramVideo(nil, short, "0:v", 1)
+		command = append(command, "-filter_complex", strings.Join(clauses, ";"), "-map", "[v]", "-map", "0:a:0")
+		command = appendVideoEncodeArgs(command, short)
+		command = appendThreadArgs(command, short)
+	}
+	return append(command, "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", fullDemoProgramPath(short))
 }
 
 func fullDemoCompilationFilter(short ShortEdit) string {

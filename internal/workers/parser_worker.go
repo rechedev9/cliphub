@@ -149,6 +149,9 @@ func (w *ParserWorker) parse(ctx context.Context, j job.Job) (killplan.Plan, err
 	if err := recapplan.Store(w.storage, j.ID, dual.Recap); err != nil {
 		return killplan.Plan{}, err
 	}
+	if err := recapplan.StoreFacts(w.storage, j.ID, dual.Facts); err != nil {
+		return killplan.Plan{}, fmt.Errorf("store full demo facts: %w", err)
+	}
 	return dual.Kills, nil
 }
 

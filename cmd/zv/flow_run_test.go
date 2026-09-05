@@ -233,6 +233,19 @@ func TestFlowRunnerStepsCoverRegistryPhases(t *testing.T) {
 				if covered[phase.ID] || tc.exempt[phase.ID] {
 					continue
 				}
+				if phase.When == "full-demo-pov-chill-v1" {
+					// This conditional branch is driven by the job-based CLI,
+					// whose admission/dry-run contracts are exercised in
+					// full_demo_commands_test.go. The legacy flows run command
+					// only preflights its selected-kill chain and cannot approve
+					// a Full Demo document implicitly.
+					fields := strings.Fields(phase.Command)
+					workflow, found := workflowForRunArgsPrefix(fields[1:])
+					if !found || !strings.HasPrefix(workflow.Name, "full-demo-") {
+						t.Fatalf("conditional Full Demo phase has no CLI owner: %s", phase.ID)
+					}
+					continue
+				}
 				t.Fatalf("flow %q phase %q has no runner step and is not exempt; add runner coverage or exempt it", tc.flow, phase.ID)
 			}
 		})

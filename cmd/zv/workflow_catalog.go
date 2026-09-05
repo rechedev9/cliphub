@@ -46,6 +46,12 @@ func buildWorkflowCatalog() []workflowInfo {
 			Command:     "zv short <demo.dem> --prompt <prompt>",
 			RunArgs:     []string{"short"},
 		},
+		{Name: "full-demo-defaults", Description: "Inspect complete editorial options; defaults require music and sponsor assets before approval.", Command: "zv full-demo defaults", RunArgs: []string{"full-demo", "defaults"}},
+		{Name: "full-demo-import", Description: "Upload a demo to the existing local parser queue.", Command: "zv full-demo import --demo <match.dem> --steamid <SteamID64>", RunArgs: []string{"full-demo", "import"}},
+		{Name: "full-demo-asset", Description: "Import declared music or sponsor media into the existing asset repository.", Command: "zv full-demo asset --input <media> --provenance <provenance.json>", RunArgs: []string{"full-demo", "asset"}},
+		{Name: "full-demo-plan", Description: "Persist editorial choices against parsed demo facts and asset bytes without starting CS2.", Command: "zv full-demo plan --job <uuid> --options <options.json> --out <plan.json>", RunArgs: []string{"full-demo", "plan"}},
+		{Name: "full-demo-inspect", Description: "Inspect a local plan or a job's current plan, status and render evidence.", Command: "zv full-demo inspect --plan <plan.json>", RunArgs: []string{"full-demo", "inspect"}},
+		{Name: "full-demo-execute", Description: "Approve a saved plan hash and enqueue the existing Full Demo capture/render flow.", Command: "zv full-demo execute --job <uuid> --plan <plan.json> --approve <plan-hash> --allow-safe-tail-trim=true", RunArgs: []string{"full-demo", "execute"}},
 		{
 			Name:        "capabilities",
 			Description: "Inspect local capture and render tool readiness without starting work.",
@@ -243,6 +249,10 @@ func workflowArgumentMetadata(workflow workflowInfo) workflowArguments {
 	positionals := []workflowPositionalArgument{}
 	conditional := []workflowConditionalRequirement{}
 	switch workflow.Name {
+	case "full-demo-inspect":
+		conditional = append(conditional, workflowConditionalRequirement{Description: "exactly one local --plan or remote --job is required", UnlessAnyFlags: []string{"--job"}, RequiredFlags: []string{"--plan"}, RequiredPositionals: []string{}})
+	case "full-demo-execute":
+		conditional = append(conditional, workflowConditionalRequirement{Description: "--allow-safe-tail-trim=true or =false must be explicit and match the approved document", UnlessAnyFlags: []string{}, RequiredFlags: []string{"--allow-safe-tail-trim"}, RequiredPositionals: []string{}})
 	case "short":
 		positionals = append(positionals, workflowPositionalArgument{
 			Name:        "demo",
@@ -298,6 +308,10 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 	}
 
 	switch workflow.Name {
+	case "full-demo-defaults", "full-demo-import", "full-demo-asset", "full-demo-plan", "full-demo-execute":
+		return []workflowValueConstraint{constraint("--format", "text", "", "text", "json")}
+	case "full-demo-inspect":
+		return []workflowValueConstraint{constraint("--format", "text", "", "text", "json"), constraint("--document", "plan", "", "plan", "status", "approved", "effective", "audio", "loudness", "delivery")}
 	case "short":
 		return []workflowValueConstraint{
 			constraint("--preset", editor.DefaultPreset().Name, "zv presets --format json", supportedPresetNames()...),
@@ -361,6 +375,12 @@ func workflowValueConstraints(workflow workflowInfo) []workflowValueConstraint {
 }
 
 func workflowRequiredFlags(workflow workflowInfo) []string {
+	if workflow.Name == "full-demo-inspect" {
+		return nil
+	}
+	if workflow.Name == "full-demo-execute" {
+		return []string{"--job", "--plan", "--approve"}
+	}
 	if workflow.Name == "record" {
 		return []string{"--killplan", "--demo", "--out"}
 	}
@@ -394,6 +414,31 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 	}
 
 	switch workflow.Name {
+	case "full-demo-defaults":
+		contract.ProducedArtifactKeys = []string{"full-demo-options"}
+		contract.LiveBehavior = "prints complete versioned defaults; optionally writes --out; defaults with absent enabled assets cannot be approved"
+	case "full-demo-import":
+		contract.RequiredArtifacts = []string{"local demo", "target SteamID64", "local orchestrator session"}
+		contract.ProducedArtifactKeys = []string{"job", "killplan", "full-demo-facts"}
+		contract.LiveBehavior = "uploads a local demo and enqueues the existing parser; inspect status before planning"
+	case "full-demo-asset":
+		contract.RequiredArtifacts = []string{"local media", "versioned provenance with actual SHA-256", "local orchestrator session"}
+		contract.ProducedArtifactKeys = []string{"media-asset", "media-asset-provenance"}
+		contract.LiveBehavior = "uploads and verifies local asset bytes; returns the immutable asset ID/hash for options"
+	case "full-demo-plan":
+		contract.RequiredArtifacts = []string{"parsed job with independent facts", "complete options", "declared asset references", "local orchestrator session"}
+		contract.ProducedArtifactKeys = []string{"full-demo-plan"}
+		contract.LiveBehavior = "persists a plan after resolving facts, voice availability and asset bytes; no HLAE/CS2 capture or program render"
+	case "full-demo-inspect":
+		contract.RequiredArtifacts = []string{"local plan or job UUID"}
+		contract.ProducedArtifactKeys = []string{"selected document (optional --out)"}
+		contract.LiveBehavior = "reads the complete local plan or current server document; never changes approval or starts media work"
+	case "full-demo-execute":
+		contract.RequiredArtifacts = []string{"server-persisted plan", "matching approval hash and explicit safety-tail choice", "local orchestrator session"}
+		contract.ProducedArtifactKeys = []string{"generate-intent", "recording-result", "render-result", "full-demo-approved", "full-demo-effective", "full-demo-audio", "full-demo-loudness", "full-demo-delivery", "publish-pack"}
+		contract.SafetyGates = []string{"valid saved plan and matching hash", "current-run Windows HLAE/CS2 hardware grant", "long FFmpeg render approval", "thumbnail selection for CLI delivery when covers are enabled"}
+		contract.LiveBehavior = "revalidates immutable approval at HTTP admission and queues the existing capture/render workers"
+		contract.ResumePolicy = "same approved snapshot on retry; bytes and capture coverage control reuse; failed replacement preserves the previous committed revision"
 	case "short":
 		contract.RequiredArtifacts = []string{"demo path or existing recording result"}
 		contract.ProducedArtifactKeys = []string{"killplan", "selected-plan", "recording-result", "publish-pack"}
@@ -478,6 +523,9 @@ func workflowContractMetadata(workflow workflowInfo) workflowContract {
 	case "skills-check", "workflows-check", "project-check":
 		contract.ProducedArtifactKeys = []string{"contract-check-report"}
 	}
+	if strings.HasPrefix(workflow.Name, "full-demo-") && workflow.Safety.SupportsDryRun {
+		contract.DryRunBehavior = "validates local inputs only; no HTTP requests, files, capture or render; server freshness and real media QA remain unverified"
+	}
 	return contract
 }
 
@@ -494,7 +542,7 @@ func workflowSafetyMetadata(workflow workflowInfo, arguments workflowArguments) 
 	longRunning := false
 	switch workflow.Name {
 	case "short", "faceit-index", "record", "compose-final", "music-analyze", "shorts-render", "stream-fetch", "stream-render", "analysis-viewer", "serve", "flows-run",
-		"analysis-tactical", "demo-voice":
+		"analysis-tactical", "demo-voice", "full-demo-import", "full-demo-asset", "full-demo-plan":
 		// flows-run really parses demos and probes media across a whole journey,
 		// and analysis-tactical parses a whole demo before it writes anything.
 		longRunning = true

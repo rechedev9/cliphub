@@ -1,3 +1,5 @@
+import type { FullDemoSnapshot } from '../full-demo-plan.ts';
+
 export type SteamUser = { id: string; personaName: string; avatarUrl: string };
 export type MatchStats = {
   kills: number;
@@ -223,6 +225,7 @@ export function isOverlayTheme(value: unknown): value is OverlayTheme {
 }
 
 export type EditConfig = {
+  fullDemo?: FullDemoSnapshot;
   format: RenderFormat;
   killEffect: KillEffect;
   transition: TransitionStyle;
@@ -301,6 +304,8 @@ export type Video = {
   warnings?: string[];
   /** Immutable artifact revision shown with `warnings`; both values form the review CAS token. */
   reviewArtifactPrefix?: string;
+  /** Immutable revision used for this Full Demo's MP4, cover and evidence links. */
+  artifactRevision?: string;
   /** Live progress during capture or editing. */
   captureProgress?: CaptureProgress;
   /** Cover candidate basenames when the render produced JPGs. */

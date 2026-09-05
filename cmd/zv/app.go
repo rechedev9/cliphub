@@ -42,6 +42,8 @@ func Run(argv []string, stdout, stderr io.Writer, stdin io.Reader, runner comman
 		return runFaceit(args[1:], stdout, stderr)
 	case "demo":
 		return runDemo(args[1:], stdout, stderr, stdin, runner)
+	case "full-demo":
+		return runFullDemo(args[1:], stdout, stderr)
 	case "utility":
 		return runUtility(args[1:], stdout, stderr, stdin, runner)
 	case "record":

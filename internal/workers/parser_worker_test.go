@@ -19,6 +19,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/moments"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/rules"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tasks"
@@ -191,6 +192,18 @@ func TestParserWorkerRunsAgainstRealDemo(t *testing.T) {
 		got.KillPlan.Stats.SegmentsCreated,
 		got.KillPlan.Stats.TotalKillsTarget,
 		got.KillPlan.Stats.KillsAfterFilters)
+	facts, found, err := recapplan.LoadFacts(store, id)
+	if err != nil || !found || facts.TargetSteamID64 != targetSteamID || len(facts.Rounds) == 0 {
+		t.Fatalf("full demo facts missing or invalid: found=%v rounds=%d err=%v", found, len(facts.Rounds), err)
+	}
+	zeroKills := 0
+	for _, round := range facts.Rounds {
+		if len(round.Kills) == 0 {
+			zeroKills++
+		}
+		t.Logf("FullDemo round=%d start=%d live=%d end=%d kills=%d evidence=%s", round.Number, round.StartTick, round.FreezeEndTick, round.RoundEndTick, len(round.Kills), round.Evidence)
+	}
+	t.Logf("FullDemo rounds=%d zero_kill_rounds=%d complete=%v crosshair_samples=%d warnings=%v", len(facts.Rounds), zeroKills, facts.Complete, len(facts.Crosshairs), facts.Warnings)
 }
 
 func TestParserWorkerScansRosterAgainstRealDemo(t *testing.T) {

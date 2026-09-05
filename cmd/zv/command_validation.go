@@ -28,6 +28,23 @@ func validateSkillCommand(command []string) string {
 		}
 	case "verify":
 		return validateVerifyCommand(command[1:])
+	case "full-demo":
+		if len(command) < 2 || !containsString([]string{"defaults", "import", "asset", "plan", "inspect", "execute"}, command[1]) {
+			return `expected full-demo defaults, import, asset, plan, inspect, or execute`
+		}
+		if issue := validateRequiredFlags(fmt.Sprintf("%q", "full-demo "+command[1]), command[2:], requiredFlagsForRunArgs("full-demo", command[1])...); issue != "" {
+			return issue
+		}
+		if isSingleHelp(command[2:]) {
+			return ""
+		}
+		if command[1] == "inspect" && hasFlagValue(command[2:], "--plan") == hasFlagValue(command[2:], "--job") {
+			return "full-demo inspect requires exactly one of --plan or --job"
+		}
+		if command[1] == "execute" && !containsString(command[2:], "--allow-safe-tail-trim=true") && !containsString(command[2:], "--allow-safe-tail-trim=false") {
+			return "full-demo execute requires explicit --allow-safe-tail-trim=true or =false matching the plan"
+		}
+		return ""
 	case "faceit":
 		if len(command) < 2 || command[1] != "index" {
 			return `uses non-standard zv command "faceit"; expected "faceit index"`
@@ -317,7 +334,7 @@ func requiredFlagsForRunArgs(args ...string) []string {
 		if !equalArgs(workflow.RunArgs, args) {
 			continue
 		}
-		return requiredFlagsFromCommand(workflow.Command)
+		return workflowRequiredFlags(workflow)
 	}
 	return nil
 }
@@ -576,6 +593,12 @@ func validateMusicAnalyzeCommand(args []string) string {
 func commandValueFlags(commandName string, required []string) []string {
 	flags := append([]string(nil), required...)
 	switch commandName {
+	case `"full-demo defaults"`:
+		flags = append(flags, "--out", "--format")
+	case `"full-demo import"`, `"full-demo asset"`, `"full-demo plan"`, `"full-demo execute"`:
+		flags = append(flags, "--url", "--format")
+	case `"full-demo inspect"`:
+		flags = append(flags, "--plan", "--job", "--document", "--out", "--url", "--format")
 	case `"demo parse"`:
 		flags = append(flags, "--segment-mode", "--rules")
 	case `"faceit index"`:
@@ -599,11 +622,12 @@ func commandValueFlags(commandName string, required []string) []string {
 	case `"short"`:
 		flags = append(flags, "--preset", "--out", "--music", "--target-steamid", "--hlae", "--cs2", "--from-recording", "--format", "--output-format", "--kill-effect", "--transition", "--encoder", "--gap-timescale", "--settle-seconds", "--threads")
 	case `"record"`:
-		flags = append(flags, "--hlae", "--cs2", "--hud", "--fps", "--video-crf", "--encoder", "--gap-timescale", "--settle-seconds", "--timeout", "--format")
+		flags = append(flags, "--hlae", "--cs2", "--hud", "--fps", "--video-crf", "--encoder", "--gap-timescale", "--settle-seconds", "--timeout", "--format", "--full-demo-plan")
 	case `"compose final"`:
 		flags = append(flags, "--ffmpeg", "--timeout", "--format")
 	case `"shorts render"`:
 		flags = append(flags,
+			"--full-demo-execution",
 			"--killplan",
 			"--publish-dir",
 			"--preset",
@@ -689,6 +713,10 @@ func commandValueFlags(commandName string, required []string) []string {
 
 func commandBoolFlags(commandName string) []string {
 	switch commandName {
+	case `"full-demo import"`, `"full-demo asset"`, `"full-demo plan"`:
+		return []string{"--dry-run"}
+	case `"full-demo execute"`:
+		return []string{"--dry-run", "--allow-safe-tail-trim"}
 	case `"demo parse"`:
 		return []string{"--verbose", "--dry-run"}
 	case `"faceit index"`:

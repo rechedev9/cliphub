@@ -2,6 +2,7 @@ import { persistAffiliateFamily } from '../affiliate-banner.ts';
 import type { EditConfig } from './types.ts';
 
 export type EditRequestBody = {
+  full_demo?: EditConfig['fullDemo'];
   format: EditConfig['format'];
   killEffect: EditConfig['killEffect'];
   transition: EditConfig['transition'];
@@ -40,7 +41,8 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
     native_hud: edit.nativeHud,
     cover_strategy: edit.coverStrategy,
   };
-  if (edit.voiceComms) {
+  if (edit.fullDemo) body.full_demo = edit.fullDemo;
+  if (edit.voiceComms || edit.fullDemo) {
     body.voice_volume = edit.voiceVolume ?? 0.85;
   }
   const introText = edit.introText?.trim();
@@ -74,5 +76,8 @@ export function buildEditRequest(edit: EditConfig): EditRequestBody {
 }
 
 export function editConfigsEqual(left: EditConfig, right: EditConfig): boolean {
+  if (left.fullDemo || right.fullDemo) {
+    return !!left.fullDemo && !!right.fullDemo && left.fullDemo.document.plan_hash === right.fullDemo.document.plan_hash;
+  }
   return JSON.stringify(buildEditRequest(left)) === JSON.stringify(buildEditRequest(right));
 }

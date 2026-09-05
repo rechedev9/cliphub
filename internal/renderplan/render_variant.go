@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
 const (
@@ -21,6 +22,7 @@ const (
 // RenderVariantState is the durable product-level state for one materialized
 // output variant. It intentionally stores artifact keys, not local paths.
 type RenderVariantState struct {
+	FullDemo          *recapplan.Snapshot     `json:"full_demo,omitempty"`
 	SchemaVersion     string                  `json:"schema_version"`
 	JobID             uuid.UUID               `json:"job_id"`
 	Variant           string                  `json:"variant"`
@@ -60,6 +62,7 @@ func (s RenderVariantState) ReviewResolvedFor(warnings []string) bool {
 }
 
 type NewRenderVariantStateOptions struct {
+	FullDemo          *recapplan.Snapshot
 	JobID             uuid.UUID
 	Variant           string
 	Status            string
@@ -80,6 +83,7 @@ type NewRenderVariantStateOptions struct {
 // NewRenderVariantStateForLoadoutOptions carries the product loadout and
 // mutable status fields needed to materialize a durable render state.
 type NewRenderVariantStateForLoadoutOptions struct {
+	FullDemo   *recapplan.Snapshot
 	JobID      uuid.UUID
 	Loadout    Loadout
 	Status     string
@@ -196,6 +200,7 @@ func NewRenderVariantStateForLoadout(opts NewRenderVariantStateForLoadoutOptions
 		}
 	}
 	return NewRenderVariantState(NewRenderVariantStateOptions{
+		FullDemo:          opts.FullDemo,
 		JobID:             opts.JobID,
 		Variant:           opts.Loadout.Variant,
 		Status:            opts.Status,
@@ -224,7 +229,12 @@ func NewRenderVariantState(opts NewRenderVariantStateOptions) RenderVariantState
 		createdAt = opts.Previous.CreatedAt
 	}
 	warnings := append([]string(nil), opts.Warnings...)
+	fullDemo := opts.FullDemo
+	if fullDemo == nil && opts.Status != RenderVariantStatusQueued && opts.Previous != nil {
+		fullDemo = opts.Previous.FullDemo
+	}
 	return RenderVariantState{
+		FullDemo:          fullDemo,
 		SchemaVersion:     "1.0",
 		JobID:             opts.JobID,
 		Variant:           opts.Variant,

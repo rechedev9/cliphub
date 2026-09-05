@@ -206,6 +206,9 @@ func workflowValidateCommandArgs(t *testing.T, workflow workflowInfo) []string {
 
 func workflowRunSampleForwardedArgs(t *testing.T, workflow workflowInfo, galleryPath string) []string {
 	t.Helper()
+	if strings.HasPrefix(workflow.Name, "full-demo-") {
+		return append([]string{"--"}, fullDemoSampleArgs(t, workflow.Name)...)
+	}
 	switch workflow.Name {
 	case "short":
 		return []string{"--", "inferno.dem", "--prompt", "all kills 76561198000000000", "--out", "run/short", "--dry-run"}
@@ -580,7 +583,7 @@ func workflowDelegatesExternally(workflow workflowInfo) bool {
 		return false
 	}
 	switch workflow.RunArgs[0] {
-	case "capabilities", "check", "faceit", "gallery", "short", "skills", "workflows", "flows":
+	case "capabilities", "check", "faceit", "gallery", "short", "skills", "workflows", "flows", "full-demo":
 		return false
 	default:
 		return true

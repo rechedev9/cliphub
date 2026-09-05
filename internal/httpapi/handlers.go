@@ -972,10 +972,42 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, fmt.Sprintf("job is not ready to record (status=%s)", j.Status))
 		return
 	}
+	var req struct {
+		Preset     string                 `json:"preset"`
+		SegmentIDs []string               `json:"segment_ids"`
+		Edit       renderplan.EditRequest `json:"edit"`
+	}
+	var bodyErr error
+	if r.Body != nil {
+		bodyErr = decodeRenderJSONBody(w, r, &req, false)
+		if bodyErr != nil && !errors.Is(bodyErr, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid record request JSON")
+			return
+		}
+	}
+	if req.Edit.FullDemo != nil && (len(req.SegmentIDs) != 0 || (req.Preset != "" && req.Preset != "gameplay-pov-60")) {
+		writeError(w, http.StatusBadRequest, "Full Demo capture uses the approved document and gameplay-pov-60 exclusively")
+		return
+	}
 	// The worker flips parsed→recording as soon as it dequeues, before HLAE
 	// launches. Reconcile re-POSTs in that window; treat it like a unique
 	// duplicate so the reel stays in progress instead of latching a 409.
 	if j.Status == job.StatusRecording {
+		if req.Edit.FullDemo != nil {
+			if err := req.Edit.Validate(); err != nil {
+				rejectFullDemo(w, err)
+				return
+			}
+			prior, found, err := h.readGenerateIntent(j.ID)
+			if err != nil {
+				rejectFullDemo(w, err)
+				return
+			}
+			if !found || !renderplan.SameFullDemoRequest(prior.Edit.FullDemo, req.Edit.FullDemo) {
+				rejectFullDemo(w, &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "The active capture carries a different approved plan"})
+				return
+			}
+		}
 		writeJSON(w, http.StatusAccepted, map[string]any{
 			"id":        j.ID,
 			"task":      tasks.TypeRecordDemo,
@@ -998,15 +1030,19 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 	var portraitSafeKillfeed bool
 	var useRecapPlan bool
 	var demoSource string
+	if r.Body == nil && h.retryApprovedFullDemo(w, r, j, nil) {
+		return
+	}
 	if r.Body != nil {
-		var req struct {
-			Preset     string                 `json:"preset"`
-			SegmentIDs []string               `json:"segment_ids"`
-			Edit       renderplan.EditRequest `json:"edit"`
-		}
-		switch err := decodeSingleJSONBody(w, r, &req, false); {
+		switch err := bodyErr; {
 		case err == nil, errors.Is(err, io.EOF):
 			edit := renderplan.NormalizeEditRequest(req.Edit)
+			emptyRequest := (req.Preset == "" || req.Preset == "gameplay-pov-60") && req.Edit == (renderplan.EditRequest{}) && len(req.SegmentIDs) == 0
+			if edit.FullDemo != nil || (req.Preset == "gameplay-pov-60" && edit.MatchRecap) || emptyRequest || errors.Is(err, io.EOF) {
+				if h.retryApprovedFullDemo(w, r, j, edit.FullDemo) {
+					return
+				}
+			}
 			if req.Preset != "" {
 				preset, ok := editor.PresetByName(req.Preset)
 				if !ok {
@@ -1116,7 +1152,7 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		SegmentIDs []string               `json:"segment_ids"`
 	}
 	if r.Body != nil {
-		switch err := decodeSingleJSONBody(w, r, &req, false); {
+		switch err := decodeRenderJSONBody(w, r, &req, false); {
 		case err == nil, errors.Is(err, io.EOF):
 		default:
 			writeError(w, http.StatusBadRequest, "invalid generate request JSON")
@@ -1137,13 +1173,29 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 		ActiveRunID: uuid.New(),
 		AcceptedAt:  time.Now().UTC(),
 	}
+	if intent.Edit.FullDemo != nil && len(req.SegmentIDs) != 0 {
+		writeError(w, http.StatusBadRequest, "Full Demo round selection belongs to its approved document; segment_ids must be empty")
+		return
+	}
+	if err := h.approveFullDemo(r.Context(), j, &intent.Edit); err != nil {
+		rejectFullDemo(w, err)
+		return
+	}
 	if err := intent.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	hudMode, useRecapPlan := applyCaptureOverrides(preset.HUDMode, intent.Edit)
 	segmentIDs := req.SegmentIDs
-	if useRecapPlan {
+	if useRecapPlan && intent.Edit.FullDemo != nil {
+		segmentIDs = nil
+		if intent.Edit.UsesFACEITOverlay() {
+			if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
+				h.rejectFullDemoFaceit(w, j, err)
+				return
+			}
+		}
+	} else if useRecapPlan {
 		if !h.requireRecapPlan(w, j) {
 			return
 		}
@@ -1248,6 +1300,11 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 // Music and post-capture edit choices never change the capture, so a re-drive
 // that only differs there is still the duplicate the queue says it is.
 func sameCapture(a, b renderplan.GenerateIntent) bool {
+	// Admission deduplicates the complete approved intent. A music-only change
+	// may reuse capture later, but it must not silently adopt an older render.
+	if a.Edit.FullDemo != nil || b.Edit.FullDemo != nil {
+		return a.Edit.FullDemo != nil && b.Edit.FullDemo != nil && a.Edit.FullDemo.Document.PlanHash == b.Edit.FullDemo.Document.PlanHash && a.Variant == b.Variant
+	}
 	ca, okA := captureRequestFor(a)
 	cb, okB := captureRequestFor(b)
 	return okA && okB && ca.hudMode == cb.hudMode && ca.useRecapPlan == cb.useRecapPlan &&
@@ -1402,32 +1459,36 @@ func (m *renderMusicRequest) UnmarshalJSON(data []byte) error {
 // renderEditRequest preserves JSON field presence so review corrections can
 // update one choice without resetting the rest of the approved edit contract.
 type renderEditRequest struct {
-	Format              *string  `json:"format"`
-	KillEffect          *string  `json:"killEffect"`
-	Transition          *string  `json:"transition"`
-	Intro               *bool    `json:"intro"`
-	Outro               *bool    `json:"outro"`
-	HookText            *bool    `json:"hook_text"`
-	KillCounter         *bool    `json:"kill_counter"`
-	MatchRecap          *bool    `json:"match_recap"`
-	VoiceComms          *bool    `json:"voice_comms"`
-	VoiceVolume         *float64 `json:"voice_volume"`
-	NativeHUD           *bool    `json:"native_hud"`
-	CoverStrategy       *string  `json:"cover_strategy"`
-	CoverFirstFrame     *bool    `json:"cover_first_frame"`
-	IntroText           *string  `json:"intro_text"`
-	OutroText           *string  `json:"outro_text"`
-	KeyDropFamily       *string  `json:"keydrop_family"`
-	KeyDropStyle        *string  `json:"keydrop_style"`
-	KeyDropCode         *string  `json:"keydrop_code"`
-	KeyDropPositionY    *float64 `json:"keydrop_position_y"`
-	KeyDropStartSeconds *float64 `json:"keydrop_start_seconds"`
-	KeyDropEndSeconds   *float64 `json:"keydrop_end_seconds"`
-	DemoSource          *string  `json:"demo_source"`
-	OverlayTheme        *string  `json:"overlay_theme"`
+	FullDemo            *recapplan.Snapshot `json:"full_demo"`
+	Format              *string             `json:"format"`
+	KillEffect          *string             `json:"killEffect"`
+	Transition          *string             `json:"transition"`
+	Intro               *bool               `json:"intro"`
+	Outro               *bool               `json:"outro"`
+	HookText            *bool               `json:"hook_text"`
+	KillCounter         *bool               `json:"kill_counter"`
+	MatchRecap          *bool               `json:"match_recap"`
+	VoiceComms          *bool               `json:"voice_comms"`
+	VoiceVolume         *float64            `json:"voice_volume"`
+	NativeHUD           *bool               `json:"native_hud"`
+	CoverStrategy       *string             `json:"cover_strategy"`
+	CoverFirstFrame     *bool               `json:"cover_first_frame"`
+	IntroText           *string             `json:"intro_text"`
+	OutroText           *string             `json:"outro_text"`
+	KeyDropFamily       *string             `json:"keydrop_family"`
+	KeyDropStyle        *string             `json:"keydrop_style"`
+	KeyDropCode         *string             `json:"keydrop_code"`
+	KeyDropPositionY    *float64            `json:"keydrop_position_y"`
+	KeyDropStartSeconds *float64            `json:"keydrop_start_seconds"`
+	KeyDropEndSeconds   *float64            `json:"keydrop_end_seconds"`
+	DemoSource          *string             `json:"demo_source"`
+	OverlayTheme        *string             `json:"overlay_theme"`
 }
 
 func (r renderEditRequest) merge(base renderplan.EditRequest) renderplan.EditRequest {
+	if r.FullDemo != nil {
+		base = renderplan.FullDemoEditRequest(*r.FullDemo)
+	}
 	if r.Format != nil {
 		base.Format = *r.Format
 	}
@@ -1558,7 +1619,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 			ExpectedWarnings       []string           `json:"expected_warnings"`
 			SegmentIDs             []string           `json:"segment_ids"`
 		}
-		switch err := decodeSingleJSONBody(w, r, &req, true); {
+		switch err := decodeRenderJSONBody(w, r, &req, true); {
 		case err == nil, errors.Is(err, io.EOF):
 			musicRequest = req.Music
 			editPatch = req.Edit
@@ -1600,6 +1661,20 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	editRequest := renderplan.DefaultEditRequest()
+	if variant == "gameplay-pov-60" && editPatch.FullDemo == nil {
+		if previous != nil && previous.FullDemo != nil {
+			editRequest = renderplan.FullDemoEditRequest(*previous.FullDemo)
+		} else if !editPatch.complete() {
+			prior, found, readErr := h.readGenerateIntent(j.ID)
+			if readErr != nil {
+				rejectFullDemo(w, readErr)
+				return
+			}
+			if found && prior.Variant == variant && prior.Edit.FullDemo != nil {
+				editRequest = renderplan.FullDemoEditRequest(*prior.Edit.FullDemo)
+			}
+		}
+	}
 	var musicKey string
 	var musicVolume float64
 	var gameVolume *float64
@@ -1627,6 +1702,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	editRequest = editPatch.merge(editRequest)
+	if err := h.approveFullDemo(r.Context(), j, &editRequest); err != nil {
+		rejectFullDemo(w, err)
+		return
+	}
 	if err := editRequest.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1645,6 +1724,7 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		JobID:    j.ID,
 		Loadout:  loadout,
 		Status:   renderplan.RenderVariantStatusQueued,
+		FullDemo: editRequest.FullDemo,
 		Previous: previous,
 	})
 	if err != nil {
@@ -1674,11 +1754,14 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 				return readErr
 			}
 			if ok {
+				if !renderplan.SameFullDemoRequest(existing.FullDemo, editRequest.FullDemo) {
+					return &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Another render owns this variant with a different approved plan"}
+				}
 				state = *existing
 			}
 			return nil
 		default:
-			if reviewReplacement {
+			if reviewReplacement || state.FullDemo != nil || (previous != nil && previous.FullDemo != nil) {
 				if !postAdmission {
 					// Rejected work never published queuedState, so preserving
 					// the prior review requires no compensating write.
@@ -1698,8 +1781,10 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 					// of resurrecting the superseded review.
 					return nil
 				}
-				state = *previous
-				return h.writeRenderVariantState(*previous)
+				if reviewReplacement {
+					state = *previous
+					return h.writeRenderVariantState(*previous)
+				}
 			}
 			failedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 				JobID:    j.ID,
@@ -1732,6 +1817,11 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, generateintent.ErrActiveRun) {
 			writeError(w, http.StatusConflict, "guided generation is active for this job")
+			return
+		}
+		var fullDemoError *recapplan.Error
+		if errors.As(err, &fullDemoError) {
+			rejectFullDemo(w, err)
 			return
 		}
 		internalError(w, "enqueue render task", err)

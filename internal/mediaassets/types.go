@@ -4,6 +4,7 @@ package mediaassets
 import (
 	"errors"
 	"fmt"
+	"math"
 	"path"
 	"regexp"
 	"strings"
@@ -93,8 +94,8 @@ func (a Asset) Validate() error {
 	if a.MediaKey == "" {
 		return fmt.Errorf("asset media key is required")
 	}
-	if a.Probe.DurationSeconds < 0 {
-		return fmt.Errorf("asset duration must be >= 0")
+	if a.Probe.DurationSeconds < 0 || math.IsNaN(a.Probe.DurationSeconds) || math.IsInf(a.Probe.DurationSeconds, 0) {
+		return fmt.Errorf("asset duration must be finite and >= 0")
 	}
 	return nil
 }

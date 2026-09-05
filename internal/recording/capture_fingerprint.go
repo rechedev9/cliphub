@@ -12,6 +12,8 @@ import (
 // staging paths and runtime output paths are intentionally excluded.
 func CaptureInputFingerprint(plan RecordingPlan) (string, error) {
 	input := struct {
+		FullDemoSourceHashes  []string           `json:"full_demo_source_hashes,omitempty"`
+		FullDemoCrosshairHash string             `json:"full_demo_crosshair_hash,omitempty"`
 		CaptureContract       string             `json:"capture_contract"`
 		KillPlanSchemaVersion string             `json:"killplan_schema_version"`
 		DemoSHA256            string             `json:"demo_sha256"`
@@ -37,6 +39,20 @@ func CaptureInputFingerprint(plan RecordingPlan) (string, error) {
 		Segments:              plan.Segments,
 		Stream:                plan.Stream,
 		Runtime:               plan.Runtime,
+	}
+	if plan.FullDemo != nil {
+		var err error
+		input.FullDemoCrosshairHash, err = fullDemoCrosshairHash(*plan.FullDemo)
+		if err != nil {
+			return "", err
+		}
+		for _, source := range plan.FullDemoSources {
+			hash, err := source.CaptureHash()
+			if err != nil {
+				return "", err
+			}
+			input.FullDemoSourceHashes = append(input.FullDemoSourceHashes, hash)
+		}
 	}
 	encoded, err := json.Marshal(input)
 	if err != nil {

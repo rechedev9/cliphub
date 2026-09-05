@@ -123,6 +123,9 @@ func sourceGeometryMatchesOutput(short ShortEdit) bool {
 }
 
 func appendFullDemoFadeFromBlack(filters []string, short ShortEdit, finalPass bool) []string {
+	if short.FullDemo != nil {
+		return filters
+	}
 	if !finalPass || short.Preset != PresetGameplayPOV60 || short.OutputFormat != OutputFormatLandscape16x9 {
 		return filters
 	}

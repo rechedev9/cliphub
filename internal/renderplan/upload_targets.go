@@ -77,6 +77,20 @@ func NewRenderVariantUploadTargets(opts NewRenderVariantUploadTargetsOptions) ([
 		if short.SegmentID == "" {
 			continue
 		}
+		if short.FullDemo != nil {
+			for _, name := range []string{"full-demo-approved.json", "full-demo-effective.json", "full-demo-audio.json", "full-demo-loudness.json", "full-demo-delivery.json"} {
+				targets = append(targets, RenderVariantUploadTarget{Key: filepath.ToSlash(filepath.Join(refs.Prefix, name)), Path: filepath.Join(opts.OutDir, name), Label: name, Required: true})
+			}
+			for _, pattern := range []string{"program-*.txt", "decoded-aac-*.txt"} {
+				logs, err := filepath.Glob(filepath.Join(opts.OutDir, "logs", pattern))
+				if err != nil {
+					return nil, err
+				}
+				for _, log := range logs {
+					targets = append(targets, RenderVariantUploadTarget{Key: filepath.ToSlash(filepath.Join(refs.Prefix, "logs", filepath.Base(log))), Path: log, Label: "Full Demo loudness evidence", Required: true})
+				}
+			}
+		}
 		videoPath := short.PublishPath
 		if videoPath == "" {
 			videoPath = short.Output

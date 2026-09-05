@@ -11,6 +11,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/killplan"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
 const steamID64AccountIDBase uint64 = 76561197960265728
@@ -115,17 +116,19 @@ func ValidEncoder(encoder string) bool {
 // deathnotice-only capture moves them into the safe area, while gameplay
 // capture preserves the native HUD layout for editor overlay.
 type StreamConfig struct {
-	Mode                 StreamMode `json:"mode"`
-	HUDMode              HUDMode    `json:"hud_mode,omitempty"`
-	FPS                  int        `json:"fps"`
-	Width                int        `json:"width"`
-	Height               int        `json:"height"`
-	CRF                  int        `json:"crf,omitempty"`
-	Encoder              string     `json:"encoder,omitempty"`
-	PortraitSafeKillfeed bool       `json:"portrait_safe_killfeed,omitempty"`
-	DeathnoticeSafeZoneX float64    `json:"deathnotice_safe_zone_x,omitempty"`
-	DeathnoticeSafeZoneY float64    `json:"deathnotice_safe_zone_y,omitempty"`
-	DeathnoticeLifetime  float64    `json:"deathnotice_lifetime_seconds,omitempty"`
+	FullDemoProfile      string                   `json:"full_demo_profile,omitempty"`
+	FullDemoCapture      recapplan.CaptureOptions `json:"full_demo_capture,omitzero"`
+	Mode                 StreamMode               `json:"mode"`
+	HUDMode              HUDMode                  `json:"hud_mode,omitempty"`
+	FPS                  int                      `json:"fps"`
+	Width                int                      `json:"width"`
+	Height               int                      `json:"height"`
+	CRF                  int                      `json:"crf,omitempty"`
+	Encoder              string                   `json:"encoder,omitempty"`
+	PortraitSafeKillfeed bool                     `json:"portrait_safe_killfeed,omitempty"`
+	DeathnoticeSafeZoneX float64                  `json:"deathnotice_safe_zone_x,omitempty"`
+	DeathnoticeSafeZoneY float64                  `json:"deathnotice_safe_zone_y,omitempty"`
+	DeathnoticeLifetime  float64                  `json:"deathnotice_lifetime_seconds,omitempty"`
 }
 
 // DefaultPlaybackTimescale speeds unrecorded demo gaps when PlaybackTimescale is 0.
@@ -163,25 +166,28 @@ func (c RuntimeConfig) Normalized() RuntimeConfig {
 
 // RecordingPlan is the lowest-level input to script generation.
 type RecordingPlan struct {
-	CaptureContract       string             `json:"capture_contract"`
-	KillPlanSchemaVersion string             `json:"killplan_schema_version"`
-	DemoPath              string             `json:"demo_path"`
-	DemoSHA256            string             `json:"demo_sha256"`
-	DemoMap               string             `json:"demo_map,omitempty"`
-	DemoDurationTicks     int                `json:"demo_duration_ticks,omitempty"`
-	OutputDir             string             `json:"output_dir"`
-	TargetSteamID64       string             `json:"target_steamid64"`
-	TargetNameInDemo      string             `json:"target_name_in_demo,omitempty"`
-	TargetAccountID       uint32             `json:"target_account_id"`
-	Tickrate              int                `json:"tickrate"`
-	Segments              []RecordingSegment `json:"segments"`
-	EditorialSegmentIDs   []string           `json:"editorial_segment_ids,omitempty"`
-	Stream                StreamConfig       `json:"stream"`
-	Runtime               RuntimeConfig      `json:"runtime"`
+	FullDemoSources       []recapplan.Document `json:"full_demo_sources,omitempty"`
+	FullDemo              *recapplan.Document  `json:"full_demo,omitempty"`
+	CaptureContract       string               `json:"capture_contract"`
+	KillPlanSchemaVersion string               `json:"killplan_schema_version"`
+	DemoPath              string               `json:"demo_path"`
+	DemoSHA256            string               `json:"demo_sha256"`
+	DemoMap               string               `json:"demo_map,omitempty"`
+	DemoDurationTicks     int                  `json:"demo_duration_ticks,omitempty"`
+	OutputDir             string               `json:"output_dir"`
+	TargetSteamID64       string               `json:"target_steamid64"`
+	TargetNameInDemo      string               `json:"target_name_in_demo,omitempty"`
+	TargetAccountID       uint32               `json:"target_account_id"`
+	Tickrate              int                  `json:"tickrate"`
+	Segments              []RecordingSegment   `json:"segments"`
+	EditorialSegmentIDs   []string             `json:"editorial_segment_ids,omitempty"`
+	Stream                StreamConfig         `json:"stream"`
+	Runtime               RuntimeConfig        `json:"runtime"`
 }
 
 // RecordingSegment is one HLAE record window.
 type RecordingSegment struct {
+	ExactWindow bool                    `json:"exact_window,omitempty"`
 	ID          string                  `json:"id"`
 	Round       int                     `json:"round,omitempty"`
 	TickStart   int                     `json:"tick_start"`
@@ -193,6 +199,9 @@ type RecordingSegment struct {
 
 // RecordingArtifact is one file discovered after recording.
 type RecordingArtifact struct {
+	CaptureRevision string  `json:"capture_revision,omitempty"`
+	ContentSHA256   string  `json:"content_sha256,omitempty"`
+	StorageKey      string  `json:"storage_key,omitempty"`
 	SegmentID       string  `json:"segment_id,omitempty"`
 	TakeID          string  `json:"take_id,omitempty"`
 	Type            string  `json:"type,omitempty"`
@@ -212,17 +221,20 @@ type RecordingArtifact struct {
 
 // RecordingResult is the file emitted by zv-recorder after a run.
 type RecordingResult struct {
-	Plan                    RecordingPlan         `json:"plan"`
-	Script                  string                `json:"script"`
-	Artifacts               []RecordingArtifact   `json:"artifacts"`
-	Performance             *RecordingPerformance `json:"performance,omitempty"`
-	CaptureMode             CaptureMode           `json:"capture_mode"`
-	CaptureInputFingerprint string                `json:"capture_input_fingerprint"`
-	CaptureVerified         bool                  `json:"capture_verified,omitempty"`
-	CaptureRevision         string                `json:"capture_revision,omitempty"`
-	PublicationPending      bool                  `json:"publication_pending,omitempty"`
-	Warnings                []string              `json:"warnings,omitempty"`
-	Error                   string                `json:"error,omitempty"`
+	FullDemoRuns            []FullDemoCaptureRun     `json:"full_demo_runs,omitempty"`
+	ScriptStorageKey        string                   `json:"script_storage_key,omitempty"`
+	FullDemoEvidence        *FullDemoCaptureEvidence `json:"full_demo_evidence,omitempty"`
+	Plan                    RecordingPlan            `json:"plan"`
+	Script                  string                   `json:"script"`
+	Artifacts               []RecordingArtifact      `json:"artifacts"`
+	Performance             *RecordingPerformance    `json:"performance,omitempty"`
+	CaptureMode             CaptureMode              `json:"capture_mode"`
+	CaptureInputFingerprint string                   `json:"capture_input_fingerprint"`
+	CaptureVerified         bool                     `json:"capture_verified,omitempty"`
+	CaptureRevision         string                   `json:"capture_revision,omitempty"`
+	PublicationPending      bool                     `json:"publication_pending,omitempty"`
+	Warnings                []string                 `json:"warnings,omitempty"`
+	Error                   string                   `json:"error,omitempty"`
 }
 
 // RecordingPerformance contains monotonic timings for one or more physical
@@ -286,13 +298,19 @@ func DefaultStreamConfig() StreamConfig {
 }
 
 // NewPlanFromKillPlan converts parser output into the local recorder contract.
-func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream StreamConfig) (RecordingPlan, error) {
+func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream StreamConfig, documents ...*recapplan.Document) (RecordingPlan, error) {
+	var fullDemo *recapplan.Document
+	if len(documents) > 0 && documents[0] != nil {
+		fullDemo = documents[0]
+		stream.FullDemoProfile, stream.FullDemoCapture = recapplan.ProfileChill, fullDemo.Options.Capture
+	}
 	accountID, err := AccountIDFromSteamID64(plan.Target.SteamID64)
 	if err != nil {
 		return RecordingPlan{}, err
 	}
 	stream = normalizeStreamConfig(stream)
 	out := RecordingPlan{
+		FullDemo:              fullDemo,
 		CaptureContract:       CaptureContractVersion,
 		KillPlanSchemaVersion: plan.SchemaVersion,
 		DemoPath:              demoPath,
@@ -313,6 +331,7 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 	for _, s := range plan.Segments {
 		out.EditorialSegmentIDs = append(out.EditorialSegmentIDs, s.ID)
 		out.Segments = append(out.Segments, RecordingSegment{
+			ExactWindow: fullDemo != nil,
 			ID:          s.ID,
 			Round:       s.Round,
 			TickStart:   s.TickStart,
@@ -452,6 +471,9 @@ func AccountIDFromSteamID64(raw string) (uint32, error) {
 
 // Validate rejects plans that would generate ambiguous or unsafe scripts.
 func (p RecordingPlan) Validate() error {
+	if err := p.validateFullDemo(); err != nil {
+		return err
+	}
 	if p.CaptureContract != CaptureContractVersion {
 		return fmt.Errorf("capture_contract must be %q", CaptureContractVersion)
 	}

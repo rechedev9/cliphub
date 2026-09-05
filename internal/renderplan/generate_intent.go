@@ -37,6 +37,9 @@ func (g GenerateIntent) Normalize() GenerateIntent {
 // a valid edit request. The music key is validated where the render task is
 // built (it shares the render-variant token rules), so it is not checked here.
 func (g GenerateIntent) Validate() error {
+	if g.Edit.FullDemo != nil && (g.Variant != "gameplay-pov-60" || g.MusicKey != "" || g.MusicVolume != 0 || g.GameVolume != nil || len(g.SegmentIDs) != 0) {
+		return fmt.Errorf("full demo uses gameplay-pov-60 and the document's audio and round selection exclusively")
+	}
 	if _, err := LoadoutForVariant(g.Variant); err != nil {
 		return err
 	}
