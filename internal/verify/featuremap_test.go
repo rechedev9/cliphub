@@ -1,6 +1,10 @@
 package verify
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -80,18 +84,50 @@ func TestFeatureCatalogValidationRejectsIncompleteMetadata(t *testing.T) {
 
 func TestCatalogCoversStudioNav(t *testing.T) {
 	t.Parallel()
-	want := []string{
-		"/onboarding", "/matches", "/upload", "/full-demo", "/tactical",
-		"/cheaters", "/players", "/streams", "/editor", "/videos",
-		"/feed", "/settings",
+	root, err := FindRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nav, err := os.ReadFile(filepath.Join(root, "web", "lib", "nav.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Read the actual rail so this check cannot bless another stale copy.
+	sections := regexp.MustCompile(`\{ number: '[0-9]+', label: '([^']+)', href: '([^']+)' \}`).FindAllStringSubmatch(string(nav), -1)
+	if len(sections) == 0 {
+		t.Fatal("no Studio nav sections found")
 	}
 	have := map[string]bool{}
 	for _, feature := range Features() {
-		have[feature.Route] = true
+		route, err := url.Parse(feature.Route)
+		if err != nil {
+			t.Fatalf("%s route: %v", feature.ID, err)
+		}
+		page := filepath.Join(root, "web", "app", "(app)", filepath.FromSlash(strings.TrimPrefix(route.Path, "/")), "page.tsx")
+		body, err := os.ReadFile(page)
+		if err != nil {
+			t.Fatalf("%s route %s has no Studio page: %v", feature.ID, feature.Route, err)
+		}
+		if strings.Contains(string(body), "redirect(") {
+			t.Errorf("%s points to retired route %s", feature.ID, feature.Route)
+		}
+		if feature.NavLabel == "" {
+			continue
+		}
+		matched := false
+		for _, section := range sections {
+			if feature.NavLabel == section[1] && (route.Path == section[2] || strings.HasPrefix(route.Path, section[2]+"/")) {
+				matched = true
+				have[section[2]] = true
+			}
+		}
+		if !matched {
+			t.Errorf("%s route %s has no matching Studio nav label %q", feature.ID, feature.Route, feature.NavLabel)
+		}
 	}
-	for _, route := range want {
-		if !have[route] {
-			t.Fatalf("catalog missing nav route %s", route)
+	for _, section := range sections {
+		if !have[section[2]] {
+			t.Errorf("catalog missing nav route %s (%s)", section[2], section[1])
 		}
 	}
 }
@@ -144,7 +180,7 @@ func TestProveInicioCheapProof(t *testing.T) {
 	if !strings.Contains(report.Detail, "unproven") {
 		t.Fatalf("detail = %q, want an honest unproven user-path note", report.Detail)
 	}
-	if report.Drive == nil || report.Drive.Route != "/onboarding" || report.Drive.NavLabel != "Inicio" {
-		t.Fatalf("drive = %#v, want Inicio /onboarding", report.Drive)
+	if report.Drive == nil || report.Drive.Route != "/clips" || report.Drive.NavLabel != "Clips y vídeos" {
+		t.Fatalf("drive = %#v, want Clips y vídeos /clips", report.Drive)
 	}
 }

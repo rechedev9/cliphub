@@ -35,7 +35,7 @@ before(async () => {
   });
   page = await app.firstWindow();
   page.on('pageerror', (error) => pageErrors.push({ url: page.url(), message: String(error), stack: error.stack }));
-  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/onboarding/, {
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/clips/, {
     timeout: E2E_BOOT_DEADLINE_MS,
   });
   origin = new URL(page.url()).origin;
@@ -110,33 +110,70 @@ test('installed release exposes version-only desktop settings with no MCP surfac
   }
 });
 
-test('demo reel uses the selected settings and keeps publication metadata isolated', async () => {
-  await goto('/matches/m-inferno');
-  await page.getByRole('heading', { name: 'Inferno' }).waitFor();
-  const matchText = await page.locator('body').innerText();
-  assert.doesNotMatch(matchText, /AHORA MISMO/i);
-  assert.match(matchText, /HACE \d+ D/);
+test('demo reel uses the selected settings without brief approval', async () => {
+  const jobId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const plan = {
+    demo: { map: 'de_inferno' },
+    target: { steamid64: '76561198000000001', name_in_demo: 'Alpha', team_at_start: 'CT' },
+    stats: { total_kills_target: 3 },
+    segments: [{ id: 'seg-short', round: 1, tick_start: 100, tick_end: 600, kills: [{ weapon: 'ak47' }] }],
+  };
+  // The real client accepts orchestrator UUIDs, so seed a parsed job through
+  // HTTP instead of relying on the retired m-inferno demo fixture.
+  const demoRoute = `**/api/demos/${jobId}/**`;
+  await page.route(demoRoute, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/status')) return route.fulfill({ json: { status: 'parsed' } });
+    if (path.endsWith('/plan') || path.endsWith('/recap-plan')) return route.fulfill({ json: plan });
+    if (path.endsWith('/roster')) return route.fulfill({ json: { players: [] } });
+    if (path.endsWith('/record')) return route.fulfill({ status: 202, json: { status: 'queued' } });
+    return route.fulfill({ status: 404, json: { error: 'unhandled short eval route' } });
+  });
+  await page.route('**/api/presets', (route) => route.fulfill({ json: {
+    presets: [{ name: 'viral-60-clean', label: 'Clean POV', hud_mode: 'clean', default: true, width: 1080, height: 1920 }],
+  } }));
+  try {
+    await goto(`/clips/${jobId}/nuevo`);
+    const brief = page.getByRole('region', { name: /Configuración del render/ }).filter({ visible: true });
+    await brief.waitFor();
+    const forge = page.getByRole('button', { name: 'Crear Short', exact: true });
+    assert.equal(await page.getByLabel(/Apruebo/).count(), 0);
+    assert.equal(await forge.isDisabled(), true, 'the music decision is still required');
+    await page.getByRole('button', { name: 'Sin música', exact: true }).click();
+    await page.waitForFunction(() => !Array.from(document.querySelectorAll('button')).find((button) => button.textContent.trim() === 'Crear Short')?.disabled);
+    assert.equal(await forge.isEnabled(), true);
+    for (const label of ['Formato', 'HUD / killfeed', 'Efecto de kill', 'Transición', 'Título / contador', 'Intro', 'Outro', 'Música', 'Portada']) {
+      assert.equal(await brief.getByText(`${label}:`, { exact: true }).isVisible(), true, `missing ${label}`);
+    }
+    assert.equal(await forge.isEnabled(), true);
 
-  await page.locator('button:has(.lucide-crosshair)').first().click();
-  await page.getByText('Configuración del render', { exact: true }).waitFor();
-  const forge = page.getByRole('button', { name: 'FORJAR REEL' });
-  assert.equal(await page.getByLabel(/Apruebo/).count(), 0);
-  assert.equal(await forge.isEnabled(), true);
-  const brief = page.locator('[aria-labelledby="creative-brief-title"]');
-  for (const label of ['Formato', 'HUD / killfeed', 'Efecto de kill', 'Transición', 'Título / contador', 'Intro', 'Outro', 'Música', 'Portada']) {
-    assert.equal(await brief.getByText(`${label}:`, { exact: true }).isVisible(), true, `missing ${label}`);
+    await page.setViewportSize({ width: 960, height: 900 });
+    const forgeBox = await forge.boundingBox();
+    assert.ok(forgeBox, 'the forge CTA has no layout box at 960px');
+    await screenshot('demo-brief-responsive-960.png');
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await page.locator('summary').filter({ hasText: '04 · Textos y gráficos' }).click();
+    await page.getByRole('radio', { name: 'Limpio', exact: true }).click();
+    assert.equal(await brief.getByText('Limpio', { exact: true }).isVisible(), true);
+    assert.equal(await forge.isEnabled(), true, 'changing settings must not require another approval');
+    await forge.click();
+    await page.waitForURL(`${origin}/clips?partida=${jobId}`);
+    const intents = await page.evaluate(() => JSON.parse(window.localStorage.getItem('cliphub.reels.v1') || '[]'));
+    const created = intents.find((intent) => intent.jobId === jobId);
+    assert.ok(created, 'Crear Short must persist a render intent without an approval step');
+    assert.deepEqual(created.segmentIds, ['seg-short']);
+    assert.equal(created.mode, 'clean');
+    assert.equal(created.editConfig.format, 'short-9x16');
+    assert.equal(created.editConfig.killEffect, 'clean');
+  } finally {
+    await page.evaluate(() => window.localStorage.removeItem('cliphub.reels.v1'));
+    await page.unroute(demoRoute);
+    await page.unroute('**/api/presets');
   }
-  assert.equal(await forge.isEnabled(), true);
+});
 
-  await page.setViewportSize({ width: 960, height: 900 });
-  const forgeBox = await forge.boundingBox();
-  assert.ok(forgeBox, 'the forge CTA has no layout box at 960px');
-  await screenshot('demo-brief-responsive-960.png');
-  await page.setViewportSize({ width: 1280, height: 900 });
-
-  await page.getByRole('button', { name: '16:9' }).click();
-  assert.equal(await forge.isEnabled(), true, 'changing settings must not require another approval');
-
+test('publication metadata stays isolated between reels', async () => {
   const alphaJob = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const betaJob = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const defaultEdit = {
@@ -367,8 +404,8 @@ test('stream editor validates, recovers, previews, reports progress, switches la
   await page.getByText(/No hace falta recorte de facecam/).waitFor();
   assert.equal(await page.getByText(/Recorte de facecam: arrastra/).count(), 0);
   autosaveFails = false;
-  assert.equal(await createShorts.isDisabled(), true, 'changing the stream plan must revoke approval');
-  await streamApproval.check();
+  assert.equal(await page.getByLabel(/Apruebo/).count(), 0);
+  assert.equal(await createShorts.isEnabled(), true, 'changing a valid stream plan must not require approval');
   await createShorts.click();
   await page.getByRole('heading', { name: 'Paquete shortslistosparasubir' }).waitFor({ timeout: 10_000 });
   for (const artifact of ['final.mp4', 'cover.jpg', 'edit-plan.json', 'manifest.json']) {
