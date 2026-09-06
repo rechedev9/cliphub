@@ -8,6 +8,9 @@ import {
   forwardError,
   serviceUnavailable,
   callOrchestratorStreamingUpload,
+  ifNoneMatchInit,
+  notModifiedFromUpstream,
+  listCacheHeaders,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from './_lib';
 import { publicStreamJob } from '@/lib/api/public-projections';
@@ -84,10 +87,15 @@ export async function GET(request: Request): Promise<Response> {
   const localError = await localAPIRequestError(request.headers, request.method);
   if (localError !== undefined) return NextResponse.json({ error: localError }, { status: 403 });
 
-  const res = await callOrchestrator(`${orchestratorUrl()}/api/stream-jobs`);
+  const res = await callOrchestrator(`${orchestratorUrl()}/api/stream-jobs`, ifNoneMatchInit(request));
   if (res === null) return serviceUnavailable();
+  const notModified = notModifiedFromUpstream(res);
+  if (notModified) return notModified;
   if (!res.ok) return forwardError(res);
 
   const data = (await res.json()) as { jobs?: unknown[] };
-  return NextResponse.json({ jobs: Array.isArray(data.jobs) ? data.jobs.map(publicStreamJob) : [] });
+  return NextResponse.json(
+    { jobs: Array.isArray(data.jobs) ? data.jobs.map(publicStreamJob) : [] },
+    { headers: listCacheHeaders(res) },
+  );
 }

@@ -326,6 +326,52 @@ test('unreadable rows do not accumulate job-gone strikes', async () => {
   }
 });
 
+test('listMatches reuses the last jobs body when the list answers 304', async () => {
+  const JOBS_URL = '/api/demos/jobs';
+  const listed = [{
+    jobId: JOB,
+    status: 'parsed',
+    createdAt: '2026-09-06T12:00:00Z',
+    summary: {
+      match: { map: 'de_inferno', score_ct: 7, score_t: 13, rounds: 20 },
+      target: { steamid64: '76561198000000000', name: 'zack', team: 'T', kills: 24, deaths: 12 },
+    },
+  }];
+  const original = globalThis.fetch;
+  const headers: Array<string | null> = [];
+  let calls = 0;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url !== JOBS_URL) return json({ error: `unexpected fetch: ${url}` }, 500);
+    calls += 1;
+    const headerStore = new Headers(init?.headers);
+    headers.push(headerStore.get('If-None-Match'));
+    if (calls === 1) {
+      return new Response(JSON.stringify({ jobs: listed }), {
+        status: 200,
+        headers: { 'content-type': 'application/json', ETag: 'W/"jobs1"' },
+      });
+    }
+    return new Response(null, { status: 304, headers: { ETag: 'W/"jobs1"' } });
+  }) as typeof globalThis.fetch;
+  try {
+    const client = new RealApiClient();
+    const first = await client.listMatches();
+    const second = await client.listMatches();
+    assert.equal(calls, 2);
+    assert.equal(headers[0], null);
+    assert.equal(headers[1], 'W/"jobs1"');
+    assert.equal(first.length, 1);
+    assert.equal(second.length, 1);
+    assert.equal(first[0]?.id, JOB);
+    assert.equal(second[0]?.id, JOB);
+    assert.equal(first[0]?.stats.kills, 24);
+    assert.equal(second[0]?.stats.kills, 24);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 for (const status of ['parsing', 'parsed']) {
   test(`getScan reports ${status} targeted imports without requiring a roster`, async () => {
     const gate = gateFetch(url => url === STATUS_URL ? json({ status }) : json({ error: 'roster not ready' }, 409));

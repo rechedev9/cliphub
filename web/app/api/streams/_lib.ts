@@ -6,6 +6,9 @@ import {
   serviceUnavailable,
   proxyStream,
   callOrchestratorStreamingUpload,
+  ifNoneMatchInit,
+  notModifiedFromUpstream,
+  listCacheHeaders,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from '../demos/_lib';
 
@@ -24,6 +27,9 @@ export {
   serviceUnavailable,
   proxyStream,
   callOrchestratorStreamingUpload,
+  ifNoneMatchInit,
+  notModifiedFromUpstream,
+  listCacheHeaders,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 };
 

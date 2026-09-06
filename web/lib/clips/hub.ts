@@ -186,6 +186,21 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * by a field list, so a new field can never freeze a stale row in the UI: an
  * unrecognised shape or a differing key set reports unequal and re-renders.
  */
+/** True when an idle poll rebuilt the same hub the page already shows. */
+export function hubPollUnchanged(
+  prevSnapshot: HubSnapshot | null,
+  prevModel: HubModel | null,
+  nextModel: HubModel,
+  nextSnapshot: HubSnapshot,
+): boolean {
+  if (prevSnapshot === null || prevModel === null) return false;
+  return (
+    sameHubProps(prevModel, nextModel)
+    && sameHubProps(prevSnapshot.streams, nextSnapshot.streams)
+    && sameHubProps(prevSnapshot.failure ?? null, nextSnapshot.failure ?? null)
+  );
+}
+
 export function sameHubProps(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (Array.isArray(a) || Array.isArray(b)) {

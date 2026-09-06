@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { IMMUTABLE_CACHE_CONTROL, proxyStream } from './_lib.ts';
+import {
+  IMMUTABLE_CACHE_CONTROL,
+  ifNoneMatchInit,
+  listCacheHeaders,
+  notModifiedFromUpstream,
+  proxyStream,
+} from './_lib.ts';
 
 const UPSTREAM = 'http://127.0.0.1:8080/api/stream-jobs/11111111-1111-4111-8111-111111111111/source';
 
@@ -109,4 +115,29 @@ test('proxyStream still forwards Range and mirrors the upstream range headers', 
   assert.equal(response.headers.get('accept-ranges'), 'bytes');
   assert.equal(response.headers.get('content-length'), '3');
   assert.equal(await response.text(), 'deo');
+});
+
+test('ifNoneMatchInit forwards only a present validator', () => {
+  assert.equal(ifNoneMatchInit(new Request('http://127.0.0.1/api/demos/jobs')), undefined);
+  const init = ifNoneMatchInit(new Request('http://127.0.0.1/api/demos/jobs', {
+    headers: { 'If-None-Match': 'W/"jobs1"' },
+  }));
+  assert.deepEqual(init, { headers: { 'If-None-Match': 'W/"jobs1"' } });
+});
+
+test('notModifiedFromUpstream mirrors a 304 ETag and ignores a 200', () => {
+  assert.equal(notModifiedFromUpstream(new Response('ok', { status: 200 })), null);
+  const mirrored = notModifiedFromUpstream(new Response(null, {
+    status: 304,
+    headers: { ETag: 'W/"jobs1"' },
+  }));
+  assert.equal(mirrored?.status, 304);
+  assert.equal(mirrored?.headers.get('ETag'), 'W/"jobs1"');
+  assert.equal(mirrored?.headers.get('Cache-Control'), 'private, no-cache');
+});
+
+test('listCacheHeaders copies the orchestrator ETag onto a rewritten body', () => {
+  const headers = listCacheHeaders(new Response('{}', { headers: { ETag: 'W/"jobs1"' } }));
+  assert.equal(headers.get('ETag'), 'W/"jobs1"');
+  assert.equal(headers.get('Cache-Control'), 'private, no-cache');
 });

@@ -21,6 +21,7 @@ import {
   outputType,
   recBusy,
   roundsFromScore,
+  hubPollUnchanged,
   sameHubProps,
   settleHubSnapshot,
   shortsChipTone,
@@ -393,4 +394,22 @@ test('sameHubProps holds a rebuilt hub model stable without hiding a real change
   const moved = model(50);
   assert.equal(sameHubProps(first.rows[0], moved.rows[0]), false);
   assert.equal(sameHubProps(first.rows[1], moved.rows[1]), true);
+});
+
+test('hubPollUnchanged skips an idle rebuild and notices a new stream row', () => {
+  const matches = [match('m1', 'parsed')];
+  const videos: Video[] = [];
+  const snapshot = (streams: StreamJob[]): HubSnapshot => ({
+    matches,
+    videos,
+    streams,
+    failure: null,
+  });
+  const empty: StreamJob[] = [];
+  const first = snapshot(empty);
+  const model = buildHubModel(matches, videos);
+  assert.equal(hubPollUnchanged(first, model, buildHubModel(matches, videos), snapshot(empty)), true);
+  assert.equal(hubPollUnchanged(null, model, model, first), false);
+  const added = snapshot([{ id: 's1', status: 'ready', created_at: '2026-09-06T12:00:00Z' }]);
+  assert.equal(hubPollUnchanged(first, model, model, added), false);
 });

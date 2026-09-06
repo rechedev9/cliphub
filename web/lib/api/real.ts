@@ -34,6 +34,7 @@ import {
   type SeriesSummary,
 } from './jobs-index.ts';
 import { reconcileReels } from './reconcile-batch.ts';
+import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
 import { parseCaptureProgress } from '../capture-progress.ts';
 import { playsSelectionLabel } from '../format.ts';
 import { constrainEditConfig, isLandscapeRecap } from '../reel-brief.ts';
@@ -307,6 +308,8 @@ export class RealApiClient implements ApiClient {
   private readonly driveLatch = new Map<string, { failureReason: string; retryAction: ReelAction }>();
   /** GETs the constructor beat still has open, so its three reads share them (see sharedRead). */
   private readonly beatReads = new Map<string, Promise<unknown>>();
+  /** Last /api/demos/jobs body, reused when the orchestrator answers 304. */
+  private jobsListCache: ConditionalJSONCache<IndexedJob[]> | null = null;
 
   constructor() {
     // Rehydrate persisted intents so the Library survives a hard reload.
@@ -1221,8 +1224,14 @@ export class RealApiClient implements ApiClient {
 
   /** The recent demo jobs the orchestrator persists (the Partidas index feed). */
   private async fetchJobs(): Promise<IndexedJob[]> {
-    const body = await readJson<{ jobs: IndexedJob[] }>(await this.send((dp) => ({ url: dp.jobsUrl })));
-    return body.jobs;
+    const cache = this.jobsListCache;
+    const res = await this.send((dp) => ({ url: dp.jobsUrl, init: ifNoneMatchInit(cache?.etag) }));
+    const next = await readConditionalJSON(res, cache, async (response) => {
+      const body = await readJson<{ jobs: IndexedJob[] }>(response);
+      return body.jobs;
+    });
+    this.jobsListCache = next;
+    return next.value;
   }
 
   /** Job to Match; a missing roster still lists a zeroed filename row. */

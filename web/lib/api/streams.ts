@@ -1,4 +1,5 @@
 import type { AffiliateFamily, KeyDropStyle } from './types.ts';
+import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
 
 /** Stream-jobs client; separate from the demo /api/jobs surface. */
 
@@ -180,6 +181,8 @@ async function readJson<T>(res: Response): Promise<T> {
 
 /** RealStreamsApiClient talks to the same-origin /api/streams/* proxy routes. */
 export class RealStreamsApiClient implements StreamsApiClient {
+  private jobsListCache: ConditionalJSONCache<StreamJob[]> | null = null;
+
   async createFromUrl(input: { sourceUrl: string; title?: string }): Promise<StreamJob> {
     return readJson<StreamJob>(
       await fetch('/api/streams', {
@@ -198,8 +201,14 @@ export class RealStreamsApiClient implements StreamsApiClient {
   }
 
   async listJobs(): Promise<StreamJob[]> {
-    const data = await readJson<{ jobs?: StreamJob[] } | StreamJob[]>(await fetch('/api/streams', { cache: 'no-store' }));
-    return Array.isArray(data) ? data : (data.jobs ?? []);
+    const cache = this.jobsListCache;
+    const res = await fetch('/api/streams', ifNoneMatchInit(cache?.etag));
+    const next = await readConditionalJSON(res, cache, async (response) => {
+      const data = await readJson<{ jobs?: StreamJob[] } | StreamJob[]>(response);
+      return Array.isArray(data) ? data : (data.jobs ?? []);
+    });
+    this.jobsListCache = next;
+    return next.value;
   }
 
   async getJob(id: string): Promise<StreamJob | null> {
