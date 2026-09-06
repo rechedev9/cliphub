@@ -14,26 +14,18 @@ export function FullDemoAudio({ options, document, onChange, onAssetBusy }: Prop
   const { voice, game, music } = audio;
   const change = (patch: Partial<FullDemoOptions['audio']>): void => onChange({ ...options, audio: { ...audio, ...patch } });
   const changeMusic = (patch: Partial<typeof music>): void => change({ music: { ...music, ...patch } });
-  return <FullDemoGroup title="Audio" note="Juego y voces del equipo en buses separados. La música se pausa durante el sponsor y continúa donde se quedó.">
+  return <FullDemoGroup title="Sonido" note="Voces del equipo y música de fondo, aparte del juego.">
     <div className="grid gap-4 sm:grid-cols-2">
       <FullDemoNumber label="Volumen del juego" value={game.gain} max={2} step={0.05} onChange={(gain) => change({ game: { ...game, gain } })} />
       <FullDemoNumber label="Volumen de las voces" value={voice.gain} max={2} step={0.05} onChange={(gain) => change({ voice: { ...voice, gain } })} />
     </div>
     <FullDemoToggle label="Incluir voces del equipo" value={voice.enabled} onChange={(enabled) => change({ voice: { ...voice, enabled } })} />
     <p className="text-body-sm text-fg-2" role="status">Voces: {document ? voiceStatus(document.voice.availability) : 'pendientes de analizar'}.</p>
-    <div className="grid gap-4 sm:grid-cols-2">
-      <FullDemoChoice label="Si faltan voces utilizables" value={voice.approved_fallback} options={[{ value: 'block', label: 'Bloquear y avisarme' }, { value: 'without-voice', label: 'Acepto continuar sin voces' }]} onChange={(approved_fallback) => change({ voice: { ...voice, approved_fallback } })} />
-      <FullDemoChoice label="Nivel de voces" value={voice.normalization} options={[{ value: 'bounded-activity-v1', label: 'Equilibrar actividad (±9 dB)' }, { value: 'none', label: 'Conservar nivel original' }]} onChange={(normalization) => change({ voice: { ...voice, normalization } })} />
-    </div>
     <FullDemoToggle label="Bajar el juego cuando habla el equipo" value={game.voice_priority} onChange={(voice_priority) => change({ game: { ...game, voice_priority } })} />
     <div className="border-t border-border-subtle pt-3">
       <FullDemoToggle label="Música de fondo" value={music.enabled} onChange={(enabled) => changeMusic({ enabled })} />
       {music.enabled ? <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FullDemoNumber label="Fondo musical (dB)" value={music.bed_gain_db} min={-24} max={-18} step={0.5} onChange={(bed_gain_db) => changeMusic({ bed_gain_db })} />
-          <FullDemoChoice label="Al terminar la playlist" value={music.loop_policy} options={[{ value: 'ordered-loop', label: 'Repetir en este orden' }, { value: 'once-pad-silence', label: 'Continuar sin música' }]} onChange={(loop_policy) => changeMusic({ loop_policy })} />
-        </div>
-        <p className="text-meta text-fg-3">Cada pista se normaliza a −16 LUFS antes de aplicar el nivel de fondo.</p>
+        <FullDemoChoice label="Al terminar la playlist" value={music.loop_policy} options={[{ value: 'ordered-loop', label: 'Repetir en este orden' }, { value: 'once-pad-silence', label: 'Continuar sin música' }]} onChange={(loop_policy) => changeMusic({ loop_policy })} />
         {music.assets.length === 0 ? <p className="text-body-sm text-destructive">Añade al menos una pista o desactiva la música.</p> : null}
         <ol className="space-y-2" aria-label="Orden de la playlist">
           {music.assets.map((ref, index) => <li key={`${ref.id}-${index}`} className="flex flex-wrap items-center gap-2 border border-border-subtle p-2">
@@ -47,21 +39,38 @@ export function FullDemoAudio({ options, document, onChange, onAssetBusy }: Prop
           </li>)}
         </ol>
         {music.assets.length < 20 ? <FullDemoAssetInput label="Añadir música y permisos" accept="audio/*" onBusyChange={onAssetBusy} onUploaded={(ref) => changeMusic({ assets: [...music.assets, ref] })} /> : null}
-        <FullDemoToggle label="Bajar la música durante voces y acción" value={music.ducking.enabled} onChange={(enabled) => changeMusic({ ducking: { ...music.ducking, enabled } })} />
-        <details className="border-t border-border-subtle pt-3">
-          <summary className="cursor-pointer text-body-sm text-fg-2">Ajustes de reducción de música</summary>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <FullDemoNumber label="Influencia del juego (0–1)" value={music.ducking.game_contribution} max={1} step={0.05} onChange={(game_contribution) => changeMusic({ ducking: { ...music.ducking, game_contribution } })} />
-            <FullDemoNumber label="Ataque (ms)" value={music.ducking.attack_ms} min={1} max={2000} onChange={(attack_ms) => changeMusic({ ducking: { ...music.ducking, attack_ms } })} />
-            <FullDemoNumber label="Recuperación (ms)" value={music.ducking.release_ms} min={20} max={5000} onChange={(release_ms) => changeMusic({ ducking: { ...music.ducking, release_ms } })} />
-            <FullDemoNumber label="Umbral (0,001–1)" value={music.ducking.threshold} min={0.001} max={1} step={0.001} onChange={(threshold) => changeMusic({ ducking: { ...music.ducking, threshold } })} />
-            <FullDemoNumber label="Ratio de reducción" value={music.ducking.ratio} min={1} max={20} step={0.5} onChange={(ratio) => changeMusic({ ducking: { ...music.ducking, ratio } })} />
-          </div>
-        </details>
       </div> : null}
     </div>
-    <p className="border-t border-border-subtle pt-3 text-meta text-fg-3">Entrega completa: −14 LUFS ±0,5 · pico máximo −1,5 dBTP · AAC estéreo, 48 kHz.</p>
   </FullDemoGroup>;
+}
+
+export function FullDemoAudioAdvanced({ options, onChange }: Pick<Props, 'options' | 'onChange'>): ReactNode {
+  const { audio } = options;
+  const { voice, music } = audio;
+  const change = (patch: Partial<FullDemoOptions['audio']>): void => onChange({ ...options, audio: { ...audio, ...patch } });
+  const changeMusic = (patch: Partial<typeof music>): void => change({ music: { ...music, ...patch } });
+  return <>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <FullDemoChoice label="Si faltan voces utilizables" value={voice.approved_fallback} options={[{ value: 'block', label: 'Bloquear y avisarme' }, { value: 'without-voice', label: 'Acepto continuar sin voces' }]} onChange={(approved_fallback) => change({ voice: { ...voice, approved_fallback } })} />
+      <FullDemoChoice label="Nivel de voces" value={voice.normalization} options={[{ value: 'bounded-activity-v1', label: 'Equilibrar actividad (±9 dB)' }, { value: 'none', label: 'Conservar nivel original' }]} onChange={(normalization) => change({ voice: { ...voice, normalization } })} />
+    </div>
+    {music.enabled ? <div className="space-y-4">
+      <FullDemoNumber label="Fondo musical (dB)" value={music.bed_gain_db} min={-24} max={-18} step={0.5} onChange={(bed_gain_db) => changeMusic({ bed_gain_db })} />
+      <p className="text-meta text-fg-3">Cada pista se normaliza a −16 LUFS antes de aplicar el nivel de fondo.</p>
+      <FullDemoToggle label="Bajar la música durante voces y acción" value={music.ducking.enabled} onChange={(enabled) => changeMusic({ ducking: { ...music.ducking, enabled } })} />
+      <details className="border-t border-border-subtle pt-3">
+        <summary className="cursor-pointer text-body-sm text-fg-2">Ajustes de reducción de música</summary>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <FullDemoNumber label="Influencia del juego (0–1)" value={music.ducking.game_contribution} max={1} step={0.05} onChange={(game_contribution) => changeMusic({ ducking: { ...music.ducking, game_contribution } })} />
+          <FullDemoNumber label="Ataque (ms)" value={music.ducking.attack_ms} min={1} max={2000} onChange={(attack_ms) => changeMusic({ ducking: { ...music.ducking, attack_ms } })} />
+          <FullDemoNumber label="Recuperación (ms)" value={music.ducking.release_ms} min={20} max={5000} onChange={(release_ms) => changeMusic({ ducking: { ...music.ducking, release_ms } })} />
+          <FullDemoNumber label="Umbral (0,001–1)" value={music.ducking.threshold} min={0.001} max={1} step={0.001} onChange={(threshold) => changeMusic({ ducking: { ...music.ducking, threshold } })} />
+          <FullDemoNumber label="Ratio de reducción" value={music.ducking.ratio} min={1} max={20} step={0.5} onChange={(ratio) => changeMusic({ ducking: { ...music.ducking, ratio } })} />
+        </div>
+      </details>
+    </div> : null}
+    <p className="border-t border-border-subtle pt-3 text-meta text-fg-3">Entrega completa: −14 LUFS ±0,5 · pico máximo −1,5 dBTP · AAC estéreo, 48 kHz.</p>
+  </>;
 }
 
 function voiceStatus(status: string): string {
@@ -73,12 +82,14 @@ export function FullDemoSponsor({ options, document, onChange, onAssetBusy }: Pr
   const { sponsor } = options;
   const change = (patch: Partial<typeof sponsor>): void => onChange({ ...options, sponsor: { ...sponsor, ...patch } });
   const assetName = (id: string | undefined): string => document?.assets?.find((asset) => asset.ref.id === id)?.title ?? 'Archivo pendiente de revisar en el plan';
-  return <FullDemoGroup title="Sponsor" note="Clip de vídeo completo con su audio o una narración de reemplazo. Sin juego, voces del equipo ni música de fondo durante el anuncio.">
+  return <>
     <FullDemoToggle label="Incluir sponsor" value={sponsor.enabled} onChange={(enabled) => change({ enabled })} />
     {sponsor.enabled ? <div className="space-y-4">
+      <p className="text-meta text-fg-3">Durante el anuncio no suena el juego, las voces ni la música.</p>
       {sponsor.video ? <p className="text-body-sm text-fg-1">Vídeo: {assetName(sponsor.video.id)}</p> : <p className="text-body-sm text-destructive">Añade el vídeo del sponsor o desactívalo.</p>}
       {sponsor.video ? <FullDemoMediaPreview asset={sponsor.video} video label="Previsualizar vídeo del sponsor" gain={sponsor.audio_policy === 'embedded' ? 1 : 0} /> : null}
       <FullDemoAssetInput label={sponsor.video ? 'Cambiar vídeo del sponsor' : 'Añadir vídeo del sponsor y permisos'} accept="video/*" onBusyChange={onAssetBusy} onUploaded={(video) => change({ video })} />
+      {sponsor.video ? <>
       <FullDemoChoice label="Audio del anuncio" value={sponsor.audio_policy} options={[{ value: 'embedded', label: 'Audio incluido en el vídeo' }, { value: 'replace-narration', label: 'Reemplazar por narración' }]} onChange={(audio_policy) => change({ audio_policy })} />
       {sponsor.audio_policy === 'replace-narration' ? <>
         {sponsor.narration ? <p className="text-body-sm text-fg-1">Narración: {assetName(sponsor.narration.id)}</p> : null}
@@ -97,6 +108,7 @@ export function FullDemoSponsor({ options, document, onChange, onAssetBusy }: Pr
         <FullDemoToggle label="Acepto dividir una ronda en este punto" value={sponsor.allow_split_round} onChange={(allow_split_round) => change({ allow_split_round })} />
       </> : null}
       {document?.sponsor_placement.duration_frames ? <p className="text-body-sm text-fg-2">Último plan: anuncio en {(document.sponsor_placement.start_frame / 60).toFixed(2)} s · duración {(document.sponsor_placement.duration_frames / 60).toFixed(2)} s.</p> : null}
+      </> : null}
     </div> : null}
-  </FullDemoGroup>;
+  </>;
 }
