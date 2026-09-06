@@ -21,7 +21,7 @@ node .cursor/skills/verify-cliphub/control-cliphub.mjs launch
 
 Ready when `http://127.0.0.1:<port>/clips` returns HTTP 200 and `doctor --json` shows `web.ok=true`. Default port is `4173` so landing (`3100`) and a casual `next dev` (`3000`) stay untouched. Override with `--port` or `CLIPHUB_VERIFY_PORT`.
 
-The run file is `.cursor/skills/verify-cliphub/.run/state.json`. It records the PID this launch started, the port, and the evidence directory. Drive only that instance. A second `launch` on the same port reuses that PID. A different `--port` stops the prior instance before starting the new one, so `cleanup` still finds the live server. Passing `--evidence` on a reuse updates the directory later doctor and drive writes use.
+The run file is `.cursor/skills/verify-cliphub/.run/state.json`. It records the PID this launch started, the port, and the evidence directory. Drive only that instance. A second `launch` on the same port reuses that PID. A different `--port` checks that the new port is free and `next` is installed, then stops the prior instance so `cleanup` still finds the live server. Passing `--evidence` on a reuse updates the directory later doctor and drive writes use.
 
 If `web/node_modules` is missing, run `pnpm --dir web install --frozen-lockfile` first. Launch uses `pnpm --dir web run dev` with `--hostname 127.0.0.1`. Production `pnpm --dir web run build && pnpm --dir web run start` is the Playwright contract path. Use it when you need a standalone server, not for a routine agent walk.
 
@@ -70,7 +70,7 @@ node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --out .cursor/sk
 node .cursor/skills/verify-cliphub/control-cliphub.mjs screenshot --out .cursor/skills/verify-cliphub/artifacts/inicio/hub.png
 ```
 
-Relative `--out` resolves from the repo root. `snapshot` and `screenshot` wait until `Cargando partidas` is hidden before writing those files.
+Relative `--out` resolves from the repo root. `snapshot` and `screenshot` wait until `Cargando partidas` is hidden, then for the empty hub, `Tus demos y vídeos`, or the clips-lens heading `Tus vídeos de demos`.
 
 Stable handles from the live UI and `web/e2e`:
 

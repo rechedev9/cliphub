@@ -21,6 +21,7 @@ const DEFAULT_HOST = '127.0.0.1';
 const READY_PATH = '/clips';
 const HUB_EMPTY = '¿Qué quieres crear?';
 const HUB_POPULATED = 'Tus demos y vídeos';
+const HUB_CLIPS_LENS = 'Tus vídeos de demos';
 const PRODUCT_TITLE = 'ClipHub';
 const CLOSED_CAPTURE_GAP = 'hlae_cs2_windows_studio';
 
@@ -77,9 +78,10 @@ const COMMAND_USAGE = {
 
 Start Studio web with next dev --webpack on 127.0.0.1. Default port 4173.
 Writes .cursor/skills/verify-cliphub/.run/state.json with pid, port, and
-evidence dir. Reuses a live PID on the same port. A different --port stops
-the prior instance first. --evidence on reuse updates the recorded dir.
-Refuses a port this run did not start.
+evidence dir. Reuses a live PID on the same port. A different --port checks
+the new port and next binary first, then stops the prior instance.
+--evidence on reuse updates the recorded dir. Refuses a port this run did
+not start.
 
 Ready: GET /clips returns HTTP 200.
 `,
@@ -374,7 +376,8 @@ async function waitForHubLoading(page) {
   if (pathname !== '/clips') return;
   const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
   const populated = page.getByRole('heading', { name: HUB_POPULATED });
-  await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
+  const clipsLens = page.getByRole('heading', { name: HUB_CLIPS_LENS });
+  await empty.or(populated).or(clipsLens).first().waitFor({ state: 'visible', timeout: 15_000 });
 }
 
 async function waitForWeb(origin, timeoutMs) {
@@ -501,7 +504,21 @@ async function cmdLaunch(repo, flags) {
       return;
     }
   }
-  if (existing && pidAlive(existing.pid)) {
+  const nextBin = join(repo, 'web', 'node_modules', 'next', 'dist', 'bin', 'next');
+  if (!existsSync(nextBin)) {
+    fail('web/node_modules/next is missing. Run pnpm --dir web install --frozen-lockfile');
+  }
+  const replacing = Boolean(existing && pidAlive(existing.pid));
+  const replacingSamePort = replacing && existing.port === port;
+  if (!replacingSamePort) {
+    const free = await canListen(port, DEFAULT_HOST);
+    if (!free) {
+      fail(
+        `127.0.0.1:${port} is already taken by a process this run did not start. Pick --port or stop that server. Refusing to drive a shared instance.`,
+      );
+    }
+  }
+  if (replacing) {
     killTree(existing.pid);
     rmSync(STATE_PATH, { force: true });
     const freedUntil = Date.now() + 10_000;
@@ -510,15 +527,13 @@ async function cmdLaunch(repo, flags) {
       await new Promise((resolveWait) => setTimeout(resolveWait, 150));
     }
   }
-  const free = await canListen(port, DEFAULT_HOST);
-  if (!free) {
-    fail(
-      `127.0.0.1:${port} is already taken by a process this run did not start. Pick --port or stop that server. Refusing to drive a shared instance.`,
-    );
-  }
-  const nextBin = join(repo, 'web', 'node_modules', 'next', 'dist', 'bin', 'next');
-  if (!existsSync(nextBin)) {
-    fail('web/node_modules/next is missing. Run pnpm --dir web install --frozen-lockfile');
+  if (replacingSamePort) {
+    const free = await canListen(port, DEFAULT_HOST);
+    if (!free) {
+      fail(
+        `127.0.0.1:${port} is already taken by a process this run did not start. Pick --port or stop that server. Refusing to drive a shared instance.`,
+      );
+    }
   }
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
   const evidenceDir =
