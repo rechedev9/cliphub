@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "d45e41f",
+  "notes": [
+    "Exploratory local observations, not release-wide performance certification.",
+    "Operation time includes queueing, polling and UI scheduling, not just parsing.",
+    "GPU counters omitted to avoid perturbing short workloads; zero GPU values are not measurements of zero consumption."
+  ],
+  "date": "2026-09-06",
+  "platform": "Windows amd64",
+  "cpu": "Ryzen 7 9800X3D",
+  "electron": "43.0.0",
+  "node": "24.18.0",
+  "go": "1.26.6",
+  "protocol": {
+    "cpu_sampling_version": 2,
+    "gpu_counters_enabled": false,
+    "duration_seconds": 15,
+    "alternating_trials_per_revision": 3,
+    "viewport": [
+      1440,
+      1000
+    ],
+    "device_pixel_ratio": 1,
+    "display_hz": 360,
+    "demo_rounds": 19,
+    "demo_bytes": 221372003,
+    "summary": "per-metric median, not a single measured process report"
+  },
+  "scenarios": {
+    "tactical-analysis": {
+      "comparison": {
+        "accept": false,
+        "verdict": "regress",
+        "reason": "cpu_p95_percent rose from 12.277 to 12.727; working_set_peak_bytes rose from 786706432 to 805777408; private_bytes_peak rose from 773775360 to 833650688",
+        "scenario": "tactical-analysis",
+        "duration_seconds": 15,
+        "metrics": {
+          "cpu_p95_percent": {
+            "baseline": 12.277,
+            "candidate": 12.727,
+            "delta": 0.45000000000000107
+          },
+          "working_set_peak_bytes": {
+            "baseline": 786706432,
+            "candidate": 805777408,
+            "delta": 19070976
+          },
+          "private_bytes_peak": {
+            "baseline": 773775360,
+            "candidate": 833650688,
+            "delta": 59875328
+          },
+          "operation_ms": {
+            "baseline": 15361.4658,
+            "candidate": 2811.829099999999,
+            "delta": -12549.636700000001
+          }
+        }
+      },
+      "trials": {
+        "baseline": [
+          {
+            "elapsed_seconds": 15.066,
+            "cpu_p95_percent": 11.637,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 779812864,
+            "private_bytes_peak": 703447040,
+            "gpu_memory_peak_bytes": 0,
+            "operation_ms": 15361.4658
+          },
+          {
+            "elapsed_seconds": 15.072,
+            "cpu_p95_percent": 12.277,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 786706432,
+            "private_bytes_peak": 773775360,
+            "gpu_memory_peak_bytes": 0,
+            "operation_ms": 15365.0052
+          },
+          {
+            "elapsed_seconds": 15.066,
+            "cpu_p95_percent": 13.504,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 1560027136,
+            "private_bytes_peak": 1481736192,
+            "gpu_memory_peak_bytes": 0,
+            "operation_ms": 2811.2978000000003
+          }
+        ],
+        "candidate": [
+          {
+            "elapsed_seconds": 15.064,
+            "cpu_p95_percent": 11.93,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 767160320,
+            "private_bytes_peak": 709083136,
+            "gpu_memory_peak_bytes": 0,
+            "operation_ms": 15367.316499999999
+          },
+          {
+            "elapsed_seconds": 15.066,
+            "cpu_p95_percent": 15.999,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 1036197888,
+            "private_bytes_peak": 1056870400,
+            "gpu_memory_peak_bytes": 0,
+            "operation_ms": 2811.7170000000006
+          },
+          {
+            "elapsed_seconds": 15.075,
+            "cpu_p95_percent": 12.727,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 805777408,
+            "private_bytes_peak": 833650688,
+            "gpu_memory_peak_bytes": 0,
+            "operation_ms": 2811.829099999999
+          }
+        ]
+      }
+    },
+    "tactical-replay": {
+      "comparison": {
+        "accept": true,
+        "verdict": "improve",
+        "reason": "cpu_p95_percent fell from 11.147 to 4.999; working_set_peak_bytes fell from 948031488 to 869748736; private_bytes_peak fell from 1098788864 to 1035476992; frame_p95_ms fell from 5.599999999998545 to 2.899999999997817; frame_p99_ms fell from 5.600000000002183 to 2.900000000001455",
+        "scenario": "tactical-replay",
+        "duration_seconds": 15,
+        "metrics": {
+          "cpu_p95_percent": {
+            "baseline": 11.147,
+            "candidate": 4.999,
+            "delta": -6.148000000000001
+          },
+          "working_set_peak_bytes": {
+            "baseline": 948031488,
+            "candidate": 869748736,
+            "delta": -78282752
+          },
+          "private_bytes_peak": {
+            "baseline": 1098788864,
+            "candidate": 1035476992,
+            "delta": -63311872
+          },
+          "frame_p95_ms": {
+            "baseline": 5.599999999998545,
+            "candidate": 2.899999999997817,
+            "delta": -2.7000000000007276
+          },
+          "frame_p99_ms": {
+            "baseline": 5.600000000002183,
+            "candidate": 2.900000000001455,
+            "delta": -2.7000000000007276
+          }
+        }
+      },
+      "trials": {
+        "baseline": [
+          {
+            "elapsed_seconds": 15.064,
+            "cpu_p95_percent": 11.152,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 925794304,
+            "private_bytes_peak": 1058234368,
+            "gpu_memory_peak_bytes": 0,
+            "frame_p95_ms": 5.599999999998545,
+            "frame_p99_ms": 5.600000000002183,
+            "frame_count": 4567
+          },
+          {
+            "elapsed_seconds": 15.069,
+            "cpu_p95_percent": 11.147,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 948031488,
+            "private_bytes_peak": 1098788864,
+            "gpu_memory_peak_bytes": 0,
+            "frame_p95_ms": 5.599999999998545,
+            "frame_p99_ms": 5.600000000002183,
+            "frame_count": 4534
+          },
+          {
+            "elapsed_seconds": 15.063,
+            "cpu_p95_percent": 10.509,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 1447251968,
+            "private_bytes_peak": 1532973056,
+            "gpu_memory_peak_bytes": 0,
+            "frame_p95_ms": 5.599999999998545,
+            "frame_p99_ms": 5.600000000002183,
+            "frame_count": 4541
+          }
+        ],
+        "candidate": [
+          {
+            "elapsed_seconds": 15.066,
+            "cpu_p95_percent": 5.597,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 869748736,
+            "private_bytes_peak": 1035476992,
+            "gpu_memory_peak_bytes": 0,
+            "frame_p95_ms": 2.900000000001455,
+            "frame_p99_ms": 2.900000000001455,
+            "frame_count": 5402
+          },
+          {
+            "elapsed_seconds": 15.065,
+            "cpu_p95_percent": 4.798,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 1081266176,
+            "private_bytes_peak": 1217298432,
+            "gpu_memory_peak_bytes": 0,
+            "frame_p95_ms": 2.899999999997817,
+            "frame_p99_ms": 2.900000000001455,
+            "frame_count": 5402
+          },
+          {
+            "elapsed_seconds": 15.068,
+            "cpu_p95_percent": 4.999,
+            "gpu_p95_percent": 0,
+            "working_set_peak_bytes": 853553152,
+            "private_bytes_peak": 998211584,
+            "gpu_memory_peak_bytes": 0,
+            "frame_p95_ms": 2.899999999997817,
+            "frame_p99_ms": 2.900000000001455,
+            "frame_count": 5402
+          }
+        ]
+      }
+    }
+  }
+}

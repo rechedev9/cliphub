@@ -1,5 +1,7 @@
 # Optimizaciones de rendimiento: Electron y engine
 
+La continuación (telemetría por lotes, replay, Full Demo y Demo → Shorts) está en [performance-pipeline.md](performance-pipeline.md), con sus mediciones y límites de validación.
+
 ## Cambios
 
 - `desktop/src/copy-and-hash.ts`, `runtime-tools.ts`: copia del archivo HLAE con streams, backpressure, SHA256 en la misma pasada y cancelación. Evita bloquear el proceso principal con `copyFileSync` y cargar el archivo completo en RAM con `readFileSync`.
