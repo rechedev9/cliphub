@@ -103,6 +103,8 @@ test.describe('Full POV editorial constructor', () => {
   test('includes zero-kill rounds independently of an unavailable legacy recap', async ({ page }) => {
     await stubParsedMatch(page, { status: 409, body: { error: 'legacy recap unavailable' } });
     await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('spinbutton', { name: 'Freeze antes de jugar (s)', exact: true })).toBeHidden();
+    await page.getByText('Avanzado', { exact: true }).click();
     await expect(page.getByText('R01', { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText('R02', { exact: true })).toBeVisible();
     await expect(page.getByText('0 kills', { exact: true })).toHaveCount(2);

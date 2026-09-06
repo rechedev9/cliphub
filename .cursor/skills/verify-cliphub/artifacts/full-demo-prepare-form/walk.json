@@ -1,0 +1,42 @@
+{
+  "origin": "http://127.0.0.1:4173",
+  "named_gap": "hlae_cs2_windows_studio",
+  "full_demo_pass": false,
+  "live_9x16_pass": false,
+  "crear_full_demo_clicked": false,
+  "limit": "Aspecto/Sonido/Extra/Avanzado need a parsed partida and a live full-demo plan. This VM has no jobs.db and no orchestrator.",
+  "steps": [
+    {
+      "id": "click-crear-video-largo",
+      "href": "/clips/nueva?formato=full",
+      "url": "http://127.0.0.1:4173/clips/nueva?formato=full",
+      "title": "Cargar demo"
+    },
+    {
+      "id": "full-door-after-click",
+      "url": "http://127.0.0.1:4173/clips/nueva?formato=full",
+      "heading": "Crea un vídeo largo",
+      "video_largo_pressed": "true",
+      "prepare_step_visible": 1,
+      "aspecto": 0
+    },
+    {
+      "id": "prepare-settled",
+      "url": "http://127.0.0.1:4173/clips/11111111-1111-4111-8111-111111111111/nuevo?formato=full",
+      "title": "Partida",
+      "headings": [
+        "Servicio local sin conexión"
+      ],
+      "labels": {
+        "aspecto": 0,
+        "sonido": 0,
+        "extra": 0,
+        "avanzado": 0,
+        "freeze": 0,
+        "crearFullDemo": 0,
+        "partidaNoEncontrada": 0
+      },
+      "main_excerpt": "CLIPS Y VÍDEOS\nSERVICIO LOCAL SIN CONEXIÓN\nArranca ClipHub y vuelve a abrir esta partida.\nVolver"
+    }
+  ]
+}
