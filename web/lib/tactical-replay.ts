@@ -85,19 +85,61 @@ export function interpolatedSamples(
   const next = frames[cursor.index + 1];
   if (next === undefined || cursor.alpha <= 0) return current.samples;
 
-  return current.samples.map((sample) => {
-    const ahead = next.samples.find((candidate) => candidate.slot === sample.slot);
-    if (ahead === undefined || isAlive(ahead) !== isAlive(sample)) return sample;
-    return {
-      slot: sample.slot,
-      x: lerp(sample.x, ahead.x, cursor.alpha),
-      y: lerp(sample.y, ahead.y, cursor.alpha),
-      z: lerp(sample.z, ahead.z, cursor.alpha),
-      yaw: lerpAngleDegrees(sample.yaw, ahead.yaw, cursor.alpha),
-      health: sample.health,
-      flags: sample.flags,
-    };
-  });
+  return current.samples.map((sample) => interpolateSample(
+    sample, next.samples.find((candidate) => candidate.slot === sample.slot), cursor.alpha,
+  ));
+}
+
+function interpolateSample(sample: TacticalSample, ahead: TacticalSample | undefined, alpha: number): TacticalSample {
+  if (ahead === undefined || isAlive(ahead) !== isAlive(sample)) return sample;
+  return {
+    slot: sample.slot,
+    x: lerp(sample.x, ahead.x, alpha),
+    y: lerp(sample.y, ahead.y, alpha),
+    z: lerp(sample.z, ahead.z, alpha),
+    yaw: lerpAngleDegrees(sample.yaw, ahead.yaw, alpha),
+    health: sample.health,
+    flags: sample.flags,
+  };
+}
+
+/** Match slots only at sample Hz; interpolate at display Hz. One frame pair per reader. */
+export function createInterpolatedSampleReader(
+  frames: readonly TacticalFrame[],
+): (cursor: FrameCursor) => TacticalSample[] {
+  let index: number | undefined;
+  let deltas: ({ x: number; y: number; z: number; yaw: number | undefined } | undefined)[] = [];
+  return (cursor) => {
+    const current = frames[cursor.index];
+    if (current === undefined) return [];
+    const next = frames[cursor.index + 1];
+    if (next === undefined || cursor.alpha <= 0) return current.samples;
+    if (index !== cursor.index) {
+      deltas = current.samples.map((sample) => {
+        const ahead = next.samples.find((candidate) => candidate.slot === sample.slot);
+        if (ahead === undefined || isAlive(ahead) !== isAlive(sample)) return undefined;
+        return {
+          x: ahead.x - sample.x, y: ahead.y - sample.y, z: ahead.z - sample.z,
+          yaw: Number.isFinite(sample.yaw) && Number.isFinite(ahead.yaw)
+            ? ((ahead.yaw - sample.yaw + 540) % 360) - 180 : undefined,
+        };
+      });
+      index = cursor.index;
+    }
+    return current.samples.map((sample, i) => {
+      const delta = deltas[i];
+      if (delta === undefined) return sample;
+      return {
+        slot: sample.slot,
+        x: sample.x + delta.x * cursor.alpha,
+        y: sample.y + delta.y * cursor.alpha,
+        z: sample.z + delta.z * cursor.alpha,
+        yaw: normalizeDegrees(delta.yaw === undefined ? sample.yaw : sample.yaw + delta.yaw * cursor.alpha),
+        health: sample.health,
+        flags: sample.flags,
+      };
+    });
+  };
 }
 
 /** A point of a motion trail, oldest first. */

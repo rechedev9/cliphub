@@ -12,6 +12,7 @@ import type { RadarPoint, RadarRect } from '@/lib/tactical-transform';
 import type { TimelineEvent } from '@/lib/tactical-timeline';
 import type { TrailPoint } from '@/lib/tactical-replay';
 import { opponentSide } from '@/lib/tactical-labels';
+import type { TacticalDrawCache } from '@/lib/tactical-draw-cache';
 
 /**
  * Every mark the 2D replay puts on the canvas.
@@ -60,7 +61,7 @@ export type RadarScene = {
   activeLevel: RadarLevel;
   samples: readonly TacticalSample[];
   trails: ReadonlyMap<number, readonly TrailPoint[]>;
-  /** Events that have already happened at the playhead, oldest first. */
+  /** Sorted timeline. Drawing stops at the first future event. */
   events: readonly TimelineEvent[];
   /** Playhead position in bar seconds, used to fade older marks. */
   nowSeconds: number;
@@ -270,21 +271,23 @@ function strokeDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, radi
   ctx.closePath();
 }
 
-function drawEvents(ctx: CanvasRenderingContext2D, scene: RadarScene): void {
+function drawEvents(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?: TacticalDrawCache): void {
   const { geometry, size, style } = scene;
   const mark = Math.max(3, size * 0.009);
 
   for (const entry of scene.events) {
+    if (entry.seconds > scene.nowSeconds) break;
     const { event } = entry;
     const age = scene.nowSeconds - entry.seconds;
     const freshness = 1 - Math.min(1, Math.max(0, age) / EVENT_FRESH_SECONDS);
     const alpha = 0.32 + 0.55 * freshness;
-    const at = worldToRendered(geometry.calibration, event.pos[0], event.pos[1], size);
+    const points = cache?.eventPoints(geometry, size, entry);
+    const at = points?.at ?? worldToRendered(geometry.calibration, event.pos[0], event.pos[1], size);
     ctx.lineWidth = Math.max(1.25, size * 0.003);
 
     if (event.kind === TACTICAL_EVENT_KINDS.kill) {
       const victimSide = event.side === undefined ? undefined : opponentSide(event.side);
-      const victim = worldToRendered(geometry.calibration, event.target_pos[0], event.target_pos[1], size);
+      const victim = points?.target ?? worldToRendered(geometry.calibration, event.target_pos[0], event.target_pos[1], size);
       if (event.side !== undefined) {
         ctx.strokeStyle = sideColor(style, event.side);
         ctx.globalAlpha = alpha * 0.35;
@@ -485,7 +488,7 @@ function placeTag(
  * plate read at 15.8:1 however many cones are stacked behind them, and the side
  * colour moves to a rail so the name never joins the cyan it is sitting on.
  */
-function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene): void {
+function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?: TacticalDrawCache): void {
   const { geometry, size, style, view } = scene;
   if (size < TAG_MIN_SIZE) return;
 
@@ -515,7 +518,9 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene): void 
 
     const side = sampleSide(sample);
     const at = worldToRendered(geometry.calibration, sample.x, sample.y, size);
-    const width = Math.round(ctx.measureText(label).width) + TAG_RAIL + TAG_PAD_X * 2;
+    const measured = cache?.labelWidth(ctx.font, label, () => ctx.measureText(label).width)
+      ?? ctx.measureText(label).width;
+    const width = Math.round(measured) + TAG_RAIL + TAG_PAD_X * 2;
     // CT above, T below: half the cross-side collisions never happen, and the
     // offset is a second, redundant read of the side.
     const prefersUp = side === TACTICAL_SIDES.ct;
@@ -566,14 +571,14 @@ function drawPlayerTags(ctx: CanvasRenderingContext2D, scene: RadarScene): void 
  * events that have happened, then the players, then every identity chip on top
  * of all of them — a name is only worth drawing if nothing lands on it after.
  */
-export function drawTacticalScene(ctx: CanvasRenderingContext2D, scene: RadarScene): void {
+export function drawTacticalScene(ctx: CanvasRenderingContext2D, scene: RadarScene, cache?: TacticalDrawCache): void {
   drawTrails(ctx, scene);
-  drawEvents(ctx, scene);
+  drawEvents(ctx, scene, cache);
   for (const sample of scene.samples) {
     if (!hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.alive)) drawPlayerBlip(ctx, scene, sample);
   }
   for (const sample of scene.samples) {
     if (hasSampleFlags(sample.flags, TACTICAL_SAMPLE_FLAGS.alive)) drawPlayerBlip(ctx, scene, sample);
   }
-  drawPlayerTags(ctx, scene);
+  drawPlayerTags(ctx, scene, cache);
 }

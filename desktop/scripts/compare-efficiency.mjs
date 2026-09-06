@@ -8,6 +8,8 @@ export const SCENARIOS = Object.freeze([
   'background-idle',
   'stream-static',
   'stream-playback',
+  'tactical-analysis',
+  'tactical-replay',
 ]);
 
 export const COMPARE_METRICS = Object.freeze([
@@ -17,6 +19,12 @@ export const COMPARE_METRICS = Object.freeze([
 ]);
 
 const SCENARIO_SET = new Set(SCENARIOS);
+
+function metricsFor(scenario) {
+  if (scenario === 'tactical-analysis') return [...COMPARE_METRICS, 'operation_ms'];
+  if (scenario === 'tactical-replay') return [...COMPARE_METRICS, 'frame_p95_ms', 'frame_p99_ms'];
+  return COMPARE_METRICS;
+}
 
 /**
  * Accept a candidate only when every comparable raw-process summary is no
@@ -43,10 +51,13 @@ export function compareReports(baseline, candidate) {
     );
   }
 
+  if (left.workloadID !== right.workloadID) return incomparable('workload_id differs');
+  if (baseline.gpu_counters_enabled !== candidate.gpu_counters_enabled) return incomparable('GPU sampling mode differs');
+  if (baseline.cpu_sampling_version !== candidate.cpu_sampling_version) return incomparable('CPU sampling version differs');
   const metrics = {};
   let improved = 0;
   let worsened = 0;
-  for (const name of COMPARE_METRICS) {
+  for (const name of metricsFor(left.scenario)) {
     const from = left.summary[name];
     const to = right.summary[name];
     metrics[name] = { baseline: from, candidate: to, delta: to - from };
@@ -77,7 +88,7 @@ export function compareReports(baseline, candidate) {
   return result({
     accept: false,
     verdict: 'unchanged',
-    reason: 'cpu_p95_percent, working_set_peak_bytes, and private_bytes_peak are unchanged',
+    reason: `${metricsFor(left.scenario).join(', ')} are unchanged`,
     scenario: left.scenario,
     duration_seconds: left.durationSeconds,
     metrics,
@@ -155,10 +166,13 @@ function inspectReport(report, label) {
   if (!isPlainObject(report.roles)) {
     return { error: `${label} roles breakdown is required` };
   }
+  if (report.scenario.startsWith('tactical-') && (typeof report.workload_id !== 'string' || report.workload_id === '')) {
+    return { error: `${label} workload_id is required for tactical comparisons` };
+  }
   const summary = {};
-  for (const name of COMPARE_METRICS) {
+  for (const name of metricsFor(report.scenario)) {
     const value = report.summary[name];
-    if (!Number.isFinite(value)) {
+    if (!Number.isFinite(value) || value < 0) {
       return { error: `${label} summary.${name} must be numeric` };
     }
     summary[name] = value;
@@ -166,14 +180,14 @@ function inspectReport(report, label) {
   return {
     scenario: report.scenario,
     durationSeconds: report.duration_seconds,
+    workloadID: report.workload_id,
     summary,
   };
 }
 
 function worsenedReason(metrics) {
   const parts = [];
-  for (const name of COMPARE_METRICS) {
-    const row = metrics[name];
+  for (const [name, row] of Object.entries(metrics)) {
     if (row.delta > 0) parts.push(`${name} rose from ${row.baseline} to ${row.candidate}`);
   }
   return parts.join('; ');
@@ -181,8 +195,7 @@ function worsenedReason(metrics) {
 
 function improvedReason(metrics) {
   const parts = [];
-  for (const name of COMPARE_METRICS) {
-    const row = metrics[name];
+  for (const [name, row] of Object.entries(metrics)) {
     if (row.delta < 0) parts.push(`${name} fell from ${row.baseline} to ${row.candidate}`);
   }
   return parts.join('; ');

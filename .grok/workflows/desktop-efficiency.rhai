@@ -38,21 +38,26 @@ let compare_schema = #{
 
 if args == () { pause("verification", "Pass args.scenario and either args.root_pid (iterate/measure) or args.baseline plus args.candidate (compare)."); }
 
-let scenarios = ["foreground-idle", "background-idle", "stream-static", "stream-playback"];
+let scenarios = ["foreground-idle", "background-idle", "stream-static", "stream-playback", "tactical-analysis", "tactical-replay"];
 let scenario = args.scenario;
 if scenario == () || scenario == "" {
-    pause("verification", "Pass args.scenario — one of foreground-idle, background-idle, stream-static, stream-playback.");
+    pause("verification", "Pass args.scenario — foreground-idle, background-idle, stream-static, stream-playback, tactical-analysis or tactical-replay.");
 }
 let scenario_ok = false;
 for s in scenarios {
     if s == scenario { scenario_ok = true; }
 }
 if !scenario_ok {
-    pause("verification", "args.scenario must be one of foreground-idle, background-idle, stream-static, stream-playback.");
+    pause("verification", "args.scenario must be foreground-idle, background-idle, stream-static, stream-playback, tactical-analysis or tactical-replay.");
 }
 
 let mode = args.mode;
 if mode == () || mode == "" { mode = "iterate"; }
+
+// Tactical reports need a measured workload, not just a renamed idle sample.
+if (scenario == "tactical-analysis" || scenario == "tactical-replay") && mode != "compare" {
+    pause("verification", "Use desktop/e2e/tactical-performance.e2e.test.mjs with TEST_DEMO_PATH and CLIPHUB_MEASURE_TACTICAL=1 to generate workload-bound reports, then use compare mode. Analysis includes operation_ms; replay includes frame_p95_ms and frame_p99_ms. Both require the same workload_id.");
+}
 
 let seconds = args.seconds;
 if seconds == () { seconds = 15; }

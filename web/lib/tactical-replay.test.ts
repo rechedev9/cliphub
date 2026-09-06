@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { RADAR_LEVELS, TACTICAL_SAMPLE_FLAGS } from './api/tactical.ts';
 import type { RadarCalibration, TacticalFrame, TacticalSample } from './api/tactical.ts';
 import {
+  createInterpolatedSampleReader,
   createSampleTrailReader,
   dominantLevel,
   frameCursor,
@@ -115,6 +116,41 @@ test('interpolatedSamples: a slot missing from the next frame holds its last pos
 test('interpolatedSamples: a cursor past the last frame has nothing to ease towards', () => {
   const frames = [frame(0, [sample({ slot: 1, x: 10 })])];
   assert.deepEqual(interpolatedSamples(frames, { index: 0, alpha: 0.5 }), frames[0].samples);
+});
+
+test('interpolation reader matches stateless interpolation through gaps, deaths, seeks and alpha changes', () => {
+  const frames = Array.from({ length: 35 }, (_, i) => frame(i * 8,
+    [15, 3, 0, 7].filter((slot) => (i + slot) % 3 !== 0).map((slot) => sample({
+      slot, x: i * 10, y: slot * i, z: -i, yaw: (i * 33) % 360,
+      health: 100 - i, flags: i % 5 === 0 ? 0 : ALIVE,
+    })),
+  ));
+  const before = structuredClone(frames);
+  const read = createInterpolatedSampleReader(frames);
+  for (const index of [0, 1, 2, 18, 18, 0, 34, 33, -1, 99, 3]) {
+    for (const alpha of [0, 0.1, 0.5, 0.99, 1]) {
+      assert.deepEqual(read({ index, alpha }), interpolatedSamples(frames, { index, alpha }));
+    }
+  }
+  assert.deepEqual(frames, before);
+  const saved = read({ index: 1, alpha: 0.5 });
+  const snapshot = structuredClone(saved);
+  read({ index: 1, alpha: 0.8 });
+  assert.deepEqual(saved, snapshot, 'results are not pooled mutable buffers');
+  assert.equal(read({ index: 1, alpha: 0 }), frames[1].samples);
+  assert.deepEqual(createInterpolatedSampleReader([])({ index: 0, alpha: 0.5 }), []);
+});
+
+test('interpolation reader only searches slots on a new frame pair', () => {
+  const frames = [frame(0, [sample({ slot: 15 })]), frame(8, [sample({ slot: 15, x: 8 })])];
+  let lookups = 0;
+  const find = frames[1].samples.find.bind(frames[1].samples);
+  Object.defineProperty(frames[1].samples, 'find', {
+    value: (predicate: (sample: TacticalSample) => boolean) => { lookups++; return find(predicate); },
+  });
+  const read = createInterpolatedSampleReader(frames);
+  for (const alpha of [0.1, 0.2, 0.3, 0.4]) read({ index: 0, alpha });
+  assert.equal(lookups, 1);
 });
 
 test('sampleTrails: keeps the window, oldest point first', () => {

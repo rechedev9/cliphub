@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { TelemetryClient } from './telemetry-client.ts';
+import { TelemetryClient, type TelemetryErrorInput, type TelemetrySpanInput } from './telemetry-client.ts';
 
 const CURSOR_SCHEMA_VERSION = 2;
 const POLL_INTERVAL_MS = 10_000;
@@ -96,10 +96,12 @@ export class TelemetryJournal {
         this.discardPending();
         return;
       }
-      this.cursors.errors = readCompleteLines(this.errorJournalPath, this.cursors.errors, (line) => {
+      const errors: TelemetryErrorInput[] = [];
+      const spans: TelemetrySpanInput[] = [];
+      const errorCursor = readCompleteLines(this.errorJournalPath, this.cursors.errors, (line) => {
         const event = parseErrorLine(line);
         if (event === null) return;
-        this.client.recordError({
+        errors.push({
           component: 'orchestrator',
           name: 'pipeline.error',
           stage: event.stage,
@@ -107,10 +109,10 @@ export class TelemetryJournal {
           occurredAt: event.time,
         });
       });
-      this.cursors.spans = readRotatingLines(this.spanJournalPath, this.cursors.spans, (line) => {
+      const spanCursor = readRotatingLines(this.spanJournalPath, this.cursors.spans, (line) => {
         const span = parseSpanLine(line);
         if (span === null) return;
-        this.client.recordSpan({
+        spans.push({
           component: 'orchestrator',
           name: span.name,
           stage: span.stage,
@@ -119,6 +121,11 @@ export class TelemetryJournal {
           occurredAt: span.time,
         });
       });
+      // Queue publication must succeed before either in-memory cursor advances.
+      // This remains synchronous: consent cannot change halfway through a batch.
+      this.client.recordBatch(errors, spans);
+      this.cursors.errors = errorCursor;
+      this.cursors.spans = spanCursor;
       this.persistCursors();
     } catch (error) {
       this.log(`[telemetry] local journal cursor deferred: ${String(error)}\n`);

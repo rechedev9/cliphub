@@ -4,13 +4,21 @@ param(
     [int]$RootPid,
 
     [Parameter(Mandatory = $true)]
-    [ValidateSet("foreground-idle", "background-idle", "stream-static", "stream-playback")]
+    [ValidateSet("foreground-idle", "background-idle", "stream-static", "stream-playback", "tactical-analysis", "tactical-replay")]
     [string]$Scenario,
 
     [ValidateRange(5, 300)]
     [int]$Seconds = 15,
 
-    [string]$OutputPath
+    [string]$OutputPath,
+
+    # Workload drivers wait until the warm-up sample has captured initial CPU
+    # counters, so a short scan cannot finish before measurement starts.
+    [switch]$SignalReady,
+
+    # GPU Get-Counter can take several seconds on Windows. CPU-only workload
+    # measurements omit it rather than perturbing a short analysis operation.
+    [switch]$SkipGpu
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,6 +35,8 @@ if (-not $resolvedOutput.StartsWith($artifactPrefix, [StringComparison]::Ordinal
     throw "OutputPath must stay under desktop\e2e\artifacts."
 }
 [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($resolvedOutput)) | Out-Null
+$readyPath = "$resolvedOutput.ready"
+if ($SignalReady -and [System.IO.File]::Exists($readyPath)) { [System.IO.File]::Delete($readyPath) }
 
 function Get-ProcessTree {
     param([int]$ParentPid)
@@ -81,28 +91,32 @@ for ($sampleIndex = 0; $sampleIndex -le $Seconds; $sampleIndex += 1) {
     if ($tree.Count -eq 0) { throw "The process tree rooted at PID $RootPid no longer exists." }
     $ids = @($tree | ForEach-Object { [int]$_.ProcessId })
     $processes = @(Get-Process -Id $ids -ErrorAction SilentlyContinue)
+    $gpuByPid = @{}
+    $gpuMemoryByPid = @{}
+    if (-not $SkipGpu) {
+        try {
+            $counters = (Get-Counter '\GPU Engine(*)\Utilization Percentage','\GPU Process Memory(*)\Dedicated Usage','\GPU Process Memory(*)\Shared Usage' -ErrorAction Stop).CounterSamples
+            foreach ($counter in $counters) {
+                if ($counter.InstanceName -notmatch "pid_(\d+)") { continue }
+                $pidValue = [int]$Matches[1]
+                if (-not $ids.Contains($pidValue)) { continue }
+                if ($counter.Path -match "Utilization Percentage") {
+                    $gpuByPid[$pidValue] = [double](Get-NumberOrZero $gpuByPid[$pidValue]) + [double]$counter.CookedValue
+                } else {
+                    $gpuMemoryByPid[$pidValue] = [double](Get-NumberOrZero $gpuMemoryByPid[$pidValue]) + [double]$counter.CookedValue
+                }
+            }
+        } catch {
+            # GPU counters are absent on some Windows/RDP configurations; retain a
+            # valid sample with zero GPU values so runs remain comparable.
+        }
+    }
+
+    # Timestamp immediately before reading cumulative CPU, not before a slow
+    # GPU counter call whose duration would otherwise skew the delta interval.
     $sampleSeconds = $sampleClock.Elapsed.TotalSeconds
     $elapsedSeconds = if ($null -eq $previousSampleSeconds) { 1.0 } else { [Math]::Max(0.001, $sampleSeconds - $previousSampleSeconds) }
     $previousSampleSeconds = $sampleSeconds
-    $gpuByPid = @{}
-    $gpuMemoryByPid = @{}
-    try {
-        $counters = (Get-Counter '\GPU Engine(*)\Utilization Percentage','\GPU Process Memory(*)\Dedicated Usage','\GPU Process Memory(*)\Shared Usage' -ErrorAction Stop).CounterSamples
-        foreach ($counter in $counters) {
-            if ($counter.InstanceName -notmatch "pid_(\d+)") { continue }
-            $pidValue = [int]$Matches[1]
-            if (-not $ids.Contains($pidValue)) { continue }
-            if ($counter.Path -match "Utilization Percentage") {
-                $gpuByPid[$pidValue] = [double](Get-NumberOrZero $gpuByPid[$pidValue]) + [double]$counter.CookedValue
-            } else {
-                $gpuMemoryByPid[$pidValue] = [double](Get-NumberOrZero $gpuMemoryByPid[$pidValue]) + [double]$counter.CookedValue
-            }
-        }
-    } catch {
-        # GPU counters are absent on some Windows/RDP configurations; retain a
-        # valid sample with zero GPU values so runs remain comparable.
-    }
-
     $roles = @{}
     foreach ($process in $tree) { $roles[[int]$process.ProcessId] = Get-Role -Process $process -ParentPid $RootPid }
     $roleTotals = @{}
@@ -112,7 +126,9 @@ for ($sampleIndex = 0; $sampleIndex -le $Seconds; $sampleIndex += 1) {
     foreach ($process in $processes) {
         $pidValue = [int]$process.Id
         $cpuNow = [double](Get-NumberOrZero $process.CPU)
-        $cpuDelta = if ($previousCpu.ContainsKey($pidValue)) { [Math]::Max(0, $cpuNow - [double]$previousCpu[$pidValue]) } else { 0 }
+        # A literal integer 0 selects Math.Max(int,int) in Windows PowerShell,
+        # rounding sub-second CPU deltas away. Keep the overload floating-point.
+        $cpuDelta = if ($previousCpu.ContainsKey($pidValue)) { [Math]::Max(0.0, $cpuNow - [double]$previousCpu[$pidValue]) } else { 0.0 }
         $previousCpu[$pidValue] = $cpuNow
         $cpuPercent = 100.0 * $cpuDelta / $elapsedSeconds / [Environment]::ProcessorCount
         $cpuTotal += $cpuPercent
@@ -138,6 +154,9 @@ for ($sampleIndex = 0; $sampleIndex -le $Seconds; $sampleIndex += 1) {
         gpu_memory_bytes = [long](Get-NumberOrZero ($gpuMemoryByPid.Values | Measure-Object -Sum).Sum)
         roles = $roleTotals
     })
+    if ($SignalReady -and $sampleIndex -eq 0) {
+        [System.IO.File]::WriteAllText($readyPath, [string]$RootPid)
+    }
 }
 
 $measured = if ($samples.Count -gt 1) { @($samples | Select-Object -Skip 1) } else { @($samples) }
@@ -185,6 +204,8 @@ $document = [ordered]@{
     started_at = $startedAt.ToString("O")
     duration_seconds = $Seconds
     target_sample_interval_seconds = $sampleIntervalSeconds
+    gpu_counters_enabled = -not $SkipGpu
+    cpu_sampling_version = 2
     sample_count = $measured.Count
     elapsed_seconds = $elapsedSeconds
     summary = [ordered]@{

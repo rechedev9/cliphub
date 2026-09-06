@@ -22,6 +22,7 @@ import {
   tacticalDecodeErrorMessage,
 } from '@/lib/tactical-decode';
 import type { PositionsScale } from '@/lib/tactical-decode';
+import { LruCache } from '@/lib/lru-cache';
 import { filterTacticalRounds, tacticalFilterFromQuery, tacticalFilterToQuery } from '@/lib/tactical-filter';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { TacticalDemoSummary } from '@/components/tactical/tactical-demo-summary';
@@ -82,9 +83,9 @@ export function TacticalAnalysis({
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [tendencies, setTendencies] = useState<TacticalTendencies | null>(null);
   const [tendenciesError, setTendenciesError] = useState<string | null>(null);
-  // Frames decoded so far, keyed by round: switching back to a round already
-  // watched costs nothing.
-  const frameCache = useRef(new Map<number, TacticalFrame[]>());
+  // Keep nearby rounds hot without retaining a whole match as JS objects.
+  // Evicted rounds are decoded again from the already verified local blob.
+  const frameCache = useRef(new LruCache<number, TacticalFrame[]>(4));
 
   const filter = useMemo<TacticalFilter>(() => tacticalFilterFromQuery(searchParams), [searchParams]);
   const filterQuery = tacticalFilterToQuery(filter);
@@ -106,7 +107,7 @@ export function TacticalAnalysis({
           );
         }
         if (!active) return;
-        frameCache.current = new Map();
+        frameCache.current.clear();
         setLoaded({ doc, blob, scale: decodePositionsHeader(blob) });
       } catch (error) {
         if (active) setLoadError(errorMessage(error));
