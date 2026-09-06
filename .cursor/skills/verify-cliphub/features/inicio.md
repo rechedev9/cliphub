@@ -38,5 +38,6 @@ Preconditions:
 - `/` redirects to `/clips`. Assert the final URL, not the request URL.
 - The brand lockup and the rail row share the name `Clips y vídeos`. Scope rail clicks with `--within "[data-slot=sidebar]"`.
 - Empty hub copy is the honest state without an orchestrator. Do not stub `/api/demos/jobs` to fake partidas for this skill.
+- `/clips` first paints `Cargando partidas`. Wait until that status is hidden before asserting the empty region. A snapshot taken too early is only the skeleton.
 - Opening `Crear vídeo largo` is a constructor door. It is not HLAE capture and not Full Demo Pass.
 - `web/e2e/clips-hub.spec.ts` stubs jobs. Those screenshots are presentation fixtures, not this skill's proof.

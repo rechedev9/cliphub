@@ -527,7 +527,10 @@ async function cmdLaunch(repo, flags) {
     rmSync(STATE_PATH, { force: true });
     fail(`web did not become ready at ${origin}${READY_PATH}: ${ready.error ?? `HTTP ${ready.status}`}. See ${logPath}`);
   }
-  const payload = { ...state, ready };
+  const payload = {
+    ...state,
+    ready: { ok: ready.ok, status: ready.status, url: ready.url },
+  };
   writeText(join(evidenceDir, 'launch.json'), `${JSON.stringify(payload, null, 2)}\n`);
   if (wantsJson(flags)) printJson(payload);
   else process.stdout.write(`ready ${origin}${READY_PATH} pid=${child.pid} evidence=${evidenceDir}\n`);
@@ -730,8 +733,10 @@ async function cmdDrive(repo, flags) {
       result: { href: currentHref, name: currentName },
     });
 
+    await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
     const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
     const populated = page.getByRole('heading', { name: HUB_POPULATED });
+    await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
     const emptyVisible = await empty.isVisible().catch(() => false);
     const populatedVisible = await populated.isVisible().catch(() => false);
     if (!emptyVisible && !populatedVisible) {
@@ -757,8 +762,10 @@ async function cmdDrive(repo, flags) {
         action: 'click Crear Short',
         result: { url: page.url(), title: await page.title() },
       });
-      await page.locator('[data-slot="sidebar"] a[href="/clips"]').click();
+      await page.locator('[data-slot="sidebar-menu-button"][href="/clips"]').click();
       await page.waitForURL(/\/clips(?:\?.*)?$/);
+      await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
+      await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
       steps.push({
         id: 'inicio-return',
         action: 'click rail Clips y vídeos',

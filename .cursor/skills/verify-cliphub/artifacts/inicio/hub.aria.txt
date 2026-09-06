@@ -1,0 +1,77 @@
+- document:
+  - link "Ir a Clips y vídeos":
+    - /url: /clips
+    - text: ClipHub
+  - list:
+    - listitem:
+      - link "Clips y vídeos":
+        - /url: /clips
+    - listitem:
+      - link "Clips de stream":
+        - /url: /streams
+    - listitem:
+      - link "Jugadores FACEIT":
+        - /url: /players
+  - text: Análisis
+  - list:
+    - listitem:
+      - link "Táctica":
+        - /url: /tactical
+    - listitem:
+      - link "Anti-cheat":
+        - /url: /cheaters
+  - list:
+    - listitem:
+      - link "Ajustes":
+        - /url: /settings
+  - 'button "Captura: Sin conexión"': Servicio local offline
+  - button "Mostrar u ocultar barra lateral"
+  - banner:
+    - button "Mostrar u ocultar barra lateral":
+      - img
+      - text: Mostrar u ocultar barra lateral
+    - navigation "Ruta actual": Clips y vídeos
+    - 'button "Trabajos: sin trabajos activos"': Sin trabajos activos
+  - main:
+    - alert:
+      - paragraph: Servicio local offline · Arranca el servicio de ClipHub; la lista sigue tal cual estaba.
+      - button "Reintentar ahora"
+    - region "¿Qué quieres crear?":
+      - heading "¿Qué quieres crear?" [level=1]
+      - text: Convierte tus partidas de CS2 o grabaciones de stream en vídeos. Elige un formato para empezar; revisarás el contenido antes de grabar.
+      - region "Qué quieres crear":
+        - link "Crear Short Desde una demo de CS2 Elige jugadas y únelas en un vídeo con tu estilo y música. Vertical · 9:16":
+          - /url: /clips/nueva?formato=short
+          - heading "Crear Short" [level=2]
+          - paragraph: Desde una demo de CS2
+          - paragraph: Elige jugadas y únelas en un vídeo con tu estilo y música.
+          - paragraph: Vertical · 9:16
+        - link "Crear vídeo largo Desde una demo de CS2 Todas las rondas desde la vista de un jugador, con HUD y voces del equipo. Horizontal · 16:9":
+          - /url: /clips/nueva?formato=full
+          - heading "Crear vídeo largo" [level=2]
+          - paragraph: Desde una demo de CS2
+          - paragraph: Todas las rondas desde la vista de un jugador, con HUD y voces del equipo.
+          - paragraph: Horizontal · 16:9
+        - link "Recortar un stream Desde un enlace o MP4 Marca los cortes, ajusta el encuadre y añade facecam si la necesitas. Un Short por corte · 9:16":
+          - /url: /streams
+          - heading "Recortar un stream" [level=2]
+          - paragraph: Desde un enlace o MP4
+          - paragraph: Marca los cortes, ajusta el encuadre y añade facecam si la necesitas.
+          - paragraph: Un Short por corte · 9:16
+      - region "De la demo a tu vídeo":
+        - heading "De la demo a tu vídeo" [level=2]
+        - list:
+          - listitem: 1 Carga tu partida Usa una demo de CS2. El archivo se analiza en este PC.
+          - listitem: 2 Elige al jugador Su vista será la del vídeo. Revisa sus jugadas o todas las rondas.
+          - listitem: 3 Crea y descarga Confirma los ajustes, graba y descarga el MP4 desde Demos y vídeos.
+      - heading "¿Ya tienes una demo de CS2?" [level=2]
+      - text: Arrastra tu demo o elige un archivo .dem · .dem.zst · .rar · .zip · hasta 10 demos
+      - button "Elegir demos de CS2"
+      - group: ¿Qué es una demo y dónde la consigo?
+      - paragraph:
+        - text: Para grabar demos necesitas ClipHub Studio en Windows, CS2 y HLAE. Puedes preparar tu vídeo antes de grabar.
+        - link "Revisar requisitos de grabación":
+          - /url: /settings#capture
+        - text: . Los clips de stream no necesitan CS2 ni HLAE.
+  - region "Notifications alt+T"
+  - alert: Clips y vídeos · ClipHub

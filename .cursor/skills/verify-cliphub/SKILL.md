@@ -59,7 +59,7 @@ Read `.cursor/skills/verify-cliphub/features/` before you pick a path. Drive one
 node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature inicio
 ```
 
-`inicio` is the first-run Clips hub. The command opens `/clips`, waits for the shell, asserts the empty-hub region `¿Qué quieres crear?` or the populated heading `Tus demos y vídeos`, checks the numbered rail `Clips y vídeos` has `aria-current="page"`, follows `Crear Short` to `/clips/nueva?formato=short`, and returns through the rail.
+`inicio` is the first-run Clips hub. The command opens `/clips`, waits until `Cargando partidas` is hidden, asserts the empty-hub region `¿Qué quieres crear?` or the populated heading `Tus demos y vídeos`, checks the numbered rail `Clips y vídeos` has `aria-current="page"`, follows `Crear Short` to `/clips/nueva?formato=short`, and returns through the rail. After the return it waits for the hub again before writing proof.
 
 Other drive verbs for a recipe in the feature map:
 
