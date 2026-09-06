@@ -21,7 +21,7 @@ node .cursor/skills/verify-cliphub/control-cliphub.mjs launch
 
 Ready when `http://127.0.0.1:<port>/clips` returns HTTP 200 and `doctor --json` shows `web.ok=true`. Default port is `4173` so landing (`3100`) and a casual `next dev` (`3000`) stay untouched. Override with `--port` or `CLIPHUB_VERIFY_PORT`.
 
-The run file is `.cursor/skills/verify-cliphub/.run/state.json`. It records the PID this launch started, the port, and the evidence directory. Drive only that instance. A second `launch` on the same port reuses that PID. A different `--port` checks that the new port is free and `next` is installed, then stops the prior instance so `cleanup` still finds the live server. Passing `--evidence` on a reuse updates the directory later doctor and drive writes use.
+The run file is `.cursor/skills/verify-cliphub/.run/state.json`. It records the PID this launch started, the port, and the evidence directory. Drive only that instance. A second `launch` on the same port reuses that PID. A different `--port` preflights the new port and `next` install, then stops the prior instance before starting the new one, so a bind failure does not drop a live server that `cleanup` can no longer find. Passing `--evidence` on a reuse updates the directory later doctor and drive writes use.
 
 If `web/node_modules` is missing, run `pnpm --dir web install --frozen-lockfile` first. Launch uses `pnpm --dir web run dev` with `--hostname 127.0.0.1`. Production `pnpm --dir web run build && pnpm --dir web run start` is the Playwright contract path. Use it when you need a standalone server, not for a routine agent walk.
 
@@ -59,7 +59,7 @@ Read `.cursor/skills/verify-cliphub/features/` before you pick a path. Drive one
 node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature inicio
 ```
 
-`inicio` is the first-run Clips hub. The command opens `/clips`, waits until `Cargando partidas` is hidden, asserts the empty-hub region `¿Qué quieres crear?` or the populated heading `Tus demos y vídeos`, checks the numbered rail `Clips y vídeos` has `aria-current="page"`, follows `Crear Short` to `/clips/nueva?formato=short`, and returns through the rail. After the return it waits for the hub again before writing proof.
+`inicio` is the first-run Clips hub. The command opens `/clips`, waits until `Cargando partidas` is hidden, asserts the empty-hub region `¿Qué quieres crear?` or the populated heading `Tus demos y vídeos`, checks the numbered rail `Clips y vídeos` has `aria-current="page"`, follows `Crear Short` to `/clips/nueva?formato=short`, and returns through the rail. After the return it waits for the hub again before writing proof. `goto`, `snapshot`, and `screenshot` of `/clips` (including `?vista=clips`) also treat the clips-lens heading `Tus vídeos de demos` as ready.
 
 Other drive verbs for a recipe in the feature map:
 

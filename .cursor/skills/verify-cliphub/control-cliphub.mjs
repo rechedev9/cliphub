@@ -78,8 +78,8 @@ const COMMAND_USAGE = {
 
 Start Studio web with next dev --webpack on 127.0.0.1. Default port 4173.
 Writes .cursor/skills/verify-cliphub/.run/state.json with pid, port, and
-evidence dir. Reuses a live PID on the same port. A different --port checks
-the new port and next binary first, then stops the prior instance.
+evidence dir. Reuses a live PID on the same port. A different --port
+preflights the new port and next install, then stops the prior instance.
 --evidence on reuse updates the recorded dir. Refuses a port this run did
 not start.
 
@@ -508,9 +508,8 @@ async function cmdLaunch(repo, flags) {
   if (!existsSync(nextBin)) {
     fail('web/node_modules/next is missing. Run pnpm --dir web install --frozen-lockfile');
   }
-  const replacing = Boolean(existing && pidAlive(existing.pid));
-  const replacingSamePort = replacing && existing.port === port;
-  if (!replacingSamePort) {
+  const livePrior = existing && pidAlive(existing.pid);
+  if (!livePrior || existing.port !== port) {
     const free = await canListen(port, DEFAULT_HOST);
     if (!free) {
       fail(
@@ -518,22 +517,19 @@ async function cmdLaunch(repo, flags) {
       );
     }
   }
-  if (replacing) {
+  if (livePrior) {
     killTree(existing.pid);
-    rmSync(STATE_PATH, { force: true });
     const freedUntil = Date.now() + 10_000;
     const priorHost = existing.host ?? DEFAULT_HOST;
     while (Date.now() < freedUntil && !(await canListen(existing.port, priorHost))) {
       await new Promise((resolveWait) => setTimeout(resolveWait, 150));
     }
   }
-  if (replacingSamePort) {
-    const free = await canListen(port, DEFAULT_HOST);
-    if (!free) {
-      fail(
-        `127.0.0.1:${port} is already taken by a process this run did not start. Pick --port or stop that server. Refusing to drive a shared instance.`,
-      );
-    }
+  const free = await canListen(port, DEFAULT_HOST);
+  if (!free) {
+    fail(
+      `127.0.0.1:${port} is already taken by a process this run did not start. Pick --port or stop that server. Refusing to drive a shared instance.`,
+    );
   }
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
   const evidenceDir =
