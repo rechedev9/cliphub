@@ -98,7 +98,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
 
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
-            <span className="text-body-sm text-fg-2">
+            <span className="break-words text-body-sm text-fg-2">
               {matchMetaParts(match, matchDateLabel(match)).join(' · ')}
             </span>
           </span>

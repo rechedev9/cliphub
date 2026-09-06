@@ -201,6 +201,25 @@ test.describe('clips hub', () => {
     await expect(row.getByRole('button', { name: 'Borrar Ace en humo' })).toBeVisible();
   });
 
+  test('long player names wrap inside match metadata without covering neighbouring controls', async ({ page }) => {
+    const player = 'W'.repeat(32);
+    await page.route('**/api/demos/jobs', (route) => route.fulfill({ json: { jobs: [{
+      jobId: JOB_ID, status: 'parsed', createdAt: '2026-09-01T10:00:00Z',
+      summary: { match: { map: 'de_mirage' }, target: { steamid64: TARGET.steamid64, name: player } },
+    }] } }));
+    await page.route('**/api/streams', (route) => route.fulfill({ json: { jobs: [] } }));
+    await gotoStudio(page, '/clips');
+    const row = page.locator(`#partida-${JOB_ID}`);
+    const metadata = row.getByText(player, { exact: false });
+    await expect(metadata).toBeVisible();
+    for (const width of [390, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await row.scrollIntoViewIfNeeded();
+      await expect.poll(() => metadata.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+      await expect(row.getByRole('link', { name: /Crear/ })).toBeInViewport();
+    }
+  });
+
   test('a scanned partida (no POV picked) shows the unpicked copy and stays deletable', async ({ page }) => {
     await stubParsedMatchWithReadyShort(page);
     await gotoStudio(page, '/clips');
