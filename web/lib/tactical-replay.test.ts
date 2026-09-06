@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { RADAR_LEVELS, TACTICAL_SAMPLE_FLAGS } from './api/tactical.ts';
 import type { RadarCalibration, TacticalFrame, TacticalSample } from './api/tactical.ts';
 import {
+  createSampleTrailReader,
   dominantLevel,
   frameCursor,
   interpolatedSamples,
@@ -134,6 +135,46 @@ test('sampleTrails: a dead player leaves no trail', () => {
   ];
   const trails = sampleTrails(frames, { index: 1, alpha: 0 }, 64, 2);
   assert.deepEqual(trails.get(1)?.map((point) => point.x), [0]);
+});
+
+test('trail reader reuses only the current sample frame and handles backward seeks', () => {
+  const frames = [
+    frame(0, [sample({ slot: 3, x: 0 })]),
+    frame(8, [sample({ slot: 1, x: 1 }), sample({ slot: 3, x: 2 })]),
+    frame(16, [sample({ slot: 3, x: 3, flags: 0 })]),
+  ];
+  const read = createSampleTrailReader(frames, 64, 2);
+  const first = read({ index: 1, alpha: 0 });
+  assert.equal(read({ index: 1, alpha: 0.75 }), first);
+  assert.deepEqual(first, sampleTrails(frames, { index: 1, alpha: 0 }, 64, 2));
+  assert.deepEqual([...first.keys()], [1, 3]);
+  assert.deepEqual(read({ index: 2, alpha: 0.5 }), sampleTrails(frames, { index: 2, alpha: 0.5 }, 64, 2));
+  assert.deepEqual(read({ index: 0, alpha: 0 }), sampleTrails(frames, { index: 0, alpha: 0 }, 64, 2));
+  assert.deepEqual(first.get(3), [{ x: 0, y: 0 }, { x: 2, y: 0 }], 'advancing never mutates a previous result');
+  const otherRound = createSampleTrailReader([frame(0, [sample({ slot: 9, x: 99 })])], 64, 2);
+  assert.deepEqual([...otherRound({ index: 0, alpha: 0 }).keys()], [9]);
+});
+
+test('sampleTrails preserves legacy order for sparse frames and varied windows', () => {
+  const frames = Array.from({ length: 40 }, (_, i) => frame(i * 8,
+    [3, 1, 7].filter((slot) => (i + slot) % 3 !== 0).map((slot) =>
+      sample({ slot, x: i, y: slot, flags: i % 7 === 0 ? 0 : ALIVE })),
+  ));
+  for (let index = 0; index < frames.length; index++) {
+    for (const seconds of [-1, 0, 0.125, 2, 100]) {
+      const expected = new Map<number, { x: number; y: number }[]>();
+      for (let i = index; i >= 0; i--) {
+        if (frames[i].tick < frames[index].tick - seconds * 64) break;
+        for (const s of frames[i].samples) {
+          if (!isAlive(s)) continue;
+          const points = expected.get(s.slot) ?? [];
+          points.unshift({ x: s.x, y: s.y });
+          expected.set(s.slot, points);
+        }
+      }
+      assert.deepEqual([...sampleTrails(frames, { index, alpha: 0.3 }, 64, seconds)], [...expected]);
+    }
+  }
 });
 
 test('dominantLevel: a single-level map is always the default layer', () => {

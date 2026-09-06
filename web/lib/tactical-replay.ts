@@ -126,10 +126,32 @@ export function sampleTrails(
       if (!isAlive(sample)) continue;
       const points = trails.get(sample.slot);
       if (points === undefined) trails.set(sample.slot, [{ x: sample.x, y: sample.y }]);
-      else points.unshift({ x: sample.x, y: sample.y });
+      else points.push({ x: sample.x, y: sample.y });
     }
   }
+  // Reverse once instead of shifting the growing array for every point.
+  // Traversing frames backwards retains the Map's existing slot order.
+  for (const points of trails.values()) points.reverse();
   return trails;
+}
+
+/** One-round, one-frame cache: alpha changes at display Hz, trails only at sample Hz.
+ * Frames are immutable decoded data. The readonly result belongs to this reader.
+ */
+export function createSampleTrailReader(
+  frames: readonly TacticalFrame[],
+  tickrate: number,
+  seconds: number,
+): (cursor: FrameCursor) => ReadonlyMap<number, readonly TrailPoint[]> {
+  let index: number | undefined;
+  let trails: ReadonlyMap<number, readonly TrailPoint[]> = new Map();
+  return (cursor) => {
+    if (cursor.index !== index) {
+      trails = sampleTrails(frames, cursor, tickrate, seconds);
+      index = cursor.index;
+    }
+    return trails;
+  };
 }
 
 /**
