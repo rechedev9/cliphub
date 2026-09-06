@@ -6,6 +6,8 @@ Cloud Linux walk of `inicio` on 2026-09-06. Commands, in order:
 node .cursor/skills/verify-cliphub/control-cliphub.mjs launch --evidence .cursor/skills/verify-cliphub/artifacts/inicio
 node .cursor/skills/verify-cliphub/control-cliphub.mjs doctor --json
 node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature inicio --json
+node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --out .cursor/skills/verify-cliphub/artifacts/inicio/hub.aria.txt
+node .cursor/skills/verify-cliphub/control-cliphub.mjs screenshot --out .cursor/skills/verify-cliphub/artifacts/inicio/hub.png
 node .cursor/skills/verify-cliphub/control-cliphub.mjs cleanup --json
 ```
 

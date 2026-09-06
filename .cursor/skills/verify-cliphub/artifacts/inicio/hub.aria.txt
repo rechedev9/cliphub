@@ -74,4 +74,4 @@
           - /url: /settings#capture
         - text: . Los clips de stream no necesitan CS2 ni HLAE.
   - region "Notifications alt+T"
-  - alert: Clips y vídeos · ClipHub
+  - alert
