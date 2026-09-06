@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "killed": [
+    4787,
+    4798
+  ],
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/full-demo-pov-fixed-freeze",
+  "evidence_exists": true,
+  "state_removed": true
+}

@@ -1,0 +1,42 @@
+- document:
+  - link "Ir a Clips y vídeos":
+    - /url: /clips
+    - text: ClipHub
+  - list:
+    - listitem:
+      - link "Clips y vídeos":
+        - /url: /clips
+    - listitem:
+      - link "Clips de stream":
+        - /url: /streams
+    - listitem:
+      - link "Jugadores FACEIT":
+        - /url: /players
+  - text: Análisis
+  - list:
+    - listitem:
+      - link "Táctica":
+        - /url: /tactical
+    - listitem:
+      - link "Anti-cheat":
+        - /url: /cheaters
+  - list:
+    - listitem:
+      - link "Ajustes":
+        - /url: /settings
+  - 'button "Captura: Sin conexión"': Servicio local offline
+  - button "Mostrar u ocultar barra lateral"
+  - banner:
+    - button "Mostrar u ocultar barra lateral":
+      - img
+      - text: Mostrar u ocultar barra lateral
+    - navigation "Ruta actual": Clips y vídeos vídeo largo
+  - main:
+    - link "Clips y vídeos":
+      - /url: /clips?partida=11111111-1111-4111-8111-111111111111
+    - region "Servicio local sin conexión":
+      - heading "Servicio local sin conexión" [level=2]
+      - text: Arranca ClipHub y vuelve a abrir esta partida.
+      - button "Volver"
+  - region "Notifications alt+T"
+  - alert

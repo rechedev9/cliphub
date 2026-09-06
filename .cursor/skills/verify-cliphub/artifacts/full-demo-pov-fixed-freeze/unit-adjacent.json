@@ -1,0 +1,17 @@
+{
+  "web": {
+    "command": "node --experimental-strip-types --test web/lib/full-demo-plan.test.ts web/lib/api/failure-reason.test.ts web/lib/full-demo.test.ts",
+    "tests": 52,
+    "pass": 52,
+    "fail": 0,
+    "hlae_pass": false,
+    "note": "Unit-adjacent freeze canonicalize, replan gate, and Volver-a-preparar classification. Not a UI walk and not HLAE Pass."
+  },
+  "go_recapplan": {
+    "command": "go test ./internal/recapplan/ -count=1 -timeout 2m -run 'Freeze|POV|Legacy|Respawn|Stale|Approve'",
+    "ok": true,
+    "hlae_pass": false,
+    "note": "Planner/admission unit coverage. Not capture recertification."
+  },
+  "named_gap": "hlae_cs2_windows_studio"
+}

@@ -1,0 +1,72 @@
+{
+  "origin": "http://127.0.0.1:4173",
+  "named_gap": "hlae_cs2_windows_studio",
+  "full_demo_pass": false,
+  "live_9x16_pass": false,
+  "crear_full_demo_clicked": false,
+  "limit": "Aspecto/Sonido/Extra/Avanzado, Volver a preparar, and the fixed-freeze subtract need a parsed partida plus a live full-demo plan or a failed Full Demo output. This VM has no jobs.db, no orchestrator, and no HLAE/CS2.",
+  "steps": [
+    {
+      "id": "hub-empty-counts",
+      "crearVideoLargo": 1,
+      "volverAPreparar": 0,
+      "freezeSpin": 0,
+      "keepVoiceSwitch": 0,
+      "crearFullDemo": 0
+    },
+    {
+      "id": "click-crear-video-largo",
+      "href": "/clips/nueva?formato=full",
+      "url": "http://127.0.0.1:4173/clips/nueva?formato=full",
+      "title": "Cargar demo"
+    },
+    {
+      "id": "full-door-after-click",
+      "url": "http://127.0.0.1:4173/clips/nueva?formato=full",
+      "title": "Cargar demo",
+      "href": "/clips/nueva?formato=full",
+      "heading": "Crea un vídeo largo",
+      "videoLargoPressed": "true",
+      "prepareStepVisible": 0,
+      "labels": {
+        "aspecto": 0,
+        "sonido": 0,
+        "extra": 0,
+        "avanzado": 0,
+        "freezeSpin": 0,
+        "freezeFijoCopy": 0,
+        "keepVoiceSwitch": 0,
+        "tickInicial": 0,
+        "crearFullDemo": 0,
+        "volverAPreparar": 0,
+        "partidaNoEncontrada": 0,
+        "offline": 0,
+        "fullPovChill": 0
+      }
+    },
+    {
+      "id": "prepare-settled",
+      "url": "http://127.0.0.1:4173/clips/11111111-1111-4111-8111-111111111111/nuevo?formato=full",
+      "title": "Partida",
+      "headings": [
+        "Servicio local sin conexión"
+      ],
+      "labels": {
+        "aspecto": 0,
+        "sonido": 0,
+        "extra": 0,
+        "avanzado": 0,
+        "freezeSpin": 0,
+        "freezeFijoCopy": 0,
+        "keepVoiceSwitch": 0,
+        "tickInicial": 0,
+        "crearFullDemo": 0,
+        "volverAPreparar": 0,
+        "partidaNoEncontrada": 0,
+        "offline": 1,
+        "fullPovChill": 0
+      },
+      "main_excerpt": "CLIPS\nY\nVÍDEOS\nSERVICIO\nLOCAL\nSIN\nCONEXIÓN\nArranca\nClipHub\ny\nvuelve\na\nabrir\nesta\npartida.\nVolver"
+    }
+  ]
+}

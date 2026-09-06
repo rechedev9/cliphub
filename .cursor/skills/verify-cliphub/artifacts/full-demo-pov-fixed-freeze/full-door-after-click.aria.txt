@@ -1,0 +1,55 @@
+- document:
+  - link "Ir a Clips y vídeos":
+    - /url: /clips
+    - text: ClipHub
+  - list:
+    - listitem:
+      - link "Clips y vídeos":
+        - /url: /clips
+    - listitem:
+      - link "Clips de stream":
+        - /url: /streams
+    - listitem:
+      - link "Jugadores FACEIT":
+        - /url: /players
+  - text: Análisis
+  - list:
+    - listitem:
+      - link "Táctica":
+        - /url: /tactical
+    - listitem:
+      - link "Anti-cheat":
+        - /url: /cheaters
+  - list:
+    - listitem:
+      - link "Ajustes":
+        - /url: /settings
+  - 'button "Captura: Sin conexión"': Servicio local offline
+  - button "Mostrar u ocultar barra lateral"
+  - banner:
+    - button "Mostrar u ocultar barra lateral":
+      - img
+      - text: Mostrar u ocultar barra lateral
+    - navigation "Ruta actual": Clips y vídeos cargar demo
+  - main:
+    - link "Demos y vídeos":
+      - /url: /clips
+    - heading "Crea un vídeo largo" [level=1]
+    - text: Carga una demo de CS2 y elige el jugador. Después revisarás el contenido y los ajustes antes de grabar.
+    - list "Pasos de creación":
+      - listitem: 1 Cargar demo
+      - listitem: 2 Elegir jugador
+      - listitem: 3 Preparar vídeo
+      - listitem: 4 Crear y descargar
+    - group "Tipo de vídeo":
+      - button "Short 9:16": Short 9:16 Jugadas seleccionadas · un vídeo vertical · estilo y música a tu elección
+      - button "Vídeo largo 16:9" [pressed]: Vídeo largo 16:9 Todas las rondas · vista de un jugador · HUD y voces del equipo
+    - tablist "Origen de la demo":
+      - tab "Archivo en mi PC" [selected]
+      - tab "Importar desde Steam"
+    - tabpanel "Archivo en mi PC":
+      - text: Arrastra tu demo o elige un archivo Elegir archivo .dem · .dem.zst · .rar · .zip · hasta 10 demos
+      - button "Elegir demos de CS2"
+      - group: ¿Qué es una demo y dónde la consigo?
+  - region "Notifications alt+T"
+  - alert: Cargar demo
