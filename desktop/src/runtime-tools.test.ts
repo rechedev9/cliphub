@@ -185,6 +185,10 @@ test('installs uncached tools through staging and publishes only complete versio
     assert.equal(marker.schemaVersion, 2);
     assert.ok(Array.isArray(marker.files));
     assert.ok(marker.files.length > 0);
+    for (const file of marker.files) {
+      assert.equal(file.sha256, createFixtureDigest(path.join(installDir, ...file.path.split('/'))),
+        'published marker retains the verified per-file digest');
+    }
   }
 });
 

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { downloadFile } from './http-download.ts';
+import { copyAndHash } from './copy-and-hash.ts';
 import { psQuote } from './escaping.ts';
 import { PINNED_HLAE_TOOL } from './hlae-tool.ts';
 
@@ -243,7 +244,7 @@ async function installRuntimeTool(
     let digest: string;
     if (bundledArchive && fs.existsSync(bundledArchive)) {
       options.logLine(`[tools] installing ${name} ${tool.version} from bundled archive...\n`);
-      digest = copyBundledArchive(
+      digest = await copyBundledArchive(
         bundledArchive,
         partialDownload,
         signal,
@@ -274,14 +275,16 @@ async function installRuntimeTool(
     if (!requiredFilesExist(stagingDir, tool)) {
       throw new Error(`installation is missing required files in ${stagingDir}`);
     }
-    const installedTreeSha256 = await sha256InstallTree(stagingDir);
+    const installedTree = await sha256InstallTree(stagingDir);
     const expectedTreeSha256 = trustedTreeSha256(options, name, tool);
-    if (installedTreeSha256 !== expectedTreeSha256) {
+    if (installedTree.sha256 !== expectedTreeSha256) {
       throw new Error(
-        `installed file tree sha256 mismatch: got ${installedTreeSha256}, want ${expectedTreeSha256}`,
+        `installed file tree sha256 mismatch: got ${installedTree.sha256}, want ${expectedTreeSha256}`,
       );
     }
-    await writeInstallMarker(stagingDir, tool);
+    // The marker describes the very bytes checked against the pinned tree.
+    // Re-reading the entire install here only duplicates disk I/O and hashing.
+    writeInstallMarker(stagingDir, tool, installedTree.files);
     promoteInstall(stagingDir, installDir, options.logLine);
 
     const executable = path.join(installDir, tool.exeRel);
@@ -292,23 +295,19 @@ async function installRuntimeTool(
   }
 }
 
-function copyBundledArchive(
+async function copyBundledArchive(
   source: string,
   destination: string,
   signal: AbortSignal,
   onProgress: (received: number, total: number | undefined) => void,
-  digestFile: (filePath: string) => string = sha256File,
-): string {
+  digestFile?: (filePath: string) => string,
+): Promise<string> {
   throwIfProvisioningAborted(signal);
-  fs.copyFileSync(source, destination);
+  const digest = await copyAndHash(source, destination, signal);
   throwIfProvisioningAborted(signal);
-  const size = fs.statSync(destination).size;
+  const size = (await fs.promises.stat(destination)).size;
   onProgress(size, size);
-  return digestFile(destination);
-}
-
-function sha256File(filePath: string): string {
-  return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  return digestFile ? digestFile(destination) : digest;
 }
 
 function cleanupObsoleteHLAEVersions(toolsDir: string, logLine: (text: string) => void): void {
@@ -354,20 +353,13 @@ async function completeInstall(
     if (files.length !== value.files.length) return false;
     const declared = new Map(value.files.map((file) => [file.path, file.sha256]));
     if (declared.size !== value.files.length || files.some((file) => !declared.has(file))) return false;
-    return await sha256InstallTree(installDir, files) === expectedTreeSha256;
+    return (await sha256InstallTree(installDir, files)).sha256 === expectedTreeSha256;
   } catch {
     return false;
   }
 }
 
-async function writeInstallMarker(installDir: string, tool: RuntimeToolSpec): Promise<void> {
-  const files: RuntimeToolFileDigest[] = [];
-  for (const relativePath of collectInstallFiles(installDir)) {
-    files.push({
-      path: relativePath,
-      sha256: await sha256InstallFile(path.join(installDir, ...relativePath.split('/'))),
-    });
-  }
+function writeInstallMarker(installDir: string, tool: RuntimeToolSpec, files: RuntimeToolFileDigest[]): void {
   const marker: RuntimeToolInstallMarker = {
     files,
     schemaVersion: INSTALL_MARKER_SCHEMA_VERSION,
@@ -436,16 +428,18 @@ async function sha256InstallFile(filePath: string): Promise<string> {
 async function sha256InstallTree(
   installDir: string,
   files: string[] = collectInstallFiles(installDir),
-): Promise<string> {
+): Promise<{ sha256: string; files: RuntimeToolFileDigest[] }> {
   const tree = createHash('sha256');
+  const digests: RuntimeToolFileDigest[] = [];
   for (const relativePath of files) {
     const digest = await sha256InstallFile(path.join(installDir, ...relativePath.split('/')));
+    digests.push({ path: relativePath, sha256: digest });
     tree.update(relativePath, 'utf8');
     tree.update('\0', 'utf8');
     tree.update(digest, 'utf8');
     tree.update('\n', 'utf8');
   }
-  return tree.digest('hex');
+  return { sha256: tree.digest('hex'), files: digests };
 }
 
 function trustedTreeSha256(

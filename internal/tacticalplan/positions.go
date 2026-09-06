@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/bits"
 )
 
 // PositionsFormat names the sidecar blob layout. It versions independently
@@ -140,14 +141,21 @@ func EncodePositions(rounds []RoundFrames, sampleTicks int, tickrate float64) (B
 	}
 
 	frameCount := 0
+	sampleCount := 0
 	for _, r := range rounds {
 		if len(r.Frames) > math.MaxUint32-frameCount {
 			return Blob{}, fmt.Errorf("encode positions: frame count exceeds the %d-frame header limit", uint64(math.MaxUint32))
 		}
 		frameCount += len(r.Frames)
+		for _, f := range r.Frames {
+			// Reserve actual records, not every slot below the highest slot ID.
+			// Cap malformed duplicate-slot frames at the previous allocation bound;
+			// appendFrame still reports the original validation error below.
+			sampleCount += min(len(f.Samples), slotCount)
+		}
 	}
 
-	buf := make([]byte, positionsHeaderSize, positionsHeaderSize+frameCount*(positionsFrameHead+positionsSampleSize*slotCount))
+	buf := make([]byte, positionsHeaderSize, positionsHeaderSize+frameCount*positionsFrameHead+sampleCount*positionsSampleSize)
 	copy(buf, positionsMagic)
 	binary.LittleEndian.PutUint16(buf[6:], positionsVersion)
 	// #nosec G115 -- slotCount and sampleTicks are validated against their wire widths above.
@@ -205,7 +213,11 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 		return nil, fmt.Errorf("tick %d is outside the int32 position encoding", f.Tick)
 	}
 	var mask uint16
-	for _, s := range f.Samples {
+	// A stack-local slot index avoids scanning every sample again for each
+	// wire slot. The input may be unsorted; never reorder the caller's slice.
+	var bySlot [maxSlots]*Sample
+	for i := range f.Samples {
+		s := &f.Samples[i]
 		if s.Slot >= maxSlots {
 			return nil, fmt.Errorf("slot %d exceeds the %d-slot encoding", s.Slot, maxSlots)
 		}
@@ -213,6 +225,7 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 			return nil, fmt.Errorf("slot %d appears twice in the frame at tick %d", s.Slot, f.Tick)
 		}
 		mask |= 1 << s.Slot
+		bySlot[s.Slot] = s
 	}
 
 	// #nosec G115 -- the signed tick is range-checked above and its two's-complement bits are the wire format.
@@ -220,11 +233,8 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 	buf = binary.LittleEndian.AppendUint16(buf, mask)
 	// Samples are written in ascending slot order so the mask alone tells a
 	// decoder which slot each fixed-size record belongs to.
-	for slot := uint8(0); slot < maxSlots; slot++ {
-		if mask&(1<<slot) == 0 {
-			continue
-		}
-		s := sampleForSlot(f.Samples, slot)
+	for remaining := mask; remaining != 0; remaining &= remaining - 1 {
+		s := bySlot[bits.TrailingZeros16(remaining)]
 		buf = appendSigned16(buf, quantizeAxis(s.X, origin[0], quantum))
 		buf = appendSigned16(buf, quantizeAxis(s.Y, origin[1], quantum))
 		buf = appendSigned16(buf, quantizeAxis(s.Z, origin[2], quantum))
@@ -232,15 +242,6 @@ func appendFrame(buf []byte, f Frame, origin [3]float64, quantum float64) ([]byt
 		buf = append(buf, clampHealth(s.Health), byte(s.Flags))
 	}
 	return buf, nil
-}
-
-func sampleForSlot(samples []Sample, slot uint8) Sample {
-	for _, s := range samples {
-		if s.Slot == slot {
-			return s
-		}
-	}
-	return Sample{Slot: slot}
 }
 
 // DecodeHeader reads the fixed header. The returned descriptor carries no round
@@ -297,12 +298,7 @@ func DecodeFrames(data []byte, byteOffset int64, frameCount int, desc Positions)
 		mask := binary.LittleEndian.Uint16(data[pos+4:])
 		pos += positionsFrameHead
 
-		present := 0
-		for slot := 0; slot < maxSlots; slot++ {
-			if mask&(1<<slot) != 0 {
-				present++
-			}
-		}
+		present := bits.OnesCount16(mask)
 		if pos+present*positionsSampleSize > len(data) {
 			return nil, fmt.Errorf("decode frames: truncated samples at byte %d", pos)
 		}

@@ -19,6 +19,7 @@ import {
   timelineFraction,
   timelineSeconds,
   timelineTick,
+  visibleTimelineEvents,
 } from './tactical-timeline.ts';
 
 const ROUND = {
@@ -151,6 +152,24 @@ test('timelineEvents: ordered, placed, and clipped to the bar', () => {
   ]);
   assert.deepEqual(placed.map((entry) => entry.seconds), [30, 60]);
   assert.equal(placed[0].fraction, 30 / 80);
+});
+
+test('visibleTimelineEvents: matches a linear filter on a sorted bar', () => {
+  const timeline = roundTimeline(ROUND, 64);
+  const placed = timelineEvents(timeline, [
+    event(ROUND.tick_start + 64 * 10, TACTICAL_EVENT_KINDS.flash),
+    event(ROUND.tick_start + 64 * 10, TACTICAL_EVENT_KINDS.kill),
+    event(ROUND.tick_start + 64 * 40, TACTICAL_EVENT_KINDS.smoke),
+    event(ROUND.tick_start + 64 * 80, TACTICAL_EVENT_KINDS.kill),
+  ]);
+  const none: typeof placed = [];
+  assert.equal(visibleTimelineEvents(none, 10), none);
+  for (const seconds of [-1, 0, 10, 10.5, 40, 80, 100, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const expected = placed.filter((entry) => entry.seconds <= seconds);
+    const got = visibleTimelineEvents(placed, seconds);
+    assert.deepEqual([...got], expected);
+    if (expected.length === placed.length) assert.equal(got, placed);
+  }
 });
 
 test('seekEventSeconds: steps one event at a time and stops at the ends', () => {

@@ -169,6 +169,21 @@ export function timelineEvents(
     }));
 }
 
+/** Prefix of a bar's ordered events that have already happened at `seconds`. */
+export function visibleTimelineEvents(
+  entries: readonly TimelineEvent[],
+  seconds: number,
+): readonly TimelineEvent[] {
+  let low = 0;
+  let high = entries.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (entries[mid].seconds <= seconds) low = mid + 1;
+    else high = mid;
+  }
+  return low === entries.length ? entries : entries.slice(0, low);
+}
+
 /** Seek epsilon: a step must clear the current event, not land back on it. */
 const EVENT_SEEK_EPSILON = 1e-3;
 

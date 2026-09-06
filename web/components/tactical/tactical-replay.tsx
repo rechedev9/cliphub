@@ -29,9 +29,10 @@ import {
   seekEventSeconds,
   timelineEvents,
   timelineTick,
+  visibleTimelineEvents,
 } from '@/lib/tactical-timeline';
 import type { RoundTimeline } from '@/lib/tactical-timeline';
-import { dominantLevel, frameCursor, interpolatedSamples, sampleTrails } from '@/lib/tactical-replay';
+import { createSampleTrailReader, dominantLevel, frameCursor, interpolatedSamples } from '@/lib/tactical-replay';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import { drawTacticalScene, renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
@@ -208,6 +209,11 @@ export function TacticalReplay({
   const drawable =
     isCalibrationUsable(doc.geometry.calibration) && doc.geometry.cell_size > 0;
 
+  const readTrails = useMemo(
+    () => createSampleTrailReader(frames, timeline.tickrate, TRAIL_SECONDS),
+    [frames, timeline.tickrate],
+  );
+
   const renderAt = useCallback(
     (seconds: number) => {
       if (!drawable) return;
@@ -249,8 +255,8 @@ export function TacticalReplay({
           geometry: doc.geometry,
           activeLevel: level,
           samples,
-          trails: sampleTrails(frames, cursor, timeline.tickrate, TRAIL_SECONDS),
-          events: events.filter((entry) => entry.seconds <= seconds),
+          trails: readTrails(cursor),
+          events: visibleTimelineEvents(events, seconds),
           nowSeconds: seconds,
           labels,
           style,
@@ -258,7 +264,7 @@ export function TacticalReplay({
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [background, doc.geometry, drawable, events, frames, labels, timeline, view],
+    [background, doc.geometry, drawable, events, frames, labels, readTrails, timeline, view],
   );
 
   useEffect(() => {

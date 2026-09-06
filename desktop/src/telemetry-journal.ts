@@ -57,6 +57,7 @@ export class TelemetryJournal {
   private readonly log: (message: string) => void;
   private timer: NodeJS.Timeout | null = null;
   private cursors: JournalCursors;
+  private persistedCursors: string | null = null;
 
   constructor(options: TelemetryJournalOptions) {
     this.client = options.client;
@@ -148,11 +149,16 @@ export class TelemetryJournal {
   }
 
   private persistCursors(): void {
+    const serialized = `${JSON.stringify(this.cursors)}\n`;
+    // Polling an idle journal must not replace a file every ten seconds.
+    // Only remember successful writes so a failed publication is retried.
+    if (serialized === this.persistedCursors) return;
     fs.mkdirSync(path.dirname(this.cursorPath), { recursive: true, mode: 0o700 });
     const temporary = `${this.cursorPath}.${process.pid}.${randomUUID()}.tmp`;
-    fs.writeFileSync(temporary, `${JSON.stringify(this.cursors)}\n`, { encoding: 'utf8', mode: 0o600 });
+    fs.writeFileSync(temporary, serialized, { encoding: 'utf8', mode: 0o600 });
     try {
       fs.renameSync(temporary, this.cursorPath);
+      this.persistedCursors = serialized;
     } catch (error) {
       try {
         fs.rmSync(temporary, { force: true });
@@ -169,6 +175,9 @@ function readRotatingLines(
   cursor: JournalCursor,
   handle: (line: string) => void,
 ): JournalCursor {
+  // Rotation history matters only after the current file's identity changes.
+  const current = fileSnapshot(currentPath);
+  if (current?.identity === cursor.identity) return readCompleteLines(currentPath, cursor, handle);
   const paths = [4, 3, 2, 1].map((generation) => `${currentPath}.${generation}`).concat(currentPath);
   const snapshots = paths.map(fileSnapshot);
   const cursorIndex = snapshots.findIndex((snapshot) => snapshot?.identity === cursor.identity);
