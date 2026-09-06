@@ -178,7 +178,7 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
         size="icon-sm"
         onClick={onTogglePlay}
         aria-label={playing ? `Pausar ${song.title}` : `Escuchar ${song.title}`}
-        className="shrink-0 text-muted-foreground hover:text-foreground"
+        className="shrink-0 text-fg-3 hover:text-fg-1"
       >
         {playing ? <Pause /> : <Play />}
       </Button>

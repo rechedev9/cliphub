@@ -72,7 +72,7 @@ export function RateValue({ rate, className }: { rate: TacticalRate; className?:
       <span
         className={cn(
           'font-mono text-meta tracking-normal tabular-nums',
-          rate.reliable ? 'text-foreground' : 'text-muted-foreground',
+          rate.reliable ? 'text-fg-1' : 'text-fg-3',
         )}
       >
         {rateLabel(rate.pct, rate.total)}
@@ -86,7 +86,7 @@ export function RateValue({ rate, className }: { rate: TacticalRate; className?:
 const RATE_TONE = {
   primary: 'text-primary',
   success: 'text-success',
-  muted: 'text-muted-foreground',
+  muted: 'text-fg-3',
 } as const;
 
 /** One labelled rate: bar plus number, the row every distribution is built from. */
@@ -144,7 +144,7 @@ export function HistogramChart({
       <figcaption className="flex items-baseline justify-between gap-3">
         <span className="font-mono text-meta uppercase tracking-wider text-fg-3">{title}</span>
         <span className="flex items-center gap-2">
-          <span className="font-mono text-meta tracking-normal tabular-nums text-foreground">
+          <span className="font-mono text-meta tracking-normal tabular-nums text-fg-1">
             mediana {histogram.median.toFixed(1)} s (n={histogram.samples})
           </span>
           {histogram.samples > 0 && histogram.samples < MIN_RELIABLE_SAMPLE ? <SmallSampleChip /> : null}

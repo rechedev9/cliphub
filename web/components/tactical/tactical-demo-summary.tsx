@@ -10,7 +10,7 @@ function StatCell({ label, value }: { label: string; value: string }): ReactNode
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="font-mono text-meta uppercase tracking-widest text-fg-3">{label}</span>
-      <span className="truncate font-mono text-body-sm tabular-nums text-foreground">
+      <span className="truncate font-mono text-body-sm tabular-nums text-fg-1">
         {value}
       </span>
     </div>
@@ -25,7 +25,7 @@ function TeamChip({ team }: { team: TacticalTeam }): ReactNode {
         className={cn('size-2 shrink-0 rounded-full', ct ? 'bg-primary' : 'bg-warning')}
         aria-hidden
       />
-      <span className="truncate font-display text-body-sm font-semibold uppercase tracking-wide text-foreground">
+      <span className="truncate font-display text-body-sm font-semibold uppercase tracking-wide text-fg-1">
         {team.name || team.key}
       </span>
       <span className="shrink-0 font-mono text-meta uppercase tracking-wider text-fg-3">
@@ -55,7 +55,7 @@ export function TacticalDemoSummary({
     <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Demo analizada">
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h2 className="font-display text-section font-bold uppercase leading-none tracking-tight text-foreground">
+          <h2 className="font-display text-section font-bold uppercase leading-none tracking-tight text-fg-1">
             {prettyMapName(doc.demo.map)}
           </h2>
           <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
@@ -90,7 +90,7 @@ export function TacticalDemoSummary({
         {warnings.length > 0 ? (
           <details className="group rounded-md border border-border-strong bg-surface-1">
             <summary className={cn(
-                'flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-mono text-meta uppercase tracking-wider text-fg-3 outline-none hover:text-foreground',
+                'flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-mono text-meta uppercase tracking-wider text-fg-3 outline-none hover:text-fg-1',
                 FOCUS_RING,
               )}>
               <TriangleAlert className="size-3.5 text-warning" aria-hidden />
@@ -100,7 +100,7 @@ export function TacticalDemoSummary({
               {warnings.map((warning) => (
                 <li
                   key={warning}
-                  className="font-mono text-body-sm leading-5 text-muted-foreground"
+                  className="font-mono text-body-sm leading-5 text-fg-2"
                 >
                   {warning}
                 </li>
