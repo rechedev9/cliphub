@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "killed": [
+    19823,
+    19836
+  ],
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/hub-poll-delta",
+  "evidence_exists": true,
+  "state_removed": true
+}

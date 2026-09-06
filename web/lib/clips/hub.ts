@@ -186,6 +186,31 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * by a field list, so a new field can never freeze a stale row in the UI: an
  * unrecognised shape or a differing key set reports unequal and re-renders.
  */
+/** True when an idle poll rebuilt the same hub the page already shows. */
+export function hubPollUnchanged(
+  prevSnapshot: HubSnapshot | null,
+  prevModel: HubModel | null,
+  nextModel: HubModel,
+  nextSnapshot: HubSnapshot,
+): boolean {
+  if (prevSnapshot === null || prevModel === null) return false;
+  return (
+    sameHubProps(prevModel, nextModel)
+    && sameHubProps(prevSnapshot.streams, nextSnapshot.streams)
+    && sameHubProps(prevSnapshot.failure ?? null, nextSnapshot.failure ?? null)
+  );
+}
+
+/**
+ * `refresh` can set the offline banner from a thrown settle without writing
+ * `snapshotRef`. The next good poll then looks unchanged. Clear the banner
+ * when that poll has no source failure; leave a snapshot.failure banner alone
+ * so an unchanged partial poll does not allocate a new error object.
+ */
+export function hubPollClearsLoadError(next: HubSnapshot): boolean {
+  return next.failure === null;
+}
+
 export function sameHubProps(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (Array.isArray(a) || Array.isArray(b)) {

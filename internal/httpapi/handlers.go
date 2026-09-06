@@ -122,6 +122,8 @@ type Handlers struct {
 	editorPlanMu      sync.Mutex
 	renderStateMu     sync.Mutex
 	rosterCache       rosterSummaryCache
+	jobsListJSON      cachedJSON
+	streamListJSON    cachedJSON
 	anticheatJobLocks *anticheat.JobLocks
 	streamJobLocks    *streamclips.JobLocks
 	storage           storage.Storage
@@ -487,7 +489,8 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 			internalError(w, "list jobs by series", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": h.rosterCache.summarizeAll(h.storage, attachJobFailureCodes(jobs))})
+		items := h.rosterCache.summarizeAll(h.storage, attachJobFailureCodes(jobs))
+		h.jobsListJSON.write(w, r, jobListCacheKey(r, items), map[string]any{"jobs": items})
 		return
 	}
 	limit := 50
@@ -504,7 +507,8 @@ func (h *Handlers) ListJobs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, "list jobs", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": h.rosterCache.summarizeAll(h.storage, attachJobFailureCodes(jobs))})
+	items := h.rosterCache.summarizeAll(h.storage, attachJobFailureCodes(jobs))
+	h.jobsListJSON.write(w, r, jobListCacheKey(r, items), map[string]any{"jobs": items})
 }
 
 // ListLoadouts handles GET /api/loadouts.

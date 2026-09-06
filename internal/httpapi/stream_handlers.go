@@ -276,7 +276,7 @@ func (h *Handlers) ListStreamJobs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	items := h.streamJobListItems(attachStreamFailureCodes(jobs))
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": items})
+	h.streamListJSON.write(w, r, streamListCacheKey(r, items), map[string]any{"jobs": items})
 }
 
 // streamJobListItem is one GET /api/stream-jobs row. The list needs the cut

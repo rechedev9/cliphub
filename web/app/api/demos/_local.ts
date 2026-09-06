@@ -23,6 +23,9 @@ import {
   jobUrl,
   jobsListUrl,
   seriesJobsUrl,
+  ifNoneMatchInit,
+  notModifiedFromUpstream,
+  listCacheHeaders,
   UPLOAD_BODY_LIMIT_EXCEEDED,
 } from './_lib';
 
@@ -147,9 +150,11 @@ export async function localSeries(seriesId: string): Promise<Response> {
 }
 
 /** GET /api/demos/jobs — whitelist recent jobs; never forward the kill plan. */
-export async function localJobs(): Promise<Response> {
-  const res = await callOrchestrator(jobsListUrl());
+export async function localJobs(request: Request): Promise<Response> {
+  const res = await callOrchestrator(jobsListUrl(), ifNoneMatchInit(request));
   if (res === null) return serviceUnavailable();
+  const notModified = notModifiedFromUpstream(res);
+  if (notModified) return notModified;
   if (!res.ok) return forwardError(res);
 
   type UpstreamJob = {
@@ -185,7 +190,7 @@ export async function localJobs(): Promise<Response> {
     }
     return out;
   });
-  return NextResponse.json({ jobs });
+  return NextResponse.json({ jobs }, { headers: listCacheHeaders(res) });
 }
 
 /** Copy only listed top-level keys so new orchestrator fields cannot leak. */

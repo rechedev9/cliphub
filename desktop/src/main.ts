@@ -68,7 +68,7 @@ import {
   parseTelemetryEventRequest,
   STUDIO_TELEMETRY_EVENT_CHANNEL,
 } from './telemetry-ipc';
-import { createPlaybackDiagnostics } from './playback-diagnostics';
+import { readPlaybackInfo, type PlaybackInfoCache } from './playback-diagnostics';
 import { isAllowedStudioPermission } from './studio-permission-policy';
 
 // ClipHub never reads this; drop an inherited operator key before spawning children.
@@ -76,8 +76,10 @@ delete process.env.XAI_API_KEY;
 
 // Electron documents GPU feature status as usable only after this event.
 let gpuInformationReady = false;
+let playbackInfoCache: PlaybackInfoCache | null = null;
 app.on('gpu-info-update', () => {
   gpuInformationReady = true;
+  playbackInfoCache = null;
 });
 
 // Every loopback bind and health check uses this host.
@@ -703,14 +705,18 @@ function registerStudioSettingsIPC(): void {
       }
     }
     if (request.action === 'playback-info') {
-      const featureStatus = gpuInformationReady ? app.getGPUFeatureStatus() : null;
-      return createPlaybackDiagnostics({
+      const read = readPlaybackInfo(
         gpuInformationReady,
-        electronVersion: process.versions.electron,
-        chromiumVersion: process.versions.chrome,
-        hardwareAccelerationEnabled: gpuInformationReady && app.isHardwareAccelerationEnabled(),
-        videoDecodeStatus: featureStatus?.video_decode,
-      });
+        { electron: process.versions.electron, chromium: process.versions.chrome },
+        () => ({
+          hardwareAccelerationEnabled: app.isHardwareAccelerationEnabled(),
+          videoDecodeStatus: app.getGPUFeatureStatus().video_decode,
+        }),
+        playbackInfoCache,
+        Date.now(),
+      );
+      playbackInfoCache = read.cache;
+      return read.info;
     }
     return {
       version: app.getVersion(),

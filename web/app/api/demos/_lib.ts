@@ -112,6 +112,31 @@ export function jobsListUrl(): string {
   return `${orchestratorUrl()}/api/jobs?limit=${JOBS_LIST_LIMIT}`;
 }
 
+/** Forwards a list poll's validator so the orchestrator can answer 304. */
+export function ifNoneMatchInit(request: Request): RequestInit | undefined {
+  const value = request.headers.get('If-None-Match');
+  return value ? { headers: { 'If-None-Match': value } } : undefined;
+}
+
+const LIST_CACHE_CONTROL = 'private, no-cache';
+
+/** Mirrors an upstream 304 so the browser keeps its last list body. */
+export function notModifiedFromUpstream(res: Response): Response | null {
+  if (res.status !== 304) return null;
+  const headers = new Headers({ 'Cache-Control': LIST_CACHE_CONTROL });
+  const etag = res.headers.get('ETag');
+  if (etag) headers.set('ETag', etag);
+  return new Response(null, { status: 304, headers });
+}
+
+/** Copies the orchestrator list ETag onto a rewritten 200 body. */
+export function listCacheHeaders(upstream: Response): Headers {
+  const headers = new Headers({ 'Cache-Control': LIST_CACHE_CONTROL });
+  const etag = upstream.headers.get('ETag');
+  if (etag) headers.set('ETag', etag);
+  return headers;
+}
+
 /** Auth headers: the required orchestrator session token, server-side only. */
 export function mutationHeaders(): Record<string, string> {
   const token = process.env.ORCHESTRATOR_TOKEN;

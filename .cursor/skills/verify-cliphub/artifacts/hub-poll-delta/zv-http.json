@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "status": "ok",
+  "url": "http://127.0.0.1:8080/healthz",
+  "http_status": 200,
+  "service": "cliphub",
+  "body_status": "ok",
+  "contract": {
+    "service": "cliphub",
+    "status": "ok"
+  }
+}

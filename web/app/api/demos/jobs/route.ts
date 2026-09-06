@@ -8,6 +8,6 @@ export const runtime = 'nodejs';
  * and optional token stay server-side. Partidas uses it to rediscover uploads
  * and series after the app restarts.
  */
-export async function GET(): Promise<Response> {
-  return localJobs();
+export async function GET(request: Request): Promise<Response> {
+  return localJobs(request);
 }
