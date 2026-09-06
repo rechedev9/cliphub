@@ -398,22 +398,23 @@ func redComponents(frame image.Image, region image.Rectangle, minRed, maxGreenBl
 		return nil
 	}
 	red := make([]bool, w*h)
+	matches := redPixelMatcher(frame, minRed, maxGreenBlue)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			r, g, b, _ := frame.At(region.Min.X+x, region.Min.Y+y).RGBA()
-			if r>>8 > minRed && g>>8 < maxGreenBlue && b>>8 < maxGreenBlue {
+			if matches(region.Min.X+x, region.Min.Y+y) {
 				red[y*w+x] = true
 			}
 		}
 	}
-	visited := make([]bool, w*h)
 	var comps []redComponent
 	queue := make([]int, 0, 64)
 	for start := 0; start < w*h; start++ {
-		if !red[start] || visited[start] {
+		if !red[start] {
 			continue
 		}
-		visited[start] = true
+		// Consuming the candidate bit is also the visited marker. Nothing after
+		// this traversal needs the original grid, so a second grid is redundant.
+		red[start] = false
 		queue = queue[:0]
 		queue = append(queue, start)
 		sx, sy := start%w, start/w
@@ -446,8 +447,8 @@ func redComponents(frame image.Image, region image.Rectangle, minRed, maxGreenBl
 						continue
 					}
 					nidx := ny*w + nx
-					if red[nidx] && !visited[nidx] {
-						visited[nidx] = true
+					if red[nidx] {
+						red[nidx] = false
 						queue = append(queue, nidx)
 					}
 				}
@@ -470,10 +471,10 @@ func redComponents(frame image.Image, region image.Rectangle, minRed, maxGreenBl
 func redPixelBounds(frame image.Image, region image.Rectangle, minRed, maxGreenBlue uint32) (image.Rectangle, int) {
 	found := image.Rectangle{}
 	count := 0
+	matches := redPixelMatcher(frame, minRed, maxGreenBlue)
 	for y := region.Min.Y; y < region.Max.Y; y++ {
 		for x := region.Min.X; x < region.Max.X; x++ {
-			r, g, b, _ := frame.At(x, y).RGBA()
-			if r>>8 > minRed && g>>8 < maxGreenBlue && b>>8 < maxGreenBlue {
+			if matches(x, y) {
 				pixel := image.Rect(x, y, x+1, y+1)
 				if count == 0 {
 					found = pixel
@@ -485,6 +486,29 @@ func redPixelBounds(frame image.Image, region image.Rectangle, minRed, maxGreenB
 		}
 	}
 	return found, count
+}
+
+// PNG decoding normally produces RGBA/NRGBA. Concrete access avoids boxing a
+// color.Color interface per pixel. Calling RGBA preserves premultiplied-alpha
+// semantics exactly, including NRGBA subimages with nonzero origins/strides.
+func redPixelMatcher(frame image.Image, minRed, maxGreenBlue uint32) func(int, int) bool {
+	switch frame := frame.(type) {
+	case *image.RGBA:
+		return func(x, y int) bool {
+			r, g, b, _ := frame.RGBAAt(x, y).RGBA()
+			return r>>8 > minRed && g>>8 < maxGreenBlue && b>>8 < maxGreenBlue
+		}
+	case *image.NRGBA:
+		return func(x, y int) bool {
+			r, g, b, _ := frame.NRGBAAt(x, y).RGBA()
+			return r>>8 > minRed && g>>8 < maxGreenBlue && b>>8 < maxGreenBlue
+		}
+	default:
+		return func(x, y int) bool {
+			r, g, b, _ := frame.At(x, y).RGBA()
+			return r>>8 > minRed && g>>8 < maxGreenBlue && b>>8 < maxGreenBlue
+		}
+	}
 }
 
 // ffmpegFrameProbe extracts a single source frame as PNG via FFmpeg for
