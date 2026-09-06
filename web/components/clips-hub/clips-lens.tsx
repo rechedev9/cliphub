@@ -212,7 +212,7 @@ function ClipCard({
   const playback = demoPlaybackItem(video);
 
   return (
-    <article className={cn('studio-panel studio-enter flex flex-col rounded-[10px]', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
+    <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3')}>
       {/* A true 9:16 frame, narrowed rather than capped. `capHeight` pins the
           height of a full-width box, so the frame stops being 9:16 and
           object-cover eats a third of the reel — a Shorts tool must not show a
@@ -286,7 +286,7 @@ function StreamClipCard({ item, small, onPlay }: { item: MediaPlaybackItem; smal
   if (item.review === PLAYBACK_REVIEW.stale) reviewLabel = 'Desactualizado';
   else if (item.review === PLAYBACK_REVIEW.pending) reviewLabel = 'Revisión QA';
   return (
-    <article className={cn('studio-panel studio-enter flex flex-col rounded-[10px]', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3', warning && 'border-warning/45')}>
+    <article className={cn('studio-panel flex flex-col', small ? 'gap-1.5 p-2' : 'gap-2.5 p-3', warning && 'border-warning/45')}>
       <button
         type="button"
         aria-label={`Reproducir ${item.title}`}

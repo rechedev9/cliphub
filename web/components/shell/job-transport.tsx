@@ -102,7 +102,7 @@ export function JobTransport(): ReactElement | null {
           id={panelId}
           role="dialog"
           aria-label="Trabajos en marcha"
-          className="studio-enter absolute top-full right-0 z-40 mt-1 w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[10px] border border-border bg-surface-4 shadow-[var(--elev-4)]"
+          className="absolute top-full right-0 z-40 mt-1 w-[400px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[10px] border border-border bg-surface-4 shadow-[var(--elev-4)]"
         >
           <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border-strong px-3.5 py-2 font-[family-name:var(--font-mono)] text-meta tracking-widest text-fg-3 uppercase">
             <span>

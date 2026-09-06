@@ -67,7 +67,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
     <>
       <div
         className={cn(
-          'studio-enter flex flex-wrap items-center gap-3 rounded-lg border bg-surface-2 px-3 py-2.5 transition-colors duration-(--dur-base)',
+          'flex flex-wrap items-center gap-3 rounded-lg border bg-surface-2 px-3 py-2.5 transition-colors duration-(--dur-base)',
           BORDER_CLASS[output.state],
         )}
       >

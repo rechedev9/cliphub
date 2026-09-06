@@ -178,7 +178,7 @@ function ClipCard({
   return (
     <li
       className={cn(
-        'studio-enter flex flex-col gap-2.5 border p-3.5 transition-colors duration-(--dur-fast) ease-standard',
+        'flex flex-col gap-2.5 border p-3.5 transition-colors duration-(--dur-fast) ease-standard',
         cardClass,
       )}
     >
