@@ -1,0 +1,329 @@
+{
+  "schema_version": 3,
+  "ok": false,
+  "closed": true,
+  "dry_run": true,
+  "host": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "windows_studio": false,
+    "hlae": false,
+    "cs2": false,
+    "capture_recertification": "unavailable"
+  },
+  "studio": {
+    "user_data_dir": "",
+    "ports_path": "",
+    "jobs_db_path": "",
+    "ports_present": false,
+    "jobs_db_present": false,
+    "healthz": {
+      "ok": false,
+      "status": "",
+      "url": "",
+      "http_status": 0
+    }
+  },
+  "hlae": {
+    "detected": false
+  },
+  "cs2": {
+    "image": "cs2.exe",
+    "running": false
+  },
+  "gaps": [
+    {
+      "id": "hlae_cs2_windows_studio",
+      "class": "closed",
+      "stage": "capture",
+      "message": "HLAE/CS2 / Windows Studio gap: this host cannot recertify capture or Full Demo 16:9 recap. The verification host of record is King's Windows ClipHub Studio, not the cloud VM. Cloud Linux cannot launch CS2. Hosted CI green is not HLAE/CS2 proof. Do not treat compile, lint, or unit tests as a Pass on Full Demo or live overlay walks."
+    }
+  ],
+  "remaining": [
+    {
+      "id": "studio_overlay_walk",
+      "class": "closed",
+      "stage": "studio_walk",
+      "message": "This CLI does not screenshot Studio and does not add Playwright to CI. Live overlay percent is inspected via GET /api/jobs/{id}?view=status progress.percent on King's Windows Studio. Do not call Full Demo Pass from Cloud Linux."
+    }
+  ],
+  "available": [
+    {
+      "id": "feature_catalog",
+      "status": "pass",
+      "detail": "internal/verify/catalog.go"
+    },
+    {
+      "id": "hosted_gates",
+      "status": "cataloged",
+      "detail": "CI frontend/backend/infra; no Playwright; no HLAE"
+    },
+    {
+      "id": "studio_ports",
+      "status": "fail"
+    },
+    {
+      "id": "studio_jobs_db",
+      "status": "fail"
+    },
+    {
+      "id": "hlae",
+      "status": "fail"
+    },
+    {
+      "id": "cs2_running",
+      "status": "fail",
+      "detail": "cs2.exe"
+    },
+    {
+      "id": "orchestrator_http",
+      "status": "absent"
+    }
+  ],
+  "features": [
+    {
+      "id": "inicio",
+      "title": "Clips y vídeos",
+      "route": "/clips",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "route /clips plus hub empty and first-run tests",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "partidas",
+      "title": "Partidas",
+      "route": "/clips",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "route /clips plus hub partida rows and status tests",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "subir-demo",
+      "title": "Subir demo",
+      "route": "/clips/nueva",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "route /clips/nueva plus upload roster flow unit/e2e stubs",
+      "probe_path": "/api/capabilities",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "demo-completa",
+      "title": "Demo completa",
+      "route": "/clips",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": true,
+      "requires_windows_studio": true,
+      "cheap_proof": "route /clips; open a partida and choose Vídeo largo 16:9; FULL_DEMO_CONTRACT unit coverage",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "gap"
+    },
+    {
+      "id": "tactica",
+      "title": "Táctica",
+      "route": "/tactical",
+      "nav_label": "Táctica",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "nav route /tactical plus tactical unit tests",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "cheaterdetect",
+      "title": "Anti-cheat",
+      "route": "/cheaters",
+      "nav_label": "Anti-cheat",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "nav route /cheaters plus anticheat unit tests; screening never writes job.Status",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "jugadores",
+      "title": "Jugadores",
+      "route": "/players",
+      "nav_label": "Jugadores",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "nav route /players plus FACEIT client tests; Download API stays unapproved",
+      "probe_path": "/api/faceit/followed",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "clips-de-stream",
+      "title": "Clips de stream",
+      "route": "/streams",
+      "nav_label": "Clips de stream",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "nav route /streams plus stream plan/render unit tests",
+      "probe_path": "/api/streams",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "editor",
+      "title": "Crear vídeo",
+      "route": "/clips",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "route /clips; open a partida to configure a Short or vídeo largo",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "biblioteca",
+      "title": "Clips y vídeos · clips",
+      "route": "/clips?vista=clips",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "route /clips?vista=clips plus reel-reconcile and output-card unit tests",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "feed",
+      "title": "Clips y vídeos · clips",
+      "route": "/clips?vista=clips",
+      "nav_label": "Clips y vídeos",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "route /clips?vista=clips plus hub sort/empty/offline unit path",
+      "probe_path": "/api/demos/jobs",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "ajustes",
+      "title": "Ajustes",
+      "route": "/settings",
+      "nav_label": "Ajustes",
+      "requires_hlae_cs2": false,
+      "requires_windows_studio": false,
+      "cheap_proof": "nav route /settings plus Steam account and desktop-bridge unit path",
+      "probe_path": "/api/steam/account",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "unproven"
+    },
+    {
+      "id": "shorts-9x16-wait",
+      "title": "9:16 Shorts wait",
+      "route": "/clips?vista=clips",
+      "requires_hlae_cs2": true,
+      "requires_windows_studio": true,
+      "cheap_proof": "capture-progress and shell-activity unit tests; live overlay is a named gap",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "gap"
+    },
+    {
+      "id": "full-demo-16x9-wait",
+      "title": "Full Demo 16:9 wait",
+      "route": "/clips?vista=clips",
+      "requires_hlae_cs2": true,
+      "requires_windows_studio": true,
+      "cheap_proof": "rendering-card landscape recap unit path; live overlay is a named gap",
+      "catalog_valid": true,
+      "cheap_ok": true,
+      "user_path": "gap"
+    }
+  ],
+  "orchestrator": {
+    "ok": false,
+    "status": "",
+    "url": "",
+    "http_status": 0
+  },
+  "gates": {
+    "schema_version": 3,
+    "ok": true,
+    "dry_run": true,
+    "playwright": false,
+    "hlae": false,
+    "gates": [
+      {
+        "id": "ci_frontend",
+        "title": "CI frontend",
+        "hosted": true,
+        "playwright": false,
+        "hlae": false,
+        "commands": [
+          "pnpm --dir web run lint",
+          "pnpm --dir web run typecheck",
+          "pnpm --dir web run test:unit",
+          "pnpm --dir desktop run lint",
+          "pnpm --dir desktop run typecheck",
+          "pnpm --dir desktop run test:unit"
+        ],
+        "note": "Not Playwright. web/e2e stays an explicit local command."
+      },
+      {
+        "id": "ci_backend",
+        "title": "CI backend",
+        "hosted": true,
+        "playwright": false,
+        "hlae": false,
+        "commands": [
+          "go vet ./...",
+          "go test ./... -count=1 -timeout 3m",
+          "go run ./cmd/zv check"
+        ],
+        "note": "Not HLAE/CS2 E2E."
+      },
+      {
+        "id": "ci_infra",
+        "title": "CI infra",
+        "hosted": true,
+        "playwright": false,
+        "hlae": false,
+        "commands": [
+          "actionlint"
+        ],
+        "note": "Unsigned-release contract. Do not add signing steps."
+      }
+    ],
+    "commands": [
+      "pnpm --dir web run lint",
+      "pnpm --dir web run typecheck",
+      "pnpm --dir web run test:unit",
+      "pnpm --dir desktop run lint",
+      "pnpm --dir desktop run typecheck",
+      "pnpm --dir desktop run test:unit",
+      "go vet ./...",
+      "go test ./... -count=1 -timeout 3m",
+      "go run ./cmd/zv check",
+      "actionlint"
+    ]
+  }
+}

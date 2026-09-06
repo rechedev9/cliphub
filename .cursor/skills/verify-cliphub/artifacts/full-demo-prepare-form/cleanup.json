@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "killed": [
+    4962,
+    4973
+  ],
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/full-demo-prepare-form",
+  "evidence_exists": true,
+  "state_removed": true
+}

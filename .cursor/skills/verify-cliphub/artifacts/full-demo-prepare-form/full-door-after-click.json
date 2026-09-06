@@ -1,0 +1,8 @@
+{
+  "url": "http://127.0.0.1:4173/clips/nueva?formato=full",
+  "title": "Cargar demo",
+  "heading": "Crea un vídeo largo",
+  "video_largo_pressed": "true",
+  "prepare_step_visible": 1,
+  "aspecto": 0
+}
