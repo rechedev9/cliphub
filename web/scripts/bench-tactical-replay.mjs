@@ -1,4 +1,4 @@
-// node scripts/bench-tactical-replay.mjs
+// node web/scripts/bench-tactical-replay.mjs
 // Synthetic 60 Hz playback over immutable 8 Hz samples; not an Electron FPS test.
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';

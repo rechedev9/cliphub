@@ -29,6 +29,7 @@ import {
   seekEventSeconds,
   timelineEvents,
   timelineTick,
+  visibleTimelineEvents,
 } from '@/lib/tactical-timeline';
 import type { RoundTimeline } from '@/lib/tactical-timeline';
 import { createSampleTrailReader, dominantLevel, frameCursor, interpolatedSamples } from '@/lib/tactical-replay';
@@ -255,7 +256,7 @@ export function TacticalReplay({
           activeLevel: level,
           samples,
           trails: readTrails(cursor),
-          events: events.filter((entry) => entry.seconds <= seconds),
+          events: visibleTimelineEvents(events, seconds),
           nowSeconds: seconds,
           labels,
           style,

@@ -18,22 +18,38 @@ for (const size of [0, 17, 4 * 1024 * 1024 + 7]) {
     const bytes = Buffer.allocUnsafe(size);
     for (let i = 0; i < size; i++) bytes[i] = i % 251;
     fs.writeFileSync(source, bytes);
-    let yielded = false;
-    setImmediate(() => { yielded = true; });
     const digest = await copyAndHash(source, destination, new AbortController().signal);
     assert.equal(digest, createHash('sha256').update(bytes).digest('hex'));
     assert.deepEqual(fs.readFileSync(destination), bytes);
-    assert.equal(yielded, true, 'copy yields to the main event loop');
   });
 }
 
-test('copyAndHash aborts an active copy and closes both file handles', async (t) => {
+test('copyAndHash yields to the main event loop on a multi-megabyte copy', async (t) => {
+  const { source, destination } = fixture(t);
+  fs.writeFileSync(source, Buffer.allocUnsafe(4 * 1024 * 1024 + 7));
+  let yielded = false;
+  setImmediate(() => { yielded = true; });
+  await copyAndHash(source, destination, new AbortController().signal);
+  assert.equal(yielded, true, 'copy yields to the main event loop');
+});
+
+test('copyAndHash aborts an in-flight copy and closes both file handles', async (t) => {
   const { source, destination } = fixture(t);
   fs.writeFileSync(source, Buffer.alloc(8 * 1024 * 1024));
   const controller = new AbortController();
   const copying = copyAndHash(source, destination, controller.signal);
-  setImmediate(() => controller.abort());
+  controller.abort();
   await assert.rejects(copying, { name: 'AbortError' });
+  fs.rmSync(source);
+  fs.rmSync(destination, { force: true });
+});
+
+test('copyAndHash rejects an already-aborted signal without locking the source', async (t) => {
+  const { source, destination } = fixture(t);
+  fs.writeFileSync(source, 'archive');
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(copyAndHash(source, destination, controller.signal), { name: 'AbortError' });
   fs.rmSync(source);
   fs.rmSync(destination, { force: true });
 });
