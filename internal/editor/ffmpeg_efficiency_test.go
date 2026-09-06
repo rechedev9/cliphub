@@ -81,13 +81,28 @@ func TestFFmpegProgressPipeRealEncodeAndCancellation(t *testing.T) {
 	if err := runFFmpegOutputWithProgress(ctx, command, "pipe canary", 1, func(f float64) { fractions = append(fractions, f) }); err != nil {
 		t.Fatal(err)
 	}
-	if len(fractions) == 0 || fractions[len(fractions)-1] != .99 {
+	// FFmpeg versions report either the last frame's timestamp (59/60s)
+	// or its end (1s). Completion is the successful process exit, not .99.
+	if len(fractions) == 0 || fractions[len(fractions)-1] < 59.0/60-1e-6 || fractions[len(fractions)-1] > .99 {
 		t.Fatal(fractions)
 	}
-	ctx, cancel = context.WithCancel(context.Background())
+	for i := 1; i < len(fractions); i++ {
+		if fractions[i] <= fractions[i-1] {
+			t.Fatal("non-monotonic progress", fractions)
+		}
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 	command = []string{ffmpeg, "-v", "error", "-re", "-f", "lavfi", "-i", "color=s=64x64:r=60:d=60", "-f", "null", "-"}
-	if err := runFFmpegOutputWithProgress(ctx, command, "cancel canary", 60, func(float64) { cancel() }); err == nil {
+	cancelledOnProgress := false
+	if err := runFFmpegOutputWithProgress(ctx, command, "cancel canary", 60, func(float64) {
+		cancelledOnProgress = true
+		cancel()
+	}); err == nil {
 		t.Fatal("cancelled encode succeeded")
+	}
+	if !cancelledOnProgress {
+		t.Fatal("no progress callback before cancellation deadline")
 	}
 }
 
