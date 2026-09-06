@@ -15,7 +15,7 @@ import {
   type MatchOutput,
   type OutputState,
 } from '@/lib/clips/hub';
-import { publishHref } from '@/lib/clips/routes';
+import { publishHref, produceHref, PRODUCE_FORMAT } from '@/lib/clips/routes';
 import { timeAgo } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
@@ -137,7 +137,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
 export const OutputItem = memo(OutputItemCard, sameHubProps);
 
 function FailureLine({ output }: { output: MatchOutput }): ReactNode {
-  const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full });
+  const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full, fullDemoPlannerVersion: output.video.editConfig?.fullDemo?.document.planner_version });
   return (
     <span className="text-body-sm text-destructive">{failure.message}</span>
   );
@@ -182,10 +182,15 @@ export function OutputActions({ output, matchId, onChange, onPlay, className }: 
   }
 
   if (output.state === OUTPUT_STATE.failed) {
-    const failure = parseFailureReason(video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full });
+    const failure = parseFailureReason(video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full, fullDemoPlannerVersion: video.editConfig?.fullDemo?.document.planner_version });
     const canRetry = video.unrecoverable !== true && failure.retryCanHelp;
     return (
       <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+        {video.unrecoverable !== true && (failure.kind === 'pov-acquisition' || failure.kind === 'pov-verification') ? (
+          <Button asChild size="xs" variant="outline">
+            <Link href={produceHref(matchId, PRODUCE_FORMAT.full)}>Volver a preparar</Link>
+          </Button>
+        ) : null}
         {canRetry ? (
           <Button
             type="button"

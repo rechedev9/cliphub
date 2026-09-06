@@ -42,13 +42,13 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				}
 				return path
 			}
-			roundOne := makeMedia("round-one", "red", 440, 2)
-			roundTwo := makeMedia("round-two", "blue", 440, 2)
+			roundOne := makeMedia("round-one", "red", 440, 121.0/60)
+			roundTwo := makeMedia("round-two", "blue", 440, 121.0/60)
 			sponsor := makeMedia("sponsor", "lime", 660, 1)
 			narration := makeMedia("narration", "black", 1200, 1)
 			musicOne := makeMedia("music-one", "black", 220, .75)
 			musicTwo := makeMedia("music-two", "black", 330, .75)
-			voice := makeMedia("team-voice", "black", 880, 8)
+			voice := makeMedia("team-voice", "black", 880, 10)
 			options := recapplan.DefaultOptions()
 			options.Capture.Crosshair.AllowCaptureDefault = true
 			options.Editorial.FreezeSeconds, options.Editorial.RoundTailSeconds = 0, 0
@@ -88,21 +88,22 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				ref := addAsset(narration, 60)
 				options.Sponsor.Narration = &ref
 			}
-			facts := recapplan.Facts{SchemaVersion: "1.0", DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 512, Complete: true, Rounds: []recapplan.RoundFacts{
-				{ID: "round-001", Number: 1, StartTick: 128, FreezeEndTick: 128, RoundEndTick: 255, NextStartTick: 320, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
-				{ID: "round-002", Number: 2, StartTick: 320, FreezeEndTick: 320, RoundEndTick: 447, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
+			facts := recapplan.Facts{SchemaVersion: "1.0", DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 640, Complete: true, Rounds: []recapplan.RoundFacts{
+				// Each clip contains fixed 2s freeze plus one live tick, rounded to 121 frames.
+				{ID: "round-001", Number: 1, StartTick: 0, FreezeEndTick: 256, RoundEndTick: 256, NextStartTick: 320, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
+				{ID: "round-002", Number: 2, StartTick: 320, FreezeEndTick: 576, RoundEndTick: 576, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
 			}}
-			voiceEvidence := recapplan.VoiceEvidence{Availability: "available", IndexRef: "synthetic/index.json", IndexHash: strings.Repeat("b", 64), ExtractorVersion: "team-packet-clock-v2", ClockKind: recapplan.ClockIngame, SelectedPackets: 2, Activity: []recapplan.TickRange{{Start: 128, End: 448}}}
+			voiceEvidence := recapplan.VoiceEvidence{Availability: "available", IndexRef: "synthetic/index.json", IndexHash: strings.Repeat("b", 64), ExtractorVersion: "team-packet-clock-v2", ClockKind: recapplan.ClockIngame, SelectedPackets: 2, Activity: []recapplan.TickRange{{Start: 128, End: 577}}}
 			document, err := recapplan.Plan(facts, options, voiceEvidence, assets, "synthetic/facts.json")
 			if err != nil || len(document.Blockers) > 0 {
 				t.Fatalf("plan: %v; blockers: %+v", err, document.Blockers)
 			}
 			approval := recapplan.Snapshot{Document: document, Approval: recapplan.Approval{PlanHash: document.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()}}
 			execution := FullDemoExecution{SchemaVersion: "1.0", Approved: approval, Assets: local, VoiceTracks: []FullDemoLocalVoice{{SteamID64: facts.TargetSteamID64, StorageKey: "synthetic/team-voice", Path: voice}}}
-			short := ShortEdit{Preset: PresetGameplayPOV60, OutputFormat: OutputFormatLandscape16x9, OutputFPS: 60, Tickrate: 64, VideoCRF: 18, VideoPreset: "ultrafast", Threads: 2, Output: filepath.Join(dir, "final.mp4"), DurationSeconds: 5,
+			short := ShortEdit{Preset: PresetGameplayPOV60, OutputFormat: OutputFormatLandscape16x9, OutputFPS: 60, Tickrate: 64, VideoCRF: 18, VideoPreset: "ultrafast", Threads: 2, Output: filepath.Join(dir, "final.mp4"), DurationSeconds: 302.0 / 60,
 				Parts:    []ShortPart{{SegmentID: "round-001", Input: roundOne}, {SegmentID: "round-002", Input: roundTwo}},
 				FullDemo: &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: approval, Effective: document},
-				fullDemo: &fullDemoRenderContext{execution: execution, recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 128}, {ID: "round-002", TickStart: 320}}}}, ffmpeg: ffmpeg, workDir: filepath.Join(dir, "prepared")},
+				fullDemo: &fullDemoRenderContext{execution: execution, recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 128}, {ID: "round-002", TickStart: 448}}}}, ffmpeg: ffmpeg, workDir: filepath.Join(dir, "prepared")},
 			}
 			if err := prepareFullDemoCompilation(ctx, &short); err != nil {
 				t.Fatal(err)
@@ -120,7 +121,7 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, short.Output, 300)
+			short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, short.Output, 302)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -4,13 +4,13 @@
     "schema_version": "1.0",
     "plan_id": "ce5282af-6f33-45bd-91cf-faa4f96d88db",
     "revision": 1,
-    "plan_hash": "1f15cd7142834b03a315fe3c881927a977b300858fd3dd9614ec14bc70b2a379",
-    "planner_version": "full-demo-editorial-v1",
+    "plan_hash": "ba4703318eea3d60d303424ebcf0cfdf8690a74c52f222d4d95a41940f003e02",
+    "planner_version": "full-demo-editorial-v2",
     "input": {
       "demo_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "target_steamid64": "76561198000000001",
       "facts_ref": "synthetic/facts.json",
-      "facts_hash": "2a31edd667bd78f0f08ad345c0b9400508661f40cbd0b86b2b1a1961af2e278f"
+      "facts_hash": "62528a94a20f964cf9697033e0df9e094d231e1a8373888c19ee1fd1bae2c792"
     },
     "clock": {
       "source_clock_kind": "ingame_tick",
@@ -33,10 +33,10 @@
         "contract_version": "full-demo-observer-v1"
       },
       "editorial": {
-        "freeze_seconds": 0,
+        "freeze_seconds": 2,
         "keep_freeze_voice": false,
-        "voice_context_seconds": 0.5,
-        "max_freeze_seconds": 20,
+        "voice_context_seconds": 0,
+        "max_freeze_seconds": 2,
         "death_tail_seconds": 3,
         "round_tail_seconds": 0,
         "allow_safe_tail_trim": true,
@@ -120,21 +120,25 @@
         "utility": [],
         "round_id": "round-001",
         "source_round_number": 1,
-        "live_start_tick": 128,
-        "round_end_tick": 255,
+        "live_start_tick": 256,
+        "round_end_tick": 256,
         "death_tick": null,
         "requested_start_tick": 128,
-        "requested_end_tick": 256,
-        "live_end_tick": 255,
+        "requested_end_tick": 257,
+        "live_end_tick": 256,
         "capture_start_tick": 128,
-        "capture_end_tick": 256,
-        "effective_end_tick": 256,
-        "start_reason": "freeze-context",
+        "capture_end_tick": 257,
+        "effective_end_tick": 257,
+        "start_reason": "fixed-freeze-2s",
         "end_reason": "round-tail",
         "bounds_evidence": "round-events",
         "excluded_intervals": [
           {
-            "start": 256,
+            "start": 0,
+            "end": 128
+          },
+          {
+            "start": 257,
             "end": 320
           }
         ]
@@ -144,22 +148,26 @@
         "utility": [],
         "round_id": "round-002",
         "source_round_number": 2,
-        "live_start_tick": 320,
-        "round_end_tick": 447,
+        "live_start_tick": 576,
+        "round_end_tick": 576,
         "death_tick": null,
-        "requested_start_tick": 320,
-        "requested_end_tick": 448,
-        "live_end_tick": 447,
-        "capture_start_tick": 320,
-        "capture_end_tick": 448,
-        "effective_end_tick": 448,
-        "start_reason": "freeze-context",
+        "requested_start_tick": 448,
+        "requested_end_tick": 577,
+        "live_end_tick": 576,
+        "capture_start_tick": 448,
+        "capture_end_tick": 577,
+        "effective_end_tick": 577,
+        "start_reason": "fixed-freeze-2s",
         "end_reason": "round-tail",
         "bounds_evidence": "round-events",
         "excluded_intervals": [
           {
-            "start": 448,
-            "end": 512
+            "start": 320,
+            "end": 448
+          },
+          {
+            "start": 577,
+            "end": 640
           }
         ]
       }
@@ -173,7 +181,7 @@
       "activity": [
         {
           "start": 128,
-          "end": 448
+          "end": 577
         }
       ],
       "selected_packets": 2,
@@ -225,16 +233,16 @@
     ],
     "sponsor_placement": {
       "boundary": "round-001",
-      "start_frame": 120,
+      "start_frame": 121,
       "duration_frames": 60,
       "candidates": [
         {
           "after_round_id": "round-001",
-          "frame": 120
+          "frame": 121
         },
         {
           "after_round_id": "round-002",
-          "frame": 240
+          "frame": 242
         }
       ]
     },
@@ -243,13 +251,13 @@
         "role": "round",
         "source_ref": "round-001",
         "source_start_tick": 128,
-        "source_end_tick": 256,
+        "source_end_tick": 257,
         "source_offset_frames": 0,
         "start_frame": 0,
-        "end_frame": 120,
+        "end_frame": 121,
         "start_sample": 0,
-        "end_sample": 96000,
-        "reason": "freeze-context/round-tail"
+        "end_sample": 96800,
+        "reason": "fixed-freeze-2s/round-tail"
       },
       {
         "role": "sponsor",
@@ -257,23 +265,23 @@
         "source_start_tick": 0,
         "source_end_tick": 0,
         "source_offset_frames": 0,
-        "start_frame": 120,
-        "end_frame": 180,
-        "start_sample": 96000,
-        "end_sample": 144000,
+        "start_frame": 121,
+        "end_frame": 181,
+        "start_sample": 96800,
+        "end_sample": 144800,
         "reason": "approved-sponsor-placement"
       },
       {
         "role": "round",
         "source_ref": "round-002",
-        "source_start_tick": 320,
-        "source_end_tick": 448,
+        "source_start_tick": 448,
+        "source_end_tick": 577,
         "source_offset_frames": 0,
-        "start_frame": 180,
-        "end_frame": 300,
-        "start_sample": 144000,
-        "end_sample": 240000,
-        "reason": "freeze-context/round-tail"
+        "start_frame": 181,
+        "end_frame": 302,
+        "start_sample": 144800,
+        "end_sample": 241600,
+        "reason": "fixed-freeze-2s/round-tail"
       }
     ],
     "warnings": [
@@ -291,7 +299,7 @@
     "blockers": []
   },
   "approval": {
-    "approved_plan_hash": "1f15cd7142834b03a315fe3c881927a977b300858fd3dd9614ec14bc70b2a379",
+    "approved_plan_hash": "ba4703318eea3d60d303424ebcf0cfdf8690a74c52f222d4d95a41940f003e02",
     "allow_safe_tail_trim": true,
     "timestamp": "2026-09-05T15:09:00.4857572Z"
   }

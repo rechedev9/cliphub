@@ -81,6 +81,31 @@ func TickFrames(ticks, tickRate int) (int64, error) {
 
 func secondsTicks(seconds float64, rate int) int { return int(math.Round(seconds * float64(rate))) }
 
+// FixedFreezeOptions migrates old drafts without letting voice activity or
+// persisted controls override the fixed two-second editorial policy. Keep the
+// wire fields readable for historical evidence; canonical new plans ignore them.
+func FixedFreezeOptions(options Options) Options {
+	options.Editorial.FreezeSeconds = FixedFreezeSeconds
+	options.Editorial.KeepFreezeVoice = false
+	options.Editorial.VoiceContextSeconds = 0
+	options.Editorial.MaxFreezeSeconds = FixedFreezeSeconds
+	return options
+}
+
+// UsesFixedFreeze is an execution gate, not a historical document decoder.
+func (d Document) UsesFixedFreeze() bool {
+	o := d.Options.Editorial
+	if o.FreezeSeconds != FixedFreezeSeconds || o.KeepFreezeVoice || o.VoiceContextSeconds != 0 || o.MaxFreezeSeconds != FixedFreezeSeconds {
+		return false
+	}
+	for _, r := range d.Rounds {
+		if r.LiveStartTick-r.RequestedStartTick != FixedFreezeSeconds*d.Clock.TickRate {
+			return false
+		}
+	}
+	return true
+}
+
 // Plan derives editorial windows from independent facts and verified assets.
 // Missing media yields actionable blockers while retaining enabled decisions.
 func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence, factsRef string) (Document, error) {
@@ -90,6 +115,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	if err := options.Validate(); err != nil {
 		return Document{}, err
 	}
+	options = FixedFreezeOptions(options)
 	optionsJSON, err := json.Marshal(options)
 	if err != nil {
 		return Document{}, err
@@ -117,11 +143,17 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 		d.block(ErrFactsInsufficient, "Source ended without complete round evidence")
 	}
 	for _, fact := range f.Rounds {
-		r, notices, err := planRound(f, fact, options.Editorial, voice)
+		r, notices, err := planRound(f, fact, options.Editorial)
 		if err != nil {
 			return Document{}, err
 		}
-		d.Warnings = append(d.Warnings, notices...)
+		for _, notice := range notices {
+			if notice.Code == ErrPOVContract {
+				d.Blockers = append(d.Blockers, notice)
+			} else {
+				d.Warnings = append(d.Warnings, notice)
+			}
+		}
 		if r.RequestedEndTick > r.RequestedStartTick {
 			d.Rounds = append(d.Rounds, r)
 		}
@@ -217,7 +249,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 	return d, err
 }
 
-func planRound(f Facts, source RoundFacts, opts EditorialOptions, voice VoiceEvidence) (Round, []Notice, error) {
+func planRound(f Facts, source RoundFacts, opts EditorialOptions) (Round, []Notice, error) {
 	notices := []Notice{}
 	r := Round{ID: source.ID, Number: source.Number, LiveStartTick: source.FreezeEndTick, RoundEndTick: source.RoundEndTick, DeathTick: source.DeathTick, BoundsEvidence: source.Evidence, ExcludedIntervals: []TickRange{}, Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}
 	if source.FreezeEndTick < source.StartTick || source.FreezeEndTick == 0 || source.RoundEndTick < source.FreezeEndTick || source.Evidence != "round-events" {
@@ -227,20 +259,8 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions, voice VoiceEvi
 	if source.NextStartTick > source.StartTick {
 		limit = min(limit, source.NextStartTick)
 	}
-	start := max(source.StartTick, source.FreezeEndTick-secondsTicks(opts.FreezeSeconds, f.TickRate))
-	r.StartReason = "freeze-context"
-	if opts.KeepFreezeVoice && voice.Availability == "available" {
-		for _, activity := range voice.Activity {
-			if activity.End <= source.StartTick || activity.Start >= source.FreezeEndTick {
-				continue
-			}
-			candidate := max(source.StartTick, source.FreezeEndTick-secondsTicks(opts.MaxFreezeSeconds, f.TickRate), activity.Start-secondsTicks(opts.VoiceContextSeconds, f.TickRate))
-			if candidate < start {
-				start = candidate
-				r.StartReason = "team-voice-activity"
-			}
-		}
-	}
+	start := source.FreezeEndTick - FixedFreezeSeconds*f.TickRate
+	r.StartReason = "fixed-freeze-2s"
 	liveEnd := source.RoundEndTick
 	end := min(limit, source.RoundEndTick+max(1, secondsTicks(opts.RoundTailSeconds, f.TickRate)))
 	r.EndReason = "round-tail"
@@ -252,12 +272,18 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions, voice VoiceEvi
 			return r, append(notices, Notice{Code: "pov_dead_in_freeze", Message: "Round excluded: player died before live play", RoundID: source.ID}), nil
 		}
 	}
+	// POV acquisition is unrecorded. Never shorten/extend the fixed two
+	// seconds to hide a source that cannot provide both acquisition and freeze.
+	safeStart := source.StartTick + POVAcquireSeconds*f.TickRate
+	if start < safeStart {
+		return r, append(notices, Notice{Code: ErrPOVContract, Message: "La ronda no permite conservar exactamente 2 segundos de freeze y preparar antes el POV; no se ha cambiado la duración", RoundID: source.ID}), nil
+	}
 	for _, manual := range opts.ManualRanges {
 		if manual.RoundID != source.ID {
 			continue
 		}
-		if manual.StartTick < source.StartTick || manual.EndTick > end || manual.StartTick > liveEnd {
-			return Round{}, nil, fmt.Errorf("manual range for %s exceeds safe source boundaries", source.ID)
+		if manual.StartTick != start || manual.EndTick > end || manual.EndTick <= source.FreezeEndTick {
+			return Round{}, nil, fmt.Errorf("manual range for %s must retain exactly 2 seconds of freeze and stay within safe source boundaries", source.ID)
 		}
 		start, end = manual.StartTick, manual.EndTick
 		r.StartReason, r.EndReason = "manual-approved-range", "manual-approved-range"

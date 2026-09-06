@@ -1,0 +1,276 @@
+TAP version 13
+# (node:5702) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: parseFailureReason classifies each reason into its kind and retry hint
+ok 1 - parseFailureReason classifies each reason into its kind and retry hint
+  ---
+  duration_ms: 1.244424
+  ...
+# Subtest: demo-incompatible reason with a captured clause yields counts and no retry
+ok 2 - demo-incompatible reason with a captured clause yields counts and no retry
+  ---
+  duration_ms: 0.814778
+  ...
+# Subtest: demo-incompatible reason without a captured clause has no counts
+ok 3 - demo-incompatible reason without a captured clause has no counts
+  ---
+  duration_ms: 0.258991
+  ...
+# Subtest: playback-ended demo is demo-incompatible with its own message
+ok 4 - playback-ended demo is demo-incompatible with its own message
+  ---
+  duration_ms: 0.259764
+  ...
+# Subtest: a generic reason stays generic, retryable, and does not leak internals
+ok 5 - a generic reason stays generic, retryable, and does not leak internals
+  ---
+  duration_ms: 0.158351
+  ...
+# Subtest: a non-reusable capture reason is retryable with a Spanish re-record message
+ok 6 - a non-reusable capture reason is retryable with a Spanish re-record message
+  ---
+  duration_ms: 0.290191
+  ...
+# Subtest: ordinary tool failures stay generic without surfacing raw tool output
+ok 7 - ordinary tool failures stay generic without surfacing raw tool output
+  ---
+  duration_ms: 0.193809
+  ...
+# Subtest: undefined and empty reasons fall back to a generic retryable message
+ok 8 - undefined and empty reasons fall back to a generic retryable message
+  ---
+  duration_ms: 0.141546
+  ...
+# Subtest: observer-target failure explains how to regenerate without leaking the console path
+ok 9 - observer-target failure explains how to regenerate without leaking the console path
+  ---
+  duration_ms: 0.379986
+  ...
+# Subtest: observer-target drift offers recapture without ruling out a pipeline bug
+ok 10 - observer-target drift offers recapture without ruling out a pipeline bug
+  ---
+  duration_ms: 0.482317
+  ...
+# Subtest: observer mismatch before record-start is the same capture flake
+ok 11 - observer mismatch before record-start is the same capture flake
+  ---
+  duration_ms: 0.189324
+  ...
+# Subtest: Full Demo respawn acquisition requires a fresh plan, not the same retry
+ok 12 - Full Demo respawn acquisition requires a fresh plan, not the same retry
+  ---
+  duration_ms: 0.278978
+  ...
+# Subtest: a legacy failed Full Demo needs reapproval even when its last error was generic
+ok 13 - a legacy failed Full Demo needs reapproval even when its last error was generic
+  ---
+  duration_ms: 0.091164
+  ...
+# Subtest: native unknown-mode wording remains actionable and sanitized
+ok 14 - native unknown-mode wording remains actionable and sanitized
+  ---
+  duration_ms: 0.055759
+  ...
+# Subtest: generic failures keep the pipeline-dead strip label
+ok 15 - generic failures keep the pipeline-dead strip label
+  ---
+  duration_ms: 0.045914
+  ...
+# Subtest: other POV verification failures stay sanitized and retryable
+ok 16 - other POV verification failures stay sanitized and retryable
+  ---
+  duration_ms: 0.125155
+  ...
+# Subtest: observer-target failure remains retryable outside Full Demo
+ok 17 - observer-target failure remains retryable outside Full Demo
+  ---
+  duration_ms: 0.080742
+  ...
+# Subtest: the exported prefix is the exact orchestrator token
+ok 18 - the exported prefix is the exact orchestrator token
+  ---
+  duration_ms: 0.051014
+  ...
+# Subtest: unplayable-start is not retryable and tells the user not to relaunch CS2
+ok 19 - unplayable-start is not retryable and tells the user not to relaunch CS2
+  ---
+  duration_ms: 0.057083
+  ...
+# (node:5703) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: fixed freeze migrates old drafts without changing gameplay voice settings
+ok 20 - fixed freeze migrates old drafts without changing gameplay voice settings
+  ---
+  duration_ms: 1.044701
+  ...
+# Subtest: variable-freeze documents must be replanned even with a current planner version
+ok 21 - variable-freeze documents must be replanned even with a current planner version
+  ---
+  duration_ms: 0.808719
+  ...
+# Subtest: legacy snapshots remain readable but cannot be approved for a new recording
+ok 22 - legacy snapshots remain readable but cannot be approved for a new recording
+  ---
+  duration_ms: 1.955566
+  ...
+# Subtest: Go editorial document survives edit wire, local persistence and render hydration
+ok 23 - Go editorial document survives edit wire, local persistence and render hydration
+  ---
+  duration_ms: 1.184149
+  ...
+# Subtest: changing range with unchanged round ID invalidates approval
+ok 24 - changing range with unchanged round ID invalidates approval
+  ---
+  duration_ms: 0.666905
+  ...
+# Subtest: changing game volume zero invalidates approval
+ok 25 - changing game volume zero invalidates approval
+  ---
+  duration_ms: 0.575971
+  ...
+# Subtest: changing crosshair invalidates approval
+ok 26 - changing crosshair invalidates approval
+  ---
+  duration_ms: 1.380871
+  ...
+# Subtest: changing playlist order invalidates approval
+ok 27 - changing playlist order invalidates approval
+  ---
+  duration_ms: 0.48225
+  ...
+# Subtest: changing sponsor split invalidates approval
+ok 28 - changing sponsor split invalidates approval
+  ---
+  duration_ms: 5.638467
+  ...
+# Subtest: changing overlay invalidates approval
+ok 29 - changing overlay invalidates approval
+  ---
+  duration_ms: 4.418328
+  ...
+# Subtest: changing cover invalidates approval
+ok 30 - changing cover invalidates approval
+  ---
+  duration_ms: 0.677176
+  ...
+# Subtest: identical options and hashes survive re-fetch, key ordering and approval timestamps
+ok 31 - identical options and hashes survive re-fetch, key ordering and approval timestamps
+  ---
+  duration_ms: 0.721219
+  ...
+# Subtest: rejects missing option without defaulting
+ok 32 - rejects missing option without defaulting
+  ---
+  duration_ms: 0.070733
+  ...
+# Subtest: rejects null boolean without defaulting
+ok 33 - rejects null boolean without defaulting
+  ---
+  duration_ms: 0.029738
+  ...
+# Subtest: rejects unknown key without defaulting
+ok 34 - rejects unknown key without defaulting
+  ---
+  duration_ms: 0.026213
+  ...
+# Subtest: rejects invalid profile without defaulting
+ok 35 - rejects invalid profile without defaulting
+  ---
+  duration_ms: 0.023509
+  ...
+# Subtest: rejects nonfinite gain without defaulting
+ok 36 - rejects nonfinite gain without defaulting
+  ---
+  duration_ms: 0.028026
+  ...
+# Subtest: rejects reversed window without defaulting
+ok 37 - rejects reversed window without defaulting
+  ---
+  duration_ms: 0.033227
+  ...
+# Subtest: a blocker or stale approval cannot become a legacy persisted intent
+ok 38 - a blocker or stale approval cannot become a legacy persisted intent
+  ---
+  duration_ms: 0.68913
+  ...
+# Subtest: changed Full Demo cannot be silently accepted or overwrite an in-flight intent
+ok 39 - changed Full Demo cannot be silently accepted or overwrite an in-flight intent
+  ---
+  duration_ms: 1.658425
+  ...
+# Subtest: planning and upload use same-origin endpoints with complete options and provenance
+ok 40 - planning and upload use same-origin endpoints with complete options and provenance
+  ---
+  duration_ms: 14.520223
+  ...
+# (node:5709) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: full-demo edit is landscape recap with comms and native HUD
+ok 41 - full-demo edit is landscape recap with comms and native HUD
+  ---
+  duration_ms: 0.594492
+  ...
+# Subtest: full-demo mix is comms plus game with no music bed
+ok 42 - full-demo mix is comms plus game with no music bed
+  ---
+  duration_ms: 0.088253
+  ...
+# Subtest: full-demo has no YouTube subscribe CTA or Shorts hook copy
+ok 43 - full-demo has no YouTube subscribe CTA or Shorts hook copy
+  ---
+  duration_ms: 0.197903
+  ...
+# Subtest: full-demo contract names live rounds, not freeze-to-end dumps
+ok 44 - full-demo contract names live rounds, not freeze-to-end dumps
+  ---
+  duration_ms: 0.694434
+  ...
+# Subtest: buildEditRequest is the native-HUD wire: recap, gameplay HUD, comms, no shorts garnish
+ok 45 - buildEditRequest is the native-HUD wire: recap, gameplay HUD, comms, no shorts garnish
+  ---
+  duration_ms: 0.175336
+  ...
+# Subtest: full-demo capture needs rounds and no active capture, without separate approval
+ok 46 - full-demo capture needs rounds and no active capture, without separate approval
+  ---
+  duration_ms: 0.088547
+  ...
+# Subtest: create-video wire always includes FACEIT and the selected overlay theme
+ok 47 - create-video wire always includes FACEIT and the selected overlay theme
+  ---
+  duration_ms: 0.088937
+  ...
+# Subtest: full-demo overlay theme options are FACEIT orange and neon violet
+ok 48 - full-demo overlay theme options are FACEIT orange and neon violet
+  ---
+  duration_ms: 0.091812
+  ...
+# Subtest: recap-plan failure copy is an error, not a pending parse or Shorts empty state
+ok 49 - recap-plan failure copy is an error, not a pending parse or Shorts empty state
+  ---
+  duration_ms: 0.323761
+  ...
+# Subtest: full-demo identity does not collapse into a Shorts reel
+ok 50 - full-demo identity does not collapse into a Shorts reel
+  ---
+  duration_ms: 0.323038
+  ...
+# Subtest: classifyFullDemoLoadFailure keeps 503 offline and any other throw as a load error
+ok 51 - classifyFullDemoLoadFailure keeps 503 offline and any other throw as a load error
+  ---
+  duration_ms: 0.186289
+  ...
+# Subtest: fullDemoEmptyState keeps 404 missing and does not paint a plan 500 as gone from disk
+ok 52 - fullDemoEmptyState keeps 404 missing and does not paint a plan 500 as gone from disk
+  ---
+  duration_ms: 0.123535
+  ...
+1..52
+# tests 52
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 217.261029

@@ -31,15 +31,16 @@ func TestFullDemoFactsIndependentRoundEvents(t *testing.T) {
 				c.resetForMatchStart()
 			}
 			c.RecordRoundStart(RoundStart{Round: tc.number, Tick: 100})
-			c.RecordRoundLiveStart(RoundLiveStart{Round: tc.number, Tick: 200})
+			// Leave realistic respawn acquisition time in freeze at 64 Hz.
+			c.RecordRoundLiveStart(RoundLiveStart{Round: tc.number, Tick: 400})
 			if !tc.truncated {
-				c.RecordRoundEnd(RoundEnd{Round: tc.number, Tick: 400})
+				c.RecordRoundEnd(RoundEnd{Round: tc.number, Tick: 800})
 			}
 			var deaths []TargetDeath
 			if tc.freezeDeath {
 				deaths = []TargetDeath{{Round: tc.number, Tick: 150}}
 			}
-			facts := c.fullDemoFacts(PlanMeta{SHA256: strings.Repeat("a", 64), Tickrate: 64, DurationTicks: 450}, deaths, tc.reset)
+			facts := c.fullDemoFacts(PlanMeta{SHA256: strings.Repeat("a", 64), Tickrate: 64, DurationTicks: 850}, deaths, tc.reset)
 			if err := facts.Validate(); err != nil {
 				t.Fatal(err)
 			}

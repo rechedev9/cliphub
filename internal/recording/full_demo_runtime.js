@@ -1,5 +1,47 @@
     // This module extends the existing scheduler. It does not own a second
     // capture loop; all starts, stops and observer checks remain in that loop.
+    // The planner reserves two unrecorded seconds after round_start. Acquire
+    // during the last second of preroll, when the new pawn can be selected.
+    // Freeze demo time, not recording time: no duplicate frames or shifted
+    // audio are admitted, and no approved source boundary is rewritten.
+    let fullDemoAcquiring = null;
+    const prepareFullDemoPOV = (window, tick) => {
+        if (activeSegment !== null || fired[`record-end-${window.segmentId}`]) return true;
+        if (tick < window.recordStart - fullDemoAcquireLeadTicks) return true;
+        const observed = observedSteamId();
+        if (fullDemoAcquiring === null && observed === targetSteamId) return true;
+        if (tick >= window.recordStart) {
+            failCapture(`pov_acquisition_failed: POV not settled before record-start-${window.segmentId} at tick ${tick}`);
+            return false;
+        }
+        if (fullDemoAcquiring === null) {
+            fullDemoAcquiring = {segmentId: window.segmentId, frames: 0, stable: 0};
+            mirv.message(`[zackvideo] pov-acquire ${window.segmentId} at tick ${tick}\n`);
+            mirv.exec("demo_pause");
+            lockTarget(window.segmentId);
+            lastLockFrame = frame;
+        }
+        const acquisition = fullDemoAcquiring;
+        acquisition.frames++;
+        // A bounded number of engine frames, also when ticks are paused.
+        // Never reissue spec_player while the correct observer is settling.
+        acquisition.stable = observed === targetSteamId ? acquisition.stable + 1 : 0;
+        if (acquisition.stable >= 2) {
+            mirv.message(`[zackvideo] pov-acquired ${window.segmentId} at tick ${tick}\n`);
+            fullDemoAcquiring = null;
+            mirv.exec("demo_resume");
+            return false; // Let resume take effect before consuming the schedule.
+        }
+        if (acquisition.frames >= 600) {
+            failCapture(`pov_acquisition_failed: observer did not settle for ${window.segmentId} at tick ${tick} after 600 frames`);
+            return false;
+        }
+        if (observed !== targetSteamId && frame - lastLockFrame >= 8) {
+            lockTarget(window.segmentId);
+            lastLockFrame = frame;
+        }
+        return false;
+    };
     const fullDemoSavedCvars = new Map();
     const fullDemoRequiredCvars = new Map();
     let fullDemoSettingsReady = false;
@@ -70,6 +112,10 @@
         return true;
     };
     function restoreFullDemoSettings() {
+        if (fullDemoAcquiring !== null) {
+            fullDemoAcquiring = null;
+            mirv.exec("demo_resume");
+        }
         if (fullDemoSettingsRestored) return;
         const failures = [];
         for (const [name, entry] of fullDemoSavedCvars) {
@@ -78,6 +124,14 @@
         fullDemoSettingsRestored = failures.length === 0;
         fullDemoEvidence("settings_restored", {success: fullDemoSettingsRestored, failures});
     }
+    const finishFullDemoSettings = () => {
+        restoreFullDemoSettings();
+        if (!fullDemoSettingsRestored) {
+            failCapture("pov_contract_failed: Full Demo settings restoration failed");
+            return false;
+        }
+        return true;
+    };
     const fullDemoEnd = (window, endTick, reason) => {
         fullDemoEvidence("certified_end", {round_id: window.segmentId, end_tick: endTick, reason});
     };

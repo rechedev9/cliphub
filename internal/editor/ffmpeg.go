@@ -516,11 +516,18 @@ func BuildCoverFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	if short.HQFilters && short.FullDemo == nil {
 		filter = fmt.Sprintf("thumbnail=30,scale=%d:%d:force_original_aspect_ratio=increase:flags=%s,crop=%d:%d,setsar=1", width, height, hqScaleFlags(short), width, height)
 	}
+	seek := fmt.Sprintf("%.3f", short.CoverTimeSeconds)
+	if short.FullDemo != nil {
+		// Rounding a frame timestamp up to milliseconds can select the next
+		// frame (the sponsor). Keep the approved gameplay frame at microsecond
+		// resolution, rounding down so FFmpeg cannot cross that boundary.
+		seek = fmt.Sprintf("%.6f", math.Floor(short.CoverTimeSeconds*1e6)/1e6)
+	}
 	return []string{
 		ffmpegPath,
 		"-y",
 		"-v", "error",
-		"-ss", fmt.Sprintf("%.3f", short.CoverTimeSeconds),
+		"-ss", seek,
 		"-i", short.Output,
 		"-frames:v", "1",
 		"-vf", filter,

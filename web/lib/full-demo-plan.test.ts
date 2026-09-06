@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
+  approveFullDemo, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
   loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
@@ -17,6 +17,37 @@ function fixture(): FullDemoSnapshot {
   assert.ok(isFullDemoSnapshot(value));
   return value;
 }
+
+test('fixed freeze migrates old drafts without changing gameplay voice settings', () => {
+  const original = fixture().document.options;
+  original.editorial.freeze_seconds = 20;
+  original.editorial.max_freeze_seconds = 60;
+  original.editorial.keep_freeze_voice = true;
+  original.editorial.voice_context_seconds = 3;
+  const fixed = fixedFullDemoFreeze(original);
+  assert.equal(fixed.editorial.freeze_seconds, 2);
+  assert.equal(fixed.editorial.max_freeze_seconds, 2);
+  assert.equal(fixed.editorial.keep_freeze_voice, false);
+  assert.equal(fixed.editorial.voice_context_seconds, 0);
+  assert.deepEqual(fixed.audio, original.audio);
+  assert.equal(original.editorial.freeze_seconds, 20);
+});
+
+test('variable-freeze documents must be replanned even with a current planner version', () => {
+  const { document } = fixture();
+  document.options.editorial.keep_freeze_voice = true;
+  assert.equal(fullDemoApprovalKey(document, document.options), null);
+  assert.throws(() => approveFullDemo(document), /freeze fijo de 2 segundos/);
+});
+
+test('legacy snapshots remain readable but cannot be approved for a new recording', () => {
+  const snapshot = fixture();
+  snapshot.document.planner_version = 'full-demo-editorial-v1';
+  assert.ok(isFullDemoSnapshot(snapshot));
+  assert.deepEqual(coerceEditConfig(fullDemoPlanEdit(snapshot)).fullDemo, snapshot);
+  assert.equal(fullDemoApprovalKey(snapshot.document, snapshot.document.options), null);
+  assert.throws(() => approveFullDemo(snapshot.document), /Vuelve a preparar/);
+});
 
 test('Go editorial document survives edit wire, local persistence and render hydration', () => {
   const snapshot = fixture();

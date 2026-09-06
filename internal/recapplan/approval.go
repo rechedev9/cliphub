@@ -18,6 +18,11 @@ func ResolveApproval(ctx context.Context, store storage.Storage, id uuid.UUID, d
 	if err := proposed.Validate(); err != nil {
 		return Snapshot{}, err
 	}
+	// Retain readable legacy evidence, but never replay its unsafe respawn
+	// boundaries or silently change the user's approved audio/video coverage.
+	if proposed.Document.PlannerVersion != PlannerVersion || !proposed.Document.UsesFixedFreeze() {
+		return Snapshot{}, &Error{ErrPlanStale, "Vuelve a preparar y aprobar Full Demo con el freeze fijo de 2 segundos y el calentamiento de POV fuera del vídeo"}
+	}
 	planID, err := uuid.Parse(proposed.Document.PlanID)
 	if err != nil {
 		return Snapshot{}, err

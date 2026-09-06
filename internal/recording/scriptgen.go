@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/sharecode"
 )
 
@@ -75,6 +76,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 		return "", err
 	}
 
+	if plan.FullDemo != nil && (plan.FullDemo.PlannerVersion != recapplan.PlannerVersion || !plan.FullDemo.UsesFixedFreeze()) {
+		return "", &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Full Demo requires a new plan with respawn POV acquisition coverage"}
+	}
 	schedule, seeks, windows := buildRuntimeSchedule(plan)
 	sort.SliceStable(schedule, func(i, j int) bool {
 		if schedule[i].Tick == schedule[j].Tick {
@@ -214,7 +218,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("        mirv.warning(`[zackvideo] capture_failed: ${reason}\\n`);\n")
 	failedAttestation := CaptureFailedAttestation(attestationToken)
 	verifiedAttestation := CaptureVerifiedAttestation(attestationToken)
-	sb.WriteString(fmt.Sprintf("        mirv.warning(%q);\n", failedAttestation+"\\n"))
+	sb.WriteString(fmt.Sprintf("        mirv.warning(%q);\n", failedAttestation+"\n"))
 	sb.WriteString(fmt.Sprintf("        mirv.exec(%q);\n", "echo "+failedAttestation))
 	sb.WriteString("        if (activeSegment !== null) mirv.exec(\"mirv_streams record end\");\n")
 	sb.WriteString("        activeSegment = null;\n")
@@ -238,6 +242,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 		}
 		sb.WriteString(fmt.Sprintf("    const fullDemoCrosshairCvars = %s;\n", crosshairJSON))
 		sb.WriteString(fmt.Sprintf("    const fullDemoCapture = %s;\n    const fullDemoAllowTailTrim = %t;\n    const fullDemoToken = %q;\n", captureJSON, plan.FullDemo.Options.Editorial.AllowSafeTailTrim, attestationToken))
+		sb.WriteString(fmt.Sprintf("    const fullDemoAcquireLeadTicks = %d;\n", plan.Tickrate))
 		sb.WriteString(fullDemoRuntime)
 	}
 	sb.WriteString("    const run = (item) => {\n")
@@ -281,7 +286,10 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                return;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("            fired[\"shutdown\"] = true;\n")
-	sb.WriteString(fmt.Sprintf("            mirv.message(%q);\n", verifiedAttestation+"\\n"))
+	if plan.FullDemo != nil {
+		sb.WriteString("            if (!finishFullDemoSettings()) return;\n")
+	}
+	sb.WriteString(fmt.Sprintf("            mirv.message(%q);\n", verifiedAttestation+"\n"))
 	sb.WriteString(fmt.Sprintf("            mirv.exec(%q);\n", "echo "+verifiedAttestation))
 	sb.WriteString("            beginSoftQuit();\n")
 	sb.WriteString("            return;\n")
@@ -336,13 +344,20 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                }\n")
 	sb.WriteString("                mirv.message(`[zackvideo] seek-landed -> ${s.target} (at ${tick})\\n`);\n")
 	sb.WriteString("                seekIdx++;\n")
+	sb.WriteString("                lastLockFrame = -999; // Entity/observer state may have been replaced by the seek.\n")
 	sb.WriteString("                seekAttempts = 0;\n")
 	sb.WriteString("                seekStallFrames = 0;\n")
 	sb.WriteString("                lastSeekTick = -1;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("        }\n")
 	sb.WriteString("        const captureWindow = captureWindows.find((window) => tick >= window.lockFrom && tick <= window.verifyUntil);\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("        if (fullDemoAcquiring !== null && captureWindow?.segmentId !== fullDemoAcquiring.segmentId) { failCapture('pov_acquisition_failed: demo left the acquisition window'); return; }\n")
+	}
 	sb.WriteString("        if (captureWindow !== undefined) {\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("            if (!prepareFullDemoPOV(captureWindow, tick)) return;\n")
+	}
 	sb.WriteString("            const observed = observedSteamId();\n")
 	sb.WriteString("            if (activeSegment === captureWindow.segmentId) {\n")
 	sb.WriteString("                if (observed === null) {\n")
@@ -402,7 +417,11 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                }\n")
 	sb.WriteString("                const observed = observedSteamId();\n")
 	sb.WriteString("                if (observed !== targetSteamId) {\n")
-	sb.WriteString("                    failCapture(`observer target ${observed ?? \"unknown\"} does not match ${targetSteamId} before ${item.key}`);\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("                    failCapture(`pov_acquisition_failed: observer target ${observed ?? \"unknown\"} does not match ${targetSteamId} before ${item.key} at tick ${tick}`);\n")
+	} else {
+		sb.WriteString("                    failCapture(`observer target ${observed ?? \"unknown\"} does not match ${targetSteamId} before ${item.key}`);\n")
+	}
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
 	sb.WriteString("                run(item);\n")
@@ -428,7 +447,10 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    failCapture(\"capture reached shutdown before every protected segment completed\");\n")
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
-	sb.WriteString(fmt.Sprintf("                mirv.message(%q);\n", verifiedAttestation+"\\n"))
+	if plan.FullDemo != nil {
+		sb.WriteString("                if (!finishFullDemoSettings()) return;\n")
+	}
+	sb.WriteString(fmt.Sprintf("                mirv.message(%q);\n", verifiedAttestation+"\n"))
 	sb.WriteString(fmt.Sprintf("                mirv.exec(%q);\n", "echo "+verifiedAttestation))
 	sb.WriteString("                run(item);\n")
 	sb.WriteString("                beginSoftQuit();\n")

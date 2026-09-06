@@ -112,31 +112,31 @@ func TestPlanRoundEvidence(t *testing.T) {
 		start, end, count int
 		reason            string
 	}{
-		{"survival zero kills", func(*Facts, *Options, *VoiceEvidence) {}, 2000, 8700, 3, "freeze-context"},
-		{"next round caps tail", func(f *Facts, _ *Options, _ *VoiceEvidence) { f.Rounds[0].NextStartTick = 8600 }, 2000, 8600, 3, "freeze-context"},
+		{"survival zero kills", func(*Facts, *Options, *VoiceEvidence) {}, 2300, 8700, 3, "fixed-freeze-2s"},
+		{"next round caps tail", func(f *Facts, _ *Options, _ *VoiceEvidence) { f.Rounds[0].NextStartTick = 8600 }, 2300, 8600, 3, "fixed-freeze-2s"},
 		{"file caps tail", func(f *Facts, _ *Options, _ *VoiceEvidence) {
 			f.Rounds = f.Rounds[:1]
 			f.Rounds[0].NextStartTick = 0
 			f.EndTick = 8550
-		}, 2000, 8550, 1, "freeze-context"},
-		{"death first live tick", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 2500; f.Rounds[0].DeathTick = &tick }, 2000, 2800, 3, "freeze-context"},
-		{"death at round end", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 8500; f.Rounds[0].DeathTick = &tick }, 2000, 8800, 3, "freeze-context"},
-		{"freeze death excluded", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 2400; f.Rounds[0].DeathTick = &tick }, 10000, 14300, 2, "freeze-context"},
-		{"missing freeze excluded", func(f *Facts, _ *Options, _ *VoiceEvidence) { f.Rounds[0].FreezeEndTick = 0 }, 10000, 14300, 2, "freeze-context"},
+		}, 2300, 8550, 1, "fixed-freeze-2s"},
+		{"death first live tick", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 2500; f.Rounds[0].DeathTick = &tick }, 2300, 2800, 3, "fixed-freeze-2s"},
+		{"death at round end", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 8500; f.Rounds[0].DeathTick = &tick }, 2300, 8800, 3, "fixed-freeze-2s"},
+		{"freeze death excluded", func(f *Facts, _ *Options, _ *VoiceEvidence) { tick := 2400; f.Rounds[0].DeathTick = &tick }, 10300, 14300, 2, "fixed-freeze-2s"},
+		{"missing freeze excluded", func(f *Facts, _ *Options, _ *VoiceEvidence) { f.Rounds[0].FreezeEndTick = 0 }, 10300, 14300, 2, "fixed-freeze-2s"},
 		{"zero margins preserved", func(_ *Facts, o *Options, _ *VoiceEvidence) {
 			o.Editorial.FreezeSeconds = 0
 			o.Editorial.RoundTailSeconds = 0
-		}, 2500, 8501, 3, "freeze-context"},
-		{"voice extends inside freeze", func(_ *Facts, _ *Options, v *VoiceEvidence) {
+		}, 2300, 8501, 3, "fixed-freeze-2s"},
+		{"voice cannot extend freeze", func(_ *Facts, _ *Options, v *VoiceEvidence) {
 			v.Availability = "available"
 			v.IndexHash = strings.Repeat("b", 64)
 			v.IndexRef = "voice/index.json"
 			v.ClockKind = ClockIngame
 			v.Activity = []TickRange{{1200, 1350}}
-		}, 1150, 8700, 3, "team-voice-activity"},
+		}, 2300, 8700, 3, "fixed-freeze-2s"},
 		{"manual range", func(_ *Facts, o *Options, _ *VoiceEvidence) {
-			o.Editorial.ManualRanges = []ManualRange{{"round-001", 2100, 8400}}
-		}, 2100, 8400, 3, "manual-approved-range"},
+			o.Editorial.ManualRanges = []ManualRange{{"round-001", 2300, 8400}}
+		}, 2300, 8400, 3, "manual-approved-range"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, o, v := fixtureFacts(), fixtureOptions(), VoiceEvidence{Availability: "no_packets"}
@@ -203,9 +203,9 @@ func TestSponsorTimelineAndSafeTail(t *testing.T) {
 		blocked bool
 		items   int
 	}{
-		{"after second round", func(*Options) {}, 110 * 60, false, 4},
+		{"after second round", func(*Options) {}, 104 * 60, false, 4},
 		{"no eligible boundary", func(o *Options) { o.Sponsor.WindowStartSeconds = 120; o.Sponsor.WindowEndSeconds = 130 }, 0, true, 3},
-		{"explicit alternate boundary", func(o *Options) { o.Sponsor.PlacementPolicy = "round-boundary"; o.Sponsor.AfterRoundID = "round-001" }, 67 * 60, false, 4},
+		{"explicit alternate boundary", func(o *Options) { o.Sponsor.PlacementPolicy = "round-boundary"; o.Sponsor.AfterRoundID = "round-001" }, 64 * 60, false, 4},
 		{"manual split approved", func(o *Options) {
 			o.Sponsor.PlacementPolicy = "manual-frame"
 			frame := int64(30 * 60)
@@ -230,7 +230,7 @@ func TestSponsorTimelineAndSafeTail(t *testing.T) {
 			if (len(d.Blockers) > 0) != tc.blocked || len(d.Timeline) != tc.items {
 				t.Fatalf("blockers=%+v timeline=%+v", d.Blockers, d.Timeline)
 			}
-			if !tc.blocked && (d.SponsorPlacement.StartFrame != tc.start || d.Timeline[len(d.Timeline)-1].EndFrame != 157*60) {
+			if !tc.blocked && (d.SponsorPlacement.StartFrame != tc.start || d.Timeline[len(d.Timeline)-1].EndFrame != 148*60) {
 				t.Fatalf("wrong independently calculated timing: %+v", d.Timeline)
 			}
 		})
@@ -270,10 +270,10 @@ func TestSponsorAppendsAfterFinalRound(t *testing.T) {
 		policy string
 		start  int64
 	}{
-		{"default one round", 1, "first-two-rounds", 110 * 60},
-		{"default two rounds", 2, "first-two-rounds", 110 * 60},
-		{"explicit final round", 3, "round-boundary", 137 * 60},
-		{"manual final boundary without splitting", 3, "manual-frame", 137 * 60},
+		{"default one round", 1, "first-two-rounds", 107 * 60},
+		{"default two rounds", 2, "first-two-rounds", 104 * 60},
+		{"explicit final round", 3, "round-boundary", 128 * 60},
+		{"manual final boundary without splitting", 3, "manual-frame", 128 * 60},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			facts, options := fixtureFacts(), fixtureOptions()

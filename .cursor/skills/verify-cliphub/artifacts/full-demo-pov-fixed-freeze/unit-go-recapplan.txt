@@ -1,0 +1,1 @@
+ok  	github.com/rechedev9/cliphub/internal/recapplan	0.012s
