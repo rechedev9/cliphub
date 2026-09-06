@@ -10,6 +10,7 @@ import { nextStreamPlaybackIndex, streamClipRange, streamPlaybackIndex, STREAM_P
 
 const MAX_CANVAS_WIDTH = 1440;
 type StreamFrameState = {
+  hasFrame: boolean;
   sourceHeight: number;
   sourceWidth: number;
   video: HTMLVideoElement | null;
@@ -44,13 +45,14 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
   const latest = useRef(props);
   latest.current = props;
   const runtimeRef = useRef<StreamRuntime | null>(null);
-  const [frame, setFrame] = useState<StreamFrameState>({ sourceHeight: 0, sourceWidth: 0, video: null, session: null });
+  const [frame, setFrame] = useState<StreamFrameState>({ hasFrame: false, sourceHeight: 0, sourceWidth: 0, video: null, session: null });
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const video = document.createElement('video');
-    video.preload = 'metadata';
+    // A paused editor still needs decoded pixels, not just duration and dimensions.
+    video.preload = 'auto';
     video.playsInline = true;
     video.width = 1;
     video.height = 1;
@@ -58,6 +60,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     video.setAttribute('aria-hidden', 'true');
     let alive = true;
     let playGeneration = 0;
+    let playStarting = false;
     let clipIndex = -1;
     let playbackClipId: string | null = null;
     let videoPlaying = false;
@@ -78,7 +81,9 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
           latest.current.onMediaError();
         } else if (state.status === PLAYBACK_STATUS.paused && !state.playRequested && latest.current.playing) {
           queueMicrotask(() => {
-            if (!alive || session.playRequested || !latest.current.playing) return;
+            // A paused redraw from the initial seek must not cancel the user's
+            // play request while the audio context is still resuming.
+            if (!alive || playStarting || session.playRequested || !latest.current.playing) return;
             latest.current.onPlayingChange(false);
           });
         }
@@ -130,9 +135,12 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       play: () => {
         if (!alive || !browserWindowActivity.isActive()) { latest.current.onPlayingChange(false); return; }
         const generation = ++playGeneration;
+        playStarting = true;
         releaseOwner = claimMediaPlayback(session, () => { runtime.pause(); latest.current.onPlayingChange(false); });
         void mixer.resume().then(() => {
-          if (alive && generation === playGeneration && latest.current.playing) session.play();
+          if (!alive || generation !== playGeneration) return;
+          playStarting = false;
+          if (latest.current.playing) session.play();
         }).catch(() => {
           if (!alive || generation !== playGeneration) return;
           runtime.pause();
@@ -142,6 +150,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       },
       pause: () => {
         playGeneration += 1;
+        playStarting = false;
         session.pause();
         mixer.pause();
         releaseOwner();
@@ -152,9 +161,11 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     const unsubscribeFrames = session.subscribeFrames((next) => mixer.sync(next.seconds, videoPlaying && session.playRequested && !video.paused));
     const onMetadata = (): void => {
       if (!alive) return;
-      setFrame({ video, session, sourceWidth: video.videoWidth, sourceHeight: video.videoHeight });
+      setFrame({ hasFrame: video.readyState >= 2, video, session, sourceWidth: video.videoWidth, sourceHeight: video.videoHeight });
     };
+    setFrame({ hasFrame: false, sourceHeight: 0, sourceWidth: 0, video: null, session: null });
     video.addEventListener('loadedmetadata', onMetadata);
+    video.addEventListener('loadeddata', onMetadata);
     const unsubscribeActivity = browserWindowActivity.subscribe(() => {
       if (!browserWindowActivity.isActive()) { runtime.pause(); latest.current.onPlayingChange(false); }
     });
@@ -172,6 +183,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       unsubscribeActivity();
       unsubscribeFrames();
       video.removeEventListener('loadedmetadata', onMetadata);
+      video.removeEventListener('loadeddata', onMetadata);
       session.dispose();
       mixer.dispose();
       video.removeAttribute('src');

@@ -44,9 +44,9 @@ export function PlayList({
   return (
     <div className="studio-panel @container/reel flex flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border-subtle bg-surface-3 px-3.5 py-2.5">
-        <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{title}</span>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+        <span className="text-body-sm font-semibold text-fg-2">{title}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-body-sm text-fg-2">
             {counter ?? `${selectedIds.size} ${selectedIds.size === 1 ? 'elegido' : 'elegidos'}`}
           </span>
           <div className="flex items-center gap-1">

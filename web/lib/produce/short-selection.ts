@@ -3,19 +3,27 @@ import type { Play } from '../api/types.ts';
 /** A Short should stay at or under one minute. */
 export const SHORT_TARGET_SECONDS = 60;
 
-/**
- * The plan carries no per-highlight duration, so the constructor estimates one
- * from the kill count: a base window plus a few seconds per frag.
- */
+/** Fallback for older plans without source timing. */
 const BASE_SECONDS = 6;
 const SECONDS_PER_KILL = 3;
+type PlayTiming = Pick<Play, 'kills' | 'startSeconds' | 'endSeconds'>;
 
-export function estimatedPlaySeconds(play: Pick<Play, 'kills'>): number {
+export function estimatedPlaySeconds(play: PlayTiming): number {
+  const { startSeconds, endSeconds } = play;
+  if (startSeconds !== undefined && endSeconds !== undefined
+    && Number.isFinite(startSeconds) && Number.isFinite(endSeconds) && startSeconds >= 0 && endSeconds > startSeconds) {
+    return Math.max(0.1, Math.round((endSeconds - startSeconds) * 10) / 10);
+  }
   return BASE_SECONDS + SECONDS_PER_KILL * Math.max(0, play.kills);
 }
 
-export function estimatedSelectionSeconds(plays: ReadonlyArray<Pick<Play, 'kills'>>): number {
-  return plays.reduce((total, play) => total + estimatedPlaySeconds(play), 0);
+export function estimatedSelectionSeconds(plays: ReadonlyArray<PlayTiming>): number {
+  return plays.reduce((total, play) => total + estimatedPlayTenths(play), 0) / 10;
+}
+
+/** Accumulate the displayed precision as integers so an exact minute stays within budget. */
+function estimatedPlayTenths(play: PlayTiming): number {
+  return Math.round(estimatedPlaySeconds(play) * 10);
 }
 
 /** `m:ss`, e.g. 47 → "0:47", 75 → "1:15". Clamped to zero first, so -0 or a tiny negative never prints "-0:00". */
@@ -37,12 +45,12 @@ export function autoPickBestPlays(plays: readonly Play[], targetSeconds = SHORT_
     .map((play, index) => ({ play, index }))
     .sort((a, b) => b.play.kills - a.play.kills || a.index - b.index);
   const picked = new Set<string>();
-  let total = 0;
+  let totalTenths = 0;
   for (const { play } of ranked) {
-    const seconds = estimatedPlaySeconds(play);
-    if (total + seconds > targetSeconds) continue;
+    const tenths = estimatedPlayTenths(play);
+    if ((totalTenths + tenths) / 10 > targetSeconds) continue;
     picked.add(play.id);
-    total += seconds;
+    totalTenths += tenths;
   }
   if (picked.size === 0 && ranked.length > 0) picked.add(ranked[0].play.id);
   return picked;
@@ -64,12 +72,12 @@ export type SelectionCue = {
 /** The Short as a running order: plan order, each cue with its estimated length and start. */
 export function selectionTimeline(plays: readonly Play[], selectedIds: ReadonlySet<string>): SelectionCue[] {
   const cues: SelectionCue[] = [];
-  let startAt = 0;
+  let elapsedTenths = 0;
   for (const play of plays) {
     if (!selectedIds.has(play.id)) continue;
-    const seconds = estimatedPlaySeconds(play);
-    cues.push({ play, seconds, startAt });
-    startAt += seconds;
+    const tenths = estimatedPlayTenths(play);
+    cues.push({ play, seconds: tenths / 10, startAt: elapsedTenths / 10 });
+    elapsedTenths += tenths;
   }
   return cues;
 }

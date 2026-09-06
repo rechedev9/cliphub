@@ -1,5 +1,7 @@
 'use client';
 
+import { streamTitle } from '@/lib/streams/title';
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -335,7 +337,7 @@ export function StreamEditor({
   const draftIssue =
     streamRangeIssue(draftClip, sourceDuration, draftIndex) ?? streamRangeOverlapIssue(draftCandidates, draftIndex);
   const addMoment = (range = draftRange) => {
-    const sourceTitle = job.title?.trim() || 'Short';
+    const sourceTitle = streamTitle(job);
     const title = plan.clips.length ? `${sourceTitle} ${plan.clips.length + 1}` : sourceTitle;
     const clip: StreamClipRange = { id: nextClipId(), ...range, title };
     const next = insertClipSorted(plan.clips, clip);
@@ -627,7 +629,7 @@ export function StreamEditor({
         <StreamStepsRail
           steps={steps}
           activeStep={activeStep}
-          sourceTitle={job.title?.trim() || 'Clip de stream'}
+          sourceTitle={streamTitle(job)}
           sourceMeta={sourceMeta}
           autosave={autosave}
           onSelectStep={navigateStep}

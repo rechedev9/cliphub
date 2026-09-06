@@ -485,7 +485,16 @@ export class RealApiClient implements ApiClient {
     // No plan until parsing finishes; it persists through record/render.
     if (status === null || !PLAN_READY_STATUSES.has(status)) return [];
 
-    return planToPlays(matchId, await this.beatPlan(matchId));
+    const plays = planToPlays(matchId, await this.beatPlan(matchId));
+    // Reuse confirmed covers already hydrated by the library. A compilation's
+    // cover must never be presented as a frame of every constituent play.
+    const covers = new Map<string, string>();
+    for (const intent of this.intents.values()) {
+      if (intent.jobId !== matchId || intent.segmentIds.length !== 1 || isLandscapeRecap(intent.editConfig)) continue;
+      const video = this.reels.get(intent.videoId);
+      if (video?.status === 'ready' && video.thumbnailUrl) covers.set(intent.segmentIds[0], video.thumbnailUrl);
+    }
+    return plays.map((play) => covers.has(play.id) ? { ...play, thumbnailUrl: covers.get(play.id) } : play);
   }
 
   async findRecapClips(matchId: string): Promise<Play[]> {

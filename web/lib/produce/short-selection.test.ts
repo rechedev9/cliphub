@@ -28,6 +28,31 @@ test('estimated duration grows with kills from a fixed base', () => {
   assert.equal(estimatedSelectionSeconds([{ kills: 1 }, { kills: 3 }]), 24);
 });
 
+test('known source lengths drive auto selection and the running order', () => {
+  const plays = [
+    { ...play('long', 1, 5), startSeconds: 10, endSeconds: 55 },
+    { ...play('short', 2, 1), startSeconds: 70, endSeconds: 85 },
+    { ...play('extra', 3, 1), startSeconds: 100, endSeconds: 109 },
+  ];
+  const selected = autoPickBestPlays(plays);
+  assert.deepEqual([...selected], ['long', 'short']);
+  assert.deepEqual(selectionTimeline(plays, selected).map(({ seconds, startAt }) => ({ seconds, startAt })), [
+    { seconds: 45, startAt: 0 }, { seconds: 15, startAt: 45 },
+  ]);
+  assert.equal(estimatedPlaySeconds({ kills: 1, startSeconds: 5, endSeconds: 4 }), 9);
+});
+
+test('fractional source durations fit an exact minute without floating-point overflow', () => {
+  const plays = [8.3, 24.1, 27.6].map((seconds, index) => ({
+    ...play(String(index), index + 1, 1), startSeconds: 0, endSeconds: seconds,
+  }));
+  const selected = autoPickBestPlays(plays);
+  assert.equal(selected.size, 3);
+  assert.equal(estimatedSelectionSeconds(plays), 60);
+  const timeline = selectionTimeline(plays, selected);
+  assert.deepEqual(timeline.map((cue) => cue.startAt), [0, 8.3, 32.4]);
+});
+
 test('formatClock renders m:ss and never emits a minus sign, even at zero', () => {
   const cases = [
     { seconds: 0, want: '0:00' },

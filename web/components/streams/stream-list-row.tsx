@@ -5,6 +5,7 @@ import { ArrowRight, Film } from 'lucide-react';
 import { streamsApi, type StreamJob } from '@/lib/api/streams';
 import { streamClipCount, streamJobTag } from '@/lib/streams/list';
 import { formatStreamClock, streamSourceLabel } from '@/lib/streams/plan';
+import { streamTitle } from '@/lib/streams/title';
 import { DeleteMatchButton } from '@/components/matches/delete-match-button';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
@@ -50,7 +51,7 @@ export function StreamListRow({ job, onOpen, onDeleted }: { job: StreamJob; onOp
   const duration = job.probe?.duration_seconds;
   // The source only loads for rows on screen: a long list must not range-fetch every MP4 at once.
   const { ref, seen } = useSeen<HTMLLIElement>();
-  const title = job.title?.trim() || 'Clip de stream';
+  const title = streamTitle(job);
   const meta = streamSourceLabel(job.source_url) ?? 'Archivo local';
   const actionLabel = PROJECT_ACTION_LABELS[job.status];
 

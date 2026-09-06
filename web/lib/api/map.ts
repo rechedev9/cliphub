@@ -7,7 +7,7 @@ import type { Match, Play, DemoPlayer } from './types';
  */
 export type KillPlan = {
   schema_version?: string;
-  demo?: { map?: string };
+  demo?: { map?: string; tickrate?: number };
   target?: { steamid64?: string; name_in_demo?: string; team_at_start?: string };
   stats?: { total_kills_target?: number };
   segments?: KillPlanSegment[];
@@ -18,7 +18,7 @@ type KillPlanSegment = {
   round: number;
   tick_start?: number;
   tick_end?: number;
-  kills?: { weapon?: string }[];
+  kills?: { weapon?: string; headshot?: boolean }[];
 };
 
 /** Pretty CS2 map name: "de_inferno" → "Inferno". Falls back to the raw value. */
@@ -95,8 +95,12 @@ function topWeapon(segment: KillPlanSegment): string | undefined {
 }
 
 /** One killplan segment → a UI Play. */
-function segmentToPlay(jobId: string, segment: KillPlanSegment): Play {
+function segmentToPlay(jobId: string, segment: KillPlanSegment, tickrate: number | undefined): Play {
   const kills = segment.kills?.length ?? 0;
+  const { tick_start: start, tick_end: end } = segment;
+  const timed = tickrate !== undefined && Number.isFinite(tickrate) && tickrate > 0
+    && start !== undefined && Number.isFinite(start) && start >= 0
+    && end !== undefined && Number.isFinite(end) && end > start;
   return {
     id: segment.id,
     matchId: jobId,
@@ -105,6 +109,8 @@ function segmentToPlay(jobId: string, segment: KillPlanSegment): Play {
     kills,
     weapon: topWeapon(segment),
     label: `${kills}K · Ronda ${segment.round}`,
+    ...(timed ? { startSeconds: start / tickrate, endSeconds: end / tickrate } : {}),
+    ...(segment.kills?.every((kill) => typeof kill.headshot === 'boolean') ? { headshots: segment.kills.filter((kill) => kill.headshot).length } : {}),
   };
 }
 
@@ -117,7 +123,7 @@ export function planToPlays(jobId: string, plan: KillPlan): Play[] {
       : `id:${segment.id}`;
     if (seen.has(timelineKey)) return [];
     seen.add(timelineKey);
-    return [segmentToPlay(jobId, segment)];
+    return [segmentToPlay(jobId, segment, plan.demo?.tickrate)];
   });
 }
 

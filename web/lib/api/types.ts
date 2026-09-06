@@ -27,7 +27,12 @@ export type Match = {
   status?: string;
 };
 type PlayKind = 'clean' | 'highlight';
-export type Play = { id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number; weapon?: string; thumbnailUrl?: string };
+export type Play = {
+  id: string; matchId: string; label: string; kind: PlayKind; round: number; kills: number;
+  weapon?: string; thumbnailUrl?: string;
+  /** Source-demo clock, only present when its tick rate and range are known. */
+  startSeconds?: number; endSeconds?: number; headshots?: number;
+};
 export type RenderMode = 'clean' | 'music';
 export type RenderFormat = 'short-9x16' | 'landscape-16x9';
 type KillEffect = 'clean' | 'punch-in' | 'velocity' | 'freeze-flash' | 'shake' | 'glitch';
