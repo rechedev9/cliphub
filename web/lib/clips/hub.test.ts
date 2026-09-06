@@ -21,6 +21,7 @@ import {
   outputType,
   recBusy,
   roundsFromScore,
+  hubPollClearsLoadError,
   hubPollUnchanged,
   sameHubProps,
   settleHubSnapshot,
@@ -412,4 +413,19 @@ test('hubPollUnchanged skips an idle rebuild and notices a new stream row', () =
   assert.equal(hubPollUnchanged(null, model, model, first), false);
   const added = snapshot([{ id: 's1', status: 'ready', created_at: '2026-09-06T12:00:00Z' }]);
   assert.equal(hubPollUnchanged(first, model, model, added), false);
+});
+
+test('an unchanged recovery after both demo sources threw still clears the banner', () => {
+  const matches = [match('m1', 'parsed')];
+  const prev: HubSnapshot = { matches, videos: [], streams: [], failure: null };
+  const model = buildHubModel(matches, []);
+  assert.throws(
+    () => settleHubSnapshot([rejected('down'), rejected('down'), rejected('s')], prev),
+    /^down$/,
+  );
+  const recovered = settleHubSnapshot([fulfilled(matches), fulfilled([]), fulfilled([])], prev);
+  assert.equal(recovered.failure, null);
+  assert.equal(hubPollUnchanged(prev, model, buildHubModel(recovered.matches, recovered.videos), recovered), true);
+  assert.equal(hubPollClearsLoadError(recovered), true);
+  assert.equal(hubPollClearsLoadError({ ...prev, failure: new Error('partial') }), false);
 });

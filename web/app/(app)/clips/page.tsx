@@ -13,6 +13,7 @@ import {
   HUB_ROW_STAGE,
   hubTransitions,
   isWorking,
+  hubPollClearsLoadError,
   hubPollUnchanged,
   settleHubSnapshot,
   type HubModel,
@@ -118,7 +119,10 @@ function ClipsHub(): ReactNode {
   const accept = useCallback((snapshot: HubSnapshot) => {
     const next = buildHubModel(snapshot.matches, snapshot.videos);
     if (hubPollUnchanged(snapshotRef.current, modelRef.current, next, snapshot)) {
-      if (snapshot.failure === null) publishShellJobs(collectShellJobs(snapshot), Date.now());
+      if (hubPollClearsLoadError(snapshot)) {
+        publishShellJobs(collectShellJobs(snapshot), Date.now());
+        setLoadError(null);
+      }
       return modelRef.current ?? next;
     }
     if (modelRef.current !== null) announceTransitions(modelRef.current, next, openResult);
