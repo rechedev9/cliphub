@@ -77,7 +77,9 @@ const COMMAND_USAGE = {
 
 Start Studio web with next dev --webpack on 127.0.0.1. Default port 4173.
 Writes .cursor/skills/verify-cliphub/.run/state.json with pid, port, and
-evidence dir. Refuses a port this run did not start.
+evidence dir. Reuses a live PID on the same port. A different --port stops
+the prior instance first. --evidence on reuse updates the recorded dir.
+Refuses a port this run did not start.
 
 Ready: GET /clips returns HTTP 200.
 `,
@@ -102,10 +104,12 @@ Click by ARIA role and accessible name. Prefer this over coordinates.
   snapshot: `usage: control-cliphub snapshot --out <path> [--path /clips] [--json]
 
 Write an ARIA snapshot of the current page (navigates --path first).
+Waits until hub loading is hidden. Relative --out is from the repo root.
 `,
   screenshot: `usage: control-cliphub screenshot --out <path> [--path /clips] [--json]
 
 Write a PNG of the current page (navigates --path first).
+Waits until hub loading is hidden. Relative --out is from the repo root.
 `,
   drive: `usage: control-cliphub drive --feature inicio [--json]
 
@@ -348,16 +352,29 @@ function parseZvJson(raw) {
   }
 }
 
-function evidencePath(state, out) {
+function evidencePath(repo, out) {
   if (!out) fail('missing --out <path>', 2);
   if (isAbsolute(out)) return out;
-  const root = state?.evidenceDir ?? join(SKILL_DIR, 'artifacts', 'scratch');
-  return resolve(root, out);
+  return resolve(repo, out);
 }
 
 function writeText(path, body) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, body);
+}
+
+async function waitForHubLoading(page) {
+  await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
+  let pathname = '';
+  try {
+    pathname = new URL(page.url()).pathname;
+  } catch {
+    return;
+  }
+  if (pathname !== '/clips') return;
+  const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
+  const populated = page.getByRole('heading', { name: HUB_POPULATED });
+  await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
 }
 
 async function waitForWeb(origin, timeoutMs) {
@@ -412,6 +429,7 @@ async function withPage(repo, origin, path, fn) {
     await page.waitForFunction(() => Object.keys(document.body).some((key) => key.startsWith('__react')), null, {
       timeout: 30_000,
     });
+    await waitForHubLoading(page);
     return await fn(page);
   } finally {
     await browser.close();
@@ -467,13 +485,29 @@ async function cmdLaunch(repo, flags) {
   const port = Number(flags.port ?? process.env.CLIPHUB_VERIFY_PORT ?? DEFAULT_PORT);
   if (!Number.isInteger(port) || port < 1 || port > 65535) fail('--port must be an integer 1-65535', 2);
   const existing = readState();
+  const requestedEvidence =
+    typeof flags.evidence === 'string' && flags.evidence !== '' ? resolve(flags.evidence) : null;
   if (existing && pidAlive(existing.pid) && existing.port === port) {
     const ready = await waitForWeb(existing.origin, 8_000);
     if (ready.ok) {
+      if (requestedEvidence && requestedEvidence !== existing.evidenceDir) {
+        existing.evidenceDir = requestedEvidence;
+        mkdirSync(existing.evidenceDir, { recursive: true });
+        writeState(existing);
+      }
       const payload = { ...existing, reused: true, ready };
       if (wantsJson(flags)) printJson(payload);
       else process.stdout.write(`reused ${existing.origin} pid=${existing.pid}\n`);
       return;
+    }
+  }
+  if (existing && pidAlive(existing.pid)) {
+    killTree(existing.pid);
+    rmSync(STATE_PATH, { force: true });
+    const freedUntil = Date.now() + 10_000;
+    const priorHost = existing.host ?? DEFAULT_HOST;
+    while (Date.now() < freedUntil && !(await canListen(existing.port, priorHost))) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 150));
     }
   }
   const free = await canListen(port, DEFAULT_HOST);
@@ -674,7 +708,7 @@ async function cmdSnapshot(repo, flags) {
   const state = readState();
   const origin = resolveOrigin(flags, state);
   const path = resolvePath(flags, state);
-  const out = evidencePath(state, flags.out);
+  const out = evidencePath(repo, flags.out);
   const result = await withPage(repo, origin, path, async (page) => {
     const aria = await ariaSnapshot(page);
     writeText(out, `${aria}\n`);
@@ -689,7 +723,7 @@ async function cmdScreenshot(repo, flags) {
   const state = readState();
   const origin = resolveOrigin(flags, state);
   const path = resolvePath(flags, state);
-  const out = evidencePath(state, flags.out);
+  const out = evidencePath(repo, flags.out);
   const result = await withPage(repo, origin, path, async (page) => {
     mkdirSync(dirname(out), { recursive: true });
     await page.screenshot({ path: out, fullPage: true });
