@@ -18,7 +18,7 @@ export function HubBanner({ offline, onRetry }: HubBannerProps): ReactNode {
     <div
       role="alert"
       className={cn(
-        'studio-panel studio-enter flex flex-wrap items-center gap-3 px-4 py-3',
+        'studio-panel flex flex-wrap items-center gap-3 px-4 py-3',
         offline ? 'border-destructive/45' : 'border-warning/45',
       )}
     >

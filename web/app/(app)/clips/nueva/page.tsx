@@ -478,7 +478,7 @@ function ErrorBanner({ message }: { message: string }): ReactNode {
 /** The scanned demo above the picker: cover, map + score, file, source, "Escaneada". */
 function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: RosterMatch | null }): ReactNode {
   return (
-    <div className="studio-panel studio-enter flex items-center gap-4 rounded-[10px] px-4 py-3">
+    <div className="studio-panel flex items-center gap-4 px-4 py-3">
       <span aria-hidden className="h-[47px] w-[84px] shrink-0 overflow-hidden border border-border-strong">
         <MapCover map={match?.map ?? ''} />
       </span>
@@ -508,7 +508,7 @@ function ScannedDemoRow({ fileName, match }: { fileName: string | null; match: R
 
 function SingleDemoProgress({ label, fileName }: { label: string; fileName: string | null }): ReactNode {
   return (
-    <div role="status" aria-live="polite" className="studio-enter flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
+    <div role="status" aria-live="polite" className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
       <span className="grid size-14 place-items-center border border-border-accent bg-surface-0 text-primary shadow-[var(--glow-primary-md)]">
         <span aria-hidden className="studio-spinner size-6" />
       </span>

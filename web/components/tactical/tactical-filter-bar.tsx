@@ -372,7 +372,7 @@ export function TacticalFilterBar({
         >
           <summary
             className={cn(
-              'flex cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-widest text-fg-3 outline-none hover:text-foreground',
+              'flex cursor-pointer list-none items-center gap-2 font-mono text-meta uppercase tracking-widest text-fg-3 outline-none hover:text-fg-1',
               FOCUS_RING,
             )}
           >

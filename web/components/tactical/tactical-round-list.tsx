@@ -27,7 +27,7 @@ function BuyLine({ round }: { round: TacticalRound }): ReactNode {
   return (
     <span className="block truncate font-mono text-meta uppercase tracking-wider">
       <span className="text-primary">{buyLabel(round.economy.ct_buy)}</span>{' '}
-      <span className="text-muted-foreground">vs</span>{' '}
+      <span className="text-fg-3">vs</span>{' '}
       <span className="text-warning">{buyLabel(round.economy.t_buy)}</span>
     </span>
   );
@@ -92,7 +92,7 @@ function RoundRow({
               <span
                 className={cn(
                   'font-mono text-title leading-none tabular-nums',
-                  selected ? 'text-primary' : 'text-foreground',
+                  selected ? 'text-primary' : 'text-fg-1',
                 )}
               >
                 {round.number}
@@ -109,9 +109,9 @@ function RoundRow({
                   site moved to the footline so the pair fits. The untruncated
                   string is reprinted in the replay header when the round is
                   selected. */}
-              <span className="block truncate font-display text-label font-semibold uppercase leading-tight text-foreground">
+              <span className="block truncate font-display text-label font-semibold uppercase leading-tight text-fg-1">
                 {tPatternLabel(round.class.t_side)}{' '}
-                <span className="text-muted-foreground">/</span>{' '}
+                <span className="text-fg-3">/</span>{' '}
                 {ctPatternLabel(round.class.ct_side)}
               </span>
             </span>
@@ -157,7 +157,7 @@ function RoundRow({
           aria-controls={reasonsId}
           aria-label={`Por qué la ronda ${round.number} se clasificó así`}
           className={cn(
-            'grid w-8 shrink-0 place-items-center border-l border-border-subtle text-muted-foreground outline-none transition-colors hover:bg-primary/10 hover:text-primary',
+            'grid w-8 shrink-0 place-items-center border-l border-border-subtle text-fg-3 outline-none transition-colors hover:bg-primary/10 hover:text-primary',
             FOCUS_RING,
             'focus-visible:outline-offset-[-2px]',
           )}
@@ -178,7 +178,7 @@ function RoundRow({
           Por qué se clasificó así
         </p>
         {reasons.length === 0 ? (
-          <p className="font-mono text-body-sm leading-5 text-muted-foreground">
+          <p className="font-mono text-body-sm leading-5 text-fg-2">
             El clasificador no registró ningún motivo para esta ronda.
           </p>
         ) : (
@@ -186,7 +186,7 @@ function RoundRow({
             {reasons.map((reason) => (
               <li
                 key={reason}
-                className="font-mono text-body-sm leading-5 text-muted-foreground break-words"
+                className="font-mono text-body-sm leading-5 text-fg-2 break-words"
               >
                 {reason}
               </li>
@@ -232,8 +232,8 @@ export function TacticalRoundList({
 
       {rounds.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-          <ScrollText className="size-5 text-muted-foreground" aria-hidden />
-          <p className="text-body-sm leading-5 text-muted-foreground">
+          <ScrollText className="size-5 text-fg-3" aria-hidden />
+          <p className="text-body-sm leading-5 text-fg-2">
             Ninguna ronda cumple el filtro actual.
           </p>
         </div>

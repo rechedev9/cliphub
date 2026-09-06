@@ -48,7 +48,7 @@ function describe(event: TacticalEvent, names: ReadonlyMap<number, string>): str
 function sideClass(event: TacticalEvent): string {
   if (event.side === TACTICAL_SIDES.ct) return 'text-primary';
   if (event.side === TACTICAL_SIDES.t) return 'text-warning';
-  return 'text-muted-foreground';
+  return 'text-fg-3';
 }
 
 /**
@@ -69,7 +69,7 @@ export function TacticalEventList({
 }): ReactNode {
   if (events.length === 0) {
     return (
-      <p className="px-3 py-6 text-center text-body-sm leading-5 text-muted-foreground">
+      <p className="px-3 py-6 text-center text-body-sm leading-5 text-fg-2">
         Esta ronda no registró ningún evento.
       </p>
     );

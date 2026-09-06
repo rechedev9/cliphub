@@ -71,7 +71,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
   return (
     <article
       id={matchRowId(match.id)}
-      className={cn('studio-panel studio-enter flex flex-col overflow-hidden rounded-[10px]', expanded && 'studio-panel-raised')}
+      className={cn('studio-panel flex flex-col overflow-hidden', expanded && 'studio-panel-raised')}
     >
       {/* One gate for the whole row, matching .row-state / .row-actions in globals.css: below it the cluster wraps under the header and nothing is reserved. */}
       <div className="flex w-full flex-wrap items-stretch @[44rem]/content:flex-nowrap">

@@ -253,10 +253,10 @@ function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode
       <span className="grid size-12 place-items-center rounded-lg border border-primary/45 bg-surface-3 text-primary shadow-[var(--elev-0)]">
         <Radar className="size-5 animate-pulse motion-reduce:animate-none" aria-hidden />
       </span>
-      <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
+      <h2 className="font-display text-title font-bold uppercase tracking-tight text-fg-1">
         {stateLabel(status.state)}
       </h2>
-      <p className="max-w-xl text-body leading-6 text-muted-foreground">
+      <p className="max-w-xl text-body leading-6 text-fg-2">
         Se está recorriendo la demo para clasificar rondas y muestrear posiciones. Esta página se actualiza sola
         al terminar.
       </p>

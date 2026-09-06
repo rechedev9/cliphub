@@ -392,8 +392,8 @@ export function TacticalReplay({
   if (round === undefined) {
     return (
       <section className="studio-panel flex min-h-[420px] flex-col items-center justify-center gap-3 px-6 text-center">
-        <Radar className="size-6 text-muted-foreground" aria-hidden />
-        <p className="text-body leading-6 text-muted-foreground">
+        <Radar className="size-6 text-fg-3" aria-hidden />
+        <p className="text-body leading-6 text-fg-2">
           Selecciona una ronda para abrir la repetición.
         </p>
       </section>
@@ -406,9 +406,9 @@ export function TacticalReplay({
       aria-label={`Repetición de la ronda ${round.number}`}
     >
       <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle px-5 py-4">
-        <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
+        <h2 className="font-display text-title font-bold uppercase tracking-tight text-fg-1">
           Ronda {round.number}
-          <span className="pl-3 font-mono text-body-sm font-normal tabular-nums text-muted-foreground">
+          <span className="pl-3 font-mono text-body-sm font-normal tabular-nums text-fg-3">
             {round.score_ct_before}:{round.score_t_before}
           </span>
         </h2>
@@ -447,7 +447,7 @@ export function TacticalReplay({
               className="block h-full w-full font-mono"
             />
             {drawable ? null : (
-              <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-muted-foreground">
+              <p className="absolute inset-0 grid place-items-center px-6 text-center text-body-sm leading-5 text-fg-2">
                 Este mapa no tiene una calibración de radar utilizable, así que no se puede dibujar la
                 repetición. Los eventos y las tendencias siguen siendo válidos.
               </p>
@@ -530,10 +530,10 @@ function RoundLegend({
                 >
                   {labels.get(player.slot) ?? '···'}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-foreground">
+                <span className="min-w-0 flex-1 truncate text-fg-1">
                   {names.get(player.slot) ?? `slot ${player.slot}`}
                 </span>
-                <span className="shrink-0 text-muted-foreground">
+                <span className="shrink-0 text-fg-3">
                   {player.kills}/{player.deaths}/{player.assists}
                 </span>
                 {player.survived ? null : <span className="shrink-0 text-fg-3">✕</span>}

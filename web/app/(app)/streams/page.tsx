@@ -119,7 +119,7 @@ export default function StreamsPage(): ReactNode {
       );
   } else if (jobs.length === 0) {
     list = (
-      <p className="rounded-lg border border-dashed border-border px-6 py-8 text-center text-body text-fg-2">
+      <p className="studio-panel px-6 py-8 text-center text-body text-fg-2">
         Tus proyectos aparecerán aquí. Importa un vídeo para crear el primero.
       </p>
     );
@@ -134,7 +134,7 @@ export default function StreamsPage(): ReactNode {
   }
 
   return (
-    <div data-streams-home className="measure-work flex flex-col gap-7">
+    <div data-streams-home className="measure-work flex flex-col gap-6">
       <StudioPageHeader
         title="Clips de stream"
         actions={(

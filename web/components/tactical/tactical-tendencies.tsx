@@ -45,7 +45,7 @@ function CrossCell({
         <span
           className={cn(
             'font-mono text-meta tracking-normal tabular-nums',
-            reliable ? 'text-foreground' : 'text-muted-foreground',
+            reliable ? 'text-fg-1' : 'text-fg-3',
           )}
         >
           {pct.toFixed(1)} %
@@ -79,7 +79,7 @@ export function TacticalTendenciesPanel({
   return (
     <section className="studio-panel px-5 py-5 sm:px-6 sm:py-6" aria-label="Tendencias">
       <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-border-subtle pb-4">
-        <h2 className="font-display text-title font-bold uppercase tracking-tight text-foreground">
+        <h2 className="font-display text-title font-bold uppercase tracking-tight text-fg-1">
           Tendencias
         </h2>
         <p className="font-mono text-meta uppercase tracking-wider text-fg-3">
@@ -102,7 +102,7 @@ export function TacticalTendenciesPanel({
       ) : null}
 
       {tendencies !== null && tendencies.round_count === 0 ? (
-        <p className="mt-5 text-body leading-6 text-muted-foreground">
+        <p className="mt-5 text-body leading-6 text-fg-2">
           El filtro actual no selecciona ninguna ronda, así que no hay nada que agregar.
         </p>
       ) : null}
@@ -158,7 +158,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
       </div>
 
       {perspective === undefined ? (
-        <p className="rounded-md border border-primary/45 bg-primary/10 px-3 py-2.5 text-body-sm leading-5 text-foreground">
+        <p className="rounded-md border border-primary/45 bg-primary/10 px-3 py-2.5 text-body-sm leading-5 text-fg-1">
           Elige un equipo o un lado en el filtro para ver economía, victorias y duelos de apertura: sin
           perspectiva el agregado no puede atribuir una compra ni una ronda ganada a nadie. El reparto de
           formas y los tiempos sí son válidos tal cual.
@@ -196,12 +196,12 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
                     scope="row"
                     className={cn(
                       BODY_CELL,
-                      'text-left font-mono text-meta font-normal uppercase tracking-wider text-foreground',
+                      'text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-1',
                     )}
                   >
                     {buyLabel(bucket.buy)}
                   </th>
-                  <td className={cn(BODY_CELL, 'font-mono text-meta tracking-normal tabular-nums text-muted-foreground')}>
+                  <td className={cn(BODY_CELL, 'font-mono text-meta tracking-normal tabular-nums text-fg-3')}>
                     {bucket.rounds}
                   </td>
                   <td className={BODY_CELL}>
@@ -251,7 +251,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
                       scope="row"
                       className={cn(
                         BODY_CELL,
-                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-foreground',
+                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-1',
                       )}
                     >
                       {buyLabel(buy)}
@@ -300,7 +300,7 @@ function TendenciesBody({ tendencies }: { tendencies: TacticalTendencies }): Rea
                       scope="row"
                       className={cn(
                         BODY_CELL,
-                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-foreground',
+                        'text-left font-mono text-meta font-normal uppercase tracking-wider text-fg-1',
                       )}
                     >
                       {buyLabel(buy)}
@@ -418,7 +418,7 @@ function Headline({
         {label}
       </span>
       <span className="flex items-center gap-2">
-        <span className="font-mono text-body-sm tabular-nums text-foreground">{value}</span>
+        <span className="font-mono text-body-sm tabular-nums text-fg-1">{value}</span>
         {warn ? <SmallSampleChip /> : null}
       </span>
     </div>

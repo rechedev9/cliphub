@@ -413,7 +413,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
 
   if (stage === 'loading') {
     return (
-      <p role="status" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
+      <p role="status" className="measure-read flex items-center gap-2 text-body text-fg-2">
         <span aria-hidden className="studio-spinner" />
         Abriendo el stream
       </p>

@@ -18,7 +18,7 @@ const STEPS = Object.values(FIRST_RUN_STEP);
 export function FirstRunGuide({ progress, onDismiss }: FirstRunGuideProps): ReactNode {
   const active = STEPS.find((step) => !progress[step]) ?? null;
   return (
-    <section aria-label={FIRST_RUN_GUIDE_TITLE} className="studio-panel studio-enter flex flex-col gap-3 px-4 py-3.5">
+    <section aria-label={FIRST_RUN_GUIDE_TITLE} className="studio-panel flex flex-col gap-3 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">{FIRST_RUN_GUIDE_TITLE}</h2>
         {onDismiss ? (
