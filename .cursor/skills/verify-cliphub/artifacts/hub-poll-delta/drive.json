@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "feature": "inicio",
+  "origin": "http://127.0.0.1:4173",
+  "url": "http://127.0.0.1:4173/clips",
+  "title": "Clips y vídeos · ClipHub",
+  "steps": [
+    {
+      "id": "inicio-rail",
+      "action": "assert rail Clips y vídeos",
+      "result": {
+        "href": "/clips",
+        "name": "01 CLIPS Y VÍDEOS"
+      }
+    },
+    {
+      "id": "inicio-empty",
+      "action": "assert hub copy",
+      "result": {
+        "empty": true,
+        "populated": false
+      }
+    },
+    {
+      "id": "inicio-short-door",
+      "action": "click Crear Short",
+      "result": {
+        "url": "http://127.0.0.1:4173/clips/nueva?formato=short",
+        "title": "Cargar demo"
+      }
+    },
+    {
+      "id": "inicio-return",
+      "action": "click rail Clips y vídeos",
+      "result": {
+        "url": "http://127.0.0.1:4173/clips"
+      }
+    }
+  ],
+  "evidence": {
+    "aria": "/workspace/.cursor/skills/verify-cliphub/artifacts/hub-poll-delta/hub.aria.txt",
+    "screenshot": "/workspace/.cursor/skills/verify-cliphub/artifacts/hub-poll-delta/hub.png"
+  }
+}

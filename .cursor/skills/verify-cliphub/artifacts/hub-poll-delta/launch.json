@@ -1,0 +1,25 @@
+{
+  "pid": 19823,
+  "port": 4173,
+  "host": "127.0.0.1",
+  "origin": "http://127.0.0.1:4173",
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/hub-poll-delta",
+  "logPath": "/workspace/.cursor/skills/verify-cliphub/.run/web.log",
+  "runId": "2026-09-06T14-26-17-906Z",
+  "startedAt": "2026-09-06T14:26:17.908Z",
+  "command": [
+    "/home/ubuntu/.nvm/versions/node/v24.20.0/bin/node",
+    "/workspace/web/node_modules/next/dist/bin/next",
+    "dev",
+    "--webpack",
+    "--hostname",
+    "127.0.0.1",
+    "--port",
+    "4173"
+  ],
+  "ready": {
+    "ok": true,
+    "status": 200,
+    "url": "http://127.0.0.1:4173/clips"
+  }
+}

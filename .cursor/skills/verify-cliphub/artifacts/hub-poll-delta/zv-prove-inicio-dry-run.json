@@ -1,0 +1,34 @@
+{
+  "schema_version": 3,
+  "ok": true,
+  "closed": false,
+  "dry_run": true,
+  "executed": false,
+  "feature": {
+    "id": "inicio",
+    "title": "Clips y vídeos",
+    "route": "/clips",
+    "nav_label": "Clips y vídeos",
+    "requires_hlae_cs2": false,
+    "requires_windows_studio": false,
+    "cheap_proof": "route /clips plus hub empty and first-run tests",
+    "probe_path": "/api/demos/jobs",
+    "catalog_valid": true,
+    "cheap_ok": true,
+    "user_path": "unproven"
+  },
+  "drive": {
+    "feature_id": "inicio",
+    "route": "/clips",
+    "nav_label": "Clips y vídeos"
+  },
+  "planned": [
+    "inspect feature map inicio",
+    "drive /clips",
+    "no jobs.db writes",
+    "no capture enqueue",
+    "no HTTP",
+    "GET /api/demos/jobs"
+  ],
+  "detail": "dry-run: no HTTP, no jobs.db mutation, no capture enqueue"
+}

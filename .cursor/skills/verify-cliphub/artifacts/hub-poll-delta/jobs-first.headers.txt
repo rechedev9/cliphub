@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Cache-Control: private, no-cache
+Content-Type: application/json
+Etag: W/"0a5796e93f9b57ddf7c45f860485cbb7"
+Date: Sun, 06 Sep 2026 14:27:43 GMT
+Content-Length: 11
+

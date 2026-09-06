@@ -1,0 +1,34 @@
+{
+  "jobs": {
+    "url": "http://127.0.0.1:8080/api/jobs",
+    "etag": "W/\"0a5796e93f9b57ddf7c45f860485cbb7\"",
+    "first": {
+      "http": "200",
+      "etag": "W/\"0a5796e93f9b57ddf7c45f860485cbb7\"",
+      "body_bytes": 11,
+      "body": "{\"jobs\":[]}"
+    },
+    "idle": {
+      "http": "304",
+      "etag": "W/\"0a5796e93f9b57ddf7c45f860485cbb7\"",
+      "body_bytes": 0,
+      "body": ""
+    }
+  },
+  "stream-jobs": {
+    "url": "http://127.0.0.1:8080/api/stream-jobs",
+    "etag": "W/\"0a5796e93f9b57ddf7c45f860485cbb7\"",
+    "first": {
+      "http": "200",
+      "etag": "W/\"0a5796e93f9b57ddf7c45f860485cbb7\"",
+      "body_bytes": 11,
+      "body": "{\"jobs\":[]}"
+    },
+    "idle": {
+      "http": "304",
+      "etag": "W/\"0a5796e93f9b57ddf7c45f860485cbb7\"",
+      "body_bytes": 0,
+      "body": ""
+    }
+  }
+}
