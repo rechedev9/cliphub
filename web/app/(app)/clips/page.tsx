@@ -187,7 +187,7 @@ function ClipsHub(): ReactNode {
   if (model === null) {
     if (loadError === null) return <HubSkeleton />;
     return (
-      <div className="measure-list flex flex-col gap-5">
+      <div className="measure-list flex flex-col gap-6">
         <HubBanner offline={loadError.offline} onRetry={onChange} />
         <HubEmpty />
       </div>
@@ -196,7 +196,7 @@ function ClipsHub(): ReactNode {
 
   if (model.rows.length === 0 && model.clips.length === 0 && streamLibraryCount(streams) === 0) {
     return (
-      <div className="measure-list flex flex-col gap-5">
+      <div className="measure-list flex flex-col gap-6">
         {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
         <HubEmpty />
       </div>
@@ -274,10 +274,15 @@ function HubSkeleton(): ReactNode {
         <Skeleton className="h-10 w-64" />
         <Skeleton className="measure-read h-5 w-full" />
       </div>
+      <div className="grid gap-3 @[48rem]/content:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index} className="h-36 w-full" />
+        ))}
+      </div>
       <Skeleton className="h-10 w-56" />
       <div className="flex flex-col gap-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index} className="h-[85px] w-full rounded-[10px]" />
+          <Skeleton key={index} className="h-[85px] w-full" />
         ))}
       </div>
     </div>
