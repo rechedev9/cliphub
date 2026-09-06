@@ -38,6 +38,42 @@ const UNAVAILABLE_VIDEO_DECODE = new Set([
   'unavailable_off_ok',
 ]);
 
+export const PLAYBACK_INFO_TTL_MS = 30_000;
+
+export type GPUFeatureProbe = () => {
+  hardwareAccelerationEnabled: boolean;
+  videoDecodeStatus: unknown;
+};
+
+export type PlaybackInfoCache = {
+  at: number;
+  ready: boolean;
+  info: PlaybackDiagnostics;
+};
+
+/** Reuses a ready GPU summary inside the TTL so Settings remounts skip a rescan. */
+export function readPlaybackInfo(
+  ready: boolean,
+  versions: { electron: unknown; chromium: unknown },
+  probe: GPUFeatureProbe,
+  cache: PlaybackInfoCache | null,
+  now: number,
+  ttlMs = PLAYBACK_INFO_TTL_MS,
+): { info: PlaybackDiagnostics; cache: PlaybackInfoCache } {
+  if (cache !== null && cache.ready === ready && cache.info.available && now - cache.at < ttlMs) {
+    return { info: cache.info, cache };
+  }
+  const probed = ready ? probe() : { hardwareAccelerationEnabled: false, videoDecodeStatus: null };
+  const info = createPlaybackDiagnostics({
+    gpuInformationReady: ready,
+    electronVersion: versions.electron,
+    chromiumVersion: versions.chromium,
+    hardwareAccelerationEnabled: probed.hardwareAccelerationEnabled,
+    videoDecodeStatus: probed.videoDecodeStatus,
+  });
+  return { info, cache: { at: now, ready, info } };
+}
+
 /** Builds the only GPU-derived summary allowed to cross the settings bridge. */
 export function createPlaybackDiagnostics(input: PlaybackDiagnosticsInput): PlaybackDiagnostics {
   if (!input.gpuInformationReady) return { available: false, state: 'initializing' };
