@@ -1,15 +1,6 @@
 import type { ReactElement } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/**
- * The route-level fallback. Without a `loading.tsx` boundary React never gets
- * to show one, so a cold start painted an empty rectangle between the shell and
- * the first data — which is the first impression of the product.
- *
- * Deliberately shell-shaped rather than a spinner: H1 block, three path cards
- * and three row bars at the geometry the hub is about to occupy, so the arriving
- * content settles into the reserved boxes instead of pushing them around.
- */
 export default function AppLoading(): ReactElement {
   return (
     <div className="measure-list flex flex-col gap-6" role="status" aria-label="Cargando">
