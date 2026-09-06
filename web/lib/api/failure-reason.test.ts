@@ -126,14 +126,15 @@ test('observer-target failure explains how to regenerate without leaking the con
   assert.doesNotMatch(result.message, /console\.log|seg-012|C:\\/);
 });
 
-test('observer-target drift is a retryable capture flake, not a dead pipeline', () => {
+test('observer-target drift offers recapture without ruling out a pipeline bug', () => {
   const reason =
     'recorder failed: capture POV verification failed: observer target 76561198307734468 drifted from 76561198386265483 during seg-001; check CS2 console.log';
   const result = parseFailureReason(reason, { fullDemo: true });
   assert.equal(result.kind, 'capture-flake');
   assert.equal(result.retryCanHelp, true);
   assert.match(result.message, /perdió el POV/);
-  assert.match(result.message, /No es un error de pipeline/);
+  assert.doesNotMatch(result.message, /No es un error de pipeline/);
+  assert.match(result.message, /diagnóstico/);
   assert.doesNotMatch(result.message, /console\.log|76561198307734468|seg-001/);
   assert.equal(failedStripLabel(reason, { fullDemo: true }), FAILED_STRIP_LABEL.capture);
 });
@@ -145,6 +146,33 @@ test('observer mismatch before record-start is the same capture flake', () => {
   assert.equal(result.kind, 'capture-flake');
   assert.equal(result.retryCanHelp, true);
   assert.equal(failedStripLabel(reason), FAILED_STRIP_LABEL.capture);
+});
+
+test('Full Demo respawn acquisition requires a fresh plan, not the same retry', () => {
+  for (const reason of [
+    'recorder failed: observer target 76561199440218013 does not match 76561198386265483 before record-start-round-004',
+    'recorder failed: pov_acquisition_failed: observer did not settle for round-004 after 600 frames',
+    'full_demo_plan_stale: Full Demo requires a new plan',
+  ]) {
+    const result = parseFailureReason(reason, { fullDemo: true });
+    assert.equal(result.kind, 'pov-acquisition');
+    assert.equal(result.retryCanHelp, false);
+    assert.match(result.message, /preparar y aprobar/);
+    assert.doesNotMatch(result.message, /765611|600 frames|round-004|No es un error de pipeline/);
+    assert.equal(failedStripLabel(reason, { fullDemo: true }), FAILED_STRIP_LABEL.capture);
+  }
+});
+
+test('a legacy failed Full Demo needs reapproval even when its last error was generic', () => {
+  const result = parseFailureReason('capture failed', { fullDemo: true, fullDemoPlannerVersion: 'full-demo-editorial-v1' });
+  assert.equal(result.kind, 'pov-acquisition');
+  assert.equal(result.retryCanHelp, false);
+});
+
+test('native unknown-mode wording remains actionable and sanitized', () => {
+  const result = parseFailureReason('pov_contract_failed: observer target or first-person mode unknown during round-003', { fullDemo: true });
+  assert.equal(result.kind, 'pov-verification');
+  assert.equal(result.retryCanHelp, false);
 });
 
 test('generic failures keep the pipeline-dead strip label', () => {

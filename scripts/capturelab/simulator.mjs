@@ -35,6 +35,7 @@ export function validateScenario(raw) {
   requireInteger(scenario.tick_step ?? 1, 'scenario.tick_step', 1);
   requireInteger(scenario.max_frames ?? 10000, 'scenario.max_frames', 1);
   requireInteger(scenario.seek_delay_frames ?? 0, 'scenario.seek_delay_frames', 0);
+  requireInteger(scenario.pov_lock_delay_frames ?? 0, 'scenario.pov_lock_delay_frames', 0);
   if (scenario.tick_overrides !== undefined && !Array.isArray(scenario.tick_overrides)) {
     throw new Error('scenario.tick_overrides must be an array');
   }
@@ -73,12 +74,14 @@ function stateAtTick(scenario, tick) {
       ? scenario.target_steamid
       : scenario.default_observed_steamid,
     targetPresent: scenario.target_present !== false,
+    targetAlive: scenario.target_alive !== false,
     observerMode: scenario.observer_mode ?? 2,
   };
   for (const override of scenario.observer_overrides ?? []) {
     if (tick < override.from_tick || tick > override.to_tick) continue;
     if (Object.hasOwn(override, 'observed_steamid')) state.observedSteamID = override.observed_steamid;
     if (Object.hasOwn(override, 'target_present')) state.targetPresent = override.target_present;
+    if (Object.hasOwn(override, 'target_alive')) state.targetAlive = override.target_alive;
     if (Object.hasOwn(override, 'observer_mode')) state.observerMode = override.observer_mode;
   }
   return state;
@@ -140,6 +143,10 @@ export async function runSimulation(scriptSource, rawScenario) {
   let tick = scenario.start_tick ?? 0;
   let playing = scenario.start_playing !== false;
   let pendingSeek = null;
+  let paused = false;
+  let pendingPOV = null;
+  let simulatedObserved = scenario.default_observed_steamid ?? scenario.target_steamid;
+  let timescale = 1;
   let disconnected = false;
   let quit = false;
   let disconnectFrame = null;
@@ -158,7 +165,22 @@ export async function runSimulation(scriptSource, rawScenario) {
       if (Number.isInteger(target) && scenario.seek_behavior !== 'never' && pendingSeek?.target !== target) {
         pendingSeek = { target, remaining: scenario.seek_delay_frames ?? 0 };
       }
+    } else if (command === 'demo_pause') {
+      if (!scenario.refuse_pause) paused = true;
+    } else if (command === 'demo_resume') {
+      paused = false;
+    } else if (command.startsWith('demo_timescale ')) {
+      timescale = Number(command.slice('demo_timescale '.length));
+    } else if (command.startsWith('spec_player ') && scenario.simulate_pov_lock) {
+      const state = stateAtTick(scenario, tick);
+      const index = Number(command.slice('spec_player '.length));
+      const controller = currentEntities().entities.get(index);
+      if (state.targetAlive && state.targetPresent && !scenario.refuse_pov_lock && pendingPOV === null &&
+          controller?.getSteamId?.().toString() === scenario.target_steamid) {
+        pendingPOV = { remaining: scenario.pov_lock_delay_frames ?? 1 };
+      }
     } else if (command === 'mirv_streams record start') {
+      if (paused) integrityFailures.push(`record start at frame ${frame} while demo is paused`);
       const marker = [...events].reverse().find((event) =>
         event.frame === frame && event.kind === 'message' && /\[zackvideo\] record-start-([^:]+):/.test(event.value));
       const id = marker?.value.match(/\[zackvideo\] record-start-([^:]+):/)?.[1] ?? '';
@@ -194,6 +216,13 @@ export async function runSimulation(scriptSource, rawScenario) {
 
   function currentEntities() {
     const state = stateAtTick(scenario, tick);
+    if (scenario.simulate_pov_lock) {
+      state.observedSteamID = simulatedObserved;
+      // Explicit visual faults still override command-driven acquisition.
+      for (const span of scenario.observer_overrides ?? []) {
+        if (tick >= span.from_tick && tick <= span.to_tick && Object.hasOwn(span, 'observed_steamid')) state.observedSteamID = span.observed_steamid;
+      }
+    }
     const localController = {
       isPlayerController: () => true,
       isPlayerPawn: () => false,
@@ -271,12 +300,17 @@ export async function runSimulation(scriptSource, rawScenario) {
     ...(scenario.cvars ?? {}),
   }));
   for (const name of scenario.missing_cvars ?? []) cvarValues.delete(name);
+  const initialCvars = new Map(cvarValues);
   const cvarNames = [...cvarValues.keys()];
   class AdvancedfxCVar {
     static getIndexFromName(name) { const index = cvarNames.indexOf(name); return index < 0 ? undefined : index; }
     constructor(index) { if (!cvarNames[index]) throw new Error('cvar unavailable'); this.name = cvarNames[index]; }
     get value() { return cvarValues.get(this.name); }
-    set value(value) { if (!(scenario.refuse_cvar_writes ?? []).includes(this.name)) cvarValues.set(this.name, value); }
+    set value(value) {
+      if ((scenario.refuse_cvar_writes ?? []).includes(this.name)) return;
+      if ((scenario.refuse_cvar_restores ?? []).includes(this.name) && value === initialCvars.get(this.name)) return;
+      cvarValues.set(this.name, value);
+    }
   }
   const context = vm.createContext({ mirv, AdvancedfxCVar: scenario.cvar_api === false ? undefined : AdvancedfxCVar, console: Object.freeze({ log() {}, warn() {}, error() {} }) }, {
     name: `cliphub-capturelab-${scenario.name}`,
@@ -290,6 +324,16 @@ export async function runSimulation(scriptSource, rawScenario) {
   const tickOverrides = new Map((scenario.tick_overrides ?? []).map(({ frame, tick }) => [frame, tick]));
   for (frame = 1; frame <= maxFrames && !quit; frame++) {
     if (tickOverrides.has(frame)) tick = tickOverrides.get(frame);
+    if (scenario.simulate_pov_lock) {
+      const state = stateAtTick(scenario, tick);
+      if (!state.targetAlive || !state.targetPresent) {
+        simulatedObserved = scenario.dead_observed_steamid ?? null;
+        pendingPOV = null;
+      } else if (pendingPOV !== null && --pendingPOV.remaining <= 0) {
+        simulatedObserved = scenario.target_steamid;
+        pendingPOV = null;
+      }
+    }
     for (const callback of [...callbacks.values()]) callback({ isBefore: scenario.frame_stage === 'render-before', curStage: 12 });
     if (pendingSeek) {
       if (pendingSeek.remaining <= 0) {
@@ -298,8 +342,8 @@ export async function runSimulation(scriptSource, rawScenario) {
       } else {
         pendingSeek.remaining--;
       }
-    } else if (playing) {
-      tick += scenario.tick_step ?? 1;
+    } else if (playing && !paused) {
+      tick += (scenario.tick_step ?? 1) * (scenario.simulate_timescale && openSegments.length === 0 ? timescale : 1);
     }
     if (playing && scenario.demo_end_tick !== undefined && tick > scenario.demo_end_tick) {
       playing = false;
@@ -340,6 +384,7 @@ export async function runSimulation(scriptSource, rawScenario) {
     verified_marker: verified,
     failed_marker: failed,
     disconnected,
+    paused,
     quit,
     disconnect_frame: disconnectFrame,
     quit_frame: quitFrame,

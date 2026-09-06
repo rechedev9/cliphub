@@ -8,7 +8,7 @@ import type { Match, Play } from '@/lib/api/types';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
+  approveFullDemo, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoDocument, type FullDemoOptions, type FullDemoRound,
 } from '@/lib/full-demo-plan';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,14 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
         const draft: unknown = raw ? JSON.parse(raw) : null;
         if (isFullDemoOptions(draft)) initial = draft;
       } catch { /* The durable server plan remains available when local drafts are unavailable. */ }
+      initial = fixedFullDemoFreeze(initial);
+      if (loaded.document) {
+        const saved = loaded.document;
+        initial.editorial.manual_ranges = initial.editorial.manual_ranges.map((range) => {
+          const round = saved.rounds.find((round) => round.round_id === range.round_id);
+          return round ? { ...range, start_tick: round.live_start_tick - 2 * saved.clock.tick_rate } : range;
+        });
+      }
       setDocument(loaded.document); setOptions(initial); setBusy(null);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
@@ -55,6 +63,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   }, [matchId, draftKey, loadAttempt]);
 
   function change(next: FullDemoOptions): void {
+    next = fixedFullDemoFreeze(next);
     setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { /* Saving the server plan is still explicit and durable. */ }
   }
@@ -138,16 +147,12 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
           <section className="space-y-4 border-t border-border-subtle pt-4">
             <div>
               <h3 className="font-display text-body font-semibold uppercase text-fg-1">Rondas</h3>
-              <p className="mt-1 text-body-sm text-fg-2">El plan conserva también las rondas sin bajas. Los límites se obtienen de eventos de la demo.</p>
+              <p className="mt-1 text-body-sm text-fg-2">Freeze fijo: los últimos 2 segundos antes de jugar en todas las rondas, sin ampliarlo por voces. El calentamiento de cámara queda fuera del vídeo.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <FullDemoNumber label="Freeze antes de jugar (s)" value={options.editorial.freeze_seconds} max={20} step={0.5} onChange={(freeze_seconds) => change({ ...options, editorial: { ...options.editorial, freeze_seconds } })} />
-              <FullDemoNumber label="Freeze máximo con voces (s)" value={options.editorial.max_freeze_seconds} max={60} step={0.5} onChange={(max_freeze_seconds) => change({ ...options, editorial: { ...options.editorial, max_freeze_seconds } })} />
-              <FullDemoNumber label="Contexto de las voces (s)" value={options.editorial.voice_context_seconds} max={3} step={0.1} onChange={(voice_context_seconds) => change({ ...options, editorial: { ...options.editorial, voice_context_seconds } })} />
               <FullDemoNumber label="Cola tras morir (s)" value={options.editorial.death_tail_seconds} max={3} step={0.5} onChange={(death_tail_seconds) => change({ ...options, editorial: { ...options.editorial, death_tail_seconds } })} />
               <FullDemoNumber label="Cola si sobrevives (s)" value={options.editorial.round_tail_seconds} max={2} step={0.5} onChange={(round_tail_seconds) => change({ ...options, editorial: { ...options.editorial, round_tail_seconds } })} />
             </div>
-            <FullDemoToggle label="Conservar voces durante el freeze" value={options.editorial.keep_freeze_voice} onChange={(keep_freeze_voice) => change({ ...options, editorial: { ...options.editorial, keep_freeze_voice } })} />
             <FullDemoToggle label="Permitir acortar solo las colas si se pierde la primera persona" value={options.editorial.allow_safe_tail_trim} onChange={(allow_safe_tail_trim) => change({ ...options, editorial: { ...options.editorial, allow_safe_tail_trim } })} />
             <div className="flex items-center gap-2"><StatusTag tone="primary">{rounds.length} rondas</StatusTag><span className="text-meta text-fg-3">{dirty ? 'Cambios pendientes de calcular' : 'Plan guardado'}</span></div>
             {rounds.map((round) => <RoundRow key={round.round_id} round={round} options={options} tickRate={document?.clock.tick_rate ?? 64} voice={document?.voice} onChange={change} />)}
@@ -181,7 +186,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
 
 function RoundRow({ round, options, tickRate, voice, onChange }: { round: FullDemoRound; options: FullDemoOptions; tickRate: number; voice: FullDemoDocument['voice'] | undefined; onChange: (options: FullDemoOptions) => void }): ReactNode {
   const custom = options.editorial.manual_ranges.find((range) => range.round_id === round.round_id);
-  const start = custom?.start_tick ?? round.requested_start_tick;
+  const start = round.live_start_tick - 2 * tickRate;
   const end = custom?.end_tick ?? round.requested_end_tick;
   const audible = voice?.activity?.some((interval) => interval.start < end && interval.end > start) ?? false;
   let voiceLabel = 'no disponibles; revisa el informe de voz';
@@ -198,7 +203,7 @@ function RoundRow({ round, options, tickRate, voice, onChange }: { round: FullDe
     <p className="mb-3 text-meta text-fg-3">Inicio: {round.start_reason} · final: {round.end_reason}. El intervalo debe quedar dentro de los límites de la ronda.</p>
     <p className="mb-3 text-meta text-fg-3">Voces de equipo: {voiceLabel}.</p>
     <div className="grid gap-3 sm:grid-cols-2">
-      <FullDemoNumber label={`R${round.source_round_number}: tick inicial`} value={start} onChange={(value) => range(value, end)} />
+      <p className="text-body-sm text-fg-2">Inicio fijo: tick {start} · 2 segundos de freeze</p>
       <FullDemoNumber label={`R${round.source_round_number}: tick final`} value={end} onChange={(value) => range(start, value)} />
     </div>
     {custom ? <Button variant="ghost" size="sm" onClick={() => onChange({ ...options, editorial: { ...options.editorial, manual_ranges: options.editorial.manual_ranges.filter((item) => item.round_id !== round.round_id) } })}>Restablecer intervalo automático</Button> : null}

@@ -2,6 +2,8 @@ import type { EditConfig } from './api/types.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
+export const FULL_DEMO_PLANNER_VERSION = 'full-demo-editorial-v2';
+export const FULL_DEMO_FREEZE_SECONDS = 2;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -67,6 +69,11 @@ const optionsShape = object({
 });
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
+/** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
+export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
+  return { ...options, editorial: { ...options.editorial, freeze_seconds: FULL_DEMO_FREEZE_SECONDS, keep_freeze_voice: false, voice_context_seconds: 0, max_freeze_seconds: FULL_DEMO_FREEZE_SECONDS } };
+}
+
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (!optionsShape(value)) return false;
   const { editorial, sponsor, capture } = value;
@@ -89,7 +96,7 @@ const round = object({
   kills: nullable(array(record, 1000)), utility: nullable(array(record, 1000)),
 });
 const documentShape = object({
-  schema_version: oneOf('1.0'), plan_id: uuid, revision: integer, plan_hash: hash, planner_version: oneOf('full-demo-editorial-v1'),
+  schema_version: oneOf('1.0'), plan_id: uuid, revision: integer, plan_hash: hash, planner_version: oneOf('full-demo-editorial-v1', FULL_DEMO_PLANNER_VERSION),
   crosshairs: nullable(array(object({ tick: integer, code: string }), 4096)),
   input: object({ demo_sha256: hash, target_steamid64: (value): value is string => typeof value === 'string' && /^\d{17}$/.test(value), facts_ref: string, facts_hash: hash }),
   clock: object({ source_clock_kind: oneOf('ingame_tick'), tick_rate: number(1, 1024), output_fps: number(60, 60), audio_sample_rate: number(48000, 48000) }),
@@ -122,10 +129,13 @@ function canonicalJSON(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 export function fullDemoApprovalKey(document: FullDemoDocument, options: FullDemoOptions): string | null {
-  return fullDemoOptionsKey(document.options) === fullDemoOptionsKey(options) && document.rounds.length > 0
+  return document.planner_version === FULL_DEMO_PLANNER_VERSION
+    && fullDemoOptionsKey(document.options) === fullDemoOptionsKey(fixedFullDemoFreeze(document.options))
+    && fullDemoOptionsKey(document.options) === fullDemoOptionsKey(options) && document.rounds.length > 0
     && (document.timeline?.length ?? 0) > 0 && (document.blockers?.length ?? 0) === 0 ? document.plan_hash : null;
 }
 export function approveFullDemo(document: FullDemoDocument, timestamp = new Date().toISOString()): FullDemoSnapshot {
+  if (document.planner_version !== FULL_DEMO_PLANNER_VERSION || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(fixedFullDemoFreeze(document.options))) throw new Error('Vuelve a preparar Full Demo con el freeze fijo de 2 segundos.');
   const snapshot = { document, approval: { approved_plan_hash: document.plan_hash, allow_safe_tail_trim: document.options.editorial.allow_safe_tail_trim, timestamp } };
   if (!isFullDemoSnapshot(snapshot)) throw new Error('El plan tiene bloqueos o está incompleto.');
   return snapshot;
@@ -156,6 +166,7 @@ export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Pro
   return value;
 }
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions): Promise<FullDemoDocument> {
+  options = fixedFullDemoFreeze(options);
   if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, audio y sponsor.');
   const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }) }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan Full Demo incompatible.');

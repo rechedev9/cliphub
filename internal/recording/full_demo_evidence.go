@@ -7,12 +7,17 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/sharecode"
 )
+
+// CS2 -condebug prefixes every physical line, including HLAE's wrapped JSON
+// continuations. Strip only this transport envelope, never arbitrary log text.
+var fullDemoConsoleTimestamp = regexp.MustCompile(`^\d{2}/\d{2} \d{2}:\d{2}:\d{2} `)
 
 type CvarValue struct {
 	Name  string          `json:"name"`
@@ -39,9 +44,24 @@ func ReadFullDemoCaptureEvidence(reader io.Reader, token string, plan RecordingP
 	bounded := &io.LimitedReader{R: reader, N: (256 << 20) + 1}
 	scanner := bufio.NewScanner(bounded)
 	scanner.Buffer(make([]byte, 4096), 1<<20)
+	pending := ""
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, prefix) {
+		line := fullDemoConsoleTimestamp.ReplaceAllString(scanner.Text(), "")
+		if strings.HasPrefix(line, prefix) {
+			if pending != "" {
+				return nil, fmt.Errorf("incomplete Full Demo runtime marker before next event")
+			}
+			pending = strings.TrimPrefix(line, prefix)
+		} else if pending != "" {
+			// Preserve whitespace: the console can wrap inside a JSON string.
+			pending += line
+		} else {
+			continue
+		}
+		if len(pending) > 1<<20 {
+			return nil, fmt.Errorf("Full Demo runtime marker exceeds 1 MiB")
+		}
+		if !json.Valid([]byte(pending)) {
 			continue
 		}
 		var event struct {
@@ -53,7 +73,8 @@ func ReadFullDemoCaptureEvidence(reader io.Reader, token string, plan RecordingP
 			Success  bool        `json:"success"`
 			Failures []string    `json:"failures"`
 		}
-		dec := json.NewDecoder(strings.NewReader(strings.TrimPrefix(line, prefix)))
+		dec := json.NewDecoder(strings.NewReader(pending))
+		pending = ""
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&event); err != nil {
 			return nil, fmt.Errorf("decode Full Demo runtime marker: %w", err)
@@ -85,6 +106,9 @@ func ReadFullDemoCaptureEvidence(reader io.Reader, token string, plan RecordingP
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
+	}
+	if pending != "" {
+		return nil, fmt.Errorf("incomplete or malformed Full Demo runtime marker")
 	}
 	if bounded.N == 0 {
 		return nil, fmt.Errorf("full demo console evidence exceeds 256 MiB")

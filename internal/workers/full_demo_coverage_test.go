@@ -17,7 +17,7 @@ import (
 func twoFullDemoFixtureRounds(f *recapplan.Facts, o *recapplan.Options) {
 	o.Editorial.RoundTailSeconds = 1
 	f.Rounds[0].NextStartTick = 1200
-	f.Rounds = append(f.Rounds, recapplan.RoundFacts{ID: "round-002", Number: 2, StartTick: 1200, FreezeEndTick: 1400, RoundEndTick: 1800, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}})
+	f.Rounds = append(f.Rounds, recapplan.RoundFacts{ID: "round-002", Number: 2, StartTick: 1200, FreezeEndTick: 1500, RoundEndTick: 1800, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}})
 }
 
 func TestFullDemoCaptureCoverageReuseAndOrigins(t *testing.T) {
@@ -27,11 +27,10 @@ func TestFullDemoCaptureCoverageReuseAndOrigins(t *testing.T) {
 		missing []string
 	}{
 		{"unchanged", func(_ *recapplan.Facts, _ *recapplan.Options) {}, nil},
-		{"narrower", func(_ *recapplan.Facts, o *recapplan.Options) { o.Editorial.FreezeSeconds = 1 }, nil},
+		{"narrower tail", func(_ *recapplan.Facts, o *recapplan.Options) { o.Editorial.RoundTailSeconds = 0.5 }, nil},
 		{"expand only second round", func(_ *recapplan.Facts, o *recapplan.Options) {
-			o.Editorial.FreezeSeconds = 1
 			o.Editorial.RoundTailSeconds = 2
-			o.Editorial.ManualRanges = []recapplan.ManualRange{{RoundID: "round-001", StartTick: 336, EndTick: 1060}}
+			o.Editorial.ManualRanges = []recapplan.ManualRange{{RoundID: "round-001", StartTick: 272, EndTick: 1060}}
 		}, []string{"round-002"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

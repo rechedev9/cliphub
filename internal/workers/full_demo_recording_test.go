@@ -21,7 +21,7 @@ import (
 func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(*recapplan.Facts, *recapplan.Options)) (recording.RecordingResult, string, string) {
 	t.Helper()
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
-		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 200, FreezeEndTick: 400, RoundEndTick: 1000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
+		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 1000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
 	o := recapplan.DefaultOptions()
 	o.Audio.Music.Enabled, o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Sponsor.Enabled = false, false, false, false
 	o.Capture.Crosshair.AllowCaptureDefault = true

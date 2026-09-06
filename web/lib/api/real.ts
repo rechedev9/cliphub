@@ -9,7 +9,8 @@ import {
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
 import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
-import { MISMATCH_REDRIVE_FAILURE_REASON } from './failure-reason.ts';
+import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
+import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
@@ -611,6 +612,12 @@ export class RealApiClient implements ApiClient {
     // Gone jobs cannot be re-driven; return the latch instead of re-failing.
     const current = this.reels.get(id);
     if (current?.unrecoverable) return { ...current };
+    if (intent.editConfig.fullDemo) {
+      const failure = parseFailureReason(current?.failureReason, { fullDemo: true });
+      if (intent.editConfig.fullDemo.document.planner_version !== FULL_DEMO_PLANNER_VERSION || failure.kind === 'pov-acquisition' || failure.kind === 'pov-verification') {
+        throw new Error('Vuelve a preparar y aprobar Full Demo antes de grabar de nuevo.');
+      }
+    }
 
     this.applyView(intent, { status: 'queued', action: 'none' });
     const latched = this.driveLatch.get(id);

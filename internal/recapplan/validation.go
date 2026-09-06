@@ -336,7 +336,7 @@ func (s Snapshot) Validate() error {
 }
 
 func (d Document) Validate() error {
-	if d.SchemaVersion != DocumentVersion || d.PlannerVersion != PlannerVersion || d.Revision < 1 {
+	if d.SchemaVersion != DocumentVersion || (d.PlannerVersion != PlannerVersion && d.PlannerVersion != LegacyPlannerVersion) || d.Revision < 1 {
 		return fmt.Errorf("unsupported full demo document version")
 	}
 	if _, err := uuid.Parse(d.PlanID); err != nil {

@@ -108,6 +108,12 @@ test.describe('Full POV editorial constructor', () => {
     await expect(page.getByText('R01', { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText('R02', { exact: true })).toBeVisible();
     await expect(page.getByText('0 kills', { exact: true })).toHaveCount(2);
+    await expect(page.getByText(/Freeze fijo: los últimos 2 segundos/)).toBeVisible();
+    await expect(page.getByRole('spinbutton', { name: /Freeze|Contexto de las voces/ })).toHaveCount(0);
+    await expect(page.getByRole('switch', { name: 'Conservar voces durante el freeze' })).toHaveCount(0);
+    await page.locator('summary').filter({ hasText: 'R01' }).click();
+    await expect(page.getByRole('spinbutton', { name: 'R1: tick inicial' })).toHaveCount(0);
+    await expect(page.getByText(/Inicio fijo: tick 128/)).toBeVisible();
     const cta = page.getByRole('button', { name: REC_CTA });
     await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
     await expect(cta).toBeEnabled();

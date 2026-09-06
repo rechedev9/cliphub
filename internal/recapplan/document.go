@@ -7,14 +7,18 @@ import (
 )
 
 const (
-	DocumentVersion = "1.0"
-	ProfileChill    = "full-demo-pov-chill-v1"
-	PlannerVersion  = "full-demo-editorial-v1"
-	CaptureContract = "full-demo-observer-v1"
-	ClockIngame     = "ingame_tick"
-	OutputFPS       = 60
-	SampleRate      = 48000
-	SamplesPerFrame = SampleRate / OutputFPS
+	DocumentVersion      = "1.0"
+	ProfileChill         = "full-demo-pov-chill-v1"
+	PlannerVersion       = "full-demo-editorial-v2"
+	LegacyPlannerVersion = "full-demo-editorial-v1"
+	// Reserve unrecorded freeze after respawn for asynchronous POV acquisition.
+	POVAcquireSeconds  = 2
+	FixedFreezeSeconds = 2
+	CaptureContract    = "full-demo-observer-v1"
+	ClockIngame        = "ingame_tick"
+	OutputFPS          = 60
+	SampleRate         = 48000
+	SamplesPerFrame    = SampleRate / OutputFPS
 )
 
 // Options contains creative decisions only. Facts and resolved media properties
@@ -305,7 +309,7 @@ func DefaultOptions() Options {
 	return Options{
 		ProfileID: ProfileChill, SourceKind: "demo",
 		Capture:   CaptureOptions{HUDProfile: "native-clean-spectator", CameraPolicy: "strict-first-person", Crosshair: CrosshairOptions{Mode: "observed"}, ContractVersion: CaptureContract},
-		Editorial: EditorialOptions{FreezeSeconds: 5, KeepFreezeVoice: true, VoiceContextSeconds: 0.5, MaxFreezeSeconds: 20, DeathTailSeconds: 3, RoundTailSeconds: 2, AllowSafeTailTrim: true, ManualRanges: []ManualRange{}},
+		Editorial: EditorialOptions{FreezeSeconds: FixedFreezeSeconds, KeepFreezeVoice: false, VoiceContextSeconds: 0, MaxFreezeSeconds: FixedFreezeSeconds, DeathTailSeconds: 3, RoundTailSeconds: 2, AllowSafeTailTrim: true, ManualRanges: []ManualRange{}},
 		Audio: AudioOptions{
 			Voice:    VoiceOptions{Enabled: true, Gain: 0.85, TeamPolicy: "same-side-at-packet", Normalization: "bounded-activity-v1", ApprovedFallback: "block"},
 			Game:     GameOptions{Gain: 1},

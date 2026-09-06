@@ -57,6 +57,7 @@ func (h *Handlers) PlanFullDemo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recapplan.Options) (recapplan.Document, error) {
+	options = recapplan.FixedFreezeOptions(options)
 	facts, found, err := recapplan.LoadFacts(h.storage, j.ID)
 	if err != nil {
 		return recapplan.Document{}, err

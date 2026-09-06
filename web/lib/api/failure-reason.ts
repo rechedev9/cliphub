@@ -35,6 +35,7 @@ export type FailureReason = {
     | 'unplayable-start'
     | 'recording-not-reusable'
     | 'pov-verification'
+    | 'pov-acquisition'
     | 'capture-flake'
     | 'render-mismatch'
     | 'generic';
@@ -54,6 +55,7 @@ export const FAILED_STRIP_LABEL = {
 export type FailureContext = {
   /** Full Demo plans are regenerated rather than replayed after a stale POV boundary. */
   fullDemo?: boolean;
+  fullDemoPlannerVersion?: string;
 };
 
 const GENERIC_MESSAGE =
@@ -82,8 +84,11 @@ const POV_VERIFICATION_MESSAGE =
   'ClipHub perdió el POV al terminar una ronda. La demo sigue intacta, pero este plan no es reutilizable: ' +
   'vuelve a preparar la demo para generar sus rondas con el contrato actual.';
 
+const POV_ACQUISITION_MESSAGE =
+  'No se pudo fijar la cámara al jugador antes de grabar la ronda. Vuelve a preparar y aprobar el vídeo largo para reservar tiempo al POV tras reaparecer; reintentar el mismo plan puede repetir el fallo.';
+
 const CAPTURE_FLAKE_MESSAGE =
-  'La cámara perdió el POV un momento durante la captura. No es un error de pipeline: Reintentar vuelve a grabar al jugador elegido.';
+  'La cámara perdió el POV durante la captura. Reintentar vuelve a grabar al jugador elegido; si se repite, comparte el diagnóstico desde Ajustes.';
 
 const OBSERVER_DRIFT_PHRASE = 'drifted from';
 const OBSERVER_MISMATCH_PHRASE = 'does not match';
@@ -129,11 +134,23 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
     };
   }
 
+  if (context.fullDemo && context.fullDemoPlannerVersion === 'full-demo-editorial-v1') {
+    return { kind: 'pov-acquisition', message: POV_ACQUISITION_MESSAGE, retryCanHelp: false };
+  }
+
   if (requiresRecapture(reason)) {
     return { kind: 'recording-not-reusable', message: RECORDING_NOT_REUSABLE_MESSAGE, retryCanHelp: true };
   }
 
-  if (context.fullDemo && reason.includes('observer target remained unknown during')) {
+  if (context.fullDemo && (
+    reason.includes('pov_acquisition_failed:') ||
+    reason.includes('full_demo_plan_stale') ||
+    (reason.includes(OBSERVER_TARGET_PHRASE) && reason.includes('before record-start-'))
+  )) {
+    return { kind: 'pov-acquisition', message: POV_ACQUISITION_MESSAGE, retryCanHelp: false };
+  }
+
+  if (context.fullDemo && (reason.includes('observer target remained unknown during') || reason.includes('observer target or first-person mode unknown during'))) {
     return { kind: 'pov-verification', message: POV_VERIFICATION_MESSAGE, retryCanHelp: false };
   }
 
@@ -150,7 +167,7 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
 /** Library strip label: capture flakes are not a dead pipeline. */
 export function failedStripLabel(reason: string | undefined, context: FailureContext = {}): string {
   const kind = parseFailureReason(reason, context).kind;
-  if (kind === 'pov-verification' || kind === 'capture-flake') {
+  if (kind === 'pov-verification' || kind === 'pov-acquisition' || kind === 'capture-flake') {
     return FAILED_STRIP_LABEL.capture;
   }
   return FAILED_STRIP_LABEL.pipeline;

@@ -16,7 +16,7 @@ func fullDemoCaptureFixture(t *testing.T) RecordingPlan {
 	t.Helper()
 	death := 700
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198377256168", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
-		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 200, FreezeEndTick: 400, RoundEndTick: 800, DeathTick: &death, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
+		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 800, DeathTick: &death, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
 	o := recapplan.DefaultOptions()
 	o.Audio.Voice.Enabled, o.Audio.Music.Enabled, o.Sponsor.Enabled, o.Editorial.KeepFreezeVoice = false, false, false, false
 	o.Capture.Crosshair.AllowCaptureDefault = true
@@ -46,6 +46,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		override      map[string]any
 		missing       []string
 		refuse        []string
+		refuseRestore []string
 		trim          bool
 		wantEnd       int
 		providedCode  bool
@@ -59,6 +60,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "unapproved death tail trim", outcome: "failed", trim: false, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
 		{name: "missing voice mute cvar", outcome: "failed", trim: true, missing: []string{"voice_modenable"}},
 		{name: "voice mute readback mismatch", outcome: "failed", trim: true, refuse: []string{"snd_voipvolume"}},
+		{name: "restoration must precede success attestation", outcome: "failed", trim: true, refuseRestore: []string{"snd_voipvolume"}},
 		{name: "provided crosshair values", outcome: "verified", trim: true, wantEnd: 892, providedCode: true},
 		{name: "crosshair readback mismatch", outcome: "failed", trim: true, refuse: []string{"cl_crosshairgap"}, providedCode: true},
 		{name: "missing crosshair cvar", outcome: "failed", trim: true, missing: []string{"cl_fixedcrosshairgap"}, providedCode: true},
@@ -81,7 +83,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 			if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 				t.Fatal(err)
 			}
-			scenario := map[string]any{"schema_version": 1, "name": tc.name, "target_steamid": p.TargetSteamID64, "start_tick": 0, "tick_step": 1, "max_frames": 1400, "frame_stage": "render-before", "missing_cvars": tc.missing, "refuse_cvar_writes": tc.refuse, "expect": map[string]any{"outcome": tc.outcome, "soft_quit": true}}
+			scenario := map[string]any{"schema_version": 1, "name": tc.name, "target_steamid": p.TargetSteamID64, "start_tick": 0, "tick_step": 1, "max_frames": 1400, "frame_stage": "render-before", "missing_cvars": tc.missing, "refuse_cvar_writes": tc.refuse, "refuse_cvar_restores": tc.refuseRestore, "expect": map[string]any{"outcome": tc.outcome, "soft_quit": true}}
 			if tc.override != nil {
 				scenario["observer_overrides"] = []any{tc.override}
 			}
@@ -117,20 +119,43 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 			}
 			evidence, err := ReadFullDemoCaptureEvidence(strings.NewReader(log.String()), token, p)
 			if tc.outcome == "verified" {
+				for _, width := range []int{100, 254} {
+					// Native HLAE wraps JSON in the middle of keys/strings; CS2
+					// prefixes EVERY continuation with its console timestamp.
+					var native strings.Builder
+					for _, line := range strings.Split(strings.TrimSuffix(log.String(), "\n"), "\n") {
+						for len(line) > width {
+							native.WriteString("09/06 17:58:41 " + line[:width] + "\r\n")
+							line = line[width:]
+						}
+						native.WriteString("09/06 17:58:41 " + line + "\r\n")
+					}
+					if _, nativeErr := ReadFullDemoCaptureEvidence(strings.NewReader(native.String()), token, p); nativeErr != nil {
+						t.Fatalf("native console wrapping at %d: %v", width, nativeErr)
+					}
+				}
+				if strings.Index(log.String(), `"kind":"settings_restored"`) > strings.Index(log.String(), "ZACKVIDEO_CAPTURE_VERIFIED") {
+					t.Fatal("success was attested before settings restoration")
+				}
 				if err != nil {
 					t.Fatal(err)
 				}
 				if evidence.CertifiedEnds["round-001"] != tc.wantEnd {
 					t.Fatalf("certified end=%v", evidence.CertifiedEnds)
 				}
-				if EffectiveRecordStartTick(p.Segments[0], 64) != 200 {
+				if EffectiveRecordStartTick(p.Segments[0], 64) != p.FullDemo.Rounds[0].RequestedStartTick {
 					t.Fatal("camera warmup changed editorial start")
 				}
 				if result.FinalCvars["snd_voipvolume"] != 0.63 || result.FinalCvars["tv_listen_voice_indices"] != float64(7) || result.FinalCvars["cl_show_observer_crosshair"] != float64(1) {
 					t.Fatal("restoration guessed defaults instead of restoring actual values")
 				}
-			} else if err == nil {
-				t.Fatal("failed capture produced reusable evidence")
+			} else {
+				if err == nil {
+					t.Fatal("failed capture produced reusable evidence")
+				}
+				if strings.Contains(log.String(), "ZACKVIDEO_CAPTURE_VERIFIED") {
+					t.Fatal("failure published a success attestation")
+				}
 			}
 		})
 	}
