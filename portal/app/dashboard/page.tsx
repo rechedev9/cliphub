@@ -64,16 +64,22 @@ export default async function DashboardPage() {
               request.failureReason && (
                 <p className="error-text">{request.failureReason}</p>
               )}
-            {request.status === "done" && request.finalVideoPath && (
-              <p>
-                <a
-                  className="button"
-                  href={`/api/requests/${request.id}/download`}
-                >
-                  Descargar vídeo
-                </a>
-              </p>
-            )}
+            {request.status === "done" &&
+              (request.finalVideoPath ? (
+                <p>
+                  <a
+                    className="button"
+                    href={`/api/requests/${request.id}/download`}
+                  >
+                    Descargar vídeo
+                  </a>
+                </p>
+              ) : (
+                <p className="request-note">
+                  El vídeo ya no está disponible: los archivos entregados se
+                  borran pasado el plazo de conservación.
+                </p>
+              ))}
           </li>
         ))}
       </ul>

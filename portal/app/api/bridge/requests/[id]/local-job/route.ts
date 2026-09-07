@@ -1,3 +1,5 @@
+import { rm } from "node:fs/promises";
+
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -34,13 +36,28 @@ export async function POST(
     .update(requests)
     .set({ localJobId, updatedAt: new Date() })
     .where(and(eq(requests.id, id), eq(requests.status, "processing")))
-    .returning({ id: requests.id });
+    .returning({ id: requests.id, demoPath: requests.demoPath });
 
-  if (updated.length === 0) {
+  const row = updated[0];
+  if (!row) {
     return NextResponse.json(
       { error: "request not found or not in processing" },
       { status: 409 },
     );
+  }
+
+  // This report is the bridge confirming the demo is durably stored on the
+  // owner's machine, so the portal's copy has no reader left. Dropping it
+  // here rather than at retention time keeps one .dem, not two, and is what
+  // stops a public upload queue from filling the VPS disk. Setting localJobId
+  // also takes the request out of the stale-claim reclaim query, so nothing
+  // will look for this file again.
+  if (row.demoPath) {
+    await rm(row.demoPath, { force: true });
+    await db
+      .update(requests)
+      .set({ demoPath: null })
+      .where(eq(requests.id, id));
   }
 
   return NextResponse.json({ ok: true });
