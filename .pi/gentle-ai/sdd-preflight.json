@@ -1,0 +1,8 @@
+{
+  "executionMode": "interactive",
+  "artifactStore": "engram",
+  "chainedPrStrategy": "auto-chain",
+  "reviewBudgetLines": 1500,
+  "engramAvailable": true,
+  "prompted": true
+}

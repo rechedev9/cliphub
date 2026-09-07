@@ -202,21 +202,41 @@ test.describe('clips hub', () => {
   });
 
   test('long player names wrap inside match metadata without covering neighbouring controls', async ({ page }) => {
-    const player = 'W'.repeat(32);
+    // One unbroken 64-char token: wider than the 160px metadata column at every
+    // viewport, so only real soft-wrapping keeps it inside its own box.
+    const player = 'W'.repeat(64);
     await page.route('**/api/demos/jobs', (route) => route.fulfill({ json: { jobs: [{
       jobId: JOB_ID, status: 'parsed', createdAt: '2026-09-01T10:00:00Z',
-      summary: { match: { map: 'de_mirage' }, target: { steamid64: TARGET.steamid64, name: player } },
+      summary: { match: { map: 'de_mirage' }, target: { steamid64: TARGET.steamid64, name: player, kills: 31, deaths: 17 } },
     }] } }));
     await page.route('**/api/streams', (route) => route.fulfill({ json: { jobs: [] } }));
     await gotoStudio(page, '/clips');
     const row = page.locator(`#partida-${JOB_ID}`);
     const metadata = row.getByText(player, { exact: false });
     await expect(metadata).toBeVisible();
-    for (const width of [390, 1024, 1440]) {
+    const create = row.getByRole('link', { name: /Crear/ });
+    const remove = row.getByRole('button', { name: /^Borrar / });
+    for (const width of [390, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await row.scrollIntoViewIfNeeded();
       await expect.poll(() => metadata.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
-      await expect(row.getByRole('link', { name: /Crear/ })).toBeInViewport();
+      await expect(create).toBeInViewport();
+      // Geometry, not classes: the metadata box stays inside the row and never
+      // overlaps the row's controls.
+      const [box, rowBox, createBox, removeBox] = await Promise.all([
+        metadata.boundingBox(), row.boundingBox(), create.boundingBox(), remove.boundingBox(),
+      ]);
+      expect(box, `metadata box at ${width}px`).not.toBeNull();
+      expect(rowBox, `row box at ${width}px`).not.toBeNull();
+      if (box === null || rowBox === null) return;
+      expect(box.x + box.width, `metadata right edge at ${width}px`).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+      for (const [label, other] of [['create', createBox], ['delete', removeBox]] as const) {
+        expect(other, `${label} box at ${width}px`).not.toBeNull();
+        if (other === null) return;
+        const overlaps = box.x < other.x + other.width - 1 && other.x < box.x + box.width - 1
+          && box.y < other.y + other.height - 1 && other.y < box.y + box.height - 1;
+        expect(overlaps, `metadata overlaps ${label} at ${width}px`).toBe(false);
+      }
     }
   });
 
