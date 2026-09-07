@@ -22,6 +22,17 @@ COPY --from=builder /build/.next/standalone ./
 COPY --from=builder /build/.next/static ./.next/static
 COPY --from=builder /build/db/migrations ./db/migrations
 
+# libsql resolves its platform-specific native binding through a runtime
+# require that Next's file tracer cannot follow, so the traced bundle ships
+# libsql itself but not @libsql/linux-x64-musl, and the server dies on boot.
+# Restoring the real dependency tree is what puts the binding back.
+COPY --from=builder /build/node_modules/.pnpm ./node_modules/.pnpm
+
+# Docker initializes a fresh named volume from the image directory it covers,
+# ownership included. Creating these as node: here is what lets the unprivileged
+# process write to them; without it SQLite fails to open with CANTOPEN.
+RUN mkdir -p /data /uploads && chown node:node /data /uploads
+
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]
