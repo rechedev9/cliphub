@@ -1,14 +1,10 @@
 package cloudbridge
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/job"
@@ -27,25 +23,22 @@ type Admitter interface {
 
 // Poller periodically claims one approved ClipHub Portal request at a time,
 // admits its demo into the local pipeline, and reports the resulting local
-// Job id back. It only ever makes outbound HTTP calls.
+// Job id back. One at a time is deliberate: the capture lane can only drive
+// one cs2.exe anyway.
 type Poller struct {
-	baseURL    string
-	token      string
-	httpClient *http.Client
-	admit      Admitter
-	state      *State
-	interval   time.Duration
+	client   *client
+	admit    Admitter
+	state    *State
+	interval time.Duration
 }
 
 // NewPoller builds a Poller against a running ClipHub Portal deployment.
 func NewPoller(baseURL, token string, admit Admitter, state *State) *Poller {
 	return &Poller{
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		token:      token,
-		httpClient: &http.Client{Timeout: 60 * time.Second},
-		admit:      admit,
-		state:      state,
-		interval:   DefaultInterval,
+		client:   newClient(baseURL, token),
+		admit:    admit,
+		state:    state,
+		interval: DefaultInterval,
 	}
 }
 
@@ -73,7 +66,7 @@ func (p *Poller) tick(ctx context.Context) {
 		return
 	}
 
-	claimed, ok, err := p.claim(ctx)
+	claimed, ok, err := p.client.claim(ctx)
 	if err != nil {
 		log.Printf("cloudbridge: claim: %v", err)
 		return
@@ -85,7 +78,9 @@ func (p *Poller) tick(ctx context.Context) {
 	log.Printf("cloudbridge: claimed request %s (%s)", claimed.ID, claimed.DemoOriginalName)
 	if err := p.admitClaimed(ctx, claimed); err != nil {
 		log.Printf("cloudbridge: admit %s: %v", claimed.ID, err)
-		p.reportFailure(ctx, claimed.ID, err.Error())
+		if reportErr := p.client.reportFailure(ctx, claimed.ID, err.Error()); reportErr != nil {
+			log.Printf("cloudbridge: report failure for %s: %v", claimed.ID, reportErr)
+		}
 	}
 }
 
@@ -98,11 +93,12 @@ func (p *Poller) reconcile(ctx context.Context) error {
 		if tr.LocalJobReported {
 			continue
 		}
-		if err := p.reportLocalJob(ctx, tr.CloudRequestID, tr.LocalJobID); err != nil {
+		if err := p.client.reportLocalJob(ctx, tr.CloudRequestID, tr.LocalJobID); err != nil {
 			return fmt.Errorf("report local job for %s: %w", tr.CloudRequestID, err)
 		}
-		tr.LocalJobReported = true
-		if err := p.state.Upsert(tr); err != nil {
+		if err := p.state.Update(tr.CloudRequestID, func(entry *TrackedRequest) {
+			entry.LocalJobReported = true
+		}); err != nil {
 			return fmt.Errorf("persist reconciled state for %s: %w", tr.CloudRequestID, err)
 		}
 	}
@@ -110,7 +106,7 @@ func (p *Poller) reconcile(ctx context.Context) error {
 }
 
 func (p *Poller) admitClaimed(ctx context.Context, claimed claimedRequest) error {
-	demo, err := p.downloadDemo(ctx, claimed.ID)
+	demo, err := p.client.downloadDemo(ctx, claimed.ID)
 	if err != nil {
 		return fmt.Errorf("download demo: %w", err)
 	}
@@ -122,110 +118,20 @@ func (p *Poller) admitClaimed(ctx context.Context, claimed claimedRequest) error
 		return fmt.Errorf("admit: %w", err)
 	}
 
-	tr := &TrackedRequest{CloudRequestID: claimed.ID, LocalJobID: j.ID.String()}
-	if err := p.state.Upsert(tr); err != nil {
+	if err := p.state.Insert(TrackedRequest{
+		CloudRequestID: claimed.ID,
+		LocalJobID:     j.ID.String(),
+	}); err != nil {
 		return fmt.Errorf("persist tracking state: %w", err)
 	}
 
-	if err := p.reportLocalJob(ctx, claimed.ID, j.ID.String()); err != nil {
+	if err := p.client.reportLocalJob(ctx, claimed.ID, j.ID.String()); err != nil {
 		// Not fatal: the local Job exists and is durably tracked, so the next
 		// tick's reconcile step retries this report before claiming more work.
 		log.Printf("cloudbridge: report local-job for %s (will retry): %v", claimed.ID, err)
 		return nil
 	}
-	tr.LocalJobReported = true
-	return p.state.Upsert(tr)
-}
-
-type claimedRequest struct {
-	ID               string `json:"id"`
-	Note             string `json:"note"`
-	DemoOriginalName string `json:"demoOriginalName"`
-	SubmitterLabel   string `json:"submitterLabel"`
-}
-
-type claimResponse struct {
-	Claimed bool `json:"claimed"`
-	claimedRequest
-}
-
-func (p *Poller) claim(ctx context.Context) (claimedRequest, bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/bridge/claim", nil)
-	if err != nil {
-		return claimedRequest{}, false, err
-	}
-	p.authorize(req)
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return claimedRequest{}, false, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return claimedRequest{}, false, fmt.Errorf("unexpected status %d", resp.StatusCode)
-	}
-	var out claimResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return claimedRequest{}, false, fmt.Errorf("decode response: %w", err)
-	}
-	return out.claimedRequest, out.Claimed, nil
-}
-
-func (p *Poller) downloadDemo(ctx context.Context, requestID string) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/api/bridge/requests/"+requestID+"/demo", nil)
-	if err != nil {
-		return nil, err
-	}
-	p.authorize(req)
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-	}
-	return resp.Body, nil
-}
-
-func (p *Poller) reportLocalJob(ctx context.Context, requestID, localJobID string) error {
-	return p.postJSON(ctx, "/api/bridge/requests/"+requestID+"/local-job", map[string]string{
-		"localJobId": localJobID,
+	return p.state.Update(claimed.ID, func(entry *TrackedRequest) {
+		entry.LocalJobReported = true
 	})
-}
-
-func (p *Poller) reportFailure(ctx context.Context, requestID, reason string) {
-	if err := p.postJSON(ctx, "/api/bridge/requests/"+requestID+"/status", map[string]string{
-		"status": "failed",
-		"reason": reason,
-	}); err != nil {
-		log.Printf("cloudbridge: report failure for %s: %v", requestID, err)
-	}
-}
-
-func (p *Poller) postJSON(ctx context.Context, path string, payload map[string]string) error {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+path, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	p.authorize(req)
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
-	}
-	return nil
-}
-
-func (p *Poller) authorize(req *http.Request) {
-	req.Header.Set("Authorization", "Bearer "+p.token)
 }

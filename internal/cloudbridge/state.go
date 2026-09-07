@@ -1,7 +1,8 @@
 // Package cloudbridge polls a ClipHub Portal deployment for approved demo
-// submissions and admits them into the local job pipeline exactly as a
-// manual upload, so the owner can drive them through Studio unchanged. It
-// only ever makes outbound requests; no inbound route is ever opened for it.
+// submissions, admits them into the local job pipeline exactly as a manual
+// upload so the owner can drive them through Studio unchanged, and sends the
+// resulting renders back. It only ever makes outbound requests; no inbound
+// route is ever opened for it.
 package cloudbridge
 
 import (
@@ -15,6 +16,10 @@ import (
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
+// ErrNotTracked is returned by Update for a cloud request the state file does
+// not hold.
+var ErrNotTracked = errors.New("cloudbridge: request not tracked")
+
 // TrackedRequest is one cloud request the bridge has admitted locally.
 // Persisted so a crash between creating the local Job and confirming that
 // back to the portal does not admit the same demo a second time on restart.
@@ -25,6 +30,13 @@ type TrackedRequest struct {
 	// Job existing and the portal's local-job report succeeding; reconcile
 	// retries the report until this is true before claiming new work.
 	LocalJobReported bool `json:"local_job_reported"`
+	// UploadedArtifacts holds "<variant>/<video name>" for every reel already
+	// sent to the portal, so a reel is uploaded once no matter how many times
+	// the watcher revisits a finished job.
+	UploadedArtifacts []string `json:"uploaded_artifacts,omitempty"`
+	// Completed marks a request the watcher has reported a terminal local
+	// outcome for and will not revisit.
+	Completed bool `json:"completed,omitempty"`
 }
 
 // State is the bridge's small local tracking file. It is a crash-recovery
@@ -60,24 +72,51 @@ func LoadState(path string) (*State, error) {
 	return s, nil
 }
 
-// All returns a snapshot of every tracked request.
-func (s *State) All() []*TrackedRequest {
+// All returns a snapshot of every tracked request. The copies are safe to
+// read after the lock is released, but must not be written back directly —
+// use Update, so a concurrent writer's fields are never clobbered by a stale
+// copy.
+func (s *State) All() []TrackedRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]*TrackedRequest, 0, len(s.tracked))
+	out := make([]TrackedRequest, 0, len(s.tracked))
 	for _, tr := range s.tracked {
-		cp := *tr
-		out = append(out, &cp)
+		out = append(out, *tr)
 	}
 	return out
 }
 
-// Upsert records tr and durably persists the whole state file.
-func (s *State) Upsert(tr *TrackedRequest) error {
+// Get returns a copy of one tracked request.
+func (s *State) Get(cloudRequestID string) (TrackedRequest, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cp := *tr
-	s.tracked[tr.CloudRequestID] = &cp
+	entry, ok := s.tracked[cloudRequestID]
+	if !ok {
+		return TrackedRequest{}, false
+	}
+	return *entry, true
+}
+
+// Insert records a newly admitted request and durably persists the state.
+func (s *State) Insert(tr TrackedRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry := tr
+	s.tracked[tr.CloudRequestID] = &entry
+	return s.saveLocked()
+}
+
+// Update applies mutate to the live entry under the lock and persists the
+// result, so the poller and the watcher can each own their own fields of the
+// same request without a read-modify-write race between them.
+func (s *State) Update(cloudRequestID string, mutate func(*TrackedRequest)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.tracked[cloudRequestID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrNotTracked, cloudRequestID)
+	}
+	mutate(entry)
 	return s.saveLocked()
 }
 

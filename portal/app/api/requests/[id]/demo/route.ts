@@ -7,8 +7,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db/client";
 import { requests } from "@/db/schema";
+import { isDemoHeader } from "@/lib/demo-validate";
 import {
-  InvalidDemoError,
+  InvalidContentError,
   UploadTooLargeError,
   streamUploadToFile,
 } from "@/lib/upload-stream";
@@ -60,6 +61,7 @@ export async function PUT(
       request.body as unknown as NodeWebReadableStream<Uint8Array>,
       destPath,
       MAX_DEMO_BYTES,
+      { validateHeader: isDemoHeader },
     );
     await db
       .update(requests)
@@ -76,7 +78,7 @@ export async function PUT(
     if (err instanceof UploadTooLargeError) {
       return NextResponse.json({ error: "file too large" }, { status: 413 });
     }
-    if (err instanceof InvalidDemoError) {
+    if (err instanceof InvalidContentError) {
       return NextResponse.json(
         { error: "uploaded file is not a CS2 demo" },
         { status: 400 },

@@ -12,6 +12,29 @@ interface StatusBody {
   reason?: string;
 }
 
+// Lets the bridge find out whether a request it is still watching has been
+// closed out here (delivered, failed, rejected), so it can stop following a
+// local job whose outcome no longer matters and keep its tracked set from
+// growing without bound.
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!isBridgeAuthorized(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const [existing] = await db
+    .select({ status: requests.status })
+    .from(requests)
+    .where(eq(requests.id, id));
+  if (!existing) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  return NextResponse.json({ status: existing.status });
+}
+
 // Lets the bridge report a claimed request as failed (download error, local
 // admission rejected the demo, etc.) so it stops showing as "processing"
 // forever and the submitter sees why.

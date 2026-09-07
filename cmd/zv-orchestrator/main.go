@@ -319,6 +319,8 @@ func run() error {
 		}
 		poller := cloudbridge.NewPoller(cfg.BridgeURL, cfg.BridgeToken, handlers, bridgeState)
 		go poller.Run(workerCtx)
+		watcher := cloudbridge.NewWatcher(cfg.BridgeURL, cfg.BridgeToken, repo, files, bridgeState)
+		go watcher.Run(workerCtx)
 		log.Printf("cloudbridge: bridge enabled, polling %s", cfg.BridgeURL)
 	}
 	if err := recoverStreamAcquisitions(
