@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 
 import { auth, signIn } from "@/auth";
 
+import { SiteFooter } from "../site-footer";
+
 export default async function LoginPage() {
   const session = await auth();
   if (session?.user) redirect("/dashboard");
@@ -32,7 +34,12 @@ export default async function LoginPage() {
             Continuar con Discord
           </button>
         </form>
+        <p className="request-note" style={{ marginTop: "1rem" }}>
+          Al entrar aceptas las <a href="/terms">condiciones del servicio</a> y
+          la <a href="/privacy">política de privacidad</a>.
+        </p>
       </div>
+      <SiteFooter />
     </main>
   );
 }
