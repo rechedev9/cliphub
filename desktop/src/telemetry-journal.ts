@@ -48,7 +48,7 @@ export interface TelemetryJournalOptions {
   log: (message: string) => void;
 }
 
-/** Imports only the fixed safe fields from the local Go observability journals. */
+/** Imports structured errors; the client filters diagnostic messages before queuing. */
 export class TelemetryJournal {
   private readonly client: TelemetryClient;
   private readonly errorJournalPath: string;
@@ -105,6 +105,8 @@ export class TelemetryJournal {
           stage: event.stage,
           class: event.class,
           occurredAt: event.time,
+          message: event.message,
+          jobID: event.jobID,
         });
       });
       this.cursors.spans = readRotatingLines(this.spanJournalPath, this.cursors.spans, (line) => {
@@ -252,7 +254,7 @@ function fileIdentity(stat: fs.Stats): string {
   return `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
 }
 
-function parseErrorLine(line: string): { time: Date; stage: string; class: string } | null {
+function parseErrorLine(line: string): { time: Date; stage: string; class: string; message: string; jobID?: string } | null {
   try {
     const value: unknown = JSON.parse(line);
     if (!isRecord(value) || typeof value.stage !== 'string' || typeof value.class !== 'string') return null;
@@ -261,6 +263,8 @@ function parseErrorLine(line: string): { time: Date; stage: string; class: strin
       time,
       stage: allowlisted(value.stage, ALLOWED_STAGES),
       class: allowlisted(value.class, ALLOWED_CLASSES),
+      message: typeof value.message === 'string' ? value.message : '',
+      jobID: typeof value.job_id === 'string' ? value.job_id : undefined,
     };
   } catch {
     return null;

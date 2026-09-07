@@ -31,7 +31,10 @@ func TestPublicIngestAndPrivateQuery(t *testing.T) {
 	api.now = func() time.Time { return now }
 	api.logf = func(string, ...any) {}
 
-	body, err := json.Marshal(Batch{Events: []Event{testEvent(now, KindError, "error-1")}})
+	event := testEvent(now, KindError, "error-1")
+	event.Message = "capture POV verification failed: target 76561198000000000; token=private"
+	event.JobID = "8a46e7a4-d86a-4512-bc41-dc270a296461"
+	body, err := json.Marshal(Batch{Events: []Event{event}})
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
@@ -56,6 +59,15 @@ func TestPublicIngestAndPrivateQuery(t *testing.T) {
 	api.AdminHandler().ServeHTTP(queried, query)
 	if queried.Code != http.StatusOK || !strings.Contains(queried.Body.String(), `"support_code":"CH-ABCD-1234-5678-90AB-CDEF"`) {
 		t.Fatalf("query response = %d %s", queried.Code, queried.Body.String())
+	}
+	var result struct {
+		Events []Event `json:"events"`
+	}
+	if err := json.Unmarshal(queried.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Events) != 1 || result.Events[0].Message != "capture POV verification failed: target [steamid]; [credential]" || result.Events[0].JobID != event.JobID {
+		t.Fatalf("diagnostic round trip: %s", queried.Body.String())
 	}
 }
 

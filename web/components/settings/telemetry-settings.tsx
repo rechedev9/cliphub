@@ -54,8 +54,8 @@ export function TelemetrySettings(): ReactNode {
           ))}
         </div>
         <p className="text-body-sm text-fg-2">
-          Se envían códigos de error estructurados y tiempos de ejecución. Nunca se incluyen demos, vídeos, rutas,
-          SteamID, nombres de jugadores, credenciales, prompts ni multimedia.
+          Se envían códigos y mensajes técnicos de error filtrados, junto con tiempos de ejecución. Se ocultan rutas,
+          credenciales, correos y SteamID. No se adjuntan demos, vídeos ni otros archivos multimedia.
         </p>
         {failure ? (
           <p role="alert" className="text-body-sm text-destructive">

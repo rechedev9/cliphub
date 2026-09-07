@@ -72,7 +72,7 @@ INSERT INTO telemetry_events VALUES (
 	if err := store.db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='telemetry_events'").Scan(&tableSQL); err != nil {
 		t.Fatalf("read migrated schema: %v", err)
 	}
-	if count != 0 || version != 1 || !strings.Contains(tableSQL, "CHECK (summary = '')") {
+	if count != 0 || version != 2 || !strings.Contains(tableSQL, "CHECK (summary = '')") {
 		t.Fatalf("legacy migration = count:%d version:%d schema:%s", count, version, tableSQL)
 	}
 }
@@ -233,5 +233,63 @@ func testEvent(occurredAt time.Time, kind, seed string) Event {
 		Class:         "boot_failed",
 		OS:            "win32",
 		Arch:          "x64",
+	}
+}
+
+func TestVersionOneMigrationPreservesErrorsAndPersistsDiagnostics(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "telemetry.db")
+	store, err := OpenStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	old := testEvent(now, KindError, "error-1")
+	if _, err := store.Insert(context.Background(), []Event{old}, now, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Recreate the deployed v1 schema around an existing label-only event.
+	if _, err := store.db.Exec("ALTER TABLE telemetry_events DROP COLUMN diagnostic_message; ALTER TABLE telemetry_events DROP COLUMN job_id; PRAGMA user_version=1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = OpenStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := IncidentQuery{SupportCode: old.SupportCode, Since: now.Add(-time.Hour), Limit: 20}
+	got, err := store.Incidents(context.Background(), query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != old.ID || got[0].Message != "" || got[0].JobID != "" {
+		t.Fatalf("old event lost: %#v", got)
+	}
+	next := testEvent(now.Add(time.Second), KindError, "span-1")
+	next.Message = "encoder failed opening C:\\Users\\Zach\\private.dem: token=secret"
+	next.JobID = uuid.NewString()
+	if _, err := store.Insert(context.Background(), []Event{next}, now, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = OpenStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	got, err = store.Incidents(context.Background(), query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Message != diagnosticMessage(next.Message) || got[0].JobID != next.JobID || got[1].ID != old.ID {
+		t.Fatalf("diagnostics did not survive restart: %#v", got)
+	}
+	if strings.Contains(got[0].Message, "Zach") || strings.Contains(got[0].Message, "secret") {
+		t.Fatal("unfiltered diagnostic persisted")
 	}
 }

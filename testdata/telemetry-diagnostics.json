@@ -1,0 +1,57 @@
+[
+  {
+    "name": "capture POV failure retains its cause",
+    "input": "capture POV verification failed: observer target 76561198000000000 drifted from 76561198000000001 during round-004; check CS2 console log \"C:\\Program Files (x86)\\Steam\\game\\csgo\\console.log\"",
+    "expected": "capture POV verification failed: observer target [steamid] drifted from [steamid] during round-004; check CS2 console log [path]"
+  },
+  {
+    "name": "HTTP update failure",
+    "input": "Error: GET https://api.github.com/repos/rechedev9/cliphub/releases/latest?token=secret: HTTP 403",
+    "expected": "Error: GET [url] HTTP 403"
+  },
+  {
+    "name": "Windows file lock",
+    "input": "Error: EBUSY: resource busy or locked, unlink 'C:\\Users\\Zach Arias\\AppData\\Roaming\\ClipHub Studio\\updates\\setup.exe'",
+    "expected": "Error: EBUSY: resource busy or locked, unlink [path]"
+  },
+  {
+    "name": "credentials",
+    "input": "Authorization: Bearer private-token password=\"secret phrase\" api_key=abc cookie=session-value",
+    "expected": "[credential] [credential] [credential] [credential]"
+  },
+  {
+    "name": "media and identifiers",
+    "input": "demo match-Zach.dem failed for zach@example.com at 100.78.62.67 token=abc 76561198000000000",
+    "expected": "demo [media] failed for [email] at [address] [credential] [steamid]"
+  },
+  {
+    "name": "local POSIX and UNC paths",
+    "input": "open /home/zach/demos/match.dem failed; open \\\\desktop\\users\\private.dem failed",
+    "expected": "open [path] failed; open [path] failed"
+  },
+  {
+    "name": "private key",
+    "input": "failure -----BEGIN OPENSSH PRIVATE KEY-----\nabcdef\n-----END OPENSSH PRIVATE KEY----- end",
+    "expected": "failure [credential] end"
+  },
+  {
+    "name": "subprocess exit and encoder",
+    "input": "zv-recorder failed: exit status 1\n[h264_nvenc] OpenEncodeSessionEx failed: unsupported device (2)\nError initializing output stream",
+    "expected": "zv-recorder failed: exit status 1\n[h264_nvenc] OpenEncodeSessionEx failed: unsupported device (2)\nError initializing output stream"
+  },
+  {
+    "name": "opaque attestation and ANSI",
+    "input": "\u001b[31mfailed\u001b[0m token 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "expected": "failed token [identifier]"
+  },
+  {
+    "name": "environment credentials",
+    "input": "GH_TOKEN=short-secret CLIPHUB_TELEMETRY_ADMIN_TOKEN=private ADMIN_PASSWORD=\"private phrase\"",
+    "expected": "[credential] [credential] [credential]"
+  },
+  {
+    "name": "unquoted Windows path with spaces",
+    "input": "open C:\\Users\\Zach Arias\\private.dem: access denied",
+    "expected": "open [path]: access denied"
+  }
+]

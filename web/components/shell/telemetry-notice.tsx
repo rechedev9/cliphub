@@ -50,7 +50,7 @@ export function TelemetryNotice(): ReactElement | null {
           </div>
           <DialogTitle>Ayuda a detectar fallos de ClipHub</DialogTitle>
           <DialogDescription id="telemetry-notice-description">
-            ClipHub puede enviar automáticamente errores estructurados y una muestra del 10 % de los tiempos de
+            ClipHub puede enviar automáticamente códigos y mensajes técnicos de error filtrados y una muestra del 10 % de los tiempos de
             ejecución. Los usamos para encontrar fallos por versión y se eliminan a los 30 días.
           </DialogDescription>
         </DialogHeader>
@@ -58,8 +58,8 @@ export function TelemetryNotice(): ReactElement | null {
         <div className="rounded-md border border-border bg-surface-3 p-4 text-body-sm text-fg-2">
           <p className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
-            No enviamos demos, vídeos, rutas, SteamID, nombres de jugadores, credenciales, prompts ni contenido
-            multimedia. Puedes desactivarlo después en Configuración.
+            Se ocultan rutas, credenciales, correos y SteamID en los mensajes de error. No se adjuntan demos, vídeos
+            ni otros archivos multimedia. Puedes desactivarlo después en Configuración.
           </p>
           <p className="mt-3 font-mono text-meta tracking-wider text-fg-3">
             CÓDIGO DE SOPORTE · {status.supportCode}

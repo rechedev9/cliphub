@@ -38,6 +38,8 @@ export type AppUpdateStatus =
   | { state: typeof APP_UPDATE_STATE.installing; version: string }
   | { state: typeof APP_UPDATE_STATE.error; message: string };
 
+export type UpdateFailurePhase = 'check' | 'checksum' | 'download' | 'verify' | 'apply';
+
 export interface AppUpdateHost {
   currentVersion: string;
   isPackaged: boolean;
@@ -49,6 +51,7 @@ export interface AppUpdateHost {
   spawnInstaller(installerPath: string): Promise<void>;
   quitApp(): void;
   log(line: string): void;
+  reportError?: (phase: UpdateFailurePhase, error: unknown) => void;
 }
 
 export type AppUpdateListener = (status: AppUpdateStatus) => void;
@@ -122,6 +125,7 @@ export class AppUpdateController {
   private readonly work = new AbortController();
   private inFlight: Promise<void> | null = null;
   private lastProgressAt = 0;
+  private failurePhase: UpdateFailurePhase = 'check';
   private readyInstaller: { version: string; path: string } | null = null;
 
   constructor(host: AppUpdateHost) {
@@ -175,7 +179,12 @@ export class AppUpdateController {
 
   private async run(work: () => Promise<void>, quiet = false): Promise<void> {
     const pending = work().catch((error: unknown) => {
-      this.host.log(`[update] ${String(error)}\n`);
+      this.host.log(`[update] phase=${this.failurePhase} ${String(error)}\n`);
+      try {
+        this.host.reportError?.(this.failurePhase, error);
+      } catch {
+        // Diagnostics must never hide the updater's original failure.
+      }
       if (quiet) return;
       this.readyInstaller = null;
       this.setStatus({
@@ -190,6 +199,7 @@ export class AppUpdateController {
   }
 
   private async performCheck(quiet: boolean): Promise<void> {
+    this.failurePhase = 'check';
     if (!quiet) this.setStatus({ state: APP_UPDATE_STATE.checking });
     const latest = parseGithubLatestRelease(
       await this.host.fetchText(GITHUB_LATEST_RELEASE_URL, {
@@ -225,12 +235,14 @@ export class AppUpdateController {
       total: null,
     });
 
+    this.failurePhase = 'checksum';
     const sums = await this.host.fetchText(checksumUrl, {
       signal: this.work.signal,
       headers: this.downloadHeaders(),
     });
     const expected = checksumForFile(sums, fileName);
 
+    this.failurePhase = 'download';
     fs.rmSync(this.host.updatesDirectory, { recursive: true, force: true });
     fs.mkdirSync(this.host.updatesDirectory, { recursive: true });
     const destination = path.join(this.host.updatesDirectory, fileName);
@@ -239,6 +251,7 @@ export class AppUpdateController {
       headers: this.downloadHeaders(),
       onProgress: (received, total) => this.reportProgress(version, received, total),
     });
+    this.failurePhase = 'verify';
     if (!digestMatches(digest, expected)) {
       fs.rmSync(destination, { force: true });
       throw new Error('installer sha256 mismatch');
@@ -248,6 +261,7 @@ export class AppUpdateController {
   }
 
   private async performApply(): Promise<void> {
+    this.failurePhase = 'apply';
     const ready = this.readyInstaller;
     if (ready === null || this.statusValue.state !== APP_UPDATE_STATE.ready) {
       throw new Error('no verified installer is ready');
@@ -299,6 +313,7 @@ export function createDefaultAppUpdateHost(input: {
   spawnInstaller: (installerPath: string) => Promise<void>;
   quitApp: () => void;
   log: (line: string) => void;
+  reportError?: AppUpdateHost['reportError'];
 }): AppUpdateHost {
   const userAgent = `ClipHub-Studio/${input.currentVersion}`;
   return {
