@@ -1,0 +1,35 @@
+{
+  "name": "cliphub-portal",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.22.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "oxlint",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --test --test-reporter=dot \"lib/**/*.test.ts\"",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@auth/drizzle-adapter": "^1.11.3",
+    "@libsql/client": "^0.18.0",
+    "drizzle-orm": "^0.45.2",
+    "next": "16.3.4",
+    "next-auth": "5.0.0-beta.32",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "drizzle-kit": "^0.31.10",
+    "oxlint": "^1.72.0",
+    "typescript": "^5.7.0"
+  }
+}

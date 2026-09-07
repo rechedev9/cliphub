@@ -1,0 +1,146 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7f8;
+  --fg: #17181c;
+  --muted: #6b7280;
+  --border: #d9dadf;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --card: #ffffff;
+  --danger: #b42318;
+  --success: #067647;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --fg: #f2f3f5;
+    --muted: #9aa0aa;
+    --border: #2a2d34;
+    --accent: #5b8def;
+    --accent-fg: #0f1115;
+    --card: #171920;
+    --danger: #f97066;
+    --success: #47cd89;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+button,
+.button {
+  font: inherit;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+input[type="file"],
+textarea {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 1rem;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+ul.requests {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.request-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.pill-done {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.pill-failed,
+.pill-rejected {
+  color: var(--danger);
+  border-color: var(--danger);
+}
