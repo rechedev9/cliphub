@@ -362,7 +362,9 @@ func NewPlanFromKillPlan(plan killplan.Plan, demoPath, outputDir string, stream 
 
 func killsInsideWindow(kills []killplan.Kill, start, end int) []killplan.Kill {
 	if len(kills) == 0 {
-		return kills
+		// Match the recorder's JSON transport: omitempty decodes an empty list
+		// as nil, and attempt validation compares the complete in-memory plan.
+		return nil
 	}
 	var out []killplan.Kill
 	for _, kill := range kills {
@@ -375,7 +377,7 @@ func killsInsideWindow(kills []killplan.Kill, start, end int) []killplan.Kill {
 
 func utilityInsideWindow(utility []killplan.UtilityThrow, start, end int) []killplan.UtilityThrow {
 	if len(utility) == 0 {
-		return utility
+		return nil // Canonical empty list across the recorder JSON boundary.
 	}
 	var out []killplan.UtilityThrow
 	for _, throw := range utility {

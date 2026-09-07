@@ -82,6 +82,33 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 	return result, dir, filepath.Join(dir, "recording-result.json")
 }
 
+// The recorder returns JSON over a process boundary. Empty event lists in a
+// round must survive that boundary without changing the expected plan identity.
+func TestFullDemoRecordingAttemptAcceptsJSONRoundTrip(t *testing.T) {
+	for _, encoder := range []string{recording.EncoderNVENC, ""} {
+		t.Run("encoder="+encoder, func(t *testing.T) {
+			result, outDir, _ := fullDemoPublicationFixture(t, "clip")
+			result.Plan.Stream.Encoder = encoder
+			var err error
+			result.CaptureInputFingerprint, err = recording.CaptureInputFingerprint(result.Plan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded recording.RecordingResult
+			if err := json.Unmarshal(encoded, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if err := recording.ValidateRecordingAttempt(result.Plan, outDir, decoded); err != nil {
+				t.Fatalf("valid Full Demo result rejected after recorder JSON transport: %v", err)
+			}
+		})
+	}
+}
+
 func TestFullDemoRecordingPublicationPreservesPriorRevisionOnFailure(t *testing.T) {
 	for _, stage := range []string{"script", "clip", "revision", "pointer"} {
 		t.Run(stage, func(t *testing.T) {

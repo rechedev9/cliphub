@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   IMMUTABLE_CACHE_CONTROL,
+  callOrchestrator,
   ifNoneMatchInit,
   listCacheHeaders,
   notModifiedFromUpstream,
@@ -134,6 +135,46 @@ test('notModifiedFromUpstream mirrors a 304 ETag and ignores a 200', () => {
   assert.equal(mirrored?.status, 304);
   assert.equal(mirrored?.headers.get('ETag'), 'W/"jobs1"');
   assert.equal(mirrored?.headers.get('Cache-Control'), 'private, no-cache');
+});
+
+test('conditional poll survives the orchestrator transport as a 304 without an error', async (t) => {
+  const errors = t.mock.method(console, 'error', () => {});
+  const { response, init } = await withUpstream(
+    () => new Response(null, { status: 304, headers: { ETag: 'W/"jobs1"' } }),
+    async () => {
+      const upstream = await callOrchestrator(UPSTREAM, {
+        headers: { 'If-None-Match': 'W/"jobs1"' },
+      });
+      assert.ok(upstream);
+      const mirrored = notModifiedFromUpstream(upstream);
+      assert.ok(mirrored, '304 must reach the conditional poll handler');
+      return mirrored;
+    },
+  );
+  assert.equal(response.status, 304);
+  assert.equal(response.headers.get('ETag'), 'W/"jobs1"');
+  assert.equal(response.headers.get('Cache-Control'), 'private, no-cache');
+  assert.equal(await response.text(), '');
+  assert.equal((init?.headers as Record<string, string>)['If-None-Match'], 'W/"jobs1"');
+  assert.equal(init?.redirect, 'manual');
+  assert.equal(errors.mock.callCount(), 0);
+});
+
+test('orchestrator transport still rejects redirects without exposing Location', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  for (const status of [301, 302, 303, 307, 308]) {
+    const { response, init } = await withUpstream(
+      () => new Response(null, { status, headers: { Location: 'https://example.invalid/private' } }),
+      async () => {
+        const response = await callOrchestrator(UPSTREAM);
+        assert.ok(response);
+        return response;
+      },
+    );
+    assert.equal(response.status, 502, `redirect ${status}`);
+    assert.equal(response.headers.get('Location'), null);
+    assert.equal(init?.redirect, 'manual');
+  }
 });
 
 test('listCacheHeaders copies the orchestrator ETag onto a rewritten body', () => {

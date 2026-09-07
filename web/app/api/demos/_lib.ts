@@ -67,6 +67,8 @@ export async function callOrchestratorStreamingUpload(
 }
 
 function rejectUpstreamRedirect(response: Response, method: string | undefined): Response {
+  // A conditional poll's 304 has no redirect target and must reach the cache handler.
+  if (response.status === 304) return response;
   if (response.status < 300 || response.status >= 400) return response;
   // Do not expose Location: it could contain an attacker-controlled URL or a
   // signed upstream location. The token-bearing fetch has already stopped.
