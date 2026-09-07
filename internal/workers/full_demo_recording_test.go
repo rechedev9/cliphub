@@ -16,8 +16,8 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
-// This fixture tests storage publication only. Its byte strings are not media
-// and its modeled attestation is never submitted to a production worker.
+// This fixture tests storage publication and editor CLI dry runs. Its byte
+// strings are not media and never certify an actual capture or render.
 func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(*recapplan.Facts, *recapplan.Options)) (recording.RecordingResult, string, string) {
 	t.Helper()
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,

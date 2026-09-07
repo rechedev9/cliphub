@@ -2048,7 +2048,7 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		if executionErr != nil {
 			return executionErr
 		}
-		args = append(args, "--full-demo-execution", path)
+		args = append(args, fullDemoExecutionArgs(path)...)
 	}
 	if overlayPath, overlayErr := w.writeFullDemoOverlay(j, workDir, loadout.Preset, edit); overlayErr != nil {
 		return overlayErr

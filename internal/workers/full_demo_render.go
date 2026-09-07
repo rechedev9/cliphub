@@ -15,6 +15,12 @@ import (
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
+func fullDemoExecutionArgs(path string) []string {
+	// The editor CLI defaults to trimming kill clips 1.5 seconds after the
+	// last kill. Full Demo timing belongs to the approved plan instead.
+	return []string{"--full-demo-execution", path, "--tail-trim=0"}
+}
+
 func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.Job, snapshot recapplan.Snapshot, dir, ffmpeg string) (string, error) {
 	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: snapshot, Assets: []editor.FullDemoLocalMedia{}, VoiceTracks: []editor.FullDemoLocalVoice{}}
 	for _, ref := range snapshot.Document.Options.AssetReferences() {
