@@ -30,6 +30,21 @@ func TestValidateBatch(t *testing.T) {
 		wantErr string
 	}{
 		{name: "valid"},
+		{name: "updater failure", mutate: func(event *Event) {
+			event.Component = "electron"
+			event.Name = "update.failed"
+			event.Stage = "update"
+			event.Class = "checksum"
+			event.Message = "GET https://github.com/private?token=secret: HTTP 403"
+		}},
+		{name: "invalid update phase", mutate: func(event *Event) {
+			event.Component = "electron"
+			event.Name = "update.failed"
+			event.Stage = "update"
+			event.Class = "user-specific-phase"
+		}, wantErr: "allowlisted"},
+		{name: "invalid job correlation", mutate: func(event *Event) { event.JobID = "player-name" }, wantErr: "job_id"},
+		{name: "span message", mutate: func(event *Event) { event.Kind = KindSpan; event.Class = ""; event.Message = "not a performance field" }, wantErr: "span diagnostics"},
 		{name: "wrong schema", mutate: func(event *Event) { event.SchemaVersion = 2 }, wantErr: "schema_version"},
 		{name: "bad support code", mutate: func(event *Event) { event.SupportCode = "person" }, wantErr: "support_code"},
 		{name: "missing class", mutate: func(event *Event) { event.Class = "" }, wantErr: "class"},

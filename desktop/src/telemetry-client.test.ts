@@ -168,3 +168,36 @@ test('discards an isolated poison event rejected by the collector schema', async
   await client.flush();
   assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).events.length, 0);
 });
+
+test('retains filtered error details and job correlation through the persisted upload queue', async () => {
+  const { client, queuePath, requests } = fixture();
+  client.update(true);
+  const jobID = '8a46e7a4-d86a-4512-bc41-dc270a296461';
+  client.recordError({
+    component: 'orchestrator', name: 'pipeline.error', stage: 'worker', class: 'record:demo', jobID,
+    message: 'capture POV verification failed: target 76561198000000000; console "C:\\Users\\Zach\\console.log" token=private',
+  });
+  const queued = JSON.parse(fs.readFileSync(queuePath, 'utf8')).events[0];
+  assert.equal(queued.job_id, jobID);
+  assert.match(queued.message, /capture POV verification failed/);
+  assert.doesNotMatch(queued.message, /7656119|Zach|private|Users/);
+  await client.flush();
+  assert.deepEqual(JSON.parse(requests[0].body).events[0], queued);
+});
+
+test('diagnostic batches stay below the collector byte limit without losing events', async () => {
+  const { client, requests, queuePath } = fixture();
+  client.update(true);
+  // Quotes double in JSON; event count alone is not a safe request-size bound.
+  for (let i = 0; i < 20; i++) {
+    client.recordError({
+      component: 'electron', name: 'update.failed', stage: 'update', class: 'download',
+      message: '" '.repeat(1024).trim(),
+    });
+  }
+  for (let i = 0; i < 4; i++) await client.flush();
+  assert.ok(requests.length > 1);
+  assert.equal(requests.flatMap((request) => JSON.parse(request.body).events).length, 20);
+  assert.ok(requests.every((request) => Buffer.byteLength(request.body) <= 60 * 1024));
+  assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).events.length, 0);
+});

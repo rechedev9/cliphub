@@ -49,8 +49,8 @@ var (
 )
 
 // Event is one error or sampled performance span. It deliberately has no
-// arbitrary attributes or free text, so local paths, player data, credentials,
-// and media metadata cannot cross the remote boundary.
+// arbitrary attributes. Diagnostic messages are bounded and filtered on both
+// sides; media and separate user/demo metadata are never attached.
 type Event struct {
 	SchemaVersion int       `json:"schema_version"`
 	ID            string    `json:"id"`
@@ -63,6 +63,8 @@ type Event struct {
 	Name          string    `json:"name"`
 	Stage         string    `json:"stage,omitempty"`
 	Class         string    `json:"class,omitempty"`
+	Message       string    `json:"message,omitempty"`
+	JobID         string    `json:"job_id,omitempty"`
 	Fingerprint   string    `json:"fingerprint,omitempty"`
 	OS            string    `json:"os"`
 	Arch          string    `json:"arch"`
@@ -132,6 +134,12 @@ func validateEvent(event Event, now time.Time) (Event, error) {
 	}
 	switch event.Kind {
 	case KindError:
+		if event.JobID != "" {
+			if _, err := uuid.Parse(event.JobID); err != nil {
+				return Event{}, errors.New("job_id must be a UUID")
+			}
+		}
+		event.Message = diagnosticMessage(event.Message)
 		if event.Class == "" {
 			return Event{}, errors.New("error class is required")
 		}
@@ -142,6 +150,9 @@ func validateEvent(event Event, now time.Time) (Event, error) {
 			return Event{}, errors.New("error outcome must be empty")
 		}
 	case KindSpan:
+		if event.Message != "" || event.JobID != "" {
+			return Event{}, errors.New("span diagnostics must be empty")
+		}
 		if event.DurationMS < 1 || event.DurationMS > int64((24*time.Hour)/time.Millisecond) {
 			return Event{}, errors.New("span duration_ms is invalid")
 		}
@@ -166,6 +177,10 @@ func validateEventCode(event Event) error {
 	switch event.Component {
 	case "electron":
 		if event.Kind == KindError {
+			if event.Name == "update.failed" && event.Stage == "update" &&
+				stringSet("check", "checksum", "download", "verify", "apply")[event.Class] {
+				return nil
+			}
 			allowed := map[string][2]string{
 				"process.uncaught_exception":  {"runtime", "uncaught_exception"},
 				"process.unhandled_rejection": {"runtime", "unhandled_rejection"},

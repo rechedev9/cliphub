@@ -19,6 +19,7 @@ import {
   releaseDownloadUrl,
   type AppUpdateHost,
   type AppUpdateStatus,
+  type UpdateFailurePhase,
 } from './app-update.ts';
 
 test('parses and compares release versions', () => {
@@ -244,6 +245,47 @@ test('controller rejects a hash mismatch without leaving an installer', async (t
   assert.equal(fs.existsSync(destination), false);
   assert.equal(fake.spawned.length, 0);
   assert.equal(fake.quit, 0);
+});
+
+for (const phase of ['check', 'checksum', 'download', 'verify', 'apply'] as const) {
+  test(`updater reports the original ${phase} failure for remote diagnostics`, async (t) => {
+    const payload = Buffer.from('installer');
+    const fake = makeHost(t, {
+      currentVersion: '2.4.59', latest: '2.4.60', installer: payload,
+      digest: phase === 'verify' ? 'ff'.repeat(32) : createHash('sha256').update(payload).digest('hex'),
+    });
+    const reported: Array<{ phase: UpdateFailurePhase; error: unknown }> = [];
+    fake.host.reportError = (phase, error) => { reported.push({ phase, error }); };
+    const failure = new Error('EPERM: update failed');
+    const fetch = fake.host.fetchText;
+    fake.host.fetchText = async (url, options) => {
+      if (phase === 'check' || (phase === 'checksum' && url.endsWith('SHA256SUMS.txt'))) throw failure;
+      return fetch(url, options);
+    };
+    if (phase === 'download') fake.host.downloadFile = async () => { throw failure; };
+    if (phase === 'apply') fake.host.spawnInstaller = async () => { throw failure; };
+    const controller = new AppUpdateController(fake.host);
+    await controller.check({ quiet: phase === 'check' });
+    if (phase !== 'check') await controller.install();
+    if (phase === 'apply') await controller.install();
+    assert.equal(reported.length, 1);
+    assert.equal(reported[0].phase, phase);
+    if (phase !== 'verify') assert.equal(reported[0].error, failure);
+    else assert.match(String(reported[0].error), /sha256 mismatch/);
+    assert.equal(controller.status().state, phase === 'check' ? APP_UPDATE_STATE.idle : APP_UPDATE_STATE.error);
+    assert.equal(fake.quit, 0);
+  });
+}
+
+test('a diagnostic callback failure does not replace the update error', async (t) => {
+  const fake = makeHost(t, { currentVersion: '2.4.59', latest: '2.4.60', installer: Buffer.from('unused'), digest: '00'.repeat(32) });
+  fake.host.fetchText = async () => { throw new Error('HTTP 403'); };
+  fake.host.reportError = () => { throw new Error('diagnostics unavailable'); };
+  const controller = new AppUpdateController(fake.host);
+  await controller.check();
+  const status = controller.status();
+  assert.equal(status.state, APP_UPDATE_STATE.error);
+  if (status.state === APP_UPDATE_STATE.error) assert.match(status.message, /GitHub ha limitado/);
 });
 
 function makeHost(

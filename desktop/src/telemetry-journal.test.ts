@@ -42,7 +42,7 @@ test('journal startup stays fail-open when an ineligible cursor cannot persist',
   assert.ok(logs.some((message) => message.includes('cursor deferred')));
 });
 
-test('journal importer discards pre-notice events and never reads sensitive error fields', () => {
+test('journal importer discards pre-notice events and filters messages without importing media metadata', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cliphub-telemetry-journal-'));
   const errors = path.join(directory, 'obs', 'journal.jsonl');
   const spans = path.join(directory, 'obs', 'spans.jsonl');
@@ -104,26 +104,27 @@ test('journal importer discards pre-notice events and never reads sensitive erro
     time: '2026-08-29T12:02:00Z',
     stage: 'parse',
     class: 'parse:demo',
-    message: 'must stay local',
+    message: 'parser failed: invalid header',
   })}\n`);
   journal.poll();
   events = JSON.parse(fs.readFileSync(queue, 'utf8')).events;
   assert.equal(events.length, 2);
   assert.equal(events[1].stage, 'parse');
-  assert.doesNotMatch(JSON.stringify(events), /must stay local/);
+  assert.equal(events[1].message, 'parser failed: invalid header');
 
   fs.appendFileSync(errors, `${JSON.stringify({
     time: '2026-08-29T12:03:00Z',
     stage: 'player123',
     class: 'LuisPlayer',
-    message: 'arbitrary local labels must not cross',
+    message: 'worker subprocess exited',
   })}\n`);
   journal.poll();
   events = JSON.parse(fs.readFileSync(queue, 'utf8')).events;
   assert.equal(events.length, 3);
   assert.equal(events[2].stage, 'unknown');
   assert.equal(events[2].class, 'unknown');
-  assert.doesNotMatch(JSON.stringify(events), /player123|LuisPlayer|arbitrary local/);
+  assert.doesNotMatch(JSON.stringify(events), /player123|LuisPlayer/);
+  assert.equal(events[2].message, 'worker subprocess exited');
 
   fs.appendFileSync(spans, `${JSON.stringify({
     time: '2026-08-29T12:04:00Z',

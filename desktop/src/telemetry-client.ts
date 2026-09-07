@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { TelemetrySettingsStore, type TelemetrySettings } from './telemetry-settings.ts';
+import { diagnosticMessage } from './diagnostic-message.ts';
 
 const SCHEMA_VERSION = 1;
 const MAX_QUEUE_EVENTS = 200;
@@ -29,6 +30,8 @@ export interface TelemetryErrorInput {
   stage: string;
   class: string;
   occurredAt?: Date;
+  message?: unknown;
+  jobID?: string;
 }
 
 export interface TelemetrySpanInput {
@@ -52,6 +55,8 @@ interface TelemetryEvent {
   name: string;
   stage?: string;
   class?: string;
+  message?: string;
+  job_id?: string;
   os: string;
   arch: string;
   outcome?: string;
@@ -160,6 +165,9 @@ export class TelemetryClient {
     const event = this.baseEvent('error', input.component, input.name, input.occurredAt);
     event.stage = safeLabel(input.stage, 'unknown');
     event.class = safeLabel(input.class, 'unknown');
+    const message = diagnosticMessage(input.message);
+    if (message) event.message = message;
+    if (isUUID(input.jobID)) event.job_id = input.jobID;
     this.enqueue(event);
   }
 
@@ -223,7 +231,13 @@ export class TelemetryClient {
   private async flushNow(): Promise<void> {
     if (!this.canRecord() || this.config === null || Date.now() < this.nextAttemptAt) return;
     const queue = this.readQueue();
-    const pending = queue.events.slice(0, this.batchLimit);
+    // JSON escaping can make a full diagnostic batch exceed the collector's
+    // 64 KiB request limit. Split by serialized bytes before sending it.
+    const pending: TelemetryEvent[] = [];
+    for (const event of queue.events.slice(0, this.batchLimit)) {
+      if (Buffer.byteLength(JSON.stringify({ events: [...pending, event] }), 'utf8') > 60 * 1024) break;
+      pending.push(event);
+    }
     if (pending.length === 0) return;
     const controller = new AbortController();
     this.activeRequest = controller;
@@ -334,7 +348,11 @@ function parseQueueFile(value: unknown, consentEpoch: string): QueueFile | null 
   return {
     schemaVersion: SCHEMA_VERSION,
     consentEpoch,
-    events: value.events.filter(isTelemetryEvent).slice(-MAX_QUEUE_EVENTS),
+    events: value.events.filter(isTelemetryEvent).slice(-MAX_QUEUE_EVENTS).map((event) => {
+      // Re-sanitize persisted queues too, including after an upgrade.
+      if (event.message !== undefined) event.message = diagnosticMessage(event.message);
+      return event;
+    }),
   };
 }
 
@@ -347,6 +365,8 @@ function isTelemetryEvent(value: unknown): value is TelemetryEvent {
   const expectedKeys = value.kind === 'error'
     ? [...commonKeys, 'class']
     : [...commonKeys, 'outcome', 'duration_ms'];
+  if (value.kind === 'error' && 'message' in value) expectedKeys.push('message');
+  if (value.kind === 'error' && 'job_id' in value) expectedKeys.push('job_id');
   const keys = Object.keys(value).sort();
   expectedKeys.sort();
   if (keys.length !== expectedKeys.length || keys.some((key, index) => key !== expectedKeys[index])) return false;
@@ -367,7 +387,9 @@ function isTelemetryEvent(value: unknown): value is TelemetryEvent {
     && isLabel(value.os)
     && isLabel(value.arch);
   if (!common) return false;
-  if (value.kind === 'error') return isLabel(value.class);
+  if (value.kind === 'error') return isLabel(value.class)
+    && (value.message === undefined || (typeof value.message === 'string' && value.message.length <= 64 * 1024))
+    && (value.job_id === undefined || isUUID(value.job_id));
   return isLabel(value.outcome)
     && typeof value.duration_ms === 'number'
     && Number.isSafeInteger(value.duration_ms)

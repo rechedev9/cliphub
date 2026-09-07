@@ -158,12 +158,13 @@ const telemetryJournal = new TelemetryJournal({
   log: logLine,
 });
 
-process.on('uncaughtExceptionMonitor', () => {
+process.on('uncaughtExceptionMonitor', (error) => {
   telemetryClient.recordError({
     component: 'electron',
     name: 'process.uncaught_exception',
     stage: 'runtime',
     class: 'uncaught_exception',
+    message: error,
   });
 });
 process.on('unhandledRejection', (reason) => {
@@ -173,6 +174,7 @@ process.on('unhandledRejection', (reason) => {
     name: 'process.unhandled_rejection',
     stage: 'runtime',
     class: 'unhandled_rejection',
+    message: reason,
   });
 });
 
@@ -613,6 +615,7 @@ function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailur
     name: 'desktop.boot_failed',
     stage: 'boot',
     class: 'boot_failed',
+    message: err,
   });
   if (!quitting) showErrorScreen(err, details.title, details.hint);
 }
@@ -790,6 +793,12 @@ function registerAppUpdateIPC(): void {
     platform: process.platform,
     updatesDirectory: path.join(app.getPath('userData'), 'updates'),
     spawnInstaller: spawnVerifiedInstaller,
+    reportError: (phase, error) => {
+      telemetryClient.recordError({
+        component: 'electron', name: 'update.failed', stage: 'update', class: phase, message: error,
+      });
+      void telemetryClient.flush();
+    },
     quitApp: () => app.quit(),
     log: logLine,
   }));

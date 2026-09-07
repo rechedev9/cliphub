@@ -1,7 +1,9 @@
 package workers
 
 import (
+	"errors"
 	"github.com/google/uuid"
+	"strings"
 
 	"github.com/rechedev9/cliphub/internal/obs"
 )
@@ -28,8 +30,23 @@ func recordStageFailure(id uuid.UUID, stage, task, class string, err error) {
 		Stage:   stage,
 		Task:    task,
 		Class:   class,
-		Message: err.Error(),
+		Message: workerDiagnosticMessage(err),
 	})
+}
+
+// recordFailure intentionally condenses stderr for the UI. Keep its underlying
+// subprocess output in the journal so remote diagnostics can explain the cause.
+func workerDiagnosticMessage(err error) string {
+	text := err.Error()
+	var failure *recordFailure
+	if errors.As(err, &failure) && failure.err != nil && !strings.Contains(text, failure.err.Error()) {
+		text += "\nRecorder output:\n" + failure.err.Error()
+	}
+	// Stay below the journal reader's per-poll bound even for verbose subprocesses.
+	if len(text) > 64*1024 {
+		text = text[:16*1024] + "\n[truncated]\n" + text[len(text)-48*1024:]
+	}
+	return text
 }
 
 // errorClass is the queryable obs class for a worker failure. Known codes

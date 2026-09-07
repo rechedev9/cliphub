@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS telemetry_events (
     stage TEXT NOT NULL,
     class TEXT NOT NULL,
     summary TEXT NOT NULL CHECK (summary = ''),
+    diagnostic_message TEXT NOT NULL DEFAULT '' CHECK (length(CAST(diagnostic_message AS BLOB)) <= 2048),
+    job_id TEXT NOT NULL DEFAULT '',
     fingerprint TEXT NOT NULL,
     os TEXT NOT NULL,
     arch TEXT NOT NULL,
@@ -118,11 +120,29 @@ func (s *Store) migrateSchema(ctx context.Context) error {
 		return fmt.Errorf("read telemetry schema version: %w", err)
 	}
 	switch version {
-	case 1:
+	case 2:
 		if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
 			return fmt.Errorf("initialize telemetry schema: %w", err)
 		}
 		return nil
+	case 1:
+		// Preserve every existing event. Old clients can keep posting label-only
+		// events while the desktop release rolls out.
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin diagnostic migration: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		for _, statement := range []string{
+			"ALTER TABLE telemetry_events ADD COLUMN diagnostic_message TEXT NOT NULL DEFAULT '' CHECK (length(CAST(diagnostic_message AS BLOB)) <= 2048)",
+			"ALTER TABLE telemetry_events ADD COLUMN job_id TEXT NOT NULL DEFAULT ''",
+			"PRAGMA user_version=2",
+		} {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("migrate diagnostics: %w", err)
+			}
+		}
+		return tx.Commit()
 	case 0:
 		// Version zero includes the pre-allowlist collector. Diagnostics are
 		// replaceable, so purge rather than retaining any legacy free text or
@@ -138,7 +158,7 @@ func (s *Store) migrateSchema(ctx context.Context) error {
 		if _, err := tx.ExecContext(ctx, schemaSQL); err != nil {
 			return fmt.Errorf("recreate telemetry schema: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, "PRAGMA user_version=1"); err != nil {
+		if _, err := tx.ExecContext(ctx, "PRAGMA user_version=2"); err != nil {
 			return fmt.Errorf("record telemetry schema version: %w", err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -146,7 +166,7 @@ func (s *Store) migrateSchema(ctx context.Context) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("telemetry schema version %d is newer than supported version 1", version)
+		return fmt.Errorf("telemetry schema version %d is newer than supported version 2", version)
 	}
 }
 
@@ -181,8 +201,8 @@ func (s *Store) Insert(ctx context.Context, events []Event, receivedAt time.Time
 INSERT OR IGNORE INTO telemetry_events (
     id, received_at, occurred_at, kind, support_code, session_id,
     release, component, name, stage, class, summary, fingerprint,
-    os, arch, outcome, duration_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    os, arch, outcome, duration_ms, diagnostic_message, job_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return 0, fmt.Errorf("prepare telemetry insert: %w", err)
 	}
@@ -208,6 +228,8 @@ INSERT OR IGNORE INTO telemetry_events (
 			event.Arch,
 			event.Outcome,
 			event.DurationMS,
+			diagnosticMessage(event.Message),
+			event.JobID,
 		)
 		if execErr != nil {
 			return 0, fmt.Errorf("insert telemetry event: %w", execErr)
@@ -251,7 +273,7 @@ func (s *Store) Incidents(ctx context.Context, query IncidentQuery) ([]Event, er
 	}
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, occurred_at, kind, support_code, session_id, release, component,
-       name, stage, class, fingerprint, os, arch, outcome, duration_ms
+       name, stage, class, fingerprint, os, arch, outcome, duration_ms, diagnostic_message, job_id
 FROM telemetry_events
 WHERE support_code = ? AND occurred_at >= ?
 ORDER BY occurred_at DESC
@@ -280,6 +302,8 @@ LIMIT ?`, query.SupportCode, query.Since.UTC().UnixMilli(), query.Limit)
 			&event.Arch,
 			&event.Outcome,
 			&event.DurationMS,
+			&event.Message,
+			&event.JobID,
 		); err != nil {
 			return nil, fmt.Errorf("scan telemetry incident: %w", err)
 		}
