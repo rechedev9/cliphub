@@ -13,7 +13,8 @@
     "test:unit": "node --test --test-reporter=dot \"lib/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "whoami": "node scripts/whoami.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
