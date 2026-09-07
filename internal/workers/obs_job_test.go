@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/obs"
+	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
@@ -71,5 +73,34 @@ func TestJobFailureIsQueryableByJobIDAndClass(t *testing.T) {
 				t.Fatal("Select matched a class that is not on the event")
 			}
 		})
+	}
+}
+
+func TestRecorderJournalPreservesCauseWithoutExpandingUserFacingFailure(t *testing.T) {
+	id := uuid.New()
+	repo := newFakeJobRepo(job.Job{ID: id, Status: job.StatusRecording})
+	cause := errors.New("zv-recorder failed: exit status 1\n[h264_nvenc] OpenEncodeSessionEx failed: unsupported device (2)\nerror: capture failed")
+	failure := newRecordFailure(cause, recording.RecordingResult{}, nil)
+	if err := recordTaskFailure(context.Background(), repo, id, tasks.TypeRecordDemo, failure); err != nil {
+		t.Fatal(err)
+	}
+	if repo.jobs[id].FailureReason != "recorder failed: capture failed" {
+		t.Fatalf("user-facing reason changed: %q", repo.jobs[id].FailureReason)
+	}
+	events, err := obs.Default().SelectErrors(id.String(), errorClass(tasks.TypeRecordDemo, failure))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || !strings.Contains(events[0].Message, cause.Error()) {
+		t.Fatalf("subprocess cause lost from journal: %#v", events)
+	}
+}
+
+func TestVerboseRecorderJournalRetainsFinalCauseWithinReaderLimit(t *testing.T) {
+	cause := errors.New("zv-recorder failed\n" + strings.Repeat("log output\n", 100_000) + "error: final encoder failure")
+	failure := newRecordFailure(cause, recording.RecordingResult{}, nil)
+	message := workerDiagnosticMessage(failure)
+	if len(message) > 65*1024 || !strings.HasPrefix(message, failure.Error()) || !strings.HasSuffix(message, "error: final encoder failure") {
+		t.Fatalf("invalid bounded recorder diagnostic: length=%d", len(message))
 	}
 }

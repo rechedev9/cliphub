@@ -3,7 +3,8 @@
 Studio 2.4.60 sends a filtered diagnostic message and the job UUID with newly
 observed pipeline errors. Previously `pipeline.error` retained only labels such
 as `record:demo`, so the collector could count failures but could not explain
-them. Existing events without a message cannot recover information that was
+them. Recorder journal entries also retain the underlying subprocess output
+alongside the short reason displayed in Studio. Existing events without a message cannot recover information that was
 never uploaded; reproduce the failure after updating to capture its cause.
 
 Updater failures now use `component=electron`, `name=update.failed`,
