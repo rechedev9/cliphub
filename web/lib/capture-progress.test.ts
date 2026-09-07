@@ -43,3 +43,11 @@ test('parseCaptureProgress keeps percent only when the payload has a number', ()
     percent: 82,
   });
 });
+
+test('parseCaptureProgress preserves a bounded render stage', () => {
+  assert.deepEqual(parseCaptureProgress({ done: 42, total: 100, percent: 42, stage: '  Montando corte 7 de 14  ' }), {
+    done: 42, total: 100, percent: 42, stage: 'Montando corte 7 de 14',
+  });
+  assert.deepEqual(parseCaptureProgress({ done: 0, total: 14, stage: ' ' }), { done: 0, total: 14 });
+  assert.equal(parseCaptureProgress({ done: 42, total: 100, stage: 'x'.repeat(200) })?.stage?.length, 160);
+});

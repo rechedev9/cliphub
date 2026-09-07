@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -105,14 +106,28 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				FullDemo: &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: approval, Effective: document},
 				fullDemo: &fullDemoRenderContext{execution: execution, recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 128}, {ID: "round-002", TickStart: 448}}}}, ffmpeg: ffmpeg, workDir: filepath.Join(dir, "prepared")},
 			}
-			if err := prepareFullDemoCompilation(ctx, &short); err != nil {
+			var lastFraction float64
+			stages := map[string]bool{}
+			progress := fullDemoProgress(func(stage string, fraction float64) {
+				if fraction+1e-9 < lastFraction || fraction >= 1 {
+					t.Errorf("premature or regressing Full Demo progress: %s %f after %f", stage, fraction, lastFraction)
+				}
+				lastFraction = fraction
+				stages[stage] = true
+			})
+			short.fullDemo.recording.Plan.Tickrate = 64
+			short.fullDemo.recording.Plan.DemoDurationTicks = 640
+			if err := prepareFullDemoCompilation(ctx, &short, progress.within(0, .65)); err != nil {
 				t.Fatal(err)
 			}
 			program := fullDemoProgramPath(short)
-			if err := runFFmpegAtomic(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "concat media canary", "", program); err != nil {
+			if lastFraction <= .195 || !stages["Preparando voces (1/1)"] || !stages["Preparando música (2/2)"] || !stages["Montando corte 1 de "+strconv.Itoa(len(document.Timeline))] {
+				t.Fatalf("preparation progress is missing: %f, %+v", lastFraction, stages)
+			}
+			if err := runFFmpegAtomicWithProgress(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "concat media canary", "", program, short.DurationSeconds, progress.pass("Ensamblando vídeo completo", .65, .82)); err != nil {
 				t.Fatal(err)
 			}
-			loudness, err := masterFullDemoProgram(ctx, ffmpeg, program, short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false)
+			loudness, err := masterFullDemoProgram(ctx, ffmpeg, program, short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false, short.DurationSeconds, progress.within(.82, .94))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -121,12 +136,17 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, short.Output, 302)
+			short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, short.Output, 302, progress.within(.94, 1))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := short.FullDemo.ValidateCompleted(); err != nil {
 				t.Fatal(err)
+			}
+			for _, stage := range []string{"Analizando audio final", "Comprobando audio final (1/3)", "Comprobando fotogramas del vídeo", "Verificando vídeo y audio completos", "Verificando archivo final"} {
+				if !stages[stage] {
+					t.Fatalf("missing completed media stage %q: %+v", stage, stages)
+				}
 			}
 			adStart := float64(document.SponsorPlacement.StartFrame) / 60
 			for _, sample := range []struct {

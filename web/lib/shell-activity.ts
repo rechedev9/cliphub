@@ -27,7 +27,7 @@ export interface ShellJob {
   /** Epoch ms the job was created — real API data, used for elapsed time. */
   readonly startedAt: number;
   /** Capture done/total/percent while recording or composing; null on every other stage. */
-  readonly progress: { readonly done: number; readonly total: number; readonly percent?: number } | null;
+  readonly progress: { readonly done: number; readonly total: number; readonly percent?: number; readonly stage?: string } | null;
   /** Where the job lives; the transport's row links there. */
   readonly href: string;
 }
@@ -126,6 +126,9 @@ function reelJob(video: Video): ShellJob[] {
     if (capture.percent !== undefined) {
       progress = { ...progress, percent: capture.percent };
     }
+    if (stage === 'composing' && capture.stage) {
+      progress = { ...progress, stage: capture.stage };
+    }
   }
   const href = video.jobId === undefined ? '/clips?vista=clips' : `/clips?partida=${encodeURIComponent(video.jobId)}`;
   return [{ id: video.id, kind: 'reel', title: video.title, stage, startedAt: video.createdAt, progress, href }];
@@ -187,6 +190,7 @@ function sameJob(job: ShellJob, other: ShellJob | undefined): boolean {
     job.title === other.title &&
     job.progress?.done === other.progress?.done &&
     job.progress?.total === other.progress?.total &&
-    job.progress?.percent === other.progress?.percent
+    job.progress?.percent === other.progress?.percent &&
+    job.progress?.stage === other.progress?.stage
   );
 }

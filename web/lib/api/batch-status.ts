@@ -13,7 +13,7 @@ export type BatchStatusUpstreamItem = {
     status: string;
     failure_reason?: string;
     failure_code?: string;
-    progress?: { done?: number; total?: number; percent?: number };
+    progress?: { done?: number; total?: number; percent?: number; stage?: string };
   } | null;
   render?: unknown;
   error?: { code?: string; message?: string } | null;
@@ -26,14 +26,14 @@ export type BatchStatusItem = {
     status: string;
     failure_reason?: string;
     failure_code?: string;
-    progress?: { done: number; total: number; percent?: number };
+    progress?: { done: number; total: number; percent?: number; stage?: string };
   } | null;
   render: unknown;
   error?: { code?: string; message?: string };
 };
 
-type CaptureProgress = { done: number; total: number; percent?: number };
-type RawCaptureProgress = { done?: number; total?: number; percent?: number } | undefined;
+type CaptureProgress = { done: number; total: number; percent?: number; stage?: string };
+type RawCaptureProgress = { done?: number; total?: number; percent?: number; stage?: string } | undefined;
 
 /**
  * Narrows one upstream row to the fields the browser is allowed to see.

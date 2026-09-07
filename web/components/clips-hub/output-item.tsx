@@ -107,7 +107,9 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
             <FailureLine output={output} />
           ) : (
             <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-              {`${video.map} · ${timeAgo(video.createdAt)}`}
+              {output.state === OUTPUT_STATE.render && video.captureProgress?.stage
+                ? video.captureProgress.stage
+                : `${video.map} · ${timeAgo(video.createdAt)}`}
             </span>
           )}
         </span>

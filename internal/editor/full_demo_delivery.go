@@ -21,10 +21,11 @@ type FullDemoDeliveryEvidence struct {
 	ContentSHA256   string  `json:"content_sha256"`
 }
 
-func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, frames int64) (*FullDemoDeliveryEvidence, error) {
+func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, frames int64, progress fullDemoProgress) (*FullDemoDeliveryEvidence, error) {
 	if ffprobe == "" {
 		return nil, fmt.Errorf("full_demo_output_invalid: ffprobe is required")
 	}
+	progress.report("Comprobando fotogramas del vídeo", 0)
 	output, err := runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-count_frames", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,nb_read_frames,sample_rate,channels,duration", "-of", "json", path}, "Full Demo delivery probe")
 	if err != nil {
 		return nil, err
@@ -74,12 +75,13 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	if !video || !audio {
 		return nil, fmt.Errorf("full_demo_output_invalid: missing video or audio")
 	}
-	if _, err := runFFmpegOutput(ctx, []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"}, "Full Demo complete delivery decode"); err != nil {
+	if err := runFFmpegOutputWithProgress(ctx, []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"}, "Full Demo complete delivery decode", e.DurationSeconds, progress.pass("Verificando vídeo y audio completos", .4, .9)); err != nil {
 		return nil, err
 	}
 	if info, err := os.Stat(path); err != nil || info.Size() == 0 {
 		return nil, fmt.Errorf("full_demo_output_invalid: missing delivered file")
 	}
+	progress.report("Verificando archivo final", .9)
 	e.ContentSHA256, err = mediaassets.FileDigest(ctx, path, 64<<30)
 	if err != nil {
 		return nil, err

@@ -25,6 +25,7 @@ export function parseCaptureProgress(raw: {
   done?: number;
   total?: number;
   percent?: number;
+  stage?: string;
 } | undefined): CaptureProgress | undefined {
   if (raw === undefined || typeof raw.done !== 'number' || typeof raw.total !== 'number' || raw.total <= 0) {
     return undefined;
@@ -32,6 +33,9 @@ export function parseCaptureProgress(raw: {
   const progress: CaptureProgress = { done: raw.done, total: raw.total };
   if (typeof raw.percent === 'number' && Number.isFinite(raw.percent)) {
     progress.percent = Math.min(100, Math.max(0, Math.round(raw.percent)));
+  }
+  if (typeof raw.stage === 'string' && raw.stage.trim()) {
+    progress.stage = raw.stage.trim().slice(0, 160);
   }
   return progress;
 }

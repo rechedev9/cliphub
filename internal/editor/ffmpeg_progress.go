@@ -71,14 +71,18 @@ func runFFmpegOutputWithProgress(
 	expectedDurationSec float64,
 	onFraction func(float64),
 ) error {
+	_, err := runFFmpegOutputProgress(ctx, command, label, expectedDurationSec, onFraction)
+	return err
+}
+
+// Keep stderr available for callers that parse FFmpeg's loudness evidence.
+func runFFmpegOutputProgress(ctx context.Context, command []string, label string, expectedDurationSec float64, onFraction func(float64)) (string, error) {
 	if onFraction == nil || expectedDurationSec <= 0 {
-		_, err := runFFmpegOutput(ctx, command, label)
-		return err
+		return runFFmpegOutput(ctx, command, label)
 	}
 	progressFile, err := os.CreateTemp("", "cliphub-ffmpeg-progress-*.txt")
 	if err != nil {
-		_, err := runFFmpegOutput(ctx, command, label)
-		return err
+		return runFFmpegOutput(ctx, command, label)
 	}
 	progressPath := progressFile.Name()
 	_ = progressFile.Close()
@@ -86,14 +90,14 @@ func runFFmpegOutputWithProgress(
 
 	command = appendFFmpegProgressArgs(command, progressPath)
 	if len(command) == 0 || command[0] == "" {
-		return fmt.Errorf("ffmpeg command is empty")
+		return "", fmt.Errorf("ffmpeg command is empty")
 	}
 	if label == "" {
 		label = "command"
 	}
 	command, cleanup, err := commandWithFilterComplexScript(command)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer cleanup()
 
@@ -115,11 +119,11 @@ func runFFmpegOutputWithProgress(
 	if err != nil {
 		msg := strings.TrimSpace(output)
 		if msg != "" {
-			return fmt.Errorf("ffmpeg %s: %w: %s", label, err, msg)
+			return output, fmt.Errorf("ffmpeg %s: %w: %s", label, err, msg)
 		}
-		return fmt.Errorf("ffmpeg %s: %w", label, err)
+		return output, fmt.Errorf("ffmpeg %s: %w", label, err)
 	}
-	return nil
+	return output, nil
 }
 
 func watchFFmpegProgressFile(

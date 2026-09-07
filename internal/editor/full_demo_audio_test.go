@@ -71,7 +71,7 @@ func TestFullDemoMasterDecodedAAC(t *testing.T) {
 			if _, err := runFFmpegOutput(ctx, command, "generate mastering canary"); err != nil {
 				t.Fatal(err)
 			}
-			evidence, err := masterFullDemoProgram(ctx, ffmpeg, input, output, filepath.Join(dir, "logs"), recapplan.DefaultOptions().Audio.Loudness, tc.silentApproved)
+			evidence, err := masterFullDemoProgram(ctx, ffmpeg, input, output, filepath.Join(dir, "logs"), recapplan.DefaultOptions().Audio.Loudness, tc.silentApproved, 4, nil)
 			if (err != nil) != tc.wantError {
 				t.Fatalf("master: %v; evidence: %+v", err, evidence)
 			}

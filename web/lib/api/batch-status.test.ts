@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { projectBatchStatusItem, type BatchStatusUpstreamItem, type BatchStatusItem } from './batch-status.ts';
+import { parseCaptureProgress } from '../capture-progress.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
+
+test('render stage survives the production batch progress parser', () => {
+  const progress = { done: 82, total: 100, percent: 82, stage: 'Comprobando audio final (1/3)' };
+  const result = projectBatchStatusItem({ job_id: JOB, variant: 'gameplay-pov-60', job: { status: 'recorded', progress } }, parseCaptureProgress);
+  assert.deepEqual(result.job?.progress, progress);
+});
 
 /** Stands in for the route's capture-progress parser. */
 const passthroughProgress = (raw: { done?: number; total?: number; percent?: number } | undefined): { done: number; total: number; percent?: number } | undefined => {

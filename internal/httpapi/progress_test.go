@@ -285,7 +285,7 @@ func TestRenderProgressDocument(t *testing.T) {
 	if !ok {
 		t.Fatal("renderProgressDocument = false, want true")
 	}
-	if got.Done != 63 || got.Total != 100 || got.Percent != 63 {
+	if got.Done != 63 || got.Total != 100 || got.Percent != 63 || got.Stage != "Montando cortes y ritmo" {
 		t.Fatalf("progress = %+v, want 63/100 63%%", got)
 	}
 

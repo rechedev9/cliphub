@@ -268,7 +268,7 @@ export type VideoStatus =
   | 'review_required'
   | 'failed';
 /** Live job progress during capture or editing; percent is 0-100. */
-export type CaptureProgress = { done: number; total: number; percent?: number };
+export type CaptureProgress = { done: number; total: number; percent?: number; stage?: string };
 /** `GET /api/demos/{jobId}/status`: the orchestrator's `jobStatusResponse`. */
 export type JobStatusView = {
   status: string;

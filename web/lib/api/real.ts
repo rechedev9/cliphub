@@ -82,7 +82,7 @@ type RawStatusView = {
   status: string;
   failure_reason?: string;
   failure_code?: string;
-  progress?: { done?: number; total?: number; percent?: number };
+  progress?: { done?: number; total?: number; percent?: number; stage?: string };
 };
 
 /** `/renders/{variant}` and batch-status render half. */

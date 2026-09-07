@@ -114,6 +114,17 @@ test('a zero-segment capture reports no progress instead of dividing by zero', (
   }
 });
 
+test('render phase changes reach the shell even at the same percent', () => {
+  let notifications = 0;
+  const unsubscribe = subscribeToShellActivity(() => { notifications += 1; });
+  for (const [i, stage] of ['Analizando audio final', 'Ajustando audio final (1/3)'].entries()) {
+    publishReels([reel({ id: 'a', status: 'composing', captureProgress: { done: 78, total: 100, percent: 78, stage } })], i + 1);
+  }
+  assert.equal(notifications, 2);
+  assert.equal(shellActivitySnapshot().jobs[0]?.progress?.stage, 'Ajustando audio final (1/3)');
+  unsubscribe();
+});
+
 test('an unchanged payload refreshes freshness without waking subscribers', () => {
   let notifications = 0;
   const unsubscribe = subscribeToShellActivity(() => {

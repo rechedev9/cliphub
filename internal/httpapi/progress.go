@@ -17,9 +17,10 @@ import (
 // captureProgressView reports how far a capturing or composing job has advanced.
 // It is attached to the job GET response only while it can be computed.
 type captureProgressView struct {
-	Done    int `json:"done"`
-	Total   int `json:"total"`
-	Percent int `json:"percent"`
+	Stage   string `json:"stage,omitempty"`
+	Done    int    `json:"done"`
+	Total   int    `json:"total"`
+	Percent int    `json:"percent"`
 }
 
 // captureProgress derives capture progress for a recording job from durable
@@ -155,7 +156,7 @@ func renderProgressDocument(store storage.Storage, id uuid.UUID) (captureProgres
 	if pct > 100 {
 		pct = 100
 	}
-	return captureProgressView{Done: pct, Total: 100, Percent: pct}, true
+	return captureProgressView{Done: pct, Total: 100, Percent: pct, Stage: progress.Stage}, true
 }
 
 // readCaptureSelection reads the ordered segment ids the in-flight record run

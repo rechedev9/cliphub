@@ -79,13 +79,13 @@ export async function localStatus(jobId: string): Promise<Response> {
     status: string;
     failure_reason?: string;
     failure_code?: string;
-    progress?: { done?: number; total?: number; percent?: number };
+    progress?: { done?: number; total?: number; percent?: number; stage?: string };
   };
   const body: {
     status: string;
     failure_reason?: string;
     failure_code?: string;
-    progress?: { done: number; total: number; percent?: number };
+    progress?: { done: number; total: number; percent?: number; stage?: string };
   } = { status: data.status };
   if (data.failure_reason) body.failure_reason = data.failure_reason;
   if (data.failure_code) body.failure_code = data.failure_code;

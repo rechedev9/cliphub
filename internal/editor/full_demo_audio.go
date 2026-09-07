@@ -69,9 +69,9 @@ func parseLoudnessMeasurement(output string) (LoudnessMeasurement, error) {
 	return m, nil
 }
 
-func measureLoudness(ctx context.Context, ffmpeg, path string, target recapplan.LoudnessOptions, logPath string) (LoudnessMeasurement, error) {
+func measureLoudness(ctx context.Context, ffmpeg, path string, target recapplan.LoudnessOptions, logPath string, duration float64, onFraction func(float64)) (LoudnessMeasurement, error) {
 	command := []string{ffmpeg, "-hide_banner", "-nostats", "-v", "info", "-i", path, "-map", "0:a:0", "-vn", "-af", loudnessFilter(target) + ":print_format=json", "-f", "null", "-"}
-	output, err := runFFmpegOutput(ctx, command, "Full Demo audio measurement")
+	output, err := runFFmpegOutputProgress(ctx, command, "Full Demo audio measurement", duration, onFraction)
 	if logPath != "" {
 		if writeErr := writeLogFile(logPath, output); writeErr != nil {
 			return LoudnessMeasurement{}, writeErr
@@ -93,9 +93,9 @@ func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessM
 // masterFullDemoProgram always remasters the lossless mixed program, never an
 // already encoded AAC file. The decoded AAC measurement owns acceptance, and
 // only a bounded three-attempt correction is allowed.
-func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool) (ProgramLoudnessEvidence, error) {
+func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
-	measurement, err := measureLoudness(ctx, ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"))
+	measurement, err := measureLoudness(ctx, ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .1))
 	if err != nil {
 		return e, err
 	}
@@ -108,10 +108,12 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 	// Reserve a small initial headroom for lossy AAC reconstruction.
 	attemptTarget.TargetTPDBTP -= 0.3
 	for attempt := 0; attempt < 3; attempt++ {
+		start := .1 + float64(attempt)*.3
+		stage := fmt.Sprintf("Ajustando audio final (%d/3)", attempt+1)
 		filter := "anull"
 		if measurement.Status != "silent" {
 			if attempt > 0 {
-				measurement, err = measureLoudness(ctx, ffmpeg, input, attemptTarget, filepath.Join(logDir, fmt.Sprintf("program-remaster-%d-input.txt", attempt)))
+				measurement, err = measureLoudness(ctx, ffmpeg, input, attemptTarget, filepath.Join(logDir, fmt.Sprintf("program-remaster-%d-input.txt", attempt)), duration, progress.pass(stage, start, start+.1))
 				if err != nil {
 					return e, err
 				}
@@ -123,10 +125,10 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 		}
 		e.MasterTargets = append(e.MasterTargets, attemptTarget)
 		command := []string{ffmpeg, "-y", "-hide_banner", "-nostats", "-v", "info", "-i", input, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-af", filter + ",aresample=48000,aformat=channel_layouts=stereo", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", output}
-		if err := runFFmpegAtomic(ctx, command, "Full Demo program master", filepath.Join(logDir, fmt.Sprintf("program-master-%d.txt", attempt)), output); err != nil {
+		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo program master", filepath.Join(logDir, fmt.Sprintf("program-master-%d.txt", attempt)), output, duration, progress.pass(stage, start+.1, start+.2)); err != nil {
 			return e, err
 		}
-		decoded, err := measureLoudness(ctx, ffmpeg, output, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-%d.txt", attempt)))
+		decoded, err := measureLoudness(ctx, ffmpeg, output, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio final (%d/3)", attempt+1), start+.2, start+.3))
 		if err != nil {
 			return e, err
 		}

@@ -155,7 +155,7 @@ function JobRow({ job, onNavigate }: { job: ShellJob; onNavigate: () => void }):
         <BarFill stage={job.stage} percent={percent} />
       </span>
       <span className="font-[family-name:var(--font-mono)] text-meta tracking-wider text-fg-3 uppercase">
-        {meta.sub}
+        {job.stage === 'composing' ? job.progress?.stage ?? meta.sub : meta.sub}
       </span>
     </Link>
   );

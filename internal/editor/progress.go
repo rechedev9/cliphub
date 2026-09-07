@@ -32,12 +32,12 @@ func (p EditorProgress) Validate() error {
 }
 
 const (
-	progressPrepPercent    = 5
-	progressEncodeStart    = 5
-	progressEncodeSpan     = 87 // 5..92
-	progressFinalizeStart  = 92
-	progressFinalizeEnd    = 100
-	progressWriteInterval  = time.Second
+	progressPrepPercent   = 5
+	progressEncodeStart   = 5
+	progressEncodeSpan    = 87 // 5..92
+	progressFinalizeStart = 92
+	progressFinalizeEnd   = 100
+	progressWriteInterval = time.Second
 )
 
 // ProgressTracker writes monotonic editor progress to a JSON file.
@@ -45,6 +45,7 @@ type ProgressTracker struct {
 	path        string
 	mu          sync.Mutex
 	lastPercent int
+	lastStage   string
 	lastWrite   time.Time
 	now         func() time.Time
 }
@@ -73,10 +74,11 @@ func (t *ProgressTracker) Set(stage string, percent int) {
 	}
 	t.lastPercent = percent
 	now := t.now()
-	if !t.lastWrite.IsZero() && now.Sub(t.lastWrite) < progressWriteInterval && percent < 100 {
+	if stage == t.lastStage && !t.lastWrite.IsZero() && now.Sub(t.lastWrite) < progressWriteInterval && percent < 100 {
 		return
 	}
 	t.lastWrite = now
+	t.lastStage = stage
 	_ = t.writeLocked(stage, percent)
 }
 
@@ -97,6 +99,7 @@ func (t *ProgressTracker) Flush(stage string, percent int) {
 	}
 	t.lastPercent = percent
 	t.lastWrite = t.now()
+	t.lastStage = stage
 	_ = t.writeLocked(stage, percent)
 }
 
@@ -204,6 +207,12 @@ func newEncodeProgressState(plan encodeProgressPlan, tracker *ProgressTracker, s
 }
 
 func (s *encodeProgressState) setFraction(index int, fraction float64) {
+	if s != nil {
+		s.setStageFraction(index, s.stage, fraction)
+	}
+}
+
+func (s *encodeProgressState) setStageFraction(index int, stage string, fraction float64) {
 	if s == nil || index < 0 || index >= len(s.plan.slots) {
 		return
 	}
@@ -219,7 +228,7 @@ func (s *encodeProgressState) setFraction(index int, fraction float64) {
 		return
 	}
 	s.fraction[index] = fraction
-	s.tracker.Set(s.stage, s.percentLocked())
+	s.tracker.Set(stage, s.percentLocked())
 }
 
 func (s *encodeProgressState) markDone(index int) {

@@ -62,7 +62,7 @@ func fullDemoRoundAudio(options recapplan.AudioOptions, gameStartSample, samples
 	return strings.Join(clauses, ";")
 }
 
-func prepareFullDemoTracks(ctx context.Context, short *ShortEdit) error {
+func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
 	runtime := short.fullDemo
 	if err := os.MkdirAll(runtime.workDir, 0700); err != nil {
 		return err
@@ -70,7 +70,18 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit) error {
 	options := short.FullDemo.Effective.Options.Audio
 	reference := options.Loudness
 	reference.TargetILUFS, reference.TargetTPDBTP = -16, -1.5
+	steps := 2 * len(runtime.execution.VoiceTracks)
+	if options.Music.Enabled && len(options.Music.Assets) > 0 {
+		steps += 2*len(options.Music.Assets) + 1
+	}
+	step := 0
+	nextPass := func(stage string) func(float64) {
+		start := float64(step) / float64(max(1, steps))
+		step++
+		return progress.pass(stage, start, float64(step)/float64(max(1, steps)))
+	}
 	playlistParts := []string{}
+	var playlistDuration float64
 	for i, ref := range options.Music.Assets {
 		if !options.Music.Enabled {
 			break
@@ -79,7 +90,14 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit) error {
 		if err != nil {
 			return err
 		}
-		measured, err := measureLoudness(ctx, runtime.ffmpeg, source, reference, filepath.Join(runtime.workDir, fmt.Sprintf("music-%d-reference.txt", i)))
+		var frames int64
+		for _, asset := range short.FullDemo.Effective.Assets {
+			if asset.Ref == ref {
+				frames = asset.DurationFrames
+			}
+		}
+		duration := float64(frames) / recapplan.OutputFPS
+		measured, err := measureLoudness(ctx, runtime.ffmpeg, source, reference, filepath.Join(runtime.workDir, fmt.Sprintf("music-%d-reference.txt", i)), duration, nextPass(fmt.Sprintf("Analizando música (%d/%d)", i+1, len(options.Music.Assets))))
 		if err != nil {
 			return err
 		}
@@ -90,23 +108,18 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit) error {
 		if err != nil {
 			return err
 		}
-		var frames int64
-		for _, asset := range short.FullDemo.Effective.Assets {
-			if asset.Ref == ref {
-				frames = asset.DurationFrames
-			}
-		}
 		if frames < 1 {
 			return fmt.Errorf("invalid music asset frame duration")
 		}
 		path := filepath.Join(runtime.workDir, fmt.Sprintf("music-%d.wav", i))
 		samples := frames * recapplan.SamplesPerFrame
 		command := []string{runtime.ffmpeg, "-y", "-v", "error", "-i", source, "-map", "0:a:0", "-vn", "-af", filter + fmt.Sprintf(",aresample=48000,aformat=channel_layouts=stereo,apad=whole_len=%d,atrim=end_sample=%d", samples, samples), "-c:a", "pcm_f32le", "-rf64", "auto", path}
-		if err := runFFmpegAtomic(ctx, command, "Full Demo music reference", "", path); err != nil {
+		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo music reference", "", path, duration, nextPass(fmt.Sprintf("Preparando música (%d/%d)", i+1, len(options.Music.Assets)))); err != nil {
 			return err
 		}
 		short.FullDemo.TrackLevels = append(short.FullDemo.TrackLevels, FullDemoTrackLevel{Ref: ref.ID, Role: "music", Measurement: measured, AppliedGainDB: options.Music.BedGainDB, Policy: options.Music.ReferenceLevel})
 		playlistParts = append(playlistParts, path)
+		playlistDuration += duration
 	}
 	if len(playlistParts) > 0 {
 		list := filepath.Join(runtime.workDir, "music-playlist.ffconcat")
@@ -115,12 +128,16 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit) error {
 		}
 		runtime.playlist = filepath.Join(runtime.workDir, "music-playlist.wav")
 		command := []string{runtime.ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list, "-map", "0:a:0", "-c:a", "pcm_f32le", "-rf64", "auto", runtime.playlist}
-		if err := runFFmpegAtomic(ctx, command, "Full Demo playlist", "", runtime.playlist); err != nil {
+		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo playlist", "", runtime.playlist, playlistDuration, nextPass("Uniendo pistas de música")); err != nil {
 			return err
 		}
 	}
+	voiceDuration := 0.0
+	if runtime.recording.Plan.Tickrate > 0 {
+		voiceDuration = float64(runtime.recording.Plan.DemoDurationTicks) / float64(runtime.recording.Plan.Tickrate)
+	}
 	for i, voice := range runtime.execution.VoiceTracks {
-		measurement, err := measureLoudness(ctx, runtime.ffmpeg, voice.Path, reference, filepath.Join(runtime.workDir, fmt.Sprintf("voice-%d-reference.txt", i)))
+		measurement, err := measureLoudness(ctx, runtime.ffmpeg, voice.Path, reference, filepath.Join(runtime.workDir, fmt.Sprintf("voice-%d-reference.txt", i)), voiceDuration, nextPass(fmt.Sprintf("Analizando voces (%d/%d)", i+1, len(runtime.execution.VoiceTracks))))
 		if err != nil {
 			return err
 		}
@@ -133,12 +150,13 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit) error {
 		}
 		path := filepath.Join(runtime.workDir, fmt.Sprintf("voice-%d.wav", i))
 		command := []string{runtime.ffmpeg, "-y", "-v", "error", "-i", voice.Path, "-map", "0:a:0", "-af", "aresample=48000,aformat=channel_layouts=stereo,volume=" + decimal(gainDB) + "dB", "-c:a", "pcm_f32le", "-rf64", "auto", path}
-		if err := runFFmpegAtomic(ctx, command, "Full Demo voice reference", "", path); err != nil {
+		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo voice reference", "", path, voiceDuration, nextPass(fmt.Sprintf("Preparando voces (%d/%d)", i+1, len(runtime.execution.VoiceTracks)))); err != nil {
 			return err
 		}
 		runtime.voicePaths = append(runtime.voicePaths, path)
 		short.FullDemo.TrackLevels = append(short.FullDemo.TrackLevels, FullDemoTrackLevel{Ref: voice.StorageKey, Role: "team-voice", Measurement: measurement, AppliedGainDB: gainDB, Policy: options.Voice.Normalization})
 	}
+	progress.report("Audio preparado", 1)
 	return nil
 }
 
@@ -230,21 +248,25 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 	return append(command, output), nil
 }
 
-func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit) error {
+func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
 	if short.fullDemo == nil {
 		return nil
 	}
-	if err := prepareFullDemoTracks(ctx, short); err != nil {
+	if err := prepareFullDemoTracks(ctx, short, progress.within(0, .3)); err != nil {
 		return err
 	}
 	var musicSample int64
+	timeline := short.FullDemo.Effective.Timeline
+	totalFrames := float64(timeline[len(timeline)-1].EndFrame)
 	for i, item := range short.FullDemo.Effective.Timeline {
 		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.nut", i))
 		command, err := fullDemoItemCommand(*short, item, musicSample, path)
 		if err != nil {
 			return err
 		}
-		if err := runFFmpegAtomic(ctx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path); err != nil {
+		stage := fmt.Sprintf("Montando corte %d de %d", i+1, len(timeline))
+		onFraction := progress.pass(stage, .3+.7*float64(item.StartFrame)/totalFrames, .3+.7*float64(item.EndFrame)/totalFrames)
+		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS, onFraction); err != nil {
 			return err
 		}
 		short.fullDemo.preparedInputs = append(short.fullDemo.preparedInputs, path)

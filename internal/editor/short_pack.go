@@ -187,7 +187,13 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		}
 	} else {
 		started := time.Now()
-		if err := prepareFullDemoCompilation(ctx, short); err != nil {
+		var fullProgress fullDemoProgress
+		if short.FullDemo != nil && p.encode != nil {
+			fullProgress = func(stage string, fraction float64) {
+				p.encode.setStageFraction(i, stage, fraction)
+			}
+		}
+		if err := prepareFullDemoCompilation(ctx, short, fullProgress.within(0, .65)); err != nil {
 			return err
 		}
 		expectedDuration := expectedShortDuration(*short)
@@ -200,17 +206,18 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		destination := short.Output
 		if short.FullDemo != nil {
 			destination = fullDemoProgramPath(*short)
+			onFraction = fullProgress.pass("Ensamblando vídeo completo", .65, .82)
 		}
 		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
 		if err == nil && short.FullDemo != nil {
 			audio := short.FullDemo.Effective.Options.Audio
 			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled
 			var evidence ProgramLoudnessEvidence
-			evidence, err = masterFullDemoProgram(ctx, short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved)
+			evidence, err = masterFullDemoProgram(ctx, short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved, expectedDuration, fullProgress.within(.82, .94))
 			short.FullDemo.ProgramLoudness = &evidence
 			if err == nil {
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
-				short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames)
+				short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1))
 			}
 			if err == nil {
 				err = short.FullDemo.ValidateCompleted()
@@ -415,10 +422,13 @@ func (p *shortPackRenderer) writeOutputs() error {
 	if err := WritePublishGallery(p.manifest.GalleryPath, *p.manifest); err != nil {
 		return err
 	}
-	if p.opts.Progress != nil {
-		p.opts.Progress.Flush("Montando cortes y ritmo", progressFinalizeEnd)
+	if err := WriteResult(p.opts.ResultPath, *p.result); err != nil {
+		return err
 	}
-	return WriteResult(p.opts.ResultPath, *p.result)
+	if p.opts.Progress != nil {
+		p.opts.Progress.Flush("Vídeo terminado", progressFinalizeEnd)
+	}
+	return nil
 }
 
 func (p *shortPackRenderer) fail(err error) error {
