@@ -3,9 +3,11 @@ package editor
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +80,9 @@ func TestFullDemoMasterDecodedAAC(t *testing.T) {
 			if evidence.Status != tc.wantStatus {
 				t.Fatalf("status: %s", evidence.Status)
 			}
+			if len(evidence.FallbackMasters) != 0 {
+				t.Fatalf("previously passing canary used recovery: %+v", evidence.FallbackMasters)
+			}
 			if !tc.wantError {
 				if _, err := runFFmpegOutput(ctx, []string{ffmpeg, "-v", "error", "-xerror", "-i", output, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"}, "decode delivered AAC/video"); err != nil {
 					t.Fatal(err)
@@ -97,5 +102,174 @@ func TestFullDemoMasterDecodedAAC(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFullDemoAACRecoveryKeepsDecodedAcceptance(t *testing.T) {
+	ffmpeg := fullDemoTestFFmpeg(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if !hasMediaFoundationAAC(ctx, ffmpeg) {
+		t.Skip("Windows Media Foundation AAC is required for this recovery canary")
+	}
+	dir := t.TempDir()
+	input, output := filepath.Join(dir, "program.nut"), filepath.Join(dir, "final.mp4")
+	const frames = 1819 // Does not end on a loudnorm analysis/AAC packet boundary.
+	const duration = float64(frames) / recapplan.OutputFPS
+	command := []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=navy:s=1920x1080:r=60:d=" + decimal(duration), "-f", "lavfi", "-i", "aevalsrc=(0.03+0.22*gte(mod(t\\,30)\\,15))*sin(2*PI*440*t)+0.05*sin(2*PI*2311*t)*lt(mod(t\\,1)\\,0.03):s=48000:d=" + decimal(duration), "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "ultrafast", "-bf", "0", "-c:a", "pcm_f32le", "-ac", "2", "-t", decimal(duration), input}
+	if _, err := runFFmpegOutput(ctx, command, "generate AAC recovery canary"); err != nil {
+		t.Fatal(err)
+	}
+	target := recapplan.DefaultOptions().Audio.Loudness
+	first, err := measureLoudness(ctx, ffmpeg, input, target, "", duration, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var last float64
+	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, Status: "unverified"}, func(_ string, fraction float64) {
+		if fraction < last || fraction >= 1 {
+			t.Errorf("invalid recovery progress: %f after %f", fraction, last)
+		}
+		last = fraction
+	})
+	if err != nil {
+		t.Fatalf("recovery: %v; evidence: %+v", err, evidence)
+	}
+	assertRecoveredAAC(t, evidence, target)
+	ffprobe, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, output, frames, nil); err != nil {
+		t.Fatal("recovered AAC broke delivery:", err)
+	}
+	packetsJSON, err := runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-select_streams", "a:0", "-show_entries", "packet=pts,duration", "-of", "json", output}, "recovered AAC packet clock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var packets struct {
+		Packets []struct{ PTS, Duration int64 }
+	}
+	if err := json.Unmarshal([]byte(packetsJSON), &packets); err != nil {
+		t.Fatal(err)
+	}
+	var end int64
+	for _, packet := range packets.Packets {
+		if packet.PTS != end || packet.Duration <= 0 || packet.Duration > 1024 {
+			t.Fatalf("AAC packet clock contains a gap or invalid duration after %d: %+v", end, packet)
+		}
+		end += packet.Duration
+	}
+	if end != int64(frames)*recapplan.SampleRate/recapplan.OutputFPS {
+		t.Fatalf("AAC packet padding escaped the approved timeline: %d", end)
+	}
+}
+
+func TestFullDemoAACRecoveryCorrectionIsBounded(t *testing.T) {
+	target := recapplan.DefaultOptions().Audio.Loudness
+	m := ProgramAACFallbackMaster{Encoder: "aac_mf", GainDB: 3, CeilingDBFS: -5}
+	low, high := -30.0, 10.0
+	decoded := LoudnessMeasurement{IntegratedLUFS: &low, TruePeakDBTP: &high}
+	for range 20 {
+		m = m.corrected(decoded, target)
+	}
+	if m.GainDB != 6 || m.CeilingDBFS != target.TargetTPDBTP-8 {
+		t.Fatalf("unbounded correction: %+v", m)
+	}
+	decoded.IntegratedLUFS = &high
+	for range 20 {
+		m = m.corrected(decoded, target)
+	}
+	if m.GainDB != -3 {
+		t.Fatalf("unbounded attenuation: %+v", m)
+	}
+}
+
+func TestFullDemoAACRecoveryUnavailableDoesNotAcceptFailedAudio(t *testing.T) {
+	dir := t.TempDir()
+	low, peak := -19.81, -.26
+	failed := ProgramLoudnessEvidence{Status: "unverified", DecodedAAC: []LoudnessMeasurement{{Status: "measured", IntegratedLUFS: &low, TruePeakDBTP: &peak}}}
+	evidence, err := recoverFullDemoAAC(context.Background(), filepath.Join(dir, "missing-ffmpeg.exe"), "input.nut", "output.mp4", dir, recapplan.DefaultOptions().Audio.Loudness, 4, failed, nil)
+	if err == nil || !strings.Contains(err.Error(), "audio_loudness_failed:") || !strings.Contains(err.Error(), "-19.81 LUFS / -0.26 dBTP") || evidence.Status != "unverified" || len(evidence.FallbackMasters) != 0 {
+		t.Fatalf("unavailable encoder bypassed failure or lost measurements: %+v, %v", evidence, err)
+	}
+}
+
+func assertRecoveredAAC(t *testing.T, evidence ProgramLoudnessEvidence, target recapplan.LoudnessOptions) {
+	t.Helper()
+	if evidence.Status != "verified-decoded-aac" || len(evidence.FallbackMasters) < 1 || len(evidence.FallbackMasters) > 3 || len(evidence.DecodedAAC) == 0 {
+		t.Fatalf("missing bounded recovery evidence: %+v", evidence)
+	}
+	last := evidence.DecodedAAC[len(evidence.DecodedAAC)-1]
+	if last.IntegratedLUFS == nil || last.TruePeakDBTP == nil || math.Abs(*last.IntegratedLUFS-target.TargetILUFS) > .5 || *last.TruePeakDBTP > target.TargetTPDBTP {
+		t.Fatalf("recovery bypassed decoded acceptance: %+v", last)
+	}
+}
+
+// An opt-in lossless A/V reproduction keeps private game/comms audio out of
+// the repository while exercising the complete native-failure/recovery path.
+func TestFullDemoAACRecoverySavedProgram(t *testing.T) {
+	input := os.Getenv("FULL_DEMO_MASTER_REGRESSION_INPUT")
+	if input == "" {
+		t.Skip("set FULL_DEMO_MASTER_REGRESSION_INPUT to a lossless failing A/V program")
+	}
+	ffmpeg := fullDemoTestFFmpeg(t)
+	ffprobe, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	probe, err := runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames", "-of", "default=nw=1:nk=1", input}, "regression frame clock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	frames, err := strconv.ParseInt(strings.TrimSpace(probe), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	duration := float64(frames) / recapplan.OutputFPS
+	dir := t.TempDir()
+	output := filepath.Join(dir, "final.mp4")
+	target := recapplan.DefaultOptions().Audio.Loudness
+	evidence, err := masterFullDemoProgram(ctx, ffmpeg, input, output, filepath.Join(dir, "logs"), target, false, duration, nil)
+	if err != nil {
+		t.Fatalf("master: %v; evidence: %+v", err, evidence)
+	}
+	assertRecoveredAAC(t, evidence, target)
+	if len(evidence.DecodedAAC) <= 3 {
+		t.Fatal("regression did not reproduce the three native master failures")
+	}
+	var videoHash string
+	for i, path := range []string{input, output} {
+		digest, err := runFFmpegOutput(ctx, []string{ffmpeg, "-v", "error", "-i", path, "-map", "0:v:0", "-f", "hash", "-hash", "sha256", "-"}, "regression decoded video hash")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			videoHash = digest
+		} else if digest != videoHash {
+			t.Fatal("audio recovery changed the video")
+		}
+	}
+	probe, err = runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "default=nw=1:nk=1", output}, "recovered audio duration")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotDuration, err := strconv.ParseFloat(strings.TrimSpace(probe), 64)
+	if err != nil || math.Abs(gotDuration-duration) > 1.0/60 {
+		t.Fatalf("audio duration changed: %s versus %f", probe, duration)
+	}
+	if root := os.Getenv("FULL_DEMO_EVIDENCE_DIR"); root != "" {
+		if err := os.MkdirAll(root, 0700); err != nil {
+			t.Fatal(err)
+		}
+		body, err := json.MarshalIndent(evidence, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "saved-program-recovery.json"), body, 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

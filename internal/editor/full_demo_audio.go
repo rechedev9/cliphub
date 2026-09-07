@@ -25,11 +25,12 @@ type LoudnessMeasurement struct {
 }
 
 type ProgramLoudnessEvidence struct {
-	Policy        string                      `json:"policy"`
-	Input         LoudnessMeasurement         `json:"input"`
-	DecodedAAC    []LoudnessMeasurement       `json:"decoded_aac"`
-	MasterTargets []recapplan.LoudnessOptions `json:"master_targets"`
-	Status        string                      `json:"status"`
+	Policy          string                      `json:"policy"`
+	Input           LoudnessMeasurement         `json:"input"`
+	DecodedAAC      []LoudnessMeasurement       `json:"decoded_aac"`
+	MasterTargets   []recapplan.LoudnessOptions `json:"master_targets"`
+	FallbackMasters []ProgramAACFallbackMaster  `json:"fallback_masters,omitempty"`
+	Status          string                      `json:"status"`
 }
 
 func decimal(v float64) string { return strconv.FormatFloat(v, 'f', 6, 64) }
@@ -92,8 +93,10 @@ func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessM
 
 // masterFullDemoProgram always remasters the lossless mixed program, never an
 // already encoded AAC file. The decoded AAC measurement owns acceptance, and
-// only a bounded three-attempt correction is allowed.
+// the original three attempts precede a bounded Windows AAC recovery.
 func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+	fallbackProgress := progress.within(.65, 1)
+	progress = progress.within(0, .65)
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
 	measurement, err := measureLoudness(ctx, ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .1))
 	if err != nil {
@@ -149,5 +152,5 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 			attemptTarget.TargetTPDBTP -= *decoded.TruePeakDBTP - target.TargetTPDBTP + 0.2
 		}
 	}
-	return e, fmt.Errorf("audio_loudness_failed: decoded AAC remains outside approved loudness/true-peak targets after three masters")
+	return recoverFullDemoAAC(ctx, ffmpeg, input, output, logDir, target, duration, e, fallbackProgress)
 }
