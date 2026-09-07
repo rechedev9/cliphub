@@ -331,6 +331,10 @@ func findAsset(assets []AssetEvidence, ref AssetRef) (AssetEvidence, bool) {
 func (d Document) KillPlan(base killplan.Plan) killplan.Plan {
 	base.Segments = make([]killplan.Segment, 0, len(d.Rounds))
 	for _, r := range d.Rounds {
+		// Legacy duration can stop at the last tracked event, before the
+		// post-round/death tail proven by Full Demo facts. Preserve existing
+		// bounds when sufficient; otherwise include the approved coverage.
+		base.Demo.DurationTicks = max(base.Demo.DurationTicks, r.CaptureEndTick)
 		base.Segments = append(base.Segments, killplan.Segment{ID: r.ID, Round: r.Number, TickStart: r.CaptureStartTick, TickEnd: r.CaptureEndTick, LiveEndTick: r.LiveEndTick, Kills: slices.Clone(r.Kills), Utility: slices.Clone(r.Utility)})
 	}
 	base.Stats.SegmentsCreated = len(base.Segments)
