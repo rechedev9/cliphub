@@ -275,7 +275,7 @@ func (h *Handlers) ImportShareCode(w http.ResponseWriter, r *http.Request) {
 	if acc, err := h.loadSteamAccount(); err == nil {
 		target = acc.SteamID
 	}
-	created, err := h.persistAndEnqueueDemo(r.Context(), demo, fileName, target, "", rules.Default())
+	created, err := h.persistAndEnqueueDemo(r.Context(), demo, fileName, target, "", "", rules.Default())
 	if err != nil {
 		internalError(w, "admit downloaded demo", err)
 		return

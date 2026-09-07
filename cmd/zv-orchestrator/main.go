@@ -15,6 +15,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/allowproto"
+	"github.com/rechedev9/cliphub/internal/cloudbridge"
 	"github.com/rechedev9/cliphub/internal/faceit"
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/httpapi"
@@ -311,6 +312,15 @@ func run() error {
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 	inline.Start(workerCtx)
+	if cfg.BridgeURL != "" {
+		bridgeState, err := cloudbridge.LoadState(filepath.Join(cfg.DataDir, "cloudbridge", "state.json"))
+		if err != nil {
+			return fmt.Errorf("cloudbridge: %w", err)
+		}
+		poller := cloudbridge.NewPoller(cfg.BridgeURL, cfg.BridgeToken, handlers, bridgeState)
+		go poller.Run(workerCtx)
+		log.Printf("cloudbridge: bridge enabled, polling %s", cfg.BridgeURL)
+	}
 	if err := recoverStreamAcquisitions(
 		ctx,
 		reconciled.StreamAcquisitions,

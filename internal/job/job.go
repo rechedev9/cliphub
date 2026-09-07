@@ -131,12 +131,16 @@ type Job struct {
 	SeriesID string `json:"series_id,omitempty"`
 	// DemoFileName is the sanitized original file name of the uploaded demo,
 	// kept only for display; empty when the upload carried no usable name.
-	DemoFileName  string         `json:"demo_file_name,omitempty"`
-	DemoPath      string         `json:"demo_path"`
-	DemoSHA256    string         `json:"demo_sha256"`
-	TargetSteamID string         `json:"target_steamid"`
-	Rules         rules.Rules    `json:"rules"`
-	KillPlan      *killplan.Plan `json:"kill_plan,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	DemoFileName string `json:"demo_file_name,omitempty"`
+	// CloudRequestID links this job back to the ClipHub Portal request the
+	// local bridge admitted it from; empty for a job created directly on this
+	// machine (a manual upload, capture lab seed, etc.).
+	CloudRequestID string         `json:"cloud_request_id,omitempty"`
+	DemoPath       string         `json:"demo_path"`
+	DemoSHA256     string         `json:"demo_sha256"`
+	TargetSteamID  string         `json:"target_steamid"`
+	Rules          rules.Rules    `json:"rules"`
+	KillPlan       *killplan.Plan `json:"kill_plan,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }

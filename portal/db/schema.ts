@@ -83,6 +83,14 @@ export const requests = sqliteTable("request", {
   finalVideoPath: text("finalVideoPath"),
   finalVideoName: text("finalVideoName"),
   failureReason: text("failureReason"),
+  // Set once the local bridge admits this request's demo as a Job; used to
+  // stop the bridge from claiming it again.
+  localJobId: text("localJobId"),
+  // Set when the bridge claims the request (status -> "processing"). A claim
+  // older than the bridge's reclaim window with localJobId still null is
+  // treated as abandoned (the bridge likely crashed mid-download) and can be
+  // claimed again.
+  claimedAt: integer("claimedAt", { mode: "timestamp_ms" }),
   createdAt: integer("createdAt", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

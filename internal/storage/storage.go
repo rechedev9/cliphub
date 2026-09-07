@@ -81,6 +81,16 @@ func (l *Local) Put(key string, r io.Reader) error {
 	return nil
 }
 
+// ReplaceFile atomically replaces destinationPath with tempPath's contents,
+// using the platform-appropriate primitive (ReplaceFileW on Windows, which is
+// more robust than MoveFileEx under concurrent readers or AV scanning than a
+// plain rename). Exposed so other packages needing the same
+// write-to-temp-then-publish pattern Put uses internally do not have to
+// reimplement the Windows-specific half of it.
+func ReplaceFile(tempPath, destinationPath string) error {
+	return replaceLocalFile(tempPath, destinationPath)
+}
+
 // Open returns a ReadCloser for the file at key.
 func (l *Local) Open(key string) (io.ReadCloser, error) {
 	path, err := l.resolve(key)
