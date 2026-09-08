@@ -211,7 +211,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
 		if err == nil && short.FullDemo != nil {
 			audio := short.FullDemo.Effective.Options.Audio
-			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled
+			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled && !short.FullDemo.Effective.HasTransitionSFX()
 			var evidence ProgramLoudnessEvidence
 			evidence, err = masterFullDemoProgram(ctx, short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved, expectedDuration, fullProgress.within(.82, .94))
 			short.FullDemo.ProgramLoudness = &evidence

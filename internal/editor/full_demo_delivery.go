@@ -111,6 +111,9 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 	if expected.PlanHash != e.Effective.PlanHash {
 		return fmt.Errorf("full demo effective plan differs from approved changes")
 	}
+	if err := e.validateTransitions(); err != nil {
+		return err
+	}
 	frames := e.Effective.Timeline[len(e.Effective.Timeline)-1].EndFrame
 	if e.Delivery == nil || !e.Delivery.FullDecode || e.Delivery.FrameCount != frames || e.Delivery.SampleRate != 48000 || e.Delivery.Channels != 2 || !recapplan.ValidHash(e.Delivery.ContentSHA256) || math.IsNaN(e.Delivery.DurationSeconds) || math.IsInf(e.Delivery.DurationSeconds, 0) || math.Abs(e.Delivery.DurationSeconds-float64(frames)/recapplan.OutputFPS) > 1.0/recapplan.OutputFPS {
 		return fmt.Errorf("full_demo_output_invalid: missing complete delivery evidence")
@@ -120,7 +123,7 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 	}
 	last := e.ProgramLoudness.DecodedAAC[len(e.ProgramLoudness.DecodedAAC)-1]
 	a := e.Effective.Options.Audio
-	if last.Status == "silent" && e.ProgramLoudness.Status == "silent-approved" && a.Game.Gain == 0 && (!a.Voice.Enabled || a.Voice.Gain == 0) && !a.Music.Enabled && !e.Effective.Options.Sponsor.Enabled {
+	if last.Status == "silent" && e.ProgramLoudness.Status == "silent-approved" && a.Game.Gain == 0 && (!a.Voice.Enabled || a.Voice.Gain == 0) && !a.Music.Enabled && !e.Effective.Options.Sponsor.Enabled && !e.Effective.HasTransitionSFX() {
 		return nil
 	}
 	if e.ProgramLoudness.Status != "verified-decoded-aac" || last.Status != "measured" || last.IntegratedLUFS == nil || last.TruePeakDBTP == nil || math.IsNaN(*last.IntegratedLUFS) || math.IsNaN(*last.TruePeakDBTP) || math.IsInf(*last.IntegratedLUFS, 0) || math.IsInf(*last.TruePeakDBTP, 0) || math.Abs(*last.IntegratedLUFS-a.Loudness.TargetILUFS) > .5 || *last.TruePeakDBTP > a.Loudness.TargetTPDBTP {

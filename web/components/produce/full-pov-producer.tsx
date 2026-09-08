@@ -20,6 +20,8 @@ import { ProduceFooter } from './produce-footer';
 import { FullDemoChoice, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
 import { FullDemoAudio, FullDemoAudioAdvanced, FullDemoSponsor } from './full-demo-audio';
 import { FullDemoOverlays } from './full-demo-overlays';
+import { FullDemoTransitions } from './full-demo-transitions';
+import { fullDemoTransitionSummary } from '@/lib/full-demo-transitions';
 
 export type FullPovProducerProps = {
   matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
@@ -99,6 +101,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
     { label: 'HUD', value: options.capture.hud_profile === 'native-clean-spectator' ? 'Espectador limpio' : 'Nativo' },
     { label: 'Crosshair', value: options.capture.crosshair.mode === 'observed' ? 'Del jugador' : options.capture.crosshair.code },
     { label: 'Voces', value: options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'Sin voces' },
+    { label: 'Transiciones', value: fullDemoTransitionSummary(options.transitions) },
     { label: 'Música', value: options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'Desactivada' },
     { label: 'Sponsor', value: options.sponsor.enabled ? 'Incluido' : 'Desactivado' },
     { label: 'Overlays', value: `Roster ${options.overlays.roster ? 'sí' : 'no'} · marcador ${options.overlays.scoreboard ? 'sí' : 'no'}` },
@@ -122,6 +125,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
           </div>
         </FullDemoGroup>
         <FullDemoAudio options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
+        <FullDemoTransitions options={options} onChange={change} />
       </div>
       <div className="min-w-0 space-y-5">
         <MediaFrame aspect="16:9" fallback={<MapCover map={match.map} />} footer={<span className="text-meta text-fg-2">1920×1080 · 60 fps · primera persona</span>} />

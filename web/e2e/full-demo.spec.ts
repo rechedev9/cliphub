@@ -221,3 +221,69 @@ for (const interruption of ['empty', 'failed']) {
     await expect(page.getByText('Elige al menos una jugada', { exact: true })).toBeVisible();
   });
 }
+
+test('round effects persist through saving, reload and the approved generation request', async ({ page }) => {
+  await stubParsedMatch(page, { status: 200, body: PLAN });
+  let document = editorial();
+  let generated: unknown;
+  await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+    if (route.request().method() === 'POST') {
+      const raw: unknown = route.request().postDataJSON();
+      if (typeof raw !== 'object' || raw === null || !('options' in raw) || !isFullDemoOptions(raw.options)) throw new Error('Invalid transition options');
+      document = { ...document, options: raw.options, plan_hash: 'c'.repeat(64) };
+      return route.fulfill({ status: 201, json: document });
+    }
+    return route.fulfill({ json: { document, defaults: document.options, compatibility: 'editorial-v1' } });
+  });
+  await page.route(`**/api/demos/${JOB}/generate`, (route) => {
+    generated = route.request().postDataJSON();
+    return route.fulfill({ status: 202, json: { accepted: true } });
+  });
+  await gotoStudio(page, PRODUCE_FULL);
+  await expect(page.getByRole('checkbox', { name: 'Activar efectos entre rondas' })).not.toBeChecked();
+  await page.getByRole('checkbox', { name: 'Activar efectos entre rondas' }).check();
+  await page.getByRole('button', { name: 'Dinámico', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Duración de la transición (fotogramas)' }).fill('10');
+  await page.getByRole('combobox', { name: 'Dirección del barrido' }).click();
+  await page.getByRole('option', { name: 'Abajo', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Aumento del zoom (%)' }).fill('15');
+  await page.getByRole('spinbutton', { name: 'Duración del microflash (fotogramas)' }).fill('4');
+  await page.getByRole('spinbutton', { name: 'Separación de color (px)' }).fill('6');
+  await page.getByRole('spinbutton', { name: 'Volumen del whoosh (dB)' }).fill('-24');
+  await page.getByRole('spinbutton', { name: 'Cola de voces hacia la siguiente ronda (s)' }).fill('0.9');
+  await page.getByText('Ajustar mezcla del corte', { exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Filtro grave de salida (Hz; 0 desactiva)' }).fill('2400');
+  await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
+  await page.getByRole('button', { name: /guardar plan/i }).click();
+  await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
+  expect(document.options.transitions).toMatchObject({ enabled: true, direction: 'down', duration_frames: 10, zoom_percent: 15, flash_frames: 4, rgb_pixels: 6, whoosh_gain_db: -24, comms_tail_seconds: .9, game_tail_lowpass_hz: 2400 });
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: 'Activar efectos entre rondas' })).toBeChecked();
+  await expect(page.getByRole('spinbutton', { name: 'Duración de la transición (fotogramas)' })).toHaveValue('10');
+  await expect(page.getByRole('combobox', { name: 'Dirección del barrido' })).toHaveText('Abajo');
+  await page.getByRole('button', { name: REC_CTA }).click();
+  await expect.poll(() => generated).toBeDefined();
+  expect(generated).toMatchObject({ edit: { full_demo: { document: { options: { transitions: document.options.transitions } } } } });
+});
+
+for (const width of [390, 1024, 1440]) {
+  test(`round effects remain usable at ${width}px with an unbroken player name`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await fulfillJson(page, '/plan', 200, { ...PLAN, target: { ...PLAN.target, name_in_demo: 'donk'.repeat(65) } });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Activar efectos entre rondas' }).check();
+    await page.getByRole('button', { name: 'Dinámico', exact: true }).click();
+    await page.getByText('Ajustar mezcla del corte', { exact: true }).click();
+    const rgb = page.getByRole('spinbutton', { name: 'Separación de color (px)' });
+    await rgb.fill('4');
+    await expect(rgb).toHaveValue('4');
+    await page.getByRole('checkbox', { name: 'Microflash de brillo' }).uncheck();
+    await expect(page.getByRole('checkbox', { name: 'Separación RGB' })).toBeChecked();
+    await expect(page.getByRole('button', { name: /guardar plan/i })).toBeEnabled();
+    const overflow = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    expect(overflow.scroll).toBeLessThanOrEqual(overflow.width);
+    await page.getByRole('checkbox', { name: 'Activar efectos entre rondas' }).uncheck();
+    await expect(page.getByRole('spinbutton', { name: 'Separación de color (px)' })).toHaveCount(0);
+  });
+}

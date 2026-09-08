@@ -169,6 +169,11 @@ func requireFields(data []byte, typ reflect.Type, field string, depth int) error
 }
 
 func (o Options) Validate() error {
+	if o.Transitions != nil {
+		if err := o.Transitions.Validate(); err != nil {
+			return err
+		}
+	}
 	for _, choice := range []struct {
 		name, value string
 		allowed     []string

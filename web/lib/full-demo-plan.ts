@@ -38,6 +38,21 @@ function array<T>(guard: Guard<T>, limit = 10000): Guard<T[]> {
 }
 const assetRef = object({ id: uuid, sha256: hash });
 export type FullDemoAssetRef = Guarded<typeof assetRef>;
+function integerRange(min: number, max: number): Guard<number> {
+  return (value): value is number => integer(value) && value >= min && value <= max;
+}
+const transitionOptions = object({
+  enabled: boolean, duration_frames: integerRange(6, 18), whip: boolean,
+  direction: oneOf('left', 'right', 'up', 'down', 'alternate', 'follow-motion'),
+  whip_strength: number(.02, .2), blur_pixels: integerRange(0, 64),
+  zoom: boolean, zoom_percent: number(5, 15), zoom_anchor: oneOf('cut', 'last-kill', 'round-end'),
+  flash: boolean, flash_frames: integerRange(2, 4), flash_intensity: number(.02, .2),
+  rgb_split: boolean, rgb_pixels: integerRange(1, 6),
+  whoosh: boolean, whoosh_gain_db: number(-36, -6), impact: boolean, impact_gain_db: number(-36, -6),
+  impact_duration_ms: integerRange(80, 400), impact_frequency: integerRange(35, 90),
+  comms_tail_seconds: number(0, 1.5), game_fade_ms: integerRange(0, 250), game_tail_lowpass_hz: integerRange(0, 12000),
+});
+export type FullDemoTransitionOptions = Guarded<typeof transitionOptions>;
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
@@ -69,7 +84,8 @@ const optionsShape = object({
     mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
   }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
-});
+  transitions: nullable(transitionOptions),
+}, ['transitions']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -80,6 +96,8 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (!optionsShape(value)) return false;
   const { editorial, sponsor, capture } = value;
+  const lowpass = value.transitions?.game_tail_lowpass_hz ?? 0;
+  if (lowpass > 0 && lowpass < 200) return false;
   if (editorial.max_freeze_seconds < editorial.freeze_seconds || sponsor.window_end_seconds < sponsor.window_start_seconds) return false;
   if (sponsor.placement_policy === 'manual-frame' && sponsor.manual_start_frame === null) return false;
   if (sponsor.placement_policy === 'round-boundary' && sponsor.after_round_id === '') return false;
@@ -170,7 +188,7 @@ export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Pro
 }
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions): Promise<FullDemoDocument> {
   options = fixedFullDemoFreeze(options);
-  if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, audio y sponsor.');
+  if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y sponsor.');
   const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }) }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan Full Demo incompatible.');
   return value;

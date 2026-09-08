@@ -26,11 +26,25 @@ func sidechainFilter(options recapplan.DuckingOptions) string {
 // fullDemoRoundAudio uses one canonical frame/sample window for every bus.
 // All mixing is unnormalized float audio; the full program owns mastering.
 func fullDemoRoundAudio(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount, musicInput int) string {
+	return fullDemoRoundAudioWithTransitions(options, gameStartSample, samples, voiceCount, musicInput, fullDemoTransitionEdges{})
+}
+
+func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount, musicInput int, edges fullDemoTransitionEdges) string {
 	clauses := []string{sampleWindow("[0:a]", gameStartSample, samples, options.Game.Gain, "graw")}
+	if filter := fullDemoGameTransitionFilter(edges, samples); filter != "" {
+		clauses[0] = sampleWindow("[0:a]", gameStartSample, samples, options.Game.Gain, "gwindow")
+		clauses = append(clauses, "[gwindow]"+filter+"[graw]")
+	}
 	voices := []string{}
 	for i := 0; i < voiceCount; i++ {
 		label := fmt.Sprintf("voice%d", i)
 		clauses = append(clauses, sampleWindow(fmt.Sprintf("[%d:a]", 1+i), 0, samples, options.Voice.Gain, label))
+		voices = append(voices, "["+label+"]")
+	}
+	for i := 0; i < edges.tailCount; i++ {
+		label := fmt.Sprintf("vtail%d", i)
+		clauses = append(clauses, sampleWindow(fmt.Sprintf("[%d:a]", edges.tailInput+i), 0, edges.tailSamples, options.Voice.Gain, label+"raw"),
+			fmt.Sprintf("[%sraw]afade=t=in:ss=0:ns=%d,afade=t=out:ss=0:ns=%d:curve=qsin[%s]", label, min(int64(96), edges.tailSamples/2), edges.tailSamples, label))
 		voices = append(voices, "["+label+"]")
 	}
 	if len(voices) == 0 {
@@ -173,6 +187,7 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 	runtime := short.fullDemo
 	options := short.FullDemo.Effective.Options
 	frames, samples := item.EndFrame-item.StartFrame, item.EndSample-item.StartSample
+	edges := fullDemoEdges(short, item)
 	command := []string{runtime.ffmpeg, "-y", "-v", "error"}
 	var audio string
 	var sourceOffset int64
@@ -208,15 +223,22 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 		for _, voice := range runtime.voicePaths {
 			command = append(command, "-ss", decimal(float64(voiceSample)/recapplan.SampleRate), "-i", voice)
 		}
+		tailStart, tailSamples := fullDemoCommsTail(short.FullDemo.Effective, edges.in)
+		if tailSamples > 0 {
+			edges.tailInput, edges.tailCount, edges.tailSamples = 1+len(runtime.voicePaths), len(runtime.voicePaths), tailSamples
+			for _, voice := range runtime.voicePaths {
+				command = append(command, "-ss", decimal(float64(tailStart)/recapplan.SampleRate), "-i", voice)
+			}
+		}
 		musicInput := -1
 		if runtime.playlist != "" {
 			if options.Audio.Music.LoopPolicy == "ordered-loop" {
 				command = append(command, "-stream_loop", "-1")
 			}
 			command = append(command, "-ss", decimal(float64(musicSample)/recapplan.SampleRate), "-i", runtime.playlist)
-			musicInput = 1 + len(runtime.voicePaths)
+			musicInput = 1 + len(runtime.voicePaths) + edges.tailCount
 		}
-		audio = fullDemoRoundAudio(options.Audio, sourceOffset*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), musicInput)
+		audio = fullDemoRoundAudioWithTransitions(options.Audio, sourceOffset*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), musicInput, edges)
 	} else if item.Role == "sponsor" {
 		video, err := runtime.execution.assetPath(*options.Sponsor.Video)
 		if err != nil {
@@ -236,12 +258,13 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 	} else {
 		return nil, fmt.Errorf("unsupported Full Demo timeline role %s", item.Role)
 	}
-	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v]", sourceOffset, sourceOffset+frames)
+	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s[v]", sourceOffset, sourceOffset+frames, fullDemoTransitionVideo(short, item, edges))
 	// Five millisecond de-clicks keep hard cuts while preserving every frame
 	// and sample in the approved timeline, including very short inserts.
 	fadeSamples := min(int64(240), samples/2)
 	audio += fmt.Sprintf(";[a]afade=t=in:ss=0:ns=%d,afade=t=out:ss=%d:ns=%d[declicked]", fadeSamples, samples-fadeSamples, fadeSamples)
-	command = append(command, "-filter_complex", video+";"+audio, "-map", "[v]", "-map", "[declicked]")
+	sfx, audioLabel := fullDemoTransitionSFX(edges, samples)
+	command = append(command, "-filter_complex", video+";"+audio+sfx, "-map", "[v]", "-map", "["+audioLabel+"]")
 	command = appendVideoEncodeArgs(command, short)
 	command = append(command, "-bf", "0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2")
 	command = appendThreadArgs(command, short)
@@ -253,6 +276,9 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 		return nil
 	}
 	if err := prepareFullDemoTracks(ctx, short, progress.within(0, .3)); err != nil {
+		return err
+	}
+	if err := prepareFullDemoTransitions(ctx, short); err != nil {
 		return err
 	}
 	var musicSample int64
