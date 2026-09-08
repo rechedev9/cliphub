@@ -37,8 +37,8 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	if !l.Outro.FullFrame {
 		t.Fatal("outro must be full-frame")
 	}
-	if FadeFromBlackSeconds != 1 || IntroOverlayAfterFadeSeconds != 4 {
-		t.Fatalf("fade/delay = %.1f / %.1f", FadeFromBlackSeconds, IntroOverlayAfterFadeSeconds)
+	if FadeFromBlackSeconds != 1 || IntroOverlayDurationSeconds != 5 {
+		t.Fatalf("fade/intro = %.1f / %.1f", FadeFromBlackSeconds, IntroOverlayDurationSeconds)
 	}
 	if IntroFreezeSeconds != 15 || OutroSeconds != 8 || BannerHoldSeconds != 4 {
 		t.Fatalf("freeze/outro/banner = %d / %d / %d", IntroFreezeSeconds, OutroSeconds, BannerHoldSeconds)
@@ -54,7 +54,7 @@ func TestDefaultLayoutKeepsNativeHUDChannelAndFullFrameOutro(t *testing.T) {
 	}
 }
 
-func TestOverlayWindowsStartsAfterFadeAndLeavesBeforeLive(t *testing.T) {
+func TestOverlayWindowsLimitsIntroToFirstFiveSeconds(t *testing.T) {
 	tests := []struct {
 		name     string
 		duration float64
@@ -62,8 +62,10 @@ func TestOverlayWindowsStartsAfterFadeAndLeavesBeforeLive(t *testing.T) {
 		introEnd float64
 		outroIn  float64
 	}{
-		{name: "long recap", duration: 600, introIn: 5, introEnd: 14, outroIn: 592},
-		{name: "shorter than freeze", duration: 6, introIn: 5, introEnd: 6, outroIn: 6},
+		{name: "long recap", duration: 600, introIn: 0, introEnd: 5, outroIn: 592},
+		{name: "shorter than freeze", duration: 6, introIn: 0, introEnd: 5, outroIn: 5},
+		{name: "exact intro", duration: 5, introIn: 0, introEnd: 5, outroIn: 5},
+		{name: "shorter than intro", duration: 2, introIn: 0, introEnd: 2, outroIn: 2},
 		{name: "empty", duration: 0, introIn: 0, introEnd: 0, outroIn: 0},
 	}
 	for _, tt := range tests {
@@ -78,11 +80,8 @@ func TestOverlayWindowsStartsAfterFadeAndLeavesBeforeLive(t *testing.T) {
 			if ie > 0 && os < ie {
 				t.Fatalf("outro overlaps intro: %.1f < %.1f", os, ie)
 			}
-			if tt.duration >= IntroOverlayEnd() && is != IntroOverlayStart() {
-				t.Fatalf("roster must wait until fade+4s, start=%.1f", is)
-			}
-			if tt.duration >= float64(IntroFreezeSeconds) && ie >= float64(IntroFreezeSeconds) {
-				t.Fatalf("roster must leave before live, end=%.1f", ie)
+			if is != 0 || ie > 5 {
+				t.Fatalf("roster must stay within the first five seconds: %.1f-%.1f", is, ie)
 			}
 		})
 	}

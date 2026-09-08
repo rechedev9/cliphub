@@ -19,6 +19,7 @@ import { StatusTag } from '@/components/studio/status-tag';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoChoice, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
 import { FullDemoAudio, FullDemoAudioAdvanced, FullDemoSponsor } from './full-demo-audio';
+import { FullDemoOverlays } from './full-demo-overlays';
 
 export type FullPovProducerProps = {
   matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
@@ -125,9 +126,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
       <div className="min-w-0 space-y-5">
         <MediaFrame aspect="16:9" fallback={<MapCover map={match.map} />} footer={<span className="text-meta text-fg-2">1920×1080 · 60 fps · primera persona</span>} />
         <FullDemoGroup title="Extra" note="Overlays sobre el vídeo y un anuncio opcional.">
-          <FullDemoToggle label="Overlay de roster" value={options.overlays.roster} onChange={(roster) => change({ ...options, overlays: { ...options.overlays, roster } })} />
-          <FullDemoToggle label="Overlay de marcador" value={options.overlays.scoreboard} onChange={(scoreboard) => change({ ...options, overlays: { ...options.overlays, scoreboard } })} />
-          <FullDemoChoice label="Tema del overlay" value={options.overlays.theme} options={[{ value: 'faceit-orange', label: 'Naranja' }, { value: 'neon-violet', label: 'Violeta' }]} onChange={(theme) => change({ ...options, overlays: { ...options.overlays, theme } })} />
+          <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
           <div className="space-y-4 border-t border-border-subtle pt-3">
             <FullDemoSponsor options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
           </div>
@@ -163,7 +162,6 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
           </section>
           <section className="space-y-4 border-t border-border-subtle pt-4">
             <h3 className="font-display text-body font-semibold uppercase text-fg-1">Overlays y portada</h3>
-            <FullDemoChoice label="Datos del overlay" value={options.overlays.source} options={[{ value: 'demo', label: 'Demo' }, { value: 'faceit', label: 'FACEIT (requiere conexión)' }]} onChange={(source) => change({ ...options, overlays: { ...options.overlays, source } })} />
             <FullDemoChoice label="Portada" value={options.outputs.cover_policy} options={[{ value: 'no-cover', label: 'Sin portada' }, { value: 'generated-gameplay', label: 'Fotograma del gameplay' }]} onChange={(cover_policy) => change({ ...options, outputs: { ...options.outputs, cover_policy } })} />
           </section>
           {document ? <a href={`/api/demos/${matchId}/full-demo/plans/${document.plan_id}`} target="_blank" rel="noreferrer" className="text-body-sm text-primary underline">Ver documento del plan · {document.plan_hash.slice(0, 12)}</a> : null}

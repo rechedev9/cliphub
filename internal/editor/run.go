@@ -145,10 +145,24 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return Result{}, err
 	}
 	if fullDemoExecution != nil {
-		for _, artifact := range recordingResult.Artifacts {
+		for i, artifact := range recordingResult.Artifacts {
 			if artifact.Role == "segment" && artifact.Type == "video" {
 				if err := verifyFullDemoLocalFile(ctx, resolvePath(recordingBaseDir, artifact.Path), artifact.ContentSHA256); err != nil {
 					return Result{}, fmt.Errorf("verify captured segment content: %w", err)
+				}
+				if !cfg.DryRun {
+					if ffprobePath == "" {
+						return Result{}, fmt.Errorf("ffprobe is required to check Full Demo source frames")
+					}
+					// Check the actual localized file before preparation, rather than
+					// relying on frame metadata transported in recording-result.json.
+					probe := recording.RecordingArtifact{Path: resolvePath(recordingBaseDir, artifact.Path)}
+					recording.ProbeArtifact(ctx, ffprobePath, &probe)
+					if probe.ProbeError != "" {
+						return Result{}, fmt.Errorf("probe Full Demo source %s: %s", artifact.SegmentID, probe.ProbeError)
+					}
+					recordingResult.Artifacts[i].FrameCount = probe.FrameCount
+					recordingResult.Artifacts[i].FrameRate = probe.FrameRate
 				}
 			}
 		}
@@ -236,7 +250,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	manifest.Warnings = append(metadataWarnings, manifest.Warnings...)
 	if err := attachFullDemoExecution(&manifest, recordingResult, fullDemoExecution, commandFFmpeg); err != nil {
-		return Result{}, err
+		return failResult(filepath.Join(outDir, "shorts-result.json"), resultFromManifest(manifest, cfg.DryRun), err)
 	}
 	result := resultFromManifest(manifest, cfg.DryRun)
 

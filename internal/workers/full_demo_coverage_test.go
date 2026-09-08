@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,5 +137,107 @@ func TestFullDemoRenderHashIgnoresAttemptLocationsAndApprovalTime(t *testing.T) 
 	after, err := fullDemoRenderFingerprint(result, "gameplay-pov-60", snapshot)
 	if err != nil || before != after {
 		t.Fatalf("volatile fields changed canonical render hash: %v", err)
+	}
+}
+
+func TestFullDemoRenderHashInvalidatesLegacyIntroOnlyWhenEnabled(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		result, _, _ := fullDemoPublicationFixture(t, "clip", func(_ *recapplan.Facts, o *recapplan.Options) {
+			o.Overlays.Roster = enabled
+		})
+		snapshot := recapplan.Snapshot{Document: *result.Plan.FullDemo, Approval: recapplan.Approval{PlanHash: result.Plan.FullDemo.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()}}
+		effective, err := recapplan.ApplyCertifiedEnds(snapshot, result.FullDemoEvidence.CertifiedEnds)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The old cache identity omitted timing and could reuse a 5-14s intro.
+		type legacyInput struct {
+			SegmentID, ContentSHA256 string
+			StartTick, EndTick       int
+		}
+		segment, artifact := result.Plan.Segments[0], result.Artifacts[0]
+		legacyHash, err := recapplan.HashValue(struct {
+			Policy, Variant, EffectivePlanHash string
+			Captures                           []legacyInput
+		}{"full-demo-render-v1", "gameplay-pov-60", effective.PlanHash, []legacyInput{{segment.ID, artifact.ContentSHA256, segment.TickStart, result.FullDemoEvidence.CertifiedEnds[segment.ID]}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := fullDemoRenderFingerprint(result, "gameplay-pov-60", snapshot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (got != legacyHash) != enabled {
+			t.Fatalf("roster=%t: legacy render reuse changed=%t", enabled, got != legacyHash)
+		}
+	}
+}
+
+func TestFullDemoShortFramesRequireOnlyAffectedRoundsToBeRecaptured(t *testing.T) {
+	store, id := newFakeStorage(), uuid.New()
+	result, dir, resultPath := fullDemoPublicationFixture(t, "original", twoFullDemoFixtureRounds)
+	if _, err := uploadFullDemoRecordingOutputs(store, id, dir, resultPath, result, result, false); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := decodeStoredRecordingResult(store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored.Artifacts[0].FrameCount-- // Old muxed clip; its duration still passed the former 250ms tolerance.
+	if err := putRecordingResult(store, id, stored); err != nil {
+		t.Fatal(err)
+	}
+	missing, _, err := recordingOutputsReady(store, id, []string{"round-001", "round-002"}, result.Plan, context.Background())
+	if err != nil || !slices.Equal(missing, []string{"round-001"}) {
+		t.Fatalf("only the short round should be recaptured: missing=%v, err=%v", missing, err)
+	}
+	snapshot := recapplan.Snapshot{Document: *stored.Plan.FullDemo, Approval: recapplan.Approval{PlanHash: stored.Plan.FullDemo.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()}}
+	if _, err := fullDemoRenderFingerprint(stored, "gameplay-pov-60", snapshot); err == nil || !recording.IsNotReusableMessage(err.Error()) || !strings.Contains(err.Error(), "round-001") {
+		t.Fatalf("render must request recapture before materializing media: %v", err)
+	}
+	// The corrected capture replaces the bad clip and retains the complete
+	// round's original bytes and attestation through the normal merge/publication.
+	next, nextDir, nextPath := fullDemoPublicationFixture(t, "recaptured", twoFullDemoFixtureRounds)
+	next.Plan.Segments = next.Plan.Segments[:1]
+	next.Plan.EditorialSegmentIDs = []string{"round-001"}
+	next.Artifacts = next.Artifacts[:1]
+	delete(next.FullDemoEvidence.CertifiedEnds, "round-002")
+	next.CaptureInputFingerprint, err = recording.CaptureInputFingerprint(next.Plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullPlan := result.Plan.ToKillPlan()
+	merged, err := mergeRecordingResults(stored, next, &fullPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := uploadFullDemoRecordingOutputs(store, id, nextDir, nextPath, next, merged, true); err != nil {
+		t.Fatal(err)
+	}
+	missing, _, err = recordingOutputsReady(store, id, []string{"round-001", "round-002"}, result.Plan, context.Background())
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("repaired capture should be reusable: missing=%v, err=%v", missing, err)
+	}
+	repaired, err := decodeStoredRecordingResult(store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fullDemoRenderFingerprint(repaired, "gameplay-pov-60", snapshot); err != nil {
+		t.Fatalf("repaired capture should be renderable: %v", err)
+	}
+	for id, want := range map[string]string{"round-001": "recaptured", "round-002": "original"} {
+		for _, a := range repaired.Artifacts {
+			if a.SegmentID == id && string(store.files[a.StorageKey]) != want {
+				t.Fatalf("%s did not retain the expected media", id)
+			}
+		}
+	}
+}
+
+func TestFullDemoRecordingAttemptRejectsShortMuxedClip(t *testing.T) {
+	result, dir, _ := fullDemoPublicationFixture(t, "clip")
+	result.Artifacts[0].FrameCount--
+	if err := recording.ValidateRecordingAttempt(result.Plan, dir, result); err == nil || !strings.Contains(err.Error(), "round-001") {
+		t.Fatalf("new capture must reject missing frames before publication: %v", err)
 	}
 }

@@ -84,7 +84,7 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 	}
 	wantIntroStart, wantIntroEnd, wantOutroStart, wantOutroEnd := demooverlay.OverlayWindows(short.DurationSeconds)
 	if introFx.Type != EffectImage || introFx.StartSeconds != wantIntroStart || introFx.EndSeconds != wantIntroEnd {
-		t.Fatalf("intro effect = %#v, want %.1f-%.1f (after fade, before live)", introFx, wantIntroStart, wantIntroEnd)
+		t.Fatalf("intro effect = %#v, want %.1f-%.1f", introFx, wantIntroStart, wantIntroEnd)
 	}
 	if introFx.FadeInSeconds != demooverlay.IntroOverlaySlideSeconds {
 		t.Fatalf("intro slide-in fade = %.2f, want %.2f", introFx.FadeInSeconds, demooverlay.IntroOverlaySlideSeconds)
@@ -92,11 +92,8 @@ func TestBuildManifestFullDemoAttachesIntroAndOutroOverlays(t *testing.T) {
 	if outroFx.Type != EffectImage || outroFx.StartSeconds != wantOutroStart || outroFx.EndSeconds != wantOutroEnd {
 		t.Fatalf("outro effect = %#v, want %.1f-%.1f", outroFx, wantOutroStart, wantOutroEnd)
 	}
-	if wantIntroStart < demooverlay.FadeFromBlackSeconds+demooverlay.IntroOverlayAfterFadeSeconds-0.01 {
-		t.Fatal("roster must wait until ~4s after the fade")
-	}
-	if wantIntroEnd >= float64(demooverlay.IntroFreezeSeconds) {
-		t.Fatal("roster must leave before live action")
+	if introFx.StartSeconds != 0 || introFx.EndSeconds != 5 {
+		t.Fatal("roster must appear only from 0:00 to 0:05")
 	}
 	command := strings.Join(short.FFmpegCommand, " ")
 	if !strings.Contains(command, intro) || !strings.Contains(command, outro) {
@@ -296,8 +293,8 @@ func TestFullDemoOverlayCompositesOntoFixtureCapture(t *testing.T) {
 		t.Fatalf("compiled Full Demo = %dx%d, want 1920x1080", w, h)
 	}
 
-	introFrame := extractFrame(t, ffmpeg, short.Output, 8, filepath.Join(dir, "frame-intro.png"))
-	bodyFrame := extractFrame(t, ffmpeg, short.Output, 15, filepath.Join(dir, "frame-body.png"))
+	introFrame := extractFrame(t, ffmpeg, short.Output, 4.5, filepath.Join(dir, "frame-intro.png"))
+	bodyFrame := extractFrame(t, ffmpeg, short.Output, 5.1, filepath.Join(dir, "frame-body.png"))
 	outroFrame := extractFrame(t, ffmpeg, short.Output, 20, filepath.Join(dir, "frame-outro.png"))
 	if filesEqual(t, introFrame, bodyFrame) {
 		t.Fatal("intro roster frame matches the mid-round body; overlay did not land on the fixture")

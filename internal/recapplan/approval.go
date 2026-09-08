@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rechedev9/cliphub/internal/artifacts"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
+	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
@@ -54,8 +55,15 @@ func ResolveApproval(ctx context.Context, store storage.Storage, id uuid.UUID, d
 		if err != nil {
 			return Snapshot{}, err
 		}
-		if err := mediaassets.VerifyContent(ctx, store, mediaassets.MediaKey(assetID), asset.Ref.SHA256, 8<<30); err != nil {
+		if err := mediaassets.VerifyContent(ctx, store, asset.MediaKey(), asset.Ref.SHA256, 8<<30); err != nil {
 			return Snapshot{}, &Error{ErrAssetMissing, "Asset " + asset.Ref.ID + ": " + err.Error()}
+		}
+		if asset.HasImage {
+			image, err := overlayassets.Load(store, assetID)
+			if err != nil || image.SHA256 != asset.Ref.SHA256 {
+				return Snapshot{}, &Error{ErrAssetMissing, "La captura guardada ha cambiado"}
+			}
+			continue
 		}
 		p, found, err := mediaassets.LoadProvenance(store, assetID)
 		if err != nil || !found || p.AssetSHA256 != asset.Ref.SHA256 || p.Title != asset.Title || p.Creator != asset.Creator || p.SourceURL != asset.SourceURL || p.Permission != asset.Permission || p.Attribution != asset.Attribution {
@@ -93,6 +101,11 @@ func VoiceFromExtraction(stored voicecomms.StoredExtraction) VoiceEvidence {
 // AssetReferences preserves playlist order while resolving each immutable file once.
 func (o Options) AssetReferences() []AssetRef {
 	refs := []AssetRef{}
+	for _, slot := range o.Overlays.ImageSlots() {
+		if slot.Ref != nil {
+			refs = append(refs, *slot.Ref)
+		}
+	}
 	if o.Audio.Music.Enabled {
 		refs = append(refs, o.Audio.Music.Assets...)
 	}
@@ -111,6 +124,42 @@ func (o Options) AssetReferences() []AssetRef {
 		}
 	}
 	return unique
+}
+
+type OverlayImageSlot struct {
+	Label string
+	Ref   *AssetRef
+}
+
+func (o OverlayOptions) ImageSlots() []OverlayImageSlot {
+	if o.Mode != "screenshots" {
+		return nil
+	}
+	slots := []OverlayImageSlot{}
+	if o.Roster {
+		slots = append(slots, OverlayImageSlot{"equipo 1", o.Team1Image}, OverlayImageSlot{"equipo 2", o.Team2Image})
+	}
+	if o.Scoreboard {
+		slots = append(slots, OverlayImageSlot{"marcador final", o.ScoreboardImage})
+	}
+	return slots
+}
+
+func (o Options) IsOverlayImage(ref AssetRef) bool {
+	for _, slot := range o.Overlays.ImageSlots() {
+		if slot.Ref != nil && *slot.Ref == ref {
+			return true
+		}
+	}
+	return false
+}
+
+func (a AssetEvidence) MediaKey() string {
+	id, _ := uuid.Parse(a.Ref.ID)
+	if a.HasImage {
+		return overlayassets.MediaKey(id)
+	}
+	return mediaassets.MediaKey(id)
 }
 
 func AssetFromMedia(a mediaassets.Asset, p mediaassets.Provenance) (AssetEvidence, error) {

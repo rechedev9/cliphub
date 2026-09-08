@@ -22,8 +22,8 @@ const (
 )
 
 // OverlayWindows returns the compiled-timeline windows for intro and outro
-// image overlays. Intro starts ~4s after the fade-from-black and ends
-// before live action. Outro covers the last beats after the win banner.
+// image overlays. Intro covers the first five seconds, clamped to the video.
+// Outro covers the last beats after the win banner without overlapping intro.
 func OverlayWindows(durationSeconds float64) (introStart, introEnd, outroStart, outroEnd float64) {
 	if durationSeconds <= 0 {
 		return 0, 0, 0, 0
@@ -49,6 +49,21 @@ func OverlayWindows(durationSeconds float64) (introStart, introEnd, outroStart, 
 // RenderPNGs writes the intro (transparent sides) and outro (full-frame)
 // overlay stills. ffmpegPath and fontPath must already be resolved.
 func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath string, opts RenderOptions) error {
+	if doc.Screenshots != nil {
+		for _, item := range []struct {
+			outro bool
+			path  string
+		}{{false, introPath}, {true, outroPath}} {
+			html, err := ScreenshotHTML(*doc.Screenshots, item.outro, opts.PreviewGreyBase)
+			if err != nil {
+				return err
+			}
+			if err := renderHTMLStill(html, item.path); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if strings.TrimSpace(ffmpegPath) == "" {
 		return fmt.Errorf("render full-demo overlay: ffmpeg path is required")
 	}
@@ -73,6 +88,9 @@ func RenderPNGs(ffmpegPath, fontPath string, doc Document, introPath, outroPath 
 }
 
 func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
+	if NormalizeTheme(doc.Theme) == ThemeNeonViolet {
+		return renderNeonIntroStill(doc, outPath, previewGrey)
+	}
 	l := DefaultLayout()
 	if NormalizeSource(doc.Source) == SourceFACEIT {
 		l.Intro = faceitIntroLayout()
@@ -112,6 +130,13 @@ func renderIntroStill(ffmpegPath, fontPath string, doc Document, outPath, plateP
 }
 
 func renderOutroStill(ffmpegPath, fontPath string, doc Document, outPath, platePath string, previewGrey bool) error {
+	if NormalizeTheme(doc.Theme) == ThemeNeonViolet {
+		html, err := NeonOutroHTML(doc, previewGrey)
+		if err != nil {
+			return err
+		}
+		return renderHTMLStill(html, outPath)
+	}
 	l := DefaultLayout()
 	hasPlate := platePath != ""
 	layout, geo, usePlateGeo := OutroLayoutForSourceWithPlate(doc.Source, hasPlate)

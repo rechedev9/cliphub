@@ -191,6 +191,7 @@ func (o Options) Validate() error {
 		{"sponsor.music_policy", o.Sponsor.MusicPolicy, []string{"pause-resume"}},
 		{"overlays.theme", o.Overlays.Theme, []string{"faceit-orange", "neon-violet"}},
 		{"overlays.source", o.Overlays.Source, []string{"demo", "faceit"}},
+		{"overlays.mode", o.Overlays.Mode, []string{"", "generated", "screenshots"}},
 		{"outputs.media_profile", o.Outputs.MediaProfile, []string{"h264-1080p60-aac48-stereo"}},
 		{"outputs.cover_policy", o.Outputs.CoverPolicy, []string{"no-cover", "generated-gameplay"}},
 		{"outputs.metadata_policy", o.Outputs.MetadataPolicy, []string{"factual-v1"}},
@@ -262,7 +263,7 @@ func (o Options) Validate() error {
 			return err
 		}
 	}
-	for _, ref := range []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration} {
+	for _, ref := range []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration, o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage} {
 		if ref != nil {
 			if err := ref.Validate(); err != nil {
 				return err

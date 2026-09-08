@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	overlayAvatarMaxBytes = 256 * 1024
+	overlayAvatarMaxBytes = 2 * 1024 * 1024
 	overlayAvatarTimeout  = 10 * time.Second
 )
 

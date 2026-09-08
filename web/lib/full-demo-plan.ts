@@ -14,10 +14,10 @@ type Guarded<G> = G extends Guard<infer T> ? T : never;
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
-function object<S extends Record<string, Guard<unknown>>>(shape: S, optional: readonly string[] = []): Guard<{ [K in keyof S]: Guarded<S[K]> }> {
-  return (value): value is { [K in keyof S]: Guarded<S[K]> } => record(value)
+function object<S extends Record<string, Guard<unknown>>, O extends keyof S = never>(shape: S, optional: readonly O[] = []): Guard<Omit<{ [K in keyof S]: Guarded<S[K]> }, O> & Partial<Pick<{ [K in keyof S]: Guarded<S[K]> }, O>>> {
+  return (value): value is Omit<{ [K in keyof S]: Guarded<S[K]> }, O> & Partial<Pick<{ [K in keyof S]: Guarded<S[K]> }, O>> => record(value)
     && Object.keys(value).every((key) => Object.hasOwn(shape, key))
-    && Object.entries(shape).every(([key, guard]) => optional.includes(key) && !Object.hasOwn(value, key) || guard(value[key]));
+    && Object.entries(shape).every(([key, guard]) => optional.includes(key as O) && !Object.hasOwn(value, key) || guard(value[key]));
 }
 function oneOf<const T extends string[]>(...values: T): Guard<T[number]> {
   return (value): value is T[number] => typeof value === 'string' && values.some((entry) => entry === value);
@@ -64,7 +64,10 @@ const optionsShape = object({
     placement_policy: oneOf('first-two-rounds', 'round-boundary', 'manual-frame'), window_start_seconds: number(0, 43200), window_end_seconds: number(0, 43200),
     after_round_id: string, manual_start_frame: nullable(integer), allow_split_round: boolean, music_policy: oneOf('pause-resume'),
   }),
-  overlays: object({ roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet'), source: oneOf('demo', 'faceit') }),
+  overlays: object({
+    roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet'), source: oneOf('demo', 'faceit'),
+    mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
+  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
 });
 export type FullDemoOptions = Guarded<typeof optionsShape>;
@@ -102,7 +105,7 @@ const documentShape = object({
   clock: object({ source_clock_kind: oneOf('ingame_tick'), tick_rate: number(1, 1024), output_fps: number(60, 60), audio_sample_rate: number(48000, 48000) }),
   options: isFullDemoOptions, rounds: array(round, 200),
   voice: object({ availability: string, index_ref: string, index_hash: string, extractor_version: string, clock_kind: string, activity: nullable(array(interval)), selected_packets: integer, excluded_packets: integer }),
-  assets: nullable(array(object({ ref: assetRef, duration_frames: integer, has_video: boolean, has_audio: boolean, title: string, creator: string, source_url: string, permission: string, attribution: string }), 100)),
+  assets: nullable(array(object({ ref: assetRef, duration_frames: integer, has_video: boolean, has_audio: boolean, has_image: boolean, title: string, creator: string, source_url: string, permission: string, attribution: string }, ['has_image']), 100)),
   sponsor_placement: object({ boundary: string, start_frame: integer, duration_frames: integer, candidates: nullable(array(object({ after_round_id: string, frame: integer }), 200)) }),
   timeline: nullable(array(object({ role: oneOf('round', 'sponsor'), source_ref: string, source_start_tick: integer, source_end_tick: integer, source_offset_frames: integer, start_frame: integer, end_frame: integer, start_sample: integer, end_sample: integer, reason: string }))),
   warnings: nullable(array(notice, 1000)), blockers: nullable(array(notice, 1000)),
@@ -183,5 +186,20 @@ export async function uploadFullDemoAsset(file: File, provenance: FullDemoProven
   // The guarded pair is independent from private storage fields in the upload response.
   const ref = { id: value.id, sha256: value.sha256 };
   if (!assetRef(ref)) throw new Error('Referencia de archivo inválida.');
+  return ref;
+}
+
+export function fullDemoOverlayImageURL(ref: FullDemoAssetRef): string {
+  if (!assetRef(ref)) throw new Error('Referencia de captura inválida.');
+  return `/api/full-demo/overlay-images/${ref.id}`;
+}
+
+export async function uploadFullDemoOverlayImage(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
+  if (file.size > 10 * 1024 * 1024) throw new Error('La captura debe ocupar como máximo 10 MB.');
+  const form = new FormData(); form.set('image', file);
+  const value = await responseJSON(await fetch('/api/full-demo/overlay-images', { method: 'POST', body: form, signal }));
+  if (!record(value)) throw new Error('No se pudo guardar la captura.');
+  const ref = { id: value.id, sha256: value.sha256 };
+  if (!assetRef(ref)) throw new Error('Referencia de captura inválida.');
   return ref;
 }

@@ -25,7 +25,7 @@ import (
 // attestation or pass synthetic capture through the production-real gate.
 func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 	ffmpeg := fullDemoTestFFmpeg(t)
-	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "playlist-once", "final-boundary"} {
+	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "playlist-once", "final-boundary", "muxed-bframes"} {
 		t.Run(scenario, func(t *testing.T) {
 			audioPolicy := "embedded"
 			if scenario == "replace-narration" {
@@ -45,6 +45,36 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			}
 			roundOne := makeMedia("round-one", "red", 440, 121.0/60)
 			roundTwo := makeMedia("round-two", "blue", 440, 121.0/60)
+			if scenario == "muxed-bframes" {
+				ffprobe := recording.FindFFprobe()
+				if ffprobe == "" {
+					t.Fatal("ffprobe is required for the capture mux canary")
+				}
+				for i, source := range []*string{&roundOne, &roundTwo} {
+					captureDir := filepath.Join(dir, "capture-"+strconv.Itoa(i))
+					if err := os.MkdirAll(captureDir, 0700); err != nil {
+						t.Fatal(err)
+					}
+					video, audio := filepath.Join(captureDir, "video.mp4"), filepath.Join(captureDir, "audio.wav")
+					for _, args := range [][]string{
+						{ffmpeg, "-y", "-v", "error", "-i", *source, "-map", "0:v:0", "-c:v", "libx264", "-preset", "medium", "-bf", "3", "-threads", "2", video},
+						{ffmpeg, "-y", "-v", "error", "-i", *source, "-map", "0:a:0", "-t", "2.009637", "-ar", "44100", "-c:a", "pcm_s16le", audio},
+					} {
+						if _, err := runFFmpegOutput(ctx, args, "create B-frame capture fixture"); err != nil {
+							t.Fatal(err)
+						}
+					}
+					id := "round-00" + strconv.Itoa(i+1)
+					clips := recording.MuxSegmentClips(ctx, recording.RecordingPlan{OutputDir: captureDir, Segments: []recording.RecordingSegment{{ID: id}}}, []recording.RecordingArtifact{
+						{SegmentID: id, TakeID: "take0000", Role: "raw", Type: "video", Path: video},
+						{SegmentID: id, TakeID: "take0000", Role: "raw", Type: "audio", Path: audio},
+					}, ffmpeg, ffprobe)
+					if len(clips) != 1 || clips[0].ProbeError != "" || clips[0].FrameCount != 121 {
+						t.Fatalf("mux lost approved round frames: %+v", clips)
+					}
+					*source = clips[0].Path
+				}
+			}
 			sponsor := makeMedia("sponsor", "lime", 660, 1)
 			narration := makeMedia("narration", "black", 1200, 1)
 			musicOne := makeMedia("music-one", "black", 220, .75)

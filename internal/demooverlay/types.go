@@ -12,18 +12,15 @@ const (
 	ThemeFaceitOrange = "faceit-orange"
 	ThemeNeonViolet   = "neon-violet"
 
-	// FadeFromBlackSeconds is the opening fade. The roster slides in
-	// IntroOverlayAfterFadeSeconds after that fade ends, then leaves before
-	// live action. Parser IntroFreezeSeconds must stay in sync with
-	// IntroFreezeSeconds here so the first compiled seconds are freeze/buy.
-	FadeFromBlackSeconds         = 1.0
-	IntroOverlayAfterFadeSeconds = 4.0
-	IntroOverlaySlideSeconds     = 0.4
-	IntroOverlaySlideOutSeconds  = 0.3
-	IntroFreezeSeconds           = 15
-	IntroLeaveBeforeLiveSeconds  = 1.0
-	OutroSeconds                 = 8
-	BannerHoldSeconds            = 4
+	// The roster occupies only the first five compiled seconds, including
+	// its slide animations. This does not change the parser's freeze prefix.
+	FadeFromBlackSeconds        = 1.0
+	IntroOverlayDurationSeconds = 5.0
+	IntroOverlaySlideSeconds    = 0.4
+	IntroOverlaySlideOutSeconds = 0.3
+	IntroFreezeSeconds          = 15
+	OutroSeconds                = 8
+	BannerHoldSeconds           = 4
 
 	FrameWidth  = 1920
 	FrameHeight = 1080
@@ -33,15 +30,14 @@ const (
 	OutroEQBrightness = -0.35
 )
 
-// IntroOverlayStart is fade duration + the post-fade delay (~4s).
+// IntroOverlayStart is the beginning of the compiled video.
 func IntroOverlayStart() float64 {
-	return FadeFromBlackSeconds + IntroOverlayAfterFadeSeconds
+	return 0
 }
 
-// IntroOverlayEnd is 1s before the typical freeze prefix ends, so the
-// roster leaves before live action.
+// IntroOverlayEnd includes the slide-out so the roster is gone at five seconds.
 func IntroOverlayEnd() float64 {
-	return float64(IntroFreezeSeconds) - IntroLeaveBeforeLiveSeconds
+	return IntroOverlayDurationSeconds
 }
 
 const (
@@ -70,19 +66,31 @@ const (
 // Document is the durable Full Demo overlay contract. FACEIT fields are
 // omitted unless a real FACEIT value was supplied; nothing is invented.
 type Document struct {
-	SchemaVersion   string     `json:"schema_version"`
-	Source          string     `json:"source,omitempty"`
-	Theme           string     `json:"theme,omitempty"`
-	TargetSteamID64 string     `json:"target_steamid64"`
-	TargetName      string     `json:"target_name"`
-	TargetKills     int        `json:"target_kills"`
-	TargetDeaths    int        `json:"target_deaths"`
-	TargetELO       *int       `json:"target_elo,omitempty"`
-	Map             string     `json:"map,omitempty"`
-	ScoreCT         int        `json:"score_ct"`
-	ScoreT          int        `json:"score_t"`
-	Intro           Intro      `json:"intro"`
-	Outro           Scoreboard `json:"outro"`
+	SchemaVersion   string       `json:"schema_version"`
+	Source          string       `json:"source,omitempty"`
+	Theme           string       `json:"theme,omitempty"`
+	TargetSteamID64 string       `json:"target_steamid64"`
+	TargetName      string       `json:"target_name"`
+	TargetKills     int          `json:"target_kills"`
+	TargetDeaths    int          `json:"target_deaths"`
+	TargetELO       *int         `json:"target_elo,omitempty"`
+	Map             string       `json:"map,omitempty"`
+	ScoreCT         int          `json:"score_ct"`
+	ScoreT          int          `json:"score_t"`
+	Intro           Intro        `json:"intro"`
+	Outro           Scoreboard   `json:"outro"`
+	Screenshots     *Screenshots `json:"screenshots,omitempty"`
+}
+
+type ScreenshotFile struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+type Screenshots struct {
+	Team1      *ScreenshotFile `json:"team1,omitempty"`
+	Team2      *ScreenshotFile `json:"team2,omitempty"`
+	Scoreboard *ScreenshotFile `json:"scoreboard,omitempty"`
 }
 
 type Intro struct {
@@ -109,32 +117,35 @@ type TeamBoard struct {
 }
 
 type PlayerCard struct {
-	SteamID64  string  `json:"steamid64"`
-	Name       string  `json:"name"`
-	Team       string  `json:"team,omitempty"`
-	Country    string  `json:"country,omitempty"`
-	Kills      int     `json:"kills"`
-	Deaths     int     `json:"deaths"`
-	Assists    int     `json:"assists"`
-	Headshots  int     `json:"headshots,omitempty"`
-	MVPs       int     `json:"mvps,omitempty"`
-	Rounds     int     `json:"rounds,omitempty"`
-	ADR        float64 `json:"adr,omitempty"`
-	HSPct      float64 `json:"hs_pct,omitempty"`
-	Rating     float64 `json:"rating,omitempty"`
-	Rounds2K   int     `json:"rounds_2k,omitempty"`
-	Rounds3K   int     `json:"rounds_3k,omitempty"`
-	Rounds4K   int     `json:"rounds_4k,omitempty"`
-	Rounds5K   int     `json:"rounds_5k,omitempty"`
-	HasADR     bool    `json:"has_adr,omitempty"`
-	HasHSPct   bool    `json:"has_hs_pct,omitempty"`
-	HasRating  bool    `json:"has_rating,omitempty"`
-	ELO        *int    `json:"elo,omitempty"`
-	SkillLevel *int    `json:"skill_level,omitempty"`
-	Ranking    *int    `json:"ranking,omitempty"`
-	AvatarURL  string  `json:"avatar_url,omitempty"`
-	AvatarFile string  `json:"avatar_file,omitempty"`
-	Last20     *Last20 `json:"last20,omitempty"`
+	SteamID64       string  `json:"steamid64"`
+	Name            string  `json:"name"`
+	Team            string  `json:"team,omitempty"`
+	Country         string  `json:"country,omitempty"`
+	Kills           int     `json:"kills"`
+	Deaths          int     `json:"deaths"`
+	Assists         int     `json:"assists"`
+	Headshots       int     `json:"headshots,omitempty"`
+	MVPs            int     `json:"mvps,omitempty"`
+	Rounds          int     `json:"rounds,omitempty"`
+	ADR             float64 `json:"adr,omitempty"`
+	HSPct           float64 `json:"hs_pct,omitempty"`
+	Rating          float64 `json:"rating,omitempty"`
+	Rounds2K        int     `json:"rounds_2k,omitempty"`
+	Rounds3K        int     `json:"rounds_3k,omitempty"`
+	Rounds4K        int     `json:"rounds_4k,omitempty"`
+	Rounds5K        int     `json:"rounds_5k,omitempty"`
+	HasADR          bool    `json:"has_adr,omitempty"`
+	HasHSPct        bool    `json:"has_hs_pct,omitempty"`
+	HasRating       bool    `json:"has_rating,omitempty"`
+	ELO             *int    `json:"elo,omitempty"`
+	SkillLevel      *int    `json:"skill_level,omitempty"`
+	Ranking         *int    `json:"ranking,omitempty"`
+	AvatarURL       string  `json:"avatar_url,omitempty"`
+	AvatarFile      string  `json:"avatar_file,omitempty"`
+	Last20          *Last20 `json:"last20,omitempty"`
+	LifetimeMatches *int    `json:"lifetime_matches,omitempty"`
+	Verified        bool    `json:"verified,omitempty"`
+	Premium         bool    `json:"premium,omitempty"`
 }
 
 type Last20 struct {
@@ -148,6 +159,7 @@ type Last20 struct {
 	KD      *float64 `json:"kd,omitempty"`
 	KR      *float64 `json:"kr,omitempty"`
 	ADR     *float64 `json:"adr,omitempty"`
+	HSPct   *float64 `json:"hs_pct,omitempty"`
 }
 
 // Roster is the demo-truth input. Rates of 0 are treated as absent unless
@@ -185,13 +197,16 @@ type RosterPlayer struct {
 // Enrichment is optional FACEIT data keyed by SteamID64. Zero ELO/level are
 // absent; last-20 fields are omitted unless set on Last20.
 type Enrichment struct {
-	Nickname   string
-	Country    string
-	ELO        int
-	SkillLevel int
-	Ranking    *int
-	AvatarURL  string
-	Last20     *Last20
+	Nickname        string
+	Country         string
+	ELO             int
+	SkillLevel      int
+	Ranking         *int
+	AvatarURL       string
+	Last20          *Last20
+	LifetimeMatches *int
+	Verified        bool
+	Premium         bool
 }
 
 func intPtr(v int) *int {

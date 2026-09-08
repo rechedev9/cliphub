@@ -132,10 +132,14 @@ type SponsorOptions struct {
 }
 
 type OverlayOptions struct {
-	Roster     bool   `json:"roster"`
-	Scoreboard bool   `json:"scoreboard"`
-	Theme      string `json:"theme"`
-	Source     string `json:"source"`
+	Roster          bool      `json:"roster"`
+	Scoreboard      bool      `json:"scoreboard"`
+	Theme           string    `json:"theme"`
+	Source          string    `json:"source"`
+	Mode            string    `json:"mode,omitempty"`
+	Team1Image      *AssetRef `json:"team1_image,omitempty"`
+	Team2Image      *AssetRef `json:"team2_image,omitempty"`
+	ScoreboardImage *AssetRef `json:"scoreboard_image,omitempty"`
 }
 
 type OutputOptions struct {
@@ -205,6 +209,7 @@ type AssetEvidence struct {
 	DurationFrames int64    `json:"duration_frames"`
 	HasVideo       bool     `json:"has_video"`
 	HasAudio       bool     `json:"has_audio"`
+	HasImage       bool     `json:"has_image,omitempty"`
 	Title          string   `json:"title"`
 	Creator        string   `json:"creator"`
 	SourceURL      string   `json:"source_url"`

@@ -142,11 +142,17 @@ export function retryReelAction(input: {
   jobStatus: string;
   renderStatus: RenderStatus;
   renderFailureReason?: string;
+  fullDemo?: boolean;
 }): ReelAction {
   if (input.jobStatus === 'recording') return 'none';
   if (input.jobStatus === 'failed') return 'record';
   if (input.renderStatus === 'failed') {
-    return requiresRecapture(input.renderFailureReason) ? 'record' : 'render';
+    // Older Full Demo releases lost frames during muxing, then persisted this
+    // generic error. Re-enter the per-round reuse check on explicit retry so
+    // complete captures are skipped and only short rounds are replaced.
+    const legacyFullDemoFrames = input.fullDemo && input.renderFailureReason ===
+      'full_demo_output_invalid: delivered video differs from 1080p60 H.264 or canonical frame count';
+    return legacyFullDemoFrames || requiresRecapture(input.renderFailureReason) ? 'record' : 'render';
   }
   return 'none';
 }

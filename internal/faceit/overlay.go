@@ -4,19 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
 	"sync"
 )
 
 // OverlayPlayer is FACEIT data for a Full Demo roster card. Rating and swing
 // are omitted: the Data API match stats do not provide them.
 type OverlayPlayer struct {
-	Nickname   string
-	Country    string
-	Avatar     string
-	ELO        int
-	SkillLevel int
-	Ranking    *int
-	Recent     Last20
+	Nickname        string
+	Country         string
+	Avatar          string
+	ELO             int
+	SkillLevel      int
+	Ranking         *int
+	Recent          Last20
+	LifetimeMatches *int
+	Verified        bool
+	Premium         bool
 }
 
 // OverlayPlayers looks up each SteamID on the Data API. It returns partial
@@ -82,6 +87,8 @@ func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlay
 		Avatar:     player.Avatar,
 		ELO:        player.ELO,
 		SkillLevel: player.SkillLevel,
+		Verified:   player.Verified,
+		Premium:    player.Premium,
 	}
 	if player.ID == "" {
 		return out, nil
@@ -95,27 +102,58 @@ func (c *Client) overlayPlayer(ctx context.Context, steamID string) (OverlayPlay
 		matchesErr error
 		position   int
 		rankingErr error
+		lifetime   *int
 	)
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
-		matches, matchesErr = c.RecentMatches(ctx, player.ID, maxRecentMatchLimit)
+		matches, matchesErr = c.RecentMatches(ctx, player.ID, 20)
 	}()
 	go func() {
 		defer wg.Done()
 		position, rankingErr = c.RankingPosition(ctx, player.Region, player.ID)
+	}()
+	go func() {
+		defer wg.Done()
+		// Missing lifetime statistics do not invalidate a real profile. The
+		// overlay leaves this value unavailable instead of using the recent
+		// sample count as the player's career total.
+		lifetime, _ = c.lifetimeMatches(ctx, player.ID)
 	}()
 	wg.Wait()
 	if matchesErr != nil {
 		return OverlayPlayer{}, fmt.Errorf("recent matches: %w", matchesErr)
 	}
 	out.Recent = AggregateLast20(matches)
+	out.LifetimeMatches = lifetime
 	// Unchanged: a ranking failure is swallowed and the card ships without a
 	// rank rather than failing the whole roster.
 	if rankingErr == nil && position > 0 {
 		out.Ranking = &position
 	}
 	return out, nil
+}
+
+func (c *Client) lifetimeMatches(ctx context.Context, playerID string) (*int, error) {
+	if !ValidPlayerID(playerID) {
+		return nil, fmt.Errorf("FACEIT player id is invalid")
+	}
+	var response struct {
+		Lifetime struct {
+			Matches statValue `json:"Matches"`
+		} `json:"lifetime"`
+	}
+	if err := c.getJSON(ctx, "/players/"+url.PathEscape(playerID)+"/stats/cs2", nil, &response); err != nil {
+		return nil, err
+	}
+	if response.Lifetime.Matches.string() == "" {
+		return nil, nil
+	}
+	n, err := strconv.Atoi(response.Lifetime.Matches.string())
+	if err != nil || n < 0 {
+		return nil, ErrInvalidResponse
+	}
+	return &n, nil
 }
 
 func uniqueNonEmpty(ids []string) []string {

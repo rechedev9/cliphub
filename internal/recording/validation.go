@@ -32,6 +32,9 @@ func expectedSegmentDurationSeconds(segment RecordingSegment, plan RecordingPlan
 // this the reel is forged with that kill silently missing. Only a deficit is
 // fatal: a longer-than-planned clip loses no gameplay and stays a warning.
 func ValidateCaptureCoverage(plan RecordingPlan, artifacts []RecordingArtifact) error {
+	if plan.FullDemo != nil {
+		return validateFullDemoCaptureFrames(plan, artifacts)
+	}
 	bySegment := map[string][]RecordingArtifact{}
 	for _, a := range artifacts {
 		if a.SegmentID != "" {

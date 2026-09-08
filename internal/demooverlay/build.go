@@ -195,6 +195,9 @@ func cardFromRoster(p RosterPlayer, en Enrichment) PlayerCard {
 	card.SkillLevel = intPtr(en.SkillLevel)
 	card.Ranking = en.Ranking
 	card.AvatarURL = strings.TrimSpace(en.AvatarURL)
+	card.LifetimeMatches = en.LifetimeMatches
+	card.Verified = en.Verified
+	card.Premium = en.Premium
 	if last20HasAny(en.Last20) {
 		card.Last20 = en.Last20
 	}
@@ -207,7 +210,7 @@ func last20HasAny(l *Last20) bool {
 	}
 	return l.Matches != nil || l.WinPct != nil || l.Rating != nil || l.Swing != nil ||
 		l.Kills != nil || l.Deaths != nil || l.Assists != nil ||
-		l.KD != nil || l.KR != nil || l.ADR != nil
+		l.KD != nil || l.KR != nil || l.ADR != nil || l.HSPct != nil
 }
 
 func targetCard(cards []PlayerCard, steamID string) PlayerCard {

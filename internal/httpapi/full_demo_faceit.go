@@ -114,13 +114,16 @@ func (h *Handlers) readStoredFullDemoFaceit(id uuid.UUID) (map[string]demooverla
 
 func fullDemoEnrichment(player faceit.OverlayPlayer) demooverlay.Enrichment {
 	return demooverlay.Enrichment{
-		Nickname:   player.Nickname,
-		Country:    player.Country,
-		ELO:        player.ELO,
-		SkillLevel: player.SkillLevel,
-		Ranking:    player.Ranking,
-		AvatarURL:  player.Avatar,
-		Last20:     fullDemoLast20(player.Recent),
+		Nickname:        player.Nickname,
+		Country:         player.Country,
+		ELO:             player.ELO,
+		SkillLevel:      player.SkillLevel,
+		Ranking:         player.Ranking,
+		AvatarURL:       player.Avatar,
+		Last20:          fullDemoLast20(player.Recent),
+		LifetimeMatches: player.LifetimeMatches,
+		Verified:        player.Verified,
+		Premium:         player.Premium,
 	}
 }
 
@@ -134,9 +137,10 @@ func fullDemoLast20(src faceit.Last20) *demooverlay.Last20 {
 		KD:      src.KD,
 		KR:      src.KR,
 		ADR:     src.ADR,
+		HSPct:   src.HSPct,
 	}
 	if out.Matches == nil && out.WinPct == nil && out.Kills == nil && out.Deaths == nil &&
-		out.Assists == nil && out.KD == nil && out.KR == nil && out.ADR == nil {
+		out.Assists == nil && out.KD == nil && out.KR == nil && out.ADR == nil && out.HSPct == nil {
 		return nil
 	}
 	return &out

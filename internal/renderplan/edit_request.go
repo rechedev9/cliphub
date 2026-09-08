@@ -246,5 +246,8 @@ func fullDemoOverlaySource(source string) string {
 }
 
 func (r EditRequest) UsesFACEITOverlay() bool {
+	if r.FullDemo != nil && r.FullDemo.Document.Options.Overlays.Mode == "screenshots" {
+		return false
+	}
 	return r.DemoSource == DemoSourceFACEIT
 }

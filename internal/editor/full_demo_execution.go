@@ -187,6 +187,9 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	if err != nil {
 		return err
 	}
+	if err := result.ValidateFullDemoFrames(effective); err != nil {
+		return recording.MarkNotReusable(err)
+	}
 	short := &manifest.Shorts[0]
 	evidence := &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: execution.Approved, Effective: effective, MusicIntervals: []FullDemoMusicInterval{}, TrackLevels: []FullDemoTrackLevel{}}
 	var musicCursor int64
