@@ -17,6 +17,8 @@ export function StatusPill({ status }: { status: string }) {
       ? "pill pill-done"
       : status === "failed" || status === "rejected"
         ? "pill pill-failed"
-        : "pill";
+        : status === "approved" || status === "processing"
+          ? "pill pill-active"
+          : "pill";
   return <span className={className}>{label}</span>;
 }

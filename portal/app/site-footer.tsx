@@ -1,10 +1,10 @@
 export function SiteFooter() {
   return (
     <footer className="site-footer">
+      <span>ClipHub</span>
+      <span aria-hidden="true">·</span>
       <a href="/">Inicio</a>
-      <span aria-hidden="true">·</span>
       <a href="/privacy">Privacidad</a>
-      <span aria-hidden="true">·</span>
       <a href="/terms">Condiciones</a>
     </footer>
   );
