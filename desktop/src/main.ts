@@ -543,6 +543,8 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
       httpAddress: `${LOOPBACK_HOST}:${orchPort}`,
       musicDir,
       recorderPath: recorderExe,
+      overlayRendererPath: process.execPath,
+      overlayRendererApp: app.isPackaged ? undefined : app.getAppPath(),
       securityEnvironment: orchestratorSecurityEnvironment(security),
       toolEnvironment: toolEnv,
       steamEnvironment: steamEnvironment(process.env),

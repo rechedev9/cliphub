@@ -7,9 +7,11 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
+	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
@@ -29,7 +31,11 @@ func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.J
 			return "", err
 		}
 		path := filepath.Join(dir, "asset-"+id.String()+".media")
-		if err := materializeStorageFile(w.storage, mediaassets.MediaKey(id), path); err != nil {
+		key := mediaassets.MediaKey(id)
+		if snapshot.Document.Options.IsOverlayImage(ref) {
+			key = overlayassets.MediaKey(id)
+		}
+		if err := materializeStorageFile(w.storage, key, path); err != nil {
 			return "", err
 		}
 		execution.Assets = append(execution.Assets, editor.FullDemoLocalMedia{Ref: ref, Path: path})
@@ -84,6 +90,9 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 	if err != nil {
 		return "", err
 	}
+	if err := result.ValidateFullDemoFrames(effective); err != nil {
+		return "", recording.MarkNotReusable(err)
+	}
 	type input struct {
 		SegmentID, ContentSHA256 string
 		StartTick, EndTick       int
@@ -104,8 +113,15 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 		}
 	}
 	sort.Slice(inputs, func(i, j int) bool { return inputs[i].SegmentID < inputs[j].SegmentID })
+	// Timing changes must invalidate rendered overlays without invalidating
+	// the source captures or unaffected renders with the roster disabled.
+	var introWindow *[2]float64
+	if effective.Options.Overlays.Roster {
+		introWindow = &[2]float64{demooverlay.IntroOverlayStart(), demooverlay.IntroOverlayEnd()}
+	}
 	return recapplan.HashValue(struct {
 		Policy, Variant, EffectivePlanHash string
 		Captures                           []input
-	}{"full-demo-render-v1", variant, effective.PlanHash, inputs})
+		IntroWindow                        *[2]float64 `json:"intro_window,omitempty"`
+	}{"full-demo-render-v1", variant, effective.PlanHash, inputs, introWindow})
 }

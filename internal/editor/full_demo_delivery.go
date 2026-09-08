@@ -60,7 +60,7 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 		case "video":
 			count, err := strconv.ParseInt(stream.Frames, 10, 64)
 			if err != nil || count != frames || video || stream.Codec != "h264" || stream.Width != 1920 || stream.Height != 1080 || !frameRateMatches(stream.FrameRate, 60) {
-				return nil, fmt.Errorf("full_demo_output_invalid: delivered video differs from 1080p60 H.264 or canonical frame count")
+				return nil, fmt.Errorf("full_demo_output_invalid: delivered video differs from 1080p60 H.264 or canonical frame count (got codec=%s, size=%dx%d, fps=%s, frames=%s, duplicate=%t; expected frames=%d)", stream.Codec, stream.Width, stream.Height, stream.FrameRate, stream.Frames, video, frames)
 			}
 			video, e.FrameCount = true, count
 		case "audio":

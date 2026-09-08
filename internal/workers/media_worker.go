@@ -1933,9 +1933,6 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		edit.FullDemo = &snapshot
 		adapted := snapshot.Document.KillPlan(*j.KillPlan)
 		j.KillPlan = &adapted
-		if err := w.verifyFullDemoCaptureContent(ctx, j.ID, recordingResult); err != nil {
-			return err
-		}
 	}
 	musicPath := resolveMusicFile(cfg.MusicDir, musicKey)
 	effectiveMusic := &renderplan.MusicSnapshot{}
@@ -1949,7 +1946,15 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	}
 	inputFingerprint, err := renderInputFingerprint(recordingResult, j.KillPlan, variant, musicKey, musicPath, effectiveMusicVolume, gameVolume, edit)
 	if err != nil {
+		if recording.IsNotReusableMessage(err.Error()) {
+			return err
+		}
 		return fmt.Errorf("fingerprint render inputs: %w", err)
+	}
+	if edit.FullDemo != nil {
+		if err := w.verifyFullDemoCaptureContent(ctx, j.ID, recordingResult); err != nil {
+			return err
+		}
 	}
 	ready, cachedWarnings, keys, err := renderVariantOutputsReadyContext(ctx, w.storage, j.ID, variant, inputFingerprint, previousState)
 	if err != nil {
@@ -2144,6 +2149,9 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		}
 		return fmt.Errorf("read render result: %w", err)
 	}
+	if runErr != nil {
+		return runErr
+	}
 	result.InputFingerprint = inputFingerprint
 	if cfg.FFprobePath != "" {
 		if err := probeRenderResult(runCtx, w.runner, cfg.FFprobePath, &result); err != nil {
@@ -2153,9 +2161,6 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	result.Warnings = renderplan.CompleteRenderWarnings(result)
 	if err := writeJSONFile(resultPath, result); err != nil {
 		return fmt.Errorf("write fingerprinted render result: %w", err)
-	}
-	if runErr != nil {
-		return runErr
 	}
 	if err := renderplan.ValidateRenderVariantRunResult(result); err != nil {
 		return err
@@ -3165,7 +3170,8 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		target = j.TargetSteamID
 	}
 	var enrichment map[string]demooverlay.Enrichment
-	if demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
+	screenshots := edit.FullDemo != nil && edit.FullDemo.Document.Options.Overlays.Mode == "screenshots"
+	if !screenshots && demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
 		enrichment, err = overlayEnrichment(w, j.ID, roster)
 		if err != nil {
 			return "", fmt.Errorf("load FACEIT overlay data: %w", err)
@@ -3176,6 +3182,12 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
 	doc.Theme = demooverlay.NormalizeTheme(edit.OverlayTheme)
+	if screenshots {
+		doc.Screenshots, err = w.materializeOverlayScreenshots(edit.FullDemo.Document.Options.Overlays, workDir)
+		if err != nil {
+			return "", err
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) {
@@ -3208,12 +3220,15 @@ func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterRes
 		out := make(map[string]demooverlay.Enrichment, len(players))
 		for steamID, player := range players {
 			en := demooverlay.Enrichment{
-				Nickname:   player.Nickname,
-				Country:    player.Country,
-				ELO:        player.ELO,
-				SkillLevel: player.SkillLevel,
-				Ranking:    player.Ranking,
-				AvatarURL:  player.Avatar,
+				Nickname:        player.Nickname,
+				Country:         player.Country,
+				ELO:             player.ELO,
+				SkillLevel:      player.SkillLevel,
+				Ranking:         player.Ranking,
+				AvatarURL:       player.Avatar,
+				LifetimeMatches: player.LifetimeMatches,
+				Verified:        player.Verified,
+				Premium:         player.Premium,
 			}
 			if last := last20FromFACEIT(player.Recent); last != nil {
 				en.Last20 = last
@@ -3254,9 +3269,10 @@ func last20FromFACEIT(src faceit.Last20) *demooverlay.Last20 {
 		KD:      src.KD,
 		KR:      src.KR,
 		ADR:     src.ADR,
+		HSPct:   src.HSPct,
 	}
 	if out.Matches == nil && out.WinPct == nil && out.Kills == nil && out.Deaths == nil &&
-		out.Assists == nil && out.KD == nil && out.KR == nil && out.ADR == nil {
+		out.Assists == nil && out.KD == nil && out.KR == nil && out.ADR == nil && out.HSPct == nil {
 		return nil
 	}
 	return &out
@@ -3646,6 +3662,9 @@ func recordingOutputsReady(store storage.Storage, id uuid.UUID, requested []stri
 			certifiedEnd := result.FullDemoEvidence.CertifiedEnds[segID]
 			compatibleWindow = storedSegment.TickStart <= expectedSegment.TickStart && storedSegment.TickEnd >= expectedSegment.TickEnd && certifiedEnd >= min(expectedSegment.LiveEndTick+1, expectedSegment.TickEnd)
 			if !expectedPlan.FullDemo.Options.Editorial.AllowSafeTailTrim && certifiedEnd < expectedSegment.TickEnd {
+				compatibleWindow = false
+			}
+			if compatibleWindow && result.ValidateFullDemoRoundFrames(segID, expectedSegment.TickStart, min(expectedSegment.TickEnd, certifiedEnd)) != nil {
 				compatibleWindow = false
 			}
 		}

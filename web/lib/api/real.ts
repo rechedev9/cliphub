@@ -630,6 +630,7 @@ export class RealApiClient implements ApiClient {
       jobStatus: job?.status ?? '',
       renderStatus: render.status,
       renderFailureReason: render.failureReason,
+      fullDemo: !!intent.editConfig.fullDemo,
     });
     // A latched reel reads healthy server-side; re-issue the POST the latch stopped.
     const retryAction = derived === 'none' && latched ? latched.retryAction : derived;

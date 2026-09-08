@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createOrchestratorEnvironment } from './orchestrator-environment.ts';
 
+test('pins the bundled overlay renderer and supplies the dev entry only when needed', () => {
+  const environment = createOrchestratorEnvironment({ dataDir: 'data', httpAddress: '127.0.0.1:8090', musicDir: 'music', recorderPath: 'recorder.exe', securityEnvironment: {}, toolEnvironment: { ZV_OVERLAY_RENDERER_PATH: 'stale.exe' }, overlayRendererPath: 'Studio.exe', overlayRendererApp: 'desktop' });
+  assert.equal(environment.ZV_OVERLAY_RENDERER_PATH, 'Studio.exe');
+  assert.equal(environment.ZV_OVERLAY_RENDERER_APP, 'desktop');
+});
+
 test('pins the bundled recorder over stale runtime tool overrides', () => {
   const cases = [
     {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoOverlayImage, fullDemoOverlayImageURL, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -17,6 +17,34 @@ function fixture(): FullDemoSnapshot {
   assert.ok(isFullDemoSnapshot(value));
   return value;
 }
+
+test('screenshot choices survive saved options, edit wire and render hydration', () => {
+  const snapshot = fixture();
+  const ref = { id: '11111111-1111-4111-8111-111111111111', sha256: 'a'.repeat(64) };
+  snapshot.document.options.overlays = { ...snapshot.document.options.overlays, mode: 'screenshots', team1_image: ref, team2_image: ref, scoreboard_image: ref };
+  snapshot.document.assets = [{ ref, duration_frames: 0, has_audio: false, has_video: false, has_image: true, title: 'team.png', creator: '', source_url: '', permission: '', attribution: '' }];
+  assert.ok(isFullDemoSnapshot(snapshot));
+  const edit = fullDemoPlanEdit(snapshot);
+  assert.deepEqual(coerceEditConfig(edit).fullDemo, snapshot);
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(edit))?.fullDemo, snapshot);
+  const generated = structuredClone(snapshot.document.options); generated.overlays.mode = 'generated';
+  assert.notEqual(fullDemoOptionsKey(generated), fullDemoOptionsKey(snapshot.document.options));
+  assert.equal(fullDemoOverlayImageURL(ref), `/api/full-demo/overlay-images/${ref.id}`);
+  assert.equal(isFullDemoOptions({ ...generated, overlays: { ...generated.overlays, mode: 'unknown' } }), false);
+});
+
+test('screenshot upload stores an image without requiring music provenance', async (t) => {
+  const ref = { id: '11111111-1111-4111-8111-111111111111', sha256: 'a'.repeat(64) };
+  const file = new File(['png bytes'], 'equipo.png', { type: 'image/png' });
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    assert.equal(url, '/api/full-demo/overlay-images');
+    assert.ok(init.body instanceof FormData);
+    assert.equal((init.body.get('image') as File).name, 'equipo.png');
+    assert.equal(init.body.has('config'), false);
+    return Response.json({ ...ref, width: 436, height: 513, content_type: 'image/png' }, { status: 201 });
+  });
+  assert.deepEqual(await uploadFullDemoOverlayImage(file), ref);
+});
 
 test('fixed freeze migrates old drafts without changing gameplay voice settings', () => {
   const original = fixture().document.options;

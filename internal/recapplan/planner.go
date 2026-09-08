@@ -237,8 +237,17 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 			}
 		}
 	}
+	if options.Overlays.Mode == "screenshots" {
+		for _, slot := range options.Overlays.ImageSlots() {
+			if slot.Ref == nil {
+				d.block(ErrAssetMissing, "Sube la captura de "+slot.Label)
+			} else if a, ok := findAsset(assets, *slot.Ref); !ok || !a.HasImage {
+				d.block(ErrAssetMissing, "La captura de "+slot.Label+" no está disponible o no es una imagen verificada")
+			}
+		}
+	}
 	for _, a := range assets {
-		if a.Permission == "" || a.Creator == "" || a.Title == "" || a.SourceURL == "" {
+		if !a.HasImage && (a.Permission == "" || a.Creator == "" || a.Title == "" || a.SourceURL == "") {
 			d.block(ErrAssetMissing, "Asset provenance and permission are required: "+a.Ref.ID)
 		}
 	}

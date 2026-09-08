@@ -135,6 +135,10 @@ func muxPair(ctx context.Context, ffmpegPath, video, audio, out string) error {
 		return err
 	}
 	tmp := out + ".part"
+	// Keep every video packet. With reordered H.264 frames, -shortest can
+	// discard the last few video frames even when the WAV is only milliseconds
+	// shorter. Render owns the approved video/audio window for both Full Demo
+	// and Shorts; the capture mux must not cut either source stream.
 	// #nosec G204 -- ffmpegPath is configured locally and media paths are passed as arguments.
 	cmd := exec.CommandContext(ctx, ffmpegPath,
 		"-y",
@@ -146,7 +150,6 @@ func muxPair(ctx context.Context, ffmpegPath, video, audio, out string) error {
 		"-c:v", "copy",
 		"-c:a", "aac",
 		"-b:a", "192k",
-		"-shortest",
 		"-f", "mp4", // the .part temp name hides the container from ffmpeg
 		tmp,
 	)

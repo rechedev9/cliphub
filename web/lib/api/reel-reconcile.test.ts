@@ -561,6 +561,20 @@ test('retryReelAction does not re-drive record while the job is recording', () =
   }
 });
 
+test('explicit Full Demo retries recheck capture coverage even for older generic render failures', () => {
+  assert.equal(retryReelAction({
+    jobStatus: 'recorded', renderStatus: 'failed', fullDemo: true,
+    renderFailureReason: 'full_demo_output_invalid: delivered video differs from 1080p60 H.264 or canonical frame count',
+  }), 'record');
+  assert.equal(retryReelAction({
+    jobStatus: 'recorded', renderStatus: 'failed', fullDemo: true,
+    renderFailureReason: 'audio_loudness_failed: source could not be mastered',
+  }), 'render');
+  assert.equal(retryReelAction({jobStatus: 'recording', renderStatus: 'failed', fullDemo: true}), 'none');
+  assert.equal(retryReelAction({jobStatus: 'recorded', renderStatus: 'ready', fullDemo: true}), 'none');
+  assert.equal(retryReelAction({jobStatus: 'recorded', renderStatus: 'failed', fullDemo: false}), 'render');
+});
+
 test('viewForRecordAdmission treats in-flight capture as progress, not a failed reel', () => {
   const cases: Array<{
     name: string;

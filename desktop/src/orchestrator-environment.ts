@@ -3,6 +3,8 @@ export interface OrchestratorEnvironmentOptions {
   httpAddress: string;
   musicDir: string;
   recorderPath: string;
+  overlayRendererPath?: string;
+  overlayRendererApp?: string;
   securityEnvironment: object;
   toolEnvironment: object;
   /** User-supplied Steam credentials; absent when none are set. */
@@ -24,5 +26,7 @@ export function createOrchestratorEnvironment(
     // Credentials before the recorder pin: only the user can supply them.
     ...(options.steamEnvironment ?? {}),
     ZV_RECORDER_PATH: options.recorderPath,
+    ...(options.overlayRendererPath ? { ZV_OVERLAY_RENDERER_PATH: options.overlayRendererPath } : {}),
+    ...(options.overlayRendererApp ? { ZV_OVERLAY_RENDERER_APP: options.overlayRendererApp } : {}),
   };
 }

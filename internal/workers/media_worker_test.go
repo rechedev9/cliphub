@@ -1620,7 +1620,10 @@ func TestRenderWorkerWritesFailedStateWhenEditorFails(t *testing.T) {
 	putJSON(t, store, recording.ResultArtifactKey(id), recordingResultWithSegment("", "C:/stale/seg-001.mp4"))
 	_ = store.Put(mustSegmentClipKey(t, id, "seg-001"), bytes.NewReader([]byte("clip")))
 
-	runner := &fakeRunner{fn: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+	runner := &fakeRunner{fn: func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name == "ffprobe" {
+			t.Fatal("failed renders must not probe an unpublished output")
+		}
 		outDir := argValue(args, "--out")
 		publishDir := argValue(args, "--publish-dir")
 		if hasArg(args, "--intro-text") || hasArg(args, "--outro-text") {
@@ -1651,8 +1654,9 @@ func TestRenderWorkerWritesFailedStateWhenEditorFails(t *testing.T) {
 		return nil, errors.New("zv-editor failed")
 	}}
 	w := NewRenderWorker(repo, store, RenderWorkerConfig{
-		WorkDir:    t.TempDir(),
-		EditorPath: "zv-editor",
+		WorkDir:     t.TempDir(),
+		EditorPath:  "zv-editor",
+		FFprobePath: "ffprobe",
 	})
 	w.runner = runner
 
@@ -1669,6 +1673,9 @@ func TestRenderWorkerWritesFailedStateWhenEditorFails(t *testing.T) {
 	}
 	if state.Error != "encoder failed" {
 		t.Fatalf("state error = %q, want encoder failed", state.Error)
+	}
+	if len(state.Warnings) != 0 {
+		t.Fatalf("failed output gained secondary probe warnings: %v", state.Warnings)
 	}
 }
 

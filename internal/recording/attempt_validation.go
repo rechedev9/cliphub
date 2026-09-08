@@ -55,6 +55,9 @@ func ValidateRecordingAttempt(expected RecordingPlan, outDir string, result Reco
 	if len(missing) > 0 {
 		return fmt.Errorf("recording result missing segment clips: %s", strings.Join(missing, ", "))
 	}
+	if result.Plan.FullDemo != nil {
+		return ValidateCaptureCoverage(result.CertifiedPlan(), result.Artifacts)
+	}
 	return nil
 }
 

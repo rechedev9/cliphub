@@ -63,6 +63,8 @@ type Player struct {
 	Region     string `json:"region,omitempty"`
 	SkillLevel int    `json:"skill_level,omitempty"`
 	ELO        int    `json:"elo,omitempty"`
+	Verified   bool   `json:"verified,omitempty"`
+	Premium    bool   `json:"premium,omitempty"`
 }
 
 // RankedPlayer is one row of a FACEIT CS2 regional leaderboard. Position is
@@ -170,6 +172,7 @@ type MatchStats struct {
 	KRRatio          float64 `json:"kr_ratio,omitempty"`
 	Headshots        int     `json:"headshots,omitempty"`
 	HeadshotsPercent float64 `json:"headshots_percent,omitempty"`
+	HasHSPct         bool    `json:"has_hs_pct,omitempty"`
 	DoubleKills      int     `json:"double_kills,omitempty"`
 	TripleKills      int     `json:"triple_kills,omitempty"`
 	QuadroKills      int     `json:"quadro_kills,omitempty"`

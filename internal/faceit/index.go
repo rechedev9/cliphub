@@ -20,12 +20,14 @@ import (
 const pageSize = 100
 
 type apiPlayer struct {
-	PlayerID  string             `json:"player_id"`
-	Nickname  string             `json:"nickname"`
-	Avatar    string             `json:"avatar"`
-	Country   string             `json:"country"`
-	SteamID64 string             `json:"steam_id_64"`
-	Games     map[string]apiGame `json:"games"`
+	PlayerID    string             `json:"player_id"`
+	Nickname    string             `json:"nickname"`
+	Avatar      string             `json:"avatar"`
+	Country     string             `json:"country"`
+	SteamID64   string             `json:"steam_id_64"`
+	Games       map[string]apiGame `json:"games"`
+	Verified    bool               `json:"verified"`
+	Memberships []string           `json:"memberships"`
 }
 
 type apiGame struct {
@@ -590,6 +592,7 @@ func convertStats(raw apiMatchStats) MatchStats {
 		KRRatio:          raw.KRRatio.float(),
 		Headshots:        raw.Headshots.int(),
 		HeadshotsPercent: raw.HeadshotsPercent.float(),
+		HasHSPct:         raw.HeadshotsPercent.string() != "",
 		DoubleKills:      raw.DoubleKills.int(),
 		TripleKills:      raw.TripleKills.int(),
 		QuadroKills:      raw.QuadroKills.int(),
@@ -848,6 +851,12 @@ func (c *Client) fetchRecentStats(ctx context.Context, playerID string, limit in
 
 func playerFromAPI(player apiPlayer) Player {
 	game := player.Games["cs2"]
+	premium := false
+	for _, membership := range player.Memberships {
+		if membership == "premium" || membership == "faceitplus" {
+			premium = true
+		}
+	}
 	return Player{
 		ID:         player.PlayerID,
 		Nickname:   player.Nickname,
@@ -858,6 +867,8 @@ func playerFromAPI(player apiPlayer) Player {
 		Region:     game.Region,
 		SkillLevel: game.SkillLevel,
 		ELO:        game.FaceitELO,
+		Verified:   player.Verified,
+		Premium:    premium,
 	}
 }
 
@@ -916,6 +927,7 @@ type Last20 struct {
 	KD      *float64
 	KR      *float64
 	ADR     *float64
+	HSPct   *float64
 }
 
 func AggregateLast20(matches []RecentMatch) Last20 {
@@ -925,8 +937,8 @@ func AggregateLast20(matches []RecentMatch) Last20 {
 	n := len(matches)
 	matchesN := n
 	out := Last20{Matches: &matchesN}
-	var wins, withResult, kills, deaths, assists, withKD, withKR, withADR int
-	var kdSum, krSum, adrSum float64
+	var wins, withResult, kills, deaths, assists, withKD, withKR, withADR, withHS int
+	var kdSum, krSum, adrSum, hsSum float64
 	for _, match := range matches {
 		if match.Stats == nil {
 			continue
@@ -952,6 +964,10 @@ func AggregateLast20(matches []RecentMatch) Last20 {
 			adrSum += match.Stats.ADR
 			withADR++
 		}
+		if (match.Stats.HasHSPct || match.Stats.HeadshotsPercent > 0) && match.Stats.HeadshotsPercent >= 0 && match.Stats.HeadshotsPercent <= 100 {
+			hsSum += match.Stats.HeadshotsPercent
+			withHS++
+		}
 	}
 	if withResult > 0 {
 		pct := 100 * float64(wins) / float64(withResult)
@@ -973,6 +989,10 @@ func AggregateLast20(matches []RecentMatch) Last20 {
 	if withADR > 0 {
 		adr := adrSum / float64(withADR)
 		out.ADR = &adr
+	}
+	if withHS > 0 {
+		hs := hsSum / float64(withHS)
+		out.HSPct = &hs
 	}
 	return out
 }
