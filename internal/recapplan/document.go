@@ -24,14 +24,15 @@ const (
 // Options contains creative decisions only. Facts and resolved media properties
 // are supplied by the server, and approval binds the resulting Document.
 type Options struct {
-	ProfileID  string           `json:"profile_id"`
-	SourceKind string           `json:"source_kind"`
-	Capture    CaptureOptions   `json:"capture"`
-	Editorial  EditorialOptions `json:"editorial"`
-	Audio      AudioOptions     `json:"audio"`
-	Sponsor    SponsorOptions   `json:"sponsor"`
-	Overlays   OverlayOptions   `json:"overlays"`
-	Outputs    OutputOptions    `json:"outputs"`
+	ProfileID   string             `json:"profile_id"`
+	SourceKind  string             `json:"source_kind"`
+	Capture     CaptureOptions     `json:"capture"`
+	Editorial   EditorialOptions   `json:"editorial"`
+	Audio       AudioOptions       `json:"audio"`
+	Sponsor     SponsorOptions     `json:"sponsor"`
+	Overlays    OverlayOptions     `json:"overlays"`
+	Outputs     OutputOptions      `json:"outputs"`
+	Transitions *TransitionOptions `json:"transitions,omitempty"`
 }
 
 type CaptureOptions struct {

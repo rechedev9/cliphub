@@ -53,13 +53,14 @@ type FullDemoTrackLevel struct {
 }
 
 type FullDemoRenderEvidence struct {
-	Delivery        *FullDemoDeliveryEvidence `json:"delivery"`
-	SchemaVersion   string                    `json:"schema_version"`
-	Approved        recapplan.Snapshot        `json:"approved"`
-	Effective       recapplan.Document        `json:"effective"`
-	MusicIntervals  []FullDemoMusicInterval   `json:"music_intervals"`
-	TrackLevels     []FullDemoTrackLevel      `json:"track_levels"`
-	ProgramLoudness *ProgramLoudnessEvidence  `json:"program_loudness"`
+	Transitions     []FullDemoTransitionEvidence `json:"transitions,omitempty"`
+	Delivery        *FullDemoDeliveryEvidence    `json:"delivery"`
+	SchemaVersion   string                       `json:"schema_version"`
+	Approved        recapplan.Snapshot           `json:"approved"`
+	Effective       recapplan.Document           `json:"effective"`
+	MusicIntervals  []FullDemoMusicInterval      `json:"music_intervals"`
+	TrackLevels     []FullDemoTrackLevel         `json:"track_levels"`
+	ProgramLoudness *ProgramLoudnessEvidence     `json:"program_loudness"`
 }
 
 type fullDemoRenderContext struct {
