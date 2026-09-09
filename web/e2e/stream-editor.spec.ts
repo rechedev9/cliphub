@@ -117,11 +117,87 @@ async function stubStreamJob(page: Page, faceCropReviewed: boolean, empty = fals
 }
 
 const stepTitle = (page: Page, name: string) => page.getByRole('heading', { level: 2, name });
+
+test('loads paused preview pixels, shows the project name and allows a larger monitor', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const stub = await stubStreamJob(page, true);
+  await gotoStudio(page, `/streams/${JOB_ID}`);
+  await expect(page.getByRole('navigation', { name: 'Ruta actual' })).toContainText('Clutch en Mirage');
+  await expect(page.getByRole('navigation', { name: 'Ruta actual' })).not.toContainText(JOB_ID);
+  const output = page.locator('[data-preview-band="gameplay"] canvas');
+  await expect(output).toHaveAttribute('data-frame-seconds', /\d/);
+  await expect.poll(() => output.evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    return pixels.some((value, index) => index % 4 !== 3 && value > 20);
+  })).toBe(true);
+  expect(await page.locator('video[data-stream-frame]').evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+  const views = page.locator('[data-slot="stream-monitor-views"]');
+  const initial = await views.boundingBox();
+  expect(initial!.height).toBeGreaterThan(400);
+  const size = page.getByRole('slider', { name: 'Tamaño de vista previa' });
+  await size.focus();
+  await size.press('ArrowRight');
+  await expect.poll(async () => (await views.boundingBox())!.height).toBeGreaterThan(initial!.height);
+  // Enlarging the preview must push the timeline down, never paint over controls.
+  const transport = page.getByRole('button', { name: /^Reproducir (este Short|vídeo original)$/ });
+  const sourceTimeline = page.getByRole('region', { name: 'Timeline de la fuente' });
+  const transportBounds = await transport.boundingBox();
+  const timelineBounds = await sourceTimeline.boundingBox();
+  expect(transportBounds!.y + transportBounds!.height).toBeLessThan(timelineBounds!.y);
+  expect(stub.puts).toHaveLength(0);
+  await page.setViewportSize({ width: 960, height: 900 });
+  await expect(page.getByRole('button', { name: /Continuar al aspecto/ })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
 const railStep = (page: Page, name: RegExp) =>
   page.getByRole('navigation', { name: 'Pasos' }).getByRole('button', { name });
 const autosaveStatus = (page: Page) => page.getByRole('navigation', { name: 'Pasos' }).getByRole('status');
 const cta = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const briefCheckbox = (page: Page) => page.getByRole('checkbox', { name: 'He revisado y apruebo los ajustes' });
+
+test('a failed initial frame can be retried without saving or starting playback', async ({ page }) => {
+  const stub = await stubStreamJob(page, false);
+  let unavailable = true;
+  await page.route(`**/api/streams/${JOB_ID}/source`, (route) => unavailable
+    ? route.fulfill({ status: 500, body: 'unavailable' }) : route.fallback());
+  await gotoStudio(page, `/streams/${JOB_ID}`);
+  await expect(page.getByText('Vista previa no disponible. Usa Reintentar para cargarla.', { exact: true })).toBeVisible();
+  unavailable = false;
+  await cta(page, 'Reintentar').click();
+  await expect(page.locator('[data-preview-band="gameplay"] canvas')).toHaveAttribute('data-frame-seconds', /\d/);
+  await expect(page.getByText('Cargando el primer fotograma…', { exact: true })).toHaveCount(0);
+  await expect(cta(page, 'Reintentar')).toHaveCount(0);
+  const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
+  await expect(decoder).toHaveCount(1);
+  expect(await decoder.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+  expect(stub.puts).toHaveLength(0);
+});
+
+test('pausing while audio resumes cancels the pending play request', async ({ page }) => {
+  await stubStreamJob(page, false, true);
+  await page.addInitScript(() => {
+    const resume = AudioContext.prototype.resume;
+    let delayFirstResume = true;
+    AudioContext.prototype.resume = function () {
+      const resumed = resume.call(this);
+      if (!delayFirstResume) return resumed;
+      delayFirstResume = false;
+      return resumed.then(() => new Promise<void>((resolve) => {
+        (window as typeof window & { releaseAudioForTest?: () => void }).releaseAudioForTest = resolve;
+      }));
+    };
+  });
+  await gotoStudio(page, `/streams/${JOB_ID}`);
+  await cta(page, 'Reproducir vídeo original').click();
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { releaseAudioForTest?: () => void }).releaseAudioForTest)).toBe('function');
+  await cta(page, 'Pausar').click();
+  await page.evaluate(() => (window as typeof window & { releaseAudioForTest?: () => void }).releaseAudioForTest?.());
+  const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
+  await page.waitForTimeout(250);
+  expect(await decoder.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+  await cta(page, 'Reproducir vídeo original').click();
+  await expect.poll(() => decoder.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeGreaterThan(0.5);
+});
 
 test.describe('stream editor', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
@@ -346,6 +422,9 @@ for (const width of [390, 768, 1266, 1920]) {
     await expect(stepTitle(page, 'Elegir momentos')).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const media = page.getByRole('region', { name: 'Monitor', exact: true });
+    const outputFrame = page.locator('[data-slot="stream-output-container"] > div');
+    const frameBounds = await outputFrame.boundingBox();
+    expect(frameBounds!.width / frameBounds!.height).toBeCloseTo(9 / 16, 2);
     if (width >= 1266) {
       const bounds = await media.boundingBox();
       expect(bounds!.y).toBeLessThan(240);
@@ -356,6 +435,8 @@ for (const width of [390, 768, 1266, 1920]) {
     await cta(page, 'Usar vídeo completo').click();
     await cta(page, 'Continuar al aspecto →').click();
     await expect(page.getByLabel('Mover región de recorte del facecam')).toBeVisible();
+    const aspectBounds = await outputFrame.boundingBox();
+    expect(aspectBounds!.width / aspectBounds!.height).toBeCloseTo(9 / 16, 2);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`aspect-${width}.png`), fullPage: true });
   });

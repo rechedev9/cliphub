@@ -1,6 +1,6 @@
 'use client';
 
-import type { ComponentProps, ReactNode } from 'react';
+import { useId, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { Pause, Play, Repeat } from 'lucide-react';
 import type { NormalizedRect } from '@/lib/api/streams';
 import { PLAYBACK_STATUS, type PlaybackStatus } from '@/lib/playback-session';
@@ -9,7 +9,7 @@ import { formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
 import { CropPicker } from '@/components/streams/crop-picker';
 import { StreamPreview } from '@/components/streams/stream-preview';
-import { StreamFrameCanvas } from '@/components/streams/stream-frame-session';
+import { StreamFrameCanvas, useStreamFrame } from '@/components/streams/stream-frame-session';
 
 export type StreamCropEditor = { rect: NormalizedRect; disabled: boolean; onChange: (rect: NormalizedRect) => void };
 
@@ -55,6 +55,9 @@ export function StreamMonitor({
   hasSelection: boolean;
   clipCount: number;
 }): ReactNode {
+  const { hasFrame } = useStreamFrame();
+  const sizeId = useId();
+  const [monitorHeight, setMonitorHeight] = useState(460);
   const playLabel = {
     [STREAM_PLAYBACK_MODE.source]: 'Reproducir vídeo original',
     [STREAM_PLAYBACK_MODE.selected]: 'Reproducir este Short',
@@ -68,8 +71,12 @@ export function StreamMonitor({
   const statusLabel = statusLabels[status];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="grid h-[min(24vh,240px)] min-h-[150px] shrink-0 grid-cols-[minmax(0,1fr)_minmax(100px,0.6fr)] items-center gap-4 overflow-hidden">
+    <div className="flex shrink-0 flex-col gap-3">
+      <div
+        data-slot="stream-monitor-views"
+        style={{ '--monitor-height': `${monitorHeight}px` } as CSSProperties}
+        className="relative grid h-[min(var(--monitor-height),55dvh)] min-h-[280px] shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)] items-center gap-4"
+      >
         <div className="flex min-h-0 min-w-0 flex-col self-stretch">
           <p className="mb-2 text-label font-semibold text-fg-2">
             {cropEditor ? 'Selecciona la cámara en el original' : 'Vídeo original'}
@@ -85,11 +92,22 @@ export function StreamMonitor({
             <p className="mt-2 text-label text-fg-3">Arrastra el marco y su esquina. También puedes usar las flechas.</p>
           ) : null}
         </div>
-        <div className="flex min-h-0 self-stretch flex-col items-center">
+        <div className="flex min-h-0 min-w-0 self-stretch flex-col items-center">
           <p className="mb-2 text-label font-semibold text-fg-2">Vista del Short</p>
-          <StreamPreview {...preview} className="min-h-0 flex-1 w-auto" />
+          <div data-slot="stream-output-container" className="flex min-h-0 w-full flex-1 items-start justify-center [container-type:size]">
+            <StreamPreview {...preview} className="h-auto w-[min(100cqw,56.25cqh)] shrink-0" />
+          </div>
         </div>
+        {!hasFrame ? (
+          <div role={previewError ? 'alert' : 'status'} className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-surface-1 px-4 text-center text-body-sm text-fg-2">
+            {previewError ? 'Vista previa no disponible. Usa Reintentar para cargarla.' : 'Cargando el primer fotograma…'}
+          </div>
+        ) : null}
       </div>
+      <label htmlFor={sizeId} className="flex shrink-0 flex-wrap items-center gap-3 text-body-sm text-fg-2">
+        Tamaño de vista previa
+        <input id={sizeId} type="range" min={280} max={640} step={20} value={monitorHeight} onChange={(event) => setMonitorHeight(Number(event.target.value))} className="w-36 accent-stream" />
+      </label>
       <div className="flex shrink-0 flex-wrap items-center gap-2" role="group" aria-label="Qué reproducir">
         <Button variant={mode === STREAM_PLAYBACK_MODE.source ? 'secondary' : 'ghost'} size="sm" aria-pressed={mode === STREAM_PLAYBACK_MODE.source} onClick={() => onModeChange(STREAM_PLAYBACK_MODE.source)}>
           Vídeo original

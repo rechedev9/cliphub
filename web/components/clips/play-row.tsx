@@ -2,8 +2,8 @@
 
 import { Crosshair } from 'lucide-react';
 import type { Play } from '@/lib/api/types';
-import { ReelCover } from '@/components/brand/reel-cover';
-import { CoverImage } from '@/components/studio/cover-image';
+import { PlayThumbnail } from './play-thumbnail';
+import { playDescription, playSourceRange } from '@/lib/produce/play-details';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
 import { cn } from '@/lib/utils';
 import { SelectionMark } from './selection-mark';
@@ -26,18 +26,7 @@ function killBadge(kills: number): { label: string; tone: StatusTagTone } {
   return { label: `${kills}K`, tone: 'neutral' };
 }
 
-/**
- * The frame. `Play.thumbnailUrl` is finally read — it has existed in the typed
- * client since the killplan mapper and no component had ever rendered it — with
- * the seeded `ReelCover` painted *underneath* rather than as an either/or
- * fallback, so a cover URL the app cannot load (its CSP is
- * `img-src 'self' data: blob:`, which blocks any off-origin thumbnail outright)
- * degrades to the brand plate instead of a broken image box.
- *
- * Painting it underneath is necessary but not sufficient: a failed <img> still
- * renders the browser's broken-image glyph on top of the plate, which is what
- * `CoverImage` exists to prevent.
- */
+/** A captured frame when available; PlayThumbnail handles missing or failed images. */
 function PlayFrame({ play, selected }: { play: Play; selected: boolean }) {
   return (
     <span className="shrink-0 [perspective:620px]">
@@ -57,8 +46,7 @@ function PlayFrame({ play, selected }: { play: Play; selected: boolean }) {
             selected ? 'border-primary' : 'border-border-strong brightness-75 group-hover/play:brightness-100',
           )}
         >
-          <ReelCover seed={play.id} plain className="absolute inset-0" />
-          <CoverImage src={play.thumbnailUrl} className="absolute inset-0" />
+          <PlayThumbnail play={play} className="absolute inset-0 size-full border-0" />
           <span
             aria-hidden
             className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface-0/85 via-transparent to-transparent"
@@ -116,9 +104,10 @@ export function PlayRow({ play, selected, reelPosition, onToggle }: PlayRowProps
         >
           Ronda {play.round}
         </span>
-        <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
-          {play.weapon ?? `${play.kills} ${play.kills === 1 ? 'kill' : 'kills'}`}
+        <span className="text-body-sm text-fg-2">
+          {playDescription(play)}
         </span>
+        {playSourceRange(play) ? <span className="font-mono text-label tabular-nums text-fg-2">Demo {playSourceRange(play)}</span> : null}
       </span>
 
       <span className="ml-auto flex shrink-0 items-center gap-3">

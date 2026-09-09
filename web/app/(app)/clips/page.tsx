@@ -33,6 +33,7 @@ import { HubHeader } from '@/components/clips-hub/hub-header';
 import { LensToggle } from '@/components/clips-hub/lens-toggle';
 import { MatchRow, matchRowId } from '@/components/clips-hub/match-row';
 import { OutputItem } from '@/components/clips-hub/output-item';
+import { useWebMCPLibrary } from '@/components/clips-hub/use-webmcp-library';
 
 const FAST_POLL_MS = 1500;
 const IDLE_POLL_MS = 10000;
@@ -184,6 +185,8 @@ function ClipsHub(): ReactNode {
   const onChange = useCallback(() => {
     void refresh();
   }, [refresh]);
+
+  useWebMCPLibrary({ model, lens, open, failed: loadError !== null, navigate });
 
   /** One stable callback for every row: a fresh closure per row would defeat their memo. */
   const onToggle = useCallback(

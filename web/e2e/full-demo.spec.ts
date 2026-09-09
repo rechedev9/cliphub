@@ -92,6 +92,23 @@ test.describe('Full POV editorial constructor', () => {
       await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: CUSTOM_HUD_CAPTURE_PROFILE }, overlays: { hud_theme: 'mono' } } }, approval: { approved_plan_hash: document.plan_hash } } } });
     });
   }
+
+  test('recommended tuning restores defaults while preserving chosen media and voices', async ({ page }) => {
+    await stubParsedMatch(page, { status: 200, body: PLAN });
+    await gotoStudio(page, PRODUCE_FULL);
+    const volume = page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true });
+    const defaultVolume = await volume.inputValue();
+    await volume.fill('0');
+    const draftKey = `cliphub.full-demo.draft.v1:${JOB}`;
+    const before = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), draftKey);
+    await page.getByRole('button', { name: 'Usar ajustes recomendados', exact: true }).click();
+    await expect(volume).toHaveValue(defaultVolume);
+    const after = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), draftKey);
+    expect(after.audio.music.assets).toEqual(before.audio.music.assets);
+    expect(after.sponsor).toEqual(before.sponsor);
+    expect(after.audio.voice.enabled).toBe(before.audio.voice.enabled);
+    await expect(page.getByRole('spinbutton', { name: 'R1: tick final' })).toBeHidden();
+  });
   test('retries an offline editorial load without allowing unplanned defaults', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     let offline = true;

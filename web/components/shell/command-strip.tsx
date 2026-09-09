@@ -5,6 +5,7 @@ import { useSyncExternalStore, type ReactElement } from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { AppUpdateControl } from '@/components/shell/app-update-control';
 import { JobTransport } from '@/components/shell/job-transport';
+import { useCurrentRouteTitle } from '@/components/shell/route-title';
 import {
   serverShellActivitySnapshot,
   shellActivitySnapshot,
@@ -25,7 +26,8 @@ export function CommandStrip(): ReactElement {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const section = sectionForPath(pathname);
-  const trail = trailForPath(pathname, section, searchParams.get(PRODUCE_QUERY.format));
+  const routeTitle = useCurrentRouteTitle();
+  const trail = routeTitle ?? trailForPath(pathname, section, searchParams.get(PRODUCE_QUERY.format));
   const activity = useSyncExternalStore(
     subscribeToShellActivity,
     shellActivitySnapshot,
@@ -61,7 +63,7 @@ export function CommandStrip(): ReactElement {
             <span className="shrink-0 px-1 text-fg-4" aria-hidden>
               ›
             </span>
-            <span className="max-w-[16ch] truncate font-[family-name:var(--font-mono)] text-meta text-fg-3">
+            <span title={trail} className="max-w-[32ch] truncate text-body-sm text-fg-2">
               {trail}
             </span>
           </>
@@ -105,6 +107,7 @@ function trailForPath(pathname: string, section: NavSection | null, format: stri
   const rest = pathname.slice(section.href.length).replace(/^\/+|\/+$/g, '');
   if (rest === '') return null;
   const segments = rest.split('/');
+  if (section.href === '/streams') return 'Editar stream';
   if (section.href === CLIPS_HREF) {
     if (pathname === NEW_DEMO_HREF) return TRAIL.newMatch;
     if (segments[1] === 'nuevo') return format === PRODUCE_FORMAT.full ? TRAIL.newFull : TRAIL.newShort;

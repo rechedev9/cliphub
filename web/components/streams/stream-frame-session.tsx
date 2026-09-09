@@ -10,6 +10,7 @@ import { nextStreamPlaybackIndex, streamClipRange, streamPlaybackIndex, STREAM_P
 
 const MAX_CANVAS_WIDTH = 1440;
 type StreamFrameState = {
+  hasFrame: boolean;
   sourceHeight: number;
   sourceWidth: number;
   video: HTMLVideoElement | null;
@@ -44,13 +45,14 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
   const latest = useRef(props);
   latest.current = props;
   const runtimeRef = useRef<StreamRuntime | null>(null);
-  const [frame, setFrame] = useState<StreamFrameState>({ sourceHeight: 0, sourceWidth: 0, video: null, session: null });
+  const [frame, setFrame] = useState<StreamFrameState>({ hasFrame: false, sourceHeight: 0, sourceWidth: 0, video: null, session: null });
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const video = document.createElement('video');
-    video.preload = 'metadata';
+    // A paused editor still needs decoded pixels, not just duration and dimensions.
+    video.preload = 'auto';
     video.playsInline = true;
     video.width = 1;
     video.height = 1;
@@ -159,9 +161,11 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     const unsubscribeFrames = session.subscribeFrames((next) => mixer.sync(next.seconds, videoPlaying && session.playRequested && !video.paused));
     const onMetadata = (): void => {
       if (!alive) return;
-      setFrame({ video, session, sourceWidth: video.videoWidth, sourceHeight: video.videoHeight });
+      setFrame({ hasFrame: video.readyState >= 2, video, session, sourceWidth: video.videoWidth, sourceHeight: video.videoHeight });
     };
+    setFrame({ hasFrame: false, sourceHeight: 0, sourceWidth: 0, video: null, session: null });
     video.addEventListener('loadedmetadata', onMetadata);
+    video.addEventListener('loadeddata', onMetadata);
     const unsubscribeActivity = browserWindowActivity.subscribe(() => {
       if (!browserWindowActivity.isActive()) { runtime.pause(); latest.current.onPlayingChange(false); }
     });
@@ -179,6 +183,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       unsubscribeActivity();
       unsubscribeFrames();
       video.removeEventListener('loadedmetadata', onMetadata);
+      video.removeEventListener('loadeddata', onMetadata);
       session.dispose();
       mixer.dispose();
       video.removeAttribute('src');

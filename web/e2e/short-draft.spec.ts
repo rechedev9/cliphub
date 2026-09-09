@@ -35,6 +35,46 @@ const stored = (page: Page) => page.evaluate((key) => sessionStorage.getItem(key
 
 test.beforeEach(async ({ page }) => { await stubProducer(page); });
 
+test('keeps creation and pending choices visible above a long play list', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const longPlan = { ...PLAN, demo: { ...PLAN.demo, tickrate: 64 }, segments: Array.from({ length: 17 }, (_, index) => ({
+    id: `r${index}`, round: index + 1, tick_start: 6400 + index * 640, tick_end: 6719 + index * 640, kills: [{ weapon: 'ak47', headshot: true }],
+  })) };
+  await page.route(`**/api/demos/${JOB}/plan`, (route) => route.fulfill({ json: longPlan }));
+  await gotoStudio(page, HREF);
+  const create = page.getByRole('button', { name: 'Crear Short', exact: true });
+  await expect(create).toBeInViewport();
+  await expect(create).toBeDisabled();
+  await expect(page.getByText('Decide la música: un tema o sin música.', { exact: true })).toBeInViewport();
+  await expect(rows(page).first()).toContainText('Demo 1:40.0 – 1:45.0');
+  await expect(rows(page).first()).toContainText('1 a la cabeza');
+  await page.screenshot({ path: testInfo.outputPath('short-1440.png') });
+  await page.getByRole('button', { name: 'Sin música', exact: true }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(create).toBeInViewport();
+  await expect(create).toBeEnabled();
+  await page.setViewportSize({ width: 960, height: 900 });
+  await expect(create).toBeInViewport();
+});
+
+test('compares styles visually and applies the selected style to the existing draft', async ({ page }, testInfo) => {
+  await gotoStudio(page, HREF);
+  await page.getByRole('button', { name: 'Comparar estilos' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(page.getByRole('heading', { name: 'Compara los estilos de tu Short' })).toBeInViewport();
+  await expect(dialog.getByRole('button', { name: /^Estilo intenso/ }).locator('svg')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('style-comparison.png'), animations: 'disabled' });
+  await dialog.getByRole('button', { name: /^Estilo intenso/ }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#short-preset')).toContainText('Estilo intenso');
+  await expect(page.getByRole('button', { name: 'Comparar estilos' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Comparar estilos' })).toBeFocused();
+});
+
 test('recovers the last selection immediately after editing and reloading', async ({ page }) => {
   await gotoStudio(page, HREF);
   await expect(selected(page)).toHaveCount(3);
