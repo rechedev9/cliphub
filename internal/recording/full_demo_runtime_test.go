@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
@@ -50,6 +51,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		trim          bool
 		wantEnd       int
 		providedCode  bool
+		broadcast     bool
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
 		{name: "unknown single live frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": nil}},
@@ -65,9 +67,18 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "crosshair readback mismatch", outcome: "failed", trim: true, refuse: []string{"cl_crosshairgap"}, providedCode: true},
 		{name: "missing crosshair cvar", outcome: "failed", trim: true, missing: []string{"cl_fixedcrosshairgap"}, providedCode: true},
 		{name: "missing clean HUD cvar", outcome: "failed", trim: true, missing: []string{"hud_showtargetid"}},
+		{name: "broadcast clean applied and restored", outcome: "verified", trim: true, wantEnd: 892, broadcast: true},
+		{name: "broadcast radar unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"cl_drawhud_force_radar"}},
+		{name: "broadcast HUD refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_draw_only_deathnotices"}},
+		{name: "broadcast radar restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_drawhud_force_radar"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := fullDemoCaptureFixture(t)
+			if tc.broadcast {
+				p.FullDemo.Options.Capture.HUDProfile = customhud.CaptureProfile
+				p.FullDemo.Options.Overlays.HUDTheme = "arena"
+				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
+			}
 			if tc.providedCode {
 				p.FullDemo.Options.Capture.Crosshair = recapplan.CrosshairOptions{Mode: "provided-code", Code: "CSGO-WsnnD-eHaMw-QNDf9-oxuDh-ydOUD"}
 				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
@@ -148,6 +159,9 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				if result.FinalCvars["snd_voipvolume"] != 0.63 || result.FinalCvars["tv_listen_voice_indices"] != float64(7) || result.FinalCvars["cl_show_observer_crosshair"] != float64(1) {
 					t.Fatal("restoration guessed defaults instead of restoring actual values")
+				}
+				if tc.broadcast && (result.FinalCvars["cl_draw_only_deathnotices"] != false || result.FinalCvars["cl_drawhud_force_radar"] != float64(0) || result.FinalCvars["cl_drawhud_force_deathnotices"] != float64(0)) {
+					t.Fatal("broadcast capture did not restore the original HUD settings")
 				}
 			} else {
 				if err == nil {

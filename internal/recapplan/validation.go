@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/sharecode"
 )
 
@@ -180,7 +181,7 @@ func (o Options) Validate() error {
 	}{
 		{"profile_id", o.ProfileID, []string{ProfileChill}},
 		{"source_kind", o.SourceKind, []string{"demo", "premier", "professional", "faceit"}},
-		{"hud_profile", o.Capture.HUDProfile, []string{"native-clean-spectator", "native"}},
+		{"hud_profile", o.Capture.HUDProfile, []string{"native-clean-spectator", "native", customhud.CaptureProfile}},
 		{"camera_policy", o.Capture.CameraPolicy, []string{"strict-first-person"}},
 		{"contract_version", o.Capture.ContractVersion, []string{CaptureContract}},
 		{"crosshair.mode", o.Capture.Crosshair.Mode, []string{"observed", "provided-code"}},
@@ -211,6 +212,16 @@ func (o Options) Validate() error {
 		if !found {
 			return fmt.Errorf("invalid %s %q", choice.name, choice.value)
 		}
+	}
+	if o.Overlays.HUDTheme != "" {
+		if err := customhud.ValidateTheme(o.Overlays.HUDTheme); err != nil {
+			return err
+		}
+		if o.Capture.HUDProfile != customhud.CaptureProfile {
+			return fmt.Errorf("custom HUD requires a broadcast-clean capture")
+		}
+	} else if o.Capture.HUDProfile == customhud.CaptureProfile {
+		return fmt.Errorf("broadcast-clean capture requires a custom HUD")
 	}
 	if o.Capture.XRay {
 		return fmt.Errorf("full demo profile requires xray disabled")

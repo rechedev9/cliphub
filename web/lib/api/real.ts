@@ -11,6 +11,7 @@ import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } fro
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
+import { customHudTheme } from '../custom-hud.ts';
 import { canHaveRenderState, decideReelReconcile, isDurableAdmissionFailure, retryReelAction, shouldReconcileVideoStatus, viewForJobGone, viewForReadyWithoutVideo, viewForRecordAdmission, viewForRenderAdmission, type RedrivenRevision, type ReelAction, type ReelView, type RenderStatus } from './reel-reconcile.ts';
 import { loadReelIntents, saveReelIntents, DEFAULT_VARIANT, DEFAULT_EDIT_CONFIG, type ReelIntent } from './reel-store.ts';
 import { buildEditRequest, editConfigsEqual } from './edit-request.ts';
@@ -209,7 +210,9 @@ const VARIANT_LABELS: Record<string, string> = {
   'gameplay-pov-60': 'POV nativo',
 };
 
-function variantLabel(variant: string): string {
+function variantLabel(variant: string, editConfig?: EditConfig): string {
+  const hud = customHudTheme(editConfig?.fullDemo?.document.options.overlays.hud_theme);
+  if (hud) return `HUD ${hud.name}`;
   return VARIANT_LABELS[variant] ?? variant;
 }
 
@@ -545,7 +548,7 @@ export class RealApiClient implements ApiClient {
       ? plays
       : input.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
     const variant = input.variant ?? REEL_VARIANT;
-    const suffix = input.songId ? `${variantLabel(variant)} + Music` : variantLabel(variant);
+    const suffix = input.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
     const selectionTitle = recap
       ? `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`
       : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
@@ -742,7 +745,7 @@ export class RealApiClient implements ApiClient {
       applyMusicChoice(nextIntent, nextChoice);
       nextIntent.title = titleWithMusicSuffix(
         intent.title,
-        variantLabel(variantOf(intent)),
+        variantLabel(variantOf(intent), intent.editConfig),
         Boolean(nextIntent.songId),
       );
       const accepted = await readJson<{ accepted?: boolean; duplicate?: boolean }>(

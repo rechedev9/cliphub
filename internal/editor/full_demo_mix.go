@@ -259,6 +259,13 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 		return nil, fmt.Errorf("unsupported Full Demo timeline role %s", item.Role)
 	}
 	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s[v]", sourceOffset, sourceOffset+frames, fullDemoTransitionVideo(short, item, edges))
+	hudFilter, err := fullDemoHUDFilter(short, item, output)
+	if err != nil {
+		return nil, err
+	}
+	if hudFilter != "" {
+		video = strings.TrimSuffix(video, "[v]") + "," + hudFilter + "[v]"
+	}
 	// Five millisecond de-clicks keep hard cuts while preserving every frame
 	// and sample in the approved timeline, including very short inserts.
 	fadeSamples := min(int64(240), samples/2)

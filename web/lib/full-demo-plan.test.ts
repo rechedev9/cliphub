@@ -9,6 +9,8 @@ import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
 import { parseEffectiveEditConfig } from './api/render-hydration.ts';
 import { fullDemoIntentConflict, shouldReuseReelIntent } from './api/reel-identity.ts';
+import { CUSTOM_HUD_THEMES, CUSTOM_HUD_CAPTURE_PROFILE } from './custom-hud.ts';
+import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 // Serialized by the real Go planner in the synthetic FFmpeg canary. This is
 // editorial evidence only: no HLAE capture attestation or production gate bypass.
@@ -44,6 +46,31 @@ test('screenshot upload stores an image without requiring music provenance', asy
     return Response.json({ ...ref, width: 436, height: 513, content_type: 'image/png' }, { status: 201 });
   });
   assert.deepEqual(await uploadFullDemoOverlayImage(file), ref);
+});
+
+test('all ten custom HUDs survive approval, persistence and the render request', () => {
+  assert.equal(CUSTOM_HUD_THEMES.length, 10);
+  for (const theme of CUSTOM_HUD_THEMES) {
+    const snapshot = fixture();
+    const options = snapshot.document.options;
+    options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;
+    options.overlays.hud_theme = theme.id;
+    options.overlays.mode = 'generated';
+    options.transitions = fullDemoTransitionPreset('kinetic');
+    assert.ok(isFullDemoOptions(options));
+    assert.ok(isFullDemoSnapshot(snapshot));
+    const edit = fullDemoPlanEdit(snapshot);
+    assert.deepEqual(coerceEditConfig(JSON.parse(JSON.stringify(edit))), edit);
+    assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(edit)), edit);
+    const changed = structuredClone(options);
+    changed.overlays.hud_theme = theme.id === 'arena' ? 'apex' : 'arena';
+    assert.equal(fullDemoApprovalKey(snapshot.document, changed), null);
+  }
+  for (const [profile, theme] of [['native', 'arena'], ['broadcast-clean', undefined], ['broadcast-clean', 'unknown'], ['native', null], ['native', '']]) {
+    const options = fixture().document.options;
+    assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: profile }, overlays: { ...options.overlays, hud_theme: theme } }), false);
+  }
+  assert.equal(JSON.stringify(fixture()).includes('hud_theme'), false);
 });
 
 test('fixed freeze migrates old drafts without changing gameplay voice settings', () => {

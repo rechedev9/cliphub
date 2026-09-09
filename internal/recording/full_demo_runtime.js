@@ -86,16 +86,22 @@
                 cl_show_observer_crosshair: fullDemoCapture.crosshair.mode === "observed" ? 2 : 0,
                 crosshair: true, cl_demo_predict: 0, cl_trueview_show_status: 0
             };
-            if (fullDemoCapture.hud_profile === "native-clean-spectator") Object.assign(settings, {
+            if (fullDemoCapture.hud_profile === "native-clean-spectator" || fullDemoCapture.hud_profile === "broadcast-clean") Object.assign(settings, {
                 cl_spec_show_bindings: false, cl_drawhud_specvote: false, cl_teamid_overhead_mode: 0,
                 cl_drawhud_force_teamid_overhead: -1, hud_showtargetid: false
+            });
+            // Read back these CS2 cvars like every other capture invariant.
+            // The native crosshair, scope, radar and killfeed remain in the
+            // capture; player panels are composed later from demo telemetry.
+            if (fullDemoCapture.hud_profile === "broadcast-clean") Object.assign(settings, {
+                cl_draw_only_deathnotices: true, cl_drawhud_force_radar: 1, cl_drawhud_force_deathnotices: 1
             });
             Object.assign(settings, fullDemoCrosshairCvars);
             // Snapshot all values before changing the first one.
             for (const name of Object.keys(settings)) fullDemoSaveCvar(fullDemoFindCvar(name));
             fullDemoEvidence("settings_before", {values: Array.from(fullDemoSavedCvars, ([name, entry]) => ({name, value: entry.value}))});
             for (const [name, value] of Object.entries(settings)) fullDemoSetCvar(name, value);
-            if (fullDemoCapture.hud_profile === "native-clean-spectator") {
+            if (fullDemoCapture.hud_profile === "native-clean-spectator" || fullDemoCapture.hud_profile === "broadcast-clean") {
                 for (const panel of ["HudDemoController", "Scoreboard", "HudVote", "HudDeathPanel", "HudSpectatorVignetting", "HudHealthBars", "Status", "HudChat"]) {
                     mirv.exec(`mirv_panorama panelStyle panelId=${panel} opacity=0`);
                 }

@@ -13,7 +13,7 @@ import (
 // Cache validation uses this projection too, so displayed documents cannot
 // disagree with the immutable result that attests the delivered media.
 func FullDemoDocumentFiles(evidence FullDemoRenderEvidence) map[string]any {
-	return map[string]any{
+	files := map[string]any{
 		"full-demo-approved.json":  evidence.Approved,
 		"full-demo-effective.json": evidence.Effective,
 		"full-demo-audio.json": struct {
@@ -25,6 +25,10 @@ func FullDemoDocumentFiles(evidence FullDemoRenderEvidence) map[string]any {
 		"full-demo-loudness.json": evidence.ProgramLoudness,
 		"full-demo-delivery.json": evidence.Delivery,
 	}
+	if evidence.HUD != nil {
+		files["full-demo-hud.json"] = evidence.HUD
+	}
+	return files
 }
 
 func writeFullDemoDocuments(outDir string, shorts []ShortEdit) error {

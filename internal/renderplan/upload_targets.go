@@ -78,7 +78,11 @@ func NewRenderVariantUploadTargets(opts NewRenderVariantUploadTargetsOptions) ([
 			continue
 		}
 		if short.FullDemo != nil {
-			for _, name := range []string{"full-demo-approved.json", "full-demo-effective.json", "full-demo-audio.json", "full-demo-loudness.json", "full-demo-delivery.json"} {
+			documents := []string{"full-demo-approved.json", "full-demo-effective.json", "full-demo-audio.json", "full-demo-loudness.json", "full-demo-delivery.json"}
+			if short.FullDemo.HUD != nil {
+				documents = append(documents, "full-demo-hud.json")
+			}
+			for _, name := range documents {
 				targets = append(targets, RenderVariantUploadTarget{Key: filepath.ToSlash(filepath.Join(refs.Prefix, name)), Path: filepath.Join(opts.OutDir, name), Label: name, Required: true})
 			}
 			for _, pattern := range []string{"program-*.txt", "decoded-aac-*.txt"} {

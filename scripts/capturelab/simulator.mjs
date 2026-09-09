@@ -287,6 +287,7 @@ export async function runSimulation(scriptSource, rawScenario) {
   const cvarValues = new Map(Object.entries({
     voice_modenable: true, snd_voipvolume: 0.63, tv_listen_voice_indices: 7, tv_listen_voice_indices_h: 9,
     spec_show_xray: 1, spec_autodirector: true, cl_drawhud: true, cl_draw_only_deathnotices: false,
+    cl_drawhud_force_radar: 0, cl_drawhud_force_deathnotices: 0,
     cl_show_observer_crosshair: 1, crosshair: true, cl_demo_predict: 1, cl_trueview_show_status: 2, host_framerate: 0,
     cl_spec_show_bindings: true, cl_drawhud_specvote: true, cl_teamid_overhead_mode: 3,
     cl_drawhud_force_teamid_overhead: 0, hud_showtargetid: true, cl_crosshairsize: 4,
