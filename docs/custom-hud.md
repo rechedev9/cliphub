@@ -226,3 +226,31 @@ The complete candidate P0 autoreview was attempted with Codex GPT-6 Astra / high
 Its preflight rejected non-UTF-8 binary Git content before a reviewer started;
 there is no independent review result for this candidate. Local evidence is
 under `.local/hud-pro/`, excluded from publication.
+
+Full-match capture acceptance used the real Studio retry flow with all 19
+Donk rounds and the same approved Arena plan. Capture revision
+`9d71f9ae-5bf3-4d7f-adc8-2773c7ff5b9c` passed native attestation and exact
+frame coverage for every round; all cvars and configuration files were restored.
+
+This flow exposed two timing defects before publication. Death-tail evidence
+now ends at the last confirmed POV tick, because the first unknown tick is
+rejected before rendering. Complete windows retain their explicitly verified
+terminal render frame and close before the next frame. That fixes the 64 Hz to
+60 fps rounding case that previously captured 3,815 frames in round 9 when the
+approved interval required 3,816. The real corrected capture contains 3,816.
+No approved window is shortened to fit an artifact, and no frames are duplicated.
+The existing exact frame and decoded-audio validators remain unchanged.
+
+The regressions reproduce the original underfill in four of sixteen clock
+phases and protect unknown POVs, unapproved tail trimming and skipped ticks.
+The complete recording suite and recording/worker integration tests pass.
+The recording follow-up received a separate P0-only independent review; that
+limited result does not cover the complete visual candidate. Further autoreview
+runs were explicitly removed from the workflow by the user.
+
+Three grenade assets now use view boxes matching their actual paths. The real
+FFmpeg regression reproduced all three being invisible inside their slots and
+painting outside them; it now checks visible silhouettes and no escaping pixels.
+The final asset set was rendered with real flashbang, HE and smoke states in all
+ten styles. The full HUD and Full Demo editor suites pass, and regenerated
+picker previews remain byte-identical because their example uses other weapons.
