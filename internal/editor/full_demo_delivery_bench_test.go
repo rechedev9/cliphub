@@ -33,7 +33,7 @@ func BenchmarkFullDemoDelivery(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 300)
+		evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 300, nil)
 		if err != nil || !evidence.FullDecode || evidence.FrameCount != 300 {
 			b.Fatalf("delivery: %+v %v", evidence, err)
 		}

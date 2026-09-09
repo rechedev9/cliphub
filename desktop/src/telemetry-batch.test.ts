@@ -29,7 +29,7 @@ function fixture(t: test.TestContext) {
   return { client, journal, queue, errors, spans, cursor };
 }
 
-const errorLine = `${JSON.stringify({ time: '2026-09-06T12:00:00Z', stage: 'parse', class: 'parse:demo', message: 'private' })}\n`;
+const errorLine = `${JSON.stringify({ time: '2026-09-06T12:00:00Z', stage: 'parse', class: 'parse:demo', message: 'parse failed token=private', job_id: '8a46e7a4-d86a-4512-bc41-dc270a296461' })}\n`;
 const spanLine = `${JSON.stringify({ time: '2026-09-06T12:00:00Z', stage: 'worker', name: 'parse:demo', result: 'ok', duration_ms: 123 })}\n`;
 
 test('one poll publishes errors and spans once; idle polls do not read or write the queue', (t) => {
@@ -47,6 +47,8 @@ test('one poll publishes errors and spans once; idle polls do not read or write 
   assert.equal(events.length, 19);
   assert.equal(events[10].duration_ms, 123);
   assert.doesNotMatch(JSON.stringify(events), /private/);
+  assert.match(events[0].message, /parse failed/);
+  assert.equal(events[0].job_id, '8a46e7a4-d86a-4512-bc41-dc270a296461');
   for (let i = 0; i < 5; i++) f.journal.poll();
   assert.equal(reads.mock.callCount(), 1);
   assert.equal(writes.mock.callCount(), 1);

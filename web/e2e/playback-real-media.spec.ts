@@ -178,8 +178,12 @@ test.describe('real Chromium media playback', () => {
 
     await dialog.getByRole('button', { name: 'Pausar', exact: true }).click();
     const duration = await videoDuration(video);
-    const scrubbed = Math.min(duration - 1, duration * 0.55);
-    await dialog.locator('#media-player-position').fill(String(scrubbed));
+    const position = dialog.locator('#media-player-position');
+    const step = Number(await position.getAttribute('step'));
+    expect(step).toBeGreaterThan(0);
+    // Any local MP4 is accepted; align fractional durations to the range's step.
+    const scrubbed = Math.floor(Math.min(duration - 1, duration * 0.55) / step) * step;
+    await position.fill(String(Number(scrubbed.toFixed(6))));
     await expect.poll(() => videoTime(video)).toBeGreaterThan(scrubbed - 0.3);
     const quality = await video.evaluate((element) => {
       if (!(element instanceof HTMLVideoElement)) throw new Error('expected a video element');

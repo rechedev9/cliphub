@@ -1,8 +1,8 @@
-import { fixedFullDemoFreeze, type FullDemoOptions } from '../full-demo-plan.ts';
+import { currentFullDemoOptions, type FullDemoOptions } from '../full-demo-plan.ts';
 
 /** Reset technical tuning while retaining chosen media, content and fallback decisions. */
 export function recommendedFullDemoSettings(current: FullDemoOptions, defaults: FullDemoOptions): FullDemoOptions {
-  return fixedFullDemoFreeze({
+  return currentFullDemoOptions({
     ...current,
     capture: { ...current.capture, hud_profile: defaults.capture.hud_profile },
     editorial: { ...defaults.editorial, manual_ranges: [] },

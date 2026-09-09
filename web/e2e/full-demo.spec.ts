@@ -120,6 +120,8 @@ test.describe('Full POV editorial constructor', () => {
       expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width).toBeTruthy();
       await expanded.getByRole('button', { name: 'Cerrar', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Ampliar HUD Mono', exact: true })).toBeFocused();
+      await page.getByRole('button', { name: 'Usar ajustes recomendados', exact: true }).click();
+      await expect(page.getByRole('radio', { name: 'HUD Mono', exact: true })).toBeChecked();
       await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0.8');
       await page.getByRole('button', { name: 'Actualizar y guardar plan' }).click();
       await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();

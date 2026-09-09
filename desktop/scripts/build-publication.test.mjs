@@ -224,7 +224,7 @@ winTest('build publication lock rejects a symbolic link without modifying its ta
   const result = invokeLock(bin);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /lock path must be an unlinked\s+regular file/);
+  assert.match(result.stderr.replace(/\s+/g, ' '), /lock path must be an unlinked regular file/);
   assert.equal(lstatSync(lockPath).isSymbolicLink(), true);
   assert.equal(readFileSync(linkedTarget, 'utf8'), 'do-not-truncate');
 });
@@ -242,7 +242,7 @@ winTest('build publication lock rejects a hard link without modifying its target
   const result = invokeLock(bin);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /lock path must be an unlinked\s+regular file/);
+  assert.match(result.stderr.replace(/\s+/g, ' '), /lock path must be an unlinked regular file/);
   assert.equal(readFileSync(linkedTarget, 'utf8'), 'do-not-truncate');
   assert.equal(readFileSync(lockPath, 'utf8'), 'do-not-truncate');
 });
@@ -549,7 +549,8 @@ if ($From -eq '${failedPublish}') {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /rollback was incomplete/);
-  assert.match(result.stderr, /original backup is missing after phase 'published'; target was retained/);
+  // Windows PowerShell wraps error text to the host width, including mid-sentence.
+  assert.match(result.stderr.replace(/\s+/g, ' '), /original backup is missing after phase 'published'; target was retained/);
   assert.equal(readFileSync(join(bin, 'a.exe'), 'utf8'), 'new-a');
   assert.equal(readFileSync(join(bin, 'b.exe'), 'utf8'), 'old-b');
   assert.equal(existsSync(backup), true);

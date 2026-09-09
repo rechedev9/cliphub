@@ -3,6 +3,21 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { isFullDemoSnapshot, isFullDemoOptions } from '../full-demo-plan.ts';
 import { recommendedFullDemoSettings } from './full-demo-recommended.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE } from '../custom-hud.ts';
+
+test('recommended tuning preserves a selected custom HUD and its capture contract', () => {
+  const raw: unknown = JSON.parse(readFileSync(new URL('../full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(raw));
+  const defaults = raw.document.options;
+  const current = structuredClone(defaults);
+  current.overlays.hud_theme = 'apex';
+  current.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;
+  assert.ok(isFullDemoOptions(current));
+  const next = recommendedFullDemoSettings(current, defaults);
+  assert.equal(next.overlays.hud_theme, 'apex');
+  assert.equal(next.capture.hud_profile, CUSTOM_HUD_CAPTURE_PROFILE);
+  assert.ok(isFullDemoOptions(next));
+});
 
 test('recommended tuning preserves media and voice fallback decisions and requires a new plan', () => {
   const raw: unknown = JSON.parse(readFileSync(new URL('../full-demo-plan.fixture.json', import.meta.url), 'utf8'));

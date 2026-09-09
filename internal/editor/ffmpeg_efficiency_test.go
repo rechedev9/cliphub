@@ -122,14 +122,22 @@ func TestFullDemoDeliverySingleDecodeRealMedia(t *testing.T) {
 	if _, err := runFFmpegOutput(ctx, command, "delivery fixture"); err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 60)
+	var decodeProgress []float64
+	evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 60, func(stage string, fraction float64) {
+		if stage == "Verificando fotogramas, vídeo y audio" {
+			decodeProgress = append(decodeProgress, fraction)
+		}
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !evidence.FullDecode || evidence.FrameCount != 60 || len(evidence.ContentSHA256) != 64 {
 		t.Fatal(evidence)
 	}
-	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 59); err == nil {
+	if len(decodeProgress) < 2 || decodeProgress[len(decodeProgress)-1] <= decodeProgress[0] {
+		t.Fatal("complete decode did not report media progress", decodeProgress)
+	}
+	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 59, nil); err == nil {
 		t.Fatal("wrong canonical count passed")
 	}
 	// Fast-start makes the container readable even when the final media is cut.
@@ -144,7 +152,7 @@ func TestFullDemoDeliverySingleDecodeRealMedia(t *testing.T) {
 	if err := os.Truncate(fast, info.Size()-500); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, fast, 60); err == nil {
+	if _, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, fast, 60, nil); err == nil {
 		t.Fatal("truncated media passed complete decode")
 	}
 }
