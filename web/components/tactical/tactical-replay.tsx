@@ -29,10 +29,10 @@ import {
   seekEventSeconds,
   timelineEvents,
   timelineTick,
-  visibleTimelineEvents,
 } from '@/lib/tactical-timeline';
 import type { RoundTimeline } from '@/lib/tactical-timeline';
-import { createSampleTrailReader, dominantLevel, frameCursor, interpolatedSamples } from '@/lib/tactical-replay';
+import { createInterpolatedSampleReader, createSampleTrailReader, dominantLevel, frameCursor } from '@/lib/tactical-replay';
+import { TacticalDrawCache } from '@/lib/tactical-draw-cache';
 import { isCalibrationUsable, radarViewRect } from '@/lib/tactical-transform';
 import { drawTacticalScene, renderRadarBackground } from '@/components/tactical/radar-draw';
 import type { RadarStyle } from '@/components/tactical/radar-draw';
@@ -214,6 +214,11 @@ export function TacticalReplay({
     [frames, timeline.tickrate],
   );
 
+  const readSamples = useMemo(() => createInterpolatedSampleReader(frames), [frames]);
+  // Weak event keys and bounded label metrics make one replay-owned cache safe
+  // across rounds. Coordinate entries invalidate themselves on geometry/size.
+  const drawCache = useMemo(() => new TacticalDrawCache(), []);
+
   const renderAt = useCallback(
     (seconds: number) => {
       if (!drawable) return;
@@ -221,9 +226,9 @@ export function TacticalReplay({
       const scrub = scrubRef.current;
       if (scrub !== null) {
         scrub.value = String(seconds);
-        scrub.setAttribute('aria-valuetext', label);
+        if (scrub.getAttribute('aria-valuetext') !== label) scrub.setAttribute('aria-valuetext', label);
       }
-      if (clockRef.current !== null) clockRef.current.textContent = label;
+      if (clockRef.current !== null && clockRef.current.textContent !== label) clockRef.current.textContent = label;
 
       const canvas = canvasRef.current;
       if (canvas === null) return;
@@ -238,7 +243,7 @@ export function TacticalReplay({
       context.translate(offsetX, offsetY);
 
       const cursor = frameCursor(frames, timelineTick(timeline, seconds));
-      const samples = cursor === undefined ? [] : interpolatedSamples(frames, cursor);
+      const samples = cursor === undefined ? [] : readSamples(cursor);
       const level = dominantLevel(doc.geometry.calibration, samples);
       context.drawImage(
         background(level, size, dpr, style),
@@ -256,15 +261,15 @@ export function TacticalReplay({
           activeLevel: level,
           samples,
           trails: readTrails(cursor),
-          events: visibleTimelineEvents(events, seconds),
+          events,
           nowSeconds: seconds,
           labels,
           style,
-        });
+        }, drawCache);
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [background, doc.geometry, drawable, events, frames, labels, readTrails, timeline, view],
+    [background, doc.geometry, drawable, drawCache, events, frames, labels, readSamples, readTrails, timeline, view],
   );
 
   useEffect(() => {
@@ -315,16 +320,23 @@ export function TacticalReplay({
       renderRef.current(positionRef.current);
     };
 
+    const fontsChanged = (): void => {
+      drawCache.clear();
+      backgroundsRef.current.clear();
+      measure();
+    };
     measure();
+    document.fonts.addEventListener('loadingdone', fontsChanged);
     const observer = new ResizeObserver(measure);
     observer.observe(container);
     // Zoom changes the pixel ratio without necessarily changing the CSS box.
     window.addEventListener('resize', measure);
     return () => {
       observer.disconnect();
+      document.fonts.removeEventListener('loadingdone', fontsChanged);
       window.removeEventListener('resize', measure);
     };
-  }, [view]);
+  }, [view, drawCache]);
 
   useEffect(() => {
     if (!playing) return;

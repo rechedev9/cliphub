@@ -10,12 +10,10 @@ package tactical
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"math"
 	"os"
-	"sort"
 	"strconv"
 	"sync"
 
@@ -78,8 +76,7 @@ type Result struct {
 
 // ScanFile opens a demo, scans it, and fills in the demo path and checksum.
 func ScanFile(ctx context.Context, path string, opts Options) (Result, error) {
-	sum, err := fileSHA256(path)
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	// #nosec G304 -- the demo path is an explicit local input from the CLI or a job payload.
@@ -89,14 +86,12 @@ func ScanFile(ctx context.Context, path string, opts Options) (Result, error) {
 	}
 	defer f.Close()
 
-	p := demoinfocs.NewParser(f)
-	defer p.Close()
-
 	opts.DemoPath = path
-	if opts.SHA256 == "" {
-		opts.SHA256 = sum
-	}
-	return ScanWithContext(ctx, p, opts)
+	return scanHashed(ctx, f, opts, func(reader io.Reader) (Result, error) {
+		p := demoinfocs.NewParser(reader)
+		defer p.Close()
+		return ScanWithContext(ctx, p, opts)
+	})
 }
 
 // ScanWithContext drives Scan but aborts parsing when ctx is cancelled,
@@ -461,6 +456,7 @@ func (s *scanner) onFrame() {
 
 	gs := s.p.GameState()
 	frame := tacticalplan.Frame{Tick: tick}
+	var samples sampleSlots
 	for _, pl := range gs.Participants().All() {
 		slot, ok := s.slotFor(pl)
 		if !ok {
@@ -476,7 +472,7 @@ func (s *scanner) onFrame() {
 			continue
 		}
 		s.current.sides[slot] = side
-		frame.Samples = append(frame.Samples, tacticalplan.Sample{
+		samples.add(tacticalplan.Sample{
 			Slot:   slot,
 			X:      pos.X,
 			Y:      pos.Y,
@@ -489,8 +485,8 @@ func (s *scanner) onFrame() {
 			s.occupancyAdd(pos.X, pos.Y, pos.Z, pl.LastPlaceName())
 		}
 	}
+	frame.Samples = samples.ordered()
 	if len(frame.Samples) > 0 {
-		sort.Slice(frame.Samples, func(i, j int) bool { return frame.Samples[i].Slot < frame.Samples[j].Slot })
 		s.current.frames = append(s.current.frames, frame)
 	}
 }
@@ -891,21 +887,6 @@ func endReasonSlug(reason events.RoundEndReason) string {
 	default:
 		return "unknown"
 	}
-}
-
-func fileSHA256(path string) (string, error) {
-	// #nosec G304 -- the demo path is an explicit local input.
-	f, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("open demo %q: %w", path, err)
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", fmt.Errorf("checksum demo %q: %w", path, err)
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 func steamIDString(id uint64) string { return strconv.FormatUint(id, 10) }

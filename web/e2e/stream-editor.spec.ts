@@ -310,11 +310,17 @@ test('a selected Short stops at its end and selecting another exposes only its c
   await page.getByLabel('Fin (s)', { exact: true }).blur();
   await cta(page, 'Añadir este momento').click();
   await page.getByRole('list', { name: 'Tus momentos' }).getByRole('button').first().click();
+  const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
+  // This clip lasts only one second. Under parallel media tests the pause
+  // button can disappear before Playwright samples it; observe actual playback
+  // before clicking, then still require the final stopped controls and clock.
+  await decoder.evaluate((element) => {
+    element.addEventListener('playing', () => { (element as HTMLElement).dataset.e2ePlayed = 'true'; }, { once: true });
+  });
   await cta(page, 'Ver este Short').click();
-  await expect(cta(page, 'Pausar')).toBeVisible();
+  await expect(decoder).toHaveAttribute('data-e2e-played', 'true');
   await expect(cta(page, 'Reproducir este Short')).toBeVisible();
   await expect(page.getByLabel('Tiempo de reproducción')).toContainText('0:01');
-  const decoder = page.locator('video[data-stream-frame="shared-decoder"]');
   await expect(decoder).toHaveCount(1);
   await expect(page.locator('audio')).toHaveCount(0);
   const stopped = await decoder.evaluate((element) => {

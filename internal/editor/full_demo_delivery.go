@@ -1,12 +1,15 @@
 package editor
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -25,8 +28,8 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	if ffprobe == "" {
 		return nil, fmt.Errorf("full_demo_output_invalid: ffprobe is required")
 	}
-	progress.report("Comprobando fotogramas del vídeo", 0)
-	output, err := runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-count_frames", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,nb_read_frames,sample_rate,channels,duration", "-of", "json", path}, "Full Demo delivery probe")
+	progress.report("Comprobando formato del vídeo", 0)
+	output, err := runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels,duration", "-of", "json", path}, "Full Demo delivery probe")
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +40,6 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 			Width      int    `json:"width"`
 			Height     int    `json:"height"`
 			FrameRate  string `json:"r_frame_rate"`
-			Frames     string `json:"nb_read_frames"`
 			SampleRate string `json:"sample_rate"`
 			Channels   int    `json:"channels"`
 			Duration   string `json:"duration"`
@@ -58,11 +60,10 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 		}
 		switch stream.Type {
 		case "video":
-			count, err := strconv.ParseInt(stream.Frames, 10, 64)
-			if err != nil || count != frames || video || stream.Codec != "h264" || stream.Width != 1920 || stream.Height != 1080 || !frameRateMatches(stream.FrameRate, 60) {
-				return nil, fmt.Errorf("full_demo_output_invalid: delivered video differs from 1080p60 H.264 or canonical frame count (got codec=%s, size=%dx%d, fps=%s, frames=%s, duplicate=%t; expected frames=%d)", stream.Codec, stream.Width, stream.Height, stream.FrameRate, stream.Frames, video, frames)
+			if video || stream.Codec != "h264" || stream.Width != 1920 || stream.Height != 1080 || !frameRateMatches(stream.FrameRate, 60) {
+				return nil, fmt.Errorf("full_demo_output_invalid: delivered video differs from 1080p60 H.264 (got codec=%s, size=%dx%d, fps=%s, duplicate=%t)", stream.Codec, stream.Width, stream.Height, stream.FrameRate, video)
 			}
-			video, e.FrameCount = true, count
+			video = true
 		case "audio":
 			if audio || stream.Codec != "aac" || stream.SampleRate != "48000" || stream.Channels != 2 {
 				return nil, fmt.Errorf("full_demo_output_invalid: delivered audio is not stereo AAC at 48 kHz")
@@ -75,9 +76,19 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	if !video || !audio {
 		return nil, fmt.Errorf("full_demo_output_invalid: missing video or audio")
 	}
-	if err := runFFmpegOutputWithProgress(ctx, []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"}, "Full Demo complete delivery decode", e.DurationSeconds, progress.pass("Verificando vídeo y audio completos", .4, .9)); err != nil {
+	// Count frames during the mandatory complete decode, rather than decoding
+	// once in ffprobe -count_frames and a second time here. Passthrough forbids
+	// output frame duplication/dropping from hiding a noncanonical source count.
+	var decoded bytes.Buffer
+	_, err = runFFmpegOutputProgressTo(ctx, []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough", "-f", "null", "-"}, "Full Demo complete delivery decode", e.DurationSeconds, progress.pass("Verificando fotogramas, vídeo y audio", .1, .9), &decoded)
+	if err != nil {
 		return nil, err
 	}
+	count, err := decodedDeliveryFrames(decoded.String())
+	if err != nil || count != frames {
+		return nil, fmt.Errorf("full_demo_output_invalid: complete decode did not certify %d frames (got %d): %v", frames, count, err)
+	}
+	e.FrameCount = count
 	if info, err := os.Stat(path); err != nil || info.Size() == 0 {
 		return nil, fmt.Errorf("full_demo_output_invalid: missing delivered file")
 	}
@@ -88,6 +99,40 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	}
 	e.FullDecode = true
 	return e, nil
+}
+
+// Only a completed progress record with unmodified output frames is evidence.
+// Container nb_frames is deliberately never trusted as a decoded frame count.
+func decodedDeliveryFrames(output string) (int64, error) {
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	count, duplicates, dropped := int64(-1), int64(-1), int64(-1)
+	for scanner.Scan() {
+		key, value, ok := strings.Cut(strings.TrimSpace(scanner.Text()), "=")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "frame", "dup_frames", "drop_frames":
+			n, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil || n < 0 {
+				return 0, fmt.Errorf("invalid decode progress %s", key)
+			}
+			switch key {
+			case "frame":
+				count = n
+			case "dup_frames":
+				duplicates = n
+			case "drop_frames":
+				dropped = n
+			}
+		case "progress":
+			if value == "end" && count > 0 && duplicates == 0 && dropped == 0 {
+				return count, nil
+			}
+			count, duplicates, dropped = -1, -1, -1
+		}
+	}
+	return 0, fmt.Errorf("incomplete decode progress")
 }
 
 func (e *FullDemoRenderEvidence) ValidateCompleted() error {

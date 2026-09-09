@@ -58,6 +58,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
     video.setAttribute('aria-hidden', 'true');
     let alive = true;
     let playGeneration = 0;
+    let playPending = false;
     let clipIndex = -1;
     let playbackClipId: string | null = null;
     let videoPlaying = false;
@@ -78,7 +79,9 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
           latest.current.onMediaError();
         } else if (state.status === PLAYBACK_STATUS.paused && !state.playRequested && latest.current.playing) {
           queueMicrotask(() => {
-            if (!alive || session.playRequested || !latest.current.playing) return;
+            // A no-op seek can report paused before AudioContext.resume()
+            // resolves. It must not cancel the user's just-requested playback.
+            if (!alive || playPending || session.playRequested || !latest.current.playing) return;
             latest.current.onPlayingChange(false);
           });
         }
@@ -130,9 +133,12 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       play: () => {
         if (!alive || !browserWindowActivity.isActive()) { latest.current.onPlayingChange(false); return; }
         const generation = ++playGeneration;
+        playPending = true;
         releaseOwner = claimMediaPlayback(session, () => { runtime.pause(); latest.current.onPlayingChange(false); });
         void mixer.resume().then(() => {
-          if (alive && generation === playGeneration && latest.current.playing) session.play();
+          if (!alive || generation !== playGeneration) return;
+          playPending = false;
+          if (latest.current.playing) session.play();
         }).catch(() => {
           if (!alive || generation !== playGeneration) return;
           runtime.pause();
@@ -142,6 +148,7 @@ export function StreamFrameSession(props: StreamFrameProps): ReactElement {
       },
       pause: () => {
         playGeneration += 1;
+        playPending = false;
         session.pause();
         mixer.pause();
         releaseOwner();
