@@ -27,13 +27,19 @@ const MaxTelemetryBytes = 128 << 20
 // Extract consumes the whole immutable demo, checking its digest as it goes.
 // It does not launch CS2 and never substitutes example values for missing data.
 func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickRate int) (Timeline, error) {
+	return extract(ctx, input, demoSHA, target, tickRate, func(reader io.Reader) demoinfocs.Parser {
+		return demoinfocs.NewParser(reader)
+	})
+}
+
+func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickRate int, newParser func(io.Reader) demoinfocs.Parser) (Timeline, error) {
 	d := Timeline{Version: Version, DemoSHA256: demoSHA, TargetSteamID: target, TickRate: tickRate, Snapshots: []Snapshot{}}
 	if len(demoSHA) != 64 || len(target) != 17 || tickRate < 1 || tickRate > 1024 {
 		return d, fmt.Errorf("invalid HUD extraction identity")
 	}
 	digest := sha256.New()
 	reader := io.TeeReader(input, digest)
-	p := demoinfocs.NewParser(reader)
+	p := newParser(reader)
 	defer p.Close()
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -72,6 +78,7 @@ func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 	})
 	p.RegisterEventHandler(func(events.MatchStart) {
 		d.Snapshots = []Snapshot{}
+		identities = map[string]Player{}
 		currentRound = 0
 		phase = "unknown"
 		lastTick = -1
@@ -89,9 +96,7 @@ func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		if gs.IsWarmupPeriod() {
 			return
 		}
-		if currentRound == 0 {
-			currentRound = gs.TotalRoundsPlayed() + 1
-		}
+		currentRound = gs.TotalRoundsPlayed() + 1
 		phase = "live"
 	})
 	p.RegisterEventHandler(func(events.BombPlanted) {
@@ -117,7 +122,19 @@ func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		gs := p.GameState()
 		tick := gs.IngameTick()
 		d.EndTick = max(d.EndTick, tick)
-		if currentRound == 0 || gs.IsWarmupPeriod() || tick <= lastTick {
+		if gs.IsWarmupPeriod() || tick <= lastTick {
+			return
+		}
+		// CS2 exposes freeze state even when the synthetic RoundStart event is
+		// missing. Sample it before the round gate so the real two-second
+		// freeze prefix is covered, including when a later RoundStart is lost.
+		if gs.IsFreezetimePeriod() {
+			currentRound = gs.TotalRoundsPlayed() + 1
+			phase = "freeze"
+		} else if phase == "freeze" {
+			phase = "live"
+		}
+		if currentRound == 0 {
 			return
 		}
 		lastTick = tick
@@ -133,7 +150,7 @@ func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 		}
 		seen := map[string]bool{}
 		for _, pl := range gs.Participants().All() {
-			if pl == nil || pl.SteamID64 == 0 || (pl.Team != common.TeamCounterTerrorists && pl.Team != common.TeamTerrorists) {
+			if pl == nil || !pl.IsConnected || pl.Entity == nil || pl.SteamID64 == 0 || (pl.Team != common.TeamCounterTerrorists && pl.Team != common.TeamTerrorists) {
 				continue
 			}
 			player := Player{SteamID: strconv.FormatUint(pl.SteamID64, 10), Name: cleanText(pl.Name, 100), Side: "CT", Ammo: -1, Reserve: -1}
@@ -162,10 +179,11 @@ func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 					}
 				}
 			}
-			identities[player.SteamID] = Player{SteamID: player.SteamID, Name: player.Name, Side: player.Side, Ammo: -1, Reserve: -1}
+			identities[player.SteamID] = Player{SteamID: player.SteamID, Name: player.Name, Side: player.Side, Inactive: true, Ammo: -1, Reserve: -1}
 			s.Players = append(s.Players, player)
 		}
-		// Preserve identity, never stale HP/ammo, if a controller disappears.
+		// Preserve observed identity, never stale stats or an active roster
+		// slot, when a player disconnects or their controller disappears.
 		for id, identity := range identities {
 			if !seen[id] {
 				s.Players = append(s.Players, identity)

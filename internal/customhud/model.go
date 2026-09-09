@@ -32,20 +32,21 @@ type Snapshot struct {
 }
 
 type Player struct {
-	SteamID string `json:"steamid64"`
-	Name    string `json:"name"`
-	Side    string `json:"side"`
-	Known   bool   `json:"known"` // Missing pawn/controller values are rendered as unavailable.
-	Alive   bool   `json:"alive"`
-	Health  int    `json:"health"`
-	Armor   int    `json:"armor"`
-	Money   int    `json:"money"`
-	Kills   int    `json:"kills"`
-	Deaths  int    `json:"deaths"`
-	Assists int    `json:"assists"`
-	Weapon  string `json:"weapon"`
-	Ammo    int    `json:"ammo"` // -1 for equipment that has no magazine.
-	Reserve int    `json:"reserve"`
+	SteamID  string `json:"steamid64"`
+	Name     string `json:"name"`
+	Side     string `json:"side"`
+	Inactive bool   `json:"inactive,omitempty"` // Retained identity, outside the current roster.
+	Known    bool   `json:"known"`              // Missing pawn/controller values are rendered as unavailable.
+	Alive    bool   `json:"alive"`
+	Health   int    `json:"health"`
+	Armor    int    `json:"armor"`
+	Money    int    `json:"money"`
+	Kills    int    `json:"kills"`
+	Deaths   int    `json:"deaths"`
+	Assists  int    `json:"assists"`
+	Weapon   string `json:"weapon"`
+	Ammo     int    `json:"ammo"` // -1 for equipment that has no magazine.
+	Reserve  int    `json:"reserve"`
 }
 
 func (d Timeline) Validate() error {

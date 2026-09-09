@@ -97,3 +97,23 @@ The requested P0 autoreview was attempted on the complete local candidate with
 Codex GPT-6 Astra / high. Its preparation rejected the ten binary WebP previews
 before a reviewer started, so no independent review result was produced. This
 change does not include a release or an installed-app update.
+
+## PR verification follow-up
+
+The HUD generator is built by both project build entrypoints and exposed as
+`zv hud-designs`; the existing command-coverage checks remain strict.
+
+Two Bugbot cases were reproduced and fixed. Freeze snapshots now follow the
+CS2 freeze property even when a `RoundStart` event is absent. Disconnected or
+missing controllers retain an inactive observed-player identity without taking
+a current roster slot or poisoning the alive count. A connected player whose
+pawn statistics are unavailable still displays unknown data. Telemetry/cache
+version `broadcast-hud-v2` invalidates snapshots from the previous extraction.
+
+The regression can also run against a real local demo with
+`FULL_DEMO_HUD_DEMO` and `FULL_DEMO_HUD_TARGET`. On the Donk Mirage fixture it
+suppressed every `RoundStart` event and verified the freeze prefix, ASS window
+coverage and source round label for all 19 rounds. The separate round-number
+finding was a false positive: the test comment's "rounds" meant magazine
+bullets. `TotalRoundsPlayed` is bound to CS2's `m_totalRoundsPlayed`; all 19 live
+round labels agreed with the source scores. The comment now says "bullets".

@@ -173,6 +173,9 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	t := r.Theme
 	var ct, tr []Player
 	for _, p := range state.Players {
+		if p.Inactive {
+			continue
+		}
 		if p.Side == "CT" {
 			ct = append(ct, p)
 		} else {
@@ -181,9 +184,9 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	}
 	sort.SliceStable(ct, func(i, j int) bool { return ct[i].SteamID < ct[j].SteamID })
 	sort.SliceStable(tr, func(i, j int) bool { return tr[i].SteamID < tr[j].SteamID })
+	s.scoreboard(state, ct, tr)
 	ct = ct[:min(5, len(ct))]
 	tr = tr[:min(5, len(tr))]
-	s.scoreboard(state, ct, tr)
 	for side, players := range [][]Player{ct, tr} {
 		accent := t.CT
 		if side == 1 {

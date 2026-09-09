@@ -40,7 +40,8 @@ func (e propertyEntity) PropertyValue(name string) (st.PropertyValue, bool) {
 
 func TestSource2ClockAndMagazineFromRecordedProperties(t *testing.T) {
 	// These values reproduce the Donk Mirage demo. The pinned parser's legacy
-	// helpers return an unknown timer and 10 rounds, while CS2 shows 11 rounds.
+	// helpers return an unknown timer and 10 bullets, while CS2 shows 11 bullets
+	// in the magazine. This is an ammo encoding difference, not a round number.
 	rules := propertyEntity{values: map[string]st.PropertyValue{
 		"m_pGameRules.m_fRoundStartTime": {Any: float32(257.75)},
 		"m_pGameRules.m_iRoundTime":      {Any: int32(115)},
@@ -191,6 +192,31 @@ func TestTelemetryRejectsAmbiguousOrInvalidDocuments(t *testing.T) {
 	good.Snapshots[1].Tick = good.Snapshots[0].Tick
 	if good.Validate() == nil {
 		t.Fatal("duplicate tick accepted")
+	}
+}
+
+func TestInactiveIdentityCannotHideCurrentRosterMember(t *testing.T) {
+	state := Example()
+	// An older identity sorts before the five current CTs. It must not evict
+	// the fifth player or make the current team's alive count unavailable.
+	state.Players = append(state.Players, Player{SteamID: "1", Name: "disconnected", Side: "CT", Inactive: true})
+	for _, theme := range Themes() {
+		r, _ := NewRenderer(theme.ID)
+		cards := 0
+		for _, n := range r.Scene(state, ExampleTarget) {
+			if n.ID == "player/1/name" {
+				t.Fatal("inactive player received a roster card")
+			}
+			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/name") {
+				cards++
+			}
+			if n.ID == "alive/ct" && n.Text != "4" {
+				t.Fatalf("%s CT alive=%q", theme.ID, n.Text)
+			}
+		}
+		if cards != 10 {
+			t.Fatalf("%s roster has %d cards", theme.ID, cards)
+		}
 	}
 }
 

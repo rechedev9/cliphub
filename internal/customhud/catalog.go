@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-const Version = "broadcast-hud-v1"
+const Version = "broadcast-hud-v2"
 const CaptureProfile = "broadcast-clean"
 
 //go:embed themes.json
