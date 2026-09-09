@@ -220,7 +220,7 @@ and an isolated local Studio instance. The final real HLAE canary passed all
 nine broadcast cvar checks and verified restoration of the original cvars and
 configuration files. All ten full first-round exports passed the production
 editor's strict video and decoded audio acceptance at 1920x1080, 60 fps and
-2,442 frames (40.7 seconds). Final gameplay frames were visually inspected for
+2,440 frames (40.667 seconds). Final gameplay frames were visually inspected for
 every style. The smaller inset radar, native killfeed and crosshair remained
 visible.
 
@@ -272,3 +272,11 @@ and the two lower corners, leaving the native radar, killfeed and central action
 clear. Source-timing regressions continue to verify the damage trail, unknown
 values and a fixed target despite roster reordering. The source and generated
 catalogs are valid UTF-8, including Spanish descriptions.
+
+Final v4 acceptance exported the complete first round in all ten styles:
+2,440 frames per output, full decode, verified stereo AAC at 48 kHz, and hashes
+matching the delivery documents. The real Studio app selected every new
+preview and exercised all four detail views at 390, 1024 and 1440 px.
+The full 19-round Arena export then passed with 56,413 frames (940.217 seconds),
+decoded AAC at -14.24 LUFS / -3.63 dBTP, and working seek/play/pause in Studio.
+Sampled final frames include both sides of the match and the last round.
