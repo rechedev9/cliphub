@@ -146,13 +146,19 @@
     const fullDemoEnd = (window, endTick, reason) => {
         fullDemoEvidence("certified_end", {round_id: window.segmentId, end_tick: endTick, reason});
     };
+    let fullDemoLastKnownTick = null;
     const failOrTrimFullDemo = (window, tick, reason) => {
-        if (fullDemoAllowTailTrim && activeSegment === window.segmentId && tick > window.liveEndTick && tick > window.recordStart) {
+        // This callback precedes rendering. The first unconfirmed POV frame
+        // is not recorded, so its tick can promise one more output frame than
+        // the native capture contains. Certify the last confirmed POV tick,
+        // independently of media length, and never cut inside the live interval.
+        const endTick = fullDemoLastKnownTick;
+        if (fullDemoAllowTailTrim && activeSegment === window.segmentId && Number.isInteger(endTick) && endTick < tick && endTick > window.liveEndTick && endTick > window.recordStart) {
             mirv.message(`[zackvideo] record-end-${window.segmentId}: certified tail trim\n`);
             mirv.exec("mirv_streams record end");
             fired[`record-end-${window.segmentId}`] = true;
             activeSegment = null;
-            fullDemoEnd(window, tick, reason);
+            fullDemoEnd(window, endTick, reason);
             return;
         }
         failCapture(`pov_contract_failed: ${reason}`);

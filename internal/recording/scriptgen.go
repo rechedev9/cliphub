@@ -389,6 +389,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                } else {\n")
 	sb.WriteString("                    unknownObserverFrames = 0;\n")
 	sb.WriteString("                    driftedObserverFrames = 0;\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("                    fullDemoLastKnownTick = tick;\n")
+	}
 	sb.WriteString("                }\n")
 	sb.WriteString("            } else {\n")
 	sb.WriteString("                unknownObserverFrames = 0;\n")
@@ -426,6 +429,9 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                }\n")
 	sb.WriteString("                run(item);\n")
 	sb.WriteString("                activeSegment = window.segmentId;\n")
+	if plan.FullDemo != nil {
+		sb.WriteString("                fullDemoLastKnownTick = tick;\n")
+	}
 	sb.WriteString("                continue;\n")
 	sb.WriteString("            }\n")
 	sb.WriteString("            if (item.key.startsWith(\"record-end-\")) {\n")

@@ -53,13 +53,16 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		providedCode  bool
 		broadcast     bool
 		legacyHUD     bool
+		tickStep      int
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
 		{name: "unknown single live frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": nil}},
 		{name: "wrong player single frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": "76561198000000001"}},
 		{name: "third person", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observer_mode": 3}},
 		{name: "roaming", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observer_mode": 4}},
-		{name: "approved death tail trim", outcome: "verified", trim: true, wantEnd: 704, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
+		{name: "approved death tail trim", outcome: "verified", trim: true, wantEnd: 703, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
+		{name: "tail end uses last confirmed tick across skipped ticks", outcome: "verified", trim: true, wantEnd: 702, tickStep: 2, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
+		{name: "tail trim cannot certify an unobserved live boundary", outcome: "failed", trim: true, override: map[string]any{"from_tick": 701, "to_tick": 800, "observed_steamid": nil}},
 		{name: "unapproved death tail trim", outcome: "failed", trim: false, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
 		{name: "missing voice mute cvar", outcome: "failed", trim: true, missing: []string{"voice_modenable"}},
 		{name: "voice mute readback mismatch", outcome: "failed", trim: true, refuse: []string{"snd_voipvolume"}},
@@ -105,7 +108,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 			if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 				t.Fatal(err)
 			}
-			scenario := map[string]any{"schema_version": 1, "name": tc.name, "target_steamid": p.TargetSteamID64, "start_tick": 0, "tick_step": 1, "max_frames": 1400, "frame_stage": "render-before", "missing_cvars": tc.missing, "refuse_cvar_writes": tc.refuse, "refuse_cvar_restores": tc.refuseRestore, "expect": map[string]any{"outcome": tc.outcome, "soft_quit": true}}
+			scenario := map[string]any{"schema_version": 1, "name": tc.name, "target_steamid": p.TargetSteamID64, "start_tick": 0, "tick_step": max(1, tc.tickStep), "max_frames": 1400, "frame_stage": "render-before", "missing_cvars": tc.missing, "refuse_cvar_writes": tc.refuse, "refuse_cvar_restores": tc.refuseRestore, "expect": map[string]any{"outcome": tc.outcome, "soft_quit": true}}
 			if tc.override != nil {
 				scenario["observer_overrides"] = []any{tc.override}
 			}
