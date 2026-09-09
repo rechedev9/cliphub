@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,6 +76,60 @@ func TestPreviewPreservesOpacityAndInteriorIconCutouts(t *testing.T) {
 	}
 	if frame.NRGBAAt(800, 400).A != 0 {
 		t.Fatal("preview painted the gameplay area")
+	}
+}
+
+func TestGrenadeSilhouettesStayInsideTheirSlots(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	r, err := NewRenderer("arena")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &scene{r: r}
+	names := []string{"flashbang", "hegrenade", "smokegrenade"}
+	var slots []image.Rectangle
+	for i, name := range names {
+		x := 100 + i*160
+		if !s.icon(name, "weapons/"+name, x, 100, 64, 64, "FFFFFF", false) {
+			t.Fatalf("missing %s", name)
+		}
+		slots = append(slots, image.Rect(x-1, 99, x+65, 165))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	frame, err := RasterizePreview(ctx, ffmpeg, isolatedSceneASS(t, s.nodes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := make([]int, len(slots))
+	outside := 0
+	for y := range frame.Bounds().Dy() {
+		for x := range frame.Bounds().Dx() {
+			if frame.NRGBAAt(x, y).A < 8 {
+				continue
+			}
+			inside := false
+			for i, slot := range slots {
+				if image.Pt(x, y).In(slot) {
+					counts[i]++
+					inside = true
+				}
+			}
+			if !inside {
+				outside++
+			}
+		}
+	}
+	for i, count := range counts {
+		if count < 200 {
+			t.Errorf("%s has only %d visible pixels inside its slot", names[i], count)
+		}
+	}
+	if outside > 0 {
+		t.Errorf("grenade artwork paints %d pixels outside its assigned slots", outside)
 	}
 }
 
