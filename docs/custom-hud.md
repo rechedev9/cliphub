@@ -21,14 +21,23 @@ The scene is drawn by FFmpeg/libass as ASS vector graphics. The HTML picker
 uses lossless transparent WebP previews from that same renderer; an SVG export
 is also available for diagnostics. This keeps typography, panel geometry
 and data mapping in one implementation without requiring a second browser
-installation on the capture worker. No third-party HUD source, logos or player
-portraits are copied. The catalog thumbnails use clearly identified example
+installation on the capture worker. The layout and renderer are original;
+weapon and status silhouettes are adapted from Lexogrine's MIT-licensed assets,
+with source revision and license under `internal/customhud/assets/`. The
+unmodified Barlow Semi Condensed faces are bundled under the SIL Open Font
+License, with Montserrat as the Cyrillic fallback. No team logos or player
+portraits are invented. The catalog thumbnails use clearly identified example
 data; the export path requires real demo telemetry.
 
 The broadcast capture keeps native radar, killfeed, scope and crosshair. It
 sets `cl_draw_only_deathnotices=1`, `cl_drawhud_force_radar=1` and
 `cl_drawhud_force_deathnotices=1` through HLAE's cvar API, verifies their
 readback throughout the capture and restores the saved values afterward.
+The current `broadcast-clean-v2` profile also sets radar background alpha to
+0.35, disables additive map blending, uses radar scale 0.85 and default HUD
+color, and sets horizontal/vertical safe zones to 0.97/0.95. These six settings
+participate in the same snapshot, readback, periodic verification and restoration
+contract. A previous `broadcast-clean` capture cannot satisfy this profile.
 The [CS2 demo config by Purp1e](https://github.com/Purple-CSGO/CS2-Config-Presets/blob/master/demo.cfg)
 also uses the native crosshair/deathnotice and radar controls. Existing
 clean-spectator Panorama suppression still hides chat, votes and death panels.
@@ -40,7 +49,9 @@ changes are render changes and reuse it. Native Full Demo remains available.
 
 The Full POV Chill constructor exposes the ten previews and persists the selected
 `overlays.hud_theme` with the approved plan. The planner requires the
-`broadcast-clean` capture profile for a custom theme. Theme changes affect the
+`broadcast-clean-v2` capture profile for a new custom theme. Legacy approved
+documents remain readable; reopening their draft upgrades the profile and
+requires a fresh saved plan and approval. Theme changes affect the
 render hash but leave the capture hash unchanged. Old native plans omit the new
 optional field and keep their existing wire format and capture behavior.
 
@@ -171,3 +182,47 @@ available under its immutable revision.
 Local production evidence, screenshots and verification scripts are under
 `.local/pr/production-ui/` in the PR worktree. These are local QA artifacts and
 are not included in the installer or the landing deployment.
+
+## Professional visual revision
+
+Renderer `broadcast-hud-v3` redesigns all ten compositions. It integrates living
+player counts into the score bar, reserves the action area, uses stable roster
+slots and explicit eliminated states, and separates name, health, armor and
+ammunition through three real font weights. Team accents and translucent
+plates replace the large solid blocks; the score bar remains opaque so flashes
+and camera transitions do not change its contrast. Weapon icons preserve
+unknown values as text rather than guessing a silhouette.
+
+A ten-frame damage trail highlights only the lost part of the health bar.
+Numbers, live health and elimination update immediately on the source frame.
+The trail retains the same source timing through trims and sponsor splits.
+Telemetry remains `broadcast-hud-v2`, because its schema and extraction did not
+change. The renderer version invalidates rendered media independently.
+
+The enlarged picker shows the complete composition or a close view of the
+scoreboard and observed player, with a light-background option. Transparent
+previews use the same ASS rasterizer as exports, recovered from black and white
+opaque mattes to preserve straight alpha and avoid libass's alpha-plane blending.
+
+Candidate acceptance on 2026-09-09 used source based on Studio 2.4.68 (`5033a88`)
+and an isolated local Studio instance. The final real HLAE canary passed all
+nine broadcast cvar checks and verified restoration of the original cvars and
+configuration files. All ten full first-round exports passed the production
+editor's strict video and decoded audio acceptance at 1920x1080, 60 fps and
+2,442 frames (40.7 seconds). Final gameplay frames were visually inspected for
+every style. The smaller inset radar, native killfeed and crosshair remained
+visible.
+
+Local Go suites for the renderer, fonts, planner, recording, worker and Full
+Demo editor passed, including real FFmpeg tests for opacity, icon holes, damage
+timing and the fixed scoreboard during transitions. Web unit tests, lint,
+typecheck, production build and all 21 Full Demo browser tests passed. Browser
+regressions use long unbroken names at 390, 1024 and 1440 px and verify adjacent
+controls. The actual local app also loaded and selected all ten 1920 px previews
+and exercised enlarged detail views at those three widths without horizontal
+overflow.
+
+The complete candidate P0 autoreview was attempted with Codex GPT-6 Astra / high.
+Its preflight rejected non-UTF-8 binary Git content before a reviewer started;
+there is no independent review result for this candidate. Local evidence is
+under `.local/hud-pro/`, excluded from publication.

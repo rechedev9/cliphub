@@ -52,6 +52,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		wantEnd       int
 		providedCode  bool
 		broadcast     bool
+		legacyHUD     bool
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
 		{name: "unknown single live frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": nil}},
@@ -71,11 +72,21 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "broadcast radar unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"cl_drawhud_force_radar"}},
 		{name: "broadcast HUD refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_draw_only_deathnotices"}},
 		{name: "broadcast radar restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_drawhud_force_radar"}},
+		{name: "legacy broadcast capture remains readable", outcome: "verified", trim: true, wantEnd: 892, broadcast: true, legacyHUD: true},
+		{name: "radar background unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"cl_hud_radar_background_alpha"}},
+		{name: "radar background refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_hud_radar_background_alpha"}},
+		{name: "radar map blend refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_hud_radar_map_additive"}},
+		{name: "radar scale restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_radar_scale"}},
+		{name: "safe area unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"safezonex"}},
+		{name: "HUD color restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_color"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := fullDemoCaptureFixture(t)
 			if tc.broadcast {
 				p.FullDemo.Options.Capture.HUDProfile = customhud.CaptureProfile
+				if tc.legacyHUD {
+					p.FullDemo.Options.Capture.HUDProfile = customhud.LegacyCaptureProfile
+				}
 				p.FullDemo.Options.Overlays.HUDTheme = "arena"
 				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
 			}
@@ -162,6 +173,12 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				if tc.broadcast && (result.FinalCvars["cl_draw_only_deathnotices"] != false || result.FinalCvars["cl_drawhud_force_radar"] != float64(0) || result.FinalCvars["cl_drawhud_force_deathnotices"] != float64(0)) {
 					t.Fatal("broadcast capture did not restore the original HUD settings")
+				}
+				if tc.broadcast && (result.FinalCvars["cl_hud_radar_background_alpha"] != .627 || result.FinalCvars["cl_hud_radar_map_additive"] != true || result.FinalCvars["cl_hud_radar_scale"] != float64(1)) {
+					t.Fatal("broadcast capture did not restore the user's radar settings")
+				}
+				if tc.broadcast && (result.FinalCvars["cl_hud_color"] != float64(6) || result.FinalCvars["safezonex"] != float64(1) || result.FinalCvars["safezoney"] != float64(1)) {
+					t.Fatal("broadcast capture did not restore the user's HUD color and safe area")
 				}
 			} else {
 				if err == nil {

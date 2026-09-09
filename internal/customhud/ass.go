@@ -2,6 +2,7 @@ package customhud
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -29,9 +30,10 @@ func assText(value string) string {
 }
 
 func assNode(n Node) string {
+	alpha := uint8(math.Round(255 * (1 - max(0, min(1, n.Opacity)))))
 	if n.Path != "" {
 		path := strings.NewReplacer("M", "m", "L", "l", "C", "b", "Z", "").Replace(n.Path)
-		return fmt.Sprintf("{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H%s&\\p1}%s{\\p0}", assColor(n.Color), path)
+		return fmt.Sprintf("{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H%s&\\1a&H%02X&\\p1}%s{\\p0}", assColor(n.Color), alpha, path)
 	}
 	align := 4
 	if n.Align == "center" {
@@ -40,7 +42,7 @@ func assNode(n Node) string {
 	if n.Align == "right" {
 		align = 6
 	}
-	return fmt.Sprintf("{\\an%d\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}%s", align, n.X, n.Y, n.Size, assColor(n.Color), assText(n.Text))
+	return fmt.Sprintf("{\\an%d\\pos(%d,%d)\\fn%s\\b%d\\fs%d\\bord0\\shad0\\1c&H%s&\\1a&H%02X&}%s", align, n.X, n.Y, n.Font, n.Weight, n.Size, assColor(n.Color), alpha, assText(n.Text))
 }
 
 // ASS emits each component only when its value changes. It preserves the
@@ -108,7 +110,7 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 		if !hasTarget(state, d.TargetSteamID) {
 			return "", fmt.Errorf("HUD telemetry lost observed player at tick %d", state.Tick)
 		}
-		frame := (int64(state.Tick-window.StartTick)*60+int64(d.TickRate)/2)/int64(d.TickRate) - window.SourceOffsetFrames
+		frame := sourceFrame(state.Tick, d.TickRate, window)
 		if frame >= window.Frames {
 			break
 		}
@@ -125,6 +127,7 @@ func (r *Renderer) ASS(d Timeline, window Window) (string, error) {
 	for _, key := range keys {
 		emit(active[key], window.Frames)
 	}
+	r.writeDamageEvents(&b, d, window)
 	return b.String(), nil
 }
 

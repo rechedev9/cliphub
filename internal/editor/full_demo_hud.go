@@ -3,7 +3,6 @@ package editor
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/mediafont"
@@ -43,9 +42,9 @@ func fullDemoHUDFilter(short ShortEdit, item recapplan.TimelineItem, output stri
 	if err := os.WriteFile(path, []byte(ass), 0600); err != nil {
 		return "", err
 	}
-	fontPath, err := mediafont.Materialize()
+	fontDir, err := mediafont.MaterializeHUD()
 	if err != nil {
 		return "", err
 	}
-	return customhud.ASSFilter(path, filepath.Dir(fontPath), false), nil
+	return customhud.ASSFilter(path, fontDir, false), nil
 }

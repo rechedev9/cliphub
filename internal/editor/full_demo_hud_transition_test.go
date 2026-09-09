@@ -24,7 +24,7 @@ func TestFullDemoHUDRemainsStableDuringRoundTransition(t *testing.T) {
 	if _, err := runFFmpegOutput(ctx, []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=60:d=0.5", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=0.5", "-c:v", "libx264", "-preset", "ultrafast", "-bf", "0", "-c:a", "pcm_f32le", source}, "HUD transition source"); err != nil {
 		t.Fatal(err)
 	}
-	timeline := customhud.Timeline{Version: customhud.Version, DemoSHA256: strings.Repeat("a", 64), TargetSteamID: customhud.ExampleTarget, TickRate: 60, EndTick: 90, Snapshots: []customhud.Snapshot{customhud.Example()}}
+	timeline := customhud.Timeline{Version: customhud.TelemetryVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID: customhud.ExampleTarget, TickRate: 60, EndTick: 90, Snapshots: []customhud.Snapshot{customhud.Example()}}
 	timeline.Snapshots[0].Tick = 0
 	d := recapplan.Document{Clock: recapplan.Clock{TickRate: 60}, Options: recapplan.DefaultOptions(), Timeline: []recapplan.TimelineItem{
 		{Role: "round", SourceRef: "a", SourceStartTick: 0, SourceEndTick: 30, StartFrame: 0, EndFrame: 30, StartSample: 0, EndSample: 24000},

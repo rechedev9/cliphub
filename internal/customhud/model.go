@@ -50,7 +50,7 @@ type Player struct {
 }
 
 func (d Timeline) Validate() error {
-	if d.Version != Version || len(d.DemoSHA256) != 64 || len(d.TargetSteamID) != 17 || d.TickRate < 1 || d.TickRate > 1024 || d.EndTick < 1 {
+	if d.Version != TelemetryVersion || len(d.DemoSHA256) != 64 || len(d.TargetSteamID) != 17 || d.TickRate < 1 || d.TickRate > 1024 || d.EndTick < 1 {
 		return fmt.Errorf("invalid custom HUD source identity or clock")
 	}
 	for _, c := range d.DemoSHA256 {
