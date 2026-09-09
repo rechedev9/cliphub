@@ -8,6 +8,20 @@
       "when": 1788796934360,
       "tag": "0000_thin_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788800282441,
+      "tag": "0001_powerful_valeria_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788801581822,
+      "tag": "0002_past_greymalkin",
+      "breakpoints": true
     }
   ]
 }

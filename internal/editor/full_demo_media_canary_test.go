@@ -173,7 +173,7 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			if err := short.FullDemo.ValidateCompleted(); err != nil {
 				t.Fatal(err)
 			}
-			for _, stage := range []string{"Analizando audio final", "Comprobando audio final (1/3)", "Comprobando fotogramas del vídeo", "Verificando vídeo y audio completos", "Verificando archivo final"} {
+			for _, stage := range []string{"Analizando audio final", "Comprobando audio final (1/3)", "Comprobando formato del vídeo", "Verificando fotogramas, vídeo y audio", "Verificando archivo final"} {
 				if !stages[stage] {
 					t.Fatalf("missing completed media stage %q: %+v", stage, stages)
 				}

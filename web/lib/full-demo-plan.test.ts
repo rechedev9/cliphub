@@ -221,3 +221,57 @@ test('planning and upload use same-origin endpoints with complete options and pr
   assert.equal(body.get('config'), JSON.stringify({ provenance }));
   await assert.rejects(loadFullDemoPlan('../private'));
 });
+
+const INCOMPATIBLE = /plan Full Demo incompatible/;
+const JOB = '11111111-1111-4111-8111-111111111111';
+const PROVENANCE = { title: 'Owned clip', creator: 'Owner', source_url: 'local:owned', permission: 'Owned media', attribution: '' };
+// Malformed or failed wire responses reject at the guard; nothing is defaulted or
+// partially accepted, and a client-side option guard never reaches the server.
+for (const [name, call, response, message, requests] of [
+  ['load: unknown compatibility', () => loadFullDemoPlan(JOB), { status: 200, body: { document: null, defaults: fixture().document.options, compatibility: 'editorial-v9' } }, INCOMPATIBLE, 1],
+  ['load: document with invalid hash', () => loadFullDemoPlan(JOB), { status: 200, body: { document: { ...fixture().document, plan_hash: 'not-a-hash' }, defaults: fixture().document.options, compatibility: 'editorial-v1' } }, INCOMPATIBLE, 1],
+  ['load: defaults missing', () => loadFullDemoPlan(JOB), { status: 200, body: { document: fixture().document, compatibility: 'editorial-v1' } }, INCOMPATIBLE, 1],
+  ['load: server error message', () => loadFullDemoPlan(JOB), { status: 503, body: { code: 'service_unavailable', error: 'Sin conexión' } }, { message: 'Sin conexión' }, 1],
+  ['load: server error without message', () => loadFullDemoPlan(JOB), { status: 500, body: {} }, { message: 'Solicitud fallida (500).' }, 1],
+  ['save: empty document', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 201, body: {} }, INCOMPATIBLE, 1],
+  ['save: envelope instead of document', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 201, body: { document: fixture().document, defaults: fixture().document.options, compatibility: 'editorial-v1' } }, INCOMPATIBLE, 1],
+  ['save: conflict message', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 409, body: { code: 'full_demo_facts_insufficient', error: 'Vuelve a analizar el jugador' } }, { message: 'Vuelve a analizar el jugador' }, 1],
+  ['save: invalid options never leave the client', () => saveFullDemoPlan(JOB, { ...fixture().document.options, audio: { ...fixture().document.options.audio, game: { gain: Number.NaN, voice_priority: false } } }), { status: 201, body: fixture().document }, /Revisa los valores/, 0],
+  ['upload: invalid asset id', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), { status: 200, body: { id: 'not-a-uuid', sha256: 'c'.repeat(64) } }, /Referencia de archivo inválida/, 1],
+  ['upload: non-object body', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), { status: 200, body: [] }, /no certificó el archivo/, 1],
+] satisfies [string, () => Promise<unknown>, { status: number; body: unknown }, RegExp | { message: string }, number][]) {
+  test(`rejects ${name}`, async (context) => {
+    let count = 0;
+    context.mock.method(globalThis, 'fetch', async (): Promise<Response> => { count += 1; return Response.json(response.body, { status: response.status }); });
+    await assert.rejects(call, message);
+    assert.equal(count, requests);
+  });
+}
+
+// `responseJSON` parses the body before it looks at the status, so a non-JSON body
+// (proxy HTML page, empty reply) surfaces as a parse error rather than the
+// status-derived "Solicitud fallida" message, whatever the status code was.
+for (const [name, call, response] of [
+  ['load: HTML body with 200', () => loadFullDemoPlan(JOB), () => new Response('<!doctype html><title>Proxy</title>', { status: 200, headers: { 'Content-Type': 'text/html' } })],
+  ['load: HTML body with 502', () => loadFullDemoPlan(JOB), () => new Response('<html>Bad Gateway</html>', { status: 502, headers: { 'Content-Type': 'text/html' } })],
+  ['save: empty body with 204', () => saveFullDemoPlan(JOB, fixture().document.options), () => new Response(null, { status: 204 })],
+  ['upload: plain-text error with 413', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), () => new Response('Payload Too Large', { status: 413, headers: { 'Content-Type': 'text/plain' } })],
+] satisfies [string, () => Promise<unknown>, () => Response][]) {
+  test(`rejects ${name} as a parse error, not a defaulted plan`, async (context) => {
+    let count = 0;
+    context.mock.method(globalThis, 'fetch', async (): Promise<Response> => { count += 1; return response(); });
+    await assert.rejects(call, SyntaxError);
+    assert.equal(count, 1);
+  });
+}
+
+test('saving normalizes a variable freeze to the fixed freeze before it reaches the wire', async (context) => {
+  const snapshot = fixture();
+  let sent: unknown;
+  context.mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit): Promise<Response> => { sent = JSON.parse(String(init?.body)); return Response.json(snapshot.document); });
+  const variable = structuredClone(snapshot.document.options);
+  variable.editorial.freeze_seconds = 7; variable.editorial.keep_freeze_voice = true;
+  assert.deepEqual(await saveFullDemoPlan(JOB, variable), snapshot.document);
+  assert.deepEqual(sent, { options: fixedFullDemoFreeze(variable) });
+  assert.equal(fullDemoOptionsKey(fixedFullDemoFreeze(variable)), fullDemoOptionsKey(snapshot.document.options));
+});

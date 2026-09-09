@@ -2,7 +2,7 @@
 // Synthetic 60 Hz playback over immutable 8 Hz samples; not an Electron FPS test.
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import { createSampleTrailReader, isAlive } from '../lib/tactical-replay.ts';
+import { createInterpolatedSampleReader, createSampleTrailReader, interpolatedSamples, isAlive } from '../lib/tactical-replay.ts';
 
 const frames = Array.from({ length: 720 }, (_, i) => ({
   tick: i * 8,
@@ -50,4 +50,28 @@ console.log(JSON.stringify({
   scenario: 'tactical-trails-60hz', evaluations: 60_000,
   baseline_median_ms: median(before), candidate_median_ms: median(after),
   speedup: median(before) / median(after), checksum,
+}, null, 2));
+
+const interpolate = createInterpolatedSampleReader(frames);
+const legacyInterpolation = (cursor) => interpolatedSamples(frames, cursor);
+for (const cursor of cursors) assert.deepEqual(interpolate(cursor), legacyInterpolation(cursor));
+function measureInterpolation(reader) {
+  const start = performance.now();
+  for (let repeat = 0; repeat < 100; repeat++) {
+    for (const cursor of cursors) checksum += reader(cursor)[0].x;
+  }
+  return performance.now() - start;
+}
+measureInterpolation(legacyInterpolation);
+measureInterpolation(interpolate);
+const interpolationBefore = [];
+const interpolationAfter = [];
+for (let run = 0; run < 5; run++) {
+  interpolationBefore.push(measureInterpolation(legacyInterpolation));
+  interpolationAfter.push(measureInterpolation(interpolate));
+}
+console.log(JSON.stringify({
+  scenario: 'tactical-interpolation-60hz', evaluations: 60_000,
+  baseline_median_ms: median(interpolationBefore), candidate_median_ms: median(interpolationAfter),
+  speedup: median(interpolationBefore) / median(interpolationAfter), checksum,
 }, null, 2));

@@ -162,23 +162,25 @@ export class TelemetryClient {
 
   recordError(input: TelemetryErrorInput): void {
     if (!this.canRecord()) return;
-    const event = this.baseEvent('error', input.component, input.name, input.occurredAt);
-    event.stage = safeLabel(input.stage, 'unknown');
-    event.class = safeLabel(input.class, 'unknown');
-    const message = diagnosticMessage(input.message);
-    if (message) event.message = message;
-    if (isUUID(input.jobID)) event.job_id = input.jobID;
-    this.enqueue(event);
+    this.enqueue(this.errorEvent(input));
   }
 
   recordSpan(input: TelemetrySpanInput): void {
     if (!this.canRecord()) return;
-    const event = this.baseEvent('span', input.component, input.name, input.occurredAt);
-    if (!sampled(event.id, this.performanceSampleRate)) return;
-    event.stage = safeLabel(input.stage, 'unknown');
-    event.outcome = safeLabel(input.outcome, 'unknown');
-    event.duration_ms = Math.max(1, Math.min(86_400_000, Math.round(input.durationMS)));
-    this.enqueue(event);
+    const event = this.spanEvent(input);
+    if (event !== null) this.enqueue(event);
+  }
+
+  /** Publish a journal poll once. Errors propagate so its cursors cannot outrun persistence. */
+  recordBatch(errors: readonly TelemetryErrorInput[], spans: readonly TelemetrySpanInput[]): void {
+    if (!this.canRecord()) return;
+    const events: TelemetryEvent[] = [];
+    for (const input of errors) events.push(this.errorEvent(input));
+    for (const input of spans) {
+      const event = this.spanEvent(input);
+      if (event !== null) events.push(event);
+    }
+    this.enqueueBatch(events);
   }
 
   flush(): Promise<void> {
@@ -191,6 +193,25 @@ export class TelemetryClient {
 
   private canRecord(): boolean {
     return !this.runtimeRevoked && this.config !== null && this.settings.eligible();
+  }
+
+  private errorEvent(input: TelemetryErrorInput): TelemetryEvent {
+    const event = this.baseEvent('error', input.component, input.name, input.occurredAt);
+    event.stage = safeLabel(input.stage, 'unknown');
+    event.class = safeLabel(input.class, 'unknown');
+    const message = diagnosticMessage(input.message);
+    if (message) event.message = message;
+    if (isUUID(input.jobID)) event.job_id = input.jobID;
+    return event;
+  }
+
+  private spanEvent(input: TelemetrySpanInput): TelemetryEvent | null {
+    const event = this.baseEvent('span', input.component, input.name, input.occurredAt);
+    if (!sampled(event.id, this.performanceSampleRate)) return null;
+    event.stage = safeLabel(input.stage, 'unknown');
+    event.outcome = safeLabel(input.outcome, 'unknown');
+    event.duration_ms = Math.max(1, Math.min(86_400_000, Math.round(input.durationMS)));
+    return event;
   }
 
   private baseEvent(
@@ -216,16 +237,18 @@ export class TelemetryClient {
 
   private enqueue(event: TelemetryEvent): void {
     try {
-      const queue = this.readQueue();
-      queue.events.push(event);
-      if (queue.events.length > MAX_QUEUE_EVENTS) {
-        queue.events = queue.events.slice(queue.events.length - MAX_QUEUE_EVENTS);
-      }
-      this.writeQueue(queue);
-      if (queue.events.length >= BATCH_EVENTS) void this.flush();
+      this.enqueueBatch([event]);
     } catch (error) {
       this.log(`[telemetry] local queue unavailable: ${String(error)}\n`);
     }
+  }
+
+  private enqueueBatch(events: readonly TelemetryEvent[]): void {
+    if (events.length === 0) return;
+    const queue = this.readQueue();
+    queue.events = queue.events.concat(events).slice(-MAX_QUEUE_EVENTS);
+    this.writeQueue(queue);
+    if (queue.events.length >= BATCH_EVENTS) void this.flush();
   }
 
   private async flushNow(): Promise<void> {

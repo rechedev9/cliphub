@@ -987,19 +987,19 @@ html[data-capture-active="true"] {
 @keyframes ff-dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -50%) perspective(1200px) translateZ(-56px) rotateX(7deg);
+    transform: perspective(1200px) translateZ(-56px) rotateX(7deg);
   }
 
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) perspective(1200px) translateZ(0) rotateX(0deg);
+    transform: perspective(1200px) translateZ(0) rotateX(0deg);
   }
 }
 
 @keyframes ff-dialog-out {
   to {
     opacity: 0;
-    transform: translate(-50%, -50%) perspective(1200px) translateZ(-32px) rotateX(4deg);
+    transform: perspective(1200px) translateZ(-32px) rotateX(4deg);
   }
 }
 

@@ -1,49 +1,326 @@
-:root {
-  color-scheme: light dark;
-  --bg: #f7f7f8;
-  --fg: #17181c;
-  --muted: #6b7280;
-  --border: #d9dadf;
-  --accent: #2563eb;
-  --accent-fg: #ffffff;
-  --card: #ffffff;
-  --danger: #b42318;
-  --success: #067647;
-}
+/*
+ * ClipHub Portal — the public face of the same product as ClipHub Studio, so
+ * it wears the Studio's "NEON HUD" skin rather than inventing a second look:
+ * night-blue canvas at hue 264, cyan #22d9ee as the single action colour,
+ * magenta #ff2d78 reserved for the recording motif, Chakra Petch over Share
+ * Tech Mono. The surface ramp is opaque and monotonic in lightness — depth
+ * comes from a surface step plus a 1px bevel plus a shadow, never from alpha,
+ * which is what keeps panels legible on a canvas this dark.
+ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1115;
-    --fg: #f2f3f5;
-    --muted: #9aa0aa;
-    --border: #2a2d34;
-    --accent: #5b8def;
-    --accent-fg: #0f1115;
-    --card: #171920;
-    --danger: #f97066;
-    --success: #47cd89;
-  }
+:root {
+  color-scheme: dark;
+  --radius: 0.625rem;
+
+  --font-sans: var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-share-tech-mono), ui-monospace, monospace;
+
+  /* Surfaces */
+  --surface-0: oklch(0.128 0.02 264);
+  --surface-1: oklch(0.152 0.024 264);
+  --surface-2: oklch(0.188 0.028 264);
+  --surface-3: oklch(0.224 0.032 264);
+  --surface-4: oklch(0.262 0.036 264);
+
+  /* Foregrounds. --fg-3 is the AA floor for text on these surfaces. */
+  --fg-1: oklch(0.97 0.012 226);
+  --fg-2: oklch(0.795 0.03 250);
+  --fg-3: oklch(0.672 0.028 250);
+
+  /* Edges */
+  --border-subtle: oklch(0.42 0.024 264 / 0.5);
+  --border: oklch(0.52 0.028 264 / 0.62);
+  --border-strong: oklch(0.62 0.035 264 / 0.85);
+  --edge-light: oklch(0.98 0.01 226 / 0.075);
+  --edge-shade: oklch(0.05 0.02 264 / 0.55);
+
+  /* Elevation: one global light direction, bevel first then shadow. */
+  --elev-bevel: inset 0 1px 0 0 var(--edge-light), inset 0 -1px 0 0 var(--edge-shade);
+  --elev-1: var(--elev-bevel), 0 1px 2px -1px oklch(0.03 0.02 264 / 0.7);
+  --elev-3: var(--elev-bevel), 0 4px 8px -3px oklch(0.03 0.02 264 / 0.75);
+
+  /* Semantic */
+  --primary: oklch(0.811 0.135 207.6);
+  --primary-foreground: oklch(0.173 0.027 233.6);
+  --stream: oklch(0.657 0.241 6.9);
+  --success: oklch(0.82 0.135 166);
+  --warning: oklch(0.82 0.16 78);
+  --destructive: oklch(0.68 0.205 22);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  background: var(--surface-1);
+}
+
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  background: var(--surface-1);
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* A single wash of cyan behind the canvas, so the page reads as a lit room
+     rather than a flat rectangle. */
+  background-image: radial-gradient(
+    72rem 40rem at 50% -12rem,
+    oklch(0.811 0.135 207.6 / 0.09),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
 }
 
 main {
-  max-width: 640px;
+  max-width: 60rem;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 3rem 1.5rem 4rem;
+}
+
+main.narrow {
+  max-width: 42rem;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+a {
+  color: var(--primary);
+  text-decoration-color: oklch(0.811 0.135 207.6 / 0.35);
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ── HUD label ──────────────────────────────────────────────────────────── */
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin: 0 0 1.25rem;
+}
+
+/* Magenta is the product's recording colour; this is the one place the portal
+   borrows it, as a live-capture cue rather than decoration. */
+.rec-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--stream);
+  box-shadow: 0 0 0 3px oklch(0.657 0.241 6.9 / 0.18);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+
+.hero {
+  padding: 2rem 0 3.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Two columns on desktop so the headline is not left stranded beside half a
+   screen of empty canvas; one column as soon as the readout would squeeze. */
+.hero-split {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (min-width: 60rem) {
+  .hero-split {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+}
+
+.hero h1 {
+  font-size: clamp(2.25rem, 5vw, 3.25rem);
+  margin: 0 0 1.15rem;
+  /* The grid column already sets the measure; a ch cap on top of it only
+     forces extra line breaks. */
+  max-width: 20ch;
+}
+
+.hero-split h1 {
+  max-width: none;
+}
+
+/* A HUD readout of the pipeline: what the product does, in the product's own
+   visual language, filling the space the headline leaves. Decorative. */
+.readout {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-3);
+  padding: 1.1rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.readout-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--fg-3);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding-bottom: 0.85rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.readout-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  color: var(--fg-2);
+}
+
+.readout-row .value {
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-row.is-done {
+  color: var(--fg-1);
+}
+
+.readout-row.is-done .value {
+  color: var(--success);
+}
+
+.readout-arrow {
+  color: var(--primary);
+  padding: 0.15rem 0;
+}
+
+.hero h1 .accent {
+  color: var(--primary);
+}
+
+.lede {
+  color: var(--fg-2);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  max-width: 46ch;
+  margin: 0 0 2rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cta-note {
+  color: var(--fg-3);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* ── Steps ──────────────────────────────────────────────────────────────── */
+
+.section-title {
+  font-size: 0.8125rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin: 3rem 0 1.25rem;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+  padding: 1.25rem;
+}
+
+.step-number {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--primary);
+  letter-spacing: 0.12em;
+  display: block;
+  margin-bottom: 0.6rem;
+}
+
+.step h3 {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+.step p {
+  color: var(--fg-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── Cards & app chrome ─────────────────────────────────────────────────── */
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.card h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.card p {
+  margin: 0 0 0.75rem;
+  line-height: 1.6;
+  /* Prose in a full-width card would otherwise run past a comfortable
+     measure on desktop. */
+  max-width: 68ch;
+}
+
+.card p:last-child,
+.card ul:last-child,
+.card ol:last-child {
+  margin-bottom: 0;
+}
+
+.card ul,
+.card ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.15rem;
+  line-height: 1.6;
+}
+
+.card li {
+  margin-bottom: 0.45rem;
 }
 
 header {
@@ -51,61 +328,96 @@ header {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-h1 {
-  font-size: 1.25rem;
+header h1 {
+  font-size: 1.125rem;
   margin: 0;
+  letter-spacing: 0.01em;
 }
 
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
+/* ── Controls ───────────────────────────────────────────────────────────── */
 
 button,
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
-  background: var(--accent);
-  color: var(--accent-fg);
-  border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
+  font-weight: 600;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 0.125rem);
+  padding: 0.6rem 1.1rem;
   cursor: pointer;
+  text-decoration: none;
+  transition: filter 120ms ease;
+}
+
+button:hover:not(:disabled),
+.button:hover {
+  filter: brightness(1.08);
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-button.secondary {
-  background: transparent;
-  color: var(--fg);
-  border: 1px solid var(--border);
+button.secondary,
+.button.secondary {
+  background: var(--surface-3);
+  color: var(--fg-1);
+  border-color: var(--border-strong);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fg-2);
+  margin-bottom: 0.35rem;
 }
 
 input[type="file"],
 textarea {
   display: block;
   width: 100%;
-  margin: 0.5rem 0 1rem;
+  margin: 0 0 1rem;
   font: inherit;
-  color: inherit;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem;
+  color: var(--fg-1);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) - 0.125rem);
+  padding: 0.6rem;
 }
 
 textarea {
-  min-height: 4.5rem;
+  min-height: 5rem;
   resize: vertical;
 }
+
+input[type="file"]::file-selector-button {
+  font: inherit;
+  margin-right: 0.75rem;
+  background: var(--surface-4);
+  color: var(--fg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+/* ── Requests ───────────────────────────────────────────────────────────── */
 
 ul.requests {
   list-style: none;
@@ -114,33 +426,128 @@ ul.requests {
 }
 
 .request-note {
-  color: var(--muted);
-  font-size: 0.9rem;
+  color: var(--fg-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
 }
 
 .error-text {
-  color: var(--danger);
-  font-size: 0.9rem;
+  color: var(--destructive);
+  font-size: 0.9375rem;
 }
 
 .pill {
   display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding: 0.15rem 0.55rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
+  color: var(--fg-2);
+  margin-bottom: 0.6rem;
 }
 
 .pill-done {
   color: var(--success);
-  border-color: var(--success);
+  border-color: oklch(0.82 0.135 166 / 0.55);
 }
 
 .pill-failed,
 .pill-rejected {
-  color: var(--danger);
-  border-color: var(--danger);
+  color: var(--destructive);
+  border-color: oklch(0.68 0.205 22 / 0.55);
+}
+
+.pill-active {
+  color: var(--warning);
+  border-color: oklch(0.82 0.16 78 / 0.5);
+}
+
+code {
+  font-family: var(--font-mono);
+  background: var(--surface-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.9em;
+}
+
+video {
+  width: 100%;
+  border-radius: calc(var(--radius) - 0.125rem);
+  border: 1px solid var(--border);
+  background: var(--surface-0);
+  margin-bottom: 0.75rem;
+}
+
+/* ── Documents (privacy, terms) ─────────────────────────────────────────── */
+
+.doc h1 {
+  font-size: 2rem;
+  margin: 0 0 0.35rem;
+}
+
+.doc h2 {
+  font-size: 1.0625rem;
+  margin: 2.25rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.doc p,
+.doc li {
+  color: var(--fg-2);
+  line-height: 1.7;
+}
+
+.doc p {
+  margin: 0 0 0.9rem;
+}
+
+.doc ul {
+  padding-left: 1.15rem;
+  margin: 0 0 0.9rem;
+}
+
+.doc li {
+  margin-bottom: 0.55rem;
+}
+
+.doc strong {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+
+.updated {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin: 0 0 2rem;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 3.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+}
+
+.site-footer a {
+  color: var(--fg-2);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--primary);
 }

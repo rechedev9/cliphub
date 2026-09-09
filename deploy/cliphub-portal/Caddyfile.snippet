@@ -1,0 +1,24 @@
+# Paste this block into the host's shared Caddyfile
+# (/opt/gravity-room-deploy/Caddyfile on the openclaw VPS) and reload:
+#
+#   docker exec gravity-room-caddy-1 caddy reload \
+#     --config /etc/caddy/Caddyfile --adapter caddyfile
+#
+# That file is bind-mounted into the Caddy container; there is no auto-include,
+# so this snippet is a source of truth for the block, not something Caddy reads.
+
+cliphub.gravityroom.app {
+	# Demos are capped at 700 MiB by the app; give the proxy headroom above it
+	# or large uploads are rejected at the edge before the route ever sees them.
+	request_body {
+		max_size 1200MB
+	}
+
+	reverse_proxy 127.0.0.1:8092 {
+		# A render upload from the owner's home connection can take a while.
+		transport http {
+			read_timeout 30m
+			write_timeout 30m
+		}
+	}
+}

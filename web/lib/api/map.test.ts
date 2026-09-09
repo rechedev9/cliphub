@@ -12,3 +12,17 @@ test('planToPlays removes duplicate timeline segments but preserves distinct pla
   });
   assert.deepEqual(plays.map((play) => play.id), ['first', 'second']);
 });
+
+test('play context uses the source tick rate and only reports known headshot counts', () => {
+  const [play] = planToPlays('job-1', { demo: { tickrate: 128 }, segments: [
+    { id: 'r1', round: 1, tick_start: 1280, tick_end: 2816, kills: [{ weapon: 'ak47', headshot: true }, { weapon: 'ak47', headshot: false }] },
+  ] });
+  assert.equal(play.startSeconds, 10);
+  assert.equal(play.endSeconds, 22);
+  assert.equal(play.headshots, 1);
+  const [unknown] = planToPlays('job-1', { segments: [
+    { id: 'r1', round: 1, tick_start: 1280, tick_end: 2816, kills: [{ weapon: 'ak47' }] },
+  ] });
+  assert.equal(unknown.startSeconds, undefined);
+  assert.equal(unknown.headshots, undefined);
+});

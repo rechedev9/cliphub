@@ -35,6 +35,7 @@ import {
   type WindowState,
 } from './window-state';
 import { lastLines } from './log-tail';
+import { bridgeEnvironment } from './bridge-environment';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { steamEnvironment } from './steam-environment';
 import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
@@ -548,6 +549,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
       securityEnvironment: orchestratorSecurityEnvironment(security),
       toolEnvironment: toolEnv,
       steamEnvironment: steamEnvironment(process.env),
+      bridgeEnvironment: bridgeEnvironment(process.env),
     }),
   );
 

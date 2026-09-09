@@ -241,6 +241,31 @@ function seedReel(client: RealApiClient): string {
   return intent.videoId;
 }
 
+test('plays reuse only ready covers from the same single-segment capture', async () => {
+  const gate = gateFetch(planReadyReply);
+  try {
+    for (const scenario of ['single', 'compilation', 'other-job', 'queued'] as const) {
+      const client = new RealApiClient();
+      const videoId = seedReel(client);
+      const { intents, reels } = client as unknown as Seedable;
+      const intent = intents.get(videoId);
+      const video = reels.get(videoId);
+      assert.ok(intent && video);
+      intent.segmentIds = scenario === 'compilation' ? ['seg-1', 'seg-2'] : ['seg-1'];
+      if (scenario === 'other-job') intent.jobId = 'another-job';
+      video.status = scenario === 'queued' ? 'queued' : 'ready';
+      video.thumbnailUrl = '/api/captured-frame.jpg';
+      const result = client.findClips(JOB);
+      await gate.release();
+      await gate.release();
+      const plays = await result;
+      assert.equal(plays[0]?.thumbnailUrl, scenario === 'single' ? video.thumbnailUrl : undefined, scenario);
+      assert.equal(plays[1]?.thumbnailUrl, undefined, 'another play must never borrow the image');
+    }
+    assert.equal(gate.calls.length, 8, 'covers do not add requests or start captures');
+  } finally { gate.restore(); }
+});
+
 /** One Library reconcile beat, including the record/render POST it may fire. */
 async function reconcileTick(client: RealApiClient): Promise<void> {
   await client.listVideos();

@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { MapCover } from '@/components/brand/map-cover';
 import { MediaFrame } from '@/components/studio/media-frame';
 import { StatusTag } from '@/components/studio/status-tag';
+import { recommendedFullDemoSettings } from '@/lib/produce/full-demo-recommended';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoChoice, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
 import { FullDemoAudio, FullDemoAudioAdvanced, FullDemoSponsor } from './full-demo-audio';
@@ -35,6 +36,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
+  const [defaults, setDefaults] = useState<FullDemoOptions | null>(null);
   const [busy, setBusy] = useState<'load' | 'plan' | 'create' | 'asset' | null>('load');
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -42,7 +44,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
 
   useEffect(() => {
     const controller = new AbortController();
-    setBusy('load'); setError(null); setDocument(null); setOptions(null);
+    setBusy('load'); setError(null); setDocument(null); setOptions(null); setDefaults(null);
     void loadFullDemoPlan(matchId, controller.signal).then((loaded) => {
       if (controller.signal.aborted) return;
       let initial = loaded.document?.options ?? loaded.defaults;
@@ -59,7 +61,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
           return round ? { ...range, start_tick: round.live_start_tick - 2 * saved.clock.tick_rate } : range;
         });
       }
-      setDocument(loaded.document); setOptions(initial); setBusy(null);
+      setDocument(loaded.document); setDefaults(loaded.defaults); setOptions(initial); setBusy(null);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       setError(failure instanceof Error ? failure.message : 'No se pudo cargar el plan.'); setBusy(null);
@@ -77,6 +79,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   const ready = document !== null && options !== null && fullDemoApprovalKey(document, options) !== null && busy === null;
   const dirty = options !== null && (document === null || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(options));
   const rounds = document?.rounds ?? [];
+  const savedPlanStatus = recBusy ? 'CS2 ocupado: entrará en cola' : 'Plan guardado';
 
   async function plan(): Promise<void> {
     if (!options || busy) return;
@@ -116,6 +119,13 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
       <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">Full POV Chill</h1>
       <p className="max-w-3xl text-body-sm text-fg-2">Todas las rondas del jugador en orden, con su HUD y audio. Ajusta el aspecto y el sonido, guarda el plan y graba.</p>
     </div>
+    {options && defaults ? <div className="studio-panel my-4 flex flex-wrap items-center gap-3 p-4">
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-fg-1">Ajustes recomendados</p>
+        <p className="text-body-sm text-fg-2">Primera persona a 1080p60, 2 segundos antes de cada ronda y mezcla equilibrada. Conserva tu música, anuncios y opciones de voces.</p>
+      </div>
+      <Button variant="outline" disabled={busy !== null} onClick={() => change(recommendedFullDemoSettings(options, defaults))}>Usar ajustes recomendados</Button>
+    </div> : null}
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando el plan guardado…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión y cargar plan</Button> : null}
     {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="grid min-w-0 items-start gap-5 @[56rem]/content:grid-cols-[minmax(0,1fr)_minmax(300px,0.8fr)]">
@@ -183,7 +193,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
       {(document?.blockers ?? []).map((item, index) => <p key={`${item.code}-${index}`} role="alert" className="border border-destructive/40 bg-destructive/10 p-3 text-body-sm text-destructive">{item.message}{item.round_id ? ` (${item.round_id})` : ''}</p>)}
       {(document?.warnings ?? []).map((item, index) => <p key={`${item.code}-${index}`} className="text-body-sm text-fg-2">{item.message}</p>)}
     </div>
-    <ProduceFooter tone="full" eyebrow="Full POV Chill · 16:9" summary={document ? `${rounds.length} rondas · ${recBusy ? 'CS2 ocupado: entrará en cola' : 'listo para revisar'}` : null}
+    <ProduceFooter tone="full" eyebrow="Full POV Chill · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Cambios pendientes de guardar' : savedPlanStatus}` : null}
       hint="Completa los ajustes y guarda un plan sin bloqueos para continuar." briefItems={briefItems}
       ready={ready} backHref={returnHref} busy={busy !== null} error={error}
       cta={<Button variant="stream" size="lg" disabled={!ready} loading={busy === 'create'} loadingText="Encolando…" onClick={() => void create()}>{recBusy ? 'Poner Full Demo en cola' : 'Crear Full Demo'}</Button>} />
