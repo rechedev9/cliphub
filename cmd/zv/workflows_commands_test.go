@@ -1827,6 +1827,7 @@ func TestValidateLegacyPassThroughEntrypointsRejectsMissingEntrypoint(t *testing
 		"zv-orchestrator",
 		"zv-analysis-viewer",
 		"zv-rhythm",
+		"zv-hud-designs",
 		"zv-tui",
 	}
 

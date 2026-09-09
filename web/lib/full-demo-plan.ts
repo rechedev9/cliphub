@@ -1,4 +1,5 @@
 import type { EditConfig } from './api/types.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE, isCustomHudTheme } from './custom-hud.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -56,7 +57,7 @@ export type FullDemoTransitionOptions = Guarded<typeof transitionOptions>;
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
-    hud_profile: oneOf('native-clean-spectator', 'native'), xray: (value): value is false => value === false,
+    hud_profile: oneOf('native-clean-spectator', 'native', CUSTOM_HUD_CAPTURE_PROFILE), xray: (value): value is false => value === false,
     camera_policy: oneOf('strict-first-person'), contract_version: oneOf('full-demo-observer-v1'),
     crosshair: object({ mode: oneOf('observed', 'provided-code'), code: string, allow_capture_default: boolean }),
   }),
@@ -82,7 +83,8 @@ const optionsShape = object({
   overlays: object({
     roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet'), source: oneOf('demo', 'faceit'),
     mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
-  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image']),
+    hud_theme: (value): value is string | undefined => value === undefined || isCustomHudTheme(value),
+  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
 }, ['transitions']);
@@ -98,6 +100,7 @@ export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   const { editorial, sponsor, capture } = value;
   const lowpass = value.transitions?.game_tail_lowpass_hz ?? 0;
   if (lowpass > 0 && lowpass < 200) return false;
+  if (Boolean(value.overlays.hud_theme) !== (capture.hud_profile === CUSTOM_HUD_CAPTURE_PROFILE)) return false;
   if (editorial.max_freeze_seconds < editorial.freeze_seconds || sponsor.window_end_seconds < sponsor.window_start_seconds) return false;
   if (sponsor.placement_policy === 'manual-frame' && sponsor.manual_start_frame === null) return false;
   if (sponsor.placement_policy === 'round-boundary' && sponsor.after_round_id === '') return false;

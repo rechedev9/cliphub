@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/job"
@@ -20,11 +21,20 @@ import (
 func fullDemoExecutionArgs(path string) []string {
 	// The editor CLI defaults to trimming kill clips 1.5 seconds after the
 	// last kill. Full Demo timing belongs to the approved plan instead.
-	return []string{"--full-demo-execution", path, "--tail-trim=0"}
+	// Full Demo is one chronological program even when the approved demo
+	// contains only one round; the ordinary single-Short default is different.
+	return []string{"--full-demo-execution", path, "--tail-trim=0", "--compile-segments"}
 }
 
 func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.Job, snapshot recapplan.Snapshot, dir, ffmpeg string) (string, error) {
 	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: snapshot, Assets: []editor.FullDemoLocalMedia{}, VoiceTracks: []editor.FullDemoLocalVoice{}}
+	if snapshot.Document.Options.Overlays.HUDTheme != "" {
+		telemetry, err := w.materializeFullDemoHUD(ctx, j, snapshot.Document, dir)
+		if err != nil {
+			return "", err
+		}
+		execution.HUDTelemetry = telemetry
+	}
 	for _, ref := range snapshot.Document.Options.AssetReferences() {
 		id, err := uuid.Parse(ref.ID)
 		if err != nil {
@@ -119,9 +129,13 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 	if effective.Options.Overlays.Roster {
 		introWindow = &[2]float64{demooverlay.IntroOverlayStart(), demooverlay.IntroOverlayEnd()}
 	}
+	policy := "full-demo-render-v1"
+	if snapshot.Document.Options.Overlays.HUDTheme != "" {
+		policy += "/" + customhud.Version
+	}
 	return recapplan.HashValue(struct {
 		Policy, Variant, EffectivePlanHash string
 		Captures                           []input
 		IntroWindow                        *[2]float64 `json:"intro_window,omitempty"`
-	}{"full-demo-render-v1", variant, effective.PlanHash, inputs, introWindow})
+	}{policy, variant, effective.PlanHash, inputs, introWindow})
 }

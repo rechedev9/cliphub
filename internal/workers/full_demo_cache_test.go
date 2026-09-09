@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
@@ -17,11 +19,20 @@ import (
 
 // Model only the storage contract. These bytes and receipts never enter the
 // production render worker or claim a media/capture verification.
-func seedFullDemoCache(t *testing.T) (*fakeStorage, renderplan.RenderVariantState, string) {
+func seedFullDemoCache(t *testing.T, hudTheme ...string) (*fakeStorage, renderplan.RenderVariantState, string) {
 	t.Helper()
 	store := newFakeStorage()
 	recording, _, _ := fullDemoPublicationFixture(t, "unused")
 	doc := *recording.Plan.FullDemo
+	if len(hudTheme) > 0 {
+		doc.Options.Overlays.HUDTheme = hudTheme[0]
+		doc.Options.Capture.HUDProfile = customhud.CaptureProfile
+		var err error
+		doc.PlanHash, err = doc.Hash()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	snapshot := recapplan.Snapshot{Document: doc, Approval: recapplan.Approval{PlanHash: doc.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()}}
 	loadout, err := renderplan.LoadoutForVariant("gameplay-pov-60")
 	if err != nil {
@@ -42,6 +53,9 @@ func seedFullDemoCache(t *testing.T) (*fakeStorage, renderplan.RenderVariantStat
 	evidence := editor.FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: snapshot, Effective: doc,
 		Delivery:        &editor.FullDemoDeliveryEvidence{FullDecode: true, FrameCount: frames, SampleRate: 48000, Channels: 2, DurationSeconds: float64(frames) / 60, ContentSHA256: hex.EncodeToString(digest[:])},
 		ProgramLoudness: &editor.ProgramLoudnessEvidence{Status: "verified-decoded-aac", DecodedAAC: []editor.LoudnessMeasurement{{Status: "measured", IntegratedLUFS: &integrated, TruePeakDBTP: &peak}}}}
+	if len(hudTheme) > 0 {
+		evidence.HUD = &editor.FullDemoHUDEvidence{RendererVersion: customhud.Version, Theme: hudTheme[0], DemoSHA256: doc.Input.DemoSHA256, TelemetrySHA256: hex.EncodeToString(digest[:]), SnapshotCount: 2}
+	}
 	if err := evidence.ValidateCompleted(); err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +79,56 @@ func seedFullDemoCache(t *testing.T) (*fakeStorage, renderplan.RenderVariantStat
 		}
 	}
 	return store, state, video.Key
+}
+
+func TestFullDemoHUDPublicationAndCache(t *testing.T) {
+	store, state, _ := seedFullDemoCache(t, "arena")
+	var result editor.Result
+	if err := json.Unmarshal(store.files[state.RenderResultKey], &result); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	result.Shorts[0].Output = filepath.Join(dir, "video.mp4")
+	result.Shorts[0].CaptionPath = filepath.Join(dir, "caption.txt")
+	targets, err := renderplan.NewRenderVariantUploadTargets(renderplan.NewRenderVariantUploadTargetsOptions{JobID: state.JobID, Variant: state.Variant, RevisionID: uuid.MustParse(path.Base(state.ArtifactPrefix)), OutDir: dir, PublishDir: dir, ResultPath: filepath.Join(dir, "result.json"), Result: result})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, target := range targets[:len(targets)-1] {
+		if target.Key == path.Join(state.ArtifactPrefix, "full-demo-hud.json") {
+			found = target.Required && target.Path == filepath.Join(dir, "full-demo-hud.json")
+		}
+	}
+	if !found || targets[len(targets)-1].Key != state.RenderResultKey {
+		t.Fatal("HUD evidence must be published before the render commit marker")
+	}
+	ready, _, _, err := renderVariantOutputsReadyContext(context.Background(), store, state.JobID, state.Variant, "same-render-inputs", &state)
+	if err != nil || !ready {
+		t.Fatalf("complete custom HUD cache: %v / %v", ready, err)
+	}
+	delete(store.files, path.Join(state.ArtifactPrefix, "full-demo-hud.json"))
+	ready, _, _, err = renderVariantOutputsReadyContext(context.Background(), store, state.JobID, state.Variant, "same-render-inputs", &state)
+	if err != nil || ready {
+		t.Fatalf("missing HUD evidence accepted: %v / %v", ready, err)
+	}
+	for _, mutate := range []func(*editor.FullDemoRenderEvidence){
+		func(e *editor.FullDemoRenderEvidence) { e.HUD = nil },
+		func(e *editor.FullDemoRenderEvidence) { e.HUD.Theme = "apex" },
+		func(e *editor.FullDemoRenderEvidence) { e.HUD.DemoSHA256 = "other-demo" },
+		func(e *editor.FullDemoRenderEvidence) { e.HUD.TelemetrySHA256 = "invalid" },
+		func(e *editor.FullDemoRenderEvidence) { e.HUD.SnapshotCount = 0 },
+		func(e *editor.FullDemoRenderEvidence) { e.HUD.RendererVersion = "other-renderer" },
+	} {
+		original := result.Shorts[0].FullDemo
+		changed := *original
+		hud := *original.HUD
+		changed.HUD = &hud
+		mutate(&changed)
+		if err := changed.ValidateCompleted(); err == nil {
+			t.Fatal("custom HUD delivery accepted missing or mismatched evidence")
+		}
+	}
 }
 
 func TestFullDemoCacheRequiresCommittedBytesAndDocuments(t *testing.T) {

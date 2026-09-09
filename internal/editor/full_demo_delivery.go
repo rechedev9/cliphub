@@ -114,6 +114,9 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 	if err := e.validateTransitions(); err != nil {
 		return err
 	}
+	if err := validateFullDemoHUD(e.HUD, e.Effective); err != nil {
+		return err
+	}
 	frames := e.Effective.Timeline[len(e.Effective.Timeline)-1].EndFrame
 	if e.Delivery == nil || !e.Delivery.FullDecode || e.Delivery.FrameCount != frames || e.Delivery.SampleRate != 48000 || e.Delivery.Channels != 2 || !recapplan.ValidHash(e.Delivery.ContentSHA256) || math.IsNaN(e.Delivery.DurationSeconds) || math.IsInf(e.Delivery.DurationSeconds, 0) || math.Abs(e.Delivery.DurationSeconds-float64(frames)/recapplan.OutputFPS) > 1.0/recapplan.OutputFPS {
 		return fmt.Errorf("full_demo_output_invalid: missing complete delivery evidence")

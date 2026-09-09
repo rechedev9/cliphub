@@ -89,6 +89,7 @@ $commands = @(
     "zv-rhythm",
     "zv-analysis-viewer",
     "zv-tactical-data",
+    "zv-hud-designs",
     "zv-tui"
 )
 

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/pathguard"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -20,10 +21,24 @@ import (
 // FullDemoExecution is an attempt-local materialization of a durable approval.
 // Paths live here only; approved/effective documents contain immutable refs.
 type FullDemoExecution struct {
+	HUDTelemetry  *FullDemoLocalHUD    `json:"hud_telemetry,omitempty"`
 	SchemaVersion string               `json:"schema_version"`
 	Approved      recapplan.Snapshot   `json:"approved"`
 	Assets        []FullDemoLocalMedia `json:"assets"`
 	VoiceTracks   []FullDemoLocalVoice `json:"voice_tracks"`
+}
+
+type FullDemoLocalHUD struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+type FullDemoHUDEvidence struct {
+	RendererVersion string `json:"renderer_version"`
+	Theme           string `json:"theme"`
+	DemoSHA256      string `json:"demo_sha256"`
+	TelemetrySHA256 string `json:"telemetry_sha256"`
+	SnapshotCount   int    `json:"snapshot_count"`
 }
 
 type FullDemoLocalMedia struct {
@@ -53,6 +68,7 @@ type FullDemoTrackLevel struct {
 }
 
 type FullDemoRenderEvidence struct {
+	HUD             *FullDemoHUDEvidence         `json:"hud,omitempty"`
 	Transitions     []FullDemoTransitionEvidence `json:"transitions,omitempty"`
 	Delivery        *FullDemoDeliveryEvidence    `json:"delivery"`
 	SchemaVersion   string                       `json:"schema_version"`
@@ -64,6 +80,7 @@ type FullDemoRenderEvidence struct {
 }
 
 type fullDemoRenderContext struct {
+	hud            *customhud.Timeline
 	execution      FullDemoExecution
 	recording      recording.RecordingResult
 	ffmpeg         string
@@ -102,6 +119,17 @@ func readFullDemoExecution(ctx context.Context, path, outDir, publishDir string)
 		return nil, fmt.Errorf("full demo materialized input count differs")
 	}
 	inputs := []pathguard.Input{{Flag: "Full Demo execution", Path: path}}
+	if execution.Approved.Document.Options.Overlays.HUDTheme != "" {
+		if execution.HUDTelemetry == nil {
+			return nil, fmt.Errorf("custom HUD requires materialized demo telemetry")
+		}
+		if err := verifyFullDemoLocalFile(ctx, execution.HUDTelemetry.Path, execution.HUDTelemetry.SHA256); err != nil {
+			return nil, err
+		}
+		inputs = append(inputs, pathguard.Input{Flag: "Full Demo HUD telemetry", Path: execution.HUDTelemetry.Path})
+	} else if execution.HUDTelemetry != nil {
+		return nil, fmt.Errorf("native HUD execution must not carry custom telemetry")
+	}
 	seen := map[string]bool{}
 	for _, media := range execution.Assets {
 		if !slices.Contains(refs, media.Ref) || seen[media.Ref.ID] {
@@ -205,6 +233,20 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	}
 	short.FullDemo = evidence
 	short.fullDemo = &fullDemoRenderContext{execution: *execution, recording: result, ffmpeg: ffmpeg, workDir: filepath.Join(manifest.OutputDir, "full-demo-media")}
+	if d.Options.Overlays.HUDTheme != "" {
+		if execution.HUDTelemetry == nil {
+			return fmt.Errorf("custom HUD requires demo telemetry")
+		}
+		hud, err := customhud.Load(execution.HUDTelemetry.Path)
+		if err != nil {
+			return err
+		}
+		if hud.DemoSHA256 != d.Input.DemoSHA256 || hud.TargetSteamID != d.Input.TargetSteamID64 || hud.TickRate != d.Clock.TickRate {
+			return fmt.Errorf("custom HUD telemetry differs from the approved demo or player")
+		}
+		short.fullDemo.hud = &hud
+		evidence.HUD = &FullDemoHUDEvidence{RendererVersion: customhud.Version, Theme: d.Options.Overlays.HUDTheme, DemoSHA256: hud.DemoSHA256, TelemetrySHA256: execution.HUDTelemetry.SHA256, SnapshotCount: len(hud.Snapshots)}
+	}
 	short.DurationSeconds = float64(effective.Timeline[len(effective.Timeline)-1].EndFrame) / recapplan.OutputFPS
 	short.AudioNormalize = false
 	short.VoiceTracks, short.MusicPath = nil, ""

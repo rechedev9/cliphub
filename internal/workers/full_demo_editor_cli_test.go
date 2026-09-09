@@ -50,7 +50,7 @@ func TestFullDemoWorkerArgumentsThroughEditorCLI(t *testing.T) {
 			out := filepath.Join(t.TempDir(), "render")
 			args := []string{"--recording-result", recordingPath, "--out", out,
 				"--preset", editor.PresetGameplayPOV60, "--output-format", "landscape-16x9",
-				"--compile-segments", "--hook=false", "--kill-counter=false", "--covers=false", "--dry-run"}
+				"--hook=false", "--kill-counter=false", "--covers=false", "--dry-run"}
 			args = append(args, tc.args...)
 			output, err := exec.CommandContext(ctx, binary, args...).CombinedOutput()
 			if tc.wantError {

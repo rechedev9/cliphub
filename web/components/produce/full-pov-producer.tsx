@@ -22,6 +22,8 @@ import { FullDemoAudio, FullDemoAudioAdvanced, FullDemoSponsor } from './full-de
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
 import { fullDemoTransitionSummary } from '@/lib/full-demo-transitions';
+import { FullDemoHud } from './full-demo-hud';
+import { customHudLabel } from '@/lib/custom-hud';
 
 export type FullPovProducerProps = {
   matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
@@ -96,9 +98,10 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }
   }
 
+  const nativeHudLabel = options?.capture.hud_profile === 'native-clean-spectator' ? 'Espectador limpio' : 'Nativo';
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
-    { label: 'HUD', value: options.capture.hud_profile === 'native-clean-spectator' ? 'Espectador limpio' : 'Nativo' },
+    { label: 'HUD', value: options.overlays.hud_theme ? customHudLabel(options.overlays.hud_theme) : nativeHudLabel },
     { label: 'Crosshair', value: options.capture.crosshair.mode === 'observed' ? 'Del jugador' : options.capture.crosshair.code },
     { label: 'Voces', value: options.audio.voice.enabled ? `${options.audio.voice.gain}×` : 'Sin voces' },
     { label: 'Transiciones', value: fullDemoTransitionSummary(options.transitions) },
@@ -108,18 +111,19 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   ] : [];
 
   return <>
-    <div className="space-y-2">
-      <p className="font-mono text-meta uppercase tracking-ultra text-fg-3">Vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
+    <div className="min-w-0 space-y-2">
+      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
       <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">Full POV Chill</h1>
       <p className="max-w-3xl text-body-sm text-fg-2">Todas las rondas del jugador en orden, con su HUD y audio. Ajusta el aspecto y el sonido, guarda el plan y graba.</p>
     </div>
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando el plan guardado…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión y cargar plan</Button> : null}
     {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="grid min-w-0 items-start gap-5 @[56rem]/content:grid-cols-[minmax(0,1fr)_minmax(300px,0.8fr)]">
+      <div className="min-w-0 @[56rem]/content:col-span-2"><FullDemoHud options={options} map={match.map} onChange={change} /></div>
       <div className="min-w-0 space-y-5">
-        <FullDemoGroup title="Aspecto" note="1080p60 y primera persona. El HUD queda fijado al grabar.">
+        <FullDemoGroup title="Aspecto" note="1080p60 y primera persona. Los custom HUD comparten una misma captura base.">
           <div className="grid gap-4 sm:grid-cols-2">
-            <FullDemoChoice label="HUD" value={options.capture.hud_profile} options={[{ value: 'native-clean-spectator', label: 'Espectador limpio' }, { value: 'native', label: 'Nativo' }]} onChange={(hud_profile) => change({ ...options, capture: { ...options.capture, hud_profile } })} />
+            {!options.overlays.hud_theme ? <FullDemoChoice label="HUD nativo" value={options.capture.hud_profile} options={[{ value: 'native-clean-spectator', label: 'Espectador limpio' }, { value: 'native', label: 'Nativo' }]} onChange={(hud_profile) => change({ ...options, capture: { ...options.capture, hud_profile } })} /> : null}
             <FullDemoChoice label="Crosshair" value={options.capture.crosshair.mode} options={[{ value: 'observed', label: 'Del jugador observado' }, { value: 'provided-code', label: 'Código personalizado' }]} onChange={(mode) => change({ ...options, capture: { ...options.capture, crosshair: { ...options.capture.crosshair, mode, code: '' } } })} />
             {options.capture.crosshair.mode === 'provided-code' ? <label className="space-y-1.5 text-body-sm text-fg-2">Código de crosshair<Input value={options.capture.crosshair.code} maxLength={34} placeholder="CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx" onChange={(event) => change({ ...options, capture: { ...options.capture, crosshair: { ...options.capture.crosshair, code: event.target.value } } })} /></label> : null}
           </div>

@@ -4,6 +4,7 @@ import { gotoStudio } from './contract.ts';
 import { FULL_DEMO_EMPTY } from '../lib/full-demo.ts';
 import { isFullDemoSnapshot, isFullDemoOptions, type FullDemoDocument } from '../lib/full-demo-plan.ts';
 import { PRODUCE_MATCH_MISSING, PRODUCE_SHORT_TITLE } from '../lib/produce/copy.ts';
+import { CUSTOM_HUD_THEMES } from '../lib/custom-hud.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
@@ -32,6 +33,50 @@ async function stubParsedMatch(page: Page, recap: { status: number; body: unknow
 }
 
 test.describe('Full POV editorial constructor', () => {
+  for (const width of [390, 1024, 1440]) {
+    test(`custom HUD selection, saved approval and adjacent controls at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 950 });
+      await stubParsedMatch(page, { status: 200, body: PLAN });
+      const longName = 'Donk' + 'W'.repeat(180);
+      await fulfillJson(page, '/plan', 200, { ...PLAN, target: { ...PLAN.target, name_in_demo: longName } });
+      await fulfillJson(page, '/roster', 200, { players: [{ ...ROSTER.players[0], name: longName }] });
+      let document = editorial();
+      let generated: unknown;
+      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+        if (route.request().method() === 'POST') {
+          const body: unknown = route.request().postDataJSON();
+          if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid HUD decisions');
+          document = { ...document, options: body.options, plan_hash: 'b'.repeat(64) };
+          await route.fulfill({ status: 201, json: document });
+        } else await route.fulfill({ json: { document, defaults: document.options, compatibility: 'editorial-v1' } });
+      });
+      await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
+      await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
+        generated = route.request().postDataJSON();
+        await fulfillJson(page, '/status', 200, { status: 'recording' });
+        await route.fulfill({ status: 202, json: { accepted: true } });
+      });
+      await gotoStudio(page, PRODUCE_FULL);
+      await page.getByRole('checkbox', { name: 'Utilizar un custom HUD', exact: true }).check();
+      await expect(page.getByRole('radio', { name: /^HUD / })).toHaveCount(10);
+      for (const theme of CUSTOM_HUD_THEMES) {
+        const radio = page.getByRole('radio', { name: `HUD ${theme.name}`, exact: true });
+        await page.locator('label').filter({ has: radio }).click();
+        await expect(radio).toBeChecked();
+        await expect(page.getByRole('img', { name: `Vista previa del HUD ${theme.name}`, exact: true })).toHaveJSProperty('naturalWidth', 1920);
+        const overflow = await page.evaluate(() => window.document.documentElement.scrollWidth > window.innerWidth);
+        expect(overflow, `page overflow in ${theme.id}`).toBe(false);
+      }
+      await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0.8');
+      await page.getByRole('button', { name: 'Actualizar y guardar plan' }).click();
+      await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
+      await page.reload();
+      await expect(page.getByRole('radio', { name: 'HUD Mono', exact: true })).toBeChecked();
+      await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0.8');
+      await page.getByRole('button', { name: REC_CTA }).click();
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: 'broadcast-clean' }, overlays: { hud_theme: 'mono' } } }, approval: { approved_plan_hash: document.plan_hash } } } });
+    });
+  }
   test('retries an offline editorial load without allowing unplanned defaults', async ({ page }) => {
     await stubParsedMatch(page, { status: 200, body: PLAN });
     let offline = true;

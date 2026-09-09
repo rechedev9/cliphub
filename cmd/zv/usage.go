@@ -68,6 +68,7 @@ Legacy pass-throughs:
   zv analysis-viewer [zv-analysis-viewer args]
   zv tactical-data [zv-tactical-data args]
   zv rhythm [zv-rhythm args]
+  zv hud-designs [zv-hud-designs args]
   zv tui [zv-tui args]
 
 Use "zv <command> --help" for the underlying command help.
