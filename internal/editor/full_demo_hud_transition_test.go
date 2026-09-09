@@ -60,7 +60,14 @@ func TestFullDemoHUDRemainsStableDuringRoundTransition(t *testing.T) {
 		if _, err := runFFmpegOutput(ctx, command, "HUD transition composition"); err != nil {
 			t.Fatal(err)
 		}
-		hud, game := pixels(output, "640:48:640:40"), pixels(output, "1120:450:400:340")
+		// Inspect the interiors of both score plates and the clock. The compact
+		// reference layout leaves transparent gaps and roster slots where the
+		// former wide score bar used to be; gameplay can change in those gaps.
+		var hud []byte
+		for _, crop := range []string{"62:48:806:36", "136:48:892:36", "62:48:1052:36"} {
+			hud = append(hud, pixels(output, crop)...)
+		}
+		game := pixels(output, "1120:450:400:340")
 		if !enabled {
 			cleanHUD, cleanGame = hud, game
 			continue

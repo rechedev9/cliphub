@@ -71,7 +71,11 @@ test.describe('Full POV editorial constructor', () => {
       const expanded = page.getByRole('dialog');
       await expect(expanded).toBeVisible();
       await expanded.getByRole('button', { name: 'Jugador', exact: true }).click();
-      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '692 912 536 148');
+      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '16 926 324 134');
+      await expanded.getByRole('button', { name: 'Arma', exact: true }).click();
+      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '1540 938 364 122');
+      await expanded.getByRole('button', { name: 'Marcador', exact: true }).click();
+      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '436 12 1048 100');
       await expanded.getByRole('button', { name: 'Fondo claro', exact: true }).click();
       await expect(expanded.getByRole('button', { name: 'Fondo claro', exact: true })).toHaveAttribute('aria-pressed', 'true');
       const bounds = await expanded.boundingBox();

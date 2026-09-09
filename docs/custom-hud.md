@@ -185,13 +185,24 @@ are not included in the installer or the landing deployment.
 
 ## Professional visual revision
 
-Renderer `broadcast-hud-v3` redesigns all ten compositions. It integrates living
-player counts into the score bar, reserves the action area, uses stable roster
-slots and explicit eliminated states, and separates name, health, armor and
-ammunition through three real font weights. Team accents and translucent
-plates replace the large solid blocks; the score bar remains opaque so flashes
-and camera transitions do not change its contrast. Weapon icons preserve
-unknown values as text rather than guessing a silhouette.
+Renderer `broadcast-hud-v4` uses the compact composition in the supplied
+[broadcast reference](https://www.youtube.com/watch?v=dipHoYeFHr0): five stable
+player slots on each side of a central score and clock, the observed player's
+name, health and armor at bottom left, and their weapon and ammunition at
+bottom right. The ten styles retain their own colors, shapes and accents.
+All player slots fit in one 64-pixel upper row. Eliminated players have a skull
+and empty health bar; there is no separate alive count or clutch counter.
+The lower plates have no player portraits. Weapon icons preserve unknown
+values as text rather than guessing a silhouette.
+
+The selected player's SteamID controls both the capture contract and the HUD.
+Roster order and other players' deaths never change the focus. The recorder
+ends an approved death tail at the last verified frame of that same player;
+it does not include a switch to another player's camera.
+
+Three bundled font weights distinguish the primary numbers from secondary
+statistics. Team accents and translucent plates keep the action area open;
+the score and clock remain opaque so flashes and transitions keep their contrast.
 
 A ten-frame damage trail highlights only the lost part of the health bar.
 Numbers, live health and elimination update immediately on the source frame.
@@ -200,11 +211,11 @@ Telemetry remains `broadcast-hud-v2`, because its schema and extraction did not
 change. The renderer version invalidates rendered media independently.
 
 The enlarged picker shows the complete composition or a close view of the
-scoreboard and observed player, with a light-background option. Transparent
+scoreboard, observed player and weapon, with a light-background option. Transparent
 previews use the same ASS rasterizer as exports, recovered from black and white
 opaque mattes to preserve straight alpha and avoid libass's alpha-plane blending.
 
-Candidate acceptance on 2026-09-09 used source based on Studio 2.4.68 (`5033a88`)
+Initial renderer v3 acceptance on 2026-09-09 used source based on Studio 2.4.68 (`5033a88`)
 and an isolated local Studio instance. The final real HLAE canary passed all
 nine broadcast cvar checks and verified restoration of the original cvars and
 configuration files. All ten full first-round exports passed the production
@@ -222,9 +233,9 @@ controls. The actual local app also loaded and selected all ten 1920 px previews
 and exercised enlarged detail views at those three widths without horizontal
 overflow.
 
-The complete candidate P0 autoreview was attempted with Codex GPT-6 Astra / high.
-Its preflight rejected non-UTF-8 binary Git content before a reviewer started;
-there is no independent review result for this candidate. Local evidence is
+The initial complete candidate P0 autoreview was attempted with Codex GPT-6 Astra / high.
+Its preflight rejected non-UTF-8 Git output before a reviewer started;
+there is no independent review result for the complete visual candidate. Local evidence is
 under `.local/hud-pro/`, excluded from publication.
 
 Full-match capture acceptance used the real Studio retry flow with all 19
@@ -253,4 +264,11 @@ FFmpeg regression reproduced all three being invisible inside their slots and
 painting outside them; it now checks visible silhouettes and no escaping pixels.
 The final asset set was rendered with real flashbang, HE and smoke states in all
 ten styles. The full HUD and Full Demo editor suites pass, and regenerated
-picker previews remain byte-identical because their example uses other weapons.
+the initial picker previews stayed byte-identical because their example used other weapons.
+
+The reference composition regenerates all ten transparent picker previews.
+FFmpeg pixel regressions verify that every style paints only the upper strip
+and the two lower corners, leaving the native radar, killfeed and central action
+clear. Source-timing regressions continue to verify the damage trail, unknown
+values and a fixed target despite roster reordering. The source and generated
+catalogs are valid UTF-8, including Spanish descriptions.

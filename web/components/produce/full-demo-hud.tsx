@@ -14,7 +14,7 @@ export function FullDemoHud({ options, map, onChange }: {
   options: FullDemoOptions; map: string; onChange: (options: FullDemoOptions) => void;
 }): ReactNode {
   const selected = customHudTheme(options.overlays.hud_theme);
-  const [detail, setDetail] = useState<'full' | 'score' | 'player'>('full');
+  const [detail, setDetail] = useState<'full' | 'score' | 'player' | 'loadout'>('full');
   const [light, setLight] = useState(false);
 
   function choose(id: string | null): void {
@@ -26,7 +26,7 @@ export function FullDemoHud({ options, map, onChange }: {
     });
   }
 
-  return <FullDemoGroup title="HUD de la partida" note="Elige el aspecto del marcador y las fichas de jugadores. El radar, el killfeed y la mira se conservan.">
+  return <FullDemoGroup title="HUD de la partida" note="Marcador y jugadores arriba, vida a la izquierda y arma a la derecha. El POV permanece en el jugador elegido.">
     <FullDemoToggle label="Utilizar un custom HUD" value={Boolean(selected)} onChange={(enabled) => choose(enabled ? CUSTOM_HUD_THEMES[0].id : null)} />
     {selected ? <div className="space-y-5">
       <div className="grid min-w-0 items-start gap-5 @[56rem]/content:grid-cols-[minmax(0,2.4fr)_minmax(200px,1fr)]">
@@ -35,7 +35,7 @@ export function FullDemoHud({ options, map, onChange }: {
             <DialogTrigger asChild>
               <button type="button" className="group relative block w-full min-w-0 cursor-zoom-in border border-border-subtle text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Ampliar HUD ${selected.name}`} data-testid="custom-hud-preview">
                 <HudPreview theme={selected} map={map} />
-                <span className="absolute bottom-3 right-3 flex items-center gap-2 rounded-md border border-white/15 bg-black/80 px-3 py-1.5 text-meta text-white transition-colors group-hover:bg-black"><Expand className="size-3.5" aria-hidden />Ampliar</span>
+                <span className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-md border border-white/15 bg-black/80 px-3 py-1.5 text-meta text-white transition-colors group-hover:bg-black"><Expand className="size-3.5" aria-hidden />Ampliar</span>
               </button>
             </DialogTrigger>
             <DialogContent className="max-h-[92dvh] gap-4 overflow-y-auto p-4 sm:max-w-[min(1540px,calc(100%-3rem))] sm:p-6">
@@ -45,7 +45,7 @@ export function FullDemoHud({ options, map, onChange }: {
               </DialogHeader>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Detalle de la vista previa">
-                  {([['full', 'Vista completa'], ['score', 'Marcador'], ['player', 'Jugador']] as const).map(([value, label]) => <Button key={value} type="button" size="sm" variant={detail === value ? 'secondary' : 'ghost'} aria-pressed={detail === value} onClick={() => setDetail(value)}>{label}</Button>)}
+                  {([['full', 'Vista completa'], ['score', 'Marcador'], ['player', 'Jugador'], ['loadout', 'Arma']] as const).map(([value, label]) => <Button key={value} type="button" size="sm" variant={detail === value ? 'secondary' : 'ghost'} aria-pressed={detail === value} onClick={() => setDetail(value)}>{label}</Button>)}
                 </div>
                 <Button type="button" size="sm" variant="outline" aria-pressed={light} onClick={() => setLight(!light)}><Sun aria-hidden />Fondo claro</Button>
                 <label className="ml-auto flex min-w-0 items-center gap-2 text-body-sm text-fg-2">Diseño
@@ -96,11 +96,12 @@ export function FullDemoHud({ options, map, onChange }: {
 }
 
 function HudPreview({ theme, map, detail = 'full', light = false }: {
-  theme: CustomHudTheme; map: string; detail?: 'full' | 'score' | 'player'; light?: boolean;
+  theme: CustomHudTheme; map: string; detail?: 'full' | 'score' | 'player' | 'loadout'; light?: boolean;
 }): ReactNode {
   let viewBox = '0 0 1920 1080';
-  if (detail === 'score') viewBox = `${(1920 - theme.score_width) / 2 - 16} 12 ${theme.score_width + 32} 118`;
-  if (detail === 'player') viewBox = `${theme.focus_x - 16} ${theme.focus_y - 16} ${theme.focus_width + 32} 148`;
+  if (detail === 'score') viewBox = `${(1920 - theme.score_width) / 2 - 16} 12 ${theme.score_width + 32} 100`;
+  if (detail === 'player') viewBox = `${theme.focus_x - 16} ${theme.focus_y - 16} ${theme.focus_width + 32} 134`;
+  if (detail === 'loadout') viewBox = `${theme.loadout_x - 16} ${theme.loadout_y - 16} ${theme.loadout_width + 32} 122`;
   return <div className={cn('relative isolate aspect-video w-full overflow-hidden', light ? 'bg-[#d4dce2]' : 'bg-surface-0')}>
     <MapCover map={map} className={cn('absolute inset-0', light ? 'opacity-30' : 'opacity-70')} />
     {detail === 'full' ? <img src={`/hud/${theme.id}.webp`} alt={`Vista previa del HUD ${theme.name}`} className="absolute inset-0 size-full object-contain" width={1920} height={1080} /> : <svg viewBox={viewBox} className="absolute inset-0 size-full" role="img" aria-label={`Vista previa del HUD ${theme.name}`}>

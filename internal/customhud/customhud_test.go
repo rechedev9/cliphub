@@ -198,11 +198,11 @@ func TestTelemetryRejectsAmbiguousOrInvalidDocuments(t *testing.T) {
 func TestInactiveIdentityCannotHideCurrentRosterMember(t *testing.T) {
 	state := Example()
 	// An older identity sorts before the five current CTs. It must not evict
-	// the fifth player or make the current team's alive count unavailable.
+	// the fifth player or occupy a living player's slot.
 	state.Players = append(state.Players, Player{SteamID: "1", Name: "disconnected", Side: "CT", Inactive: true})
 	for _, theme := range Themes() {
 		r, _ := NewRenderer(theme.ID)
-		cards := 0
+		cards, liveSlots, deadSlots := 0, 0, 0
 		for _, n := range r.Scene(state, ExampleTarget) {
 			if n.ID == "player/1/name" {
 				t.Fatal("inactive player received a roster card")
@@ -210,12 +210,18 @@ func TestInactiveIdentityCannotHideCurrentRosterMember(t *testing.T) {
 			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/name") {
 				cards++
 			}
-			if n.ID == "alive/ct" && n.Text != "4" {
-				t.Fatalf("%s CT alive=%q", theme.ID, n.Text)
+			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/bar") {
+				liveSlots++
+			}
+			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/skull") {
+				deadSlots++
 			}
 		}
 		if cards != 10 {
 			t.Fatalf("%s roster has %d cards", theme.ID, cards)
+		}
+		if liveSlots != 5 || deadSlots != 5 {
+			t.Fatalf("%s live/dead roster slots=%d/%d", theme.ID, liveSlots, deadSlots)
 		}
 	}
 }

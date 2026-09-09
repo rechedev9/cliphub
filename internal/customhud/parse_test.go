@@ -129,9 +129,6 @@ func TestExtractionRetiresDisconnectedRosterIdentity(t *testing.T) {
 			if n.ID == "player/"+ExampleTarget+"/name" {
 				t.Fatalf("disconnected identity still occupies a roster slot at %d", tick)
 			}
-			if n.ID == "alive/ct" && n.Text != "0" {
-				t.Fatalf("disconnected player changed team count to %q", n.Text)
-			}
 			if n.ID == "focus/name" {
 				focus = true
 			}

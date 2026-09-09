@@ -136,7 +136,7 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	// same slot while its health, equipment and elimination state change.
 	sort.SliceStable(ct, func(i, j int) bool { return ct[i].SteamID < ct[j].SteamID })
 	sort.SliceStable(tr, func(i, j int) bool { return tr[i].SteamID < tr[j].SteamID })
-	s.scoreboard(state, ct, tr)
+	s.scoreboard(state)
 	ct, tr = ct[:min(5, len(ct))], tr[:min(5, len(tr))]
 	for side, players := range [][]Player{ct, tr} {
 		accent := t.CT
@@ -144,35 +144,11 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 			accent = t.T
 		}
 		for i, p := range players {
-			switch t.Layout {
-			case "sides":
-				x := 32
-				if side == 1 {
-					x = Width - 280
-				}
-				s.player(p, x, 698+i*70, 248, 64, accent, target, false)
-			case "split":
-				x := 368 + i*112
-				if side == 1 {
-					x = 1000 + i*112
-				}
-				s.player(p, x, 124, 104, 82, accent, target, true)
-			case "ribbon":
-				x := 394 + (side*5+i)*114
-				s.player(p, x, 124, 106, 72, accent, target, true)
-			case "dock":
-				x := 32 + i*128
-				if side == 1 {
-					x = 1252 + i*128
-				}
-				s.player(p, x, 962, 124, 82, accent, target, true)
-			default:
-				x := 390 + i*112
-				if side == 1 {
-					x = 978 + i*112
-				}
-				s.player(p, x, 122, 104, 84, accent, target, true)
+			x := 452 + i*68
+			if side == 1 {
+				x = 1132 + i*68
 			}
+			s.player(p, x, 28, accent, target)
 		}
 	}
 	for _, p := range state.Players {
@@ -185,66 +161,17 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	return s.nodes
 }
 
-func teamName(value, fallback string) string {
-	value = strings.TrimSpace(value)
-	if strings.HasPrefix(strings.ToLower(value), "team_") {
-		value = value[5:]
-	}
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func aliveCount(players []Player) string {
-	n := 0
-	for _, p := range players {
-		if !p.Known {
-			return "—"
-		}
-		if p.Alive {
-			n++
-		}
-	}
-	return strconv.Itoa(n)
-}
-
-func (s *scene) scoreboard(state Snapshot, ct, tr []Player) {
+func (s *scene) scoreboard(state Snapshot) {
 	t := s.r.Theme
-	w, y, center := t.ScoreWidth, 32, Width/2
-	x := (Width - w) / 2
-	if t.Layout == "split" {
-		s.panel("score/left", x, y, w/2-80, 78, t.CT)
-		s.panel("score/right", center+80, y, w/2-80, 78, t.T)
-		s.panel("score", center-72, y+4, 144, 74, t.Muted)
-	} else {
-		s.panel("score", x, y, w, 78, t.Muted)
-		s.path("score/center", shapePath(t.Shape, center-74, y+4, 148, 70), t.Surface, 2)
-		s.fade(.72)
-	}
-	nameWidth := w/2 - 174
-	ctName, trName := teamName(state.CTName, "COUNTER-TERRORISTS"), teamName(state.TName, "TERRORISTS")
-	s.typeText("score/ct-label", "CT", x+20, y+16, 11, 30, 700, t.CT, "left")
-	s.typeText("score/t-label", "T", x+w-20, y+16, 11, 30, 700, t.T, "right")
-	s.text("score/ct-team", ctName, x+20, y+39, 25, nameWidth, t.Text, "left")
-	s.text("score/t-team", trName, x+w-20, y+39, 25, nameWidth, t.Text, "right")
-	s.typeText("score/ct-points", strconv.Itoa(state.CTScore), center-112, y+38, 47, 62, 700, t.CT, "center")
-	s.typeText("score/t-points", strconv.Itoa(state.TScore), center+112, y+38, 47, 62, 700, t.T, "center")
-	s.text("alive/ct", aliveCount(ct), x+20, y+62, 14, 20, t.CT, "left")
-	s.text("alive/t", aliveCount(tr), x+w-20, y+62, 14, 20, t.T, "right")
-	s.typeText("alive/ct-label", "ALIVE", x+36, y+62, 11, 60, 500, t.Muted, "left")
-	s.typeText("alive/t-label", "ALIVE", x+w-36, y+62, 11, 60, 500, t.Muted, "right")
-	for side, players := range [][]Player{ct, tr} {
-		for i := 0; i < min(5, len(players)); i++ {
-			px, color := x+78+i*10, t.CT
-			if side == 1 {
-				px, color = x+w-84-i*10, t.T
-			}
-			s.rect(fmt.Sprintf("score/alive/%d/%d", side, i), px, y+60, 5, 5, color, 3)
-			if !players[i].Known || !players[i].Alive {
-				s.fade(.2)
-			}
-		}
+	const y, center = 28, Width / 2
+	s.panel("score", center-80, y, 160, 64, t.Muted)
+	for _, side := range []struct {
+		id, label, color string
+		x, points        int
+	}{{"ct", "CT", t.CT, center - 160, state.CTScore}, {"t", "T", t.T, center + 86, state.TScore}} {
+		s.path("score/"+side.id+"-plate", shapePath(t.Shape, side.x, y, 74, 64), side.color, 2)
+		s.typeText("score/"+side.id+"-points", strconv.Itoa(side.points), side.x+37, y+25, 43, 62, 700, t.Background, "center")
+		s.typeText("score/"+side.id+"-label", side.label, side.x+37, y+51, 12, 62, 600, t.Background, "center")
 	}
 	timeText, color := "--:--", t.Text
 	if state.TimeRemaining >= 0 {
@@ -261,19 +188,20 @@ func (s *scene) scoreboard(state Snapshot, ct, tr []Player) {
 	case "ended":
 		phase, timeText = "ROUND END", "—"
 	}
-	s.typeText("score/time", timeText, center, y+31, 36, 128, 700, color, "center")
-	s.typeText("score/round", phase, center, y+59, 12, 126, 600, color, "center")
+	s.typeText("score/time", timeText, center, y+25, 36, 132, 700, color, "center")
+	s.typeText("score/round", phase, center, y+51, 12, 138, 600, color, "center")
 	if state.Phase == "planted" || state.Phase == "defusing" {
 		// This attaches to the clock and never occupies the reticle area.
-		s.rect("score/bomb-phase", center-62, y+74, 124, 3, color, 4)
-		s.icon("score/bomb", "status/icon_bomb_default", center-61, y+23, 13, 16, color, false)
+		s.rect("score/bomb-phase", center-66, y+60, 132, 3, color, 4)
+		s.icon("score/bomb", "status/icon_bomb_default", center-65, y+17, 13, 16, color, false)
 	}
 }
 
-func (s *scene) player(p Player, x, y, w, h int, accent, target string, compact bool) {
+func (s *scene) player(p Player, x, y int, accent, target string) {
+	const w, h = 64, 64
 	id, t := "player/"+p.SteamID, s.r.Theme
 	dead := p.Known && !p.Alive
-	nameColor, detailColor := t.Text, t.Muted
+	nameColor, detailColor := t.Text, t.Text
 	if dead {
 		accent, nameColor = t.Muted, t.Muted
 	}
@@ -289,42 +217,23 @@ func (s *scene) player(p Player, x, y, w, h int, accent, target string, compact 
 		}
 	}
 	if p.SteamID == target {
-		s.path(id+"/observed", polygon(x-7, y+h/2-5, x-2, y+h/2, x-7, y+h/2+5), accent, 4)
+		s.rect(id+"/observed", x+8, y-4, w-16, 2, accent, 4)
 		nameColor = accent
 	}
-	hp, money, kd := "—", "—", "— / —"
-	if p.Known {
-		hp, money, kd = strconv.Itoa(p.Health), fmt.Sprintf("$%d", p.Money), fmt.Sprintf("%d / %d", p.Kills, p.Deaths)
+	if dead {
+		s.icon(id+"/skull", "status/icon_skull_default", x+21, y+11, 22, 24, detailColor, false)
+	} else if !p.Known || !s.icon(id+"/weapon-icon", weaponIcon(p.Weapon), x+8, y+12, w-16, 24, detailColor, false) {
+		s.typeText(id+"/weapon", knownWeapon(p), x+w/2, y+24, 13, w-12, 500, detailColor, "center")
 	}
-	if compact {
-		s.text(id+"/name", p.Name, x+w/2, y+16, 18, w-18, nameColor, "center")
-		if dead {
-			s.icon(id+"/skull", "status/icon_skull_default", x+w/2-9, y+29, 18, 18, detailColor, false)
-		} else if !p.Known || !s.icon(id+"/weapon-icon", weaponIcon(p.Weapon), x+20, y+29, w-40, 22, detailColor, false) {
-			s.typeText(id+"/weapon", knownWeapon(p), x+w/2, y+39, 12, w-16, 500, detailColor, "center")
-		}
-		s.typeText(id+"/health", hp, x+12, y+h-18, 21, 35, 700, accent, "left")
-		if dead {
-			money = kd
-		}
-		s.typeText(id+"/money", money, x+w-12, y+h-18, 13, w-52, 500, detailColor, "right")
-	} else {
-		s.text(id+"/name", p.Name, x+17, y+17, 22, w-80, nameColor, "left")
-		s.typeText(id+"/health", hp, x+w-16, y+17, 25, 55, 700, accent, "right")
-		if dead {
-			s.icon(id+"/skull", "status/icon_skull_default", x+17, y+33, 17, 18, detailColor, false)
-			s.typeText(id+"/eliminated", "ELIMINATED", x+45, y+42, 12, 110, 500, detailColor, "left")
-		} else {
-			if !p.Known || !s.icon(id+"/weapon-icon", weaponIcon(p.Weapon), x+15, y+31, 65, 24, detailColor, p.Side == "T") {
-				s.typeText(id+"/weapon", knownWeapon(p), x+17, y+42, 12, 66, 500, detailColor, "left")
-			}
-			s.typeText(id+"/money", money, x+96, y+42, 15, 70, 500, detailColor, "left")
-		}
-		s.typeText(id+"/kd", kd, x+w-16, y+42, 14, 55, 500, detailColor, "right")
-	}
-	s.rect(id+"/track", x+12, y+h-6, w-24, 2, t.Surface, 4)
+	s.text(id+"/name", p.Name, x+w/2, y+47, 14, w-10, nameColor, "center")
+	s.rect(id+"/track", x+6, y+h-6, w-12, 3, t.Surface, 4)
 	if p.Known && p.Alive && p.Health > 0 {
-		s.rect(id+"/bar", x+12, y+h-6, (w-24)*min(100, p.Health)/100, 2, accent, 5)
+		s.rect(id+"/bar", x+6, y+h-6, (w-12)*min(100, p.Health)/100, 3, accent, 5)
+	} else {
+		// Unknown is distinct from an eliminated slot: no invented health bar.
+		if !p.Known {
+			s.typeText(id+"/unknown", "?", x+w-8, y+10, 12, 10, 500, t.Muted, "center")
+		}
 	}
 }
 
@@ -337,7 +246,7 @@ func knownWeapon(p Player) string {
 
 func (s *scene) focus(p Player) {
 	t := s.r.Theme
-	x, y, w, h := t.FocusX, t.FocusY, t.FocusWidth, 116
+	x, y, w, h := t.FocusX, t.FocusY, t.FocusWidth, 102
 	accent := t.CT
 	if p.Side == "T" {
 		accent = t.T
@@ -346,44 +255,55 @@ func (s *scene) focus(p Player) {
 		accent = t.Muted
 	}
 	s.panel("focus", x, y, w, h, accent)
-	s.path("focus/header", shapePath(t.Shape, x+4, y+4, w-8, 36), t.Surface, 2)
-	s.fade(.6)
-	s.text("focus/name", p.Name, x+20, y+22, 30, w-162, t.Text, "left")
-	kda := "— / — / —"
-	if p.Known {
-		kda = fmt.Sprintf("%d / %d / %d", p.Kills, p.Deaths, p.Assists)
-	}
-	s.typeText("focus/kd", kda, x+w-20, y+22, 16, 118, 500, t.Muted, "right")
-	hp, armor, ammo := "—", "—", "—"
+	s.path("focus/header", shapePath(t.Shape, x, y, w, 38), accent, 2)
+	s.text("focus/name", p.Name, x+w/2, y+19, 27, w-30, t.Background, "center")
+	hp, armor := "—", "—"
 	if p.Known {
 		hp, armor = strconv.Itoa(p.Health), strconv.Itoa(p.Armor)
-		if p.Ammo >= 0 {
-			ammo = fmt.Sprintf("%d / %d", p.Ammo, p.Reserve)
-		}
 	}
 	healthIcon := "status/icon_health_default"
 	if p.Known && !p.Alive {
 		healthIcon = "status/icon_skull_default"
 	}
-	s.icon("focus/health-icon", healthIcon, x+19, y+59, 18, 21, accent, false)
-	s.typeText("focus/health", hp, x+46, y+70, 44, 78, 700, accent, "left")
-	s.icon("focus/armor-icon", "status/icon_armor_full_default", x+140, y+63, 16, 18, t.Muted, false)
-	s.typeText("focus/armor", armor, x+165, y+72, 27, 56, 500, t.Text, "left")
-	s.typeText("focus/ammo", ammo, x+w-20, y+70, 35, w-336, 600, t.Text, "right")
+	s.icon("focus/health-icon", healthIcon, x+16, y+55, 23, 26, accent, false)
+	s.typeText("focus/health", hp, x+50, y+68, 45, 82, 700, t.Text, "left")
+	s.icon("focus/armor-icon", "status/icon_armor_full_default", x+151, y+55, 23, 26, accent, false)
+	s.typeText("focus/armor", armor, x+185, y+68, 45, w-201, 700, t.Text, "left")
+	s.rect("focus/track", x+16, y+h-7, w-32, 3, t.Surface, 4)
+	if p.Known && p.Alive && p.Health > 0 {
+		s.rect("focus/bar", x+16, y+h-7, (w-32)*min(100, p.Health)/100, 3, accent, 5)
+	}
+	s.loadout(p, accent)
+}
+
+func (s *scene) loadout(p Player, accent string) {
+	t := s.r.Theme
+	x, y, w := t.LoadoutX, t.LoadoutY, t.LoadoutWidth
+	s.panel("loadout", x, y, w, 90, accent)
+	s.path("loadout/header", shapePath(t.Shape, x+3, y+3, w-6, 28), t.Surface, 2)
+	s.fade(.7)
+	kda, ammo := "K/D/A  —/—/—", "—"
+	if p.Known {
+		kda = fmt.Sprintf("K/D/A  %d/%d/%d", p.Kills, p.Deaths, p.Assists)
+		if p.Alive && p.Ammo >= 0 {
+			reserve := "—"
+			if p.Reserve >= 0 {
+				reserve = strconv.Itoa(p.Reserve)
+			}
+			ammo = fmt.Sprintf("%d/%s", p.Ammo, reserve)
+		}
+	}
+	s.typeText("focus/kd", kda, x+w-15, y+17, 14, 156, 500, t.Muted, "right")
 	weapon := knownWeapon(p)
 	if p.Known && !p.Alive {
 		weapon = "ELIMINATED"
 	}
 	if p.Known && p.Alive {
-		s.icon("focus/weapon-icon", weaponIcon(p.Weapon), x+236, y+52, 82, 32, t.Text, false)
+		s.icon("focus/weapon-icon", weaponIcon(p.Weapon), x+18, y+42, 118, 33, t.Text, false)
 	}
-	s.typeText("focus/weapon", weapon, x+277, y+99, 13, 103, 500, t.Muted, "center")
-	s.typeText("focus/ammo-label", "AMMO", x+w-20, y+99, 11, 80, 500, t.Muted, "right")
-	s.typeText("focus/health-label", "HP", x+20, y+99, 11, 30, 500, t.Muted, "left")
-	s.rect("focus/track", x+45, y+98, 164, 3, t.Surface, 4)
-	if p.Known && p.Alive && p.Health > 0 {
-		s.rect("focus/bar", x+45, y+98, 164*min(100, p.Health)/100, 3, accent, 5)
-	}
+	s.typeText("focus/weapon", weapon, x+15, y+17, 14, w-180, 600, t.Muted, "left")
+	s.typeText("focus/ammo", ammo, x+w-47, y+57, 44, w-196, 700, t.Text, "right")
+	s.icon("loadout/bullets", "status/icon_bullets_default", x+w-34, y+44, 19, 30, t.Muted, false)
 }
 
 // SVG and ASS use the same face, weight, fitted text and display list.
