@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  primaryKey,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
 // Auth.js's own required tables (schema shape mandated by @auth/drizzle-adapter).
@@ -83,6 +89,14 @@ export const requests = sqliteTable("request", {
   finalVideoPath: text("finalVideoPath"),
   finalVideoName: text("finalVideoName"),
   failureReason: text("failureReason"),
+  // Set once the local bridge admits this request's demo as a Job; used to
+  // stop the bridge from claiming it again.
+  localJobId: text("localJobId"),
+  // Set when the bridge claims the request (status -> "processing"). A claim
+  // older than the bridge's reclaim window with localJobId still null is
+  // treated as abandoned (the bridge likely crashed mid-download) and can be
+  // claimed again.
+  claimedAt: integer("claimedAt", { mode: "timestamp_ms" }),
   createdAt: integer("createdAt", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -90,3 +104,34 @@ export const requests = sqliteTable("request", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+// One finished reel the bridge sent back. These are candidates, not the
+// deliverable: a job can render several variants and several reels each, so
+// the owner promotes one to the request's finalVideo in /admin.
+export const requestArtifacts = sqliteTable(
+  "request_artifact",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    requestId: text("requestId")
+      .notNull()
+      .references(() => requests.id, { onDelete: "cascade" }),
+    variant: text("variant").notNull(),
+    name: text("name").notNull(),
+    path: text("path").notNull(),
+    sizeBytes: integer("sizeBytes").notNull(),
+    uploadedAt: integer("uploadedAt", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  // The bridge tracks what it already sent, but if it loses that state the
+  // portal must still not accumulate duplicates of the same reel.
+  (artifact) => [
+    uniqueIndex("request_artifact_unique").on(
+      artifact.requestId,
+      artifact.variant,
+      artifact.name,
+    ),
+  ],
+);

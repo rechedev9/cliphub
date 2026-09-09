@@ -421,7 +421,7 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 		seriesID = parsed.String()
 	}
 
-	created, err := h.persistAndEnqueueDemo(r.Context(), demo, demoFileName, cfg.TargetSteamID, seriesID, effectiveRules)
+	created, err := h.persistAndEnqueueDemo(r.Context(), demo, demoFileName, cfg.TargetSteamID, seriesID, "", effectiveRules)
 	if err != nil {
 		internalError(w, "admit uploaded demo", err)
 		return
@@ -433,14 +433,15 @@ func (h *Handlers) CreateJob(w http.ResponseWriter, r *http.Request) {
 }
 
 // persistAndEnqueueDemo stores a validated demo stream and queues parse or roster scan.
-func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fileName, targetSteamID, seriesID string, effectiveRules rules.Rules) (*job.Job, error) {
+func (h *Handlers) persistAndEnqueueDemo(ctx context.Context, demo io.Reader, fileName, targetSteamID, seriesID, cloudRequestID string, effectiveRules rules.Rules) (*job.Job, error) {
 	j := &job.Job{
-		ID:            uuid.New(),
-		Status:        job.StatusQueued,
-		SeriesID:      seriesID,
-		DemoFileName:  fileName,
-		TargetSteamID: targetSteamID,
-		Rules:         effectiveRules,
+		ID:             uuid.New(),
+		Status:         job.StatusQueued,
+		SeriesID:       seriesID,
+		DemoFileName:   fileName,
+		TargetSteamID:  targetSteamID,
+		CloudRequestID: cloudRequestID,
+		Rules:          effectiveRules,
 	}
 	key := fmt.Sprintf("demos/%s.dem", j.ID)
 	j.DemoPath = key
