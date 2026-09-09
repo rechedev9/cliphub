@@ -54,7 +54,7 @@ required for accepting a cached custom export.
 
 Local acceptance on 2026-09-09 used the first full round of the user's Mirage
 Donk demo (SHA-256 `eb8853783b98a7899ab772eb75efb14729b9c628bb050aec3a37339f7638b8b1`).
-The installed Studio 2.4.64 and its data were preserved. Tests ran the candidate
+The installed Studio app and its data were preserved. Tests ran the candidate
 source on `feat/custom-broadcast-huds` from base `12d1311`, using separately built
 binaries and an isolated SQLite/data directory.
 
@@ -95,8 +95,8 @@ every style. Local QA artifacts and logs are under `.local/custom-hud/`.
 
 The requested P0 autoreview was attempted on the complete local candidate with
 Codex GPT-6 Astra / high. Its preparation rejected the ten binary WebP previews
-before a reviewer started, so no independent review result was produced. This
-change does not include a release or an installed-app update.
+before a reviewer started, so no independent review result was produced at this
+initial acceptance stage. Release and installed-app verification are recorded below.
 
 ## PR verification follow-up
 
@@ -117,3 +117,57 @@ coverage and source round label for all 19 rounds. The separate round-number
 finding was a false positive: the test comment's "rounds" meant magazine
 bullets. `TotalRoundsPlayed` is bound to CS2's `m_totalRoundsPlayed`; all 19 live
 round labels agreed with the source scores. The comment now says "bullets".
+
+## Studio 2.4.67 production acceptance
+
+PR #172 was merged after backend, frontend, infrastructure and Bugbot checks
+passed. The final follow-up diff also passed the requested Codex GPT-6 Astra /
+high review filtered to P0. The complete PR autoreview remained unavailable
+because its preparation rejected the binary WebP previews; the follow-up review
+does not represent a review of that entire original candidate.
+
+The published `v2.4.67` Windows installer was built from
+`797d979051660b985c3e0a25cb31e932866ac40e`. Its SHA-256 is
+`105ed772658a91b93744d8a593f1f0aeb45dc5aaf8ef960d356dd98d0d46c710`.
+The downloaded installer and blockmap matched both GitHub's asset digests and
+`SHA256SUMS.txt`; the public download returned HTTP 200. The installer upgraded
+the existing Studio 2.4.66 installation after installation and SQLite backups.
+The launched packaged app and Settings both reported 2.4.67, build production.
+
+Acceptance used the installed executable and the existing user profile. All ten
+HUD previews loaded at their native 1920 px width, their selection worked, and
+the constructor had no horizontal overflow at 390, 1024 and 1440 px. The Donk
+plan was restored to automatic intervals for all 19 rounds with team voices.
+
+HLAE 2.192.1 captured all 19 rounds under `broadcast-clean`. The capture passed
+attestation and restored both cvars and configuration files. Its immutable
+revision is `e247b09b-a884-44ce-affd-68310e8beb7e`, with input fingerprint
+`0c15ff86434a99ec534c490494962d5f0c301eedd664d28fb5e97f0a0a0c423a`.
+Sampled first-round and second-half footage retained native radar, killfeed and
+crosshair while the native player panels were absent.
+
+Arena completed through the installed UI, including playback, seek and pause.
+The delivered video passed full decode, exact frame count and audio timing checks:
+56,424 frames at 1920x1080, 60 fps, 940.4 seconds, stereo AAC at 48 kHz. Its
+final decoded audio measured -14.24 LUFS and -3.37 dBTP. The effective duration
+uses the existing certified POV-tail trimming rules. Final samples from rounds
+1, 7, 13 and 19 matched the source telemetry, including the side change and a
+zero-armor state. The render recorded `broadcast-hud-v2` and 9,041 snapshots.
+
+Changing to Apex through the same UI produced a separate ready render with the
+same frame count, duration and accepted audio measurements. Playback, seek and
+pause passed again. Both exports used the same capture revision and telemetry
+digest; the stored capture document was unchanged. Published HUD, delivery,
+loudness and approval documents matched the immutable render results, and both
+delivered video hashes matched their delivery evidence. Final Apex samples from
+rounds 1, 7, 13 and 19 also matched the source state. This production run covers
+all rounds in Arena and Apex; the ten-style export comparison above covers one
+complete round in each style.
+
+The database passed its integrity check and retained all eight original job IDs.
+The prior native capture document was unchanged, and its 19 clips remained
+available under its immutable revision.
+
+Local production evidence, screenshots and verification scripts are under
+`.local/pr/production-ui/` in the PR worktree. These are local QA artifacts and
+are not included in the installer or the landing deployment.
