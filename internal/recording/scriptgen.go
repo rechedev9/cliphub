@@ -257,6 +257,7 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("    mirv.events.clientFrameStageNotify.on(id, (e) => {\n")
 	if plan.FullDemo != nil {
 		sb.WriteString("        if (!e.isBefore || e.curStage !== 12) return;\n")
+		sb.WriteString("        finishFullDemoFrame(); // Close before another, unverified frame can render.\n")
 	} else {
 		sb.WriteString("        if (e.isBefore) return;\n")
 	}
@@ -440,10 +441,12 @@ func generateHLAEJavaScript(plan RecordingPlan, attestationToken string) (string
 	sb.WriteString("                    failCapture(`capture end ${item.key} does not match active segment ${activeSegment ?? \"none\"}`);\n")
 	sb.WriteString("                    return;\n")
 	sb.WriteString("                }\n")
-	sb.WriteString("                run(item);\n")
-	sb.WriteString("                activeSegment = null;\n")
 	if plan.FullDemo != nil {
-		sb.WriteString("                fullDemoEnd(window, window.recordEnd, 'complete');\n")
+		sb.WriteString("                queueFullDemoEnd(window, item, tick);\n")
+		sb.WriteString("                return;\n")
+	} else {
+		sb.WriteString("                run(item);\n")
+		sb.WriteString("                activeSegment = null;\n")
 	}
 	sb.WriteString("                continue;\n")
 	sb.WriteString("            }\n")

@@ -14,8 +14,11 @@ import (
 )
 
 func fullDemoCaptureFixture(t *testing.T) RecordingPlan {
+	return fullDemoCaptureFixtureWithDeath(t, 700)
+}
+
+func fullDemoCaptureFixtureWithDeath(t *testing.T, death int) RecordingPlan {
 	t.Helper()
-	death := 700
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198377256168", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
 		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 800, DeathTick: &death, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
 	o := recapplan.DefaultOptions()
@@ -34,6 +37,67 @@ func fullDemoCaptureFixture(t *testing.T) RecordingPlan {
 		t.Fatal(err)
 	}
 	return p
+}
+
+func TestFullDemoTerminalFrameCoversTickQuantization(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Fatal("Node is required for Full Demo simulator verification")
+	}
+	p := fullDemoCaptureFixtureWithDeath(t, 708)
+	start, end := p.Segments[0].TickStart, p.Segments[0].TickEnd
+	want, err := recapplan.TickFrames(end-start, p.Tickrate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := GenerateHLAEJavaScript(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Model each phase of a 60 fps render clock against the 64 Hz source.
+	// Starts and stops dispatch before rendering on the first tick >= boundary.
+	// Closing immediately can supply floor(duration*60/64), below the approved
+	// rounded frame count, even though every observed source tick is correct.
+	for phase := range 16 {
+		overrides := make([]map[string]int, 1400)
+		for i := range overrides {
+			overrides[i] = map[string]int{"frame": i + 1, "tick": (i*64 + phase*4) / 60}
+		}
+		scenario := map[string]any{"schema_version": 1, "name": "64 Hz terminal frame", "target_steamid": p.TargetSteamID64, "frame_stage": "render-before", "max_frames": 1400, "tick_overrides": overrides, "expect": map[string]any{"outcome": "verified", "soft_quit": true}}
+		dir := t.TempDir()
+		js, sc, resultPath := filepath.Join(dir, "recording.js"), filepath.Join(dir, "scenario.json"), filepath.Join(dir, "result.json")
+		if err := os.WriteFile(js, []byte(script), 0600); err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(scenario)
+		if err := os.WriteFile(sc, b, 0600); err != nil {
+			t.Fatal(err)
+		}
+		output, err := exec.Command(node, filepath.Join("..", "..", "scripts", "capturelab", "run.mjs"), "--script", js, "--scenario", sc, "--out", resultPath).CombinedOutput()
+		if err != nil {
+			t.Fatalf("phase %d: %v\n%s", phase, err, output)
+		}
+		b, err = os.ReadFile(resultPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result struct {
+			Operations []struct {
+				StartFrame int `json:"start_frame"`
+				EndFrame   int `json:"end_frame"`
+			} `json:"record_operations"`
+		}
+		if err := json.Unmarshal(b, &result); err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Operations) != 1 {
+			t.Fatalf("phase %d: expected one recording", phase)
+		}
+		frames := result.Operations[0].EndFrame - result.Operations[0].StartFrame
+		if int64(frames) < want {
+			t.Errorf("phase %d: recorded %d real frames, approved interval requires %d", phase, frames, want)
+		}
+	}
 }
 
 func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
@@ -56,6 +120,9 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		tickStep      int
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
+		{name: "terminal frame needs a confirmed POV", outcome: "verified", trim: true, wantEnd: 891, override: map[string]any{"from_tick": 892, "to_tick": 900, "observed_steamid": nil}},
+		{name: "unconfirmed terminal frame cannot bypass trim approval", outcome: "failed", trim: false, override: map[string]any{"from_tick": 892, "to_tick": 900, "observed_steamid": nil}},
+		{name: "POV after recorded terminal frame is not captured", outcome: "verified", trim: true, wantEnd: 892, override: map[string]any{"from_tick": 893, "to_tick": 900, "observed_steamid": nil}},
 		{name: "unknown single live frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": nil}},
 		{name: "wrong player single frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": "76561198000000001"}},
 		{name: "third person", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observer_mode": 3}},

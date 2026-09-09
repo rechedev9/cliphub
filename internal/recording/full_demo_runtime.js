@@ -163,3 +163,23 @@
         }
         failCapture(`pov_contract_failed: ${reason}`);
     };
+    let fullDemoPendingEnd = null;
+    const queueFullDemoEnd = (window, item, tick) => {
+        // The tick boundary dispatches before rendering. Record its confirmed
+        // frame as well: at 60 fps against a 64 Hz source, closing here can
+        // underfill the approved rounded duration by one real frame. The editor
+        // still trims to the exact approved duration; no frame is duplicated.
+        if (observedSteamId() !== targetSteamId) {
+            failOrTrimFullDemo(window, tick, `unconfirmed terminal POV during ${window.segmentId}`);
+            return;
+        }
+        fullDemoPendingEnd = {window, item};
+    };
+    const finishFullDemoFrame = () => {
+        if (fullDemoPendingEnd === null) return;
+        const {window, item} = fullDemoPendingEnd;
+        fullDemoPendingEnd = null;
+        run(item);
+        activeSegment = null;
+        fullDemoEnd(window, window.recordEnd, 'complete');
+    };
