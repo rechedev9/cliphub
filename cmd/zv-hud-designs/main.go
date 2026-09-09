@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
-	"github.com/rechedev9/cliphub/internal/mediafont"
 )
 
 func main() {
@@ -111,26 +111,18 @@ func run(out, demo, target string, rate int, telemetry, theme string, start int,
 }
 
 func preview(r *customhud.Renderer, out string) error {
-	dir, err := os.MkdirTemp("", "cliphub-hud-preview-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
 	state := customhud.Example()
-	d := customhud.Timeline{Version: customhud.Version, DemoSHA256: strings.Repeat("0", 64), TargetSteamID: customhud.ExampleTarget, TickRate: 64, EndTick: 64, Snapshots: []customhud.Snapshot{state}}
+	d := customhud.Timeline{Version: customhud.TelemetryVersion, DemoSHA256: strings.Repeat("0", 64), TargetSteamID: customhud.ExampleTarget, TickRate: 64, EndTick: 64, Snapshots: []customhud.Snapshot{state}}
 	ass, err := r.ASS(d, customhud.Window{Frames: 1})
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, "preview.ass")
-	if err := os.WriteFile(path, []byte(ass), 0600); err != nil {
-		return err
-	}
-	fontPath, err := mediafont.Materialize()
+	frame, err := customhud.RasterizePreview(context.Background(), "ffmpeg", ass)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=black@0:s=1920x1080:r=60,format=rgba", "-vf", customhud.ASSFilter(path, filepath.Dir(fontPath), true), "-frames:v", "1", "-c:v", "libwebp", "-lossless", "1", filepath.Join(out, r.Theme.ID+".webp"))
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pixel_format", "rgba", "-video_size", "1920x1080", "-i", "pipe:0", "-frames:v", "1", "-c:v", "libwebp", "-lossless", "1", filepath.Join(out, r.Theme.ID+".webp"))
+	cmd.Stdin = bytes.NewReader(frame.Pix)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("render HUD preview: %w: %s", err, output)
 	}

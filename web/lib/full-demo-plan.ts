@@ -1,5 +1,5 @@
 import type { EditConfig } from './api/types.ts';
-import { CUSTOM_HUD_CAPTURE_PROFILE, isCustomHudTheme } from './custom-hud.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -57,7 +57,7 @@ export type FullDemoTransitionOptions = Guarded<typeof transitionOptions>;
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
-    hud_profile: oneOf('native-clean-spectator', 'native', CUSTOM_HUD_CAPTURE_PROFILE), xray: (value): value is false => value === false,
+    hud_profile: oneOf('native-clean-spectator', 'native', CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE), xray: (value): value is false => value === false,
     camera_policy: oneOf('strict-first-person'), contract_version: oneOf('full-demo-observer-v1'),
     crosshair: object({ mode: oneOf('observed', 'provided-code'), code: string, allow_capture_default: boolean }),
   }),
@@ -95,12 +95,20 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
   return { ...options, editorial: { ...options.editorial, freeze_seconds: FULL_DEMO_FREEZE_SECONDS, keep_freeze_voice: false, voice_context_seconds: 0, max_freeze_seconds: FULL_DEMO_FREEZE_SECONDS } };
 }
 
+/** Upgrade editable drafts; keep the saved document and its approval immutable. */
+export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOptions {
+  const fixed = fixedFullDemoFreeze(options);
+  return fixed.overlays.hud_theme
+    ? { ...fixed, capture: { ...fixed.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } }
+    : fixed;
+}
+
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   if (!optionsShape(value)) return false;
   const { editorial, sponsor, capture } = value;
   const lowpass = value.transitions?.game_tail_lowpass_hz ?? 0;
   if (lowpass > 0 && lowpass < 200) return false;
-  if (Boolean(value.overlays.hud_theme) !== (capture.hud_profile === CUSTOM_HUD_CAPTURE_PROFILE)) return false;
+  if (Boolean(value.overlays.hud_theme) !== isCustomHudCaptureProfile(capture.hud_profile)) return false;
   if (editorial.max_freeze_seconds < editorial.freeze_seconds || sponsor.window_end_seconds < sponsor.window_start_seconds) return false;
   if (sponsor.placement_policy === 'manual-frame' && sponsor.manual_start_frame === null) return false;
   if (sponsor.placement_policy === 'round-boundary' && sponsor.after_round_id === '') return false;
@@ -154,11 +162,12 @@ function canonicalJSON(value: unknown): string {
 }
 export function fullDemoApprovalKey(document: FullDemoDocument, options: FullDemoOptions): string | null {
   return document.planner_version === FULL_DEMO_PLANNER_VERSION
-    && fullDemoOptionsKey(document.options) === fullDemoOptionsKey(fixedFullDemoFreeze(document.options))
+    && fullDemoOptionsKey(document.options) === fullDemoOptionsKey(currentFullDemoOptions(document.options))
     && fullDemoOptionsKey(document.options) === fullDemoOptionsKey(options) && document.rounds.length > 0
     && (document.timeline?.length ?? 0) > 0 && (document.blockers?.length ?? 0) === 0 ? document.plan_hash : null;
 }
 export function approveFullDemo(document: FullDemoDocument, timestamp = new Date().toISOString()): FullDemoSnapshot {
+  if (document.options.overlays.hud_theme && document.options.capture.hud_profile !== CUSTOM_HUD_CAPTURE_PROFILE) throw new Error('Vuelve a preparar Full Demo para aplicar el nuevo HUD y radar.');
   if (document.planner_version !== FULL_DEMO_PLANNER_VERSION || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(fixedFullDemoFreeze(document.options))) throw new Error('Vuelve a preparar Full Demo con el freeze fijo de 2 segundos.');
   const snapshot = { document, approval: { approved_plan_hash: document.plan_hash, allow_safe_tail_trim: document.options.editorial.allow_safe_tail_trim, timestamp } };
   if (!isFullDemoSnapshot(snapshot)) throw new Error('El plan tiene bloqueos o está incompleto.');
@@ -190,7 +199,7 @@ export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Pro
   return value;
 }
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions): Promise<FullDemoDocument> {
-  options = fixedFullDemoFreeze(options);
+  options = currentFullDemoOptions(options);
   if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y sponsor.');
   const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }) }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan Full Demo incompatible.');

@@ -21,14 +21,23 @@ The scene is drawn by FFmpeg/libass as ASS vector graphics. The HTML picker
 uses lossless transparent WebP previews from that same renderer; an SVG export
 is also available for diagnostics. This keeps typography, panel geometry
 and data mapping in one implementation without requiring a second browser
-installation on the capture worker. No third-party HUD source, logos or player
-portraits are copied. The catalog thumbnails use clearly identified example
+installation on the capture worker. The layout and renderer are original;
+weapon and status silhouettes are adapted from Lexogrine's MIT-licensed assets,
+with source revision and license under `internal/customhud/assets/`. The
+unmodified Barlow Semi Condensed faces are bundled under the SIL Open Font
+License, with Montserrat as the Cyrillic fallback. No team logos or player
+portraits are invented. The catalog thumbnails use clearly identified example
 data; the export path requires real demo telemetry.
 
 The broadcast capture keeps native radar, killfeed, scope and crosshair. It
 sets `cl_draw_only_deathnotices=1`, `cl_drawhud_force_radar=1` and
 `cl_drawhud_force_deathnotices=1` through HLAE's cvar API, verifies their
 readback throughout the capture and restores the saved values afterward.
+The current `broadcast-clean-v2` profile also sets radar background alpha to
+0.35, disables additive map blending, uses radar scale 0.85 and default HUD
+color, and sets horizontal/vertical safe zones to 0.97/0.95. These six settings
+participate in the same snapshot, readback, periodic verification and restoration
+contract. A previous `broadcast-clean` capture cannot satisfy this profile.
 The [CS2 demo config by Purp1e](https://github.com/Purple-CSGO/CS2-Config-Presets/blob/master/demo.cfg)
 also uses the native crosshair/deathnotice and radar controls. Existing
 clean-spectator Panorama suppression still hides chat, votes and death panels.
@@ -40,7 +49,9 @@ changes are render changes and reuse it. Native Full Demo remains available.
 
 The Full POV Chill constructor exposes the ten previews and persists the selected
 `overlays.hud_theme` with the approved plan. The planner requires the
-`broadcast-clean` capture profile for a custom theme. Theme changes affect the
+`broadcast-clean-v2` capture profile for a new custom theme. Legacy approved
+documents remain readable; reopening their draft upgrades the profile and
+requires a fresh saved plan and approval. Theme changes affect the
 render hash but leave the capture hash unchanged. Old native plans omit the new
 optional field and keep their existing wire format and capture behavior.
 
@@ -171,3 +182,101 @@ available under its immutable revision.
 Local production evidence, screenshots and verification scripts are under
 `.local/pr/production-ui/` in the PR worktree. These are local QA artifacts and
 are not included in the installer or the landing deployment.
+
+## Professional visual revision
+
+Renderer `broadcast-hud-v4` uses the compact composition in the supplied
+[broadcast reference](https://www.youtube.com/watch?v=dipHoYeFHr0): five stable
+player slots on each side of a central score and clock, the observed player's
+name, health and armor at bottom left, and their weapon and ammunition at
+bottom right. The ten styles retain their own colors, shapes and accents.
+All player slots fit in one 64-pixel upper row. Eliminated players have a skull
+and empty health bar; there is no separate alive count or clutch counter.
+The lower plates have no player portraits. Weapon icons preserve unknown
+values as text rather than guessing a silhouette.
+
+The selected player's SteamID controls both the capture contract and the HUD.
+Roster order and other players' deaths never change the focus. The recorder
+ends an approved death tail at the last verified frame of that same player;
+it does not include a switch to another player's camera.
+
+Three bundled font weights distinguish the primary numbers from secondary
+statistics. Team accents and translucent plates keep the action area open;
+the score and clock remain opaque so flashes and transitions keep their contrast.
+
+A ten-frame damage trail highlights only the lost part of the health bar.
+Numbers, live health and elimination update immediately on the source frame.
+The trail retains the same source timing through trims and sponsor splits.
+Telemetry remains `broadcast-hud-v2`, because its schema and extraction did not
+change. The renderer version invalidates rendered media independently.
+
+The enlarged picker shows the complete composition or a close view of the
+scoreboard, observed player and weapon, with a light-background option. Transparent
+previews use the same ASS rasterizer as exports, recovered from black and white
+opaque mattes to preserve straight alpha and avoid libass's alpha-plane blending.
+
+Initial renderer v3 acceptance on 2026-09-09 used source based on Studio 2.4.68 (`5033a88`)
+and an isolated local Studio instance. The final real HLAE canary passed all
+nine broadcast cvar checks and verified restoration of the original cvars and
+configuration files. All ten full first-round exports passed the production
+editor's strict video and decoded audio acceptance at 1920x1080, 60 fps and
+2,440 frames (40.667 seconds). Final gameplay frames were visually inspected for
+every style. The smaller inset radar, native killfeed and crosshair remained
+visible.
+
+Local Go suites for the renderer, fonts, planner, recording, worker and Full
+Demo editor passed, including real FFmpeg tests for opacity, icon holes, damage
+timing and the fixed scoreboard during transitions. Web unit tests, lint,
+typecheck, production build and all 21 Full Demo browser tests passed. Browser
+regressions use long unbroken names at 390, 1024 and 1440 px and verify adjacent
+controls. The actual local app also loaded and selected all ten 1920 px previews
+and exercised enlarged detail views at those three widths without horizontal
+overflow.
+
+The initial complete candidate P0 autoreview was attempted with Codex GPT-6 Astra / high.
+Its preflight rejected non-UTF-8 Git output before a reviewer started;
+there is no independent review result for the complete visual candidate. Local evidence is
+under `.local/hud-pro/`, excluded from publication.
+
+Full-match capture acceptance used the real Studio retry flow with all 19
+Donk rounds and the same approved Arena plan. Capture revision
+`9d71f9ae-5bf3-4d7f-adc8-2773c7ff5b9c` passed native attestation and exact
+frame coverage for every round; all cvars and configuration files were restored.
+
+This flow exposed two timing defects before publication. Death-tail evidence
+now ends at the last confirmed POV tick, because the first unknown tick is
+rejected before rendering. Complete windows retain their explicitly verified
+terminal render frame and close before the next frame. That fixes the 64 Hz to
+60 fps rounding case that previously captured 3,815 frames in round 9 when the
+approved interval required 3,816. The real corrected capture contains 3,816.
+No approved window is shortened to fit an artifact, and no frames are duplicated.
+The existing exact frame and decoded-audio validators remain unchanged.
+
+The regressions reproduce the original underfill in four of sixteen clock
+phases and protect unknown POVs, unapproved tail trimming and skipped ticks.
+The complete recording suite and recording/worker integration tests pass.
+The recording follow-up received a separate P0-only independent review; that
+limited result does not cover the complete visual candidate. Further autoreview
+runs were explicitly removed from the workflow by the user.
+
+Three grenade assets now use view boxes matching their actual paths. The real
+FFmpeg regression reproduced all three being invisible inside their slots and
+painting outside them; it now checks visible silhouettes and no escaping pixels.
+The final asset set was rendered with real flashbang, HE and smoke states in all
+ten styles. The full HUD and Full Demo editor suites pass, and regenerated
+the initial picker previews stayed byte-identical because their example used other weapons.
+
+The reference composition regenerates all ten transparent picker previews.
+FFmpeg pixel regressions verify that every style paints only the upper strip
+and the two lower corners, leaving the native radar, killfeed and central action
+clear. Source-timing regressions continue to verify the damage trail, unknown
+values and a fixed target despite roster reordering. The source and generated
+catalogs are valid UTF-8, including Spanish descriptions.
+
+Final v4 acceptance exported the complete first round in all ten styles:
+2,440 frames per output, full decode, verified stereo AAC at 48 kHz, and hashes
+matching the delivery documents. The real Studio app selected every new
+preview and exercised all four detail views at 390, 1024 and 1440 px.
+The full 19-round Arena export then passed with 56,413 frames (940.217 seconds),
+decoded AAC at -14.24 LUFS / -3.63 dBTP, and working seek/play/pause in Studio.
+Sampled final frames include both sides of the match and the last round.

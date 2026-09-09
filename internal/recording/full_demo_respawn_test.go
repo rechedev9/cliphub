@@ -129,8 +129,24 @@ func TestFullDemoRespawnAcquisition(t *testing.T) {
 					t.Fatalf("capture shifted audio/video coverage: %+v", op)
 				}
 			}
-			if evidence.CertifiedEnds["round-003"] != 22780 {
-				t.Fatalf("death tail certification changed: %+v", evidence.CertifiedEnds)
+			if evidence.CertifiedEnds["round-003"] != 22779 {
+				t.Fatalf("tail must end at the last confirmed POV tick, before the unrecorded tick 22780: %+v", evidence.CertifiedEnds)
+			}
+			// The real 64 Hz Mirage capture contains 2,435 frames here.
+			// Its first unconfirmed tick would promise an unavailable frame;
+			// the corrected evidence fits without relaxing frame acceptance.
+			recorded := RecordingResult{Plan: p, FullDemoEvidence: evidence, Artifacts: []RecordingArtifact{{SegmentID: "round-003", Role: "segment", Type: "video", Path: "round-003.mp4", SizeBytes: 1, FrameCount: 2435, FrameRate: "60/1"}}}
+			start := p.Segments[0].TickStart
+			end := evidence.CertifiedEnds["round-003"]
+			if err := recorded.ValidateFullDemoRoundFrames("round-003", start, end); err != nil {
+				t.Fatal(err)
+			}
+			if err := recorded.ValidateFullDemoRoundFrames("round-003", start, 22780); err == nil {
+				t.Fatal("the unrecorded tick must still fail exact frame validation")
+			}
+			recorded.Artifacts[0].FrameCount--
+			if err := recorded.ValidateFullDemoRoundFrames("round-003", start, end); err == nil {
+				t.Fatal("a genuinely short clip must still fail with corrected POV evidence")
 			}
 		})
 	}

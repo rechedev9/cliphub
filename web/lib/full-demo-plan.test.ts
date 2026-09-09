@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
+  approveFullDemo, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
   loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoOverlayImage, fullDemoOverlayImageURL, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
@@ -86,6 +86,20 @@ test('fixed freeze migrates old drafts without changing gameplay voice settings'
   assert.equal(fixed.editorial.voice_context_seconds, 0);
   assert.deepEqual(fixed.audio, original.audio);
   assert.equal(original.editorial.freeze_seconds, 20);
+});
+
+test('radar profile upgrade preserves saved approvals and requires a fresh plan', () => {
+  const snapshot = fixture();
+  snapshot.document.options.overlays.hud_theme = 'apex';
+  snapshot.document.options.capture.hud_profile = 'broadcast-clean';
+  const original = JSON.stringify(snapshot);
+  assert.ok(isFullDemoSnapshot(snapshot));
+  const draft = currentFullDemoOptions(snapshot.document.options);
+  assert.equal(draft.capture.hud_profile, CUSTOM_HUD_CAPTURE_PROFILE);
+  assert.deepEqual(draft.overlays, snapshot.document.options.overlays);
+  assert.equal(JSON.stringify(snapshot), original);
+  assert.equal(fullDemoApprovalKey(snapshot.document, draft), null);
+  assert.throws(() => approveFullDemo(snapshot.document), /nuevo HUD y radar/);
 });
 
 test('variable-freeze documents must be replanned even with a current planner version', () => {

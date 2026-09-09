@@ -288,6 +288,8 @@ export async function runSimulation(scriptSource, rawScenario) {
     voice_modenable: true, snd_voipvolume: 0.63, tv_listen_voice_indices: 7, tv_listen_voice_indices_h: 9,
     spec_show_xray: 1, spec_autodirector: true, cl_drawhud: true, cl_draw_only_deathnotices: false,
     cl_drawhud_force_radar: 0, cl_drawhud_force_deathnotices: 0,
+    cl_hud_radar_background_alpha: .627, cl_hud_radar_map_additive: true, cl_hud_radar_scale: 1,
+    cl_hud_color: 6, safezonex: 1, safezoney: 1,
     cl_show_observer_crosshair: 1, crosshair: true, cl_demo_predict: 1, cl_trueview_show_status: 2, host_framerate: 0,
     cl_spec_show_bindings: true, cl_drawhud_specvote: true, cl_teamid_overhead_mode: 3,
     cl_drawhud_force_teamid_overhead: 0, hud_showtargetid: true, cl_crosshairsize: 4,

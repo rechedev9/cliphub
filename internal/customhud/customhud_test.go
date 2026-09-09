@@ -87,7 +87,7 @@ func testTimeline() Timeline {
 	dead.Tick = 228
 	dead.Players[1].Health = 0
 	dead.Players[1].Alive = false
-	return Timeline{Version: Version, DemoSHA256: strings.Repeat("a", 64), TargetSteamID: ExampleTarget, TickRate: 64, EndTick: 400, Snapshots: []Snapshot{s, next, dead}}
+	return Timeline{Version: TelemetryVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID: ExampleTarget, TickRate: 64, EndTick: 400, Snapshots: []Snapshot{s, next, dead}}
 }
 
 func TestHUDUsesSourceFramesAcrossTrimsAndSponsorSplits(t *testing.T) {
@@ -198,11 +198,11 @@ func TestTelemetryRejectsAmbiguousOrInvalidDocuments(t *testing.T) {
 func TestInactiveIdentityCannotHideCurrentRosterMember(t *testing.T) {
 	state := Example()
 	// An older identity sorts before the five current CTs. It must not evict
-	// the fifth player or make the current team's alive count unavailable.
+	// the fifth player or occupy a living player's slot.
 	state.Players = append(state.Players, Player{SteamID: "1", Name: "disconnected", Side: "CT", Inactive: true})
 	for _, theme := range Themes() {
 		r, _ := NewRenderer(theme.ID)
-		cards := 0
+		cards, liveSlots, deadSlots := 0, 0, 0
 		for _, n := range r.Scene(state, ExampleTarget) {
 			if n.ID == "player/1/name" {
 				t.Fatal("inactive player received a roster card")
@@ -210,12 +210,18 @@ func TestInactiveIdentityCannotHideCurrentRosterMember(t *testing.T) {
 			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/name") {
 				cards++
 			}
-			if n.ID == "alive/ct" && n.Text != "4" {
-				t.Fatalf("%s CT alive=%q", theme.ID, n.Text)
+			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/bar") {
+				liveSlots++
+			}
+			if strings.HasPrefix(n.ID, "player/") && strings.HasSuffix(n.ID, "/skull") {
+				deadSlots++
 			}
 		}
 		if cards != 10 {
 			t.Fatalf("%s roster has %d cards", theme.ID, cards)
+		}
+		if liveSlots != 5 || deadSlots != 5 {
+			t.Fatalf("%s live/dead roster slots=%d/%d", theme.ID, liveSlots, deadSlots)
 		}
 	}
 }
@@ -225,7 +231,7 @@ func TestASSFilterRendersPathsWithSpacesAndPunctuation(t *testing.T) {
 	if err != nil {
 		t.Skip("FFmpeg unavailable")
 	}
-	fontPath, err := mediafont.Materialize()
+	fontDir, err := mediafont.MaterializeHUD()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +251,7 @@ func TestASSFilterRendersPathsWithSpacesAndPunctuation(t *testing.T) {
 	if err := os.WriteFile(path, []byte(ass), 0600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black@0:s=1920x1080:r=60,format=rgba", "-vf", ASSFilter(path, filepath.Dir(fontPath), true), "-frames:v", "1", "-f", "null", "-")
+	cmd := exec.Command(ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black@0:s=1920x1080:r=60,format=rgba", "-vf", ASSFilter(path, fontDir, true), "-frames:v", "1", "-f", "null", "-")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("ASS filter: %v\n%s", err, output)
 	}

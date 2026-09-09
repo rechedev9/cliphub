@@ -1,7 +1,12 @@
 // Generated with the previews by `go run ./cmd/zv-hud-designs`.
 import catalog from '../public/hud/catalog.json' with { type: 'json' };
 
-export const CUSTOM_HUD_CAPTURE_PROFILE = 'broadcast-clean';
+export const CUSTOM_HUD_CAPTURE_PROFILE = 'broadcast-clean-v2';
+export const CUSTOM_HUD_LEGACY_CAPTURE_PROFILE = 'broadcast-clean';
+
+export function isCustomHudCaptureProfile(profile: string): boolean {
+  return profile === CUSTOM_HUD_CAPTURE_PROFILE || profile === CUSTOM_HUD_LEGACY_CAPTURE_PROFILE;
+}
 export const CUSTOM_HUD_THEMES = catalog;
 export type CustomHudTheme = (typeof catalog)[number];
 

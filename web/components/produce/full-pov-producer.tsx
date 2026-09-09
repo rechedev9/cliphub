@@ -8,7 +8,7 @@ import type { Match, Play } from '@/lib/api/types';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
+  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoDocument, type FullDemoOptions, type FullDemoRound,
 } from '@/lib/full-demo-plan';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
         const draft: unknown = raw ? JSON.parse(raw) : null;
         if (isFullDemoOptions(draft)) initial = draft;
       } catch { /* The durable server plan remains available when local drafts are unavailable. */ }
-      initial = fixedFullDemoFreeze(initial);
+      initial = currentFullDemoOptions(initial);
       if (loaded.document) {
         const saved = loaded.document;
         initial.editorial.manual_ranges = initial.editorial.manual_ranges.map((range) => {
@@ -68,7 +68,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
   }, [matchId, draftKey, loadAttempt]);
 
   function change(next: FullDemoOptions): void {
-    next = fixedFullDemoFreeze(next);
+    next = currentFullDemoOptions(next);
     setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { /* Saving the server plan is still explicit and durable. */ }
   }

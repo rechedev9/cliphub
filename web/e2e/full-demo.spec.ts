@@ -4,7 +4,7 @@ import { gotoStudio } from './contract.ts';
 import { FULL_DEMO_EMPTY } from '../lib/full-demo.ts';
 import { isFullDemoSnapshot, isFullDemoOptions, type FullDemoDocument } from '../lib/full-demo-plan.ts';
 import { PRODUCE_MATCH_MISSING, PRODUCE_SHORT_TITLE } from '../lib/produce/copy.ts';
-import { CUSTOM_HUD_THEMES } from '../lib/custom-hud.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_THEMES } from '../lib/custom-hud.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
@@ -67,6 +67,21 @@ test.describe('Full POV editorial constructor', () => {
         const overflow = await page.evaluate(() => window.document.documentElement.scrollWidth > window.innerWidth);
         expect(overflow, `page overflow in ${theme.id}`).toBe(false);
       }
+      await page.getByRole('button', { name: 'Ampliar HUD Mono', exact: true }).click();
+      const expanded = page.getByRole('dialog');
+      await expect(expanded).toBeVisible();
+      await expanded.getByRole('button', { name: 'Jugador', exact: true }).click();
+      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '16 926 324 134');
+      await expanded.getByRole('button', { name: 'Arma', exact: true }).click();
+      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '1540 938 364 122');
+      await expanded.getByRole('button', { name: 'Marcador', exact: true }).click();
+      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '436 12 1048 100');
+      await expanded.getByRole('button', { name: 'Fondo claro', exact: true }).click();
+      await expect(expanded.getByRole('button', { name: 'Fondo claro', exact: true })).toHaveAttribute('aria-pressed', 'true');
+      const bounds = await expanded.boundingBox();
+      expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width).toBeTruthy();
+      await expanded.getByRole('button', { name: 'Cerrar', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Ampliar HUD Mono', exact: true })).toBeFocused();
       await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0.8');
       await page.getByRole('button', { name: 'Actualizar y guardar plan' }).click();
       await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
@@ -74,7 +89,7 @@ test.describe('Full POV editorial constructor', () => {
       await expect(page.getByRole('radio', { name: 'HUD Mono', exact: true })).toBeChecked();
       await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0.8');
       await page.getByRole('button', { name: REC_CTA }).click();
-      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: 'broadcast-clean' }, overlays: { hud_theme: 'mono' } } }, approval: { approved_plan_hash: document.plan_hash } } } });
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: CUSTOM_HUD_CAPTURE_PROFILE }, overlays: { hud_theme: 'mono' } } }, approval: { approved_plan_hash: document.plan_hash } } } });
     });
   }
   test('retries an offline editorial load without allowing unplanned defaults', async ({ page }) => {

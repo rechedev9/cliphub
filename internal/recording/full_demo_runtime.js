@@ -86,22 +86,27 @@
                 cl_show_observer_crosshair: fullDemoCapture.crosshair.mode === "observed" ? 2 : 0,
                 crosshair: true, cl_demo_predict: 0, cl_trueview_show_status: 0
             };
-            if (fullDemoCapture.hud_profile === "native-clean-spectator" || fullDemoCapture.hud_profile === "broadcast-clean") Object.assign(settings, {
+            const broadcastHUD = ["broadcast-clean", "broadcast-clean-v2"].includes(fullDemoCapture.hud_profile);
+            if (fullDemoCapture.hud_profile === "native-clean-spectator" || broadcastHUD) Object.assign(settings, {
                 cl_spec_show_bindings: false, cl_drawhud_specvote: false, cl_teamid_overhead_mode: 0,
                 cl_drawhud_force_teamid_overhead: -1, hud_showtargetid: false
             });
             // Read back these CS2 cvars like every other capture invariant.
             // The native crosshair, scope, radar and killfeed remain in the
             // capture; player panels are composed later from demo telemetry.
-            if (fullDemoCapture.hud_profile === "broadcast-clean") Object.assign(settings, {
+            if (broadcastHUD) Object.assign(settings, {
                 cl_draw_only_deathnotices: true, cl_drawhud_force_radar: 1, cl_drawhud_force_deathnotices: 1
+            });
+            if (fullDemoCapture.hud_profile === "broadcast-clean-v2") Object.assign(settings, {
+                cl_hud_radar_background_alpha: .35, cl_hud_radar_map_additive: false, cl_hud_radar_scale: .85,
+                cl_hud_color: 0, safezonex: .97, safezoney: .95
             });
             Object.assign(settings, fullDemoCrosshairCvars);
             // Snapshot all values before changing the first one.
             for (const name of Object.keys(settings)) fullDemoSaveCvar(fullDemoFindCvar(name));
             fullDemoEvidence("settings_before", {values: Array.from(fullDemoSavedCvars, ([name, entry]) => ({name, value: entry.value}))});
             for (const [name, value] of Object.entries(settings)) fullDemoSetCvar(name, value);
-            if (fullDemoCapture.hud_profile === "native-clean-spectator" || fullDemoCapture.hud_profile === "broadcast-clean") {
+            if (fullDemoCapture.hud_profile === "native-clean-spectator" || broadcastHUD) {
                 for (const panel of ["HudDemoController", "Scoreboard", "HudVote", "HudDeathPanel", "HudSpectatorVignetting", "HudHealthBars", "Status", "HudChat"]) {
                     mirv.exec(`mirv_panorama panelStyle panelId=${panel} opacity=0`);
                 }
@@ -141,14 +146,40 @@
     const fullDemoEnd = (window, endTick, reason) => {
         fullDemoEvidence("certified_end", {round_id: window.segmentId, end_tick: endTick, reason});
     };
+    let fullDemoLastKnownTick = null;
     const failOrTrimFullDemo = (window, tick, reason) => {
-        if (fullDemoAllowTailTrim && activeSegment === window.segmentId && tick > window.liveEndTick && tick > window.recordStart) {
+        // This callback precedes rendering. The first unconfirmed POV frame
+        // is not recorded, so its tick can promise one more output frame than
+        // the native capture contains. Certify the last confirmed POV tick,
+        // independently of media length, and never cut inside the live interval.
+        const endTick = fullDemoLastKnownTick;
+        if (fullDemoAllowTailTrim && activeSegment === window.segmentId && Number.isInteger(endTick) && endTick < tick && endTick > window.liveEndTick && endTick > window.recordStart) {
             mirv.message(`[zackvideo] record-end-${window.segmentId}: certified tail trim\n`);
             mirv.exec("mirv_streams record end");
             fired[`record-end-${window.segmentId}`] = true;
             activeSegment = null;
-            fullDemoEnd(window, tick, reason);
+            fullDemoEnd(window, endTick, reason);
             return;
         }
         failCapture(`pov_contract_failed: ${reason}`);
+    };
+    let fullDemoPendingEnd = null;
+    const queueFullDemoEnd = (window, item, tick) => {
+        // The tick boundary dispatches before rendering. Record its confirmed
+        // frame as well: at 60 fps against a 64 Hz source, closing here can
+        // underfill the approved rounded duration by one real frame. The editor
+        // still trims to the exact approved duration; no frame is duplicated.
+        if (observedSteamId() !== targetSteamId) {
+            failOrTrimFullDemo(window, tick, `unconfirmed terminal POV during ${window.segmentId}`);
+            return;
+        }
+        fullDemoPendingEnd = {window, item};
+    };
+    const finishFullDemoFrame = () => {
+        if (fullDemoPendingEnd === null) return;
+        const {window, item} = fullDemoPendingEnd;
+        fullDemoPendingEnd = null;
+        run(item);
+        activeSegment = null;
+        fullDemoEnd(window, window.recordEnd, 'complete');
     };

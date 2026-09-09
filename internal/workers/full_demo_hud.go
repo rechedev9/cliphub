@@ -22,7 +22,7 @@ func (w *RenderWorker) materializeFullDemoHUD(ctx context.Context, j job.Job, d 
 	if err := mediaassets.VerifyContent(ctx, w.storage, j.DemoPath, d.Input.DemoSHA256, 8<<30); err != nil {
 		return nil, err
 	}
-	key := fmt.Sprintf("jobs/%s/full-demo/hud/%s/%s-%s.json", j.ID, customhud.Version, d.Input.DemoSHA256, d.Input.TargetSteamID64)
+	key := fmt.Sprintf("jobs/%s/full-demo/hud/%s/%s-%s.json", j.ID, customhud.TelemetryVersion, d.Input.DemoSHA256, d.Input.TargetSteamID64)
 	var timeline customhud.Timeline
 	valid := false
 	reader, err := w.storage.Open(key)

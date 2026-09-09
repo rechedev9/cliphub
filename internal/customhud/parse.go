@@ -33,7 +33,7 @@ func Extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 }
 
 func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickRate int, newParser func(io.Reader) demoinfocs.Parser) (Timeline, error) {
-	d := Timeline{Version: Version, DemoSHA256: demoSHA, TargetSteamID: target, TickRate: tickRate, Snapshots: []Snapshot{}}
+	d := Timeline{Version: TelemetryVersion, DemoSHA256: demoSHA, TargetSteamID: target, TickRate: tickRate, Snapshots: []Snapshot{}}
 	if len(demoSHA) != 64 || len(target) != 17 || tickRate < 1 || tickRate > 1024 {
 		return d, fmt.Errorf("invalid HUD extraction identity")
 	}

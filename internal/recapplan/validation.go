@@ -181,7 +181,7 @@ func (o Options) Validate() error {
 	}{
 		{"profile_id", o.ProfileID, []string{ProfileChill}},
 		{"source_kind", o.SourceKind, []string{"demo", "premier", "professional", "faceit"}},
-		{"hud_profile", o.Capture.HUDProfile, []string{"native-clean-spectator", "native", customhud.CaptureProfile}},
+		{"hud_profile", o.Capture.HUDProfile, []string{"native-clean-spectator", "native", customhud.CaptureProfile, customhud.LegacyCaptureProfile}},
 		{"camera_policy", o.Capture.CameraPolicy, []string{"strict-first-person"}},
 		{"contract_version", o.Capture.ContractVersion, []string{CaptureContract}},
 		{"crosshair.mode", o.Capture.Crosshair.Mode, []string{"observed", "provided-code"}},
@@ -217,10 +217,10 @@ func (o Options) Validate() error {
 		if err := customhud.ValidateTheme(o.Overlays.HUDTheme); err != nil {
 			return err
 		}
-		if o.Capture.HUDProfile != customhud.CaptureProfile {
+		if !customhud.IsCaptureProfile(o.Capture.HUDProfile) {
 			return fmt.Errorf("custom HUD requires a broadcast-clean capture")
 		}
-	} else if o.Capture.HUDProfile == customhud.CaptureProfile {
+	} else if customhud.IsCaptureProfile(o.Capture.HUDProfile) {
 		return fmt.Errorf("broadcast-clean capture requires a custom HUD")
 	}
 	if o.Capture.XRay {

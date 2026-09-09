@@ -14,8 +14,11 @@ import (
 )
 
 func fullDemoCaptureFixture(t *testing.T) RecordingPlan {
+	return fullDemoCaptureFixtureWithDeath(t, 700)
+}
+
+func fullDemoCaptureFixtureWithDeath(t *testing.T, death int) RecordingPlan {
 	t.Helper()
-	death := 700
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198377256168", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
 		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 800, DeathTick: &death, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
 	o := recapplan.DefaultOptions()
@@ -36,6 +39,67 @@ func fullDemoCaptureFixture(t *testing.T) RecordingPlan {
 	return p
 }
 
+func TestFullDemoTerminalFrameCoversTickQuantization(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Fatal("Node is required for Full Demo simulator verification")
+	}
+	p := fullDemoCaptureFixtureWithDeath(t, 708)
+	start, end := p.Segments[0].TickStart, p.Segments[0].TickEnd
+	want, err := recapplan.TickFrames(end-start, p.Tickrate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := GenerateHLAEJavaScript(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Model each phase of a 60 fps render clock against the 64 Hz source.
+	// Starts and stops dispatch before rendering on the first tick >= boundary.
+	// Closing immediately can supply floor(duration*60/64), below the approved
+	// rounded frame count, even though every observed source tick is correct.
+	for phase := range 16 {
+		overrides := make([]map[string]int, 1400)
+		for i := range overrides {
+			overrides[i] = map[string]int{"frame": i + 1, "tick": (i*64 + phase*4) / 60}
+		}
+		scenario := map[string]any{"schema_version": 1, "name": "64 Hz terminal frame", "target_steamid": p.TargetSteamID64, "frame_stage": "render-before", "max_frames": 1400, "tick_overrides": overrides, "expect": map[string]any{"outcome": "verified", "soft_quit": true}}
+		dir := t.TempDir()
+		js, sc, resultPath := filepath.Join(dir, "recording.js"), filepath.Join(dir, "scenario.json"), filepath.Join(dir, "result.json")
+		if err := os.WriteFile(js, []byte(script), 0600); err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(scenario)
+		if err := os.WriteFile(sc, b, 0600); err != nil {
+			t.Fatal(err)
+		}
+		output, err := exec.Command(node, filepath.Join("..", "..", "scripts", "capturelab", "run.mjs"), "--script", js, "--scenario", sc, "--out", resultPath).CombinedOutput()
+		if err != nil {
+			t.Fatalf("phase %d: %v\n%s", phase, err, output)
+		}
+		b, err = os.ReadFile(resultPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result struct {
+			Operations []struct {
+				StartFrame int `json:"start_frame"`
+				EndFrame   int `json:"end_frame"`
+			} `json:"record_operations"`
+		}
+		if err := json.Unmarshal(b, &result); err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Operations) != 1 {
+			t.Fatalf("phase %d: expected one recording", phase)
+		}
+		frames := result.Operations[0].EndFrame - result.Operations[0].StartFrame
+		if int64(frames) < want {
+			t.Errorf("phase %d: recorded %d real frames, approved interval requires %d", phase, frames, want)
+		}
+	}
+}
+
 func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -52,13 +116,20 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		wantEnd       int
 		providedCode  bool
 		broadcast     bool
+		legacyHUD     bool
+		tickStep      int
 	}{
 		{name: "complete", outcome: "verified", trim: true, wantEnd: 892},
+		{name: "terminal frame needs a confirmed POV", outcome: "verified", trim: true, wantEnd: 891, override: map[string]any{"from_tick": 892, "to_tick": 900, "observed_steamid": nil}},
+		{name: "unconfirmed terminal frame cannot bypass trim approval", outcome: "failed", trim: false, override: map[string]any{"from_tick": 892, "to_tick": 900, "observed_steamid": nil}},
+		{name: "POV after recorded terminal frame is not captured", outcome: "verified", trim: true, wantEnd: 892, override: map[string]any{"from_tick": 893, "to_tick": 900, "observed_steamid": nil}},
 		{name: "unknown single live frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": nil}},
 		{name: "wrong player single frame", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observed_steamid": "76561198000000001"}},
 		{name: "third person", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observer_mode": 3}},
 		{name: "roaming", outcome: "failed", trim: true, override: map[string]any{"from_tick": 500, "to_tick": 500, "observer_mode": 4}},
-		{name: "approved death tail trim", outcome: "verified", trim: true, wantEnd: 704, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
+		{name: "approved death tail trim", outcome: "verified", trim: true, wantEnd: 703, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
+		{name: "tail end uses last confirmed tick across skipped ticks", outcome: "verified", trim: true, wantEnd: 702, tickStep: 2, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
+		{name: "tail trim cannot certify an unobserved live boundary", outcome: "failed", trim: true, override: map[string]any{"from_tick": 701, "to_tick": 800, "observed_steamid": nil}},
 		{name: "unapproved death tail trim", outcome: "failed", trim: false, override: map[string]any{"from_tick": 704, "to_tick": 800, "observed_steamid": nil}},
 		{name: "missing voice mute cvar", outcome: "failed", trim: true, missing: []string{"voice_modenable"}},
 		{name: "voice mute readback mismatch", outcome: "failed", trim: true, refuse: []string{"snd_voipvolume"}},
@@ -71,11 +142,21 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 		{name: "broadcast radar unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"cl_drawhud_force_radar"}},
 		{name: "broadcast HUD refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_draw_only_deathnotices"}},
 		{name: "broadcast radar restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_drawhud_force_radar"}},
+		{name: "legacy broadcast capture remains readable", outcome: "verified", trim: true, wantEnd: 892, broadcast: true, legacyHUD: true},
+		{name: "radar background unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"cl_hud_radar_background_alpha"}},
+		{name: "radar background refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_hud_radar_background_alpha"}},
+		{name: "radar map blend refused", outcome: "failed", trim: true, broadcast: true, refuse: []string{"cl_hud_radar_map_additive"}},
+		{name: "radar scale restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_radar_scale"}},
+		{name: "safe area unavailable", outcome: "failed", trim: true, broadcast: true, missing: []string{"safezonex"}},
+		{name: "HUD color restore refused", outcome: "failed", trim: true, broadcast: true, refuseRestore: []string{"cl_hud_color"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := fullDemoCaptureFixture(t)
 			if tc.broadcast {
 				p.FullDemo.Options.Capture.HUDProfile = customhud.CaptureProfile
+				if tc.legacyHUD {
+					p.FullDemo.Options.Capture.HUDProfile = customhud.LegacyCaptureProfile
+				}
 				p.FullDemo.Options.Overlays.HUDTheme = "arena"
 				p.Stream.FullDemoCapture = p.FullDemo.Options.Capture
 			}
@@ -94,7 +175,7 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 			if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 				t.Fatal(err)
 			}
-			scenario := map[string]any{"schema_version": 1, "name": tc.name, "target_steamid": p.TargetSteamID64, "start_tick": 0, "tick_step": 1, "max_frames": 1400, "frame_stage": "render-before", "missing_cvars": tc.missing, "refuse_cvar_writes": tc.refuse, "refuse_cvar_restores": tc.refuseRestore, "expect": map[string]any{"outcome": tc.outcome, "soft_quit": true}}
+			scenario := map[string]any{"schema_version": 1, "name": tc.name, "target_steamid": p.TargetSteamID64, "start_tick": 0, "tick_step": max(1, tc.tickStep), "max_frames": 1400, "frame_stage": "render-before", "missing_cvars": tc.missing, "refuse_cvar_writes": tc.refuse, "refuse_cvar_restores": tc.refuseRestore, "expect": map[string]any{"outcome": tc.outcome, "soft_quit": true}}
 			if tc.override != nil {
 				scenario["observer_overrides"] = []any{tc.override}
 			}
@@ -162,6 +243,12 @@ func TestFullDemoExactRuntimeInExistingMIRVSimulator(t *testing.T) {
 				}
 				if tc.broadcast && (result.FinalCvars["cl_draw_only_deathnotices"] != false || result.FinalCvars["cl_drawhud_force_radar"] != float64(0) || result.FinalCvars["cl_drawhud_force_deathnotices"] != float64(0)) {
 					t.Fatal("broadcast capture did not restore the original HUD settings")
+				}
+				if tc.broadcast && (result.FinalCvars["cl_hud_radar_background_alpha"] != .627 || result.FinalCvars["cl_hud_radar_map_additive"] != true || result.FinalCvars["cl_hud_radar_scale"] != float64(1)) {
+					t.Fatal("broadcast capture did not restore the user's radar settings")
+				}
+				if tc.broadcast && (result.FinalCvars["cl_hud_color"] != float64(6) || result.FinalCvars["safezonex"] != float64(1) || result.FinalCvars["safezoney"] != float64(1)) {
+					t.Fatal("broadcast capture did not restore the user's HUD color and safe area")
 				}
 			} else {
 				if err == nil {

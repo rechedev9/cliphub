@@ -55,4 +55,14 @@ func TestCustomHUDRequiresCompatibleCaptureAndThemesReuseIt(t *testing.T) {
 			t.Fatalf("accepted incompatible options %+v", tc)
 		}
 	}
+	legacy := first
+	legacy.Options.Capture.HUDProfile = customhud.LegacyCaptureProfile
+	if err := legacy.Options.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	legacyHash, _ := legacy.CaptureHash()
+	currentHash, _ := first.CaptureHash()
+	if legacyHash == currentHash || CaptureCovers(legacy, first) || CaptureCovers(first, legacy) {
+		t.Fatal("radar profile revision reused a capture with different native settings")
+	}
 }

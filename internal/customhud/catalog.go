@@ -8,29 +8,39 @@ import (
 	"fmt"
 )
 
-const Version = "broadcast-hud-v2"
-const CaptureProfile = "broadcast-clean"
+const Version = "broadcast-hud-v4"
+const TelemetryVersion = "broadcast-hud-v2"
+const CaptureProfile = "broadcast-clean-v2"
+const LegacyCaptureProfile = "broadcast-clean"
+
+func IsCaptureProfile(profile string) bool {
+	return profile == CaptureProfile || profile == LegacyCaptureProfile
+}
 
 //go:embed themes.json
 var catalogJSON []byte
 
 type Theme struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CT          string `json:"ct"`
-	T           string `json:"t"`
-	Background  string `json:"background"`
-	Surface     string `json:"surface"`
-	Text        string `json:"text"`
-	Muted       string `json:"muted"`
-	Shape       string `json:"shape"`
-	Layout      string `json:"layout"`
-	ScoreWidth  int    `json:"score_width"`
-	FocusX      int    `json:"focus_x"`
-	FocusY      int    `json:"focus_y"`
-	FocusWidth  int    `json:"focus_width"`
-	Accent      string `json:"accent"`
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	Description  string  `json:"description"`
+	CT           string  `json:"ct"`
+	T            string  `json:"t"`
+	Background   string  `json:"background"`
+	Surface      string  `json:"surface"`
+	Text         string  `json:"text"`
+	Muted        string  `json:"muted"`
+	Shape        string  `json:"shape"`
+	Layout       string  `json:"layout"`
+	ScoreWidth   int     `json:"score_width"`
+	FocusX       int     `json:"focus_x"`
+	FocusY       int     `json:"focus_y"`
+	FocusWidth   int     `json:"focus_width"`
+	LoadoutX     int     `json:"loadout_x"`
+	LoadoutY     int     `json:"loadout_y"`
+	LoadoutWidth int     `json:"loadout_width"`
+	Accent       string  `json:"accent"`
+	Opacity      float64 `json:"opacity"`
 }
 
 var catalog = func() []Theme {
