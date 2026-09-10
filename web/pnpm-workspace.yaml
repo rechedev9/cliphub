@@ -4,7 +4,6 @@ allowBuilds:
 overrides:
   # CVE-2026-69153 / GHSA-fxqj-rqcc-2cmp: 8.5.19 is below the patched 8.5.23.
   postcss: 8.5.23
-  next@16.2.12>sharp: 0.35.3
 
 # Next's standalone output mirrors the installed node_modules layout. Under
 # pnpm's default (isolated) linker that layout is a graph of symlinks into the

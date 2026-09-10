@@ -7,10 +7,16 @@ overrides:
   # GHSA-* (undici): dev-time download/build tooling — pin to patched minors.
   "@electron/get>undici": 7.29.0
   "node-gyp>undici": 6.28.0
-  # GHSA-* (fast-uri): dev-time schema tooling (ajv) — pin to patched 3.1.5.
-  "ajv>fast-uri": 3.1.5
+  # GHSA-jqff-g426-hqxp and siblings (fast-uri): dev-time schema tooling (ajv).
+  "ajv>fast-uri": 3.1.6
+  # GHSA-* (@xmldom/xmldom): plist parsing inside electron-builder packaging.
+  "@xmldom/xmldom": 0.8.15
+  # GHSA-2883-xcg3-v3hh (js-yaml): electron-builder config parsing.
+  "js-yaml@4": 4.3.2
 minimumReleaseAgeExclude:
   - brace-expansion@1.1.16 || 2.1.2
-  - fast-uri@3.1.4
+  - fast-uri@3.1.4 || 3.1.6
+  - "@xmldom/xmldom@0.8.15"
+  - js-yaml@4.3.2
 patchedDependencies:
   brace-expansion@5.0.9: patches/brace-expansion@5.0.9.patch

@@ -1,4 +1,7 @@
 allowBuilds:
   esbuild: true
+overrides:
+  # GHSA-67mh-4wv8-2f99: drizzle-kit still pulls esbuild 0.18 through @esbuild-kit (dev only).
+  "@esbuild-kit/core-utils>esbuild": ^0.25.0
 onlyBuiltDependencies:
   - esbuild
