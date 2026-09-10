@@ -147,10 +147,36 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 			e.Status = "verified-decoded-aac"
 			return e, nil
 		}
-		attemptTarget.TargetILUFS += max(-1.0, min(1.0, target.TargetILUFS-*decoded.IntegratedLUFS))
-		if *decoded.TruePeakDBTP > target.TargetTPDBTP {
-			attemptTarget.TargetTPDBTP -= *decoded.TruePeakDBTP - target.TargetTPDBTP + 0.2
+		next, changed := nextMasterTarget(attemptTarget, target, decoded)
+		if !changed {
+			// loudnorm cannot be pushed any further; another native master
+			// would repeat a failed target, so hand over to AAC recovery.
+			break
 		}
+		attemptTarget = next
 	}
 	return recoverFullDemoAAC(ctx, ffmpeg, input, output, logDir, target, duration, e, fallbackProgress)
+}
+
+// loudnorm rejects targets outside these ranges, so retargeting must stay
+// within them instead of failing the whole render with "Result too large".
+const (
+	loudnormMinILUFS  = -70.0
+	loudnormMaxILUFS  = -5.0
+	loudnormMinTPDBTP = -9.0
+	loudnormMaxTPDBTP = 0.0
+)
+
+// nextMasterTarget derives the next native master target from the decoded AAC
+// measurement, clamped to loudnorm's accepted ranges. It reports false when the
+// clamped target is identical to the current one, meaning no headroom remains.
+func nextMasterTarget(current, target recapplan.LoudnessOptions, decoded LoudnessMeasurement) (recapplan.LoudnessOptions, bool) {
+	next := current
+	next.TargetILUFS += max(-1.0, min(1.0, target.TargetILUFS-*decoded.IntegratedLUFS))
+	if *decoded.TruePeakDBTP > target.TargetTPDBTP {
+		next.TargetTPDBTP -= *decoded.TruePeakDBTP - target.TargetTPDBTP + 0.2
+	}
+	next.TargetILUFS = max(loudnormMinILUFS, min(loudnormMaxILUFS, next.TargetILUFS))
+	next.TargetTPDBTP = max(loudnormMinTPDBTP, min(loudnormMaxTPDBTP, next.TargetTPDBTP))
+	return next, next != current
 }

@@ -185,6 +185,48 @@ func TestFullDemoAACRecoveryCorrectionIsBounded(t *testing.T) {
 	}
 }
 
+// Regression for a 14-minute Windows program whose native AAC masters kept
+// overshooting the true-peak target until the retargeting loop asked loudnorm
+// for TP=-10.18, outside its [-9, 0] range, failing the render at 81 %.
+func TestFullDemoMasterRetargetStaysWithinLoudnormRange(t *testing.T) {
+	target := recapplan.DefaultOptions().Audio.Loudness
+	current := target
+	current.TargetTPDBTP -= 0.3
+	lufs, peak := target.TargetILUFS, 2.99
+	decoded := LoudnessMeasurement{Status: "measured", IntegratedLUFS: &lufs, TruePeakDBTP: &peak}
+	var changed bool
+	for i := range 5 {
+		current, changed = nextMasterTarget(current, target, decoded)
+		if current.TargetTPDBTP < loudnormMinTPDBTP || current.TargetTPDBTP > loudnormMaxTPDBTP {
+			t.Fatalf("attempt %d produced an out-of-range loudnorm target: %+v", i, current)
+		}
+		if !changed {
+			if i == 0 {
+				t.Fatal("first retarget must still have headroom")
+			}
+			break
+		}
+	}
+	if changed {
+		t.Fatalf("retargeting never reported exhausted headroom: %+v", current)
+	}
+	if current.TargetTPDBTP != loudnormMinTPDBTP {
+		t.Fatalf("expected the true-peak floor once exhausted: %+v", current)
+	}
+	if current.PolicyVersion != target.PolicyVersion || current.TargetLRA != target.TargetLRA {
+		t.Fatalf("retargeting altered unrelated policy fields: %+v", current)
+	}
+
+	quiet, inRange := -80.0, target.TargetTPDBTP-1
+	current = target
+	for range 80 {
+		current, _ = nextMasterTarget(current, target, LoudnessMeasurement{Status: "measured", IntegratedLUFS: &quiet, TruePeakDBTP: &inRange})
+	}
+	if current.TargetILUFS != loudnormMaxILUFS || current.TargetTPDBTP != target.TargetTPDBTP {
+		t.Fatalf("integrated loudness escaped the loudnorm range: %+v", current)
+	}
+}
+
 func TestFullDemoAACRecoveryUnavailableDoesNotAcceptFailedAudio(t *testing.T) {
 	dir := t.TempDir()
 	low, peak := -19.81, -.26
