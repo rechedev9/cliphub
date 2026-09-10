@@ -35,6 +35,23 @@ type Options struct {
 	Transitions *TransitionOptions `json:"transitions,omitempty"`
 }
 
+// OverlaySource resolves the intro/outro overlay layout for the plan. The demo
+// origin (source_kind) owns the format: a FACEIT, Premier or professional
+// demo keeps its layout regardless of any later cosmetic option such as a
+// custom HUD. overlays.source only adds FACEIT enrichment to a plain demo and
+// is kept for documents approved before source_kind drove the layout. The
+// empty result means demo-facts-only overlays.
+func (o Options) OverlaySource() string {
+	switch o.SourceKind {
+	case "faceit", "premier", "professional":
+		return o.SourceKind
+	}
+	if o.Overlays.Source == "faceit" {
+		return "faceit"
+	}
+	return ""
+}
+
 type CaptureOptions struct {
 	HUDProfile      string           `json:"hud_profile"`
 	XRay            bool             `json:"xray"`

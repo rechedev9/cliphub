@@ -140,7 +140,7 @@ func (r EditRequest) Validate() error {
 			r.IntroText != "" || r.OutroText != "" || r.KeyDropFamily != "" || r.KeyDropStyle != "" || r.KeyDropCode != "" ||
 			r.KeyDropPositionY != nil || r.KeyDropStartSeconds != nil || r.KeyDropEndSeconds != nil ||
 			r.VoiceComms != o.Audio.Voice.Enabled || r.VoiceVolume == nil || *r.VoiceVolume != o.Audio.Voice.Gain ||
-			r.CoverStrategy != o.Outputs.CoverPolicy || r.DemoSource != fullDemoOverlaySource(o.Overlays.Source) || r.OverlayTheme != o.Overlays.Theme {
+			r.CoverStrategy != o.Outputs.CoverPolicy || r.DemoSource != o.OverlaySource() || r.OverlayTheme != o.Overlays.Theme {
 			return fmt.Errorf("full demo edit fields contradict the approved document")
 		}
 	}
@@ -234,15 +234,8 @@ func FullDemoEditRequest(snapshot recapplan.Snapshot) EditRequest {
 		FullDemo: &snapshot, Format: FormatLandscape16x9, KillEffect: KillEffectClean,
 		Transition: TransitionCut, MatchRecap: true, NativeHUD: true,
 		VoiceComms: o.Audio.Voice.Enabled, VoiceVolume: &voice,
-		CoverStrategy: o.Outputs.CoverPolicy, DemoSource: fullDemoOverlaySource(o.Overlays.Source), OverlayTheme: o.Overlays.Theme,
+		CoverStrategy: o.Outputs.CoverPolicy, DemoSource: o.OverlaySource(), OverlayTheme: o.Overlays.Theme,
 	}
-}
-
-func fullDemoOverlaySource(source string) string {
-	if source == "demo" {
-		return ""
-	}
-	return source
 }
 
 func (r EditRequest) UsesFACEITOverlay() bool {

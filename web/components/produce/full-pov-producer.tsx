@@ -8,7 +8,7 @@ import type { Match, Play } from '@/lib/api/types';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
+  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoDocument, type FullDemoOptions, type FullDemoRound,
 } from '@/lib/full-demo-plan';
 import { Button } from '@/components/ui/button';
@@ -110,7 +110,7 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
     { label: 'Transiciones', value: fullDemoTransitionSummary(options.transitions) },
     { label: 'Música', value: options.audio.music.enabled ? `${options.audio.music.assets.length} pistas` : 'Desactivada' },
     { label: 'Sponsor', value: options.sponsor.enabled ? 'Incluido' : 'Desactivado' },
-    { label: 'Overlays', value: `Roster ${options.overlays.roster ? 'sí' : 'no'} · marcador ${options.overlays.scoreboard ? 'sí' : 'no'}` },
+    { label: 'Overlays', value: `${fullDemoOverlayLabel(fullDemoOverlaySource(options))} · roster ${options.overlays.roster ? 'sí' : 'no'} · marcador ${options.overlays.scoreboard ? 'sí' : 'no'}` },
   ] : [];
 
   return <>
@@ -155,9 +155,6 @@ export function FullPovProducer({ matchId, match, recBusy, seriesId }: FullPovPr
         <div className="mt-4 space-y-6">
           <section className="space-y-4">
             <h3 className="font-display text-body font-semibold uppercase text-fg-1">Captura</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FullDemoChoice label="Origen de la demo" value={options.source_kind} options={[{ value: 'demo', label: 'Demo local' }, { value: 'premier', label: 'Premier' }, { value: 'professional', label: 'Profesional' }, { value: 'faceit', label: 'FACEIT' }]} onChange={(source_kind) => change({ ...options, source_kind })} />
-            </div>
             <FullDemoToggle label="Si no hay crosshair en la demo, acepto el de captura" value={options.capture.crosshair.allow_capture_default} onChange={(allow_capture_default) => change({ ...options, capture: { ...options.capture, crosshair: { ...options.capture.crosshair, allow_capture_default } } })} />
             <p className="text-meta text-fg-3">Xray desactivado. Sin cámara de muerte, cambios de jugador ni adornos de Shorts.</p>
           </section>

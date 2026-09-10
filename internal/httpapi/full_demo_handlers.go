@@ -166,10 +166,10 @@ func (h *Handlers) GetFullDemoPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !found {
-		writeJSON(w, http.StatusOK, map[string]any{"document": nil, "defaults": recapplan.DefaultOptions(), "compatibility": "legacy-until-planned-and-approved"})
+		writeJSON(w, http.StatusOK, map[string]any{"document": nil, "defaults": h.fullDemoDefaultOptions(j.ID), "compatibility": "legacy-until-planned-and-approved"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"document": d, "defaults": recapplan.DefaultOptions(), "compatibility": "editorial-v1"})
+	writeJSON(w, http.StatusOK, map[string]any{"document": d, "defaults": h.fullDemoDefaultOptions(j.ID), "compatibility": "editorial-v1"})
 }
 
 func (h *Handlers) fullDemoFFmpeg() string {

@@ -173,13 +173,32 @@ export function approveFullDemo(document: FullDemoDocument, timestamp = new Date
   if (!isFullDemoSnapshot(snapshot)) throw new Error('El plan tiene bloqueos o está incompleto.');
   return snapshot;
 }
+/**
+ * Mirrors recapplan.Options.OverlaySource: the demo origin owns the intro/outro
+ * layout; overlays.source only adds FACEIT data to a plain demo.
+ */
+export function fullDemoOverlaySource(options: FullDemoOptions): EditConfig['demoSource'] {
+  if (options.source_kind !== 'demo') return options.source_kind;
+  return options.overlays.source === 'faceit' ? 'faceit' : undefined;
+}
+
+export function fullDemoOverlayLabel(source: EditConfig['demoSource']): string {
+  switch (source) {
+    case 'faceit': return 'Formato FACEIT';
+    case 'premier': return 'Formato Premier';
+    case 'professional': return 'Formato profesional';
+    default: return 'Formato de la partida';
+  }
+}
+
 export function fullDemoPlanEdit(snapshot: FullDemoSnapshot): EditConfig {
   const options = snapshot.document.options;
+  const demoSource = fullDemoOverlaySource(options);
   return {
     fullDemo: snapshot, format: 'landscape-16x9', killEffect: 'clean', transition: 'cut', intro: false, outro: false,
     hookText: false, killCounter: false, matchRecap: true, nativeHud: true, voiceComms: options.audio.voice.enabled,
     voiceVolume: options.audio.voice.gain, coverStrategy: options.outputs.cover_policy, overlayTheme: options.overlays.theme,
-    ...(options.overlays.source === 'faceit' ? { demoSource: 'faceit' } : {}),
+    ...(demoSource ? { demoSource } : {}),
   };
 }
 

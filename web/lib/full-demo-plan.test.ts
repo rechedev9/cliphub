@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
+  approveFullDemo, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
   loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoOverlayImage, fullDemoOverlayImageURL, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
@@ -46,6 +46,29 @@ test('screenshot upload stores an image without requiring music provenance', asy
     return Response.json({ ...ref, width: 436, height: 513, content_type: 'image/png' }, { status: 201 });
   });
   assert.deepEqual(await uploadFullDemoOverlayImage(file), ref);
+});
+
+// Regression: a FACEIT demo rendered with custom HUD 07 (Circuit) produced
+// demo-facts-only overlays because only overlays.source drove the layout.
+test('the demo origin owns the overlay format regardless of the custom HUD', () => {
+  const cases: Array<[FullDemoOptions['source_kind'], FullDemoOptions['overlays']['source'], string | undefined, string | undefined]> = [
+    ['faceit', 'demo', 'circuit', 'faceit'], ['faceit', 'demo', undefined, 'faceit'], ['faceit', 'faceit', 'circuit', 'faceit'],
+    ['premier', 'faceit', 'arena', 'premier'], ['professional', 'demo', undefined, 'professional'],
+    ['demo', 'faceit', undefined, 'faceit'], ['demo', 'demo', 'circuit', undefined],
+  ];
+  for (const [sourceKind, overlaySource, hud, want] of cases) {
+    const snapshot = fixture();
+    const options = snapshot.document.options;
+    options.source_kind = sourceKind;
+    options.overlays.source = overlaySource;
+    if (hud) { options.overlays.hud_theme = hud; options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE; }
+    assert.ok(isFullDemoOptions(options));
+    assert.equal(fullDemoOverlaySource(options), want, `${sourceKind}/${overlaySource}/${hud}`);
+    const edit = fullDemoPlanEdit(snapshot);
+    assert.equal(edit.demoSource, want);
+    assert.equal(buildEditRequest(edit).demo_source, want);
+    assert.equal(parseEffectiveEditConfig(buildEditRequest(edit))?.demoSource, want);
+  }
 });
 
 test('all ten custom HUDs survive approval, persistence and the render request', () => {

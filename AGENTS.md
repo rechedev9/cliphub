@@ -57,14 +57,42 @@ Rules that follow from it:
 - Working-directory logs (`out/logs/program-*.txt`) are deleted with the
   temp workdir on failure unless `ZV_MEDIA_WORK_DIR` is set.
 
+## Full Demo overlay format (`internal/demooverlay`, `recapplan.Options`)
+
+### Incident: FACEIT demo rendered with demo-facts-only overlays (Studio 3.0.1, 2026-09-10)
+
+The first Full Demo render with a custom HUD (Circuit) came out with the
+legacy intro/outro layout instead of the FACEIT one. The HUD was not the
+cause: the editorial plan flow (`f2b74939`) had replaced the always-on
+`demoSource: faceit` of the old Studio chain with a plan field
+`overlays.source` that defaults to `"demo"`, and that field was the only
+input to the overlay layout. `source_kind` ("Origen de la demo") was
+validated but never read. Every render between the two flows had failed for
+unrelated reasons, so the format change surfaced days later on the first
+successful render and was blamed on the newest feature.
+
+Rules that follow from it:
+
+- `recapplan.Options.OverlaySource()` is the single resolver: the demo origin
+  (`source_kind`) owns the intro/outro layout; `overlays.source` only adds
+  FACEIT enrichment to a plain demo. `web/lib/full-demo-plan.ts`
+  `fullDemoOverlaySource` mirrors it and both are covered by tests.
+- Do not add a plan option that the render never reads. If a field exists in
+  the wire and the UI, something must consume it or it must be removed.
+- When a user reports a regression "caused by feature X", check telemetry
+  for the last successful run of the same path before X shipped. If every
+  run in between failed, the regression window is the whole gap, not X.
+
 ## Local test environment caveat
 
-`TestFullDemoConcatsTwoFixtureRounds` and
-`TestFullDemoOverlayCompositesOntoFixtureCapture` fail on machines with
+`TestFullDemoConcatsTwoFixtureRounds`,
+`TestFullDemoOverlayCompositesOntoFixtureCapture` and the
+`internal/demooverlay` `RenderPNGs` tests fail on machines with
 FFmpeg 9.x because `-filter_complex_script` was removed. The shipped FFmpeg
-is 8.1.2, where they pass. Treat those two as pre-existing when running
-`go test ./internal/editor/` locally with a newer FFmpeg, and do not "fix"
-them by changing the shipped command unless the bundled FFmpeg is upgraded.
+is 8.1.2, where they pass. Treat those as pre-existing when running
+`go test ./internal/editor/ ./internal/demooverlay/` locally with a newer
+FFmpeg, and do not "fix" them by changing the shipped command unless the
+bundled FFmpeg is upgraded.
 
 ## Releases
 

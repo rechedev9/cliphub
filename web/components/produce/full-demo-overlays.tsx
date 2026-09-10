@@ -11,6 +11,8 @@ export function FullDemoOverlays({ options, map, onChange, onAssetBusy }: { opti
   const change = (next: Partial<FullDemoOptions['overlays']>): void => onChange({ ...options, overlays: { ...overlay, ...next } });
   const screenshots = overlay.mode === 'screenshots';
   return <div className="min-w-0 space-y-4">
+    <FullDemoChoice label="Origen de la demo" value={options.source_kind} options={[{ value: 'faceit', label: 'FACEIT' }, { value: 'premier', label: 'Premier' }, { value: 'professional', label: 'Profesional' }, { value: 'demo', label: 'Demo local' }]} onChange={(source_kind) => onChange({ ...options, source_kind })} />
+    <p className="text-meta text-fg-3">El origen fija el formato del roster y del marcador. Un custom HUD no lo cambia.</p>
     <FullDemoChoice label="Cómo crear los overlays" value={overlay.mode ?? 'generated'} options={[{ value: 'generated', label: 'Generar automáticamente' }, { value: 'screenshots', label: 'Subir capturas' }]} onChange={(mode) => change({ mode })} />
     <FullDemoToggle label="Overlay de roster" value={overlay.roster} onChange={(roster) => change({ roster })} />
     <FullDemoToggle label="Overlay de marcador" value={overlay.scoreboard} onChange={(scoreboard) => change({ scoreboard })} />
@@ -27,8 +29,10 @@ export function FullDemoOverlays({ options, map, onChange, onAssetBusy }: { opti
       </> : null}
     </> : <>
       <FullDemoChoice label="Tema del overlay" value={overlay.theme} options={[{ value: 'neon-violet', label: 'Neón violeta' }, { value: 'faceit-orange', label: 'Naranja' }]} onChange={(theme) => change({ theme })} />
-      <FullDemoChoice label="Datos del overlay" value={overlay.source} options={[{ value: 'demo', label: 'Esta partida' }, { value: 'faceit', label: 'FACEIT (requiere conexión)' }]} onChange={(source) => change({ source })} />
-      <p className="text-meta text-fg-3">El roster y el marcador se crean con los datos disponibles. FACEIT añade perfiles y estadísticas recientes.</p>
+      {options.source_kind === 'demo' ? <>
+        <FullDemoChoice label="Datos del overlay" value={overlay.source} options={[{ value: 'demo', label: 'Esta partida' }, { value: 'faceit', label: 'FACEIT (requiere conexión)' }]} onChange={(source) => change({ source })} />
+        <p className="text-meta text-fg-3">El roster y el marcador se crean con los datos disponibles. FACEIT añade perfiles y estadísticas recientes.</p>
+      </> : <p className="text-meta text-fg-3">{options.source_kind === 'faceit' ? 'Roster y marcador con niveles, ELO y estadísticas FACEIT (requiere conexión).' : 'Roster y marcador con los datos de la partida sobre las placas del origen.'}</p>}
     </>}
   </div>;
 }

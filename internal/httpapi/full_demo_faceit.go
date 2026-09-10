@@ -18,6 +18,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/parser"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
@@ -110,6 +111,33 @@ func (h *Handlers) readStoredFullDemoFaceit(id uuid.UUID) (map[string]demooverla
 		return nil, false, fmt.Errorf("decode stored FACEIT overlay snapshot: %w", err)
 	}
 	return enrichment, true, nil
+}
+
+// fullDemoDefaultOptions seeds a job's first plan with the overlay origin the
+// job already proved: the source persisted by an earlier Full Demo capture,
+// or FACEIT when its roster snapshot is stored. A stored origin is evidence,
+// so a fresh plan keeps the FACEIT layout instead of silently downgrading to
+// demo-facts-only overlays.
+func (h *Handlers) fullDemoDefaultOptions(id uuid.UUID) recapplan.Options {
+	options := recapplan.DefaultOptions()
+	if h == nil || h.storage == nil {
+		return options
+	}
+	if rc, err := h.storage.Open(artifacts.FullDemoSourceKey(id)); err == nil {
+		var doc struct {
+			Source string `json:"source"`
+		}
+		decodeErr := json.NewDecoder(rc).Decode(&doc)
+		_ = rc.Close()
+		if source := demooverlay.NormalizeSource(doc.Source); decodeErr == nil && source != "" {
+			options.SourceKind = source
+			return options
+		}
+	}
+	if _, found, err := h.readStoredFullDemoFaceit(id); err == nil && found {
+		options.SourceKind = demooverlay.SourceFACEIT
+	}
+	return options
 }
 
 func fullDemoEnrichment(player faceit.OverlayPlayer) demooverlay.Enrichment {
