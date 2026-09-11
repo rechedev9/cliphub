@@ -28,6 +28,15 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	if ffprobe == "" {
 		return nil, fmt.Errorf("full_demo_output_invalid: ffprobe is required")
 	}
+	type digestResult struct {
+		hash string
+		err  error
+	}
+	digestCh := make(chan digestResult, 1)
+	go func() {
+		hash, err := mediaassets.FileDigest(ctx, path, 64<<30)
+		digestCh <- digestResult{hash, err}
+	}()
 	progress.report("Comprobando formato del vídeo", 0)
 	output, err := runFFmpegOutput(ctx, []string{ffprobe, "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels,duration", "-of", "json", path}, "Full Demo delivery probe")
 	if err != nil {
@@ -93,10 +102,11 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 		return nil, fmt.Errorf("full_demo_output_invalid: missing delivered file")
 	}
 	progress.report("Verificando archivo final", .9)
-	e.ContentSHA256, err = mediaassets.FileDigest(ctx, path, 64<<30)
-	if err != nil {
-		return nil, err
+	digest := <-digestCh
+	if digest.err != nil {
+		return nil, digest.err
 	}
+	e.ContentSHA256 = digest.hash
 	e.FullDecode = true
 	return e, nil
 }

@@ -6,10 +6,40 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/rechedev9/cliphub/internal/composition"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
+
+const fullDemoCaptureSeekPrerollFrames int64 = 2 * recapplan.OutputFPS
+
+func fullDemoMusicSamples(timeline []recapplan.TimelineItem) []int64 {
+	samples := make([]int64, len(timeline))
+	var music int64
+	for i, item := range timeline {
+		samples[i] = music
+		if item.Role == "round" {
+			music += item.EndSample - item.StartSample
+		}
+	}
+	return samples
+}
+
+func fullDemoCaptureSeek(sourceOffset int64) (seekFrames, trimStart int64) {
+	if sourceOffset <= fullDemoCaptureSeekPrerollFrames {
+		return 0, sourceOffset
+	}
+	return sourceOffset - fullDemoCaptureSeekPrerollFrames, fullDemoCaptureSeekPrerollFrames
+}
+
+func fullDemoItemJobs() int {
+	jobs := normalizeRenderJobs(0)
+	if jobs > 3 {
+		return 3
+	}
+	return jobs
+}
 
 func sampleWindow(input string, start, count int64, gain float64, label string) string {
 	return fmt.Sprintf("%saresample=48000:first_pts=0,aformat=channel_layouts=stereo,atrim=start_sample=%d:end_sample=%d,asetpts=PTS-STARTPTS,apad=whole_len=%d,atrim=end_sample=%d,volume=%s[%s]", input, start, start+count, count, count, decimal(gain), label)
@@ -190,7 +220,7 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 	edges := fullDemoEdges(short, item)
 	command := []string{runtime.ffmpeg, "-y", "-v", "error"}
 	var audio string
-	var sourceOffset int64
+	var sourceOffset, trimStart int64
 	if item.Role == "round" {
 		var input string
 		var captureStart int
@@ -214,6 +244,11 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 			return nil, err
 		}
 		sourceOffset = offset + item.SourceOffsetFrames
+		var seekFrames int64
+		seekFrames, trimStart = fullDemoCaptureSeek(sourceOffset)
+		if seekFrames > 0 {
+			command = append(command, "-ss", decimal(float64(seekFrames)/recapplan.OutputFPS))
+		}
 		command = append(command, "-i", input)
 		voiceFrame, err := recapplan.TickFrames(item.SourceStartTick, short.FullDemo.Effective.Clock.TickRate)
 		if err != nil {
@@ -238,7 +273,7 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 			command = append(command, "-ss", decimal(float64(musicSample)/recapplan.SampleRate), "-i", runtime.playlist)
 			musicInput = 1 + len(runtime.voicePaths) + edges.tailCount
 		}
-		audio = fullDemoRoundAudioWithTransitions(options.Audio, sourceOffset*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), musicInput, edges)
+		audio = fullDemoRoundAudioWithTransitions(options.Audio, trimStart*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), musicInput, edges)
 	} else if item.Role == "sponsor" {
 		video, err := runtime.execution.assetPath(*options.Sponsor.Video)
 		if err != nil {
@@ -258,7 +293,7 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 	} else {
 		return nil, fmt.Errorf("unsupported Full Demo timeline role %s", item.Role)
 	}
-	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s[v]", sourceOffset, sourceOffset+frames, fullDemoTransitionVideo(short, item, edges))
+	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s[v]", trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
 	hudFilter, err := fullDemoHUDFilter(short, item, output)
 	if err != nil {
 		return nil, err
@@ -288,25 +323,65 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 	if err := prepareFullDemoTransitions(ctx, short); err != nil {
 		return err
 	}
-	var musicSample int64
 	timeline := short.FullDemo.Effective.Timeline
 	totalFrames := float64(timeline[len(timeline)-1].EndFrame)
-	for i, item := range short.FullDemo.Effective.Timeline {
-		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.nut", i))
-		command, err := fullDemoItemCommand(*short, item, musicSample, path)
-		if err != nil {
-			return err
-		}
-		stage := fmt.Sprintf("Montando corte %d de %d", i+1, len(timeline))
-		onFraction := progress.pass(stage, .3+.7*float64(item.StartFrame)/totalFrames, .3+.7*float64(item.EndFrame)/totalFrames)
-		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS, onFraction); err != nil {
-			return err
-		}
-		short.fullDemo.preparedInputs = append(short.fullDemo.preparedInputs, path)
-		if item.Role == "round" {
-			musicSample += item.EndSample - item.StartSample
-		}
+	musicSamples := fullDemoMusicSamples(timeline)
+	paths := make([]string, len(timeline))
+	tracker := &fullDemoItemProgress{
+		fractions: make([]float64, len(timeline)),
+		done:      make([]bool, len(timeline)),
+		weights:   make([]float64, len(timeline)),
+		total:     totalFrames,
+		progress:  progress,
 	}
+	for i, item := range timeline {
+		tracker.weights[i] = float64(item.EndFrame - item.StartFrame)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var (
+		wg       sync.WaitGroup
+		once     sync.Once
+		firstErr error
+	)
+	sem := make(chan struct{}, fullDemoItemJobs())
+	for i, item := range timeline {
+		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.nut", i))
+		command, err := fullDemoItemCommand(*short, item, musicSamples[i], path)
+		if err != nil {
+			cancel()
+			wg.Wait()
+			return err
+		}
+		paths[i] = path
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, item recapplan.TimelineItem, command []string, path string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			stage := fmt.Sprintf("Montando corte %d de %d", i+1, len(timeline))
+			onFraction := func(fraction float64) { tracker.set(i, stage, fraction) }
+			if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS, onFraction); err != nil {
+				once.Do(func() {
+					firstErr = err
+					cancel()
+				})
+				return
+			}
+			tracker.markDone(i, stage)
+		}(i, item, command, path)
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	short.fullDemo.preparedInputs = paths
 	var list strings.Builder
 	list.WriteString("ffconcat version 1.0\n")
 	for i, path := range short.fullDemo.preparedInputs {
@@ -318,4 +393,65 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 		fmt.Fprintf(&list, "duration %.9f\n", float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS)
 	}
 	return os.WriteFile(fullDemoConcatListPath(*short), []byte(list.String()), 0600)
+}
+
+type fullDemoItemProgress struct {
+	mu        sync.Mutex
+	fractions []float64
+	done      []bool
+	weights   []float64
+	total     float64
+	progress  fullDemoProgress
+}
+
+func (s *fullDemoItemProgress) overallLocked() float64 {
+	var completed float64
+	for j, w := range s.weights {
+		f := s.fractions[j]
+		if s.done[j] {
+			f = 1
+		}
+		completed += w * f
+	}
+	if s.total <= 0 {
+		return 1
+	}
+	return .3 + .7*(completed/s.total)
+}
+
+func (s *fullDemoItemProgress) set(i int, stage string, fraction float64) {
+	if s == nil {
+		return
+	}
+	if fraction < 0 {
+		fraction = 0
+	}
+	if fraction > 1 {
+		fraction = 1
+	}
+	s.mu.Lock()
+	if i < 0 || i >= len(s.fractions) || s.done[i] {
+		s.mu.Unlock()
+		return
+	}
+	s.fractions[i] = fraction
+	overall := s.overallLocked()
+	s.mu.Unlock()
+	s.progress.report(stage, overall)
+}
+
+func (s *fullDemoItemProgress) markDone(i int, stage string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if i < 0 || i >= len(s.fractions) {
+		s.mu.Unlock()
+		return
+	}
+	s.done[i] = true
+	s.fractions[i] = 1
+	overall := s.overallLocked()
+	s.mu.Unlock()
+	s.progress.report(stage, overall)
 }

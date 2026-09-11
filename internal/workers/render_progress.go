@@ -21,6 +21,7 @@ type renderProgressReporter struct {
 	jobID        uuid.UUID
 	progressPath string
 	now          func() time.Time
+	lastBody     []byte
 }
 
 func newRenderProgressReporter(store storage.Storage, jobID uuid.UUID, progressPath string) *renderProgressReporter {
@@ -56,7 +57,14 @@ func (r *renderProgressReporter) report() error {
 	if err != nil {
 		return err
 	}
-	return r.store.Put(artifacts.RenderProgressKey(r.jobID), bytes.NewReader(body))
+	if bytes.Equal(r.lastBody, body) {
+		return nil
+	}
+	if err := r.store.Put(artifacts.RenderProgressKey(r.jobID), bytes.NewReader(body)); err != nil {
+		return err
+	}
+	r.lastBody = bytes.Clone(body)
+	return nil
 }
 
 func readEditorProgressFile(path string) (editor.EditorProgress, bool, error) {

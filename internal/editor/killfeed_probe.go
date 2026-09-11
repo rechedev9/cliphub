@@ -55,6 +55,7 @@ const (
 	// killfeed effect (forward window plus any backward fallback samples),
 	// matching the historical up-to-8-samples budget.
 	killfeedSampleMaxCount = 8
+	killfeedSampleJobs     = 4
 )
 
 // killfeedProbeResult is the outcome of measuring one effect: whether to keep
@@ -75,14 +76,14 @@ type killfeedProbeResult struct {
 // ("edit-request") overlays and keeps script-authored crops with a warning.
 //
 // Each killfeed effect is measured in its own goroutine, bounded by the same
-// sem/WaitGroup pattern shortPackRenderer.render uses: a kill's own sample
-// window is walked in series (the first hit wins, so within-effect
-// parallelism buys nothing), but a short with several kills probes them
-// concurrently. Effects are read into local copies before any goroutine
-// starts, and results land in a slice indexed by the effect's original
-// position, so the final filter-and-merge stays single-threaded and the
-// returned warnings keep the original effect order regardless of which
-// goroutine finished first.
+// sem/WaitGroup pattern shortPackRenderer.render uses. A kill's sample window
+// is probed concurrently (up to killfeedSampleJobs at a time); results are
+// stored by sample index and the first in-order highlight still wins, so a
+// later sample that happens to finish first cannot steal the crop. Effects
+// are read into local copies before any goroutine starts, and results land
+// in a slice indexed by the effect's original position, so the final
+// filter-and-merge stays single-threaded and the returned warnings keep the
+// original effect order regardless of which goroutine finished first.
 func refineKillfeedEffects(short *ShortEdit, probe func(input string, atSeconds float64) (image.Image, error)) []string {
 	if probe == nil {
 		return nil
@@ -134,6 +135,29 @@ func probeKillfeedEffect(short *ShortEdit, effect Effect, probe func(input strin
 		}
 	}
 
+	type sampleOutcome struct {
+		frame image.Image
+		err   error
+	}
+	outcomes := make([]sampleOutcome, len(samples))
+	jobs := killfeedSampleJobs
+	if jobs > len(samples) {
+		jobs = len(samples)
+	}
+	sem := make(chan struct{}, jobs)
+	var wg sync.WaitGroup
+	for i, sampleAt := range samples {
+		wg.Add(1)
+		go func(i int, sampleAt float64) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			frame, err := probe(input, sampleAt)
+			outcomes[i] = sampleOutcome{frame: frame, err: err}
+		}(i, sampleAt)
+	}
+	wg.Wait()
+
 	var (
 		lastErr     error
 		sawEmpty    bool
@@ -141,13 +165,12 @@ func probeKillfeedEffect(short *ShortEdit, effect Effect, probe func(input strin
 		foundSample float64
 		rect        image.Rectangle
 	)
-	for _, sampleAt := range samples {
-		frame, err := probe(input, sampleAt)
-		if err != nil {
-			lastErr = err
+	for i, sampleAt := range samples {
+		if outcomes[i].err != nil {
+			lastErr = outcomes[i].err
 			continue
 		}
-		r, ok := detectKillfeedHighlight(frame)
+		r, ok := detectKillfeedHighlight(outcomes[i].frame)
 		if !ok {
 			sawEmpty = true
 			continue

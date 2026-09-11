@@ -118,6 +118,84 @@ test('proxyStream still forwards Range and mirrors the upstream range headers', 
   assert.equal(await response.text(), 'deo');
 });
 
+test('proxyStream keeps a caller immutable policy over upstream must-revalidate', async () => {
+  const { response } = await withUpstream(
+    () =>
+      new Response('video-bytes', {
+        status: 200,
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': '11',
+          'cache-control': 'private, max-age=0, must-revalidate',
+          'last-modified': 'Thu, 10 Sep 2026 12:00:00 GMT',
+        },
+      }),
+    () => proxyStream(UPSTREAM, 'video/mp4', undefined, IMMUTABLE_CACHE_CONTROL),
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), IMMUTABLE_CACHE_CONTROL);
+  assert.equal(response.headers.get('last-modified'), 'Thu, 10 Sep 2026 12:00:00 GMT');
+});
+
+test('proxyStream copies upstream cache validators and prefers upstream Cache-Control', async () => {
+  const { response, init } = await withUpstream(
+    () =>
+      new Response('jpeg-bytes', {
+        status: 200,
+        headers: {
+          'content-type': 'image/jpeg',
+          'content-length': '10',
+          'cache-control': 'private, max-age=0, must-revalidate',
+          'last-modified': 'Thu, 10 Sep 2026 12:00:00 GMT',
+          etag: '"cover1"',
+        },
+      }),
+    () =>
+      proxyStream(
+        UPSTREAM,
+        'image/jpeg',
+        new Request(UPSTREAM, {
+          headers: { 'If-Modified-Since': 'Thu, 10 Sep 2026 12:00:00 GMT', 'If-None-Match': '"cover1"' },
+        }),
+      ),
+  );
+
+  const headers = init?.headers as Record<string, string>;
+  assert.equal(headers['if-modified-since'], 'Thu, 10 Sep 2026 12:00:00 GMT');
+  assert.equal(headers['if-none-match'], '"cover1"');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'private, max-age=0, must-revalidate');
+  assert.equal(response.headers.get('last-modified'), 'Thu, 10 Sep 2026 12:00:00 GMT');
+  assert.equal(response.headers.get('etag'), '"cover1"');
+});
+
+test('proxyStream mirrors a 304 instead of turning it into an error', async () => {
+  const { response } = await withUpstream(
+    () =>
+      new Response(null, {
+        status: 304,
+        headers: {
+          'cache-control': 'private, max-age=0, must-revalidate',
+          'last-modified': 'Thu, 10 Sep 2026 12:00:00 GMT',
+          etag: '"cover1"',
+        },
+      }),
+    () =>
+      proxyStream(
+        UPSTREAM,
+        'image/jpeg',
+        new Request(UPSTREAM, { headers: { 'If-Modified-Since': 'Thu, 10 Sep 2026 12:00:00 GMT' } }),
+      ),
+  );
+
+  assert.equal(response.status, 304);
+  assert.equal(response.headers.get('cache-control'), 'private, max-age=0, must-revalidate');
+  assert.equal(response.headers.get('last-modified'), 'Thu, 10 Sep 2026 12:00:00 GMT');
+  assert.equal(response.headers.get('etag'), '"cover1"');
+  assert.equal(await response.text(), '');
+});
+
 test('ifNoneMatchInit forwards only a present validator', () => {
   assert.equal(ifNoneMatchInit(new Request('http://127.0.0.1/api/demos/jobs')), undefined);
   const init = ifNoneMatchInit(new Request('http://127.0.0.1/api/demos/jobs', {
