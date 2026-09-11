@@ -145,26 +145,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return Result{}, err
 	}
 	if fullDemoExecution != nil {
-		for i, artifact := range recordingResult.Artifacts {
-			if artifact.Role == "segment" && artifact.Type == "video" {
-				if err := verifyFullDemoLocalFile(ctx, resolvePath(recordingBaseDir, artifact.Path), artifact.ContentSHA256); err != nil {
-					return Result{}, fmt.Errorf("verify captured segment content: %w", err)
-				}
-				if !cfg.DryRun {
-					if ffprobePath == "" {
-						return Result{}, fmt.Errorf("ffprobe is required to check Full Demo source frames")
-					}
-					// Check the actual localized file before preparation, rather than
-					// relying on frame metadata transported in recording-result.json.
-					probe := recording.RecordingArtifact{Path: resolvePath(recordingBaseDir, artifact.Path)}
-					recording.ProbeArtifact(ctx, ffprobePath, &probe)
-					if probe.ProbeError != "" {
-						return Result{}, fmt.Errorf("probe Full Demo source %s: %s", artifact.SegmentID, probe.ProbeError)
-					}
-					recordingResult.Artifacts[i].FrameCount = probe.FrameCount
-					recordingResult.Artifacts[i].FrameRate = probe.FrameRate
-				}
-			}
+		if err := verifyFullDemoCapturedInputs(ctx, recordingResult.Artifacts, recordingBaseDir, ffprobePath, cfg.DryRun); err != nil {
+			return Result{}, err
 		}
 		if cfg.RankMoments || cfg.Limit != 0 || cfg.TailTrimSeconds != 0 || cfg.MusicPath != "" || cfg.VoiceDir != "" || cfg.RhythmPath != "" || cfg.EffectsPath != "" || cfg.Intro || cfg.Outro || cfg.HookText || cfg.KillCounter || cfg.CoverFirstFrame || cfg.KeyDropStyle != "" {
 			return Result{}, fmt.Errorf("full demo execution cannot be overridden by legacy editorial flags")

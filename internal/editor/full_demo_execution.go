@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
@@ -172,6 +173,72 @@ func verifyFullDemoLocalFile(ctx context.Context, path, hash string) error {
 		return err
 	}
 	return mediaassets.VerifyContent(ctx, store, filepath.Base(path), hash, 8<<30)
+}
+
+const fullDemoInputVerifyJobs = 4
+
+func verifyFullDemoCapturedInputs(ctx context.Context, artifacts []recording.RecordingArtifact, baseDir, ffprobePath string, dryRun bool) error {
+	type input struct {
+		index     int
+		path      string
+		hash      string
+		segmentID string
+	}
+	var inputs []input
+	for i, artifact := range artifacts {
+		if artifact.Role == "segment" && artifact.Type == "video" {
+			inputs = append(inputs, input{i, resolvePath(baseDir, artifact.Path), artifact.ContentSHA256, artifact.SegmentID})
+		}
+	}
+	if len(inputs) == 0 {
+		return nil
+	}
+	if !dryRun && ffprobePath == "" {
+		return fmt.Errorf("ffprobe is required to check Full Demo source frames")
+	}
+	jobs := fullDemoInputVerifyJobs
+	if jobs > len(inputs) {
+		jobs = len(inputs)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var (
+		wg       sync.WaitGroup
+		once     sync.Once
+		firstErr error
+	)
+	sem := make(chan struct{}, jobs)
+	for i := range inputs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(in input) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if err := verifyFullDemoLocalFile(ctx, in.path, in.hash); err != nil {
+				once.Do(func() {
+					firstErr = fmt.Errorf("verify captured segment content: %w", err)
+					cancel()
+				})
+				return
+			}
+			if dryRun {
+				return
+			}
+			probe := recording.RecordingArtifact{Path: in.path}
+			recording.ProbeArtifact(ctx, ffprobePath, &probe)
+			if probe.ProbeError != "" {
+				once.Do(func() {
+					firstErr = fmt.Errorf("probe Full Demo source %s: %s", in.segmentID, probe.ProbeError)
+					cancel()
+				})
+				return
+			}
+			artifacts[in.index].FrameCount = probe.FrameCount
+			artifacts[in.index].FrameRate = probe.FrameRate
+		}(inputs[i])
+	}
+	wg.Wait()
+	return firstErr
 }
 
 func (e FullDemoExecution) assetPath(ref recapplan.AssetRef) (string, error) {

@@ -360,3 +360,35 @@ func TestRecordWorkerStatusFailureRollsBackNewCaptureProgressAttempt(t *testing.
 		t.Fatalf("capture selection exists after rejected status: exists=%v err=%v", exists, existsErr)
 	}
 }
+
+func TestCaptureProgressReporterSkipsUnchangedPut(t *testing.T) {
+	inner, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &countingStorage{Storage: inner}
+	segments := t.TempDir()
+	if err := os.WriteFile(filepath.Join(segments, "s1.mp4"), []byte("clip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reporter := newCaptureProgressReporter(store, uuid.New(), uuid.New(), segments, []string{"s1", "s2"})
+	if err := reporter.report(); err != nil {
+		t.Fatal(err)
+	}
+	if err := reporter.report(); err != nil {
+		t.Fatal(err)
+	}
+	if store.puts != 1 {
+		t.Fatalf("puts = %d, want 1 while completed set and percent stay the same", store.puts)
+	}
+
+	if err := os.WriteFile(filepath.Join(segments, "s2.mp4"), []byte("clip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := reporter.report(); err != nil {
+		t.Fatal(err)
+	}
+	if store.puts != 2 {
+		t.Fatalf("puts = %d, want 2 after a new segment appears", store.puts)
+	}
+}

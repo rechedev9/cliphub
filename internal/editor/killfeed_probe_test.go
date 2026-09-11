@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // killfeedTestFrame draws a CS2-style highlighted kill notice in the
@@ -147,12 +149,16 @@ func TestDetectKillfeedHighlightCoversStackedNotices(t *testing.T) {
 
 func TestRefineKillfeedEffectsMeasuresCropPerKill(t *testing.T) {
 	notice := image.Rect(1690, 196, 1910, 232)
+	hit := killfeedTestFrame(t, notice)
+	var mu sync.Mutex
 	var gotInput string
-	var gotAt float64
+	var probed []float64
 	probe := func(input string, atSeconds float64) (image.Image, error) {
+		mu.Lock()
 		gotInput = input
-		gotAt = atSeconds
-		return killfeedTestFrame(t, notice), nil
+		probed = append(probed, atSeconds)
+		mu.Unlock()
+		return hit, nil
 	}
 
 	short := ShortEdit{
@@ -183,8 +189,8 @@ func TestRefineKillfeedEffectsMeasuresCropPerKill(t *testing.T) {
 	if gotInput != "seg-002.mp4" {
 		t.Fatalf("probe input = %q, want seg-002.mp4", gotInput)
 	}
-	if want := 9.55 - 6 + killfeedSampleDelaySeconds; math.Abs(gotAt-want) > 1e-9 {
-		t.Fatalf("probe at = %.3f, want %.3f", gotAt, want)
+	if want := 9.55 - 6 + killfeedSampleDelaySeconds; !containsApprox(probed, want) {
+		t.Fatalf("probe at = %v, want %.3f", probed, want)
 	}
 	effect := short.Effects[0]
 	crop := image.Rect(effect.CropX, effect.CropY, effect.CropX+effect.CropWidth, effect.CropY+effect.CropHeight)
@@ -257,12 +263,16 @@ func TestRefineKillfeedEffectsKeepsDefaultsOnFailure(t *testing.T) {
 
 func TestRefineKillfeedEffectsUsesShortInputWithoutParts(t *testing.T) {
 	notice := image.Rect(1700, 70, 1910, 106)
+	hit := killfeedTestFrame(t, notice)
+	var mu sync.Mutex
 	var gotInput string
-	var gotAt float64
+	var probed []float64
 	probe := func(input string, atSeconds float64) (image.Image, error) {
+		mu.Lock()
 		gotInput = input
-		gotAt = atSeconds
-		return killfeedTestFrame(t, notice), nil
+		probed = append(probed, atSeconds)
+		mu.Unlock()
+		return hit, nil
 	}
 
 	short := ShortEdit{
@@ -289,8 +299,8 @@ func TestRefineKillfeedEffectsUsesShortInputWithoutParts(t *testing.T) {
 	if gotInput != "seg-001.mp4" {
 		t.Fatalf("probe input = %q, want seg-001.mp4", gotInput)
 	}
-	if want := 2.05 + killfeedSampleDelaySeconds; gotAt != want {
-		t.Fatalf("probe at = %.3f, want %.3f", gotAt, want)
+	if want := 2.05 + killfeedSampleDelaySeconds; !containsApprox(probed, want) {
+		t.Fatalf("probe at = %v, want %.3f", probed, want)
 	}
 }
 
@@ -513,17 +523,22 @@ func TestKillfeedSampleTimesBackfillsShortPostRoll(t *testing.T) {
 func TestRefineKillfeedEffectsKeepsOverlayNearClipEnd(t *testing.T) {
 	notice := image.Rect(1700, 90, 1910, 126)
 	const paintedAt = 5.1 // only reachable by probing backward from the clip end
+	hit := killfeedTestFrame(t, notice)
+	empty := image.NewRGBA(image.Rect(0, 0, 1920, 1080))
 
+	var mu sync.Mutex
 	var probed []float64
 	probe := func(input string, atSeconds float64) (image.Image, error) {
 		if input != "only.mp4" {
-			t.Fatalf("probe input = %q, want only.mp4", input)
+			return nil, fmt.Errorf("probe input = %q, want only.mp4", input)
 		}
+		mu.Lock()
 		probed = append(probed, atSeconds)
+		mu.Unlock()
 		if math.Abs(atSeconds-paintedAt) > 1e-9 {
-			return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+			return empty, nil
 		}
-		return killfeedTestFrame(t, notice), nil
+		return hit, nil
 	}
 
 	short := ShortEdit{
@@ -583,17 +598,22 @@ func TestRefineKillfeedEffectsFindsLateDeathNotice(t *testing.T) {
 	notice := image.Rect(1690, 80, 1910, 116)
 	const killAt = 1.0
 	const noticeAt = 1.70 // ~0.7s after tick-derived kill, inside the scan window
+	hit := killfeedTestFrame(t, notice)
+	empty := image.NewRGBA(image.Rect(0, 0, 1920, 1080))
 
+	var mu sync.Mutex
 	var probed []float64
 	probe := func(input string, atSeconds float64) (image.Image, error) {
 		if input != "seg-001.mp4" {
-			t.Fatalf("probe input = %q, want seg-001.mp4", input)
+			return nil, fmt.Errorf("probe input = %q, want seg-001.mp4", input)
 		}
+		mu.Lock()
 		probed = append(probed, atSeconds)
+		mu.Unlock()
 		if atSeconds+1e-9 < noticeAt {
-			return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+			return empty, nil
 		}
-		return killfeedTestFrame(t, notice), nil
+		return hit, nil
 	}
 
 	short := ShortEdit{
@@ -627,10 +647,10 @@ func TestRefineKillfeedEffectsFindsLateDeathNotice(t *testing.T) {
 	if len(probed) < 2 {
 		t.Fatalf("probe calls = %v, want multiple samples after the empty early frame", probed)
 	}
-	if math.Abs(probed[0]-(killAt+killfeedSampleDelaySeconds)) > 1e-9 {
-		t.Fatalf("first probe = %.3f, want legacy %.3f", probed[0], killAt+killfeedSampleDelaySeconds)
+	if !containsApprox(probed, killAt+killfeedSampleDelaySeconds) {
+		t.Fatalf("probe calls = %v, want legacy %.3f", probed, killAt+killfeedSampleDelaySeconds)
 	}
-	if !sampleTimesContain(probed, noticeAt) && probed[len(probed)-1]+1e-9 < noticeAt {
+	if !sampleTimesContain(probed, noticeAt) && !containsAtLeast(probed, noticeAt) {
 		t.Fatalf("probe calls = %v, never reached notice at %.3f", probed, noticeAt)
 	}
 
@@ -644,9 +664,6 @@ func TestRefineKillfeedEffectsFindsLateDeathNotice(t *testing.T) {
 	_, freezeAt := killfeedSamplePart(&short, effect)
 	if freezeAt+1e-9 < noticeAt {
 		t.Fatalf("freeze sample = %.3f, want >= notice frame %.3f (AtSeconds was retimed)", freezeAt, noticeAt)
-	}
-	if math.Abs(freezeAt-probed[len(probed)-1]) > 1e-9 {
-		t.Fatalf("freeze sample = %.3f, want last successful probe %.3f", freezeAt, probed[len(probed)-1])
 	}
 }
 
@@ -844,6 +861,8 @@ func assertSameFrame(t *testing.T, got, want image.Image) {
 // later samples in the window.
 func TestRefineKillfeedEffectsLateNoticeMutations(t *testing.T) {
 	notice := image.Rect(1700, 90, 1910, 126)
+	hit := killfeedTestFrame(t, notice)
+	empty := image.NewRGBA(image.Rect(0, 0, 1920, 1080))
 	tests := []struct {
 		name     string
 		probe    func(calls *[]float64) func(string, float64) (image.Image, error)
@@ -854,23 +873,25 @@ func TestRefineKillfeedEffectsLateNoticeMutations(t *testing.T) {
 		{
 			name: "empty early frames then hit",
 			probe: func(calls *[]float64) func(string, float64) (image.Image, error) {
+				var mu sync.Mutex
 				return func(_ string, at float64) (image.Image, error) {
+					mu.Lock()
 					*calls = append(*calls, at)
+					mu.Unlock()
 					if at < 1.55 {
-						return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
+						return empty, nil
 					}
-					return killfeedTestFrame(t, notice), nil
+					return hit, nil
 				}
 			},
 			wantKeep: true,
 			check: func(t *testing.T, short ShortEdit, calls []float64) {
 				t.Helper()
-				// Mutation: a single-sample probe would only call 1.35 and drop.
 				if len(calls) < 2 {
 					t.Fatalf("calls = %v, want at least one empty frame then a hit", calls)
 				}
-				if math.Abs(calls[0]-1.35) > 1e-9 || calls[len(calls)-1] < 1.55 {
-					t.Fatalf("calls = %v, want first legacy 1.35 then a sample >= 1.55", calls)
+				if !containsApprox(calls, 1.35) || !containsAtLeast(calls, 1.55) {
+					t.Fatalf("calls = %v, want legacy 1.35 and a sample >= 1.55", calls)
 				}
 				_, freeze := killfeedSamplePart(&short, short.Effects[0])
 				if freeze < 1.55 {
@@ -881,12 +902,15 @@ func TestRefineKillfeedEffectsLateNoticeMutations(t *testing.T) {
 		{
 			name: "transient probe error then hit",
 			probe: func(calls *[]float64) func(string, float64) (image.Image, error) {
+				var mu sync.Mutex
 				return func(_ string, at float64) (image.Image, error) {
+					mu.Lock()
 					*calls = append(*calls, at)
+					mu.Unlock()
 					if at < 1.5 {
 						return nil, fmt.Errorf("ffmpeg flake at %.2f", at)
 					}
-					return killfeedTestFrame(t, notice), nil
+					return hit, nil
 				}
 			},
 			wantKeep: true,
@@ -903,8 +927,11 @@ func TestRefineKillfeedEffectsLateNoticeMutations(t *testing.T) {
 		{
 			name: "window exhausted stays drop for generated",
 			probe: func(calls *[]float64) func(string, float64) (image.Image, error) {
+				var mu sync.Mutex
 				return func(_ string, at float64) (image.Image, error) {
+					mu.Lock()
 					*calls = append(*calls, at)
+					mu.Unlock()
 					return image.NewRGBA(image.Rect(0, 0, 1920, 1080)), nil
 				}
 			},
@@ -950,4 +977,52 @@ func TestRefineKillfeedEffectsLateNoticeMutations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProbeKillfeedEffectPrefersEarlierSampleWhenLaterFinishesFirst(t *testing.T) {
+	early := image.Rect(1400, 90, 1650, 126)
+	late := image.Rect(1700, 90, 1910, 126)
+	earlyFrame := killfeedTestFrame(t, early)
+	lateFrame := killfeedTestFrame(t, late)
+	probe := func(_ string, at float64) (image.Image, error) {
+		if at < 1.5 {
+			time.Sleep(80 * time.Millisecond)
+			return earlyFrame, nil
+		}
+		return lateFrame, nil
+	}
+	effect := Effect{
+		Type: EffectKillfeed, StartSeconds: 0.65, EndSeconds: 3.8, AtSeconds: 1.0,
+		CropX: 1558, CropY: 64, CropWidth: 360, CropHeight: 110, Width: 430, Source: "edit-request",
+	}
+	short := ShortEdit{
+		DurationSeconds: 6,
+		Effects:         []Effect{effect},
+		Parts:           []ShortPart{{SegmentID: "seg-001", Input: "seg-001.mp4", DurationSeconds: 2.5, TimelineStartSeconds: 0}},
+	}
+	got := probeKillfeedEffect(&short, effect, probe)
+	if !got.keep {
+		t.Fatal("killfeed dropped, want the earlier sample's highlight")
+	}
+	if got.effect.CropX > 1550 {
+		t.Fatalf("cropX = %d, want the earlier notice near %d (later sample finished first)", got.effect.CropX, early.Min.X)
+	}
+}
+
+func containsApprox(values []float64, want float64) bool {
+	for _, v := range values {
+		if math.Abs(v-want) <= 1e-9 {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAtLeast(values []float64, min float64) bool {
+	for _, v := range values {
+		if v >= min {
+			return true
+		}
+	}
+	return false
 }

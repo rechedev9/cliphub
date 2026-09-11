@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/rechedev9/cliphub/internal/customhud"
@@ -71,6 +72,11 @@ func (w *RenderWorker) materializeFullDemoExecution(ctx context.Context, j job.J
 }
 
 func (w *RenderWorker) verifyFullDemoCaptureContent(ctx context.Context, id uuid.UUID, result recording.RecordingResult) error {
+	type item struct {
+		key  string
+		hash string
+	}
+	var items []item
 	for _, artifact := range result.Artifacts {
 		if !isSegmentClip(artifact) {
 			continue
@@ -82,11 +88,39 @@ func (w *RenderWorker) verifyFullDemoCaptureContent(ctx context.Context, id uuid
 		if err != nil {
 			return err
 		}
-		if err := mediaassets.VerifyContent(ctx, w.storage, key, artifact.ContentSHA256, 8<<30); err != nil {
-			return recording.MarkNotReusable(err)
-		}
+		items = append(items, item{key, artifact.ContentSHA256})
 	}
-	return nil
+	if len(items) == 0 {
+		return nil
+	}
+	jobs := 4
+	if jobs > len(items) {
+		jobs = len(items)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var (
+		wg       sync.WaitGroup
+		once     sync.Once
+		firstErr error
+	)
+	sem := make(chan struct{}, jobs)
+	for i := range items {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(it item) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if err := mediaassets.VerifyContent(ctx, w.storage, it.key, it.hash, 8<<30); err != nil {
+				once.Do(func() {
+					firstErr = recording.MarkNotReusable(err)
+					cancel()
+				})
+			}
+		}(items[i])
+	}
+	wg.Wait()
+	return firstErr
 }
 
 func fullDemoRenderFingerprint(result recording.RecordingResult, variant string, snapshot recapplan.Snapshot) (string, error) {

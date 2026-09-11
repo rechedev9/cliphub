@@ -183,13 +183,15 @@ export async function forwardError(res: Response): Promise<Response> {
 }
 
 /**
- * Default Cache-Control for proxied binaries. The orchestrator serves most
- * artifacts through http.ServeContent with a zero modtime, so there is no
- * ETag or Last-Modified for a browser to revalidate against: a cached copy
- * could never be checked, and a render that rewrites its output under the same
- * key would be served stale. no-store is the only safe policy there.
+ * Fallback Cache-Control when the orchestrator does not send one. Current
+ * artifact URLs emit Last-Modified plus either must-revalidate (current
+ * pointer) or immutable (revision URL); those headers are copied through.
+ * no-store remains the fallback for an upstream that still omits a policy.
  */
 const NO_STORE_CACHE_CONTROL = 'no-store';
+
+const STREAM_REQUEST_HEADERS = ['range', 'if-modified-since', 'if-none-match', 'if-range'] as const;
+const STREAM_RESPONSE_HEADERS = ['content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag'] as const;
 
 /**
  * Cache-Control for a proxied binary whose durable key can never be rewritten,
@@ -207,14 +209,18 @@ export const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable';
 /**
  * Streams a binary artifact (reel mp4 / cover jpg / song audio) from the
  * orchestrator, preserving content-type and length when present. Forwards the
- * client's Range header and mirrors the upstream status (200/206) plus range
- * headers, because the browser <video>/<audio> element needs range support to
- * start playback and seek. `cacheControl` defaults to no-store; pass
- * IMMUTABLE_CACHE_CONTROL only for a write-once key, and note it is applied on
- * the 2xx branch alone so an error answered while the job is still working
- * (a 404 for a source that has not landed yet) is never pinned in the cache.
- * Non-2xx is forwarded as a JSON error so the client can surface it. Never
- * logs bytes.
+ * client's Range and cache validators and mirrors the upstream status
+ * (200/206/304) plus range and validator headers, because the browser
+ * <video>/<audio> element needs range support to start playback and seek, and
+ * covers/reels already served with Last-Modified should revalidate instead of
+ * downloading again. `cacheControl` is the fallback when upstream omits
+ * Cache-Control; pass IMMUTABLE_CACHE_CONTROL only for a write-once key.
+ * Upstream Cache-Control, when present, wins so revision URLs stay immutable
+ * and current pointers stay must-revalidate. Applied on the 2xx/304 branches
+ * alone so an error answered while the job is still working (a 404 for a
+ * source that has not landed yet) is never pinned in the cache. Non-2xx
+ * (except 304) is forwarded as a JSON error so the client can surface it.
+ * Never logs bytes.
  */
 export async function proxyStream(
   url: string,
@@ -222,17 +228,34 @@ export async function proxyStream(
   request?: Request,
   cacheControl: string = NO_STORE_CACHE_CONTROL,
 ): Promise<Response> {
-  const range = request?.headers.get('range');
-  const res = await callOrchestrator(url, range ? { headers: { range } } : undefined);
+  const forwarded: Record<string, string> = {};
+  if (request) {
+    for (const name of STREAM_REQUEST_HEADERS) {
+      const value = request.headers.get(name);
+      if (value) forwarded[name] = value;
+    }
+  }
+  const res = await callOrchestrator(
+    url,
+    Object.keys(forwarded).length > 0 ? { headers: forwarded } : undefined,
+  );
   if (res === null) return serviceUnavailable();
+  if (res.status === 304) {
+    return new Response(null, { status: 304, headers: streamCacheHeaders(res, cacheControl) });
+  }
   if (!res.ok) return forwardError(res);
+  const headers = streamCacheHeaders(res, cacheControl);
+  headers['content-type'] = res.headers.get('content-type') ?? fallbackContentType;
+  return new Response(res.body, { status: res.status, headers });
+}
+
+function streamCacheHeaders(res: Response, fallbackCacheControl: string): Record<string, string> {
   const headers: Record<string, string> = {
-    'content-type': res.headers.get('content-type') ?? fallbackContentType,
-    'cache-control': cacheControl,
+    'cache-control': res.headers.get('cache-control') ?? fallbackCacheControl,
   };
-  for (const name of ['content-length', 'content-range', 'accept-ranges'] as const) {
+  for (const name of STREAM_RESPONSE_HEADERS) {
     const value = res.headers.get(name);
     if (value) headers[name] = value;
   }
-  return new Response(res.body, { status: res.status, headers });
+  return headers;
 }

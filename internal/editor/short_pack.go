@@ -131,7 +131,8 @@ func (p *shortPackRenderer) render(ctx context.Context) error {
 // at a time even when the fields touched differ.
 func (p *shortPackRenderer) renderOne(ctx context.Context, i int, warn *[]string) error {
 	short := &p.manifest.Shorts[i]
-	if err := p.renderShort(ctx, i, short, warn); err != nil {
+	var overlappedQC []string
+	if err := p.renderShort(ctx, i, short, warn, &overlappedQC); err != nil {
 		return err
 	}
 
@@ -147,11 +148,15 @@ func (p *shortPackRenderer) renderOne(ctx context.Context, i int, warn *[]string
 		publishErr = p.publishShort(ctx, i, short, &publishWarn)
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		p.runQualityCheck(ctx, i, short, &qaWarn)
-	}()
+	if short.FullDemo == nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.runQualityCheck(ctx, i, short, &qaWarn)
+		}()
+	} else {
+		qaWarn = overlappedQC
+	}
 
 	if p.opts.CoversEnabled {
 		wg.Add(1)
@@ -173,7 +178,7 @@ func (p *shortPackRenderer) renderOne(ctx context.Context, i int, warn *[]string
 	return nil
 }
 
-func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *ShortEdit, warn *[]string) error {
+func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *ShortEdit, warn *[]string, overlappedQC *[]string) error {
 	if err := os.MkdirAll(filepath.Dir(short.Output), 0o750); err != nil {
 		return err
 	}
@@ -216,8 +221,17 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 			evidence, err = masterFullDemoProgram(ctx, short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved, expectedDuration, fullProgress.within(.82, .94))
 			short.FullDemo.ProgramLoudness = &evidence
 			if err == nil {
+				var qcWG sync.WaitGroup
+				if overlappedQC != nil && len(short.QualityCommand) > 0 {
+					qcWG.Add(1)
+					go func() {
+						defer qcWG.Done()
+						p.runQualityCheck(ctx, i, short, overlappedQC)
+					}()
+				}
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
 				short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1))
+				qcWG.Wait()
 			}
 			if err == nil {
 				err = short.FullDemo.ValidateCompleted()

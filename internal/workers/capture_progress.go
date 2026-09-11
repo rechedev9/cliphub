@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +34,7 @@ type captureProgressReporter struct {
 	ticks      []int
 	takeSeen   map[string]time.Time
 	now        func() time.Time
+	lastKey    string
 }
 
 func newCaptureProgressReporter(store storage.Storage, jobID, attemptID uuid.UUID, segmentDir string, segmentIDs []string) *captureProgressReporter {
@@ -88,11 +91,30 @@ func (r *captureProgressReporter) write(completed []string) error {
 		return err
 	}
 	progress.Percent = r.livePercent(completed)
+	key := captureProgressWriteKey(progress)
+	if key == r.lastKey {
+		return nil
+	}
 	body, err := json.Marshal(progress)
 	if err != nil {
 		return err
 	}
-	return r.store.Put(artifacts.CaptureProgressKey(r.jobID), bytes.NewReader(body))
+	if err := r.store.Put(artifacts.CaptureProgressKey(r.jobID), bytes.NewReader(body)); err != nil {
+		return err
+	}
+	r.lastKey = key
+	return nil
+}
+
+func captureProgressWriteKey(progress recording.CaptureProgress) string {
+	var b strings.Builder
+	b.WriteString(progress.AttemptID.String())
+	fmt.Fprintf(&b, "#%d", progress.Percent)
+	for _, id := range progress.CompletedSegmentIDs {
+		b.WriteByte(',')
+		b.WriteString(id)
+	}
+	return b.String()
 }
 
 func (r *captureProgressReporter) clock() time.Time {
