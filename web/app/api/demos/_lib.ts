@@ -213,10 +213,12 @@ export const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable';
  * (200/206/304) plus range and validator headers, because the browser
  * <video>/<audio> element needs range support to start playback and seek, and
  * covers/reels already served with Last-Modified should revalidate instead of
- * downloading again. `cacheControl` is the fallback when upstream omits
- * Cache-Control; pass IMMUTABLE_CACHE_CONTROL only for a write-once key.
- * Upstream Cache-Control, when present, wins so revision URLs stay immutable
- * and current pointers stay must-revalidate. Applied on the 2xx/304 branches
+ * downloading again. Pass IMMUTABLE_CACHE_CONTROL only for a write-once key
+ * (the stream source): that caller policy wins even if the orchestrator
+ * answered must-revalidate, because GetStreamSource shares the generic
+ * revalidate helper. Routes that omit a policy take upstream Cache-Control
+ * when present (revision URLs stay immutable, current pointers
+ * must-revalidate) and no-store otherwise. Applied on the 2xx/304 branches
  * alone so an error answered while the job is still working (a 404 for a
  * source that has not landed yet) is never pinned in the cache. Non-2xx
  * (except 304) is forwarded as a JSON error so the client can surface it.
@@ -251,11 +253,18 @@ export async function proxyStream(
 
 function streamCacheHeaders(res: Response, fallbackCacheControl: string): Record<string, string> {
   const headers: Record<string, string> = {
-    'cache-control': res.headers.get('cache-control') ?? fallbackCacheControl,
+    'cache-control': streamCacheControl(res, fallbackCacheControl),
   };
   for (const name of STREAM_RESPONSE_HEADERS) {
     const value = res.headers.get(name);
     if (value) headers[name] = value;
   }
   return headers;
+}
+
+function streamCacheControl(res: Response, fallbackCacheControl: string): string {
+  if (fallbackCacheControl !== NO_STORE_CACHE_CONTROL) {
+    return fallbackCacheControl;
+  }
+  return res.headers.get('cache-control') ?? fallbackCacheControl;
 }
