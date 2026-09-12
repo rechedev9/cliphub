@@ -454,8 +454,7 @@ ul.requests {
   border-color: oklch(0.82 0.135 166 / 0.55);
 }
 
-.pill-failed,
-.pill-rejected {
+.pill-failed {
   color: var(--destructive);
   border-color: oklch(0.68 0.205 22 / 0.55);
 }
