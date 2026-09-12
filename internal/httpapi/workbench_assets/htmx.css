@@ -5,11 +5,7 @@
 .htmx-request .htmx-indicator,.htmx-request.htmx-indicator{display:inline-flex}
 .htmx-actions{display:flex;flex-wrap:wrap;gap:10px;padding:10px;border-top:1px solid var(--color-zv-border)}
 .inline-form{display:flex;min-width:0;align-items:center;gap:8px}
-.inline-form select,.render-form select{min-height:32px;border:1px solid var(--color-zv-border);border-radius:4px;background:var(--color-zv-surface);padding:5px 8px;color:var(--color-zv-text)}
-.render-form{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr)) auto auto auto;gap:8px;width:100%;align-items:end}
-.render-form label{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--color-zv-subtle)}
-.render-form .check-row{display:flex;align-items:center;gap:6px;min-height:32px;color:var(--color-zv-text)}
-.render-form button{white-space:nowrap}
+.inline-form select{min-height:32px;border:1px solid var(--color-zv-border);border-radius:4px;background:var(--color-zv-surface);padding:5px 8px;color:var(--color-zv-text)}
 .preview-panel .empty-state{height:100%;display:flex;align-items:center;justify-content:center}
 .status-badge.scanning,.status-badge.scanned{color:var(--color-zv-warning);background-color:#9a5b0014;border-color:#9a5b0038}
 .onboarding-panel{display:grid;grid-template-columns:minmax(280px,0.9fr) minmax(320px,1.1fr);gap:18px;border:1px solid var(--color-zv-border);border-radius:6px;background:var(--color-zv-surface);padding:18px;min-height:260px}
@@ -26,5 +22,5 @@
 .onboarding-grid strong{font-size:14px;color:var(--color-zv-text)}
 .next-action{display:grid;gap:4px;padding:10px;background:var(--color-zv-container);border-bottom:1px solid #00625933}
 .next-action strong{font-size:15px;color:var(--color-zv-text)}
-@media (max-width:1199px){.render-form{grid-template-columns:repeat(2,minmax(160px,1fr))}.inline-form{flex-wrap:wrap}}
+@media (max-width:1199px){.inline-form{flex-wrap:wrap}}
 @media (max-width:899px){.onboarding-panel,.onboarding-grid{grid-template-columns:1fr}.onboarding-copy h2{font-size:20px;line-height:26px}}
