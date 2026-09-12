@@ -11,39 +11,6 @@ var opusSilence20ms = []byte{0xF8, 0xFF, 0xFE}
 
 const opus48kFrameSamples = 960
 
-func WriteOggOpus(w io.Writer, frames [][]byte, sampleRate uint32, serial uint32) error {
-	if sampleRate == 0 {
-		sampleRate = 48000
-	}
-	if serial == 0 {
-		serial = 1
-	}
-	head := opusHead(sampleRate)
-	if err := writeOggPage(w, 0x02, 0, serial, 0, [][]byte{head}); err != nil {
-		return err
-	}
-	if err := writeOggPage(w, 0x00, 0, serial, 1, [][]byte{opusTags()}); err != nil {
-		return err
-	}
-	granule := int64(0)
-	seq := uint32(2)
-	for i, frame := range frames {
-		if len(frame) == 0 {
-			continue
-		}
-		granule += int64(opusFrameSamples(frame))
-		headerType := byte(0)
-		if i == len(frames)-1 {
-			headerType = 0x04
-		}
-		if err := writeOggPage(w, headerType, granule, serial, seq, [][]byte{frame}); err != nil {
-			return err
-		}
-		seq++
-	}
-	return nil
-}
-
 func opusHead(sampleRate uint32) []byte {
 	buf := make([]byte, 19)
 	copy(buf, "OpusHead")

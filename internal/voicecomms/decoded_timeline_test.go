@@ -34,7 +34,7 @@ func TestDecodedTeamVoiceAfterLongSilenceAndSideChange(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		frames := testOpusPackets(t, ogg)
+		frames := testOpusPackets(t, ogg, 5)
 		id, err := strconv.ParseUint(source.id, 10, 64)
 		if err != nil {
 			t.Fatal(err)
@@ -88,7 +88,7 @@ func TestDecodedTeamVoiceAfterLongSilenceAndSideChange(t *testing.T) {
 
 // Read only our short generated Ogg fixture, including laced packets. Production
 // extraction consumes demo packets directly and does not use this test reader.
-func testOpusPackets(t *testing.T, data []byte) [][]byte {
+func testOpusPackets(t *testing.T, data []byte, minFrames int) [][]byte {
 	t.Helper()
 	var packets [][]byte
 	var pending []byte
@@ -118,7 +118,7 @@ func testOpusPackets(t *testing.T, data []byte) [][]byte {
 		}
 		data = body[used:]
 	}
-	if len(packets) < 5 || len(pending) > 0 {
+	if len(packets) < minFrames || len(pending) > 0 {
 		t.Fatal("no complete audible Opus fixture")
 	}
 	return packets

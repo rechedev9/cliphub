@@ -2,6 +2,7 @@ package voicecomms
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"math"
 	"strings"
@@ -47,13 +48,13 @@ func TestSplitVoiceFrames(t *testing.T) {
 	}
 }
 
-func TestWriteOggOpusIsValidContainer(t *testing.T) {
+func TestStreamedVoiceIsValidContainer(t *testing.T) {
 	var buf bytes.Buffer
-	frames := [][]byte{
-		{0xF8, 0xFF, 0xFE},
-		{0xF8, 0xFF, 0xFE},
+	packets := []indexedPacket{
+		{packet: Packet{Data: []byte{0xF8, 0xFF, 0xFE}}},
+		{packet: Packet{Data: []byte{0xF8, 0xFF, 0xFE}}},
 	}
-	if err := WriteOggOpus(&buf, frames, 48000, 1); err != nil {
+	if err := writeTimelineOgg(context.Background(), &buf, packets, nil, 64, 48000, 1); err != nil {
 		t.Fatal(err)
 	}
 	body := buf.Bytes()
@@ -67,7 +68,8 @@ func TestWriteOggOpusIsValidContainer(t *testing.T) {
 
 func TestOpusHeadHasNoEncoderPreSkip(t *testing.T) {
 	var buf bytes.Buffer
-	if err := WriteOggOpus(&buf, [][]byte{{0xF8, 0xFF, 0xFE}}, 48000, 1); err != nil {
+	packets := []indexedPacket{{packet: Packet{Data: []byte{0xF8, 0xFF, 0xFE}}}}
+	if err := writeTimelineOgg(context.Background(), &buf, packets, nil, 64, 48000, 1); err != nil {
 		t.Fatal(err)
 	}
 	i := bytes.Index(buf.Bytes(), []byte("OpusHead"))
@@ -80,7 +82,7 @@ func TestOpusHeadHasNoEncoderPreSkip(t *testing.T) {
 	}
 }
 
-func TestTimelineFramesAlignsPacketToTickTime(t *testing.T) {
+func TestStreamedTimelineAlignsPacketToTickTime(t *testing.T) {
 	pkt := []byte{0xF8, 0xFF, 0xFE}
 	tests := []struct {
 		name     string
@@ -94,7 +96,12 @@ func TestTimelineFramesAlignsPacketToTickTime(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frames := timelineFrames([]Packet{{Tick: tt.tick, Data: pkt}}, tt.tickrate, 0)
+			var buf bytes.Buffer
+			packets := []indexedPacket{{packet: Packet{Tick: tt.tick, Data: pkt}}}
+			if err := writeTimelineOgg(context.Background(), &buf, packets, nil, tt.tickrate, 48000, 1); err != nil {
+				t.Fatal(err)
+			}
+			frames := testOpusPackets(t, buf.Bytes(), 1)
 			if len(frames) != tt.wantLead+1 {
 				t.Fatalf("len = %d, want %d silence + packet", len(frames), tt.wantLead+1)
 			}
