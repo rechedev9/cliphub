@@ -1210,16 +1210,6 @@ func appendFilter(parts []string, part string) []string {
 	return append(parts, part)
 }
 
-func formatOptInt(label string, v *int) string {
-	if v == nil {
-		return ""
-	}
-	if label == "" {
-		return strconv.Itoa(*v)
-	}
-	return fmt.Sprintf("%s %d", label, *v)
-}
-
 func formatOptFloat(label string, v *float64) string {
 	if v == nil {
 		return ""
@@ -1238,20 +1228,6 @@ func formatOptPct(label string, v *float64) string {
 		return fmt.Sprintf("%.0f%%", *v)
 	}
 	return fmt.Sprintf("%s %.0f%%", label, *v)
-}
-
-func formatOptSignedPct(label string, v *float64) string {
-	if v == nil {
-		return ""
-	}
-	sign := "+"
-	if *v < 0 {
-		sign = ""
-	}
-	if label == "" {
-		return sign + overlayDecimal(*v, 2) + "%"
-	}
-	return fmt.Sprintf("%s %s%s%%", label, sign, overlayDecimal(*v, 2))
 }
 
 func ffmpegFilterPath(path string) string {

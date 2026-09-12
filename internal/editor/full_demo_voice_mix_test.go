@@ -139,12 +139,3 @@ func TestFullDemoVoiceMixManifestDropsEnemyTracks(t *testing.T) {
 		}
 	}
 }
-
-func killsForTestSegment(result recording.RecordingResult, id string) []killplan.Kill {
-	for _, segment := range result.Plan.Segments {
-		if segment.ID == id {
-			return segment.Kills
-		}
-	}
-	return nil
-}

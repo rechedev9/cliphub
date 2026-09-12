@@ -2,7 +2,6 @@ package demooverlay
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,8 +166,4 @@ func OutroRowShadingDrawboxes(layout OutroLayout) []string {
 		}
 	}
 	return parts
-}
-
-func logPlateFallback(kind, source, reason string) {
-	log.Printf("demooverlay: %s plate for %q unavailable (%s); using chrome fallback", kind, source, reason)
 }

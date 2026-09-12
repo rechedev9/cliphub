@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rechedev9/cliphub/internal/artifacts"
-	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/storage"
 )
 
@@ -109,17 +108,4 @@ func readJSON(store storage.Storage, key string, value any) (bool, error) {
 		return false, fmt.Errorf("read %s: %w", key, err)
 	}
 	return true, nil
-}
-
-// LegacyDocument preserves historical recap semantics without claiming the
-// source has the evidence or approval required by the new editorial profile.
-type LegacyDocument struct {
-	SchemaVersion string        `json:"schema_version"`
-	ProfileID     string        `json:"profile_id"`
-	Compatibility string        `json:"compatibility"`
-	Plan          killplan.Plan `json:"legacy_plan"`
-}
-
-func AdaptLegacy(plan killplan.Plan) LegacyDocument {
-	return LegacyDocument{DocumentVersion, "legacy-gameplay-pov-60", "replan-and-approve-to-upgrade", plan}
 }

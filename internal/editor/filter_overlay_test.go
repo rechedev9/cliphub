@@ -289,28 +289,6 @@ func introSlideOverlayClausesWithFilter(current string, imageInput int, imageLab
 	return clauses, next
 }
 
-func renderOverlayStreamHash(t *testing.T, ffmpeg, dir string, short ShortEdit, overlayFn func(Effect, ShortEdit) string, startSeconds, durationSeconds float64) string {
-	t.Helper()
-	filter := overlayEquivalenceFilter(short, overlayFn) +
-		fmt.Sprintf(";[vfinal]trim=start=%.3f:duration=%.3f,setpts=PTS-STARTPTS[vtrim]", startSeconds, durationSeconds)
-	cmd := exec.Command(ffmpeg, "-y", "-v", "error",
-		"-i", short.Parts[0].Input,
-		"-loop", "1", "-i", short.Effects[0].Path,
-		"-loop", "1", "-i", short.Effects[1].Path,
-		"-filter_complex", filter,
-		"-map", "[vtrim]",
-		"-f", "framemd5",
-		"-",
-	)
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("framemd5 overlay fixture: %v: %s\nfilter=%s", err, stderr.String(), filter)
-	}
-	return stdout.String()
-}
-
 func renderFullDemoOverlayFixture(t *testing.T, ffmpeg, dir string, short ShortEdit, overlayFn func(Effect, ShortEdit) string) string {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o750); err != nil {
