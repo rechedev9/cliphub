@@ -81,8 +81,8 @@ func run() error {
 	go serve("admin", adminServer, adminListener, serveErrors)
 	log.Printf(
 		"telemetry stage=service class=started public=%s admin=%s retention_days=%d proxy_protocol=%t",
-		cfg.publicAddress,
-		cfg.adminAddress,
+		publicListener.Addr().String(),
+		adminListener.Addr().String(),
 		int(cfg.retention/(24*time.Hour)),
 		cfg.proxyProtocol,
 	)

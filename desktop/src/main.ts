@@ -12,6 +12,7 @@ import {
   type Event as ElectronEvent,
 } from 'electron';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -64,6 +65,7 @@ import {
 import { TelemetrySettingsStore } from './telemetry-settings';
 import { TelemetryClient, type TelemetryReleaseConfig } from './telemetry-client';
 import { TelemetryJournal } from './telemetry-journal';
+import { DiagnosticLogClient } from './diagnostic-log-client';
 import { PACKAGED_TELEMETRY_CONFIG } from './telemetry-release';
 import {
   parseTelemetryEventRequest,
@@ -118,6 +120,7 @@ const musicDir = path.join(dataDir, 'music');
 // Packaged stdout is invisible; the error screen shows the tail of this log.
 const logFile = path.join(app.getPath('userData'), 'studio.log');
 let logStream: fs.WriteStream | null = null;
+let diagnosticLogs: DiagnosticLogClient | null = null;
 function logLine(text: string): void {
   process.stdout.write(text);
   try {
@@ -134,6 +137,7 @@ function logLine(text: string): void {
   } catch {
     // Logging must never break the app; stdout still has the line in dev.
   }
+  diagnosticLogs?.recordText(text);
 }
 
 function packagedTelemetryConfig(): TelemetryReleaseConfig | null {
@@ -144,12 +148,24 @@ function packagedTelemetryConfig(): TelemetryReleaseConfig | null {
 }
 
 const telemetrySettings = new TelemetrySettingsStore(path.join(app.getPath('userData'), 'telemetry.json'));
+const diagnosticSessionID = randomUUID();
+diagnosticLogs = new DiagnosticLogClient({
+  directory: path.join(app.getPath('userData'), 'diagnostic-logs'),
+  settings: telemetrySettings, config: packagedTelemetryConfig(), release: app.getVersion(),
+  sessionID: diagnosticSessionID, localLog: logLine,
+});
 const telemetryClient = new TelemetryClient({
   settings: telemetrySettings,
   queuePath: path.join(app.getPath('userData'), 'telemetry-queue.json'),
   release: app.getVersion(),
   config: packagedTelemetryConfig(),
   log: logLine,
+  sessionID: diagnosticSessionID,
+  captureError: (input) => diagnosticLogs?.record({
+    source: input.component === 'electron' ? 'studio' : input.component,
+    event: input.name, level: 'error', message: input.message ?? `${input.stage}: ${input.class}`,
+    jobID: input.jobID, operation: input.class, occurredAt: input.occurredAt,
+  }),
 });
 const telemetryJournal = new TelemetryJournal({
   client: telemetryClient,
@@ -689,9 +705,10 @@ function registerStudioSettingsIPC(): void {
     } catch {
       return settingsFailure('Solicitud de Ajustes no válida.');
     }
-    if (request.action === 'telemetry-status') return telemetryClient.status();
+    if (request.action === 'telemetry-status') return { ...telemetryClient.status(), logDelivery: diagnosticLogs?.status() };
     if (request.action === 'telemetry-update') {
       if (!request.enabled) {
+        diagnosticLogs?.resetConsent(false);
         try {
           const status = telemetryClient.update(false);
           try {
@@ -699,14 +716,18 @@ function registerStudioSettingsIPC(): void {
           } catch (error) {
             logLine(`[telemetry] journal cursor reset deferred: ${String(error)}\n`);
           }
-          return status;
+          diagnosticLogs?.resetConsent(false);
+          return { ...status, logDelivery: diagnosticLogs?.status() };
         } catch {
           return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
         }
       }
       try {
         telemetryJournal.discardPending();
-        return telemetryClient.update(true);
+        const status = telemetryClient.update(true);
+        diagnosticLogs?.resetConsent(true);
+        diagnosticLogs?.record({ source: 'telemetry', event: 'delivery.enabled', message: 'Diagnostic collection enabled' });
+        return { ...status, logDelivery: diagnosticLogs?.status() };
       } catch {
         return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
       }
@@ -745,6 +766,7 @@ function registerStudioTelemetryIPC(): void {
           name: request.name,
           stage: 'renderer',
           class: 'exception',
+          message: request.message,
         });
       } else {
         telemetryClient.recordSpan({
@@ -929,6 +951,8 @@ app.whenReady().then(() => {
   registerAppUpdateIPC();
   telemetryClient.start();
   telemetryJournal.start();
+  diagnosticLogs?.start();
+  diagnosticLogs?.record({ event: 'desktop.runtime', message: `Studio ${app.getVersion()} platform=${process.platform} arch=${process.arch} electron=${process.versions.electron} chromium=${process.versions.chrome} node=${process.versions.node}` });
   runBoot();
 });
 
@@ -937,6 +961,8 @@ app.on('before-quit', () => {
   quitting = true;
   telemetryJournal.stop();
   telemetryClient.stop();
+  diagnosticLogs?.record({ event: 'desktop.stopping', message: 'Studio shutdown requested' });
+  diagnosticLogs?.stop();
   disposeAppUpdate();
   shutdown();
 });

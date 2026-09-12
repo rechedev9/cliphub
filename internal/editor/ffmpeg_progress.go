@@ -111,7 +111,7 @@ func runFFmpegOutputProgressTo(ctx context.Context, command []string, label stri
 		cmd.Stdout = io.MultiWriter(progress, progressOutput)
 	}
 	cmd.Stderr = &out
-	err = cmd.Run()
+	err = runDiagnosticFFmpeg(ctx, cmd, label)
 	output := out.String()
 	if err != nil {
 		msg := strings.TrimSpace(output)

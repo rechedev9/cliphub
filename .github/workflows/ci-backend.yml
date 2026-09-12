@@ -15,6 +15,11 @@ on:
       - 'scripts/go-*.sh'
       - 'scripts/capturelab/**'
       - 'scripts/ci-backend-*'
+      - 'scripts/telemetry-debug.mjs'
+      - 'desktop/src/diagnostic*'
+      - 'desktop/src/process-*'
+      - 'desktop/src/telemetry-settings.ts'
+      - 'desktop/e2e/remote-debug.e2e.test.mjs'
       - '.github/workflows/ci-backend.yml'
   push:
     branches:
@@ -30,6 +35,11 @@ on:
       - 'scripts/go-*.sh'
       - 'scripts/capturelab/**'
       - 'scripts/ci-backend-*'
+      - 'scripts/telemetry-debug.mjs'
+      - 'desktop/src/diagnostic*'
+      - 'desktop/src/process-*'
+      - 'desktop/src/telemetry-settings.ts'
+      - 'desktop/e2e/remote-debug.e2e.test.mjs'
       - '.github/workflows/ci-backend.yml'
 
 permissions:
@@ -84,3 +94,6 @@ jobs:
 
       - name: zv check
         run: go run ./cmd/zv check
+
+      - name: Remote diagnostic delivery contract
+        run: node --no-warnings --test desktop/e2e/remote-debug.e2e.test.mjs desktop/scripts/telemetry-debug.test.mjs

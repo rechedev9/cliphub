@@ -88,6 +88,8 @@ export interface TelemetryClientOptions {
   log: (message: string) => void;
   performanceSampleRate?: number;
   removeQueue?: (queuePath: string) => void;
+  sessionID?: string;
+  captureError?: (input: TelemetryErrorInput) => void;
 }
 
 /** Bounded, offline-tolerant diagnostics queue owned by Electron main. */
@@ -100,7 +102,8 @@ export class TelemetryClient {
   private readonly log: (message: string) => void;
   private readonly performanceSampleRate: number;
   private readonly removeQueue: (queuePath: string) => void;
-  private readonly sessionID = randomUUID();
+  private readonly sessionID: string;
+  private readonly captureError: (input: TelemetryErrorInput) => void;
   private timer: NodeJS.Timeout | null = null;
   private flushPromise: Promise<void> | null = null;
   private failures = 0;
@@ -110,6 +113,8 @@ export class TelemetryClient {
   private runtimeRevoked = false;
 
   constructor(options: TelemetryClientOptions) {
+    this.sessionID = isUUID(options.sessionID) ? options.sessionID : randomUUID();
+    this.captureError = options.captureError ?? (() => {});
     this.settings = options.settings;
     this.queuePath = options.queuePath;
     this.release = options.release;
@@ -196,6 +201,7 @@ export class TelemetryClient {
   }
 
   private errorEvent(input: TelemetryErrorInput): TelemetryEvent {
+    this.captureError(input);
     const event = this.baseEvent('error', input.component, input.name, input.occurredAt);
     event.stage = safeLabel(input.stage, 'unknown');
     event.class = safeLabel(input.class, 'unknown');

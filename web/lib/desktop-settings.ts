@@ -20,6 +20,14 @@ export type StudioTelemetryStatus = {
   supportCode: string;
   retentionDays: 30;
   performanceSamplePercent: 10;
+  logDelivery?: {
+    pendingBytes: number;
+    pendingFiles: number;
+    lastAcknowledgedAt: string | null;
+    lastError: string | null;
+    droppedRecords: number;
+    rejectedRecords: number;
+  };
 };
 
 export type StudioPlaybackInfo =

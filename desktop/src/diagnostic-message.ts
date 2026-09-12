@@ -22,6 +22,19 @@ const REDACTIONS: Array<[RegExp, string]> = [
 ];
 
 export function diagnosticMessage(value: unknown): string {
+	return filterMessage(value, MAX_DIAGNOSTIC_BYTES);
+}
+
+/** Filter a technical log before chunking it; do not truncate it to an error summary. */
+export function diagnosticLogMessage(value: unknown): string {
+  if (value instanceof Error) {
+    const stack = typeof value.stack === 'string' ? value.stack : '';
+    return filterMessage(`${errorChain(value)}${stack ? `\n${stack}` : ''}`, 256 * 1024);
+  }
+  return filterMessage(value, 256 * 1024);
+}
+
+function filterMessage(value: unknown, limit: number): string {
   let text = '';
   if (value instanceof Error) text = errorChain(value);
   else if (typeof value === 'string') text = value;
@@ -31,9 +44,9 @@ export function diagnosticMessage(value: unknown): string {
   }
   for (const [pattern, replacement] of REDACTIONS) text = text.replace(pattern, replacement);
   text = text.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '').trim();
-  if (Buffer.byteLength(text, 'utf8') <= MAX_DIAGNOSTIC_BYTES) return text;
+  if (Buffer.byteLength(text, 'utf8') <= limit) return text;
   const marker = '\n[truncated]\n';
-  const half = Math.floor((MAX_DIAGNOSTIC_BYTES - Buffer.byteLength(marker)) / 2);
+  const half = Math.floor((limit - Buffer.byteLength(marker)) / 2);
   return `${fitBytes(text, half)}${marker}${fitBytes(text, half, true)}`;
 }
 

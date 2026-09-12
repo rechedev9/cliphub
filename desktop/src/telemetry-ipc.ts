@@ -1,19 +1,22 @@
+import { diagnosticLogMessage } from './diagnostic-message.ts';
+
 export const STUDIO_TELEMETRY_EVENT_CHANNEL = 'cliphub:telemetry-event';
 
 const ERROR_NAMES = new Set(['route.error', 'global.error']);
 const SPAN_NAMES = new Set(['navigation.dom_content_loaded', 'navigation.load']);
 
 export type TelemetryEventRequest =
-  | { kind: 'error'; name: string }
+  | { kind: 'error'; name: string; message?: string }
   | { kind: 'span'; name: string; durationMS: number };
 
-/** Accepts only fixed renderer event codes, never labels, attributes, or text. */
+/** Fixed event codes and bounded error text, filtered before leaving main. */
 export function parseTelemetryEventRequest(value: unknown): TelemetryEventRequest {
   if (!isRecord(value) || typeof value.kind !== 'string') throw new Error('invalid telemetry event');
   if (value.kind === 'error') {
-    requireExactKeys(value, ['kind', 'name']);
+    requireExactKeys(value, 'message' in value ? ['kind', 'name', 'message'] : ['kind', 'name']);
     if (typeof value.name !== 'string' || !ERROR_NAMES.has(value.name)) throw new Error('invalid telemetry event');
-    return { kind: 'error', name: value.name };
+    if ('message' in value && (typeof value.message !== 'string' || value.message.length > 64 * 1024)) throw new Error('invalid telemetry error message');
+    return { kind: 'error', name: value.name, ...('message' in value ? { message: diagnosticLogMessage(value.message) } : {}) };
   }
   if (value.kind === 'span') {
     requireExactKeys(value, ['kind', 'name', 'durationMS']);

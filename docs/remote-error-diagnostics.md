@@ -1,5 +1,12 @@
 # Remote error diagnostics
 
+This document describes the existing schema-2 error-event channel. The new
+[remote debugging trace channel](remote-debug-tracing.md) additionally uploads
+filtered Studio output with durable receipts, per-attempt correlation and
+explicit delivery gaps. Its 16 KiB chunked records are separate from the 2 KiB
+legacy messages below; neither old clients nor old events acquire missing logs
+retroactively.
+
 Studio 2.4.60 sends a filtered diagnostic message and the job UUID with newly
 observed pipeline errors. Previously `pipeline.error` retained only labels such
 as `record:demo`, so the collector could count failures but could not explain

@@ -15,6 +15,9 @@ const TELEMETRY_ROWS: ReadonlyArray<{ label: string; value: (status: StudioTelem
   { label: 'Código de soporte', value: (status) => status.supportCode },
   { label: 'Retención', value: (status) => `${status.retentionDays} días` },
   { label: 'Muestra de rendimiento', value: (status) => `${status.performanceSamplePercent} %` },
+  { label: 'Logs pendientes', value: (status) => status.logDelivery ? `${Math.ceil(status.logDelivery.pendingBytes / 1024)} KB` : 'No disponible en esta versión' },
+  { label: 'Última recepción confirmada', value: (status) => status.logDelivery?.lastAcknowledgedAt ? new Date(status.logDelivery.lastAcknowledgedAt).toLocaleString() : 'Sin confirmación' },
+  { label: 'Registros perdidos o rechazados', value: (status) => status.logDelivery ? String(status.logDelivery.droppedRecords + status.logDelivery.rejectedRecords) : 'No disponible' },
 ];
 
 export function TelemetrySettings(): ReactNode {
@@ -50,13 +53,18 @@ export function TelemetrySettings(): ReactNode {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           {TELEMETRY_ROWS.map((row) => (
-            <StudioDataRow key={row.label} label={row.label} value={row.value(status)} />
+            <StudioDataRow key={row.label} label={row.label} value={row.value(status)} className="flex-col items-start @[34rem]/content:flex-row @[34rem]/content:items-center" />
           ))}
         </div>
         <p className="text-body-sm text-fg-2">
-          Se envían códigos y mensajes técnicos de error filtrados, junto con tiempos de ejecución. Se ocultan rutas,
+          Se envían logs técnicos filtrados, errores con su contexto y el recorrido de cada intento de trabajo, junto con tiempos de ejecución. Se ocultan rutas,
           credenciales, correos y SteamID. No se adjuntan demos, vídeos ni otros archivos multimedia.
         </p>
+        {status.logDelivery?.lastError ? (
+          <p role="status" className="text-body-sm text-warning">
+            No se ha confirmado la entrega de todos los logs. Consulta la última recepción y los registros perdidos o rechazados.
+          </p>
+        ) : null}
         {failure ? (
           <p role="alert" className="text-body-sm text-destructive">
             No se pudo guardar la preferencia. Inténtalo de nuevo.
