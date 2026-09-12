@@ -38,8 +38,8 @@ test('diagnostic settings, renderer errors, receipts and revocation in the real 
       await new Promise((resolve)=>setTimeout(resolve,200));
     }
     assert.equal(received,true,'renderer cause did not reach the acknowledged transport');
-    await page.reload();
     await panel.getByText('Última recepción confirmada').waitFor();
+    await panel.getByText('Sin confirmación',{exact:true}).waitFor({state:'detached'});
     const receipts = readFileSync(receiptFile,'utf8');
     assert.match(receipts,/UI_CANARY_CAUSE/);
     assert.doesNotMatch(receipts,/private-ui-token/);

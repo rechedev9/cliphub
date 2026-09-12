@@ -32,7 +32,15 @@ export function TelemetrySettings(): ReactNode {
       setUnavailable(true);
       return;
     }
-    void bridge.getTelemetry().then(setStatus).catch(() => setUnavailable(true));
+    let active = true;
+    const refresh = (): void => {
+      void bridge.getTelemetry().then((value) => {
+        if (active) { setStatus(value); setUnavailable(false); }
+      }).catch(() => { if (active) setUnavailable(true); });
+    };
+    refresh();
+    const timer = setInterval(refresh, 5_000);
+    return () => { active = false; clearInterval(timer); };
   }, []);
 
   const update = (enabled: boolean): void => {
