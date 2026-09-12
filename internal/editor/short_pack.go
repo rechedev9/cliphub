@@ -215,6 +215,9 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		}
 		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
 		if err == nil && short.FullDemo != nil {
+			err = releaseFullDemoItems(*short)
+		}
+		if err == nil && short.FullDemo != nil {
 			audio := short.FullDemo.Effective.Options.Audio
 			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled && !short.FullDemo.Effective.HasTransitionSFX()
 			var evidence ProgramLoudnessEvidence
@@ -235,6 +238,9 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 			}
 			if err == nil {
 				err = short.FullDemo.ValidateCompleted()
+			}
+			if err == nil {
+				err = removeFullDemoTemporaryFiles(filepath.Dir(destination), []string{destination})
 			}
 		}
 		performance.RenderMS = time.Since(started).Milliseconds()

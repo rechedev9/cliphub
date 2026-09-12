@@ -392,7 +392,10 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 		// frame at each join or advances the next audio bus too early.
 		fmt.Fprintf(&list, "duration %.9f\n", float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS)
 	}
-	return os.WriteFile(fullDemoConcatListPath(*short), []byte(list.String()), 0600)
+	if err := os.WriteFile(fullDemoConcatListPath(*short), []byte(list.String()), 0600); err != nil {
+		return err
+	}
+	return releaseFullDemoAudio(*short)
 }
 
 type fullDemoItemProgress struct {

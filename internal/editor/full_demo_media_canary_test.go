@@ -150,12 +150,31 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			if err := prepareFullDemoCompilation(ctx, &short, progress.within(0, .65)); err != nil {
 				t.Fatal(err)
 			}
+			for _, pattern := range []string{"voice-*.wav", "music-*.wav"} {
+				paths, err := filepath.Glob(filepath.Join(short.fullDemo.workDir, pattern))
+				if err != nil || len(paths) != 0 {
+					t.Fatalf("prepared audio still consumes disk before program assembly: %v, %v", paths, err)
+				}
+			}
+			for _, path := range []string{roundOne, roundTwo, voice, musicOne, musicTwo, filepath.Join(short.fullDemo.workDir, "voice-0-reference.txt"), short.fullDemo.preparedInputs[0]} {
+				if _, err := os.Stat(path); err != nil {
+					t.Fatalf("preparation removed an original source, diagnostic, or required item %s: %v", path, err)
+				}
+			}
 			program := fullDemoProgramPath(short)
 			if lastFraction <= .195 || !stages["Preparando voces (1/1)"] || !stages["Preparando música (2/2)"] || !stages["Montando corte 1 de "+strconv.Itoa(len(document.Timeline))] {
 				t.Fatalf("preparation progress is missing: %f, %+v", lastFraction, stages)
 			}
 			if err := runFFmpegAtomicWithProgress(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "concat media canary", "", program, short.DurationSeconds, progress.pass("Ensamblando vídeo completo", .65, .82)); err != nil {
 				t.Fatal(err)
+			}
+			if err := releaseFullDemoItems(short); err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range short.fullDemo.preparedInputs {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Fatalf("prepared item still consumes disk before mastering: %s, %v", path, err)
+				}
 			}
 			loudness, err := masterFullDemoProgram(ctx, ffmpeg, program, short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false, short.DurationSeconds, progress.within(.82, .94))
 			if err != nil {
