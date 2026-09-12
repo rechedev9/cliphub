@@ -170,19 +170,6 @@ func OutroPlateGeo(source string, hasPlate bool) (OutroPlateGeometry, bool) {
 	return geo, ok
 }
 
-func IntroPlateLayout(source string, hasPlate bool) (IntroLayout, bool) {
-	geo, ok := IntroPlateGeo(source, hasPlate)
-	if !ok {
-		return IntroLayout{}, false
-	}
-	layout := DefaultLayout().Intro
-	if len(geo.RowNameCenterY) >= 2 {
-		layout.RowHeight = geo.RowNameCenterY[1] - geo.RowNameCenterY[0]
-	}
-	layout.HeaderH = geo.RowNameCenterY[0] - DefaultLayout().Intro.PanelTop
-	return layout, true
-}
-
 func OutroLayoutForSourceWithPlate(source string, hasPlate bool) (OutroLayout, OutroPlateGeometry, bool) {
 	base := DefaultLayout().Outro
 	geo, ok := OutroPlateGeo(source, hasPlate)

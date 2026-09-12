@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
@@ -138,13 +137,4 @@ func TestFullDemoVoiceMixManifestDropsEnemyTracks(t *testing.T) {
 			t.Fatalf("missing capture-aligned atrim %q for %s\n%s", want, part.SegmentID, command)
 		}
 	}
-}
-
-func killsForTestSegment(result recording.RecordingResult, id string) []killplan.Kill {
-	for _, segment := range result.Plan.Segments {
-		if segment.ID == id {
-			return segment.Kills
-		}
-	}
-	return nil
 }

@@ -55,11 +55,6 @@ func FamilyLabel(family string) string {
 	}
 }
 
-// KnownFamilies is the shipped affiliate set, stable for Studio chips.
-func KnownFamilies() []string {
-	return []string{FamilyKeyDrop, FamilyCSGOSkins}
-}
-
 func knownFamily(family string) bool {
 	switch NormalizeFamily(family) {
 	case FamilyKeyDrop, FamilyCSGOSkins:

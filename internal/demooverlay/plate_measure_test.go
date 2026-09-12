@@ -191,17 +191,6 @@ func mapPlateY(srcY int, bounds image.Rectangle) int {
 	return int(float64(srcY)*scale - offY + 0.5)
 }
 
-func mapPlateX(srcX int, bounds image.Rectangle) int {
-	sw, sh := float64(bounds.Dx()), float64(bounds.Dy())
-	scale := float64(FrameWidth) / sw
-	if float64(FrameHeight)/sh > scale {
-		scale = float64(FrameHeight) / sh
-	}
-	scaledW := sw * scale
-	offX := (scaledW - float64(FrameWidth)) / 2
-	return int(float64(srcX)*scale - offX + 0.5)
-}
-
 func detectHorizontalBands(img image.Image, x int) []yBand {
 	b := img.Bounds()
 	x0 := max(b.Min.X, x-8)
