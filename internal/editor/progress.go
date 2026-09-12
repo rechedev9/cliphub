@@ -266,16 +266,3 @@ func (s *encodeProgressState) percentLocked() int {
 	}
 	return best
 }
-
-func MapPassPercent(startPct, endPct int, fraction float64) int {
-	if endPct <= startPct {
-		return startPct
-	}
-	if fraction < 0 {
-		fraction = 0
-	}
-	if fraction > 1 {
-		fraction = 1
-	}
-	return startPct + int(math.Round(float64(endPct-startPct)*fraction))
-}
