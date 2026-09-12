@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
