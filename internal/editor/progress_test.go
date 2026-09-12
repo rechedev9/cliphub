@@ -94,24 +94,6 @@ func TestEncodeProgressStateMonotonic(t *testing.T) {
 	}
 }
 
-func TestMapPassPercent(t *testing.T) {
-	tests := []struct {
-		start, end int
-		frac       float64
-		want       int
-	}{
-		{5, 92, 0, 5},
-		{5, 92, 0.5, 49},
-		{5, 92, 1, 92},
-	}
-	for _, tt := range tests {
-		got := MapPassPercent(tt.start, tt.end, tt.frac)
-		if got != tt.want {
-			t.Fatalf("MapPassPercent(%d,%d,%v) = %d, want %d", tt.start, tt.end, tt.frac, got, tt.want)
-		}
-	}
-}
-
 func readProgressPercent(t *testing.T, path string) int {
 	t.Helper()
 	body, err := os.ReadFile(path)

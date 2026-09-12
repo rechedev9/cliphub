@@ -76,17 +76,6 @@ export function matchDateLabel(match: Pick<Match, 'playedAt' | 'source'>): strin
   }).format(date)}`;
 }
 
-/** Remaining-availability countdown: "14h" or "13h 59m" or "12m". */
-export function formatCountdown(sec: number): string {
-  const total = Math.max(0, Math.floor(sec));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-
-  if (hours <= 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
-}
-
 /** Plan-order selection summary; one pick keeps its label, 2+ list distinct rounds. */
 export function playsSelectionLabel(plays: Play[]): string | null {
   if (plays.length === 0) return null;

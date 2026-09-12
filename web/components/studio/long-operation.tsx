@@ -13,7 +13,7 @@ const TONE_FILL_CLASS = {
   stream: 'bg-stream',
 } as const satisfies Record<LongOperationTone, string>;
 
-/** Elapsed clock (01:30), not `formatCountdown`'s remaining-availability shape. */
+/** Elapsed clock (01:30). */
 function formatElapsed(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);
