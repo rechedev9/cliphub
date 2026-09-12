@@ -353,7 +353,7 @@ html[data-capture-active="true"] {
    * are inert against these keys. Keeping the indirection is deliberate: the
    * efficiency profile is unconditional in the packaged app, so propagating the
    * downgrade is worth more than a tinted shadow. Express brand emphasis with
-   * the --glow-primary-sm/md/lg and --glow-stream-md tokens (or .neon-glow)
+   * the --glow-primary-sm/md/lg and --glow-stream-md tokens
    * instead, and delete the dead shadow-color utilities when primitives land. */
   --shadow-2xs: var(--elev-0);
   --shadow-xs: var(--elev-0);
@@ -536,8 +536,7 @@ html[data-capture-active="true"] {
     box-shadow: var(--elev-bevel);
   }
 
-  /* Fine CRT pitch for media frames. Owns ::after, so it cannot be combined
-   * with .neon-brackets on the same element. */
+  /* Fine CRT pitch for media frames. Owns ::after. */
   .studio-scanline {
     position: relative;
   }
@@ -548,14 +547,6 @@ html[data-capture-active="true"] {
     inset: 0;
     pointer-events: none;
     background-image: repeating-linear-gradient(180deg, oklch(1 0 0 / 0.035) 0 1px, transparent 1px 3px);
-  }
-
-  /* Large libraries can contain dozens of rich cards. Let Chromium skip
-   * layout/paint for cards outside the viewport while preserving their scroll
-   * footprint and the accessibility tree. */
-  .studio-defer-render {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 360px;
   }
 
   /* ── Pointer-parallax tilt ───────────────────────────────────────────────
@@ -606,41 +597,6 @@ html[data-capture-active="true"] {
     .studio-tilt-sheen::after {
       display: none;
     }
-  }
-
-  /* ── Pipeline rail ───────────────────────────────────────────────────────
-   * Deliberately does NOT read --shell-depth: a composited static transform is
-   * free once painted, so the depth ladder survives reduced-motion and the
-   * efficiency profile. Only the transition degrades. */
-  .pipeline-rail {
-    perspective: 640px;
-    perspective-origin: 18% 50%;
-  }
-
-  .pipeline-rail > li {
-    transform-style: preserve-3d;
-    transform: rotateY(-14deg) translateZ(calc(var(--z, 0) * 1px));
-    transition:
-      transform 320ms var(--ease-standard),
-      opacity 320ms var(--ease-standard);
-  }
-
-  .pipeline-rail > li[data-state="todo"] {
-    --z: -20;
-    opacity: 0.55;
-  }
-
-  .pipeline-rail > li[data-state="done"] {
-    --z: -6;
-    opacity: 0.85;
-  }
-
-  .pipeline-rail > li[data-state="active"] {
-    --z: 28;
-    opacity: 1;
-    box-shadow:
-      inset 0 0 0 1px color-mix(in oklch, var(--pipeline-accent, var(--primary)) 55%, transparent),
-      0 0 18px color-mix(in oklch, var(--pipeline-accent, var(--primary)) 22%, transparent);
   }
 
   /* ── Canvas ──────────────────────────────────────────────────────────────
@@ -848,41 +804,8 @@ html[data-capture-active="true"] {
   }
 
   /*
-   * .neon-brackets — corner brackets del HUD en las esquinas superior-izquierda
-   * e inferior-derecha. Requiere `position: relative` (o cualquier posicionado)
-   * en el elemento. El color viene de `--neon-bracket-color` (cian por
-   * defecto vía fallback; pon `[--neon-bracket-color:var(--stream)]` para
-   * la variante magenta de la ruta stream/REC). El fallback vive en el punto de
-   * uso (::before/::after) en vez de en `.neon-brackets` mismo: una declaración
-   * de `--neon-bracket-color` aquí ganaría siempre a la utilidad de propiedad
-   * arbitraria de Tailwind, sin importar el orden en el CSS compilado.
-   */
-  .neon-brackets::before,
-  .neon-brackets::after {
-    content: "";
-    position: absolute;
-    width: 14px;
-    height: 14px;
-    pointer-events: none;
-  }
-
-  .neon-brackets::before {
-    top: -1px;
-    left: -1px;
-    border-top: 2px solid var(--neon-bracket-color, var(--primary));
-    border-left: 2px solid var(--neon-bracket-color, var(--primary));
-  }
-
-  .neon-brackets::after {
-    bottom: -1px;
-    right: -1px;
-    border-bottom: 2px solid var(--neon-bracket-color, var(--primary));
-    border-right: 2px solid var(--neon-bracket-color, var(--primary));
-  }
-
-  /*
    * .neon-notch — esquina inferior-derecha cortada 10px (el CTA "FORJAR REEL"
-   * del mockup). Componible con .neon-glow.
+   * del mockup).
    */
   .neon-notch {
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
@@ -896,15 +819,6 @@ html[data-capture-active="true"] {
     box-shadow:
       inset 0 0 0 2px var(--background),
       inset 0 0 0 4px var(--ring);
-  }
-
-  /*
-   * .neon-glow — glow cian ambiental para elementos activos/CTA (botón
-   * primario, nav activa, tile seleccionado). Aplícalo en el elemento, no
-   * globalmente.
-   */
-  .neon-glow {
-    box-shadow: var(--glow-primary-md);
   }
 
   /* ── Restyled moments (indexes → product tokens) ─────────────────────────
@@ -1238,14 +1152,6 @@ html[data-capture-active="true"] .animate-spin {
   animation-duration: 1.6s;
 }
 
-/* The rail degrades transition-only, on purpose. `efficiency` is unconditional
- * in the packaged desktop app, so nulling the transform here would delete the
- * static depth ladder in the only build users ever run — and a composited
- * static transform costs nothing once painted (audit-motion §5.3). */
-html[data-runtime="desktop"][data-performance-profile="efficiency"] .pipeline-rail > li {
-  transition: none;
-}
-
 /* The only thing that makes tw-animate-css, Radix, animate-pulse and
  * active:translate-y-px obey: none of them ship a reduced-motion block. */
 @media (prefers-reduced-motion: reduce) {
@@ -1304,25 +1210,10 @@ html[data-runtime="desktop"][data-performance-profile="efficiency"] .pipeline-ra
     box-shadow: none;
   }
 
-  .neon-glow,
-  .pipeline-rail > li[data-state="active"] {
-    box-shadow: none;
-  }
-
-  .neon-brackets::before,
-  .neon-brackets::after {
-    border-color: CanvasText;
-  }
-
   .neon-notch:focus-visible {
     outline: 2px solid Highlight;
     outline-offset: -4px;
     box-shadow: none;
-  }
-
-  .pipeline-rail > li {
-    transform: none;
-    opacity: 1;
   }
 
   .studio-tilt-plane {
