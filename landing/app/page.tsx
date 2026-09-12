@@ -367,7 +367,7 @@ export default function Home() {
               <Download className="size-5" />Download ClipHub Studio
               <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
             </a>
-            <p className="mt-4 font-mono text-xs uppercase tracking-[0.18em] text-slate-400">{RELEASE_VERSION} · 153 MB · Windows 10/11</p>
+            <p className="mt-4 font-mono text-xs uppercase tracking-[0.18em] text-slate-400">{RELEASE_VERSION} · 177 MB · Windows 10/11</p>
           </div>
         </Reveal>
       </section>
