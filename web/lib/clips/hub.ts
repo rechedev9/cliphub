@@ -233,10 +233,6 @@ export const CLIP_FILTER = {
 } as const;
 export type ClipFilter = (typeof CLIP_FILTER)[keyof typeof CLIP_FILTER];
 
-export function isClipFilter(value: string | null): value is ClipFilter {
-  return Object.values<string>(CLIP_FILTER).includes(value ?? '');
-}
-
 export function matchesClipFilter(output: MatchOutput, filter: ClipFilter): boolean {
   switch (filter) {
     case CLIP_FILTER.all:
@@ -309,8 +305,6 @@ export function matchMetaParts(match: Match, dateLabel: string): string[] {
 export const FIRST_RUN_STEP = { load: 'load', pick: 'pick', produce: 'produce' } as const;
 export type FirstRunStep = (typeof FIRST_RUN_STEP)[keyof typeof FIRST_RUN_STEP];
 export type FirstRunProgress = Record<FirstRunStep, boolean>;
-
-export const FIRST_RUN_NONE: FirstRunProgress = { load: false, pick: false, produce: false };
 
 export function firstRunProgress(model: Pick<HubModel, 'rows' | 'clips'>): FirstRunProgress {
   return {

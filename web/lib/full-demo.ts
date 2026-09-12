@@ -9,12 +9,6 @@ export const FULL_DEMO_FORGE_HINT_EMPTY = 'Espera el plan de rondas para empezar
 
 export const FULL_DEMO_FORGE_HINT_ERROR = 'No se pudo cargar el plan de rondas.';
 
-/** Collapsed Shorts-negative row for the Full Demo brief (wire stays FULL_DEMO_EDIT). */
-export const FULL_DEMO_SHORTS_EXTRAS = {
-  label: 'Extras de Short',
-  value: 'ninguno (sin efectos, transiciones, música, KeyDrop ni portada de reel)',
-} as const;
-
 export const FULL_DEMO_VARIANT = 'gameplay-pov-60';
 
 /** Locked mix: team comms in front of full game audio. No music bed. */
@@ -78,11 +72,6 @@ export const FULL_DEMO_CONTRACT = [
   { label: 'Efectos', value: 'Sin punch-in ni transiciones de Short' },
   { label: 'Mix', value: 'Comms + juego · sin música' },
 ] as const;
-
-/** On-screen brief for the Full POV constructor: contract facts + one Shorts-extras row. */
-export function fullDemoBriefItems(): ReadonlyArray<{ label: string; value: string }> {
-  return [...FULL_DEMO_CONTRACT, FULL_DEMO_SHORTS_EXTRAS];
-}
 
 /** null = getMatch returned empty (404 / not on disk); offline = 503; error = any other throw. */
 export type FullDemoLoadFailure = 'offline' | 'error' | null;

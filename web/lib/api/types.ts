@@ -192,14 +192,6 @@ export function affiliatePlateFile(family: string, style: string): string {
   return keyDrop ? `style-${keyDrop.id}.png` : '';
 }
 
-export function keyDropStyleLabel(id: string): string {
-  return KEYDROP_STYLE_CATALOG.find((entry) => entry.id === id)?.label ?? id;
-}
-
-export function keyDropDisplayLabel(style: KeyDropStyle | '', code: string): string {
-  return affiliateDisplayLabel('', style, code);
-}
-
 export function affiliateDisplayLabel(family: string, style: string, code: string): string {
   const prefix =
     stylesForFamily(effectiveAffiliateFamily(family, style)).find((entry) => entry.id === style)?.codePrefix ??

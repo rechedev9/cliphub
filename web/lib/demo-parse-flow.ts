@@ -9,7 +9,6 @@ export const DEMO_EMPTY_ROSTER_HINT =
   'El escaneo no encontró jugadores en esa demo. ¿Seguro que es una demo de CS2? Prueba con otro archivo .dem.';
 export const DEMO_PARSE_FAIL_HINT =
   'No se pudieron extraer los highlights de ese jugador. Elige otro.';
-export const DEMO_SINGLE_FILE_HINT = 'Esta sección forja una partida. Suelta un solo .dem.';
 
 export function isDemoServiceUnavailable(err: unknown): boolean {
   if (typeof err !== 'object' || err === null || !('code' in err)) return false;

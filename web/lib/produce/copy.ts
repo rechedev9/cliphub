@@ -5,12 +5,9 @@ export const PRODUCE_MATCH_MISSING = {
 } as const;
 
 export const PRODUCE_SHORT_TITLE = 'Prepara tu Short';
-export const PRODUCE_FULL_TITLE = 'Prepara tu vídeo largo';
 export const PRODUCE_SHORT_EMPTY_HINT = 'Elige al menos una jugada';
 export const PRODUCE_SHORT_DRAFT_RESTORED = 'Configuración recuperada de tu última visita en esta sesión.';
 export const PRODUCE_SHORT_DRAFT_RESET = 'Empezar de cero';
-/** Round omission is not an API capability; the Full POV always records the whole plan. */
-export const PRODUCE_FULL_ROUNDS_NOTE = 'El vídeo largo incluye todas las rondas del plan, en orden';
 
 /** A poll tick failed while the partida is already on screen: warn, keep the content. */
 export const PRODUCE_POLL_ERROR = 'No se pudo actualizar esta partida. Seguimos mostrando los últimos datos cargados.';
