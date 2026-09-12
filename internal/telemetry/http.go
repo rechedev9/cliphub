@@ -34,6 +34,7 @@ type API struct {
 	now        func() time.Time
 	logf       func(string, ...any)
 	budget     *ingestBudget
+	logBudget  *ingestBudget
 }
 
 func NewAPI(store *Store, ingestKey, adminToken string) (*API, error) {
@@ -57,6 +58,7 @@ func NewAPI(store *Store, ingestKey, adminToken string) (*API, error) {
 		now:        time.Now,
 		logf:       log.Printf,
 		budget:     newIngestBudget(sourceSalt),
+		logBudget:  newLogIngestBudget(sourceSalt),
 	}, nil
 }
 
@@ -64,6 +66,7 @@ func (a *API) PublicHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.publicHealth)
 	mux.HandleFunc("POST /v1/ingest", a.ingest)
+	mux.HandleFunc("POST /v1/logs", a.ingestLogs)
 	return securityHeaders(mux)
 }
 
@@ -72,6 +75,7 @@ func (a *API) AdminHandler() http.Handler {
 	mux.HandleFunc("GET /healthz", a.adminHealth)
 	mux.HandleFunc("GET /v1/incidents", a.incidents)
 	mux.HandleFunc("GET /v1/stats", a.stats)
+	mux.HandleFunc("GET /v1/logs", a.queryLogs)
 	return securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !secureEqual(bearerToken(r.Header.Get("Authorization")), a.adminToken) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="cliphub-telemetry"`)
@@ -161,10 +165,15 @@ func (a *API) incidents(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	events, err := a.store.Incidents(queryContext, IncidentQuery{
 		SupportCode: supportCode,
+		JobID:       r.URL.Query().Get("job_id"),
 		Since:       since,
 		Limit:       limit,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "job id") {
+			writeError(w, http.StatusBadRequest, "invalid_job_id")
+			return
+		}
 		if strings.Contains(err.Error(), "support code") {
 			writeError(w, http.StatusBadRequest, "invalid_support_code")
 			return

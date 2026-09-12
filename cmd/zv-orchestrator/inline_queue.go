@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
 	"github.com/rechedev9/cliphub/internal/obs"
@@ -266,8 +268,10 @@ func (q *inlineQueue) enqueue(task *asynq.Task, transition func(error) error, op
 		queued.uniqueKey = inlineUniqueKeyFor(options.queue, task)
 	}
 	if err := q.push(queued, options.uniqueTTL, transition); err != nil {
+		obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.Payload()), Operation: task.Type()}), obs.TraceEntry{Event: "task.rejected", Level: "error", Message: err.Error()})
 		return nil, err
 	}
+	obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.Payload()), Operation: task.Type()}), obs.TraceEntry{Event: "task.queued", Message: "Task accepted by the local queue"})
 	return &asynq.TaskInfo{
 		ID:        id,
 		Queue:     options.queue,
@@ -428,13 +432,14 @@ func (q *inlineQueue) handle(ctx context.Context, queued inlineTask, handler tas
 		}
 
 		attemptCtx := tasks.WithTaskAttempt(ctx, attempt, queued.policy.maxRetries)
+		attemptCtx = obs.WithTrace(attemptCtx, obs.TraceContext{JobID: obs.TaskJobID(queued.task.Payload()), AttemptID: uuid.NewString(), Operation: queued.task.Type(), Attempt: attempt + 1})
 		cancel := func() {}
 		if queued.policy.attemptTimeout > 0 {
 			attemptCtx, cancel = context.WithTimeout(attemptCtx, queued.policy.attemptTimeout)
 		}
 		handlerStarted = true
 		startedAt := time.Now()
-		err = handler(attemptCtx, queued.task)
+		err = executeTracedTask(attemptCtx, queued.task, handler)
 		cancel()
 		q.recordAttemptSpan(queued.task.Type(), err, time.Since(startedAt))
 		if err == nil {
@@ -475,6 +480,47 @@ func (q *inlineQueue) recordAttemptSpan(name string, err error, duration time.Du
 	})
 }
 
+func executeTracedTask(ctx context.Context, task *asynq.Task, handler taskHandler) (err error) {
+	started := time.Now()
+	obs.EmitTrace(ctx, obs.TraceEntry{Event: "attempt.started", Message: "Task attempt started"})
+	done := make(chan struct{})
+	heartbeatStopped := make(chan struct{})
+	go func() {
+		defer close(heartbeatStopped)
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				obs.EmitTrace(ctx, obs.TraceEntry{Event: "attempt.heartbeat", Message: "Task attempt remains active", DurationMS: time.Since(started).Milliseconds()})
+			}
+		}
+	}()
+	defer func() {
+		close(done)
+		<-heartbeatStopped
+		entry := obs.TraceEntry{Event: "attempt.finished", Message: "Task attempt completed", Outcome: "ok", DurationMS: time.Since(started).Milliseconds()}
+		if recovered := recover(); recovered != nil {
+			entry.Level, entry.Outcome, entry.Message = "error", "error", fmt.Sprintf("panic: %v\n%s", recovered, debug.Stack())
+			obs.EmitTrace(ctx, entry)
+			panic(recovered)
+		}
+		if err != nil {
+			entry.Level, entry.Outcome, entry.Message = "error", "error", err.Error()
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				entry.Outcome = "timeout"
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+				entry.Outcome = "cancelled"
+			}
+		}
+		obs.EmitTrace(ctx, entry)
+	}()
+	return handler(ctx, task)
+}
+
 func (q *inlineQueue) compensateDiscarded(task inlineTask) {
 	if err := applyInlineDiscardTransition(task); err != nil {
 		log.Printf("inline queue: %v", err)
@@ -483,7 +529,7 @@ func (q *inlineQueue) compensateDiscarded(task inlineTask) {
 
 func (q *inlineQueue) compensateDiscardedWithin(ctx context.Context, task inlineTask) error {
 	if task.transition == nil {
-		return nil
+		return applyInlineDiscardTransition(task)
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -498,6 +544,9 @@ func (q *inlineQueue) compensateDiscardedWithin(ctx context.Context, task inline
 }
 
 func applyInlineDiscardTransition(task inlineTask) error {
+	if task.task != nil {
+		obs.EmitTrace(obs.WithTrace(context.Background(), obs.TraceContext{JobID: obs.TaskJobID(task.task.Payload()), Operation: task.task.Type()}), obs.TraceEntry{Event: "task.discarded", Level: "warn", Message: "Queued task discarded during shutdown", Outcome: "interrupted"})
+	}
 	if task.transition == nil {
 		return nil
 	}

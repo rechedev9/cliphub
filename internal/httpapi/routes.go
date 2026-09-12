@@ -11,6 +11,7 @@ import (
 // Routes returns a chi router with all orchestrator routes wired.
 func Routes(h *Handlers) chi.Router {
 	r := chi.NewRouter()
+	r.Use(traceHTTP)
 	r.Use(h.rateLimiter.middleware)
 	r.Use(crossSiteGuard)
 	r.Use(h.requireMutationToken)

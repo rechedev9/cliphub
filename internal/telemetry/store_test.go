@@ -248,7 +248,7 @@ func TestVersionOneMigrationPreservesErrorsAndPersistsDiagnostics(t *testing.T) 
 		t.Fatal(err)
 	}
 	// Recreate the deployed v1 schema around an existing label-only event.
-	if _, err := store.db.Exec("ALTER TABLE telemetry_events DROP COLUMN diagnostic_message; ALTER TABLE telemetry_events DROP COLUMN job_id; PRAGMA user_version=1"); err != nil {
+	if _, err := store.db.Exec("DROP INDEX IF EXISTS telemetry_events_job_time; ALTER TABLE telemetry_events DROP COLUMN diagnostic_message; ALTER TABLE telemetry_events DROP COLUMN job_id; PRAGMA user_version=1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

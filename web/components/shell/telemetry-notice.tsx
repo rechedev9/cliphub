@@ -50,8 +50,8 @@ export function TelemetryNotice(): ReactElement | null {
           </div>
           <DialogTitle>Ayuda a detectar fallos de ClipHub</DialogTitle>
           <DialogDescription id="telemetry-notice-description">
-            ClipHub puede enviar automáticamente códigos y mensajes técnicos de error filtrados y una muestra del 10 % de los tiempos de
-            ejecución. Los usamos para encontrar fallos por versión y se eliminan a los 30 días.
+            ClipHub puede enviar automáticamente logs técnicos filtrados, errores con su contexto y el recorrido de cada intento de trabajo.
+            También incluye una muestra del 10 % de los tiempos generales de ejecución. Los usamos para diagnosticar fallos y se eliminan a los 30 días.
           </DialogDescription>
         </DialogHeader>
 

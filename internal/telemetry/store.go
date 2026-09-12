@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -47,6 +48,8 @@ CREATE INDEX IF NOT EXISTS telemetry_events_kind_time
     ON telemetry_events (kind, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS telemetry_events_release_time
     ON telemetry_events (release, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS telemetry_events_job_time
+    ON telemetry_events (job_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS telemetry_spans_grouping
     ON telemetry_events (kind, occurred_at, release, component, name, outcome, duration_ms);
 `
@@ -56,6 +59,7 @@ CREATE INDEX IF NOT EXISTS telemetry_spans_grouping
 // with short ingest transactions; the HTTP layer bounds every admin query.
 type Store struct {
 	db             *sql.DB
+	logs           *LogStore
 	highWaterPages int64
 }
 
@@ -87,6 +91,11 @@ func OpenStore(path string) (*Store, error) {
 	if err := os.Chmod(path, 0o600); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("restrict telemetry database: %w", err)
+	}
+	store.logs, err = openLogStore(path + ".logs")
+	if err != nil {
+		_ = db.Close()
+		return nil, err
 	}
 	return store, nil
 }
@@ -136,6 +145,7 @@ func (s *Store) migrateSchema(ctx context.Context) error {
 		for _, statement := range []string{
 			"ALTER TABLE telemetry_events ADD COLUMN diagnostic_message TEXT NOT NULL DEFAULT '' CHECK (length(CAST(diagnostic_message AS BLOB)) <= 2048)",
 			"ALTER TABLE telemetry_events ADD COLUMN job_id TEXT NOT NULL DEFAULT ''",
+			schemaSQL,
 			"PRAGMA user_version=2",
 		} {
 			if _, err := tx.ExecContext(ctx, statement); err != nil {
@@ -170,7 +180,7 @@ func (s *Store) migrateSchema(ctx context.Context) error {
 	}
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error { return errors.Join(s.db.Close(), s.logs.db.Close()) }
 
 // Insert stores a validated batch idempotently. A client retry can resend the
 // same event IDs without inflating incident counts.
@@ -260,24 +270,39 @@ INSERT OR IGNORE INTO telemetry_events (
 // IncidentQuery bounds the private agent query surface.
 type IncidentQuery struct {
 	SupportCode string
+	JobID       string
 	Since       time.Time
 	Limit       int
 }
 
 func (s *Store) Incidents(ctx context.Context, query IncidentQuery) ([]Event, error) {
-	if !supportCodePattern.MatchString(query.SupportCode) {
+	if query.SupportCode == "" && query.JobID == "" || query.SupportCode != "" && !supportCodePattern.MatchString(query.SupportCode) {
 		return nil, errors.New("support code is invalid")
+	}
+	if query.JobID != "" && !validLogUUID(query.JobID) {
+		return nil, errors.New("job id is invalid")
 	}
 	if query.Limit < 1 || query.Limit > 200 {
 		return nil, errors.New("limit must be between 1 and 200")
 	}
+	conditions := []string{"occurred_at >= ?"}
+	args := []any{query.Since.UTC().UnixMilli()}
+	if query.SupportCode != "" {
+		conditions = append(conditions, "support_code = ?")
+		args = append(args, query.SupportCode)
+	}
+	if query.JobID != "" {
+		conditions = append(conditions, "job_id = ?")
+		args = append(args, query.JobID)
+	}
+	args = append(args, query.Limit)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, occurred_at, kind, support_code, session_id, release, component,
        name, stage, class, fingerprint, os, arch, outcome, duration_ms, diagnostic_message, job_id
 FROM telemetry_events
-WHERE support_code = ? AND occurred_at >= ?
+WHERE `+strings.Join(conditions, " AND ")+`
 ORDER BY occurred_at DESC
-LIMIT ?`, query.SupportCode, query.Since.UTC().UnixMilli(), query.Limit)
+LIMIT ?`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query telemetry incidents: %w", err)
 	}
@@ -343,11 +368,12 @@ type SpanGroup struct {
 
 // Summary is returned by the private stats API.
 type Summary struct {
-	Since       time.Time    `json:"since"`
-	GeneratedAt time.Time    `json:"generated_at"`
-	Storage     StorageUsage `json:"storage"`
-	Errors      []ErrorGroup `json:"errors"`
-	Spans       []SpanGroup  `json:"spans"`
+	Since       time.Time       `json:"since"`
+	GeneratedAt time.Time       `json:"generated_at"`
+	Storage     StorageUsage    `json:"storage"`
+	Errors      []ErrorGroup    `json:"errors"`
+	Spans       []SpanGroup     `json:"spans"`
+	Logs        LogStorageUsage `json:"logs"`
 }
 
 // StorageUsage lets an agent detect abuse or capacity pressure without shell
@@ -371,12 +397,17 @@ func (s *Store) Summary(ctx context.Context, since, now time.Time) (Summary, err
 	if err != nil {
 		return Summary{}, err
 	}
+	logs, err := s.logs.Usage(ctx)
+	if err != nil {
+		return Summary{}, err
+	}
 	return Summary{
 		Since:       since.UTC(),
 		GeneratedAt: now.UTC(),
 		Storage:     storage,
 		Errors:      errorsOut,
 		Spans:       spansOut,
+		Logs:        logs,
 	}, nil
 }
 
@@ -487,6 +518,10 @@ func (s *Store) storageUsage(ctx context.Context) (StorageUsage, error) {
 }
 
 func (s *Store) DeleteBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	logsDeleted, err := s.logs.DeleteBefore(ctx, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("delete expired logs: %w", err)
+	}
 	result, err := s.db.ExecContext(ctx, `DELETE FROM telemetry_events WHERE received_at < ?`, cutoff.UTC().UnixMilli())
 	if err != nil {
 		return 0, fmt.Errorf("delete expired telemetry events: %w", err)
@@ -498,5 +533,5 @@ func (s *Store) DeleteBefore(ctx context.Context, cutoff time.Time) (int64, erro
 	if _, err := s.db.ExecContext(ctx, "PRAGMA optimize"); err != nil {
 		return deleted, fmt.Errorf("optimize telemetry database: %w", err)
 	}
-	return deleted, nil
+	return deleted + logsDeleted, nil
 }

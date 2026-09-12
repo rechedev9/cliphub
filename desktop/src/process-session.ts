@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { ProcessLogLines } from './process-log-lines.ts';
 
 /** The child-process surface the session owns; deliberately smaller than Node's ChildProcess. */
 export interface ProcessHandle {
@@ -9,12 +10,14 @@ export interface ProcessHandle {
   onStderr(listener: (chunk: Buffer) => void): void;
   onError(listener: (err: Error) => void): void;
   onExit(listener: (code: number | null) => void): void;
+  onClose?(listener: () => void): void;
   kill(): void;
 }
 
 export interface LaunchedProcess {
   // Rejects when the child fails to start or exits; it intentionally never resolves.
   exited: Promise<never>;
+  outputClosed: Promise<void>;
 }
 
 export type ProcessLauncher = (
@@ -78,15 +81,21 @@ export class ProcessSession {
     }
     const handle = this.launchProcess(executable, args, childEnvironment);
     this.processes.push({ label, handle });
-    const tag = (chunk: Buffer): void => this.logLine(`[${label}] ${String(chunk)}`);
-    handle.onStdout(tag);
-    handle.onStderr(tag);
+    const stdout = new ProcessLogLines((text) => this.logLine(`[${label}] ${text}`));
+    const stderr = new ProcessLogLines((text) => this.logLine(`[${label}] ${text}`));
+    let outputClosedResolve = (): void => {};
+    const outputClosed = new Promise<void>((resolve) => { outputClosedResolve = resolve; });
+    const finishOutput = (): void => { stdout.end(); stderr.end(); outputClosedResolve(); };
+    handle.onClose?.(finishOutput);
+    handle.onStdout((chunk) => stdout.write(chunk));
+    handle.onStderr((chunk) => stderr.write(chunk));
 
     let settled = false;
     const exited = new Promise<never>((_resolve, reject) => {
       handle.onError((err) => {
         if (settled) return;
         settled = true;
+        if (!handle.onClose) finishOutput();
         this.logLine(`[${label}] failed to start: ${String(err)}\n`);
         // Desktop-facing process failures are Spanish to match the rest of the
         // app chrome and preserve the messages shown before this extraction.
@@ -95,12 +104,13 @@ export class ProcessSession {
       handle.onExit((code) => {
         if (settled) return;
         settled = true;
+        if (!handle.onClose) finishOutput();
         this.logLine(`[${label}] exited (${code})\n`);
         reject(new Error(`${label} terminó inesperadamente (código ${code})`));
       });
     });
     exited.catch(() => {}); // Consumers observe it selectively; never leave an unhandled rejection.
-    return { exited };
+    return { exited, outputClosed };
   }
 
   /** Runs a callback only when a child exits while this boot session is still active. */
@@ -175,6 +185,7 @@ function nodeProcessHandle(child: ChildProcess): ProcessHandle {
         listener(code);
       });
     },
+    onClose(listener): void { child.once('close', listener); },
     kill(): void {
       child.kill();
     },

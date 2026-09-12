@@ -34,6 +34,10 @@ var diagnosticRedactions = []struct {
 var diagnosticControls = regexp.MustCompile(`[\x00-\x08\x0b-\x1f\x7f]`)
 
 func diagnosticMessage(text string) string {
+	return filterDiagnosticMessage(text, maxDiagnosticBytes)
+}
+
+func filterDiagnosticMessage(text string, limit int) string {
 	if len(text) > maxDiagnosticInput {
 		text = fitDiagnosticBytes(text, maxDiagnosticInput/2, false) + "\n[truncated]\n" + fitDiagnosticBytes(text, maxDiagnosticInput/2, true)
 	}
@@ -41,11 +45,11 @@ func diagnosticMessage(text string) string {
 		text = rule.pattern.ReplaceAllString(text, rule.replacement)
 	}
 	text = strings.TrimSpace(diagnosticControls.ReplaceAllString(text, ""))
-	if len(text) <= maxDiagnosticBytes {
+	if len(text) <= limit {
 		return text
 	}
 	const marker = "\n[truncated]\n"
-	half := (maxDiagnosticBytes - len(marker)) / 2
+	half := (limit - len(marker)) / 2
 	return fitDiagnosticBytes(text, half, false) + marker + fitDiagnosticBytes(text, half, true)
 }
 

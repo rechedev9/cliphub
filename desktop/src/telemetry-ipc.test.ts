@@ -31,3 +31,15 @@ test('rejects arbitrary renderer text, labels, and event codes', () => {
     assert.throws(() => parseTelemetryEventRequest(value), /invalid telemetry event/);
   }
 });
+
+test('retains the renderer cause and stack while filtering sensitive error text at IPC', () => {
+  const request = parseTelemetryEventRequest({ kind: 'error', name: 'route.error',
+    message: 'TypeError: render failed; token=private-renderer-token\n at render (C:\\Users\\Alice\\component.ts:42)\nCaused by: backend unavailable' });
+  assert.equal(request.kind, 'error');
+  if (request.kind !== 'error') throw new Error('expected an error');
+  assert.match(request.message ?? '', /TypeError: render failed/);
+  assert.match(request.message ?? '', /Caused by: backend unavailable/);
+  assert.doesNotMatch(request.message ?? '', /Alice|private-renderer-token/);
+  assert.throws(() => parseTelemetryEventRequest({ kind: 'error', name: 'route.error', message: { credentials: 'secret' } }));
+  assert.throws(() => parseTelemetryEventRequest({ kind: 'error', name: 'route.error', message: 'x'.repeat(65537) }));
+});
