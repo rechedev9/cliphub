@@ -56,12 +56,6 @@ export function mapImportableRenders(input: {
   return out;
 }
 
-export async function listImportableRenders(): Promise<ImportableRender[]> {
-  const [{ api }, { streamsApi }] = await Promise.all([import('./index.ts'), import('./streams.ts')]);
-  const [videos, streamJobs] = await Promise.all([api.listVideos(), streamsApi.listJobs()]);
-  return mapImportableRenders({ videos, streamJobs });
-}
-
 function isDemoImportable(status: string): boolean {
   return status === DEMO_IMPORTABLE_STATUS.ready || status === DEMO_IMPORTABLE_STATUS.reviewRequired;
 }
