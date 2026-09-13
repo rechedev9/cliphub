@@ -32,6 +32,6 @@ Preconditions:
 ## Gotchas
 
 - The live tab title is `Cargar demo`, not `Cargar demo · ClipHub`. `goto` still accepts the page because the brand lockup is present.
-- Scan, roster, and `Continuar al Short` need orchestrator routes. Without them, stop after the dropzone is visible. Do not invent a roster.
+- Scan, roster, and `Continuar al Short` need orchestrator routes. Without them, stop after the dropzone is visible. Do not invent a roster. The accessible file chooser `Elegir demos de CS2` stays disabled while the local service is offline.
 - `?job=` resumes a scanned partida. It is not an upload.
 - This path can open the Short constructor. It cannot recertify 9:16 capture on Cloud Linux.
