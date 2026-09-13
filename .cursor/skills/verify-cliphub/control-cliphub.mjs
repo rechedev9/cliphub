@@ -97,16 +97,21 @@ Prints feature ids from this skill map. Cheap inspect, not a user-path walk.
 `,
   goto: `usage: control-cliphub goto [--path /clips] [--url <origin>] [--json]
 
-Open a Studio route and wait for the shell to paint.
+Open a Studio route and wait for the shell to paint. Identity is the
+ClipHub title suffix or the brand lockup Ir a Clips y vídeos — /clips/nueva
+serves tab title Cargar demo without the suffix.
 `,
   click: `usage: control-cliphub click --role <role> --name <name> [--within <sel>] [--json]
 
 Click by ARIA role and accessible name. Prefer this over coordinates.
+When the control is a link to another Studio path, wait for that URL
+before returning. Same-page buttons do not wait for a navigation.
 `,
   snapshot: `usage: control-cliphub snapshot --out <path> [--path /clips] [--json]
 
 Write an ARIA snapshot of the current page (navigates --path first).
-Waits until hub loading is hidden. Relative --out is from the repo root.
+Waits until hub and Jugadores loading is hidden. Relative --out is from
+the repo root.
 `,
   screenshot: `usage: control-cliphub screenshot --out <path> [--path /clips] [--json]
 
@@ -373,11 +378,28 @@ async function waitForHubLoading(page) {
   } catch {
     return;
   }
-  if (pathname !== '/clips') return;
-  const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
-  const populated = page.getByRole('heading', { name: HUB_POPULATED });
-  const clipsLens = page.getByRole('heading', { name: HUB_CLIPS_LENS });
-  await empty.or(populated).or(clipsLens).first().waitFor({ state: 'visible', timeout: 15_000 });
+  if (pathname === '/clips') {
+    const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
+    const populated = page.getByRole('heading', { name: HUB_POPULATED });
+    const clipsLens = page.getByRole('heading', { name: HUB_CLIPS_LENS });
+    await empty.or(populated).or(clipsLens).first().waitFor({ state: 'visible', timeout: 15_000 });
+    return;
+  }
+  if (pathname === '/players') {
+    await page.locator('[aria-label="Cargando jugadores"]').waitFor({ state: 'hidden', timeout: 45_000 });
+  }
+}
+
+async function cliphubIdentity(page) {
+  const title = await page.title();
+  if (title.includes(PRODUCT_TITLE)) {
+    return { ok: true, title, identity: 'title' };
+  }
+  const lockup = page.getByRole('link', { name: 'Ir a Clips y vídeos' });
+  if ((await lockup.count()) > 0 && (await lockup.first().isVisible().catch(() => false))) {
+    return { ok: true, title, identity: 'wordmark' };
+  }
+  return { ok: false, title, identity: null };
 }
 
 async function waitForWeb(origin, timeoutMs) {
@@ -684,14 +706,17 @@ async function cmdGoto(repo, flags) {
   const origin = resolveOrigin(flags, state);
   const path = resolvePath(flags, state);
   const result = await withPage(repo, origin, path, async (page) => {
-    const title = await page.title();
-    const url = page.url();
-    return { ok: title.includes(PRODUCT_TITLE), title, url, path };
+    const identity = await cliphubIdentity(page);
+    return { ...identity, url: page.url(), path };
   });
   rememberPage(state, result.url);
   if (wantsJson(flags)) printJson(result);
-  else process.stdout.write(`${result.url} title=${result.title}\n`);
-  if (!result.ok) fail(`page title ${JSON.stringify(result.title)} does not contain ${PRODUCT_TITLE}`);
+  else process.stdout.write(`${result.url} title=${result.title} identity=${result.identity ?? 'none'}\n`);
+  if (!result.ok) {
+    fail(
+      `page does not identify ClipHub (title ${JSON.stringify(result.title)}; missing brand lockup Ir a Clips y vídeos)`,
+    );
+  }
 }
 
 async function cmdClick(repo, flags) {
@@ -705,9 +730,22 @@ async function cmdClick(repo, flags) {
   const within = typeof flags.within === 'string' ? flags.within : '';
   const result = await withPage(repo, origin, path, async (page) => {
     const scope = within === '' ? page : page.locator(within);
-    const locator = scope.getByRole(role, { name, exact: flags.exact === true });
-    await locator.first().click();
-    await page.waitForLoadState('load');
+    const locator = scope.getByRole(role, { name, exact: flags.exact === true }).first();
+    await locator.waitFor({ state: 'visible' });
+    const href = await locator.getAttribute('href');
+    const before = page.url();
+    await locator.click();
+    if (href && !href.startsWith('#') && !href.toLowerCase().startsWith('javascript:')) {
+      const target = new URL(href, origin);
+      const prior = new URL(before);
+      if (target.pathname !== prior.pathname || target.search !== prior.search) {
+        await page.waitForURL((url) => {
+          return url.pathname === target.pathname && (target.search === '' || url.search === target.search);
+        }, { timeout: 15_000 });
+      }
+    }
+    await page.waitForLoadState('domcontentloaded');
+    await waitForHubLoading(page);
     return { ok: true, role, name, url: page.url(), title: await page.title() };
   });
   rememberPage(state, result.url);

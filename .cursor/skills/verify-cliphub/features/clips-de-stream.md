@@ -24,7 +24,7 @@ Preconditions:
 - No live orchestrator is required to open the form. A real import POST needs `/api/streams`.
 
 - **Rail entry.** Choose `Clips de stream`. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs goto --path /streams`. The title is `Clips de stream · ClipHub`. The rail link `Clips de stream` has `aria-current="page"`.
-- **Hub entry.** From `/clips`, choose `Recortar un stream`. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs click --role link --name "Recortar un stream"`. The URL is `/streams`.
+- **Hub entry.** From `/clips`, choose `Recortar un stream`. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs click --path /clips --role link --name "Recortar un stream"`. The URL is `/streams`. `click` waits for that `href`; a result that stays on `/clips` is a failed door.
 - **URL field.** The textbox name is `Enlace del vídeo de Twitch, YouTube o Kick`. The optional title name is `Nombre del proyecto`. The submit name is `Importar vídeo`.
 - **Empty submit.** Choose `Importar vídeo` with an empty URL. The URL field is `aria-invalid` and `#stream-url-error` contains `Pega una URL`.
 - **Proof.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --out .cursor/skills/verify-cliphub/artifacts/clips-de-stream/form.aria.txt` and `screenshot --out .cursor/skills/verify-cliphub/artifacts/clips-de-stream/form.png`. Both identify ClipHub and the import form.

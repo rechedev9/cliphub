@@ -13,7 +13,7 @@ The hub is the Studio home. A first-run user lands on `/clips`, sees three creat
 ## How to get to it (user POV)
 
 - Open Studio. The root page redirects to `/clips`.
-- Choose the wordmark `Ir a Clips y vídeos`.
+- Choose the brand lockup. Visible text is `ClipHub`; accessible name is `Ir a Clips y vídeos`.
 - Choose rail row `01 Clips y vídeos`.
 - Run `control-cliphub.mjs goto --path /clips`.
 
@@ -28,7 +28,7 @@ Preconditions:
 - **Open hub.** Land on Clips. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs goto --path /clips`. The document title is `Clips y vídeos · ClipHub`. The rail link `Clips y vídeos` has `aria-current="page"`.
 - **Empty first-run.** Look for the empty region. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --out .cursor/skills/verify-cliphub/artifacts/inicio/hub.aria.txt` from the repo root. Relative `--out` resolves from that root, not the evidence directory. The snapshot contains `¿Qué quieres crear?` or, when jobs exist, `Tus demos y vídeos`.
 - **Creation doors.** The empty hub offers three links. `Crear Short` href is `/clips/nueva?formato=short`. `Crear vídeo largo` href is `/clips/nueva?formato=full`. `Recortar un stream` href is `/streams`.
-- **Short door.** Choose `Crear Short`. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs click --role link --name "Crear Short"`. The URL matches `/clips/nueva?formato=short`. The title is `Cargar demo · ClipHub`.
+- **Short door.** Choose `Crear Short`. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs click --role link --name "Crear Short"`. The URL matches `/clips/nueva?formato=short`. The tab title is `Cargar demo`. The heading is `Crea un Short`.
 - **Return to hub.** Choose the rail row. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs click --role link --name "Clips y vídeos" --within "[data-slot=sidebar]"`. The URL is `/clips` and `aria-current="page"` is back on that row.
 - **One-shot drive.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature inicio`. Exit code `0`. `drive.json` lists the routes above.
 - **Proof.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs screenshot --out .cursor/skills/verify-cliphub/artifacts/inicio/hub.png`. The PNG shows the ClipHub shell and the hub copy.
@@ -36,7 +36,7 @@ Preconditions:
 ## Gotchas
 
 - `/` redirects to `/clips`. Assert the final URL, not the request URL.
-- The brand lockup and the rail row share the name `Clips y vídeos`. Scope rail clicks with `--within "[data-slot=sidebar]"`.
+- The brand lockup accessible name is `Ir a Clips y vídeos`. The rail row accessible name is `Clips y vídeos` (the `01` prefix is `aria-hidden`). Scope rail clicks with `--within "[data-slot=sidebar]"` so you do not hit the lockup.
 - Empty hub copy is the honest state without an orchestrator. Do not stub `/api/demos/jobs` to fake partidas for this skill.
 - `/clips` first paints `Cargando partidas`. `snapshot` and `screenshot` wait until that status is hidden, then for the empty hub, `Tus demos y vídeos`, or the clips-lens heading `Tus vídeos de demos` on `/clips?vista=clips`. A capture taken too early is only the skeleton.
 - Opening `Crear vídeo largo` is a constructor door. It is not HLAE capture and not Full Demo Pass.

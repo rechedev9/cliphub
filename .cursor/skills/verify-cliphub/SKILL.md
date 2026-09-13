@@ -59,7 +59,7 @@ Read `.cursor/skills/verify-cliphub/features/` before you pick a path. Drive one
 node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature inicio
 ```
 
-`inicio` is the first-run Clips hub. The command opens `/clips`, waits until `Cargando partidas` is hidden, asserts the empty-hub region `¿Qué quieres crear?` or the populated heading `Tus demos y vídeos`, checks the numbered rail `Clips y vídeos` has `aria-current="page"`, follows `Crear Short` to `/clips/nueva?formato=short`, and returns through the rail. After the return it waits for the hub again before writing proof. `goto`, `snapshot`, and `screenshot` of `/clips` (including `?vista=clips`) also treat the clips-lens heading `Tus vídeos de demos` as ready.
+`inicio` is the first-run Clips hub. The command opens `/clips`, waits until `Cargando partidas` is hidden, asserts the empty-hub region `¿Qué quieres crear?` or the populated heading `Tus demos y vídeos`, checks the numbered rail `Clips y vídeos` has `aria-current="page"`, follows `Crear Short` to `/clips/nueva?formato=short`, and returns through the rail. After the return it waits for the hub again before writing proof. `goto`, `snapshot`, and `screenshot` of `/clips` (including `?vista=clips`) also treat the clips-lens heading `Tus vídeos de demos` as ready. On `/players` they wait until `Cargando jugadores` is hidden so the snapshot is the settled FACEIT state, not the skeleton.
 
 Other drive verbs for a recipe in the feature map:
 
@@ -70,15 +70,18 @@ node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --out .cursor/sk
 node .cursor/skills/verify-cliphub/control-cliphub.mjs screenshot --out .cursor/skills/verify-cliphub/artifacts/inicio/hub.png
 ```
 
-Relative `--out` resolves from the repo root. `snapshot` and `screenshot` wait until `Cargando partidas` is hidden, then for the empty hub, `Tus demos y vídeos`, or the clips-lens heading `Tus vídeos de demos`.
+Relative `--out` resolves from the repo root. `snapshot` and `screenshot` wait until `Cargando partidas` is hidden, then for the empty hub, `Tus demos y vídeos`, or the clips-lens heading `Tus vídeos de demos`. On `/players` they wait until `Cargando jugadores` is hidden. `click` on a link waits until the browser URL matches that `href` — do not treat the pre-click URL as the result. `goto` accepts ClipHub identity from the tab title or the brand lockup `Ir a Clips y vídeos`; `/clips/nueva` serves tab title `Cargar demo` without the ` · ClipHub` suffix.
 
 Stable handles from the live UI and `web/e2e`:
 
 - Rail current page: `[data-slot="sidebar"] a[aria-current="page"]`
+- Brand lockup: link `Ir a Clips y vídeos` (visible text `ClipHub`)
 - Hub empty region: `section[aria-label="¿Qué quieres crear?"]`
 - Creation cards: links named `Crear Short`, `Crear vídeo largo`, `Recortar un stream`
-- Upload file input: `input[type="file"]` on `/clips/nueva`
+- Parsed-partida Full door: link `Preparar vídeo largo` (the format-bar label `Vídeo largo 16:9` is on `/clips/nueva` and `/clips/<id>/nuevo`)
+- Upload file input: `input[type="file"]` named `Elegir demos de CS2` on `/clips/nueva`
 - Stream URL field: textbox `Enlace del vídeo de Twitch, YouTube o Kick`
+- Players rail: link `Jugadores FACEIT`
 - Players search: textbox `Buscar jugador seguido`
 
 `zv verify prove --feature <id>` inspects the compiled catalog and, when Studio HTTP is up, GET a read-only probe. That inspect is not a UI walk and not a capture Pass. Use it as a cheap gate. Use `control-cliphub drive` for the user path.
