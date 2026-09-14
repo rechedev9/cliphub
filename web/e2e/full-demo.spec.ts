@@ -31,12 +31,12 @@ async function fulfillJson(page: Page, path: string, status: number, body: unkno
   await page.route(`**/api/demos/${JOB}${path}`, (route) => route.fulfill({ status, json: body }));
 }
 
-async function stubParsedMatch(page: Page, document = editorial()): Promise<void> {
+async function stubParsedMatch(page: Page, document: FullDemoDocument | null = editorial(), defaults = editorial().options): Promise<void> {
   await fulfillJson(page, '/status', 200, { status: 'parsed' });
   await fulfillJson(page, '/plan', 200, PLAN);
   await fulfillJson(page, '/roster', 200, ROSTER);
   await fulfillJson(page, '/recap-plan', 200, PLAN);
-  await fulfillJson(page, '/full-demo/plan', 200, { document, defaults: document.options, compatibility: 'editorial-v1' });
+  await fulfillJson(page, '/full-demo/plan', 200, { document, defaults: document?.options ?? defaults, compatibility: document ? 'editorial-v1' : 'legacy-until-planned-and-approved' });
 }
 
 test.describe('Full POV simplified constructor', () => {
@@ -120,6 +120,69 @@ test.describe('Full POV simplified constructor', () => {
     await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
     await expect.poll(() => uploaded).toBe(1);
     await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
+  });
+
+  test('prepares canonical sponsor boundaries from an empty plan, then creates the selected boundary', async ({ page }) => {
+    const defaults = editorial().options;
+    defaults.sponsor.enabled = false;
+    defaults.sponsor.video = null;
+    defaults.sponsor.placement_policy = 'first-two-rounds';
+    defaults.sponsor.after_round_id = '';
+    const prepared = editorial();
+    prepared.options.sponsor.enabled = true;
+    prepared.options.sponsor.video = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
+    let plans = 0;
+    let generated: unknown;
+    await stubParsedMatch(page, null, defaults);
+    await page.route('**/api/editor/assets', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      plans += 1;
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      if (plans === 1) {
+        expect(body.options.sponsor).toMatchObject({
+          enabled: true,
+          video: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) },
+          placement_policy: 'first-two-rounds',
+        });
+      } else {
+        expect(body.options.sponsor).toMatchObject({
+          enabled: true,
+          video: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) },
+          placement_policy: 'round-boundary',
+          after_round_id: 'round-002',
+        });
+      }
+      await route.fulfill({ status: 201, json: { ...prepared, options: body.options, plan_hash: plans === 1 ? 'a'.repeat(64) : 'b'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
+      generated = route.request().postDataJSON();
+      await route.fulfill({ status: 202, json: { accepted: true } });
+    });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
+    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
+    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
+    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
+    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
+    const boundary = page.getByRole('combobox', { name: 'Insertar después de', exact: true });
+    await expect(boundary).toBeVisible();
+    await expect.poll(() => plans).toBe(1);
+    expect(generated).toBeUndefined();
+    await boundary.click();
+    await page.getByRole('option', { name: 'Ronda 2', exact: true }).click();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
+    expect(plans).toBe(2);
   });
 
   test('storage failures keep the durable Full Demo creation flow available', async ({ page }) => {

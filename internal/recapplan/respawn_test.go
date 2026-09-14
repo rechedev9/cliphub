@@ -93,3 +93,26 @@ func TestLegacyApprovalRequiresExplicitReplan(t *testing.T) {
 		t.Fatalf("legacy approval admitted: %v", err)
 	}
 }
+
+func TestOtherwiseCurrentApprovalCannotReplayRetiredVoiceFallback(t *testing.T) {
+	facts := fixtureFacts()
+	facts.Crosshairs = []CrosshairSample{{Tick: 0, Code: "CSGO-WsnnD-eHaMw-QNDf9-oxuDh-ydOUD"}}
+	options := DefaultOptions()
+	options.Audio.Voice.ApprovedFallback = "without-voice"
+	doc, err := Plan(facts, options, VoiceEvidence{Availability: "no_packets"}, nil, "facts.json")
+	if err != nil || len(doc.Blockers) != 0 {
+		t.Fatalf("historical plan: %v, blockers %+v", err, doc.Blockers)
+	}
+	if !doc.UsesFixedFreeze() || doc.PlannerVersion != PlannerVersion {
+		t.Fatal("fixture must pass the existing planner/freeze admission gates")
+	}
+	snapshot := Snapshot{Document: doc, Approval: Approval{PlanHash: doc.PlanHash, AllowSafeTailTrim: doc.Options.Editorial.AllowSafeTailTrim, Timestamp: time.Now()}}
+	if err := snapshot.Validate(); err != nil {
+		t.Fatalf("historical approval must remain readable: %v", err)
+	}
+	_, err = ResolveApproval(context.Background(), nil, uuid.New(), "demo.dem", doc.Input.TargetSteamID64, "", snapshot)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Code != ErrPlanStale || !strings.Contains(typed.Detail, "voice fallback") {
+		t.Fatalf("retired voice fallback reached dependency resolution: %v", err)
+	}
+}

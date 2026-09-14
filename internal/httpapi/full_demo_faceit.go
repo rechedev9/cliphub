@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -39,6 +40,20 @@ func (h *Handlers) persistFullDemoSource(id uuid.UUID, source string) {
 		return
 	}
 	_ = h.storage.Put(artifacts.FullDemoSourceKey(id), bytes.NewReader(body))
+}
+
+// storeFullDemoOverlaySnapshot persists the roster decoration selected by an
+// approved Full Demo document. FACEIT remains an admission requirement, while
+// a local Steam profile image is optional: parsed demo facts are sufficient to
+// render the job when Steam is unavailable.
+func (h *Handlers) storeFullDemoOverlaySnapshot(ctx context.Context, j job.Job, source string) error {
+	if demooverlay.UsesFACEITEnrichment(source) {
+		return h.storeFullDemoFaceit(ctx, j)
+	}
+	if err := h.storeFullDemoSteamAvatars(ctx, j); err != nil {
+		log.Printf("full demo Steam avatar snapshot %s: %v", j.ID, err)
+	}
+	return nil
 }
 
 // storeFullDemoFaceit resolves the entire parsed roster before HLAE is queued.
@@ -137,7 +152,18 @@ func (h *Handlers) storeFullDemoSteamAvatars(ctx context.Context, j job.Job) err
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
-	avatars := resolver.ResolveSteamAvatars(lookupCtx, ids)
+	resolved := resolver.ResolveSteamAvatars(lookupCtx, ids)
+	// The resolver normally already removes a private profile's URL. Retain the
+	// privacy state but enforce that boundary again before its response becomes
+	// durable input to the renderer.
+	avatars := make(map[string]faceit.SteamAvatar, len(resolved))
+	for steamID, avatar := range resolved {
+		if avatar.Private {
+			avatars[steamID] = faceit.SteamAvatar{Private: true}
+			continue
+		}
+		avatars[steamID] = avatar
+	}
 	body, err := json.MarshalIndent(avatars, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode Steam avatar snapshot: %w", err)

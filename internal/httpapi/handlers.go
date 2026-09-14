@@ -1094,15 +1094,9 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if useRecapPlan {
-		if demoSource == renderplan.DemoSourceFACEIT {
-			if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
-				h.rejectFullDemoFaceit(w, j, err)
-				return
-			}
-		} else if err := h.storeFullDemoSteamAvatars(r.Context(), j); err != nil {
-			// A Steam profile is optional local-demo decoration. The job's parsed
-			// roster stays sufficient evidence for a factual overlay.
-			log.Printf("full demo Steam avatar snapshot %s: %v", j.ID, err)
+		if err := h.storeFullDemoOverlaySnapshot(r.Context(), j, demoSource); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
 		}
 	}
 	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)
@@ -1206,11 +1200,9 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	segmentIDs := req.SegmentIDs
 	if useRecapPlan && intent.Edit.FullDemo != nil {
 		segmentIDs = nil
-		if intent.Edit.UsesFACEITOverlay() {
-			if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
-				h.rejectFullDemoFaceit(w, j, err)
-				return
-			}
+		if err := h.storeFullDemoOverlaySnapshot(r.Context(), j, intent.Edit.DemoSource); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
 		}
 	} else if useRecapPlan {
 		if !h.requireRecapPlan(w, j) {
@@ -1726,6 +1718,12 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	if err := editRequest.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if editRequest.FullDemo != nil {
+		if err := h.storeFullDemoOverlaySnapshot(r.Context(), j, editRequest.DemoSource); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
+		}
 	}
 	if musicRequest.set {
 		musicKey = musicRequest.Key
