@@ -266,6 +266,10 @@ function musicChoiceFromEffective(music: EffectiveRenderMusic | undefined): Musi
 
 
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException('La creación se canceló.', 'AbortError');
+}
+
 /** A queued placeholder Video for an intent; its live status is filled by reconcile. */
 function videoFromIntent(intent: ReelIntent): Video {
   return {
@@ -525,17 +529,19 @@ export class RealApiClient implements ApiClient {
 
   /** Register a durable reel intent; reconcile drives record→render. */
   async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig; signal?: AbortSignal }): Promise<Video> {
-    if (!isJobId(input.matchId)) throw new Error('Partida desconocida.');
+    const { signal, ...request } = input;
+    throwIfAborted(signal);
+    if (!isJobId(request.matchId)) throw new Error('Partida desconocida.');
 
-    const editConfig = constrainEditConfig(input.editConfig ?? DEFAULT_EDIT_CONFIG);
-    const normalized = { ...input, editConfig };
+    const editConfig = constrainEditConfig(request.editConfig ?? DEFAULT_EDIT_CONFIG);
+    const normalized = { ...request, editConfig };
     const videoId = reelIdentity(normalized);
     const existing = this.reels.get(videoId);
     const existingIntent = this.intents.get(videoId);
-    if (existing && existingIntent && fullDemoIntentConflict(existing, existingIntent, { ...normalized, mode: input.mode })) {
+    if (existing && existingIntent && fullDemoIntentConflict(existing, existingIntent, { ...normalized, mode: request.mode })) {
       throw new Error('Ya hay un Full Demo con otro plan en curso. Espera a que termine antes de cambiarlo.');
     }
-    if (existing && existingIntent && shouldReuseReelIntent(existing, existingIntent, { ...normalized, mode: input.mode })) {
+    if (existing && existingIntent && shouldReuseReelIntent(existing, existingIntent, { ...normalized, mode: request.mode })) {
       return { ...existing };
     }
 
@@ -543,35 +549,36 @@ export class RealApiClient implements ApiClient {
     let playsRequest: Promise<Play[]>;
     if (editConfig.fullDemo) {
       playsRequest = Promise.resolve(editConfig.fullDemo.document.rounds.map((round): Play => ({
-        id: round.round_id, matchId: input.matchId, label: `R${round.source_round_number}`, kind: 'highlight', round: round.source_round_number, kills: round.kills?.length ?? 0,
+        id: round.round_id, matchId: request.matchId, label: `R${round.source_round_number}`, kind: 'highlight', round: round.source_round_number, kills: round.kills?.length ?? 0,
       })));
     } else {
-      playsRequest = recap ? this.findRecapClips(input.matchId) : this.findClips(input.matchId);
+      playsRequest = recap ? this.findRecapClips(request.matchId) : this.findClips(request.matchId);
     }
     const [plays, match] = await Promise.all([
       playsRequest,
-      this.getMatch(input.matchId),
+      this.getMatch(request.matchId),
     ]);
+    throwIfAborted(signal);
     // Recap records every stored round. Shorts keep the caller's plan order.
     const pickedPlays = recap
       ? plays
-      : input.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
-    const variant = input.variant ?? REEL_VARIANT;
-    const suffix = input.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
+      : request.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
+    const variant = request.variant ?? REEL_VARIANT;
+    const suffix = request.songId ? `${variantLabel(variant, editConfig)} + Music` : variantLabel(variant, editConfig);
     const selectionTitle = recap
       ? `${pickedPlays.length} ${pickedPlays.length === 1 ? 'ronda' : 'rondas'}`
       : (playsSelectionLabel(pickedPlays) ?? 'Highlight');
     const intent: ReelIntent = {
       videoId,
-      jobId: input.matchId,
+      jobId: request.matchId,
       segmentIds: recap ? [] : pickedPlays.map((p) => p.id),
-      mode: input.mode,
+      mode: request.mode,
       variant,
       editConfig,
-      songId: input.songId,
+      songId: request.songId,
       // Volume only rides along with a chosen song; without one it is meaningless.
-      musicVolume: input.songId ? input.musicVolume : undefined,
-      gameVolume: input.songId ? input.gameVolume : undefined,
+      musicVolume: request.songId ? request.musicVolume : undefined,
+      gameVolume: request.songId ? request.gameVolume : undefined,
       title: `${selectionTitle} - ${suffix}`,
       map: match?.map ?? 'Unknown',
       score: match?.score ?? '',

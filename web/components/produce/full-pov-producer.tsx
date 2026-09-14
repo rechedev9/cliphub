@@ -103,7 +103,8 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     try {
       const planned = document && fullDemoApprovalKey(document, options) ? document : await saveCurrentPlan(controller.signal);
       if (controller.signal.aborted) return;
-      await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)) });
+      await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
+      if (controller.signal.aborted) return;
       toast('Full Demo en cola', { description: recBusy ? 'Empezará cuando quede libre CS2.' : 'Sigue el progreso en Demos y vídeos.' });
       router.push(returnHref);
     } catch (failure) {

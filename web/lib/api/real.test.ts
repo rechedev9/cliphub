@@ -441,12 +441,13 @@ test('aborting createVideo after getMatch starts does not persist an intent', as
     const client = new RealApiClient();
     const controller = new AbortController();
     const pending = client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal });
+    const rejected = assert.rejects(pending, isAbortError);
     await drain();
     assert.ok(gate.calls.includes(STATUS_URL));
     controller.abort();
     await gate.release();
     await gate.release();
-    await assert.rejects(() => pending, isAbortError);
+    await rejected;
     assert.equal((client as unknown as Seedable).intents.size, 0);
   } finally {
     gate.restore();
