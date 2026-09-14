@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import type { FullDemoDocument, FullDemoOptions } from '@/lib/full-demo-plan';
+import { certifiedRoundId, isPrepareAbort } from '@/lib/produce/sponsor-boundary';
 import { FullDemoAssetInput } from './full-demo-asset-input';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
 import { FullDemoChoice, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
@@ -47,22 +48,24 @@ export function FullDemoSponsor({ options, document, onChange, onAssetBusy, onPr
       change({ placement_policy, ...(placement_policy === 'manual-frame' ? { manual_start_frame: sponsor.manual_start_frame ?? 6000 } : {}) });
       return;
     }
-    const candidate = candidates[0];
-    if (candidate) {
+    const after_round_id = certifiedRoundId(candidates.map((candidate) => candidate.after_round_id), sponsor.after_round_id);
+    if (after_round_id) {
       setBoundaryError(null);
-      change({ placement_policy, after_round_id: candidate.after_round_id });
+      change({ placement_policy, after_round_id });
       return;
     }
     if (!onPrepareRoundBoundaries) return;
     setPreparingBoundary(true); setBoundaryError(null);
     try {
       const planned = await onPrepareRoundBoundaries();
-      const preparedCandidate = planned?.sponsor_placement.candidates?.[0];
-      if (!preparedCandidate || !planned) {
+      const prepared = certifiedRoundId((planned?.sponsor_placement.candidates ?? []).map((candidate) => candidate.after_round_id), sponsor.after_round_id);
+      if (!planned || !prepared) {
         setBoundaryError('No hay una ronda certificada disponible para el sponsor.');
         return;
       }
-      onChange({ ...planned.options, sponsor: { ...planned.options.sponsor, placement_policy, after_round_id: preparedCandidate.after_round_id } });
+      onChange({ ...planned.options, sponsor: { ...planned.options.sponsor, placement_policy, after_round_id: prepared } });
+    } catch (failure) {
+      if (!isPrepareAbort(failure)) setBoundaryError(failure instanceof Error ? failure.message : 'No hay una ronda certificada disponible para el sponsor.');
     } finally {
       setPreparingBoundary(false);
     }

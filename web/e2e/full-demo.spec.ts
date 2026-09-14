@@ -185,6 +185,55 @@ test.describe('Full POV simplified constructor', () => {
     expect(plans).toBe(2);
   });
 
+  test('reopening round-boundary keeps the certified round already chosen', async ({ page }) => {
+    const document = editorial();
+    document.options.sponsor.enabled = true;
+    document.options.sponsor.placement_policy = 'first-two-rounds';
+    document.options.sponsor.after_round_id = 'round-002';
+    await stubParsedMatch(page, document);
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
+    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
+    await expect(page.getByRole('combobox', { name: 'Insertar después de', exact: true })).toHaveText('Ronda 2');
+  });
+
+  test('leaving Full Demo while preparing sponsor rounds does not claim missing rounds', async ({ page }) => {
+    const defaults = editorial().options;
+    defaults.sponsor.enabled = false;
+    defaults.sponsor.video = null;
+    defaults.sponsor.placement_policy = 'first-two-rounds';
+    defaults.sponsor.after_round_id = '';
+    let held = false;
+    await stubParsedMatch(page, null, defaults);
+    await page.route('**/api/editor/assets', async (route) => {
+      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      held = true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      try { await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'e'.repeat(64) } }); } catch { /* Navigation aborts the held request. */ }
+    });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
+    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
+    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
+    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
+    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
+    await expect.poll(() => held).toBe(true);
+    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+    await page.waitForTimeout(700);
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'No hay una ronda certificada disponible para el sponsor.' })).toHaveCount(0);
+  });
+
   test('storage failures keep the durable Full Demo creation flow available', async ({ page }) => {
     const document = editorial();
     let generated = 0;

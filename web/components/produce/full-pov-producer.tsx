@@ -110,7 +110,8 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     try {
       return await saveCurrentPlan(controller.signal);
     } catch (failure) {
-      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudieron preparar las rondas.');
+      if (controller.signal.aborted) throw failure instanceof DOMException && failure.name === 'AbortError' ? failure : new DOMException('La preparación se canceló.', 'AbortError');
+      setError(failure instanceof Error ? failure.message : 'No se pudieron preparar las rondas.');
       return null;
     } finally {
       if (boundaryRequest.current === controller) {
