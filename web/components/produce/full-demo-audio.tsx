@@ -1,12 +1,15 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { FullDemoDocument, FullDemoOptions } from '@/lib/full-demo-plan';
 import { FullDemoAssetInput } from './full-demo-asset-input';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
 import { FullDemoChoice, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
 
-type Props = { options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void };
+type Props = {
+  options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
+  onPrepareRoundBoundaries?: () => Promise<FullDemoDocument | null>;
+};
 
 export function FullDemoAudio({ options, document, onChange, onAssetBusy }: Props): ReactNode {
   const { audio } = options;
@@ -27,10 +30,43 @@ function voiceStatus(status: string): string {
   return labels[status] ?? status;
 }
 
-export function FullDemoSponsor({ options, document, onChange, onAssetBusy }: Props): ReactNode {
+export function FullDemoSponsor({ options, document, onChange, onAssetBusy, onPrepareRoundBoundaries }: Props): ReactNode {
   const { sponsor } = options;
+  const [preparingBoundary, setPreparingBoundary] = useState(false);
+  const [boundaryError, setBoundaryError] = useState<string | null>(null);
   const change = (patch: Partial<typeof sponsor>): void => onChange({ ...options, sponsor: { ...sponsor, ...patch } });
   const assetName = (id: string | undefined): string => document?.assets?.find((asset) => asset.ref.id === id)?.title ?? 'Archivo pendiente de revisar en el plan';
+  const candidates = document?.sponsor_placement.candidates ?? [];
+  const boundaryOptions = candidates.map((candidate) => {
+    const round = document?.rounds.find((entry) => entry.round_id === candidate.after_round_id);
+    return { value: candidate.after_round_id, label: round ? `Ronda ${round.source_round_number}` : candidate.after_round_id };
+  });
+  async function selectPlacement(placement_policy: typeof sponsor.placement_policy): Promise<void> {
+    if (placement_policy !== 'round-boundary') {
+      setBoundaryError(null);
+      change({ placement_policy, ...(placement_policy === 'manual-frame' ? { manual_start_frame: sponsor.manual_start_frame ?? 6000 } : {}) });
+      return;
+    }
+    const candidate = candidates[0];
+    if (candidate) {
+      setBoundaryError(null);
+      change({ placement_policy, after_round_id: candidate.after_round_id });
+      return;
+    }
+    if (!onPrepareRoundBoundaries) return;
+    setPreparingBoundary(true); setBoundaryError(null);
+    try {
+      const planned = await onPrepareRoundBoundaries();
+      const preparedCandidate = planned?.sponsor_placement.candidates?.[0];
+      if (!preparedCandidate || !planned) {
+        setBoundaryError('No hay una ronda certificada disponible para el sponsor.');
+        return;
+      }
+      onChange({ ...planned.options, sponsor: { ...planned.options.sponsor, placement_policy, after_round_id: preparedCandidate.after_round_id } });
+    } finally {
+      setPreparingBoundary(false);
+    }
+  }
   return <>
     <FullDemoToggle label="Incluir sponsor" value={sponsor.enabled} onChange={(enabled) => change({ enabled })} />
     {sponsor.enabled ? <div className="space-y-4">
@@ -46,12 +82,14 @@ export function FullDemoSponsor({ options, document, onChange, onAssetBusy }: Pr
         <FullDemoAssetInput label="Añadir o cambiar narración" accept="audio/*" onBusyChange={onAssetBusy} onUploaded={(narration) => change({ narration })} />
         <FullDemoChoice label="Si la narración dura menos que el vídeo" value={sponsor.short_narration_policy} options={[{ value: 'block', label: 'Bloquear y avisarme' }, { value: 'pad-silence', label: 'Acepto silencio al final' }]} onChange={(short_narration_policy) => change({ short_narration_policy })} />
       </> : null}
-      <FullDemoChoice label="Colocación" value={sponsor.placement_policy} options={[{ value: 'first-two-rounds', label: 'Después de R2 o R1, en la ventana' }, { value: 'round-boundary', label: 'Después de una ronda concreta' }, { value: 'manual-frame', label: 'Instante exacto del vídeo' }]} onChange={(placement_policy) => change({ placement_policy, ...(placement_policy === 'manual-frame' ? { manual_start_frame: sponsor.manual_start_frame ?? 6000 } : {}), ...(placement_policy === 'round-boundary' ? { after_round_id: sponsor.after_round_id || document?.rounds[0]?.round_id || '' } : {}) })} />
+      <FullDemoChoice label="Colocación" value={sponsor.placement_policy} options={[{ value: 'first-two-rounds', label: 'Después de R2 o R1, en la ventana' }, { value: 'round-boundary', label: 'Después de una ronda concreta' }, { value: 'manual-frame', label: 'Instante exacto del vídeo' }]} onChange={(placement_policy) => void selectPlacement(placement_policy)} />
+      {preparingBoundary ? <p role="status" className="text-body-sm text-fg-2">Preparando las rondas disponibles…</p> : null}
+      {boundaryError ? <p role="alert" className="text-body-sm text-destructive">{boundaryError}</p> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <FullDemoNumber label="Ventana: desde (s)" value={sponsor.window_start_seconds} max={43200} onChange={(window_start_seconds) => change({ window_start_seconds })} />
         <FullDemoNumber label="Ventana: hasta (s)" value={sponsor.window_end_seconds} max={43200} onChange={(window_end_seconds) => change({ window_end_seconds })} />
       </div>
-      {sponsor.placement_policy === 'round-boundary' ? <FullDemoChoice label="Insertar después de" value={sponsor.after_round_id} options={(document?.rounds ?? []).map((round) => ({ value: round.round_id, label: `Ronda ${round.source_round_number}` }))} onChange={(after_round_id) => change({ after_round_id })} /> : null}
+      {sponsor.placement_policy === 'round-boundary' ? <FullDemoChoice label="Insertar después de" value={sponsor.after_round_id} options={boundaryOptions} onChange={(after_round_id) => change({ after_round_id })} /> : null}
       {sponsor.placement_policy === 'manual-frame' ? <>
         <FullDemoNumber label="Fotograma de inserción (60 = 1 segundo)" value={sponsor.manual_start_frame ?? 0} max={2592000} onChange={(manual_start_frame) => change({ manual_start_frame })} />
         <FullDemoToggle label="Acepto dividir una ronda en este punto" value={sponsor.allow_split_round} onChange={(allow_split_round) => change({ allow_split_round })} />

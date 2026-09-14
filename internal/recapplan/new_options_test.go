@@ -83,6 +83,14 @@ func TestCurrentPolicyRejectsHistoricalRetiredGenerationChoices(t *testing.T) {
 		{"no roster", func(o *Options) { o.Overlays.Roster = false }},
 		{"orange overlays", func(o *Options) { o.Overlays.Theme = "faceit-orange" }},
 		{"legacy transitions", func(o *Options) { o.Transitions = nil }},
+		{"silent voice fallback", func(o *Options) { o.Audio.Voice.ApprovedFallback = "without-voice" }},
+		{"manual round interval", func(o *Options) {
+			o.Editorial.ManualRanges = []ManualRange{{RoundID: "round-001", StartTick: 10, EndTick: 20}}
+		}},
+		{"short death tail", func(o *Options) { o.Editorial.DeathTailSeconds = 1 }},
+		{"muted game", func(o *Options) { o.Audio.Game.Gain = 0 }},
+		{"voice priority", func(o *Options) { o.Audio.Game.VoicePriority = true }},
+		{"old cover", func(o *Options) { o.Outputs.CoverPolicy = "generated-gameplay" }},
 	} {
 		t.Run(mutate.name, func(t *testing.T) {
 			o := DefaultOptions()
@@ -94,6 +102,29 @@ func TestCurrentPolicyRejectsHistoricalRetiredGenerationChoices(t *testing.T) {
 				t.Fatal("retired generation configuration was admitted")
 			}
 		})
+	}
+}
+
+func TestCurrentPolicyPreservesSupportedChoicesAndEmptyHistoricalSlices(t *testing.T) {
+	o := DefaultOptions()
+	o.SourceKind = "premier"
+	o.Overlays.HUDTheme = "mono"
+	o.Audio.Voice.Enabled = false
+	o.Transitions.Enabled = false
+	o.Sponsor.PlacementPolicy = "round-boundary"
+	o.Sponsor.AfterRoundID = "round-002"
+	o.Editorial.ManualRanges = nil
+	o.Audio.Music.Assets = nil
+	before, err := HashValue(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := o.ValidateCurrentFullDemoPolicy(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := HashValue(o)
+	if err != nil || before != after {
+		t.Fatalf("policy check mutated approved options: %s vs %s, %v", before, after, err)
 	}
 }
 

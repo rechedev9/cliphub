@@ -30,10 +30,11 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
-  const [busy, setBusy] = useState<'load' | 'create' | 'asset' | null>('load');
+  const [busy, setBusy] = useState<'load' | 'plan' | 'create' | 'asset' | null>('load');
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const createRequest = useRef<AbortController | null>(null);
+  const boundaryRequest = useRef<AbortController | null>(null);
   const draftKey = `cliphub.full-demo.draft.v1:${matchId}`;
 
   useEffect(() => {
@@ -61,17 +62,29 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       createRequest.current = null;
       request.abort();
     }
+    const boundary = boundaryRequest.current;
+    if (boundary) {
+      boundaryRequest.current = null;
+      boundary.abort();
+    }
   }, [matchId]);
   useEffect(() => {
     if (!active) {
       const request = createRequest.current;
-      if (!request) return;
-      createRequest.current = null;
-      request.abort();
-      // The producer remains mounted while the format is hidden. Release only
-      // this request's create state so returning to Full Demo is usable, while
-      // a new match load or request keeps its own busy state intact.
-      setBusy((current) => current === 'create' ? null : current);
+      if (request) {
+        createRequest.current = null;
+        request.abort();
+        // The producer remains mounted while the format is hidden. Release only
+        // this request's create state so returning to Full Demo is usable, while
+        // a new match load or request keeps its own busy state intact.
+        setBusy((current) => current === 'create' ? null : current);
+      }
+      const boundary = boundaryRequest.current;
+      if (boundary) {
+        boundaryRequest.current = null;
+        boundary.abort();
+        setBusy((current) => current === 'plan' ? null : current);
+      }
     }
   }, [active]);
 
@@ -94,6 +107,23 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     setDocument(planned); setOptions(planned.options);
     try { localStorage.setItem(draftKey, JSON.stringify(planned.options)); } catch { /* The plan was saved durably by the server. */ }
     return planned;
+  }
+  async function prepareSponsorRoundBoundaries(): Promise<FullDemoDocument | null> {
+    if (!options || busy) return null;
+    const controller = new AbortController();
+    boundaryRequest.current = controller;
+    setBusy('plan'); setError(null);
+    try {
+      return await saveCurrentPlan(controller.signal);
+    } catch (failure) {
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudieron preparar las rondas.');
+      return null;
+    } finally {
+      if (boundaryRequest.current === controller) {
+        boundaryRequest.current = null;
+        setBusy(null);
+      }
+    }
   }
   async function create(): Promise<void> {
     if (!options || busy) return;
@@ -140,7 +170,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
         <FullDemoGroup title="Overlays" note="Jugadores y marcador en neón violeta.">
           <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
         </FullDemoGroup>
-        <FullDemoGroup title="Sponsor" note="Opcional; se mantiene desactivado hasta que añadas una pieza."><FullDemoSponsor options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></FullDemoGroup>
+        <FullDemoGroup title="Sponsor" note="Opcional; se mantiene desactivado hasta que añadas una pieza."><FullDemoSponsor options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} onPrepareRoundBoundaries={prepareSponsorRoundBoundaries} /></FullDemoGroup>
       </div>
     </fieldset> : null}
     <div className="space-y-3">

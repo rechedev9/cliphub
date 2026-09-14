@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 
 	"github.com/google/uuid"
@@ -148,6 +149,21 @@ func (o Options) ValidateCurrentFullDemoPolicy() error {
 	}
 	if o.Transitions == nil || canonical.Transitions == nil || *o.Transitions != *canonical.Transitions {
 		return fmt.Errorf("transitions must use the Dinamico preset")
+	}
+	// Empty historical slices and current empty arrays have the same policy.
+	// Work on the value copy: approved documents and their hashes stay intact.
+	if len(o.Editorial.ManualRanges) == 0 {
+		o.Editorial.ManualRanges = canonical.Editorial.ManualRanges
+	}
+	o.Audio.Music.Assets = canonical.Audio.Music.Assets // Nonempty music was rejected above.
+	if !reflect.DeepEqual(o.Editorial, canonical.Editorial) {
+		return fmt.Errorf("automatic round timing is required")
+	}
+	if !reflect.DeepEqual(o.Audio, canonical.Audio) {
+		return fmt.Errorf("automatic audio calibration and voice fallback policy are required")
+	}
+	if o.Outputs != canonical.Outputs {
+		return fmt.Errorf("automatic output settings are required")
 	}
 	return nil
 }
