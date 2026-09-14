@@ -524,7 +524,7 @@ export class RealApiClient implements ApiClient {
   }
 
   /** Register a durable reel intent; reconcile drives record→render. */
-  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
+  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig; signal?: AbortSignal }): Promise<Video> {
     if (!isJobId(input.matchId)) throw new Error('Partida desconocida.');
 
     const editConfig = constrainEditConfig(input.editConfig ?? DEFAULT_EDIT_CONFIG);

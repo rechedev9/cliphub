@@ -397,6 +397,62 @@ test('listMatches reuses the last jobs body when the list answers 304', async ()
   }
 });
 
+function createVideoFetch(): { posts: string[]; restore: () => void } {
+  const original = globalThis.fetch;
+  const posts: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (method === 'POST') posts.push(url);
+    if (url === STATUS_URL) return json({ status: 'done' });
+    if (url === PLAN_URL) return json(PLAN);
+    if (url === ROSTER_URL) return json(ROSTER);
+    if (url === `/api/demos/${JOB}/generate`) return json({ id: 'job', task: 'record' }, 202);
+    if (url.startsWith('/api/demos/batch-status')) return json({ items: [] });
+    return json({ error: `unexpected ${method} ${url}`, code: 'error' }, 500);
+  }) as typeof globalThis.fetch;
+  return { posts, restore: () => { globalThis.fetch = original; } };
+}
+
+function isAbortError(failure: unknown): boolean {
+  return failure instanceof DOMException && failure.name === 'AbortError';
+}
+
+test('an already-aborted createVideo does not persist an intent or POST generate', async () => {
+  const fake = createVideoFetch();
+  try {
+    const client = new RealApiClient();
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      () => client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal }),
+      isAbortError,
+    );
+    assert.equal((client as unknown as Seedable).intents.size, 0);
+    assert.equal(fake.posts.length, 0);
+  } finally {
+    fake.restore();
+  }
+});
+
+test('aborting createVideo after getMatch starts does not persist an intent', async () => {
+  const gate = gateFetch(planReadyReply);
+  try {
+    const client = new RealApiClient();
+    const controller = new AbortController();
+    const pending = client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal });
+    await drain();
+    assert.ok(gate.calls.includes(STATUS_URL));
+    controller.abort();
+    await gate.release();
+    await gate.release();
+    await assert.rejects(() => pending, isAbortError);
+    assert.equal((client as unknown as Seedable).intents.size, 0);
+  } finally {
+    gate.restore();
+  }
+});
+
 for (const status of ['parsing', 'parsed']) {
   test(`getScan reports ${status} targeted imports without requiring a roster`, async () => {
     const gate = gateFetch(url => url === STATUS_URL ? json({ status }) : json({ error: 'roster not ready' }, 409));

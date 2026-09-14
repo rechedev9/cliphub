@@ -247,4 +247,30 @@ test.describe('Full POV simplified constructor', () => {
     await create.click();
     await expect.poll(() => generated).toBeGreaterThan(0);
   });
+
+  test('leaving Full Demo after create starts does not enqueue or toast', async ({ page }) => {
+    const document = editorial();
+    let statusHeld = false;
+    let generated = 0;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('button', { name: 'Crear Full Demo', exact: true })).toBeEnabled();
+    await page.route(`**/api/demos/${JOB}/status`, async (route) => {
+      statusHeld = true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return route.fallback();
+    });
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => statusHeld).toBe(true);
+    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+    await page.waitForTimeout(700);
+    expect(generated).toBe(0);
+    await expect(page.getByText('Full Demo en cola', { exact: true })).toHaveCount(0);
+    await expect(page).toHaveURL(/formato=short/);
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    await expect(create).toBeEnabled();
+    await expect(page.getByText('Preparando Full Demo…', { exact: true })).toHaveCount(0);
+  });
 });
