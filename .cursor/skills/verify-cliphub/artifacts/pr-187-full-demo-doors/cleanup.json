@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "killed": [
+    5277,
+    5288
+  ],
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-187-full-demo-doors",
+  "evidence_exists": true,
+  "state_removed": true
+}

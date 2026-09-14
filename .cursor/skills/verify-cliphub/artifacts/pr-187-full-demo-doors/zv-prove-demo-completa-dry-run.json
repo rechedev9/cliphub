@@ -1,0 +1,32 @@
+{
+  "schema_version": 3,
+  "ok": true,
+  "closed": false,
+  "dry_run": true,
+  "executed": false,
+  "feature": {
+    "id": "demo-completa",
+    "title": "Demo completa",
+    "route": "/clips",
+    "nav_label": "Clips y vídeos",
+    "requires_hlae_cs2": true,
+    "requires_windows_studio": true,
+    "cheap_proof": "route /clips; open a partida and choose Vídeo largo 16:9; FULL_DEMO_CONTRACT unit coverage",
+    "catalog_valid": true,
+    "cheap_ok": true,
+    "user_path": "gap"
+  },
+  "drive": {
+    "feature_id": "demo-completa",
+    "route": "/clips",
+    "nav_label": "Clips y vídeos"
+  },
+  "planned": [
+    "inspect feature map demo-completa",
+    "drive /clips",
+    "no jobs.db writes",
+    "no capture enqueue",
+    "no HTTP"
+  ],
+  "detail": "dry-run: no HTTP, no jobs.db mutation, no capture enqueue"
+}
