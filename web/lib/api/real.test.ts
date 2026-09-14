@@ -208,6 +208,28 @@ test('a later beat re-reads the plan instead of serving the previous one', async
 
 type Seedable = { intents: Map<string, ReelIntent>; reels: Map<string, Video> };
 
+test('aborting creation while its match facts load never persists or reconciles an intent', async () => {
+  const gate = gateFetch(planReadyReply);
+  try {
+    const client = new RealApiClient();
+    const controller = new AbortController();
+    const creating = client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal });
+    const rejected = assert.rejects(creating, (error: unknown) => error instanceof DOMException && error.name === 'AbortError');
+
+    assert.deepEqual(await gate.release(), [STATUS_URL], 'creation begins by reading shared facts');
+    controller.abort();
+    assert.deepEqual(await gate.release(), [PLAN_URL, ROSTER_URL].sort(), 'the in-flight reads may complete after cancellation');
+    await rejected;
+
+    const { intents, reels } = client as unknown as Seedable;
+    assert.equal(intents.size, 0, 'no durable intent survives a cancelled admission');
+    assert.equal(reels.size, 0, 'no queued view is created');
+    assert.equal(gate.calls.length, 3, 'cancellation never starts reconciliation');
+  } finally {
+    gate.restore();
+  }
+});
+
 /** A queued reel on this client, as a reload would rehydrate it from localStorage. */
 function seedReel(client: RealApiClient): string {
   const intent: ReelIntent = {

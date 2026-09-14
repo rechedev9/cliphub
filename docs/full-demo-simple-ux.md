@@ -16,6 +16,9 @@ of prerequisites the user must configure.
 Creating a video prepares the current plan before enqueueing it. A missing,
 incompatible, stale, or blocked plan must never be substituted with an older
 approval. Historical documents remain readable; retired options require a new plan.
+On a first-use sponsor placement, choosing a specific round prepares the plan to
+discover certified round boundaries without starting capture. Creation then binds
+the selected boundary to a newly approved plan.
 
 ## Local demo overlays
 
@@ -27,6 +30,8 @@ Steam avatar lookup is optional and bounded. Private, non-public, unavailable,
 and invalid profiles leave an empty avatar. Failure to obtain an avatar does
 not prevent creation. Avatar metadata is captured for the job so rendering does
 not depend on a later profile response.
+The normal generation endpoint, recording path, and variant rendering all use
+the same snapshot admission. Private URLs are removed before persistence.
 
 ## UX evidence
 
@@ -60,13 +65,16 @@ a release or replace the installed app.
   identity-bound HUD telemetry. Historical cache fixtures retain their explicit
   native capture contract; current HUD tests keep their strict evidence checks.
 - Production web build, lint, TypeScript checks, and the complete web unit suite
-  passed. The 23 browser regressions cover Full Demo and the unchanged Short
+  passed. Browser regressions cover Full Demo and the unchanged Short
   workflow, including canceling preparation, returning, and creating successfully.
 - Final Go checks passed for planning, HTTP admission/retries, workers, native
   capture seek timing, and the complete sponsor/audio media canary. The canary
   covers embedded audio, replacement narration, round splitting, end placement,
   and muxed B-frames. The repository-wide run found the obsolete fixtures and
   AAC mismatch described here; the affected checks were rerun after correction.
+- Current-policy regressions reject otherwise valid historical approvals with
+  retired manual timing, audio fallback/calibration, or output settings, while
+  preserving the supported visible choices and historical document hashes.
 - Exercised the compiled form at 390, 1024, and 1440 pixels with a 187-character
   unbroken player name. No horizontal overflow; HUD selection, overlay source,
   effects, voices, sponsor upload entry, and the create/back controls remain
@@ -77,9 +85,11 @@ The mastering stage now pads/trims the audio to the exact timeline sample count
 and bounds mux duration. Delivery still verifies the actual video frames, decoded
 audio, stream durations, and final loudness; its acceptance checks were not relaxed.
 
-Switching to Short during plan preparation cancels the pending plan request.
+Switching to Short during preparation cancels the pending plan request and
+prevents a pending match lookup from subsequently storing a creation intent.
 Returning to Full Demo releases its busy state and permits a fresh creation
-attempt; the canceled request cannot enqueue a video in the background.
+attempt; a canceled preparation cannot enqueue a video in the background or
+navigate away later. An intent already committed remains in the durable queue.
 
 Browser checks use controlled API responses to exercise plan creation, approval,
 and failure states. The local demo parser and Chromium overlay images use real
