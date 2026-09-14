@@ -26,17 +26,20 @@ func TestFullDemoVoiceSeekUsesDocumentFrameClock(t *testing.T) {
 		{"resumed after sponsor split", 128, 17, 110400},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			options := recapplan.DefaultOptions()
+			options.Capture.HUDProfile = "native-clean-spectator"
+			options.Overlays.HUDTheme = ""
 			short := ShortEdit{
 				Tickrate: tc.legacyRate,
 				Parts:    []ShortPart{{SegmentID: "round-001", Input: "game.nut"}},
-				FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: recapplan.DefaultOptions()}},
+				FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: options}},
 				fullDemo: &fullDemoRenderContext{
 					ffmpeg: "ffmpeg", voicePaths: []string{"pov.wav", "teammate.wav"},
 					recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 64}}}},
 				},
 			}
 			item := recapplan.TimelineItem{Role: "round", SourceRef: "round-001", SourceStartTick: 129, SourceOffsetFrames: tc.splitFrames, EndFrame: 60, EndSample: 48000}
-			command, err := fullDemoItemCommand(short, item, 0, "round.nut")
+			command, err := fullDemoItemCommand(short, item, "round.nut")
 			if err != nil {
 				t.Fatal(err)
 			}

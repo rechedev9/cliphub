@@ -235,7 +235,7 @@ export default function ProducePage({
         </div>
         <div hidden={format !== PRODUCE_FORMAT.full}
           className={format === PRODUCE_FORMAT.full ? 'flex flex-1 flex-col' : 'hidden'}>
-          <FullPovProducer matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
+          <FullPovProducer active={format === PRODUCE_FORMAT.full} matchId={id} match={match} rounds={rounds} recapFailure={recapFailure}
             recBusy={recBusy} seriesId={seriesId} />
         </div>
       </>

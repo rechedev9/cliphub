@@ -10,6 +10,24 @@ import (
 // FetchAvatar loads one HTTPS avatar URL. Empty or rejected URLs return (nil, nil).
 type FetchAvatar func(url string) ([]byte, error)
 
+// ApplyAvatarURLs applies a pre-resolved profile-avatar snapshot to the roster
+// cards. It intentionally changes no identity or performance fields: local
+// demos remain demo facts even when Steam has a public profile picture.
+func ApplyAvatarURLs(doc *Document, urls map[string]string) {
+	if doc == nil || len(urls) == 0 {
+		return
+	}
+	apply := func(cards []PlayerCard) {
+		for i := range cards {
+			if url := strings.TrimSpace(urls[cards[i].SteamID64]); strings.HasPrefix(url, "https://") {
+				cards[i].AvatarURL = url
+			}
+		}
+	}
+	apply(doc.Intro.Left)
+	apply(doc.Intro.Right)
+}
+
 // MaterializeAvatars writes AvatarURL bytes into dir and sets AvatarFile.
 func MaterializeAvatars(doc *Document, dir string, fetch FetchAvatar) error {
 	if doc == nil || fetch == nil {

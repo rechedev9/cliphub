@@ -43,6 +43,17 @@ func DefaultTransitions() TransitionOptions {
 	}
 }
 
+// DynamicTransitions is the established Dinamico preset. New plans resolve
+// this complete value and expose only Enabled as a user decision.
+func DynamicTransitions() TransitionOptions {
+	o := DefaultTransitions()
+	o.Enabled = true
+	o.Direction = "follow-motion"
+	o.Flash = true
+	o.RGBSplit = true
+	return o
+}
+
 func (o TransitionOptions) Validate() error {
 	if !slices.Contains([]string{"left", "right", "up", "down", "alternate", "follow-motion"}, o.Direction) {
 		return fmt.Errorf("invalid transitions.direction %q", o.Direction)

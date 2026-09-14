@@ -86,7 +86,6 @@ type fullDemoRenderContext struct {
 	recording      recording.RecordingResult
 	ffmpeg         string
 	workDir        string
-	playlist       string
 	voicePaths     []string
 	preparedInputs []string
 }
@@ -264,6 +263,12 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 		return err
 	}
 	d := execution.Approved.Document
+	// Admission normally enforces this policy. Keep the renderer defensive so a
+	// replayed task or a future caller cannot restore a long-video music bed or
+	// retired manual capture settings behind that boundary.
+	if err := d.Options.ValidateCurrentFullDemoPolicy(); err != nil {
+		return fmt.Errorf("full demo plan requires reapproval: %w", err)
+	}
 	if result.Plan.FullDemo == nil || result.Plan.DemoSHA256 != d.Input.DemoSHA256 || result.Plan.TargetSteamID64 != d.Input.TargetSteamID64 || result.Plan.Stream.FullDemoCapture != d.Options.Capture || !slices.Equal(result.Plan.FullDemo.Crosshairs, d.Crosshairs) {
 		return fmt.Errorf("pov_contract_failed: recorded source differs from the approved Full Demo profile")
 	}
@@ -288,16 +293,6 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	}
 	short := &manifest.Shorts[0]
 	evidence := &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: execution.Approved, Effective: effective, MusicIntervals: []FullDemoMusicInterval{}, TrackLevels: []FullDemoTrackLevel{}}
-	var musicCursor int64
-	for i, item := range effective.Timeline {
-		if item.Role == "round" {
-			next := musicCursor + item.EndSample - item.StartSample
-			if d.Options.Audio.Music.Enabled {
-				evidence.MusicIntervals = append(evidence.MusicIntervals, FullDemoMusicInterval{TimelineIndex: i, StartSample: musicCursor, EndSample: next})
-			}
-			musicCursor = next
-		}
-	}
 	short.FullDemo = evidence
 	short.fullDemo = &fullDemoRenderContext{execution: *execution, recording: result, ffmpeg: ffmpeg, workDir: filepath.Join(manifest.OutputDir, "full-demo-media")}
 	if d.Options.Overlays.HUDTheme != "" {

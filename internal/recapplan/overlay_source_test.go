@@ -23,7 +23,7 @@ func TestOverlaySourceFollowsDemoOriginRegardlessOfHUD(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			o := DefaultOptions()
+			o := fixtureOptions()
 			o.SourceKind, o.Overlays.Source, o.Overlays.HUDTheme = tc.sourceKind, tc.overlaySource, tc.hud
 			if tc.hud != "" {
 				o.Capture.HUDProfile = customhud.CaptureProfile

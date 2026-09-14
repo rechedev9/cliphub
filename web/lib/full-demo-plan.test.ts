@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoOverlayImage, fullDemoOverlayImageURL, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -17,35 +17,41 @@ import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 function fixture(): FullDemoSnapshot {
   const value: unknown = JSON.parse(readFileSync(new URL('./full-demo-plan.fixture.json', import.meta.url), 'utf8'));
   assert.ok(isFullDemoSnapshot(value));
+  value.document.options = currentFullDemoOptions(value.document.options);
   return value;
 }
 
-test('screenshot choices survive saved options, edit wire and render hydration', () => {
-  const snapshot = fixture();
-  const ref = { id: '11111111-1111-4111-8111-111111111111', sha256: 'a'.repeat(64) };
-  snapshot.document.options.overlays = { ...snapshot.document.options.overlays, mode: 'screenshots', team1_image: ref, team2_image: ref, scoreboard_image: ref };
-  snapshot.document.assets = [{ ref, duration_frames: 0, has_audio: false, has_video: false, has_image: true, title: 'team.png', creator: '', source_url: '', permission: '', attribution: '' }];
-  assert.ok(isFullDemoSnapshot(snapshot));
-  const edit = fullDemoPlanEdit(snapshot);
-  assert.deepEqual(coerceEditConfig(edit).fullDemo, snapshot);
-  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(edit))?.fullDemo, snapshot);
-  const generated = structuredClone(snapshot.document.options); generated.overlays.mode = 'generated';
-  assert.notEqual(fullDemoOptionsKey(generated), fullDemoOptionsKey(snapshot.document.options));
-  assert.equal(fullDemoOverlayImageURL(ref), `/api/full-demo/overlay-images/${ref.id}`);
-  assert.equal(isFullDemoOptions({ ...generated, overlays: { ...generated.overlays, mode: 'unknown' } }), false);
+test('old drafts normalize removed choices into the automatic Full Demo contract', () => {
+  const raw: unknown = JSON.parse(readFileSync(new URL('./full-demo-plan.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoSnapshot(raw));
+  const normalized = currentFullDemoOptions(raw.document.options);
+  assert.deepEqual(normalized.capture.crosshair, { mode: 'observed', code: '', allow_capture_default: false });
+  assert.equal(normalized.capture.hud_profile, CUSTOM_HUD_CAPTURE_PROFILE);
+  assert.equal(normalized.audio.music.enabled, false);
+  assert.deepEqual(normalized.audio.music, {
+    enabled: false, assets: [], reference_level: 'track-lufs-minus-16-v1', bed_gain_db: -21, loop_policy: 'ordered-loop',
+    ducking: { enabled: true, game_contribution: 0, attack_ms: 20, release_ms: 800, threshold: .025, ratio: 8 },
+  });
+  assert.deepEqual(normalized.editorial.manual_ranges, []);
+  assert.deepEqual(normalized.overlays, { roster: true, scoreboard: true, theme: 'neon-violet', source: 'demo', mode: 'generated', hud_theme: CUSTOM_HUD_THEMES[0]?.id });
+  assert.equal(normalized.transitions?.enabled, true);
+  assert.equal(fullDemoApprovalKey(raw.document, normalized), null);
 });
 
-test('screenshot upload stores an image without requiring music provenance', async (t) => {
-  const ref = { id: '11111111-1111-4111-8111-111111111111', sha256: 'a'.repeat(64) };
-  const file = new File(['png bytes'], 'equipo.png', { type: 'image/png' });
-  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
-    assert.equal(url, '/api/full-demo/overlay-images');
-    assert.ok(init.body instanceof FormData);
-    assert.equal((init.body.get('image') as File).name, 'equipo.png');
-    assert.equal(init.body.has('config'), false);
-    return Response.json({ ...ref, width: 436, height: 513, content_type: 'image/png' }, { status: 201 });
-  });
-  assert.deepEqual(await uploadFullDemoOverlayImage(file), ref);
+test('an approved Go document that omits retired overlay assets stays current', () => {
+  const snapshot = fixture();
+  const { team1_image: _team1, team2_image: _team2, scoreboard_image: _scoreboard, ...overlays } = snapshot.document.options.overlays;
+  snapshot.document.options = { ...snapshot.document.options, overlays };
+  assert.ok(isFullDemoOptions(snapshot.document.options));
+  const current = currentFullDemoOptions(snapshot.document.options);
+  assert.equal(fullDemoOptionsKey(current), fullDemoOptionsKey(snapshot.document.options));
+  assert.equal(fullDemoApprovalKey(snapshot.document, current), snapshot.document.plan_hash);
+});
+
+test('the authoritative Go defaults need no client-side replan', () => {
+  const defaults: unknown = JSON.parse(readFileSync(new URL('./full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+  assert.ok(isFullDemoOptions(defaults));
+  assert.deepEqual(currentFullDemoOptions(defaults), defaults);
 });
 
 // Regression: a FACEIT demo rendered with custom HUD 07 (Circuit) produced
@@ -79,7 +85,7 @@ test('all ten custom HUDs survive approval, persistence and the render request',
     options.capture.hud_profile = CUSTOM_HUD_CAPTURE_PROFILE;
     options.overlays.hud_theme = theme.id;
     options.overlays.mode = 'generated';
-    options.transitions = fullDemoTransitionPreset('kinetic');
+    options.transitions = fullDemoTransitionPreset();
     assert.ok(isFullDemoOptions(options));
     assert.ok(isFullDemoSnapshot(snapshot));
     const edit = fullDemoPlanEdit(snapshot);
@@ -93,7 +99,7 @@ test('all ten custom HUDs survive approval, persistence and the render request',
     const options = fixture().document.options;
     assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: profile }, overlays: { ...options.overlays, hud_theme: theme } }), false);
   }
-  assert.equal(JSON.stringify(fixture()).includes('hud_theme'), false);
+  assert.ok(Boolean(fixture().document.options.overlays.hud_theme));
 });
 
 test('fixed freeze migrates old drafts without changing gameplay voice settings', () => {
@@ -111,7 +117,7 @@ test('fixed freeze migrates old drafts without changing gameplay voice settings'
   assert.equal(original.editorial.freeze_seconds, 20);
 });
 
-test('radar profile upgrade preserves saved approvals and requires a fresh plan', () => {
+test('HUD/cosmetic upgrade preserves the saved document and requires a fresh plan', () => {
   const snapshot = fixture();
   snapshot.document.options.overlays.hud_theme = 'apex';
   snapshot.document.options.capture.hud_profile = 'broadcast-clean';
@@ -119,10 +125,12 @@ test('radar profile upgrade preserves saved approvals and requires a fresh plan'
   assert.ok(isFullDemoSnapshot(snapshot));
   const draft = currentFullDemoOptions(snapshot.document.options);
   assert.equal(draft.capture.hud_profile, CUSTOM_HUD_CAPTURE_PROFILE);
-  assert.deepEqual(draft.overlays, snapshot.document.options.overlays);
+  assert.equal(draft.overlays.hud_theme, 'apex');
+  assert.equal(draft.overlays.theme, 'neon-violet');
+  assert.equal(draft.overlays.roster, true);
   assert.equal(JSON.stringify(snapshot), original);
   assert.equal(fullDemoApprovalKey(snapshot.document, draft), null);
-  assert.throws(() => approveFullDemo(snapshot.document), /nuevo HUD y radar/);
+  assert.throws(() => approveFullDemo(snapshot.document), /Vuelve a preparar/);
 });
 
 test('variable-freeze documents must be replanned even with a current planner version', () => {
@@ -163,10 +171,7 @@ test('Go editorial document survives edit wire, local persistence and render hyd
 for (const [name, mutate] of [
   ['range with unchanged round ID', (o: FullDemoOptions): void => { o.editorial.freeze_seconds = 5; }],
   ['game volume zero', (o: FullDemoOptions): void => { o.audio.game.gain = 0; }],
-  ['crosshair', (o: FullDemoOptions): void => { o.capture.crosshair.allow_capture_default = false; }],
-  ['playlist order', (o: FullDemoOptions): void => { o.audio.music.assets.reverse(); }],
   ['sponsor split', (o: FullDemoOptions): void => { o.sponsor.allow_split_round = true; }],
-  ['overlay', (o: FullDemoOptions): void => { o.overlays.roster = true; }],
   ['cover', (o: FullDemoOptions): void => { o.outputs.cover_policy = 'generated-gameplay'; }],
 ] satisfies [string, (options: FullDemoOptions) => void][]) {
   test(`changing ${name} invalidates approval`, () => {
@@ -237,7 +242,7 @@ test('planning and upload use same-origin endpoints with complete options and pr
   const provenance = { title: 'Owned clip', creator: 'Owner', source_url: 'local:owned', permission: 'Owned media', attribution: '' };
   await uploadFullDemoAsset(new File(['test'], 'clip.wav', { type: 'audio/wav' }), provenance);
   assert.equal(requests[0]?.url, `/api/demos/${job}/full-demo/plan`);
-  assert.equal(requests[1]?.init?.body, JSON.stringify({ options: snapshot.document.options }));
+  assert.equal(requests[1]?.init?.body, JSON.stringify({ options: currentFullDemoOptions(snapshot.document.options) }));
   const body = requests[2]?.init?.body;
   assert.ok(body instanceof FormData);
   assert.ok(body.get('video') instanceof File);
@@ -259,7 +264,7 @@ for (const [name, call, response, message, requests] of [
   ['save: empty document', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 201, body: {} }, INCOMPATIBLE, 1],
   ['save: envelope instead of document', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 201, body: { document: fixture().document, defaults: fixture().document.options, compatibility: 'editorial-v1' } }, INCOMPATIBLE, 1],
   ['save: conflict message', () => saveFullDemoPlan(JOB, fixture().document.options), { status: 409, body: { code: 'full_demo_facts_insufficient', error: 'Vuelve a analizar el jugador' } }, { message: 'Vuelve a analizar el jugador' }, 1],
-  ['save: invalid options never leave the client', () => saveFullDemoPlan(JOB, { ...fixture().document.options, audio: { ...fixture().document.options.audio, game: { gain: Number.NaN, voice_priority: false } } }), { status: 201, body: fixture().document }, /Revisa los valores/, 0],
+  ['save: invalid options never leave the client', () => saveFullDemoPlan(JOB, { ...fixture().document.options, profile_id: 'invalid' } as unknown as FullDemoOptions), { status: 201, body: fixture().document }, /Revisa los valores/, 0],
   ['upload: invalid asset id', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), { status: 200, body: { id: 'not-a-uuid', sha256: 'c'.repeat(64) } }, /Referencia de archivo inválida/, 1],
   ['upload: non-object body', () => uploadFullDemoAsset(new File(['x'], 'clip.wav'), PROVENANCE), { status: 200, body: [] }, /no certificó el archivo/, 1],
 ] satisfies [string, () => Promise<unknown>, { status: number; body: unknown }, RegExp | { message: string }, number][]) {
@@ -295,6 +300,6 @@ test('saving normalizes a variable freeze to the fixed freeze before it reaches 
   const variable = structuredClone(snapshot.document.options);
   variable.editorial.freeze_seconds = 7; variable.editorial.keep_freeze_voice = true;
   assert.deepEqual(await saveFullDemoPlan(JOB, variable), snapshot.document);
-  assert.deepEqual(sent, { options: fixedFullDemoFreeze(variable) });
-  assert.equal(fullDemoOptionsKey(fixedFullDemoFreeze(variable)), fullDemoOptionsKey(snapshot.document.options));
+  assert.deepEqual(sent, { options: currentFullDemoOptions(variable) });
+  assert.equal(fullDemoOptionsKey(currentFullDemoOptions(variable)), fullDemoOptionsKey(snapshot.document.options));
 });

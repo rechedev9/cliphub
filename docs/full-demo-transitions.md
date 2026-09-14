@@ -1,8 +1,12 @@
 # Full Demo round transitions
 
-The **Entre rondas** panel adds optional visual and sound effects to the approved
-Full Demo plan. The default remains a clean cut. Suave, Dinámico and Solo sonido
-are starting points; each effect can then be changed independently.
+The **Entre rondas** panel has one switch: **Efectos entre rondas**. New Full Demo
+plans enable the Dinámico preset by default. Turning the switch off uses clean
+cuts. Effect parameters are internal settings; the form does not expose presets,
+individual effects, or calibration controls.
+
+Historical documents can still carry the granular settings below. New plans
+normalize enabled transitions to Dinámico, including drafts saved by older clients.
 
 | Decision | Choices |
 | --- | --- |
@@ -25,7 +29,7 @@ Audio sources and filters generate and mix the swish and low impact before the
 existing full-program AAC mastering and decoded-output validation.
 
 Effects decorate existing frames rather than overlapping clips. Frame/sample
-counts, kills, music progression, overlay positions, and fixed two-second freeze
+counts, kills, overlay positions, and fixed two-second freeze
 context remain unchanged. Only adjacent different round items receive a cut
 effect. Sponsor entries/exits, split continuations, and program endpoints are
 excluded. Very short items clamp the effect window without changing coverage.

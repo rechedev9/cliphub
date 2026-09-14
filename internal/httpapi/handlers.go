@@ -114,43 +114,44 @@ type Enqueuer interface {
 
 // Handlers bundles the dependencies needed by every endpoint.
 type Handlers struct {
-	repo              JobRepository
-	streamRepo        StreamJobRepository
-	editorAssets      EditorAssetRepository
-	editorProjects    EditorProjectRepository
-	streamPlanMu      sync.Mutex
-	editorPlanMu      sync.Mutex
-	renderStateMu     sync.Mutex
-	rosterCache       rosterSummaryCache
-	jobsListJSON      cachedJSON
-	streamListJSON    cachedJSON
-	anticheatJobLocks *anticheat.JobLocks
-	streamJobLocks    *streamclips.JobLocks
-	storage           storage.Storage
-	generateIntents   *generateintent.Store
-	voiceProfiles     *voiceprofile.Store
-	queue             Enqueuer
-	mutationToken     string
-	requireReadAuth   bool
-	rateLimiter       *rateLimiter
-	uploadLimiter     *uploadLimiter
-	streamProber      streamclips.Prober
-	musicDir          string
-	capabilities      Capabilities
-	youtubeTrends     YouTubeTrends
-	publishAssistant  *publishAssistantCache
-	faceit            *faceit.Client
-	faceitFollows     *faceit.FollowStore
-	faceitSeeds       *faceit.SeedStore
-	faceitCache       faceitResponseCache
-	steamResolver     *steamresolve.Service
-	steamTransport    steamresolve.Transport
-	steamFactory      func(steamresolve.Session) steamresolve.Transport
-	steamAccounts     *steamresolve.AccountStore
-	steamHistory      *steamresolve.HistoryClient
-	steamFetcher      *steamresolve.Fetcher
-	steamSessionMu    sync.Mutex
-	steamSessionCache steamresolve.Session
+	repo                JobRepository
+	streamRepo          StreamJobRepository
+	editorAssets        EditorAssetRepository
+	editorProjects      EditorProjectRepository
+	streamPlanMu        sync.Mutex
+	editorPlanMu        sync.Mutex
+	renderStateMu       sync.Mutex
+	rosterCache         rosterSummaryCache
+	jobsListJSON        cachedJSON
+	streamListJSON      cachedJSON
+	anticheatJobLocks   *anticheat.JobLocks
+	streamJobLocks      *streamclips.JobLocks
+	storage             storage.Storage
+	generateIntents     *generateintent.Store
+	voiceProfiles       *voiceprofile.Store
+	queue               Enqueuer
+	mutationToken       string
+	requireReadAuth     bool
+	rateLimiter         *rateLimiter
+	uploadLimiter       *uploadLimiter
+	streamProber        streamclips.Prober
+	musicDir            string
+	capabilities        Capabilities
+	youtubeTrends       YouTubeTrends
+	publishAssistant    *publishAssistantCache
+	faceit              *faceit.Client
+	faceitFollows       *faceit.FollowStore
+	faceitSeeds         *faceit.SeedStore
+	faceitCache         faceitResponseCache
+	steamAvatarResolver steamAvatarResolver
+	steamResolver       *steamresolve.Service
+	steamTransport      steamresolve.Transport
+	steamFactory        func(steamresolve.Session) steamresolve.Transport
+	steamAccounts       *steamresolve.AccountStore
+	steamHistory        *steamresolve.HistoryClient
+	steamFetcher        *steamresolve.Fetcher
+	steamSessionMu      sync.Mutex
+	steamSessionCache   steamresolve.Session
 }
 
 type Option func(*Handlers)
@@ -249,6 +250,15 @@ func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
 	return func(h *Handlers) {
 		h.faceit = client
 		h.faceitFollows = follows
+	}
+}
+
+// WithSteamAvatarResolver supplies the public-profile lookup used only for
+// local Full Demo roster portraits. It is separate from the authenticated
+// Steam history account and allows deterministic fake-service tests.
+func WithSteamAvatarResolver(resolver steamAvatarResolver) Option {
+	return func(h *Handlers) {
+		h.steamAvatarResolver = resolver
 	}
 }
 
@@ -1084,13 +1094,15 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if useRecapPlan {
-		if demoSource != renderplan.DemoSourceFACEIT {
-			writeCodedError(w, http.StatusBadRequest, faceitRosterIncomplete, "Full Demo requires FACEIT as its data source")
-			return
-		}
-		if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
-			h.rejectFullDemoFaceit(w, j, err)
-			return
+		if demoSource == renderplan.DemoSourceFACEIT {
+			if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
+				h.rejectFullDemoFaceit(w, j, err)
+				return
+			}
+		} else if err := h.storeFullDemoSteamAvatars(r.Context(), j); err != nil {
+			// A Steam profile is optional local-demo decoration. The job's parsed
+			// roster stays sufficient evidence for a factual overlay.
+			log.Printf("full demo Steam avatar snapshot %s: %v", j.ID, err)
 		}
 	}
 	task, err := tasks.NewRecordDemoTaskWithRecap(j.ID, hudMode, segmentIDs, portraitSafeKillfeed, useRecapPlan)

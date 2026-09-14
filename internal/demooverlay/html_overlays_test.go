@@ -140,3 +140,68 @@ func TestChromiumHTMLOverlaysPreserveDimensionsAlphaAndImageAspect(t *testing.T)
 		t.Fatal("generated player card missing")
 	}
 }
+
+// This is a renderer-level regression fixture for the two truth models. Local
+// cards expose this-match facts only; FACEIT cards can additionally show the
+// independently supplied profile values. Set FULL_DEMO_NEON_OUT to retain the
+// four PNGs for visual review.
+func TestChromiumRendersLocalAndFACEITNeonTruthModels(t *testing.T) {
+	if os.Getenv("ZV_OVERLAY_RENDERER_PATH") == "" {
+		t.Skip("set ZV_OVERLAY_RENDERER_PATH to exercise bundled Chromium")
+	}
+	roster := Roster{TargetSteamID64: "76561198386265483", Map: "de_cache", ScoreCT: 13, ScoreT: 7,
+		ClanNameCT: "Spirit", ClanNameT: "DENDELE", Players: []RosterPlayer{
+			{SteamID64: "76561198386265483", Name: "donk", Team: "CT", Kills: 24, Deaths: 10, Assists: 10, Headshots: 19, Rounds: 20, ADR: 134, HSPct: 79.2, Rating: 2.05, Rounds2K: 2, Rounds5K: 2},
+			{SteamID64: "76561199063238565", Name: "magixx", Team: "CT", Kills: 15, Deaths: 8, Assists: 2, Headshots: 7, Rounds: 20, ADR: 66.2, HSPct: 46.7, Rating: 1.26, Rounds2K: 5},
+			{SteamID64: "76561198809462276", Name: "koala", Team: "T", Kills: 14, Deaths: 12, Assists: 0, Headshots: 8, Rounds: 20, ADR: 84.1, HSPct: 57.1, Rating: 1.03, Rounds2K: 4},
+		}}
+	last20 := 20
+	faceitDoc := BuildForSource(roster, SourceFACEIT, map[string]Enrichment{
+		"76561198386265483": {Nickname: "donk", ELO: 4370, SkillLevel: 10, Last20: &Last20{Matches: &last20}},
+	})
+	faceitDoc.Theme = ThemeNeonViolet
+	localDoc := BuildForSource(roster, "", nil)
+	localDoc.Theme = ThemeNeonViolet
+	dir := t.TempDir()
+	if requested := os.Getenv("FULL_DEMO_NEON_OUT"); requested != "" {
+		dir = requested
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		doc  Document
+	}{{"local", localDoc}, {"faceit", faceitDoc}} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, item := range []struct {
+				name  string
+				outro bool
+			}{{"intro", false}, {"outro", true}} {
+				var html []byte
+				var err error
+				if item.outro {
+					html, err = NeonOutroHTML(tc.doc, true)
+				} else {
+					html, err = NeonIntroHTML(tc.doc, true)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				out := filepath.Join(dir, tc.name+"-neon-"+item.name+".png")
+				if err := renderHTMLStill(html, out); err != nil {
+					t.Fatal(err)
+				}
+				f, err := os.Open(out)
+				if err != nil {
+					t.Fatal(err)
+				}
+				img, decodeErr := png.Decode(f)
+				_ = f.Close()
+				if decodeErr != nil || img.Bounds().Dx() != FrameWidth || img.Bounds().Dy() != FrameHeight {
+					t.Fatalf("%s dimensions: %v, %v", item.name, img.Bounds(), decodeErr)
+				}
+			}
+		})
+	}
+}

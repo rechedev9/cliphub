@@ -92,6 +92,66 @@ func FixedFreezeOptions(options Options) Options {
 	return options
 }
 
+// CanonicalNewOptions retires controls that no longer describe a Full Demo.
+// Historical documents retain their original wire shape and hashes; callers
+// use this only before creating a replacement plan.
+func CanonicalNewOptions(options Options) (Options, error) {
+	if options.Audio.Music.Enabled || len(options.Audio.Music.Assets) != 0 {
+		return Options{}, fmt.Errorf("background music is not available for Full Demo")
+	}
+	if options.Capture.Crosshair.Mode != "observed" || options.Capture.Crosshair.Code != "" || options.Capture.Crosshair.AllowCaptureDefault {
+		return Options{}, fmt.Errorf("Full Demo uses the observed player crosshair; manual codes and capture defaults are retired")
+	}
+
+	canonical := DefaultOptions()
+	// Keep the selected factual origin. OverlaySource resolves it independently
+	// from cosmetics, so a local demo never acquires FACEIT claims by style.
+	canonical.SourceKind = options.SourceKind
+	canonical.Audio.Voice.Enabled = options.Audio.Voice.Enabled
+	canonical.Sponsor = options.Sponsor
+
+	// Existing compatible HUD choices remain selectable. An absent or native
+	// HUD becomes the current broadcast HUD default instead of disabling it.
+	if options.Overlays.HUDTheme != "" {
+		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
+	}
+
+	// Roster and scoreboard are generated from factual demo data. The overlay
+	// source is deliberately demo: SourceKind above is the only origin signal.
+	canonical.Overlays.Theme = "neon-violet"
+	canonical.Overlays.Source = "demo"
+	canonical.Overlays.Mode = "generated"
+	canonical.Overlays.Roster = true
+	canonical.Overlays.Scoreboard = true
+
+	// The compact control can only enable or disable the established Dinamico
+	// preset; do not let stale granular draft values change a new approval.
+	if options.Transitions != nil {
+		canonical.Transitions.Enabled = options.Transitions.Enabled
+	}
+	return FixedFreezeOptions(canonical), nil
+}
+
+// ValidateCurrentFullDemoPolicy is an execution gate. Historical documents can
+// still be inspected byte-for-byte, but a newly admitted execution must use
+// the current automatic capture and overlay policy.
+func (o Options) ValidateCurrentFullDemoPolicy() error {
+	canonical, err := CanonicalNewOptions(o)
+	if err != nil {
+		return err
+	}
+	if o.Capture != canonical.Capture {
+		return fmt.Errorf("observed player crosshair and automatic broadcast HUD are required")
+	}
+	if o.Overlays != canonical.Overlays {
+		return fmt.Errorf("automatic neon-violet roster and scoreboard overlays are required")
+	}
+	if o.Transitions == nil || canonical.Transitions == nil || *o.Transitions != *canonical.Transitions {
+		return fmt.Errorf("transitions must use the Dinamico preset")
+	}
+	return nil
+}
+
 // UsesFixedFreeze is an execution gate, not a historical document decoder.
 func (d Document) UsesFixedFreeze() bool {
 	o := d.Options.Editorial
@@ -175,7 +235,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 			}
 			if !ValidCrosshairCode(code) || missing {
 				if !options.Capture.Crosshair.AllowCaptureDefault {
-					d.block(ErrPOVContract, "Observed crosshair is unavailable in "+round.ID+"; provide a code or explicitly approve the capture default")
+					d.block(ErrPOVContract, "Observed player crosshair is unavailable in "+round.ID+"; reparse a demo containing crosshair evidence")
 				} else {
 					d.Warnings = append(d.Warnings, Notice{Code: "crosshair_capture_default_approved", Message: "Capture default explicitly permitted where the demo crosshair is unavailable", RoundID: round.ID})
 				}

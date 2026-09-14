@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/killplan"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -21,10 +22,15 @@ import (
 func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(*recapplan.Facts, *recapplan.Options)) (recording.RecordingResult, string, string) {
 	t.Helper()
 	f := recapplan.Facts{SchemaVersion: recapplan.DocumentVersion, DemoSHA256: strings.Repeat("a", 64), TargetSteamID64: "76561198000000001", ClockKind: recapplan.ClockIngame, TickRate: 64, EndTick: 2000, Complete: true,
-		Rounds: []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 1000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
+		Crosshairs: []recapplan.CrosshairSample{{Tick: 0, Code: "CSGO-WsnnD-eHaMw-QNDf9-oxuDh-ydOUD"}},
+		Rounds:     []recapplan.RoundFacts{{ID: "round-001", Number: 1, StartTick: 100, FreezeEndTick: 400, RoundEndTick: 1000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}}}}
 	o := recapplan.DefaultOptions()
+	// Most worker fixtures model the historical native capture path. They test
+	// publication, caching, and CLI behavior rather than the broadcast HUD
+	// renderer, so they deliberately opt out of the current custom-HUD default.
+	o.Overlays.HUDTheme = ""
+	o.Capture.HUDProfile = "native-clean-spectator"
 	o.Audio.Music.Enabled, o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Sponsor.Enabled = false, false, false, false
-	o.Capture.Crosshair.AllowCaptureDefault = true
 	for _, mutate := range mutations {
 		mutate(&f, &o)
 	}
@@ -69,7 +75,18 @@ func fullDemoPublicationFixture(t *testing.T, content string, mutations ...func(
 		evidence.Before = append(evidence.Before, recording.CvarValue{Name: name, Value: json.RawMessage("1")})
 		evidence.Applied = append(evidence.Applied, recording.CvarValue{Name: name, Value: value})
 	}
-	for name, value := range map[string]float64{"cl_drawhud": 1, "cl_draw_only_deathnotices": 0, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0, "cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0} {
+	cvars := map[string]float64{"cl_drawhud": 1, "cl_draw_only_deathnotices": 0, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0, "cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0}
+	if customhud.IsCaptureProfile(p.FullDemo.Options.Capture.HUDProfile) {
+		cvars["cl_draw_only_deathnotices"] = 1
+		cvars["cl_drawhud_force_radar"] = 1
+		cvars["cl_drawhud_force_deathnotices"] = 1
+	}
+	if p.FullDemo.Options.Capture.HUDProfile == customhud.CaptureProfile {
+		for name, value := range map[string]float64{"cl_hud_radar_background_alpha": .35, "cl_hud_radar_map_additive": 0, "cl_hud_radar_scale": .85, "cl_hud_color": 0, "safezonex": .97, "safezoney": .95} {
+			cvars[name] = value
+		}
+	}
+	for name, value := range cvars {
 		encoded, _ := json.Marshal(value)
 		evidence.Before = append(evidence.Before, recording.CvarValue{Name: name, Value: json.RawMessage("1")})
 		evidence.Applied = append(evidence.Applied, recording.CvarValue{Name: name, Value: encoded})

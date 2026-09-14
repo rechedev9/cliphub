@@ -35,6 +35,8 @@ func TestFullDemoTransitionVisualChoices(t *testing.T) {
 		{Role: "round", SourceRef: "b", SourceStartTick: 60, SourceEndTick: 90, StartFrame: 30, EndFrame: 60, StartSample: 24000, EndSample: 48000},
 	}}
 	base.Options.Audio.Music.Enabled = false
+	base.Options.Capture.HUDProfile = "native-clean-spectator"
+	base.Options.Overlays.HUDTheme = ""
 	pixels := func(path string, frame int) []byte {
 		t.Helper()
 		data, err := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-i", path, "-vf", "select=eq(n\\,"+strconv.Itoa(frame)+"),scale=320:180", "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1").Output()
@@ -82,7 +84,7 @@ func TestFullDemoTransitionVisualChoices(t *testing.T) {
 			d.Options.Transitions = &o
 			path := filepath.Join(dir, style+".nut")
 			short := ShortEdit{Preset: PresetGameplayPOV60, OutputFormat: OutputFormatLandscape16x9, OutputFPS: 60, VideoCRF: 18, VideoPreset: "ultrafast", Threads: 2, Parts: []ShortPart{{SegmentID: "a", Input: source}}, FullDemo: &FullDemoRenderEvidence{Effective: d}, fullDemo: &fullDemoRenderContext{ffmpeg: ffmpeg, recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "a", TickStart: 0}}}}}}
-			command, err := fullDemoItemCommand(short, d.Timeline[0], 0, path)
+			command, err := fullDemoItemCommand(short, d.Timeline[0], path)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -219,10 +221,13 @@ func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
 		t.Fatal(err)
 	}
 	options := recapplan.DefaultOptions()
+	options.Capture.HUDProfile = "native-clean-spectator"
+	options.Overlays.HUDTheme = ""
 	options.Capture.Crosshair.AllowCaptureDefault = true
 	options.Editorial.RoundTailSeconds = 0
 	options.Audio.Voice.Normalization = "none"
 	options.Audio.Music.Enabled = false
+	options.Sponsor.Enabled = true
 	options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "round-boundary", "round-002"
 	transitions := recapplan.DefaultTransitions()
 	transitions.Enabled, transitions.Flash, transitions.RGBSplit = true, true, true

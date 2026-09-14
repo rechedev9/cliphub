@@ -108,6 +108,7 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 		return e, fmt.Errorf("audio_silent: the program has no measurable audio; approve a muted program or correct its sources")
 	}
 	attemptTarget := target
+	masterSamples := int64(math.Round(duration * recapplan.SampleRate))
 	// Reserve a small initial headroom for lossy AAC reconstruction.
 	attemptTarget.TargetTPDBTP -= 0.3
 	for attempt := 0; attempt < 3; attempt++ {
@@ -127,7 +128,7 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 			}
 		}
 		e.MasterTargets = append(e.MasterTargets, attemptTarget)
-		command := []string{ffmpeg, "-y", "-hide_banner", "-nostats", "-v", "info", "-i", input, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-af", filter + ",aresample=48000,aformat=channel_layouts=stereo", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", output}
+		command := []string{ffmpeg, "-y", "-hide_banner", "-nostats", "-v", "info", "-i", input, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-af", filter + fmt.Sprintf(",aresample=48000,aformat=channel_layouts=stereo,apad=whole_len=%d,atrim=end_sample=%d", masterSamples, masterSamples), "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-t", decimal(duration), "-movflags", "+faststart", output}
 		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo program master", filepath.Join(logDir, fmt.Sprintf("program-master-%d.txt", attempt)), output, duration, progress.pass(stage, start+.1, start+.2)); err != nil {
 			return e, err
 		}

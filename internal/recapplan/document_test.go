@@ -23,6 +23,12 @@ func fixtureFacts() Facts {
 
 func fixtureOptions() Options {
 	o := DefaultOptions()
+	// Fixtures model already-approved historical documents. New drafts use the
+	// current defaults; old documents must remain readable without acquiring
+	// newly introduced HUD or transition fields.
+	o.Capture.HUDProfile = "native-clean-spectator"
+	o.Overlays = OverlayOptions{Theme: "faceit-orange", Source: "demo"}
+	o.Transitions = nil
 	o.Capture.Crosshair.AllowCaptureDefault = true
 	o.Audio.Voice.Enabled = false
 	o.Audio.Music.Enabled = false
@@ -327,7 +333,10 @@ func TestSponsorRejectsManualFrameBeyondProgram(t *testing.T) {
 func TestUnavailableAssetsAndVoiceRemainEnabled(t *testing.T) {
 	for _, availability := range []string{"no_packets", "no_team_packets", "silent", "unsupported_codec", "invalid_timeline", "failed"} {
 		t.Run(availability, func(t *testing.T) {
-			o := DefaultOptions()
+			o := fixtureOptions()
+			o.Audio.Voice.Enabled = true
+			o.Audio.Music.Enabled = true
+			o.Sponsor.Enabled = true
 			d, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: availability}, nil, "facts")
 			if err != nil {
 				t.Fatal(err)
