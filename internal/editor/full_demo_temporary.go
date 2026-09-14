@@ -11,12 +11,6 @@ import (
 func releaseFullDemoAudio(short ShortEdit) error {
 	runtime := short.fullDemo
 	paths := append([]string{}, runtime.voicePaths...)
-	if runtime.playlist != "" {
-		paths = append(paths, runtime.playlist)
-		for i := range short.FullDemo.Effective.Options.Audio.Music.Assets {
-			paths = append(paths, filepath.Join(runtime.workDir, fmt.Sprintf("music-%d.wav", i)))
-		}
-	}
 	return removeFullDemoTemporaryFiles(runtime.workDir, paths)
 }
 

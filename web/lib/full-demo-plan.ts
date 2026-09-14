@@ -1,5 +1,6 @@
 import type { EditConfig } from './api/types.ts';
-import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
+import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
 export const FULL_DEMO_CAPTURE_VARIANT = 'gameplay-pov-60';
@@ -95,12 +96,58 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
   return { ...options, editorial: { ...options.editorial, freeze_seconds: FULL_DEMO_FREEZE_SECONDS, keep_freeze_voice: false, voice_context_seconds: 0, max_freeze_seconds: FULL_DEMO_FREEZE_SECONDS } };
 }
 
-/** Upgrade editable drafts; keep the saved document and its approval immutable. */
-export function currentFullDemoOptions(options: FullDemoOptions): FullDemoOptions {
+/**
+ * Upgrade editable drafts to the intentionally small Full Demo surface.
+ *
+ * The backend applies the same policy. Keeping it here means a stale browser
+ * draft cannot bring back music, capture fallbacks, uploaded overlays, or a
+ * finely tuned transition after the corresponding controls disappeared.
+ */
+export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySponsor = false): FullDemoOptions {
   const fixed = fixedFullDemoFreeze(options);
-  return fixed.overlays.hud_theme
-    ? { ...fixed, capture: { ...fixed.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } }
-    : fixed;
+  const hudTheme = fixed.overlays.hud_theme ?? CUSTOM_HUD_THEMES[0]?.id;
+  // Go's `omitempty` leaves retired image fields out of persisted plans. Do
+  // the same here so an already-approved document does not become dirty just
+  // because the old screenshot option disappeared from the form.
+  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, ...overlays } = fixed.overlays;
+  if (!hudTheme) throw new Error('No hay diseños de HUD disponibles.');
+  return {
+    ...fixed,
+    capture: {
+      ...fixed.capture,
+      hud_profile: CUSTOM_HUD_CAPTURE_PROFILE,
+      crosshair: { ...fixed.capture.crosshair, mode: 'observed', code: '', allow_capture_default: false },
+    },
+    editorial: { ...fixed.editorial, death_tail_seconds: 3, round_tail_seconds: 2, allow_safe_tail_trim: true, manual_ranges: [] },
+    audio: {
+      ...fixed.audio,
+      voice: { ...fixed.audio.voice, gain: .85, team_policy: 'same-side-at-packet', normalization: 'bounded-activity-v1', approved_fallback: 'block' },
+      game: { ...fixed.audio.game, gain: 1, voice_priority: false },
+      loudness: { target_i_lufs: -14, target_tp_dbtp: -1.5, target_lra: 11, policy_version: 'program-aac-v1' },
+      music: {
+        enabled: false,
+        assets: [],
+        reference_level: 'track-lufs-minus-16-v1',
+        bed_gain_db: -21,
+        loop_policy: 'ordered-loop',
+        ducking: { enabled: true, game_contribution: 0, attack_ms: 20, release_ms: 800, threshold: .025, ratio: 8 },
+      },
+    },
+    // Only first-load migration disables an inherited empty sponsor. During an
+    // edit, the user must be able to enable it before choosing its video.
+    sponsor: { ...fixed.sponsor, enabled: disableEmptySponsor ? fixed.sponsor.enabled && fixed.sponsor.video !== null : fixed.sponsor.enabled },
+    overlays: {
+      ...overlays,
+      roster: true,
+      scoreboard: true,
+      theme: 'neon-violet',
+      source: 'demo',
+      mode: 'generated',
+      hud_theme: hudTheme,
+    },
+    transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },
+    outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
+  };
 }
 
 export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
@@ -217,10 +264,10 @@ export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Pro
   if (!envelopeShape(value)) throw new Error('El servidor devolvió un plan Full Demo incompatible.');
   return value;
 }
-export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions): Promise<FullDemoDocument> {
+export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, signal?: AbortSignal): Promise<FullDemoDocument> {
   options = currentFullDemoOptions(options);
   if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y sponsor.');
-  const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }) }));
+  const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }), signal }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan Full Demo incompatible.');
   return value;
 }
@@ -235,20 +282,5 @@ export async function uploadFullDemoAsset(file: File, provenance: FullDemoProven
   // The guarded pair is independent from private storage fields in the upload response.
   const ref = { id: value.id, sha256: value.sha256 };
   if (!assetRef(ref)) throw new Error('Referencia de archivo inválida.');
-  return ref;
-}
-
-export function fullDemoOverlayImageURL(ref: FullDemoAssetRef): string {
-  if (!assetRef(ref)) throw new Error('Referencia de captura inválida.');
-  return `/api/full-demo/overlay-images/${ref.id}`;
-}
-
-export async function uploadFullDemoOverlayImage(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
-  if (file.size > 10 * 1024 * 1024) throw new Error('La captura debe ocupar como máximo 10 MB.');
-  const form = new FormData(); form.set('image', file);
-  const value = await responseJSON(await fetch('/api/full-demo/overlay-images', { method: 'POST', body: form, signal }));
-  if (!record(value)) throw new Error('No se pudo guardar la captura.');
-  const ref = { id: value.id, sha256: value.sha256 };
-  if (!assetRef(ref)) throw new Error('Referencia de captura inválida.');
   return ref;
 }

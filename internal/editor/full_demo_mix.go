@@ -14,18 +14,6 @@ import (
 
 const fullDemoCaptureSeekPrerollFrames int64 = 2 * recapplan.OutputFPS
 
-func fullDemoMusicSamples(timeline []recapplan.TimelineItem) []int64 {
-	samples := make([]int64, len(timeline))
-	var music int64
-	for i, item := range timeline {
-		samples[i] = music
-		if item.Role == "round" {
-			music += item.EndSample - item.StartSample
-		}
-	}
-	return samples
-}
-
 func fullDemoCaptureSeek(sourceOffset int64) (seekFrames, trimStart int64) {
 	if sourceOffset <= fullDemoCaptureSeekPrerollFrames {
 		return 0, sourceOffset
@@ -55,11 +43,11 @@ func sidechainFilter(options recapplan.DuckingOptions) string {
 
 // fullDemoRoundAudio uses one canonical frame/sample window for every bus.
 // All mixing is unnormalized float audio; the full program owns mastering.
-func fullDemoRoundAudio(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount, musicInput int) string {
-	return fullDemoRoundAudioWithTransitions(options, gameStartSample, samples, voiceCount, musicInput, fullDemoTransitionEdges{})
+func fullDemoRoundAudio(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount int) string {
+	return fullDemoRoundAudioWithTransitions(options, gameStartSample, samples, voiceCount, fullDemoTransitionEdges{})
 }
 
-func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount, musicInput int, edges fullDemoTransitionEdges) string {
+func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStartSample, samples int64, voiceCount int, edges fullDemoTransitionEdges) string {
 	clauses := []string{sampleWindow("[0:a]", gameStartSample, samples, options.Game.Gain, "graw")}
 	if filter := fullDemoGameTransitionFilter(edges, samples); filter != "" {
 		clauses[0] = sampleWindow("[0:a]", gameStartSample, samples, options.Game.Gain, "gwindow")
@@ -90,18 +78,7 @@ func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStart
 	} else {
 		clauses = append(clauses, "[gm]anull[game]", "[vscg]anullsink")
 	}
-	if musicInput >= 0 {
-		clauses = append(clauses, sampleWindow(fmt.Sprintf("[%d:a]", musicInput), 0, samples, 1, "musicraw"), "[musicraw]volume="+decimal(options.Music.BedGainDB)+"dB[musicbed]")
-		clauses = append(clauses, "[gsc]volume="+decimal(options.Music.Ducking.GameContribution)+"[gduck]", "[gduck][vscm]amix=inputs=2:duration=first:normalize=0:dropout_transition=0[trigger]")
-		if options.Music.Ducking.Enabled {
-			clauses = append(clauses, "[trigger]apad[triggerpad]", "[musicbed][triggerpad]"+sidechainFilter(options.Music.Ducking)+"[music]")
-		} else {
-			clauses = append(clauses, "[musicbed]anull[music]", "[trigger]anullsink")
-		}
-		clauses = append(clauses, "[game][vm][music]amix=inputs=3:duration=first:normalize=0:dropout_transition=0[mixed]")
-	} else {
-		clauses = append(clauses, "[gsc]anullsink", "[vscm]anullsink", "[game][vm]amix=inputs=2:duration=first:normalize=0:dropout_transition=0[mixed]")
-	}
+	clauses = append(clauses, "[gsc]anullsink", "[vscm]anullsink", "[game][vm]amix=inputs=2:duration=first:normalize=0:dropout_transition=0[mixed]")
 	clauses = append(clauses, fmt.Sprintf("[mixed]apad=whole_len=%d,atrim=end_sample=%d,asetpts=N/SR/TB[a]", samples, samples))
 	return strings.Join(clauses, ";")
 }
@@ -115,66 +92,11 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullD
 	reference := options.Loudness
 	reference.TargetILUFS, reference.TargetTPDBTP = -16, -1.5
 	steps := 2 * len(runtime.execution.VoiceTracks)
-	if options.Music.Enabled && len(options.Music.Assets) > 0 {
-		steps += 2*len(options.Music.Assets) + 1
-	}
 	step := 0
 	nextPass := func(stage string) func(float64) {
 		start := float64(step) / float64(max(1, steps))
 		step++
 		return progress.pass(stage, start, float64(step)/float64(max(1, steps)))
-	}
-	playlistParts := []string{}
-	var playlistDuration float64
-	for i, ref := range options.Music.Assets {
-		if !options.Music.Enabled {
-			break
-		}
-		source, err := runtime.execution.assetPath(ref)
-		if err != nil {
-			return err
-		}
-		var frames int64
-		for _, asset := range short.FullDemo.Effective.Assets {
-			if asset.Ref == ref {
-				frames = asset.DurationFrames
-			}
-		}
-		duration := float64(frames) / recapplan.OutputFPS
-		measured, err := measureLoudness(ctx, runtime.ffmpeg, source, reference, filepath.Join(runtime.workDir, fmt.Sprintf("music-%d-reference.txt", i)), duration, nextPass(fmt.Sprintf("Analizando música (%d/%d)", i+1, len(options.Music.Assets))))
-		if err != nil {
-			return err
-		}
-		if measured.Status != "measured" {
-			return fmt.Errorf("full_demo_asset_missing: enabled music asset %s is silent", ref.ID)
-		}
-		filter, err := measuredLoudnessFilter(reference, measured)
-		if err != nil {
-			return err
-		}
-		if frames < 1 {
-			return fmt.Errorf("invalid music asset frame duration")
-		}
-		path := filepath.Join(runtime.workDir, fmt.Sprintf("music-%d.wav", i))
-		samples := frames * recapplan.SamplesPerFrame
-		command := []string{runtime.ffmpeg, "-y", "-v", "error", "-i", source, "-map", "0:a:0", "-vn", "-af", filter + fmt.Sprintf(",aresample=48000,aformat=channel_layouts=stereo,apad=whole_len=%d,atrim=end_sample=%d", samples, samples), "-c:a", "pcm_f32le", "-rf64", "auto", path}
-		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo music reference", "", path, duration, nextPass(fmt.Sprintf("Preparando música (%d/%d)", i+1, len(options.Music.Assets)))); err != nil {
-			return err
-		}
-		short.FullDemo.TrackLevels = append(short.FullDemo.TrackLevels, FullDemoTrackLevel{Ref: ref.ID, Role: "music", Measurement: measured, AppliedGainDB: options.Music.BedGainDB, Policy: options.Music.ReferenceLevel})
-		playlistParts = append(playlistParts, path)
-		playlistDuration += duration
-	}
-	if len(playlistParts) > 0 {
-		list := filepath.Join(runtime.workDir, "music-playlist.ffconcat")
-		if err := writeMediaConcatList(list, playlistParts); err != nil {
-			return err
-		}
-		runtime.playlist = filepath.Join(runtime.workDir, "music-playlist.wav")
-		command := []string{runtime.ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list, "-map", "0:a:0", "-c:a", "pcm_f32le", "-rf64", "auto", runtime.playlist}
-		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo playlist", "", runtime.playlist, playlistDuration, nextPass("Uniendo pistas de música")); err != nil {
-			return err
-		}
 	}
 	voiceDuration := 0.0
 	if runtime.recording.Plan.Tickrate > 0 {
@@ -204,16 +126,7 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullD
 	return nil
 }
 
-func writeMediaConcatList(path string, inputs []string) error {
-	var content strings.Builder
-	content.WriteString("ffconcat version 1.0\n")
-	for _, input := range inputs {
-		content.WriteString(composition.ConcatFileLine(input))
-	}
-	return os.WriteFile(path, []byte(content.String()), 0600)
-}
-
-func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSample int64, output string) ([]string, error) {
+func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
 	runtime := short.fullDemo
 	options := short.FullDemo.Effective.Options
 	frames, samples := item.EndFrame-item.StartFrame, item.EndSample-item.StartSample
@@ -265,15 +178,7 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, musicSamp
 				command = append(command, "-ss", decimal(float64(tailStart)/recapplan.SampleRate), "-i", voice)
 			}
 		}
-		musicInput := -1
-		if runtime.playlist != "" {
-			if options.Audio.Music.LoopPolicy == "ordered-loop" {
-				command = append(command, "-stream_loop", "-1")
-			}
-			command = append(command, "-ss", decimal(float64(musicSample)/recapplan.SampleRate), "-i", runtime.playlist)
-			musicInput = 1 + len(runtime.voicePaths) + edges.tailCount
-		}
-		audio = fullDemoRoundAudioWithTransitions(options.Audio, trimStart*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), musicInput, edges)
+		audio = fullDemoRoundAudioWithTransitions(options.Audio, trimStart*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), edges)
 	} else if item.Role == "sponsor" {
 		video, err := runtime.execution.assetPath(*options.Sponsor.Video)
 		if err != nil {
@@ -325,7 +230,6 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 	}
 	timeline := short.FullDemo.Effective.Timeline
 	totalFrames := float64(timeline[len(timeline)-1].EndFrame)
-	musicSamples := fullDemoMusicSamples(timeline)
 	paths := make([]string, len(timeline))
 	tracker := &fullDemoItemProgress{
 		fractions: make([]float64, len(timeline)),
@@ -347,7 +251,7 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 	sem := make(chan struct{}, fullDemoItemJobs())
 	for i, item := range timeline {
 		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.nut", i))
-		command, err := fullDemoItemCommand(*short, item, musicSamples[i], path)
+		command, err := fullDemoItemCommand(*short, item, path)
 		if err != nil {
 			cancel()
 			wg.Wait()

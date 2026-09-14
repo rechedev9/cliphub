@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -25,6 +26,10 @@ import (
 
 const faceitRosterIncomplete = "faceit_roster_incomplete"
 
+type steamAvatarResolver interface {
+	ResolveSteamAvatars(context.Context, []string) map[string]faceit.SteamAvatar
+}
+
 func (h *Handlers) persistFullDemoSource(id uuid.UUID, source string) {
 	if h == nil || h.storage == nil {
 		return
@@ -35,6 +40,20 @@ func (h *Handlers) persistFullDemoSource(id uuid.UUID, source string) {
 		return
 	}
 	_ = h.storage.Put(artifacts.FullDemoSourceKey(id), bytes.NewReader(body))
+}
+
+// storeFullDemoOverlaySnapshot persists the roster decoration selected by an
+// approved Full Demo document. FACEIT remains an admission requirement, while
+// a local Steam profile image is optional: parsed demo facts are sufficient to
+// render the job when Steam is unavailable.
+func (h *Handlers) storeFullDemoOverlaySnapshot(ctx context.Context, j job.Job, source string) error {
+	if demooverlay.UsesFACEITEnrichment(source) {
+		return h.storeFullDemoFaceit(ctx, j)
+	}
+	if err := h.storeFullDemoSteamAvatars(ctx, j); err != nil {
+		log.Printf("full demo Steam avatar snapshot %s: %v", j.ID, err)
+	}
+	return nil
 }
 
 // storeFullDemoFaceit resolves the entire parsed roster before HLAE is queued.
@@ -93,6 +112,64 @@ func (h *Handlers) storeFullDemoFaceit(ctx context.Context, j job.Job) error {
 	}
 	if err := h.storage.Put(artifacts.FullDemoFaceitKey(j.ID), bytes.NewReader(body)); err != nil {
 		return fmt.Errorf("store FACEIT overlay snapshot: %w", err)
+	}
+	return nil
+}
+
+// storeFullDemoSteamAvatars snapshots only public Steam avatar metadata for a
+// local roster. It is intentionally best-effort at its caller: no profile,
+// network outage, or private account blocks a demo whose stats are already
+// present in the parsed roster.
+func (h *Handlers) storeFullDemoSteamAvatars(ctx context.Context, j job.Job) error {
+	if h == nil || h.storage == nil {
+		return fmt.Errorf("Steam avatar storage is unavailable")
+	}
+	if rc, err := h.storage.Open(artifacts.FullDemoSteamAvatarsKey(j.ID)); err == nil {
+		_ = rc.Close()
+		return nil
+	} else if !storage.IsNotExist(err) {
+		return fmt.Errorf("open stored Steam avatar snapshot: %w", err)
+	}
+	rc, err := h.storage.Open(artifacts.RosterKey(j.ID))
+	if err != nil {
+		if storage.IsNotExist(err) {
+			return fmt.Errorf("Steam avatars require a parsed roster: %w", err)
+		}
+		return fmt.Errorf("open roster for Steam avatars: %w", err)
+	}
+	defer rc.Close()
+	var parsed parser.RosterResult
+	if err := json.NewDecoder(rc).Decode(&parsed); err != nil {
+		return fmt.Errorf("decode roster for Steam avatars: %w", err)
+	}
+	ids := make([]string, 0, len(parsed.Players))
+	for _, player := range parsed.Players {
+		ids = append(ids, player.SteamID64)
+	}
+	resolver := h.steamAvatarResolver
+	if resolver == nil {
+		resolver = faceit.SteamAvatarService{}
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	resolved := resolver.ResolveSteamAvatars(lookupCtx, ids)
+	// The resolver normally already removes a private profile's URL. Retain the
+	// privacy state but enforce that boundary again before its response becomes
+	// durable input to the renderer.
+	avatars := make(map[string]faceit.SteamAvatar, len(resolved))
+	for steamID, avatar := range resolved {
+		if avatar.Private {
+			avatars[steamID] = faceit.SteamAvatar{Private: true}
+			continue
+		}
+		avatars[steamID] = avatar
+	}
+	body, err := json.MarshalIndent(avatars, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode Steam avatar snapshot: %w", err)
+	}
+	if err := h.storage.Put(artifacts.FullDemoSteamAvatarsKey(j.ID), bytes.NewReader(body)); err != nil {
+		return fmt.Errorf("store Steam avatar snapshot: %w", err)
 	}
 	return nil
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
-	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
@@ -58,7 +57,11 @@ func (h *Handlers) PlanFullDemo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recapplan.Options) (recapplan.Document, error) {
-	options = recapplan.FixedFreezeOptions(options)
+	var err error
+	options, err = recapplan.CanonicalNewOptions(options)
+	if err != nil {
+		return recapplan.Document{}, errBadRequest(err.Error())
+	}
 	facts, found, err := recapplan.LoadFacts(h.storage, j.ID)
 	if err != nil {
 		return recapplan.Document{}, err
@@ -82,24 +85,6 @@ func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recappla
 	}
 	assets := []recapplan.AssetEvidence{}
 	for _, ref := range options.AssetReferences() {
-		if options.IsOverlayImage(ref) {
-			id, err := uuid.Parse(ref.ID)
-			if err != nil {
-				return recapplan.Document{}, err
-			}
-			a, err := overlayassets.Load(h.storage, id)
-			if err != nil {
-				continue
-			}
-			if a.SHA256 != ref.SHA256 {
-				return recapplan.Document{}, &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "La captura guardada ha cambiado"}
-			}
-			if err := mediaassets.VerifyContent(ctx, h.storage, overlayassets.MediaKey(id), ref.SHA256, overlayassets.MaxBytes); err != nil {
-				return recapplan.Document{}, &recapplan.Error{Code: recapplan.ErrAssetMissing, Detail: err.Error()}
-			}
-			assets = append(assets, recapplan.AssetEvidence{Ref: ref, HasImage: true, Title: a.FileName})
-			continue
-		}
 		if h.editorAssets == nil {
 			continue
 		}

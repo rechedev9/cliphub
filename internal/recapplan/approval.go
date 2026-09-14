@@ -24,6 +24,9 @@ func ResolveApproval(ctx context.Context, store storage.Storage, id uuid.UUID, d
 	if proposed.Document.PlannerVersion != PlannerVersion || !proposed.Document.UsesFixedFreeze() {
 		return Snapshot{}, &Error{ErrPlanStale, "Vuelve a preparar y aprobar Full Demo con el freeze fijo de 2 segundos y el calentamiento de POV fuera del vídeo"}
 	}
+	if err := proposed.Document.Options.ValidateCurrentFullDemoPolicy(); err != nil {
+		return Snapshot{}, &Error{ErrPlanStale, "Vuelve a preparar y aprobar Full Demo con la configuración automática actual: " + err.Error()}
+	}
 	planID, err := uuid.Parse(proposed.Document.PlanID)
 	if err != nil {
 		return Snapshot{}, err

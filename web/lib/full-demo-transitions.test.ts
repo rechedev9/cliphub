@@ -1,22 +1,23 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot } from './full-demo-plan.ts';
+import { currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot } from './full-demo-plan.ts';
 import { DEFAULT_FULL_DEMO_TRANSITIONS, fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 function fixture() {
   const raw: unknown = JSON.parse(readFileSync(new URL('./full-demo-plan.fixture.json', import.meta.url), 'utf8'));
   assert.ok(isFullDemoSnapshot(raw));
+  raw.document.options = currentFullDemoOptions(raw.document.options);
   return raw;
 }
 
-test('old approvals stay unchanged until a transition decision is edited', () => {
+test('the Dynamic preset is the only generated transition configuration', () => {
   const snapshot = fixture();
   const before = JSON.stringify(snapshot);
   assert.ok(fullDemoApprovalKey(snapshot.document, snapshot.document.options));
   fullDemoPlanEdit(snapshot);
   assert.equal(JSON.stringify(snapshot), before);
-  const changed = { ...snapshot.document.options, transitions: fullDemoTransitionPreset('kinetic') };
+  const changed = { ...snapshot.document.options, transitions: { ...fullDemoTransitionPreset(), enabled: false } };
   assert.ok(isFullDemoOptions(changed));
   assert.notEqual(fullDemoOptionsKey(changed), fullDemoOptionsKey(snapshot.document.options));
   assert.equal(fullDemoApprovalKey(snapshot.document, changed), null);
@@ -24,15 +25,12 @@ test('old approvals stay unchanged until a transition decision is edited', () =>
   assert.deepEqual(fullDemoPlanEdit(snapshot).fullDemo?.document.options.transitions, changed.transitions);
 });
 
-test('all presets and independent switches survive the strict options boundary', () => {
-  for (const preset of ['subtle', 'kinetic', 'audio'] as const) {
-    const transitions = fullDemoTransitionPreset(preset);
-    assert.ok(isFullDemoOptions({ ...fixture().document.options, transitions }));
-    for (const key of ['whip', 'zoom', 'flash', 'rgb_split', 'whoosh', 'impact'] as const) {
-      const modified = { ...transitions, [key]: !transitions[key] };
-      assert.ok(isFullDemoOptions({ ...fixture().document.options, transitions: modified }));
-    }
-  }
+test('the Dynamic preset stays within the strict options boundary', () => {
+  const transitions = fullDemoTransitionPreset();
+  assert.ok(isFullDemoOptions({ ...fixture().document.options, transitions }));
+  assert.equal(transitions.direction, 'follow-motion');
+  assert.equal(transitions.flash, true);
+  assert.equal(transitions.rgb_split, true);
 });
 
 test('partial, unknown and out-of-range transitions are rejected even when disabled', () => {

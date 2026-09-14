@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,9 +24,9 @@ import (
 // This is a real FFmpeg canary over synthetic sources. It invokes the same
 // Full Demo preparation/concat/master stages but does not manufacture an HLAE
 // attestation or pass synthetic capture through the production-real gate.
-func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
+func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 	ffmpeg := fullDemoTestFFmpeg(t)
-	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "playlist-once", "final-boundary", "muxed-bframes"} {
+	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "final-boundary", "muxed-bframes"} {
 		t.Run(scenario, func(t *testing.T) {
 			audioPolicy := "embedded"
 			if scenario == "replace-narration" {
@@ -77,15 +78,15 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			}
 			sponsor := makeMedia("sponsor", "lime", 660, 1)
 			narration := makeMedia("narration", "black", 1200, 1)
-			musicOne := makeMedia("music-one", "black", 220, .75)
-			musicTwo := makeMedia("music-two", "black", 330, .75)
 			voice := makeMedia("team-voice", "black", 880, 10)
 			options := recapplan.DefaultOptions()
+			options.Capture.HUDProfile = "native-clean-spectator"
+			options.Overlays.HUDTheme = ""
 			options.Capture.Crosshair.AllowCaptureDefault = true
 			options.Editorial.FreezeSeconds, options.Editorial.RoundTailSeconds = 0, 0
 			options.Editorial.KeepFreezeVoice = false
 			options.Audio.Voice.Normalization = "none"
-			options.Audio.Music.Ducking.Enabled = false
+			options.Sponsor.Enabled = true
 			options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "round-boundary", "round-001"
 			options.Sponsor.AudioPolicy = audioPolicy
 			if scenario == "final-boundary" {
@@ -95,9 +96,6 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				frame := int64(60)
 				options.Sponsor.PlacementPolicy, options.Sponsor.AfterRoundID = "manual-frame", ""
 				options.Sponsor.ManualStartFrame, options.Sponsor.AllowSplitRound = &frame, true
-			}
-			if scenario == "playlist-once" {
-				options.Audio.Music.LoopPolicy = "once-pad-silence"
 			}
 			assets := []recapplan.AssetEvidence{}
 			local := []FullDemoLocalMedia{}
@@ -112,7 +110,6 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				local = append(local, FullDemoLocalMedia{Ref: ref, Path: path})
 				return ref
 			}
-			options.Audio.Music.Assets = []recapplan.AssetRef{addAsset(musicOne, 45), addAsset(musicTwo, 45)}
 			videoRef := addAsset(sponsor, 60)
 			options.Sponsor.Video = &videoRef
 			if audioPolicy == "replace-narration" {
@@ -138,7 +135,10 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 			}
 			var lastFraction float64
 			stages := map[string]bool{}
+			var progressMu sync.Mutex
 			progress := fullDemoProgress(func(stage string, fraction float64) {
+				progressMu.Lock()
+				defer progressMu.Unlock()
 				if fraction+1e-9 < lastFraction || fraction >= 1 {
 					t.Errorf("premature or regressing Full Demo progress: %s %f after %f", stage, fraction, lastFraction)
 				}
@@ -156,15 +156,18 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 					t.Fatalf("prepared audio still consumes disk before program assembly: %v, %v", paths, err)
 				}
 			}
-			for _, path := range []string{roundOne, roundTwo, voice, musicOne, musicTwo, filepath.Join(short.fullDemo.workDir, "voice-0-reference.txt"), short.fullDemo.preparedInputs[0]} {
+			for _, path := range []string{roundOne, roundTwo, voice, filepath.Join(short.fullDemo.workDir, "voice-0-reference.txt"), short.fullDemo.preparedInputs[0]} {
 				if _, err := os.Stat(path); err != nil {
 					t.Fatalf("preparation removed an original source, diagnostic, or required item %s: %v", path, err)
 				}
 			}
 			program := fullDemoProgramPath(short)
-			if lastFraction <= .195 || !stages["Preparando voces (1/1)"] || !stages["Preparando música (2/2)"] || !stages["Montando corte 1 de "+strconv.Itoa(len(document.Timeline))] {
+			progressMu.Lock()
+			if lastFraction <= .195 || !stages["Preparando voces (1/1)"] || !stages["Montando corte 1 de "+strconv.Itoa(len(document.Timeline))] {
+				progressMu.Unlock()
 				t.Fatalf("preparation progress is missing: %f, %+v", lastFraction, stages)
 			}
+			progressMu.Unlock()
 			if err := runFFmpegAtomicWithProgress(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "concat media canary", "", program, short.DurationSeconds, progress.pass("Ensamblando vídeo completo", .65, .82)); err != nil {
 				t.Fatal(err)
 			}
@@ -220,19 +223,9 @@ func TestFullDemoSponsorAndPlaylistMediaCanary(t *testing.T) {
 				}
 			}
 			pcm = fullDemoReadAudio(t, ctx, ffmpeg, short.Output, 3.45, .1)
-			if scenario == "playlist-once" {
-				for _, frequency := range []float64{220, 330} {
-					if fullDemoFrequencyPower(pcm, frequency) > fullDemoFrequencyPower(pcm, 440)*1e-5 {
-						t.Fatal("one-shot playlist continued after EOF")
-					}
-				}
-			} else {
-				wantMusic, otherMusic := 330.0, 220.0
-				if scenario == "final-boundary" {
-					wantMusic, otherMusic = otherMusic, wantMusic
-				}
-				if fullDemoFrequencyPower(pcm, wantMusic) < fullDemoFrequencyPower(pcm, otherMusic)*20 {
-					t.Fatal("playlist did not follow gameplay time across sponsor placement")
+			for _, frequency := range []float64{220, 330} {
+				if fullDemoFrequencyPower(pcm, frequency) > fullDemoFrequencyPower(pcm, 440)*1e-5 {
+					t.Fatal("retired background music entered the Full Demo mix")
 				}
 			}
 			if fullDemoFrequencyPower(pcm, 880) < fullDemoFrequencyPower(pcm, 1320)*100 {

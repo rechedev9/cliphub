@@ -3,6 +3,7 @@ package recapplan
 import (
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/killplan"
 )
 
@@ -330,18 +331,22 @@ type Snapshot struct {
 }
 
 func DefaultOptions() Options {
+	// Dinamico is the existing complete transition preset. New plans expose
+	// only its on/off decision, but persist every resolved setting for approval.
+	transitions := DynamicTransitions()
 	return Options{
 		ProfileID: ProfileChill, SourceKind: "demo",
-		Capture:   CaptureOptions{HUDProfile: "native-clean-spectator", CameraPolicy: "strict-first-person", Crosshair: CrosshairOptions{Mode: "observed"}, ContractVersion: CaptureContract},
+		Capture:   CaptureOptions{HUDProfile: customhud.CaptureProfile, CameraPolicy: "strict-first-person", Crosshair: CrosshairOptions{Mode: "observed", AllowCaptureDefault: false}, ContractVersion: CaptureContract},
 		Editorial: EditorialOptions{FreezeSeconds: FixedFreezeSeconds, KeepFreezeVoice: false, VoiceContextSeconds: 0, MaxFreezeSeconds: FixedFreezeSeconds, DeathTailSeconds: 3, RoundTailSeconds: 2, AllowSafeTailTrim: true, ManualRanges: []ManualRange{}},
 		Audio: AudioOptions{
 			Voice:    VoiceOptions{Enabled: true, Gain: 0.85, TeamPolicy: "same-side-at-packet", Normalization: "bounded-activity-v1", ApprovedFallback: "block"},
 			Game:     GameOptions{Gain: 1},
-			Music:    MusicOptions{Enabled: true, Assets: []AssetRef{}, ReferenceLevel: "track-lufs-minus-16-v1", BedGainDB: -21, LoopPolicy: "ordered-loop", Ducking: DuckingOptions{Enabled: true, AttackMS: 20, ReleaseMS: 800, Threshold: 0.025, Ratio: 8}},
+			Music:    MusicOptions{Enabled: false, Assets: []AssetRef{}, ReferenceLevel: "track-lufs-minus-16-v1", BedGainDB: -21, LoopPolicy: "ordered-loop", Ducking: DuckingOptions{Enabled: true, AttackMS: 20, ReleaseMS: 800, Threshold: 0.025, Ratio: 8}},
 			Loudness: LoudnessOptions{TargetILUFS: -14, TargetTPDBTP: -1.5, TargetLRA: 11, PolicyVersion: "program-aac-v1"},
 		},
-		Sponsor:  SponsorOptions{Enabled: true, AudioPolicy: "embedded", ShortNarrationPolicy: "block", PlacementPolicy: "first-two-rounds", WindowStartSeconds: 90, WindowEndSeconds: 130, MusicPolicy: "pause-resume"},
-		Overlays: OverlayOptions{Theme: "faceit-orange", Source: "demo"},
-		Outputs:  OutputOptions{MediaProfile: "h264-1080p60-aac48-stereo", CoverPolicy: "no-cover", MetadataPolicy: "factual-v1"},
+		Sponsor:     SponsorOptions{Enabled: false, AudioPolicy: "embedded", ShortNarrationPolicy: "block", PlacementPolicy: "first-two-rounds", WindowStartSeconds: 90, WindowEndSeconds: 130, MusicPolicy: "pause-resume"},
+		Overlays:    OverlayOptions{HUDTheme: "arena", Roster: true, Scoreboard: true, Theme: "neon-violet", Source: "demo", Mode: "generated"},
+		Outputs:     OutputOptions{MediaProfile: "h264-1080p60-aac48-stereo", CoverPolicy: "no-cover", MetadataPolicy: "factual-v1"},
+		Transitions: &transitions,
 	}
 }

@@ -276,6 +276,9 @@ type RenderWorkerConfig struct {
 	// (see RenderVariantPayload.MusicKey). Empty disables music mixing.
 	MusicDir string
 	Faceit   *faceit.Client
+	// AvatarFetch is an optional bounded downloader for the already-approved
+	// avatar URL snapshot. Tests use it to avoid network access.
+	AvatarFetch func(context.Context, string) ([]byte, error)
 }
 
 // resolveMusicFile returns the first existing track file for key in dir, or ""
@@ -3226,6 +3229,9 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	}
 	doc := demooverlay.BuildForSource(demooverlay.FromRosterScan(roster, target), edit.DemoSource, enrichment)
 	doc.Theme = demooverlay.NormalizeTheme(edit.OverlayTheme)
+	if !screenshots && !demooverlay.UsesFACEITEnrichment(edit.DemoSource) {
+		demooverlay.ApplyAvatarURLs(&doc, storedLocalOverlayAvatarURLs(w, j.ID))
+	}
 	if screenshots {
 		doc.Screenshots, err = w.materializeOverlayScreenshots(edit.FullDemo.Document.Options.Overlays, workDir)
 		if err != nil {
@@ -3235,6 +3241,9 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	_ = demooverlay.MaterializeAvatars(&doc, filepath.Join(workDir, "overlay-avatars"), func(raw string) ([]byte, error) {
+		if w.cfg.AvatarFetch != nil {
+			return w.cfg.AvatarFetch(ctx, raw)
+		}
 		return faceit.FetchAvatar(ctx, nil, raw)
 	})
 	path := filepath.Join(workDir, "full-demo-overlay.json")
@@ -3242,6 +3251,28 @@ func (w *RenderWorker) writeFullDemoOverlay(j job.Job, workDir, preset string, e
 		return "", err
 	}
 	return path, nil
+}
+
+func storedLocalOverlayAvatarURLs(w *RenderWorker, jobID uuid.UUID) map[string]string {
+	if w == nil || w.storage == nil {
+		return nil
+	}
+	rc, err := w.storage.Open(artifacts.FullDemoSteamAvatarsKey(jobID))
+	if err != nil {
+		return nil
+	}
+	defer rc.Close()
+	var stored map[string]faceit.SteamAvatar
+	if err := json.NewDecoder(rc).Decode(&stored); err != nil {
+		return nil
+	}
+	urls := make(map[string]string, len(stored))
+	for steamID, avatar := range stored {
+		if !avatar.Private && strings.HasPrefix(strings.TrimSpace(avatar.URL), "https://") {
+			urls[steamID] = avatar.URL
+		}
+	}
+	return urls
 }
 
 func overlayEnrichment(w *RenderWorker, jobID uuid.UUID, roster parser.RosterResult) (map[string]demooverlay.Enrichment, error) {

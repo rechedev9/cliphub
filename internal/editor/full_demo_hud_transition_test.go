@@ -53,7 +53,7 @@ func TestFullDemoHUDRemainsStableDuringRoundTransition(t *testing.T) {
 			output = filepath.Join(dir, "transition.nut")
 		}
 		short := ShortEdit{Preset: PresetGameplayPOV60, OutputFormat: OutputFormatLandscape16x9, OutputFPS: 60, VideoCRF: 18, VideoPreset: "ultrafast", Threads: 2, Parts: []ShortPart{{SegmentID: "a", Input: source}}, FullDemo: &FullDemoRenderEvidence{Effective: d}, fullDemo: &fullDemoRenderContext{hud: &timeline, ffmpeg: ffmpeg, recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "a", TickStart: 0}}}}}}
-		command, err := fullDemoItemCommand(short, d.Timeline[0], 0, output)
+		command, err := fullDemoItemCommand(short, d.Timeline[0], output)
 		if err != nil {
 			t.Fatal(err)
 		}

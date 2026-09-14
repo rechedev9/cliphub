@@ -111,6 +111,14 @@ func FullDemoFaceitKey(id uuid.UUID) string {
 	return path.Join(JobPrefix(id), "full-demo-faceit.json")
 }
 
+// FullDemoSteamAvatarsKey is the optional, immutable-at-admission snapshot of
+// public Steam avatar metadata for a local Full Demo roster. It contains no
+// FACEIT profile fields and lets a retry reproduce the accepted roster without
+// looking up Steam again.
+func FullDemoSteamAvatarsKey(id uuid.UUID) string {
+	return path.Join(JobPrefix(id), "full-demo-steam-avatars.json")
+}
+
 // FullDemoSourceKey is the user-selected overlay source for a Full Demo recap
 // (premier / professional / faceit). It is a sidecar so the record task
 // payload — and Asynq uniqueness — stay job-scoped, not source-scoped.

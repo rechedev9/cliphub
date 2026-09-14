@@ -81,7 +81,7 @@ func TestFinalizeFullDemoCaptureEvidencePersistsFailures(t *testing.T) {
 func fullDemoEvidenceLog(t *testing.T) string {
 	t.Helper()
 	values := []recording.CvarValue{}
-	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector", "cl_draw_only_deathnotices", "cl_demo_predict", "cl_trueview_show_status", "cl_spec_show_bindings", "cl_drawhud_specvote", "cl_teamid_overhead_mode", "hud_showtargetid"} {
+	for _, name := range []string{"voice_modenable", "snd_voipvolume", "tv_listen_voice_indices", "tv_listen_voice_indices_h", "spec_show_xray", "spec_autodirector", "cl_demo_predict", "cl_trueview_show_status", "cl_spec_show_bindings", "cl_drawhud_specvote", "cl_teamid_overhead_mode", "hud_showtargetid", "cl_hud_radar_map_additive", "cl_hud_color"} {
 		values = append(values, recording.CvarValue{Name: name, Value: json.RawMessage("0")})
 	}
 	values = append(values,
@@ -89,6 +89,13 @@ func fullDemoEvidenceLog(t *testing.T) string {
 		recording.CvarValue{Name: "cl_show_observer_crosshair", Value: json.RawMessage("2")},
 		recording.CvarValue{Name: "cl_drawhud", Value: json.RawMessage("1")},
 		recording.CvarValue{Name: "crosshair", Value: json.RawMessage("1")},
+		recording.CvarValue{Name: "cl_draw_only_deathnotices", Value: json.RawMessage("1")},
+		recording.CvarValue{Name: "cl_drawhud_force_radar", Value: json.RawMessage("1")},
+		recording.CvarValue{Name: "cl_drawhud_force_deathnotices", Value: json.RawMessage("1")},
+		recording.CvarValue{Name: "cl_hud_radar_background_alpha", Value: json.RawMessage("0.35")},
+		recording.CvarValue{Name: "cl_hud_radar_scale", Value: json.RawMessage("0.85")},
+		recording.CvarValue{Name: "safezonex", Value: json.RawMessage("0.97")},
+		recording.CvarValue{Name: "safezoney", Value: json.RawMessage("0.95")},
 	)
 	var log strings.Builder
 	for _, event := range []any{

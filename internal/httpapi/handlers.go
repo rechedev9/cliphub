@@ -114,43 +114,44 @@ type Enqueuer interface {
 
 // Handlers bundles the dependencies needed by every endpoint.
 type Handlers struct {
-	repo              JobRepository
-	streamRepo        StreamJobRepository
-	editorAssets      EditorAssetRepository
-	editorProjects    EditorProjectRepository
-	streamPlanMu      sync.Mutex
-	editorPlanMu      sync.Mutex
-	renderStateMu     sync.Mutex
-	rosterCache       rosterSummaryCache
-	jobsListJSON      cachedJSON
-	streamListJSON    cachedJSON
-	anticheatJobLocks *anticheat.JobLocks
-	streamJobLocks    *streamclips.JobLocks
-	storage           storage.Storage
-	generateIntents   *generateintent.Store
-	voiceProfiles     *voiceprofile.Store
-	queue             Enqueuer
-	mutationToken     string
-	requireReadAuth   bool
-	rateLimiter       *rateLimiter
-	uploadLimiter     *uploadLimiter
-	streamProber      streamclips.Prober
-	musicDir          string
-	capabilities      Capabilities
-	youtubeTrends     YouTubeTrends
-	publishAssistant  *publishAssistantCache
-	faceit            *faceit.Client
-	faceitFollows     *faceit.FollowStore
-	faceitSeeds       *faceit.SeedStore
-	faceitCache       faceitResponseCache
-	steamResolver     *steamresolve.Service
-	steamTransport    steamresolve.Transport
-	steamFactory      func(steamresolve.Session) steamresolve.Transport
-	steamAccounts     *steamresolve.AccountStore
-	steamHistory      *steamresolve.HistoryClient
-	steamFetcher      *steamresolve.Fetcher
-	steamSessionMu    sync.Mutex
-	steamSessionCache steamresolve.Session
+	repo                JobRepository
+	streamRepo          StreamJobRepository
+	editorAssets        EditorAssetRepository
+	editorProjects      EditorProjectRepository
+	streamPlanMu        sync.Mutex
+	editorPlanMu        sync.Mutex
+	renderStateMu       sync.Mutex
+	rosterCache         rosterSummaryCache
+	jobsListJSON        cachedJSON
+	streamListJSON      cachedJSON
+	anticheatJobLocks   *anticheat.JobLocks
+	streamJobLocks      *streamclips.JobLocks
+	storage             storage.Storage
+	generateIntents     *generateintent.Store
+	voiceProfiles       *voiceprofile.Store
+	queue               Enqueuer
+	mutationToken       string
+	requireReadAuth     bool
+	rateLimiter         *rateLimiter
+	uploadLimiter       *uploadLimiter
+	streamProber        streamclips.Prober
+	musicDir            string
+	capabilities        Capabilities
+	youtubeTrends       YouTubeTrends
+	publishAssistant    *publishAssistantCache
+	faceit              *faceit.Client
+	faceitFollows       *faceit.FollowStore
+	faceitSeeds         *faceit.SeedStore
+	faceitCache         faceitResponseCache
+	steamAvatarResolver steamAvatarResolver
+	steamResolver       *steamresolve.Service
+	steamTransport      steamresolve.Transport
+	steamFactory        func(steamresolve.Session) steamresolve.Transport
+	steamAccounts       *steamresolve.AccountStore
+	steamHistory        *steamresolve.HistoryClient
+	steamFetcher        *steamresolve.Fetcher
+	steamSessionMu      sync.Mutex
+	steamSessionCache   steamresolve.Session
 }
 
 type Option func(*Handlers)
@@ -249,6 +250,15 @@ func WithFaceit(client *faceit.Client, follows *faceit.FollowStore) Option {
 	return func(h *Handlers) {
 		h.faceit = client
 		h.faceitFollows = follows
+	}
+}
+
+// WithSteamAvatarResolver supplies the public-profile lookup used only for
+// local Full Demo roster portraits. It is separate from the authenticated
+// Steam history account and allows deterministic fake-service tests.
+func WithSteamAvatarResolver(resolver steamAvatarResolver) Option {
+	return func(h *Handlers) {
+		h.steamAvatarResolver = resolver
 	}
 }
 
@@ -1084,11 +1094,7 @@ func (h *Handlers) StartRecording(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if useRecapPlan {
-		if demoSource != renderplan.DemoSourceFACEIT {
-			writeCodedError(w, http.StatusBadRequest, faceitRosterIncomplete, "Full Demo requires FACEIT as its data source")
-			return
-		}
-		if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
+		if err := h.storeFullDemoOverlaySnapshot(r.Context(), j, demoSource); err != nil {
 			h.rejectFullDemoFaceit(w, j, err)
 			return
 		}
@@ -1194,11 +1200,9 @@ func (h *Handlers) StartGenerate(w http.ResponseWriter, r *http.Request) {
 	segmentIDs := req.SegmentIDs
 	if useRecapPlan && intent.Edit.FullDemo != nil {
 		segmentIDs = nil
-		if intent.Edit.UsesFACEITOverlay() {
-			if err := h.storeFullDemoFaceit(r.Context(), j); err != nil {
-				h.rejectFullDemoFaceit(w, j, err)
-				return
-			}
+		if err := h.storeFullDemoOverlaySnapshot(r.Context(), j, intent.Edit.DemoSource); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
 		}
 	} else if useRecapPlan {
 		if !h.requireRecapPlan(w, j) {
@@ -1714,6 +1718,12 @@ func (h *Handlers) StartRenderVariant(w http.ResponseWriter, r *http.Request) {
 	if err := editRequest.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if editRequest.FullDemo != nil {
+		if err := h.storeFullDemoOverlaySnapshot(r.Context(), j, editRequest.DemoSource); err != nil {
+			h.rejectFullDemoFaceit(w, j, err)
+			return
+		}
 	}
 	if musicRequest.set {
 		musicKey = musicRequest.Key

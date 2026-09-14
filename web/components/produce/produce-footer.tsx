@@ -20,6 +20,8 @@ export type ProduceFooterProps = {
   briefItems: ReadonlyArray<CreativeBriefItem>;
   /** Extra brief content below the items (e.g. the FACEIT note). */
   briefNote?: ReactNode;
+  /** Context-specific message when a valid form still needs automatic preparation. */
+  readyHint?: ReactNode;
   ready: boolean;
   busy: boolean;
   backHref: string;
@@ -35,6 +37,7 @@ export function ProduceFooter({
   hint,
   briefItems,
   briefNote,
+  readyHint,
   ready,
   busy,
   backHref,
@@ -43,7 +46,7 @@ export function ProduceFooter({
 }: ProduceFooterProps): ReactNode {
   const briefId = `produce-brief-${tone}`;
   const nextStep = ready
-    ? 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.'
+    ? readyHint ?? 'Todo preparado. Al crear, ClipHub grabará en este PC; encontrarás el resultado en Demos y vídeos.'
     : hint;
   return (
     <>

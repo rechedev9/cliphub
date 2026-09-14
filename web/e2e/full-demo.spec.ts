@@ -1,35 +1,24 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
-import { FULL_DEMO_EMPTY } from '../lib/full-demo.ts';
-import { isFullDemoSnapshot, isFullDemoOptions, type FullDemoDocument, type FullDemoSnapshot } from '../lib/full-demo-plan.ts';
-import { PRODUCE_MATCH_MISSING, PRODUCE_SHORT_TITLE } from '../lib/produce/copy.ts';
-import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_THEMES } from '../lib/custom-hud.ts';
+import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, type FullDemoDocument } from '../lib/full-demo-plan.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
-const REC_CTA = 'Crear Full Demo';
-const SAVE_CTA = 'Actualizar y guardar plan';
-const GAME_VOLUME = 'Volumen del juego';
 const DRAFT_KEY = `cliphub.full-demo.draft.v1:${JOB}`;
-const REELS_KEY = 'cliphub.reels.v1';
-const INCOMPATIBLE_PLAN = 'El servidor devolvió un plan Full Demo incompatible.';
-const BRIEF_CHECKBOX = /He revisado y apruebo los ajustes/;
 const PLAN = {
   demo: { map: 'de_inferno' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz', team_at_start: 'CT' },
   stats: { total_kills_target: 24 }, segments: [{ id: 'r1', round: 1, tick_start: 100, tick_end: 200, kills: [{ weapon: 'ak47' }] }],
 };
 const ROSTER = { players: [{ steamid64: '76561198000000001', name: 'ropz', team: 'CT', kills: 24, deaths: 14, assists: 4 }] };
-function editorial(): FullDemoDocument {
+
+function editorial(legacy = false): FullDemoDocument {
   const raw: unknown = JSON.parse(readFileSync(new URL('../lib/full-demo-plan.fixture.json', import.meta.url), 'utf8'));
-  if (!isFullDemoSnapshot(raw)) throw new Error('Invalid Go editorial fixture');
+  if (!isFullDemoSnapshot(raw)) throw new Error('Invalid Full Demo fixture');
+  if (!legacy) raw.document.options = currentFullDemoOptions(raw.document.options);
   return raw.document;
 }
-function snapshotWithHash(hash: string): FullDemoSnapshot {
-  const document = { ...editorial(), plan_hash: hash };
-  return { document, approval: { approved_plan_hash: hash, allow_safe_tail_trim: document.options.editorial.allow_safe_tail_trim, timestamp: '2026-01-01T00:00:00Z' } };
-}
-/** Seed localStorage once per tab, before the first page script, without re-seeding after client navigations. */
+
 async function seedStorage(page: Page, entries: Record<string, string>): Promise<void> {
   await page.addInitScript((seed: Record<string, string>) => {
     if (sessionStorage.getItem('e2e.seeded')) return;
@@ -37,564 +26,363 @@ async function seedStorage(page: Page, entries: Record<string, string>): Promise
     sessionStorage.setItem('e2e.seeded', '1');
   }, entries);
 }
-/** The saved document identity lives in the collapsed Avanzado panel; it stays attached while hidden. */
-type HeldRoute = Parameters<Parameters<Page['route']>[1]>[0];
-/** Make localStorage (only) reads and writes for one key prefix throw; sessionStorage and other keys stay untouched. */
-async function blockStorage(page: Page, prefix: string): Promise<void> {
-  await page.addInitScript((blocked: string) => {
-    const { getItem, setItem } = Storage.prototype;
-    const hit = (store: Storage, key: string): boolean => store === window.localStorage && key.startsWith(blocked);
-    Storage.prototype.getItem = function (key: string) { if (hit(this, key)) throw new DOMException('blocked', 'SecurityError'); return getItem.call(this, key); };
-    Storage.prototype.setItem = function (key: string, value: string) { if (hit(this, key)) throw new DOMException('blocked', 'QuotaExceededError'); setItem.call(this, key, value); };
-  }, prefix);
-}
-async function planHashLink(page: Page, hash: string): Promise<void> {
-  await expect(page.getByRole('link', { name: `Ver documento del plan · ${hash.slice(0, 12)}`, includeHidden: true })).toBeAttached();
-}
-/** Non-empty alerts only: the App Router route announcer is an always-present empty alert. */
-function shownErrors(page: Page) {
-  return page.getByRole('alert').filter({ hasText: /\S/ });
-}
-async function storedIntents(page: Page): Promise<unknown> {
-  return page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), REELS_KEY);
-}
+
 async function fulfillJson(page: Page, path: string, status: number, body: unknown): Promise<void> {
   await page.route(`**/api/demos/${JOB}${path}`, (route) => route.fulfill({ status, json: body }));
 }
-async function stubParsedMatch(page: Page, recap: { status: number; body: unknown }): Promise<void> {
+
+async function stubParsedMatch(page: Page, document: FullDemoDocument | null = editorial(), defaults = editorial().options): Promise<void> {
   await fulfillJson(page, '/status', 200, { status: 'parsed' });
   await fulfillJson(page, '/plan', 200, PLAN);
   await fulfillJson(page, '/roster', 200, ROSTER);
-  await fulfillJson(page, '/recap-plan', recap.status, recap.body);
-  const document = editorial();
-  await fulfillJson(page, '/full-demo/plan', 200, { document, defaults: document.options, compatibility: 'editorial-v1' });
+  await fulfillJson(page, '/recap-plan', 200, PLAN);
+  await fulfillJson(page, '/full-demo/plan', 200, { document, defaults: document?.options ?? defaults, compatibility: document ? 'editorial-v1' : 'legacy-until-planned-and-approved' });
 }
 
-test.describe('Full POV editorial constructor', () => {
+test.describe('Full POV simplified constructor', () => {
   for (const width of [390, 1024, 1440]) {
-    test(`custom HUD selection, saved approval and adjacent controls at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 950 });
-      await stubParsedMatch(page, { status: 200, body: PLAN });
-      const longName = 'Donk' + 'W'.repeat(180);
+    test(`keeps useful choices usable at ${width}px with an unbroken player name`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubParsedMatch(page);
+      const longName = `Donk${'W'.repeat(180)}`;
       await fulfillJson(page, '/plan', 200, { ...PLAN, target: { ...PLAN.target, name_in_demo: longName } });
       await fulfillJson(page, '/roster', 200, { players: [{ ...ROSTER.players[0], name: longName }] });
-      let document = editorial();
-      let generated: unknown;
-      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-        if (route.request().method() === 'POST') {
-          const body: unknown = route.request().postDataJSON();
-          if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid HUD decisions');
-          document = { ...document, options: body.options, plan_hash: 'b'.repeat(64) };
-          await route.fulfill({ status: 201, json: document });
-        } else await route.fulfill({ json: { document, defaults: document.options, compatibility: 'editorial-v1' } });
-      });
-      await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
-      await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
-        generated = route.request().postDataJSON();
-        await fulfillJson(page, '/status', 200, { status: 'recording' });
-        await route.fulfill({ status: 202, json: { accepted: true } });
-      });
       await gotoStudio(page, PRODUCE_FULL);
-      await page.getByRole('checkbox', { name: 'Utilizar un custom HUD', exact: true }).check();
-      await expect(page.getByRole('radio', { name: /^HUD / })).toHaveCount(10);
-      for (const theme of CUSTOM_HUD_THEMES) {
-        const radio = page.getByRole('radio', { name: `HUD ${theme.name}`, exact: true });
-        await page.locator('label').filter({ has: radio }).click();
-        await expect(radio).toBeChecked();
-        await expect(page.getByRole('img', { name: `Vista previa del HUD ${theme.name}`, exact: true })).toHaveJSProperty('naturalWidth', 1920);
-        const overflow = await page.evaluate(() => window.document.documentElement.scrollWidth > window.innerWidth);
-        expect(overflow, `page overflow in ${theme.id}`).toBe(false);
-      }
-      await page.getByRole('button', { name: 'Ampliar HUD Mono', exact: true }).click();
-      const expanded = page.getByRole('dialog');
-      await expect(expanded).toBeVisible();
-      await expanded.getByRole('button', { name: 'Jugador', exact: true }).click();
-      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '16 926 324 134');
-      await expanded.getByRole('button', { name: 'Arma', exact: true }).click();
-      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '1540 938 364 122');
-      await expanded.getByRole('button', { name: 'Marcador', exact: true }).click();
-      await expect(expanded.getByTestId('custom-hud-expanded').locator('svg').last()).toHaveAttribute('viewBox', '436 12 1048 100');
-      await expanded.getByRole('button', { name: 'Fondo claro', exact: true }).click();
-      await expect(expanded.getByRole('button', { name: 'Fondo claro', exact: true })).toHaveAttribute('aria-pressed', 'true');
-      const bounds = await expanded.boundingBox();
-      expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width).toBeTruthy();
-      await expanded.getByRole('button', { name: 'Cerrar', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Ampliar HUD Mono', exact: true })).toBeFocused();
-      await page.getByRole('button', { name: 'Usar ajustes recomendados', exact: true }).click();
-      await expect(page.getByRole('radio', { name: 'HUD Mono', exact: true })).toBeChecked();
-      await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0.8');
-      await page.getByRole('button', { name: 'Actualizar y guardar plan' }).click();
-      await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
-      await page.reload();
-      await expect(page.getByRole('radio', { name: 'HUD Mono', exact: true })).toBeChecked();
-      await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0.8');
-      await page.getByRole('button', { name: REC_CTA }).click();
-      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: CUSTOM_HUD_CAPTURE_PROFILE }, overlays: { hud_theme: 'mono' } } }, approval: { approved_plan_hash: document.plan_hash } } } });
+
+      await expect(page.getByRole('combobox', { name: 'Diseño', exact: true })).toBeVisible();
+      await page.getByRole('combobox', { name: 'Diseño', exact: true }).click();
+      await page.getByRole('option', { name: 'Mono', exact: true }).click();
+      await expect(page.getByRole('img', { name: 'Vista previa del HUD Mono', exact: true })).toBeVisible();
+      await expect(page.getByRole('checkbox', { name: 'Activar efectos entre rondas', exact: true })).toBeChecked();
+      await expect(page.getByRole('combobox', { name: 'Origen de la demo', exact: true })).toBeVisible();
+      await expect(page.getByText('Jugadores y marcador en neón violeta.', { exact: true })).toBeVisible();
+      await expect(page.getByRole('checkbox', { name: 'Utilizar un custom HUD', exact: true })).toHaveCount(0);
+      await expect(page.getByText('Música de fondo', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Ajustar mezcla del corte', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Usar ajustes recomendados', { exact: true })).toHaveCount(0);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      expect(overflow).toBe(false);
     });
   }
 
-  test('recommended tuning restores defaults while preserving chosen media and voices', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await gotoStudio(page, PRODUCE_FULL);
-    const volume = page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true });
-    const defaultVolume = await volume.inputValue();
-    await volume.fill('0');
-    const draftKey = `cliphub.full-demo.draft.v1:${JOB}`;
-    const before = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), draftKey);
-    await page.getByRole('button', { name: 'Usar ajustes recomendados', exact: true }).click();
-    await expect(volume).toHaveValue(defaultVolume);
-    const after = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), draftKey);
-    expect(after.audio.music.assets).toEqual(before.audio.music.assets);
-    expect(after.sponsor).toEqual(before.sponsor);
-    expect(after.audio.voice.enabled).toBe(before.audio.voice.enabled);
-    await expect(page.getByRole('spinbutton', { name: 'R1: tick final' })).toBeHidden();
-  });
-  test('retries an offline editorial load without allowing unplanned defaults', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    let offline = true;
-    await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => route.fulfill(offline
-      ? { status: 503, json: { code: 'service_unavailable', error: 'Sin conexión' } }
-      : { status: 200, json: { document: editorial(), defaults: editorial().options, compatibility: 'editorial-v1' } }));
-    await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-    offline = false;
-    await page.getByRole('button', { name: 'Reintentar conexión y cargar plan' }).click();
-    await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toBeVisible();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
-  });
-  test('previews the approved assets without queueing capture', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    let captures = 0;
-    await page.route(`**/api/demos/${JOB}/generate`, (route) => { captures += 1; return route.fulfill({ status: 500 }); });
-    await gotoStudio(page, PRODUCE_FULL);
-    const music = editorial().options.audio.music.assets[0];
-    const sponsor = editorial().options.sponsor.video;
-    if (!music || !sponsor) throw new Error('The fixture requires music and sponsor assets');
-    await expect(page.getByLabel('Escuchar pista 1', { exact: true })).toHaveAttribute('src', `/api/editor/assets/${music.id}/media`);
-    const video = page.getByLabel('Previsualizar vídeo del sponsor', { exact: true });
-    await expect(video).toHaveAttribute('src', `/api/editor/assets/${sponsor.id}/media`);
-    await expect(video).toHaveAttribute('preload', 'none');
-    await page.getByRole('combobox', { name: 'Audio del anuncio', exact: true }).click();
-    await page.getByRole('option', { name: 'Reemplazar por narración', exact: true }).click();
-    await expect.poll(() => video.evaluate((element) => element instanceof HTMLMediaElement ? element.volume : -1)).toBe(0);
-    expect(captures).toBe(0);
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-  });
-  test('switches formats and preserves the numbered Clips section', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await gotoStudio(page, PRODUCE_FULL);
-    const key = page.locator('[data-slot="sidebar-menu-button"][href="/clips"]');
-    await expect(key).toContainText('01');
-    await expect(page.getByRole('heading', { name: 'Full POV Chill' })).toBeVisible();
-    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
-    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
-  });
-  test('a missing job stays distinct from a load failure', async ({ page }) => {
-    await fulfillJson(page, '/status', 404, { error: 'not found' });
-    await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('heading', { name: PRODUCE_MATCH_MISSING.title })).toBeVisible();
-    await expect(page.getByRole('button', { name: REC_CTA })).toHaveCount(0);
-  });
-  test('a failed base plan is not a missing match', async ({ page }) => {
-    await fulfillJson(page, '/status', 200, { status: 'parsed' });
-    await fulfillJson(page, '/plan', 500, { error: 'upstream error' });
-    await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('heading', { name: FULL_DEMO_EMPTY.error.title })).toBeVisible();
-    await expect(page.getByText(PRODUCE_MATCH_MISSING.title)).toHaveCount(0);
-  });
-  for (const failure of [
-    { status: 503, code: 'service_unavailable', error: 'Servicio de análisis sin conexión' },
-    { status: 409, code: 'full_demo_facts_insufficient', error: 'Vuelve a analizar el jugador para obtener hechos de rondas' },
-  ]) {
-    test(`editorial ${failure.code} blocks creation without legacy defaults`, async ({ page }) => {
-      await stubParsedMatch(page, { status: 200, body: PLAN });
-      await fulfillJson(page, '/full-demo/plan', failure.status, failure);
-      await gotoStudio(page, PRODUCE_FULL);
-      await expect(page.getByRole('alert').filter({ hasText: failure.error })).toBeVisible();
-      await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-    });
-  }
-  test('includes zero-kill rounds independently of an unavailable legacy recap', async ({ page }) => {
-    await stubParsedMatch(page, { status: 409, body: { error: 'legacy recap unavailable' } });
-    await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('spinbutton', { name: 'Freeze antes de jugar (s)', exact: true })).toBeHidden();
-    await page.getByText('Avanzado', { exact: true }).click();
-    await expect(page.getByText('R01', { exact: true }).filter({ visible: true })).toBeVisible();
-    await expect(page.getByText('R02', { exact: true })).toBeVisible();
-    await expect(page.getByText('0 kills', { exact: true })).toHaveCount(2);
-    await expect(page.getByText(/Freeze fijo: los últimos 2 segundos/)).toBeVisible();
-    await expect(page.getByRole('spinbutton', { name: /Freeze|Contexto de las voces/ })).toHaveCount(0);
-    await expect(page.getByRole('switch', { name: 'Conservar voces durante el freeze' })).toHaveCount(0);
-    await page.locator('summary').filter({ hasText: 'R01' }).click();
-    await expect(page.getByRole('spinbutton', { name: 'R1: tick inicial' })).toHaveCount(0);
-    await expect(page.getByText(/Inicio fijo: tick 128/)).toBeVisible();
-    const cta = page.getByRole('button', { name: REC_CTA });
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await expect(cta).toBeEnabled();
-    await expect(page.getByText(/Este formato necesita acceso a FACEIT/)).toHaveCount(0);
-  });
-  test('missing enabled music and sponsor are actionable blockers', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    const document = editorial();
-    document.options.audio.music.assets = []; document.options.sponsor.video = null;
-    document.blockers = [{ code: 'full_demo_asset_missing', message: 'Missing required media', round_id: undefined }];
-    await fulfillJson(page, '/full-demo/plan', 200, { document, defaults: document.options, compatibility: 'editorial-v1' });
-    await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByText('Añade al menos una pista o desactiva la música.')).toBeVisible();
-    await expect(page.getByText('Añade el vídeo del sponsor o desactívalo.')).toBeVisible();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-  });
-  test('changed options require a validated saved plan but no separate brief approval', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    let document = editorial();
-    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-      if (route.request().method() === 'POST') {
-        const raw: unknown = route.request().postDataJSON();
-        if (typeof raw !== 'object' || raw === null || !('options' in raw) || !isFullDemoOptions(raw.options)) throw new Error('Invalid options');
-        document = { ...document, options: raw.options, plan_hash: 'b'.repeat(64) };
-        await route.fulfill({ status: 201, json: document });
-      } else await route.fulfill({ json: { document, defaults: document.options, compatibility: 'editorial-v1' } });
-    });
-    await gotoStudio(page, PRODUCE_FULL);
-    const create = page.getByRole('button', { name: REC_CTA });
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await expect(create).toBeEnabled();
-    await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0');
-    await expect(create).toBeDisabled();
-    await page.getByRole('button', { name: 'Actualizar y guardar plan' }).click();
-    await expect(create).toBeEnabled();
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(create).toBeEnabled();
-    await page.reload();
-    await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0');
-    await expect(create).toBeEnabled();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-  });
-  test('creating binds the validated document hash through generate and persists it for Library', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
+  test('normalizes an old local draft before direct planning and generation', async ({ page }) => {
+    const legacy = editorial(true);
+    legacy.options.overlays.roster = false;
+    legacy.options.overlays.scoreboard = false;
+    await seedStorage(page, { [DRAFT_KEY]: JSON.stringify(legacy.options) });
+    await stubParsedMatch(page, editorial(true));
     let generated: unknown;
-    await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      expect(body.options).toMatchObject({ capture: { crosshair: { mode: 'observed', code: '', allow_capture_default: false } }, audio: { music: { enabled: false, assets: [] } }, overlays: { roster: true, scoreboard: true, theme: 'neon-violet', mode: 'generated' } });
+      await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'b'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
+  });
+
+  test('sponsor starts optional and can be enabled before its asset is chosen', async ({ page }) => {
+    const document = editorial();
+    document.options.sponsor.enabled = false;
+    document.options.sponsor.video = null;
+    await stubParsedMatch(page, document);
+    await gotoStudio(page, PRODUCE_FULL);
+    const sponsor = page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true });
+    await expect(sponsor).not.toBeChecked();
+    await sponsor.check();
+    await expect(sponsor).toBeChecked();
+    await expect(page.getByText('Añade el vídeo del sponsor o desactívalo.', { exact: true })).toBeVisible();
+  });
+
+  test('uploads an opted-in sponsor asset with its provenance', async ({ page }) => {
+    const document = editorial();
+    document.options.sponsor.enabled = false;
+    document.options.sponsor.video = null;
+    let uploaded = 0;
+    await stubParsedMatch(page, document);
+    await page.route('**/api/editor/assets', async (route) => {
+      uploaded += 1;
+      expect(route.request().method()).toBe('POST');
+      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
+    });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
+    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
+    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
+    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await expect.poll(() => uploaded).toBe(1);
+    await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
+  });
+
+  test('prepares canonical sponsor boundaries from an empty plan, then creates the selected boundary', async ({ page }) => {
+    const defaults = editorial().options;
+    defaults.sponsor.enabled = false;
+    defaults.sponsor.video = null;
+    defaults.sponsor.placement_policy = 'first-two-rounds';
+    defaults.sponsor.after_round_id = '';
+    const prepared = editorial();
+    prepared.options.sponsor.enabled = true;
+    prepared.options.sponsor.video = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) };
+    let plans = 0;
+    let generated: unknown;
+    await stubParsedMatch(page, null, defaults);
+    await page.route('**/api/editor/assets', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      plans += 1;
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      if (plans === 1) {
+        expect(body.options.sponsor).toMatchObject({
+          enabled: true,
+          video: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) },
+          placement_policy: 'first-two-rounds',
+        });
+      } else {
+        expect(body.options.sponsor).toMatchObject({
+          enabled: true,
+          video: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) },
+          placement_policy: 'round-boundary',
+          after_round_id: 'round-002',
+        });
+      }
+      await route.fulfill({ status: 201, json: { ...prepared, options: body.options, plan_hash: plans === 1 ? 'a'.repeat(64) : 'b'.repeat(64) } });
+    });
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
       generated = route.request().postDataJSON();
-      await fulfillJson(page, '/status', 200, { status: 'recording' });
       await route.fulfill({ status: 202, json: { accepted: true } });
     });
     await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await page.getByRole('button', { name: REC_CTA }).click();
-    await expect.poll(() => generated).toBeDefined();
-    expect(generated).toMatchObject({ preset: 'gameplay-pov-60', segment_ids: [], edit: {
-      full_demo: { document: editorial(), approval: { approved_plan_hash: editorial().plan_hash } },
-      intro: false, outro: false, kill_counter: false, hook_text: false, cover_strategy: 'no-cover',
-    } });
-    const stored: unknown = await page.evaluate(() => JSON.parse(localStorage.getItem('cliphub.reels.v1') ?? '[]'));
-    expect(stored).toMatchObject([{ editConfig: { fullDemo: { document: editorial() } } }]);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
+    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
+    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
+    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
+    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
+    const boundary = page.getByRole('combobox', { name: 'Insertar después de', exact: true });
+    await expect(boundary).toBeVisible();
+    await expect.poll(() => plans).toBe(1);
+    expect(generated).toBeUndefined();
+    await boundary.click();
+    await page.getByRole('option', { name: 'Ronda 2', exact: true }).click();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
+    expect(plans).toBe(2);
   });
-  test('manual options remain independent across format switches', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true }).fill('0');
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
-    await expect(page.getByRole('spinbutton', { name: 'Volumen del juego', exact: true })).toHaveValue('0');
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-    await expect(page.getByRole('checkbox', { name: BRIEF_CHECKBOX })).toHaveCount(0);
-  });
-});
 
-test.describe('Full POV recovery boundaries', () => {
-  for (const [name, draft, reels] of [
-    ['unparsable', '{not json', '{not json'],
-    ['invalid', JSON.stringify({ ...editorial().options, profile_id: 'legacy' }), JSON.stringify([{ videoId: 1, jobId: JOB }])],
-  ] satisfies [string, string, string][]) {
-    test(`${name} local storage falls back to the server plan and still persists a new intent`, async ({ page }) => {
-      await stubParsedMatch(page, { status: 200, body: PLAN });
-      await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
-      let generated: unknown;
-      await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
-        generated = route.request().postDataJSON();
-        await fulfillJson(page, '/status', 200, { status: 'recording' });
-        await route.fulfill({ status: 202, json: { accepted: true } });
-      });
-      await seedStorage(page, { [DRAFT_KEY]: draft, [REELS_KEY]: reels });
-      await gotoStudio(page, PRODUCE_FULL);
-      const document = editorial();
-      await expect(page.getByRole('spinbutton', { name: GAME_VOLUME, exact: true })).toHaveValue(String(document.options.audio.game.gain));
-      await planHashLink(page, document.plan_hash);
-      await expect(shownErrors(page)).toHaveCount(0);
-      await page.getByRole('button', { name: REC_CTA }).click();
-      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: document.plan_hash } } } });
-      expect(await storedIntents(page)).toMatchObject([{ videoId: `${JOB}__full-demo`, editConfig: { fullDemo: { approval: { approved_plan_hash: document.plan_hash } } } }]);
-      expect(await storedIntents(page)).toHaveLength(1);
-    });
-  }
-  test('a valid local draft overrides the server options but keeps the saved document', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    const draft = editorial().options; draft.audio.game.gain = 0;
-    await seedStorage(page, { [DRAFT_KEY]: JSON.stringify(draft) });
+  test('reopening round-boundary keeps the certified round already chosen', async ({ page }) => {
+    const document = editorial();
+    document.options.sponsor.enabled = true;
+    document.options.sponsor.placement_policy = 'first-two-rounds';
+    document.options.sponsor.after_round_id = 'round-002';
+    await stubParsedMatch(page, document);
     await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('spinbutton', { name: GAME_VOLUME, exact: true })).toHaveValue('0');
-    await planHashLink(page, editorial().plan_hash);
-    await expect(page.getByRole('status').filter({ hasText: 'Guarda el plan para revisar' })).toBeVisible();
-    await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
+    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
+    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
+    await expect(page.getByRole('combobox', { name: 'Insertar después de', exact: true })).toHaveText('Ronda 2');
   });
-  for (const failure of [
-    { name: 'server error', status: 503, body: { code: 'service_unavailable', error: 'Planificador sin conexión' }, alert: 'Planificador sin conexión' },
-    { name: 'malformed document', status: 201, body: {}, alert: INCOMPATIBLE_PLAN },
-  ]) {
-    test(`a ${failure.name} while saving keeps the unsaved options, blocks creation and allows a retry`, async ({ page }) => {
-      await stubParsedMatch(page, { status: 200, body: PLAN });
-      const original = editorial();
-      const posted: unknown[] = [];
-      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-        if (route.request().method() !== 'POST') return route.fulfill({ json: { document: original, defaults: original.options, compatibility: 'editorial-v1' } });
-        const raw: unknown = route.request().postDataJSON();
-        posted.push(raw);
-        if (posted.length === 1) return route.fulfill({ status: failure.status, json: failure.body });
-        if (typeof raw !== 'object' || raw === null || !('options' in raw) || !isFullDemoOptions(raw.options)) throw new Error('Invalid options');
-        return route.fulfill({ status: 201, json: { ...original, options: raw.options, plan_hash: 'b'.repeat(64) } });
-      });
-      await gotoStudio(page, PRODUCE_FULL);
-      const create = page.getByRole('button', { name: REC_CTA });
-      const volume = page.getByRole('spinbutton', { name: GAME_VOLUME, exact: true });
-      await volume.fill('0');
-      await page.getByRole('button', { name: SAVE_CTA }).click();
-      await expect(page.getByRole('alert').filter({ hasText: failure.alert })).toBeVisible();
-      await expect(volume).toHaveValue('0');
-      await expect(volume).toBeEnabled();
-      await expect(create).toBeDisabled();
-      await planHashLink(page, original.plan_hash);
-      expect(posted).toHaveLength(1);
-      expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), DRAFT_KEY)).toMatchObject({ audio: { game: { gain: 0 } } });
-      await page.getByRole('button', { name: SAVE_CTA }).click();
-      await expect(create).toBeEnabled();
-      await expect(shownErrors(page)).toHaveCount(0);
-      await planHashLink(page, 'b'.repeat(64));
-      expect(posted).toHaveLength(2);
-      expect(posted[1]).toMatchObject({ options: { audio: { game: { gain: 0 } } } });
+
+  test('leaving Full Demo while preparing sponsor rounds does not claim missing rounds', async ({ page }) => {
+    const defaults = editorial().options;
+    defaults.sponsor.enabled = false;
+    defaults.sponsor.video = null;
+    defaults.sponsor.placement_policy = 'first-two-rounds';
+    defaults.sponsor.after_round_id = '';
+    let held = false;
+    await stubParsedMatch(page, null, defaults);
+    await page.route('**/api/editor/assets', async (route) => {
+      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
     });
-  }
-  test('an in-flight save blocks every other submission until the server answers', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    const original = editorial();
-    const held: HeldRoute[] = [];
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      held = true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      try { await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'e'.repeat(64) } }); } catch { /* Navigation aborts the held request. */ }
+    });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
+    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
+    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
+    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
+    await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
+    await expect.poll(() => held).toBe(true);
+    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+    await page.waitForTimeout(700);
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'No hay una ronda certificada disponible para el sponsor.' })).toHaveCount(0);
+  });
+
+  test('storage failures keep the durable Full Demo creation flow available', async ({ page }) => {
+    const document = editorial();
+    let generated = 0;
+    await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() { throw new Error('Storage blocked'); },
+    }));
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'e'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated += 1; await route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => generated).toBe(1);
+  });
+
+  test('an unavailable or incompatible plan keeps creation disabled until a valid retry', async ({ page }) => {
+    let loads = 0;
+    await stubParsedMatch(page);
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => {
-      if (route.request().method() !== 'POST') return route.fulfill({ json: { document: original, defaults: original.options, compatibility: 'editorial-v1' } });
-      held.push(route);
+      if (route.request().method() !== 'GET') return route.fallback();
+      loads += 1;
+      if (loads === 1) return route.fulfill({ status: 503, json: { error: 'Servicio no disponible' } });
+      if (loads === 2) return route.fulfill({ status: 200, json: { document: {}, defaults: {}, compatibility: 'editorial-v1' } });
+      return route.fallback();
     });
     await gotoStudio(page, PRODUCE_FULL);
-    const create = page.getByRole('button', { name: REC_CTA });
-    const volume = page.getByRole('spinbutton', { name: GAME_VOLUME, exact: true });
-    await volume.fill('0');
-    await page.getByRole('button', { name: SAVE_CTA }).click();
-    const saving = page.getByRole('button', { name: 'Analizando voces y rondas…' });
-    await expect(saving).toBeDisabled();
-    await expect(saving).toHaveAttribute('aria-busy', 'true');
+    const retry = page.getByRole('button', { name: 'Reintentar conexión', exact: true });
+    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    await expect(retry).toBeVisible();
     await expect(create).toBeDisabled();
-    await expect(volume).toBeDisabled();
-    await expect.poll(() => held.length).toBe(1);
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(saving).toBeDisabled();
-    expect(held).toHaveLength(1);
-    const raw: unknown = held[0]?.request().postDataJSON();
-    if (typeof raw !== 'object' || raw === null || !('options' in raw) || !isFullDemoOptions(raw.options)) throw new Error('Invalid options');
-    await held[0]?.fulfill({ status: 201, json: { ...original, options: raw.options, plan_hash: 'b'.repeat(64) } });
+    await retry.click();
+    await expect(retry).toBeVisible();
+    await expect(create).toBeDisabled();
+    await retry.click();
+    await expect(page.getByRole('combobox', { name: 'Diseño', exact: true })).toBeVisible();
     await expect(create).toBeEnabled();
-    await expect(volume).toBeEnabled();
-    await planHashLink(page, 'b'.repeat(64));
-    expect(held).toHaveLength(1);
   });
-  test('a rejected creation keeps the validated plan, re-enables the retry and never navigates', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await fulfillJson(page, '/status', 200, { status: 'recording' });
-    let captures = 0;
-    await page.route(`**/api/demos/${JOB}/generate`, (route) => { captures += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
-    const inFlight = snapshotWithHash('b'.repeat(64));
-    await seedStorage(page, { [REELS_KEY]: JSON.stringify([{
-      videoId: `${JOB}__full-demo`, jobId: JOB, segmentIds: [], mode: 'clean', variant: 'gameplay-pov-60', editConfig: { fullDemo: inFlight },
-      title: '2 rondas - Full POV', map: 'de_inferno', score: '', createdAt: 1,
-    }]) });
-    await gotoStudio(page, PRODUCE_FULL);
-    const cta = page.getByRole('button', { name: /^(Crear Full Demo|Poner Full Demo en cola)$/ });
-    await expect(cta).toBeEnabled();
-    await cta.click();
-    await expect(page.getByRole('alert').filter({ hasText: 'Ya hay un Full Demo con otro plan en curso. Espera a que termine antes de cambiarlo.' })).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo`));
-    await expect(cta).toBeEnabled();
-    await expect(page.getByText('Full Demo en cola', { exact: true })).toHaveCount(0);
-    await planHashLink(page, editorial().plan_hash);
-    expect(await storedIntents(page)).toMatchObject([{ editConfig: { fullDemo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } }]);
-    expect(await storedIntents(page)).toHaveLength(1);
-    expect(captures).toBe(0);
-  });
-  // User-visible outcome only: a double click yields one capture request and one
-  // stored intent. Which guard absorbed the second click (disabled button, intent
-  // reuse, in-flight capture, or the recording status) is not established here.
-  test('a double click on Crear Full Demo yields one capture request and one stored intent', async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
-    const captures: HeldRoute[] = [];
-    let accepted = false;
-    await page.route(`**/api/demos/${JOB}/status`, (route) => route.fulfill({ json: { status: accepted ? 'recording' : 'parsed' } }));
-    await page.route(`**/api/demos/${JOB}/generate`, (route) => { captures.push(route); });
-    await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('button', { name: REC_CTA }).dblclick();
-    await expect.poll(() => captures.length).toBe(1);
-    // Creation is acknowledged before the capture is accepted: the shell jobs control already shows the one queued intent.
-    await expect(page).not.toHaveURL(new RegExp(`/clips/${JOB}/nuevo`));
-    const jobs = page.getByRole('button', { name: /^Trabajos: / });
-    await expect(jobs).toHaveAccessibleName(/^Trabajos: EN COLA, /);
-    expect(await storedIntents(page)).toMatchObject([{ editConfig: { fullDemo: { approval: { approved_plan_hash: editorial().plan_hash } } } }]);
-    // Release the held capture; the jobs control moving to REC shows the accepted response was processed.
-    accepted = true;
-    await captures[0]?.fulfill({ status: 202, json: { accepted: true } });
-    await expect(jobs).toHaveAccessibleName(/^Trabajos: REC/);
-    expect(captures).toHaveLength(1);
-    expect(captures[0]?.request().postDataJSON()).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: editorial().plan_hash } } } });
-    expect(await storedIntents(page)).toHaveLength(1);
-  });
-  for (const [name, prefix, persisted] of [
-    ['draft', DRAFT_KEY, true],
-    ['intent', REELS_KEY, false],
-  ] satisfies [string, string, boolean][]) {
-    test(`unavailable ${name} storage keeps the server plan editable, saveable and recordable`, async ({ page }) => {
-      await stubParsedMatch(page, { status: 200, body: PLAN });
-      await fulfillJson(page, '/renders/gameplay-pov-60', 404, {});
-      const original = editorial();
-      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-        if (route.request().method() !== 'POST') return route.fulfill({ json: { document: original, defaults: original.options, compatibility: 'editorial-v1' } });
-        const raw: unknown = route.request().postDataJSON();
-        if (typeof raw !== 'object' || raw === null || !('options' in raw) || !isFullDemoOptions(raw.options)) throw new Error('Invalid options');
-        return route.fulfill({ status: 201, json: { ...original, options: raw.options, plan_hash: 'b'.repeat(64) } });
-      });
-      let generated: unknown;
-      await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
-        generated = route.request().postDataJSON();
-        await fulfillJson(page, '/status', 200, { status: 'recording' });
-        await route.fulfill({ status: 202, json: { accepted: true } });
-      });
-      await blockStorage(page, prefix);
-      await gotoStudio(page, PRODUCE_FULL);
-      const volume = page.getByRole('spinbutton', { name: GAME_VOLUME, exact: true });
-      const create = page.getByRole('button', { name: REC_CTA });
-      await expect(volume).toHaveValue(String(original.options.audio.game.gain));
-      await expect(create).toBeEnabled();
-      await volume.fill('0');
-      await expect(volume).toHaveValue('0');
-      await expect(create).toBeDisabled();
-      await page.getByRole('button', { name: SAVE_CTA }).click();
-      await expect(create).toBeEnabled();
-      await expect(shownErrors(page)).toHaveCount(0);
-      await planHashLink(page, 'b'.repeat(64));
-      await create.click();
-      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
-      const keys: string[] = await page.evaluate(() => Object.keys(localStorage));
-      expect(keys).not.toContain(prefix);
-      if (persisted) expect(await storedIntents(page)).toMatchObject([{ editConfig: { fullDemo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } }]);
-      else expect(keys).not.toContain(REELS_KEY);
+
+  test('direct creation preserves planning blockers and never enqueues a stale plan', async ({ page }) => {
+    const document = editorial();
+    let generated = 0;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'c'.repeat(64), blockers: [{ code: 'crosshair_missing', message: 'No se encontró el crosshair del jugador.' }] } });
     });
-  }
-});
-for (const interruption of ['empty', 'failed']) {
-  test(`the Short draft survives an ${interruption} plan poll while editing a long video`, async ({ page }) => {
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    let phase = 'ready';
-    let interruptedReads = 0;
-    await page.route(`**/api/demos/${JOB}/plan`, (route) => {
-      if (phase !== 'ready') interruptedReads += 1;
-      if (phase === 'failed') return route.fulfill({ status: 503, json: { code: 'service_unavailable' } });
-      return route.fulfill({ json: phase === 'empty' ? { ...PLAN, segments: [] } : PLAN });
+    await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'No se encontró el crosshair del jugador.' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'El plan tiene bloqueos o está incompleto.' })).toBeVisible();
+    expect(generated).toBe(0);
+  });
+
+  test('a dirty choice prepares a new approval instead of reusing the older hash', async ({ page }) => {
+    const document = editorial();
+    document.plan_hash = 'a'.repeat(64);
+    let planned = 0;
+    let generated: unknown;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      planned += 1;
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'f'.repeat(64) } });
     });
-    await gotoStudio(page, `/clips/${JOB}/nuevo`);
-    await page.getByRole('button', { name: 'Limpiar', exact: true }).click();
-    await page.getByRole('button', { name: 'Sin música', exact: true }).click();
-    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
-    phase = interruption;
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect.poll(() => interruptedReads).toBeGreaterThan(0);
+    await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'f'.repeat(64) } } } });
+    expect(planned).toBe(1);
+  });
+
+  test('creates immediately from a current approved plan', async ({ page }) => {
+    const document = editorial();
+    let planned = 0;
+    let generated: unknown;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => { if (route.request().method() === 'POST') planned += 1; return route.fallback(); });
+    await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: document.plan_hash } } } });
+    expect(planned).toBe(0);
+  });
+
+  test('leaving Full Demo while planning cancels it and recovers creation on return', async ({ page }) => {
+    const document = editorial();
+    let held = false;
+    let generated = 0;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      held = true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      try { await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'd'.repeat(64) } }); } catch { /* Navigation aborts the held request. */ }
+    });
+    await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => held).toBe(true);
     await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
-    if (interruption === 'empty') {
-      await expect(page.getByRole('heading', { name: 'Sin jugadas destacables' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Crear Short', exact: true })).toHaveCount(0);
-    } else {
-      await expect(page.getByRole('alert').filter({ hasText: 'Seguimos mostrando los últimos datos cargados' })).toBeVisible();
-    }
-    phase = 'ready';
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE })).toBeVisible();
-    await expect(page.getByText('Solo el audio de la partida.', { exact: true })).toBeVisible();
-    await expect(page.getByText('Elige al menos una jugada', { exact: true })).toBeVisible();
+    await page.waitForTimeout(700);
+    expect(generated).toBe(0);
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    await expect(create).toBeEnabled();
+    await expect(page.getByText('Preparando Full Demo…', { exact: true })).toHaveCount(0);
+    await create.click();
+    await expect.poll(() => generated).toBeGreaterThan(0);
   });
-}
 
-test('round effects persist through saving, reload and the approved generation request', async ({ page }) => {
-  await stubParsedMatch(page, { status: 200, body: PLAN });
-  let document = editorial();
-  let generated: unknown;
-  await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
-    if (route.request().method() === 'POST') {
-      const raw: unknown = route.request().postDataJSON();
-      if (typeof raw !== 'object' || raw === null || !('options' in raw) || !isFullDemoOptions(raw.options)) throw new Error('Invalid transition options');
-      document = { ...document, options: raw.options, plan_hash: 'c'.repeat(64) };
-      return route.fulfill({ status: 201, json: document });
-    }
-    return route.fulfill({ json: { document, defaults: document.options, compatibility: 'editorial-v1' } });
-  });
-  await page.route(`**/api/demos/${JOB}/generate`, (route) => {
-    generated = route.request().postDataJSON();
-    return route.fulfill({ status: 202, json: { accepted: true } });
-  });
-  await gotoStudio(page, PRODUCE_FULL);
-  await expect(page.getByRole('checkbox', { name: 'Activar efectos entre rondas' })).not.toBeChecked();
-  await page.getByRole('checkbox', { name: 'Activar efectos entre rondas' }).check();
-  await page.getByRole('button', { name: 'Dinámico', exact: true }).click();
-  await page.getByRole('spinbutton', { name: 'Duración de la transición (fotogramas)' }).fill('10');
-  await page.getByRole('combobox', { name: 'Dirección del barrido' }).click();
-  await page.getByRole('option', { name: 'Abajo', exact: true }).click();
-  await page.getByRole('spinbutton', { name: 'Aumento del zoom (%)' }).fill('15');
-  await page.getByRole('spinbutton', { name: 'Duración del microflash (fotogramas)' }).fill('4');
-  await page.getByRole('spinbutton', { name: 'Separación de color (px)' }).fill('6');
-  await page.getByRole('spinbutton', { name: 'Volumen del whoosh (dB)' }).fill('-24');
-  await page.getByRole('spinbutton', { name: 'Cola de voces hacia la siguiente ronda (s)' }).fill('0.9');
-  await page.getByText('Ajustar mezcla del corte', { exact: true }).click();
-  await page.getByRole('spinbutton', { name: 'Filtro grave de salida (Hz; 0 desactiva)' }).fill('2400');
-  await expect(page.getByRole('button', { name: REC_CTA })).toBeDisabled();
-  await page.getByRole('button', { name: /guardar plan/i }).click();
-  await expect(page.getByRole('button', { name: REC_CTA })).toBeEnabled();
-  expect(document.options.transitions).toMatchObject({ enabled: true, direction: 'down', duration_frames: 10, zoom_percent: 15, flash_frames: 4, rgb_pixels: 6, whoosh_gain_db: -24, comms_tail_seconds: .9, game_tail_lowpass_hz: 2400 });
-  await page.reload();
-  await expect(page.getByRole('checkbox', { name: 'Activar efectos entre rondas' })).toBeChecked();
-  await expect(page.getByRole('spinbutton', { name: 'Duración de la transición (fotogramas)' })).toHaveValue('10');
-  await expect(page.getByRole('combobox', { name: 'Dirección del barrido' })).toHaveText('Abajo');
-  await page.getByRole('button', { name: REC_CTA }).click();
-  await expect.poll(() => generated).toBeDefined();
-  expect(generated).toMatchObject({ edit: { full_demo: { document: { options: { transitions: document.options.transitions } } } } });
-});
-
-for (const width of [390, 1024, 1440]) {
-  test(`round effects remain usable at ${width}px with an unbroken player name`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await stubParsedMatch(page, { status: 200, body: PLAN });
-    await fulfillJson(page, '/plan', 200, { ...PLAN, target: { ...PLAN.target, name_in_demo: 'donk'.repeat(65) } });
+  test('leaving Full Demo after create starts does not enqueue or toast', async ({ page }) => {
+    const document = editorial();
+    let statusHeld = false;
+    let generated = 0;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('checkbox', { name: 'Activar efectos entre rondas' }).check();
-    await page.getByRole('button', { name: 'Dinámico', exact: true }).click();
-    await page.getByText('Ajustar mezcla del corte', { exact: true }).click();
-    const rgb = page.getByRole('spinbutton', { name: 'Separación de color (px)' });
-    await rgb.fill('4');
-    await expect(rgb).toHaveValue('4');
-    await page.getByRole('checkbox', { name: 'Microflash de brillo' }).uncheck();
-    await expect(page.getByRole('checkbox', { name: 'Separación RGB' })).toBeChecked();
-    await expect(page.getByRole('button', { name: /guardar plan/i })).toBeEnabled();
-    const overflow = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
-    expect(overflow.scroll).toBeLessThanOrEqual(overflow.width);
-    await page.getByRole('checkbox', { name: 'Activar efectos entre rondas' }).uncheck();
-    await expect(page.getByRole('spinbutton', { name: 'Separación de color (px)' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Crear Full Demo', exact: true })).toBeEnabled();
+    await page.route(`**/api/demos/${JOB}/status`, async (route) => {
+      statusHeld = true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return route.fallback();
+    });
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => statusHeld).toBe(true);
+    await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
+    await page.waitForTimeout(700);
+    expect(generated).toBe(0);
+    await expect(page.getByText('Full Demo en cola', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Prepara tu Short', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
+    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    await expect(create).toBeEnabled();
+    await expect(page.getByText('Preparando Full Demo…', { exact: true })).toHaveCount(0);
   });
-}
+});

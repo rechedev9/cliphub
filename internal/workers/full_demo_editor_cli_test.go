@@ -2,6 +2,9 @@ package workers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/customhud"
+	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/editor"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
@@ -20,12 +25,17 @@ import (
 func TestFullDemoWorkerArgumentsThroughEditorCLI(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+	if renderer := localOverlayRendererPath(); renderer != "" {
+		t.Setenv("ZV_OVERLAY_RENDERER_PATH", renderer)
+	} else {
+		t.Skip("Studio Chromium renderer is required to materialize the mandatory Full Demo overlays")
+	}
 	binary := filepath.Join(t.TempDir(), "zv-editor.exe")
 	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "../../cmd/zv-editor")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build editor CLI: %v\n%s", err, output)
 	}
-	result, dir, recordingPath := fullDemoPublicationFixture(t, "synthetic dry-run input")
+	result, dir, recordingPath := currentFullDemoPublicationFixture(t, "synthetic dry-run input")
 	if err := writeJSONFile(recordingPath, result); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +44,10 @@ func TestFullDemoWorkerArgumentsThroughEditorCLI(t *testing.T) {
 	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: recapplan.Snapshot{
 		Document: doc, Approval: recapplan.Approval{PlanHash: doc.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()},
 	}}
+	if err := attachCurrentHUDTelemetry(&execution, dir); err != nil {
+		t.Fatal(err)
+	}
+	overlayPath := writeCurrentOverlayFixture(t, dir, doc.Input.TargetSteamID64)
 	if err := writeJSONFile(executionPath, execution); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +56,7 @@ func TestFullDemoWorkerArgumentsThroughEditorCLI(t *testing.T) {
 		args      []string
 		wantError bool
 	}{
-		{"worker arguments", fullDemoExecutionArgs(executionPath), false},
+		{"worker arguments", append(fullDemoExecutionArgs(executionPath), "--full-demo-overlay", overlayPath), false},
 		{"legacy CLI default", []string{"--full-demo-execution", executionPath}, true},
 		{"explicit conflicting trim", append(fullDemoExecutionArgs(executionPath), "--tail-trim=1.5"), true},
 	} {
@@ -73,6 +87,38 @@ func TestFullDemoWorkerArgumentsThroughEditorCLI(t *testing.T) {
 	}
 }
 
+func localOverlayRendererPath() string {
+	if path := os.Getenv("ZV_OVERLAY_RENDERER_PATH"); path != "" {
+		return path
+	}
+	candidate := filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "ClipHub Studio Local", "ClipHub Studio.exe")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return ""
+}
+
+func writeCurrentOverlayFixture(t *testing.T, dir, target string) string {
+	t.Helper()
+	doc := demooverlay.BuildForSource(demooverlay.Roster{
+		TargetSteamID64: target,
+		Map:             "de_mirage",
+		ScoreCT:         13,
+		ScoreT:          9,
+		Rounds:          22,
+		Players: []demooverlay.RosterPlayer{
+			{SteamID64: target, Name: "observed", Team: "CT", Kills: 20, Deaths: 12, Assists: 4, ADR: 88.4},
+			{SteamID64: "76561198000000002", Name: "opponent", Team: "T", Kills: 15, Deaths: 16, Assists: 2, ADR: 71.2},
+		},
+	}, "", nil)
+	doc.Theme = demooverlay.ThemeNeonViolet
+	path := filepath.Join(dir, "full-demo-overlay.json")
+	if err := demooverlay.Write(path, doc); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 // The stored metadata is deliberately optimistic, while the localized file
 // has only 60 generated frames. No native capture or delivery is certified.
 func TestFullDemoEditorChecksActualSourceFramesBeforePreparation(t *testing.T) {
@@ -82,7 +128,7 @@ func TestFullDemoEditorChecksActualSourceFramesBeforePreparation(t *testing.T) {
 	if ffmpeg == "" || ffprobe == "" {
 		t.Fatal("FFmpeg and ffprobe are required for Full Demo source preflight")
 	}
-	result, dir, recordingPath := fullDemoPublicationFixture(t, "replaced with generated media")
+	result, dir, recordingPath := currentFullDemoPublicationFixture(t, "replaced with generated media")
 	clip := result.Artifacts[0].Path
 	output, err := exec.CommandContext(ctx, ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "color=s=160x90:r=60:d=1",
 		"-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=1", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", clip).CombinedOutput()
@@ -103,9 +149,13 @@ func TestFullDemoEditorChecksActualSourceFramesBeforePreparation(t *testing.T) {
 	}
 	doc := *result.Plan.FullDemo
 	executionPath := filepath.Join(dir, "full-demo-execution.json")
-	if err := writeJSONFile(executionPath, editor.FullDemoExecution{SchemaVersion: "1.0", Approved: recapplan.Snapshot{
+	execution := editor.FullDemoExecution{SchemaVersion: "1.0", Approved: recapplan.Snapshot{
 		Document: doc, Approval: recapplan.Approval{PlanHash: doc.PlanHash, AllowSafeTailTrim: true, Timestamp: time.Now().UTC()},
-	}}); err != nil {
+	}}
+	if err := attachCurrentHUDTelemetry(&execution, dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSONFile(executionPath, execution); err != nil {
 		t.Fatal(err)
 	}
 	out := filepath.Join(t.TempDir(), "render")
@@ -125,4 +175,46 @@ func TestFullDemoEditorChecksActualSourceFramesBeforePreparation(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(out, "full-demo-media")); !os.IsNotExist(err) {
 		t.Fatal("invalid source reached media preparation")
 	}
+}
+
+// CLI tests exercise a current Full Demo execution, which requires materialized
+// broadcast HUD telemetry. The synthetic timeline is tied to the fixture's
+// demo/player identity and only reaches the dry-run/preflight paths.
+func currentFullDemoPublicationFixture(t *testing.T, content string) (recording.RecordingResult, string, string) {
+	t.Helper()
+	return fullDemoPublicationFixture(t, content, func(_ *recapplan.Facts, o *recapplan.Options) {
+		o.Overlays.HUDTheme = "arena"
+		o.Capture.HUDProfile = customhud.CaptureProfile
+	})
+}
+
+func attachCurrentHUDTelemetry(execution *editor.FullDemoExecution, dir string) error {
+	doc := execution.Approved.Document
+	snapshot := customhud.Example()
+	snapshot.Tick = 0
+	endTick := 1
+	for _, round := range doc.Rounds {
+		if round.RequestedEndTick > endTick {
+			endTick = round.RequestedEndTick
+		}
+	}
+	timeline := customhud.Timeline{
+		Version:       customhud.TelemetryVersion,
+		DemoSHA256:    doc.Input.DemoSHA256,
+		TargetSteamID: doc.Input.TargetSteamID64,
+		TickRate:      doc.Clock.TickRate,
+		EndTick:       endTick,
+		Snapshots:     []customhud.Snapshot{snapshot},
+	}
+	body, err := json.Marshal(timeline)
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "full-demo-hud-telemetry.json")
+	if err := os.WriteFile(path, body, 0600); err != nil {
+		return err
+	}
+	digest := sha256.Sum256(body)
+	execution.HUDTelemetry = &editor.FullDemoLocalHUD{Path: path, SHA256: hex.EncodeToString(digest[:])}
+	return nil
 }

@@ -200,7 +200,7 @@ async function scriptPhase(context) {
 
 async function mediaPhase(context) {
   const { evidenceDir, options, steps } = context;
-  const editorial = await executeGoTests(context, 'full-demo-editorial-media', './internal/editor', 'TestFullDemoMasterDecodedAAC|TestFullDemoSponsorAndPlaylistMediaCanary|TestFullDemoDecodedDuckingAndExplicitZero');
+  const editorial = await executeGoTests(context, 'full-demo-editorial-media', './internal/editor', 'TestFullDemoMasterDecodedAAC|TestFullDemoSponsorAndAudioMediaCanary|TestFullDemoDecodedGameVoiceMix');
   steps.push(editorial.record);
   const voice = await executeGoTests(context, 'full-demo-team-voice-clock', './internal/voicecomms', 'TestDecodedTeamVoiceAfterLongSilenceAndSideChange');
   steps.push(voice.record);

@@ -1,0 +1,37 @@
+- document:
+  - link "Ir a Clips y vídeos":
+    - /url: /clips
+    - text: ClipHub
+  - list:
+    - listitem:
+      - link "Clips y vídeos":
+        - /url: /clips
+    - listitem:
+      - link "Clips de stream":
+        - /url: /streams
+    - listitem:
+      - link "Jugadores FACEIT":
+        - /url: /players
+  - text: Análisis
+  - list:
+    - listitem:
+      - link "Táctica":
+        - /url: /tactical
+    - listitem:
+      - link "Anti-cheat":
+        - /url: /cheaters
+  - list:
+    - listitem:
+      - link "Ajustes":
+        - /url: /settings
+  - 'button "Captura: Comprobando"': Comprobando captura…
+  - button "Mostrar u ocultar barra lateral"
+  - banner:
+    - button "Mostrar u ocultar barra lateral":
+      - img
+      - text: Mostrar u ocultar barra lateral
+    - navigation "Ruta actual": Clips y vídeos vídeo largo
+  - main:
+    - status "Cargando la partida"
+  - region "Notifications alt+T"
+  - alert

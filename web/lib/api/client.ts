@@ -34,7 +34,7 @@ export interface ApiClient {
   listSongs(): Promise<Song[]>;
   listPresets(): Promise<Preset[]>;
   /** playIds must be in plan order, not click order. */
-  createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video>;
+  createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig; signal?: AbortSignal }): Promise<Video>;
   listVideos(): Promise<Video[]>;
   getVideo(id: string): Promise<Video | null>;
   getPublishAssistant(id: string): Promise<PublishAssistant>;

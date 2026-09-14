@@ -1,0 +1,8 @@
+{
+  "ok": false,
+  "feature": "demo-completa",
+  "error": "demo-completa needs Windows Studio, HLAE, and running cs2.exe. Cloud Linux is closed (hlae_cs2_windows_studio). Do not fake Pass.",
+  "named_gap": "hlae_cs2_windows_studio",
+  "full_demo_pass": false,
+  "live_9x16_pass": false
+}

@@ -41,13 +41,12 @@ func fullDemoAPIFixture(t *testing.T) (*Handlers, job.Job, *fakeStorage, *fakeQu
 		{ID: "round-001", Number: 1, StartTick: 1000, FreezeEndTick: 2500, RoundEndTick: 9500, NextStartTick: 10000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
 		{ID: "round-002", Number: 2, StartTick: 10000, FreezeEndTick: 11500, RoundEndTick: 24000, Evidence: "round-events", Kills: []killplan.Kill{}, Utility: []killplan.UtilityThrow{}},
 	}}
+	facts.Crosshairs = []recapplan.CrosshairSample{{Tick: 0, Code: "CSGO-WsnnD-eHaMw-QNDf9-oxuDh-ydOUD"}}
 	if err := recapplan.StoreFacts(store, id, facts); err != nil {
 		t.Fatal(err)
 	}
 	o := recapplan.DefaultOptions()
-	o.Capture.Crosshair.AllowCaptureDefault = true
 	o.Audio.Voice.Enabled, o.Editorial.KeepFreezeVoice, o.Audio.Music.Enabled, o.Sponsor.Enabled = false, false, false, false
-	o.Audio.Game.Gain, o.Audio.Voice.Gain = 0, 0
 	h := NewHandlers(repo, store, queue)
 	return h, j, store, queue, o
 }
@@ -123,8 +122,11 @@ func TestFullDemoActiveRecordDuplicateMatchesApproval(t *testing.T) {
 	h, j, _, queue, o := fullDemoAPIFixture(t)
 	h.capabilities.RecordEnabled = true
 	first := fullDemoAPIPlan(t, h, j, o)
-	o.Audio.Game.Gain = .5
+	o.Transitions.Enabled = false
 	second := fullDemoAPIPlan(t, h, j, o)
+	if first.Document.PlanHash == second.Document.PlanHash {
+		t.Fatal("transition choice did not change the approved plan")
+	}
 	if rw := fullDemoAPIRequest(t, h, j, "/generate", map[string]any{"preset": "gameplay-pov-60", "edit": renderplan.FullDemoEditRequest(first)}); rw.Code != 202 {
 		t.Fatal(rw.Body.String())
 	}
@@ -154,8 +156,11 @@ func TestFullDemoRenderDiscardCannotOverwriteAdvancedState(t *testing.T) {
 		t.Run(advanced, func(t *testing.T) {
 			h, j, _, queue, o := fullDemoAPIFixture(t)
 			first := fullDemoAPIPlan(t, h, j, o)
-			o.Audio.Game.Gain = .5
+			o.SourceKind = "premier"
 			second := fullDemoAPIPlan(t, h, j, o)
+			if first.Document.PlanHash == second.Document.PlanHash {
+				t.Fatal("source kind did not change the approved plan")
+			}
 			j.Status = job.StatusRecorded
 			h.repo.(*fakeRepo).jobs[j.ID] = j
 			if rw := fullDemoAPIRequest(t, h, j, "/renders/gameplay-pov-60", map[string]any{"edit": renderplan.FullDemoEditRequest(first)}); rw.Code != 202 {
@@ -237,7 +242,10 @@ func TestFullDemoEmptyRetryUsesDurableApproval(t *testing.T) {
 						t.Fatalf("missing durable render approval: %v", err)
 					}
 				}
-				if edit.FullDemo == nil || edit.FullDemo.Approval != snapshot.Approval || edit.FullDemo.Document.Options.Audio.Game.Gain != 0 || edit.CoverStrategy != "no-cover" {
+				if edit.FullDemo == nil || edit.FullDemo.Approval != snapshot.Approval ||
+					edit.FullDemo.Document.Options.Audio.Game.Gain != recapplan.DefaultOptions().Audio.Game.Gain ||
+					edit.VoiceComms || edit.VoiceVolume == nil || *edit.VoiceVolume != recapplan.DefaultOptions().Audio.Voice.Gain ||
+					edit.CoverStrategy != "no-cover" {
 					t.Fatalf("retry substituted the approval: %+v", edit)
 				}
 			})
@@ -248,8 +256,11 @@ func TestFullDemoEmptyRetryUsesDurableApproval(t *testing.T) {
 func TestFullDemoRenderDuplicateKeepsOriginalRequest(t *testing.T) {
 	h, j, _, queue, options := fullDemoAPIFixture(t)
 	first := fullDemoAPIPlan(t, h, j, options)
-	options.Audio.Game.Gain = 0.5
+	options.Overlays.HUDTheme = "apex"
 	second := fullDemoAPIPlan(t, h, j, options)
+	if first.Document.PlanHash == second.Document.PlanHash {
+		t.Fatal("HUD theme did not change the approved plan")
+	}
 	j.Status = job.StatusRecorded
 	h.repo.(*fakeRepo).jobs[j.ID] = j
 	for _, tc := range []struct {
@@ -295,7 +306,10 @@ func TestFullDemoPlanningAdmissionAndRetryPreserveApproval(t *testing.T) {
 	if err := s.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Document.Rounds) != 2 || s.Document.Options.Audio.Game.Gain != 0 || s.Document.Options.Sponsor.Enabled {
+	if len(s.Document.Rounds) != 2 || s.Document.Options.Audio.Game.Gain != recapplan.DefaultOptions().Audio.Game.Gain ||
+		s.Document.Options.Audio.Voice.Enabled || s.Document.Options.Audio.Voice.Gain != recapplan.DefaultOptions().Audio.Voice.Gain ||
+		s.Document.Options.Overlays.HUDTheme != recapplan.DefaultOptions().Overlays.HUDTheme || s.Document.Options.SourceKind != "demo" ||
+		s.Document.Options.Transitions == nil || !s.Document.Options.Transitions.Enabled || s.Document.Options.Sponsor.Enabled {
 		t.Fatal("plan lost zero-kill rounds or negative decisions")
 	}
 	h.capabilities.RecordEnabled = true
@@ -320,7 +334,7 @@ func TestFullDemoPlanningAdmissionAndRetryPreserveApproval(t *testing.T) {
 	if err := json.Unmarshal(render.Payload(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Edit.FullDemo.Approval != s.Approval || *payload.Edit.VoiceVolume != 0 {
+	if payload.Edit.FullDemo.Approval != s.Approval || payload.Edit.VoiceComms || payload.Edit.VoiceVolume == nil || *payload.Edit.VoiceVolume != recapplan.DefaultOptions().Audio.Voice.Gain {
 		t.Fatal("render payload changed explicit decisions")
 	}
 	if _, err := h.generateIntents.Finish(j.ID, intent.ActiveRunID, nil); err != nil {
@@ -333,7 +347,9 @@ func TestFullDemoPlanningAdmissionAndRetryPreserveApproval(t *testing.T) {
 		t.Fatalf("retry: %d %s", rw.Code, rw.Body.String())
 	}
 	retry, _, err := tasks.GenerateIntentFromTask(queue.enqueued[1])
-	if err != nil || retry.Edit.FullDemo.Approval != s.Approval || retry.Edit.CoverStrategy != "no-cover" || retry.Edit.FullDemo.Document.Options.Audio.Game.Gain != 0 {
+	if err != nil || retry.Edit.FullDemo.Approval != s.Approval || retry.Edit.CoverStrategy != "no-cover" ||
+		retry.Edit.FullDemo.Document.Options.Audio.Game.Gain != recapplan.DefaultOptions().Audio.Game.Gain ||
+		retry.Edit.VoiceComms || retry.Edit.VoiceVolume == nil || *retry.Edit.VoiceVolume != recapplan.DefaultOptions().Audio.Voice.Gain {
 		t.Fatalf("retry substituted defaults: %+v %v", retry, err)
 	}
 }
@@ -349,7 +365,7 @@ func TestFullDemoRejectsStaleInputsBeforeQueueAdmission(t *testing.T) {
 		}},
 		{"approval", func(_ *fakeStorage, _ job.Job, s *recapplan.Snapshot) { s.Approval.PlanHash = strings.Repeat("a", 64) }},
 		{"forged document", func(_ *fakeStorage, _ job.Job, s *recapplan.Snapshot) {
-			s.Document.Options.Audio.Game.Gain = 0.5
+			s.Document.Options.Transitions.Enabled = false
 			s.Document.PlanHash, _ = s.Document.Hash()
 			s.Approval.PlanHash = s.Document.PlanHash
 		}},
@@ -368,11 +384,49 @@ func TestFullDemoRejectsStaleInputsBeforeQueueAdmission(t *testing.T) {
 	}
 }
 
-func TestFullDemoMusicChangeIsNotAnAdmissionDuplicate(t *testing.T) {
+func TestFullDemoAdmissionRequiresCurrentAutomaticPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		edit func(*recapplan.Options)
+	}{
+		{"manual crosshair", func(o *recapplan.Options) {
+			o.Capture.Crosshair.Mode, o.Capture.Crosshair.Code = "provided-code", "CSGO-WsnnD-eHaMw-QNDf9-oxuDh-ydOUD"
+		}},
+		{"orange overlays", func(o *recapplan.Options) { o.Overlays.Theme = "faceit-orange" }},
+		{"hidden roster", func(o *recapplan.Options) { o.Overlays.Roster = false }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, j, store, queue, o := fullDemoAPIFixture(t)
+			tc.edit(&o)
+			facts, found, err := recapplan.LoadFacts(store, j.ID)
+			if err != nil || !found {
+				t.Fatalf("facts: found=%v err=%v", found, err)
+			}
+			d, err := recapplan.Plan(facts, o, recapplan.VoiceEvidence{Availability: "not_requested", Activity: []recapplan.TickRange{}}, nil, artifacts.FullDemoFactsKey(j.ID))
+			if err != nil || len(d.Blockers) != 0 {
+				t.Fatalf("historical plan: %v %+v", err, d.Blockers)
+			}
+			if err := recapplan.SaveDocument(store, j.ID, d); err != nil {
+				t.Fatal(err)
+			}
+			h.capabilities.RecordEnabled = true
+			snapshot := recapplan.Snapshot{Document: d, Approval: recapplan.Approval{PlanHash: d.PlanHash, AllowSafeTailTrim: d.Options.Editorial.AllowSafeTailTrim, Timestamp: time.Now().UTC()}}
+			rw := fullDemoAPIRequest(t, h, j, "/generate", map[string]any{"preset": "gameplay-pov-60", "edit": renderplan.FullDemoEditRequest(snapshot)})
+			if rw.Code != http.StatusConflict || !strings.Contains(rw.Body.String(), recapplan.ErrPlanStale) || len(queue.enqueued) != 0 {
+				t.Fatalf("retired policy entered generation: %d %s", rw.Code, rw.Body.String())
+			}
+		})
+	}
+}
+
+func TestFullDemoSupportedPlanChangeIsNotAnAdmissionDuplicate(t *testing.T) {
 	h, j, _, queue, o := fullDemoAPIFixture(t)
 	s := fullDemoAPIPlan(t, h, j, o)
-	o.Audio.Game.Gain = 0.5
+	o.SourceKind = "professional"
 	changed := fullDemoAPIPlan(t, h, j, o)
+	if s.Document.PlanHash == changed.Document.PlanHash {
+		t.Fatal("source kind did not change the approved plan")
+	}
 	h.capabilities.RecordEnabled = true
 	body := func(s recapplan.Snapshot) any {
 		return map[string]any{"preset": "gameplay-pov-60", "edit": renderplan.FullDemoEditRequest(s)}

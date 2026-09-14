@@ -1896,8 +1896,8 @@ func TestStartRecordingPersistsFullDemoSource(t *testing.T) {
 		wantSource string
 		wantCode   int
 	}{
-		{name: "premier", source: renderplan.DemoSourcePremier, wantCode: http.StatusBadRequest},
-		{name: "professional", source: renderplan.DemoSourceProfessional, wantCode: http.StatusBadRequest},
+		{name: "premier", source: renderplan.DemoSourcePremier, wantSource: renderplan.DemoSourcePremier, wantCode: http.StatusAccepted},
+		{name: "professional", source: renderplan.DemoSourceProfessional, wantSource: renderplan.DemoSourceProfessional, wantCode: http.StatusAccepted},
 		{name: "faceit", source: renderplan.DemoSourceFACEIT, wantSource: renderplan.DemoSourceFACEIT, wantCode: http.StatusAccepted},
 		{name: "unknown", source: "esea", wantCode: http.StatusBadRequest},
 	}

@@ -208,6 +208,28 @@ test('a later beat re-reads the plan instead of serving the previous one', async
 
 type Seedable = { intents: Map<string, ReelIntent>; reels: Map<string, Video> };
 
+test('aborting creation while its match facts load never persists or reconciles an intent', async () => {
+  const gate = gateFetch(planReadyReply);
+  try {
+    const client = new RealApiClient();
+    const controller = new AbortController();
+    const creating = client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal });
+    const rejected = assert.rejects(creating, (error: unknown) => error instanceof DOMException && error.name === 'AbortError');
+
+    assert.deepEqual(await gate.release(), [STATUS_URL], 'creation begins by reading shared facts');
+    controller.abort();
+    assert.deepEqual(await gate.release(), [PLAN_URL, ROSTER_URL].sort(), 'the in-flight reads may complete after cancellation');
+    await rejected;
+
+    const { intents, reels } = client as unknown as Seedable;
+    assert.equal(intents.size, 0, 'no durable intent survives a cancelled admission');
+    assert.equal(reels.size, 0, 'no queued view is created');
+    assert.equal(gate.calls.length, 3, 'cancellation never starts reconciliation');
+  } finally {
+    gate.restore();
+  }
+});
+
 /** A queued reel on this client, as a reload would rehydrate it from localStorage. */
 function seedReel(client: RealApiClient): string {
   const intent: ReelIntent = {
@@ -394,6 +416,63 @@ test('listMatches reuses the last jobs body when the list answers 304', async ()
     assert.equal(second[0]?.stats.kills, 24);
   } finally {
     globalThis.fetch = original;
+  }
+});
+
+function createVideoFetch(): { posts: string[]; restore: () => void } {
+  const original = globalThis.fetch;
+  const posts: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (method === 'POST') posts.push(url);
+    if (url === STATUS_URL) return json({ status: 'done' });
+    if (url === PLAN_URL) return json(PLAN);
+    if (url === ROSTER_URL) return json(ROSTER);
+    if (url === `/api/demos/${JOB}/generate`) return json({ id: 'job', task: 'record' }, 202);
+    if (url.startsWith('/api/demos/batch-status')) return json({ items: [] });
+    return json({ error: `unexpected ${method} ${url}`, code: 'error' }, 500);
+  }) as typeof globalThis.fetch;
+  return { posts, restore: () => { globalThis.fetch = original; } };
+}
+
+function isAbortError(failure: unknown): boolean {
+  return failure instanceof DOMException && failure.name === 'AbortError';
+}
+
+test('an already-aborted createVideo does not persist an intent or POST generate', async () => {
+  const fake = createVideoFetch();
+  try {
+    const client = new RealApiClient();
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      () => client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal }),
+      isAbortError,
+    );
+    assert.equal((client as unknown as Seedable).intents.size, 0);
+    assert.equal(fake.posts.length, 0);
+  } finally {
+    fake.restore();
+  }
+});
+
+test('aborting createVideo after getMatch starts does not persist an intent', async () => {
+  const gate = gateFetch(planReadyReply);
+  try {
+    const client = new RealApiClient();
+    const controller = new AbortController();
+    const pending = client.createVideo({ matchId: JOB, playIds: ['seg-1'], mode: 'clean', signal: controller.signal });
+    const rejected = assert.rejects(pending, isAbortError);
+    await drain();
+    assert.ok(gate.calls.includes(STATUS_URL));
+    controller.abort();
+    await gate.release();
+    await gate.release();
+    await rejected;
+    assert.equal((client as unknown as Seedable).intents.size, 0);
+  } finally {
+    gate.restore();
   }
 });
 

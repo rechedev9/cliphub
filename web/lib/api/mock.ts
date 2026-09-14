@@ -395,11 +395,12 @@ export class MockApiClient implements ApiClient {
     ];
   }
 
-  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig }): Promise<Video> {
+  async createVideo(input: { matchId: string; playIds: string[]; mode: RenderMode; songId?: string; musicVolume?: number; gameVolume?: number; variant?: string; editConfig?: EditConfig; signal?: AbortSignal }): Promise<Video> {
+    if (input.signal?.aborted) throw new DOMException('La creación se canceló.', 'AbortError');
     await delay();
+    if (input.signal?.aborted) throw new DOMException('La creación se canceló.', 'AbortError');
     const match = uploadedMatches.find((m) => m.id === input.matchId) ?? fixtureMatches.find((m) => m.id === input.matchId);
     const plays = uploadedPlays.get(input.matchId) ?? playsForMatch(input.matchId);
-    // Preserve the caller's (plan) order rather than the plays array's order.
     const pickedPlays = input.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
 
     const modeLabel = input.mode === 'music' ? 'Edición Musical' : 'Clean POV';

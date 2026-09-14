@@ -22,11 +22,8 @@ func FetchAvatar(ctx context.Context, httpClient *http.Client, rawURL string) ([
 	if cleaned == "" {
 		return nil, nil
 	}
-	host := ""
-	if u, err := url.Parse(cleaned); err == nil {
-		host = strings.ToLower(u.Hostname())
-	}
-	if !strings.HasSuffix(host, "faceit-cdn.net") && !strings.HasSuffix(host, "steamstatic.com") && !strings.HasSuffix(host, "akamai.steamstatic.com") {
+	u, err := url.Parse(cleaned)
+	if err != nil || !allowedAvatarURL(u) {
 		return nil, nil
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, overlayAvatarTimeout)
@@ -39,7 +36,17 @@ func FetchAvatar(ctx context.Context, httpClient *http.Client, rawURL string) ([
 	if client == nil {
 		client = http.DefaultClient
 	}
-	res, err := client.Do(req)
+	// Accept CDN redirects only when every redirect remains inside the same
+	// strict HTTPS allowlist. This preserves CDN compatibility without using an
+	// avatar URL as a general outbound request primitive.
+	requestClient := *client
+	requestClient.CheckRedirect = func(next *http.Request, _ []*http.Request) error {
+		if !allowedAvatarURL(next.URL) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+	res, err := requestClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch FACEIT avatar: %w", err)
 	}
@@ -52,4 +59,15 @@ func FetchAvatar(ctx context.Context, httpClient *http.Client, rawURL string) ([
 		return nil, nil
 	}
 	return body, nil
+}
+
+func allowedAvatarHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	return host == "faceit-cdn.net" || strings.HasSuffix(host, ".faceit-cdn.net") ||
+		host == "steamstatic.com" || strings.HasSuffix(host, ".steamstatic.com") ||
+		host == "steamusercontent.com" || strings.HasSuffix(host, ".steamusercontent.com")
+}
+
+func allowedAvatarURL(u *url.URL) bool {
+	return u != nil && strings.EqualFold(u.Scheme, "https") && u.User == nil && u.Port() == "" && allowedAvatarHost(u.Hostname())
 }

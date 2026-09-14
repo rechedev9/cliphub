@@ -9,24 +9,6 @@ import (
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
-func TestFullDemoMusicSamplesSkipSponsor(t *testing.T) {
-	timeline := []recapplan.TimelineItem{
-		{Role: "round", EndSample: 48000},
-		{Role: "sponsor", StartSample: 48000, EndSample: 96000},
-		{Role: "round", StartSample: 96000, EndSample: 144000},
-	}
-	got := fullDemoMusicSamples(timeline)
-	want := []int64{0, 48000, 48000}
-	if len(got) != len(want) {
-		t.Fatalf("len = %d, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("music sample[%d] = %d, want %d (sponsor must not advance the bed)", i, got[i], want[i])
-		}
-	}
-}
-
 func TestFullDemoCaptureSeekKeepsShortOffsetsUnchanged(t *testing.T) {
 	for _, offset := range []int64{0, 1, 61, 120} {
 		seek, trim := fullDemoCaptureSeek(offset)
@@ -47,9 +29,12 @@ func TestFullDemoCaptureSeekPrerollsTwoSeconds(t *testing.T) {
 }
 
 func TestFullDemoItemCommandSeeksCaptureBeforeTrim(t *testing.T) {
+	options := recapplan.DefaultOptions()
+	options.Capture.HUDProfile = "native-clean-spectator"
+	options.Overlays.HUDTheme = ""
 	short := ShortEdit{
 		Parts:    []ShortPart{{SegmentID: "round-001", Input: "game.nut"}},
-		FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: recapplan.DefaultOptions()}},
+		FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: options}},
 		fullDemo: &fullDemoRenderContext{
 			ffmpeg:    "ffmpeg",
 			recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 64}}}},
@@ -60,7 +45,7 @@ func TestFullDemoItemCommandSeeksCaptureBeforeTrim(t *testing.T) {
 		SourceStartTick: 64 + 1067, SourceOffsetFrames: 0,
 		EndFrame: 60, EndSample: 48000,
 	}
-	command, err := fullDemoItemCommand(short, item, 0, "round.nut")
+	command, err := fullDemoItemCommand(short, item, "round.nut")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,9 +67,12 @@ func TestFullDemoItemCommandSeeksCaptureBeforeTrim(t *testing.T) {
 }
 
 func TestFullDemoItemCommandDoesNotSeekShortCaptureOffset(t *testing.T) {
+	options := recapplan.DefaultOptions()
+	options.Capture.HUDProfile = "native-clean-spectator"
+	options.Overlays.HUDTheme = ""
 	short := ShortEdit{
 		Parts:    []ShortPart{{SegmentID: "round-001", Input: "game.nut"}},
-		FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: recapplan.DefaultOptions()}},
+		FullDemo: &FullDemoRenderEvidence{Effective: recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Options: options}},
 		fullDemo: &fullDemoRenderContext{
 			ffmpeg:    "ffmpeg",
 			recording: recording.RecordingResult{Plan: recording.RecordingPlan{Segments: []recording.RecordingSegment{{ID: "round-001", TickStart: 64}}}},
@@ -95,7 +83,7 @@ func TestFullDemoItemCommandDoesNotSeekShortCaptureOffset(t *testing.T) {
 		SourceStartTick: 129, SourceOffsetFrames: 0,
 		EndFrame: 60, EndSample: 48000,
 	}
-	command, err := fullDemoItemCommand(short, item, 0, "round.nut")
+	command, err := fullDemoItemCommand(short, item, "round.nut")
 	if err != nil {
 		t.Fatal(err)
 	}
