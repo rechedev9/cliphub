@@ -270,7 +270,6 @@ function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException('La creación se canceló.', 'AbortError');
 }
 
-/** A queued placeholder Video for an intent; its live status is filled by reconcile. */
 function videoFromIntent(intent: ReelIntent): Video {
   return {
     id: intent.videoId,
@@ -559,7 +558,6 @@ export class RealApiClient implements ApiClient {
       this.getMatch(request.matchId),
     ]);
     throwIfAborted(signal);
-    // Recap records every stored round. Shorts keep the caller's plan order.
     const pickedPlays = recap
       ? plays
       : request.playIds.map((pid) => plays.find((p) => p.id === pid)).filter((p): p is Play => Boolean(p));
@@ -576,7 +574,6 @@ export class RealApiClient implements ApiClient {
       variant,
       editConfig,
       songId: request.songId,
-      // Volume only rides along with a chosen song; without one it is meaningless.
       musicVolume: request.songId ? request.musicVolume : undefined,
       gameVolume: request.songId ? request.gameVolume : undefined,
       title: `${selectionTitle} - ${suffix}`,
@@ -589,7 +586,7 @@ export class RealApiClient implements ApiClient {
     this.intents.set(videoId, intent);
     saveReelIntents(Array.from(this.intents.values()));
     this.reels.set(videoId, videoFromIntent(intent));
-    void this.reconcile(); // kick now (idempotent); /videos polling continues it.
+    void this.reconcile();
     return { ...videoFromIntent(intent) };
   }
 

@@ -24,7 +24,6 @@ export type FullPovProducerProps = {
   active: boolean; matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
 };
 
-/** Full POV stays in the existing generate flow; the server's editorial plan owns every decision. */
 export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: FullPovProducerProps): ReactNode {
   const router = useRouter();
   const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
@@ -47,7 +46,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
         const raw = localStorage.getItem(draftKey);
         const draft: unknown = raw ? JSON.parse(raw) : null;
         if (isFullDemoOptions(draft)) initial = draft;
-      } catch { /* The durable server plan remains available when local drafts are unavailable. */ }
+      } catch { }
       initial = currentFullDemoOptions(initial, true);
       setDocument(loaded.document); setOptions(initial); setBusy(null);
     }).catch((failure: unknown) => {
@@ -74,9 +73,6 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       if (request) {
         createRequest.current = null;
         request.abort();
-        // The producer remains mounted while the format is hidden. Release only
-        // this request's create state so returning to Full Demo is usable, while
-        // a new match load or request keeps its own busy state intact.
         setBusy((current) => current === 'create' ? null : current);
       }
       const boundary = boundaryRequest.current;
@@ -91,10 +87,8 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   function change(next: FullDemoOptions): void {
     next = currentFullDemoOptions(next);
     setOptions(next);
-    try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { /* Saving the server plan is still explicit and durable. */ }
+    try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { }
   }
-  // Creation prepares any changed draft first, then binds only that approved
-  // document to the capture request. A stale plan can never be enqueued.
   const ready = options !== null && busy === null && isFullDemoOptions(options);
   const dirty = options !== null && (document === null || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(options));
   const rounds = document?.rounds ?? [];
@@ -105,7 +99,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     const planned = await saveFullDemoPlan(matchId, options, signal);
     if (signal?.aborted) throw new DOMException('La preparación se canceló.', 'AbortError');
     setDocument(planned); setOptions(planned.options);
-    try { localStorage.setItem(draftKey, JSON.stringify(planned.options)); } catch { /* The plan was saved durably by the server. */ }
+    try { localStorage.setItem(draftKey, JSON.stringify(planned.options)); } catch { }
     return planned;
   }
   async function prepareSponsorRoundBoundaries(): Promise<FullDemoDocument | null> {
