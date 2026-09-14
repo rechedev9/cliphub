@@ -330,7 +330,7 @@ test.describe('Full POV simplified constructor', () => {
     await page.waitForTimeout(700);
     expect(generated).toBe(0);
     await expect(page.getByText('Full Demo en cola', { exact: true })).toHaveCount(0);
-    await expect(page).toHaveURL(/formato=short/);
+    await expect(page.getByRole('heading', { name: 'Prepara tu Short', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
     const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
     await expect(create).toBeEnabled();
