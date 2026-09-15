@@ -37,7 +37,7 @@ Preconditions:
 
 - `/` redirects to `/clips`. Assert the final URL, not the request URL.
 - The brand lockup accessible name is `Ir a Clips y vídeos`. The rail row accessible name is `Clips y vídeos` (the `01` prefix is `aria-hidden`). Scope rail clicks with `--within "[data-slot=sidebar]"` so you do not hit the lockup.
-- Empty hub copy is the honest state without an orchestrator. Do not stub `/api/demos/jobs` to fake partidas for this skill.
+- Empty hub copy is the honest state without an orchestrator. Do not stub `/api/demos/jobs` to fake partidas for this skill. The compact empty-hub dropzone `Elegir demos de CS2` stays enabled (it only stashes files for `/clips/nueva`). The upload-page chooser on `/clips/nueva` stays disabled while the local service is offline.
 - `/clips` first paints `Cargando partidas`. `snapshot` and `screenshot` wait until that status is hidden, then for the empty hub, `Tus demos y vídeos`, or the clips-lens heading `Tus vídeos de demos` on `/clips?vista=clips`. A capture taken too early is only the skeleton.
 - Opening `Crear vídeo largo` is a constructor door. It is not HLAE capture and not Full Demo Pass.
 - `web/e2e/clips-hub.spec.ts` stubs jobs. Those screenshots are presentation fixtures, not this skill's proof.
