@@ -1,12 +1,12 @@
 {
-  "pid": 5183,
+  "pid": 5121,
   "port": 4173,
   "host": "127.0.0.1",
   "origin": "http://127.0.0.1:4173",
   "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/maintain-2026-09-15",
   "logPath": "/workspace/.cursor/skills/verify-cliphub/.run/web.log",
-  "runId": "2026-09-15T07-12-23-991Z",
-  "startedAt": "2026-09-15T07:12:23.993Z",
+  "runId": "2026-09-15T07-20-37-276Z",
+  "startedAt": "2026-09-15T07:20:37.278Z",
   "command": [
     "/exec-daemon/node",
     "/workspace/web/node_modules/next/dist/bin/next",
@@ -17,6 +17,9 @@
     "--port",
     "4173"
   ],
-  "lastUrl": "http://127.0.0.1:4173/clips/11111111-1111-4111-8111-111111111111/nuevo?formato=full",
-  "lastPath": "/clips/11111111-1111-4111-8111-111111111111/nuevo?formato=full"
+  "ready": {
+    "ok": true,
+    "status": 200,
+    "url": "http://127.0.0.1:4173/clips"
+  }
 }

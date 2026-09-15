@@ -1,8 +1,8 @@
 {
   "ok": true,
   "killed": [
-    5183,
-    5194
+    5121,
+    5132
   ],
   "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/maintain-2026-09-15",
   "evidence_exists": true,

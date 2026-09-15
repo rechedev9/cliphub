@@ -24,7 +24,7 @@
     - listitem:
       - link "Ajustes":
         - /url: /settings
-  - 'button "Captura: Sin conexión"': Servicio local offline
+  - 'button "Captura: Comprobando"': Comprobando captura…
   - button "Mostrar u ocultar barra lateral"
   - banner:
     - button "Mostrar u ocultar barra lateral":
@@ -49,7 +49,7 @@
       - tab "Importar desde Steam"
     - tabpanel "Archivo en mi PC":
       - text: Arrastra tu demo o elige un archivo Elegir archivo .dem · .dem.zst · .rar · .zip · hasta 10 demos
-      - button "Elegir demos de CS2" [disabled]
+      - button "Elegir demos de CS2"
       - group: ¿Qué es una demo y dónde la consigo?
   - region "Notifications alt+T"
   - alert
