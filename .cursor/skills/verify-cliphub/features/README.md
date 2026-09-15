@@ -18,7 +18,7 @@ Feature ids match `internal/verify/catalog.go` and `zv verify features`. Cheap c
 - Start every recipe from `/clips` unless the feature file says otherwise.
 - Prefer ARIA roles, accessible names, and `[data-slot="sidebar"]` over CSS position or click coordinates.
 - Treat every command as literal. Keep quoted names and flags unchanged.
-- Run browser actions through `control-cliphub.mjs`.
+- Run browser actions through `control-cliphub.mjs`. `click` on a link waits for the destination URL. `goto` of `/clips/nueva` identifies ClipHub from the brand lockup when the tab title is only `Cargar demo`. Snapshots of `/clips/<id>/nuevo` wait until `Cargando la partida` is hidden.
 - Run Studio/HLAE inspect through `./bin/zv verify`.
 - Restore nothing on the empty first-run hub. Do not delete proof artifacts during cleanup.
 
