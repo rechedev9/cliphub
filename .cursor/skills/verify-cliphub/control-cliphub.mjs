@@ -111,12 +111,14 @@ before returning. Same-page buttons do not wait for a navigation.
 
 Write an ARIA snapshot of the current page (navigates --path first).
 Waits until hub, Jugadores, streams, upload, and produce loading is
-hidden. Relative --out is from the repo root.
+settled (enabled upload chooser; streams without Cargando streams).
+Relative --out is from the repo root.
 `,
   screenshot: `usage: control-cliphub screenshot --out <path> [--path /clips] [--json]
 
 Write a PNG of the current page (navigates --path first).
-Waits until hub loading is hidden. Relative --out is from the repo root.
+Waits until hub, streams, and upload loading is settled. Relative --out
+is from the repo root.
 `,
   drive: `usage: control-cliphub drive --feature inicio [--json]
 
@@ -394,16 +396,38 @@ async function waitForHubLoading(page) {
     return;
   }
   if (pathname === '/streams') {
-    const loading = page.getByRole('status').filter({ hasText: 'Cargando streams' });
-    await loading.waitFor({ state: 'hidden', timeout: 45_000 }).catch(() => {});
-    await page.getByRole('heading', { name: 'Clips de stream' }).waitFor({ state: 'visible', timeout: 15_000 });
+    await waitForStreamsSettled(page);
     return;
   }
   if (pathname === '/clips/nueva') {
-    const short = page.getByRole('heading', { name: 'Crea un Short' });
-    const full = page.getByRole('heading', { name: 'Crea un vídeo largo' });
-    await short.or(full).first().waitFor({ state: 'visible', timeout: 15_000 });
+    await waitForUploadSettled(page);
   }
+}
+
+// The page heading is already in the header during the skeleton. Wait for a
+// list outcome instead, and fail if Cargando streams is still on screen.
+async function waitForStreamsSettled(page) {
+  const empty = page.getByText('Tus proyectos aparecerán aquí');
+  const listError = page.getByRole('alert').filter({
+    has: page.getByRole('button', { name: 'Reintentar' }),
+  });
+  const counted = page.locator('#stream-projects-title + span');
+  await empty.or(listError).or(counted).first().waitFor({ state: 'visible', timeout: 45_000 });
+  const loading = page.getByRole('status').filter({ hasText: 'Cargando streams' });
+  if (await loading.isVisible().catch(() => false)) {
+    throw new Error('Cargando streams is still visible after the settled list signal');
+  }
+}
+
+// DemoDropzone first-paints interactive=false. The heading is already there;
+// the live chooser enables after hydration and is not gated on the orchestrator.
+async function waitForUploadSettled(page) {
+  const short = page.getByRole('heading', { name: 'Crea un Short' });
+  const full = page.getByRole('heading', { name: 'Crea un vídeo largo' });
+  await short.or(full).first().waitFor({ state: 'visible', timeout: 15_000 });
+  await page
+    .locator('input[type="file"][aria-label="Elegir demos de CS2"]:enabled')
+    .waitFor({ state: 'attached', timeout: 15_000 });
 }
 
 async function cliphubIdentity(page) {

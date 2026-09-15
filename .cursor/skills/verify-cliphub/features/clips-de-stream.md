@@ -27,10 +27,11 @@ Preconditions:
 - **Hub entry.** From `/clips`, choose `Recortar un stream`. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs click --path /clips --role link --name "Recortar un stream"`. The URL is `/streams`. `click` waits for that `href`; a result that stays on `/clips` is a failed door.
 - **URL field.** The textbox name is `Enlace del vídeo de Twitch, YouTube o Kick`. The optional title name is `Nombre del proyecto`. The submit name is `Importar vídeo`.
 - **Empty submit.** Choose `Importar vídeo` with an empty URL. The URL field is `aria-invalid` and `#stream-url-error` contains `Pega una URL`.
-- **Proof.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --path /streams --out .cursor/skills/verify-cliphub/artifacts/clips-de-stream/form.aria.txt` and `screenshot --path /streams --out .cursor/skills/verify-cliphub/artifacts/clips-de-stream/form.png`. Both identify ClipHub and the import form. Do not keep a snapshot that still shows `Cargando streams`.
+- **Proof.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs snapshot --path /streams --out .cursor/skills/verify-cliphub/artifacts/clips-de-stream/form.aria.txt` and `screenshot --path /streams --out .cursor/skills/verify-cliphub/artifacts/clips-de-stream/form.png`. Both identify ClipHub and the import form. Ready means a settled list: empty copy `Tus proyectos aparecerán aquí`, the offline alert with `Reintentar`, or the project count. Do not keep a snapshot that still shows `Cargando streams`. The heading `Clips de stream` is already in the header during the skeleton — it is not a ready signal.
 
 ## Gotchas
 
+- `/streams` first paints `Cargando streams` under `Tus proyectos` while the heading is already visible. A hung first poll leaves that status on screen. `goto` / `snapshot` / `screenshot` wait for a list outcome and fail if the status is still visible. Do not swallow that timeout.
 - A successful import navigates to `/streams/<id>` and POSTs `/api/streams`. Without an orchestrator the POST fails. Opening the form is still a valid walk. Creating a project is not proven until the POST returns the new id.
 - File import uses a file chooser. Do not click-xy the dropzone.
 - Stream clips are not Full Demo. Do not attach the HLAE gap to a failed URL validation.
