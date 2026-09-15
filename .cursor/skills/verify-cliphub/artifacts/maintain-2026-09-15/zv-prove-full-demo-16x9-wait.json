@@ -1,0 +1,28 @@
+{
+  "schema_version": 3,
+  "ok": false,
+  "closed": true,
+  "executed": false,
+  "feature": {
+    "id": "full-demo-16x9-wait",
+    "title": "Full Demo 16:9 wait",
+    "route": "/clips?vista=clips",
+    "requires_hlae_cs2": true,
+    "requires_windows_studio": true,
+    "cheap_proof": "rendering-card landscape recap unit path; live overlay is a named gap",
+    "catalog_valid": true,
+    "cheap_ok": true,
+    "user_path": "gap"
+  },
+  "drive": {
+    "feature_id": "full-demo-16x9-wait",
+    "route": "/clips?vista=clips"
+  },
+  "gap": {
+    "id": "hlae_cs2_windows_studio",
+    "class": "closed",
+    "stage": "capture",
+    "message": "HLAE/CS2 / Windows Studio gap: this host cannot recertify capture or Full Demo 16:9 recap. The verification host of record is King's Windows ClipHub Studio, not the cloud VM. Cloud Linux cannot launch CS2. Hosted CI green is not HLAE/CS2 proof. Do not treat compile, lint, or unit tests as a Pass on Full Demo or live overlay walks."
+  },
+  "detail": "fail closed: capture/recap cannot be recertified on this machine"
+}

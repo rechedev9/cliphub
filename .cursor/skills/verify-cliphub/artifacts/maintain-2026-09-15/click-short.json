@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "role": "link",
+  "name": "Crear Short",
+  "url": "http://127.0.0.1:4173/clips/nueva?formato=short",
+  "title": "Cargar demo"
+}
