@@ -72,31 +72,42 @@ func recoverFullDemoAAC(ctx context.Context, ffmpeg, input, output, logDir strin
 	// sample count: filter timestamps can otherwise extend the stream duration.
 	// AAC packet padding is checked separately by delivery validation.
 	samples := strconv.FormatInt(int64(math.Round(duration*recapplan.SampleRate)), 10)
+	// Media Foundation reports a full 1024-sample duration for its padded final
+	// packet. Mark only its real samples as playable, matching native AAC's
+	// short final packet duration instead of extending the MP4 track.
+	packetDuration := "setts=duration=min(DURATION\\,max(0\\," + samples + "/48000/TB-PTS))"
 	for attempt := 0; attempt < 3; attempt++ {
-		start := float64(attempt) / 3
+		start := float64(attempt) * .26
 		stage := fmt.Sprintf("Recuperando audio final (%d/3)", attempt+1)
 		e.MasterTargets = append(e.MasterTargets, baseTarget)
 		e.FallbackMasters = append(e.FallbackMasters, master)
-		// Media Foundation reports a full 1024-sample duration for its padded
-		// final packet. Mark only its real samples as playable, matching native
-		// AAC's short final packet duration instead of extending the MP4 track.
-		packetDuration := "setts=duration=min(DURATION\\,max(0\\," + samples + "/48000/TB-PTS))"
-		command := []string{ffmpeg, "-y", "-hide_banner", "-nostats", "-v", "info", "-i", input, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-af", master.filter(base) + ",apad=whole_len=" + samples + ",atrim=end_sample=" + samples + ",asetpts=N/SR/TB", "-c:a", master.Encoder, "-b:a", "192k", "-ar", "48000", "-ac", "2", "-bsf:a", packetDuration, "-movflags", "+faststart", output}
-		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo AAC recovery", filepath.Join(logDir, fmt.Sprintf("program-aac-recovery-%d.txt", attempt)), output, duration, progress.pass(stage, start, start+1.0/6)); err != nil {
-			return e, fmt.Errorf("audio_loudness_failed: AAC recovery: %w", err)
-		}
-		decoded, err := measureLoudness(ctx, ffmpeg, output, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-recovery-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio recuperado (%d/3)", attempt+1), start+1.0/6, start+1.0/3))
+		candidate, candidateCleanup, err := fullDemoAudioCandidatePath(output)
 		if err != nil {
 			return e, err
 		}
+		filter := master.filter(base) + ",apad=whole_len=" + samples + ",atrim=end_sample=" + samples + ",asetpts=N/SR/TB"
+		command := fullDemoRecoveryCandidateCommand(ffmpeg, input, candidate, filter, master.Encoder, packetDuration)
+		if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, master.Encoder, "recovery"), command, "Full Demo AAC recovery", filepath.Join(logDir, fmt.Sprintf("program-aac-recovery-%d.txt", attempt)), duration, progress.pass(stage, start, start+.13)); err != nil {
+			candidateCleanup()
+			return e, fmt.Errorf("audio_loudness_failed: AAC recovery: %w", err)
+		}
+		decoded, err := measureLoudness(fullDemoTimingStageVariant(ctx, "audio_candidate_analysis", attempt, "aac_mf", "recovery"), ffmpeg, candidate, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-recovery-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio recuperado (%d/3)", attempt+1), start+.13, start+.26))
+		if err != nil {
+			candidateCleanup()
+			return e, err
+		}
 		e.DecodedAAC = append(e.DecodedAAC, decoded)
-		if decoded.Status != "measured" {
-			return e, fmt.Errorf("audio_loudness_failed: recovered AAC is not measurable")
+		accepted, err := fullDemoDecodedAACAccepted(decoded, target, false)
+		if err != nil {
+			candidateCleanup()
+			return e, err
 		}
-		if math.Abs(*decoded.IntegratedLUFS-target.TargetILUFS) <= .5 && *decoded.TruePeakDBTP <= target.TargetTPDBTP {
-			e.Status = "verified-decoded-aac"
-			return e, nil
+		if accepted {
+			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
+			candidateCleanup()
+			return result, err
 		}
+		candidateCleanup()
 		master = master.corrected(decoded, target)
 	}
 	return e, fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e)

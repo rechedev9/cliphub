@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
@@ -24,7 +25,40 @@ type FullDemoDeliveryEvidence struct {
 	ContentSHA256   string  `json:"content_sha256"`
 }
 
+// fullDemoDeliveryDiagnostics requests the optional black/freeze quality
+// filters that report diagnostics without altering the picture. A nil value
+// keeps the strict decode-only behavior legacy callers rely on.
+type fullDemoDeliveryDiagnostics struct {
+	SegmentID string
+	Filters   []string
+}
+
+// fullDemoDeliveryOutcome carries the strict delivery evidence plus everything
+// the optional diagnostics produced during the same mandatory decode.
+type fullDemoDeliveryOutcome struct {
+	Evidence        *FullDemoDeliveryEvidence
+	QualityLog      string
+	QualityWarnings []string
+	DecodeMS        int64
+}
+
 func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, frames int64, progress fullDemoProgress) (*FullDemoDeliveryEvidence, error) {
+	outcome, err := verifyFullDemoDeliveryWithDiagnostics(ctx, ffmpeg, ffprobe, path, frames, progress, nil)
+	if err != nil {
+		return nil, err
+	}
+	return outcome.Evidence, nil
+}
+
+// verifyFullDemoDeliveryWithDiagnostics runs the mandatory complete decode and,
+// when diagnostics are requested, folds the existing blackdetect/freezedetect
+// filters into that same process instead of paying for a second full-video
+// decode. Delivery stays strict: -xerror, passed-through frame timing, the
+// canonical frame count, zero duplicates/drops, probe/durations and the digest
+// are unchanged. When the optional diagnostic setup fails on its own, the
+// strict decode is retried without the filters so an optional check never
+// weakens or fails delivery; the setup problem is reported as a warning.
+func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe, path string, frames int64, progress fullDemoProgress, diagnostics *fullDemoDeliveryDiagnostics) (*fullDemoDeliveryOutcome, error) {
 	if ffprobe == "" {
 		return nil, fmt.Errorf("full_demo_output_invalid: ffprobe is required")
 	}
@@ -88,8 +122,34 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	// Count frames during the mandatory complete decode, rather than decoding
 	// once in ffprobe -count_frames and a second time here. Passthrough forbids
 	// output frame duplication/dropping from hiding a noncanonical source count.
+	// The optional black/freeze quality filters run on the same decode: they do
+	// not change frames or samples, so the canonical evidence is unchanged.
+	filters := []string(nil)
+	if diagnostics != nil {
+		filters = diagnostics.Filters
+	}
+	strictCommand := []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough", "-f", "null", "-"}
+	combinedCommand := strictCommand
+	if len(filters) > 0 {
+		// blackdetect/freezedetect emit their event lines at info level.
+		combinedCommand = []string{ffmpeg, "-v", "info", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-vf", strings.Join(filters, ","), "-fps_mode", "passthrough", "-f", "null", "-"}
+	}
 	var decoded bytes.Buffer
-	_, err = runFFmpegOutputProgressTo(ctx, []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough", "-f", "null", "-"}, "Full Demo complete delivery decode", e.DurationSeconds, progress.pass("Verificando fotogramas, vídeo y audio", .1, .9), &decoded)
+	decodeStarted := time.Now()
+	setupLog, err := runFFmpegOutputProgressTo(ctx, combinedCommand, "Full Demo complete delivery decode", e.DurationSeconds, progress.pass("Verificando fotogramas, vídeo y audio", .1, .9), &decoded)
+	qualityLog := setupLog
+	diagnosticSetupWarning := ""
+	if err != nil && len(filters) > 0 && fullDemoDeliveryDiagnosticSetupError(err) {
+		diagnosticSetupWarning = fmt.Sprintf("quality check %s: %v", diagnostics.SegmentID, err)
+		// The optional diagnostics must never fail or weaken the mandatory
+		// strict decode. Retry without them, and keep BOTH the original setup
+		// stderr (the real cause) and the retry log instead of overwriting it.
+		decoded.Reset()
+		retryLog, retryErr := runFFmpegOutputProgressTo(ctx, strictCommand, "Full Demo complete delivery decode", e.DurationSeconds, progress.pass("Verificando fotogramas, vídeo y audio", .1, .9), &decoded)
+		qualityLog = joinFullDemoDeliveryLogs(setupLog, retryLog)
+		err = retryErr
+	}
+	decodeMS := time.Since(decodeStarted).Milliseconds()
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +168,55 @@ func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, f
 	}
 	e.ContentSHA256 = digest.hash
 	e.FullDecode = true
-	return e, nil
+	outcome := &fullDemoDeliveryOutcome{Evidence: e, DecodeMS: decodeMS}
+	if len(filters) > 0 {
+		outcome.QualityLog = qualityLog
+		outcome.QualityWarnings = QualityWarningsFromFFmpegLog(diagnostics.SegmentID, qualityLog)
+		if diagnosticSetupWarning != "" {
+			outcome.QualityWarnings = append(outcome.QualityWarnings, diagnosticSetupWarning)
+		}
+	}
+	return outcome, nil
+}
+
+// joinFullDemoDeliveryLogs keeps the diagnostic setup failure and the strict
+// retry output together. The decoder that parses warnings only looks for event
+// substrings, so concatenation is safe and preserves the original cause.
+func joinFullDemoDeliveryLogs(setup, retry string) string {
+	switch {
+	case setup == "":
+		return retry
+	case retry == "":
+		return setup
+	default:
+		return setup + "\n" + retry
+	}
+}
+
+// fullDemoDeliveryDiagnosticSetupError distinguishes an optional filter graph
+// that failed to configure from a genuine media/decode error, so only the
+// former may fall back to the strict decode. The filters are fixed and known
+// good; the fallback is a safety net for a broken or replaced FFmpeg build.
+func fullDemoDeliveryDiagnosticSetupError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	for _, marker := range []string{
+		"No such filter",
+		"Error initializing filter",
+		"Error reinitializing filters",
+		"Invalid filter",
+		"Failed to configure output pad",
+		"Error initializing complex filters",
+		"Error parsing filterchain",
+		"Error parsing a filter description",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // Only a completed progress record with unmodified output frames is evidence.

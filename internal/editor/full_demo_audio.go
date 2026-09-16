@@ -31,6 +31,11 @@ type ProgramLoudnessEvidence struct {
 	MasterTargets   []recapplan.LoudnessOptions `json:"master_targets"`
 	FallbackMasters []ProgramAACFallbackMaster  `json:"fallback_masters,omitempty"`
 	Status          string                      `json:"status"`
+	// FinalMuxedAAC is measured from the actual muxed output after the passing
+	// audio candidate is combined with the program video. It certifies the
+	// delivered media, not only the intermediate audio-only candidate, and is
+	// absent whenever a candidate, mux or final measurement failed.
+	FinalMuxedAAC *LoudnessMeasurement `json:"final_muxed_aac,omitempty"`
 }
 
 func decimal(v float64) string { return strconv.FormatFloat(v, 'f', 6, 64) }
@@ -92,13 +97,16 @@ func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessM
 }
 
 // masterFullDemoProgram always remasters the lossless mixed program, never an
-// already encoded AAC file. The decoded AAC measurement owns acceptance, and
-// the original three attempts precede a bounded Windows AAC recovery.
+// already encoded AAC file. Each native candidate is an audio-only AAC MP4 so a
+// failed master never copies the complete video; only a passing candidate is
+// muxed once with the program video. The decoded AAC measurement owns
+// acceptance, and the original three attempts precede a bounded Windows AAC
+// recovery.
 func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
 	fallbackProgress := progress.within(.65, 1)
 	progress = progress.within(0, .65)
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
-	measurement, err := measureLoudness(ctx, ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .1))
+	measurement, err := measureLoudness(fullDemoTimingStage(ctx, "audio_input_analysis", -1), ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .08))
 	if err != nil {
 		return e, err
 	}
@@ -112,12 +120,12 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 	// Reserve a small initial headroom for lossy AAC reconstruction.
 	attemptTarget.TargetTPDBTP -= 0.3
 	for attempt := 0; attempt < 3; attempt++ {
-		start := .1 + float64(attempt)*.3
+		start := .08 + float64(attempt)*.25
 		stage := fmt.Sprintf("Ajustando audio final (%d/3)", attempt+1)
 		filter := "anull"
 		if measurement.Status != "silent" {
 			if attempt > 0 {
-				measurement, err = measureLoudness(ctx, ffmpeg, input, attemptTarget, filepath.Join(logDir, fmt.Sprintf("program-remaster-%d-input.txt", attempt)), duration, progress.pass(stage, start, start+.1))
+				measurement, err = measureLoudness(fullDemoTimingStage(ctx, "audio_input_analysis", attempt), ffmpeg, input, attemptTarget, filepath.Join(logDir, fmt.Sprintf("program-remaster-%d-input.txt", attempt)), duration, progress.pass(stage, start, start+.07))
 				if err != nil {
 					return e, err
 				}
@@ -128,26 +136,32 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 			}
 		}
 		e.MasterTargets = append(e.MasterTargets, attemptTarget)
-		command := []string{ffmpeg, "-y", "-hide_banner", "-nostats", "-v", "info", "-i", input, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-af", filter + fmt.Sprintf(",aresample=48000,aformat=channel_layouts=stereo,apad=whole_len=%d,atrim=end_sample=%d", masterSamples, masterSamples), "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-t", decimal(duration), "-movflags", "+faststart", output}
-		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo program master", filepath.Join(logDir, fmt.Sprintf("program-master-%d.txt", attempt)), output, duration, progress.pass(stage, start+.1, start+.2)); err != nil {
-			return e, err
-		}
-		decoded, err := measureLoudness(ctx, ffmpeg, output, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio final (%d/3)", attempt+1), start+.2, start+.3))
+		candidate, candidateCleanup, err := fullDemoAudioCandidatePath(output)
 		if err != nil {
 			return e, err
 		}
+		command := fullDemoNativeCandidateCommand(ffmpeg, input, candidate, filter, masterSamples, duration)
+		if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, "aac", "native"), command, "Full Demo program master", filepath.Join(logDir, fmt.Sprintf("program-master-%d.txt", attempt)), duration, progress.pass(stage, start+.07, start+.16)); err != nil {
+			candidateCleanup()
+			return e, err
+		}
+		decoded, err := measureLoudness(fullDemoTimingStageVariant(ctx, "audio_candidate_analysis", attempt, "aac", "native"), ffmpeg, candidate, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio final (%d/3)", attempt+1), start+.16, start+.25))
+		if err != nil {
+			candidateCleanup()
+			return e, err
+		}
 		e.DecodedAAC = append(e.DecodedAAC, decoded)
-		if decoded.Status == "silent" && silentApproved {
-			e.Status = "silent-approved"
-			return e, nil
+		accepted, err := fullDemoDecodedAACAccepted(decoded, target, silentApproved)
+		if err != nil {
+			candidateCleanup()
+			return e, err
 		}
-		if decoded.Status != "measured" {
-			return e, fmt.Errorf("audio_loudness_failed: final AAC is not measurable")
+		if accepted {
+			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, candidate, output, logDir, target, silentApproved, duration, e, progress.pass("Publicando el audio final", .85, .99))
+			candidateCleanup()
+			return result, err
 		}
-		if math.Abs(*decoded.IntegratedLUFS-target.TargetILUFS) <= 0.5 && *decoded.TruePeakDBTP <= target.TargetTPDBTP {
-			e.Status = "verified-decoded-aac"
-			return e, nil
-		}
+		candidateCleanup()
 		next, changed := nextMasterTarget(attemptTarget, target, decoded)
 		if !changed {
 			// loudnorm cannot be pushed any further; another native master

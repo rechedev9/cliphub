@@ -23,8 +23,9 @@ func runDiagnosticFFmpeg(ctx context.Context, cmd *exec.Cmd, label string) error
 	}
 	obs.EmitTrace(ctx, obs.TraceEntry{Event: "tool.started", Message: "ffmpeg " + label})
 	err := cmd.Run()
+	finished := time.Now()
 	_ = trace.Close()
-	entry := obs.TraceEntry{Event: "tool.finished", Message: "ffmpeg " + label, Outcome: "ok", DurationMS: time.Since(started).Milliseconds()}
+	entry := obs.TraceEntry{Event: "tool.finished", Message: "ffmpeg " + label, Outcome: "ok", DurationMS: finished.Sub(started).Milliseconds()}
 	if cmd.ProcessState != nil {
 		code := int64(cmd.ProcessState.ExitCode())
 		entry.ExitCode = &code
@@ -33,6 +34,10 @@ func runDiagnosticFFmpeg(ctx context.Context, cmd *exec.Cmd, label string) error
 		entry.Level, entry.Outcome = "error", "error"
 		entry.Message += ": " + err.Error()
 	}
+	// The trace events and the optional per-render collector share this exact
+	// interval and outcome, so timing evidence never disagrees with diagnostics.
+	// The command args let the collector infer a fixed encoder name.
+	fullDemoTimingRecord(ctx, label, cmd.Args, started, finished, err)
 	obs.EmitTrace(ctx, entry)
 	return err
 }

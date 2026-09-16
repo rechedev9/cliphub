@@ -90,9 +90,15 @@ func fullDemoProgramPath(short ShortEdit) string {
 // The existing Full Demo concat now also accepts canonical prepared items.
 // PCM remains lossless until the full-program master. No fade or other legacy
 // presentation default is applied when the approval has no overlay.
+//
+// When every effect is a supported global intro/outro image, the prepared items
+// already carry the composition, so the program only copies the compatible H264
+// stream. fullDemoProgramUsesItemOverlays refuses the copy path until the
+// prepared item list replaces the raw-part list, so an unprepared command keeps
+// the legacy global pass.
 func buildFullDemoProgramCommand(ffmpeg string, short ShortEdit) []string {
 	command := []string{ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", fullDemoConcatListPath(short)}
-	if len(short.Effects) == 0 {
+	if len(short.Effects) == 0 || fullDemoProgramUsesItemOverlays(short) {
 		command = append(command, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy")
 	} else {
 		for _, effect := range imageEffects(short.Effects) {
