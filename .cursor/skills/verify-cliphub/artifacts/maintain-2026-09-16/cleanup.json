@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "killed": [
+    5148,
+    5159
+  ],
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/maintain-2026-09-16",
+  "evidence_exists": true,
+  "state_removed": true
+}

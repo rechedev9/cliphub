@@ -1,0 +1,41 @@
+{
+  "source": ".cursor/skills/verify-cliphub/features",
+  "catalog": "internal/verify/catalog.go",
+  "features": [
+    {
+      "id": "inicio",
+      "title": "Clips y vídeos",
+      "route": "/clips",
+      "file": "features/inicio.md",
+      "requires_hlae_cs2": false
+    },
+    {
+      "id": "clips-de-stream",
+      "title": "Clips de stream",
+      "route": "/streams",
+      "file": "features/clips-de-stream.md",
+      "requires_hlae_cs2": false
+    },
+    {
+      "id": "jugadores",
+      "title": "Jugadores",
+      "route": "/players",
+      "file": "features/jugadores.md",
+      "requires_hlae_cs2": false
+    },
+    {
+      "id": "subir-demo",
+      "title": "Subir demo",
+      "route": "/clips/nueva",
+      "file": "features/subir-demo.md",
+      "requires_hlae_cs2": false
+    },
+    {
+      "id": "demo-completa",
+      "title": "Demo completa",
+      "route": "/clips",
+      "file": "features/demo-completa.md",
+      "requires_hlae_cs2": true
+    }
+  ]
+}

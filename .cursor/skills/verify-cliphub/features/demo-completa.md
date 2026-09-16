@@ -24,7 +24,7 @@ Preconditions:
 
 - **Name the gap.** Run `./bin/zv verify doctor --format json`. On Cloud Linux the report is `ok=false`, `closed=true`, and `gaps` contains `hlae_cs2_windows_studio`. That is the proof this host cannot recertify capture.
 - **Constructor door only.** On Linux you may open `Crear vídeo largo` as a UI door. Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs goto --path /clips/nueva?formato=full`. The tab title is `Cargar demo`. The heading is `Crea un vídeo largo`. The format-bar button `Vídeo largo 16:9` is pressed. The file chooser `Elegir demos de CS2` is enabled after hydration. This is not Full Demo Pass.
-- **Produce URL without a job.** `goto --path /clips/<uuid>/nuevo?formato=full` waits until `Cargando la partida` is hidden. Without an orchestrator the page settles on `Servicio local sin conexión`. Do not treat that empty state as the Full Demo form. The live produce heading after a parsed POV is `Full POV Chill`. Groups are HUD, Sonido, Overlays, and Sponsor. Do not look for the retired Aspecto / Extra / Avanzado accordions.
+- **Produce URL without a job.** `goto --path /clips/<uuid>/nuevo?formato=full` waits until `Cargando la partida` is hidden. Without an orchestrator the page settles on `Servicio local sin conexión`. Do not treat that empty state as the Full Demo form. The live produce heading after a parsed POV is `Full POV Chill`. Groups are `HUD de la partida`, `Sonido`, `Entre rondas`, `Overlays`, and `Sponsor`. Do not look for the retired Aspecto / Extra / Avanzado accordions, and do not treat a four-group HUD/Sonido/Overlays/Sponsor list as current.
 - **Windows inspect.** On King's Studio, run `./bin/zv verify prove --feature demo-completa --job-id <uuid> --format json`. The command GETs `/api/jobs/{id}?view=status`. `user_path` must not become `pass` from that GET. Screenshot of Electron is still a named remaining gap (`studio_overlay_walk`).
 - **Forbidden.** Do not POST generate. Do not claim hosted CI green is HLAE proof. Do not treat `C:\HLAE\HLAE.exe` as valid. Do not treat an installed CS2 path as a running `cs2.exe`.
 
@@ -33,6 +33,8 @@ Preconditions:
 - `Crear vídeo largo` on the empty hub is an upload door. Agents keep misreading it as capture. It is not.
 - A parsed partida offers `Preparar vídeo largo`. `Vídeo largo 16:9` is only the constructor format bar.
 - The Short roster also offers `Preparar vídeo largo` as a destination switch. The primary full-demo roster CTA is `Continuar al vídeo largo`.
+- After a parsed POV the form has five groups: `HUD de la partida` (not the brief chip `HUD`), `Sonido`, `Entre rondas` (transitions; added with the #187 simplify), `Overlays`, and `Sponsor`.
+- The produce footer ready hint and the enqueue toast still say `Demos y vídeos`. That is leftover product copy (the rail is `Clips y vídeos`). Name the live string; do not edit it from this skill.
 - `/clips/<id>/nuevo` first paints `Cargando la partida`. A snapshot taken too early is only the skeleton.
 - `zv verify prove --feature full-demo-16x9-wait` without `--job-id` fail-closes with `studio_job_id_required` even when Studio is up.
 - `web/e2e/full-demo.spec.ts` stubs `/full-demo/plan`. Those tests are the constructor contract. They are not recertification.
