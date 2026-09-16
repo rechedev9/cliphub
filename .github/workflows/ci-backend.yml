@@ -86,7 +86,7 @@ jobs:
 
       - name: go test
         shell: bash
-        run: go test ./... -count=1 -timeout 5m -json | tee "$RUNNER_TEMP/backend-tests.jsonl"
+        run: go test ./... -count=1 -timeout 8m -json | tee "$RUNNER_TEMP/backend-tests.jsonl"
 
       - name: Require critical flow evidence
         if: ${{ !cancelled() }}

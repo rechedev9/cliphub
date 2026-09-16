@@ -21,7 +21,10 @@ import (
 )
 
 const (
-	fullDemoAudioTestFrames = 1819 // Not a loudnorm analysis or AAC packet boundary.
+	// 1818 frames = 30.3s = 1,454,400 samples: not a loudnorm 3s window and
+	// not an AAC packet boundary (remainder 320). 1819 leaves a 96-sample
+	// tail that Ubuntu FFmpeg 6.x native AAC shortens by 32 samples.
+	fullDemoAudioTestFrames = 1818
 	// A 30-second program with a deliberately quiet + transient mix that the
 	// native single-pass master must retarget or recover.
 	fullDemoAudioTestTransient = "aevalsrc=(0.03+0.22*gte(mod(t\\,30)\\,15))*sin(2*PI*440*t)+0.05*sin(2*PI*2311*t)*lt(mod(t\\,1)\\,0.03):s=48000"

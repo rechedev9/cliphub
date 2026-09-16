@@ -66,15 +66,18 @@ func fullDemoOverlayStills(t *testing.T, ctx context.Context, ffmpeg, dir string
 	}
 }
 
-// fullDemoMediaBase writes a lossless 1920x1080 60 fps high-motion fixture with
-// baked HUD-like text, on an exact 1/60 frame timebase and an exact frame count,
-// so both compositions see identical frame clocks.
+// fullDemoMediaBase writes a 1920x1080 60 fps high-motion fixture with baked
+// HUD-like text, on an exact 1/60 frame timebase and an exact frame count, so
+// both compositions see identical frame clocks.
 func fullDemoMediaBase(t *testing.T, ctx context.Context, ffmpeg, dir string, seconds float64) string {
 	t.Helper()
 	if _, err := mediafont.Materialize(); err != nil {
 		t.Fatal(err)
 	}
 	frames := int(math.Round(seconds * 60))
+	// H.264 in MP4 with a 1/60 timescale. Ubuntu FFmpeg 6.x (CI) cannot mux
+	// FFV1 into MP4, and FFV1 in MKV uses 1/1000 which cannot represent 60 fps.
+	// Both graphs read this same file, so the codec only has to be decodable.
 	path := filepath.Join(dir, "base.mp4")
 	text := drawTextEffect(Effect{
 		Type: EffectText, Value: "HUD 12 34", X: "24", Y: "24", Size: 56,
@@ -84,7 +87,7 @@ func fullDemoMediaBase(t *testing.T, ctx context.Context, ffmpeg, dir string, se
 	command := []string{ffmpeg, "-y", "-v", "error",
 		"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=s=1920x1080:r=60:d=%.6f", seconds),
 		"-vf", text, "-frames:v", strconv.Itoa(frames),
-		"-c:v", "ffv1", "-level", "1", "-pix_fmt", "yuv420p",
+		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "0", "-pix_fmt", "yuv420p",
 		"-video_track_timescale", "60", path}
 	if _, err := runFFmpegOutput(ctx, command, "lossless base"); err != nil {
 		t.Fatal(err)
