@@ -20,10 +20,14 @@ import (
 )
 
 func TestGetPublishAssistantLongVideoTemplates(t *testing.T) {
-	for _, kills := range []int{0, 34} {
-		t.Run(strconv.Itoa(kills), func(t *testing.T) {
+	for _, tc := range []struct {
+		player string
+		kills  int
+	}{{"donk", 0}, {"donk", 34}, {"<>", 34}} {
+		t.Run(tc.player+strconv.Itoa(tc.kills), func(t *testing.T) {
+			kills := tc.kills
 			trends := &fakePublishAssistantTrends{}
-			h, url := newPublishAssistantFixture(t, trends, publishAssistantFacts{Player: "donk", Map: "de_mirage", KillCount: kills})
+			h, url := newPublishAssistantFixture(t, trends, publishAssistantFacts{Player: tc.player, Map: "de_mirage", KillCount: kills})
 			req := assistantRequest(http.MethodGet, url)
 			id := uuid.MustParse(chi.URLParam(req, "id"))
 			variant, name := chi.URLParam(req, "variant"), chi.URLParam(req, "name")
@@ -37,7 +41,7 @@ func TestGetPublishAssistantLongVideoTemplates(t *testing.T) {
 			}
 			evidence.Effective = evidence.Approved.Document
 			evidence.Effective.Options.SourceKind = "faceit"
-			evidence.Effective.Voice = recapplan.VoiceEvidence{Availability: "available", SelectedPackets: 10}
+			evidence.Effective.Voice = recapplan.VoiceEvidence{Availability: "available", SelectedPackets: 10, Activity: []recapplan.TickRange{{Start: 128, End: 200}}}
 			evidence.TrackLevels = []editor.FullDemoTrackLevel{{Role: "team-voice", Measurement: editor.LoudnessMeasurement{Status: "measured"}}}
 			putAssistantJSON(t, h.storage.(*fakeStorage), mustAssistantRef(t, id, variant, renderplan.RenderVariantArtifactResult, ""), editor.Result{Shorts: []editor.ShortResult{{SegmentID: name, FullDemo: evidence}}})
 			rw := httptest.NewRecorder()
@@ -56,6 +60,11 @@ func TestGetPublishAssistantLongVideoTemplates(t *testing.T) {
 				t.Fatal("initial draft differs from first template")
 			}
 			for _, rec := range response.Recommendations {
+				for _, value := range append(append([]string{}, rec.Tags...), rec.Keywords...) {
+					if strings.TrimSpace(value) == "" {
+						t.Fatal("blank metadata would fail the frontend parser")
+					}
+				}
 				if rec.Template == "" || !strings.Contains(rec.Title, "FACEIT") || !strings.Contains(rec.Title, "COMMS") || !strings.Contains(rec.Title, "Mirage") {
 					t.Fatalf("missing long-video facts: %+v", rec)
 				}
@@ -72,11 +81,13 @@ func TestGetPublishAssistantLongVideoTemplates(t *testing.T) {
 
 func TestPublishAssistantLongVideoEffectiveEvidence(t *testing.T) {
 	evidence := &editor.FullDemoRenderEvidence{Effective: recapplan.Document{Options: recapplan.DefaultOptions()}}
+	evidence.Effective.Clock.TickRate = 64
+	evidence.Effective.Timeline = []recapplan.TimelineItem{{Role: "round", SourceStartTick: 128, EndSample: 48000}}
 	evidence.Approved.Document.Options.SourceKind = "faceit"
 	evidence.Effective.Options.Overlays.Source = "faceit" // Enrichment is not demo origin.
-	evidence.Effective.Voice = recapplan.VoiceEvidence{Availability: "available", SelectedPackets: 4}
+	evidence.Effective.Voice = recapplan.VoiceEvidence{Availability: "available", SelectedPackets: 4, Activity: []recapplan.TickRange{{Start: 128, End: 160}}}
 	evidence.TrackLevels = []editor.FullDemoTrackLevel{{Role: "team-voice", Measurement: editor.LoudnessMeasurement{Status: "measured"}}}
-	for _, mode := range []string{"muted", "disabled", "missing", "silent", "no-packets", "no-track"} {
+	for _, mode := range []string{"muted", "disabled", "missing", "silent", "no-packets", "no-track", "cut-speech", "no-activity"} {
 		t.Run(mode, func(t *testing.T) {
 			copy := *evidence
 			switch mode {
@@ -92,6 +103,10 @@ func TestPublishAssistantLongVideoEffectiveEvidence(t *testing.T) {
 				copy.Effective.Voice.SelectedPackets = 0
 			case "no-track":
 				copy.TrackLevels = nil
+			case "cut-speech":
+				copy.Effective.Voice.Activity = []recapplan.TickRange{{Start: 0, End: 128}, {Start: 192, End: 256}}
+			case "no-activity":
+				copy.Effective.Voice.Activity = nil
 			}
 			facts := publishAssistantFacts{Player: "player", Map: "de_nuke", KillCount: 20}
 			addLongVideoPublishFacts(&facts, editor.ShortResult{FullDemo: &copy}, editor.PublishItem{})
@@ -99,6 +114,30 @@ func TestPublishAssistantLongVideoEffectiveEvidence(t *testing.T) {
 				if strings.Contains(rec.Title, "COMMS") || strings.Contains(rec.Title, "FACEIT") {
 					t.Fatalf("invented source/voice: %s", rec.Title)
 				}
+			}
+		})
+	}
+}
+
+func TestPublishAssistantVoiceUsesRetainedSampleWindows(t *testing.T) {
+	doc := recapplan.Document{Clock: recapplan.Clock{TickRate: 64}, Timeline: []recapplan.TimelineItem{
+		{Role: "sponsor", SourceStartTick: 0, StartSample: 0, EndSample: 48000},
+		{Role: "round", SourceStartTick: 128, SourceOffsetFrames: 60, StartSample: 48000, EndSample: 96000},
+	}}
+	for _, tc := range []struct {
+		name     string
+		activity recapplan.TickRange
+		want     bool
+	}{
+		{"sponsor-only", recapplan.TickRange{Start: 0, End: 64}, false},
+		{"before-offset", recapplan.TickRange{Start: 128, End: 192}, false},
+		{"retained", recapplan.TickRange{Start: 200, End: 220}, true},
+		{"after-trim", recapplan.TickRange{Start: 256, End: 300}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc.Voice.Activity = []recapplan.TickRange{tc.activity}
+			if got := retainedPublishVoice(doc); got != tc.want {
+				t.Fatalf("retained voice = %v, want %v", got, tc.want)
 			}
 		})
 	}

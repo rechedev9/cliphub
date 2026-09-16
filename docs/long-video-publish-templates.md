@@ -20,7 +20,8 @@ se omite si no hay evidencia suficiente. No se atribuye identidad profesional.
 El origen procede del plan efectivo del render (`source_kind`), con CS2 como
 base si no hay FACEIT o Premier. La configuración visual de los overlays no
 se usa para inferir el origen. `with COMMS` requiere voces disponibles,
-paquetes seleccionados, ganancia positiva y una pista de voz medida del render.
+paquetes seleccionados, ganancia positiva, una pista de voz medida y actividad
+de voz dentro de los tramos de gameplay conservados en el render.
 Los vídeos antiguos sin evidencia reciben textos genéricos.
 
 Las descripciones incluyen jugador, mapa y bajas; no llevan `#Shorts`, ni

@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
 // Publication uses the completed render's effective evidence, never a newer
@@ -22,7 +23,7 @@ func addLongVideoPublishFacts(facts *publishAssistantFacts, short editor.ShortRe
 	doc := evidence.Effective
 	facts.SourceKind = doc.Options.SourceKind
 	voice := doc.Options.Audio.Voice
-	if voice.Enabled && voice.Gain > 0 && doc.Voice.Availability == "available" && doc.Voice.SelectedPackets > 0 {
+	if voice.Enabled && voice.Gain > 0 && doc.Voice.Availability == "available" && doc.Voice.SelectedPackets > 0 && retainedPublishVoice(doc) {
 		for _, track := range evidence.TrackLevels {
 			if track.Role == "team-voice" && track.Measurement.Status == "measured" {
 				facts.Comms = true
@@ -51,9 +52,39 @@ func addLongVideoPublishFacts(facts *publishAssistantFacts, short editor.ShortRe
 	}
 }
 
+// Match the source-frame seek and sample window used by fullDemoItemCommand.
+// A measured whole-demo WAV does not prove that speech survived the edit.
+func retainedPublishVoice(doc recapplan.Document) bool {
+	for _, item := range doc.Timeline {
+		if item.Role != "round" || item.EndSample <= item.StartSample {
+			continue
+		}
+		frame, err := recapplan.TickFrames(item.SourceStartTick, doc.Clock.TickRate)
+		if err != nil {
+			continue
+		}
+		start := (frame + item.SourceOffsetFrames) * recapplan.SamplesPerFrame
+		end := start + item.EndSample - item.StartSample
+		for _, activity := range doc.Voice.Activity {
+			from, fromErr := recapplan.TickFrames(activity.Start, doc.Clock.TickRate)
+			to, toErr := recapplan.TickFrames(activity.End, doc.Clock.TickRate)
+			if fromErr == nil && toErr == nil && to > from && from*recapplan.SamplesPerFrame < end && to*recapplan.SamplesPerFrame > start {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func longVideoPublishRecommendations(facts publishAssistantFacts) []publishRecommendation {
 	player := publishName(facts.Player, 24)
+	if player == "" {
+		player = "Player"
+	}
 	mapName := publishName(strings.TrimPrefix(facts.Map, "de_"), 20)
+	if mapName == "" {
+		mapName = "Unknown map"
+	}
 	knownMaps := map[string]string{"dust2": "Dust 2", "mirage": "Mirage", "anubis": "Anubis", "inferno": "Inferno", "nuke": "Nuke", "ancient": "Ancient", "vertigo": "Vertigo", "overpass": "Overpass", "cache": "Cache", "train": "Train"}
 	if name, ok := knownMaps[strings.ToLower(mapName)]; ok {
 		mapName = name
@@ -91,8 +122,7 @@ func longVideoPublishRecommendations(facts publishAssistantFacts) []publishRecom
 	add("POV clásico", fmt.Sprintf("%s %s on %s (%s)", player, pov, source, mapName), "Jugador, origen y mapa. COMMS solo aparece cuando el render contiene voces verificadas.")
 	add("Sesión de juego", fmt.Sprintf("%s Plays %s! %s (%s)", player, source, pov, mapName), "Estilo sesión de YouTube sin atribuir rango, ELO o nivel profesional.")
 	add("Mapa protagonista", fmt.Sprintf("%s %s — %s %s | CS2", mapName, source, player, pov), "Destaca el mapa y la perspectiva del jugador sin prometer una partida sin cortes.")
-	if facts.Opponent != "" && len(result) < 5 {
-		opponent := publishName(facts.Opponent, 24)
+	if opponent := publishName(facts.Opponent, 24); opponent != "" && len(result) < 5 {
 		add("Duelo de la demo", fmt.Sprintf("%s vs %s on %s! %s (%s)", player, opponent, source, pov, mapName), "Rival identificado por SteamID y equipos en las bajas de la demo; no presupone que sea un profesional.")
 	}
 	return result
