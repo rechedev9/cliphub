@@ -193,7 +193,7 @@ func plateSearchDirs() []string {
 		dirs = append(dirs, filepath.Dir(src))
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		dirs = append(dirs, filepath.Join(home, ".cursor", "projects", "c-Users-reche-Documents-Projects-tickcut", "assets"))
+		dirs = append(dirs, filepath.Join(home, ".cursor", "projects", "c-Users-reche-Documents-Projects-cliphub", "assets"))
 	}
 	return dirs
 }
