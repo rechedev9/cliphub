@@ -25,7 +25,7 @@ Preconditions:
 - Template UI needs a **ready** long video and a live publish-assistant response. An empty hub without an orchestrator is the honest Cloud Linux first-run state.
 
 - **Open hub.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs goto --path /clips`. The rail link `Clips y vídeos` has `aria-current="page"`.
-- **Finished long video.** When a ready Full Demo exists, a `Publicar` link is on that row. Choose it. The URL matches `/clips/<id>/publicar/<clipId>`. Wait until `Cargando el clip` is hidden.
+- **Finished long video.** When partidas exist, expand the collapsed scoreboard (`aria-expanded=false`) so the `Vídeos largos · 16:9` column paints. `Publicar` is only in that expanded output, not on the collapsed row. Choose the long-video `Publicar`. The URL matches `/clips/<id>/publicar/<clipId>`. Wait until `Cargando el clip` is hidden.
 - **Templates.** Ready long videos show heading `Plantillas para vídeo largo` (not `Títulos recomendados`). Buttons are named `Usar título recomendado: <title>` and may show labels `Bajas destacadas`, `POV clásico`, `Sesión de juego`, `Mapa protagonista`, `Duelo de la demo`. Fields are `Título`, `Descripción`, and `Etiquetas, separadas por comas`. `Copiar todo` copies the current draft.
 - **Failed video.** Status `failed` must not show the waiting copy. The assistant alert is `No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.`
 - **No finished video.** On an empty hub there is no `Publicar` row. `goto --path /clips/<uuid>/publicar/<clipId>` settles on `Clip no encontrado` or `No se pudo cargar el clip`. That is the walk. Do not stub `/api/demos/jobs` or `publish-assistant` to fake templates.
@@ -34,7 +34,7 @@ Preconditions:
 
 ## Gotchas
 
-- `Publicar` is a child of a finished video, not a rail row. The catalog route stays `/clips`.
+- `Publicar` is a child of a finished video, not a rail row. The catalog route stays `/clips`. Collapsed partida headers hide Short and Full output actions; expand before counting `Publicar`. Prefer the `Vídeos largos · 16:9` door. A Short `Publicar` is the other assistant (`Títulos recomendados`).
 - Shorts on the same page show `Títulos recomendados` and a score. Do not treat that as the long-video template UI.
 - Waiting copy (`La preparación para YouTube estará disponible…`) is only for queued, recording, composing, and review. Failed videos use the failed alert.
 - `web/e2e/long-video-publish.spec.ts` stubs jobs and `publish-assistant`. Those screenshots are the presentation contract, not this skill's live proof.

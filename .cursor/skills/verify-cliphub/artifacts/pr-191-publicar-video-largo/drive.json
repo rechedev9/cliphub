@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "feature": "publicar-video-largo",
+  "origin": "http://127.0.0.1:4173",
+  "url": "http://127.0.0.1:4173/clips/11111111-1111-4111-8111-111111111111/publicar/11111111-1111-4111-8111-111111111111__demo-compilation",
+  "title": "Partida",
+  "templates_reachable": false,
+  "named_gap": "hlae_cs2_windows_studio",
+  "steps": [
+    {
+      "id": "publicar-hub",
+      "action": "assert hub and Publicar doors",
+      "result": {
+        "empty": true,
+        "populated": false,
+        "publish_links": 0
+      }
+    },
+    {
+      "id": "publicar-missing",
+      "action": "open Publicar without a finished long video",
+      "result": {
+        "url": "http://127.0.0.1:4173/clips/11111111-1111-4111-8111-111111111111/publicar/11111111-1111-4111-8111-111111111111__demo-compilation",
+        "precondition": "no Publicar row on this host; templates need a ready long video",
+        "named_gap": "hlae_cs2_windows_studio"
+      }
+    },
+    {
+      "id": "publicar-settled",
+      "action": "record settled Publicar page without inventing templates",
+      "result": {
+        "templates": false,
+        "shorts_titles": false,
+        "missing_clip": true,
+        "failed": false,
+        "waiting": false,
+        "capture_gap": "hlae_cs2_windows_studio"
+      }
+    }
+  ],
+  "evidence": {
+    "hub_aria": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo/hub.aria.txt",
+    "hub_screenshot": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo/hub.png",
+    "aria": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo/publicar.aria.txt",
+    "screenshot": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo/publicar.png"
+  }
+}

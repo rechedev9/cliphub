@@ -936,12 +936,32 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
   const emptyVisible = await empty.isVisible().catch(() => false);
   const populatedVisible = await populated.isVisible().catch(() => false);
+  let expandedRows = 0;
+  if (populatedVisible) {
+    const expandable = page.locator('button[aria-expanded="false"]:not([aria-disabled="true"])');
+    while ((await expandable.count()) > 0) {
+      await expandable.first().click();
+      expandedRows += 1;
+      if (expandedRows > 20) break;
+    }
+  }
+  const longPublish = page
+    .locator('div')
+    .filter({ has: page.getByText('Vídeos largos · 16:9', { exact: true }) })
+    .getByRole('link', { name: 'Publicar' });
   const publishLinks = page.getByRole('link', { name: 'Publicar' });
+  const longPublishCount = await longPublish.count();
   const publishCount = await publishLinks.count();
   steps.push({
     id: 'publicar-hub',
-    action: 'assert hub and Publicar doors',
-    result: { empty: emptyVisible, populated: populatedVisible, publish_links: publishCount },
+    action: 'expand partida rows and look for long-video Publicar',
+    result: {
+      empty: emptyVisible,
+      populated: populatedVisible,
+      expanded_rows: expandedRows,
+      long_publish_links: longPublishCount,
+      publish_links: publishCount,
+    },
   });
 
   const hubAriaPath = join(evidenceDir, 'hub.aria.txt');
@@ -949,14 +969,15 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   writeText(hubAriaPath, `${await ariaSnapshot(page)}\n`);
   await page.screenshot({ path: hubPngPath, fullPage: true });
 
-  if (publishCount > 0) {
-    const href = await publishLinks.first().getAttribute('href');
-    await publishLinks.first().click();
+  const door = longPublishCount > 0 ? longPublish.first() : null;
+  if (door) {
+    const href = await door.getAttribute('href');
+    await door.click();
     await page.waitForURL(/\/clips\/[^/]+\/publicar\/[^/]+/);
     await waitForPublishSettled(page);
     steps.push({
       id: 'publicar-open',
-      action: 'click Publicar',
+      action: 'click Publicar on a finished vídeo largo',
       result: { href, url: page.url() },
     });
   } else {
@@ -967,7 +988,10 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
       action: 'open Publicar without a finished long video',
       result: {
         url: page.url(),
-        precondition: 'no Publicar row on this host; templates need a ready long video',
+        precondition:
+          populatedVisible && publishCount > 0
+            ? 'hub has Publicar on Shorts only; long-video templates need a finished vídeo largo'
+            : 'no Publicar row on this host; templates need a ready long video',
         named_gap: CLOSED_CAPTURE_GAP,
       },
     });
