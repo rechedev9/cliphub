@@ -2,7 +2,7 @@
 
 Cloud Linux babysit of PR #191 (`feat/long-video-publish-templates`) on 2026-09-16. The instance served `http://127.0.0.1:4173`. Capture is closed.
 
-HEAD at this refresh: `89393f6d` (accordion + leaf 16:9 Publicar locator).
+HEAD at this refresh: `c600bee0` (inline-trace flake isolation; walk uses `ee6a2c58` one-row + leaf 16:9 Publicar).
 
 Commands, in order:
 
@@ -17,7 +17,7 @@ node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature publicar-
 node .cursor/skills/verify-cliphub/control-cliphub.mjs cleanup --json
 ```
 
-`drive --feature publicar-video-largo` (after `89393f6d`) opens one `article[id^=partida-]` at a time (that row’s header `button[aria-expanded]`, never the `Trabajos` pill) and looks for `Publicar` only in that row’s leaf `Vídeos largos · 16:9` column (`hasNot` the exact `Shorts` heading). On this empty hub that walk is a no-op (`expanded_rows=0`, `inspected_rows=[]`, `long_publish_links=0`). It then opened `/clips/<uuid>/publicar/<clipId>` and settled on `Clip no encontrado`. `templates_reachable=false`. That is the honest Cloud Linux path: no finished long video, no live publish-assistant. Do not stub the assistant to fake `Plantillas para vídeo largo`.
+`drive --feature publicar-video-largo` (after `ee6a2c58` / `c600bee0`) opens one `article[id^=partida-]` at a time (that row’s header `button[aria-expanded]`, never the `Trabajos` pill) and looks for `Publicar` only in that row’s leaf `Vídeos largos · 16:9` column (`hasNot` the exact `Shorts` heading). On this empty hub that walk is a no-op (`expanded_rows=0`, `inspected_rows=[]`, `long_publish_links=0`). It then opened `/clips/<uuid>/publicar/<clipId>` and settled on `Clip no encontrado`. `templates_reachable=false`. That is the honest Cloud Linux path: no finished long video, no live publish-assistant. Do not stub the assistant to fake `Plantillas para vídeo largo`.
 
 `zv verify prove --feature demo-completa` and `full-demo-16x9-wait` fail-close with gap `hlae_cs2_windows_studio`. This PR does not claim Full Demo 16:9 capture or live 9:16 Pass.
 

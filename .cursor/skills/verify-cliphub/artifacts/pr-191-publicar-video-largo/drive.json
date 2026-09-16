@@ -36,6 +36,7 @@
         "shorts_titles": false,
         "missing_clip": true,
         "failed": false,
+        "request_error": false,
         "waiting": false,
         "capture_gap": "hlae_cs2_windows_studio"
       }

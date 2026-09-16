@@ -1,12 +1,12 @@
 {
-  "pid": 8279,
+  "pid": 10719,
   "port": 4173,
   "host": "127.0.0.1",
   "origin": "http://127.0.0.1:4173",
   "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo",
   "logPath": "/workspace/.cursor/skills/verify-cliphub/.run/web.log",
-  "runId": "2026-09-16T13-04-03-184Z",
-  "startedAt": "2026-09-16T13:04:03.187Z",
+  "runId": "2026-09-16T13-10-18-072Z",
+  "startedAt": "2026-09-16T13:10:18.074Z",
   "command": [
     "/exec-daemon/node",
     "/workspace/web/node_modules/next/dist/bin/next",
