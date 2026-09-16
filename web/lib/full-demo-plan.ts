@@ -121,8 +121,10 @@ export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySpo
     editorial: { ...fixed.editorial, death_tail_seconds: 3, round_tail_seconds: 2, allow_safe_tail_trim: true, manual_ranges: [] },
     audio: {
       ...fixed.audio,
-      voice: { ...fixed.audio.voice, gain: .85, team_policy: 'same-side-at-packet', normalization: 'bounded-activity-v1', approved_fallback: 'block' },
-      game: { ...fixed.audio.game, gain: 1, voice_priority: false },
+      // Game and voice levels stay editable (0–2, validated by the shape); the
+      // rest of the audio policy is automatic and mirrors Go's CanonicalNewOptions.
+      voice: { ...fixed.audio.voice, team_policy: 'same-side-at-packet', normalization: 'bounded-activity-v1', approved_fallback: 'block' },
+      game: { ...fixed.audio.game, voice_priority: false },
       loudness: { target_i_lufs: -14, target_tp_dbtp: -1.5, target_lra: 11, policy_version: 'program-aac-v1' },
       music: {
         enabled: false,

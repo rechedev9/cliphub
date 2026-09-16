@@ -50,6 +50,9 @@ func TestCanonicalNewOptionsRetiresMusicAndCrosshairOverrides(t *testing.T) {
 func TestCanonicalNewOptionsKeepsOnlySupportedChoices(t *testing.T) {
 	o := DefaultOptions()
 	o.Audio.Voice.Enabled = false
+	o.Audio.Voice.Gain = 1.2
+	o.Audio.Game.Gain = 0.6
+	o.Audio.Game.VoicePriority = true
 	o.Outputs.CoverPolicy = "custom-cover"
 	o.Overlays.Roster, o.Overlays.Scoreboard, o.Overlays.Theme, o.Overlays.Mode = false, false, "faceit-orange", "screenshots"
 	o.Overlays.Source = "faceit"
@@ -70,6 +73,9 @@ func TestCanonicalNewOptionsKeepsOnlySupportedChoices(t *testing.T) {
 	if got.Audio.Voice.Enabled || got.Outputs != DefaultOptions().Outputs {
 		t.Fatalf("voice toggle or fixed outputs were not canonicalized: %+v", got)
 	}
+	if got.Audio.Voice.Gain != 1.2 || got.Audio.Game.Gain != 0.6 || got.Audio.Game.VoicePriority {
+		t.Fatalf("user mix levels must survive while voice priority stays automatic: %+v", got.Audio)
+	}
 }
 
 func TestCurrentPolicyRejectsHistoricalRetiredGenerationChoices(t *testing.T) {
@@ -88,7 +94,6 @@ func TestCurrentPolicyRejectsHistoricalRetiredGenerationChoices(t *testing.T) {
 			o.Editorial.ManualRanges = []ManualRange{{RoundID: "round-001", StartTick: 10, EndTick: 20}}
 		}},
 		{"short death tail", func(o *Options) { o.Editorial.DeathTailSeconds = 1 }},
-		{"muted game", func(o *Options) { o.Audio.Game.Gain = 0 }},
 		{"voice priority", func(o *Options) { o.Audio.Game.VoicePriority = true }},
 		{"old cover", func(o *Options) { o.Outputs.CoverPolicy = "generated-gameplay" }},
 	} {

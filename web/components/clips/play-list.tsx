@@ -13,6 +13,7 @@ export type PlayListProps = {
   title?: string;
   /** Right side of the header; defaults to the selected count. */
   counter?: ReactNode;
+  toolbar?: ReactNode;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
@@ -29,6 +30,7 @@ export function PlayList({
   selectedIds,
   title = 'Highlights',
   counter,
+  toolbar,
   onToggle,
   onSelectAll,
   onClear,
@@ -42,47 +44,50 @@ export function PlayList({
   }
 
   return (
-    <div className="studio-panel @container/reel flex flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border-subtle bg-surface-3 px-3.5 py-2.5">
+    <div className="studio-panel @container/reel flex max-h-[min(28rem,55dvh)] min-h-0 flex-col overflow-hidden @[56rem]/content:max-h-[clamp(16rem,calc(100dvh-27rem),32rem)]">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border-subtle bg-surface-3 p-4 @[80rem]/content:p-5">
         <span className="text-body-sm font-semibold text-fg-2">{title}</span>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-body-sm text-fg-2">
             {counter ?? `${selectedIds.size} ${selectedIds.size === 1 ? 'elegido' : 'elegidos'}`}
           </span>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={allSelected}
-              onClick={onSelectAll}
-              className="font-mono tracking-wider uppercase"
-            >
-              Seleccionar todo
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={selectedIds.size === 0}
-              onClick={onClear}
-              className="font-mono tracking-wider uppercase"
-            >
-              Limpiar
-            </Button>
-          </div>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2">
+          {toolbar}
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={allSelected}
+            onClick={onSelectAll}
+            className="font-mono tracking-wider uppercase"
+          >
+            Seleccionar todo
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={selectedIds.size === 0}
+            onClick={onClear}
+            className="font-mono tracking-wider uppercase"
+          >
+            Limpiar
+          </Button>
         </div>
       </div>
 
-      {plays.map((play) => (
-        <PlayRow
-          key={play.id}
-          play={play}
-          selected={selectedIds.has(play.id)}
-          reelPosition={positions.get(play.id) ?? null}
-          onToggle={() => onToggle(play.id)}
-        />
-      ))}
+      <div tabIndex={0} role="region" aria-label="Jugadas disponibles" className="min-h-0 overflow-y-auto overscroll-y-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+        {plays.map((play) => (
+          <PlayRow
+            key={play.id}
+            play={play}
+            selected={selectedIds.has(play.id)}
+            reelPosition={positions.get(play.id) ?? null}
+            onToggle={() => onToggle(play.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -29,7 +29,7 @@ export type MusicCardProps = {
 /** The Short music decision: a track with its mix, explicit "sin música", or still pending. */
 export function MusicCard({ eyebrow = 'Música', ...props }: MusicCardProps): ReactNode {
   return (
-    <div className="studio-panel flex flex-col gap-2.5 px-3.5 py-3">
+    <div className="studio-panel flex flex-col gap-3 p-4 @[80rem]/content:gap-4 @[80rem]/content:p-5">
       <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{eyebrow}</span>
       <MusicDecision {...props} />
     </div>
@@ -105,10 +105,9 @@ function MusicDecision({
 
   if (decided) {
     return (
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-2">
         <div className="min-w-0">
           <p className="font-display text-body-sm font-semibold uppercase text-fg-1">Sin música</p>
-          <p className="text-body-sm text-fg-3">Solo el audio de la partida.</p>
         </div>
         <div className="flex shrink-0 gap-1">
           <Button variant="ghost" size="sm" disabled={busy} onClick={onOpenPicker}>
@@ -126,23 +125,26 @@ function MusicDecision({
     <div className="flex flex-col gap-2">
       <p className="text-body-sm text-fg-2">Elige un tema o confirma que va sin música.</p>
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           disabled={busy}
           onClick={onOpenPicker}
-          className="flex min-h-10 flex-1 items-center gap-2.5 border border-dashed border-stream/55 bg-surface-2 px-3 py-2 text-left text-body-sm text-fg-1 transition-colors duration-(--dur-fast) ease-standard hover:border-stream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 border-stream/55"
         >
           <Music className="size-4 shrink-0 text-stream" aria-hidden />
           Elegir un tema
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           disabled={busy}
           onClick={onChooseNone}
-          className="flex min-h-10 items-center border border-border-strong bg-surface-2 px-3 py-2 text-body-sm text-fg-2 transition-colors duration-(--dur-fast) ease-standard hover:border-primary/55 hover:text-fg-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
         >
           Sin música
-        </button>
+        </Button>
       </div>
     </div>
   );

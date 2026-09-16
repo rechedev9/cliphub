@@ -3,7 +3,9 @@
 ## Product behavior
 
 The long-video form keeps the choices that change the user's result: HUD design,
-overlay data source, team voices, between-round effects, and an optional sponsor.
+overlay data source, team voices with separate game and voice levels (0–200 %),
+between-round effects, and an optional sponsor. Calibration, team policy, and
+the voice fallback stay automatic; only the two levels are the user's mix.
 Roster and scoreboard overlays are always generated with the neon-violet theme.
 The player's observed crosshair is used throughout. Background music is unavailable
 for long videos; the separate Short music workflow remains available.

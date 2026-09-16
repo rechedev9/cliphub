@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
-import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, type FullDemoDocument } from '../lib/full-demo-plan.ts';
+import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, type FullDemoDocument, type FullDemoOptions } from '../lib/full-demo-plan.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
@@ -232,6 +232,37 @@ test.describe('Full POV simplified constructor', () => {
     await page.waitForTimeout(700);
     await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: 'No hay una ronda certificada disponible para el sponsor.' })).toHaveCount(0);
+  });
+
+  test('game and voice volume sliders travel with the plan options', async ({ page }) => {
+    const document = editorial();
+    const planned: FullDemoOptions[] = [];
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body !== 'object' || body === null || !('options' in body) || !isFullDemoOptions(body.options)) throw new Error('Invalid options');
+      planned.push(body.options);
+      await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'e'.repeat(64) } });
+    });
+    await page.route(`**/api/demos/${JOB}/generate`, async (route) => { await route.fulfill({ status: 202, json: { accepted: true } }); });
+    await gotoStudio(page, PRODUCE_FULL);
+    // The stored plan hydrates options asynchronously; edit only once it has landed.
+    await expect(page.getByRole('status').filter({ hasText: 'Voces: disponibles.' })).toBeVisible();
+    const gameSlider = page.getByRole('slider', { name: /^Juego/ });
+    const voiceSlider = page.getByRole('slider', { name: /^Voces/ });
+    await expect(gameSlider).toHaveValue('100');
+    await expect(voiceSlider).toHaveValue('85');
+    await gameSlider.fill('60');
+    await voiceSlider.fill('120');
+    await expect(page.getByText('Juego · 60%')).toBeVisible();
+    await expect(page.getByText('Voces · 120%')).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
+    await expect(voiceSlider).toBeDisabled();
+    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await expect.poll(() => planned.length).toBe(1);
+    expect(planned[0]?.audio.game.gain).toBeCloseTo(0.6);
+    expect(planned[0]?.audio.voice.gain).toBeCloseTo(1.2);
   });
 
   test('storage failures keep the durable Full Demo creation flow available', async ({ page }) => {

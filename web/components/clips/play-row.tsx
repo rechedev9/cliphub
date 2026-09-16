@@ -26,56 +26,7 @@ function killBadge(kills: number): { label: string; tone: StatusTagTone } {
   return { label: `${kills}K`, tone: 'neutral' };
 }
 
-/** A captured frame when available; PlayThumbnail handles missing or failed images. */
-function PlayFrame({ play, selected }: { play: Play; selected: boolean }) {
-  return (
-    <span className="shrink-0 [perspective:620px]">
-      <span
-        className={cn(
-          'relative block aspect-video w-28 transform-3d @[30rem]/reel:w-32 @[52rem]/reel:w-36',
-          'transition-transform duration-(--dur-base) ease-standard',
-          '[transform:rotateY(calc(var(--frame-turn)*var(--shell-depth)))_translateZ(calc(var(--frame-z)*var(--shell-depth)))]',
-          selected
-            ? '[--frame-turn:0deg] [--frame-z:14px]'
-            : '[--frame-turn:-7deg] [--frame-z:-12px] group-hover/play:[--frame-turn:-3deg] group-hover/play:[--frame-z:-2px]',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute inset-0 overflow-hidden border transition-[border-color,filter] duration-(--dur-base) ease-standard',
-            selected ? 'border-primary' : 'border-border-strong brightness-75 group-hover/play:brightness-100',
-          )}
-        >
-          <PlayThumbnail play={play} className="absolute inset-0 size-full border-0" />
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface-0/85 via-transparent to-transparent"
-          />
-        </span>
-
-        {/* Round slug and kill badge ride the frame's rotation but stand off its
-            face, so the frame reads as a physical plate with labels on top. */}
-        <span
-          aria-hidden
-          className="absolute bottom-1.5 left-1.5 border border-border-strong bg-surface-0/85 px-1.5 py-0.5 font-mono text-meta tabular-nums text-fg-2 [transform:translateZ(calc(12px*var(--shell-depth)))]"
-        >
-          R{String(play.round).padStart(2, '0')}
-        </span>
-      </span>
-    </span>
-  );
-}
-
-/**
- * PlayRow — one highlight in the vertical selector covered by the E2E suite.
- *
- * Selection is staged as a physical action rather than as a checkbox tint:
- * unselected frames sit turned away and pushed back, as if racked in a film bin,
- * and picking one swings it square to the viewer, brings it forward and lights
- * its edge cyan. Everything is `transform`/`filter` on one element, multiplied
- * by `--shell-depth`, so the whole choreography collapses to the flat ring +
- * tint under the efficiency profile, reduced motion and forced colours.
- */
+/** Compact highlight selector; each selected row shows its output position. */
 export function PlayRow({ play, selected, reelPosition, onToggle }: PlayRowProps) {
   const badge = killBadge(play.kills);
 
@@ -85,20 +36,20 @@ export function PlayRow({ play, selected, reelPosition, onToggle }: PlayRowProps
       onClick={onToggle}
       aria-pressed={selected}
       className={cn(
-        'group/play flex w-full items-center gap-3.5 border-b border-border-subtle px-3 py-3 text-left last:border-b-0',
+        'group/play flex w-full items-center gap-3 border-b border-border-subtle px-4 py-3 @[80rem]/content:px-5 text-left last:border-b-0',
         'transition-colors duration-(--dur-fast) ease-standard',
         'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
         selected ? 'bg-primary/8' : 'bg-surface-2 hover:bg-surface-3',
       )}
     >
       <SelectionMark selected={selected} />
-      <PlayFrame play={play} selected={selected} />
+      {play.thumbnailUrl ? <PlayThumbnail play={play} compact className="hidden h-9 w-16 @[30rem]/reel:flex" /> : null}
 
       {/* min-w-0 lets the meta shrink instead of forcing horizontal scroll. */}
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span
           className={cn(
-            'truncate font-display text-body-lg font-bold uppercase',
+            'truncate font-display text-body-sm font-bold uppercase',
             selected ? 'text-fg-1' : 'text-fg-2',
           )}
         >

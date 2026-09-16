@@ -5,7 +5,7 @@ import type { FullDemoDocument, FullDemoOptions } from '@/lib/full-demo-plan';
 import { certifiedRoundId, isPrepareAbort } from '@/lib/produce/sponsor-boundary';
 import { FullDemoAssetInput } from './full-demo-asset-input';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
-import { FullDemoChoice, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
+import { FullDemoChoice, FullDemoGain, FullDemoGroup, FullDemoNumber, FullDemoToggle } from './full-demo-fields';
 
 type Props = {
   options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
@@ -14,15 +14,19 @@ type Props = {
 
 export function FullDemoAudio({ options, document, onChange, onAssetBusy }: Props): ReactNode {
   const { audio } = options;
-  const { voice } = audio;
+  const { voice, game } = audio;
   const change = (patch: Partial<FullDemoOptions['audio']>): void => onChange({ ...options, audio: { ...audio, ...patch } });
   let voiceAvailability = 'pendientes de analizar';
   if (!voice.enabled) voiceAvailability = 'desactivadas';
   else if (document) voiceAvailability = voiceStatus(document.voice.availability);
   void onAssetBusy;
-  return <FullDemoGroup title="Sonido" note="El audio de la partida se equilibra automáticamente; no se añade música de fondo.">
+  return <FullDemoGroup title="Sonido" note="Audio de partida equilibrado automáticamente, sin música de fondo.">
     <FullDemoToggle label="Incluir voces del equipo" value={voice.enabled} onChange={(enabled) => change({ voice: { ...voice, enabled } })} />
     <p className="text-body-sm text-fg-2" role="status">Voces: {voiceAvailability}.</p>
+    <div className="flex flex-col gap-2.5 border-t border-border-subtle pt-3">
+      <FullDemoGain label="Juego" value={game.gain} onChange={(gain) => change({ game: { ...game, gain } })} />
+      <FullDemoGain label="Voces" value={voice.gain} disabled={!voice.enabled} onChange={(gain) => change({ voice: { ...voice, gain } })} />
+    </div>
   </FullDemoGroup>;
 }
 

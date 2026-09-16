@@ -50,10 +50,10 @@ export function ProduceFooter({
     : hint;
   return (
     <>
-      <details className="group/brief mt-4 border-t border-border-subtle py-3">
+      <details className={cn("group/brief border-t border-border-subtle py-1", tone === 'short' ? 'mt-3 @[80rem]/content:mt-5' : 'mt-1')}>
         <summary
           id={briefId}
-          className="flex min-h-10 cursor-pointer list-none items-center gap-2 text-body-sm font-semibold text-fg-2 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"
+          className={cn('flex cursor-pointer list-none items-center gap-2 text-body-sm font-semibold text-fg-2 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden', 'min-h-8')}
         >
           <ChevronRight aria-hidden className="size-4 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
           Configuración del vídeo
@@ -67,7 +67,8 @@ export function ProduceFooter({
       <div
         data-slot="produce-actions"
         className={cn(
-          'sticky bottom-0 z-20 mt-2 border-t bg-surface-1 px-1 py-3.5',
+          'sticky bottom-0 z-20 mt-2 border-t bg-surface-1 px-1',
+          'py-2',
           FOOTER_SHADOW,
           tone === 'full' ? 'border-stream/45' : 'border-border-accent',
         )}
@@ -79,13 +80,7 @@ export function ProduceFooter({
             </p>
           ) : null}
 
-          {!busy && (summary !== null || ready) ? (
-            <p role="status" className="text-body-sm text-fg-2">
-              {nextStep}
-            </p>
-          ) : null}
-
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
             <div className="min-w-0 basis-full @[40rem]/content:basis-auto @[40rem]/content:flex-1">
               <p className="font-mono text-meta uppercase tracking-widest text-fg-3">{eyebrow}</p>
               {summary !== null ? (
@@ -93,8 +88,9 @@ export function ProduceFooter({
               ) : (
                 <p className="mt-0.5 break-words text-body-sm text-fg-2">{hint}</p>
               )}
+              {!busy && (summary !== null || ready) ? <p role="status" className={tone === 'full' || ready ? 'sr-only' : 'mt-0.5 text-body-sm text-fg-2'}>{nextStep}</p> : null}
             </div>
-            <Button variant="outline" size="lg" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link href={backHref}>Volver</Link>
             </Button>
             {cta}

@@ -243,13 +243,14 @@ export default function ProducePage({
   }
 
   return (
-    <div className="measure-work flex min-h-[calc(100vh-9rem)] flex-col">
-      <div className="mb-5">
+    <div data-produce-workspace="" data-full-demo-workspace={format === PRODUCE_FORMAT.full ? '' : undefined}
+      className="flex min-h-[calc(100dvh-7rem)] w-full flex-col">
+      <div className="mb-2">
         <WorkflowProgress steps={DEMO_CREATION_STEPS}
           current={stage === HUB_ROW_STAGE.unpicked ? 1 : 2} />
       </div>
       <ProduceFormatBar value={format} onChange={changeFormat} />
-      <div className="flex flex-1 flex-col gap-6 pt-6">
+      <div className="flex flex-1 flex-col gap-3 pt-2">
         {pollError !== null ? (
           <p
             role="alert"

@@ -109,6 +109,10 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	// from cosmetics, so a local demo never acquires FACEIT claims by style.
 	canonical.SourceKind = options.SourceKind
 	canonical.Audio.Voice.Enabled = options.Audio.Voice.Enabled
+	// Game and voice levels are the user's mix; Validate bounds them to [0, 2].
+	// Calibration, team policy, and the voice fallback stay automatic.
+	canonical.Audio.Voice.Gain = options.Audio.Voice.Gain
+	canonical.Audio.Game.Gain = options.Audio.Game.Gain
 	canonical.Sponsor = options.Sponsor
 
 	// Existing compatible HUD choices remain selectable. An absent or native

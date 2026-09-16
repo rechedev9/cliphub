@@ -42,7 +42,7 @@ const AUTO_PICK_LABEL = 'Auto: mejores 60 s';
 /** Step eyebrows: the list is 01, the aside walks 02 → 04, the footer brief closes. */
 const STEP = {
   highlights: '01 · Elige las jugadas',
-  preset: '02 · Estilo del vídeo',
+  preset: '02 · Estilo',
   music: '03 · Música',
   overlays: '04 · Textos y gráficos',
 } as const;
@@ -182,46 +182,30 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
 
   return (
     <Dialog open={stylesOpen} onOpenChange={setStylesOpen}>
-      <div className="grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="flex min-w-0 flex-col gap-3.5">
-          <div className="flex flex-col gap-1.5">
-            <p className="font-mono text-meta uppercase tracking-ultra text-fg-3">
-              Nuevo short · {match.map}
-              {match.player ? ` · ${match.player}` : ''}
-            </p>
-            <h1 className="font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
-            <p className="text-body-sm text-fg-2">Las jugadas seleccionadas se unen en un único vídeo vertical. Revisa la selección automática antes de continuar.</p>
-            {restored ? (
-              <p role="status" className="text-body-sm text-fg-3">
-                {PRODUCE_SHORT_DRAFT_RESTORED}{' '}
-                <button type="button" disabled={busy} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
-                  {PRODUCE_SHORT_DRAFT_RESET}
-                </button>
-              </p>
-            ) : null}
-            <p className="measure-read text-body text-fg-2">
-              Ya tienes preseleccionado el mejor minuto. Toca una fila para quitarla o añadirla; el guion enseña el orden
-              final.
-            </p>
-          </div>
-
-          <div className="flex">
-            <Button
-              type="button"
-              size="xs"
-              variant="outline-primary"
-              disabled={busy || plays.length === 0}
-              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}
-            >
-              <Sparkles aria-hidden />
-              {AUTO_PICK_LABEL}
-            </Button>
-          </div>
-
+      <div className="mb-3 mt-1 flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1 @[80rem]/content:mb-6 @[80rem]/content:mt-4 @[80rem]/content:gap-y-2">
+        <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">
+          Nuevo short · {match.map}
+          {match.player ? ` · ${match.player}` : ''}
+        </p>
+        <h1 className="order-first font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
+        <p className="w-full text-body-sm text-fg-2">Selecciona las jugadas y ajusta el estilo y la música de tu vídeo.</p>
+        {restored ? (
+          <p role="status" className="w-full text-body-sm text-fg-3">
+            {PRODUCE_SHORT_DRAFT_RESTORED}{' '}
+            <button type="button" disabled={busy} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+              {PRODUCE_SHORT_DRAFT_RESET}
+            </button>
+          </p>
+        ) : null}
+      </div>
+      <div data-short-workspace="" className="grid min-w-0 items-start gap-5 @[80rem]/content:gap-7 @[40rem]/content:grid-cols-2 @[56rem]/content:grid-cols-[minmax(0,1.5fr)_minmax(0,0.85fr)_minmax(280px,1fr)]">
+        <section className="min-w-0 @[40rem]/content:col-span-2 @[56rem]/content:col-span-1">
           <PlayList
             plays={plays}
             selectedIds={selectedIds}
             title={STEP.highlights}
+            toolbar={<Button type="button" size="sm" variant="outline-primary" disabled={busy || plays.length === 0}
+              onClick={() => updateSettings({ selectedIds: [...autoPickBestPlays(plays)] })}><Sparkles aria-hidden />{AUTO_PICK_LABEL}</Button>}
             counter={
               <span className={cn('tabular-nums', overTarget ? 'text-warning' : 'text-primary')}>
                 {selectedPlays.length} de {plays.length} elegidos · {clock}
@@ -233,47 +217,39 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           />
         </section>
 
-        <aside className="flex flex-col gap-3 @[56rem]/content:sticky @[56rem]/content:top-20">
-          <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} />
-
-          <div className="studio-panel flex flex-col gap-2.5 px-3.5 py-3">
-            <label htmlFor="short-preset" className="font-mono text-meta uppercase tracking-ultra text-fg-3">
-              {STEP.preset}
-            </label>
-            {visiblePresets !== null && visiblePresets.length === 0 ? (
-              <p role="alert" className="text-body-sm text-fg-2">
-                No se pudieron cargar los estilos. Recarga la página.
-              </p>
-            ) : (
-              <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
-                <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">
-                  <SelectValue placeholder="Cargando estilos…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(visiblePresets ?? []).map((preset) => (
-                    <SelectItem key={preset.name} value={preset.name}>
-                      {preset.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {selectedPreset ? (
-            <div className="studio-panel space-y-3 p-3.5">
-              <div className="flex items-start gap-3">
-                <PresetPreview preset={selectedPreset} className="w-20" />
-                <div className="min-w-0 space-y-2">
-                  <p className="text-body-sm text-fg-1">{presetDescription(selectedPreset)}</p>
-                  <p className="text-label text-fg-2">Vista orientativa del estilo.</p>
-                </div>
-              </div>
-              <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="w-full" disabled={busy}>Comparar estilos</Button>
-              </DialogTrigger>
+        <ShortStoryboard cues={cues} totalSeconds={estimatedSeconds} />
+        <aside className="flex min-w-0 flex-col gap-4 @[80rem]/content:gap-5">
+          <div className="studio-panel flex min-w-0 items-start gap-4 p-4 @[80rem]/content:p-5">
+            {selectedPreset ? <PresetPreview preset={selectedPreset} className="w-14 shrink-0 @[80rem]/content:w-16" /> : null}
+            <div className="flex min-w-0 flex-1 flex-col gap-2 @[80rem]/content:gap-3">
+              <label htmlFor="short-preset" className="font-mono text-meta uppercase tracking-ultra text-fg-3">
+                {STEP.preset}
+              </label>
+              {visiblePresets !== null && visiblePresets.length === 0 ? (
+                <p role="alert" className="text-body-sm text-fg-2">
+                  No se pudieron cargar los estilos. Recarga la página.
+                </p>
+              ) : (
+                <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
+                  <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">
+                    <SelectValue placeholder="Cargando estilos…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(visiblePresets ?? []).map((preset) => (
+                      <SelectItem key={preset.name} value={preset.name}>
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedPreset ? (
+                <DialogTrigger asChild>
+                  <Button type="button" variant="ghost" size="xs" className="w-full" disabled={busy}>Comparar estilos</Button>
+                </DialogTrigger>
+              ) : null}
             </div>
-          ) : null}
+          </div>
 
           <MusicCard
             eyebrow={STEP.music}
@@ -289,11 +265,11 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
             onGameVolumeChange={(value) => updateSettings({ gameVolume: value })}
           />
 
-          <details className="group/overlays studio-panel px-3.5 py-3">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+          <details className="group/overlays studio-panel px-4 py-3 @[80rem]/content:px-5 @[80rem]/content:py-4">
+            <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
               <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{STEP.overlays}</span>
               <span className="flex items-center gap-1.5 font-display text-body-sm font-semibold uppercase text-fg-1">
-                {overlaysSummary(editConfig)}
+                <span className="wrap-anywhere">{overlaysSummary(editConfig)}</span>
                 <ChevronRight aria-hidden className="size-4 text-primary transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />
               </span>
             </summary>
@@ -307,8 +283,6 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           </details>
         </aside>
       </div>
-
-      <div className="flex-1" />
 
       <ProduceFooter
         ready={ready}
@@ -327,7 +301,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
         cta={
           <Button
             variant="hero"
-            size="lg"
+            size="sm"
             disabled={!ready}
             loading={creating}
             loadingText="Preparando grabación…"
