@@ -40,7 +40,7 @@ Commands:
   click        click a role+name control (optional --within)
   snapshot     write an ARIA snapshot
   screenshot   write a PNG
-  drive        walk one mapped feature (inicio)
+  drive        walk one mapped feature (inicio, publicar-video-largo)
   cleanup      stop the process this launch started; keep evidence
   status       print the current run file
 
@@ -58,7 +58,7 @@ Doctor flags:
   --url <origin>          probe this origin instead of the run file
 
 Drive / browser flags:
-  --feature <id>          catalog id (inicio)
+  --feature <id>          catalog id (inicio, publicar-video-largo)
   --path <route>          Studio path for goto, default /clips
   --role <role>           ARIA role for click
   --name <name>           accessible name for click
@@ -120,10 +120,12 @@ Write a PNG of the current page (navigates --path first).
 Waits until hub, streams, and upload loading is settled. Relative --out
 is from the repo root.
 `,
-  drive: `usage: control-cliphub drive --feature inicio [--json]
+  drive: `usage: control-cliphub drive --feature inicio|publicar-video-largo [--json]
 
 Walk one mapped feature. inicio opens /clips, asserts the hub, follows
 Crear Short, and returns through the Clips y vídeos rail.
+publicar-video-largo opens /clips, follows Publicar on a finished long
+video when one exists, or records the honest missing-clip Publicar page.
 `,
   cleanup: `usage: control-cliphub cleanup [--dry-run] [--json]
 
@@ -170,6 +172,13 @@ const FEATURES = [
     route: '/clips',
     file: 'features/demo-completa.md',
     requires_hlae_cs2: true,
+  },
+  {
+    id: 'publicar-video-largo',
+    title: 'Publicar vídeo largo',
+    route: '/clips',
+    file: 'features/publicar-video-largo.md',
+    requires_hlae_cs2: false,
   },
 ];
 
@@ -401,6 +410,10 @@ async function waitForHubLoading(page) {
   }
   if (pathname === '/clips/nueva') {
     await waitForUploadSettled(page);
+    return;
+  }
+  if (/^\/clips\/[^/]+\/publicar\/[^/]+$/.test(pathname)) {
+    await waitForPublishSettled(page);
   }
 }
 
@@ -428,6 +441,13 @@ async function waitForUploadSettled(page) {
   await page
     .locator('input[type="file"][aria-label="Elegir demos de CS2"]:enabled')
     .waitFor({ state: 'attached', timeout: 15_000 });
+}
+
+async function waitForPublishSettled(page) {
+  await page.locator('[aria-label="Cargando el clip"]').waitFor({ state: 'hidden', timeout: 45_000 });
+  const missing = page.getByRole('heading', { name: /Clip no encontrado|No se pudo cargar el clip/ });
+  const assistant = page.getByText('Publicar en YouTube', { exact: true });
+  await missing.or(assistant).first().waitFor({ state: 'visible', timeout: 15_000 });
 }
 
 async function cliphubIdentity(page) {
@@ -823,6 +843,221 @@ async function cmdScreenshot(repo, flags) {
   else process.stdout.write(`${out}\n`);
 }
 
+const PUBLISH_MISSING_JOB = '11111111-1111-4111-8111-111111111111';
+const PUBLISH_MISSING_PATH = `/clips/${PUBLISH_MISSING_JOB}/publicar/${encodeURIComponent(`${PUBLISH_MISSING_JOB}__demo-compilation`)}`;
+
+async function driveInicio(page, origin, evidenceDir) {
+  const steps = [];
+  const title = await page.title();
+  if (!title.includes(PRODUCT_TITLE)) {
+    throw new Error(`hub title ${JSON.stringify(title)} does not contain ${PRODUCT_TITLE}`);
+  }
+  const current = page.locator('[data-slot="sidebar"] a[aria-current="page"]');
+  await current.waitFor({ state: 'visible' });
+  const currentHref = await current.getAttribute('href');
+  const currentName = (await current.innerText()).replace(/\s+/g, ' ').trim();
+  if (currentHref !== '/clips') {
+    throw new Error(`rail aria-current href=${JSON.stringify(currentHref)}, want /clips`);
+  }
+  steps.push({
+    id: 'inicio-rail',
+    action: 'assert rail Clips y vídeos',
+    result: { href: currentHref, name: currentName },
+  });
+
+  await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
+  const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
+  const populated = page.getByRole('heading', { name: HUB_POPULATED });
+  await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
+  const emptyVisible = await empty.isVisible().catch(() => false);
+  const populatedVisible = await populated.isVisible().catch(() => false);
+  if (!emptyVisible && !populatedVisible) {
+    throw new Error(`hub shows neither ${JSON.stringify(HUB_EMPTY)} nor ${JSON.stringify(HUB_POPULATED)}`);
+  }
+  steps.push({
+    id: 'inicio-empty',
+    action: 'assert hub copy',
+    result: { empty: emptyVisible, populated: populatedVisible },
+  });
+
+  if (emptyVisible) {
+    const shortDoor = page.getByRole('link', { name: /Crear Short/ }).first();
+    await shortDoor.waitFor({ state: 'visible' });
+    const href = await shortDoor.getAttribute('href');
+    if (href !== '/clips/nueva?formato=short') {
+      throw new Error(`Crear Short href=${JSON.stringify(href)}`);
+    }
+    await shortDoor.click();
+    await page.waitForURL(/\/clips\/nueva\?formato=short/);
+    steps.push({
+      id: 'inicio-short-door',
+      action: 'click Crear Short',
+      result: { url: page.url(), title: await page.title() },
+    });
+    await page.locator('[data-slot="sidebar-menu-button"][href="/clips"]').click();
+    await page.waitForURL(/\/clips(?:\?.*)?$/);
+    await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
+    await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
+    steps.push({
+      id: 'inicio-return',
+      action: 'click rail Clips y vídeos',
+      result: { url: page.url() },
+    });
+  }
+
+  const aria = await ariaSnapshot(page);
+  const ariaPath = join(evidenceDir, 'hub.aria.txt');
+  const pngPath = join(evidenceDir, 'hub.png');
+  writeText(ariaPath, `${aria}\n`);
+  await page.screenshot({ path: pngPath, fullPage: true });
+  if (!aria.includes('ClipHub') && !aria.includes('Clips y vídeos') && !aria.includes(HUB_EMPTY)) {
+    throw new Error('ARIA snapshot does not identify ClipHub or the hub');
+  }
+  return {
+    ok: true,
+    feature: 'inicio',
+    origin,
+    url: page.url(),
+    title: await page.title(),
+    steps,
+    evidence: { aria: ariaPath, screenshot: pngPath },
+  };
+}
+
+async function drivePublicarVideoLargo(page, origin, evidenceDir) {
+  const steps = [];
+  const title = await page.title();
+  if (!title.includes(PRODUCT_TITLE)) {
+    throw new Error(`hub title ${JSON.stringify(title)} does not contain ${PRODUCT_TITLE}`);
+  }
+  await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
+  const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
+  const populated = page.getByRole('heading', { name: HUB_POPULATED });
+  await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
+  const emptyVisible = await empty.isVisible().catch(() => false);
+  const populatedVisible = await populated.isVisible().catch(() => false);
+  const publishLinks = page.getByRole('link', { name: 'Publicar' });
+  const publishCount = await publishLinks.count();
+  steps.push({
+    id: 'publicar-hub',
+    action: 'assert hub and Publicar doors',
+    result: { empty: emptyVisible, populated: populatedVisible, publish_links: publishCount },
+  });
+
+  const hubAriaPath = join(evidenceDir, 'hub.aria.txt');
+  const hubPngPath = join(evidenceDir, 'hub.png');
+  writeText(hubAriaPath, `${await ariaSnapshot(page)}\n`);
+  await page.screenshot({ path: hubPngPath, fullPage: true });
+
+  if (publishCount > 0) {
+    const href = await publishLinks.first().getAttribute('href');
+    await publishLinks.first().click();
+    await page.waitForURL(/\/clips\/[^/]+\/publicar\/[^/]+/);
+    await waitForPublishSettled(page);
+    steps.push({
+      id: 'publicar-open',
+      action: 'click Publicar',
+      result: { href, url: page.url() },
+    });
+  } else {
+    await page.goto(new URL(PUBLISH_MISSING_PATH, origin).href, { waitUntil: 'load', timeout: 60_000 });
+    await waitForPublishSettled(page);
+    steps.push({
+      id: 'publicar-missing',
+      action: 'open Publicar without a finished long video',
+      result: {
+        url: page.url(),
+        precondition: 'no Publicar row on this host; templates need a ready long video',
+        named_gap: CLOSED_CAPTURE_GAP,
+      },
+    });
+  }
+
+  const templates = page.getByRole('heading', { name: 'Plantillas para vídeo largo' });
+  const shortsTitles = page.getByRole('heading', { name: 'Títulos recomendados' });
+  const missing = page.getByRole('heading', { name: /Clip no encontrado|No se pudo cargar el clip/ });
+  const failed = page.getByRole('alert').filter({
+    hasText: 'No se pudo preparar la publicación porque el vídeo falló',
+  });
+  const waiting = page.getByText(
+    'La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.',
+  );
+  const templatesVisible = await templates.isVisible().catch(() => false);
+  const shortsVisible = await shortsTitles.isVisible().catch(() => false);
+  const missingVisible = await missing.isVisible().catch(() => false);
+  const failedVisible = await failed.isVisible().catch(() => false);
+  const waitingVisible = await waiting.isVisible().catch(() => false);
+  if (failedVisible && waitingVisible) {
+    throw new Error('failed Publicar page also shows waiting copy');
+  }
+
+  if (templatesVisible) {
+    const firstTemplate = page.getByRole('button', { name: /Usar título recomendado:/ }).first();
+    await firstTemplate.waitFor({ state: 'visible' });
+    const titleBox = page.getByLabel('Título', { exact: true });
+    const descriptionBox = page.getByLabel('Descripción', { exact: true });
+    const tagsBox = page.getByLabel('Etiquetas, separadas por comas');
+    await firstTemplate.click();
+    const appliedTitle = await titleBox.inputValue();
+    await titleBox.fill('POV editado en verify');
+    await descriptionBox.fill('Descripción editada en verify');
+    await tagsBox.fill('CS2, verify');
+    await page.getByRole('button', { name: 'Copiar todo', exact: true }).click();
+    const copied = await page
+      .getByRole('button', { name: 'Copiado' })
+      .isVisible()
+      .catch(() => false);
+    steps.push({
+      id: 'publicar-templates',
+      action: 'select, edit, and copy long-video templates',
+      result: {
+        applied_title: appliedTitle,
+        edited: true,
+        copy: copied ? 'copied' : 'clipboard-unavailable',
+      },
+    });
+  } else {
+    steps.push({
+      id: 'publicar-settled',
+      action: 'record settled Publicar page without inventing templates',
+      result: {
+        templates: templatesVisible,
+        shorts_titles: shortsVisible,
+        missing_clip: missingVisible,
+        failed: failedVisible,
+        waiting: waitingVisible,
+        capture_gap: CLOSED_CAPTURE_GAP,
+      },
+    });
+  }
+
+  const aria = await ariaSnapshot(page);
+  const ariaPath = join(evidenceDir, 'publicar.aria.txt');
+  const pngPath = join(evidenceDir, 'publicar.png');
+  writeText(ariaPath, `${aria}\n`);
+  await page.screenshot({ path: pngPath, fullPage: true });
+  if (
+    !aria.includes('ClipHub') &&
+    !aria.includes('Clips y vídeos') &&
+    !aria.includes('Publicar') &&
+    !aria.includes('Clip no encontrado') &&
+    !aria.includes('No se pudo cargar el clip')
+  ) {
+    throw new Error('ARIA snapshot does not identify ClipHub or Publicar');
+  }
+  return {
+    ok: true,
+    feature: 'publicar-video-largo',
+    origin,
+    url: page.url(),
+    title: await page.title(),
+    templates_reachable: templatesVisible,
+    named_gap: CLOSED_CAPTURE_GAP,
+    steps,
+    evidence: { hub_aria: hubAriaPath, hub_screenshot: hubPngPath, aria: ariaPath, screenshot: pngPath },
+  };
+}
+
 async function cmdDrive(repo, flags) {
   const feature = requireFeature(typeof flags.feature === 'string' ? flags.feature : '');
   if (feature.requires_hlae_cs2) {
@@ -830,89 +1065,18 @@ async function cmdDrive(repo, flags) {
       `${feature.id} needs Windows Studio, HLAE, and running cs2.exe. Cloud Linux is closed (${CLOSED_CAPTURE_GAP}). Do not fake Pass.`,
     );
   }
-  if (feature.id !== 'inicio') {
-    fail(`drive implements inicio only. Use goto/click for ${feature.id}, or see features/${feature.id}.md`, 2);
+  if (feature.id !== 'inicio' && feature.id !== 'publicar-video-largo') {
+    fail(`drive implements inicio and publicar-video-largo. Use goto/click for ${feature.id}, or see features/${feature.id}.md`, 2);
   }
   const state = readState();
   const origin = resolveOrigin(flags, state);
   const evidenceDir = state?.evidenceDir ?? join(SKILL_DIR, 'artifacts', 'scratch');
   mkdirSync(evidenceDir, { recursive: true });
   const result = await withPage(repo, origin, '/clips', async (page) => {
-    const steps = [];
-    const title = await page.title();
-    if (!title.includes(PRODUCT_TITLE)) {
-      throw new Error(`hub title ${JSON.stringify(title)} does not contain ${PRODUCT_TITLE}`);
+    if (feature.id === 'publicar-video-largo') {
+      return drivePublicarVideoLargo(page, origin, evidenceDir);
     }
-    const current = page.locator('[data-slot="sidebar"] a[aria-current="page"]');
-    await current.waitFor({ state: 'visible' });
-    const currentHref = await current.getAttribute('href');
-    const currentName = (await current.innerText()).replace(/\s+/g, ' ').trim();
-    if (currentHref !== '/clips') {
-      throw new Error(`rail aria-current href=${JSON.stringify(currentHref)}, want /clips`);
-    }
-    steps.push({
-      id: 'inicio-rail',
-      action: 'assert rail Clips y vídeos',
-      result: { href: currentHref, name: currentName },
-    });
-
-    await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
-    const empty = page.locator(`section[aria-label="${HUB_EMPTY}"]`);
-    const populated = page.getByRole('heading', { name: HUB_POPULATED });
-    await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
-    const emptyVisible = await empty.isVisible().catch(() => false);
-    const populatedVisible = await populated.isVisible().catch(() => false);
-    if (!emptyVisible && !populatedVisible) {
-      throw new Error(`hub shows neither ${JSON.stringify(HUB_EMPTY)} nor ${JSON.stringify(HUB_POPULATED)}`);
-    }
-    steps.push({
-      id: 'inicio-empty',
-      action: 'assert hub copy',
-      result: { empty: emptyVisible, populated: populatedVisible },
-    });
-
-    if (emptyVisible) {
-      const shortDoor = page.getByRole('link', { name: /Crear Short/ }).first();
-      await shortDoor.waitFor({ state: 'visible' });
-      const href = await shortDoor.getAttribute('href');
-      if (href !== '/clips/nueva?formato=short') {
-        throw new Error(`Crear Short href=${JSON.stringify(href)}`);
-      }
-      await shortDoor.click();
-      await page.waitForURL(/\/clips\/nueva\?formato=short/);
-      steps.push({
-        id: 'inicio-short-door',
-        action: 'click Crear Short',
-        result: { url: page.url(), title: await page.title() },
-      });
-      await page.locator('[data-slot="sidebar-menu-button"][href="/clips"]').click();
-      await page.waitForURL(/\/clips(?:\?.*)?$/);
-      await page.locator('[aria-label="Cargando partidas"]').waitFor({ state: 'hidden', timeout: 45_000 });
-      await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
-      steps.push({
-        id: 'inicio-return',
-        action: 'click rail Clips y vídeos',
-        result: { url: page.url() },
-      });
-    }
-
-    const aria = await ariaSnapshot(page);
-    const ariaPath = join(evidenceDir, 'hub.aria.txt');
-    const pngPath = join(evidenceDir, 'hub.png');
-    writeText(ariaPath, `${aria}\n`);
-    await page.screenshot({ path: pngPath, fullPage: true });
-    if (!aria.includes('ClipHub') && !aria.includes('Clips y vídeos') && !aria.includes(HUB_EMPTY)) {
-      throw new Error('ARIA snapshot does not identify ClipHub or the hub');
-    }
-    return {
-      ok: true,
-      feature: feature.id,
-      origin,
-      url: page.url(),
-      title: await page.title(),
-      steps,
-      evidence: { aria: ariaPath, screenshot: pngPath },
-    };
+    return driveInicio(page, origin, evidenceDir);
   });
   rememberPage(state, result.url);
   const drivePath = join(evidenceDir, 'drive.json');

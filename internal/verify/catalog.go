@@ -121,6 +121,14 @@ func Features() []Feature {
 			ProbePath:  "/api/demos/jobs",
 		},
 		{
+			ID:         "publicar-video-largo",
+			Title:      "Publicar vídeo largo",
+			Route:      "/clips",
+			NavLabel:   "Clips y vídeos",
+			CheapProof: "route /clips; open Publicar on a finished long video for Plantillas para vídeo largo",
+			ProbePath:  "/api/demos/jobs",
+		},
+		{
 			ID:         "biblioteca",
 			Title:      "Clips y vídeos · clips",
 			Route:      "/clips?vista=clips",
