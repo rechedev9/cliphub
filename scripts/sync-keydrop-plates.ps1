@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $repo = Split-Path -Parent $PSScriptRoot
-$cursorAssets = Join-Path $env:USERPROFILE ".cursor\projects\c-Users-reche-Documents-Projects-tickcut\assets"
+$cursorAssets = Join-Path $env:USERPROFILE ".cursor\projects\c-Users-reche-Documents-Projects-cliphub\assets"
 $pkg = Join-Path $repo "internal\keydropbanner"
 $public = Join-Path $repo "web\public\brand\keydrop"
 
