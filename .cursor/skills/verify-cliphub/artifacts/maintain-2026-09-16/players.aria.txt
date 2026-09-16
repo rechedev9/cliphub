@@ -1,0 +1,46 @@
+- document:
+  - link "Ir a Clips y vídeos":
+    - /url: /clips
+    - text: ClipHub
+  - list:
+    - listitem:
+      - link "Clips y vídeos":
+        - /url: /clips
+    - listitem:
+      - link "Clips de stream":
+        - /url: /streams
+    - listitem:
+      - link "Jugadores FACEIT":
+        - /url: /players
+  - text: Análisis
+  - list:
+    - listitem:
+      - link "Táctica":
+        - /url: /tactical
+    - listitem:
+      - link "Anti-cheat":
+        - /url: /cheaters
+  - list:
+    - listitem:
+      - link "Ajustes":
+        - /url: /settings
+  - 'button "Captura: Sin conexión"': Servicio local offline
+  - button "Mostrar u ocultar barra lateral"
+  - banner:
+    - button "Mostrar u ocultar barra lateral":
+      - img
+      - text: Mostrar u ocultar barra lateral
+    - navigation "Ruta actual": Jugadores
+  - main:
+    - heading "Jugadores" [level=1]
+    - text: Sigue jugadores y convierte sus partidas en clips.
+    - textbox "Nick o URL de FACEIT" [disabled]
+    - button "Seguir jugador" [disabled]
+    - alert:
+      - paragraph: Servicio local sin conexión.
+    - region "Servicio local sin conexión":
+      - heading "Servicio local sin conexión" [level=2]
+      - text: Arranca el servicio local y vuelve a intentarlo para ver a los jugadores que sigues.
+      - button "Reintentar"
+  - region "Notifications alt+T"
+  - alert
