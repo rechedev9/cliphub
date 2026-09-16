@@ -74,3 +74,37 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: `test-results/long-video-publish-${width}.png`, fullPage: true });
   });
 }
+
+test('failed long videos show an error instead of waiting copy', async ({ page }) => {
+  await page.addInitScript(({ job, video, variant, edit }) => {
+    localStorage.setItem('cliphub.reels.v1', JSON.stringify([{
+      videoId: video, jobId: job, segmentIds: ['demo-compilation'], mode: 'clean', variant,
+      editConfig: edit,
+      title: 'donk en Mirage', map: 'de_mirage', score: '13-9', targetName: 'donk', createdAt: Date.now(),
+    }]));
+  }, { job: JOB, video: VIDEO, variant: VARIANT, edit: FULL_DEMO_EDIT });
+  await page.route('**/api/streams', (route) => route.fulfill({ json: { jobs: [] } }));
+  await page.route('**/api/demos/batch-status?*', (route) => route.fulfill({ json: {
+    items: [{
+      job_id: JOB, variant: VARIANT,
+      job: { status: 'failed', failure_reason: 'ffmpeg exited 1' },
+      render: { status: 'failed', error: 'ffmpeg exited 1' },
+    }],
+  } }));
+  await page.route(`**/api/demos/${JOB}/plan`, (route) => route.fulfill({ json: {
+    demo: { map: 'de_mirage' }, target: { steamid64: '76561198000000001', name_in_demo: 'donk' }, segments: [], stats: { total_kills_target: 34 },
+  } }));
+  await page.route('**/api/demos/jobs', (route) => route.fulfill({ json: { jobs: [{ jobId: JOB, status: 'failed', createdAt: '2026-09-01T10:00:00Z' }] } }));
+  await page.route(`**/api/demos/${JOB}/status`, (route) => route.fulfill({ json: { status: 'failed', failure_reason: 'ffmpeg exited 1' } }));
+  await page.route(`**/api/demos/${JOB}/roster`, (route) => route.fulfill({ json: {
+    players: [{ steamid64: '76561198000000001', name: 'donk', team: 'T', kills: 34 }],
+    match: { map: 'de_mirage', score_ct: 9, score_t: 13, rounds: 22 },
+  } }));
+  await page.route(`**/api/demos/${JOB}/renders/${VARIANT}`, (route) => route.fulfill({ json: {
+    status: 'failed', videos: [], covers: [], segment_ids: ['demo-compilation'], error: 'ffmpeg exited 1',
+  } }));
+  await gotoStudio(page, `/clips/${JOB}/publicar/${encodeURIComponent(VIDEO)}`);
+  await expect(page.getByRole('alert').getByText('No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.')).toBeVisible();
+  await expect(page.getByText('La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Plantillas para vídeo largo' })).toHaveCount(0);
+});

@@ -3,7 +3,22 @@ import {
   type PublishAssistant,
   type PublishRecommendation,
 } from './api/publish-assistant.ts';
+import type { VideoStatus } from './api/types.ts';
 import { writeClipboardText } from './clipboard-write.ts';
+
+export type PublishAssistantAvailability = 'ready' | 'waiting' | 'failed';
+
+export const PUBLISH_ASSISTANT_WAITING_COPY =
+  'La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.';
+export const PUBLISH_ASSISTANT_FAILED_COPY =
+  'No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.';
+
+/** Ready videos get the assistant. Failed videos stay failed. Everything else waits. */
+export function publishAssistantAvailability(status: VideoStatus): PublishAssistantAvailability {
+  if (status === 'ready') return 'ready';
+  if (status === 'failed') return 'failed';
+  return 'waiting';
+}
 
 export type PublishDraft = {
   title: string;

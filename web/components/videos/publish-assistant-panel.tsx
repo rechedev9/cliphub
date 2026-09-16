@@ -11,9 +11,12 @@ import {
 } from '@/lib/api/publish-assistant';
 import type { Video } from '@/lib/api/types';
 import {
+  PUBLISH_ASSISTANT_FAILED_COPY,
+  PUBLISH_ASSISTANT_WAITING_COPY,
   copyPublishText,
   initialPublishDraft,
   openYouTubeStudio,
+  publishAssistantAvailability,
   publishTagsText,
   recommendedPublishDraft,
 } from '@/lib/publish-actions';
@@ -118,9 +121,11 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
   const [copied, setCopied] = useState(false);
   const loadVersion = useRef(0);
 
+  const availability = publishAssistantAvailability(video.status);
+
   const load = useCallback(async (): Promise<void> => {
     const version = ++loadVersion.current;
-    if (video.status !== 'ready') {
+    if (publishAssistantAvailability(video.status) !== 'ready') {
       setLoading(false);
       setAssistant(undefined);
       setError(undefined);
@@ -198,8 +203,13 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
           <span className="studio-spinner text-primary" aria-hidden /> Preparando metadatos y horario…
         </p>
       ) : null}
-      {video.status !== 'ready' ? (
-        <p className="text-body-sm text-fg-3" role="status">La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.</p>
+      {availability === 'waiting' ? (
+        <p className="text-body-sm text-fg-3" role="status">{PUBLISH_ASSISTANT_WAITING_COPY}</p>
+      ) : null}
+      {availability === 'failed' ? (
+        <div className="flex flex-col gap-3 border border-warning/35 bg-warning/10 p-3.5" role="alert">
+          <p className="text-body-sm text-warning">{PUBLISH_ASSISTANT_FAILED_COPY}</p>
+        </div>
       ) : null}
 
       {!loading && error ? (
