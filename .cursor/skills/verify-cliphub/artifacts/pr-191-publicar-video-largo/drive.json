@@ -9,11 +9,12 @@
   "steps": [
     {
       "id": "publicar-hub",
-      "action": "expand partida rows and look for long-video Publicar",
+      "action": "open one partida at a time and look for Publicar in that row’s 16:9 column",
       "result": {
         "empty": true,
         "populated": false,
         "expanded_rows": 0,
+        "inspected_rows": [],
         "long_publish_links": 0,
         "publish_links": 0
       }

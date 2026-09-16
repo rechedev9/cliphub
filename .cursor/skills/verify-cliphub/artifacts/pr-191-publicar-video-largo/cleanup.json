@@ -1,8 +1,8 @@
 {
   "ok": true,
   "killed": [
-    7583,
-    7594
+    8279,
+    8290
   ],
   "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo",
   "evidence_exists": true,
