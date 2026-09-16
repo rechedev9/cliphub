@@ -15,7 +15,7 @@ node .cursor/skills/verify-cliphub/control-cliphub.mjs drive --feature publicar-
 node .cursor/skills/verify-cliphub/control-cliphub.mjs cleanup --json
 ```
 
-`drive --feature publicar-video-largo` opened the empty hub (no `Publicar` row), then `/clips/<uuid>/publicar/<clipId>` settled on `Clip no encontrado`. `templates_reachable=false`. That is the honest Cloud Linux path: no finished long video, no live publish-assistant. Do not stub the assistant to fake `Plantillas para vídeo largo`.
+`drive --feature publicar-video-largo` (after `4a0a440e`) expands collapsed ready partidas before counting `Publicar`, then prefers the `Vídeos largos · 16:9` door. On this empty hub that expand is a no-op (`expanded_rows=0`, `long_publish_links=0`). It then opened `/clips/<uuid>/publicar/<clipId>` and settled on `Clip no encontrado`. `templates_reachable=false`. That is the honest Cloud Linux path: no finished long video, no live publish-assistant. Do not stub the assistant to fake `Plantillas para vídeo largo`.
 
 `zv verify prove --feature demo-completa` and `full-demo-16x9-wait` fail-close with gap `hlae_cs2_windows_studio`. This PR does not claim Full Demo 16:9 capture or live 9:16 Pass.
 

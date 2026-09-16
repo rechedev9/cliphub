@@ -9,10 +9,12 @@
   "steps": [
     {
       "id": "publicar-hub",
-      "action": "assert hub and Publicar doors",
+      "action": "expand partida rows and look for long-video Publicar",
       "result": {
         "empty": true,
         "populated": false,
+        "expanded_rows": 0,
+        "long_publish_links": 0,
         "publish_links": 0
       }
     },
