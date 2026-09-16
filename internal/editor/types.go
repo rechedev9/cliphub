@@ -491,8 +491,16 @@ type Result struct {
 // short. It deliberately stores no machine identity or media path, so results
 // can be compared across real jobs without expanding telemetry exposure.
 type RenderPerformance struct {
-	RenderMS                    int64   `json:"render_ms,omitempty"`
-	ProbeMS                     int64   `json:"probe_ms,omitempty"`
+	RenderMS int64 `json:"render_ms,omitempty"`
+	ProbeMS  int64 `json:"probe_ms,omitempty"`
+	// QualityCheckMS is the elapsed process time that executed quality checks.
+	// For plain shorts that is the separate quality-check pass. For Full Demo it
+	// is now the combined mandatory delivery decode plus the optional
+	// black/freeze filters in the same process (including the optional-setup
+	// retry), so it overlaps RenderMS, is not separately additive to it, and is
+	// not directly comparable to the former separate-pass duration. The shared
+	// process interval is also visible in FullDemoTiming's "delivery" stage; no
+	// optional incremental cost is measured or claimed.
 	QualityCheckMS              int64   `json:"quality_check_ms,omitempty"`
 	CoverMS                     int64   `json:"cover_ms,omitempty"`
 	CoverSheetMS                int64   `json:"cover_sheet_ms,omitempty"`
@@ -500,6 +508,10 @@ type RenderPerformance struct {
 	MediaDurationSeconds        float64 `json:"media_duration_seconds,omitempty"`
 	RenderSecondsPerMediaSecond float64 `json:"render_seconds_per_media_second,omitempty"`
 	Reused                      bool    `json:"reused,omitempty"`
+	// FullDemoTiming is present only for Full Demo renders. It records the
+	// existing FFmpeg diagnostic intervals with stage/index/attempt annotations;
+	// non-FullDemo renders leave it nil and unchanged.
+	FullDemoTiming *FullDemoTimingMetrics `json:"full_demo_timing,omitempty"`
 }
 
 type ShortResult struct {

@@ -564,14 +564,19 @@ func BuildCoverSheetFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
 	}
 }
 
-func BuildQualityCheckFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
-	if ffmpegPath == "" {
-		ffmpegPath = "ffmpeg"
-	}
+func qualityCheckFilters(short ShortEdit) []string {
 	filters := []string{"blackdetect=d=0.40:pix_th=0.10", "freezedetect=n=-60dB:d=1"}
 	if !presetUsesFullFrame(short.Preset) {
 		filters = append(filters, "cropdetect=24:16:0")
 	}
+	return filters
+}
+
+func BuildQualityCheckFFmpegCommand(ffmpegPath string, short ShortEdit) []string {
+	if ffmpegPath == "" {
+		ffmpegPath = "ffmpeg"
+	}
+	filters := qualityCheckFilters(short)
 	return []string{
 		ffmpegPath,
 		"-hide_banner",

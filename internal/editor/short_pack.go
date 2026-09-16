@@ -184,6 +184,13 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 	}
 	performance := &RenderPerformance{}
 	p.result.Shorts[i].Performance = performance
+	if short.FullDemo != nil {
+		// Only Full Demo renders attach a timing collector. The snapshot runs on
+		// every return path, so success and failure both keep their evidence.
+		var timing *fullDemoTimingCollector
+		ctx, timing = withFullDemoTimingCollector(ctx)
+		defer timing.snapshotInto(performance)
+	}
 	if short.FullDemo == nil && validatedExistingArtifact(p.previous, p.result.Shorts[i], short.Output, "video") {
 		p.result.Shorts[i].RenderSkipped = true
 		performance.Reused = true
@@ -201,6 +208,12 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		if err := prepareFullDemoCompilation(ctx, short, fullProgress.within(0, .65)); err != nil {
 			return err
 		}
+		// Preparation can rebuild short.FFmpegCommand (Full Demo overlay
+		// consolidation switches the program to a video copy path). The result
+		// clone was taken before preparation, so refresh it before assembly:
+		// otherwise shorts-result.json and reuse validation would report a legacy
+		// re-encode that never ran, including when assembly later fails.
+		p.copyPreparedCommand(i, short)
 		expectedDuration := expectedShortDuration(*short)
 		var onFraction func(float64)
 		if p.encode != nil {
@@ -213,7 +226,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 			destination = fullDemoProgramPath(*short)
 			onFraction = fullProgress.pass("Ensamblando vídeo completo", .65, .82)
 		}
-		err := runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
+		err := runFFmpegAtomicWithProgress(fullDemoTimingScope(ctx, "assembly", i, -1, expectedDuration), short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
 		if err == nil && short.FullDemo != nil {
 			err = releaseFullDemoItems(*short)
 		}
@@ -221,20 +234,37 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 			audio := short.FullDemo.Effective.Options.Audio
 			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled && !short.FullDemo.Effective.HasTransitionSFX()
 			var evidence ProgramLoudnessEvidence
-			evidence, err = masterFullDemoProgram(ctx, short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved, expectedDuration, fullProgress.within(.82, .94))
+			evidence, err = masterFullDemoProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, expectedDuration), short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved, expectedDuration, fullProgress.within(.82, .94))
 			short.FullDemo.ProgramLoudness = &evidence
 			if err == nil {
-				var qcWG sync.WaitGroup
+				var diagnostics *fullDemoDeliveryDiagnostics
 				if overlappedQC != nil && len(short.QualityCommand) > 0 {
-					qcWG.Add(1)
-					go func() {
-						defer qcWG.Done()
-						p.runQualityCheck(ctx, i, short, overlappedQC)
-					}()
+					diagnostics = &fullDemoDeliveryDiagnostics{SegmentID: short.SegmentID, Filters: qualityCheckFilters(*short)}
 				}
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
-				short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1))
-				qcWG.Wait()
+				var outcome *fullDemoDeliveryOutcome
+				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
+				if err == nil {
+					short.FullDemo.Delivery = outcome.Evidence
+					if diagnostics != nil {
+						// Full Demo shares one process for the mandatory complete
+						// delivery decode and the optional quality filters, so this
+						// keeps the compatibility field but records the combined
+						// elapsed process time (including the optional-setup retry).
+						// It overlaps RenderMS and is not additive to it; the shared
+						// interval is separately visible as the delivery stage in
+						// RenderPerformance.FullDemoTiming.
+						p.updatePerformance(i, func(performance *RenderPerformance) {
+							performance.QualityCheckMS = outcome.DecodeMS
+						})
+						if short.QualityLogPath != "" {
+							if writeErr := writeLogFile(short.QualityLogPath, outcome.QualityLog); writeErr != nil {
+								*overlappedQC = append(*overlappedQC, fmt.Sprintf("quality log %s: %v", short.SegmentID, writeErr))
+							}
+						}
+						*overlappedQC = append(*overlappedQC, outcome.QualityWarnings...)
+					}
+				}
 			}
 			if err == nil {
 				err = short.FullDemo.ValidateCompleted()
@@ -383,6 +413,20 @@ func (p *shortPackRenderer) renderCoverSheet(ctx context.Context, i int, short *
 	p.shortMu[i].Lock()
 	p.result.Shorts[i].CoverSheetArtifact = artifact
 	p.shortMu[i].Unlock()
+}
+
+// copyPreparedCommand refreshes the result clone with the prepared short's
+// FFmpeg command under the per-short lock. Result shorts are cloned before
+// preparation runs, and preparation may rebuild the command (Full Demo overlay
+// consolidation switches program assembly to a video copy), so the result must
+// be refreshed before assembly for accurate evidence and reuse validation.
+func (p *shortPackRenderer) copyPreparedCommand(i int, short *ShortEdit) {
+	if short == nil {
+		return
+	}
+	p.shortMu[i].Lock()
+	defer p.shortMu[i].Unlock()
+	p.result.Shorts[i].FFmpegCommand = append([]string(nil), short.FFmpegCommand...)
 }
 
 func (p *shortPackRenderer) updatePerformance(i int, update func(*RenderPerformance)) {

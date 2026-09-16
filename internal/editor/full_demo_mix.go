@@ -3,8 +3,10 @@ package editor
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -83,30 +85,54 @@ func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStart
 	return strings.Join(clauses, ";")
 }
 
-func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
-	runtime := short.fullDemo
-	if err := os.MkdirAll(runtime.workDir, 0700); err != nil {
-		return err
+// fullDemoVoiceJobs bounds independent voice pipelines. Voice preparation runs
+// before item encoding and must not compete with the three item encoders, so it
+// keeps its own small, CPU-aware pool instead of sharing that budget.
+func fullDemoVoiceJobs(trackCount int) int {
+	if trackCount <= 0 {
+		return 0
 	}
-	options := short.FullDemo.Effective.Options.Audio
+	jobs := 3
+	if cpus := runtime.NumCPU(); cpus > 0 && cpus < jobs {
+		jobs = cpus
+	}
+	if trackCount < jobs {
+		jobs = trackCount
+	}
+	return jobs
+}
+
+type fullDemoVoiceInput struct {
+	Path       string
+	StorageKey string
+}
+
+// preparedFullDemoVoice is the ordered result of one track's full pipeline.
+type preparedFullDemoVoice struct {
+	Path        string
+	Measurement LoudnessMeasurement
+	GainDB      float64
+	Ref         string
+}
+
+// prepareFullDemoVoiceTracks keeps each track's current full-track measurement,
+// normalization policy, gain bound, peak headroom and PCM materialization, but
+// runs independent tracks in a small worker pool. Results are stored by
+// original index, so voicePaths/TrackLevels stay in approved order regardless
+// of which track finishes first. Cancellation stops scheduling, the first error
+// wins, and each WAV is still committed atomically per track.
+func prepareFullDemoVoiceTracks(ctx context.Context, ffmpeg, workDir string, voices []fullDemoVoiceInput, options recapplan.AudioOptions, voiceDuration float64, progress fullDemoProgress, jobs int) ([]preparedFullDemoVoice, error) {
 	reference := options.Loudness
 	reference.TargetILUFS, reference.TargetTPDBTP = -16, -1.5
-	steps := 2 * len(runtime.execution.VoiceTracks)
-	step := 0
-	nextPass := func(stage string) func(float64) {
-		start := float64(step) / float64(max(1, steps))
-		step++
-		return progress.pass(stage, start, float64(step)/float64(max(1, steps)))
-	}
-	voiceDuration := 0.0
-	if runtime.recording.Plan.Tickrate > 0 {
-		voiceDuration = float64(runtime.recording.Plan.DemoDurationTicks) / float64(runtime.recording.Plan.Tickrate)
-	}
-	for i, voice := range runtime.execution.VoiceTracks {
-		measurement, err := measureLoudness(ctx, runtime.ffmpeg, voice.Path, reference, filepath.Join(runtime.workDir, fmt.Sprintf("voice-%d-reference.txt", i)), voiceDuration, nextPass(fmt.Sprintf("Analizando voces (%d/%d)", i+1, len(runtime.execution.VoiceTracks))))
+	prepare := func(ctx context.Context, index int, analysisProgress, renderProgress func(float64)) (preparedFullDemoVoice, error) {
+		voice := voices[index]
+		measurement, err := measureLoudness(fullDemoTimingScope(ctx, "voice_analysis", index, -1, voiceDuration), ffmpeg, voice.Path, reference, filepath.Join(workDir, fmt.Sprintf("voice-%d-reference.txt", index)), voiceDuration, analysisProgress)
 		if err != nil {
-			return err
+			return preparedFullDemoVoice{}, err
 		}
+		// Complete the analysis phase explicitly instead of trusting FFmpeg's
+		// last progress record.
+		analysisProgress(1)
 		gainDB := 0.0
 		if options.Voice.Normalization == "bounded-activity-v1" && measurement.Status == "measured" {
 			// Gated integrated loudness ignores long silent spans; bound gain to
@@ -114,13 +140,191 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullD
 			gainDB = min(9.0, max(-9.0, -20-*measurement.IntegratedLUFS))
 			gainDB = min(gainDB, -3-*measurement.TruePeakDBTP)
 		}
-		path := filepath.Join(runtime.workDir, fmt.Sprintf("voice-%d.wav", i))
-		command := []string{runtime.ffmpeg, "-y", "-v", "error", "-i", voice.Path, "-map", "0:a:0", "-af", "aresample=48000,aformat=channel_layouts=stereo,volume=" + decimal(gainDB) + "dB", "-c:a", "pcm_f32le", "-rf64", "auto", path}
-		if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo voice reference", "", path, voiceDuration, nextPass(fmt.Sprintf("Preparando voces (%d/%d)", i+1, len(runtime.execution.VoiceTracks)))); err != nil {
-			return err
+		path := filepath.Join(workDir, fmt.Sprintf("voice-%d.wav", index))
+		command := []string{ffmpeg, "-y", "-v", "error", "-i", voice.Path, "-map", "0:a:0", "-af", "aresample=48000,aformat=channel_layouts=stereo,volume=" + decimal(gainDB) + "dB", "-c:a", "pcm_f32le", "-rf64", "auto", path}
+		if err := runFFmpegAtomicWithProgress(fullDemoTimingScope(ctx, "voice_prepare", index, -1, voiceDuration), command, "Full Demo voice reference", "", path, voiceDuration, renderProgress); err != nil {
+			return preparedFullDemoVoice{}, err
 		}
-		runtime.voicePaths = append(runtime.voicePaths, path)
-		short.FullDemo.TrackLevels = append(short.FullDemo.TrackLevels, FullDemoTrackLevel{Ref: voice.StorageKey, Role: "team-voice", Measurement: measurement, AppliedGainDB: gainDB, Policy: options.Voice.Normalization})
+		renderProgress(1)
+		return preparedFullDemoVoice{Path: path, Measurement: measurement, GainDB: gainDB, Ref: voice.StorageKey}, nil
+	}
+	return runFullDemoVoicePool(ctx, len(voices), jobs, progress, prepare)
+}
+
+// runFullDemoVoicePool runs an independent per-track pipeline in a bounded
+// worker pool. Each track owns two equally weighted phases (analysis and
+// materialization); progress is the aggregate average across every track, so a
+// short track can never report completion while another is unfinished. The
+// parent progress channel is called under the aggregator lock, and fraction 1
+// is reserved for the successful completion of every track.
+func runFullDemoVoicePool(ctx context.Context, count, jobs int, progress fullDemoProgress, prepare func(ctx context.Context, index int, analysisProgress, renderProgress func(float64)) (preparedFullDemoVoice, error)) ([]preparedFullDemoVoice, error) {
+	if count <= 0 {
+		return nil, nil
+	}
+	if jobs < 1 {
+		jobs = 1
+	}
+	if jobs > count {
+		jobs = count
+	}
+	results := make([]preparedFullDemoVoice, count)
+	aggregate := newFullDemoVoiceProgress(count, progress)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var (
+		wg       sync.WaitGroup
+		once     sync.Once
+		firstErr error
+	)
+	sem := make(chan struct{}, jobs)
+scheduling:
+	for index := 0; index < count; index++ {
+		// Never wait on a saturated pool without watching cancellation, and
+		// recheck the context after acquiring a slot so a queued track cannot
+		// start once the pool is cancelled.
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break scheduling
+		}
+		if ctx.Err() != nil {
+			<-sem
+			break scheduling
+		}
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			analysisStage := fmt.Sprintf("Analizando voces (%d/%d)", index+1, count)
+			materialStage := fmt.Sprintf("Preparando voces (%d/%d)", index+1, count)
+			analysis := func(fraction float64) { aggregate.phase(index, false, fraction, analysisStage) }
+			render := func(fraction float64) { aggregate.phase(index, true, fraction, materialStage) }
+			result, err := prepare(ctx, index, analysis, render)
+			if err != nil {
+				once.Do(func() {
+					firstErr = err
+					cancel()
+				})
+				return
+			}
+			aggregate.complete(index, materialStage)
+			results[index] = result
+		}(index)
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// fullDemoVoiceProgress aggregates every track's two phase fractions into one
+// monotonic value. Fraction 1 is only reachable once every track has been
+// explicitly completed.
+type fullDemoVoiceProgress struct {
+	mu        sync.Mutex
+	parent    fullDemoProgress
+	analysis  []float64
+	material  []float64
+	completed []bool
+}
+
+func newFullDemoVoiceProgress(count int, parent fullDemoProgress) *fullDemoVoiceProgress {
+	return &fullDemoVoiceProgress{
+		parent:    parent,
+		analysis:  make([]float64, count),
+		material:  make([]float64, count),
+		completed: make([]bool, count),
+	}
+}
+
+func (p *fullDemoVoiceProgress) phase(index int, material bool, fraction float64, stage string) {
+	if p == nil || p.parent == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if index < 0 || index >= len(p.completed) {
+		return
+	}
+	target := &p.analysis[index]
+	if material {
+		target = &p.material[index]
+	}
+	clamped := min(1, max(0, fraction))
+	if clamped <= *target {
+		return
+	}
+	*target = clamped
+	p.parent(stage, p.overallLocked())
+}
+
+func (p *fullDemoVoiceProgress) complete(index int, stage string) {
+	if p == nil || p.parent == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if index < 0 || index >= len(p.completed) || p.completed[index] {
+		return
+	}
+	p.completed[index] = true
+	p.analysis[index] = 1
+	p.material[index] = 1
+	p.parent(stage, p.overallLocked())
+}
+
+func (p *fullDemoVoiceProgress) overallLocked() float64 {
+	count := len(p.completed)
+	if count == 0 {
+		return 1
+	}
+	sum := 0.0
+	allComplete := true
+	for i := range p.completed {
+		sum += p.analysis[i] + p.material[i]
+		if !p.completed[i] {
+			allComplete = false
+		}
+	}
+	if allComplete {
+		return 1
+	}
+	// While any track is unfinished, keep the aggregate strictly below 1 even
+	// if every phase fraction individually reached its maximum. Do not shrink
+	// the cap with the track count: that would stall a one-track
+	// materialization phase at 50%.
+	if aggregate := sum / (2 * float64(count)); aggregate >= 1 {
+		return math.Nextafter(1, 0)
+	} else {
+		return aggregate
+	}
+}
+
+func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
+	runtime := short.fullDemo
+	if err := os.MkdirAll(runtime.workDir, 0700); err != nil {
+		return err
+	}
+	options := short.FullDemo.Effective.Options.Audio
+	voices := make([]fullDemoVoiceInput, len(runtime.execution.VoiceTracks))
+	for i, voice := range runtime.execution.VoiceTracks {
+		voices[i] = fullDemoVoiceInput{Path: voice.Path, StorageKey: voice.StorageKey}
+	}
+	voiceDuration := 0.0
+	if runtime.recording.Plan.Tickrate > 0 {
+		voiceDuration = float64(runtime.recording.Plan.DemoDurationTicks) / float64(runtime.recording.Plan.Tickrate)
+	}
+	prepared, err := prepareFullDemoVoiceTracks(ctx, runtime.ffmpeg, runtime.workDir, voices, options, voiceDuration, progress, fullDemoVoiceJobs(len(voices)))
+	if err != nil {
+		return err
+	}
+	for _, voice := range prepared {
+		runtime.voicePaths = append(runtime.voicePaths, voice.Path)
+		short.FullDemo.TrackLevels = append(short.FullDemo.TrackLevels, FullDemoTrackLevel{Ref: voice.Ref, Role: "team-voice", Measurement: voice.Measurement, AppliedGainDB: voice.GainDB, Policy: options.Voice.Normalization})
 	}
 	progress.report("Audio preparado", 1)
 	return nil
@@ -198,20 +402,37 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output st
 	} else {
 		return nil, fmt.Errorf("unsupported Full Demo timeline role %s", item.Role)
 	}
-	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s[v]", trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
+	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s", trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
 	hudFilter, err := fullDemoHUDFilter(short, item, output)
 	if err != nil {
 		return nil, err
 	}
 	if hudFilter != "" {
-		video = strings.TrimSuffix(video, "[v]") + "," + hudFilter + "[v]"
+		video += "," + hudFilter
 	}
+	// Supported global intro/outro overlays are composed after the item's
+	// transitions and HUD. The item base is shifted onto the global frame clock
+	// and the original whole-program graph is reused unchanged, then the output
+	// is shifted back to item-local PTS, so the program concat can copy the
+	// compatible H.264 stream. Unsupported effect combinations keep the
+	// byte-identical legacy item chain and the legacy post-concat pass.
+	videoClauses, videoLabel := func() ([]string, string) {
+		if !fullDemoItemOverlayEligible(short) {
+			return fullDemoItemVideoClauses(short, item, video, nil, 0)
+		}
+		images := imageEffects(short.Effects)
+		for _, effect := range images {
+			command = append(command, "-i", effect.Path)
+		}
+		imageInputStart := fullDemoInputCount(command) - len(images)
+		return fullDemoItemVideoClauses(short, item, video, images, imageInputStart)
+	}()
 	// Five millisecond de-clicks keep hard cuts while preserving every frame
 	// and sample in the approved timeline, including very short inserts.
 	fadeSamples := min(int64(240), samples/2)
 	audio += fmt.Sprintf(";[a]afade=t=in:ss=0:ns=%d,afade=t=out:ss=%d:ns=%d[declicked]", fadeSamples, samples-fadeSamples, fadeSamples)
 	sfx, audioLabel := fullDemoTransitionSFX(edges, samples)
-	command = append(command, "-filter_complex", video+";"+audio+sfx, "-map", "[v]", "-map", "["+audioLabel+"]")
+	command = append(command, "-filter_complex", strings.Join(videoClauses, ";")+";"+audio+sfx, "-map", videoLabel, "-map", "["+audioLabel+"]")
 	command = appendVideoEncodeArgs(command, short)
 	command = append(command, "-bf", "0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2")
 	command = appendThreadArgs(command, short)
@@ -268,7 +489,8 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 			defer func() { <-sem }()
 			stage := fmt.Sprintf("Montando corte %d de %d", i+1, len(timeline))
 			onFraction := func(fraction float64) { tracker.set(i, stage, fraction) }
-			if err := runFFmpegAtomicWithProgress(ctx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS, onFraction); err != nil {
+			itemCtx := fullDemoTimingScope(ctx, "items", i, -1, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS)
+			if err := runFFmpegAtomicWithProgress(itemCtx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS, onFraction); err != nil {
 				once.Do(func() {
 					firstErr = err
 					cancel()
@@ -299,6 +521,11 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 	if err := os.WriteFile(fullDemoConcatListPath(*short), []byte(list.String()), 0600); err != nil {
 		return err
 	}
+	// The program command was built before preparation against the raw-part
+	// list. Rebuild it now that the prepared item list is in place, so the
+	// item/program overlay decision comes from the same plan and the copy path
+	// never runs over unprepared parts.
+	short.FFmpegCommand = BuildFFmpegCommand(short.fullDemo.ffmpeg, *short)
 	return releaseFullDemoAudio(*short)
 }
 
