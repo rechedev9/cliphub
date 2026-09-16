@@ -48,6 +48,11 @@ func TestInlineTraceCorrelatesDistinctRetriesAndPreservesOutcome(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &entry); err != nil {
 			t.Fatal(err)
 		}
+		// go test ./... runs packages in parallel and they share log.Writer.
+		// Keep this job's lifecycle only; a sibling record:demo line is not ours.
+		if entry.JobID != job {
+			continue
+		}
 		entries = append(entries, entry)
 	}
 	if len(entries) != 4 || entries[0].Event != "attempt.started" || entries[1].Outcome != "error" || entries[2].Event != "attempt.started" || entries[3].Outcome != "ok" {
