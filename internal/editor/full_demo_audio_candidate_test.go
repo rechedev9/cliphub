@@ -23,7 +23,7 @@ import (
 const (
 	// 1818 frames = 30.3s = 1,454,400 samples: not a loudnorm 3s window and
 	// not an AAC packet boundary (remainder 320). 1819 leaves a 96-sample
-	// tail that Ubuntu FFmpeg 6.x native AAC shortens by 32 samples.
+	// tail that Ubuntu apt FFmpeg 6.x native AAC shortens by 32 samples.
 	fullDemoAudioTestFrames = 1818
 	// A 30-second program with a deliberately quiet + transient mix that the
 	// native single-pass master must retarget or recover.
