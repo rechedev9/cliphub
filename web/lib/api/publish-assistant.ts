@@ -9,6 +9,7 @@ type PublishMetadata = {
 };
 
 export type PublishRecommendation = {
+  template?: string;
   title: string;
   description: string;
   keywords: string[];
@@ -164,7 +165,8 @@ function recommendationsFrom(value: unknown): PublishRecommendation[] | undefine
     if (!title || description === undefined || !keywords || !tags || score === undefined || !rationale) {
       return undefined;
     }
-    result.push({ title, description, keywords, tags, score, rationale });
+    const template = text(source?.template);
+    result.push({ title, description, keywords, tags, score, rationale, ...(template ? { template } : {}) });
   }
   return result;
 }

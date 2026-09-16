@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { YOUTUBE_STUDIO_URL, parsePublishAssistant } from './api/publish-assistant.ts';
 import {
+  PUBLISH_ASSISTANT_FAILED_COPY,
+  PUBLISH_ASSISTANT_WAITING_COPY,
   copyPublishText,
   downloadPublishMP4,
   initialPublishDraft,
   openYouTubeStudio,
+  publishAssistantAvailability,
   publishTagsText,
   recommendedPublishDraft,
 } from './publish-actions.ts';
@@ -51,6 +54,17 @@ function assistant() {
     studio_url: YOUTUBE_STUDIO_URL,
   });
 }
+
+test('failed videos are not waiting for a YouTube draft', () => {
+  assert.equal(publishAssistantAvailability('ready'), 'ready');
+  assert.equal(publishAssistantAvailability('failed'), 'failed');
+  for (const status of ['queued', 'recording', 'composing', 'review_required'] as const) {
+    assert.equal(publishAssistantAvailability(status), 'waiting', status);
+  }
+  assert.match(PUBLISH_ASSISTANT_WAITING_COPY, /esté listo/);
+  assert.match(PUBLISH_ASSISTANT_FAILED_COPY, /falló/);
+  assert.notEqual(PUBLISH_ASSISTANT_FAILED_COPY, PUBLISH_ASSISTANT_WAITING_COPY);
+});
 
 test('selecting a recommendation replaces editable title, description, and tags', () => {
   const value = assistant();

@@ -58,6 +58,7 @@ type publishAssistantMetadata struct {
 }
 
 type publishRecommendation struct {
+	Template    string   `json:"template,omitempty"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	Keywords    []string `json:"keywords"`
@@ -103,6 +104,10 @@ type publishAssistantTrends struct {
 }
 
 type publishAssistantFacts struct {
+	LongVideo     bool
+	SourceKind    string
+	Comms         bool
+	Opponent      string
 	Player        string
 	Map           string
 	KillCount     int
@@ -258,7 +263,7 @@ func (h *Handlers) buildPublishAssistant(
 	}
 
 	report, trendErr := youtubetrends.TrendReport{}, youtubetrends.ErrNotConfigured
-	if h.youtubeTrends != nil {
+	if h.youtubeTrends != nil && !facts.LongVideo {
 		report, trendErr = h.youtubeTrends.Fetch(ctx, publishAssistantFocus(facts))
 	}
 	if ctx.Err() != nil {
@@ -267,17 +272,28 @@ func (h *Handlers) buildPublishAssistant(
 	filteredTerms := youtubeinsights.FilterFactualSearchTerms(metadata, report.Terms)
 	metadata.SearchTerms = filteredTerms
 	metadata.Misspellings = []string{"Counter Strike 2"}
-	candidates, err := youtubeinsights.GenerateContentCandidates(metadata, youtubeinsights.DefaultContentConfig())
-	if err != nil {
-		return publishAssistantResponse{}, trendErr != nil, err
+	var recommendations []publishRecommendation
+	var keywords, tags []string
+	if facts.LongVideo {
+		recommendations = longVideoPublishRecommendations(facts)
+		keywords, tags = recommendations[0].Keywords, recommendations[0].Tags
+	} else {
+		candidates, err := youtubeinsights.GenerateContentCandidates(metadata, youtubeinsights.DefaultContentConfig())
+		if err != nil {
+			return publishAssistantResponse{}, trendErr != nil, err
+		}
+		recommendations, keywords, tags = mapPublishRecommendations(candidates)
 	}
-	recommendations, keywords, tags := mapPublishRecommendations(candidates)
 
 	daily, err := youtubeinsights.RecommendDaily(now, days, youtubeinsights.DefaultScheduleConfig())
 	if err != nil {
 		return publishAssistantResponse{}, trendErr != nil, err
 	}
 	best := recommendations[0]
+	trends := mapPublishTrends(report, filteredTerms, metadata, trendErr)
+	if facts.LongVideo {
+		trends = publishAssistantTrends{Terms: []string{}, Reason: "Plantillas en inglés basadas en el vídeo y la demo. No se añaden rangos, ELO ni condición de profesional sin verificar."}
+	}
 	return publishAssistantResponse{
 		SchemaVersion: publishAssistantSchemaVersion,
 		StudioURL:     publishAssistantStudioURL,
@@ -299,7 +315,7 @@ func (h *Handlers) buildPublishAssistant(
 			}},
 			Caveat: "El horario es una referencia determinista en Europe/Madrid, no una predicción de rendimiento. Confirma audiencia, visibilidad y programación en YouTube Studio.",
 		},
-		Trends: mapPublishTrends(report, filteredTerms, metadata, trendErr),
+		Trends: trends,
 	}, trendErr != nil && !errors.Is(trendErr, youtubetrends.ErrNotConfigured), nil
 }
 
@@ -406,7 +422,8 @@ func (h *Handlers) loadPublishAssistantFacts(
 			PrimaryWeapon: strings.TrimSpace(item.PrimaryWeapon),
 			Hook:          strings.TrimSpace(short.Headline),
 		}
-		if facts.Player == "" || facts.Map == "" || facts.KillCount <= 0 {
+		addLongVideoPublishFacts(&facts, *short, item)
+		if facts.Player == "" || facts.Map == "" || facts.KillCount < 0 || (!facts.LongVideo && facts.KillCount == 0) {
 			writeError(w, http.StatusConflict, "publish metadata is incomplete")
 			return publishAssistantFacts{}, false
 		}
@@ -511,6 +528,7 @@ func publishAssistantCacheKey(id uuid.UUID, variant, name string, facts publishA
 		strconv.Itoa(facts.KillCount),
 		facts.PrimaryWeapon,
 		facts.Hook,
+		strconv.FormatBool(facts.LongVideo), facts.SourceKind, strconv.FormatBool(facts.Comms), facts.Opponent,
 	}, "\x00")))
 	return strings.Join([]string{
 		id.String(), variant, name, madridPublishDate(now), strconv.Itoa(days), hex.EncodeToString(fingerprint[:]),

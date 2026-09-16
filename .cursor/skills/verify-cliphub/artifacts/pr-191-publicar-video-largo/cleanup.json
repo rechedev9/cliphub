@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "killed": [
+    10719,
+    10730
+  ],
+  "evidenceDir": "/workspace/.cursor/skills/verify-cliphub/artifacts/pr-191-publicar-video-largo",
+  "evidence_exists": true,
+  "state_removed": true
+}

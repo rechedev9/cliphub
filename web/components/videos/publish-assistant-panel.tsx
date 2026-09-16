@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Check, Clock3, Copy, ExternalLink, RefreshCw, Sparkles, Tags, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -11,9 +11,12 @@ import {
 } from '@/lib/api/publish-assistant';
 import type { Video } from '@/lib/api/types';
 import {
+  PUBLISH_ASSISTANT_FAILED_COPY,
+  PUBLISH_ASSISTANT_WAITING_COPY,
   copyPublishText,
   initialPublishDraft,
   openYouTubeStudio,
+  publishAssistantAvailability,
   publishTagsText,
   recommendedPublishDraft,
 } from '@/lib/publish-actions';
@@ -112,32 +115,44 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
   const [selectedRecommendation, setSelectedRecommendation] = useState<PublishRecommendation>();
   const [title, setTitle] = useState(video.title);
   const [description, setDescription] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [tagsText, setTagsText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const loadVersion = useRef(0);
+
+  const availability = publishAssistantAvailability(video.status);
 
   const load = useCallback(async (): Promise<void> => {
+    const version = ++loadVersion.current;
+    if (publishAssistantAvailability(video.status) !== 'ready') {
+      setLoading(false);
+      setAssistant(undefined);
+      setError(undefined);
+      return;
+    }
     setLoading(true);
     setError(undefined);
     try {
       const next = await api.getPublishAssistant(video.id);
+      if (version !== loadVersion.current) return;
       const draft = initialPublishDraft(next);
       setAssistant(next);
       setSelectedRecommendation(undefined);
       setTitle(draft.title);
       setDescription(draft.description);
-      setTags(draft.tags);
+      setTagsText(publishTagsText(draft.tags));
     } catch {
+      if (version !== loadVersion.current) return;
       setError('No se pudo preparar la publicación. El MP4 sigue disponible para descargar.');
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
-  }, [video.id]);
+  }, [video.id, video.status]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, video.artifactRevision]);
 
   useEffect(() => {
     if (!copied) return;
@@ -150,7 +165,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
     setSelectedRecommendation(recommendation);
     setTitle(draft.title);
     setDescription(draft.description);
-    setTags(draft.tags);
+    setTagsText(publishTagsText(draft.tags));
   }
 
   async function copy(value: string, label: string): Promise<void> {
@@ -173,8 +188,8 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
   }
 
   const keywords = selectedRecommendation?.keywords ?? assistant?.keywords ?? [];
-  const tagsText = publishTagsText(tags);
   const best = assistant ? upcomingPublishSlots(assistant.schedule)[0] : undefined;
+  const hasTemplates = assistant?.recommendations.some((recommendation) => recommendation.template);
 
   return (
     <div className="flex flex-col gap-3">
@@ -187,6 +202,14 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
         <p className="flex min-h-24 items-center justify-center gap-2 text-body-sm text-fg-3" role="status">
           <span className="studio-spinner text-primary" aria-hidden /> Preparando metadatos y horario…
         </p>
+      ) : null}
+      {availability === 'waiting' ? (
+        <p className="text-body-sm text-fg-3" role="status">{PUBLISH_ASSISTANT_WAITING_COPY}</p>
+      ) : null}
+      {availability === 'failed' ? (
+        <div className="flex flex-col gap-3 border border-warning/35 bg-warning/10 p-3.5" role="alert">
+          <p className="text-body-sm text-warning">{PUBLISH_ASSISTANT_FAILED_COPY}</p>
+        </div>
       ) : null}
 
       {!loading && error ? (
@@ -202,8 +225,13 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
         <>
           <section className="flex flex-col gap-2" aria-labelledby="publish-title-recommendations">
             <h3 id="publish-title-recommendations" className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-fg-3">
-              <Sparkles className="size-3.5 text-primary" aria-hidden /> Títulos recomendados
+              <Sparkles className="size-3.5 text-primary" aria-hidden /> {hasTemplates ? 'Plantillas para vídeo largo' : 'Títulos recomendados'}
             </h3>
+            {hasTemplates ? (
+              <p className="text-meta leading-relaxed text-fg-3">
+                Elige un enfoque y ajusta el texto. Jugador, mapa y bajas salen del vídeo; FACEIT y COMMS se añaden solo con datos del render.
+              </p>
+            ) : null}
             <div className="grid gap-1.5">
               {assistant.recommendations.map((recommendation) => (
                 <Button
@@ -216,8 +244,11 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
                   aria-label={`Usar título recomendado: ${recommendation.title}`}
                   aria-pressed={selectedRecommendation?.title === recommendation.title}
                 >
-                  <span>{recommendation.title}</span>
-                  <span className="shrink-0 font-mono text-meta tabular-nums text-fg-3">{Math.round(recommendation.score)}/100</span>
+                  <span className="min-w-0 break-words">
+                    {recommendation.template ? <span className="mb-1 block font-mono text-meta uppercase text-primary">{recommendation.template}</span> : null}
+                    {recommendation.title}
+                  </span>
+                  {!recommendation.template ? <span className="shrink-0 font-mono text-meta tabular-nums text-fg-3">{Math.round(recommendation.score)}/100</span> : null}
                 </Button>
               ))}
             </div>
@@ -243,6 +274,7 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
               onChange={(event) => setTitle(event.currentTarget.value)}
               maxLength={YOUTUBE_TITLE_MAX_LENGTH}
             />
+            <p className="text-right font-mono text-meta text-fg-3">{title.length}/{YOUTUBE_TITLE_MAX_LENGTH}</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -273,7 +305,8 @@ export function PublishAssistantPanel({ video, actions }: PublishAssistantPanelP
                 <Copy className="size-3" /> Copiar
               </Button>
             </div>
-            <p className="border border-border-strong bg-surface-1 px-3 py-2.5 text-body-sm text-fg-1">{tagsText}</p>
+            <Input aria-label="Etiquetas, separadas por comas" value={tagsText}
+              onChange={(event) => setTagsText(event.currentTarget.value)} />
             {keywords.length > 0 ? (
               <p className="text-meta text-fg-3">
                 <strong className="text-fg-2">Palabras clave:</strong> {keywords.join(' · ')}

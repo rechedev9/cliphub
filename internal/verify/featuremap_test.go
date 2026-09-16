@@ -36,6 +36,7 @@ func TestFeatureMapUsesCompiledCatalogWithoutDocuments(t *testing.T) {
 	for _, want := range []string{
 		"inicio", "partidas", "subir-demo", "demo-completa", "tactica",
 		"cheaterdetect", "jugadores", "clips-de-stream", "editor",
+		"publicar-video-largo",
 		"biblioteca", "feed", "ajustes",
 		"shorts-9x16-wait", "full-demo-16x9-wait",
 	} {
@@ -159,6 +160,29 @@ func TestProveUnknownFeature(t *testing.T) {
 	_, err := ProveFeature(".", ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "not-a-feature")
 	if err == nil {
 		t.Fatal("expected unknown feature error")
+	}
+}
+
+func TestProvePublicarVideoLargoCheapProof(t *testing.T) {
+	root, err := FindRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := ProveFeature(root, ClassifyHost(HostFacts{GOOS: "linux", GOARCH: "amd64"}), "publicar-video-largo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.OK {
+		t.Fatalf("publicar-video-largo cheap proof failed: %#v", report)
+	}
+	if report.Closed {
+		t.Fatal("publicar-video-largo must not close the HLAE gap")
+	}
+	if !strings.Contains(report.Detail, "unproven") {
+		t.Fatalf("detail = %q, want an honest unproven user-path note", report.Detail)
+	}
+	if report.Drive == nil || report.Drive.Route != "/clips" || report.Drive.NavLabel != "Clips y vídeos" {
+		t.Fatalf("drive = %#v, want Clips y vídeos /clips", report.Drive)
 	}
 }
 
