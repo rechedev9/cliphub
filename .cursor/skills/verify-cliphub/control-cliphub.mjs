@@ -443,11 +443,22 @@ async function waitForUploadSettled(page) {
     .waitFor({ state: 'attached', timeout: 15_000 });
 }
 
-async function waitForPublishSettled(page) {
+export async function waitForPublishSettled(page) {
   await page.locator('[aria-label="Cargando el clip"]').waitFor({ state: 'hidden', timeout: 45_000 });
   const missing = page.getByRole('heading', { name: /Clip no encontrado|No se pudo cargar el clip/ });
-  const assistant = page.getByText('Publicar en YouTube', { exact: true });
-  await missing.or(assistant).first().waitFor({ state: 'visible', timeout: 15_000 });
+  const templates = page.getByRole('heading', { name: 'Plantillas para vídeo largo', exact: true });
+  const shorts = page.getByRole('heading', { name: 'Títulos recomendados', exact: true });
+  const failed = page.getByRole('alert').filter({ hasText: 'No se pudo preparar la publicación' });
+  const waiting = page.getByText(
+    'La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.',
+    { exact: true },
+  );
+  // The assistant header paints before its request starts. Only these outcomes
+  // prove that it has finished loading or cannot prepare a draft in this state.
+  await missing.or(templates).or(shorts).or(failed).or(waiting).first()
+    .waitFor({ state: 'visible', timeout: 45_000 });
+  await page.getByRole('status').filter({ hasText: 'Preparando metadatos y horario' })
+    .waitFor({ state: 'hidden', timeout: 45_000 });
 }
 
 async function cliphubIdentity(page) {
@@ -924,49 +935,40 @@ async function driveInicio(page, origin, evidenceDir) {
   };
 }
 
-/** Publicar inside the leaf 16:9 column, not ancestor wrappers that also hold Shorts. */
-function longVideoPublishIn(scope) {
-  return scope
-    .locator('div')
-    .filter({ has: scope.getByText('Vídeos largos · 16:9', { exact: true }) })
-    .filter({ has: scope.getByRole('link', { name: 'Publicar' }) })
-    .filter({ hasNot: scope.getByText('Shorts', { exact: true }) })
-    .getByRole('link', { name: 'Publicar' });
-}
-
-async function openPartidaRow(row) {
-  const header = row.locator(':scope > div > button[aria-expanded]').first();
-  if ((await header.count()) === 0) return false;
-  if ((await header.getAttribute('aria-disabled')) === 'true') return false;
-  if ((await header.getAttribute('aria-expanded')) === 'true') return true;
-  await header.click();
-  await header.locator('xpath=self::*[@aria-expanded="true"]').waitFor({ state: 'visible', timeout: 5_000 });
-  return true;
-}
-
-async function findLongVideoPublishDoor(page) {
-  const rows = page.locator('article[id^="partida-"]');
-  const rowCount = await rows.count();
-  const inspected = [];
-  for (let i = 0; i < rowCount; i += 1) {
-    const row = rows.nth(i);
-    const id = (await row.getAttribute('id')) ?? `partida-${i}`;
-    const opened = await openPartidaRow(row);
-    if (!opened) {
-      inspected.push({ id, opened: false, long_publish: 0 });
+export async function findLongVideoPublish(page) {
+  // Only one partida can be open. Snapshot stable IDs rather than repeatedly
+  // choosing the first collapsed row (which alternates between two partidas).
+  const rowIds = await page.locator('article[id^="partida-"]').evaluateAll((rows) => rows.map((row) => row.id));
+  const found = { door: null, expandedRows: 0, inspected: [], publishCount: 0, longPublishCount: 0 };
+  for (const id of rowIds) {
+    const row = page.locator(`[id="${id}"]`);
+    const toggle = row.locator('button[aria-expanded]').first();
+    if (await toggle.count() === 0 || await toggle.getAttribute('aria-disabled') === 'true' || await toggle.isDisabled()) {
+      found.inspected.push({ id, opened: false, long_publish: 0 });
       continue;
     }
-    const door = longVideoPublishIn(row);
-    const longPublish = await door.count();
-    inspected.push({ id, opened: true, long_publish: longPublish });
-    if (longPublish > 0) {
-      return { door: door.first(), inspected, openedRows: inspected.filter((rowInfo) => rowInfo.opened).length };
+    if (await toggle.getAttribute('aria-expanded') !== 'true') {
+      await toggle.click();
+    }
+    found.expandedRows++;
+    await row.locator('button[aria-expanded="true"]').waitFor({ state: 'visible', timeout: 15_000 });
+    const label = row.getByText('Vídeos largos · 16:9', { exact: true });
+    await label.waitFor({ state: 'visible', timeout: 15_000 });
+    // ColumnHead's span -> header -> FullColumn. Broad ancestor matching also
+    // includes ShortsColumn, whose Publicar link precedes the long video.
+    const longPublish = label.locator('..').locator('..').getByRole('link', { name: 'Publicar', exact: true });
+    found.publishCount += await row.getByRole('link', { name: 'Publicar', exact: true }).count();
+    found.longPublishCount = await longPublish.count();
+    found.inspected.push({ id, opened: true, long_publish: found.longPublishCount });
+    if (found.longPublishCount > 0) {
+      found.door = longPublish.first();
+      break;
     }
   }
-  return { door: null, inspected, openedRows: inspected.filter((rowInfo) => rowInfo.opened).length };
+  return found;
 }
 
-async function drivePublicarVideoLargo(page, origin, evidenceDir) {
+export async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   const steps = [];
   const title = await page.title();
   if (!title.includes(PRODUCT_TITLE)) {
@@ -978,19 +980,15 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
   const emptyVisible = await empty.isVisible().catch(() => false);
   const populatedVisible = await populated.isVisible().catch(() => false);
-  const found = populatedVisible
-    ? await findLongVideoPublishDoor(page)
-    : { door: null, inspected: [], openedRows: 0 };
-  const publishCount = await page.getByRole('link', { name: 'Publicar' }).count();
-  const longPublishCount = found.door ? 1 : 0;
+  const { door, expandedRows, inspected, longPublishCount, publishCount } = await findLongVideoPublish(page);
   steps.push({
     id: 'publicar-hub',
     action: 'open one partida at a time and look for Publicar in that row’s 16:9 column',
     result: {
       empty: emptyVisible,
       populated: populatedVisible,
-      expanded_rows: found.openedRows,
-      inspected_rows: found.inspected,
+      expanded_rows: expandedRows,
+      inspected_rows: inspected,
       long_publish_links: longPublishCount,
       publish_links: publishCount,
     },
@@ -1001,7 +999,6 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   writeText(hubAriaPath, `${await ariaSnapshot(page)}\n`);
   await page.screenshot({ path: hubPngPath, fullPage: true });
 
-  const door = found.door;
   if (door) {
     const href = await door.getAttribute('href');
     await door.click();
@@ -1035,6 +1032,9 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   const failed = page.getByRole('alert').filter({
     hasText: 'No se pudo preparar la publicación porque el vídeo falló',
   });
+  const requestError = page.getByRole('alert').filter({
+    hasText: 'No se pudo preparar la publicación. El MP4 sigue disponible para descargar.',
+  });
   const waiting = page.getByText(
     'La preparación para YouTube estará disponible cuando el vídeo esté listo y su revisión resuelta.',
   );
@@ -1042,9 +1042,13 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   const shortsVisible = await shortsTitles.isVisible().catch(() => false);
   const missingVisible = await missing.isVisible().catch(() => false);
   const failedVisible = await failed.isVisible().catch(() => false);
+  const requestErrorVisible = await requestError.isVisible().catch(() => false);
   const waitingVisible = await waiting.isVisible().catch(() => false);
   if (failedVisible && waitingVisible) {
     throw new Error('failed Publicar page also shows waiting copy');
+  }
+  if (door && shortsVisible) {
+    throw new Error('long-video Publicar opened the Shorts assistant instead of templates');
   }
 
   if (templatesVisible) {
@@ -1081,6 +1085,7 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
         shorts_titles: shortsVisible,
         missing_clip: missingVisible,
         failed: failedVisible,
+        request_error: requestErrorVisible,
         waiting: waitingVisible,
         capture_gap: CLOSED_CAPTURE_GAP,
       },
@@ -1208,6 +1213,9 @@ async function main() {
   await COMMANDS[command](repo, flags);
 }
 
-main().catch((err) => {
-  fail(err.message || String(err));
-});
+// Import the real driver in browser regression tests without running the CLI.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    fail(err.message || String(err));
+  });
+}

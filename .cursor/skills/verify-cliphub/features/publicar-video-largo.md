@@ -25,7 +25,8 @@ Preconditions:
 - Template UI needs a **ready** long video and a live publish-assistant response. An empty hub without an orchestrator is the honest Cloud Linux first-run state.
 
 - **Open hub.** Run `node .cursor/skills/verify-cliphub/control-cliphub.mjs goto --path /clips`. The rail link `Clips y vídeos` has `aria-current="page"`.
-- **Finished long video.** The hub keeps one open partida. Open `article[id^=partida-]` headers one at a time (the row `button[aria-expanded]`, never the header `Trabajos` pill). After each open, look for `Publicar` only in that row’s leaf `Vídeos largos · 16:9` column (the column that has the heading and its own Publicar, and does not contain the `Shorts` column heading). Choose that door. The URL matches `/clips/<id>/publicar/<clipId>`. Wait until `Cargando el clip` is hidden.
+- **Finished long video.** Inspect partidas by stable row ID, opening each once and checking its `Vídeos largos · 16:9` column before moving on. Only one partida stays expanded at a time. Scope `Publicar` to that column, not an ancestor containing both formats. The URL matches `/clips/<id>/publicar/<clipId>`.
+- **Wait for the assistant.** The static `Publicar en YouTube` header is not a completion signal. Wait for template/Short recommendations, a publication error, the waiting-render message, or a missing-clip heading; `Preparando metadatos y horario` must be gone before recording the result. A ready long-video door opening the Shorts assistant is a verification failure.
 - **Templates.** Ready long videos show heading `Plantillas para vídeo largo` (not `Títulos recomendados`). Buttons are named `Usar título recomendado: <title>` and may show labels `Bajas destacadas`, `POV clásico`, `Sesión de juego`, `Mapa protagonista`, `Duelo de la demo`. Fields are `Título`, `Descripción`, and `Etiquetas, separadas por comas`. `Copiar todo` copies the current draft.
 - **Failed video.** Status `failed` must not show the waiting copy. The assistant alert is `No se pudo preparar la publicación porque el vídeo falló. Reintenta el render desde Clips.`
 - **No finished video.** On an empty hub there is no `Publicar` row. `goto --path /clips/<uuid>/publicar/<clipId>` settles on `Clip no encontrado` or `No se pudo cargar el clip`. That is the walk. Do not stub `/api/demos/jobs` or `publish-assistant` to fake templates.
@@ -34,8 +35,9 @@ Preconditions:
 
 ## Gotchas
 
-- `Publicar` is a child of a finished video, not a rail row. The catalog route stays `/clips`. Only one partida stays expanded. Do not click every collapsed `aria-expanded=false` control (that includes the `Trabajos` pill and fights the accordion). Scope `Publicar` to the leaf 16:9 column; ancestor `div` filters also match the Shorts column. A Short `Publicar` is the other assistant (`Títulos recomendados`).
+- `Publicar` is a child of a finished video, not a rail row. The catalog route stays `/clips`. Collapsed partida headers hide Short and Full output actions; expand before counting `Publicar`. Prefer the `Vídeos largos · 16:9` door. A Short `Publicar` is the other assistant (`Títulos recomendados`).
 - Shorts on the same page show `Títulos recomendados` and a score. Do not treat that as the long-video template UI.
 - Waiting copy (`La preparación para YouTube estará disponible…`) is only for queued, recording, composing, and review. Failed videos use the failed alert.
 - `web/e2e/long-video-publish.spec.ts` stubs jobs and `publish-assistant`. Those screenshots are the presentation contract, not this skill's live proof.
+- `web/e2e/verify-publish-driver.spec.mjs` imports the actual driver and exercises the real hub with fixture data: three exclusive partida rows, mixed formats, and a delayed assistant response. It also checks disabled/Short-only rows and blocked/error states. Run it with `pnpm --dir web exec playwright test e2e/verify-publish-driver.spec.mjs`. These are regressions, not live capture evidence.
 - Opening Publicar is not Full Demo Pass and not live 9:16 Pass. Gap `hlae_cs2_windows_studio` stays closed on Cloud Linux.
