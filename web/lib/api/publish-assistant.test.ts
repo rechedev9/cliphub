@@ -70,6 +70,15 @@ test('parses the manual publish assistant response', () => {
   assert.equal(assistant.trends.available, false);
 });
 
+test('preserves long-video template labels and editable metadata', () => {
+  const value = response();
+  assert.ok(Array.isArray(value.recommendations));
+  value.recommendations = value.recommendations.map((item) => ({ ...item, template: 'POV clásico', title: 'donk POV with COMMS on FACEIT (Mirage)' }));
+  const assistant = parsePublishAssistant(value);
+  assert.equal(assistant.recommendations[0].template, 'POV clásico');
+  assert.equal(assistant.recommendations[0].title, 'donk POV with COMMS on FACEIT (Mirage)');
+});
+
 test('rejects any external-open URL other than the stable YouTube Studio URL', () => {
   assert.throws(
     () => parsePublishAssistant({ ...response(), studio_url: 'https://example.test/collect' }),

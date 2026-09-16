@@ -158,7 +158,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
             media={video.thumbnailUrl ? <CoverImage src={video.thumbnailUrl} loading="eager" /> : undefined}
             fallback={<ReelCover seed={video.id} label={map} />}
           />
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <div className="flex min-w-0 flex-1 basis-56 flex-col gap-2.5">
             <p className="font-mono text-meta uppercase tracking-wider text-fg-3">{meta}</p>
             <p className="text-body-sm text-fg-2">{description}</p>
             {reviewRequired && video.warnings && video.warnings.length > 0 ? (
