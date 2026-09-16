@@ -566,8 +566,7 @@ func fullDemoEncodeTopology(t *testing.T, ctx context.Context, ffmpeg, dir, base
 
 // TestFullDemoItemOverlaysEncodedTopologyMatchesReference compares the actual
 // encode topologies (legacy two-generation vs new one-generation) against a
-// common lossless composited reference at production software CRF16/slow and
-// native p5/cq16.
+// common lossless composited reference at production software CRF16/slow.
 func TestFullDemoItemOverlaysEncodedTopologyMatchesReference(t *testing.T) {
 	ffmpeg := requireFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
@@ -592,36 +591,24 @@ func TestFullDemoItemOverlaysEncodedTopologyMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, tc := range []struct {
-		name    string
-		encoder string
-		margin  float64
-	}{
-		{"software", "", 0.5},
-		{"nvenc", VideoEncoderNVENC, 1.0},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.encoder == VideoEncoderNVENC && !fullDemoHasNVENC(ctx, ffmpeg) {
-				t.Skip("h264_nvenc unavailable")
-			}
-			legacy := filepath.Join(dir, "legacy-"+tc.name+".mp4")
-			newOutput := filepath.Join(dir, "new-"+tc.name+".mp4")
-			fullDemoEncodeTopology(t, ctx, ffmpeg, dir, base, legacy, short, items, tc.encoder, true)
-			fullDemoEncodeTopology(t, ctx, ffmpeg, dir, base, newOutput, short, items, tc.encoder, false)
+	t.Run("software", func(t *testing.T) {
+		legacy := filepath.Join(dir, "legacy-software.mp4")
+		newOutput := filepath.Join(dir, "new-software.mp4")
+		fullDemoEncodeTopology(t, ctx, ffmpeg, dir, base, legacy, short, items, "", true)
+		fullDemoEncodeTopology(t, ctx, ffmpeg, dir, base, newOutput, short, items, "", false)
 
-			legacyPSNR := fullDemoPSNR(t, ctx, ffmpeg, reference, legacy)
-			newPSNR := fullDemoPSNR(t, ctx, ffmpeg, reference, newOutput)
-			t.Logf("%s topology vs lossless reference: legacy(2-gen)=%.2f dB new(1-gen)=%.2f dB direct=%.2f dB frames ref=%d legacy=%d new=%d",
-				tc.name, legacyPSNR, newPSNR, fullDemoPSNR(t, ctx, ffmpeg, legacy, newOutput),
-				fullDemoCountFrames(t, ctx, ffmpeg, reference), fullDemoCountFrames(t, ctx, ffmpeg, legacy), fullDemoCountFrames(t, ctx, ffmpeg, newOutput))
-			if legacyPSNR <= 0 || newPSNR <= 0 {
-				t.Fatalf("invalid PSNR: legacy=%.2f new=%.2f", legacyPSNR, newPSNR)
-			}
-			if newPSNR < legacyPSNR-tc.margin {
-				t.Fatalf("one-generation topology is worse than two-generation: new=%.2f legacy=%.2f", newPSNR, legacyPSNR)
-			}
-		})
-	}
+		legacyPSNR := fullDemoPSNR(t, ctx, ffmpeg, reference, legacy)
+		newPSNR := fullDemoPSNR(t, ctx, ffmpeg, reference, newOutput)
+		t.Logf("%s topology vs lossless reference: legacy(2-gen)=%.2f dB new(1-gen)=%.2f dB direct=%.2f dB frames ref=%d legacy=%d new=%d",
+			"software", legacyPSNR, newPSNR, fullDemoPSNR(t, ctx, ffmpeg, legacy, newOutput),
+			fullDemoCountFrames(t, ctx, ffmpeg, reference), fullDemoCountFrames(t, ctx, ffmpeg, legacy), fullDemoCountFrames(t, ctx, ffmpeg, newOutput))
+		if legacyPSNR <= 0 || newPSNR <= 0 {
+			t.Fatalf("invalid PSNR: legacy=%.2f new=%.2f", legacyPSNR, newPSNR)
+		}
+		if newPSNR < legacyPSNR-0.5 {
+			t.Fatalf("one-generation topology is worse than two-generation: new=%.2f legacy=%.2f", newPSNR, legacyPSNR)
+		}
+	})
 }
 
 func fullDemoPSNR(t *testing.T, ctx context.Context, ffmpeg, reference, candidate string) float64 {
@@ -732,9 +719,4 @@ func fullDemoFFprobe(ffmpeg string) string {
 		return "ffprobe"
 	}
 	return filepath.Join(filepath.Dir(ffmpeg), "ffprobe"+filepath.Ext(base))
-}
-
-func fullDemoHasNVENC(ctx context.Context, ffmpeg string) bool {
-	out, err := runFFmpegOutput(ctx, []string{ffmpeg, "-hide_banner", "-encoders"}, "encoders")
-	return err == nil && strings.Contains(out, "h264_nvenc")
 }

@@ -96,6 +96,9 @@ These are root results, not worker development checks.
 - Encoded topology against the common lossless reference: software CRF16/`slow`
   legacy two-generation 30.92 dB versus new one-generation 30.85 dB; native
   p5/cq16 legacy two-generation 28.85 dB versus new one-generation 30.86 dB.
+  These are recorded local results. The NVENC subtest was subsequently removed
+  from the automated suite at the user's request; the software topology test
+  remains. Production NVENC rendering is unchanged.
 - Exact PCM join and pipeline integration checks pass.
 - Race checks for the voice pool, timing collector and evidence paths pass;
   `go vet` is clean.
