@@ -924,6 +924,48 @@ async function driveInicio(page, origin, evidenceDir) {
   };
 }
 
+/** Publicar inside the leaf 16:9 column, not ancestor wrappers that also hold Shorts. */
+function longVideoPublishIn(scope) {
+  return scope
+    .locator('div')
+    .filter({ has: scope.getByText('Vídeos largos · 16:9', { exact: true }) })
+    .filter({ has: scope.getByRole('link', { name: 'Publicar' }) })
+    .filter({ hasNot: scope.getByText('Shorts', { exact: true }) })
+    .getByRole('link', { name: 'Publicar' });
+}
+
+async function openPartidaRow(row) {
+  const header = row.locator(':scope > div > button[aria-expanded]').first();
+  if ((await header.count()) === 0) return false;
+  if ((await header.getAttribute('aria-disabled')) === 'true') return false;
+  if ((await header.getAttribute('aria-expanded')) === 'true') return true;
+  await header.click();
+  await header.locator('xpath=self::*[@aria-expanded="true"]').waitFor({ state: 'visible', timeout: 5_000 });
+  return true;
+}
+
+async function findLongVideoPublishDoor(page) {
+  const rows = page.locator('article[id^="partida-"]');
+  const rowCount = await rows.count();
+  const inspected = [];
+  for (let i = 0; i < rowCount; i += 1) {
+    const row = rows.nth(i);
+    const id = (await row.getAttribute('id')) ?? `partida-${i}`;
+    const opened = await openPartidaRow(row);
+    if (!opened) {
+      inspected.push({ id, opened: false, long_publish: 0 });
+      continue;
+    }
+    const door = longVideoPublishIn(row);
+    const longPublish = await door.count();
+    inspected.push({ id, opened: true, long_publish: longPublish });
+    if (longPublish > 0) {
+      return { door: door.first(), inspected, openedRows: inspected.filter((rowInfo) => rowInfo.opened).length };
+    }
+  }
+  return { door: null, inspected, openedRows: inspected.filter((rowInfo) => rowInfo.opened).length };
+}
+
 async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   const steps = [];
   const title = await page.title();
@@ -936,29 +978,19 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   await empty.or(populated).first().waitFor({ state: 'visible', timeout: 15_000 });
   const emptyVisible = await empty.isVisible().catch(() => false);
   const populatedVisible = await populated.isVisible().catch(() => false);
-  let expandedRows = 0;
-  if (populatedVisible) {
-    const expandable = page.locator('button[aria-expanded="false"]:not([aria-disabled="true"])');
-    while ((await expandable.count()) > 0) {
-      await expandable.first().click();
-      expandedRows += 1;
-      if (expandedRows > 20) break;
-    }
-  }
-  const longPublish = page
-    .locator('div')
-    .filter({ has: page.getByText('Vídeos largos · 16:9', { exact: true }) })
-    .getByRole('link', { name: 'Publicar' });
-  const publishLinks = page.getByRole('link', { name: 'Publicar' });
-  const longPublishCount = await longPublish.count();
-  const publishCount = await publishLinks.count();
+  const found = populatedVisible
+    ? await findLongVideoPublishDoor(page)
+    : { door: null, inspected: [], openedRows: 0 };
+  const publishCount = await page.getByRole('link', { name: 'Publicar' }).count();
+  const longPublishCount = found.door ? 1 : 0;
   steps.push({
     id: 'publicar-hub',
-    action: 'expand partida rows and look for long-video Publicar',
+    action: 'open one partida at a time and look for Publicar in that row’s 16:9 column',
     result: {
       empty: emptyVisible,
       populated: populatedVisible,
-      expanded_rows: expandedRows,
+      expanded_rows: found.openedRows,
+      inspected_rows: found.inspected,
       long_publish_links: longPublishCount,
       publish_links: publishCount,
     },
@@ -969,7 +1001,7 @@ async function drivePublicarVideoLargo(page, origin, evidenceDir) {
   writeText(hubAriaPath, `${await ariaSnapshot(page)}\n`);
   await page.screenshot({ path: hubPngPath, fullPage: true });
 
-  const door = longPublishCount > 0 ? longPublish.first() : null;
+  const door = found.door;
   if (door) {
     const href = await door.getAttribute('href');
     await door.click();
