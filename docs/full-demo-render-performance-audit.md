@@ -241,6 +241,40 @@ No C++ rewrite is justified by these measurements. In the candidate, FFmpeg
 active intervals cover 416.682s of the 421.895s render timer; this is elapsed
 time evidence, not a Go CPU profile.
 
+## Concurrent video and audio pipelines (2026-09-17)
+
+Item NUTs muxed video and audio only by construction; the two graphs never
+exchange frames. Each timeline item is now rendered by a video-only and an
+audio-only FFmpeg process. Item audio is joined into its own lossless
+`full-demo-program-audio.nut`, and voice preparation, audio items and the whole
+mastering loop run alongside the item video encodes. The passing AAC candidate
+is still muxed once with the committed program video, measured again and
+published atomically. Loudness policy, candidate sequence, acceptance rules,
+encoder settings and evidence are unchanged.
+
+Replay of the same saved job and fixture as the paired render above, against the
+#192 candidate (`candidate-final`):
+
+| Metric | #192 candidate | Concurrent pipelines | Delta |
+| --- | ---: | ---: | ---: |
+| Post-recording wall | 425.348 s | 375.307 s | −50.042 s (−11.8 %) |
+| `RenderMS` | 421895 | 371656 | −50239 |
+| Items union | 133.046 s | 158.844 s | slower (shares the CPU with audio) |
+| Voice analysis union | 26.834 s | 58.252 s | slower (shares the CPU with items) |
+| Audio input analysis + candidates | 191.043 s | 235.381 s | slower per pass, but overlapped |
+
+Equivalence: the delivered MP4 is **byte-identical** (SHA-256
+`2b69b26322d2a9f56f7adf7ee1c68bd527a636b4aee391312404b1e8ca258fb8`,
+4,501,498,794 bytes), the program PCM digest is identical
+(`68baf2bace35ff3a660e5a5bbd61fbed5e913032dfd73a5652576e38942d407a`), and
+`program_loudness`, `track_levels`, `delivery` and `transitions` evidence are
+equal, including the 3 native + 2 Media Foundation attempt sequence.
+
+The gain is smaller than the sum of the removed serial time because every
+overlapped process is slower under contention: the audio branch is now the
+critical path (voices → audio items → mastering ≈ 314 s) and the video branch
+finishes well before it. Shortening the audio branch is the next lever.
+
 ## Frozen pre-implementation audit
 
 Everything below records the source baseline before the implementation above.
