@@ -275,6 +275,27 @@ overlapped process is slower under contention: the audio branch is now the
 critical path (voices → audio items → mastering ≈ 314 s) and the video branch
 finishes well before it. Shortening the audio branch is the next lever.
 
+### Speculative AAC recovery (2026-09-17)
+
+The Media Foundation recovery chain depends only on the first program
+measurement, never on the native masters. Once the first native master has been
+rejected, the chain now runs alongside the remaining native masters. Native
+masters keep precedence: the recovery result is consumed only after every native
+master failed, its attempts are folded into the evidence in the approved order,
+and it is cancelled and its candidate and logs removed as soon as a native
+master passes. A render whose first native master passes never starts it.
+
+Same replay, same fixture:
+
+| Metric | #192 candidate | Concurrent pipelines | + speculative recovery |
+| --- | ---: | ---: | ---: |
+| Post-recording wall | 425.348 s | 375.307 s | 319.797 s (−24.8 % vs #192) |
+
+The delivered MP4 is again byte-identical (SHA-256 `2b69b263…58fb8`), all
+loudness, track-level, delivery and transition evidence is equal, the attempt
+sequence is still 3 native + 2 Media Foundation, the log file set is identical
+and every timing span is `ok`.
+
 ## Frozen pre-implementation audit
 
 Everything below records the source baseline before the implementation above.

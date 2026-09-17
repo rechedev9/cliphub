@@ -130,6 +130,14 @@ func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video
 		e.Status = "silent"
 		return e, fmt.Errorf("audio_silent: the program has no measurable audio; approve a muted program or correct its sources")
 	}
+	// Once the first native master has failed, the recovery chain runs alongside
+	// the remaining native masters instead of after them.
+	var recovery *fullDemoAACRecoverySpeculation
+	defer func() {
+		if recovery != nil {
+			recovery.discard()
+		}
+	}()
 	attemptTarget := target
 	masterSamples := int64(math.Round(duration * recapplan.SampleRate))
 	// Reserve a small initial headroom for lossy AAC reconstruction.
@@ -172,6 +180,10 @@ func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video
 			return e, err
 		}
 		if accepted {
+			if recovery != nil {
+				recovery.discard()
+				recovery = nil
+			}
 			program, err := video(ctx)
 			if err != nil {
 				candidateCleanup()
@@ -182,6 +194,9 @@ func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video
 			return result, err
 		}
 		candidateCleanup()
+		if recovery == nil {
+			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, e.Input)
+		}
 		next, changed := nextMasterTarget(attemptTarget, target, decoded)
 		if !changed {
 			// loudnorm cannot be pushed any further; another native master
@@ -190,7 +205,12 @@ func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video
 		}
 		attemptTarget = next
 	}
-	return recoverFullDemoAAC(ctx, ffmpeg, input, video, output, logDir, target, duration, e, fallbackProgress)
+	// Every path out of the loop has rejected at least one native master, so the
+	// recovery chain is already running.
+	fallbackProgress.report("Recuperando audio final", 0)
+	result := recovery.wait()
+	recovery = nil
+	return finishFullDemoAACRecovery(ctx, ffmpeg, video, output, logDir, target, duration, e, result, fallbackProgress)
 }
 
 // loudnorm rejects targets outside these ranges, so retargeting must stay
