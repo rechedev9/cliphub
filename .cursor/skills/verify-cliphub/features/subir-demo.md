@@ -33,6 +33,6 @@ Preconditions:
 
 - The live tab title is `Cargar demo`, not `Cargar demo · ClipHub`. `goto` still accepts the page because the brand lockup is present.
 - The `/clips/nueva` back link visible name is still `Demos y vídeos` (href `/clips`). The rail and the produce-page back link say `Clips y vídeos`. Name the live string; do not "fix" it in product from this skill.
-- Scan, roster, and `Continuar al Short` / `Continuar al vídeo largo` need orchestrator routes. Without them, stop after the dropzone is enabled. Do not invent a roster. The accessible file chooser `Elegir demos de CS2` enables after hydration; a disabled snapshot is the pre-hydration first paint, not the offline product state. The Short roster also offers `Preparar vídeo largo` as a destination switch.
+- Scan, roster, and `Continuar al Short` / `Continuar al vídeo largo` need orchestrator routes. Without them, stop after the dropzone is enabled. Do not invent a roster. The accessible file chooser `Elegir demos de CS2` enables after hydration; a disabled snapshot is the pre-hydration first paint, not the offline product state. `/clips/nueva` sets `allowDestinationSwitch={false}`: the Short roster does **not** offer `Preparar vídeo largo`. That string is the parsed-partida hub link, not a roster switch. `web/e2e/upload-roster.spec.ts` asserts the button count is 0.
 - `?job=` resumes a scanned partida. It is not an upload.
 - This path can open the Short constructor. It cannot recertify 9:16 capture on Cloud Linux.

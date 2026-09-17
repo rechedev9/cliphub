@@ -1,0 +1,38 @@
+{
+  "schema_version": 3,
+  "ok": true,
+  "closed": false,
+  "executed": true,
+  "feature": {
+    "id": "publicar-video-largo",
+    "title": "Publicar vídeo largo",
+    "route": "/clips",
+    "nav_label": "Clips y vídeos",
+    "requires_hlae_cs2": false,
+    "requires_windows_studio": false,
+    "cheap_proof": "route /clips; open Publicar on a finished long video for Plantillas para vídeo largo",
+    "probe_path": "/api/demos/jobs",
+    "catalog_valid": true,
+    "cheap_ok": true,
+    "user_path": "unproven"
+  },
+  "drive": {
+    "feature_id": "publicar-video-largo",
+    "route": "/clips",
+    "nav_label": "Clips y vídeos"
+  },
+  "studio": {
+    "user_data_dir": "",
+    "ports_path": "",
+    "jobs_db_path": "",
+    "ports_present": false,
+    "jobs_db_present": false,
+    "healthz": {
+      "ok": false,
+      "status": "",
+      "url": "",
+      "http_status": 0
+    }
+  },
+  "detail": "cheap proof only: compiled feature catalog is valid. Studio API not live. A user-path walk remains unproven."
+}
