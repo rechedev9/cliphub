@@ -1,0 +1,297 @@
+package editor
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/recapplan"
+)
+
+// prepareFullDemoCompilation prepares both halves of the program: the video
+// items with their concat list, and the mixed lossless program audio. The two
+// branches share no data, so they run concurrently; the first error cancels the
+// other. Production additionally masters the audio inside the audio branch (see
+// renderFullDemoProgram); this staged form stops before assembly and mastering.
+func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
+	if short.fullDemo == nil {
+		return nil
+	}
+	if err := prepareFullDemoTransitions(ctx, short); err != nil {
+		return err
+	}
+	branches := newFullDemoBranchProgress(progress)
+	// The audio branch works on its own copy of the short: the video branch
+	// rebuilds short.FFmpegCommand, and both share only the render context and
+	// evidence pointers, where they touch disjoint fields.
+	audioShort := *short
+	return runFullDemoBranches(ctx,
+		func(ctx context.Context) error { return prepareFullDemoVideoItems(ctx, short, branches.video()) },
+		func(ctx context.Context) error { return prepareFullDemoProgramAudio(ctx, &audioShort, branches.audio()) },
+	)
+}
+
+// runFullDemoBranches runs the independent video and audio branches under one
+// cancellation scope and returns the first real failure, not the cancellation it
+// caused in the other branch.
+func runFullDemoBranches(ctx context.Context, video, audio func(context.Context) error) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var (
+		once     sync.Once
+		firstErr error
+	)
+	fail := func(err error) {
+		if err != nil {
+			once.Do(func() {
+				firstErr = err
+				cancel()
+			})
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fail(video(ctx))
+	}()
+	fail(audio(ctx))
+	<-done
+	return firstErr
+}
+
+// fullDemoBranchProgress folds the concurrent video and audio branches into one
+// monotonic fraction. Each branch owns half of the range; the stage text follows
+// whichever branch reported last.
+type fullDemoBranchProgress struct {
+	mu        sync.Mutex
+	parent    fullDemoProgress
+	fractions [2]float64
+	reported  float64
+}
+
+func newFullDemoBranchProgress(parent fullDemoProgress) *fullDemoBranchProgress {
+	return &fullDemoBranchProgress{parent: parent}
+}
+
+func (p *fullDemoBranchProgress) video() fullDemoProgress { return p.branch(0) }
+func (p *fullDemoBranchProgress) audio() fullDemoProgress { return p.branch(1) }
+
+func (p *fullDemoBranchProgress) branch(index int) fullDemoProgress {
+	if p.parent == nil {
+		return nil
+	}
+	return func(stage string, fraction float64) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.fractions[index] = max(p.fractions[index], min(1, max(0, fraction)))
+		p.reported = max(p.reported, (p.fractions[0]+p.fractions[1])/2)
+		p.parent(stage, p.reported)
+	}
+}
+
+// prepareFullDemoVideoItems encodes every timeline item's video and writes the
+// program concat list. It needs neither voice tracks nor mixed audio.
+func prepareFullDemoVideoItems(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
+	paths, err := runFullDemoItemPool(ctx, *short, fullDemoItemVideoOnly, progress)
+	if err != nil {
+		return err
+	}
+	short.fullDemo.preparedInputs = paths
+	if err := writeFullDemoItemConcatList(*short, fullDemoConcatListPath(*short), paths); err != nil {
+		return err
+	}
+	// The program command was built before preparation against the raw-part
+	// list. Rebuild it now that the prepared item list is in place, so the
+	// item/program overlay decision comes from the same plan and the copy path
+	// never runs over unprepared parts.
+	short.FFmpegCommand = BuildFFmpegCommand(short.fullDemo.ffmpeg, *short)
+	return nil
+}
+
+// prepareFullDemoProgramAudio prepares the voice buses, mixes every timeline
+// item's audio and joins the items into the lossless program audio that owns
+// mastering. Generated buses and item audio are released as soon as the program
+// audio is committed.
+func prepareFullDemoProgramAudio(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
+	if err := prepareFullDemoTracks(ctx, short, progress.within(0, .6)); err != nil {
+		return err
+	}
+	paths, err := runFullDemoItemPool(ctx, *short, fullDemoItemAudioOnly, progress.within(.6, .9))
+	if err != nil {
+		return err
+	}
+	if err := releaseFullDemoAudio(*short); err != nil {
+		return err
+	}
+	list := filepath.Join(short.fullDemo.workDir, "concat-audio-list.txt")
+	if err := writeFullDemoItemConcatList(*short, list, paths); err != nil {
+		return err
+	}
+	timeline := short.FullDemo.Effective.Timeline
+	duration := float64(timeline[len(timeline)-1].EndFrame) / recapplan.OutputFPS
+	destination := fullDemoProgramAudioPath(*short)
+	command := buildFullDemoProgramAudioCommand(short.fullDemo.ffmpeg, list, destination)
+	if err := runFFmpegAtomicWithProgress(fullDemoTimingScope(ctx, "audio_assembly", -1, -1, duration), command, "Full Demo program audio", filepath.Join(short.fullDemo.workDir, "program-audio.log"), destination, duration, progress.pass("Ensamblando audio completo", .9, 1)); err != nil {
+		return err
+	}
+	return removeFullDemoTemporaryFiles(short.fullDemo.workDir, append(paths, list))
+}
+
+// buildFullDemoProgramAudioCommand joins the prepared item audio into the
+// program audio. PCM remains lossless until the full-program master.
+func buildFullDemoProgramAudioCommand(ffmpeg, list, destination string) []string {
+	return []string{ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list, "-map", "0:a:0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", destination}
+}
+
+func writeFullDemoItemConcatList(short ShortEdit, listPath string, paths []string) error {
+	var list strings.Builder
+	list.WriteString("ffconcat version 1.0\n")
+	for i, path := range paths {
+		item := short.FullDemo.Effective.Timeline[i]
+		list.WriteString(composition.ConcatFileLine(path))
+		// NUT's last packet timestamp is not the duration of a complete CFR
+		// interval. Declare the canonical duration so concat never loses one
+		// frame at each join or advances the next audio bus too early.
+		fmt.Fprintf(&list, "duration %.9f\n", float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS)
+	}
+	return os.WriteFile(listPath, []byte(list.String()), 0600)
+}
+
+// runFullDemoItemPool renders one stream kind of every timeline item in a
+// bounded worker pool and returns the committed paths in timeline order.
+func runFullDemoItemPool(ctx context.Context, short ShortEdit, streams fullDemoItemStreams, progress fullDemoProgress) ([]string, error) {
+	pattern, timingStage, label, stageText := "item-%03d", "items", "Full Demo timeline item", "Montando corte %d de %d"
+	if streams == fullDemoItemAudioOnly {
+		pattern, timingStage, label, stageText = "item-%03d-audio", "items_audio", "Full Demo timeline item audio", "Mezclando corte %d de %d"
+	}
+	// Item video no longer waits for voice preparation to create the directory.
+	if err := os.MkdirAll(short.fullDemo.workDir, 0700); err != nil {
+		return nil, err
+	}
+	timeline := short.FullDemo.Effective.Timeline
+	paths := make([]string, len(timeline))
+	tracker := &fullDemoItemProgress{
+		fractions: make([]float64, len(timeline)),
+		done:      make([]bool, len(timeline)),
+		weights:   make([]float64, len(timeline)),
+		total:     float64(timeline[len(timeline)-1].EndFrame),
+		progress:  progress,
+	}
+	for i, item := range timeline {
+		tracker.weights[i] = float64(item.EndFrame - item.StartFrame)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var (
+		wg       sync.WaitGroup
+		once     sync.Once
+		firstErr error
+	)
+	sem := make(chan struct{}, fullDemoItemJobs())
+	for i, item := range timeline {
+		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf(pattern+".nut", i))
+		command, err := fullDemoItemStreamCommand(short, item, path, streams)
+		if err != nil {
+			cancel()
+			wg.Wait()
+			return nil, err
+		}
+		paths[i] = path
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, item recapplan.TimelineItem, command []string, path string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			stage := fmt.Sprintf(stageText, i+1, len(timeline))
+			onFraction := func(fraction float64) { tracker.set(i, stage, fraction) }
+			duration := float64(item.EndFrame-item.StartFrame) / recapplan.OutputFPS
+			itemCtx := fullDemoTimingScope(ctx, timingStage, i, -1, duration)
+			if err := runFFmpegAtomicWithProgress(itemCtx, command, label, filepath.Join(short.fullDemo.workDir, fmt.Sprintf(pattern+".log", i)), path, duration, onFraction); err != nil {
+				once.Do(func() {
+					firstErr = err
+					cancel()
+				})
+				return
+			}
+			tracker.markDone(i, stage)
+		}(i, item, command, path)
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+// renderFullDemoProgram renders the program video and masters the program
+// audio concurrently, then muxes the passing AAC candidate with the committed
+// video. Video items start immediately instead of waiting for voice
+// preparation, and every loudness pass and AAC candidate overlaps the item
+// encodes instead of following them. The candidate sequence, acceptance rules
+// and evidence are those of masterFullDemoSplitProgram, unchanged. The returned
+// evidence is nil when the render failed before mastering started.
+func (p *shortPackRenderer) renderFullDemoProgram(ctx context.Context, i int, short *ShortEdit, duration float64, progress fullDemoProgress) (*ProgramLoudnessEvidence, error) {
+	if err := prepareFullDemoTransitions(ctx, short); err != nil {
+		return nil, err
+	}
+	branches := newFullDemoBranchProgress(progress)
+	program := fullDemoProgramPath(*short)
+	ready := make(chan struct{})
+	var videoErr error
+	video := func(ctx context.Context) error {
+		defer close(ready)
+		videoErr = func() error {
+			progress := branches.video()
+			if err := prepareFullDemoVideoItems(ctx, short, progress.within(0, .9)); err != nil {
+				return err
+			}
+			// Preparation can rebuild short.FFmpegCommand (Full Demo overlay
+			// consolidation switches the program to a video copy path). The result
+			// clone was taken before preparation, so refresh it before assembly:
+			// otherwise shorts-result.json and reuse validation would report a
+			// legacy re-encode that never ran, including when assembly later fails.
+			p.copyPreparedCommand(i, short)
+			if err := runFFmpegAtomicWithProgress(fullDemoTimingScope(ctx, "assembly", i, -1, duration), short.FFmpegCommand, "short edit", short.RenderLogPath, program, duration, progress.pass("Ensamblando vídeo completo", .9, 1)); err != nil {
+				return err
+			}
+			return releaseFullDemoItems(*short)
+		}()
+		return videoErr
+	}
+	committedVideo := func(ctx context.Context) (string, error) {
+		select {
+		case <-ready:
+			return program, videoErr
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	// The audio branch works on its own copy of the short: the video branch
+	// rebuilds short.FFmpegCommand, and both share only the render context and
+	// evidence pointers, where they touch disjoint fields.
+	audioShort := *short
+	var evidence *ProgramLoudnessEvidence
+	audio := func(ctx context.Context) error {
+		progress := branches.audio()
+		if err := prepareFullDemoProgramAudio(ctx, &audioShort, progress.within(0, .25)); err != nil {
+			return err
+		}
+		options := audioShort.FullDemo.Effective.Options
+		silentApproved := options.Audio.Game.Gain == 0 && (!options.Audio.Voice.Enabled || options.Audio.Voice.Gain == 0) && !options.Audio.Music.Enabled && !options.Sponsor.Enabled && !audioShort.FullDemo.Effective.HasTransitionSFX()
+		mastered, err := masterFullDemoSplitProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, duration), audioShort.fullDemo.ffmpeg, fullDemoProgramAudioPath(audioShort), committedVideo, audioShort.Output, filepath.Join(p.opts.OutputDir, "logs"), options.Audio.Loudness, silentApproved, duration, progress.within(.25, 1))
+		evidence = &mastered
+		return err
+	}
+	err := runFullDemoBranches(ctx, video, audio)
+	return evidence, err
+}

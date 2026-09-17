@@ -103,6 +103,21 @@ func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessM
 // acceptance, and the original three attempts precede a bounded Windows AAC
 // recovery.
 func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+	return masterFullDemoSplitProgram(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, logDir, target, silentApproved, duration, progress)
+}
+
+// fullDemoProgramVideo resolves the committed program video for the final mux.
+// Mastering only reads audio, so it may run while the video is still being
+// encoded; it blocks here only once a candidate has already passed.
+type fullDemoProgramVideo func(context.Context) (string, error)
+
+func committedFullDemoProgramVideo(path string) fullDemoProgramVideo {
+	return func(context.Context) (string, error) { return path, nil }
+}
+
+// masterFullDemoSplitProgram masters input, the lossless program audio, and
+// muxes the passing candidate with the separately produced program video.
+func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
 	fallbackProgress := progress.within(.65, 1)
 	progress = progress.within(0, .65)
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
@@ -157,7 +172,12 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 			return e, err
 		}
 		if accepted {
-			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, candidate, output, logDir, target, silentApproved, duration, e, progress.pass("Publicando el audio final", .85, .99))
+			program, err := video(ctx)
+			if err != nil {
+				candidateCleanup()
+				return e, err
+			}
+			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, program, candidate, output, logDir, target, silentApproved, duration, e, progress.pass("Publicando el audio final", .85, .99))
 			candidateCleanup()
 			return result, err
 		}
@@ -170,7 +190,7 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 		}
 		attemptTarget = next
 	}
-	return recoverFullDemoAAC(ctx, ffmpeg, input, output, logDir, target, duration, e, fallbackProgress)
+	return recoverFullDemoAAC(ctx, ffmpeg, input, video, output, logDir, target, duration, e, fallbackProgress)
 }
 
 // loudnorm rejects targets outside these ranges, so retargeting must stay

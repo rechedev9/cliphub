@@ -51,7 +51,7 @@ func (m ProgramAACFallbackMaster) corrected(decoded LoudnessMeasurement, target 
 	return m
 }
 
-func recoverFullDemoAAC(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+func recoverFullDemoAAC(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
 	if !hasMediaFoundationAAC(ctx, ffmpeg) {
 		if err := ctx.Err(); err != nil {
 			return e, err
@@ -103,7 +103,12 @@ func recoverFullDemoAAC(ctx context.Context, ffmpeg, input, output, logDir strin
 			return e, err
 		}
 		if accepted {
-			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
+			program, err := video(ctx)
+			if err != nil {
+				candidateCleanup()
+				return e, err
+			}
+			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, program, candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
 			candidateCleanup()
 			return result, err
 		}

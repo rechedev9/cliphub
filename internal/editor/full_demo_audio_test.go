@@ -126,7 +126,7 @@ func TestFullDemoAACRecoveryKeepsDecodedAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	var last float64
-	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, Status: "unverified"}, func(_ string, fraction float64) {
+	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, Status: "unverified"}, func(_ string, fraction float64) {
 		if fraction < last || fraction >= 1 {
 			t.Errorf("invalid recovery progress: %f after %f", fraction, last)
 		}
@@ -231,7 +231,7 @@ func TestFullDemoAACRecoveryUnavailableDoesNotAcceptFailedAudio(t *testing.T) {
 	dir := t.TempDir()
 	low, peak := -19.81, -.26
 	failed := ProgramLoudnessEvidence{Status: "unverified", DecodedAAC: []LoudnessMeasurement{{Status: "measured", IntegratedLUFS: &low, TruePeakDBTP: &peak}}}
-	evidence, err := recoverFullDemoAAC(context.Background(), filepath.Join(dir, "missing-ffmpeg.exe"), "input.nut", "output.mp4", dir, recapplan.DefaultOptions().Audio.Loudness, 4, failed, nil)
+	evidence, err := recoverFullDemoAAC(context.Background(), filepath.Join(dir, "missing-ffmpeg.exe"), "input.nut", committedFullDemoProgramVideo("input.nut"), "output.mp4", dir, recapplan.DefaultOptions().Audio.Loudness, 4, failed, nil)
 	if err == nil || !strings.Contains(err.Error(), "audio_loudness_failed:") || !strings.Contains(err.Error(), "-19.81 LUFS / -0.26 dBTP") || evidence.Status != "unverified" || len(evidence.FallbackMasters) != 0 {
 		t.Fatalf("unavailable encoder bypassed failure or lost measurements: %+v, %v", evidence, err)
 	}

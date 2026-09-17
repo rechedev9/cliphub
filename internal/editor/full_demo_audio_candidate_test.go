@@ -439,7 +439,7 @@ func TestFullDemoAudioOnlyRecoveryPreservesVideoAndClock(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := filepath.Join(dir, "final.mp4")
-	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, MasterTargets: []recapplan.LoudnessOptions{}, DecodedAAC: []LoudnessMeasurement{}, Status: "unverified"}, nil)
+	evidence, err := recoverFullDemoAAC(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, filepath.Join(dir, "logs"), target, duration, ProgramLoudnessEvidence{Policy: target.PolicyVersion, Input: first, MasterTargets: []recapplan.LoudnessOptions{}, DecodedAAC: []LoudnessMeasurement{}, Status: "unverified"}, nil)
 	if err != nil {
 		t.Fatalf("recovery: %v; evidence: %+v", err, evidence)
 	}

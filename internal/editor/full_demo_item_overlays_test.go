@@ -155,8 +155,10 @@ func TestFullDemoProgramCommandCopiesOnlyPreparedItemOverlays(t *testing.T) {
 	if strings.Contains(preparedJoined, filepath.Join(dir, "intro.png")) || strings.Contains(preparedJoined, filepath.Join(dir, "outro.png")) {
 		t.Fatalf("prepared program command still opened overlay stills:\n%s", preparedJoined)
 	}
-	if !strings.Contains(preparedJoined, "-c:a pcm_f32le") {
-		t.Fatalf("prepared program command lost lossless PCM audio:\n%s", preparedJoined)
+	// Item audio is joined separately into the program audio; the program
+	// video must not map or encode any audio.
+	if strings.Contains(preparedJoined, "-c:a") || strings.Contains(preparedJoined, "0:a:0") {
+		t.Fatalf("prepared program command still carries audio:\n%s", preparedJoined)
 	}
 	if !containsArg(prepared, fullDemoProgramPath(short)) {
 		t.Fatalf("prepared program command output = %v", prepared)

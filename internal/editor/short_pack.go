@@ -205,37 +205,20 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				p.encode.setStageFraction(i, stage, fraction)
 			}
 		}
-		if err := prepareFullDemoCompilation(ctx, short, fullProgress.within(0, .65)); err != nil {
-			return err
-		}
-		// Preparation can rebuild short.FFmpegCommand (Full Demo overlay
-		// consolidation switches the program to a video copy path). The result
-		// clone was taken before preparation, so refresh it before assembly:
-		// otherwise shorts-result.json and reuse validation would report a legacy
-		// re-encode that never ran, including when assembly later fails.
-		p.copyPreparedCommand(i, short)
 		expectedDuration := expectedShortDuration(*short)
-		var onFraction func(float64)
-		if p.encode != nil {
-			onFraction = func(fraction float64) {
-				p.encode.setFraction(i, fraction)
-			}
-		}
-		destination := short.Output
+		var err error
 		if short.FullDemo != nil {
-			destination = fullDemoProgramPath(*short)
-			onFraction = fullProgress.pass("Ensamblando vídeo completo", .65, .82)
+			short.FullDemo.ProgramLoudness, err = p.renderFullDemoProgram(ctx, i, short, expectedDuration, fullProgress.within(0, .94))
+		} else {
+			var onFraction func(float64)
+			if p.encode != nil {
+				onFraction = func(fraction float64) {
+					p.encode.setFraction(i, fraction)
+				}
+			}
+			err = runFFmpegAtomicWithProgress(ctx, short.FFmpegCommand, "short edit", short.RenderLogPath, short.Output, expectedDuration, onFraction)
 		}
-		err := runFFmpegAtomicWithProgress(fullDemoTimingScope(ctx, "assembly", i, -1, expectedDuration), short.FFmpegCommand, "short edit", short.RenderLogPath, destination, expectedDuration, onFraction)
-		if err == nil && short.FullDemo != nil {
-			err = releaseFullDemoItems(*short)
-		}
-		if err == nil && short.FullDemo != nil {
-			audio := short.FullDemo.Effective.Options.Audio
-			silentApproved := audio.Game.Gain == 0 && (!audio.Voice.Enabled || audio.Voice.Gain == 0) && !audio.Music.Enabled && !short.FullDemo.Effective.Options.Sponsor.Enabled && !short.FullDemo.Effective.HasTransitionSFX()
-			var evidence ProgramLoudnessEvidence
-			evidence, err = masterFullDemoProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, expectedDuration), short.fullDemo.ffmpeg, destination, short.Output, filepath.Join(p.opts.OutputDir, "logs"), audio.Loudness, silentApproved, expectedDuration, fullProgress.within(.82, .94))
-			short.FullDemo.ProgramLoudness = &evidence
+		if short.FullDemo != nil {
 			if err == nil {
 				var diagnostics *fullDemoDeliveryDiagnostics
 				if overlappedQC != nil && len(short.QualityCommand) > 0 {
@@ -270,7 +253,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				err = short.FullDemo.ValidateCompleted()
 			}
 			if err == nil {
-				err = removeFullDemoTemporaryFiles(filepath.Dir(destination), []string{destination})
+				err = removeFullDemoTemporaryFiles(filepath.Dir(short.Output), []string{fullDemoProgramPath(*short), fullDemoProgramAudioPath(*short)})
 			}
 		}
 		performance.RenderMS = time.Since(started).Milliseconds()

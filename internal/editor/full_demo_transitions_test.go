@@ -205,6 +205,77 @@ func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	dir := t.TempDir()
+	short, document, options := fullDemoTransitionCanaryShort(t, ctx, ffmpeg, dir)
+	frames := document.Timeline[len(document.Timeline)-1].EndFrame
+	if err := prepareFullDemoCompilation(ctx, &short, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(short.FullDemo.Transitions) != 2 {
+		t.Fatalf("transitions on ad boundaries: %+v", short.FullDemo.Transitions)
+	}
+	if _, err := runFFmpegOutput(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "transition concat"); err != nil {
+		t.Fatal(err)
+	}
+	program, programAudio := fullDemoProgramPath(short), fullDemoProgramAudioPath(short)
+	for _, cut := range []float64{121.0 / 60, 423.0 / 60} {
+		pcm := fullDemoReadAudio(t, ctx, ffmpeg, programAudio, cut+.12, .1)
+		if fullDemoFrequencyPower(pcm, 880) < fullDemoFrequencyPower(pcm, 1320)*100 {
+			t.Fatal("original comms after cut did not enter the next round")
+		}
+		later := fullDemoReadAudio(t, ctx, ffmpeg, programAudio, cut+.8, .1)
+		if fullDemoFrequencyPower(later, 880) > fullDemoFrequencyPower(pcm, 880)*.001 {
+			t.Fatal("comms exceeded approved tail")
+		}
+	}
+	adAudio := fullDemoReadAudio(t, ctx, ffmpeg, programAudio, 242.0/60+.1, .1)
+	if fullDemoFrequencyPower(adAudio, 660) < fullDemoFrequencyPower(adAudio, 880)*100 {
+		t.Fatal("comms entered the ad")
+	}
+	loudness, err := masterFullDemoSplitProgram(ctx, ffmpeg, programAudio, committedFullDemoProgramVideo(program), short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false, short.DurationSeconds, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	short.FullDemo.ProgramLoudness = &loudness
+	ffprobe, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, short.Output, frames, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := short.FullDemo.ValidateCompleted(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(document.Timeline, short.FullDemo.Effective.Timeline) {
+		t.Fatal("render changed canonical timeline")
+	}
+	if root := os.Getenv("FULL_DEMO_EVIDENCE_DIR"); root != "" {
+		if err := os.MkdirAll(root, 0700); err != nil {
+			t.Fatal(err)
+		}
+		body, err := os.ReadFile(short.Output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "transitions-synthetic-canary.mp4"), body, 0600); err != nil {
+			t.Fatal(err)
+		}
+		body, err = json.MarshalIndent(short.FullDemo, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "transitions-synthetic-canary.json"), body, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// fullDemoTransitionCanaryShort builds four synthetic rounds with a sponsor on
+// a round boundary, one team-voice track, comms tails and every transition
+// effect, so both the video and the audio graph of an item are exercised.
+func fullDemoTransitionCanaryShort(t *testing.T, ctx context.Context, ffmpeg, dir string) (ShortEdit, recapplan.Document, recapplan.Options) {
+	t.Helper()
 	makeMedia := func(name, video, audio string, seconds float64) string {
 		t.Helper()
 		path := filepath.Join(dir, name+".nut")
@@ -261,66 +332,5 @@ func TestFullDemoTransitionProgramMediaCanary(t *testing.T) {
 		FullDemo: &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: approval, Effective: document},
 		fullDemo: &fullDemoRenderContext{execution: execution, recording: recording.RecordingResult{Plan: recording.RecordingPlan{Tickrate: 64, DemoDurationTicks: 1280, Segments: segments}}, ffmpeg: ffmpeg, workDir: filepath.Join(dir, "prepared")},
 	}
-	if err := prepareFullDemoCompilation(ctx, &short, nil); err != nil {
-		t.Fatal(err)
-	}
-	if len(short.FullDemo.Transitions) != 2 {
-		t.Fatalf("transitions on ad boundaries: %+v", short.FullDemo.Transitions)
-	}
-	if _, err := runFFmpegOutput(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "transition concat"); err != nil {
-		t.Fatal(err)
-	}
-	program := fullDemoProgramPath(short)
-	for _, cut := range []float64{121.0 / 60, 423.0 / 60} {
-		pcm := fullDemoReadAudio(t, ctx, ffmpeg, program, cut+.12, .1)
-		if fullDemoFrequencyPower(pcm, 880) < fullDemoFrequencyPower(pcm, 1320)*100 {
-			t.Fatal("original comms after cut did not enter the next round")
-		}
-		later := fullDemoReadAudio(t, ctx, ffmpeg, program, cut+.8, .1)
-		if fullDemoFrequencyPower(later, 880) > fullDemoFrequencyPower(pcm, 880)*.001 {
-			t.Fatal("comms exceeded approved tail")
-		}
-	}
-	adAudio := fullDemoReadAudio(t, ctx, ffmpeg, program, 242.0/60+.1, .1)
-	if fullDemoFrequencyPower(adAudio, 660) < fullDemoFrequencyPower(adAudio, 880)*100 {
-		t.Fatal("comms entered the ad")
-	}
-	loudness, err := masterFullDemoProgram(ctx, ffmpeg, program, short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false, short.DurationSeconds, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	short.FullDemo.ProgramLoudness = &loudness
-	ffprobe, err := exec.LookPath("ffprobe")
-	if err != nil {
-		t.Fatal(err)
-	}
-	short.FullDemo.Delivery, err = verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, short.Output, frames, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := short.FullDemo.ValidateCompleted(); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(document.Timeline, short.FullDemo.Effective.Timeline) {
-		t.Fatal("render changed canonical timeline")
-	}
-	if root := os.Getenv("FULL_DEMO_EVIDENCE_DIR"); root != "" {
-		if err := os.MkdirAll(root, 0700); err != nil {
-			t.Fatal(err)
-		}
-		body, err := os.ReadFile(short.Output)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "transitions-synthetic-canary.mp4"), body, 0600); err != nil {
-			t.Fatal(err)
-		}
-		body, err = json.MarshalIndent(short.FullDemo, "", "  ")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "transitions-synthetic-canary.json"), body, 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	return short, document, options
 }
