@@ -79,7 +79,8 @@ Stable handles from the live UI and `web/e2e`:
 - Brand lockup: link `Ir a Clips y vídeos` (visible text `ClipHub`)
 - Hub empty region: `section[aria-label="¿Qué quieres crear?"]`
 - Creation cards: links named `Crear Short`, `Crear vídeo largo`, `Recortar un stream`
-- Parsed-partida Full door: link `Preparar vídeo largo` (the format-bar label `Vídeo largo 16:9` is on `/clips/nueva` and `/clips/<id>/nuevo`)
+- Parsed-partida Full door: link `Preparar vídeo largo` (the format-bar button `Vídeo largo 16:9` is on `/clips/nueva` and `/clips/<id>/nuevo`; the Short roster does not switch destination)
+- Produce Sonido (after a parsed POV): toggle `Incluir voces del equipo` and gain sliders `Juego` / `Voces`
 - Upload file input: `input[type="file"]` named `Elegir demos de CS2` on `/clips/nueva`
 - Stream URL field: textbox `Enlace del vídeo de Twitch, YouTube o Kick`
 - Players rail: link `Jugadores FACEIT`
