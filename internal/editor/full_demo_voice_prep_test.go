@@ -173,8 +173,8 @@ func TestFullDemoVoiceJobsIsBoundedAndCPUAware(t *testing.T) {
 	}
 	for _, count := range []int{2, 3, 5, 20} {
 		jobs := fullDemoVoiceJobs(count)
-		if jobs < 1 || jobs > 3 || jobs > count {
-			t.Fatalf("jobs for %d tracks = %d, want 1..min(3, count)", count, jobs)
+		if jobs < 1 || jobs > fullDemoVoiceJobsMax || jobs > count {
+			t.Fatalf("jobs for %d tracks = %d, want 1..min(%d, count)", count, jobs, fullDemoVoiceJobsMax)
 		}
 		if jobs > runtime.NumCPU() {
 			t.Fatalf("jobs for %d tracks = %d, above %d CPUs", count, jobs, runtime.NumCPU())

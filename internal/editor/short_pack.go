@@ -49,6 +49,10 @@ type shortPackRenderer struct {
 	opts     shortPackOptions
 	previous *Result
 	encode   *encodeProgressState
+	// timing records the per-short, per-stage intervals the render already
+	// measures. It is evidence only: nothing about scheduling, the pool size or
+	// when a render job slot is released depends on it.
+	timing *shortPackTimingCollector
 	// shortMu guards p.result.Shorts[i]/p.manifest.Shorts[i] for each short
 	// index i: renderOne's publish/quality/cover goroutines can write
 	// different fields of the same struct concurrently, which the race
@@ -83,6 +87,7 @@ func (p *shortPackRenderer) render(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	p.shortMu = make([]sync.Mutex, len(p.manifest.Shorts))
+	p.timing = newShortPackTimingCollector(len(p.manifest.Shorts))
 
 	// Each short writes only its own index in result.Shorts/manifest.Shorts;
 	// warnings are collected per short and merged in segment order afterwards
@@ -100,8 +105,16 @@ func (p *shortPackRenderer) render(ctx context.Context) error {
 		}
 		wg.Add(1)
 		sem <- struct{}{}
+		// The pool granted the slot here and the goroutine below releases it;
+		// both moments are recorded so slot occupancy is measured rather than
+		// inferred. Scheduling, pool size and release point are unchanged.
+		p.timing.beginSlot(i)
 		go func(i int) {
 			defer wg.Done()
+			// Registered before the release defer, so it runs after it (defers
+			// are LIFO) and the recorded occupancy covers the whole time this
+			// short held the slot.
+			defer p.snapshotTiming(i)
 			defer func() { <-sem }()
 			if err := p.renderOne(ctx, i, &warnings[i]); err != nil {
 				once.Do(func() {
@@ -256,7 +269,11 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				err = removeFullDemoTemporaryFiles(filepath.Dir(short.Output), []string{fullDemoProgramPath(*short), fullDemoProgramAudioPath(*short)})
 			}
 		}
-		performance.RenderMS = time.Since(started).Milliseconds()
+		// The encode span is exactly the interval RenderMS reports: one clock
+		// read serves both, so the evidence can never disagree with the counter.
+		finished := time.Now()
+		performance.RenderMS = finished.Sub(started).Milliseconds()
+		p.timing.record(ctx, i, shortPackStageEncode, "", started, finished, err)
 		if err != nil {
 			return err
 		}
@@ -266,7 +283,9 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 	}
 	probeStarted := time.Now()
 	artifact := p.probeArtifact(ctx, short.SegmentID, "short", "video", short.Output)
-	performance.ProbeMS = time.Since(probeStarted).Milliseconds()
+	probeFinished := time.Now()
+	performance.ProbeMS = probeFinished.Sub(probeStarted).Milliseconds()
+	p.timing.recordOutcome(i, shortPackStageProbe, shortPackProbeOutput, probeStarted, probeFinished, artifactProbeOutcome(artifact))
 	performance.OutputBytes = artifact.SizeBytes
 	performance.MediaDurationSeconds = artifact.DurationSeconds
 	if performance.MediaDurationSeconds <= 0 {
@@ -288,7 +307,10 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 // that artifact and just repoints it at the publish path and role instead of
 // spawning another ffprobe process.
 func (p *shortPackRenderer) publishShort(ctx context.Context, i int, short *ShortEdit, warn *[]string) error {
-	if err := publishShort(*short); err != nil {
+	started := time.Now()
+	err := publishShort(*short)
+	p.timing.record(ctx, i, shortPackStagePublish, "", started, time.Now(), err)
+	if err != nil {
 		return err
 	}
 	p.shortMu[i].Lock()
@@ -326,9 +348,11 @@ func (p *shortPackRenderer) runQualityCheck(ctx context.Context, i int, short *S
 	}
 	started := time.Now()
 	output, err := runFFmpegOutput(ctx, short.QualityCommand, "quality check")
+	finished := time.Now()
 	p.updatePerformance(i, func(performance *RenderPerformance) {
-		performance.QualityCheckMS = time.Since(started).Milliseconds()
+		performance.QualityCheckMS = finished.Sub(started).Milliseconds()
 	})
+	p.timing.record(ctx, i, shortPackStageQualityCheck, "", started, finished, err)
 	if short.QualityLogPath != "" {
 		if writeErr := writeLogFile(short.QualityLogPath, output); writeErr != nil {
 			*warn = append(*warn, fmt.Sprintf("quality log %s: %v", short.SegmentID, writeErr))
@@ -346,7 +370,7 @@ func (p *shortPackRenderer) renderCover(ctx context.Context, i int, short *Short
 	current := p.result.Shorts[i]
 	p.shortMu[i].Unlock()
 	if validatedExistingArtifact(p.previous, current, short.CoverPath, "cover") {
-		artifact := p.probeCover(ctx, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
+		artifact := p.probeCover(ctx, i, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
 		p.shortMu[i].Lock()
 		p.result.Shorts[i].CoverSkipped = true
 		p.result.Shorts[i].CoverArtifact = artifact
@@ -355,14 +379,16 @@ func (p *shortPackRenderer) renderCover(ctx context.Context, i int, short *Short
 	}
 	started := time.Now()
 	err := runFFmpegAtomic(ctx, short.CoverCommand, "cover extract", "", short.CoverPath)
+	finished := time.Now()
 	p.updatePerformance(i, func(performance *RenderPerformance) {
-		performance.CoverMS = time.Since(started).Milliseconds()
+		performance.CoverMS = finished.Sub(started).Milliseconds()
 	})
+	p.timing.record(ctx, i, shortPackStageCover, "", started, finished, err)
 	if err != nil {
 		*warn = append(*warn, fmt.Sprintf("cover %s: %v", short.SegmentID, err))
 		return
 	}
-	artifact := p.probeCover(ctx, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
+	artifact := p.probeCover(ctx, i, short.SegmentID, "cover", short.CoverPath, short.OutputFormat, warn)
 	p.shortMu[i].Lock()
 	p.result.Shorts[i].CoverArtifact = artifact
 	p.shortMu[i].Unlock()
@@ -376,7 +402,7 @@ func (p *shortPackRenderer) renderCoverSheet(ctx context.Context, i int, short *
 	current := p.result.Shorts[i]
 	p.shortMu[i].Unlock()
 	if validatedExistingArtifact(p.previous, current, short.CoverSheetPath, "cover-sheet") {
-		artifact := p.probeCover(ctx, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
+		artifact := p.probeCover(ctx, i, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
 		p.shortMu[i].Lock()
 		p.result.Shorts[i].CoverSheetSkipped = true
 		p.result.Shorts[i].CoverSheetArtifact = artifact
@@ -385,14 +411,16 @@ func (p *shortPackRenderer) renderCoverSheet(ctx context.Context, i int, short *
 	}
 	started := time.Now()
 	err := runFFmpegAtomic(ctx, short.CoverSheetCommand, "cover sheet", "", short.CoverSheetPath)
+	finished := time.Now()
 	p.updatePerformance(i, func(performance *RenderPerformance) {
-		performance.CoverSheetMS = time.Since(started).Milliseconds()
+		performance.CoverSheetMS = finished.Sub(started).Milliseconds()
 	})
+	p.timing.record(ctx, i, shortPackStageCoverSheet, "", started, finished, err)
 	if err != nil {
 		*warn = append(*warn, fmt.Sprintf("cover sheet %s: %v", short.SegmentID, err))
 		return
 	}
-	artifact := p.probeCover(ctx, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
+	artifact := p.probeCover(ctx, i, short.SegmentID, "cover-sheet", short.CoverSheetPath, short.OutputFormat, warn)
 	p.shortMu[i].Lock()
 	p.result.Shorts[i].CoverSheetArtifact = artifact
 	p.shortMu[i].Unlock()
@@ -430,10 +458,39 @@ func renderSecondsPerMediaSecond(renderMS int64, mediaSeconds float64) float64 {
 	return float64(renderMS) / 1000 / mediaSeconds
 }
 
-func (p *shortPackRenderer) probeCover(ctx context.Context, segmentID, role, path, outputFormat string, warn *[]string) recording.RecordingArtifact {
+func (p *shortPackRenderer) probeCover(ctx context.Context, i int, segmentID, role, path, outputFormat string, warn *[]string) recording.RecordingArtifact {
+	started := time.Now()
 	artifact := p.probeArtifact(ctx, segmentID, role, "image", path)
+	p.timing.recordOutcome(i, shortPackStageProbe, role, started, time.Now(), artifactProbeOutcome(artifact))
 	*warn = append(*warn, ValidateCoverArtifact(artifact, outputFormat)...)
 	return artifact
+}
+
+// artifactProbeOutcome reports the probe outcome without copying any of the
+// probe's text into the timing evidence: a failed probe is recorded as "error",
+// never with its message.
+func artifactProbeOutcome(artifact recording.RecordingArtifact) string {
+	if artifact.ProbeError != "" {
+		return "error"
+	}
+	return "ok"
+}
+
+// snapshotTiming attaches this short's timing evidence once its render job slot
+// has been released and every stage has returned. It only fills an existing
+// performance record, so a short that failed before one was created keeps the
+// exact result shape it had before.
+func (p *shortPackRenderer) snapshotTiming(i int) {
+	p.timing.finishSlot(i)
+	metrics := p.timing.snapshot(i)
+	if metrics == nil {
+		return
+	}
+	p.shortMu[i].Lock()
+	defer p.shortMu[i].Unlock()
+	if performance := p.result.Shorts[i].Performance; performance != nil {
+		performance.ShortPackTiming = metrics
+	}
 }
 
 func (p *shortPackRenderer) probeArtifact(ctx context.Context, segmentID, role, artifactType, path string) recording.RecordingArtifact {

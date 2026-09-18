@@ -296,6 +296,146 @@ loudness, track-level, delivery and transition evidence is equal, the attempt
 sequence is still 3 native + 2 Media Foundation, the log file set is identical
 and every timing span is `ok`.
 
+## Audio critical path (2026-09-18)
+
+After #194 and #195 the audio branch (voices -> audio items -> program-audio
+assembly -> mastering) is the Full Demo critical path: in the saved replay the
+video branch finishes well before it. Three changes shorten that branch. Output
+media, loudness policy, candidate sequence, acceptance rules and encoder
+settings are unchanged.
+
+### Measurement harness and its limits
+
+`TestFullDemoAudioBranchSweep` is an opt-in local harness (`FULL_DEMO_AUDIO_BENCH_*`)
+over the saved, verified replay inputs at
+`.local/render-analysis/phase-a-out/baseline-validation`: 17 timeline items,
+five team-voice tracks, a 930.6 s program, Studio's bundled FFmpeg
+`n8.1.2-30-g45f1910444-20260723`, 16 logical CPUs, RTX 5080. It runs only
+audio-branch stages, through production code (`prepareFullDemoVoiceTracks`,
+`runFullDemoItemPool`, the assembly commands), reads the saved job and the saved
+replay outputs read-only, and writes only into its own scratch work directory.
+With `FULL_DEMO_AUDIO_BENCH_VIDEO=1` the production video item pool runs as a
+concurrent load, which is the contention the audio branch has in a real render.
+
+Limits: one machine, one job, every repeat reported. The load is a sustained
+item-encode pool, not a complete render, so these numbers rank configurations of
+one stage. They do not predict total render wall time, and no paired full render
+was run for this change. Stage numbers are interval unions, never additive with
+`RenderMS`.
+
+### 1. The assembly measures the program audio it writes
+
+`prepareFullDemoProgramAudio` concatenated the item PCM into
+`full-demo-program-audio.nut`, and mastering then decoded that whole file again
+with `measureLoudness` for the first program measurement. The assembly command
+now carries a second, discarded `-f null -` output with exactly the filter
+`measureLoudness` uses (`loudnorm=...:print_format=json`), so one process
+decodes the items once and produces both the committed PCM and the measurement.
+The measurement output is declared first, so the committed program audio stays
+the command's last argument and the atomic commit is unchanged. Mastering reuses
+the parsed measurement only when the assembly measured the same target, writes
+the same `program-input-loudness.txt` evidence from the assembly's own FFmpeg
+output, and otherwise runs its original measurement pass unchanged, including
+its `audio_input_analysis` timing span.
+
+Quiet machine, 930.6 s program, three repeats (seconds):
+
+| Repeat | Assembly | First measurement | Separate total | Fused | Saved |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.495 | 14.395 | 14.890 | 15.460 | −0.570 |
+| 2 | 0.522 | 15.600 | 16.122 | 15.176 | 0.947 |
+| 3 | 1.242 | 13.694 | 14.935 | 13.163 | 1.772 |
+
+Two repeats under the concurrent video load saved −0.807 s and 4.879 s, with the
+same equivalence results.
+
+The saving is about the size of the assembly pass, not of the measurement:
+loudnorm's dynamic mode upsamples to 192 kHz and dominates the cost, and that
+work still has to happen once. What the change removes from the critical path is
+the second process and its full re-read of the 357 MB program file (median
+0.947 s here, −0.570 to 1.772 s across repeats, so a single repeat cannot
+distinguish it from noise). It is kept because it is equivalence-verified and
+strictly removes work, not because it is a large win.
+
+Equivalence and evidence:
+
+- The committed program audio is byte-identical to the unfused assembly's, on
+  both the synthetic canary and the 930.6 s replay program
+  (`TestFullDemoProgramAudioAssemblyMeasuresWhatItWrites`, plus every harness
+  assembly repeat).
+- The fused measurement equals a standalone `measureLoudness` over the file the
+  same command wrote, field for field, so the silence gate, the evidence JSON
+  and the retarget chain see exactly the values they saw before.
+- Deliberate, documented changes: the assembly runs at `-v info` instead of
+  `-v error`, because loudnorm prints its JSON block only at info level (no
+  encoder option changes); `program-audio.log`, which is written only when the
+  assembly fails, keeps its shape (label, exit status, FFmpeg's trimmed output)
+  but that output, like the failure message, is now info-level rather than
+  error lines alone; `program-input-loudness.txt` keeps its path and its
+  loudnorm JSON block, but its surrounding FFmpeg lines are now the assembly
+  process's, with one extra output section; and the attempt -1
+  `audio_input_analysis` timing span is no longer recorded, because that work
+  happens inside `audio_assembly`: a render whose first native master passes
+  records no `audio_input_analysis` span at all, and one that retargets records
+  one span per retarget (at most two instead of three). The log file set is
+  unchanged.
+
+### 2. Audio-only item budget
+
+`runFullDemoItemPool` sized the audio-only pool with `fullDemoItemJobs()`, the
+item *encoder* budget. Audio items run no encoder: each one demuxes its capture
+segment plus the prepared voice WAVs and writes lossless PCM through a filter
+graph. The pool now takes its budget per stream kind (`fullDemoItemPoolJobs`),
+and audio-only items use `fullDemoAudioItemJobs()`, bounded by
+`fullDemoAudioItemJobsMax` = 4 and by the CPU count. Timeline order is
+unaffected: the pool still commits `item-%03d-audio.nut` per index and the
+concat list is written from that ordered slice.
+
+`items_audio` interval union, 17 items, under the concurrent video load, four
+repeats (seconds):
+
+| Workers | Repeats | Median | Process-elapsed sum |
+| --- | --- | ---: | ---: |
+| 3 (previous) | 5.711, 3.947, 4.223, 4.760 | 4.492 | 10.2–15.7 |
+| 4 (current) | 3.203, 3.212, 3.126, 3.045 | 3.169 | 11.1–11.4 |
+| 6 | 2.876, 2.399, 2.369, 2.166 | 2.384 | 10.8–12.4 |
+
+Every 4-worker repeat is faster than every 3-worker repeat, so the ~1.3 s is a
+real reduction rather than noise; an earlier two-repeat pass, where the two cells
+overlapped, was not conclusive and was rerun. Six workers save a further ~0.8 s
+while running six processes against the concurrent video encodes; 4 is kept as
+the point where the stage is already tight and predictable. The absolute numbers
+are small on purpose: this stage is a few seconds of a multi-minute render, so
+the change is worth ~1 s of critical path, nothing more.
+
+### 3. Voice pool budget
+
+`fullDemoVoiceJobs`'s comment said voice preparation "must not compete with the
+three item encoders". That was written when voice preparation ran before item
+encoding; since #194 the audio branch runs alongside the video branch, so the
+voice pool overlaps the item encoders whatever its size, and it is the head of
+the audio critical path. `fullDemoVoiceJobsMax` is now 5: the five tracks of one
+CS2 team are the ceiling the team-voice policy can select, so a wider pool would
+never be used, and the CPU bound still applies.
+
+Five real team-voice tracks, under the concurrent video load, two repeats
+(seconds):
+
+| Workers | Stage elapsed | `voice_analysis` union | `voice_prepare` union |
+| --- | ---: | ---: | ---: |
+| 3 (previous) | 105.759, 132.785 | 97.002, 104.764 | 33.750, 46.560 |
+| 4 | 138.327, 140.830 | 102.411, 109.368 | 53.962, 48.424 |
+| 5 (current) | 73.440, 72.848 | 69.897, 67.835 | 12.314, 11.950 |
+
+Five workers remove the straggler: with three or four workers the last track (or
+last two) starts only after an earlier one finishes and then runs alone, which
+also explains why four was not better than three here. The measured stage is
+~46–67 s shorter than with three workers, on the head of the audio critical
+path. Process-elapsed sums rise (voice analysis 243–245 s at three workers
+versus 310–317 s at five), which is the expected cost of running five decoders
+against the video encodes; the video branch is not the critical path in this
+fixture, and no video-branch regression was measured here.
+
 ## Frozen pre-implementation audit
 
 Everything below records the source baseline before the implementation above.

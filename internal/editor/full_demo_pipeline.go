@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/rechedev9/cliphub/internal/composition"
+	"github.com/rechedev9/cliphub/internal/filecommit"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -31,7 +32,12 @@ func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress 
 	audioShort := *short
 	return runFullDemoBranches(ctx,
 		func(ctx context.Context) error { return prepareFullDemoVideoItems(ctx, short, branches.video()) },
-		func(ctx context.Context) error { return prepareFullDemoProgramAudio(ctx, &audioShort, branches.audio()) },
+		func(ctx context.Context) error {
+			// The staged form stops before mastering, so the program measurement
+			// the assembly produced has no consumer here.
+			_, err := prepareFullDemoProgramAudio(ctx, &audioShort, branches.audio())
+			return err
+		},
 	)
 }
 
@@ -112,39 +118,117 @@ func prepareFullDemoVideoItems(ctx context.Context, short *ShortEdit, progress f
 	return nil
 }
 
+// fullDemoProgramAudio is the outcome of the program-audio assembly: the
+// committed lossless program plus the first loudness measurement, produced by
+// the assembly process itself from the same decoded samples instead of by a
+// second full decode of the written file.
+type fullDemoProgramAudio struct {
+	// Measured is false when the assembly produced no parseable measurement;
+	// mastering then runs its own measurement pass exactly as before.
+	Measured    bool
+	Measurement LoudnessMeasurement
+	// Target is the loudness target the fused filter used. Mastering reuses the
+	// measurement only for the identical target.
+	Target recapplan.LoudnessOptions
+	// Output is the assembly process's FFmpeg output, which carries the same
+	// loudnorm JSON block a standalone measurement would have written, so the
+	// program-input-loudness evidence log keeps its path and its measurement.
+	Output string
+}
+
 // prepareFullDemoProgramAudio prepares the voice buses, mixes every timeline
 // item's audio and joins the items into the lossless program audio that owns
 // mastering. Generated buses and item audio are released as soon as the program
-// audio is committed.
-func prepareFullDemoProgramAudio(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
+// audio is committed. The assembly process also measures the program loudness
+// it is writing, so mastering starts from a measurement instead of decoding the
+// whole program again.
+func prepareFullDemoProgramAudio(ctx context.Context, short *ShortEdit, progress fullDemoProgress) (fullDemoProgramAudio, error) {
+	target := short.FullDemo.Effective.Options.Audio.Loudness
+	measured := fullDemoProgramAudio{Target: target}
 	if err := prepareFullDemoTracks(ctx, short, progress.within(0, .6)); err != nil {
-		return err
+		return measured, err
 	}
 	paths, err := runFullDemoItemPool(ctx, *short, fullDemoItemAudioOnly, progress.within(.6, .9))
 	if err != nil {
-		return err
+		return measured, err
 	}
 	if err := releaseFullDemoAudio(*short); err != nil {
-		return err
+		return measured, err
 	}
 	list := filepath.Join(short.fullDemo.workDir, "concat-audio-list.txt")
 	if err := writeFullDemoItemConcatList(*short, list, paths); err != nil {
-		return err
+		return measured, err
 	}
 	timeline := short.FullDemo.Effective.Timeline
 	duration := float64(timeline[len(timeline)-1].EndFrame) / recapplan.OutputFPS
 	destination := fullDemoProgramAudioPath(*short)
-	command := buildFullDemoProgramAudioCommand(short.fullDemo.ffmpeg, list, destination)
-	if err := runFFmpegAtomicWithProgress(fullDemoTimingScope(ctx, "audio_assembly", -1, -1, duration), command, "Full Demo program audio", filepath.Join(short.fullDemo.workDir, "program-audio.log"), destination, duration, progress.pass("Ensamblando audio completo", .9, 1)); err != nil {
-		return err
+	command := buildFullDemoProgramAudioMeasuredCommand(short.fullDemo.ffmpeg, list, destination, target)
+	output, err := runFullDemoAtomicMeasuredWithProgress(fullDemoTimingScope(ctx, "audio_assembly", -1, -1, duration), command, "Full Demo program audio", filepath.Join(short.fullDemo.workDir, "program-audio.log"), destination, duration, progress.pass("Ensamblando audio completo", .9, 1))
+	if err != nil {
+		return measured, err
 	}
-	return removeFullDemoTemporaryFiles(short.fullDemo.workDir, append(paths, list))
+	// A missing or unparseable measurement is never fatal here: mastering owns
+	// the loudness gate and falls back to its own measurement pass.
+	if measurement, parseErr := parseLoudnessMeasurement(output); parseErr == nil {
+		measured.Measured, measured.Measurement, measured.Output = true, measurement, output
+	}
+	return measured, removeFullDemoTemporaryFiles(short.fullDemo.workDir, append(paths, list))
 }
 
 // buildFullDemoProgramAudioCommand joins the prepared item audio into the
-// program audio. PCM remains lossless until the full-program master.
+// program audio. PCM remains lossless until the full-program master. It is the
+// assembly without the fused measurement and stays the equivalence reference
+// for the written program audio.
 func buildFullDemoProgramAudioCommand(ffmpeg, list, destination string) []string {
 	return []string{ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list, "-map", "0:a:0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", destination}
+}
+
+// buildFullDemoProgramAudioMeasuredCommand is the assembly command with the
+// program loudness measurement folded in as a second, discarded output of the
+// same process. The measurement output is declared first so the committed
+// program audio stays the command's last argument, and it uses the filter
+// measureLoudness uses, over the same decoded samples, so the parsed
+// measurement is the one a standalone pass over the written file produces.
+// -v info is required for loudnorm to print its JSON block at all; it changes
+// no encoder option, so the written PCM is unchanged.
+func buildFullDemoProgramAudioMeasuredCommand(ffmpeg, list, destination string, target recapplan.LoudnessOptions) []string {
+	return []string{ffmpeg, "-y", "-hide_banner", "-nostats", "-v", "info", "-f", "concat", "-safe", "0", "-i", list,
+		"-map", "0:a:0", "-vn", "-af", loudnessFilter(target) + ":print_format=json", "-f", "null", "-",
+		"-map", "0:a:0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", destination}
+}
+
+// runFullDemoAtomicMeasuredWithProgress is runFFmpegAtomicWithProgress with
+// FFmpeg's output returned: the fused assembly carries its loudness
+// measurement there. Atomic commit, the failure log and progress reporting are
+// unchanged.
+func runFullDemoAtomicMeasuredWithProgress(ctx context.Context, command []string, label, logPath, destination string, expectedDurationSec float64, onFraction func(float64)) (string, error) {
+	if len(command) == 0 || destination == "" {
+		return "", fmt.Errorf("%s output path is required", label)
+	}
+	attempt, cleanup, err := filecommit.Attempt(destination)
+	if err != nil {
+		return "", fmt.Errorf("%s attempt: %w", label, err)
+	}
+	defer cleanup()
+	attemptCommand := append([]string(nil), command...)
+	if attemptCommand[len(attemptCommand)-1] != destination {
+		return "", fmt.Errorf("%s command output does not match destination", label)
+	}
+	attemptCommand[len(attemptCommand)-1] = attempt
+	output, err := runFFmpegOutputProgress(ctx, attemptCommand, label, expectedDurationSec, onFraction)
+	if err != nil {
+		// The failure log keeps the shape runFFmpegAtomicWithProgress gives it
+		// under progress reporting: the label, the exit status and FFmpeg's
+		// trimmed output, all of which the error already carries.
+		if logPath != "" {
+			_ = writeLogFile(logPath, err.Error()+"\n")
+		}
+		return output, err
+	}
+	if err := filecommit.Commit(attempt, destination); err != nil {
+		return output, fmt.Errorf("%s publish: %w", label, err)
+	}
+	return output, nil
 }
 
 func writeFullDemoItemConcatList(short ShortEdit, listPath string, paths []string) error {
@@ -162,8 +246,25 @@ func writeFullDemoItemConcatList(short ShortEdit, listPath string, paths []strin
 }
 
 // runFullDemoItemPool renders one stream kind of every timeline item in a
-// bounded worker pool and returns the committed paths in timeline order.
+// bounded worker pool and returns the committed paths in timeline order. Each
+// stream kind owns its budget: video items are encoder-bound, audio items are
+// pure filter graphs (see fullDemoItemPoolJobs).
 func runFullDemoItemPool(ctx context.Context, short ShortEdit, streams fullDemoItemStreams, progress fullDemoProgress) ([]string, error) {
+	return runFullDemoItemPoolJobs(ctx, short, streams, progress, fullDemoItemPoolJobs(streams))
+}
+
+// fullDemoItemPoolJobs is the worker budget of one item stream kind.
+func fullDemoItemPoolJobs(streams fullDemoItemStreams) int {
+	if streams == fullDemoItemAudioOnly {
+		return fullDemoAudioItemJobs()
+	}
+	return fullDemoItemJobs()
+}
+
+func runFullDemoItemPoolJobs(ctx context.Context, short ShortEdit, streams fullDemoItemStreams, progress fullDemoProgress, jobs int) ([]string, error) {
+	if jobs < 1 {
+		jobs = 1
+	}
 	pattern, timingStage, label, stageText := "item-%03d", "items", "Full Demo timeline item", "Montando corte %d de %d"
 	if streams == fullDemoItemAudioOnly {
 		pattern, timingStage, label, stageText = "item-%03d-audio", "items_audio", "Full Demo timeline item audio", "Mezclando corte %d de %d"
@@ -191,7 +292,7 @@ func runFullDemoItemPool(ctx context.Context, short ShortEdit, streams fullDemoI
 		once     sync.Once
 		firstErr error
 	)
-	sem := make(chan struct{}, fullDemoItemJobs())
+	sem := make(chan struct{}, jobs)
 	for i, item := range timeline {
 		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf(pattern+".nut", i))
 		command, err := fullDemoItemStreamCommand(short, item, path, streams)
@@ -283,12 +384,13 @@ func (p *shortPackRenderer) renderFullDemoProgram(ctx context.Context, i int, sh
 	var evidence *ProgramLoudnessEvidence
 	audio := func(ctx context.Context) error {
 		progress := branches.audio()
-		if err := prepareFullDemoProgramAudio(ctx, &audioShort, progress.within(0, .25)); err != nil {
+		assembled, err := prepareFullDemoProgramAudio(ctx, &audioShort, progress.within(0, .25))
+		if err != nil {
 			return err
 		}
 		options := audioShort.FullDemo.Effective.Options
 		silentApproved := options.Audio.Game.Gain == 0 && (!options.Audio.Voice.Enabled || options.Audio.Voice.Gain == 0) && !options.Audio.Music.Enabled && !options.Sponsor.Enabled && !audioShort.FullDemo.Effective.HasTransitionSFX()
-		mastered, err := masterFullDemoSplitProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, duration), audioShort.fullDemo.ffmpeg, fullDemoProgramAudioPath(audioShort), committedVideo, audioShort.Output, filepath.Join(p.opts.OutputDir, "logs"), options.Audio.Loudness, silentApproved, duration, progress.within(.25, 1))
+		mastered, err := masterFullDemoMeasuredProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, duration), audioShort.fullDemo.ffmpeg, fullDemoProgramAudioPath(audioShort), committedVideo, audioShort.Output, filepath.Join(p.opts.OutputDir, "logs"), options.Audio.Loudness, silentApproved, duration, progress.within(.25, 1), assembled)
 		evidence = &mastered
 		return err
 	}

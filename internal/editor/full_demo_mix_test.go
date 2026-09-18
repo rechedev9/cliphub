@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -108,4 +109,56 @@ func firstInputSeek(command []string) (float64, bool) {
 		return 0, false
 	}
 	return 0, false
+}
+
+// Audio-only items run no encoder, so they get their own budget instead of the
+// item encoder budget. It still has to be explicitly bounded and CPU-aware.
+func TestFullDemoAudioItemJobsIsBoundedAndCPUAware(t *testing.T) {
+	jobs := fullDemoAudioItemJobs()
+	if jobs < 1 || jobs > fullDemoAudioItemJobsMax {
+		t.Fatalf("audio item jobs = %d, want 1..%d", jobs, fullDemoAudioItemJobsMax)
+	}
+	if jobs > runtime.NumCPU() {
+		t.Fatalf("audio item jobs = %d, above %d CPUs", jobs, runtime.NumCPU())
+	}
+	if jobs < fullDemoItemJobs() {
+		t.Fatalf("audio item jobs = %d, below the %d encoder jobs it must not be more conservative than", jobs, fullDemoItemJobs())
+	}
+	// Pin the measured ceiling: collapsing it back to the encoder budget (3)
+	// would silently lose the audio-items gain without failing any other test.
+	if fullDemoAudioItemJobsMax <= 3 {
+		t.Fatalf("fullDemoAudioItemJobsMax = %d, want above the 3-worker encoder budget it was measured against", fullDemoAudioItemJobsMax)
+	}
+	if runtime.NumCPU() >= fullDemoAudioItemJobsMax && jobs != fullDemoAudioItemJobsMax {
+		t.Fatalf("audio item jobs = %d on %d CPUs, want the full %d budget", jobs, runtime.NumCPU(), fullDemoAudioItemJobsMax)
+	}
+}
+
+// Each item stream kind must draw from its own budget: the video pool from the
+// encoder budget, the audio pool from the filter-graph budget.
+func TestFullDemoItemPoolJobsPerStreamKind(t *testing.T) {
+	for streams, want := range map[fullDemoItemStreams]int{
+		fullDemoItemAudioOnly: fullDemoAudioItemJobs(),
+		fullDemoItemVideoOnly: fullDemoItemJobs(),
+		fullDemoItemMuxed:     fullDemoItemJobs(),
+	} {
+		if got := fullDemoItemPoolJobs(streams); got != want {
+			t.Fatalf("pool jobs for stream kind %d = %d, want %d", streams, got, want)
+		}
+	}
+}
+
+// Voice preparation overlaps the video branch since the concurrent pipelines
+// change, so its pool is sized to cover a full team instead of staying out of
+// the item encoders' way. It must still be explicitly bounded and CPU-aware.
+func TestFullDemoVoiceJobsCoverAFullTeamWithinTheCPUBound(t *testing.T) {
+	if got := fullDemoVoiceJobs(5); got != min(5, runtime.NumCPU()) {
+		t.Fatalf("jobs for a five-track team = %d, want every track running at once on %d CPUs", got, runtime.NumCPU())
+	}
+	for _, count := range []int{1, 2, 3, 5, 20} {
+		jobs := fullDemoVoiceJobs(count)
+		if jobs < 1 || jobs > fullDemoVoiceJobsMax || jobs > count || jobs > runtime.NumCPU() {
+			t.Fatalf("jobs for %d tracks = %d, want 1..min(%d, count, %d CPUs)", count, jobs, fullDemoVoiceJobsMax, runtime.NumCPU())
+		}
+	}
 }

@@ -512,6 +512,12 @@ type RenderPerformance struct {
 	// existing FFmpeg diagnostic intervals with stage/index/attempt annotations;
 	// non-FullDemo renders leave it nil and unchanged.
 	FullDemoTiming *FullDemoTimingMetrics `json:"full_demo_timing,omitempty"`
+	// ShortPackTiming records the shorts-pack stage intervals of this short
+	// (encode, probe, publish, quality check, covers) plus how long it held a
+	// bounded render job slot. It is additive evidence over the counters above:
+	// the spans measure the same intervals, so they must never be added to
+	// RenderMS. It is absent when the pack render never reached this short.
+	ShortPackTiming *ShortPackTimingMetrics `json:"short_pack_timing,omitempty"`
 }
 
 type ShortResult struct {

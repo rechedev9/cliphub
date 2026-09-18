@@ -2,12 +2,14 @@ package editor
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -290,6 +292,327 @@ func TestRunParallelFailingShortReturnsError(t *testing.T) {
 	}
 	if result.Error == "" {
 		t.Fatalf("result.Error empty, want render failure recorded: %#v", result)
+	}
+}
+
+// Shorts-pack evidence must behave like the Full Demo collector: a span belongs
+// to exactly one short, stage wall time is the union of active intervals while
+// the elapsed sum stays a separate serial number, and the render job slot
+// occupancy is split at the encode boundary so the post-encode tail is measured
+// instead of guessed.
+func TestShortPackTimingSplitsSlotOccupancyAtEncodeBoundary(t *testing.T) {
+	t.Parallel()
+	collector := newShortPackTimingCollector(3)
+	base := collector.start
+	at := func(ms int64) time.Time { return base.Add(time.Duration(ms) * time.Millisecond) }
+	collector.slots[0] = shortPackSlotRecord{start: at(0), end: at(300), acquired: true, released: true}
+	collector.slots[1] = shortPackSlotRecord{start: at(20), end: at(260), acquired: true, released: true}
+	collector.slots[2] = shortPackSlotRecord{start: at(40), end: at(90), acquired: true, released: true}
+	collector.recordOutcome(0, shortPackStageEncode, "", at(10), at(110), "ok")
+	collector.recordOutcome(0, shortPackStageProbe, shortPackProbeOutput, at(110), at(130), "ok")
+	// Publish and the quality check overlap: both start once the encode wrote
+	// the output, and both run while the slot is still held.
+	collector.recordOutcome(0, shortPackStagePublish, "", at(130), at(150), "ok")
+	collector.recordOutcome(0, shortPackStageQualityCheck, "", at(130), at(290), "ok")
+	collector.recordOutcome(1, shortPackStageEncode, "", at(30), at(200), "ok")
+	// Short 2 reused its output, so it never encoded.
+	collector.recordOutcome(2, shortPackStageProbe, shortPackProbeOutput, at(45), at(60), "ok")
+
+	metrics := collector.snapshot(0)
+	if metrics == nil {
+		t.Fatal("snapshot(0) = nil, want timing evidence")
+	}
+	if metrics.Index != 0 {
+		t.Fatalf("metrics.Index = %d, want 0", metrics.Index)
+	}
+	if len(metrics.Spans) != 4 {
+		t.Fatalf("spans = %d (%+v), want the 4 stages of short 0 only", len(metrics.Spans), metrics.Spans)
+	}
+	for _, span := range metrics.Spans {
+		if span.Index != 0 {
+			t.Fatalf("span %+v leaked from another short", span)
+		}
+	}
+	wantStages := []ShortPackTimingStage{
+		{Stage: shortPackStageEncode, Spans: 1, WallMS: 100, ProcessElapsedSumMS: 100},
+		{Stage: shortPackStageProbe, Spans: 1, WallMS: 20, ProcessElapsedSumMS: 20},
+		{Stage: shortPackStagePublish, Spans: 1, WallMS: 20, ProcessElapsedSumMS: 20},
+		{Stage: shortPackStageQualityCheck, Spans: 1, WallMS: 160, ProcessElapsedSumMS: 160},
+	}
+	if !reflect.DeepEqual(metrics.Stages, wantStages) {
+		t.Fatalf("stages = %+v, want %+v", metrics.Stages, wantStages)
+	}
+	if metrics.WallMS != 280 {
+		t.Fatalf("wall union = %d, want 280", metrics.WallMS)
+	}
+	if metrics.ProcessElapsedSumMS != 300 {
+		t.Fatalf("process elapsed sum = %d, want 300", metrics.ProcessElapsedSumMS)
+	}
+	if metrics.WallMS >= metrics.ProcessElapsedSumMS {
+		t.Fatalf("overlapping post-encode work kept the sum as wall: %+v", metrics)
+	}
+
+	slot := metrics.Slot
+	if slot == nil {
+		t.Fatal("slot occupancy missing")
+	}
+	want := ShortPackSlotOccupancy{StartMS: 0, EndMS: 300, HeldMS: 300, PreEncodeMS: 10, EncodeMS: 100, PostEncodeMS: 190}
+	if *slot != want {
+		t.Fatalf("slot = %+v, want %+v", *slot, want)
+	}
+	if slot.HeldMS < slot.EncodeMS {
+		t.Fatalf("slot held %d ms < encode %d ms", slot.HeldMS, slot.EncodeMS)
+	}
+
+	second := collector.snapshot(1)
+	if second == nil || second.Slot == nil {
+		t.Fatal("snapshot(1) has no slot evidence")
+	}
+	wantSecond := ShortPackSlotOccupancy{StartMS: 20, EndMS: 260, HeldMS: 240, PreEncodeMS: 10, EncodeMS: 170, PostEncodeMS: 60}
+	if *second.Slot != wantSecond {
+		t.Fatalf("slot[1] = %+v, want %+v", *second.Slot, wantSecond)
+	}
+	if second.Slot.HeldMS < second.Slot.EncodeMS {
+		t.Fatalf("slot held %d ms < encode %d ms", second.Slot.HeldMS, second.Slot.EncodeMS)
+	}
+
+	reused := collector.snapshot(2)
+	if reused == nil || reused.Slot == nil {
+		t.Fatal("snapshot(2) has no slot evidence")
+	}
+	wantReused := ShortPackSlotOccupancy{StartMS: 40, EndMS: 90, HeldMS: 50, PreEncodeMS: 0, EncodeMS: 0, PostEncodeMS: 50}
+	if *reused.Slot != wantReused {
+		t.Fatalf("reused slot = %+v, want %+v (no encode: the whole occupancy is post-encode)", *reused.Slot, wantReused)
+	}
+}
+
+// Stages finish in whatever order the pool schedules them, so the snapshot must
+// serialize identically regardless of append order.
+func TestShortPackTimingOrderingIsDeterministic(t *testing.T) {
+	t.Parallel()
+	build := func(reverse bool) *ShortPackTimingMetrics {
+		collector := newShortPackTimingCollector(1)
+		base := collector.start
+		collector.slots[0] = shortPackSlotRecord{start: base, end: base.Add(200 * time.Millisecond), acquired: true, released: true}
+		spans := []struct {
+			stage, variant string
+			start, end     int64
+		}{
+			{shortPackStageQualityCheck, "", 60, 190},
+			{shortPackStageEncode, "", 0, 50},
+			{shortPackStageCover, "", 60, 80},
+			{shortPackStageProbe, shortPackProbeOutput, 50, 60},
+		}
+		if reverse {
+			for i, j := 0, len(spans)-1; i < j; i, j = i+1, j-1 {
+				spans[i], spans[j] = spans[j], spans[i]
+			}
+		}
+		for _, span := range spans {
+			collector.recordOutcome(0, span.stage, span.variant,
+				base.Add(time.Duration(span.start)*time.Millisecond),
+				base.Add(time.Duration(span.end)*time.Millisecond), "ok")
+		}
+		return collector.snapshot(0)
+	}
+	forward, err := json.Marshal(build(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reversed, err := json.Marshal(build(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(forward) != string(reversed) {
+		t.Fatalf("snapshot depends on completion order:\n%s\n%s", forward, reversed)
+	}
+	var metrics ShortPackTimingMetrics
+	if err := json.Unmarshal(forward, &metrics); err != nil {
+		t.Fatal(err)
+	}
+	var order []string
+	for _, span := range metrics.Spans {
+		order = append(order, span.Stage)
+	}
+	wantOrder := []string{shortPackStageEncode, shortPackStageProbe, shortPackStageCover, shortPackStageQualityCheck}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("span order = %v, want %v", order, wantOrder)
+	}
+}
+
+// The slot bookkeeping is called from two goroutines (the scheduler grants,
+// the worker releases) and from renderers built without a collector in tests,
+// so it must be a no-op on a nil collector, ignore indices it was not sized
+// for, keep the first grant, and never report a released slot it never saw.
+func TestShortPackTimingSlotGuardsAndOutcomes(t *testing.T) {
+	t.Parallel()
+	var none *shortPackTimingCollector
+	none.beginSlot(0)
+	none.finishSlot(0)
+	none.record(context.Background(), 0, shortPackStageEncode, "", time.Now(), time.Now(), nil)
+	if none.snapshot(0) != nil {
+		t.Fatal("nil collector produced a snapshot")
+	}
+
+	collector := newShortPackTimingCollector(1)
+	collector.beginSlot(-1)
+	collector.beginSlot(1)
+	collector.finishSlot(0) // released before granted: ignored
+	if got := collector.snapshot(0); got != nil {
+		t.Fatalf("snapshot(0) before any grant = %+v, want nil", got)
+	}
+	if got := collector.snapshot(1); got != nil {
+		t.Fatalf("snapshot(1) outside the pack = %+v, want nil", got)
+	}
+	collector.beginSlot(0)
+	first := collector.slots[0].start
+	collector.beginSlot(0) // a second grant keeps the first
+	if collector.slots[0].start != first {
+		t.Fatal("second beginSlot moved the grant time")
+	}
+	if got := collector.snapshot(0); got == nil || got.Slot != nil {
+		t.Fatalf("snapshot(0) of a held slot = %+v, want evidence without occupancy", got)
+	}
+	collector.finishSlot(0)
+	got := collector.snapshot(0)
+	if got == nil || got.Slot == nil || got.Slot.HeldMS < 0 || got.Slot.PostEncodeMS != got.Slot.HeldMS {
+		t.Fatalf("released slot without spans = %+v, want occupancy that is all post-encode", got)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	failure := context.DeadlineExceeded
+	for _, tc := range []struct {
+		ctx  context.Context
+		err  error
+		want string
+	}{
+		{context.Background(), nil, "ok"},
+		{cancelled, nil, "ok"},
+		{context.Background(), failure, "error"},
+		{nil, failure, "error"},
+		{cancelled, failure, "cancelled"},
+	} {
+		if got := shortPackTimingOutcome(tc.ctx, tc.err); got != tc.want {
+			t.Fatalf("outcome(ctx cancelled=%v, err=%v) = %q, want %q", tc.ctx != nil && tc.ctx.Err() != nil, tc.err, got, tc.want)
+		}
+	}
+}
+
+// A real pack render through the fake FFmpeg seam must record every stage of
+// every short with its own index, keep each encode inside the slot that ran it,
+// and report a slot occupancy that is never shorter than the encode. This is
+// the evidence the "release the slot before the post-encode work" decision
+// needs, so it is asserted on the actual render path and not on the collector.
+func TestRunRecordsShortPackStageTimingPerShort(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	recordingResultPath := writeRecordingResultFixture(t, dir)
+	ffmpegPath := fakeFFmpeg(t, dir)
+
+	result, err := Run(context.Background(), Config{
+		RecordingResultPath: recordingResultPath,
+		OutputDir:           filepath.Join(dir, "shorts"),
+		FFmpegPath:          ffmpegPath,
+		RenderJobs:          2,
+		QualityChecks:       true,
+		CoverSheets:         true,
+		CoverSheetsSet:      true,
+	})
+	if err != nil {
+		t.Fatalf("Run error = %v", err)
+	}
+	if len(result.Shorts) < 2 {
+		t.Fatalf("shorts = %d, want at least 2 to prove per-short indices", len(result.Shorts))
+	}
+
+	for i, short := range result.Shorts {
+		performance := short.Performance
+		if performance == nil {
+			t.Fatalf("shorts[%d] has no performance record", i)
+		}
+		timing := performance.ShortPackTiming
+		if timing == nil {
+			t.Fatalf("shorts[%d] has no short pack timing evidence", i)
+		}
+		if timing.Index != i {
+			t.Fatalf("shorts[%d] timing index = %d", i, timing.Index)
+		}
+		stages := map[string]ShortPackTimingStage{}
+		for _, stage := range timing.Stages {
+			stages[stage.Stage] = stage
+		}
+		wantStages := []string{shortPackStageEncode, shortPackStageProbe, shortPackStagePublish}
+		if len(short.QualityCommand) > 0 {
+			wantStages = append(wantStages, shortPackStageQualityCheck)
+		}
+		if len(short.CoverCommand) > 0 {
+			wantStages = append(wantStages, shortPackStageCover)
+		}
+		if len(short.CoverSheetCommand) > 0 {
+			wantStages = append(wantStages, shortPackStageCoverSheet)
+		}
+		for _, stage := range wantStages {
+			if _, ok := stages[stage]; !ok {
+				t.Fatalf("shorts[%d] stage %q missing from %+v", i, stage, timing.Stages)
+			}
+		}
+		var encode *ShortPackTimingSpan
+		probes := map[string]bool{}
+		for j := range timing.Spans {
+			span := &timing.Spans[j]
+			if span.Index != i {
+				t.Fatalf("shorts[%d] carries span of short %d: %+v", i, span.Index, span)
+			}
+			// The probe stage depends on a real ffprobe, which the fake FFmpeg
+			// seam does not provide, so only its outcome may be an error here.
+			if span.Outcome != "ok" && span.Stage != shortPackStageProbe {
+				t.Fatalf("shorts[%d] span %+v outcome is not ok", i, span)
+			}
+			if span.Outcome != "ok" && span.Outcome != "error" && span.Outcome != "cancelled" {
+				t.Fatalf("shorts[%d] span %+v has an unknown outcome", i, span)
+			}
+			if span.ElapsedMS < 0 || span.EndMS < span.StartMS {
+				t.Fatalf("shorts[%d] span %+v has a negative interval", i, span)
+			}
+			if span.Stage == shortPackStageEncode {
+				encode = span
+			}
+			if span.Stage == shortPackStageProbe {
+				probes[span.Variant] = true
+			}
+		}
+		if encode == nil {
+			t.Fatalf("shorts[%d] has no encode span", i)
+		}
+		if encode.ElapsedMS != performance.RenderMS {
+			t.Fatalf("shorts[%d] encode span %d ms != RenderMS %d ms", i, encode.ElapsedMS, performance.RenderMS)
+		}
+		if !probes[shortPackProbeOutput] {
+			t.Fatalf("shorts[%d] has no output probe span: %+v", i, timing.Spans)
+		}
+		if len(short.CoverCommand) > 0 && !probes[shortPackProbeCover] {
+			t.Fatalf("shorts[%d] has no cover probe span: %+v", i, timing.Spans)
+		}
+		// Offsets and elapsed times are truncated to milliseconds independently,
+		// so the union of sequential spans can exceed the elapsed sum by at most
+		// one millisecond per span; anything beyond that is a real union bug.
+		if slack := int64(len(timing.Spans)); timing.WallMS > timing.ProcessElapsedSumMS+slack {
+			t.Fatalf("shorts[%d] wall union %d > elapsed sum %d (+%d ms truncation slack)", i, timing.WallMS, timing.ProcessElapsedSumMS, slack)
+		}
+		slot := timing.Slot
+		if slot == nil {
+			t.Fatalf("shorts[%d] has no slot occupancy", i)
+		}
+		if slot.HeldMS < slot.EncodeMS {
+			t.Fatalf("shorts[%d] slot held %d ms < encode %d ms", i, slot.HeldMS, slot.EncodeMS)
+		}
+		if slot.PostEncodeMS > slot.HeldMS {
+			t.Fatalf("shorts[%d] post-encode %d ms > slot held %d ms", i, slot.PostEncodeMS, slot.HeldMS)
+		}
+		if encode.StartMS < slot.StartMS || encode.EndMS > slot.EndMS {
+			t.Fatalf("shorts[%d] encode %+v ran outside its slot %+v", i, encode, slot)
+		}
 	}
 }
 
