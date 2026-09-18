@@ -6,6 +6,7 @@ import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   MATCH_ROW_FIRST_CLIP_CTA,
+  MATCH_ROW_FAILED_TITLE,
   MATCH_ROW_UNPICKED_CTA,
   MATCH_ROW_UNPICKED_HINT,
   MATCH_ROW_UNPICKED_TITLE,
@@ -26,6 +27,7 @@ import {
   type HubMatch,
 } from '@/lib/clips/hub';
 import { newDemoHref, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
+import { parseFailureReason } from '@/lib/api/failure-reason';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
@@ -66,6 +68,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
   let headerBlock: ReactNode;
   if (stage === HUB_ROW_STAGE.parsing) headerBlock = <ParsingBlock player={player} />;
   else if (stage === HUB_ROW_STAGE.unpicked) headerBlock = <UnpickedBlock />;
+  else if (stage === HUB_ROW_STAGE.failed) headerBlock = <FailedBlock reason={match.failureReason} />;
   else headerBlock = <ReadyHeaderBlock hasScore={hasScore} ours={ours} theirs={theirs} win={win} loss={loss} shorts={shorts} fulls={fulls} />;
 
   return (
@@ -147,6 +150,17 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
 
 /** The hub rebuilds its model on every poll, so props compare by value, not identity. */
 export const MatchRow = memo(MatchRowCard, sameHubProps);
+
+/** Terminal failure: the reason stays on the row so the user knows what to do before deleting it. */
+function FailedBlock({ reason }: { reason?: string }): ReactNode {
+  const failure = parseFailureReason(reason);
+  return (
+    <span role="status" className="row-state row-state-block">
+      <span className="font-mono text-meta uppercase tracking-wider text-destructive">{MATCH_ROW_FAILED_TITLE}</span>
+      <span className="text-body-sm text-fg-2">{failure.message}</span>
+    </span>
+  );
+}
 
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (

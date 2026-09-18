@@ -25,6 +25,8 @@ export type Match = {
   player?: string;
   /** Orchestrator job status when known (Partidas / constructors). */
   status?: string;
+  /** Human text from the orchestrator when `status` is `failed`. */
+  failureReason?: string;
 };
 type PlayKind = 'clean' | 'highlight';
 export type Play = {
@@ -412,6 +414,9 @@ export const PLAN_READY_STATUSES: ReadonlySet<string> = new Set<JobStatus>([
 ]);
 
 /** Imported demos may parse a configured player before a roster exists. */
+/** Terminal: the demo could not be scanned or parsed; it lists with its reason so it can be cleared. */
+export const MATCH_STATUS_FAILED = 'failed';
+
 export const SCAN_PENDING_STATUSES: ReadonlySet<string> = new Set<JobStatus>(['queued', 'scanning', 'parsing']);
 
 /** Statuses with a roster scan, so the demo belongs in Partidas: scanned or anything after it. */

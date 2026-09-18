@@ -138,7 +138,8 @@ export default function PlayersPage(): ReactNode {
       <StudioPageHeader title="Jugadores" description="Sigue jugadores y convierte sus partidas en clips."
         actions={<FollowPlayerForm query={query} onQueryChange={setQuery} onSubmit={(event) => void onFollow(event)}
           disabled={state !== 'ready'} busy={busy} />} />
-      {error ? <div role="alert" className="flex flex-wrap items-center gap-3 text-body-sm text-destructive">
+      {/* The empty state already says offline with its own Reintentar; a second red line above it is noise. */}
+      {error && !(state === 'offline' && players.length === 0) ? <div role="alert" className="flex flex-wrap items-center gap-3 text-body-sm text-destructive">
         <p>{error}</p>
         {state === 'offline' && players.length > 0 ? <Button variant="outline" size="sm" onClick={() => void refresh()}>Reconectar</Button> : null}
       </div> : null}

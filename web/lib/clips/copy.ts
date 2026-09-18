@@ -3,6 +3,7 @@ export const HUB_EMPTY_TITLE = '¿Qué quieres crear?';
 export const DEMO_CREATION_STEPS = ['Cargar demo', 'Elegir jugador', 'Preparar vídeo', 'Crear y descargar'] as const;
 
 /** `unpicked` row: roster scanned, nobody chose a POV. The CTA resumes the pick on `/clips/nueva?job=`. */
+export const MATCH_ROW_FAILED_TITLE = 'La demo no se pudo procesar';
 export const MATCH_ROW_UNPICKED_TITLE = 'Elige un jugador';
 export const MATCH_ROW_UNPICKED_HINT = 'Demo cargada · elige de quién será el vídeo';
 export const MATCH_ROW_UNPICKED_CTA = 'Elegir jugador';

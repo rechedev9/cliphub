@@ -200,8 +200,7 @@ function ClipsHub(): ReactNode {
     if (loadError === null) return <HubSkeleton />;
     return (
       <div className="measure-list flex flex-col gap-6">
-        <HubBanner offline={loadError.offline} onRetry={onChange} />
-        <HubEmpty />
+        <HubEmpty banner={<HubBanner offline={loadError.offline} onRetry={onChange} />} />
       </div>
     );
   }
@@ -209,8 +208,7 @@ function ClipsHub(): ReactNode {
   if (model.rows.length === 0 && model.clips.length === 0 && streamLibraryCount(streams) === 0) {
     return (
       <div className="measure-list flex flex-col gap-6">
-        {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
-        <HubEmpty />
+        <HubEmpty banner={loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null} />
       </div>
     );
   }
@@ -221,6 +219,8 @@ function ClipsHub(): ReactNode {
   return (
     <div className="measure-list flex flex-col gap-6">
       <HubHeader lens={lens} />
+      {/* Same slot in every hub state: under the header, before anything that depends on the service. */}
+      {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
       <CreationPaths />
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -230,8 +230,6 @@ function ClipsHub(): ReactNode {
           {jobs === 0 ? 'Nada en marcha' : `${jobs} ${jobs === 1 ? 'trabajo en marcha' : 'trabajos en marcha'}`}
         </span>
       </div>
-
-      {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
 
       {lens === HUB_LENS.clips ? (
         <ClipsLens

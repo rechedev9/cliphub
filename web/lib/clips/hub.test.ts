@@ -93,6 +93,8 @@ test('matchRowStage: plan-ready is ready, scanned is unpicked, anything earlier 
     ['validating', HUB_ROW_STAGE.parsing],
   ];
   for (const [status, want] of cases) assert.equal(matchRowStage(status), want, status);
+  assert.equal(matchRowStage('failed'), 'failed');
+  assert.equal(hubNextStep({ stage: 'failed', shorts: [], fulls: [] }), 'none');
 });
 
 test('hubTransitions announces a parse only when a parsing row becomes ready, not unpicked', () => {

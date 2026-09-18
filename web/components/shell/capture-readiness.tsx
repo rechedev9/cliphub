@@ -46,7 +46,8 @@ const STATUS_META: Record<
   },
   offline: {
     label: 'Sin conexión',
-    text: 'Servicio local offline',
+    // "Servicio local offline" truncated inside the 240px sidebar; the dialog carries the long form.
+    text: 'Studio offline',
     tone: 'border-destructive/45 text-destructive',
     dot: 'bg-destructive',
   },

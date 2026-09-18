@@ -17,11 +17,13 @@ const HUB_EMPTY_DESCRIPTION =
   'Convierte tus partidas de CS2 o grabaciones de stream en vídeos. Elige un formato para empezar; revisarás el contenido antes de grabar.';
 
 /** Direct creation choices; the dropzone also accepts files without a prior format choice. */
-export function HubEmpty(): ReactNode {
+export function HubEmpty({ banner }: { banner?: ReactNode } = {}): ReactNode {
   const router = useRouter();
   return (
     <section aria-label={HUB_EMPTY_TITLE} className="measure-list flex flex-col gap-5">
       <StudioPageHeader title={HUB_EMPTY_TITLE} description={HUB_EMPTY_DESCRIPTION} />
+      {/* Offline banner slot: same place as the populated hub, under the header. */}
+      {banner}
       <CreationPaths />
       <FirstRunGuide progress={{ load: false, pick: false, produce: false }} />
       <div className="flex flex-col gap-3">

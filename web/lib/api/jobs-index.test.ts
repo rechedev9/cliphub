@@ -57,7 +57,7 @@ test('jobHasRoster classifies every orchestrator status', () => {
   assert.equal(jobHasRoster('something-new'), false);
 });
 
-test('listableJobs keeps only roster-ready jobs, newest first', () => {
+test('listableJobs keeps roster-ready and failed jobs, newest first', () => {
   const jobs = [
     job({ jobId: 'a', status: 'done', createdAt: '2026-07-10T10:00:00Z' }),
     job({ jobId: 'b', status: 'scanning', createdAt: '2026-07-16T10:00:00Z' }),
@@ -67,8 +67,14 @@ test('listableJobs keeps only roster-ready jobs, newest first', () => {
   ];
   assert.deepEqual(
     listableJobs(jobs).map((j) => j.jobId),
-    ['d', 'e', 'a'],
+    ['c', 'd', 'e', 'a'],
   );
+});
+
+test('a failed job lists with its reason so the user can read it and clear the row', () => {
+  const failed = job({ jobId: 'c', status: 'failed', failureReason: 'demo_incompatible: cs2 cannot replay this demo' });
+  assert.equal(jobToMatch(failed).failureReason, 'demo_incompatible: cs2 cannot replay this demo');
+  assert.equal(jobToMatch(job({ jobId: 'a', status: 'done', failureReason: 'stale' })).failureReason, undefined);
 });
 
 test('planReadyJobs keeps only parsed-or-later jobs, newest first', () => {

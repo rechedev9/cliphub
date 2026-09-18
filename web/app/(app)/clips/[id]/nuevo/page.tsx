@@ -6,6 +6,7 @@ import { AlertTriangle, SearchX, Unplug, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { Match, Play } from '@/lib/api/types';
+import { parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage } from '@/lib/clips/hub';
 import {
   hubHref,
@@ -28,6 +29,7 @@ import {
 } from '@/lib/match-plays-empty';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
+  PRODUCE_MATCH_FAILED_TITLE,
   PRODUCE_MATCH_MISSING,
   PRODUCE_MATCH_NO_POV,
   PRODUCE_PICK_POV_CTA,
@@ -194,6 +196,16 @@ export default function ProducePage({
             </Button>
           </>
         }
+      />
+    );
+  } else if (stage === HUB_ROW_STAGE.failed) {
+    body = (
+      <StudioEmptyState
+        icon={AlertTriangle}
+        title={PRODUCE_MATCH_FAILED_TITLE}
+        description={parseFailureReason(match.failureReason).message}
+        compact
+        actions={<Button variant="outline" onClick={() => router.push(backHref)}>Volver</Button>}
       />
     );
   } else if (stage === HUB_ROW_STAGE.parsing) {
