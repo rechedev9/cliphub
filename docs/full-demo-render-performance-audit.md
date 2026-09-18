@@ -436,7 +436,44 @@ versus 310–317 s at five), which is the expected cost of running five decoders
 against the video encodes; the video branch is not the critical path in this
 fixture, and no video-branch regression was measured here.
 
-## Frozen pre-implementation audit
+### Paired full render (2026-09-18)
+
+Same replay harness and `--reapprove` fixture as the 2026-09-16 pair, run back
+to back on the same machine (16 CPUs, RTX 5080, bundled FFmpeg n8.1.2).
+Baseline is `fcc4e1f` (`main` after #195); candidate is this change. Both runs
+went through the full production path: item encodes, transitions, concurrent
+branches, five mastering candidates (3 native + 2 Media Foundation), strict
+delivery decode and quality pass.
+
+| Metric | Baseline | Candidate | Delta |
+| --- | ---: | ---: | ---: |
+| Post-recording wall | 401.713 s | 392.787 s | −8.926 s (−2.222 %) |
+| `RenderMS` | 397599 | 388621 | −8978 |
+| Voice union (analysis + prepare envelope) | 3.7–87.7 s | 3.7–58.7 s | −29.0 s |
+| Items (video) union | 226.3 s | 234.7 s | +8.4 s |
+| Items (audio) union | 9.4 s | 7.3 s | −2.0 s |
+| Audio assembly (+ fused measurement) | 1.8 s + 33.7 s | 35.5 s | ≈0 |
+| Mastering envelope end | 340.8 s | 332.5 s | −8.3 s |
+| Delivery + quality | 56.8 s | 56.1 s | −0.7 s |
+
+Equivalence: the captured lossless program PCM has the same SHA-256 in both
+runs (`78e9d9f515adfb4e…`), every track level, the program input measurement,
+all five decoded-AAC measurements, the master targets, the fallback masters and
+the final muxed AAC measurement are equal, the delivered MP4 has the same byte
+size, and neither run emitted a warning.
+
+Reading: the voice pool wins its ~29 s at the head of the audio branch as the
+sweep predicted, and the audio branch is still the critical path (video items
+end at 238 s, mastering at 332 s). Most of that win is then absorbed inside
+mastering: the first native candidate encode and the retarget measurements ran
+about 20 s slower than in the baseline, and the video items ran 8 s slower.
+The likely mechanism is that mastering now starts ~36 s earlier and therefore
+overlaps more of the three concurrent item encodes, so both sides contend for
+longer. That is a hypothesis from one pair, not a measurement; the net wall
+delta is what this section claims. The tuned budgets are kept because the
+stage-level evidence is consistent and the output is equivalent, and because
+the remaining mastering cost (five full candidate passes, ~230 s) is now the
+obvious next target rather than the pools feeding it.
 
 Everything below records the source baseline before the implementation above.
 References to the current renderer, proposed changes and validation still to
