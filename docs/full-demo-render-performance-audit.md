@@ -73,7 +73,7 @@ contract.
 
 The existing FFmpeg diagnostic execution now also records per-render in-memory
 spans (stage, original item/track index, attempt, encoder, media duration,
-interval, outcome) for `voice_analysis`, `voice_prepare`, `items` and the audio
+interval, outcome) for `transitions`, `voice_analysis`, `voice_prepare`, `items` and the audio
 stages. Wall time is the union of active intervals, which excludes gaps between
 spans. `ProcessElapsedSumMS` is the sum of each subprocess's wall elapsed time —
 serialized process time, **not CPU time** and not overlap-aware wall time.
