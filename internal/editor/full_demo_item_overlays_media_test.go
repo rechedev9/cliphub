@@ -444,8 +444,13 @@ func TestFullDemoItemOverlaysConcatCopiesExactFrames(t *testing.T) {
 		}
 	}
 
-	// PCM: exact sample count, exact content and contiguous monotonic PTS.
-	programPCM := fullDemoDecodePCM(t, ctx, ffmpeg, program)
+	// PCM: exact sample count, exact content and contiguous monotonic PTS in
+	// the separately joined program audio.
+	programAudio := fullDemoProgramAudioPath(short)
+	if _, err := runFFmpegOutput(ctx, buildFullDemoProgramAudioCommand(ffmpeg, fullDemoConcatListPath(short), programAudio), "concat audio"); err != nil {
+		t.Fatal(err)
+	}
+	programPCM := fullDemoDecodePCM(t, ctx, ffmpeg, programAudio)
 	if len(programPCM) != itemSamples*4*2*len(items) {
 		t.Fatalf("program PCM bytes = %d, want %d", len(programPCM), itemSamples*4*2*len(items))
 	}
@@ -456,7 +461,7 @@ func TestFullDemoItemOverlaysConcatCopiesExactFrames(t *testing.T) {
 	if string(programPCM) != string(wantPCM) {
 		t.Fatal("copied program PCM differs from the prepared item samples")
 	}
-	fullDemoAssertContiguousAudioPTS(t, ctx, ffmpeg, program, itemSamples*len(items))
+	fullDemoAssertContiguousAudioPTS(t, ctx, ffmpeg, programAudio, itemSamples*len(items))
 }
 
 // fullDemoDecodePCM returns the decoded float PCM (interleaved stereo f32le).

@@ -179,7 +179,7 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 					t.Fatalf("prepared item still consumes disk before mastering: %s, %v", path, err)
 				}
 			}
-			loudness, err := masterFullDemoProgram(ctx, ffmpeg, program, short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false, short.DurationSeconds, progress.within(.82, .94))
+			loudness, err := masterFullDemoSplitProgram(ctx, ffmpeg, fullDemoProgramAudioPath(short), committedFullDemoProgramVideo(program), short.Output, filepath.Join(dir, "logs"), options.Audio.Loudness, false, short.DurationSeconds, progress.within(.82, .94))
 			if err != nil {
 				t.Fatal(err)
 			}

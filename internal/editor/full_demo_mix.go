@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rechedev9/cliphub/internal/composition"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -330,13 +329,41 @@ func prepareFullDemoTracks(ctx context.Context, short *ShortEdit, progress fullD
 	return nil
 }
 
+// fullDemoItemStreams selects which half of a timeline item one FFmpeg process
+// renders. The video and audio graphs never exchange frames, so production
+// renders them as two independent processes: item video does not wait for voice
+// preparation, and the program audio can be mastered while video still encodes.
+// The muxed form builds the same two graphs in one process and stays as the
+// equivalence reference.
+type fullDemoItemStreams int
+
+const (
+	fullDemoItemMuxed fullDemoItemStreams = iota
+	fullDemoItemVideoOnly
+	fullDemoItemAudioOnly
+)
+
 func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
+	return fullDemoItemStreamCommand(short, item, output, fullDemoItemMuxed)
+}
+
+func fullDemoItemVideoCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
+	return fullDemoItemStreamCommand(short, item, output, fullDemoItemVideoOnly)
+}
+
+func fullDemoItemAudioCommand(short ShortEdit, item recapplan.TimelineItem, output string) ([]string, error) {
+	return fullDemoItemStreamCommand(short, item, output, fullDemoItemAudioOnly)
+}
+
+func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, output string, streams fullDemoItemStreams) ([]string, error) {
+	withVideo, withAudio := streams != fullDemoItemAudioOnly, streams != fullDemoItemVideoOnly
 	runtime := short.fullDemo
 	options := short.FullDemo.Effective.Options
 	frames, samples := item.EndFrame-item.StartFrame, item.EndSample-item.StartSample
 	edges := fullDemoEdges(short, item)
 	command := []string{runtime.ffmpeg, "-y", "-v", "error"}
 	var audio string
+	var maps []string
 	var sourceOffset, trimStart int64
 	if item.Role == "round" {
 		var input string
@@ -371,18 +398,22 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output st
 		if err != nil {
 			return nil, err
 		}
-		voiceSample := (voiceFrame + item.SourceOffsetFrames) * recapplan.SamplesPerFrame
-		for _, voice := range runtime.voicePaths {
-			command = append(command, "-ss", decimal(float64(voiceSample)/recapplan.SampleRate), "-i", voice)
-		}
-		tailStart, tailSamples := fullDemoCommsTail(short.FullDemo.Effective, edges.in)
-		if tailSamples > 0 {
-			edges.tailInput, edges.tailCount, edges.tailSamples = 1+len(runtime.voicePaths), len(runtime.voicePaths), tailSamples
+		if withAudio {
+			// Voice inputs keep the same indices in the muxed and audio-only
+			// forms; overlay images are appended after them and only for video.
+			voiceSample := (voiceFrame + item.SourceOffsetFrames) * recapplan.SamplesPerFrame
 			for _, voice := range runtime.voicePaths {
-				command = append(command, "-ss", decimal(float64(tailStart)/recapplan.SampleRate), "-i", voice)
+				command = append(command, "-ss", decimal(float64(voiceSample)/recapplan.SampleRate), "-i", voice)
 			}
+			tailStart, tailSamples := fullDemoCommsTail(short.FullDemo.Effective, edges.in)
+			if tailSamples > 0 {
+				edges.tailInput, edges.tailCount, edges.tailSamples = 1+len(runtime.voicePaths), len(runtime.voicePaths), tailSamples
+				for _, voice := range runtime.voicePaths {
+					command = append(command, "-ss", decimal(float64(tailStart)/recapplan.SampleRate), "-i", voice)
+				}
+			}
+			audio = fullDemoRoundAudioWithTransitions(options.Audio, trimStart*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), edges)
 		}
-		audio = fullDemoRoundAudioWithTransitions(options.Audio, trimStart*recapplan.SamplesPerFrame, samples, len(runtime.voicePaths), edges)
 	} else if item.Role == "sponsor" {
 		video, err := runtime.execution.assetPath(*options.Sponsor.Video)
 		if err != nil {
@@ -390,7 +421,7 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output st
 		}
 		command = append(command, "-i", video)
 		audioInput := "[0:a]"
-		if options.Sponsor.AudioPolicy == "replace-narration" {
+		if withAudio && options.Sponsor.AudioPolicy == "replace-narration" {
 			narration, err := runtime.execution.assetPath(*options.Sponsor.Narration)
 			if err != nil {
 				return nil, err
@@ -402,131 +433,57 @@ func fullDemoItemCommand(short ShortEdit, item recapplan.TimelineItem, output st
 	} else {
 		return nil, fmt.Errorf("unsupported Full Demo timeline role %s", item.Role)
 	}
-	video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s", trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
-	hudFilter, err := fullDemoHUDFilter(short, item, output)
-	if err != nil {
-		return nil, err
-	}
-	if hudFilter != "" {
-		video += "," + hudFilter
-	}
-	// Supported global intro/outro overlays are composed after the item's
-	// transitions and HUD. The item base is shifted onto the global frame clock
-	// and the original whole-program graph is reused unchanged, then the output
-	// is shifted back to item-local PTS, so the program concat can copy the
-	// compatible H.264 stream. Unsupported effect combinations keep the
-	// byte-identical legacy item chain and the legacy post-concat pass.
-	videoClauses, videoLabel := func() ([]string, string) {
-		if !fullDemoItemOverlayEligible(short) {
-			return fullDemoItemVideoClauses(short, item, video, nil, 0)
-		}
-		images := imageEffects(short.Effects)
-		for _, effect := range images {
-			command = append(command, "-i", effect.Path)
-		}
-		imageInputStart := fullDemoInputCount(command) - len(images)
-		return fullDemoItemVideoClauses(short, item, video, images, imageInputStart)
-	}()
-	// Five millisecond de-clicks keep hard cuts while preserving every frame
-	// and sample in the approved timeline, including very short inserts.
-	fadeSamples := min(int64(240), samples/2)
-	audio += fmt.Sprintf(";[a]afade=t=in:ss=0:ns=%d,afade=t=out:ss=%d:ns=%d[declicked]", fadeSamples, samples-fadeSamples, fadeSamples)
-	sfx, audioLabel := fullDemoTransitionSFX(edges, samples)
-	command = append(command, "-filter_complex", strings.Join(videoClauses, ";")+";"+audio+sfx, "-map", videoLabel, "-map", "["+audioLabel+"]")
-	command = appendVideoEncodeArgs(command, short)
-	command = append(command, "-bf", "0", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2")
-	command = appendThreadArgs(command, short)
-	return append(command, output), nil
-}
-
-func prepareFullDemoCompilation(ctx context.Context, short *ShortEdit, progress fullDemoProgress) error {
-	if short.fullDemo == nil {
-		return nil
-	}
-	if err := prepareFullDemoTracks(ctx, short, progress.within(0, .3)); err != nil {
-		return err
-	}
-	if err := prepareFullDemoTransitions(ctx, short); err != nil {
-		return err
-	}
-	timeline := short.FullDemo.Effective.Timeline
-	totalFrames := float64(timeline[len(timeline)-1].EndFrame)
-	paths := make([]string, len(timeline))
-	tracker := &fullDemoItemProgress{
-		fractions: make([]float64, len(timeline)),
-		done:      make([]bool, len(timeline)),
-		weights:   make([]float64, len(timeline)),
-		total:     totalFrames,
-		progress:  progress,
-	}
-	for i, item := range timeline {
-		tracker.weights[i] = float64(item.EndFrame - item.StartFrame)
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	var (
-		wg       sync.WaitGroup
-		once     sync.Once
-		firstErr error
-	)
-	sem := make(chan struct{}, fullDemoItemJobs())
-	for i, item := range timeline {
-		path := filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.nut", i))
-		command, err := fullDemoItemCommand(*short, item, path)
+	var clauses []string
+	if withVideo {
+		video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s", trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
+		hudFilter, err := fullDemoHUDFilter(short, item, output)
 		if err != nil {
-			cancel()
-			wg.Wait()
-			return err
+			return nil, err
 		}
-		paths[i] = path
-		if ctx.Err() != nil {
-			break
+		if hudFilter != "" {
+			video += "," + hudFilter
 		}
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(i int, item recapplan.TimelineItem, command []string, path string) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			stage := fmt.Sprintf("Montando corte %d de %d", i+1, len(timeline))
-			onFraction := func(fraction float64) { tracker.set(i, stage, fraction) }
-			itemCtx := fullDemoTimingScope(ctx, "items", i, -1, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS)
-			if err := runFFmpegAtomicWithProgress(itemCtx, command, "Full Demo timeline item", filepath.Join(short.fullDemo.workDir, fmt.Sprintf("item-%03d.log", i)), path, float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS, onFraction); err != nil {
-				once.Do(func() {
-					firstErr = err
-					cancel()
-				})
-				return
+		// Supported global intro/outro overlays are composed after the item's
+		// transitions and HUD. The item base is shifted onto the global frame clock
+		// and the original whole-program graph is reused unchanged, then the output
+		// is shifted back to item-local PTS, so the program concat can copy the
+		// compatible H.264 stream. Unsupported effect combinations keep the
+		// byte-identical legacy item chain and the legacy post-concat pass.
+		videoClauses, videoLabel := func() ([]string, string) {
+			if !fullDemoItemOverlayEligible(short) {
+				return fullDemoItemVideoClauses(short, item, video, nil, 0)
 			}
-			tracker.markDone(i, stage)
-		}(i, item, command, path)
+			images := imageEffects(short.Effects)
+			for _, effect := range images {
+				command = append(command, "-i", effect.Path)
+			}
+			imageInputStart := fullDemoInputCount(command) - len(images)
+			return fullDemoItemVideoClauses(short, item, video, images, imageInputStart)
+		}()
+		clauses = append(clauses, strings.Join(videoClauses, ";"))
+		maps = append(maps, "-map", videoLabel)
 	}
-	wg.Wait()
-	if firstErr != nil {
-		return firstErr
+	if withAudio {
+		// Five millisecond de-clicks keep hard cuts while preserving every frame
+		// and sample in the approved timeline, including very short inserts.
+		fadeSamples := min(int64(240), samples/2)
+		audio += fmt.Sprintf(";[a]afade=t=in:ss=0:ns=%d,afade=t=out:ss=%d:ns=%d[declicked]", fadeSamples, samples-fadeSamples, fadeSamples)
+		sfx, audioLabel := fullDemoTransitionSFX(edges, samples)
+		clauses = append(clauses, audio+sfx)
+		maps = append(maps, "-map", "["+audioLabel+"]")
 	}
-	if err := ctx.Err(); err != nil {
-		return err
+	command = append(append(command, "-filter_complex", strings.Join(clauses, ";")), maps...)
+	if withVideo {
+		command = appendVideoEncodeArgs(command, short)
+		command = append(command, "-bf", "0")
 	}
-	short.fullDemo.preparedInputs = paths
-	var list strings.Builder
-	list.WriteString("ffconcat version 1.0\n")
-	for i, path := range short.fullDemo.preparedInputs {
-		item := short.FullDemo.Effective.Timeline[i]
-		list.WriteString(composition.ConcatFileLine(path))
-		// NUT's last packet timestamp is not the duration of a complete CFR
-		// interval. Declare the canonical duration so concat never loses one
-		// frame at each join or advances the next audio bus too early.
-		fmt.Fprintf(&list, "duration %.9f\n", float64(item.EndFrame-item.StartFrame)/recapplan.OutputFPS)
+	if withAudio {
+		command = append(command, "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2")
 	}
-	if err := os.WriteFile(fullDemoConcatListPath(*short), []byte(list.String()), 0600); err != nil {
-		return err
+	if withVideo {
+		command = appendThreadArgs(command, short)
 	}
-	// The program command was built before preparation against the raw-part
-	// list. Rebuild it now that the prepared item list is in place, so the
-	// item/program overlay decision comes from the same plan and the copy path
-	// never runs over unprepared parts.
-	short.FFmpegCommand = BuildFFmpegCommand(short.fullDemo.ffmpeg, *short)
-	return releaseFullDemoAudio(*short)
+	return append(command, output), nil
 }
 
 type fullDemoItemProgress struct {
@@ -550,7 +507,7 @@ func (s *fullDemoItemProgress) overallLocked() float64 {
 	if s.total <= 0 {
 		return 1
 	}
-	return .3 + .7*(completed/s.total)
+	return completed / s.total
 }
 
 func (s *fullDemoItemProgress) set(i int, stage string, fraction float64) {

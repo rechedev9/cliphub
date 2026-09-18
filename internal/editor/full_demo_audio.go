@@ -103,6 +103,21 @@ func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessM
 // acceptance, and the original three attempts precede a bounded Windows AAC
 // recovery.
 func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+	return masterFullDemoSplitProgram(ctx, ffmpeg, input, committedFullDemoProgramVideo(input), output, logDir, target, silentApproved, duration, progress)
+}
+
+// fullDemoProgramVideo resolves the committed program video for the final mux.
+// Mastering only reads audio, so it may run while the video is still being
+// encoded; it blocks here only once a candidate has already passed.
+type fullDemoProgramVideo func(context.Context) (string, error)
+
+func committedFullDemoProgramVideo(path string) fullDemoProgramVideo {
+	return func(context.Context) (string, error) { return path, nil }
+}
+
+// masterFullDemoSplitProgram masters input, the lossless program audio, and
+// muxes the passing candidate with the separately produced program video.
+func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
 	fallbackProgress := progress.within(.65, 1)
 	progress = progress.within(0, .65)
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
@@ -115,6 +130,14 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 		e.Status = "silent"
 		return e, fmt.Errorf("audio_silent: the program has no measurable audio; approve a muted program or correct its sources")
 	}
+	// Once the first native master has failed, the recovery chain runs alongside
+	// the remaining native masters instead of after them.
+	var recovery *fullDemoAACRecoverySpeculation
+	defer func() {
+		if recovery != nil {
+			recovery.discard()
+		}
+	}()
 	attemptTarget := target
 	masterSamples := int64(math.Round(duration * recapplan.SampleRate))
 	// Reserve a small initial headroom for lossy AAC reconstruction.
@@ -157,11 +180,23 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 			return e, err
 		}
 		if accepted {
-			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, candidate, output, logDir, target, silentApproved, duration, e, progress.pass("Publicando el audio final", .85, .99))
+			if recovery != nil {
+				recovery.discard()
+				recovery = nil
+			}
+			program, err := video(ctx)
+			if err != nil {
+				candidateCleanup()
+				return e, err
+			}
+			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, program, candidate, output, logDir, target, silentApproved, duration, e, progress.pass("Publicando el audio final", .85, .99))
 			candidateCleanup()
 			return result, err
 		}
 		candidateCleanup()
+		if recovery == nil {
+			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, e.Input)
+		}
 		next, changed := nextMasterTarget(attemptTarget, target, decoded)
 		if !changed {
 			// loudnorm cannot be pushed any further; another native master
@@ -170,7 +205,12 @@ func masterFullDemoProgram(ctx context.Context, ffmpeg, input, output, logDir st
 		}
 		attemptTarget = next
 	}
-	return recoverFullDemoAAC(ctx, ffmpeg, input, output, logDir, target, duration, e, fallbackProgress)
+	// Every path out of the loop has rejected at least one native master, so the
+	// recovery chain is already running.
+	fallbackProgress.report("Recuperando audio final", 0)
+	result := recovery.wait()
+	recovery = nil
+	return finishFullDemoAACRecovery(ctx, ffmpeg, video, output, logDir, target, duration, e, result, fallbackProgress)
 }
 
 // loudnorm rejects targets outside these ranges, so retargeting must stay

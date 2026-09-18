@@ -87,9 +87,18 @@ func fullDemoProgramPath(short ShortEdit) string {
 	return filepath.Join(filepath.Dir(short.Output), "full-demo-program.nut")
 }
 
+// fullDemoProgramAudioPath is the lossless mixed program audio. It is the sole
+// input of every loudness measurement and AAC candidate, so mastering never
+// reads the multi-gigabyte program video.
+func fullDemoProgramAudioPath(short ShortEdit) string {
+	return filepath.Join(filepath.Dir(short.Output), "full-demo-program-audio.nut")
+}
+
 // The existing Full Demo concat now also accepts canonical prepared items.
-// PCM remains lossless until the full-program master. No fade or other legacy
-// presentation default is applied when the approval has no overlay.
+// The program carries video only: item audio is mixed and joined separately
+// (see prepareFullDemoProgramAudio) and stays lossless PCM until the
+// full-program master. No fade or other legacy presentation default is applied
+// when the approval has no overlay.
 //
 // When every effect is a supported global intro/outro image, the prepared items
 // already carry the composition, so the program only copies the compatible H264
@@ -99,17 +108,17 @@ func fullDemoProgramPath(short ShortEdit) string {
 func buildFullDemoProgramCommand(ffmpeg string, short ShortEdit) []string {
 	command := []string{ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", fullDemoConcatListPath(short)}
 	if len(short.Effects) == 0 || fullDemoProgramUsesItemOverlays(short) {
-		command = append(command, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy")
+		command = append(command, "-map", "0:v:0", "-c:v", "copy")
 	} else {
 		for _, effect := range imageEffects(short.Effects) {
 			command = append(command, "-i", effect.Path)
 		}
 		clauses := appendCompilationProgramVideo(nil, short, "0:v", 1)
-		command = append(command, "-filter_complex", strings.Join(clauses, ";"), "-map", "[v]", "-map", "0:a:0")
+		command = append(command, "-filter_complex", strings.Join(clauses, ";"), "-map", "[v]")
 		command = appendVideoEncodeArgs(command, short)
 		command = appendThreadArgs(command, short)
 	}
-	return append(command, "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", fullDemoProgramPath(short))
+	return append(command, fullDemoProgramPath(short))
 }
 
 func fullDemoCompilationFilter(short ShortEdit) string {

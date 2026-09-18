@@ -159,7 +159,7 @@ func TestFullDemoTransitionsRealCapturePreview(t *testing.T) {
 			if _, err := runFFmpegOutput(ctx, buildFullDemoCompilationCommand(ffmpeg, short), "real transition preview"); err != nil {
 				t.Fatal(err)
 			}
-			e, err := masterFullDemoProgram(ctx, ffmpeg, fullDemoProgramPath(short), short.Output, filepath.Join(work, "logs"), options.Audio.Loudness, false, 8, nil)
+			e, err := masterFullDemoSplitProgram(ctx, ffmpeg, fullDemoProgramAudioPath(short), committedFullDemoProgramVideo(fullDemoProgramPath(short)), short.Output, filepath.Join(work, "logs"), options.Audio.Loudness, false, 8, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

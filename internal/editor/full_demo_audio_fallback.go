@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -51,21 +52,45 @@ func (m ProgramAACFallbackMaster) corrected(decoded LoudnessMeasurement, target 
 	return m
 }
 
-func recoverFullDemoAAC(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+// fullDemoAACRecoveryAttempt is one Media Foundation master and, once its
+// candidate was measured, the decoded AAC that owns acceptance.
+type fullDemoAACRecoveryAttempt struct {
+	master  ProgramAACFallbackMaster
+	decoded *LoudnessMeasurement
+}
+
+// fullDemoAACRecoveryResult is the complete outcome of the bounded recovery
+// chain. The chain depends only on the first program measurement, never on the
+// native masters, so it can be produced before the native masters finish and is
+// folded into the evidence afterwards in the approved order.
+type fullDemoAACRecoveryResult struct {
+	unavailable bool
+	attempts    []fullDemoAACRecoveryAttempt
+	candidate   string
+	cleanup     func()
+	logs        []string
+	err         error
+}
+
+func (r *fullDemoAACRecoveryResult) release() {
+	if r.cleanup != nil {
+		r.cleanup()
+		r.cleanup = nil
+	}
+}
+
+func runFullDemoAACRecovery(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, duration float64, first LoudnessMeasurement, progress fullDemoProgress) (result fullDemoAACRecoveryResult) {
 	if !hasMediaFoundationAAC(ctx, ffmpeg) {
-		if err := ctx.Err(); err != nil {
-			return e, err
-		}
-		return e, fullDemoAACFailure("Media Foundation AAC recovery is unavailable after three masters", e)
+		result.unavailable, result.err = true, ctx.Err()
+		return result
 	}
 	// Keep the initial normalization fixed. Feeding lossy peak overshoot back
 	// into loudnorm's target TP can lower the whole mix and defeat its LUFS
 	// target. Here gain and the post-normalization limiter are independent.
-	baseTarget := target
-	baseTarget.TargetTPDBTP -= .3
-	base, err := measuredLoudnessFilter(baseTarget, e.Input)
+	base, err := measuredLoudnessFilter(fullDemoAACRecoveryTarget(target), first)
 	if err != nil {
-		return e, err
+		result.err = err
+		return result
 	}
 	master := ProgramAACFallbackMaster{Encoder: "aac_mf", GainDB: 3, CeilingDBFS: target.TargetTPDBTP - 3.5}
 	// Rebuild timestamps from the canonical sample clock as well as bounding
@@ -79,38 +104,120 @@ func recoverFullDemoAAC(ctx context.Context, ffmpeg, input, output, logDir strin
 	for attempt := 0; attempt < 3; attempt++ {
 		start := float64(attempt) * .26
 		stage := fmt.Sprintf("Recuperando audio final (%d/3)", attempt+1)
-		e.MasterTargets = append(e.MasterTargets, baseTarget)
-		e.FallbackMasters = append(e.FallbackMasters, master)
+		result.attempts = append(result.attempts, fullDemoAACRecoveryAttempt{master: master})
 		candidate, candidateCleanup, err := fullDemoAudioCandidatePath(output)
 		if err != nil {
-			return e, err
+			result.err = err
+			return result
 		}
 		filter := master.filter(base) + ",apad=whole_len=" + samples + ",atrim=end_sample=" + samples + ",asetpts=N/SR/TB"
 		command := fullDemoRecoveryCandidateCommand(ffmpeg, input, candidate, filter, master.Encoder, packetDuration)
-		if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, master.Encoder, "recovery"), command, "Full Demo AAC recovery", filepath.Join(logDir, fmt.Sprintf("program-aac-recovery-%d.txt", attempt)), duration, progress.pass(stage, start, start+.13)); err != nil {
+		encodeLog := filepath.Join(logDir, fmt.Sprintf("program-aac-recovery-%d.txt", attempt))
+		result.logs = append(result.logs, encodeLog)
+		if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, master.Encoder, "recovery"), command, "Full Demo AAC recovery", encodeLog, duration, progress.pass(stage, start, start+.13)); err != nil {
 			candidateCleanup()
-			return e, fmt.Errorf("audio_loudness_failed: AAC recovery: %w", err)
+			result.err = fmt.Errorf("audio_loudness_failed: AAC recovery: %w", err)
+			return result
 		}
-		decoded, err := measureLoudness(fullDemoTimingStageVariant(ctx, "audio_candidate_analysis", attempt, "aac_mf", "recovery"), ffmpeg, candidate, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-recovery-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio recuperado (%d/3)", attempt+1), start+.13, start+.26))
+		decodedLog := filepath.Join(logDir, fmt.Sprintf("decoded-aac-recovery-%d.txt", attempt))
+		result.logs = append(result.logs, decodedLog)
+		decoded, err := measureLoudness(fullDemoTimingStageVariant(ctx, "audio_candidate_analysis", attempt, "aac_mf", "recovery"), ffmpeg, candidate, target, decodedLog, duration, progress.pass(fmt.Sprintf("Comprobando audio recuperado (%d/3)", attempt+1), start+.13, start+.26))
 		if err != nil {
 			candidateCleanup()
-			return e, err
+			result.err = err
+			return result
 		}
-		e.DecodedAAC = append(e.DecodedAAC, decoded)
+		result.attempts[attempt].decoded = &decoded
 		accepted, err := fullDemoDecodedAACAccepted(decoded, target, false)
 		if err != nil {
 			candidateCleanup()
-			return e, err
+			result.err = err
+			return result
 		}
 		if accepted {
-			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
-			candidateCleanup()
-			return result, err
+			result.candidate, result.cleanup = candidate, candidateCleanup
+			return result
 		}
 		candidateCleanup()
 		master = master.corrected(decoded, target)
 	}
-	return e, fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e)
+	return result
+}
+
+func fullDemoAACRecoveryTarget(target recapplan.LoudnessOptions) recapplan.LoudnessOptions {
+	target.TargetTPDBTP -= .3
+	return target
+}
+
+// finishFullDemoAACRecovery folds a recovery result into the evidence exactly
+// as the attempts would have been recorded one by one, then delivers the
+// accepted candidate.
+func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, result fullDemoAACRecoveryResult, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+	defer result.release()
+	if result.unavailable {
+		if result.err != nil {
+			return e, result.err
+		}
+		return e, fullDemoAACFailure("Media Foundation AAC recovery is unavailable after three masters", e)
+	}
+	for _, attempt := range result.attempts {
+		e.MasterTargets = append(e.MasterTargets, fullDemoAACRecoveryTarget(target))
+		e.FallbackMasters = append(e.FallbackMasters, attempt.master)
+		if attempt.decoded != nil {
+			e.DecodedAAC = append(e.DecodedAAC, *attempt.decoded)
+		}
+	}
+	if result.err != nil {
+		return e, result.err
+	}
+	if result.candidate == "" {
+		return e, fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e)
+	}
+	program, err := video(ctx)
+	if err != nil {
+		return e, err
+	}
+	return deliverFullDemoAACCandidate(ctx, ffmpeg, program, result.candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
+}
+
+func recoverFullDemoAAC(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+	result := runFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, e.Input, progress)
+	return finishFullDemoAACRecovery(ctx, ffmpeg, video, output, logDir, target, duration, e, result, progress)
+}
+
+// fullDemoAACRecoverySpeculation runs the recovery chain while the remaining
+// native masters are still being tried. Native masters keep precedence: the
+// result is only consumed after every native master failed, and is discarded,
+// together with its candidate and logs, as soon as one passes.
+type fullDemoAACRecoverySpeculation struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+	result fullDemoAACRecoveryResult
+}
+
+func startFullDemoAACRecovery(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, duration float64, first LoudnessMeasurement) *fullDemoAACRecoverySpeculation {
+	ctx, cancel := context.WithCancel(ctx)
+	s := &fullDemoAACRecoverySpeculation{cancel: cancel, done: make(chan struct{})}
+	go func() {
+		defer close(s.done)
+		s.result = runFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, first, nil)
+	}()
+	return s
+}
+
+func (s *fullDemoAACRecoverySpeculation) wait() fullDemoAACRecoveryResult {
+	<-s.done
+	s.cancel()
+	return s.result
+}
+
+func (s *fullDemoAACRecoverySpeculation) discard() {
+	s.cancel()
+	<-s.done
+	s.result.release()
+	for _, path := range s.result.logs {
+		os.Remove(path)
+	}
 }
 
 func fullDemoAACFailure(reason string, e ProgramLoudnessEvidence) error {
