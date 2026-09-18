@@ -89,6 +89,25 @@ func measureLoudness(ctx context.Context, ffmpeg, path string, target recapplan.
 	return parseLoudnessMeasurement(output)
 }
 
+// fullDemoProgramInputLoudness returns the first program measurement. When the
+// program-audio assembly already measured the same samples against the same
+// target, its parsed measurement is reused and its output is written to the
+// same evidence log, so no second decode of the whole program runs. Any other
+// case (no fused measurement, an unparseable one, or a different target) runs
+// the standalone measurement pass unchanged, including its timing span.
+func fullDemoProgramInputLoudness(ctx context.Context, ffmpeg, input string, target recapplan.LoudnessOptions, logPath string, duration float64, onFraction func(float64), assembled fullDemoProgramAudio) (LoudnessMeasurement, error) {
+	if !assembled.Measured || assembled.Target != target {
+		return measureLoudness(fullDemoTimingStage(ctx, "audio_input_analysis", -1), ffmpeg, input, target, logPath, duration, onFraction)
+	}
+	if err := writeLogFile(logPath, assembled.Output); err != nil {
+		return LoudnessMeasurement{}, err
+	}
+	if onFraction != nil {
+		onFraction(1)
+	}
+	return assembled.Measurement, nil
+}
+
 func measuredLoudnessFilter(target recapplan.LoudnessOptions, measured LoudnessMeasurement) (string, error) {
 	if measured.Status != "measured" || measured.IntegratedLUFS == nil || measured.TruePeakDBTP == nil || measured.LRA == nil || measured.Threshold == nil || measured.Offset == nil {
 		return "", fmt.Errorf("audio_loudness_failed: finite first-pass measurement is required")
@@ -118,10 +137,18 @@ func committedFullDemoProgramVideo(path string) fullDemoProgramVideo {
 // masterFullDemoSplitProgram masters input, the lossless program audio, and
 // muxes the passing candidate with the separately produced program video.
 func masterFullDemoSplitProgram(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
+	return masterFullDemoMeasuredProgram(ctx, ffmpeg, input, video, output, logDir, target, silentApproved, duration, progress, fullDemoProgramAudio{})
+}
+
+// masterFullDemoMeasuredProgram is masterFullDemoSplitProgram with the program
+// measurement the assembly already produced from the very same samples. The
+// candidate sequence, acceptance rules, evidence and log files are unchanged;
+// only the first full decode of the program audio is skipped.
+func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, progress fullDemoProgress, assembled fullDemoProgramAudio) (ProgramLoudnessEvidence, error) {
 	fallbackProgress := progress.within(.65, 1)
 	progress = progress.within(0, .65)
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
-	measurement, err := measureLoudness(fullDemoTimingStage(ctx, "audio_input_analysis", -1), ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .08))
+	measurement, err := fullDemoProgramInputLoudness(ctx, ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .08), assembled)
 	if err != nil {
 		return e, err
 	}

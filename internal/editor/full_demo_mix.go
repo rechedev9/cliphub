@@ -30,6 +30,31 @@ func fullDemoItemJobs() int {
 	return jobs
 }
 
+// fullDemoAudioItemJobsMax bounds the audio-only item pool. Audio items run no
+// encoder: each one demuxes its capture segment plus the prepared voice WAVs
+// and writes lossless PCM through a filter graph, so a worker is far cheaper
+// than an item encoder and the pool can be wider than the encoder pool. Four is
+// measured, not guessed: on the saved replay every four-worker repeat beat every
+// three-worker repeat (median 3.169 s versus 4.492 s), while six workers saved
+// only a further ~0.8 s and ran six processes against the concurrent video
+// encodes. The whole stage is a few seconds of a multi-minute render, so the
+// ceiling stays small (see docs/full-demo-render-performance-audit.md).
+const fullDemoAudioItemJobsMax = 4
+
+// fullDemoAudioItemJobs bounds the audio-only item pool, which runs no encoder:
+// every audio item is a filter graph writing lossless PCM. It never drops below
+// the encoder budget and never exceeds the CPU count.
+func fullDemoAudioItemJobs() int {
+	jobs := fullDemoAudioItemJobsMax
+	if cpus := runtime.NumCPU(); cpus > 0 && cpus < jobs {
+		jobs = cpus
+	}
+	if encoders := fullDemoItemJobs(); jobs < encoders {
+		jobs = encoders
+	}
+	return jobs
+}
+
 func sampleWindow(input string, start, count int64, gain float64, label string) string {
 	return fmt.Sprintf("%saresample=48000:first_pts=0,aformat=channel_layouts=stereo,atrim=start_sample=%d:end_sample=%d,asetpts=PTS-STARTPTS,apad=whole_len=%d,atrim=end_sample=%d,volume=%s[%s]", input, start, start+count, count, count, decimal(gain), label)
 }
@@ -84,14 +109,25 @@ func fullDemoRoundAudioWithTransitions(options recapplan.AudioOptions, gameStart
 	return strings.Join(clauses, ";")
 }
 
-// fullDemoVoiceJobs bounds independent voice pipelines. Voice preparation runs
-// before item encoding and must not compete with the three item encoders, so it
-// keeps its own small, CPU-aware pool instead of sharing that budget.
+// fullDemoVoiceJobsMax bounds independent voice pipelines. Voice preparation no
+// longer runs before item encoding: since the video and audio branches run
+// concurrently it overlaps the item encoders whatever its size, and it is the
+// head of the audio critical path, so holding it to three workers only left the
+// last track running alone while the whole branch waited. On the saved replay's
+// five real tracks, under a concurrent video item load, the stage took
+// 105.8/132.8 s with three workers and 73.4/72.8 s with five. Five is also a
+// full CS2 team's voice tracks, the ceiling the team-voice policy can select,
+// so a wider pool would never be used (see
+// docs/full-demo-render-performance-audit.md).
+const fullDemoVoiceJobsMax = 5
+
+// fullDemoVoiceJobs bounds independent voice pipelines with its own small,
+// CPU-aware pool instead of sharing the item budget.
 func fullDemoVoiceJobs(trackCount int) int {
 	if trackCount <= 0 {
 		return 0
 	}
-	jobs := 3
+	jobs := fullDemoVoiceJobsMax
 	if cpus := runtime.NumCPU(); cpus > 0 && cpus < jobs {
 		jobs = cpus
 	}
