@@ -36,7 +36,9 @@ export function StreamStepsRail({
           {AUTOSAVE_LABEL[autosave]}
         </p>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      {/* Wrap instead of scrolling sideways: a clipped "3 R…" at 390px gives
+          no hint that a third step exists. */}
+      <div className="flex flex-wrap gap-2 pb-1">
         {steps.map((step) => (
           <button
             key={step.key}
@@ -44,7 +46,7 @@ export function StreamStepsRail({
             aria-current={step.key === activeStep ? 'step' : undefined}
             onClick={() => onSelectStep(step.key)}
             className={cn(
-              'flex min-h-11 flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-label focus-visible:outline-2 focus-visible:outline-ring',
+              'flex min-h-11 flex-1 basis-[10rem] items-center justify-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-label focus-visible:outline-2 focus-visible:outline-ring',
               step.key === activeStep
                 ? 'border-stream bg-stream/10 text-fg-1'
                 : 'border-border-subtle text-fg-2 hover:bg-surface-3',

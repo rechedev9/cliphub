@@ -246,7 +246,9 @@ function ClipCard({
 
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate font-display text-body-sm font-bold uppercase text-fg-1">{clip.title}</span>
-        <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
+        {/* Two lines rather than a truncate: at M the format ("9:16") is the
+            part that got cut, and it is the one bit the title does not say. */}
+        <span className="line-clamp-2 font-mono text-meta uppercase tracking-wider text-fg-3">
           {video.map} · {player} · {sub}
         </span>
       </span>
@@ -255,8 +257,12 @@ function ClipCard({
           without wrapping them into more chrome than thumbnail, which is the
           opposite of what the density step was asked for. */}
       {small ? null : (
-        <span className="flex flex-wrap items-center gap-1.5">
+        <span className="flex flex-col gap-1.5">
+          {/* The match link gets its own row on every card, so a ready card
+              (three buttons) and a rendering one (delete only) share the same
+              row count and the grid reads as one line of equal cards. */}
           <OutputActions
+            compact
             output={clip}
             matchId={matchId ?? ORPHAN_MATCH_SEGMENT}
             onChange={onChange}
@@ -267,7 +273,7 @@ function ClipCard({
               type="button"
               aria-label={OPEN_MATCH_ARIA}
               onClick={() => onOpenMatch(matchId)}
-              className="ml-auto inline-flex h-10 items-center gap-1 px-2 font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors duration-(--dur-fast) hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="inline-flex h-10 items-center gap-1 self-end px-2 font-mono text-meta uppercase tracking-wider text-fg-3 transition-colors duration-(--dur-fast) hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               {OPEN_MATCH_LABEL}
               <ArrowRight aria-hidden className="size-3" />

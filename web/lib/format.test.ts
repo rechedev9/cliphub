@@ -33,6 +33,13 @@ test('timeAgo: days read "hace N d"', () => {
   assert.equal(timeAgo(Date.now() - 3 * 86_400_000), 'hace 3 d');
 });
 
+test('timeAgo: a month or older shows the calendar date, never "hace 381 d"', () => {
+  const got = timeAgo(Date.now() - 381 * 86_400_000);
+  assert.doesNotMatch(got, /hace /);
+  assert.match(got, /\d{4}$/);
+  assert.match(timeAgo(Date.now() - 29 * 86_400_000), /^hace 29 d$/);
+});
+
 test('uploaded demos show an import date instead of a fabricated recent play time', () => {
   const label = matchDateLabel({ playedAt: '2020-01-02T00:00:00Z', source: 'upload' });
   assert.match(label, /^importada el /);

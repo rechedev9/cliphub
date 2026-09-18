@@ -24,7 +24,9 @@ export function StreamFooter({
 }): ReactNode {
   return (
     <footer className="sticky bottom-0 z-10 flex shrink-0 flex-wrap items-center gap-3 border-t border-border bg-surface-1 px-4 py-3">
-      <div className="min-w-0 flex-1">
+      {/* A floor on the summary pushes the buttons to their own row on phones
+          instead of squeezing "1 Short · 01 · 0:12" into four lines. */}
+      <div className="min-w-[12rem] flex-1">
         <p className="font-semibold text-body">{countLabel}</p>
         <p className="text-label text-fg-3">{summary}</p>
       </div>

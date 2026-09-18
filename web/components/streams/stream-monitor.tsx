@@ -72,12 +72,15 @@ export function StreamMonitor({
 
   return (
     <div className="flex shrink-0 flex-col gap-3">
+      {/* Under 640px the two monitors cannot share a row without the 9:16
+          preview clipping past the viewport, so they stack and each takes an
+          explicit height (the preview's cq units need one to resolve). */}
       <div
         data-slot="stream-monitor-views"
         style={{ '--monitor-height': `${monitorHeight}px` } as CSSProperties}
-        className="relative grid h-[min(var(--monitor-height),55dvh)] min-h-[280px] shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)] items-center gap-4"
+        className="relative grid shrink-0 items-center gap-4 max-sm:grid-cols-1 sm:h-[min(var(--monitor-height),55dvh)] sm:min-h-[280px] sm:grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)]"
       >
-        <div className="flex min-h-0 min-w-0 flex-col self-stretch">
+        <div className="flex min-h-0 min-w-0 flex-col self-stretch max-sm:h-[42dvh]">
           <p className="mb-2 text-label font-semibold text-fg-2">
             {cropEditor ? 'Selecciona la cámara en el original' : 'Vídeo original'}
           </p>
@@ -92,7 +95,7 @@ export function StreamMonitor({
             <p className="mt-2 text-label text-fg-3">Arrastra el marco y su esquina. También puedes usar las flechas.</p>
           ) : null}
         </div>
-        <div className="flex min-h-0 min-w-0 self-stretch flex-col items-center">
+        <div className="flex min-h-0 min-w-0 self-stretch flex-col items-center max-sm:h-[42dvh]">
           <p className="mb-2 text-label font-semibold text-fg-2">Vista del Short</p>
           <div data-slot="stream-output-container" className="flex min-h-0 w-full flex-1 items-start justify-center [container-type:size]">
             <StreamPreview {...preview} className="h-auto w-[min(100cqw,56.25cqh)] shrink-0" />
