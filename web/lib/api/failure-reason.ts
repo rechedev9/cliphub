@@ -56,10 +56,16 @@ export type FailureContext = {
   /** Full Demo plans are regenerated rather than replayed after a stale POV boundary. */
   fullDemo?: boolean;
   fullDemoPlannerVersion?: string;
+  /** Job-level scan/parse failure. Generic copy must not mention completing a video or retrying. */
+  job?: boolean;
 };
 
 const GENERIC_MESSAGE =
   'No se pudo completar el vídeo en este equipo. Reintenta; si vuelve a fallar, comparte el diagnóstico desde Ajustes.';
+
+/** Job-level fallback: the failed partida UI has no retry, only delete / diagnostics. */
+export const JOB_GENERIC_FAILURE_MESSAGE =
+  'No se pudo procesar esta demo. Elimínala de Partidas o comparte el diagnóstico desde Ajustes.';
 
 const DEMO_INCOMPATIBLE_MESSAGE =
   'Esta demo se grabó en una versión antigua de CS2 y el cliente actual no puede reproducirla. ' +
@@ -101,10 +107,17 @@ function capturedSentence(counts: CapturedCounts): string {
   return ` Se capturaron ${counts.captured} de ${counts.requested} jugadas antes del fallo y siguen disponibles.`;
 }
 
+function genericFailure(context: FailureContext): FailureReason {
+  if (context.job) {
+    return { kind: 'generic', message: JOB_GENERIC_FAILURE_MESSAGE, retryCanHelp: false };
+  }
+  return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
+}
+
 /** Classifies `failureReason` into a Spanish card message. Pure; the card does not parse the raw string. */
 export function parseFailureReason(reason: string | undefined, context: FailureContext = {}): FailureReason {
   if (reason === undefined || reason.trim() === '') {
-    return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
+    return genericFailure(context);
   }
 
   if (reason.startsWith(UNPLAYABLE_START_PREFIX)) {
@@ -161,7 +174,7 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
     return { kind: 'capture-flake', message: CAPTURE_FLAKE_MESSAGE, retryCanHelp: true };
   }
 
-  return { kind: 'generic', message: GENERIC_MESSAGE, retryCanHelp: true };
+  return genericFailure(context);
 }
 
 /** Library strip label: capture flakes are not a dead pipeline. */

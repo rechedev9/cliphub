@@ -287,10 +287,25 @@ export type HubNextStep = (typeof HUB_NEXT_STEP)[keyof typeof HUB_NEXT_STEP];
 export function hubNextStep(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): HubNextStep {
   if (row.stage === HUB_ROW_STAGE.parsing) return HUB_NEXT_STEP.wait;
   if (row.stage === HUB_ROW_STAGE.unpicked) return HUB_NEXT_STEP.pick;
-  // Failed: nothing to produce from; the row's delete button is the only exit.
+  // Failed: nothing new to produce; existing clips stay on the expandable row.
   if (row.stage === HUB_ROW_STAGE.failed) return HUB_NEXT_STEP.none;
   if (row.shorts.length === 0 && row.fulls.length === 0) return HUB_NEXT_STEP.firstClip;
   return HUB_NEXT_STEP.none;
+}
+
+function rowHasClips(row: Pick<HubMatch, 'shorts' | 'fulls'>): boolean {
+  return row.shorts.length > 0 || row.fulls.length > 0;
+}
+
+/** Ready rows always open. Failed rows open only when clips already exist, so they stay visible. */
+export function hubRowExpandable(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): boolean {
+  if (row.stage === HUB_ROW_STAGE.ready) return true;
+  return row.stage === HUB_ROW_STAGE.failed && rowHasClips(row);
+}
+
+/** Produce CTAs belong on a plan-ready row. A failed job can still show existing clips. */
+export function hubRowCanProduce(row: Pick<HubMatch, 'stage'>): boolean {
+  return row.stage === HUB_ROW_STAGE.ready;
 }
 
 /** Row subtitle: the facts that tell five same-map partidas apart. `dateLabel` is already formatted. */

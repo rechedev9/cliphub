@@ -6,6 +6,8 @@ import {
   MATCH_PLAYS_EMPTY_TITLE,
 } from '../lib/match-plays-empty.ts';
 import { FULL_DEMO_EDIT } from '../lib/full-demo.ts';
+import { JOB_GENERIC_FAILURE_MESSAGE } from '../lib/api/failure-reason.ts';
+import { PRODUCE_MATCH_FAILED_TITLE } from '../lib/produce/copy.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 
@@ -42,6 +44,16 @@ test.describe('Produce screen empty states', () => {
     const formats = page.getByRole('group', { name: 'Tipo de vídeo' });
     await expect(formats.getByRole('button', { name: 'Short 9:16' })).toHaveAttribute('aria-pressed', 'true');
     await expect(formats.getByRole('button', { name: 'Vídeo largo 16:9' })).toBeVisible();
+  });
+
+  test('a failed demo shows the job failure, not reel retry copy', async ({ page }) => {
+    await fulfillJson(page, '/status', 200, { status: 'failed', failure_reason: 'scan exploded: bad header' });
+    await gotoStudio(page, `/clips/${JOB}/nuevo`);
+    await expect(page.getByRole('heading', { name: PRODUCE_MATCH_FAILED_TITLE })).toBeVisible();
+    await expect(page.getByText(JOB_GENERIC_FAILURE_MESSAGE)).toBeVisible();
+    await expect(page.getByText(/completar el vídeo|Reintenta/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Volver' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Reintentar/ })).toHaveCount(0);
   });
 
   test('plan-ready with zero plays keeps Sin jugadas destacables', async ({ page }) => {

@@ -203,7 +203,7 @@ export default function ProducePage({
       <StudioEmptyState
         icon={AlertTriangle}
         title={PRODUCE_MATCH_FAILED_TITLE}
-        description={parseFailureReason(match.failureReason).message}
+        description={parseFailureReason(match.failureReason, { job: true }).message}
         compact
         actions={<Button variant="outline" onClick={() => router.push(backHref)}>Volver</Button>}
       />

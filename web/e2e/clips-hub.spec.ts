@@ -3,9 +3,11 @@ import { gotoStudio } from './contract.ts';
 import {
   HUB_EMPTY_TITLE,
   HUB_ORPHANS_TITLE,
+  MATCH_ROW_FAILED_TITLE,
   MATCH_ROW_UNPICKED_CTA,
   MATCH_ROW_UNPICKED_TITLE,
 } from '../lib/clips/copy.ts';
+import { JOB_GENERIC_FAILURE_MESSAGE } from '../lib/api/failure-reason.ts';
 
 /**
  * 01 Clips y vídeos hub. The suite runs without an orchestrator, so the
@@ -294,6 +296,87 @@ test.describe('clips hub', () => {
     await expect(others.getByRole('button', { name: `Borrar ${ORPHAN_TITLE}` })).toBeVisible();
     // No partida row claims it.
     await expect(page.locator(`#partida-${GONE_JOB_ID}`)).toHaveCount(0);
+  });
+
+  test('a failed partida with existing clips stays expandable and does not hide them', async ({ page }) => {
+    const failedTitle = 'Ace después del parse';
+    await page.addInitScript(
+      (intents) => {
+        window.localStorage.setItem('cliphub.reels.v1', JSON.stringify(intents));
+      },
+      [
+        {
+          videoId: VIDEO_ID,
+          jobId: JOB_ID,
+          segmentIds: ['seg-001'],
+          mode: 'clean',
+          variant: VARIANT,
+          editConfig: SHORT_EDIT,
+          title: failedTitle,
+          map: 'de_mirage',
+          score: '13-9',
+          targetName: TARGET.name,
+          createdAt: 1_756_800_000_000,
+        },
+      ],
+    );
+    await page.route('**/api/demos/jobs', (route) =>
+      route.fulfill({
+        json: {
+          jobs: [
+            {
+              jobId: JOB_ID,
+              status: 'failed',
+              failureReason: 'scan exploded: bad header',
+              fileName: 'match730.dem',
+              createdAt: '2026-09-01T10:00:00Z',
+            },
+          ],
+        },
+      }),
+    );
+    await page.route(`**/api/demos/${JOB_ID}/status`, (route) =>
+      route.fulfill({ json: { status: 'failed', failure_reason: 'scan exploded: bad header' } }),
+    );
+    await page.route(`**/api/demos/${JOB_ID}/renders/${VARIANT}`, (route) =>
+      route.fulfill({
+        json: {
+          status: 'ready',
+          videos: ['ace.mp4'],
+          covers: [],
+          segment_ids: ['seg-001'],
+          edit: {
+            format: SHORT_EDIT.format,
+            killEffect: SHORT_EDIT.killEffect,
+            transition: SHORT_EDIT.transition,
+            intro: false,
+            outro: false,
+            hook_text: false,
+            kill_counter: false,
+            match_recap: false,
+            voice_comms: false,
+            native_hud: false,
+            cover_strategy: SHORT_EDIT.coverStrategy,
+          },
+        },
+      }),
+    );
+    await page.route('**/api/streams', (route) => route.fulfill({ json: { jobs: [] } }));
+    await gotoStudio(page, '/clips');
+
+    const row = page.locator(`#partida-${JOB_ID}`);
+    await expect(row).toBeVisible();
+    await expect(row.getByText(MATCH_ROW_FAILED_TITLE)).toBeVisible();
+    await expect(row.getByText(JOB_GENERIC_FAILURE_MESSAGE)).toBeVisible();
+    await expect(row.getByText('Shorts · 1')).toBeVisible();
+    await expect(page.getByText('No se pudo completar el vídeo')).toHaveCount(0);
+    await expect(page.locator(`section[aria-label="${HUB_ORPHANS_TITLE}"]`)).toHaveCount(0);
+
+    await row.getByRole('button', { expanded: false }).first().click();
+    await expect(row.getByRole('button', { expanded: true })).toBeVisible();
+    await expect(row.getByText(failedTitle)).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Crear otro Short' })).toHaveCount(0);
+    await expect(row.getByRole('link', { name: 'Preparar vídeo largo' })).toHaveCount(0);
   });
 
   test('the parse completion toast opens the corresponding match', async ({ page }) => {
