@@ -1,7 +1,7 @@
 // Pure Partidas index: /api/demos/jobs → Matches/series. Status filters stay here.
 
 import type { DemoPlayer, Match, MatchStats } from './types.ts';
-import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
+import { MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES } from './types.ts';
 import { prettifyMap } from './map.ts';
 import { groupSeriesDemos } from '../series-grouping.ts';
 
@@ -71,6 +71,11 @@ export function jobHasRoster(status: string): boolean {
   return ROSTER_READY_STATUSES.has(status);
 }
 
+/** A failed job lists too: hiding it left the user with no reason and no way to clear it. */
+export function jobIsListable(status: string): boolean {
+  return jobHasRoster(status) || status === MATCH_STATUS_FAILED;
+}
+
 /** Epoch ms for a job's upload time; 0 (sorts last) when absent or unparseable. */
 export function jobCreatedAtMs(job: IndexedJob): number {
   if (!job.createdAt) return 0;
@@ -78,10 +83,10 @@ export function jobCreatedAtMs(job: IndexedJob): number {
   return Number.isNaN(ms) ? 0 : ms;
 }
 
-/** Roster-ready jobs for Partidas, newest first. Failed jobs never list. */
+/** Roster-ready and failed jobs for Partidas, newest first. */
 export function listableJobs(jobs: readonly IndexedJob[]): IndexedJob[] {
   return jobs
-    .filter((job) => jobHasRoster(job.status))
+    .filter((job) => jobIsListable(job.status))
     .sort((a, b) => jobCreatedAtMs(b) - jobCreatedAtMs(a));
 }
 
@@ -159,5 +164,6 @@ export function jobToMatch(job: IndexedJob, enrichment?: { map?: string; player?
   // Name the row after the clipped/target player when the roster resolved them;
   // leave it off (no stray separator) for an unenriched or nameless entry.
   if (player?.name) match.player = player.name;
+  if (job.status === MATCH_STATUS_FAILED && job.failureReason) match.failureReason = job.failureReason;
   return match;
 }

@@ -6,6 +6,7 @@ import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   MATCH_ROW_FIRST_CLIP_CTA,
+  MATCH_ROW_FAILED_TITLE,
   MATCH_ROW_UNPICKED_CTA,
   MATCH_ROW_UNPICKED_HINT,
   MATCH_ROW_UNPICKED_TITLE,
@@ -16,6 +17,8 @@ import {
   HUB_NEXT_STEP,
   HUB_ROW_STAGE,
   hubNextStep,
+  hubRowCanProduce,
+  hubRowExpandable,
   matchMetaParts,
   OUTPUT_STATE,
   OUTPUT_TONE,
@@ -26,6 +29,7 @@ import {
   type HubMatch,
 } from '@/lib/clips/hub';
 import { newDemoHref, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
+import { parseFailureReason } from '@/lib/api/failure-reason';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
@@ -55,7 +59,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
   const win = hasScore && ours > theirs;
   const loss = hasScore && ours < theirs;
   const player = match.player;
-  const expandable = stage === HUB_ROW_STAGE.ready;
+  const expandable = hubRowExpandable(row);
   const expanded = open && expandable;
   const nextStep = hubNextStep(row);
 
@@ -66,6 +70,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
   let headerBlock: ReactNode;
   if (stage === HUB_ROW_STAGE.parsing) headerBlock = <ParsingBlock player={player} />;
   else if (stage === HUB_ROW_STAGE.unpicked) headerBlock = <UnpickedBlock />;
+  else if (stage === HUB_ROW_STAGE.failed) headerBlock = <FailedBlock reason={match.failureReason} shorts={shorts} fulls={fulls} />;
   else headerBlock = <ReadyHeaderBlock hasScore={hasScore} ours={ours} theirs={theirs} win={win} loss={loss} shorts={shorts} fulls={fulls} />;
 
   return (
@@ -147,6 +152,33 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
 
 /** The hub rebuilds its model on every poll, so props compare by value, not identity. */
 export const MatchRow = memo(MatchRowCard, sameHubProps);
+
+/** Terminal failure: the reason stays on the row so the user knows what to do before deleting it. */
+function FailedBlock({
+  reason,
+  shorts,
+  fulls,
+}: {
+  reason?: string;
+  shorts: HubMatch['shorts'];
+  fulls: HubMatch['fulls'];
+}): ReactNode {
+  const failure = parseFailureReason(reason, { job: true });
+  return (
+    <span role="status" className="row-state row-state-block">
+      <span className="font-mono text-meta uppercase tracking-wider text-destructive">{MATCH_ROW_FAILED_TITLE}</span>
+      <span className="text-body-sm text-fg-2">{failure.message}</span>
+      {shorts.length > 0 || fulls[0] !== undefined ? (
+        <span className="flex items-center gap-2">
+          {shorts.length > 0 ? <StatusTag tone={shortsChipTone(shorts)}>Shorts · {shorts.length}</StatusTag> : null}
+          {fulls[0] !== undefined ? (
+            <StatusTag tone={OUTPUT_TONE[fulls[0].state]}>{fullChipLabel(fulls)}</StatusTag>
+          ) : null}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function ParsingBlock({ player }: { player?: string }): ReactNode {
   return (
@@ -236,12 +268,14 @@ function ShortsColumn({ row, onChange }: { row: HubMatch; onChange: () => void }
       {row.shorts.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}
-      <Button asChild variant="outline-primary" size="sm" className="border-dashed">
-        <Link href={produceHref(row.match.id, PRODUCE_FORMAT.short)}>
-          <Plus aria-hidden />
-          Crear otro Short
-        </Link>
-      </Button>
+      {hubRowCanProduce(row) ? (
+        <Button asChild variant="outline-primary" size="sm" className="border-dashed">
+          <Link href={produceHref(row.match.id, PRODUCE_FORMAT.short)}>
+            <Plus aria-hidden />
+            Crear otro Short
+          </Link>
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -255,7 +289,7 @@ function FullColumn({ row, onChange }: { row: HubMatch; onChange: () => void }):
       {row.fulls.map((output) => (
         <OutputItem key={output.id} output={output} matchId={row.match.id} onChange={onChange} />
       ))}
-      {latest === undefined ? (
+      {latest === undefined && hubRowCanProduce(row) ? (
         <div className="flex flex-col gap-2.5 rounded-lg border border-border-subtle bg-surface-2 p-3.5">
           <p className="text-label text-fg-2">
             {rounds === null

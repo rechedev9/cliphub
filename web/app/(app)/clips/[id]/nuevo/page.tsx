@@ -6,7 +6,8 @@ import { AlertTriangle, SearchX, Unplug, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { Match, Play } from '@/lib/api/types';
-import { HUB_ROW_STAGE, matchRowStage } from '@/lib/clips/hub';
+import { parseFailureReason } from '@/lib/api/failure-reason';
+import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
 import {
   hubHref,
   isProduceFormat,
@@ -28,6 +29,7 @@ import {
 } from '@/lib/match-plays-empty';
 import { startPollLoop } from '@/lib/poll-loop';
 import {
+  PRODUCE_MATCH_FAILED_TITLE,
   PRODUCE_MATCH_MISSING,
   PRODUCE_MATCH_NO_POV,
   PRODUCE_PICK_POV_CTA,
@@ -196,6 +198,16 @@ export default function ProducePage({
         }
       />
     );
+  } else if (stage === HUB_ROW_STAGE.failed) {
+    body = (
+      <StudioEmptyState
+        icon={AlertTriangle}
+        title={PRODUCE_MATCH_FAILED_TITLE}
+        description={parseFailureReason(match.failureReason, { job: true }).message}
+        compact
+        actions={<Button variant="outline" onClick={() => router.push(backHref)}>Volver</Button>}
+      />
+    );
   } else if (stage === HUB_ROW_STAGE.parsing) {
     body = (
       <StudioEmptyState
@@ -247,7 +259,7 @@ export default function ProducePage({
       className="flex min-h-[calc(100dvh-7rem)] w-full flex-col">
       <div className="mb-2">
         <WorkflowProgress steps={DEMO_CREATION_STEPS}
-          current={stage === HUB_ROW_STAGE.unpicked ? 1 : 2} />
+          current={workflowStep(stage)} />
       </div>
       <ProduceFormatBar value={format} onChange={changeFormat} />
       <div className="flex flex-1 flex-col gap-3 pt-2">
@@ -264,6 +276,13 @@ export default function ProducePage({
       </div>
     </div>
   );
+}
+
+/** A failed demo never left "Cargar demo"; a scanned one is picking its POV; the rest are preparing. */
+function workflowStep(stage: HubRowStage): number {
+  if (stage === HUB_ROW_STAGE.failed) return 0;
+  if (stage === HUB_ROW_STAGE.unpicked) return 1;
+  return 2;
 }
 
 function matchEmptyState(failure: FullDemoLoadFailure): { icon: typeof SearchX; title: string; description: string } {

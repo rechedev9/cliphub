@@ -36,7 +36,13 @@ export function ratingBarPct(rating: number): number {
   return Math.min(100, Math.max(0, (rating / 2) * 100));
 }
 
-/** Relative time like "hace 2 h" / "hace 3 d" / "ahora mismo" from an ISO string or epoch ms. */
+/** Past this many days "hace N d" stops being readable ("hace 381 d") and the calendar date takes over. */
+const RELATIVE_DAYS_LIMIT = 30;
+
+/**
+ * Relative time like "hace 2 h" / "hace 3 d" / "ahora mismo" from an ISO string
+ * or epoch ms. Older than a month it falls back to the short calendar date.
+ */
 export function timeAgo(value: string | number): string {
   const then = typeof value === 'number' ? value : Date.parse(value);
   const diffSec = Math.max(0, (Date.now() - then) / 1000);
@@ -47,7 +53,8 @@ export function timeAgo(value: string | number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `hace ${hours} h`;
   const days = Math.floor(hours / 24);
-  return `hace ${days} d`;
+  if (days < RELATIVE_DAYS_LIMIT) return `hace ${days} d`;
+  return formatShortDate(then);
 }
 
 export function formatShortDate(value: string | number): string {

@@ -136,7 +136,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   }
 
   return (
-    <div className="measure-work grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="measure-work grid items-start gap-6 @[80rem]/content:grid-cols-[minmax(0,1fr)_380px]">
       <section className="flex min-w-0 flex-col gap-3.5">
         <div className="flex flex-col gap-1.5">
           {ready ? (
@@ -154,7 +154,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
         <div className="studio-panel studio-panel-raised flex flex-wrap gap-4 p-4">
           <MediaFrame
             aspect={isShort ? '9:16' : '16:9'}
-            className={isShort ? 'w-[150px] shrink-0 border border-primary' : 'w-[240px] shrink-0 border border-primary'}
+            className={isShort ? 'w-[120px] shrink-0 border border-primary' : 'w-[240px] shrink-0 border border-primary'}
             media={video.thumbnailUrl ? <CoverImage src={video.thumbnailUrl} loading="eager" /> : undefined}
             fallback={<ReelCover seed={video.id} label={map} />}
           />
@@ -247,7 +247,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
 
 function LoadingState(): ReactNode {
   return (
-    <div className="measure-work grid items-start gap-6 @[56rem]/content:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-label="Cargando el clip">
+    <div className="measure-work grid items-start gap-6 @[80rem]/content:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-label="Cargando el clip">
       <div className="flex flex-col gap-4">
         <Skeleton className="h-4 w-20" />
         <Skeleton className="h-9 w-80" />

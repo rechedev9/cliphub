@@ -4,6 +4,9 @@ export const PRODUCE_MATCH_MISSING = {
   description: 'Esta partida ya no está en este PC. Puede que se haya borrado con sus artefactos.',
 } as const;
 
+/** `failed` partida: the orchestrator gave up on the demo; nothing can be produced from it. */
+export const PRODUCE_MATCH_FAILED_TITLE = 'La demo no se pudo procesar';
+
 export const PRODUCE_SHORT_TITLE = 'Prepara tu Short';
 export const PRODUCE_SHORT_EMPTY_HINT = 'Elige al menos una jugada';
 export const PRODUCE_SHORT_DRAFT_RESTORED = 'Configuración recuperada de tu última visita en esta sesión.';

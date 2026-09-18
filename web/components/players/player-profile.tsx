@@ -41,7 +41,7 @@ export function PlayerProfile({ player, onUnfollow, unfollowing }: {
           {player.elo ?? '—'} <span className="text-body-sm font-normal text-fg-3">ELO</span>
         </p>
         <div className="mt-1 flex min-w-0 items-center gap-1 text-body-sm text-fg-3">
-          <span className="break-all">Steam ID <span className="select-all text-fg-2">{player.steam_id64 ?? '—'}</span></span>
+          <span className="flex min-w-0 gap-1">Steam ID <span className="truncate select-all tabular-nums text-fg-2" title={player.steam_id64}>{player.steam_id64 ?? '—'}</span></span>
           {player.steam_id64 ? <Button variant="ghost" size="icon-xs" aria-label="Copiar Steam ID" onClick={() => void copySteamID()}>
             <Copy aria-hidden className="size-3.5" />
           </Button> : null}

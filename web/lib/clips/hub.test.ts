@@ -11,6 +11,8 @@ import {
   firstRunProgress,
   fullChipLabel,
   hubNextStep,
+  hubRowCanProduce,
+  hubRowExpandable,
   matchMetaParts,
   HUB_ROW_STAGE,
   hubTransitions,
@@ -93,6 +95,10 @@ test('matchRowStage: plan-ready is ready, scanned is unpicked, anything earlier 
     ['validating', HUB_ROW_STAGE.parsing],
   ];
   for (const [status, want] of cases) assert.equal(matchRowStage(status), want, status);
+  assert.equal(matchRowStage('failed'), 'failed');
+  assert.equal(hubNextStep({ stage: 'failed', shorts: [], fulls: [] }), 'none');
+  assert.equal(hubRowExpandable({ stage: 'failed', shorts: [], fulls: [] }), false);
+  assert.equal(hubRowCanProduce({ stage: 'failed' }), false);
 });
 
 test('hubTransitions announces a parse only when a parsing row becomes ready, not unpicked', () => {
@@ -315,6 +321,25 @@ test('hubNextStep: parsing waits, scanned picks, an empty ready row asks for its
     hubNextStep(row('parsed', [reel({ id: 'v1', status: 'ready', jobId: 'm1', editConfig: FULL_DEMO_EDIT })])),
     'none',
   );
+  assert.equal(hubRowExpandable(row('parsed')), true);
+  assert.equal(hubRowCanProduce(row('parsed')), true);
+  assert.equal(hubRowExpandable(row('parsing')), false);
+  assert.equal(hubRowExpandable(row('scanned')), false);
+});
+
+test('a failed partida keeps its clips on the row and opens so they stay visible', () => {
+  const model = buildHubModel(
+    [match('m1', 'failed')],
+    [reel({ id: 'v1', status: 'ready', jobId: 'm1', createdAt: 2 }), reel({ id: 'v2', status: 'ready', createdAt: 1 })],
+  );
+  const row = model.rows[0];
+  assert.equal(row.stage, HUB_ROW_STAGE.failed);
+  assert.deepEqual(row.shorts.map((output) => output.id), ['v1']);
+  assert.deepEqual(model.orphans.map((output) => output.id), ['v2']);
+  assert.equal(hubNextStep(row), 'none');
+  assert.equal(hubRowExpandable(row), true);
+  assert.equal(hubRowCanProduce(row), false);
+  assert.equal(hubRowExpandable({ stage: HUB_ROW_STAGE.failed, shorts: [], fulls: [] }), false);
 });
 
 test('matchMetaParts keeps player, K/D and highlights, and always ends with the date', () => {

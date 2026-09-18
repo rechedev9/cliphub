@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { EditConfig, Match, Play, Preset } from '@/lib/api/types';
@@ -59,6 +59,7 @@ export type ShortProducerProps = {
 export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducerProps): ReactNode {
   const router = useRouter();
   const [presets, setPresets] = useState<Preset[] | null>(null);
+  const [presetAttempt, setPresetAttempt] = useState(0);
   const { settings, updateSettings, resetSettings, discardDraft, loaded, restored } = useShortDraft(matchId, plays);
   const { variant, songId, songTitle, musicDecided, musicVolume, gameVolume, editConfig } = settings;
   const selectedIds = useMemo(() => new Set(settings.selectedIds), [settings.selectedIds]);
@@ -84,7 +85,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
     return () => {
       active = false;
     };
-  }, [updateSettings]);
+  }, [updateSettings, presetAttempt]);
 
   const selectedPlays = plays.filter((play) => selectedIds.has(play.id));
   const cues = selectionTimeline(plays, selectedIds);
@@ -226,9 +227,13 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
                 {STEP.preset}
               </label>
               {visiblePresets !== null && visiblePresets.length === 0 ? (
-                <p role="alert" className="text-body-sm text-fg-2">
-                  No se pudieron cargar los estilos. Recarga la página.
-                </p>
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-body-sm text-fg-2">
+                  <span>No se pudieron cargar los estilos.</span>
+                  <Button type="button" variant="outline" size="xs" onClick={() => { setPresets(null); setPresetAttempt((attempt) => attempt + 1); }}>
+                    <RefreshCw aria-hidden />
+                    Reintentar
+                  </Button>
+                </div>
               ) : (
                 <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
                   <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   DEMO_INCOMPATIBLE_PREFIX,
   FAILED_STRIP_LABEL,
+  JOB_GENERIC_FAILURE_MESSAGE,
   MISMATCH_REDRIVE_FAILURE_REASON,
   UNPLAYABLE_START_PREFIX,
   failedStripLabel,
@@ -113,6 +114,23 @@ test('undefined and empty reasons fall back to a generic retryable message', () 
     assert.equal(result.retryCanHelp, true);
     assert.match(result.message, /No se pudo completar el vídeo/);
   }
+});
+
+test('a job-level generic failure does not talk about completing a video or retrying', () => {
+  for (const reason of [undefined, '', 'scan exploded: bad header', 'ffmpeg exited with code 1']) {
+    const result = parseFailureReason(reason, { job: true });
+    assert.equal(result.kind, 'generic', reason);
+    assert.equal(result.retryCanHelp, false, reason);
+    assert.equal(result.message, JOB_GENERIC_FAILURE_MESSAGE, reason);
+    assert.doesNotMatch(result.message, /completar el vídeo|Reintenta/);
+  }
+});
+
+test('a job-level demo-incompatible reason keeps its classified copy', () => {
+  const result = parseFailureReason(`${DEMO_INCOMPATIBLE_PREFIX} cs2 cannot replay this demo`, { job: true });
+  assert.equal(result.kind, 'demo-incompatible');
+  assert.equal(result.retryCanHelp, false);
+  assert.match(result.message, /versión antigua de CS2/);
 });
 
 test('observer-target failure explains how to regenerate without leaking the console path', () => {

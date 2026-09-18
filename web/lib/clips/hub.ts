@@ -1,4 +1,4 @@
-import type { Match, Video } from '../api/types.ts';
+import { MATCH_STATUS_FAILED, type Match, type Video } from '../api/types.ts';
 import type { StreamJob } from '../api/streams.ts';
 import { captureProgressPercent } from '../capture-progress.ts';
 import { matchPlanReady } from '../match-plays-empty.ts';
@@ -39,7 +39,7 @@ export type MatchOutput = {
 };
 
 /** Row stage: still being parsed, `scanned` with no POV picked, or plan-ready. */
-export const HUB_ROW_STAGE = { parsing: 'parsing', unpicked: 'unpicked', ready: 'ready' } as const;
+export const HUB_ROW_STAGE = { parsing: 'parsing', unpicked: 'unpicked', ready: 'ready', failed: 'failed' } as const;
 export type HubRowStage = (typeof HUB_ROW_STAGE)[keyof typeof HUB_ROW_STAGE];
 
 /** Roster scanned, no POV picked: settled, never advances on its own. */
@@ -49,6 +49,7 @@ export const MATCH_STATUS_SCANNED = 'scanned';
 export function matchRowStage(status: string | undefined): HubRowStage {
   if (matchPlanReady(status)) return HUB_ROW_STAGE.ready;
   if (status === MATCH_STATUS_SCANNED) return HUB_ROW_STAGE.unpicked;
+  if (status === MATCH_STATUS_FAILED) return HUB_ROW_STAGE.failed;
   return HUB_ROW_STAGE.parsing;
 }
 
@@ -286,8 +287,25 @@ export type HubNextStep = (typeof HUB_NEXT_STEP)[keyof typeof HUB_NEXT_STEP];
 export function hubNextStep(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): HubNextStep {
   if (row.stage === HUB_ROW_STAGE.parsing) return HUB_NEXT_STEP.wait;
   if (row.stage === HUB_ROW_STAGE.unpicked) return HUB_NEXT_STEP.pick;
+  // Failed: nothing new to produce; existing clips stay on the expandable row.
+  if (row.stage === HUB_ROW_STAGE.failed) return HUB_NEXT_STEP.none;
   if (row.shorts.length === 0 && row.fulls.length === 0) return HUB_NEXT_STEP.firstClip;
   return HUB_NEXT_STEP.none;
+}
+
+function rowHasClips(row: Pick<HubMatch, 'shorts' | 'fulls'>): boolean {
+  return row.shorts.length > 0 || row.fulls.length > 0;
+}
+
+/** Ready rows always open. Failed rows open only when clips already exist, so they stay visible. */
+export function hubRowExpandable(row: Pick<HubMatch, 'stage' | 'shorts' | 'fulls'>): boolean {
+  if (row.stage === HUB_ROW_STAGE.ready) return true;
+  return row.stage === HUB_ROW_STAGE.failed && rowHasClips(row);
+}
+
+/** Produce CTAs belong on a plan-ready row. A failed job can still show existing clips. */
+export function hubRowCanProduce(row: Pick<HubMatch, 'stage'>): boolean {
+  return row.stage === HUB_ROW_STAGE.ready;
 }
 
 /** Row subtitle: the facts that tell five same-map partidas apart. `dateLabel` is already formatted. */

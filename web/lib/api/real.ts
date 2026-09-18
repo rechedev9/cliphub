@@ -7,7 +7,7 @@ import {
   type MusicChoice,
 } from './reel-music.ts';
 import type { Match, Play, Song, Video, FeedItem, RenderMode, DemoPlayer, Preset, EditConfig, CaptureReadiness, CaptureTool, CaptureStatus, RosterMatch, ScannedDemo, SeriesDemo, JobStatusView } from './types.ts';
-import { PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
+import { MATCH_STATUS_FAILED, PLAN_READY_STATUSES, ROSTER_READY_STATUSES, SCAN_PENDING_STATUSES } from './types.ts';
 import { planToMatch, planToPlays, type KillPlan } from './map.ts';
 import { MISMATCH_REDRIVE_FAILURE_REASON, parseFailureReason } from './failure-reason.ts';
 import { FULL_DEMO_PLANNER_VERSION } from '../full-demo-plan.ts';
@@ -373,9 +373,15 @@ export class RealApiClient implements ApiClient {
     return started;
   }
 
-  /** This beat's job status, shared by the three constructor reads; null when unknown (404). */
-  private beatStatus(jobId: string): Promise<string | null> {
-    return this.sharedRead(`status:${jobId}`, () => this.fetchStatus(jobId));
+  /** This beat's job status view, shared by the three constructor reads; null when unknown (404). */
+  private beatStatusView(jobId: string): Promise<JobStatusView | null> {
+    return this.sharedRead(`status:${jobId}`, () => this.fetchStatusFull(jobId));
+  }
+
+  /** This beat's job status string; see `beatStatusView`. */
+  private async beatStatus(jobId: string): Promise<string | null> {
+    const view = await this.beatStatusView(jobId);
+    return view ? view.status : null;
   }
 
   /** This beat's kill plan: the Match and the Plays are derived from one parsed document. */
@@ -464,8 +470,15 @@ export class RealApiClient implements ApiClient {
   async getMatch(id: string): Promise<Match | null> {
     if (!isJobId(id)) return null;
 
-    const status = await this.beatStatus(id);
-    if (status === null) return null;
+    const view = await this.beatStatusView(id);
+    if (view === null) return null;
+    const status = view.status;
+    if (status === MATCH_STATUS_FAILED) {
+      // Failed: no roster or plan to read, but the page must say why instead of "no encontrada".
+      const job: IndexedJob = { jobId: id, status };
+      if (view.failureReason) job.failureReason = view.failureReason;
+      return jobToMatch(job);
+    }
     if (!ROSTER_READY_STATUSES.has(status)) return null;
 
     // Parsing / scanned: listable in Partidas but no kill plan yet.
@@ -1264,6 +1277,8 @@ export class RealApiClient implements ApiClient {
     // request is only the fallback for a scan still running or an older server.
     const inline = enrichmentFromSummary(job);
     if (inline !== null) return jobToMatch(job, inline);
+    // A job that failed before its scan has no roster to fetch; asking on every poll is pure noise.
+    if (job.status === MATCH_STATUS_FAILED) return jobToMatch(job);
     try {
       const roster = await this.fetchRoster(job.jobId);
       const enrichment: { map?: string; player?: DemoPlayer } = {};

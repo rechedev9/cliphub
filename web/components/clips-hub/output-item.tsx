@@ -50,7 +50,12 @@ export type OutputItemProps = {
   onChange: () => void;
 };
 
-type OutputActionsProps = OutputItemProps & { className?: string; onPlay?: (button: HTMLElement) => void };
+type OutputActionsProps = OutputItemProps & {
+  className?: string;
+  onPlay?: (button: HTMLElement) => void;
+  /** Icon-only Reproducir: the Clips lens card track cannot fit three labelled buttons on one row. */
+  compact?: boolean;
+};
 
 /** One Short or Full POV inside an open partida row. */
 function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNode {
@@ -146,7 +151,7 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
 }
 
 /** Ready: MP4 + Publicar. Failed: Reintentar (when it can help) + delete. Queue/REC/render: delete only. */
-export function OutputActions({ output, matchId, onChange, onPlay, className }: OutputActionsProps): ReactNode {
+export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
 
@@ -157,9 +162,16 @@ export function OutputActions({ output, matchId, onChange, onPlay, className }: 
     return (
       <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
         {onPlay ? (
-          <Button type="button" size="xs" variant="outline-primary" onClick={(event) => onPlay(event.currentTarget)}>
+          <Button
+            type="button"
+            size={compact ? 'icon-xs' : 'xs'}
+            variant="outline-primary"
+            aria-label={compact ? 'Reproducir' : undefined}
+            title={compact ? 'Reproducir' : undefined}
+            onClick={(event) => onPlay(event.currentTarget)}
+          >
             <Play aria-hidden />
-            Reproducir
+            {compact ? null : 'Reproducir'}
           </Button>
         ) : null}
         <Button
