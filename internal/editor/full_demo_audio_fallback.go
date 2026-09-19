@@ -70,9 +70,16 @@ type fullDemoAACRecoveryResult struct {
 	cleanup     func()
 	logs        []string
 	err         error
+	// delivery is the muxed and certified, but unpublished, delivery of the
+	// accepted candidate when it was produced speculatively. deliveryErr is the
+	// failure that stopped it; both are nil when no speculative delivery ran.
+	delivery    *fullDemoAACDelivery
+	deliveryErr error
 }
 
 func (r *fullDemoAACRecoveryResult) release() {
+	r.delivery.release()
+	r.delivery = nil
 	if r.cleanup != nil {
 		r.cleanup()
 		r.cleanup = nil
@@ -173,6 +180,22 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 	if result.candidate == "" {
 		return e, fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e)
 	}
+	if result.deliveryErr != nil {
+		return e, result.deliveryErr
+	}
+	// A speculative delivery already ran the very same mux and final
+	// measurement while the remaining native masters were being evaluated, so
+	// only the acceptance check and the atomic publication are left.
+	if result.delivery != nil {
+		delivery := *result.delivery
+		result.delivery = nil
+		progress.report("Publicando el audio recuperado", .82)
+		evidence, err := commitFullDemoAACDelivery(ctx, delivery, output, target, false, e)
+		if err == nil {
+			progress.report("Publicando el audio recuperado", .99)
+		}
+		return evidence, err
+	}
 	program, err := video(ctx)
 	if err != nil {
 		return e, err
@@ -185,24 +208,59 @@ func recoverFullDemoAAC(ctx context.Context, ffmpeg, input string, video fullDem
 	return finishFullDemoAACRecovery(ctx, ffmpeg, video, output, logDir, target, duration, e, result, progress)
 }
 
-// fullDemoAACRecoverySpeculation runs the recovery chain while the remaining
-// native masters are still being tried. Native masters keep precedence: the
-// result is only consumed after every native master failed, and is discarded,
-// together with its candidate and logs, as soon as one passes.
+// fullDemoAACRecoverySpeculation runs the recovery chain, and the delivery of
+// its accepted candidate, while the remaining native masters are still being
+// tried. Native masters keep precedence: the result is only consumed after
+// every native master failed, and is discarded, together with its candidate,
+// its unpublished delivery attempt and its logs, as soon as one passes.
 type fullDemoAACRecoverySpeculation struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	result fullDemoAACRecoveryResult
 }
 
-func startFullDemoAACRecovery(ctx context.Context, ffmpeg, input, output, logDir string, target recapplan.LoudnessOptions, duration float64, first LoudnessMeasurement) *fullDemoAACRecoverySpeculation {
+func startFullDemoAACRecovery(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64, first LoudnessMeasurement) *fullDemoAACRecoverySpeculation {
+	// The speculation keeps the NORMAL priority class on purpose. It looks like
+	// background work beside the native chain, but whenever every native master
+	// is rejected (the saved replay, and every render that needs recovery) this
+	// chain is the delivered master and therefore the critical path. Marking it
+	// BELOW_NORMAL was measured: its chain grew from 95.6 s to 174.2 s and gave
+	// back ~38 s of the upstream gain (see the audit doc, mastering chain pair).
 	ctx, cancel := context.WithCancel(ctx)
 	s := &fullDemoAACRecoverySpeculation{cancel: cancel, done: make(chan struct{})}
 	go func() {
 		defer close(s.done)
-		s.result = runFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, first, nil)
+		result := runFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, first, nil)
+		speculateFullDemoAACDelivery(ctx, &result, ffmpeg, video, output, logDir, target, duration)
+		s.result = result
 	}()
 	return s
+}
+
+// speculateFullDemoAACDelivery muxes and certifies an accepted recovery
+// candidate before it is known to be the delivered one. It publishes nothing
+// and records no evidence: finishFullDemoAACRecovery still folds the attempts
+// in the approved order and owns the acceptance check and the publication, and
+// a native master that passes discards this attempt exactly as it discards the
+// candidate. On the saved replay the recovery candidate is accepted 35 s before
+// the native chain exhausts, and the mux plus the final certification are the
+// 17 s that then ran serially in an otherwise idle machine.
+func speculateFullDemoAACDelivery(ctx context.Context, result *fullDemoAACRecoveryResult, ffmpeg string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64) {
+	if video == nil || result.err != nil || result.candidate == "" {
+		return
+	}
+	result.logs = append(result.logs, filepath.Join(logDir, fullDemoFinalMuxLog), filepath.Join(logDir, fullDemoFinalAnalysisLog))
+	program, err := video(ctx)
+	if err != nil {
+		result.deliveryErr = err
+		return
+	}
+	delivery, err := prepareFullDemoAACDelivery(ctx, ffmpeg, program, result.candidate, output, logDir, target, duration, nil)
+	if err != nil {
+		result.deliveryErr = err
+		return
+	}
+	result.delivery = &delivery
 }
 
 func (s *fullDemoAACRecoverySpeculation) wait() fullDemoAACRecoveryResult {

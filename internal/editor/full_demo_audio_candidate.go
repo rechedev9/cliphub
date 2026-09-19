@@ -105,20 +105,43 @@ func publishFullDemoAAC(ctx context.Context, attempt, output string) error {
 	return nil
 }
 
-// deliverFullDemoAACCandidate muxes a passing audio candidate once with the
-// program video, measures the actual muxed AAC and only then atomically
-// replaces output. A failed mux, a failed final measurement or a context
-// cancelled at any point before publication leaves any previous output
-// untouched and removes its own attempt.
-func deliverFullDemoAACCandidate(ctx context.Context, ffmpeg, input, candidate, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, e ProgramLoudnessEvidence, onFraction func(float64)) (ProgramLoudnessEvidence, error) {
+// The evidence logs of the final mux and the final certification. They are
+// named here because a speculative delivery writes them before its candidate is
+// known to be the delivered one, and a discarded speculation must remove them.
+const (
+	fullDemoFinalMuxLog      = "program-final-mux.txt"
+	fullDemoFinalAnalysisLog = "decoded-aac-final.txt"
+)
+
+// fullDemoAACDelivery is a muxed and measured, but not yet published, delivery
+// attempt. Splitting the delivery at this point lets an accepted candidate be
+// muxed and certified before it is known to be the delivered one, while
+// publication, the acceptance check and the evidence stay in one place.
+type fullDemoAACDelivery struct {
+	attempt     string
+	cleanup     func()
+	measurement LoudnessMeasurement
+}
+
+func (d *fullDemoAACDelivery) release() {
+	if d != nil && d.cleanup != nil {
+		d.cleanup()
+		d.cleanup = nil
+	}
+}
+
+// prepareFullDemoAACDelivery muxes a passing audio candidate once with the
+// program video and measures the actual muxed AAC. It never publishes, so its
+// attempt can be thrown away without ever having touched output.
+func prepareFullDemoAACDelivery(ctx context.Context, ffmpeg, input, candidate, output, logDir string, target recapplan.LoudnessOptions, duration float64, onFraction func(float64)) (fullDemoAACDelivery, error) {
 	if err := ctx.Err(); err != nil {
-		return e, err
+		return fullDemoAACDelivery{}, err
 	}
 	attempt, cleanup, err := filecommit.Attempt(output)
 	if err != nil {
-		return e, fmt.Errorf("full_demo_output_invalid: final audio attempt: %w", err)
+		return fullDemoAACDelivery{}, fmt.Errorf("full_demo_output_invalid: final audio attempt: %w", err)
 	}
-	defer cleanup()
+	delivery := fullDemoAACDelivery{attempt: attempt, cleanup: cleanup}
 	var progress fullDemoProgress
 	if onFraction != nil {
 		progress = func(_ string, fraction float64) {
@@ -126,13 +149,26 @@ func deliverFullDemoAACCandidate(ctx context.Context, ffmpeg, input, candidate, 
 		}
 	}
 	mux := fullDemoFinalMuxCommand(ffmpeg, input, candidate, attempt)
-	if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStage(ctx, "final_mux", -1), mux, "Full Demo final audio mux", filepath.Join(logDir, "program-final-mux.txt"), duration, progress.pass("Publicando el audio verificado", 0, .5)); err != nil {
-		return e, err
+	if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStage(ctx, "final_mux", -1), mux, "Full Demo final audio mux", filepath.Join(logDir, fullDemoFinalMuxLog), duration, progress.pass("Publicando el audio verificado", 0, .5)); err != nil {
+		delivery.release()
+		return fullDemoAACDelivery{}, err
 	}
-	delivered, err := measureLoudness(fullDemoTimingStage(ctx, "final_audio_analysis", -1), ffmpeg, attempt, target, filepath.Join(logDir, "decoded-aac-final.txt"), duration, progress.pass("Certificando el audio publicado", .5, .99))
+	delivered, err := measureLoudness(fullDemoTimingStage(ctx, "final_audio_analysis", -1), ffmpeg, attempt, target, filepath.Join(logDir, fullDemoFinalAnalysisLog), duration, progress.pass("Certificando el audio publicado", .5, .99))
 	if err != nil {
-		return e, err
+		delivery.release()
+		return fullDemoAACDelivery{}, err
 	}
+	delivery.measurement = delivered
+	return delivery, nil
+}
+
+// commitFullDemoAACDelivery applies the approved contract to the actual muxed
+// AAC and only then atomically replaces output. A measurement that misses its
+// targets or a context cancelled before publication leaves any previous output
+// untouched and removes the attempt.
+func commitFullDemoAACDelivery(ctx context.Context, delivery fullDemoAACDelivery, output string, target recapplan.LoudnessOptions, silentApproved bool, e ProgramLoudnessEvidence) (ProgramLoudnessEvidence, error) {
+	defer delivery.release()
+	delivered := delivery.measurement
 	accepted, err := fullDemoDecodedAACAccepted(delivered, target, silentApproved)
 	if err != nil {
 		return e, err
@@ -140,7 +176,7 @@ func deliverFullDemoAACCandidate(ctx context.Context, ffmpeg, input, candidate, 
 	if !accepted {
 		return e, fmt.Errorf("audio_loudness_failed: final muxed AAC misses its approved targets")
 	}
-	if err := publishFullDemoAAC(ctx, attempt, output); err != nil {
+	if err := publishFullDemoAAC(ctx, delivery.attempt, output); err != nil {
 		return e, err
 	}
 	e.FinalMuxedAAC = &delivered
@@ -150,4 +186,17 @@ func deliverFullDemoAACCandidate(ctx context.Context, ffmpeg, input, candidate, 
 		e.Status = "verified-decoded-aac"
 	}
 	return e, nil
+}
+
+// deliverFullDemoAACCandidate muxes a passing audio candidate once with the
+// program video, measures the actual muxed AAC and only then atomically
+// replaces output. A failed mux, a failed final measurement or a context
+// cancelled at any point before publication leaves any previous output
+// untouched and removes its own attempt.
+func deliverFullDemoAACCandidate(ctx context.Context, ffmpeg, input, candidate, output, logDir string, target recapplan.LoudnessOptions, silentApproved bool, duration float64, e ProgramLoudnessEvidence, onFraction func(float64)) (ProgramLoudnessEvidence, error) {
+	delivery, err := prepareFullDemoAACDelivery(ctx, ffmpeg, input, candidate, output, logDir, target, duration, onFraction)
+	if err != nil {
+		return e, err
+	}
+	return commitFullDemoAACDelivery(ctx, delivery, output, target, silentApproved, e)
 }
