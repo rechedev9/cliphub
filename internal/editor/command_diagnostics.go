@@ -22,6 +22,10 @@ func runDiagnosticFFmpeg(ctx context.Context, cmd *exec.Cmd, label string) error
 		cmd.Stderr = io.MultiWriter(cmd.Stderr, trace)
 	}
 	obs.EmitTrace(ctx, obs.TraceEntry{Event: "tool.started", Message: "ffmpeg " + label})
+	// The single place where every FFmpeg subprocess of this package is
+	// started, and therefore the only place a scheduling class can be applied
+	// before the process exists.
+	applyBackgroundProcessPriority(ctx, cmd)
 	err := cmd.Run()
 	finished := time.Now()
 	_ = trace.Close()

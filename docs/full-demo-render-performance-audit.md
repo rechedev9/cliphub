@@ -475,6 +475,306 @@ stage-level evidence is consistent and the output is equivalent, and because
 the remaining mastering cost (five full candidate passes, ~230 s) is now the
 obvious next target rather than the pools feeding it.
 
+## Mastering chain: contention and speculative delivery (2026-09-18)
+
+The paired render above left the mastering chain as the whole critical path:
+102.64 s -> 332.50 s, 229.86 s of a 392.79 s render, and 100 % serial (every
+span starts within 10 ms of the previous one ending). Two changes attack the
+part of that envelope that is serial by accident rather than by necessity.
+
+### The measured floor of one loudnorm pass
+
+The uncontended cost of a single loudnorm pass over this exact 930.6 s program
+was measured directly on the saved output (eight runs, two alternating repeats
+of four shapes, loudnorm JSON byte-identical in all eight):
+
+| Shape | Run 1 | Run 2 |
+| --- | ---: | ---: |
+| Production shape on the 4.5 GB MP4 | 12.379 s | 12.379 s |
+| Production shape on a 22 MB audio-only `-c copy` of it | 12.380 s | 12.368 s |
+| Cheap null sink (`pcm_u8`, mono) | 12.395 s | 12.477 s |
+| `-threads 1` | 12.340 s | 12.361 s |
+
+A loudnorm pass is 12.37 s +/- 0.04 s, single-threaded, and insensitive to input
+size, to the null-sink format and to thread options. Reading the 4.5 GB video
+costs nothing measurable; an audio-only `-c copy` extraction of it takes 3.53 s,
+so the demux is ~1.3 GB/s and is fully hidden behind loudnorm.
+
+Against that floor the chain's serial-by-necessity floor is ~171 s (fused
+assembly measurement 14.2 + three times [encode 26.06 + analysis 12.37] +
+two retarget measurements of 12.37 + mux 4.0 + final certification 12.37). The
+audio tail took 265.6 s, and the whole 94.9 s difference sits inside
+66.9-251.3 s, the window where the three-wide video item pool and the
+speculative Media Foundation recovery encodes run:
+
+| Pass | Contended | Uncontended reference (same render) | Tax |
+| --- | ---: | ---: | ---: |
+| `audio_assembly` | 35.49 s | 14.2 s floor | +21.3 s |
+| `audio_candidate_encode` a=0 native | 55.83 s | 26.06 s (a=2) | +29.8 s |
+| `audio_candidate_analysis` a=0 | 29.26 s | 12.30 s (a=2) | +16.9 s |
+| `audio_input_analysis` a=1 | 34.09 s | 12.76 s (a=2) | +21.7 s |
+| `audio_candidate_encode` a=1 native | 29.43 s | 26.06 s (a=2) | +3.4 s |
+
+FFmpeg's own speed figures for the identical single-threaded pass agree:
+26.3x / 27.4x / 31.9x inside the window, 73.1x-75.9x outside it. Everything
+after 251 s is already at the floor.
+
+### 1. The video item pool and the speculative recovery yield the CPU
+
+`runDiagnosticFFmpeg` is the single place where every FFmpeg subprocess of the
+editor is started, so the wanted scheduling class is carried on the context the
+way the timing stage already is and applied there, immediately before
+`cmd.Run`. The video-only item pool (`fullDemoItemPoolBackground`) and the
+whole speculative AAC recovery goroutine now start their processes in
+`BELOW_NORMAL_PRIORITY_CLASS`; the voice pool, the audio-only item pool, the
+program-audio assembly, the native mastering chain, the final mux and the final
+certification stay at normal priority. It is a Windows-only lever
+(`command_priority_windows.go` / `command_priority_other.go`); elsewhere the
+mark is inert.
+
+The justification is the slack, not the priority: the video branch finished at
+242.60 s while mastering ended at 332.50 s, and the final mux only needs the
+committed program video by ~315 s. Scheduling priority is work-conserving, so
+the deprioritised work still gets the whole machine whenever the audio branch
+is idle, and it cannot reach any encoder's output: h264_nvenc, native aac,
+aac_mf and pcm are deterministic functions of input plus options, and no option
+changes.
+
+The ceiling is the ~95 s of contention tax, but the realistic gain is smaller:
+once mastering ends before ~260 s the video branch becomes the next gate, and
+the deprioritised item encodes will themselves end later. On an idle machine
+whose pools already fit the core count the gain is zero, not negative.
+
+### 2. An accepted recovery candidate is muxed and certified speculatively
+
+On this replay the recovery chain is never the blocker; it is the winner that
+waits. Its second Media Foundation candidate was accepted at 279.86 s, but the
+final mux only started at 315.17 s because native attempt 2 (retarget
+measurement 264.05-276.81, encode 276.81-302.87, analysis 302.87-315.17) still
+had to be evaluated for native precedence. Recovery then sat idle for 35.31 s,
+and the mux plus the final certification (315.17-332.50, 17.33 s) ran afterwards
+in an otherwise empty machine. The baseline run has the identical shape:
+accepted at 287.46 s, native chain done at 324.30 s, 36.84 s of slack, then
+3.95 s + 12.54 s. In both runs `fallback_masters` has two entries and
+`final_muxed_aac` equals `decoded_aac[4]`, so the recovery candidate is what was
+delivered.
+
+Native precedence is unchanged. What moved is only the work that a passing
+native attempt would make moot: the speculation now muxes its accepted
+candidate with the committed program video and measures the actual muxed AAC as
+soon as it has one, into its own `filecommit` attempt, publishing nothing and
+recording no evidence. `finishFullDemoAACRecovery` still folds
+`MasterTargets` / `FallbackMasters` / `DecodedAAC` in the approved order and
+still owns the acceptance check, the `ctx.Err()` recheck and the atomic
+publication. A native master that passes discards the speculative attempt and
+its logs exactly as it already discarded the candidate, and the native delivery
+then writes the same logs itself. The delivery was split into
+`prepareFullDemoAACDelivery` (mux + final measurement, no side effect on
+`output`) and `commitFullDemoAACDelivery` (acceptance + publication +
+evidence); `deliverFullDemoAACCandidate` is their composition and is unchanged
+in behaviour.
+
+Cost: a second ~4.5 GB attempt file can exist beside `output` while the native
+chain finishes, and it is deleted whenever a late native attempt passes. The
+change buys nothing on renders where a native master passes, which is the
+common case on quiet material; it only pays on the slow path this fixture
+exercises.
+
+### Timing evidence
+
+No stage is removed or fused, and no span is renamed. One span pair moves: when
+the delivered candidate comes from the recovery chain, `final_mux` and
+`final_audio_analysis` now start right after the accepting
+`audio_candidate_analysis` of the recovery variant instead of after the last
+native `audio_candidate_analysis`, so in the sorted span list they appear
+before the native attempt 2 spans rather than after them. Both keep their
+stage, attempt (-1) and label. That reordering is the only intended change to
+the timing evidence of this replay; every other span keeps its identity and
+only its offsets move.
+
+On the other path, where a late native master passes and the speculation is
+discarded, the discarded delivery has already recorded its own `final_mux` and
+`final_audio_analysis` spans, with outcome `ok` if it finished or `cancelled`
+if `discard` killed it mid-mux, and the native delivery then records the same
+pair again. Two spans of each stage in one render therefore mean a speculative
+delivery that was thrown away, and the delivered one is the later pair. A
+render whose first native master passes never starts the speculation at all and
+is unaffected.
+
+The numbers above are the pr196 pair's, measured before the two changes; the
+paired render that validates them is recorded in the next subsection.
+
+### Paired full render (mastering chain, 2026-09-18)
+
+Same saved replay as the earlier pairs (930.6 s program, 17 items, 5 voice
+tracks), same harness (`phase-a-replay.py --reapprove`), same bundled FFmpeg,
+run sequentially on one machine: `mastering-baseline-1` with a binary built
+from this branch's HEAD before the two mastering changes, then
+`mastering-candidate-1` with a binary rebuilt from the working tree carrying
+both of them in their first form (BELOW_NORMAL for the video item pool AND
+for the speculative AAC recovery; speculative mux and certification of an
+accepted recovery candidate). The recovery mark was removed after this pair;
+the second pair below measures the shipped form. Every figure below was re-derived from the two
+`phase-a-replay-summary.json` files by the reviewer, not copied from the
+render report.
+
+| metric | baseline | candidate | delta |
+| --- | --- | --- | --- |
+| harness `elapsed_s` | 401.5 s | 356.0 s | **-45.5 s** |
+| `render_ms` | 397 116 | 351 815 | **-45 301 (-11.4 %)** |
+| `render_seconds_per_media_second` | 0.4267 | 0.3781 | -0.0486 |
+| `output_bytes` | 4 501 498 794 | 4 501 498 794 | 0 |
+
+Branch envelopes (union of intervals, not sums, for the per-stage figures):
+
+| branch | baseline | candidate | delta |
+| --- | --- | --- | --- |
+| audio upstream (voice analysis + voice prepare + audio-only items + assembly) | 3.7 s..98.9 s = 95.2 s | 3.7 s..50.3 s = 46.6 s | **-48.6 s** |
+| mastering (first candidate encode .. end of final analysis) | 99.1 s..339.1 s = 240.0 s | 50.4 s..293.8 s = 243.4 s | +3.4 s |
+| — native chain | 99.1 s..322.5 s = 223.4 s | 50.4 s..261.4 s = 211.0 s | -12.4 s |
+| — Media Foundation recovery chain | 192.1 s..287.7 s = 95.6 s | 103.1 s..277.3 s = 174.2 s | **+78.6 s** |
+| video branch (transitions + items + assembly) | 0..244.5 s | 0..267.0 s | +22.4 s |
+| delivery | 339.1 s..397.1 s = 58.0 s | 293.8 s..351.8 s = 58.0 s | 0 |
+
+Per-stage unions that moved: `voice_analysis` 47.3 s -> 24.4 s, `voice_prepare`
+18.3 s -> 5.4 s, `audio_assembly` 32.4 s -> 18.5 s, `items_audio` 4.8 s -> 1.7 s,
+`audio_input_analysis` 49.6 s -> 38.2 s; against that, video `items`
+237.5 s -> 260.2 s and `audio_candidate_analysis` 84.3 s -> 102.4 s.
+`final_mux` (4.11 s -> 4.06 s), `final_audio_analysis` (12.49 s -> 12.49 s),
+`delivery` (58.0 s -> 58.0 s), `transitions` (3.7 s -> 3.7 s) and `assembly`
+(3.3 s -> 3.0 s) are unchanged within noise.
+
+**This replay is a recovery-wins render.** All three native masters are rejected
+(decoded -15.43/0.51, -16.34/-0.5, -19.35/6.96 LUFS/dBTP against targets
+-14/-1.8, -13/-4.01, -12/-5.21) and the second `aac_mf` recovery candidate
+(-14.44 LUFS / -3.35 dBTP) is the accepted master in both runs. So the
+speculative delivery is exercised for real: in the baseline `final_mux` cannot
+start until native attempt 3 has been analysed at 322.5 s, 34.8 s after the
+recovery was accepted at 287.7 s; in the candidate `final_mux` starts at
+277.267 s, 1 ms after the accepting recovery analysis ends at 277.266 s. That
+34.8 s of dead wait is change 2 working exactly as designed.
+
+**Where the 45.3 s of `render_ms` comes from.** The final mux starts 45.2 s
+earlier (322.5 s -> 277.3 s) and everything after it (mux, certification,
+delivery) is unchanged. Of those 45.2 s, 34.8 s is the dead wait above and
+10.4 s is how much earlier the recovery candidate is accepted
+(287.7 s -> 277.3 s). The recovery chain starts 89.0 s earlier
+(192.1 s -> 103.1 s: 48.7 s from the upstream gain of change 1 plus 40.3 s
+from a faster native attempt 0, whose encode + analysis drop from 92.9 s to
+52.6 s once the item pool yields), but it runs 78.6 s longer under
+BELOW_NORMAL (recovery encode 0 50.9 s -> 68.6 s, its decoded-AAC analysis
+13.1 s -> 41.0 s, recovery encode 1 18.7 s -> 51.9 s), so it is accepted only
+10.4 s earlier.
+
+**And that is where the two changes fight each other.** The recovery is the
+critical path on this material, and change 1 marks it BELOW_NORMAL: roughly
+38 s of the 48.6 s that change 1 wins upstream is handed back by change 1's
+own mark on the recovery. The clear next iteration, measurable with this same
+harness: keep BELOW_NORMAL on the video item pool but not unconditionally on
+the recovery, for example restore NORMAL once a native attempt has been
+rejected, or once the recovery candidate is the only live candidate. That
+iteration was run as `mastering-candidate-2b` (next subsection): the recovery
+simply keeps NORMAL, which is the shipped form.
+
+**The video branch is now close to being the gate.** Deprioritised, it ends at
+267.0 s (was 244.5 s) while the speculative mux needs the committed program
+video at 277.3 s: 10.3 s of slack, down from 78.0 s in the baseline. On a
+render whose native attempt 0 passes, the audio branch goes idle after
+~100 s and the item pool gets the whole machine back, so the transferred
+contention is bounded by that first window; but on such a render the video
+branch is the critical path and change 1 can only cost time there, never win
+it. This pair does not measure that path; the saved jobs of this machine all
+needed the recovery chain, which is why the trade is taken.
+
+**Equivalence.** Byte-identical on every axis checked:
+
+- program PCM `nut/*.nut`, 4 479 493 455 bytes, sha256
+  `78e9d9f515adfb4e67cb591c99480302d062a91ea82775407940cfbfef8a31e8` in both,
+  the same hash as the PR #196 pair;
+- delivered `short-001-demo-compilation.mp4`, 4 501 498 794 bytes in both;
+- `full-demo-loudness.json`, `full-demo-audio.json`, `full-demo-delivery.json`,
+  `full-demo-hud.json`, `full-demo-approved.json` and
+  `full-demo-effective.json` byte-identical (`cmp` clean): `input`, the five
+  `decoded_aac` entries in order, the five `master_targets` in order, the two
+  `fallback_masters` (`aac_mf` gain 3 and 3.8599999999999994, ceiling -5) in
+  order, `status` `verified-decoded-aac` and `final_muxed_aac` equal to
+  `decoded_aac[4]`;
+- a recursive field-by-field diff of the whole `shorts-result.json` finds zero
+  differences outside absolute paths carrying the label and the `performance`
+  timing block; `shorts[0].full_demo`, the five `track_levels` included, diffs
+  to nothing;
+- `warnings` identical (`quality demo-compilation detected frozen frames`,
+  pre-existing and also present in the PR #196 pair);
+- the same 10 files under `out/logs/`, with all 9 `loudnorm` JSON blocks
+  character-identical; those files differ only in the label-bearing attempt
+  path, the FFmpeg filter-instance pointer addresses and the throughput footer
+  (e.g. `speed=28.3x elapsed=0:00:32.84` vs `speed=50.5x elapsed=0:00:18.41`);
+- 79 spans in both, with the same (stage, attempt, variant, encoder, label,
+  outcome) multiset, every outcome `ok`.
+
+`TestFullDemoMasterSequenceMatchesSavedReplay` now pins the retarget and
+recovery sequence to these exact values without FFmpeg: fed the five decoded
+measurements above, the pure helpers must reproduce `master_targets` and
+`fallback_masters` in order and accept only the second recovery candidate.
+
+**Limits.** One machine, one pair, no repetitions: the wall and per-stage deltas
+are single samples on a contended Windows desktop, and the scheduling-sensitive
+stages (`voice_analysis`, the recovery chain) are precisely the ones a second
+sample would move most. Because the recovery wins here, no speculative delivery
+is ever discarded, so the discard branch of the timing evidence has unit-test
+evidence only; a native-accept replay would be needed to confirm the discarded
+`final_mux`/`final_audio_analysis` ordering on a real render and to measure
+what change 1 costs the video branch on that path. The byte-level equivalence
+above is exact and does not share these limits.
+
+### Paired full render, shipped form (mastering chain, 2026-09-19)
+
+Same harness, replay, FFmpeg and machine as the pair above, run with nothing
+else on the machine: `mastering-candidate-2b` is the working tree with the
+recovery mark removed (the video item pool is still BELOW_NORMAL; the
+speculative recovery, its mux and its certification keep NORMAL). It is
+compared against the same `mastering-baseline-1` run and against
+`mastering-candidate-1` (both marks). A first attempt at this render was
+discarded because a test suite compiled beside it during its first minute.
+
+| metric | baseline-1 | candidate-1 (both marks) | candidate-2b (shipped) |
+| --- | ---: | ---: | ---: |
+| harness `elapsed_s` | 401.5 s | 356.0 s | **339.6 s** |
+| `render_ms` | 397 116 | 351 815 | **335 734 (−15.5 %)** |
+| audio upstream envelope | 3.7..98.9 s | 3.7..50.3 s | 3.6..54.4 s |
+| Media Foundation recovery chain | 192.1..287.7 s = 95.6 s | 103.1..277.3 s = 174.2 s | 106.8..209.9 s = **103.1 s** |
+| video branch end | 244.5 s | 267.0 s | 262.2 s |
+| `final_mux` start | 322.5 s | 277.3 s | 262.5 s |
+| delivery | 339.1..397.1 s | 293.8..351.8 s | 279.0..335.7 s |
+| `output_bytes` | 4 501 498 794 | 4 501 498 794 | 4 501 498 794 |
+
+Per-stage unions, candidate-1 -> candidate-2b: `audio_candidate_analysis`
+102.4 s -> 92.9 s, `audio_candidate_encode` 170.6 s -> 160.8 s, video
+`items` 260.2 s -> 255.8 s, `voice_analysis` 24.4 s -> 29.5 s,
+`voice_prepare` 5.4 s -> 7.8 s (the recovery at NORMAL now shares the CPU with
+the upstream stages, which is the expected small give-back).
+
+Equivalence: program PCM sha256 `78e9d9f515adfb4e…` in all three runs; the
+canonical JSON of `shorts[0].full_demo` (track levels, program loudness
+input, all five decoded-AAC measurements, master targets, fallback masters,
+final muxed AAC, status) hashes identically in all three; delivered MP4 byte
+size identical; the same single pre-existing frozen-frames warning in all
+three.
+
+Reading: with the recovery back at NORMAL its chain returns to the baseline's
+length while still starting 85 s earlier, so the accepted master arrives at
+209.9 s instead of 287.7 s and the speculative mux fires as soon as the
+committed program video exists. **The video branch is now the gate**: it ends
+at 262.2 s and the final mux starts at 262.5 s, 0.3 s later. Any further
+audio-side saving on this material is invisible until the video branch
+(17 NVENC item encodes, deprioritised, 255.8 s union) gets shorter, and the
+BELOW_NORMAL mark on that pool is now costing exactly the slack it created.
+Next target: the video item pool, either by giving it the CPU back once the
+audio upstream has finished (the mark only needs to hold for the first ~55 s)
+or by shortening the item encodes themselves.
+
+## Frozen pre-implementation audit
+
 Everything below records the source baseline before the implementation above.
 References to the current renderer, proposed changes and validation still to
 be performed in this historical section describe that earlier state.

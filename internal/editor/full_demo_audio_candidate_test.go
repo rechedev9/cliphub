@@ -564,6 +564,23 @@ func TestFullDemoAudioOnlyPublicationPreservesPreviousOutput(t *testing.T) {
 		fullDemoTestNoTemporaryAudioFiles(t, dir)
 	})
 
+	// FFmpeg creates the attempt before it writes the header, so a candidate
+	// MP4 cannot carry fails the mux with an already created, empty attempt
+	// on disk: the one failure shape whose leak the other cases cannot see.
+	t.Run("unmuxable candidate", func(t *testing.T) {
+		writePrevious(t)
+		unmuxable := filepath.Join(dir, "unmuxable.wav")
+		command := []string{ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=" + decimal(duration), "-c:a", "adpcm_ima_wav", "-ac", "2", "-t", decimal(duration), unmuxable}
+		if _, err := runFFmpegOutput(ctx, command, "unmuxable candidate"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := deliverFullDemoAACCandidate(ctx, ffmpeg, input, unmuxable, output, logs, target, false, duration, template, nil); err == nil {
+			t.Fatal("unmuxable candidate was published")
+		}
+		fullDemoTestAssertOutputUnchanged(t, output, previous)
+		fullDemoTestNoTemporaryAudioFiles(t, dir)
+	})
+
 	t.Run("cancelled context", func(t *testing.T) {
 		writePrevious(t)
 		cancelled, cancelNow := context.WithCancel(ctx)

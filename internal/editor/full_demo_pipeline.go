@@ -261,6 +261,16 @@ func fullDemoItemPoolJobs(streams fullDemoItemStreams) int {
 	return fullDemoItemJobs()
 }
 
+// fullDemoItemPoolBackground reports whether one item stream kind runs off the
+// audio critical path. Only the video-only stream does: it is the render's
+// widest CPU consumer and its branch finishes long before mastering does, so it
+// is the work that can afford to yield. Audio-only items are a link of the
+// audio critical path, and the muxed form carries that same audio, so both keep
+// normal priority.
+func fullDemoItemPoolBackground(streams fullDemoItemStreams) bool {
+	return streams == fullDemoItemVideoOnly
+}
+
 func runFullDemoItemPoolJobs(ctx context.Context, short ShortEdit, streams fullDemoItemStreams, progress fullDemoProgress, jobs int) ([]string, error) {
 	if jobs < 1 {
 		jobs = 1
@@ -268,6 +278,9 @@ func runFullDemoItemPoolJobs(ctx context.Context, short ShortEdit, streams fullD
 	pattern, timingStage, label, stageText := "item-%03d", "items", "Full Demo timeline item", "Montando corte %d de %d"
 	if streams == fullDemoItemAudioOnly {
 		pattern, timingStage, label, stageText = "item-%03d-audio", "items_audio", "Full Demo timeline item audio", "Mezclando corte %d de %d"
+	}
+	if fullDemoItemPoolBackground(streams) {
+		ctx = withBackgroundProcessPriority(ctx)
 	}
 	// Item video no longer waits for voice preparation to create the directory.
 	if err := os.MkdirAll(short.fullDemo.workDir, 0700); err != nil {

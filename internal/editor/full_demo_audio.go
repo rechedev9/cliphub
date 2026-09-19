@@ -222,7 +222,7 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 		}
 		candidateCleanup()
 		if recovery == nil {
-			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, output, logDir, target, duration, e.Input)
+			recovery = startFullDemoAACRecovery(ctx, ffmpeg, input, video, output, logDir, target, duration, e.Input)
 		}
 		next, changed := nextMasterTarget(attemptTarget, target, decoded)
 		if !changed {
