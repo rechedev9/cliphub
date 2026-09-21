@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
+  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
   loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
@@ -194,8 +194,26 @@ test('identical options and hashes survive re-fetch, key ordering and approval t
   assert.ok(editConfigsEqual(fullDemoPlanEdit(snapshot), fullDemoPlanEdit(other)));
 });
 
+test('intro and outro bumpers are optional, preserved verbatim and part of the approval key', () => {
+  const { document } = fixture();
+  const options = structuredClone(document.options);
+  assert.equal(options.bumpers, undefined);
+  assert.equal(bumperSummary(options), 'Desactivados');
+  assert.equal(fullDemoOptionsKey(currentFullDemoOptions(options)), fullDemoOptionsKey(options), 'absent bumpers must not be defaulted in');
+  const ref = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'e'.repeat(64) };
+  const withBumpers = { ...options, bumpers: { intro: { enabled: true, video: ref }, outro: { enabled: true, video: null } } };
+  assert.ok(isFullDemoOptions(withBumpers));
+  assert.equal(bumperSummary(withBumpers), 'Intro y Outro');
+  assert.deepEqual(currentFullDemoOptions(withBumpers).bumpers, withBumpers.bumpers);
+  assert.equal(fullDemoApprovalKey(document, withBumpers), null, 'enabling a bumper changes the approved plan');
+  assert.equal(bumperSummary({ bumpers: { intro: { enabled: false, video: null }, outro: { enabled: true, video: ref } } }), 'Outro');
+});
+
 for (const [name, value] of [
   ['missing option', { ...fixture().document.options, sponsor: undefined }],
+  ['bumper without slots', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: null } } }],
+  ['bumper with a policy', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: null, placement: 'start' }, outro: { enabled: false, video: null } } }],
+  ['bumper with a bad ref', { ...fixture().document.options, bumpers: { intro: { enabled: true, video: { id: 'x', sha256: 'y' } }, outro: { enabled: false, video: null } } }],
   ['null boolean', { ...fixture().document.options, capture: { ...fixture().document.options.capture, xray: null } }],
   ['unknown key', { ...fixture().document.options, pipeline: 'new' }],
   ['invalid profile', { ...fixture().document.options, profile_id: 'legacy' }],

@@ -466,6 +466,24 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 			audioInput = "[1:a]"
 		}
 		audio = sampleWindow(audioInput, 0, samples, 1, "a")
+	} else if item.Role == "bumper" {
+		// Intro and outro bumpers are the channel's own clips. They play their
+		// embedded track when they have one; a silent clip stays silent instead
+		// of failing on a missing [0:a] stream.
+		ref, evidence, err := fullDemoBumperAsset(short.FullDemo.Effective, item)
+		if err != nil {
+			return nil, err
+		}
+		video, err := runtime.execution.assetPath(ref)
+		if err != nil {
+			return nil, err
+		}
+		command = append(command, "-i", video)
+		if evidence.HasAudio {
+			audio = sampleWindow("[0:a]", 0, samples, 1, "a")
+		} else {
+			audio = silentBus(samples, "a")
+		}
 	} else {
 		return nil, fmt.Errorf("unsupported Full Demo timeline role %s", item.Role)
 	}
@@ -581,4 +599,27 @@ func (s *fullDemoItemProgress) markDone(i int, stage string) {
 	overall := s.overallLocked()
 	s.mu.Unlock()
 	s.progress.report(stage, overall)
+}
+
+// fullDemoBumperAsset resolves which bumper slot a timeline item plays and its
+// planner evidence, so the audio graph can decide between the clip's own track
+// and silence without probing the file again at render time.
+func fullDemoBumperAsset(d recapplan.Document, item recapplan.TimelineItem) (recapplan.AssetRef, recapplan.AssetEvidence, error) {
+	var slot recapplan.BumperSlot
+	var ok bool
+	switch item.Reason {
+	case recapplan.BumperRoleIntro:
+		slot, ok = d.Options.IntroBumper()
+	case recapplan.BumperRoleOutro:
+		slot, ok = d.Options.OutroBumper()
+	}
+	if !ok || slot.Video == nil || slot.Video.ID != item.SourceRef {
+		return recapplan.AssetRef{}, recapplan.AssetEvidence{}, fmt.Errorf("full_demo_asset_missing: bumper %s is not approved", item.SourceRef)
+	}
+	for _, a := range d.Assets {
+		if a.Ref == *slot.Video {
+			return *slot.Video, a, nil
+		}
+	}
+	return recapplan.AssetRef{}, recapplan.AssetEvidence{}, fmt.Errorf("full_demo_asset_missing: bumper %s has no plan evidence", item.SourceRef)
 }

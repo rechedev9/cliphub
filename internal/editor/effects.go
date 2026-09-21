@@ -19,6 +19,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/demooverlay"
 	"github.com/rechedev9/cliphub/internal/keydropbanner"
 	"github.com/rechedev9/cliphub/internal/mediafont"
+	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
 var effectsEvaluationTimeout = 500 * time.Millisecond
@@ -228,7 +229,12 @@ func generatedFullDemoOverlayEffects(short ShortEdit) []Effect {
 	if short.OutputFormat != OutputFormatLandscape16x9 || short.Preset != PresetGameplayPOV60 {
 		return nil
 	}
-	introStart, introEnd, outroStart, outroEnd := demooverlay.OverlayWindows(short.DurationSeconds)
+	// The neon intro and outro sit on gameplay. With bumpers the program starts
+	// or ends with the channel's own clip, so the windows are measured over the
+	// span between them and then shifted onto the program clock.
+	spanStart, spanEnd := fullDemoGameplaySpanSeconds(short)
+	introStart, introEnd, outroStart, outroEnd := demooverlay.OverlayWindows(spanEnd - spanStart)
+	introStart, introEnd, outroStart, outroEnd = introStart+spanStart, introEnd+spanStart, outroStart+spanStart, outroEnd+spanStart
 	var effects []Effect
 	if path := strings.TrimSpace(short.FullDemoIntroImagePath); path != "" && introEnd > introStart {
 		effects = append(effects, Effect{
@@ -260,6 +266,29 @@ func generatedFullDemoOverlayEffects(short ShortEdit) []Effect {
 		})
 	}
 	return effects
+}
+
+// fullDemoGameplaySpanSeconds is the program interval that is not a bumper:
+// the whole program when there is no Full Demo evidence or no bumper item.
+func fullDemoGameplaySpanSeconds(short ShortEdit) (float64, float64) {
+	start, end := 0.0, short.DurationSeconds
+	if short.FullDemo == nil {
+		return start, end
+	}
+	items := short.FullDemo.Effective.Timeline
+	if len(items) == 0 {
+		return start, end
+	}
+	if first := items[0]; first.Role == "bumper" {
+		start = float64(first.EndFrame) / recapplan.OutputFPS
+	}
+	if last := items[len(items)-1]; last.Role == "bumper" {
+		end = float64(last.StartFrame) / recapplan.OutputFPS
+	}
+	if end <= start {
+		return 0, 0
+	}
+	return start, end
 }
 
 func ensureFullDemoOverlays(manifest *Manifest, ffmpegPath string) error {

@@ -321,11 +321,11 @@ func TestSponsorRejectsManualFrameBeyondProgram(t *testing.T) {
 	frame := int64(601)
 	options := DefaultOptions().Sponsor
 	options.PlacementPolicy, options.ManualStartFrame, options.AllowSplitRound = "manual-frame", &frame, true
-	if _, _, found := resolveSponsor(options, []Boundary{{AfterRoundID: "round-001", Frame: 600}}, 600); found {
+	if _, _, found := resolveSponsor(options, []Boundary{{AfterRoundID: "round-001", Frame: 600}}, 0, 600); found {
 		t.Fatal("sponsor accepted a frame beyond the final round")
 	}
 	frame = 0
-	if _, _, found := resolveSponsor(options, nil, 0); found {
+	if _, _, found := resolveSponsor(options, nil, 0, 0); found {
 		t.Fatal("sponsor accepted a boundary in an empty program")
 	}
 }

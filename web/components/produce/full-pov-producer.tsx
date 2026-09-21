@@ -8,13 +8,14 @@ import type { Match, Play } from '@/lib/api/types';
 import { hubHref, seriesHref } from '@/lib/clips/routes';
 import type { FullDemoLoadFailure } from '@/lib/full-demo';
 import {
-  approveFullDemo, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
+  approveFullDemo, bumperSummary, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoDocument, type FullDemoOptions,
 } from '@/lib/full-demo-plan';
 import { Button } from '@/components/ui/button';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoGroup } from './full-demo-fields';
 import { FullDemoAudio, FullDemoSponsor } from './full-demo-audio';
+import { FullDemoBumpers } from './full-demo-bumpers';
 import { FullDemoOverlays } from './full-demo-overlays';
 import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoHud } from './full-demo-hud';
@@ -145,6 +146,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     { label: 'Voces', value: options.audio.voice.enabled ? 'Incluidas' : 'Sin voces' },
     { label: 'Transiciones', value: options.transitions?.enabled ? 'Dinámico' : 'Corte limpio' },
     { label: 'Sponsor', value: options.sponsor.enabled ? 'Incluido' : 'Desactivado' },
+    { label: 'Intro y outro', value: bumperSummary(options) },
     { label: 'Overlays', value: `${fullDemoOverlayLabel(fullDemoOverlaySource(options))} · neón violeta` },
   ] : [];
 
@@ -168,6 +170,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
             <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
           </FullDemoGroup>
           <FullDemoGroup title="Sponsor" note="Opcional. Añade un vídeo para incluirlo."><FullDemoSponsor options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} onPrepareRoundBoundaries={prepareSponsorRoundBoundaries} /></FullDemoGroup>
+          <FullDemoGroup title="Intro y outro" note="Opcional. Un clip antes de la partida y otro al final."><FullDemoBumpers options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></FullDemoGroup>
         </div>
       </div>
     </fieldset> : null}

@@ -8,11 +8,19 @@ import (
 
 // RebuildTimeline quantizes each round once and inserts sponsor content without
 // consuming gameplay time. It preserves requested options on placement failure.
+// An intro bumper opens the program before the first captured frame and an
+// outro bumper closes it after the last one; both are plain appends around the
+// gameplay span, so sponsor candidates and windows stay in program frames.
 func (d *Document) RebuildTimeline() error {
 	d.Timeline = []TimelineItem{}
 	d.SponsorPlacement.Candidates = []Boundary{}
 	d.Blockers = slices.DeleteFunc(d.Blockers, func(n Notice) bool { return n.Code == ErrSponsorPlacement })
 	var cursor int64
+	if intro, ok := d.bumperItem(d.Options.IntroBumper, BumperRoleIntro, cursor); ok {
+		d.Timeline = append(d.Timeline, intro)
+		cursor = intro.EndFrame
+	}
+	gameplayStart := cursor
 	for _, r := range d.Rounds {
 		frames, err := TickFrames(r.EffectiveEndTick-r.RequestedStartTick, d.Clock.TickRate)
 		if err != nil {
@@ -26,12 +34,17 @@ func (d *Document) RebuildTimeline() error {
 		d.SponsorPlacement.Candidates = append(d.SponsorPlacement.Candidates, Boundary{r.ID, cursor})
 	}
 	if d.Options.Sponsor.Enabled && d.SponsorPlacement.DurationFrames > 0 {
-		frame, boundary, found := resolveSponsor(d.Options.Sponsor, d.SponsorPlacement.Candidates, cursor)
+		frame, boundary, found := resolveSponsor(d.Options.Sponsor, d.SponsorPlacement.Candidates, gameplayStart, cursor)
 		if !found {
 			d.block(ErrSponsorPlacement, "No approved sponsor position fits the current round timeline")
 		} else {
 			d.SponsorPlacement.StartFrame, d.SponsorPlacement.Boundary = frame, boundary
 			d.insertSponsor(frame)
+		}
+	}
+	if len(d.Timeline) > 0 {
+		if outro, ok := d.bumperItem(d.Options.OutroBumper, BumperRoleOutro, d.Timeline[len(d.Timeline)-1].EndFrame); ok {
+			d.Timeline = append(d.Timeline, outro)
 		}
 	}
 	for i := range d.Timeline {
@@ -41,7 +54,24 @@ func (d *Document) RebuildTimeline() error {
 	return ValidateTimeline(d.Timeline)
 }
 
-func resolveSponsor(o SponsorOptions, candidates []Boundary, total int64) (int64, string, bool) {
+// bumperItem builds the timeline item for an enabled bumper whose asset the
+// plan already verified. A requested bumper without usable evidence is a
+// planner blocker, not a placement decision, so it is skipped here.
+func (d *Document) bumperItem(slot func() (BumperSlot, bool), reason string, start int64) (TimelineItem, bool) {
+	bumper, ok := slot()
+	if !ok || bumper.Video == nil {
+		return TimelineItem{}, false
+	}
+	a, ok := findAsset(d.Assets, *bumper.Video)
+	if !ok || !a.HasVideo || a.DurationFrames <= 0 {
+		return TimelineItem{}, false
+	}
+	return TimelineItem{Role: "bumper", SourceRef: bumper.Video.ID, StartFrame: start, EndFrame: start + a.DurationFrames, Reason: reason}, true
+}
+
+// resolveSponsor picks the sponsor frame inside [start, total]: candidates are
+// round ends and a manual frame may split a round, never a bumper.
+func resolveSponsor(o SponsorOptions, candidates []Boundary, start, total int64) (int64, string, bool) {
 	switch o.PlacementPolicy {
 	case "first-two-rounds":
 		low, high := int64(math.Ceil(o.WindowStartSeconds*OutputFPS)), int64(math.Floor(o.WindowEndSeconds*OutputFPS))
@@ -60,7 +90,7 @@ func resolveSponsor(o SponsorOptions, candidates []Boundary, total int64) (int64
 			}
 		}
 	case "manual-frame":
-		if o.ManualStartFrame == nil || *o.ManualStartFrame < 0 || *o.ManualStartFrame > total {
+		if o.ManualStartFrame == nil || *o.ManualStartFrame < start || *o.ManualStartFrame > total {
 			return 0, "", false
 		}
 		for _, c := range candidates {
@@ -81,7 +111,7 @@ func (d *Document) insertSponsor(frame int64) {
 	out := make([]TimelineItem, 0, len(d.Timeline)+2)
 	inserted := false
 	for _, item := range d.Timeline {
-		if !inserted && frame >= item.StartFrame && frame < item.EndFrame {
+		if !inserted && item.Role == "round" && frame >= item.StartFrame && frame < item.EndFrame {
 			if frame > item.StartFrame {
 				prefix := item
 				prefix.EndFrame = frame
@@ -110,7 +140,7 @@ func ValidateTimeline(items []TimelineItem) error {
 		return fmt.Errorf("timeline exceeds item limit")
 	}
 	for _, item := range items {
-		if item.Role != "round" && item.Role != "sponsor" && item.Role != "bookend" {
+		if item.Role != "round" && item.Role != "sponsor" && item.Role != "bumper" && item.Role != "bookend" {
 			return fmt.Errorf("unknown timeline role %q", item.Role)
 		}
 		if item.SourceRef == "" || item.SourceOffsetFrames < 0 || item.StartFrame != cursor || item.EndFrame <= cursor || item.EndFrame > 43200*OutputFPS {

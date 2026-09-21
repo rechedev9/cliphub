@@ -279,7 +279,11 @@ func (o Options) Validate() error {
 			return err
 		}
 	}
-	for _, ref := range []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration, o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage} {
+	refs := []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration, o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage}
+	if o.Bumpers != nil {
+		refs = append(refs, o.Bumpers.Intro.Video, o.Bumpers.Outro.Video)
+	}
+	for _, ref := range refs {
 		if ref != nil {
 			if err := ref.Validate(); err != nil {
 				return err

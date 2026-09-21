@@ -114,6 +114,10 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	canonical.Audio.Voice.Gain = options.Audio.Voice.Gain
 	canonical.Audio.Game.Gain = options.Audio.Game.Gain
 	canonical.Sponsor = options.Sponsor
+	if options.Bumpers != nil {
+		bumpers := *options.Bumpers
+		canonical.Bumpers = &bumpers
+	}
 
 	// Existing compatible HUD choices remain selectable. An absent or native
 	// HUD becomes the current broadcast HUD default instead of disabling it.
@@ -315,6 +319,20 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 					d.block(ErrAssetMissing, "Narration is shorter than sponsor; explicitly approve silence padding or replace it")
 				}
 			}
+		}
+	}
+	for _, bumper := range []struct {
+		name string
+		slot func() (BumperSlot, bool)
+	}{{"intro", options.IntroBumper}, {"outro", options.OutroBumper}} {
+		slot, ok := bumper.slot()
+		if !ok {
+			continue
+		}
+		if slot.Video == nil {
+			d.block(ErrAssetMissing, "Select or import an "+bumper.name+" video, or explicitly disable the "+bumper.name)
+		} else if a, ok := findAsset(assets, *slot.Video); !ok || !a.HasVideo || a.DurationFrames <= 0 {
+			d.block(ErrAssetMissing, "The "+bumper.name+" video is missing or invalid")
 		}
 	}
 	if options.Overlays.Mode == "screenshots" {
