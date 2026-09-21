@@ -7,6 +7,7 @@ import type { EditConfig, Video } from '@/lib/api/types';
 import { DEFAULT_EDIT_CONFIG } from '@/lib/api/reel-store';
 import { constrainEditConfig, isLandscapeRecap, reelCreativeBrief } from '@/lib/reel-brief';
 import { FULL_DEMO_CONTRACT, FULL_DEMO_PRESET } from '@/lib/full-demo';
+import { bumperSummary } from '@/lib/full-demo-plan';
 import { FullDemoEvidence } from './full-demo-evidence';
 import {
   Dialog,
@@ -70,6 +71,7 @@ export function ReviewResolutionDialog({
     { label: 'Voces', value: editorial.audio.voice.enabled ? `${editorial.audio.voice.gain}×` : 'Desactivadas' },
     { label: 'Música', value: editorial.audio.music.enabled ? `${editorial.audio.music.assets.length} pistas · ${editorial.audio.music.bed_gain_db} dB` : 'Desactivada' },
     { label: 'Sponsor', value: editorial.sponsor.enabled ? editorial.sponsor.audio_policy : 'Desactivado' },
+    { label: 'Intro y outro', value: bumperSummary(editorial) },
     { label: 'Portada', value: editorial.outputs.cover_policy },
   ] : FULL_DEMO_CONTRACT;
   const editChanged = JSON.stringify(draft) !== JSON.stringify(original);

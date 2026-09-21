@@ -55,6 +55,11 @@ const transitionOptions = object({
   comms_tail_seconds: number(0, 1.5), game_fade_ms: integerRange(0, 250), game_tail_lowpass_hz: integerRange(0, 12000),
 });
 export type FullDemoTransitionOptions = Guarded<typeof transitionOptions>;
+const bumperSlot = object({ enabled: boolean, video: nullable(assetRef) });
+// Mirrors recapplan.BumperOptions. The key is optional and never defaulted in:
+// Go omits it when absent, so adding it locally would dirty an approved plan.
+const bumperOptions = object({ intro: bumperSlot, outro: bumperSlot });
+export type FullDemoBumperOptions = Guarded<typeof bumperOptions>;
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
@@ -88,7 +93,8 @@ const optionsShape = object({
   }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
-}, ['transitions']);
+  bumpers: bumperOptions,
+}, ['transitions', 'bumpers']);
 export type FullDemoOptions = Guarded<typeof optionsShape>;
 
 /** Old drafts stay readable, but cannot restore voice-driven or adjustable freezes. */
@@ -185,7 +191,7 @@ const documentShape = object({
   voice: object({ availability: string, index_ref: string, index_hash: string, extractor_version: string, clock_kind: string, activity: nullable(array(interval)), selected_packets: integer, excluded_packets: integer }),
   assets: nullable(array(object({ ref: assetRef, duration_frames: integer, has_video: boolean, has_audio: boolean, has_image: boolean, title: string, creator: string, source_url: string, permission: string, attribution: string }, ['has_image']), 100)),
   sponsor_placement: object({ boundary: string, start_frame: integer, duration_frames: integer, candidates: nullable(array(object({ after_round_id: string, frame: integer }), 200)) }),
-  timeline: nullable(array(object({ role: oneOf('round', 'sponsor'), source_ref: string, source_start_tick: integer, source_end_tick: integer, source_offset_frames: integer, start_frame: integer, end_frame: integer, start_sample: integer, end_sample: integer, reason: string }))),
+  timeline: nullable(array(object({ role: oneOf('round', 'sponsor', 'bumper'), source_ref: string, source_start_tick: integer, source_end_tick: integer, source_offset_frames: integer, start_frame: integer, end_frame: integer, start_sample: integer, end_sample: integer, reason: string }))),
   warnings: nullable(array(notice, 1000)), blockers: nullable(array(notice, 1000)),
 });
 export type FullDemoDocument = Guarded<typeof documentShape>;
@@ -240,6 +246,12 @@ export function fullDemoOverlayLabel(source: EditConfig['demoSource']): string {
   }
 }
 
+/** One-line brief for the intro and outro bumpers, shared by the form and the evidence views. */
+export function bumperSummary(options: Pick<FullDemoOptions, 'bumpers'>): string {
+  const parts = [options.bumpers?.intro.enabled ? 'Intro' : null, options.bumpers?.outro.enabled ? 'Outro' : null].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(' y ') : 'Desactivados';
+}
+
 export function fullDemoPlanEdit(snapshot: FullDemoSnapshot): EditConfig {
   const options = snapshot.document.options;
   const demoSource = fullDemoOverlaySource(options);
@@ -268,7 +280,7 @@ export async function loadFullDemoPlan(jobId: string, signal?: AbortSignal): Pro
 }
 export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, signal?: AbortSignal): Promise<FullDemoDocument> {
   options = currentFullDemoOptions(options);
-  if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio y sponsor.');
+  if (!isFullDemoOptions(options)) throw new Error('Revisa los valores de captura, transiciones, audio, sponsor e intro/outro.');
   const value = await responseJSON(await fetch(planURL(jobId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ options }), signal }));
   if (!documentShape(value)) throw new Error('El servidor devolvió un plan Full Demo incompatible.');
   return value;

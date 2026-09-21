@@ -402,7 +402,7 @@ func (p *shortPackRenderer) renderFullDemoProgram(ctx context.Context, i int, sh
 			return err
 		}
 		options := audioShort.FullDemo.Effective.Options
-		silentApproved := options.Audio.Game.Gain == 0 && (!options.Audio.Voice.Enabled || options.Audio.Voice.Gain == 0) && !options.Audio.Music.Enabled && !options.Sponsor.Enabled && !audioShort.FullDemo.Effective.HasTransitionSFX()
+		silentApproved := options.Audio.Game.Gain == 0 && (!options.Audio.Voice.Enabled || options.Audio.Voice.Gain == 0) && !options.Audio.Music.Enabled && !options.Sponsor.Enabled && !options.HasBumpers() && !audioShort.FullDemo.Effective.HasTransitionSFX()
 		mastered, err := masterFullDemoMeasuredProgram(fullDemoTimingScope(ctx, "full_demo", i, -1, duration), audioShort.fullDemo.ffmpeg, fullDemoProgramAudioPath(audioShort), committedVideo, audioShort.Output, filepath.Join(p.opts.OutputDir, "logs"), options.Audio.Loudness, silentApproved, duration, progress.within(.25, 1), assembled)
 		evidence = &mastered
 		return err

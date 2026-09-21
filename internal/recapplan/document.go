@@ -31,9 +31,57 @@ type Options struct {
 	Editorial   EditorialOptions   `json:"editorial"`
 	Audio       AudioOptions       `json:"audio"`
 	Sponsor     SponsorOptions     `json:"sponsor"`
+	Bumpers     *BumperOptions     `json:"bumpers,omitempty"`
 	Overlays    OverlayOptions     `json:"overlays"`
 	Outputs     OutputOptions      `json:"outputs"`
 	Transitions *TransitionOptions `json:"transitions,omitempty"`
+}
+
+// BumperOptions are the optional channel clips around the program: a pre-roll
+// before the first captured frame and an outro after the last one. Unlike the
+// sponsor they never touch gameplay placement, so they carry no policy. The
+// pointer is omitted from the wire when absent so documents approved before
+// bumpers existed keep their hash.
+type BumperOptions struct {
+	Intro BumperSlot `json:"intro"`
+	Outro BumperSlot `json:"outro"`
+}
+
+// BumperSlot is one bumper. Its audio is always the clip's own track; a clip
+// without audio plays silent, which is an ordinary outro on YouTube.
+type BumperSlot struct {
+	Enabled bool      `json:"enabled"`
+	Video   *AssetRef `json:"video"`
+}
+
+// BumperRoleIntro and BumperRoleOutro are the Reason values of "bumper"
+// timeline items, so the renderer never has to guess which slot an item is.
+const (
+	BumperRoleIntro = "intro-bumper"
+	BumperRoleOutro = "outro-bumper"
+)
+
+// IntroBumper returns the enabled intro slot, or false when none is requested.
+func (o Options) IntroBumper() (BumperSlot, bool) {
+	if o.Bumpers == nil || !o.Bumpers.Intro.Enabled {
+		return BumperSlot{}, false
+	}
+	return o.Bumpers.Intro, true
+}
+
+// OutroBumper returns the enabled outro slot, or false when none is requested.
+func (o Options) OutroBumper() (BumperSlot, bool) {
+	if o.Bumpers == nil || !o.Bumpers.Outro.Enabled {
+		return BumperSlot{}, false
+	}
+	return o.Bumpers.Outro, true
+}
+
+// HasBumpers reports whether any bumper is requested.
+func (o Options) HasBumpers() bool {
+	_, intro := o.IntroBumper()
+	_, outro := o.OutroBumper()
+	return intro || outro
 }
 
 // OverlaySource resolves the intro/outro overlay layout for the plan. The demo

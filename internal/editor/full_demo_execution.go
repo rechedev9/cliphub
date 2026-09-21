@@ -336,6 +336,12 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	if d.Options.Sponsor.Enabled {
 		short.Caption += " Includes a sponsor video insert."
 	}
+	if _, ok := d.Options.IntroBumper(); ok {
+		short.Caption += " Opens with a channel intro."
+	}
+	if _, ok := d.Options.OutroBumper(); ok {
+		short.Caption += " Ends with a channel outro."
+	}
 	for _, asset := range d.Assets {
 		if asset.Attribution != "" {
 			short.Caption += "\n" + strings.TrimSpace(asset.Attribution)
@@ -402,10 +408,33 @@ func projectFullDemoTimeline(short *ShortEdit, d recapplan.Document) error {
 	}
 	short.KillCount = len(short.Kills)
 	short.CoverTimeSeconds = coverTimeSeconds(short.Kills, short.DurationSeconds)
-	for _, item := range d.Timeline {
-		if item.Role == "sponsor" && short.CoverTimeSeconds >= float64(item.StartFrame)/60 && short.CoverTimeSeconds < float64(item.EndFrame)/60 {
-			short.CoverTimeSeconds = float64(max(int64(0), item.StartFrame-1)) / 60
+	// The cover is a gameplay frame: never the sponsor and never a bumper.
+	// Non-round items can sit back to back (intro then sponsor, sponsor then
+	// outro), so the fallback is the nearest round frame rather than the frame
+	// next to the item that captured the cover.
+	for i, item := range d.Timeline {
+		if item.Role == "round" || short.CoverTimeSeconds < float64(item.StartFrame)/60 || short.CoverTimeSeconds >= float64(item.EndFrame)/60 {
+			continue
 		}
+		short.CoverTimeSeconds = fullDemoCoverRoundFallback(d.Timeline, i)
+		break
 	}
 	return nil
+}
+
+// fullDemoCoverRoundFallback returns the last frame of the closest round before
+// timeline item i, or the first frame of the closest round after it when no
+// round precedes it (an intro bumper starts at frame 0).
+func fullDemoCoverRoundFallback(items []recapplan.TimelineItem, i int) float64 {
+	for j := i - 1; j >= 0; j-- {
+		if items[j].Role == "round" {
+			return float64(items[j].EndFrame-1) / recapplan.OutputFPS
+		}
+	}
+	for j := i + 1; j < len(items); j++ {
+		if items[j].Role == "round" {
+			return float64(items[j].StartFrame) / recapplan.OutputFPS
+		}
+	}
+	return float64(items[i].StartFrame) / recapplan.OutputFPS
 }

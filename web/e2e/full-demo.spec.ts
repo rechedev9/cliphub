@@ -122,6 +122,38 @@ test.describe('Full POV simplified constructor', () => {
     await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
   });
 
+  test('intro and outro bumpers start optional and upload their clip with provenance', async ({ page }) => {
+    const document = editorial();
+    delete document.options.bumpers;
+    // Keep the sponsor's own file picker out of the page so the intro's is the only one.
+    document.options.sponsor.enabled = false;
+    document.options.sponsor.video = null;
+    let uploaded = 0;
+    await stubParsedMatch(page, document);
+    await page.route('**/api/editor/assets', async (route) => {
+      uploaded += 1;
+      await route.fulfill({ status: 201, json: { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) } });
+    });
+    await gotoStudio(page, PRODUCE_FULL);
+    const intro = page.getByRole('checkbox', { name: 'Incluir intro', exact: true });
+    const outro = page.getByRole('checkbox', { name: 'Incluir outro', exact: true });
+    await expect(intro).not.toBeChecked();
+    await expect(outro).not.toBeChecked();
+    await intro.check();
+    await expect(page.getByText('Añade el vídeo de la intro o desactívala.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Intro y outro', { exact: true }).last()).toBeVisible();
+    await page.getByText('Añadir vídeo de intro y permisos', { exact: true }).click();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'intro.mp4', mimeType: 'video/mp4', buffer: Buffer.from('intro') });
+    await page.getByLabel('Título', { exact: true }).fill('Intro del canal');
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
+    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:intro.mp4');
+    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await expect.poll(() => uploaded).toBe(1);
+    await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
+    await expect(page.getByText('Cambiar vídeo de intro', { exact: true })).toBeVisible();
+  });
+
   test('prepares canonical sponsor boundaries from an empty plan, then creates the selected boundary', async ({ page }) => {
     const defaults = editorial().options;
     defaults.sponsor.enabled = false;

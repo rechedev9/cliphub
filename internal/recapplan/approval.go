@@ -120,6 +120,11 @@ func (o Options) AssetReferences() []AssetRef {
 			refs = append(refs, *o.Sponsor.Narration)
 		}
 	}
+	for _, slot := range []func() (BumperSlot, bool){o.IntroBumper, o.OutroBumper} {
+		if bumper, ok := slot(); ok && bumper.Video != nil {
+			refs = append(refs, *bumper.Video)
+		}
+	}
 	unique := []AssetRef{}
 	for _, ref := range refs {
 		if !slices.Contains(unique, ref) {
