@@ -8,7 +8,7 @@ import (
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
-func TestFullDemoCaptureRejectsFrameShortageWithinDurationTolerance(t *testing.T) {
+func TestFullDemoCaptureRejectsFrameShortageBeyondTailPadTolerance(t *testing.T) {
 	for _, clock := range []struct{ rate, ticks int }{{64, 130}, {100, 203}, {128, 260}} {
 		for _, tc := range []struct {
 			name      string
@@ -18,7 +18,9 @@ func TestFullDemoCaptureRejectsFrameShortageWithinDurationTolerance(t *testing.T
 		}{
 			{"exact", 122, "60/1", false},
 			{"extra capture frames", 124, "60/1", false},
-			{"one frame short", 121, "60/1", true},
+			{"one frame short is a padded tail", 121, "60/1", false},
+			{"two frames short is a padded tail", 120, "60/1", false},
+			{"three frames short", 119, "60/1", true},
 			{"unknown frame count", 0, "60/1", true},
 			{"wrong frame rate", 122, "30/1", true},
 		} {
@@ -56,7 +58,8 @@ func TestFullDemoFrameCoverageUsesOriginalCaptureStart(t *testing.T) {
 	}{
 		{"shorter approved tail fits", 1000, 1320, false},
 		{"start offset also consumes frames", 1064, 1384, true},
-		{"one more source tick needs another frame", 1000, 1321, true},
+		{"one more source tick pads one tail frame", 1000, 1321, false},
+		{"three missing tail frames still fail", 1000, 1323, true},
 		{"before capture", 999, 1320, true},
 		{"after capture", 1000, 1641, true},
 	} {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 // FullDemoDocumentFiles is the public evidence serialized beside each render.
@@ -23,12 +24,26 @@ func FullDemoDocumentFiles(evidence FullDemoRenderEvidence) map[string]any {
 			TrackLevels    []FullDemoTrackLevel    `json:"track_levels"`
 		}{"1.0", evidence.Effective.Options.Audio, evidence.MusicIntervals, evidence.TrackLevels},
 		"full-demo-loudness.json": evidence.ProgramLoudness,
-		"full-demo-delivery.json": evidence.Delivery,
+		"full-demo-delivery.json": fullDemoDeliveryDocument(evidence),
 	}
 	if evidence.HUD != nil {
 		files["full-demo-hud.json"] = evidence.HUD
 	}
 	return files
+}
+
+// fullDemoDeliveryDocument is the delivery evidence, plus the capture tail pads
+// that explain why some delivered frames repeat a round's last captured frame.
+// Without pads the document stays byte-identical to the delivery evidence, so
+// existing cached renders keep validating.
+func fullDemoDeliveryDocument(evidence FullDemoRenderEvidence) any {
+	if len(evidence.CaptureTailPads) == 0 || evidence.Delivery == nil {
+		return evidence.Delivery
+	}
+	return struct {
+		*FullDemoDeliveryEvidence
+		CaptureTailPads []recording.FullDemoTailPad `json:"capture_tail_pads"`
+	}{evidence.Delivery, evidence.CaptureTailPads}
 }
 
 func writeFullDemoDocuments(outDir string, shorts []ShortEdit) error {

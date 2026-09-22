@@ -69,15 +69,18 @@ type FullDemoTrackLevel struct {
 }
 
 type FullDemoRenderEvidence struct {
-	HUD             *FullDemoHUDEvidence         `json:"hud,omitempty"`
-	Transitions     []FullDemoTransitionEvidence `json:"transitions,omitempty"`
-	Delivery        *FullDemoDeliveryEvidence    `json:"delivery"`
-	SchemaVersion   string                       `json:"schema_version"`
-	Approved        recapplan.Snapshot           `json:"approved"`
-	Effective       recapplan.Document           `json:"effective"`
-	MusicIntervals  []FullDemoMusicInterval      `json:"music_intervals"`
-	TrackLevels     []FullDemoTrackLevel         `json:"track_levels"`
-	ProgramLoudness *ProgramLoudnessEvidence     `json:"program_loudness"`
+	HUD         *FullDemoHUDEvidence         `json:"hud,omitempty"`
+	Transitions []FullDemoTransitionEvidence `json:"transitions,omitempty"`
+	Delivery    *FullDemoDeliveryEvidence    `json:"delivery"`
+	// CaptureTailPads lists the rounds whose segment clip lacks a bounded number
+	// of trailing frames; each item video clones exactly that shortfall.
+	CaptureTailPads []recording.FullDemoTailPad `json:"capture_tail_pads,omitempty"`
+	SchemaVersion   string                      `json:"schema_version"`
+	Approved        recapplan.Snapshot          `json:"approved"`
+	Effective       recapplan.Document          `json:"effective"`
+	MusicIntervals  []FullDemoMusicInterval     `json:"music_intervals"`
+	TrackLevels     []FullDemoTrackLevel        `json:"track_levels"`
+	ProgramLoudness *ProgramLoudnessEvidence    `json:"program_loudness"`
 }
 
 type fullDemoRenderContext struct {
@@ -288,11 +291,12 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 	if err != nil {
 		return err
 	}
-	if err := result.ValidateFullDemoFrames(effective); err != nil {
+	pads, err := result.FullDemoTailPads(effective)
+	if err != nil {
 		return recording.MarkNotReusable(err)
 	}
 	short := &manifest.Shorts[0]
-	evidence := &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: execution.Approved, Effective: effective, MusicIntervals: []FullDemoMusicInterval{}, TrackLevels: []FullDemoTrackLevel{}}
+	evidence := &FullDemoRenderEvidence{SchemaVersion: "1.0", Approved: execution.Approved, Effective: effective, CaptureTailPads: pads, MusicIntervals: []FullDemoMusicInterval{}, TrackLevels: []FullDemoTrackLevel{}}
 	short.FullDemo = evidence
 	short.fullDemo = &fullDemoRenderContext{execution: *execution, recording: result, ffmpeg: ffmpeg, workDir: filepath.Join(manifest.OutputDir, "full-demo-media")}
 	if d.Options.Overlays.HUDTheme != "" {

@@ -141,12 +141,18 @@ func TestFullDemoRespawnAcquisition(t *testing.T) {
 			if err := recorded.ValidateFullDemoRoundFrames("round-003", start, end); err != nil {
 				t.Fatal(err)
 			}
-			if err := recorded.ValidateFullDemoRoundFrames("round-003", start, 22780); err == nil {
-				t.Fatal("the unrecorded tick must still fail exact frame validation")
+			// The unrecorded tick promises one frame past the clip. It is only
+			// reachable through a certified end, which never includes it; frame
+			// validation alone reports it as a bounded one-frame tail pad.
+			if pad, err := recorded.FullDemoRoundTailPad("round-003", start, 22780); err != nil || pad.PaddedFrames != 1 {
+				t.Fatalf("the unrecorded tick must be reported as one padded frame: pad=%+v err=%v", pad, err)
 			}
-			recorded.Artifacts[0].FrameCount--
+			if pad, err := recorded.FullDemoRoundTailPad("round-003", start, end); err != nil || pad.PaddedFrames != 0 {
+				t.Fatalf("the certified end needs no padding: pad=%+v err=%v", pad, err)
+			}
+			recorded.Artifacts[0].FrameCount -= FullDemoTailPadToleranceFrames + 1
 			if err := recorded.ValidateFullDemoRoundFrames("round-003", start, end); err == nil {
-				t.Fatal("a genuinely short clip must still fail with corrected POV evidence")
+				t.Fatal("a clip short beyond the tail pad tolerance must still fail with corrected POV evidence")
 			}
 		})
 	}

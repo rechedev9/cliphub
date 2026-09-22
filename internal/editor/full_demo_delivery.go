@@ -14,6 +14,7 @@ import (
 
 	"github.com/rechedev9/cliphub/internal/mediaassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 type FullDemoDeliveryEvidence struct {
@@ -253,6 +254,27 @@ func decodedDeliveryFrames(output string) (int64, error) {
 	return 0, fmt.Errorf("incomplete decode progress")
 }
 
+// validateFullDemoCaptureTailPads accepts only bounded, self-consistent pads of
+// distinct effective rounds. The delivery frame count check below then proves
+// the padded items still produced the canonical program length.
+func validateFullDemoCaptureTailPads(pads []recording.FullDemoTailPad, effective recapplan.Document) error {
+	rounds := map[string]bool{}
+	for _, round := range effective.Rounds {
+		rounds[round.ID] = true
+	}
+	seen := map[string]bool{}
+	for _, pad := range pads {
+		if err := pad.Validate(); err != nil {
+			return err
+		}
+		if !rounds[pad.SegmentID] || seen[pad.SegmentID] {
+			return fmt.Errorf("full_demo_capture_incomplete: %s: tail pad does not match one effective round", pad.SegmentID)
+		}
+		seen[pad.SegmentID] = true
+	}
+	return nil
+}
+
 func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 	if e == nil || e.SchemaVersion != "1.0" {
 		return fmt.Errorf("missing Full Demo render evidence")
@@ -278,6 +300,9 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 		return err
 	}
 	if err := validateFullDemoHUD(e.HUD, e.Effective); err != nil {
+		return err
+	}
+	if err := validateFullDemoCaptureTailPads(e.CaptureTailPads, e.Effective); err != nil {
 		return err
 	}
 	frames := e.Effective.Timeline[len(e.Effective.Timeline)-1].EndFrame

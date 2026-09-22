@@ -26,7 +26,7 @@ import (
 // attestation or pass synthetic capture through the production-real gate.
 func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 	ffmpeg := fullDemoTestFFmpeg(t)
-	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "final-boundary", "muxed-bframes"} {
+	for _, scenario := range []string{"embedded", "replace-narration", "manual-split", "final-boundary", "muxed-bframes", "tail-pad"} {
 		t.Run(scenario, func(t *testing.T) {
 			audioPolicy := "embedded"
 			if scenario == "replace-narration" {
@@ -44,8 +44,14 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 				}
 				return path
 			}
-			roundOne := makeMedia("round-one", "red", 440, 121.0/60)
-			roundTwo := makeMedia("round-two", "blue", 440, 121.0/60)
+			// tail-pad reproduces HLAE clips one and two frames short of their
+			// 121-frame windows; the items clone the recorded shortfall.
+			roundOneFrames, roundTwoFrames := 121.0, 121.0
+			if scenario == "tail-pad" {
+				roundOneFrames, roundTwoFrames = 120, 119
+			}
+			roundOne := makeMedia("round-one", "red", 440, roundOneFrames/60)
+			roundTwo := makeMedia("round-two", "blue", 440, roundTwoFrames/60)
 			if scenario == "muxed-bframes" {
 				ffprobe := recording.FindFFprobe()
 				if ffprobe == "" {
@@ -145,6 +151,12 @@ func TestFullDemoSponsorAndAudioMediaCanary(t *testing.T) {
 				lastFraction = fraction
 				stages[stage] = true
 			})
+			if scenario == "tail-pad" {
+				short.FullDemo.CaptureTailPads = []recording.FullDemoTailPad{
+					{SegmentID: "round-001", ClipFrames: 120, WindowFrames: 121, PaddedFrames: 1},
+					{SegmentID: "round-002", ClipFrames: 119, WindowFrames: 121, PaddedFrames: 2},
+				}
+			}
 			short.fullDemo.recording.Plan.Tickrate = 64
 			short.fullDemo.recording.Plan.DemoDurationTicks = 640
 			if err := prepareFullDemoCompilation(ctx, &short, progress.within(0, .65)); err != nil {

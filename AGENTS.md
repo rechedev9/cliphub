@@ -57,6 +57,21 @@ Rules that follow from it:
 - Working-directory logs (`out/logs/program-*.txt`) are deleted with the
   temp workdir on failure unless `ZV_MEDIA_WORK_DIR` is set.
 
+### Capture tail shortfall tolerance (2026-09-22)
+
+A 64 Hz round window can map to a fractional frame count (2040 ticks =
+1912.5 frames); `TickFrames` rounds up and HLAE may deliver one frame less.
+`recording.FullDemoTailPadToleranceFrames` (2) accepts that shortfall, the
+item stream clones the last frame with `tpad` before `trim`, and the pads are
+recorded as `capture_tail_pads` in the render evidence and
+`full-demo-delivery.json`. Anything larger still fails with the original
+coverage error.
+
+- Do not raise the tolerance to hide real capture loss; a larger gap means
+  HLAE dropped frames, not rounding.
+- Audio needs no pad: every bus is already `apad`/`atrim`-ed to the canonical
+  sample count.
+
 ## Full Demo overlay format (`internal/demooverlay`, `recapplan.Options`)
 
 ### Incident: FACEIT demo rendered with demo-facts-only overlays (Studio 3.0.1, 2026-09-10)
