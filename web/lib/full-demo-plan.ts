@@ -290,6 +290,16 @@ export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, 
 }
 
 export type FullDemoProvenance = { title: string; creator: string; source_url: string; permission: string; attribution: string };
+export async function uploadFullDemoBumper(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
+  if (!/\.mp4$/i.test(file.name) || (file.type && file.type !== 'video/mp4')) throw new Error('Selecciona un vídeo MP4.');
+  // Leave room for the multipart envelope under the existing 2 GiB proxy cap.
+  if (file.size === 0 || file.size > 2 * 1024 ** 3 - 2 * 1024 ** 2) throw new Error('El MP4 está vacío o supera el límite de 2 GB.');
+  // Record the local source without inventing authorship or a licence.
+  return uploadFullDemoAsset(file, {
+    title: file.name.slice(0, 200), creator: 'No declarado', source_url: `local:${encodeURIComponent(file.name)}`,
+    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+  }, signal);
+}
 export async function uploadFullDemoPortrait(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
   if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new Error('El retrato debe ocupar entre 1 byte y 10 MB.');
   const form = new FormData();

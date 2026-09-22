@@ -98,8 +98,50 @@ func TestBumperBlockersAndManualSponsorNeverSplitsTheIntro(t *testing.T) {
 	if d.Timeline[0].Role != "bumper" || d.Timeline[len(d.Timeline)-1].Role != "round" {
 		t.Fatalf("intro-only timeline: %+v", d.Timeline)
 	}
-	if d.HasTransitionSFX() && d.TransitionBoundaries()[0].Frame == d.Timeline[1].StartFrame {
-		t.Fatal("the intro to first round cut must not be a round transition")
+	if !d.HasTransitionSFX() || d.TransitionBoundaries()[0].Frame != d.Timeline[1].StartFrame {
+		t.Fatal("the intro must transition into the first round")
+	}
+}
+
+func TestBumperTransitionsAlwaysWrapDemoWithoutEnablingRoundEffects(t *testing.T) {
+	intro, outro := bumperAsset("intro", 1), bumperAsset("outro", 1)
+	facts, options := fixtureFacts(), fixtureOptions()
+	options.Bumpers = &BumperOptions{Intro: BumperSlot{Enabled: true, Video: &intro.Ref}, Outro: BumperSlot{Enabled: true, Video: &outro.Ref}}
+	for _, mode := range []string{"absent", "off", "on"} {
+		t.Run(mode, func(t *testing.T) {
+			options.Transitions = nil
+			if mode != "absent" {
+				o := DynamicTransitions()
+				o.Enabled = mode == "on"
+				options.Transitions = &o
+			}
+			d, err := Plan(facts, options, VoiceEvidence{Availability: "no_packets"}, []AssetEvidence{intro, outro}, "facts")
+			if err != nil || len(d.Blockers) != 0 {
+				t.Fatalf("plan: %v %+v", err, d.Blockers)
+			}
+			boundaries := d.TransitionBoundaries()
+			want := 2
+			if mode == "on" {
+				want += len(d.Rounds) - 1
+			}
+			if len(boundaries) != want || boundaries[0].OutgoingIndex != 0 || boundaries[len(boundaries)-1].IncomingIndex != len(d.Timeline)-1 {
+				t.Fatalf("%s boundaries: %+v", mode, boundaries)
+			}
+			if !d.HasTransitionSFX() {
+				t.Fatal("bumper SFX missing")
+			}
+			if options.Transitions != nil && options.Transitions.Enabled != (mode == "on") {
+				t.Fatal("mutated approved round preference")
+			}
+			for i, item := range d.Timeline {
+				if item.EndSample-item.StartSample != (item.EndFrame-item.StartFrame)*SamplesPerFrame {
+					t.Fatal("changed audio clock")
+				}
+				if i > 0 && item.StartFrame != d.Timeline[i-1].EndFrame {
+					t.Fatal("changed frame coverage")
+				}
+			}
+		})
 	}
 }
 
