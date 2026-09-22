@@ -122,16 +122,6 @@ func (s *scene) panel(id string, x, y, w, h int, accent string) {
 func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	s := &scene{r: r}
 	t := r.Theme
-	if t.Layout == "focus" {
-		for _, p := range state.Players {
-			if p.SteamID == target {
-				s.focusCard(p)
-				break
-			}
-		}
-		sort.SliceStable(s.nodes, func(i, j int) bool { return s.nodes[i].Layer < s.nodes[j].Layer })
-		return s.nodes
-	}
 	var ct, tr []Player
 	for _, p := range state.Players {
 		if p.Inactive {
@@ -164,7 +154,12 @@ func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	}
 	for _, p := range state.Players {
 		if p.SteamID == target {
-			s.focus(p)
+			// Both layouts share the upper strip; only the observed card differs.
+			if t.Layout == "focus" {
+				s.focusCard(p)
+			} else {
+				s.focus(p)
+			}
 			break
 		}
 	}

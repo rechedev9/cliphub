@@ -39,6 +39,18 @@ func TestFocusKeepsTargetAndSuppressesUnknownAndDeadInputs(t *testing.T) {
 	if before["focus/money"].Text != "$2600" || before["focus/name"].Text != "donk" {
 		t.Fatal("lost target statistics")
 	}
+	roster := 0
+	for id, n := range before {
+		if strings.HasPrefix(id, "player/") && strings.HasSuffix(id, "/name") {
+			roster++
+			if n.Y > 94 {
+				t.Fatalf("roster left the top row: %+v", n)
+			}
+		}
+	}
+	if roster != 10 || before["score/time"].Text == "" {
+		t.Fatalf("Focus lost the upper strip: roster=%d", roster)
+	}
 	state.Players[0], state.Players[1] = state.Players[1], state.Players[0]
 	if nodes()["focus/name"].Text != "donk" {
 		t.Fatal("target followed roster order")

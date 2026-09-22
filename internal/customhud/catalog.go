@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-const Version = "broadcast-hud-v5"
+const Version = "broadcast-hud-v6"
 const TelemetryVersion = "broadcast-hud-v4"
 const CaptureProfile = "broadcast-clean-v2"
 const LegacyCaptureProfile = "broadcast-clean"
