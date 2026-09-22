@@ -15,8 +15,10 @@ import (
 	"github.com/rechedev9/cliphub/internal/generateintent"
 	"github.com/rechedev9/cliphub/internal/job"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
+	"github.com/rechedev9/cliphub/internal/overlayassets"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/renderplan"
+	"github.com/rechedev9/cliphub/internal/storage"
 	"github.com/rechedev9/cliphub/internal/voicecomms"
 )
 
@@ -85,6 +87,27 @@ func (h *Handlers) planFullDemo(ctx context.Context, j job.Job, options recappla
 	}
 	assets := []recapplan.AssetEvidence{}
 	for _, ref := range options.AssetReferences() {
+		if options.IsOverlayImage(ref) {
+			id, err := uuid.Parse(ref.ID)
+			if err != nil {
+				return recapplan.Document{}, err
+			}
+			image, err := overlayassets.Load(h.storage, id)
+			if storage.IsNotExist(err) {
+				continue
+			}
+			if err != nil {
+				return recapplan.Document{}, err
+			}
+			if image.SHA256 != ref.SHA256 {
+				return recapplan.Document{}, &recapplan.Error{Code: recapplan.ErrPlanStale, Detail: "Image hash changed: " + ref.ID}
+			}
+			if err := mediaassets.VerifyContent(ctx, h.storage, overlayassets.MediaKey(id), ref.SHA256, overlayassets.MaxBytes); err != nil {
+				return recapplan.Document{}, &recapplan.Error{Code: recapplan.ErrAssetMissing, Detail: err.Error()}
+			}
+			assets = append(assets, recapplan.AssetEvidence{Ref: ref, HasImage: true, Title: image.FileName})
+			continue
+		}
 		if h.editorAssets == nil {
 			continue
 		}

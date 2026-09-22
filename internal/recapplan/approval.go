@@ -140,10 +140,13 @@ type OverlayImageSlot struct {
 }
 
 func (o OverlayOptions) ImageSlots() []OverlayImageSlot {
-	if o.Mode != "screenshots" {
-		return nil
-	}
 	slots := []OverlayImageSlot{}
+	if o.HUDTheme == "focus" && o.HUDPortrait != nil {
+		slots = append(slots, OverlayImageSlot{"retrato del jugador", o.HUDPortrait})
+	}
+	if o.Mode != "screenshots" {
+		return slots
+	}
 	if o.Roster {
 		slots = append(slots, OverlayImageSlot{"equipo 1", o.Team1Image}, OverlayImageSlot{"equipo 2", o.Team2Image})
 	}

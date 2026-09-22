@@ -129,9 +129,9 @@ func TestHUDUsesSourceFramesAcrossTrimsAndSponsorSplits(t *testing.T) {
 	}
 }
 
-func TestTenDistinctHUDsFitLongNamesAndKeepUnknownDataUnknown(t *testing.T) {
-	if len(Themes()) != 10 {
-		t.Fatal("catalog must contain ten designs")
+func TestDistinctHUDsFitLongNamesAndKeepUnknownDataUnknown(t *testing.T) {
+	if len(Themes()) != 11 {
+		t.Fatal("catalog must contain eleven designs")
 	}
 	seen := map[string]bool{}
 	scenes := map[string]bool{}
@@ -201,6 +201,9 @@ func TestInactiveIdentityCannotHideCurrentRosterMember(t *testing.T) {
 	// the fifth player or occupy a living player's slot.
 	state.Players = append(state.Players, Player{SteamID: "1", Name: "disconnected", Side: "CT", Inactive: true})
 	for _, theme := range Themes() {
+		if theme.Layout != "broadcast" {
+			continue
+		}
 		r, _ := NewRenderer(theme.ID)
 		cards, liveSlots, deadSlots := 0, 0, 0
 		for _, n := range r.Scene(state, ExampleTarget) {

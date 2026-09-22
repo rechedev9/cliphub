@@ -1,5 +1,57 @@
 # Custom broadcast HUDs
 
+## Focus player card
+
+Focus adds an eleventh design based on the supplied dark-and-gold reference:
+a single centered lower player card, with name, K/A/D, money, health, armor,
+weapon and ammunition. It replaces the upper roster and lower corner plates.
+The existing ten designs keep their composition and byte-identical previews.
+
+The optional PNG/JPEG portrait (up to 10 MB) is uploaded in the HUD selector.
+Its immutable image reference survives draft migration, planning, approval and
+rendering. A replacement changes the render approval but not the capture hash.
+The editor contains the image in a 116-pixel square above the card's left side,
+bottom aligned, preserving aspect ratio and PNG alpha. With no portrait, a
+CT/T label occupies the slot. Portraits are never inferred from player names.
+
+The movement widget decodes recorded `CSVCMsg_UserCommands` for the observed
+player's controller slot. It reads full snapshots and reconstructs incremental
+`delta_data` updates, including Valve's wire-type-7 default/reset markers. The
+pinned v5 parser preserves field 6 in protobuf unknown fields; a buttons-only
+adapter reads it without changing the parser or guessing input from velocity.
+Commands are matched to their server execution tick at `FrameDone`, then stored
+on the demo seek clock used by the capture and editorial trims. Corrupt deltas
+invalidate their baseline until a new full snapshot; disconnects clear the slot.
+The older `m_pMovementServices.m_nButtonDownMaskPrev` pawn property remains an
+alternative source for demos that record it.
+
+WASD, Shift, Ctrl and Space label in-game actions using conventional bindings,
+not the player's physical keys. This is the state at demo tick boundaries,
+not a display of every subtick press. Only the observed player's movement is
+stored. Missing values remain unknown; dead/inactive players and unavailable
+inputs hide the widget. The picker uses explicitly illustrative input.
+The real Anubis acceptance fixture covers all seven actions, including jump;
+the five-second gameplay sample shows walking, strafing and crouching changes.
+
+Renderer `broadcast-hud-v5` and telemetry `broadcast-hud-v4` invalidate old
+render/telemetry caches without changing the clean capture profile. Portrait
+composition is after camera transitions and before global intro/outro effects,
+and only appears during round items.
+
+Local verification on 2026-09-22: renderer/planner/image suites and the Full
+Demo editor, HTTP and worker regression tests passed, as did web unit tests,
+typecheck, targeted lint and the production build. Focus upload, removal,
+reload, enlarged preview and generation requests passed at 390, 1024 and
+1440 pixels. The general constructor suite passed 20/21 tests; the existing
+blocked-localStorage test failed intermittently and reproduced on unmodified
+HEAD (four passes, one failure over five runs).
+
+A five-second sample composed onto the existing clean Anubis capture decoded
+to exactly 300 frames at 1920x1080/60 fps. The new FFmpeg regression verifies
+portrait alpha, aspect ratio and unchanged frame count in both muxed and
+video-only item rendering. Local evidence lives in `.local/focus-hud/`; no
+release or installed-app upgrade was performed.
+
 The reference is a broadcast layout: team score, round clock, living players,
 player cards and observed-player health, armor and weapon information. The
 ten original ClipHub designs are Arena, Apex, Prism, Carbon, Pulse, Royale,

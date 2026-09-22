@@ -96,6 +96,13 @@ func run(out, demo, target string, rate int, telemetry, theme string, start int,
 		if err := preview(r, out); err != nil {
 			return err
 		}
+		if theme.ID == "focus" {
+			r.Portrait = true
+			r.Theme.ID = "focus-portrait"
+			if err := preview(r, out); err != nil {
+				return err
+			}
+		}
 	}
 	// Keep the picker self-contained inside Next's app root. Its production
 	// packaging and Turbopack deliberately do not trace parent directories.

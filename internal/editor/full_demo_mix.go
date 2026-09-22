@@ -497,6 +497,10 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		if hudFilter != "" {
 			video += "," + hudFilter
 		}
+		command, video, err = fullDemoHUDPortrait(short, item, command, video)
+		if err != nil {
+			return nil, err
+		}
 		// Supported global intro/outro overlays are composed after the item's
 		// transitions and HUD. The item base is shifted onto the global frame clock
 		// and the original whole-program graph is reused unchanged, then the output

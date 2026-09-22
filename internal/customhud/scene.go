@@ -28,7 +28,8 @@ type Node struct {
 }
 
 type Renderer struct {
-	Theme Theme
+	Theme    Theme
+	Portrait bool
 }
 
 type scene struct {
@@ -121,6 +122,16 @@ func (s *scene) panel(id string, x, y, w, h int, accent string) {
 func (r *Renderer) Scene(state Snapshot, target string) []Node {
 	s := &scene{r: r}
 	t := r.Theme
+	if t.Layout == "focus" {
+		for _, p := range state.Players {
+			if p.SteamID == target {
+				s.focusCard(p)
+				break
+			}
+		}
+		sort.SliceStable(s.nodes, func(i, j int) bool { return s.nodes[i].Layer < s.nodes[j].Layer })
+		return s.nodes
+	}
 	var ct, tr []Player
 	for _, p := range state.Players {
 		if p.Inactive {

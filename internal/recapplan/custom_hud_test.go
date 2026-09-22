@@ -2,11 +2,57 @@ package recapplan
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/rechedev9/cliphub/internal/customhud"
 )
+
+func TestFocusPortraitIsVerifiedPersistedAndOnlyChangesRender(t *testing.T) {
+	o := fixtureOptions()
+	o.Capture.HUDProfile, o.Overlays.HUDTheme = customhud.CaptureProfile, "focus"
+	plain, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := AssetRef{ID: "22222222-2222-4222-8222-222222222222", SHA256: strings.Repeat("a", 64)}
+	o.Overlays.HUDPortrait = &ref
+	newOptions := DefaultOptions()
+	newOptions.Overlays.HUDTheme, newOptions.Overlays.HUDPortrait = "focus", &ref
+	canonical, err := CanonicalNewOptions(newOptions)
+	if err != nil || !reflect.DeepEqual(canonical.Overlays.HUDPortrait, &ref) {
+		t.Fatalf("canonical portrait lost: %v", err)
+	}
+	missing, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, nil, "facts")
+	if err != nil || len(missing.Blockers) == 0 {
+		t.Fatal("unverified portrait accepted")
+	}
+	with, err := Plan(fixtureFacts(), o, VoiceEvidence{Availability: "not_requested"}, []AssetEvidence{{Ref: ref, HasImage: true, Title: "portrait.png"}}, "facts")
+	if err != nil || len(with.Blockers) != 0 {
+		t.Fatalf("portrait plan: %v %+v", err, with.Blockers)
+	}
+	a, _ := plain.CaptureHash()
+	b, _ := with.CaptureHash()
+	if a != b || plain.PlanHash == with.PlanHash {
+		t.Fatal("portrait must change approval but reuse capture")
+	}
+	if !o.IsOverlayImage(ref) || !reflect.DeepEqual(o.AssetReferences(), []AssetRef{ref}) {
+		t.Fatal("portrait not materialized as an image")
+	}
+	body, _ := json.Marshal(with)
+	var restored Document
+	if err := decodeStrict(body, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	o.Overlays.HUDTheme = "arena"
+	if o.Validate() == nil {
+		t.Fatal("portrait accepted by incompatible HUD")
+	}
+}
 
 func TestCustomHUDRequiresCompatibleCaptureAndThemesReuseIt(t *testing.T) {
 	native := fixtureDocument(t)
