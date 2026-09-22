@@ -41,7 +41,7 @@ import { Button } from '@/components/ui/button';
 import { StreamEditor } from '@/components/streams/stream-editor';
 import type { StreamAutosaveState } from '@/components/streams/stream-steps-rail';
 import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
-import { useRouteTitle } from '@/components/shell/route-title';
+import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 
 const STREAMS_HREF = '/streams';
@@ -57,16 +57,8 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   const [job, setJob] = useState<StreamJob | null>(null);
   const projectTitle = job?.id === id ? streamTitle(job) : undefined;
   useRouteTitle(projectTitle);
-  // The segment metadata can only say "Clips de stream"; name the tab after the
-  // project once it is loaded, and hand the static title back on the way out.
-  useEffect(() => {
-    if (!projectTitle) return;
-    const previous = document.title;
-    document.title = streamDocumentTitle(projectTitle);
-    return () => {
-      document.title = previous;
-    };
-  }, [projectTitle]);
+  // The segment metadata can only say "Clips de stream"; name the tab after the project.
+  useDocumentTitle(projectTitle ? streamDocumentTitle(projectTitle) : undefined);
   const [plan, setPlan] = useState<StreamEditPlan | null>(null);
   const [renderState, setRenderState] = useState<StreamRenderState | null>(null);
   /** The exact plan the shown render used; drives URLs and staleness. */

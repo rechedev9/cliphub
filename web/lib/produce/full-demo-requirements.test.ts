@@ -29,3 +29,10 @@ test('an enabled intro or outro without its clip is missing a file', () => {
   assert.equal(hasMissingFullDemoFiles(options({ outro: true })), true);
   assert.equal(hasMissingFullDemoFiles(options({ intro: 'file', outro: 'file' })), false);
 });
+
+test('a sponsor that replaces its audio needs its narration', () => {
+  const replace = { enabled: true, video: VIDEO, audio_policy: 'replace-narration' as const };
+  assert.equal(hasMissingFullDemoFiles(options({ sponsor: { ...replace, narration: null } })), true);
+  assert.equal(hasMissingFullDemoFiles(options({ sponsor: { ...replace, narration: VIDEO } })), false);
+  assert.equal(hasMissingFullDemoFiles(options({ sponsor: { enabled: true, video: VIDEO, audio_policy: 'embedded', narration: null } })), false);
+});

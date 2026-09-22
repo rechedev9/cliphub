@@ -133,7 +133,7 @@ function AnalysisPanel({
       <StudioEmptyState
         icon={Loader2}
         title="La demo aún se está importando"
-        description="Podrás analizarla en cuanto termine de leerse el roster. Vuelve a abrirla en unos segundos."
+        description="Podrás analizarla en cuanto termine de leerse el roster. Esta vista se actualiza sola."
         compact
       />
     );
@@ -321,6 +321,28 @@ export default function CheatersPage(): ReactNode {
       }
     })();
   }, []);
+
+  // The list is read once, so a demo still importing at mount would keep its
+  // start button hidden until a reload. Re-read statuses until it settles.
+  const selectedStatus = matches?.find((row) => row.id === selected)?.status;
+  useEffect(() => {
+    if (!isDemoStillIngesting(selectedStatus)) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void api
+        .listMatches()
+        .then((rows) => {
+          if (!active) return;
+          const fresh = new Map(rows.map((row) => [row.id, row]));
+          setMatches((current) => current?.map((row) => fresh.get(row.id) ?? row) ?? rows);
+        })
+        .catch(() => undefined);
+    }, POLL_INTERVAL_MS);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [selectedStatus]);
 
   const load = useCallback(async (jobId: string, background: boolean) => {
     // Polls are refreshes, not superseding navigation. Skipping an overlapping

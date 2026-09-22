@@ -72,6 +72,11 @@ export const JOB_CAPTURE_FAILURE_MESSAGE =
   'La cámara perdió el POV del jugador durante la captura; la demo está bien. ' +
   'Borra esta partida y vuelve a subir la demo para grabarla de nuevo; si se repite, comparte el diagnóstico desde Ajustes.';
 
+/** Job-level stale capture: the stored recording must be redone; nothing says the POV was lost. */
+export const JOB_RECAPTURE_FAILURE_MESSAGE =
+  'La captura guardada no se puede reutilizar con esta versión de ClipHub; la demo está bien. ' +
+  'Borra esta partida y vuelve a subir la demo para grabarla de nuevo; si se repite, comparte el diagnóstico desde Ajustes.';
+
 /** Eyebrow for a failed partida that is not a capture failure. */
 export const JOB_FAILED_TITLE = 'La demo no se pudo procesar';
 
@@ -134,8 +139,10 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
   const failure = classifyFailureReason(reason, context);
   // A failed partida offers delete and diagnostics only, so its copy must not promise a retry.
   if (context.job && failure.retryCanHelp) {
-    const capture = failure.kind === 'capture-flake' || failure.kind === 'recording-not-reusable';
-    return { ...failure, message: capture ? JOB_CAPTURE_FAILURE_MESSAGE : JOB_GENERIC_FAILURE_MESSAGE, retryCanHelp: false };
+    let message = JOB_GENERIC_FAILURE_MESSAGE;
+    if (failure.kind === 'capture-flake') message = JOB_CAPTURE_FAILURE_MESSAGE;
+    else if (failure.kind === 'recording-not-reusable') message = JOB_RECAPTURE_FAILURE_MESSAGE;
+    return { ...failure, message, retryCanHelp: false };
   }
   return failure;
 }

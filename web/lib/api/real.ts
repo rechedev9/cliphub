@@ -645,26 +645,37 @@ export class RealApiClient implements ApiClient {
     }
     const probes = recoveryProbes(jobs, this.recoveryProbed);
     if (probes.length === 0) return;
-    const batch = new Map<string, BatchStatusEntry>();
-    // The batch route caps a call at 100 pairs.
+    // The batch route caps a call at 100 pairs; the chunks are independent reads.
+    const chunks: Array<typeof probes> = [];
     for (let start = 0; start < probes.length; start += RECOVERY_BATCH_SIZE) {
-      const part = await this.fetchBatchStatus(probes.slice(start, start + RECOVERY_BATCH_SIZE));
+      chunks.push(probes.slice(start, start + RECOVERY_BATCH_SIZE));
+    }
+    const parts = await Promise.all(chunks.map((chunk) => this.fetchBatchStatus(chunk)));
+    const batch = new Map<string, BatchStatusEntry>();
+    for (const part of parts) {
       if (part === null) return;
       for (const [key, value] of part) batch.set(key, value);
     }
     const byId = new Map(jobs.map((job) => [job.jobId, job]));
     const known = new Set(this.intents.keys());
     const read = new Set<string>();
+    // A job with any unread variant is probed again next time, not settled at this status.
+    const unread = new Set<string>();
     for (const probe of probes) {
       const entry = batch.get(batchKey(probe.jobId, probe.variant));
       const job = byId.get(probe.jobId);
-      if (entry === undefined || entry.error !== undefined || job === undefined) continue;
+      if (entry === undefined || entry.error !== undefined || job === undefined) {
+        unread.add(probe.jobId);
+        continue;
+      }
       read.add(probe.jobId);
       if (!entry.render) continue;
       const found = recoveredVideo(job, probe.variant, entry.render, known);
       if (found) this.recovered.set(found.video.id, found);
     }
-    for (const jobId of read) this.recoveryProbed.set(jobId, byId.get(jobId)?.status ?? '');
+    for (const jobId of read) {
+      if (!unread.has(jobId)) this.recoveryProbed.set(jobId, byId.get(jobId)?.status ?? '');
+    }
   }
 
   /** Recovered renders have no intent to drive, so edits are refused with a reason. */
@@ -905,15 +916,14 @@ export class RealApiClient implements ApiClient {
       return;
     }
     if (!intent) return;
-    try {
-      const variant = variantOf(intent);
-      const name = await this.resolveArtifactName(intent, variant);
-      // Nothing rendered yet: drop the local intent below.
-      if (name) {
-        await this.send((dp) => ({ url: dp.videoUrl(intent.jobId, variant, name), init: { method: 'DELETE' } }));
-      }
-    } catch {
-      // Offline: drop the library row; a later render overwrites leftovers.
+    // Keep the intent unless the MP4 is really gone: render recovery would
+    // otherwise list a leftover MP4 again as a video the user deleted.
+    const variant = variantOf(intent);
+    const name = await this.resolveArtifactName(intent, variant);
+    // Nothing rendered yet: drop the local intent below.
+    if (name) {
+      const res = await this.send((dp) => ({ url: dp.videoUrl(intent.jobId, variant, name), init: { method: 'DELETE' } }));
+      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
     }
     this.artifactNames.delete(id);
     this.intents.delete(id);

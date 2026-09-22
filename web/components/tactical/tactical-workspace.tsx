@@ -12,7 +12,7 @@ import {
   startTacticalAnalysis,
 } from '@/lib/api/tactical';
 import type { TacticalStatus } from '@/lib/api/tactical';
-import { useRouteTitle } from '@/components/shell/route-title';
+import { useDocumentTitle, useRouteTitle } from '@/components/shell/route-title';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
@@ -58,15 +58,7 @@ function useDemoTitle(jobId: string): void {
 
   const map = match?.map ? prettyMapName(match.map) : '';
   useRouteTitle(map ? [map, match?.player].filter(Boolean).join(' · ') : undefined);
-
-  useEffect(() => {
-    if (!map) return;
-    const previous = document.title;
-    document.title = `${map} · Táctica · ClipHub`;
-    return () => {
-      document.title = previous;
-    };
-  }, [map]);
+  useDocumentTitle(map ? `${map} · Táctica · ClipHub` : undefined);
 }
 
 /**
