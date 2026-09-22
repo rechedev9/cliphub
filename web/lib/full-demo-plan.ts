@@ -90,7 +90,8 @@ const optionsShape = object({
     roster: boolean, scoreboard: boolean, theme: oneOf('faceit-orange', 'neon-violet'), source: oneOf('demo', 'faceit'),
     mode: oneOf('generated', 'screenshots'), team1_image: nullable(assetRef), team2_image: nullable(assetRef), scoreboard_image: nullable(assetRef),
     hud_theme: (value): value is string | undefined => value === undefined || isCustomHudTheme(value),
-  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme']),
+    hud_portrait: nullable(assetRef),
+  }, ['mode', 'team1_image', 'team2_image', 'scoreboard_image', 'hud_theme', 'hud_portrait']),
   outputs: object({ media_profile: oneOf('h264-1080p60-aac48-stereo'), cover_policy: oneOf('no-cover', 'generated-gameplay'), metadata_policy: oneOf('factual-v1') }),
   transitions: nullable(transitionOptions),
   bumpers: bumperOptions,
@@ -115,7 +116,7 @@ export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySpo
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
   // because the old screenshot option disappeared from the form.
-  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, ...overlays } = fixed.overlays;
+  const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, hud_portrait: portrait, ...overlays } = fixed.overlays;
   if (!hudTheme) throw new Error('No hay diseños de HUD disponibles.');
   return {
     ...fixed,
@@ -152,6 +153,7 @@ export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySpo
       source: 'demo',
       mode: 'generated',
       hud_theme: hudTheme,
+      ...(hudTheme === 'focus' && portrait ? { hud_portrait: portrait } : {}),
     },
     transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },
     outputs: { ...fixed.outputs, cover_policy: 'no-cover', metadata_policy: 'factual-v1' },
@@ -164,6 +166,7 @@ export function isFullDemoOptions(value: unknown): value is FullDemoOptions {
   const lowpass = value.transitions?.game_tail_lowpass_hz ?? 0;
   if (lowpass > 0 && lowpass < 200) return false;
   if (Boolean(value.overlays.hud_theme) !== isCustomHudCaptureProfile(capture.hud_profile)) return false;
+  if (value.overlays.hud_portrait && value.overlays.hud_theme !== 'focus') return false;
   if (editorial.max_freeze_seconds < editorial.freeze_seconds || sponsor.window_end_seconds < sponsor.window_start_seconds) return false;
   if (sponsor.placement_policy === 'manual-frame' && sponsor.manual_start_frame === null) return false;
   if (sponsor.placement_policy === 'round-boundary' && sponsor.after_round_id === '') return false;
@@ -287,6 +290,26 @@ export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, 
 }
 
 export type FullDemoProvenance = { title: string; creator: string; source_url: string; permission: string; attribution: string };
+export async function uploadFullDemoBumper(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
+  if (!/\.mp4$/i.test(file.name) || (file.type && file.type !== 'video/mp4')) throw new Error('Selecciona un vídeo MP4.');
+  // Leave room for the multipart envelope under the existing 2 GiB proxy cap.
+  if (file.size === 0 || file.size > 2 * 1024 ** 3 - 2 * 1024 ** 2) throw new Error('El MP4 está vacío o supera el límite de 2 GB.');
+  // Record the local source without inventing authorship or a licence.
+  return uploadFullDemoAsset(file, {
+    title: file.name.slice(0, 200), creator: 'No declarado', source_url: `local:${encodeURIComponent(file.name)}`,
+    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+  }, signal);
+}
+export async function uploadFullDemoPortrait(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
+  if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new Error('El retrato debe ocupar entre 1 byte y 10 MB.');
+  const form = new FormData();
+  form.set('image', file);
+  const value = await responseJSON(await fetch('/api/full-demo/overlay-images', { method: 'POST', body: form, signal }));
+  if (!record(value)) throw new Error('No se pudo verificar el retrato.');
+  const ref = { id: value.id, sha256: value.sha256 };
+  if (!assetRef(ref)) throw new Error('Referencia de retrato inválida.');
+  return ref;
+}
 export async function uploadFullDemoAsset(file: File, provenance: FullDemoProvenance, signal?: AbortSignal): Promise<FullDemoAssetRef> {
   const form = new FormData();
   form.set('video', file);

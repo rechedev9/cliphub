@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, type FullDemoOptions, type FullDemoSnapshot,
+  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -77,8 +77,8 @@ test('the demo origin owns the overlay format regardless of the custom HUD', () 
   }
 });
 
-test('all ten custom HUDs survive approval, persistence and the render request', () => {
-  assert.equal(CUSTOM_HUD_THEMES.length, 10);
+test('all eleven custom HUDs survive approval, persistence and the render request', () => {
+  assert.equal(CUSTOM_HUD_THEMES.length, 11);
   for (const theme of CUSTOM_HUD_THEMES) {
     const snapshot = fixture();
     const options = snapshot.document.options;
@@ -100,6 +100,26 @@ test('all ten custom HUDs survive approval, persistence and the render request',
     assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: profile }, overlays: { ...options.overlays, hud_theme: theme } }), false);
   }
   assert.ok(Boolean(fixture().document.options.overlays.hud_theme));
+});
+
+test('Focus portrait survives draft migration and render persistence and invalidates approval when changed', () => {
+  const snapshot = fixture();
+  snapshot.document.options = currentFullDemoOptions(snapshot.document.options);
+  snapshot.document.options.overlays.hud_theme = 'focus';
+  const portrait = { id: '22222222-2222-4222-8222-222222222222', sha256: 'a'.repeat(64) };
+  snapshot.document.options.overlays.hud_portrait = portrait;
+  const options = snapshot.document.options;
+  assert.ok(isFullDemoOptions(options));
+  assert.deepEqual(currentFullDemoOptions(options).overlays.hud_portrait, portrait);
+  const edit = fullDemoPlanEdit(snapshot);
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(edit)), edit);
+  assert.deepEqual(coerceEditConfig(JSON.parse(JSON.stringify(edit))), edit);
+  const changed = structuredClone(options);
+  changed.overlays.hud_portrait = { ...portrait, sha256: 'b'.repeat(64) };
+  assert.equal(fullDemoApprovalKey(snapshot.document, changed), null);
+  changed.overlays.hud_theme = 'arena';
+  assert.equal(isFullDemoOptions(changed), false);
+  assert.equal(currentFullDemoOptions(changed).overlays.hud_portrait, undefined);
 });
 
 test('fixed freeze migrates old drafts without changing gameplay voice settings', () => {
@@ -320,4 +340,27 @@ test('saving normalizes a variable freeze to the fixed freeze before it reaches 
   assert.deepEqual(await saveFullDemoPlan(JOB, variable), snapshot.document);
   assert.deepEqual(sent, { options: currentFullDemoOptions(variable) });
   assert.equal(fullDemoOptionsKey(currentFullDemoOptions(variable)), fullDemoOptionsKey(snapshot.document.options));
+});
+
+test('bumper upload accepts MP4 directly without inventing ownership and rejects invalid files locally', async (t) => {
+  let calls = 0;
+  const ref = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) };
+  t.mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+    calls++;
+    assert.ok(init?.body instanceof FormData);
+    const data = JSON.parse(String(init.body.get('config')));
+    assert.deepEqual(data.provenance, {
+      title: 'Intro #1.MP4', creator: 'No declarado', source_url: 'local:Intro%20%231.MP4',
+      permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+    });
+    return Response.json(ref);
+  });
+  assert.deepEqual(await uploadFullDemoBumper(new File(['test'], 'Intro #1.MP4')), ref);
+  for (const file of [new File(['test'], 'clip.mov'), new File(['test'], 'clip.mp4', { type: 'audio/mp4' }), new File([], 'empty.mp4')]) {
+    await assert.rejects(uploadFullDemoBumper(file), /MP4/);
+  }
+  const oversized = new File(['test'], 'huge.mp4');
+  Object.defineProperty(oversized, 'size', { value: 2 * 1024 ** 3 });
+  await assert.rejects(uploadFullDemoBumper(oversized), /2 GB/);
+  assert.equal(calls, 1);
 });

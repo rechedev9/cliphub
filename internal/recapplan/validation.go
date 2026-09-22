@@ -223,6 +223,9 @@ func (o Options) Validate() error {
 	} else if customhud.IsCaptureProfile(o.Capture.HUDProfile) {
 		return fmt.Errorf("broadcast-clean capture requires a custom HUD")
 	}
+	if o.Overlays.HUDPortrait != nil && o.Overlays.HUDTheme != "focus" {
+		return fmt.Errorf("HUD portrait requires the Focus theme")
+	}
 	if o.Capture.XRay {
 		return fmt.Errorf("full demo profile requires xray disabled")
 	}
@@ -279,7 +282,7 @@ func (o Options) Validate() error {
 			return err
 		}
 	}
-	refs := []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration, o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage}
+	refs := []*AssetRef{o.Sponsor.Video, o.Sponsor.Narration, o.Overlays.Team1Image, o.Overlays.Team2Image, o.Overlays.ScoreboardImage, o.Overlays.HUDPortrait}
 	if o.Bumpers != nil {
 		refs = append(refs, o.Bumpers.Intro.Video, o.Bumpers.Outro.Video)
 	}

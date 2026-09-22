@@ -471,9 +471,9 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		}
 		audio = sampleWindow(audioInput, 0, samples, 1, "a")
 	} else if item.Role == "bumper" {
-		// Intro and outro bumpers are the channel's own clips. They play their
-		// embedded track when they have one; a silent clip stays silent instead
-		// of failing on a missing [0:a] stream.
+		// Uploaded intro/outro clips retain their embedded audio. A silent clip
+		// gets a silent bed instead of mapping a missing [0:a] stream; boundary
+		// transition sounds are mixed below without extending the clip.
 		ref, evidence, err := fullDemoBumperAsset(short.FullDemo.Effective, item)
 		if err != nil {
 			return nil, err
@@ -500,6 +500,10 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		}
 		if hudFilter != "" {
 			video += "," + hudFilter
+		}
+		command, video, err = fullDemoHUDPortrait(short, item, command, video)
+		if err != nil {
+			return nil, err
 		}
 		// Supported global intro/outro overlays are composed after the item's
 		// transitions and HUD. The item base is shifted onto the global frame clock

@@ -45,6 +45,48 @@ async function stubParsedMatch(page: Page, document: FullDemoDocument | null = e
 
 test.describe('Full POV simplified constructor', () => {
   for (const width of [390, 1024, 1440]) {
+    test(`Focus portrait uploads, persists and reaches generation at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubParsedMatch(page);
+      const portrait = { id: '22222222-2222-4222-8222-222222222222', sha256: 'a'.repeat(64) };
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+      await page.route('**/api/full-demo/overlay-images', async (route) => {
+        expect(route.request().headers()['content-type']).toContain('multipart/form-data');
+        await route.fulfill({ status: 201, json: portrait });
+      });
+      await page.route(`**/api/full-demo/overlay-images/${portrait.id}`, (route) => route.fulfill({ contentType: 'image/png', body: png }));
+      let generated: unknown;
+      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        const body = route.request().postDataJSON();
+        expect(body.options.overlays).toMatchObject({ hud_theme: 'focus', hud_portrait: portrait });
+        await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'b'.repeat(64) } });
+      });
+      await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+      await gotoStudio(page, PRODUCE_FULL);
+      await page.getByRole('combobox', { name: 'Diseño', exact: true }).click();
+      await page.getByRole('option', { name: 'Focus', exact: true }).click();
+      await page.getByLabel('Retrato del jugador (opcional)', { exact: true }).setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: png });
+      await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeEnabled();
+      await expect(page.getByRole('img', { name: 'Retrato del jugador', exact: true })).toBeVisible();
+      await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').overlays?.hud_portrait, DRAFT_KEY)).toEqual(portrait);
+      await page.reload();
+      await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Ampliar HUD Focus', exact: true }).click();
+      await expect(page.getByRole('dialog').getByRole('img', { name: 'Retrato del jugador', exact: true })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('focus-preview.png'), animations: 'disabled' });
+      await page.keyboard.press('Escape');
+      expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await page.getByRole('button', { name: 'Quitar retrato', exact: true }).click();
+      await expect(page.getByRole('img', { name: 'Retrato del jugador', exact: true })).toHaveCount(0);
+      await page.getByLabel('Retrato del jugador (opcional)', { exact: true }).setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: png });
+      await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeEnabled();
+      await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { overlays: { hud_theme: 'focus', hud_portrait: portrait } } } } } });
+    });
+  }
+
+  for (const width of [390, 1024, 1440]) {
     test(`keeps useful choices usable at ${width}px with an unbroken player name`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await stubParsedMatch(page);
@@ -170,37 +212,115 @@ test.describe('Full POV simplified constructor', () => {
     await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
   });
 
-  test('intro and outro bumpers start optional and upload their clip with provenance', async ({ page }) => {
-    const document = editorial();
-    delete document.options.bumpers;
-    // Keep the sponsor's own file picker out of the page so the intro's is the only one.
-    document.options.sponsor.enabled = false;
-    document.options.sponsor.video = null;
-    let uploaded = 0;
-    await stubParsedMatch(page, document);
-    await page.route('**/api/editor/assets', async (route) => {
-      uploaded += 1;
-      await route.fulfill({ status: 201, json: { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) } });
+  for (const width of [390, 1024, 1440]) {
+    test(`bumper MP4 states, hover, persistence and generation at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      const document = editorial();
+      delete document.options.bumpers;
+      document.options.sponsor.enabled = false;
+      document.options.sponsor.video = null;
+      await stubParsedMatch(page, document);
+      const intro = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', sha256: 'd'.repeat(64) };
+      const outro = { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sha256: 'e'.repeat(64) };
+      const clip = readFileSync(new URL('./fixtures/stream-source.mp4', import.meta.url));
+      await page.route('**/api/editor/assets/*/media', (route) => route.fulfill({ contentType: 'video/mp4', body: clip }));
+      let finishUpload: (() => void) | undefined;
+      let fail = false;
+      let uploaded = 0;
+      await page.route('**/api/editor/assets', async (route) => {
+        uploaded++;
+        expect(route.request().headers()['content-type']).toContain('multipart/form-data');
+        const body = route.request().postDataBuffer()?.toString() ?? '';
+        expect(body).toContain('No declarado');
+        if (uploaded === 1) await new Promise<void>((resolve) => { finishUpload = resolve; });
+        await route.fulfill(fail ? { status: 422, json: { error: 'El archivo no contiene vídeo válido.' } }
+          : { status: 201, json: body.includes('outro.mp4') ? outro : intro });
+      });
+      await page.route(`**/api/editor/assets/${intro.id}`, (route) => route.fulfill({ json: { file_name: 'intro.mp4' } }));
+      await page.route(`**/api/editor/assets/${outro.id}`, (route) => route.fulfill({ json: { file_name: 'outro.mp4' } }));
+      let generated: unknown;
+      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        const body = route.request().postDataJSON();
+        expect(body.options.bumpers).toEqual({ intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro } });
+        expect(body.options.transitions.enabled).toBe(false);
+        await route.fulfill({ status: 201, json: { ...document, options: body.options, plan_hash: 'b'.repeat(64) } });
+      });
+      await page.route(`**/api/demos/${JOB}/generate`, async (route) => {
+        generated = route.request().postDataJSON();
+        await route.fulfill({ status: 202, json: { accepted: true } });
+      });
+      await gotoStudio(page, PRODUCE_FULL);
+      const card = page.locator('[data-bumper="intro"]').locator('..');
+      const button = page.getByRole('button', { name: 'Subir MP4 de intro', exact: true });
+      const input = page.getByLabel('Archivo MP4 de intro', { exact: true });
+      const mp4 = { name: 'intro.mp4', mimeType: 'video/mp4', buffer: clip };
+      await expect(button).toBeVisible();
+      await expect(page.getByRole('checkbox', { name: 'Incluir intro', exact: true })).toHaveCount(0);
+      await card.screenshot({ path: testInfo.outputPath('01-empty.png') });
+      await button.hover();
+      const glow = button.locator('[data-bumper-glow]');
+      await expect(glow).toHaveCSS('opacity', '1');
+      expect(await button.evaluate((el) => el.style.getPropertyValue('--pointer-x'))).not.toBe('');
+      await card.screenshot({ path: testInfo.outputPath('02-hover.png') });
+      await page.mouse.move(0, 0);
+      await button.focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(button).toBeFocused();
+      await expect(glow).toHaveCSS('opacity', '1');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await expect(button).toHaveCSS('transition-property', 'none');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      // Cancelling the native picker leaves both slots empty.
+      const chooser = page.waitForEvent('filechooser');
+      await button.click();
+      await (await chooser).setFiles([]);
+      await expect(button).toBeEnabled();
+      expect(uploaded).toBe(0);
+      await input.setInputFiles(mp4);
+      await expect.poll(() => Boolean(finishUpload)).toBe(true);
+      await expect(page.getByRole('button', { name: 'Subiendo intro…', exact: true })).toBeDisabled();
+      await expect(page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true })).toBeDisabled();
+      await card.screenshot({ path: testInfo.outputPath('03-uploading.png') });
+      finishUpload!();
+      await expect(page.getByRole('button', { name: 'Cambiar MP4 de intro', exact: true })).toBeEnabled();
+      await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+      await expect.poll(() => page.getByLabel('Previsualizar intro', { exact: true }).evaluate((video: HTMLVideoElement) => video.readyState)).toBeGreaterThanOrEqual(2);
+      await card.screenshot({ path: testInfo.outputPath('04-intro.png') });
+      fail = true;
+      await input.setInputFiles(mp4);
+      await expect(card.getByRole('alert')).toBeVisible();
+      await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+      await card.screenshot({ path: testInfo.outputPath('05-error-keeps-clip.png') });
+      fail = false;
+      await input.setInputFiles(mp4);
+      await expect(card.getByRole('alert')).toHaveCount(0);
+      await page.getByLabel('Archivo MP4 de outro', { exact: true }).setInputFiles({ ...mp4, name: 'outro.mp4' });
+      await expect(page.getByRole('button', { name: 'Cambiar MP4 de outro', exact: true })).toBeEnabled();
+      await page.getByRole('checkbox', { name: 'Activar efectos entre rondas', exact: true }).uncheck();
+      await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').bumpers?.outro.video, DRAFT_KEY)).toEqual(outro);
+      await page.reload();
+      await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
+      await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
+      await card.screenshot({ path: testInfo.outputPath('06-both-restored.png') });
+      expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      const longName = `${'clip-del-canal-'.repeat(14)}.mp4`;
+      await input.setInputFiles({ ...mp4, name: longName });
+      await expect(page.getByText(longName, { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await page.getByRole('button', { name: 'Quitar intro', exact: true }).click();
+      await expect(button).toBeVisible();
+      await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
+      await card.screenshot({ path: testInfo.outputPath('07-intro-removed.png') });
+      await input.setInputFiles(mp4);
+      await expect(page.getByRole('button', { name: 'Cambiar MP4 de intro', exact: true })).toBeEnabled();
+      await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: {
+        bumpers: { intro: { enabled: true, video: intro }, outro: { enabled: true, video: outro } }, transitions: { enabled: false },
+      } } } } });
     });
-    await gotoStudio(page, PRODUCE_FULL);
-    const intro = page.getByRole('checkbox', { name: 'Incluir intro', exact: true });
-    const outro = page.getByRole('checkbox', { name: 'Incluir outro', exact: true });
-    await expect(intro).not.toBeChecked();
-    await expect(outro).not.toBeChecked();
-    await intro.check();
-    await expect(page.getByText('Añade el vídeo de la intro o desactívala.', { exact: true })).toBeVisible();
-    await expect(page.getByRole('alert').filter({ hasText: 'Añade el vídeo de la intro o desactívala.' })).toHaveCount(0);
-    await expect(page.getByText('Intro y outro', { exact: true }).last()).toBeVisible();
-    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'intro.mp4', mimeType: 'video/mp4', buffer: Buffer.from('intro') });
-    await page.getByLabel('Título', { exact: true }).fill('Intro del canal');
-    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
-    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:intro.mp4');
-    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
-    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await expect.poll(() => uploaded).toBe(1);
-    await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
-    await expect(page.getByText('Cambiar vídeo de intro', { exact: true })).toBeVisible();
-  });
+  }
 
   test('prepares canonical sponsor boundaries from an empty plan, then creates the selected boundary', async ({ page }) => {
     const defaults = editorial().options;
@@ -346,11 +466,18 @@ test.describe('Full POV simplified constructor', () => {
   test('storage failures keep the durable Full Demo creation flow available', async ({ page }) => {
     const document = editorial();
     let generated = 0;
+    let recordingObserved = false;
     await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
       configurable: true,
       get() { throw new Error('Storage blocked'); },
     }));
     await stubParsedMatch(page, document);
+    // Admission advances server state. Keeping "parsed" forever lets the
+    // background reconciler re-drive the accepted request after navigation.
+    await page.route(`**/api/demos/${JOB}/status`, (route) => {
+      recordingObserved = generated > 0;
+      return route.fulfill({ json: { status: recordingObserved ? 'recording' : 'parsed' } });
+    });
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       const body: unknown = route.request().postDataJSON();
@@ -361,7 +488,8 @@ test.describe('Full POV simplified constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
     await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
-    await expect.poll(() => generated).toBe(1);
+    await expect.poll(() => recordingObserved).toBe(true);
+    expect(generated).toBe(1);
   });
 
   test('an unavailable or incompatible plan keeps creation disabled until a valid retry', async ({ page }) => {

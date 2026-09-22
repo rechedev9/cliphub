@@ -124,6 +124,9 @@ func CanonicalNewOptions(options Options) (Options, error) {
 	if options.Overlays.HUDTheme != "" {
 		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
 	}
+	if canonical.Overlays.HUDTheme == "focus" {
+		canonical.Overlays.HUDPortrait = options.Overlays.HUDPortrait
+	}
 
 	// Roster and scoreboard are generated from factual demo data. The overlay
 	// source is deliberately demo: SourceKind above is the only origin signal.
@@ -335,7 +338,7 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 			d.block(ErrAssetMissing, "The "+bumper.name+" video is missing or invalid")
 		}
 	}
-	if options.Overlays.Mode == "screenshots" {
+	if len(options.Overlays.ImageSlots()) > 0 {
 		for _, slot := range options.Overlays.ImageSlots() {
 			if slot.Ref == nil {
 				d.block(ErrAssetMissing, "Sube la captura de "+slot.Label)

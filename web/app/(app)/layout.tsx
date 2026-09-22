@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { SidebarInset } from '@/components/ui/sidebar';
 import { ShellSidebarProvider } from '@/components/shell/shell-sidebar-provider';
+import { AppTour } from '@/components/onboarding/app-tour';
 import { AppSidebar } from '@/components/shell/app-sidebar';
 import { CommandStrip } from '@/components/shell/command-strip';
 import { RouteFrame } from '@/components/shell/route-frame';
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
     <ShellSidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
       <ShellActivityMonitor />
       <TelemetryNotice />
+      <AppTour />
       <AppSidebar />
       <SidebarInset>
         <RouteTitleProvider>

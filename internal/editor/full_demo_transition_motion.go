@@ -18,7 +18,8 @@ const transitionMotionWidth, transitionMotionHeight = 96, 54
 func prepareFullDemoTransitions(ctx context.Context, short *ShortEdit) error {
 	d := short.FullDemo.Effective
 	short.FullDemo.Transitions = transitionDirections(d)
-	if len(short.FullDemo.Transitions) == 0 || !d.Options.Transitions.Whip || d.Options.Transitions.Direction != "follow-motion" {
+	o := d.RenderTransitions()
+	if len(short.FullDemo.Transitions) == 0 || !o.Whip || o.Direction != "follow-motion" {
 		return nil
 	}
 	count := len(short.FullDemo.Transitions)
@@ -106,6 +107,11 @@ func probeFullDemoTransitionMotion(ctx context.Context, short *ShortEdit, index 
 	d := short.FullDemo.Effective
 	b := &short.FullDemo.Transitions[index]
 	item := d.Timeline[b.OutgoingIndex]
+	// The intro is an uploaded clip, not a recorded demo segment. Keep its
+	// deterministic direction instead of looking it up in the capture plan.
+	if item.Role == "bumper" {
+		return nil
+	}
 	var path string
 	var captureStart int
 	for _, part := range short.Parts {

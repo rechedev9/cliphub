@@ -164,6 +164,9 @@ func fullDemoRenderFingerprint(result recording.RecordingResult, variant string,
 		introWindow = &[2]float64{demooverlay.IntroOverlayStart(), demooverlay.IntroOverlayEnd()}
 	}
 	policy := "full-demo-render-v1"
+	if effective.Options.HasBumpers() {
+		policy += "/bumper-transitions-v1"
+	}
 	if snapshot.Document.Options.Overlays.HUDTheme != "" {
 		policy += "/" + customhud.Version
 	}

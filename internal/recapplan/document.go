@@ -200,6 +200,7 @@ type SponsorOptions struct {
 
 type OverlayOptions struct {
 	HUDTheme        string    `json:"hud_theme,omitempty"`
+	HUDPortrait     *AssetRef `json:"hud_portrait,omitempty"`
 	Roster          bool      `json:"roster"`
 	Scoreboard      bool      `json:"scoreboard"`
 	Theme           string    `json:"theme"`

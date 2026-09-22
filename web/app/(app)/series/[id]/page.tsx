@@ -140,7 +140,7 @@ function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
  * Series view (/series/[id]) — the demos uploaded together as one bo3/bo5. It
  * lists every map with its map/score and live status, links each ready map into
  * its highlight picker, and polls the local orchestrator until every map has
- * settled. Reached from the /upload series flow after the picked player is
+ * settled. Reached from the /clips/nueva series flow after the picked player is
  * parsed on each map.
  */
 export default function SeriesPage({ params }: { params: Promise<{ id: string }> }) {

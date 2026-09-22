@@ -67,7 +67,7 @@ const REC_TITLE_MAX = 18;
 /** The three record tools, with a friendly name and a typical Windows path. */
 const TOOL_GUIDE: Array<{ name: string; label: string; help: string; example: string }> = [
   { name: 'ZV_RECORDER_PATH', label: 'Grabador ClipHub', help: 'Viene incluido en ClipHub Studio para Windows. Si falta, reinstala la aplicación.', example: 'C:\\...\\bin\\zv-recorder.exe' },
-  { name: 'ZV_HLAE_PATH', label: 'HLAE', help: 'Es la herramienta que permite a ClipHub grabar CS2. Debe estar instalada en el mismo PC.', example: 'C:\\HLAE-<latest-version>\\HLAE.exe' },
+  { name: 'ZV_HLAE_PATH', label: 'HLAE', help: 'Es la herramienta que permite a ClipHub grabar CS2. Viene incluida en ClipHub Studio y se prepara en el primer arranque. Si falta, reinstala la aplicación.', example: 'C:\\HLAE-<latest-version>\\HLAE.exe' },
   { name: 'ZV_CS2_PATH', label: 'CS2', help: 'Instala Counter-Strike 2 desde Steam en este PC y vuelve a abrir ClipHub.', example: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\bin\\win64\\cs2.exe' },
 ];
 
@@ -160,7 +160,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
         <DialogHeader>
           <DialogTitle>Requisitos de grabación</DialogTitle>
           <DialogDescription>
-            Para grabar una demo necesitas ClipHub Studio en Windows, CS2 y HLAE en el mismo PC. Puedes cargar demos y preparar el vídeo antes de tener todo listo.
+            Para grabar una demo necesitas ClipHub Studio en Windows y CS2 en el mismo PC; HLAE viene incluido con Studio. Puedes cargar demos y preparar el vídeo antes de tener todo listo.
           </DialogDescription>
         </DialogHeader>
 

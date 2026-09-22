@@ -58,6 +58,13 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 	lastTick := -1
 	identities := map[string]Player{}
 	var failure error
+	var movement movementCommands
+	p.RegisterNetMessageHandler(movement.read)
+	p.RegisterEventHandler(func(e events.PlayerDisconnected) {
+		if e.Player != nil && e.Player.Entity != nil {
+			movement.clear(e.Player.Entity.ID())
+		}
+	})
 	p.RegisterNetMessageHandler(func(tick *msg.CNETMsg_Tick) { serverTick = tick.GetTick() })
 	p.RegisterEventHandler(func(events.DataTablesParsed) {
 		if class := p.ServerClasses().FindByName("CPlantedC4"); class != nil {
@@ -170,6 +177,12 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 				player.Kills = pl.Kills()
 				player.Deaths = pl.Deaths()
 				player.Assists = pl.Assists()
+				if player.SteamID == target && player.Alive {
+					player.Movement = movement.at(pl.Entity.ID(), serverTick)
+					if player.Movement == nil {
+						player.Movement = sourceMovement(pl.PlayerPawnEntity())
+					}
+				}
 				if weapon := pl.ActiveWeapon(); weapon != nil {
 					player.Weapon = cleanText(strings.ToUpper(weapon.Type.String()), 32)
 					class := weapon.Class()
@@ -297,6 +310,24 @@ func sourceMagazine(entity st.Entity) int {
 		return -1
 	}
 	return int(value.UInt32())
+}
+
+// Read the same recorded property used by the pinned parser's button-state
+// events. Do not infer input from velocity, or mistake a missing property for 0.
+func sourceMovement(entity st.Entity) *uint64 {
+	if entity == nil {
+		return nil
+	}
+	value, ok := entity.PropertyValue("m_pMovementServices.m_nButtonDownMaskPrev")
+	if !ok {
+		return nil
+	}
+	buttons, ok := value.Any.(uint64)
+	if !ok {
+		return nil
+	}
+	buttons &= movementMask
+	return &buttons
 }
 
 func Decode(input io.Reader) (Timeline, error) {

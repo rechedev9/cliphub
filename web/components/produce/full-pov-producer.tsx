@@ -197,7 +197,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     */}
     {options ? <fieldset disabled={busy !== null} inert={busy !== null}
       className="grid min-w-0 items-start gap-4 @[40rem]/content:grid-cols-2 @[40rem]/content:grid-rows-[auto_auto_1fr] @[64rem]/content:grid-cols-3 @[64rem]/content:grid-rows-[auto_1fr]">
-      <div className="min-w-0 @[40rem]/content:col-span-2"><FullDemoHud options={options} map={match.map} onChange={change} /></div>
+      <div className="min-w-0 @[40rem]/content:col-span-2"><FullDemoHud options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></div>
       <div className="min-w-0 space-y-4 @[40rem]/content:row-span-2 @[64rem]/content:col-start-3 @[64rem]/content:row-start-1">
         <FullDemoAudio options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
         <FullDemoTransitions options={options} onChange={change} />
@@ -206,7 +206,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
         </FullDemoGroup>
       </div>
       <FullDemoGroup title="Sponsor" note="Opcional. Añade un vídeo para incluirlo."><FullDemoSponsor options={options} document={document} showMissing={showMissing} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} onPrepareRoundBoundaries={prepareSponsorRoundBoundaries} /></FullDemoGroup>
-      <FullDemoGroup title="Intro y outro" note="Opcional. Un clip antes de la partida y otro al final."><FullDemoBumpers options={options} document={document} showMissing={showMissing} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></FullDemoGroup>
+      <FullDemoBumpers options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
     </fieldset> : null}
     <div className="space-y-3">
       {busy === 'asset' ? <p role="status" className="text-body-sm text-fg-2">Subiendo y verificando el archivo…</p> : null}
