@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Upload, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Film, RefreshCw, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { uploadFullDemoBumper, type FullDemoBumperOptions, type FullDemoDocument, type FullDemoOptions, type FullDemoAssetRef } from '@/lib/full-demo-plan';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
+import styles from './full-demo-bumpers.module.css';
 
 type Props = { options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void };
 type Slot = keyof FullDemoBumperOptions;
@@ -12,12 +13,28 @@ const EMPTY_BUMPERS: FullDemoBumperOptions = { intro: { enabled: false, video: n
 
 export function FullDemoBumpers({ options, document, onChange, onAssetBusy }: Props): ReactNode {
   const bumpers = options.bumpers ?? EMPTY_BUMPERS;
-  return <div className="space-y-4">
-    {(['intro', 'outro'] as const).map((slot) => <BumperUpload key={slot} slot={slot}
-      asset={bumpers[slot].enabled ? bumpers[slot].video : null}
-      savedName={document?.assets?.find((asset) => asset.ref.id === bumpers[slot].video?.id)?.title}
-      onBusy={onAssetBusy} onChange={(video) => onChange({ ...options, bumpers: { ...bumpers, [slot]: { enabled: video !== null, video } } })} />)}
-  </div>;
+  const headingId = useId();
+  return <section className={`studio-panel ${styles.panel}`} aria-labelledby={headingId}>
+    <header className={styles.heading}>
+      <div className={styles.headingTitle}><Film aria-hidden /><h2 id={headingId}>Intro y outro</h2></div>
+      <span className={styles.optional}>Opcional</span>
+    </header>
+    <p className={styles.description}>Tu marca, al principio y al final.</p>
+    <div className={styles.sequence} role="img" aria-label="Orden del vídeo: intro, transición, demo, transición y outro">
+      <span data-active={bumpers.intro.enabled && !!bumpers.intro.video}>Intro</span>
+      <ChevronRight aria-hidden />
+      <span className={styles.demo}><Film aria-hidden />Demo</span>
+      <ChevronRight aria-hidden />
+      <span data-active={bumpers.outro.enabled && !!bumpers.outro.video}>Outro</span>
+    </div>
+    <div className={styles.slots}>
+      {(['intro', 'outro'] as const).map((slot) => <BumperUpload key={slot} slot={slot}
+        asset={bumpers[slot].enabled ? bumpers[slot].video : null}
+        savedName={document?.assets?.find((asset) => asset.ref.id === bumpers[slot].video?.id)?.title}
+        onBusy={onAssetBusy} onChange={(video) => onChange({ ...options, bumpers: { ...bumpers, [slot]: { enabled: video !== null, video } } })} />)}
+    </div>
+    <p className={styles.transitionNote}><span aria-hidden />Transiciones automáticas con la demo</p>
+  </section>;
 }
 
 function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
@@ -31,6 +48,7 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<{ id: string; name: string } | null>(null);
   const title = slot === 'intro' ? 'Intro' : 'Outro';
+  const actionLabel = asset ? `Cambiar MP4 de ${slot}` : `Subir MP4 de ${slot}`;
   const name = fileName?.id === asset?.id ? fileName?.name : savedName;
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
@@ -60,33 +78,38 @@ function BumperUpload({ slot, asset, savedName, onBusy, onChange }: {
     }
   }
 
-  return <div data-bumper={slot} className="min-w-0 space-y-2 border-t border-border-subtle pt-3 first:border-0 first:pt-0">
-    <div className="flex min-w-0 items-start justify-between gap-2">
-      <div className="min-w-0">
-        <h3 id={id} className="text-body-sm font-semibold text-fg-1">{title}</h3>
-        <p className="text-body-sm text-fg-2">{slot === 'intro' ? 'Antes de la demo' : 'Después de la demo'} · Transición automática</p>
+  return <div data-bumper={slot} data-loaded={!!asset} className={styles.card} role="group" aria-labelledby={id}>
+    <div className={styles.cardHeader}>
+      <div className={styles.cardTitle}>
+        <span className={styles.number} aria-hidden>{slot === 'intro' ? '01' : '02'}</span>
+        <div><h3 id={id}>{title}</h3><p>{slot === 'intro' ? 'Antes de la demo' : 'Después de la demo'}</p></div>
       </div>
-      {asset ? <Button type="button" variant="ghost" size="icon-sm" aria-label={`Quitar ${slot}`} onClick={() => { setError(null); onChange(null); }}><X aria-hidden /></Button> : null}
+      {asset ? <span className={styles.ready}><Check aria-hidden />Listo</span> : null}
     </div>
-    {asset ? <>
-      <p className="truncate text-body-sm text-fg-1" title={name}>{name ?? `${title}.mp4`}</p>
+    {asset ? <div className={styles.preview}>
       <FullDemoMediaPreview asset={asset} video label={`Previsualizar ${slot}`} showDescription={false} preload="metadata" />
-    </> : null}
+    </div> : null}
+    <div className={asset ? styles.loadedControls : undefined}>
+      {asset ? <div className={styles.file}>
+        <Film aria-hidden /><span title={name}>{name ?? `${title}.mp4`}</span>
+      </div> : null}
     <input ref={input} className="sr-only" type="file" accept=".mp4,video/mp4" tabIndex={-1} aria-label={`Archivo MP4 de ${slot}`} onChange={(event) => {
       const file = event.target.files?.[0]; event.target.value = ''; if (file) void upload(file);
     }} />
-    <Button type="button" variant="outline-primary" className="group relative w-full overflow-hidden motion-reduce:transition-none"
+    <Button type="button" variant="ghost" className={`${styles.upload} ${asset ? styles.replace : styles.empty}`}
+      aria-label={uploading ? `Subiendo ${slot}…` : actionLabel}
       loading={uploading} loadingText={`Subiendo ${slot}…`} onClick={() => input.current?.click()}
       onPointerMove={(event) => {
         const box = event.currentTarget.getBoundingClientRect();
         event.currentTarget.style.setProperty('--pointer-x', `${event.clientX - box.left}px`);
         event.currentTarget.style.setProperty('--pointer-y', `${event.clientY - box.top}px`);
       }}>
-      <span aria-hidden className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-(--dur-fast) group-hover:opacity-100 motion-reduce:transition-none"
-        style={{ background: 'radial-gradient(110px circle at var(--pointer-x,50%) var(--pointer-y,50%),color-mix(in oklch,var(--primary) 24%,transparent),transparent)' }} />
-      {!uploading ? <Upload aria-hidden className="relative transition-transform duration-(--dur-fast) motion-safe:group-hover:-translate-y-0.5" /> : null}
-      <span className="relative">{asset ? `Cambiar MP4 de ${slot}` : `Subir MP4 de ${slot}`}</span>
+      <span aria-hidden data-bumper-glow className={styles.glow} />
+      {asset ? <RefreshCw aria-hidden className={styles.replaceIcon} /> : <span className={styles.uploadIcon}><Upload aria-hidden /></span>}
+      <span className={styles.uploadCopy}>{asset ? 'Cambiar' : 'Subir un MP4'}{!asset ? <span>Selecciona tu clip de {slot === 'intro' ? 'apertura' : 'cierre'}</span> : null}</span>
     </Button>
-    {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
+    {asset ? <Button type="button" variant="ghost" size="icon-xs" className={styles.remove} aria-label={`Quitar ${slot}`} title={`Quitar ${slot}`} onClick={() => { setError(null); onChange(null); }}><X aria-hidden /></Button> : null}
+    </div>
+    {error ? <div role="alert" className={styles.error}><AlertCircle aria-hidden /><p>{error}{asset ? <span>Tu vídeo anterior sigue seleccionado.</span> : null}</p></div> : null}
   </div>;
 }

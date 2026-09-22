@@ -170,7 +170,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
             <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
           </FullDemoGroup>
           <FullDemoGroup title="Sponsor" note="Opcional. Añade un vídeo para incluirlo."><FullDemoSponsor options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} onPrepareRoundBoundaries={prepareSponsorRoundBoundaries} /></FullDemoGroup>
-          <FullDemoGroup title="Intro y outro" note="Opcional. Un clip antes de la partida y otro al final."><FullDemoBumpers options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></FullDemoGroup>
+          <FullDemoBumpers options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
         </div>
       </div>
     </fieldset> : null}

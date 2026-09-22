@@ -164,7 +164,7 @@ test.describe('Full POV simplified constructor', () => {
     await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
   });
 
-  for (const width of [390, 1440]) {
+  for (const width of [390, 1024, 1440]) {
     test(`bumper MP4 states, hover, persistence and generation at ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 });
       const document = editorial();
@@ -211,10 +211,19 @@ test.describe('Full POV simplified constructor', () => {
       await expect(page.getByRole('checkbox', { name: 'Incluir intro', exact: true })).toHaveCount(0);
       await card.screenshot({ path: testInfo.outputPath('01-empty.png') });
       await button.hover();
-      const glow = button.locator('span[aria-hidden]');
+      const glow = button.locator('[data-bumper-glow]');
       await expect(glow).toHaveCSS('opacity', '1');
       expect(await button.evaluate((el) => el.style.getPropertyValue('--pointer-x'))).not.toBe('');
       await card.screenshot({ path: testInfo.outputPath('02-hover.png') });
+      await page.mouse.move(0, 0);
+      await button.focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(button).toBeFocused();
+      await expect(glow).toHaveCSS('opacity', '1');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await expect(button).toHaveCSS('transition-property', 'none');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
       // Cancelling the native picker leaves both slots empty.
       const chooser = page.waitForEvent('filechooser');
       await button.click();
@@ -247,6 +256,10 @@ test.describe('Full POV simplified constructor', () => {
       await expect(page.getByText('intro.mp4', { exact: true })).toBeVisible();
       await expect(page.getByText('outro.mp4', { exact: true })).toBeVisible();
       await card.screenshot({ path: testInfo.outputPath('06-both-restored.png') });
+      expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      const longName = `${'clip-del-canal-'.repeat(14)}.mp4`;
+      await input.setInputFiles({ ...mp4, name: longName });
+      await expect(page.getByText(longName, { exact: true })).toBeVisible();
       expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await page.getByRole('button', { name: 'Quitar intro', exact: true }).click();
       await expect(button).toBeVisible();
@@ -407,11 +420,18 @@ test.describe('Full POV simplified constructor', () => {
   test('storage failures keep the durable Full Demo creation flow available', async ({ page }) => {
     const document = editorial();
     let generated = 0;
+    let recordingObserved = false;
     await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
       configurable: true,
       get() { throw new Error('Storage blocked'); },
     }));
     await stubParsedMatch(page, document);
+    // Admission advances server state. Keeping "parsed" forever lets the
+    // background reconciler re-drive the accepted request after navigation.
+    await page.route(`**/api/demos/${JOB}/status`, (route) => {
+      recordingObserved = generated > 0;
+      return route.fulfill({ json: { status: recordingObserved ? 'recording' : 'parsed' } });
+    });
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       const body: unknown = route.request().postDataJSON();
@@ -422,7 +442,8 @@ test.describe('Full POV simplified constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
     await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
-    await expect.poll(() => generated).toBe(1);
+    await expect.poll(() => recordingObserved).toBe(true);
+    expect(generated).toBe(1);
   });
 
   test('an unavailable or incompatible plan keeps creation disabled until a valid retry', async ({ page }) => {
