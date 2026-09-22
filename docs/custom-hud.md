@@ -4,7 +4,8 @@
 
 Focus adds an eleventh design based on the supplied dark-and-gold reference:
 a single centered lower player card, with name, K/A/D, money, health, armor,
-weapon and ammunition. It replaces the upper roster and lower corner plates.
+weapon and ammunition. It keeps the shared upper scoreboard and roster strip
+and replaces only the lower corner plates.
 The existing ten designs keep their composition and byte-identical previews.
 
 The optional PNG/JPEG portrait (up to 10 MB) is uploaded in the HUD selector.
@@ -33,7 +34,7 @@ inputs hide the widget. The picker uses explicitly illustrative input.
 The real Anubis acceptance fixture covers all seven actions, including jump;
 the five-second gameplay sample shows walking, strafing and crouching changes.
 
-Renderer `broadcast-hud-v5` and telemetry `broadcast-hud-v4` invalidate old
+Renderer `broadcast-hud-v6` and telemetry `broadcast-hud-v4` invalidate old
 render/telemetry caches without changing the clean capture profile. Portrait
 composition is after camera transitions and before global intro/outro effects,
 and only appears during round items.
