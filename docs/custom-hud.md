@@ -14,16 +14,26 @@ The editor contains the image in a 116-pixel square above the card's left side,
 bottom aligned, preserving aspect ratio and PNG alpha. With no portrait, a
 CT/T label occupies the slot. Portraits are never inferred from player names.
 
-The movement widget uses the source pawn's recorded
-`m_pMovementServices.m_nButtonDownMaskPrev`. WASD, Shift, Ctrl and Space label
-in-game actions using conventional bindings, not the player's physical keys.
-Only the observed player's movement is stored. Missing values remain unknown;
-dead/inactive players and demos without this property hide the widget instead
-of showing invented inputs. The picker uses explicitly illustrative input.
-The local Anubis demo used in this change has no recorded movement property;
-its real telemetry therefore renders the card without the keyboard.
+The movement widget decodes recorded `CSVCMsg_UserCommands` for the observed
+player's controller slot. It reads full snapshots and reconstructs incremental
+`delta_data` updates, including Valve's wire-type-7 default/reset markers. The
+pinned v5 parser preserves field 6 in protobuf unknown fields; a buttons-only
+adapter reads it without changing the parser or guessing input from velocity.
+Commands are matched to their server execution tick at `FrameDone`, then stored
+on the demo seek clock used by the capture and editorial trims. Corrupt deltas
+invalidate their baseline until a new full snapshot; disconnects clear the slot.
+The older `m_pMovementServices.m_nButtonDownMaskPrev` pawn property remains an
+alternative source for demos that record it.
 
-Renderer `broadcast-hud-v5` and telemetry `broadcast-hud-v3` invalidate old
+WASD, Shift, Ctrl and Space label in-game actions using conventional bindings,
+not the player's physical keys. This is the state at demo tick boundaries,
+not a display of every subtick press. Only the observed player's movement is
+stored. Missing values remain unknown; dead/inactive players and unavailable
+inputs hide the widget. The picker uses explicitly illustrative input.
+The real Anubis acceptance fixture covers all seven actions, including jump;
+the five-second gameplay sample shows walking, strafing and crouching changes.
+
+Renderer `broadcast-hud-v5` and telemetry `broadcast-hud-v4` invalidate old
 render/telemetry caches without changing the clean capture profile. Portrait
 composition is after camera transitions and before global intro/outro effects,
 and only appears during round items.

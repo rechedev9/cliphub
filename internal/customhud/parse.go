@@ -58,6 +58,13 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 	lastTick := -1
 	identities := map[string]Player{}
 	var failure error
+	var movement movementCommands
+	p.RegisterNetMessageHandler(movement.read)
+	p.RegisterEventHandler(func(e events.PlayerDisconnected) {
+		if e.Player != nil && e.Player.Entity != nil {
+			movement.clear(e.Player.Entity.ID())
+		}
+	})
 	p.RegisterNetMessageHandler(func(tick *msg.CNETMsg_Tick) { serverTick = tick.GetTick() })
 	p.RegisterEventHandler(func(events.DataTablesParsed) {
 		if class := p.ServerClasses().FindByName("CPlantedC4"); class != nil {
@@ -171,7 +178,10 @@ func extract(ctx context.Context, input io.Reader, demoSHA, target string, tickR
 				player.Deaths = pl.Deaths()
 				player.Assists = pl.Assists()
 				if player.SteamID == target && player.Alive {
-					player.Movement = sourceMovement(pl.PlayerPawnEntity())
+					player.Movement = movement.at(pl.Entity.ID(), serverTick)
+					if player.Movement == nil {
+						player.Movement = sourceMovement(pl.PlayerPawnEntity())
+					}
 				}
 				if weapon := pl.ActiveWeapon(); weapon != nil {
 					player.Weapon = cleanText(strings.ToUpper(weapon.Type.String()), 32)
@@ -316,7 +326,7 @@ func sourceMovement(entity st.Entity) *uint64 {
 	if !ok {
 		return nil
 	}
-	buttons &= uint64(common.ButtonForward | common.ButtonBack | common.ButtonMoveLeft | common.ButtonMoveRight | common.ButtonJump | common.ButtonDuck | common.ButtonSpeed)
+	buttons &= movementMask
 	return &buttons
 }
 
