@@ -10,6 +10,10 @@ import { HUB_ORPHANS_HINT, HUB_ORPHANS_TITLE } from '@/lib/clips/copy';
 import {
   activeJobCount,
   buildHubModel,
+  dismissFirstRunGuide,
+  firstRunComplete,
+  firstRunGuideDismissed,
+  firstRunProgress,
   HUB_ROW_STAGE,
   hubTransitions,
   isWorking,
@@ -26,6 +30,7 @@ import { startPollLoop } from '@/lib/poll-loop';
 import { collectShellJobs, publishShellJobs } from '@/lib/shell-activity';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipsLens } from '@/components/clips-hub/clips-lens';
+import { FirstRunGuide } from '@/components/clips-hub/first-run-guide';
 import { CreationPaths } from '@/components/studio/creation-paths';
 import { HubBanner } from '@/components/clips-hub/hub-banner';
 import { HubEmpty } from '@/components/clips-hub/hub-empty';
@@ -50,6 +55,14 @@ async function fetchSnapshot(prev: HubSnapshot | null): Promise<HubSnapshot> {
 function anyoneWorking(model: HubModel): boolean {
   if (model.rows.some((row) => row.stage === HUB_ROW_STAGE.parsing)) return true;
   return model.clips.some((clip) => isWorking(clip.state));
+}
+
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function streamLibraryCount(streams: readonly StreamJob[]): number {
@@ -186,6 +199,16 @@ function ClipsHub(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  // Hidden until storage is read, so a dismissed guide never flashes in on hydration.
+  const [guideDismissed, setGuideDismissed] = useState(true);
+  useEffect(() => {
+    setGuideDismissed(firstRunGuideDismissed(browserStorage()));
+  }, []);
+  const hideGuide = useCallback(() => {
+    dismissFirstRunGuide(browserStorage());
+    setGuideDismissed(true);
+  }, []);
+
   useWebMCPLibrary({ model, lens, open, failed: loadError !== null, navigate });
 
   /** One stable callback for every row: a fresh closure per row would defeat their memo. */
@@ -215,12 +238,16 @@ function ClipsHub(): ReactNode {
 
   const counts: Record<HubLens, number> = { partidas: model.rows.length, clips: model.clips.length + streamLibraryCount(streams) };
   const jobs = activeJobCount(model, streams);
+  const progress = firstRunProgress(model);
 
   return (
     <div className="measure-list flex flex-col gap-6">
       <HubHeader lens={lens} />
       {/* Same slot in every hub state: under the header, before anything that depends on the service. */}
       {loadError !== null ? <HubBanner offline={loadError.offline} onRetry={onChange} /> : null}
+      {!guideDismissed && !firstRunComplete(progress) ? (
+        <FirstRunGuide progress={progress} onDismiss={hideGuide} />
+      ) : null}
       <CreationPaths />
 
       <div className="flex flex-wrap items-center justify-between gap-4">

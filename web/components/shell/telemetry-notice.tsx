@@ -73,7 +73,7 @@ export function TelemetryNotice(): ReactElement | null {
           <p className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
             Se ocultan rutas, credenciales, correos y SteamID en los mensajes de error. No se adjuntan demos, vídeos
-            ni otros archivos multimedia. Puedes desactivarlo después en Configuración.
+            ni otros archivos multimedia. Puedes desactivarlo después en Ajustes.
           </p>
           <p className="mt-3 font-mono text-meta tracking-wider text-fg-3">
             CÓDIGO DE SOPORTE · {status.supportCode}

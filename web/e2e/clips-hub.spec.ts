@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
 import {
+  FIRST_RUN_GUIDE_DISMISS,
+  FIRST_RUN_GUIDE_TITLE,
+  FIRST_RUN_STEPS,
   HUB_EMPTY_TITLE,
   HUB_ORPHANS_TITLE,
   MATCH_ROW_FAILED_TITLE,
@@ -418,4 +421,26 @@ test.describe('clips hub', () => {
       else await expect(page.locator(`#partida-${JOB_ID}`).getByRole('button', { expanded: true })).toBeVisible();
     });
   }
+});
+
+test.describe('first-run guide on a populated hub', () => {
+  test('ticks steps from real data and stays hidden once dismissed', async ({ page }) => {
+    await page.route('**/api/demos/jobs', (route) =>
+      route.fulfill({
+        json: { jobs: [{ jobId: SCANNED_JOB_ID, status: 'scanned', fileName: 'match731.dem', createdAt: '2026-09-02T10:00:00Z' }] },
+      }),
+    );
+    await gotoStudio(page, '/clips');
+
+    const guide = page.getByRole('region', { name: FIRST_RUN_GUIDE_TITLE });
+    await expect(guide).toBeVisible();
+    // Loaded, not picked: the pick is the active step.
+    await expect(guide.locator('li[aria-current="step"]')).toContainText(FIRST_RUN_STEPS.pick.title);
+
+    await guide.getByRole('button', { name: FIRST_RUN_GUIDE_DISMISS }).click();
+    await expect(guide).toHaveCount(0);
+    await gotoStudio(page, '/clips');
+    await expect(page.getByText(MATCH_ROW_UNPICKED_TITLE).first()).toBeVisible();
+    await expect(page.getByRole('region', { name: FIRST_RUN_GUIDE_TITLE })).toHaveCount(0);
+  });
 });

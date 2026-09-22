@@ -337,6 +337,30 @@ export function firstRunComplete(progress: FirstRunProgress): boolean {
   return Object.values(FIRST_RUN_STEP).every((step) => progress[step]);
 }
 
+/** localStorage key for "Ocultar guía" on the populated hub. */
+export const FIRST_RUN_GUIDE_DISMISSED_KEY = 'cliphub.first-run-guide.dismissed.v1';
+
+type GuideStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+/** Unreadable storage counts as dismissed: a guide that cannot be hidden must not nag. */
+export function firstRunGuideDismissed(storage: GuideStorage | null): boolean {
+  if (storage === null) return true;
+  try {
+    return storage.getItem(FIRST_RUN_GUIDE_DISMISSED_KEY) !== null;
+  } catch {
+    return true;
+  }
+}
+
+export function dismissFirstRunGuide(storage: GuideStorage | null): void {
+  if (storage === null) return;
+  try {
+    storage.setItem(FIRST_RUN_GUIDE_DISMISSED_KEY, '1');
+  } catch {
+    // Hidden for this visit only; the in-memory state still hides it.
+  }
+}
+
 /** State of the latest Full POV, as the column head shows it. */
 export function fullStateLabel(fulls: readonly MatchOutput[]): string {
   const latest = fulls[0];
