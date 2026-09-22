@@ -44,7 +44,7 @@ export function PlayList({
   }
 
   return (
-    <div className="studio-panel @container/reel flex max-h-[min(28rem,55dvh)] min-h-0 flex-col overflow-hidden @[56rem]/content:max-h-[clamp(16rem,calc(100dvh-27rem),32rem)]">
+    <div className="studio-panel @container/reel flex max-h-[min(28rem,55dvh)] min-h-0 flex-col overflow-hidden @[56rem]/content:max-h-[clamp(20rem,calc(100dvh-20rem),40rem)]">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border-subtle bg-surface-3 p-4 @[80rem]/content:p-5">
         <span className="text-body-sm font-semibold text-fg-2">{title}</span>
         <div className="flex flex-wrap items-center gap-3">

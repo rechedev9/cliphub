@@ -113,7 +113,7 @@ export function JobTransport(): ReactElement | null {
               onClick={() => setOpen(false)}
               className="inline-flex min-h-10 items-center text-primary hover:text-fg-1"
             >
-              Ver en 01 →
+              Ver en Clips y vídeos →
             </Link>
           </div>
           {activity.jobs.length === 0 ? (

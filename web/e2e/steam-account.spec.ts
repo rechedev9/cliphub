@@ -44,7 +44,7 @@ test.describe('Steam account settings', () => {
     await page.getByLabel('SteamID64').fill('76561198000000001');
     await page.getByLabel('Código de autenticación').fill('AAAAA-BBBBB-CCCCC');
     await page.getByLabel('Clave de la Web API').fill('0123456789ABCDEF');
-    await page.getByRole('button', { name: 'GUARDAR' }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(page.getByText('Historial conectado')).toBeVisible();
     expect(puts).toEqual([{
       steamId: '76561198000000001',
@@ -52,5 +52,25 @@ test.describe('Steam account settings', () => {
       apiKey: '0123456789ABCDEF',
       knownCode: '',
     }]);
+  });
+
+  test('an empty or malformed form is caught before any request', async ({ page }) => {
+    let puts = 0;
+    await page.route('**/api/steam/account', async (route) => {
+      if (route.request().method() === 'PUT') puts += 1;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(EMPTY_ACCOUNT) });
+    });
+
+    await gotoStudio(page, '/settings');
+    await expect(page.getByRole('button', { name: 'Sincronizar partidas', exact: true })).toBeDisabled();
+    await expect(page.getByText('Guarda primero tu SteamID64')).toBeVisible();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.getByText('Escribe tu SteamID64 o pega la URL de tu perfil de Steam.')).toBeVisible();
+    await expect(page.getByLabel('SteamID64')).toHaveAttribute('aria-invalid', 'true');
+    await page.getByLabel('SteamID64').fill('76561198000000001');
+    await page.getByLabel('Un código de partida conocido').fill('CSGO-abc');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.getByText(/El código de partida tiene la forma/)).toBeVisible();
+    expect(puts).toBe(0);
   });
 });

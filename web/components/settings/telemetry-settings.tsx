@@ -83,10 +83,10 @@ export function TelemetrySettings(): ReactNode {
             type="button"
             variant={status.enabled ? 'outline' : 'default'}
             loading={pending}
-            loadingText="GUARDANDO"
+            loadingText="Guardando…"
             onClick={() => update(!status.enabled)}
           >
-            {status.enabled ? 'DESACTIVAR DIAGNÓSTICOS' : 'ACTIVAR DIAGNÓSTICOS'}
+            {status.enabled ? 'Desactivar diagnósticos' : 'Activar diagnósticos'}
           </Button>
         </div>
       </div>

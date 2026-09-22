@@ -728,7 +728,7 @@ export function StreamEditor({
             )}
           </section>
 
-          <div ref={panelRef} className="min-h-0 overflow-y-auto">
+          <div ref={panelRef} className="min-h-0 overflow-y-auto bg-surface-1 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
             <StreamStepPanel title={panelTitle} key={activeStep}>
               {stepContent}
             </StreamStepPanel>

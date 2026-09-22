@@ -54,6 +54,14 @@ const STATUS_META: Record<
 };
 
 const REC_TONE = 'border-stream/45 text-stream-text';
+
+/** Settings card tag: a sentence, not the sidebar's short imperative. */
+const SETTINGS_TAG: Record<CaptureStatus, { text: string; tone: StatusTagTone }> = {
+  ready: { text: 'Listo para grabar', tone: 'success' },
+  warning: { text: 'Revisa rutas', tone: 'warning' },
+  unconfigured: { text: 'Sin configurar', tone: 'warning' },
+  offline: { text: 'Studio sin conexión', tone: 'danger' },
+};
 const REC_TITLE_MAX = 18;
 
 /** The three record tools, with a friendly name and a typical Windows path. */
@@ -109,6 +117,9 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
     pillDot = 'neon-pulse bg-stream';
   }
 
+  let settingsTag = data === null ? { text: 'Comprobando…', tone: 'neutral' as StatusTagTone } : SETTINGS_TAG[status];
+  if (recording !== undefined) settingsTag = { text: pillText, tone: 'stream' };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -117,7 +128,7 @@ export function CaptureReadiness({ variant = 'sidebar' }: { variant?: 'sidebar' 
             <span className="flex items-center gap-3 font-display text-title font-semibold text-fg-1"><MonitorPlay aria-hidden className="size-5 text-primary" />Grabación de demos</span>
             <span className="text-body-sm text-fg-2">Revisa si este PC tiene CS2, HLAE y el grabador. Son necesarios para crear shorts y vídeos largos desde una demo.</span>
             <span className="flex flex-wrap items-center justify-between gap-3 text-body-sm">
-              <span className="text-fg-2">{pillText}</span>
+              <StatusTag tone={settingsTag.tone}>{settingsTag.text}</StatusTag>
               <span className="font-semibold text-primary">Revisar requisitos →</span>
             </span>
           </button>

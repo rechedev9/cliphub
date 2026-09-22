@@ -50,10 +50,12 @@ const CHROME_SECTIONS = NAV_SECTIONS.filter((section) => NAV_META[section.href].
 
 /** A nav href is active for its exact page and any nested route under it. */
 function isActiveHref(pathname: string, href: string): boolean {
+  // A series is part of the demo journey, so it keeps Clips y vídeos lit.
+  if (href === CLIPS_HREF && pathname.startsWith('/series/')) return true;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Brand lockup, numbered nav, Análisis group, settings + capture pill footer. */
+/** Brand lockup, nav, Análisis group, settings + capture pill footer. */
 export function AppSidebar(): ReactElement {
   const pathname = usePathname();
 
@@ -121,7 +123,7 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
       <SidebarMenuButton
         asChild
         isActive={active}
-        tooltip={`${section.number} · ${section.label}`}
+        tooltip={section.label}
         className={cn(
           'shell-nav-key h-12 gap-3 rounded-none px-4 font-[family-name:var(--font-display)] font-semibold tracking-wide text-fg-1 uppercase',
           'transition-[width,height,padding,background-color,color,box-shadow] duration-(--dur-fast) ease-standard',
@@ -132,15 +134,6 @@ function NavRow({ section, pathname }: { section: NavSection; pathname: string }
       >
         <Link href={section.href} aria-current={active ? 'page' : undefined}>
           <Icon className="size-4 shrink-0 group-data-[collapsible=icon]:size-[18px]" aria-hidden />
-          <span
-            aria-hidden
-            className={cn(
-              'w-5 shrink-0 font-[family-name:var(--font-mono)] [font-size:var(--text-meta)] tabular-nums group-data-[collapsible=icon]:hidden',
-              active ? 'text-primary' : 'text-fg-3',
-            )}
-          >
-            {section.number}
-          </span>
           <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
             {section.label}
           </span>

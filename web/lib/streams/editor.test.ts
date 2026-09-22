@@ -2,7 +2,42 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamEditPlan } from '../api/streams.ts';
 import { EDIT_PLAN_SCHEMA_VERSION } from './plan.ts';
-import { streamCtaLabel, streamEditorSteps, streamOutputSummary, streamPlanBlocker } from './editor.ts';
+import {
+  STREAM_STEP_LABEL,
+  STREAM_WORKFLOW_STEPS,
+  streamCtaLabel,
+  streamEditorSteps,
+  streamOutputSummary,
+  streamPlanBlocker,
+} from './editor.ts';
+
+test('the editor rail continues the landing workflow with the same names and numbers', () => {
+  assert.deepEqual(STREAM_WORKFLOW_STEPS, [
+    'Importar vídeo',
+    'Elegir momentos',
+    'Ajustar aspecto',
+    'Revisar y exportar',
+    'Guardar vídeos',
+  ]);
+  const steps = streamEditorSteps({ plan: plan(), renderState: null, stale: false, rendering: true });
+  assert.deepEqual(
+    steps.map((step) => [step.number, step.label]),
+    STREAM_WORKFLOW_STEPS.slice(1).map((label, index) => [String(index + 2), label]),
+  );
+  assert.deepEqual(
+    steps.map((step) => step.label),
+    steps.map((step) => STREAM_STEP_LABEL[step.key]),
+  );
+});
+
+test('the layout step names what the chosen variant renders', () => {
+  const detail = (variant: StreamEditPlan['variant']) =>
+    streamEditorSteps({ plan: plan({ variant }), renderState: null, stale: false }).find((s) => s.key === 'layout')
+      ?.detail;
+  assert.equal(detail('streamer-vertical-stack-40-60'), 'Cámara grande');
+  assert.equal(detail('streamer-vertical-stack'), 'Cámara compacta');
+  assert.equal(detail('streamer-fullframe-nocam'), 'Solo juego');
+});
 
 function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
   return {

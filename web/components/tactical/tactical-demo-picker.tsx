@@ -11,12 +11,12 @@ import {
   isServiceUnavailableError,
 } from '@/lib/api/tactical';
 import type { TacticalState } from '@/lib/api/tactical';
+import { MapCover } from '@/components/brand/map-cover';
 import { StudioEmptyState } from '@/components/studio/empty-state';
-import { IconTile } from '@/components/studio/icon-tile';
 import { TacticalStateBadge } from '@/components/tactical/tactical-state-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { matchDateLabel } from '@/lib/format';
+import { matchDateLabel, prettyMapName } from '@/lib/format';
 
 /** One listed demo and the lifecycle of its tactical analysis. */
 type DemoEntry = { match: Match; state: TacticalState };
@@ -93,9 +93,12 @@ export function TacticalDemoPicker(): ReactNode {
           className="studio-panel studio-panel-interactive flex min-h-[72px] flex-wrap items-center gap-4 px-4 py-4 transition-colors @[44rem]/content:flex-nowrap sm:px-5"
         >
           <div className="flex min-w-0 flex-1 items-center gap-4">
-            <IconTile icon={Radar} size="md" />
+            {/* The same map plate the Clips hub uses, so a row is recognisable by map at a glance. */}
+            <span aria-hidden className="relative h-[47px] w-[84px] shrink-0 overflow-hidden border border-border-strong">
+              <MapCover map={match.map} />
+            </span>
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{match.map}</span>
+              <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
               <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
                 {[match.player, matchDateLabel(match)].filter(Boolean).join(' · ')}
               </span>

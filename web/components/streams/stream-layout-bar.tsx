@@ -4,11 +4,7 @@ import { STREAM_VARIANTS, type StreamVariant } from '@/lib/api/streams';
 import { LayoutGlyph } from '@/components/streams/layout-glyph';
 import { cn } from '@/lib/utils';
 
-const LAYOUT_LABELS: Record<StreamVariant, { title: string; detail: string }> = {
-  'streamer-vertical-stack-40-60': { title: 'Cámara + juego', detail: 'Cámara arriba, partida debajo' },
-  'streamer-vertical-stack': { title: 'Cámara doble', detail: 'Partida entre dos bandas de cámara' },
-  'streamer-fullframe-nocam': { title: 'Solo juego', detail: 'Partida a pantalla completa' },
-};
+/** Copy lives in STREAM_VARIANTS so the picker, the step detail and the brief agree. */
 export function StreamLayoutBar({
   variant,
   disabled,
@@ -22,7 +18,6 @@ export function StreamLayoutBar({
     <div role="group" aria-label="Aspecto del Short" className="flex flex-col gap-2">
       {STREAM_VARIANTS.map((entry) => {
         const active = entry.value === variant;
-        const label = LAYOUT_LABELS[entry.value];
         return (
           <button
             key={entry.value}
@@ -37,8 +32,8 @@ export function StreamLayoutBar({
           >
             <LayoutGlyph variant={entry.value} selected={active} />
             <span>
-              <span className="block text-body-sm font-semibold">{label.title}</span>
-              <span className="block text-label text-fg-3">{label.detail}</span>
+              <span className="block text-body-sm font-semibold">{entry.label}</span>
+              <span className="block text-label text-fg-3">{entry.subtitle}</span>
             </span>
           </button>
         );

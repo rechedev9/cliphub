@@ -67,6 +67,21 @@ const GENERIC_MESSAGE =
 export const JOB_GENERIC_FAILURE_MESSAGE =
   'No se pudo procesar esta demo. Elimínala de Partidas o comparte el diagnóstico desde Ajustes.';
 
+/** Job-level capture failure: the demo is fine, the recording is what failed. */
+export const JOB_CAPTURE_FAILURE_MESSAGE =
+  'La cámara perdió el POV del jugador durante la captura; la demo está bien. ' +
+  'Borra esta partida y vuelve a subir la demo para grabarla de nuevo; si se repite, comparte el diagnóstico desde Ajustes.';
+
+/** Eyebrow for a failed partida that is not a capture failure. */
+export const JOB_FAILED_TITLE = 'La demo no se pudo procesar';
+
+const CAPTURE_KINDS: ReadonlySet<FailureReason['kind']> = new Set([
+  'pov-verification',
+  'pov-acquisition',
+  'capture-flake',
+  'recording-not-reusable',
+]);
+
 const DEMO_INCOMPATIBLE_MESSAGE =
   'Esta demo se grabó en una versión antigua de CS2 y el cliente actual no puede reproducirla. ' +
   'Reintentar no lo arreglará: usa una demo jugada después del último parche.';
@@ -116,6 +131,23 @@ function genericFailure(context: FailureContext): FailureReason {
 
 /** Classifies `failureReason` into a Spanish card message. Pure; the card does not parse the raw string. */
 export function parseFailureReason(reason: string | undefined, context: FailureContext = {}): FailureReason {
+  const failure = classifyFailureReason(reason, context);
+  // A failed partida offers delete and diagnostics only, so its copy must not promise a retry.
+  if (context.job && failure.retryCanHelp) {
+    const capture = failure.kind === 'capture-flake' || failure.kind === 'recording-not-reusable';
+    return { ...failure, message: capture ? JOB_CAPTURE_FAILURE_MESSAGE : JOB_GENERIC_FAILURE_MESSAGE, retryCanHelp: false };
+  }
+  return failure;
+}
+
+/** Row eyebrow for a failed partida: capture failures are not a broken demo. */
+export function jobFailureTitle(reason: string | undefined): string {
+  const kind = parseFailureReason(reason, { job: true }).kind;
+  if (CAPTURE_KINDS.has(kind)) return FAILED_STRIP_LABEL.capture;
+  return JOB_FAILED_TITLE;
+}
+
+function classifyFailureReason(reason: string | undefined, context: FailureContext): FailureReason {
   if (reason === undefined || reason.trim() === '') {
     return genericFailure(context);
   }
@@ -180,7 +212,7 @@ export function parseFailureReason(reason: string | undefined, context: FailureC
 /** Library strip label: capture flakes are not a dead pipeline. */
 export function failedStripLabel(reason: string | undefined, context: FailureContext = {}): string {
   const kind = parseFailureReason(reason, context).kind;
-  if (kind === 'pov-verification' || kind === 'pov-acquisition' || kind === 'capture-flake') {
+  if (kind !== 'recording-not-reusable' && CAPTURE_KINDS.has(kind)) {
     return FAILED_STRIP_LABEL.capture;
   }
   return FAILED_STRIP_LABEL.pipeline;

@@ -4,9 +4,13 @@ import type { ReactNode } from 'react';
 import type { FullDemoBumperOptions, FullDemoDocument, FullDemoOptions } from '@/lib/full-demo-plan';
 import { FullDemoAssetInput } from './full-demo-asset-input';
 import { FullDemoMediaPreview } from './full-demo-media-preview';
-import { FullDemoToggle } from './full-demo-fields';
+import { FullDemoMissing, FullDemoToggle } from './full-demo-fields';
 
-type Props = { options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void };
+type Props = {
+  options: FullDemoOptions; document: FullDemoDocument | null; onChange: (options: FullDemoOptions) => void; onAssetBusy: (busy: boolean) => void;
+  /** A create attempt was blocked: a missing clip turns from a hint into an error. */
+  showMissing?: boolean;
+};
 type Slot = keyof FullDemoBumperOptions;
 
 const EMPTY_BUMPERS: FullDemoBumperOptions = { intro: { enabled: false, video: null }, outro: { enabled: false, video: null } };
@@ -20,7 +24,7 @@ const COPY: Record<Slot, { toggle: string; missing: string; preview: string; add
  * verified asset upload, but carry no placement policy: the planner puts the
  * intro at frame 0 and the outro after the last item, with the clip's own audio.
  */
-export function FullDemoBumpers({ options, document, onChange, onAssetBusy }: Props): ReactNode {
+export function FullDemoBumpers({ options, document, onChange, onAssetBusy, showMissing = false }: Props): ReactNode {
   const bumpers = options.bumpers ?? EMPTY_BUMPERS;
   const assetName = (id: string | undefined): string => document?.assets?.find((asset) => asset.ref.id === id)?.title ?? 'Archivo pendiente de revisar en el plan';
   const change = (slot: Slot, patch: Partial<FullDemoBumperOptions[Slot]>): void => onChange({ ...options, bumpers: { ...bumpers, [slot]: { ...bumpers[slot], ...patch } } });
@@ -31,10 +35,10 @@ export function FullDemoBumpers({ options, document, onChange, onAssetBusy }: Pr
       return <div key={slot} className={index > 0 ? 'space-y-3 border-t border-border-subtle pt-3' : 'space-y-3'}>
         <FullDemoToggle label={copy.toggle} value={value.enabled} onChange={(enabled) => change(slot, { enabled })} />
         {value.enabled ? <>
-          <p className="text-meta text-fg-3">{copy.where} Suena el audio del propio clip.</p>
-          {value.video ? <p className="text-body-sm text-fg-1">Vídeo: {assetName(value.video.id)}</p> : <p className="text-body-sm text-destructive">{copy.missing}</p>}
+          <p className="text-body-sm text-fg-2">{copy.where} Suena el audio del propio clip.</p>
+          {value.video ? <p className="text-body-sm text-fg-1">Vídeo: {assetName(value.video.id)}</p> : <FullDemoMissing error={showMissing}>{copy.missing}</FullDemoMissing>}
           {value.video ? <FullDemoMediaPreview asset={value.video} video label={copy.preview} gain={1} /> : null}
-          <FullDemoAssetInput label={value.video ? copy.replace : copy.add} accept="video/*" onBusyChange={onAssetBusy} onUploaded={(video) => change(slot, { video })} />
+          <FullDemoAssetInput label={value.video ? copy.replace : copy.add} open={!value.video} accept="video/*" onBusyChange={onAssetBusy} onUploaded={(video) => change(slot, { video })} />
         </> : null}
       </div>;
     })}

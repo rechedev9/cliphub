@@ -50,7 +50,7 @@ export function FollowedPlayerList({ players, selectedID, onSelect }: {
             aria-current={selectedID === player.id ? 'true' : undefined}
             className={cn('flex min-h-16 w-full items-center gap-3 border-b border-border-subtle px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-3 focus-visible:-outline-offset-2',
               FOCUS_RING, selectedID === player.id && 'bg-accent shadow-[inset_3px_0_0_var(--primary)]')}>
-            <PlayerAvatar nickname={player.nickname} playerID={player.id} size={36} />
+            <PlayerAvatar nickname={player.nickname} playerID={player.id} avatar={player.avatar} size={36} />
             <span className="min-w-0 flex-1 truncate text-body-sm font-semibold text-fg-1" title={player.nickname}>{player.nickname}</span>
             <LevelBadge level={player.skill_level} />
             <span className="w-16 shrink-0 text-right text-body-sm tabular-nums text-fg-1">

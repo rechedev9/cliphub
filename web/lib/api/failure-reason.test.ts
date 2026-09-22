@@ -5,10 +5,13 @@ import assert from 'node:assert/strict';
 import {
   DEMO_INCOMPATIBLE_PREFIX,
   FAILED_STRIP_LABEL,
+  JOB_CAPTURE_FAILURE_MESSAGE,
+  JOB_FAILED_TITLE,
   JOB_GENERIC_FAILURE_MESSAGE,
   MISMATCH_REDRIVE_FAILURE_REASON,
   UNPLAYABLE_START_PREFIX,
   failedStripLabel,
+  jobFailureTitle,
   parseFailureReason,
 } from './failure-reason.ts';
 
@@ -233,4 +236,21 @@ test('unplayable-start is not retryable and tells the user not to relaunch CS2',
   assert.equal(result.retryCanHelp, false);
   assert.match(result.message, /No relances CS2/);
   assert.match(result.message, /tick 0/);
+});
+
+test('a job-level capture failure explains the capture and does not promise a retry', () => {
+  const reason = 'recorder failed: observer target drifted from 76561198305036904 during seg-003';
+  const result = parseFailureReason(reason, { job: true });
+  assert.equal(result.kind, 'capture-flake');
+  assert.equal(result.retryCanHelp, false);
+  assert.equal(result.message, JOB_CAPTURE_FAILURE_MESSAGE);
+  assert.doesNotMatch(result.message, /Reintentar/);
+  assert.equal(jobFailureTitle(reason), FAILED_STRIP_LABEL.capture);
+  // The same reason on a reel keeps its retry copy: that card has a retry button.
+  assert.equal(parseFailureReason(reason).retryCanHelp, true);
+});
+
+test('a job-level failure that is not a capture keeps the processing title', () => {
+  assert.equal(jobFailureTitle('scan exploded: bad header'), JOB_FAILED_TITLE);
+  assert.equal(jobFailureTitle(undefined), JOB_FAILED_TITLE);
 });

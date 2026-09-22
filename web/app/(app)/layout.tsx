@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarInset } from '@/components/ui/sidebar';
+import { ShellSidebarProvider } from '@/components/shell/shell-sidebar-provider';
 import { AppSidebar } from '@/components/shell/app-sidebar';
 import { CommandStrip } from '@/components/shell/command-strip';
 import { RouteFrame } from '@/components/shell/route-frame';
@@ -26,7 +27,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
   const sidebarOpen = jar.get(SIDEBAR_COOKIE_NAME)?.value !== 'false';
 
   return (
-    <SidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
+    <ShellSidebarProvider defaultOpen={sidebarOpen} style={SHELL_VARS}>
       <ShellActivityMonitor />
       <TelemetryNotice />
       <AppSidebar />
@@ -49,11 +50,11 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
             edge drifts rightward as the window grows. Pinning it to the sidebar
             edge gives the app one optical spine that survives a resize.
           */}
-          <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10 [&:has([data-players-workspace])]:max-w-none [&:has([data-players-workspace])]:p-6 [&:has([data-produce-workspace])]:max-w-none [&:has([data-produce-workspace])]:px-6 [&:has([data-produce-workspace])]:py-4">
+          <main className="@container/content mr-auto w-full max-w-[1440px] flex-1 px-(--shell-gutter) py-10 [&:has([data-produce-workspace])]:max-w-none [&:has([data-produce-workspace])]:px-6 [&:has([data-produce-workspace])]:py-4">
             <RouteFrame>{children}</RouteFrame>
           </main>
         </RouteTitleProvider>
       </SidebarInset>
-    </SidebarProvider>
+    </ShellSidebarProvider>
   );
 }

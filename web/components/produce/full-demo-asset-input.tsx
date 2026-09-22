@@ -5,8 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { uploadFullDemoAsset, type FullDemoAssetRef, type FullDemoProvenance } from '@/lib/full-demo-plan';
 
-export function FullDemoAssetInput({ label, accept, onUploaded, onBusyChange }: {
-  label: string; accept: string; onUploaded: (ref: FullDemoAssetRef, title: string) => void; onBusyChange: (busy: boolean) => void;
+export function FullDemoAssetInput({ label, accept, open, onUploaded, onBusyChange }: {
+  label: string; accept: string;
+  /**
+   * Expanded while its option still needs a file, so enabling the option shows
+   * the picker right away. React only writes the attribute when this changes:
+   * the user can still collapse it, and it folds once a file is added.
+   */
+  open?: boolean;
+  onUploaded: (ref: FullDemoAssetRef, title: string) => void; onBusyChange: (busy: boolean) => void;
 }): ReactNode {
   const id = useId();
   const [file, setFile] = useState<File | null>(null);
@@ -26,7 +33,7 @@ export function FullDemoAssetInput({ label, accept, onUploaded, onBusyChange }: 
     } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'No se pudo subir el archivo.'); }
     finally { if (!controller.signal.aborted) { setBusy(false); onBusyChange(false); } }
   }
-  return <details className="border border-border-subtle p-3">
+  return <details open={open} className="border border-border-subtle p-3">
     <summary className="min-h-8 cursor-pointer text-body-sm font-medium text-primary">{label}</summary>
     <fieldset disabled={busy} className="mt-3 grid min-w-0 gap-3">
       <label className="text-body-sm text-fg-2" htmlFor={`${id}-file`}>Archivo local</label>
@@ -42,7 +49,7 @@ export function FullDemoAssetInput({ label, accept, onUploaded, onBusyChange }: 
         <label htmlFor={`${id}-${field.key}`} className="text-body-sm text-fg-2">{field.label}</label>
         <Input id={`${id}-${field.key}`} maxLength={field.max} value={provenance[field.key]} onChange={(event) => setProvenance({ ...provenance, [field.key]: event.target.value })} />
       </div>)}
-      <p className="text-meta text-fg-3">El archivo se decodifica y se vincula a esta declaración. Cambiar el archivo o sus permisos requiere subir una nueva referencia.</p>
+      <p className="text-body-sm text-fg-2">El archivo se decodifica y se vincula a esta declaración. Cambiar el archivo o sus permisos requiere subir una nueva referencia.</p>
       {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
       <Button type="button" disabled={!ready} loading={busy} loadingText="Verificando archivo…" onClick={() => void upload()}>Añadir archivo</Button>
     </fieldset>

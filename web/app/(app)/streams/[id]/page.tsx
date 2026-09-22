@@ -42,7 +42,7 @@ import { StreamEditor } from '@/components/streams/stream-editor';
 import type { StreamAutosaveState } from '@/components/streams/stream-steps-rail';
 import { useElapsedSeconds } from '@/components/streams/use-elapsed-seconds';
 import { useRouteTitle } from '@/components/shell/route-title';
-import { streamTitle } from '@/lib/streams/title';
+import { streamDocumentTitle, streamTitle } from '@/lib/streams/title';
 
 const STREAMS_HREF = '/streams';
 
@@ -55,7 +55,18 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
   const [stage, setStage] = useState<Stage>('loading');
   const [openAttempt, setOpenAttempt] = useState(0);
   const [job, setJob] = useState<StreamJob | null>(null);
-  useRouteTitle(job?.id === id ? streamTitle(job) : undefined);
+  const projectTitle = job?.id === id ? streamTitle(job) : undefined;
+  useRouteTitle(projectTitle);
+  // The segment metadata can only say "Clips de stream"; name the tab after the
+  // project once it is loaded, and hand the static title back on the way out.
+  useEffect(() => {
+    if (!projectTitle) return;
+    const previous = document.title;
+    document.title = streamDocumentTitle(projectTitle);
+    return () => {
+      document.title = previous;
+    };
+  }, [projectTitle]);
   const [plan, setPlan] = useState<StreamEditPlan | null>(null);
   const [renderState, setRenderState] = useState<StreamRenderState | null>(null);
   /** The exact plan the shown render used; drives URLs and staleness. */
@@ -467,7 +478,7 @@ export default function StreamEditorPage({ params }: { params: Promise<{ id: str
           <span aria-hidden className="studio-spinner" />
           Trayendo el vídeo
         </span>
-        <h1 className="font-display text-title font-bold uppercase text-fg-1">
+        <h1 className="font-display text-title font-bold text-fg-1">
           {job?.title?.trim() || 'Clip de stream'}
         </h1>
         <p className="text-body text-fg-2">

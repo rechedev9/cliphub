@@ -13,8 +13,9 @@ import {
   errorMessage,
   isServiceUnavailable,
   isStreamURLValidationError,
-  nonVideoExtension,
 } from '@/lib/streams/plan';
+import { streamImportErrorMessage, streamSourceUrlError } from '@/lib/streams/import';
+import { STREAM_WORKFLOW_STEPS } from '@/lib/streams/editor';
 import Link from 'next/link';
 import { CLIPS_HREF } from '@/lib/clips/routes';
 import { WorkflowProgress } from '@/components/studio/workflow-progress';
@@ -71,15 +72,9 @@ export default function StreamsPage(): ReactNode {
 
   const submitUrl = useCallback(async () => {
     const trimmed = sourceUrl.trim();
-    if (!trimmed) {
-      setError('Pega una URL de clip o VOD de Twitch, YouTube o Kick. Para un archivo local, usa un MP4.');
-      return;
-    }
-    const badExt = nonVideoExtension(trimmed);
-    if (badExt) {
-      setError(
-        `Esa URL apunta a un archivo .${badExt}, no a un vídeo. Pega el enlace de un clip o VOD de Twitch, YouTube o Kick, o usa “Subir un MP4”.`,
-      );
+    const invalid = streamSourceUrlError(trimmed);
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setError(null);
@@ -87,7 +82,7 @@ export default function StreamsPage(): ReactNode {
     try {
       open(await streamsApi.createFromUrl({ sourceUrl: trimmed, title: title.trim() || undefined }));
     } catch (err) {
-      setError(errorMessage(err, 'No se pudo iniciar ese trabajo. Revisa la URL y vuelve a intentarlo.'));
+      setError(streamImportErrorMessage(err, 'url'));
       setSubmitting(false);
     }
   }, [sourceUrl, title, open]);
@@ -99,7 +94,7 @@ export default function StreamsPage(): ReactNode {
       try {
         open(await streamsApi.createFromFile(file, title.trim() || undefined));
       } catch (err) {
-        setError(errorMessage(err, 'No se pudo procesar ese archivo. Prueba con otro MP4.'));
+        setError(streamImportErrorMessage(err, 'file'));
         setSubmitting(false);
       }
     },
@@ -159,7 +154,7 @@ export default function StreamsPage(): ReactNode {
       ) : null}
 
       <WorkflowProgress
-        steps={['Importar vídeo', 'Elegir momentos', 'Ajustar aspecto', 'Revisar y exportar']}
+        steps={STREAM_WORKFLOW_STEPS}
         current={0}
         variant="connected"
       />

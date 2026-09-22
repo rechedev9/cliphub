@@ -48,7 +48,7 @@ test.describe('CheaterDetect', () => {
   test('empty state is a demo drop, not a detour to Subir demo', async ({ page }) => {
     await stubJobs(page, []);
     await gotoStudio(page, '/cheaters');
-    await expect(page.getByRole('heading', { name: 'CHEATERDETECT' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'CheaterDetect', exact: true })).toBeVisible();
     await expect(page.getByText('Arrastra tu demo o elige un archivo')).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(1);
     await expect(page.locator('[data-layout="full"]')).toBeVisible();

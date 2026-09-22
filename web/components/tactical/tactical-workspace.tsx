@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, PlugZap, Radar, RefreshCw, TriangleAlert } from 'lucide-react';
+import { api } from '@/lib/api';
+import type { Match } from '@/lib/api/types';
 import {
-  TACTICAL_DEFAULT_SAMPLE_HZ,
   TACTICAL_STATES,
   fetchTacticalStatus,
   isServiceUnavailableError,
   startTacticalAnalysis,
 } from '@/lib/api/tactical';
 import type { TacticalStatus } from '@/lib/api/tactical';
+import { useRouteTitle } from '@/components/shell/route-title';
 import { StudioEmptyState } from '@/components/studio/empty-state';
 import { StudioPageHeader } from '@/components/studio/page-header';
 import { TacticalAnalysis } from '@/components/tactical/tactical-analysis';
@@ -19,6 +21,7 @@ import { TacticalWorkspaceSkeleton } from '@/components/tactical/tactical-worksp
 import { Button } from '@/components/ui/button';
 import { startPollLoop } from '@/lib/poll-loop';
 import { browserWindowActivity } from '@/lib/window-activity';
+import { prettyMapName } from '@/lib/format';
 import { stateLabel } from '@/lib/tactical-labels';
 
 // The scan is a few seconds of work on a queue, so poll it briskly while it runs
@@ -28,6 +31,42 @@ const IDLE_POLL_MS = 15000;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'fallo desconocido';
+}
+
+/**
+ * Names the demo in the command strip ("Ancient · Ahogaq" instead of the job
+ * UUID) and in the browser tab ("Ancient · Táctica · ClipHub"). The match read
+ * is independent of the analysis state, so an unanalysed demo is named too.
+ */
+function useDemoTitle(jobId: string): void {
+  const [match, setMatch] = useState<Match | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setMatch(null);
+    void api
+      .getMatch(jobId)
+      .then((next) => {
+        if (active) setMatch(next);
+      })
+      // The label is a nicety; an unreadable match keeps the default trail.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [jobId]);
+
+  const map = match?.map ? prettyMapName(match.map) : '';
+  useRouteTitle(map ? [map, match?.player].filter(Boolean).join(' · ') : undefined);
+
+  useEffect(() => {
+    if (!map) return;
+    const previous = document.title;
+    document.title = `${map} · Táctica · ClipHub`;
+    return () => {
+      document.title = previous;
+    };
+  }, [map]);
 }
 
 /**
@@ -117,6 +156,8 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
     }
   }, [jobId]);
 
+  useDemoTitle(jobId);
+
   const retryStatus = useCallback(() => {
     setOffline(false);
     setPollToken((token) => token + 1);
@@ -125,11 +166,12 @@ export function TacticalWorkspace({ jobId }: { jobId: string }): ReactNode {
   return (
     <div className="flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
-        title="ANÁLISIS TÁCTICO"
-        description="Clasificación determinista de rondas, repetición 2D y tendencias. Todo sale de la demo; nada se infiere del vídeo."
+        title="Análisis táctico"
+        description="Cada ronda clasificada, la repetición en 2D y las tendencias del equipo. Todo sale de los datos de la demo, no del vídeo."
         actions={
           <div className="flex items-center gap-3">
-            {status ? <TacticalStateBadge state={status.state} className="h-9 px-3" /> : null}
+            {/* Every other state already names itself in the card below; a badge here said it twice. */}
+            {status?.state === TACTICAL_STATES.ready ? <TacticalStateBadge state={status.state} className="h-9 px-3" /> : null}
             <Button asChild variant="outline" className="font-mono text-meta tracking-wider">
               <Link href="/tactical">
                 <ArrowLeft aria-hidden />
@@ -224,10 +266,7 @@ function TacticalStartPanel({
       icon={Radar}
       title="Esta demo aún no está analizada"
       description={
-        <>
-          El escaneo vuelve a recorrer la demo entera para clasificar cada ronda y muestrear posiciones a{' '}
-          {TACTICAL_DEFAULT_SAMPLE_HZ} Hz, así que nunca se lanza solo. Se ejecuta una vez y queda guardado.
-        </>
+        'El análisis vuelve a leer la demo completa para clasificar cada ronda y reconstruir las posiciones. Lleva un rato, por eso solo empieza cuando tú lo pides. Se hace una vez y queda guardado.'
       }
       actions={
         <Button
@@ -257,8 +296,8 @@ function TacticalRunningPanel({ status }: { status: TacticalStatus }): ReactNode
         {stateLabel(status.state)}
       </h2>
       <p className="max-w-xl text-body leading-6 text-fg-2">
-        Se está recorriendo la demo para clasificar rondas y muestrear posiciones. Esta página se actualiza sola
-        al terminar.
+        Se está leyendo la demo para clasificar las rondas y reconstruir las posiciones. Esta página se actualiza
+        sola al terminar.
       </p>
     </section>
   );

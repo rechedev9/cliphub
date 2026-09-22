@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { gotoStudio } from './contract.ts';
 import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, type FullDemoDocument, type FullDemoOptions } from '../lib/full-demo-plan.ts';
+import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_SHORT_TITLE } from '../lib/produce/copy.ts';
+import { FULL_DEMO_MISSING_FILES } from '../lib/produce/full-demo-requirements.ts';
+
+const FULL_DEMO_SPONSOR_MISSING = 'Añade el vídeo del sponsor o desactívalo.';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
 const PRODUCE_FULL = `/clips/${JOB}/nuevo?formato=full`;
@@ -55,7 +59,7 @@ test.describe('Full POV simplified constructor', () => {
       await expect(page.getByRole('img', { name: 'Vista previa del HUD Mono', exact: true })).toBeVisible();
       await expect(page.getByRole('checkbox', { name: 'Activar efectos entre rondas', exact: true })).toBeChecked();
       await expect(page.getByRole('combobox', { name: 'Origen de la demo', exact: true })).toBeVisible();
-      await expect(page.getByText('Jugadores y marcador en neón violeta.', { exact: true })).toBeVisible();
+      await expect(page.getByText('Jugadores y marcador con el diseño de ClipHub, independiente del HUD. El origen de la demo decide su formato.', { exact: true })).toBeVisible();
       await expect(page.getByRole('checkbox', { name: 'Utilizar un custom HUD', exact: true })).toHaveCount(0);
       await expect(page.getByText('Música de fondo', { exact: true })).toHaveCount(0);
       await expect(page.getByText('Ajustar mezcla del corte', { exact: true })).toHaveCount(0);
@@ -81,8 +85,33 @@ test.describe('Full POV simplified constructor', () => {
     });
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
+  });
+
+  test('a restored long-video draft says so and can start over from the saved plan', async ({ page }) => {
+    const document = editorial();
+    const draft = structuredClone(document.options);
+    draft.audio.voice.enabled = false;
+    await seedStorage(page, { [DRAFT_KEY]: JSON.stringify(draft) });
+    await stubParsedMatch(page, document);
+    await gotoStudio(page, PRODUCE_FULL);
+    const voices = page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true });
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toBeVisible();
+    await expect(voices).not.toBeChecked();
+    await page.getByRole('button', { name: PRODUCE_DRAFT_RESET, exact: true }).click();
+    await expect(voices).toBeChecked();
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
+    expect(await page.evaluate((key) => localStorage.getItem(key), DRAFT_KEY)).toBeNull();
+  });
+
+  test('a draft equal to the saved plan shows no restore notice', async ({ page }) => {
+    const document = editorial();
+    await seedStorage(page, { [DRAFT_KEY]: JSON.stringify(document.options) });
+    await stubParsedMatch(page, document);
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('combobox', { name: 'Diseño', exact: true })).toBeVisible();
+    await expect(page.getByText(PRODUCE_FULL_DRAFT_RESTORED)).toHaveCount(0);
   });
 
   test('sponsor starts optional and can be enabled before its asset is chosen', async ({ page }) => {
@@ -95,7 +124,27 @@ test.describe('Full POV simplified constructor', () => {
     await expect(sponsor).not.toBeChecked();
     await sponsor.check();
     await expect(sponsor).toBeChecked();
-    await expect(page.getByText('Añade el vídeo del sponsor o desactívalo.', { exact: true })).toBeVisible();
+    // A hint while editing, with the file picker already open; not an error yet.
+    await expect(page.getByText(FULL_DEMO_SPONSOR_MISSING, { exact: true })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_SPONSOR_MISSING })).toHaveCount(0);
+    await expect(page.getByLabel('Archivo local', { exact: true })).toBeVisible();
+  });
+
+  test('creating with an enabled sponsor but no video shows the error and plans nothing', async ({ page }) => {
+    const document = editorial();
+    document.options.sponsor.enabled = false;
+    document.options.sponsor.video = null;
+    let planned = 0;
+    await stubParsedMatch(page, document);
+    await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => { if (route.request().method() === 'POST') planned += 1; return route.fallback(); });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_SPONSOR_MISSING })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_MISSING_FILES })).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).uncheck();
+    await expect(page.getByRole('alert').filter({ hasText: FULL_DEMO_MISSING_FILES })).toHaveCount(0);
+    expect(planned).toBe(0);
   });
 
   test('uploads an opted-in sponsor asset with its provenance', async ({ page }) => {
@@ -111,7 +160,6 @@ test.describe('Full POV simplified constructor', () => {
     });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
     await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
     await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
@@ -141,8 +189,8 @@ test.describe('Full POV simplified constructor', () => {
     await expect(outro).not.toBeChecked();
     await intro.check();
     await expect(page.getByText('Añade el vídeo de la intro o desactívala.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Añade el vídeo de la intro o desactívala.' })).toHaveCount(0);
     await expect(page.getByText('Intro y outro', { exact: true }).last()).toBeVisible();
-    await page.getByText('Añadir vídeo de intro y permisos', { exact: true }).click();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'intro.mp4', mimeType: 'video/mp4', buffer: Buffer.from('intro') });
     await page.getByLabel('Título', { exact: true }).fill('Intro del canal');
     await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
@@ -197,7 +245,6 @@ test.describe('Full POV simplified constructor', () => {
     });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
     await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
     await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
@@ -212,7 +259,7 @@ test.describe('Full POV simplified constructor', () => {
     expect(generated).toBeUndefined();
     await boundary.click();
     await page.getByRole('option', { name: 'Ronda 2', exact: true }).click();
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'b'.repeat(64) } } } });
     expect(plans).toBe(2);
   });
@@ -250,7 +297,6 @@ test.describe('Full POV simplified constructor', () => {
     });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
-    await page.getByText('Añadir vídeo del sponsor y permisos', { exact: true }).click();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
     await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
     await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
@@ -280,7 +326,7 @@ test.describe('Full POV simplified constructor', () => {
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => { await route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
     // The stored plan hydrates options asynchronously; edit only once it has landed.
-    await expect(page.getByRole('status').filter({ hasText: 'Voces: disponibles.' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Voces del equipo disponibles en esta demo.' })).toBeVisible();
     const gameSlider = page.getByRole('slider', { name: /^Juego/ });
     const voiceSlider = page.getByRole('slider', { name: /^Voces/ });
     await expect(gameSlider).toHaveValue('100');
@@ -291,7 +337,7 @@ test.describe('Full POV simplified constructor', () => {
     await expect(page.getByText('Voces · 120%')).toBeVisible();
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
     await expect(voiceSlider).toBeDisabled();
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => planned.length).toBe(1);
     expect(planned[0]?.audio.game.gain).toBeCloseTo(0.6);
     expect(planned[0]?.audio.voice.gain).toBeCloseTo(1.2);
@@ -314,7 +360,7 @@ test.describe('Full POV simplified constructor', () => {
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated += 1; await route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => generated).toBe(1);
   });
 
@@ -330,7 +376,7 @@ test.describe('Full POV simplified constructor', () => {
     });
     await gotoStudio(page, PRODUCE_FULL);
     const retry = page.getByRole('button', { name: 'Reintentar conexión', exact: true });
-    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    const create = page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true });
     await expect(retry).toBeVisible();
     await expect(create).toBeDisabled();
     await retry.click();
@@ -354,7 +400,7 @@ test.describe('Full POV simplified constructor', () => {
     await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: 'No se encontró el crosshair del jugador.' })).toBeVisible();
     await expect(page.getByRole('alert').filter({ hasText: 'El plan tiene bloqueos o está incompleto.' })).toBeVisible();
     expect(generated).toBe(0);
@@ -376,7 +422,7 @@ test.describe('Full POV simplified constructor', () => {
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: 'f'.repeat(64) } } } });
     expect(planned).toBe(1);
   });
@@ -389,7 +435,7 @@ test.describe('Full POV simplified constructor', () => {
     await page.route(`**/api/demos/${JOB}/full-demo/plan`, (route) => { if (route.request().method() === 'POST') planned += 1; return route.fallback(); });
     await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { approval: { approved_plan_hash: document.plan_hash } } } });
     expect(planned).toBe(0);
   });
@@ -410,15 +456,15 @@ test.describe('Full POV simplified constructor', () => {
     await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir voces del equipo', exact: true }).uncheck();
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => held).toBe(true);
     await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
     await page.waitForTimeout(700);
     expect(generated).toBe(0);
     await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
-    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    const create = page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true });
     await expect(create).toBeEnabled();
-    await expect(page.getByText('Preparando Full Demo…', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Preparando vídeo largo…', { exact: true })).toHaveCount(0);
     await create.click();
     await expect.poll(() => generated).toBeGreaterThan(0);
   });
@@ -430,22 +476,22 @@ test.describe('Full POV simplified constructor', () => {
     await stubParsedMatch(page, document);
     await page.route(`**/api/demos/${JOB}/generate`, (route) => { generated += 1; return route.fulfill({ status: 202, json: { accepted: true } }); });
     await gotoStudio(page, PRODUCE_FULL);
-    await expect(page.getByRole('button', { name: 'Crear Full Demo', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true })).toBeEnabled();
     await page.route(`**/api/demos/${JOB}/status`, async (route) => {
       statusHeld = true;
       await new Promise((resolve) => setTimeout(resolve, 500));
       return route.fallback();
     });
-    await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+    await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
     await expect.poll(() => statusHeld).toBe(true);
     await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
     await page.waitForTimeout(700);
     expect(generated).toBe(0);
-    await expect(page.getByText('Full Demo en cola', { exact: true })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Prepara tu Short', exact: true })).toBeVisible();
+    await expect(page.getByText('Vídeo largo en cola', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: PRODUCE_SHORT_TITLE, exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Vídeo largo 16:9', exact: true }).click();
-    const create = page.getByRole('button', { name: 'Crear Full Demo', exact: true });
+    const create = page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true });
     await expect(create).toBeEnabled();
-    await expect(page.getByText('Preparando Full Demo…', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Preparando vídeo largo…', { exact: true })).toHaveCount(0);
   });
 });

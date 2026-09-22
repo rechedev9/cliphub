@@ -4,8 +4,10 @@ import {
   ANTICHEAT_VERDICT,
   AnticheatServiceError,
   VERDICT_LABEL,
+  anticheatErrorMessage,
   fetchAnticheat,
   fetchDossier,
+  isDemoStillIngesting,
   isReviewable,
   startAnticheat,
   type AnticheatVerdict,
@@ -136,4 +138,30 @@ test('the dossier is fetched per player and carries its reporting policy', async
   } finally {
     stub.restore();
   }
+});
+
+test('request failures become Spanish copy tied to the action that failed', () => {
+  const conflict = new AnticheatServiceError('demo is still being ingested', 'http_409');
+  const missing = new AnticheatServiceError('not found', 'http_404');
+  const cases: Array<{ name: string; err: unknown; action: 'start' | 'load' | 'dossier'; want: RegExp }> = [
+    { name: 'offline', err: new AnticheatServiceError('x', SERVICE_UNAVAILABLE_CODE), action: 'load', want: /no responde/ },
+    { name: 'start while ingesting', err: conflict, action: 'start', want: /aún se está importando/ },
+    { name: 'dossier before ready', err: conflict, action: 'dossier', want: /aún no ha terminado/ },
+    { name: 'dossier unknown player', err: missing, action: 'dossier', want: /no aparece/ },
+    { name: 'deleted demo', err: missing, action: 'load', want: /ya no está/ },
+    { name: 'unknown error', err: new Error('boom'), action: 'start', want: /No se pudo completar/ },
+  ];
+  for (const tc of cases) {
+    const got = anticheatErrorMessage(tc.err, tc.action);
+    assert.match(got, tc.want, tc.name);
+    assert.doesNotMatch(got, /ingested|not found|boom/, tc.name);
+  }
+});
+
+test('only the roster-scan statuses block a screening', () => {
+  assert.equal(isDemoStillIngesting('queued'), true);
+  assert.equal(isDemoStillIngesting('scanning'), true);
+  assert.equal(isDemoStillIngesting('failed'), false);
+  assert.equal(isDemoStillIngesting('scanned'), false);
+  assert.equal(isDemoStillIngesting(undefined), false);
 });

@@ -10,21 +10,22 @@ type GlyphBand = { share: number; kind: 'cam' | 'game' };
  * model of the output rather than a decorative icon.
  */
 const VARIANT_BANDS = {
+  // Default: 768 px camera over 1152 px gameplay.
   'streamer-vertical-stack-40-60': [
     { share: 40, kind: 'cam' },
     { share: 60, kind: 'game' },
   ],
+  // Legacy stack: 520 px camera over 1400 px gameplay.
   'streamer-vertical-stack': [
-    { share: 26, kind: 'cam' },
-    { share: 48, kind: 'game' },
-    { share: 26, kind: 'cam' },
+    { share: 27, kind: 'cam' },
+    { share: 73, kind: 'game' },
   ],
   'streamer-fullframe-nocam': [{ share: 100, kind: 'game' }],
 } as const satisfies Record<StreamVariant, readonly GlyphBand[]>;
 
 /**
- * A 9:16 plate showing the facecam bands over the gameplay plane. `md` floats
- * the cam bands in a perspective box (multiplied by `--shell-depth`, so reduced
+ * A 9:16 plate showing the facecam band over the gameplay plane. `md` floats
+ * the cam band in a perspective box (multiplied by `--shell-depth`, so reduced
  * motion and the efficiency profile flatten it); `sm` is the flat 9×16 mark
  * for a segmented control. Purely decorative: the control carries the label.
  */

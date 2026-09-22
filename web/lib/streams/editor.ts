@@ -9,6 +9,21 @@ export const STREAM_STEP_LABEL = {
   review: 'Revisar y exportar',
   results: 'Guardar vídeos',
 } as const satisfies Record<StreamStep, string>;
+export const STREAM_IMPORT_STEP_LABEL = 'Importar vídeo';
+/**
+ * The whole stream workflow as the /streams landing numbers it. Import is step
+ * 1 there, so the editor rail continues at 2 with the same names.
+ */
+export const STREAM_WORKFLOW_STEPS: readonly string[] = [
+  STREAM_IMPORT_STEP_LABEL,
+  STREAM_STEP_LABEL.cuts,
+  STREAM_STEP_LABEL.layout,
+  STREAM_STEP_LABEL.review,
+  STREAM_STEP_LABEL.results,
+];
+function workflowNumber(step: StreamStep): string {
+  return String(STREAM_WORKFLOW_STEPS.indexOf(STREAM_STEP_LABEL[step]) + 1);
+}
 export type StreamStepEntry = {
   key: StreamStep;
   number: string;
@@ -44,7 +59,7 @@ export function streamEditorSteps({
   const steps: StreamStepEntry[] = [
     {
       key: 'cuts',
-      number: '1',
+      number: workflowNumber('cuts'),
       label: STREAM_STEP_LABEL.cuts,
       detail: shortsWord(plan.clips.length),
       done: plan.clips.length > 0,
@@ -52,7 +67,7 @@ export function streamEditorSteps({
     },
     {
       key: 'layout',
-      number: '2',
+      number: workflowNumber('layout'),
       label: STREAM_STEP_LABEL.layout,
       detail: faceReady ? streamVariantLabel(plan) : 'Ajusta la cámara',
       done: faceReady,
@@ -60,7 +75,7 @@ export function streamEditorSteps({
     },
     {
       key: 'review',
-      number: '3',
+      number: workflowNumber('review'),
       label: STREAM_STEP_LABEL.review,
       detail: 'Un vídeo por momento',
       done: videoCount > 0 && !stale,
@@ -73,7 +88,7 @@ export function streamEditorSteps({
     else if (stale) resultDetail = 'Hay cambios sin exportar';
     steps.push({
       key: 'results',
-      number: '4',
+      number: workflowNumber('results'),
       label: STREAM_STEP_LABEL.results,
       detail: rendering ? 'Creando vídeos…' : resultDetail,
       done: videoCount > 0 && !rendering && !stale,

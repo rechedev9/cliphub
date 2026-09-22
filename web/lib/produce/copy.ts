@@ -7,10 +7,22 @@ export const PRODUCE_MATCH_MISSING = {
 /** `failed` partida: the orchestrator gave up on the demo; nothing can be produced from it. */
 export const PRODUCE_MATCH_FAILED_TITLE = 'La demo no se pudo procesar';
 
+/** Browser titles of the producer route, one per format. */
+export const PRODUCE_DOCUMENT_TITLE = { short: 'Nuevo Short', full: 'Nuevo vídeo largo' } as const;
+
+export const PRODUCE_DRAFT_RESET = 'Empezar de cero';
+
 export const PRODUCE_SHORT_TITLE = 'Prepara tu Short';
 export const PRODUCE_SHORT_EMPTY_HINT = 'Elige al menos una jugada';
+/** The Short draft lives in sessionStorage; the long-video one in localStorage, so it outlives the session. */
 export const PRODUCE_SHORT_DRAFT_RESTORED = 'Configuración recuperada de tu última visita en esta sesión.';
-export const PRODUCE_SHORT_DRAFT_RESET = 'Empezar de cero';
+export const PRODUCE_SHORT_DRAFT_RESET = PRODUCE_DRAFT_RESET;
+
+/** The long-form flow is "vídeo largo" everywhere the user reads it; "Full Demo" stays internal. */
+export const PRODUCE_FULL_TITLE = 'Prepara tu vídeo largo';
+export const PRODUCE_FULL_DRAFT_RESTORED = 'Configuración recuperada de tu última visita.';
+export const PRODUCE_FULL_CTA = 'Crear vídeo largo';
+export const PRODUCE_FULL_QUEUE_CTA = 'Poner vídeo largo en cola';
 
 /** A poll tick failed while the partida is already on screen: warn, keep the content. */
 export const PRODUCE_POLL_ERROR = 'No se pudo actualizar esta partida. Seguimos mostrando los últimos datos cargados.';

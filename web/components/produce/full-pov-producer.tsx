@@ -11,6 +11,8 @@ import {
   approveFullDemo, bumperSummary, currentFullDemoOptions, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlayLabel, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, loadFullDemoPlan, saveFullDemoPlan,
   FULL_DEMO_CAPTURE_VARIANT, type FullDemoDocument, type FullDemoOptions,
 } from '@/lib/full-demo-plan';
+import { FULL_DEMO_MISSING_FILES, hasMissingFullDemoFiles } from '@/lib/produce/full-demo-requirements';
+import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_FULL_QUEUE_CTA, PRODUCE_FULL_TITLE } from '@/lib/produce/copy';
 import { Button } from '@/components/ui/button';
 import { ProduceFooter } from './produce-footer';
 import { FullDemoGroup } from './full-demo-fields';
@@ -21,6 +23,9 @@ import { FullDemoTransitions } from './full-demo-transitions';
 import { FullDemoHud } from './full-demo-hud';
 import { customHudLabel } from '@/lib/custom-hud';
 
+/** Roster and scoreboard keep ClipHub's own palette whatever the HUD; the demo origin picks their layout. */
+const OVERLAYS_NOTE = 'Jugadores y marcador con el diseño de ClipHub, independiente del HUD. El origen de la demo decide su formato.';
+
 export type FullPovProducerProps = {
   active: boolean; matchId: string; match: Match; rounds: Play[]; recapFailure: Exclude<FullDemoLoadFailure, null> | null; recBusy: boolean; seriesId: string | null;
 };
@@ -30,6 +35,12 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   const returnHref = seriesId ? seriesHref(seriesId) : hubHref({ open: matchId });
   const [document, setDocument] = useState<FullDemoDocument | null>(null);
   const [options, setOptions] = useState<FullDemoOptions | null>(null);
+  /** What "Empezar de cero" goes back to: the saved plan's options, else the defaults. */
+  const [baseline, setBaseline] = useState<FullDemoOptions | null>(null);
+  /** A local draft differing from the baseline was restored on load. */
+  const [restored, setRestored] = useState(false);
+  /** A create attempt hit a missing sponsor/intro/outro file: its hint now reads as an error. */
+  const [showMissing, setShowMissing] = useState(false);
   const [busy, setBusy] = useState<'load' | 'plan' | 'create' | 'asset' | null>('load');
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -39,17 +50,19 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
 
   useEffect(() => {
     const controller = new AbortController();
-    setBusy('load'); setError(null); setDocument(null); setOptions(null);
+    setBusy('load'); setError(null); setDocument(null); setOptions(null); setBaseline(null); setRestored(false); setShowMissing(false);
     void loadFullDemoPlan(matchId, controller.signal).then((loaded) => {
       if (controller.signal.aborted) return;
-      let initial = loaded.document?.options ?? loaded.defaults;
+      const base = currentFullDemoOptions(loaded.document?.options ?? loaded.defaults, true);
+      let draft: unknown = null;
       try {
         const raw = localStorage.getItem(draftKey);
-        const draft: unknown = raw ? JSON.parse(raw) : null;
-        if (isFullDemoOptions(draft)) initial = draft;
+        draft = raw ? JSON.parse(raw) : null;
       } catch { }
-      initial = currentFullDemoOptions(initial, true);
-      setDocument(loaded.document); setOptions(initial); setBusy(null);
+      const initial = isFullDemoOptions(draft) ? currentFullDemoOptions(draft, true) : base;
+      // Saving a plan also stores its options as the draft; only a real divergence is "recovered".
+      setRestored(fullDemoOptionsKey(initial) !== fullDemoOptionsKey(base));
+      setDocument(loaded.document); setBaseline(base); setOptions(initial); setBusy(null);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       setError(failure instanceof Error ? failure.message : 'No se pudo cargar el plan.'); setBusy(null);
@@ -90,7 +103,13 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     setOptions(next);
     try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch { }
   }
+  function startOver(): void {
+    if (!baseline || busy) return;
+    try { localStorage.removeItem(draftKey); } catch { }
+    setOptions(baseline); setRestored(false); setShowMissing(false); setError(null);
+  }
   const ready = options !== null && busy === null && isFullDemoOptions(options);
+  const missingFiles = options !== null && hasMissingFullDemoFiles(options);
   const dirty = options !== null && (document === null || fullDemoOptionsKey(document.options) !== fullDemoOptionsKey(options));
   const rounds = document?.rounds ?? [];
   const savedPlanStatus = recBusy ? 'CS2 ocupado: entrará en cola' : 'Plan guardado';
@@ -123,6 +142,10 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   }
   async function create(): Promise<void> {
     if (!options || busy) return;
+    if (hasMissingFullDemoFiles(options)) {
+      setShowMissing(true);
+      return;
+    }
     const controller = new AbortController();
     createRequest.current = controller;
     setBusy('create'); setError(null);
@@ -131,7 +154,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
       if (controller.signal.aborted) return;
       await api.createVideo({ matchId, playIds: planned.rounds.map((round) => round.round_id), mode: 'clean', variant: FULL_DEMO_CAPTURE_VARIANT, editConfig: fullDemoPlanEdit(approveFullDemo(planned)), signal: controller.signal });
       if (controller.signal.aborted) return;
-      toast('Full Demo en cola', { description: recBusy ? 'Empezará cuando quede libre CS2.' : 'Sigue el progreso en Demos y vídeos.' });
+      toast('Vídeo largo en cola', { description: recBusy ? 'Empezará cuando quede libre CS2.' : 'Sigue el progreso en Demos y vídeos.' });
       router.push(returnHref);
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo encolar el vídeo.'); setBusy(null); }
@@ -147,43 +170,54 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     { label: 'Transiciones', value: options.transitions?.enabled ? 'Dinámico' : 'Corte limpio' },
     { label: 'Sponsor', value: options.sponsor.enabled ? 'Incluido' : 'Desactivado' },
     { label: 'Intro y outro', value: bumperSummary(options) },
-    { label: 'Overlays', value: `${fullDemoOverlayLabel(fullDemoOverlaySource(options))} · neón violeta` },
+    { label: 'Overlays', value: fullDemoOverlayLabel(fullDemoOverlaySource(options)) },
   ] : [];
 
   return <>
     <div className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
-      <h1 className="order-first font-display text-display-sm font-bold uppercase text-fg-1">Full POV Chill</h1>
+      <p className="wrap-anywhere font-mono text-meta uppercase tracking-ultra text-fg-3">Nuevo vídeo largo · {match.map}{match.player ? ` · ${match.player}` : ''}</p>
+      <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_FULL_TITLE}</h1>
       <p className="w-full text-body-sm text-fg-2">Todas las rondas con la mira del jugador y el audio de la partida.</p>
+      {restored ? (
+        <p role="status" className="w-full text-body-sm text-fg-3">
+          {PRODUCE_FULL_DRAFT_RESTORED}{' '}
+          <button type="button" disabled={busy !== null} onClick={startOver} className="text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+            {PRODUCE_DRAFT_RESET}
+          </button>
+        </p>
+      ) : null}
     </div>
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando la preparación guardada…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión</Button> : null}
-    {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="grid min-w-0 items-start gap-4 @[56rem]/content:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <FullDemoHud options={options} map={match.map} onChange={change} />
-      <div className="grid min-w-0 items-start gap-4 @[40rem]/content:grid-cols-2">
-        <div className="min-w-0 space-y-4">
-          <FullDemoAudio options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
-          <FullDemoTransitions options={options} onChange={change} />
-        </div>
-        <div className="min-w-0 space-y-4">
-          <FullDemoGroup title="Overlays" note="Jugadores y marcador en neón violeta.">
-            <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
-          </FullDemoGroup>
-          <FullDemoGroup title="Sponsor" note="Opcional. Añade un vídeo para incluirlo."><FullDemoSponsor options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} onPrepareRoundBoundaries={prepareSponsorRoundBoundaries} /></FullDemoGroup>
-          <FullDemoGroup title="Intro y outro" note="Opcional. Un clip antes de la partida y otro al final."><FullDemoBumpers options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></FullDemoGroup>
-        </div>
+    {/*
+      The HUD leads full-width. The fixed cards (sound, transitions, overlays) stack in one
+      column; the optional ones, which grow with their upload forms, fill the other(s).
+      2 columns: HUD on top, fixed cards | sponsor over intro/outro.
+      3 columns: HUD (2) with the fixed cards beside it, sponsor | intro/outro right under the HUD.
+    */}
+    {options ? <fieldset disabled={busy !== null} inert={busy !== null}
+      className="grid min-w-0 items-start gap-4 @[40rem]/content:grid-cols-2 @[40rem]/content:grid-rows-[auto_auto_1fr] @[64rem]/content:grid-cols-3 @[64rem]/content:grid-rows-[auto_1fr]">
+      <div className="min-w-0 @[40rem]/content:col-span-2"><FullDemoHud options={options} map={match.map} onChange={change} /></div>
+      <div className="min-w-0 space-y-4 @[40rem]/content:row-span-2 @[64rem]/content:col-start-3 @[64rem]/content:row-start-1">
+        <FullDemoAudio options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
+        <FullDemoTransitions options={options} onChange={change} />
+        <FullDemoGroup title="Overlays" note={OVERLAYS_NOTE}>
+          <FullDemoOverlays options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
+        </FullDemoGroup>
       </div>
+      <FullDemoGroup title="Sponsor" note="Opcional. Añade un vídeo para incluirlo."><FullDemoSponsor options={options} document={document} showMissing={showMissing} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} onPrepareRoundBoundaries={prepareSponsorRoundBoundaries} /></FullDemoGroup>
+      <FullDemoGroup title="Intro y outro" note="Opcional. Un clip antes de la partida y otro al final."><FullDemoBumpers options={options} document={document} showMissing={showMissing} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} /></FullDemoGroup>
     </fieldset> : null}
     <div className="space-y-3">
       {busy === 'asset' ? <p role="status" className="text-body-sm text-fg-2">Subiendo y verificando el archivo…</p> : null}
       {(document?.blockers ?? []).map((item, index) => <p key={`${item.code}-${index}`} role="alert" className="border border-destructive/40 bg-destructive/10 p-3 text-body-sm text-destructive">{item.message}{item.round_id ? ` (${item.round_id})` : ''}</p>)}
       {!dirty ? (document?.warnings ?? []).map((item, index) => <p key={`${item.code}-${index}`} className="text-body-sm text-fg-2">{item.message}</p>) : null}
-      {document ? <a href={`/api/demos/${matchId}/full-demo/plans/${document.plan_id}`} target="_blank" rel="noreferrer" className="text-meta text-fg-3 underline">Documento del plan · {document.plan_hash.slice(0, 12)}</a> : null}
     </div>
-    <ProduceFooter tone="full" eyebrow="Full POV Chill · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
+    <ProduceFooter tone="full" eyebrow="Vídeo largo · 16:9" summary={document ? `${rounds.length} rondas · ${dirty ? 'Se preparará al crear' : savedPlanStatus}` : null}
       hint="Crear comprueba las rondas y bloqueos antes de encolar el vídeo." briefItems={briefItems}
       readyHint={dirty ? 'Se preparará al crear.' : undefined}
-      ready={ready} backHref={returnHref} busy={busy !== null} error={error}
-      cta={<Button variant="stream" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando Full Demo…" onClick={() => void create()}>{recBusy ? 'Poner Full Demo en cola' : 'Crear Full Demo'}</Button>} />
+      ready={ready} backHref={returnHref} busy={busy !== null} error={error ?? (showMissing && missingFiles ? FULL_DEMO_MISSING_FILES : null)}
+      cta={<Button variant="hero" size="sm" disabled={!ready} loading={busy === 'create'} loadingText="Preparando vídeo largo…" onClick={() => void create()}
+        className="neon-notch shrink-0 focus-visible:-outline-offset-4">{recBusy ? PRODUCE_FULL_QUEUE_CTA : PRODUCE_FULL_CTA}</Button>} />
   </>;
 }

@@ -279,6 +279,8 @@ export type JobStatusView = {
 /** `jobId` links a reel back to the parsed demo it was forged from (the series view groups reels per map); absent only on mock/demo seed videos. */
 export type Video = {
   id: string;
+  /** Delivered render found on disk without a local reel intent: view, download and delete only. */
+  recovered?: boolean;
   jobId?: string;
   title: string;
   map: string;

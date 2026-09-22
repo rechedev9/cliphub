@@ -17,10 +17,25 @@ export type NormalizedRect = { x: number; y: number; width: number; height: numb
 
 export type StreamVariant = 'streamer-vertical-stack-40-60' | 'streamer-vertical-stack' | 'streamer-fullframe-nocam';
 
+/**
+ * Layout picker copy. The shares are the output bands in
+ * internal/streamclips/variants.go: 768/1152 px for the 40/60 default and
+ * 520/1400 px (27/73) for the legacy stack, both a single camera band on top.
+ */
 export const STREAM_VARIANTS: { value: StreamVariant; label: string; subtitle: string; needsFaceCrop: boolean }[] = [
-  { value: 'streamer-vertical-stack-40-60', label: 'Facecam 40', subtitle: 'Gameplay 60', needsFaceCrop: true },
-  { value: 'streamer-vertical-stack', label: 'Stack', subtitle: 'Cam / juego / chat', needsFaceCrop: true },
-  { value: 'streamer-fullframe-nocam', label: 'Full-frame', subtitle: 'Sin facecam', needsFaceCrop: false },
+  {
+    value: 'streamer-vertical-stack-40-60',
+    label: 'Cámara grande',
+    subtitle: 'Cámara arriba (40 %), partida debajo',
+    needsFaceCrop: true,
+  },
+  {
+    value: 'streamer-vertical-stack',
+    label: 'Cámara compacta',
+    subtitle: 'Cámara arriba (27 %), más partida',
+    needsFaceCrop: true,
+  },
+  { value: 'streamer-fullframe-nocam', label: 'Solo juego', subtitle: 'Partida a pantalla completa', needsFaceCrop: false },
 ];
 
 /** Burned-in text line; times are source seconds from clip start. */
@@ -165,11 +180,12 @@ export interface StreamsApiClient {
   deliveryUrl(id: string, variant: StreamVariant, name: string): string;
 }
 
-/** Throws an Error (carrying any upstream `code`) for a non-2xx response. */
+/** Throws an Error (carrying any upstream `code` and the HTTP `status`) for a non-2xx response. */
 async function throwResponseError(res: Response): Promise<never> {
   const body = (await res.json().catch(() => null)) as { error?: unknown; code?: unknown } | null;
   const message = body && typeof body.error === 'string' ? body.error : `request failed (${res.status})`;
-  const err = new Error(message) as Error & { code?: string };
+  const err = new Error(message) as Error & { code?: string; status?: number };
+  err.status = res.status;
   if (body && typeof body.code === 'string') err.code = body.code;
   throw err;
 }

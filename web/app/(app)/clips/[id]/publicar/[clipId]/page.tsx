@@ -113,7 +113,7 @@ export default function PublishPage({ params }: { params: Promise<{ id: string; 
   const isShort = type === OUTPUT_TYPE.short;
   const reviewRequired = video.status === 'review_required';
   // `outputType` already reads `isLandscapeRecap`: a Short is exactly a non-recap.
-  const canAddMusic = ready && isShort && !reviewRequired;
+  const canAddMusic = ready && isShort && !reviewRequired && !video.recovered;
   const map = video.map || match?.map || '';
   const score = (video.score || match?.score || '').trim();
   const player = video.targetName ?? match?.player ?? '';

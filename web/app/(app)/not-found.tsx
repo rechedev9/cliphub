@@ -1,8 +1,11 @@
 import type { ReactElement } from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
+
+export const metadata: Metadata = { title: 'Ruta desconocida' };
 
 /**
  * 404 *inside* the shell. The root `not-found.tsx` renders under
@@ -29,10 +32,7 @@ export default function AppNotFound(): ReactElement {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button asChild>
-            <Link href="/clips">Ir a partidas</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/clips?vista=clips">Ver biblioteca</Link>
+            <Link href="/clips">Ir a Clips y vídeos</Link>
           </Button>
         </div>
       </section>

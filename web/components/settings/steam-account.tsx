@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { KeyRound } from 'lucide-react';
@@ -16,8 +16,12 @@ import {
   clearSteamAccount,
   loadSteamAccount,
   saveSteamAccount,
+  steamAccountFailure,
   syncSteamMatches,
+  validateSteamAccountInput,
   type SteamAccount as SteamAccountState,
+  type SteamAccountField,
+  type SteamAccountFieldErrors,
 } from '@/lib/api/steam-account';
 import { importShareCode } from '@/lib/api/steam-import';
 import { CLIPS_HREF, NEW_DEMO_HREF } from '@/lib/clips/routes';
@@ -35,6 +39,17 @@ export function SteamAccount(): ReactNode {
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState<Pending>(null);
   const [downloadCode, setDownloadCode] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<SteamAccountFieldErrors>({});
+  const syncHintId = useId();
+
+  function clearFieldError(field: SteamAccountField): void {
+    setFieldErrors((current) => {
+      if (current[field] === undefined) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
 
   async function refresh(): Promise<void> {
     const result = await loadSteamAccount();
@@ -47,7 +62,7 @@ export function SteamAccount(): ReactNode {
       setOffline(true);
       return;
     }
-    setError(result.message);
+    setError(steamAccountFailure(result, 'load').message);
   }
 
   useEffect(() => {
@@ -57,14 +72,20 @@ export function SteamAccount(): ReactNode {
   async function onSave(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    setPending({ kind: 'save' });
-    setError(undefined);
-    const result = await saveSteamAccount({
+    const input = {
       steamId: String(form.get('steamId') ?? ''),
       authCode: String(form.get('authCode') ?? ''),
       apiKey: String(form.get('apiKey') ?? ''),
       knownCode: String(form.get('knownCode') ?? ''),
-    });
+    };
+    setError(undefined);
+    // Same rules the orchestrator applies, checked first so an empty or
+    // malformed form never becomes a PUT whose English error text reaches the UI.
+    const invalid = validateSteamAccountInput(input, account);
+    setFieldErrors(invalid);
+    if (Object.keys(invalid).length > 0) return;
+    setPending({ kind: 'save' });
+    const result = await saveSteamAccount(input);
     setPending(null);
     if (result.kind === 'ok') {
       setAccount(result.account);
@@ -74,7 +95,17 @@ export function SteamAccount(): ReactNode {
       setOffline(true);
       return;
     }
-    setError(result.message);
+    showFailure(result, 'save');
+  }
+
+  function showFailure(failure: { message: string; code?: string }, action: 'save' | 'sync' | 'clear'): void {
+    const mapped = steamAccountFailure(failure, action);
+    const field = mapped.field;
+    if (field) {
+      setFieldErrors((current) => ({ ...current, [field]: mapped.message }));
+      return;
+    }
+    setError(mapped.message);
   }
 
   async function onSync(): Promise<void> {
@@ -90,7 +121,7 @@ export function SteamAccount(): ReactNode {
       setOffline(true);
       return;
     }
-    setError(result.message);
+    showFailure(result, 'sync');
   }
 
   async function onClear(): Promise<void> {
@@ -102,7 +133,11 @@ export function SteamAccount(): ReactNode {
       setAccount(result.account);
       return;
     }
-    setError(result.kind === 'offline' ? 'El servicio local no está en marcha.' : result.message);
+    if (result.kind === 'offline') {
+      setError('El servicio local no está en marcha.');
+      return;
+    }
+    showFailure(result, 'clear');
   }
 
   async function onDownload(code: string): Promise<void> {
@@ -155,11 +190,12 @@ export function SteamAccount(): ReactNode {
       </p>
 
       <form key={account?.steamId ?? 'empty'} onSubmit={(event) => { void onSave(event); }} className="flex flex-col gap-4">
-        <Field label="SteamID64" hint="El número de 17 cifras de tu perfil, o la URL /profiles/…">
+        <Field label="SteamID64" hint="El número de 17 cifras de tu perfil, o la URL /profiles/…" error={fieldErrors.steamId}>
           {(control) => (
             <Input
               {...control}
               name="steamId"
+              onChange={() => clearFieldError('steamId')}
               defaultValue={account?.steamId ?? ''}
               autoComplete="off"
               spellCheck={false}
@@ -178,9 +214,18 @@ export function SteamAccount(): ReactNode {
               . {account?.authCodeSet ? 'Ya hay uno guardado; déjalo vacío para no cambiarlo.' : null}
             </>
           )}
+          error={fieldErrors.authCode}
         >
           {(control) => (
-            <Input {...control} name="authCode" autoComplete="off" spellCheck={false} className="font-mono" />
+            <Input
+              {...control}
+              name="authCode"
+              onChange={() => clearFieldError('authCode')}
+              autoComplete="off"
+              spellCheck={false}
+              className="font-mono"
+              placeholder="AAAA-AAAAA-AAAA"
+            />
           )}
         </Field>
         <Field
@@ -194,16 +239,22 @@ export function SteamAccount(): ReactNode {
               . {account?.apiKeySet ? 'Ya hay una guardada; déjala vacía para no cambiarla.' : null}
             </>
           )}
+          error={fieldErrors.apiKey}
         >
           {(control) => (
-            <Input {...control} name="apiKey" type="password" autoComplete="off" />
+            <Input {...control} name="apiKey" type="password" autoComplete="off" onChange={() => clearFieldError('apiKey')} />
           )}
         </Field>
-        <Field label="Un código de partida conocido" hint="El primero que copies de CS2. Sirve para arrancar la cadena.">
+        <Field
+          label="Un código de partida conocido"
+          hint="El primero que copies de CS2. Sirve para arrancar la cadena."
+          error={fieldErrors.knownCode}
+        >
           {(control) => (
             <Input
               {...control}
               name="knownCode"
+              onChange={() => clearFieldError('knownCode')}
               defaultValue={account?.knownCode ?? ''}
               autoComplete="off"
               spellCheck={false}
@@ -213,25 +264,39 @@ export function SteamAccount(): ReactNode {
           )}
         </Field>
         {error ? <p role="alert" className="text-body-sm text-destructive">{error}</p> : null}
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" loading={pending?.kind === 'save'} loadingText="GUARDANDO">
-            GUARDAR
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!account?.historyConfigured}
-            loading={pending?.kind === 'sync'}
-            loadingText="SINCRONIZANDO"
-            onClick={() => { void onSync(); }}
-          >
-            SINCRONIZAR PARTIDAS
-          </Button>
-          {account?.historyConfigured ? (
-            <Button type="button" variant="ghost" loading={pending?.kind === 'clear'} onClick={() => { void onClear(); }}>
-              DESCONECTAR
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" loading={pending?.kind === 'save'} loadingText="Guardando…">
+              Guardar
             </Button>
-          ) : null}
+            {/*
+              Outline with a dashed edge when disabled: the secondary fill at 50%
+              opacity read as "muted but clickable". The reason sits under the
+              row rather than in a tooltip, since a disabled button gets no hover.
+            */}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!account?.historyConfigured}
+              aria-describedby={account?.historyConfigured ? undefined : syncHintId}
+              loading={pending?.kind === 'sync'}
+              loadingText="Sincronizando…"
+              className="disabled:border-dashed"
+              onClick={() => { void onSync(); }}
+            >
+              Sincronizar partidas
+            </Button>
+            {account?.historyConfigured ? (
+              <Button type="button" variant="ghost" loading={pending?.kind === 'clear'} onClick={() => { void onClear(); }}>
+                Desconectar
+              </Button>
+            ) : null}
+          </div>
+          {account?.historyConfigured ? null : (
+            <p id={syncHintId} className="text-body-sm text-fg-3">
+              Guarda primero tu SteamID64, el código de autenticación y la clave de la Web API para sincronizar tus partidas.
+            </p>
+          )}
         </div>
       </form>
 
@@ -247,10 +312,10 @@ export function SteamAccount(): ReactNode {
                 type="button"
                 size="sm"
                 loading={pending?.kind === 'download' && pending.code === match.shareCode}
-                loadingText="ENCOLANDO"
+                loadingText="Encolando…"
                 onClick={() => { void onDownload(match.shareCode); }}
               >
-                DESCARGAR
+                Descargar
               </Button>
             </li>
           ))}

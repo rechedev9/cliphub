@@ -60,6 +60,36 @@ test.describe('stream import and projects', () => {
     await expect(field).not.toHaveAttribute('aria-invalid');
   });
 
+  test('rejects a non-provider URL locally and maps server errors to Spanish copy', async ({ page }) => {
+    await stubStreams(page, []);
+    const posts: string[] = [];
+    let rejectWith: { status: number; json: unknown } | null = null;
+    await page.route('**/api/streams', (route) => {
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { jobs: [] } });
+      posts.push(route.request().postData() ?? '');
+      return route.fulfill(rejectWith ?? { json: JOB });
+    });
+    await gotoStudio(page, '/streams');
+    const field = page.getByLabel('Enlace del vídeo de Twitch, YouTube o Kick');
+    const importButton = page.getByRole('button', { name: 'Importar vídeo', exact: true });
+    for (const value of ['not a url', 'https://example.com/clip']) {
+      await field.fill(value);
+      await importButton.click();
+      await expect(field).toHaveAttribute('aria-invalid', 'true');
+      await expect(page.locator('#stream-url-error')).toContainText('Esa URL no es un clip o VOD compatible');
+    }
+    expect(posts).toHaveLength(0);
+
+    rejectWith = { status: 400, json: { error: 'invalid stream job JSON' } };
+    await field.fill(JOB.source_url ?? '');
+    await importButton.click();
+    await expect(page.getByRole('alert').filter({
+      hasText: 'No se pudo importar el vídeo. Revisa el enlace e inténtalo de nuevo.',
+    })).toBeVisible();
+    await expect(page.getByText('invalid stream job JSON')).toHaveCount(0);
+    expect(posts).toHaveLength(1);
+  });
+
   test('the file chooser sends an MP4 and the shared optional title', async ({ page }) => {
     await stubStreams(page);
     await gotoStudio(page, '/streams');
@@ -82,7 +112,7 @@ test.describe('stream import and projects', () => {
     await page.route('**/api/streams', async (route) => {
       if (route.request().method() === 'POST') {
         await uploadPending;
-        return route.fulfill({ status: 400, json: { error: 'Prueba con otro MP4.' } });
+        return route.fulfill({ status: 400, json: { error: 'missing video file: http: no such file' } });
       }
       return route.fulfill({ json: { jobs: [JOB] } });
     });
@@ -105,7 +135,10 @@ test.describe('stream import and projects', () => {
       finishUpload();
       await transfer.dispose();
     }
-    await expect(page.getByRole('alert').filter({ hasText: 'Prueba con otro MP4.' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({
+      hasText: 'No se pudo procesar ese archivo. Prueba con otro MP4.',
+    })).toBeVisible();
+    await expect(page.getByText('missing video file', { exact: false })).toHaveCount(0);
     await expect(dropzone).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Importar vídeo', exact: true })).toBeEnabled();
   });

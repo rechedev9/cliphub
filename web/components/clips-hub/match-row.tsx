@@ -6,7 +6,6 @@ import { ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   MATCH_ROW_FIRST_CLIP_CTA,
-  MATCH_ROW_FAILED_TITLE,
   MATCH_ROW_UNPICKED_CTA,
   MATCH_ROW_UNPICKED_HINT,
   MATCH_ROW_UNPICKED_TITLE,
@@ -29,7 +28,7 @@ import {
   type HubMatch,
 } from '@/lib/clips/hub';
 import { newDemoHref, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
-import { parseFailureReason } from '@/lib/api/failure-reason';
+import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MapCover } from '@/components/brand/map-cover';
@@ -103,8 +102,14 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
 
           <span className="flex min-w-[160px] flex-1 flex-col justify-center gap-1">
             <span className="truncate font-display text-body-lg font-bold uppercase text-fg-1">{prettyMapName(match.map)}</span>
-            <span className="break-words text-body-sm text-fg-2">
-              {matchMetaParts(match, matchDateLabel(match)).join(' · ')}
+            {/* Each part stays whole so a date never splits across lines; only the separators wrap. */}
+            <span className="text-body-sm text-fg-2">
+              {matchMetaParts(match, matchDateLabel(match)).map((part, index) => (
+                <span key={index}>
+                  {index > 0 ? ' · ' : null}
+                  <span className="whitespace-nowrap">{part}</span>
+                </span>
+              ))}
             </span>
           </span>
 
@@ -166,7 +171,7 @@ function FailedBlock({
   const failure = parseFailureReason(reason, { job: true });
   return (
     <span role="status" className="row-state row-state-block">
-      <span className="font-mono text-meta uppercase tracking-wider text-destructive">{MATCH_ROW_FAILED_TITLE}</span>
+      <span className="font-mono text-meta uppercase tracking-wider text-destructive">{jobFailureTitle(reason)}</span>
       <span className="text-body-sm text-fg-2">{failure.message}</span>
       {shorts.length > 0 || fulls[0] !== undefined ? (
         <span className="flex items-center gap-2">
@@ -272,7 +277,7 @@ function ShortsColumn({ row, onChange }: { row: HubMatch; onChange: () => void }
         <Button asChild variant="outline-primary" size="sm" className="border-dashed">
           <Link href={produceHref(row.match.id, PRODUCE_FORMAT.short)}>
             <Plus aria-hidden />
-            Crear otro Short
+            {row.shorts.length === 0 ? 'Crear Short' : 'Crear otro Short'}
           </Link>
         </Button>
       ) : null}
