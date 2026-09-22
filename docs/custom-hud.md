@@ -1,5 +1,47 @@
 # Custom broadcast HUDs
 
+## Focus player card
+
+Focus adds an eleventh design based on the supplied dark-and-gold reference:
+a single centered lower player card, with name, K/A/D, money, health, armor,
+weapon and ammunition. It replaces the upper roster and lower corner plates.
+The existing ten designs keep their composition and byte-identical previews.
+
+The optional PNG/JPEG portrait (up to 10 MB) is uploaded in the HUD selector.
+Its immutable image reference survives draft migration, planning, approval and
+rendering. A replacement changes the render approval but not the capture hash.
+The editor contains the image in a 116-pixel square above the card's left side,
+bottom aligned, preserving aspect ratio and PNG alpha. With no portrait, a
+CT/T label occupies the slot. Portraits are never inferred from player names.
+
+The movement widget uses the source pawn's recorded
+`m_pMovementServices.m_nButtonDownMaskPrev`. WASD, Shift, Ctrl and Space label
+in-game actions using conventional bindings, not the player's physical keys.
+Only the observed player's movement is stored. Missing values remain unknown;
+dead/inactive players and demos without this property hide the widget instead
+of showing invented inputs. The picker uses explicitly illustrative input.
+The local Anubis demo used in this change has no recorded movement property;
+its real telemetry therefore renders the card without the keyboard.
+
+Renderer `broadcast-hud-v5` and telemetry `broadcast-hud-v3` invalidate old
+render/telemetry caches without changing the clean capture profile. Portrait
+composition is after camera transitions and before global intro/outro effects,
+and only appears during round items.
+
+Local verification on 2026-09-22: renderer/planner/image suites and the Full
+Demo editor, HTTP and worker regression tests passed, as did web unit tests,
+typecheck, targeted lint and the production build. Focus upload, removal,
+reload, enlarged preview and generation requests passed at 390, 1024 and
+1440 pixels. The general constructor suite passed 20/21 tests; the existing
+blocked-localStorage test failed intermittently and reproduced on unmodified
+HEAD (four passes, one failure over five runs).
+
+A five-second sample composed onto the existing clean Anubis capture decoded
+to exactly 300 frames at 1920x1080/60 fps. The new FFmpeg regression verifies
+portrait alpha, aspect ratio and unchanged frame count in both muxed and
+video-only item rendering. Local evidence lives in `.local/focus-hud/`; no
+release or installed-app upgrade was performed.
+
 The reference is a broadcast layout: team score, round clock, living players,
 player cards and observed-player health, armor and weapon information. The
 ten original ClipHub designs are Arena, Apex, Prism, Carbon, Pulse, Royale,

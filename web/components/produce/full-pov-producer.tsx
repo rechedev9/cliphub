@@ -159,7 +159,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
     {busy === 'load' ? <p role="status" className="text-body-sm text-fg-2">Cargando la preparación guardada…</p> : null}
     {options === null && busy === null && error ? <Button variant="secondary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Reintentar conexión</Button> : null}
     {options ? <fieldset disabled={busy !== null} inert={busy !== null} className="grid min-w-0 items-start gap-4 @[56rem]/content:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <FullDemoHud options={options} map={match.map} onChange={change} />
+      <FullDemoHud options={options} map={match.map} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />
       <div className="grid min-w-0 items-start gap-4 @[40rem]/content:grid-cols-2">
         <div className="min-w-0 space-y-4">
           <FullDemoAudio options={options} document={document} onChange={change} onAssetBusy={(value) => setBusy(value ? 'asset' : null)} />

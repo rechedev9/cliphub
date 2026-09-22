@@ -198,6 +198,28 @@
     "loadout_width": 332
   },
   {
+    "id": "focus",
+    "name": "Focus",
+    "description": "Tarjeta inferior centrada, borde dorado y movimiento WASD sincronizado. Retrato propio opcional.",
+    "ct": "85BBDD",
+    "t": "F4BC38",
+    "background": "0B111B",
+    "surface": "26303C",
+    "text": "F7F8FA",
+    "muted": "A0AAB8",
+    "shape": "round",
+    "layout": "focus",
+    "score_width": 0,
+    "focus_x": 636,
+    "focus_y": 928,
+    "focus_width": 648,
+    "accent": "outline",
+    "opacity": 0.97,
+    "loadout_x": 1058,
+    "loadout_y": 971,
+    "loadout_width": 208
+  },
+  {
     "id": "mono",
     "name": "Mono",
     "description": "Monocromo y cifras de alto contraste. Una franja superior y dos placas inferiores discretas.",

@@ -16,6 +16,9 @@ func TestBroadcastLayoutKeepsOneUpperRosterAndFixedPlayerCorners(t *testing.T) {
 	state.Players[1].Ammo, state.Players[1].Reserve = 18, 2
 	state.Players[1].Name = strings.Repeat("W", 120)
 	for _, theme := range Themes() {
+		if theme.Layout != "broadcast" {
+			continue
+		}
 		r, err := NewRenderer(theme.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -68,6 +71,10 @@ func TestReferenceLayoutPaintsOnlyTheUpperStripAndLowerCorners(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	for _, theme := range Themes() {
+		regions := allowed
+		if theme.Layout == "focus" {
+			regions = []image.Rectangle{image.Rect(630, 750, 1290, 1055)}
+		}
 		r, err := NewRenderer(theme.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -76,14 +83,14 @@ func TestReferenceLayoutPaintsOnlyTheUpperStripAndLowerCorners(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		painted := make([]int, len(allowed))
+		painted := make([]int, len(regions))
 		for y := range Height {
 			for x := range Width {
 				if frame.NRGBAAt(x, y).A < 8 {
 					continue
 				}
 				inside := false
-				for i, region := range allowed {
+				for i, region := range regions {
 					if image.Pt(x, y).In(region) {
 						painted[i]++
 						inside = true

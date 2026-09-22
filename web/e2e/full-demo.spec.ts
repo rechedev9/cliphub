@@ -41,6 +41,48 @@ async function stubParsedMatch(page: Page, document: FullDemoDocument | null = e
 
 test.describe('Full POV simplified constructor', () => {
   for (const width of [390, 1024, 1440]) {
+    test(`Focus portrait uploads, persists and reaches generation at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubParsedMatch(page);
+      const portrait = { id: '22222222-2222-4222-8222-222222222222', sha256: 'a'.repeat(64) };
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+      await page.route('**/api/full-demo/overlay-images', async (route) => {
+        expect(route.request().headers()['content-type']).toContain('multipart/form-data');
+        await route.fulfill({ status: 201, json: portrait });
+      });
+      await page.route(`**/api/full-demo/overlay-images/${portrait.id}`, (route) => route.fulfill({ contentType: 'image/png', body: png }));
+      let generated: unknown;
+      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        const body = route.request().postDataJSON();
+        expect(body.options.overlays).toMatchObject({ hud_theme: 'focus', hud_portrait: portrait });
+        await route.fulfill({ status: 201, json: { ...editorial(), options: body.options, plan_hash: 'b'.repeat(64) } });
+      });
+      await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+      await gotoStudio(page, PRODUCE_FULL);
+      await page.getByRole('combobox', { name: 'Diseño', exact: true }).click();
+      await page.getByRole('option', { name: 'Focus', exact: true }).click();
+      await page.getByLabel('Retrato del jugador (opcional)', { exact: true }).setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: png });
+      await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeEnabled();
+      await expect(page.getByRole('img', { name: 'Retrato del jugador', exact: true })).toBeVisible();
+      await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '{}').overlays?.hud_portrait, DRAFT_KEY)).toEqual(portrait);
+      await page.reload();
+      await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Ampliar HUD Focus', exact: true }).click();
+      await expect(page.getByRole('dialog').getByRole('img', { name: 'Retrato del jugador', exact: true })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('focus-preview.png'), animations: 'disabled' });
+      await page.keyboard.press('Escape');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await page.getByRole('button', { name: 'Quitar retrato', exact: true }).click();
+      await expect(page.getByRole('img', { name: 'Retrato del jugador', exact: true })).toHaveCount(0);
+      await page.getByLabel('Retrato del jugador (opcional)', { exact: true }).setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: png });
+      await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeEnabled();
+      await page.getByRole('button', { name: 'Crear Full Demo', exact: true }).click();
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { overlays: { hud_theme: 'focus', hud_portrait: portrait } } } } } });
+    });
+  }
+
+  for (const width of [390, 1024, 1440]) {
     test(`keeps useful choices usable at ${width}px with an unbroken player name`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await stubParsedMatch(page);

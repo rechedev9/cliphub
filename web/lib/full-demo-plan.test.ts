@@ -77,8 +77,8 @@ test('the demo origin owns the overlay format regardless of the custom HUD', () 
   }
 });
 
-test('all ten custom HUDs survive approval, persistence and the render request', () => {
-  assert.equal(CUSTOM_HUD_THEMES.length, 10);
+test('all eleven custom HUDs survive approval, persistence and the render request', () => {
+  assert.equal(CUSTOM_HUD_THEMES.length, 11);
   for (const theme of CUSTOM_HUD_THEMES) {
     const snapshot = fixture();
     const options = snapshot.document.options;
@@ -100,6 +100,26 @@ test('all ten custom HUDs survive approval, persistence and the render request',
     assert.equal(isFullDemoOptions({ ...options, capture: { ...options.capture, hud_profile: profile }, overlays: { ...options.overlays, hud_theme: theme } }), false);
   }
   assert.ok(Boolean(fixture().document.options.overlays.hud_theme));
+});
+
+test('Focus portrait survives draft migration and render persistence and invalidates approval when changed', () => {
+  const snapshot = fixture();
+  snapshot.document.options = currentFullDemoOptions(snapshot.document.options);
+  snapshot.document.options.overlays.hud_theme = 'focus';
+  const portrait = { id: '22222222-2222-4222-8222-222222222222', sha256: 'a'.repeat(64) };
+  snapshot.document.options.overlays.hud_portrait = portrait;
+  const options = snapshot.document.options;
+  assert.ok(isFullDemoOptions(options));
+  assert.deepEqual(currentFullDemoOptions(options).overlays.hud_portrait, portrait);
+  const edit = fullDemoPlanEdit(snapshot);
+  assert.deepEqual(parseEffectiveEditConfig(buildEditRequest(edit)), edit);
+  assert.deepEqual(coerceEditConfig(JSON.parse(JSON.stringify(edit))), edit);
+  const changed = structuredClone(options);
+  changed.overlays.hud_portrait = { ...portrait, sha256: 'b'.repeat(64) };
+  assert.equal(fullDemoApprovalKey(snapshot.document, changed), null);
+  changed.overlays.hud_theme = 'arena';
+  assert.equal(isFullDemoOptions(changed), false);
+  assert.equal(currentFullDemoOptions(changed).overlays.hud_portrait, undefined);
 });
 
 test('fixed freeze migrates old drafts without changing gameplay voice settings', () => {
