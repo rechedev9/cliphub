@@ -2,7 +2,10 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSyncExternalStore, type ReactElement } from 'react';
+import { CircleHelp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { openAppTour } from '@/lib/app-tour-state';
 import { AppUpdateControl } from '@/components/shell/app-update-control';
 import { JobTransport } from '@/components/shell/job-transport';
 import { useCurrentRouteTitle } from '@/components/shell/route-title';
@@ -73,6 +76,19 @@ export function CommandStrip(): ReactElement {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <JobTransport />
         {activity.capturing ? <CapturePip /> : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          data-testid="app-tour-trigger"
+          aria-label="Abrir la guía de ClipHub"
+          title="Guía de ClipHub"
+          className="text-fg-2 hover:text-fg-1 max-sm:w-10 max-sm:px-0"
+          onClick={() => openAppTour(0)}
+        >
+          <CircleHelp aria-hidden />
+          <span className="max-sm:sr-only">Guía</span>
+        </Button>
         <AppUpdateControl />
       </div>
     </header>

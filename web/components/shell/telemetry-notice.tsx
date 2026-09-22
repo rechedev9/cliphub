@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactElement } from 'react';
 import { Activity, ShieldCheck } from 'lucide-react';
+import { reportTelemetryNotice } from '@/lib/app-tour-state';
 import { getDesktopSettingsBridge, type StudioTelemetryStatus } from '@/lib/desktop-settings';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,11 +22,24 @@ export function TelemetryNotice(): ReactElement | null {
 
   useEffect(() => {
     const bridge = getDesktopSettingsBridge();
-    if (bridge === null) return;
-    void bridge.getTelemetry().then(setStatus).catch(() => setFailed(true));
+    if (bridge === null) {
+      reportTelemetryNotice('settled');
+      return;
+    }
+    void bridge.getTelemetry().then(setStatus).catch(() => {
+      setFailed(true);
+      reportTelemetryNotice('settled');
+    });
   }, []);
 
-  if (status === null || !status.available || status.noticeAcknowledged) return null;
+  const showing = status !== null && status.available && !status.noticeAcknowledged;
+
+  // The Studio tour waits for this answer instead of stacking a second modal.
+  useEffect(() => {
+    if (status !== null) reportTelemetryNotice(showing ? 'open' : 'settled');
+  }, [status, showing]);
+
+  if (!showing) return null;
 
   const choose = (enabled: boolean): void => {
     const bridge = getDesktopSettingsBridge();
@@ -59,7 +73,7 @@ export function TelemetryNotice(): ReactElement | null {
           <p className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
             Se ocultan rutas, credenciales, correos y SteamID en los mensajes de error. No se adjuntan demos, vídeos
-            ni otros archivos multimedia. Puedes desactivarlo después en Configuración.
+            ni otros archivos multimedia. Puedes desactivarlo después en Ajustes.
           </p>
           <p className="mt-3 font-mono text-meta tracking-wider text-fg-3">
             CÓDIGO DE SOPORTE · {status.supportCode}

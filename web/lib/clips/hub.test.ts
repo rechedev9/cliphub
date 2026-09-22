@@ -7,7 +7,10 @@ import {
   activeJobCount,
   buildHubModel,
   clipFilterCounts,
+  dismissFirstRunGuide,
+  FIRST_RUN_GUIDE_DISMISSED_KEY,
   firstRunComplete,
+  firstRunGuideDismissed,
   firstRunProgress,
   fullChipLabel,
   hubNextStep,
@@ -372,6 +375,27 @@ test('firstRunProgress flips each step from hub data and completes only with a c
   assert.equal(firstRunComplete(firstRunProgress(parsed)), false);
   const produced = buildHubModel([match('m1', 'parsed')], [reel({ id: 'v1', status: 'queued', jobId: 'm1' })]);
   assert.equal(firstRunComplete(firstRunProgress(produced)), true);
+});
+
+test('first-run guide dismissal persists, and unreadable storage never nags', () => {
+  const map = new Map<string, string>();
+  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => void map.set(key, value) };
+  assert.equal(firstRunGuideDismissed(storage), false);
+  dismissFirstRunGuide(storage);
+  assert.equal(firstRunGuideDismissed(storage), true);
+  assert.equal(map.has(FIRST_RUN_GUIDE_DISMISSED_KEY), true);
+
+  const broken = {
+    getItem: () => {
+      throw new Error('SecurityError');
+    },
+    setItem: () => {
+      throw new Error('QuotaExceededError');
+    },
+  };
+  assert.equal(firstRunGuideDismissed(null), true);
+  assert.equal(firstRunGuideDismissed(broken), true);
+  assert.doesNotThrow(() => dismissFirstRunGuide(broken));
 });
 
 test('sameHubProps compares every own key and falls back to identity elsewhere', () => {

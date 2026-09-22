@@ -19,7 +19,7 @@ import {
   seriesTitle,
   type SeriesStatusTone,
 } from '@/lib/series-status';
-import { PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
+import { NEW_DEMO_HREF, PRODUCE_FORMAT, produceHref } from '@/lib/clips/routes';
 import { prettyMapName } from '@/lib/format';
 import { groupSeriesDemos, representativeSeriesStatus, type SeriesGroup } from '@/lib/series-grouping';
 import { startPollLoop } from '@/lib/poll-loop';
@@ -142,7 +142,7 @@ function representativeDemo(demos: readonly SeriesDemo[]): SeriesDemo {
  * Series view (/series/[id]) — the demos uploaded together as one bo3/bo5. It
  * lists every map with its map/score and live status, links each ready map into
  * its highlight picker, and polls the local orchestrator until every map has
- * settled. Reached from the /upload series flow after the picked player is
+ * settled. Reached from the /clips/nueva series flow after the picked player is
  * parsed on each map.
  */
 export default function SeriesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -220,11 +220,11 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
       <StudioEmptyState
         icon={Layers}
         title="Serie no encontrada"
-        description="Ese enlace de serie no es válido. Sube tus demos para empezar una serie nueva."
-        note="Las series se identifican con el id que acuña /upload al soltar varias demos."
+        description="Ese enlace de serie no es válido. Carga tus demos para empezar una serie nueva."
+        note="Una serie se crea al cargar varias demos a la vez desde Cargar demo."
         actions={
           <Button asChild variant="hero">
-            <Link href="/upload">SUBIR DEMOS</Link>
+            <Link href={NEW_DEMO_HREF}>CARGAR DEMOS</Link>
           </Button>
         }
       />
@@ -249,7 +249,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
           <Button asChild variant="outline">
-            <Link href="/upload">SUBIR DEMOS</Link>
+            <Link href={NEW_DEMO_HREF}>CARGAR DEMOS</Link>
           </Button>
         }
       />
@@ -262,10 +262,10 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
       <StudioEmptyState
         icon={Layers}
         title="Esta serie está vacía"
-        description="No hay demos en esta serie. Sube las demos de tu bo3/bo5 para forjar sus highlights."
+        description="No hay demos en esta serie. Carga las demos de tu bo3/bo5 para crear sus vídeos."
         actions={
           <Button asChild variant="hero">
-            <Link href="/upload">SUBIR DEMOS</Link>
+            <Link href={NEW_DEMO_HREF}>CARGAR DEMOS</Link>
           </Button>
         }
       />

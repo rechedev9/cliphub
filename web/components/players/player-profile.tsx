@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Copy, ExternalLink, MoreHorizontal, UploadCloud, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FaceitFollowedPlayer } from '@/lib/api/faceit';
+import { NEW_DEMO_HREF } from '@/lib/clips/routes';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { PlayerAvatar } from './player-avatar';
@@ -51,7 +52,7 @@ export function PlayerProfile({ player, onUnfollow, unfollowing }: {
         <Button asChild variant="outline" size="sm"><a href={player.profile_url} target="_blank" rel="noreferrer">
           Ver perfil FACEIT <ExternalLink aria-hidden className="size-3.5" />
         </a></Button>
-        <Button asChild size="sm" className="shadow-none"><Link href="/upload"><UploadCloud aria-hidden className="size-4" /> Subir demo</Link></Button>
+        <Button asChild size="sm" className="shadow-none"><Link href={NEW_DEMO_HREF}><UploadCloud aria-hidden className="size-4" /> Subir demo</Link></Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="outline" size="icon-sm" aria-label={`Opciones de ${player.nickname}`} disabled={unfollowing}>
             <MoreHorizontal aria-hidden className="size-4" />

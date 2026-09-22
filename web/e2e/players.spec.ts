@@ -82,7 +82,7 @@ test('match filters reset pagination without changing the overall performance su
   await expect(page.getByText('16 victorias · 4 derrotas')).toBeVisible();
   await expect(page.getByRole('table').getByRole('link', { name: 'Abrir sala FACEIT de Anubis' })).toHaveCount(2);
   await expect(page.getByRole('table').getByRole('link').first()).toHaveAttribute('href', MATCHES[4]?.room_url ?? '');
-  await expect(page.getByRole('link', { name: 'Subir demo', exact: true })).toHaveAttribute('href', '/upload');
+  await expect(page.getByRole('link', { name: 'Subir demo', exact: true })).toHaveAttribute('href', '/clips/nueva');
   await page.getByRole('combobox', { name: 'Filtrar por resultado' }).click();
   await page.getByRole('option', { name: 'Sin resultado', exact: true }).click();
   await expect(page.getByRole('table')).toContainText('No hay partidas con estos filtros.');
