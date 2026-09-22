@@ -73,7 +73,7 @@ func TestReferenceLayoutPaintsOnlyTheUpperStripAndLowerCorners(t *testing.T) {
 	for _, theme := range Themes() {
 		regions := allowed
 		if theme.Layout == "focus" {
-			regions = []image.Rectangle{image.Rect(630, 750, 1290, 1055)}
+			regions = []image.Rectangle{allowed[0], image.Rect(630, 750, 1290, 1055)}
 		}
 		r, err := NewRenderer(theme.ID)
 		if err != nil {

@@ -200,7 +200,7 @@
   {
     "id": "focus",
     "name": "Focus",
-    "description": "Tarjeta inferior centrada, borde dorado y movimiento WASD sincronizado. Retrato propio opcional.",
+    "description": "Marcador y jugadores arriba, tarjeta inferior centrada con borde dorado y movimiento WASD sincronizado. Retrato propio opcional.",
     "ct": "85BBDD",
     "t": "F4BC38",
     "background": "0B111B",
