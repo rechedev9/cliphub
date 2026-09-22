@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactElement } from 'react';
 import { Activity, ShieldCheck } from 'lucide-react';
+import { reportTelemetryNotice } from '@/lib/app-tour-state';
 import { getDesktopSettingsBridge, type StudioTelemetryStatus } from '@/lib/desktop-settings';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,11 +22,24 @@ export function TelemetryNotice(): ReactElement | null {
 
   useEffect(() => {
     const bridge = getDesktopSettingsBridge();
-    if (bridge === null) return;
-    void bridge.getTelemetry().then(setStatus).catch(() => setFailed(true));
+    if (bridge === null) {
+      reportTelemetryNotice('settled');
+      return;
+    }
+    void bridge.getTelemetry().then(setStatus).catch(() => {
+      setFailed(true);
+      reportTelemetryNotice('settled');
+    });
   }, []);
 
-  if (status === null || !status.available || status.noticeAcknowledged) return null;
+  const showing = status !== null && status.available && !status.noticeAcknowledged;
+
+  // The Studio tour waits for this answer instead of stacking a second modal.
+  useEffect(() => {
+    if (status !== null) reportTelemetryNotice(showing ? 'open' : 'settled');
+  }, [status, showing]);
+
+  if (!showing) return null;
 
   const choose = (enabled: boolean): void => {
     const bridge = getDesktopSettingsBridge();
