@@ -92,17 +92,36 @@ type TransitionBoundary struct {
 	AfterFrames   int64 `json:"after_frames"`
 }
 
-// Transitions decorate existing frames. Ads, split continuations, the first
-// frame and the end of the program are never treated as round transitions.
+// RenderTransitions also supplies the bumper transitions when round effects
+// are switched off. It never mutates the approved options or capture clock.
+func (d Document) RenderTransitions() *TransitionOptions {
+	if o := d.Options.Transitions; o != nil && o.Enabled {
+		return o
+	}
+	if d.Options.HasBumpers() {
+		o := DynamicTransitions()
+		return &o
+	}
+	return nil
+}
+
+func bumperCut(a, b TimelineItem) bool {
+	return (a.Role == "bumper" && a.Reason == BumperRoleIntro && b.Role == "round") ||
+		(a.Role == "round" && b.Role == "bumper" && b.Reason == BumperRoleOutro)
+}
+
+// Transitions decorate existing frames. Bumper cuts are always included;
+// the optional round effects still exclude ads and split continuations.
 func (d Document) TransitionBoundaries() []TransitionBoundary {
-	o := d.Options.Transitions
-	if o == nil || !o.Enabled {
+	o := d.RenderTransitions()
+	if o == nil {
 		return nil
 	}
 	var result []TransitionBoundary
 	for i := 1; i < len(d.Timeline); i++ {
 		a, b := d.Timeline[i-1], d.Timeline[i]
-		if a.Role != "round" || b.Role != "round" || a.SourceRef == b.SourceRef {
+		roundCut := d.Options.Transitions != nil && d.Options.Transitions.Enabled && a.Role == "round" && b.Role == "round" && a.SourceRef != b.SourceRef
+		if !bumperCut(a, b) && !roundCut {
 			continue
 		}
 		before := min(int64(o.DurationFrames/2), (a.EndFrame-a.StartFrame)/2)
@@ -116,6 +135,6 @@ func (d Document) TransitionBoundaries() []TransitionBoundary {
 }
 
 func (d Document) HasTransitionSFX() bool {
-	o := d.Options.Transitions
+	o := d.RenderTransitions()
 	return o != nil && o.Enabled && (o.Whoosh || o.Impact) && len(d.TransitionBoundaries()) > 0
 }

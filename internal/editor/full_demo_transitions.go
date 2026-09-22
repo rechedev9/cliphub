@@ -25,14 +25,15 @@ type fullDemoTransitionEdges struct {
 
 func transitionDirections(d recapplan.Document) []FullDemoTransitionEvidence {
 	var result []FullDemoTransitionEvidence
+	o := d.RenderTransitions()
 	for i, b := range d.TransitionBoundaries() {
-		direction, source := d.Options.Transitions.Direction, "selected"
+		direction, source := o.Direction, "selected"
 		if direction == "alternate" || direction == "follow-motion" {
 			direction, source = "left", "alternating"
 			if i%2 == 1 {
 				direction = "right"
 			}
-			if d.Options.Transitions.Direction == "follow-motion" {
+			if o.Direction == "follow-motion" {
 				source = "static-fallback"
 			}
 		}
@@ -43,14 +44,14 @@ func transitionDirections(d recapplan.Document) []FullDemoTransitionEvidence {
 
 func fullDemoEdges(short ShortEdit, item recapplan.TimelineItem) fullDemoTransitionEdges {
 	edges := fullDemoTransitionEdges{frames: item.EndFrame - item.StartFrame}
-	if short.FullDemo == nil || item.Role != "round" {
+	if short.FullDemo == nil || (item.Role != "round" && item.Role != "bumper") {
 		return edges
 	}
 	d := short.FullDemo.Effective
-	if d.Options.Transitions == nil || !d.Options.Transitions.Enabled {
+	if d.RenderTransitions() == nil {
 		return edges
 	}
-	edges.options = d.Options.Transitions
+	edges.options = d.RenderTransitions()
 	boundaries := short.FullDemo.Transitions
 	if boundaries == nil {
 		boundaries = transitionDirections(d)
@@ -109,7 +110,7 @@ func transitionAccentEnvelope(frames, head, tail int64) string {
 }
 
 func zoomEventFrame(d recapplan.Document, item recapplan.TimelineItem) (int64, bool) {
-	o := d.Options.Transitions
+	o := d.RenderTransitions()
 	if o == nil || o.ZoomAnchor == "cut" {
 		return 0, false
 	}
@@ -258,6 +259,9 @@ func fullDemoCommsTail(d recapplan.Document, incoming *FullDemoTransitionEvidenc
 		return 0, 0
 	}
 	previous, next := d.Timeline[incoming.OutgoingIndex], d.Timeline[incoming.IncomingIndex]
+	if previous.Role != "round" || next.Role != "round" {
+		return 0, 0
+	}
 	previousStart, err := recapplan.TickFrames(previous.SourceStartTick, d.Clock.TickRate)
 	if err != nil {
 		return 0, 0
@@ -335,7 +339,8 @@ func (e *FullDemoRenderEvidence) validateTransitions() error {
 		if got.TransitionBoundary != want.TransitionBoundary {
 			return fmt.Errorf("full demo transition evidence changed the frame timeline")
 		}
-		if got.DirectionSource == "estimated-motion" && e.Effective.Options.Transitions.Direction == "follow-motion" && e.Effective.Options.Transitions.Whip {
+		o := e.Effective.RenderTransitions()
+		if got.DirectionSource == "estimated-motion" && o.Direction == "follow-motion" && o.Whip {
 			switch got.Direction {
 			case "left", "right", "up", "down":
 				continue
