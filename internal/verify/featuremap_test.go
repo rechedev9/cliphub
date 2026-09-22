@@ -94,7 +94,7 @@ func TestCatalogCoversStudioNav(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Read the actual rail so this check cannot bless another stale copy.
-	sections := regexp.MustCompile(`\{ number: '[0-9]+', label: '([^']+)', href: '([^']+)' \}`).FindAllStringSubmatch(string(nav), -1)
+	sections := regexp.MustCompile(`\{ label: '([^']+)', href: '([^']+)' \}`).FindAllStringSubmatch(string(nav), -1)
 	if len(sections) == 0 {
 		t.Fatal("no Studio nav sections found")
 	}

@@ -16,7 +16,7 @@ import {
   type OutputState,
 } from '@/lib/clips/hub';
 import { publishHref, produceHref, PRODUCE_FORMAT } from '@/lib/clips/routes';
-import { timeAgo } from '@/lib/format';
+import { prettyMapName, timeAgo } from '@/lib/format';
 import { downloadPublishMP4 } from '@/lib/publish-actions';
 import { cn } from '@/lib/utils';
 import { ReelCover } from '@/components/brand/reel-cover';
@@ -114,7 +114,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
             <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
               {output.state === OUTPUT_STATE.render && video.captureProgress?.stage
                 ? video.captureProgress.stage
-                : `${video.map} · ${timeAgo(video.createdAt)}`}
+                : `${prettyMapName(video.map)} · ${timeAgo(video.createdAt)}`}
             </span>
           )}
         </span>

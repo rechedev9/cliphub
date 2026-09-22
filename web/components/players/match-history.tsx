@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 const ALL = 'all';
 const UNKNOWN = 'unknown';
-const PAGE_SIZE = 7;
+const PAGE_SIZE = 10;
 const HEAD = 'px-3 py-3 text-left text-body-sm font-medium whitespace-nowrap text-fg-2';
 const CELL = 'px-3 py-1 text-body-sm whitespace-nowrap tabular-nums text-fg-2';
 const RESULTS = {

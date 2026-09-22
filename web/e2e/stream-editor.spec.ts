@@ -271,12 +271,12 @@ test.describe('stream editor', () => {
       stub.renderResult('clips');
       await cta(page, 'Exportar 1 Short →').click();
       await expect(page.getByLabel('Vídeo final')).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Guardar vídeo: Clutch 1v3' })).toHaveCount(2);
+      await expect(page.getByRole('link', { name: 'Guardar vídeo: Clutch 1v3' })).toHaveCount(1);
       expect(errors).toEqual([]);
     });
   }
 
-  test('both download buttons use the selected untitled Short number', async ({ page }) => {
+  test('the single download action uses the selected untitled Short number', async ({ page }) => {
     await stubStreamJob(page, true);
     await gotoStudio(page, `/streams/${JOB_ID}`);
     await cta(page, 'Nuevo momento').click();
@@ -292,13 +292,11 @@ test.describe('stream editor', () => {
     await page.getByRole('button', { name: 'Short 2 · 0:03', exact: true }).click();
     await expect(stepTitle(page, 'Short 2')).toBeVisible();
     const downloads = page.getByRole('link', { name: 'Guardar vídeo: Short 2', exact: true });
-    await expect(downloads).toHaveCount(2);
-    for (const link of await downloads.all()) {
-      await expect(link).toHaveAttribute('download', 'Short 2.mp4');
-      expect(await link.getAttribute('href')).toBe(await page.getByLabel('Vídeo final').getAttribute('src'));
-    }
+    await expect(downloads).toHaveCount(1);
+    await expect(downloads).toHaveAttribute('download', 'Short 2.mp4');
+    expect(await downloads.getAttribute('href')).toBe(await page.getByLabel('Vídeo final').getAttribute('src'));
     await page.getByRole('button', { name: 'Clutch 1v3 · 0:12', exact: true }).click();
-    await expect(page.getByRole('link', { name: 'Guardar vídeo: Clutch 1v3', exact: true })).toHaveCount(2);
+    await expect(page.getByRole('link', { name: 'Guardar vídeo: Clutch 1v3', exact: true })).toHaveCount(1);
   });
 
   test('"Añadir texto" keeps a blank overlay local until text is typed, and a cleared text leaves the plan', async ({

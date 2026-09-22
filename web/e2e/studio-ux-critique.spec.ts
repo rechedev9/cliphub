@@ -51,6 +51,9 @@ test.describe('Produce screen empty states', () => {
     await gotoStudio(page, `/clips/${JOB}/nuevo`);
     await expect(page.getByRole('heading', { name: PRODUCE_MATCH_FAILED_TITLE })).toBeVisible();
     await expect(page.getByText(JOB_GENERIC_FAILURE_MESSAGE)).toBeVisible();
+    // Nothing can be produced: no format to pick and no stepper pretending the demo is still loading.
+    await expect(page.getByRole('group', { name: 'Tipo de vídeo' })).toHaveCount(0);
+    await expect(page.getByRole('list', { name: 'Pasos de creación' })).toHaveCount(0);
     await expect(page.getByText(/completar el vídeo|Reintenta/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Volver' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Reintentar/ })).toHaveCount(0);

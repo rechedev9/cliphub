@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 const FOOTER_SHADOW = 'shadow-[var(--elev-band-up)]';
 
 export type ProduceFooterProps = {
-  /** Cyan for Short, magenta for Full POV (REC). */
+  /** Action-bar accent: cyan for Short, magenta for the long video (REC). */
   tone: 'short' | 'full';
   eyebrow: string;
   /** Selection and settings summary; null shows `hint` instead. */
@@ -56,8 +56,8 @@ export function ProduceFooter({
           className={cn('flex cursor-pointer list-none items-center gap-2 text-body-sm font-semibold text-fg-2 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden', 'min-h-8')}
         >
           <ChevronRight aria-hidden className="size-4 transition-transform duration-(--dur-fast) group-open/brief:rotate-90" />
-          Configuración del vídeo
-          <span className="text-fg-3">· {briefItems.length} ajustes</span>
+          {/* A read-only recap of the choices above, not another place to edit them. */}
+          Resumen de la configuración
         </summary>
         <section aria-labelledby={briefId} className="studio-panel mt-2 px-4 py-3">
           <CreativeBriefList items={briefItems} className="@[42rem]/content:grid-cols-2 @[70rem]/content:grid-cols-3" />

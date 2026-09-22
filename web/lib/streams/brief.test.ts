@@ -20,7 +20,7 @@ function plan(overrides: Partial<StreamEditPlan> = {}): StreamEditPlan {
 test('stream creative brief lists every production decision', () => {
   const items = streamCreativeBrief(plan());
   const byLabel = Object.fromEntries(items.map((item) => [item.label, item.value]));
-  assert.equal(byLabel.Layout, 'Facecam 40');
+  assert.equal(byLabel.Layout, 'Cámara grande');
   assert.equal(byLabel.Facecam, 'Recorte confirmado');
   assert.match(byLabel.Clips, /1 clip/);
   assert.equal(byLabel.Banner, 'pro_player · Twitch · slide');

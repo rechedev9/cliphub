@@ -192,6 +192,41 @@ export async function fetchAnticheat(jobId: string): Promise<AnticheatDocument |
   return (await res.json()) as AnticheatDocument;
 }
 
+/**
+ * Demo job statuses the orchestrator still refuses to screen: the roster scan
+ * has not finished, so POST answers 409 "still being ingested". Every other
+ * status — `failed` included — can be screened, because the pass only needs
+ * the demo file; a missing or damaged file fails the analysis with its reason.
+ */
+const ANTICHEAT_INGESTING_STATUSES: ReadonlySet<string> = new Set(['queued', 'scanning']);
+
+export function isDemoStillIngesting(status: string | undefined): boolean {
+  return status !== undefined && ANTICHEAT_INGESTING_STATUSES.has(status);
+}
+
+/**
+ * Spanish copy for a failed CheaterDetect request. The orchestrator's error
+ * text is English and written for logs, so it is never shown verbatim.
+ */
+export function anticheatErrorMessage(err: unknown, action: 'start' | 'load' | 'dossier'): string {
+  if (err instanceof AnticheatServiceError) {
+    if (err.code === SERVICE_UNAVAILABLE_CODE) {
+      return 'El servicio de análisis local no responde. Arráncalo y vuelve a intentarlo.';
+    }
+    if (action === 'dossier') {
+      // 409: the analysis is not ready; 404: the player is not in it.
+      if (err.code === 'http_409') return 'El análisis de esta demo aún no ha terminado.';
+      if (err.code === 'http_404') return 'Ese jugador no aparece en el análisis de esta demo.';
+    } else {
+      if (action === 'start' && err.code === 'http_409') {
+        return 'Esta demo aún se está importando. Vuelve a intentarlo cuando termine de leerse el roster.';
+      }
+      if (err.code === 'http_404') return 'Esta demo ya no está en este PC.';
+    }
+  }
+  return 'No se pudo completar la petición. Vuelve a intentarlo.';
+}
+
 /** Fetches one player's evidence pack from a finished analysis. */
 export async function fetchDossier(jobId: string, steamId: string): Promise<AnticheatDossier> {
   const res = await request(`/api/demos/${jobId}/anticheat/dossier/${steamId}`);

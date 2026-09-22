@@ -20,7 +20,7 @@ export function ShortStoryboard({
   return (
     <section aria-label={STORYBOARD_TITLE} className="studio-panel flex min-w-0 flex-col gap-3 p-4 @[80rem]/content:gap-4 @[80rem]/content:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{STORYBOARD_TITLE}</span>
+        <span className="text-body-sm font-semibold text-fg-2">{STORYBOARD_TITLE}</span>
         <span className={cn('font-mono text-meta tabular-nums uppercase tracking-wider', over ? 'text-warning' : 'text-primary')}>
           {formatClock(totalSeconds)} / {formatClock(SHORT_TARGET_SECONDS)}
         </span>
@@ -38,9 +38,13 @@ export function ShortStoryboard({
                 {String(index + 1).padStart(2, '0')}
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span title={playDescription(cue.play)} className="font-display text-label font-bold text-fg-1">Ronda {cue.play.round}{cue.play.startSeconds !== undefined ? ` · ${playClock(cue.play.startSeconds)}` : ''}</span>
+                <span title={playDescription(cue.play)} className="font-display text-label font-bold text-fg-1">
+                  <span className="whitespace-nowrap">Ronda {cue.play.round}</span>
+                  {cue.play.startSeconds !== undefined ? <> · <span className="whitespace-nowrap">{playClock(cue.play.startSeconds)}</span></> : null}
+                </span>
+                {/* Numbers keep their units: the line may break at the separator, never inside "6.8 s". */}
                 <span className="font-mono text-label tabular-nums text-fg-2">
-                  Short {formatClock(cue.startAt)} · {cue.seconds} s
+                  <span className="whitespace-nowrap">Short {formatClock(cue.startAt)}</span> · <span className="whitespace-nowrap">{cue.seconds} s</span>
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-1 font-mono text-meta tabular-nums text-fg-2">

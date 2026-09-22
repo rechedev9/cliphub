@@ -70,9 +70,9 @@ test('search, ordering, player selection and follow management use the real UI f
 test('match filters reset pagination without changing the overall performance summary', async ({ page }) => {
   await stubFaceit(page);
   await gotoStudio(page, '/players');
-  await expect(page.getByText('Mostrando 1–7 de 20 partidas')).toBeVisible();
-  await page.getByRole('button', { name: 'Página 3', exact: true }).click();
-  await expect(page.getByText('Mostrando 15–20 de 20 partidas')).toBeVisible();
+  await expect(page.getByText('Mostrando 1–10 de 20 partidas')).toBeVisible();
+  await page.getByRole('button', { name: 'Página 2', exact: true }).click();
+  await expect(page.getByText('Mostrando 11–20 de 20 partidas')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
   await page.getByRole('combobox', { name: 'Filtrar por mapa' }).click();
   await page.getByRole('option', { name: 'Anubis', exact: true }).click();
@@ -87,7 +87,7 @@ test('match filters reset pagination without changing the overall performance su
   await page.getByRole('option', { name: 'Sin resultado', exact: true }).click();
   await expect(page.getByRole('table')).toContainText('No hay partidas con estos filtros.');
   await page.getByRole('button', { name: 'Restablecer filtros' }).click();
-  await expect(page.getByText('Mostrando 1–7 de 20 partidas')).toBeVisible();
+  await expect(page.getByText('Mostrando 1–10 de 20 partidas')).toBeVisible();
 });
 
 test('history errors can be retried and refreshed without navigating away', async ({ page }) => {
@@ -102,7 +102,7 @@ test('history errors can be retried and refreshed without navigating away', asyn
   await expect(page.getByRole('heading', { name: 'No se pudieron cargar las partidas' })).toBeVisible();
   fail = false;
   await page.getByRole('button', { name: 'Reintentar', exact: true }).click();
-  await expect(page.getByText('Mostrando 1–7 de 20 partidas')).toBeVisible();
+  await expect(page.getByText('Mostrando 1–10 de 20 partidas')).toBeVisible();
   const previousRequests = requests;
   await page.getByRole('button', { name: 'Actualizar partidas' }).click();
   await expect.poll(() => requests).toBeGreaterThan(previousRequests);
@@ -129,13 +129,14 @@ for (const width of VALIDATION_WIDTHS) {
     await stubFaceit(page);
     await gotoStudio(page, '/players');
     await expect(page.getByRole('heading', { name: 'Historial de partidas' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Abrir sala FACEIT/ })).toHaveCount(7);
+    await expect(page.getByRole('link', { name: /Abrir sala FACEIT/ })).toHaveCount(10);
     const geometry = await page.evaluate(() => ({
       width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth,
-      mainRight: document.querySelector('main')?.getBoundingClientRect().right,
+      mainWidth: document.querySelector('main')?.getBoundingClientRect().width ?? 0,
     }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
-    if (width === 1920) expect(geometry.mainRight).toBe(width);
+    // Same stage as every other page: the 1440px cap binds instead of a full-bleed override.
+    expect(geometry.mainWidth).toBeLessThanOrEqual(1440);
     await page.screenshot({ path: testInfo.outputPath(`players-${width}.png`), fullPage: true });
   });
 }

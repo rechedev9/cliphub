@@ -36,6 +36,7 @@ import {
   type SeriesSummary,
 } from './jobs-index.ts';
 import { reconcileReels } from './reconcile-batch.ts';
+import { recoveredVideo, recoveryProbes, type RecoveredVideo } from './recovered-renders.ts';
 import { ifNoneMatchInit, readConditionalJSON, type ConditionalJSONCache } from './conditional-json.ts';
 import { parseCaptureProgress } from '../capture-progress.ts';
 import { playsSelectionLabel } from '../format.ts';
@@ -194,6 +195,9 @@ function batchItemError(raw: unknown, code: unknown): string | undefined {
   return undefined;
 }
 
+/** Pairs per recovery batch read; the batch-status route rejects more than 100. */
+const RECOVERY_BATCH_SIZE = 96;
+
 /** Default vertical-reel preset/variant when an intent predates preset selection. */
 const REEL_VARIANT = DEFAULT_VARIANT;
 
@@ -317,6 +321,10 @@ export class RealApiClient implements ApiClient {
   private readonly beatReads = new Map<string, Promise<unknown>>();
   /** Last /api/demos/jobs body, reused when the orchestrator answers 304. */
   private jobsListCache: ConditionalJSONCache<IndexedJob[]> | null = null;
+  /** Delivered renders with no local intent (see recovered-renders.ts); read-only. */
+  private readonly recovered = new Map<string, RecoveredVideo>();
+  /** Job status each job's renders were last read at; a status change re-reads them. */
+  private readonly recoveryProbed = new Map<string, string>();
 
   constructor() {
     // Rehydrate persisted intents so the Library survives a hard reload.
@@ -604,29 +612,93 @@ export class RealApiClient implements ApiClient {
   }
 
   async listVideos(): Promise<Video[]> {
-    await this.reconcile();
-    // The Library shows only the user's own real reels, persisted on this PC.
-    return Array.from(this.reels.values())
+    await Promise.all([this.reconcile(), this.recoverServerRenders()]);
+    // The user's own reels, persisted on this PC, plus finished renders whose intent was lost.
+    const listed = Array.from(this.reels.values());
+    for (const entry of this.recovered.values()) {
+      if (!this.reels.has(entry.video.id)) listed.push(entry.video);
+    }
+    return listed
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((v) => ({ ...v }));
   }
 
   async getVideo(id: string): Promise<Video | null> {
-    const reel = this.reels.get(id);
+    const reel = this.reels.get(id) ?? this.recovered.get(id)?.video;
     return reel ? { ...reel } : null;
+  }
+
+  /**
+   * Lists delivered renders no intent points at. Each job is read once per
+   * status through one batch request, so a steady hub poll costs nothing.
+   */
+  private async recoverServerRenders(): Promise<void> {
+    let jobs: IndexedJob[];
+    try {
+      jobs = await this.sharedRead('jobs', () => this.fetchJobs());
+    } catch {
+      return;
+    }
+    const live = new Set(jobs.map((job) => job.jobId));
+    for (const [id, entry] of this.recovered) {
+      if (!live.has(entry.jobId) || this.intents.has(id)) this.recovered.delete(id);
+    }
+    const probes = recoveryProbes(jobs, this.recoveryProbed);
+    if (probes.length === 0) return;
+    // The batch route caps a call at 100 pairs; the chunks are independent reads.
+    const chunks: Array<typeof probes> = [];
+    for (let start = 0; start < probes.length; start += RECOVERY_BATCH_SIZE) {
+      chunks.push(probes.slice(start, start + RECOVERY_BATCH_SIZE));
+    }
+    const parts = await Promise.all(chunks.map((chunk) => this.fetchBatchStatus(chunk)));
+    const batch = new Map<string, BatchStatusEntry>();
+    for (const part of parts) {
+      if (part === null) return;
+      for (const [key, value] of part) batch.set(key, value);
+    }
+    const byId = new Map(jobs.map((job) => [job.jobId, job]));
+    const known = new Set(this.intents.keys());
+    const read = new Set<string>();
+    // A job with any unread variant is probed again next time, not settled at this status.
+    const unread = new Set<string>();
+    for (const probe of probes) {
+      const entry = batch.get(batchKey(probe.jobId, probe.variant));
+      const job = byId.get(probe.jobId);
+      if (entry === undefined || entry.error !== undefined || job === undefined) {
+        unread.add(probe.jobId);
+        continue;
+      }
+      read.add(probe.jobId);
+      if (!entry.render) continue;
+      const found = recoveredVideo(job, probe.variant, entry.render, known);
+      if (found) this.recovered.set(found.video.id, found);
+    }
+    for (const jobId of read) {
+      if (!unread.has(jobId)) this.recoveryProbed.set(jobId, byId.get(jobId)?.status ?? '');
+    }
+  }
+
+  /** Recovered renders have no intent to drive, so edits are refused with a reason. */
+  private unknownReel(id: string): Error {
+    if (this.recovered.has(id)) {
+      return new Error('Este vídeo se recuperó de un render anterior: solo se puede ver, descargar o borrar. Crea uno nuevo para editarlo.');
+    }
+    return new Error('Reel desconocido.');
   }
 
   async getPublishAssistant(id: string): Promise<PublishAssistant> {
     const intent = this.intents.get(id);
-    if (!intent) throw new Error('Reel desconocido.');
-    const reel = this.reels.get(id);
+    const recovered = intent ? undefined : this.recovered.get(id);
+    if (!intent && !recovered) throw new Error('Reel desconocido.');
+    const reel = this.reels.get(id) ?? recovered?.video;
     if (!reel || reel.status !== 'ready') throw new Error('video is not ready for publication');
-    const variant = variantOf(intent);
-    const name = await this.resolveArtifactName(intent, variant);
+    const variant = intent ? variantOf(intent) : recovered!.variant;
+    const jobId = intent ? intent.jobId : recovered!.jobId;
+    const name = intent ? await this.resolveArtifactName(intent, variant) : recovered!.videoName;
     if (!name) throw new Error('rendered video artifact is not available');
     const raw = await readJson<unknown>(
       await this.send((dp) => ({
-        url: dp.publishAssistantUrl(intent.jobId, variant, name),
+        url: dp.publishAssistantUrl(jobId, variant, name),
         init: { cache: 'no-store' },
       })),
     );
@@ -636,7 +708,7 @@ export class RealApiClient implements ApiClient {
   /** Re-drive a failed reel: re-record a failed job, else re-render. */
   async retryVideo(id: string): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) throw new Error('Reel desconocido.');
+    if (!intent) throw this.unknownReel(id);
 
     // Gone jobs cannot be re-driven; return the latch instead of re-failing.
     const current = this.reels.get(id);
@@ -674,7 +746,7 @@ export class RealApiClient implements ApiClient {
 
   async resolveVideoReview(id: string, resolution: VideoReviewResolution): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) throw new Error('Reel desconocido.');
+    if (!intent) throw this.unknownReel(id);
     const current = this.reels.get(id);
     if (!current || current.status !== 'review_required') {
       throw new Error('El reel ya no está pendiente de revisión.');
@@ -747,7 +819,7 @@ export class RealApiClient implements ApiClient {
   /** Re-render a ready reel with a new mix; persist only after POST accepts. */
   async rerenderVideoMusic(id: string, choice: MusicChoice): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) throw new Error('Reel desconocido.');
+    if (!intent) throw this.unknownReel(id);
     const current = this.reels.get(id);
     if (!current || current.status !== 'ready') {
       throw new Error('El reel tiene que estar listo para añadir o cambiar la música.');
@@ -813,7 +885,7 @@ export class RealApiClient implements ApiClient {
 
   async selectVideoCover(id: string, coverName: string): Promise<Video> {
     const intent = this.intents.get(id);
-    if (!intent) throw new Error('Reel desconocido.');
+    if (!intent) throw this.unknownReel(id);
     const names = this.artifactNames.get(id);
     const candidates = names?.covers ?? (names?.cover ? [names.cover] : []);
     if (!candidates.includes(coverName)) {
@@ -835,16 +907,23 @@ export class RealApiClient implements ApiClient {
 
   async deleteVideo(id: string): Promise<void> {
     const intent = this.intents.get(id);
+    const recovered = this.recovered.get(id);
+    if (!intent && recovered) {
+      // A recovered render has no intent; deleting its MP4 is what removes it for good.
+      const res = await this.send((dp) => ({ url: dp.videoUrl(recovered.jobId, recovered.variant, recovered.videoName), init: { method: 'DELETE' } }));
+      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
+      this.recovered.delete(id);
+      return;
+    }
     if (!intent) return;
-    try {
-      const variant = variantOf(intent);
-      const name = await this.resolveArtifactName(intent, variant);
-      // Nothing rendered yet: drop the local intent below.
-      if (name) {
-        await this.send((dp) => ({ url: dp.videoUrl(intent.jobId, variant, name), init: { method: 'DELETE' } }));
-      }
-    } catch {
-      // Offline: drop the library row; a later render overwrites leftovers.
+    // Keep the intent unless the MP4 is really gone: render recovery would
+    // otherwise list a leftover MP4 again as a video the user deleted.
+    const variant = variantOf(intent);
+    const name = await this.resolveArtifactName(intent, variant);
+    // Nothing rendered yet: drop the local intent below.
+    if (name) {
+      const res = await this.send((dp) => ({ url: dp.videoUrl(intent.jobId, variant, name), init: { method: 'DELETE' } }));
+      if (res.status !== 404 && !res.ok) await readJson<unknown>(res);
     }
     this.artifactNames.delete(id);
     this.intents.delete(id);
@@ -880,6 +959,10 @@ export class RealApiClient implements ApiClient {
       this.readyWithoutVideoTicks.delete(videoId);
       this.forgetDriveState(videoId);
     }
+    for (const [videoId, entry] of this.recovered) {
+      if (entry.jobId === jobId) this.recovered.delete(videoId);
+    }
+    this.recoveryProbed.delete(jobId);
     this.seriesMatches.delete(jobId);
     saveReelIntents(Array.from(this.intents.values()));
   }

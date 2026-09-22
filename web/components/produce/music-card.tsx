@@ -9,7 +9,7 @@ export const MUSIC_VOLUME = { min: 5, max: 100, step: 5, default: 100 } as const
 export const GAME_VOLUME_MIN = 0;
 
 const SLIDER_CLASS =
-  'h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50';
+  'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50';
 
 export type MusicCardProps = {
   /** Card eyebrow; the Short constructor numbers it as a step. */
@@ -30,7 +30,7 @@ export type MusicCardProps = {
 export function MusicCard({ eyebrow = 'Música', ...props }: MusicCardProps): ReactNode {
   return (
     <div className="studio-panel flex flex-col gap-3 p-4 @[80rem]/content:gap-4 @[80rem]/content:p-5">
-      <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{eyebrow}</span>
+      <span className="text-body-sm font-semibold text-fg-2">{eyebrow}</span>
       <MusicDecision {...props} />
     </div>
   );
@@ -66,7 +66,7 @@ function MusicDecision({
           </div>
         </div>
         <div className="flex flex-col gap-2.5 border-t border-border-subtle pt-3">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <label htmlFor="music-volume" className="w-24 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2">
               Música <span className="text-stream-text">· {musicVolume}%</span>
             </label>
@@ -82,7 +82,7 @@ function MusicDecision({
               className={SLIDER_CLASS}
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <label htmlFor="game-volume" className="w-24 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2">
               Juego <span className="text-stream-text">· {gameVolume}%</span>
             </label>
@@ -104,19 +104,14 @@ function MusicDecision({
   }
 
   if (decided) {
+    // Choosing a track is the only way out of "sin música"; one action, not two lookalikes.
     return (
       <div className="flex flex-col gap-2">
-        <div className="min-w-0">
-          <p className="font-display text-body-sm font-semibold uppercase text-fg-1">Sin música</p>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          <Button variant="ghost" size="sm" disabled={busy} onClick={onOpenPicker}>
-            Elegir tema
-          </Button>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={onClear}>
-            Cambiar
-          </Button>
-        </div>
+        <p className="font-display text-body-sm font-semibold uppercase text-fg-1">Sin música</p>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onOpenPicker} className="self-start border-stream/55">
+          <Music className="size-4 shrink-0 text-stream" aria-hidden />
+          Elegir un tema
+        </Button>
       </div>
     );
   }

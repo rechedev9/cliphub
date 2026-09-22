@@ -183,7 +183,9 @@ func TestFullDemoShortFramesRequireOnlyAffectedRoundsToBeRecaptured(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored.Artifacts[0].FrameCount-- // Old muxed clip; its duration still passed the former 250ms tolerance.
+	// Old muxed clip; its duration still passed the former 250ms tolerance, but it
+	// lacks more tail frames than a bounded tail pad may clone.
+	stored.Artifacts[0].FrameCount -= recording.FullDemoTailPadToleranceFrames + 1
 	if err := putRecordingResult(store, id, stored); err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +238,12 @@ func TestFullDemoShortFramesRequireOnlyAffectedRoundsToBeRecaptured(t *testing.T
 
 func TestFullDemoRecordingAttemptRejectsShortMuxedClip(t *testing.T) {
 	result, dir, _ := fullDemoPublicationFixture(t, "clip")
+	// A one-frame tail shortfall is a bounded pad the renderer clones.
 	result.Artifacts[0].FrameCount--
+	if err := recording.ValidateRecordingAttempt(result.Plan, dir, result); err != nil {
+		t.Fatalf("a one-frame tail shortfall must publish with a recorded pad: %v", err)
+	}
+	result.Artifacts[0].FrameCount -= recording.FullDemoTailPadToleranceFrames
 	if err := recording.ValidateRecordingAttempt(result.Plan, dir, result); err == nil || !strings.Contains(err.Error(), "round-001") {
 		t.Fatalf("new capture must reject missing frames before publication: %v", err)
 	}

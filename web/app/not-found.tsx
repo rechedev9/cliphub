@@ -10,8 +10,8 @@ export const metadata: Metadata = { title: 'Ruta desconocida' };
  * The 404 for routes outside the app group. Two corrections over v3: the wash
  * and the eyebrow no longer use `--destructive` — red signals
  * "error, failure, delete", and a stale bookmark is none of those, so painting
- * one red makes a mistyped URL look like data loss — and the two actions are
- * real `Button`s instead of hand-rolled 40px anchors with no focus ring.
+ * one red makes a mistyped URL look like data loss — and the action is a
+ * real `Button` instead of hand-rolled 40px anchors with no focus ring.
  */
 export default function NotFound(): ReactElement {
   return (
@@ -30,10 +30,7 @@ export default function NotFound(): ReactElement {
 
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
         <Button asChild size="lg">
-          <Link href="/clips">Volver a partidas</Link>
-        </Button>
-        <Button asChild variant="outline" size="lg">
-          <Link href="/">Inicio</Link>
+          <Link href="/clips">Ir a Clips y vídeos</Link>
         </Button>
       </div>
     </main>

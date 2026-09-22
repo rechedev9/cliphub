@@ -46,6 +46,8 @@ const STEP = {
   music: '03 · Música',
   overlays: '04 · Textos y gráficos',
 } as const;
+/** One eyebrow style for every step, matching the play list's "01 · Elige las jugadas". */
+const STEP_LABEL_CLASS = 'text-body-sm font-semibold text-fg-2';
 
 export type ShortProducerProps = {
   matchId: string;
@@ -188,7 +190,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           Nuevo short · {match.map}
           {match.player ? ` · ${match.player}` : ''}
         </p>
-        <h1 className="order-first font-display text-display-sm font-bold uppercase text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
+        <h1 className="order-first font-display text-display-sm font-bold text-fg-1">{PRODUCE_SHORT_TITLE}</h1>
         <p className="w-full text-body-sm text-fg-2">Selecciona las jugadas y ajusta el estilo y la música de tu vídeo.</p>
         {restored ? (
           <p role="status" className="w-full text-body-sm text-fg-3">
@@ -199,8 +201,9 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           </p>
         ) : null}
       </div>
-      <div data-short-workspace="" className="grid min-w-0 items-start gap-5 @[80rem]/content:gap-7 @[40rem]/content:grid-cols-2 @[56rem]/content:grid-cols-[minmax(0,1.5fr)_minmax(0,0.85fr)_minmax(280px,1fr)]">
-        <section className="min-w-0 @[40rem]/content:col-span-2 @[56rem]/content:col-span-1">
+      {/* Two columns (plays | storyboard over the aside) until three fit without wrapping the list toolbar or the cue rows. */}
+      <div data-short-workspace="" className="grid min-w-0 items-start gap-5 @[80rem]/content:gap-7 @[40rem]/content:grid-cols-2 @[56rem]/content:grid-cols-[minmax(0,1.3fr)_minmax(300px,1fr)] @[56rem]/content:grid-rows-[auto_1fr] @[85rem]/content:grid-cols-[minmax(0,1.5fr)_minmax(0,0.85fr)_minmax(280px,1fr)] @[85rem]/content:grid-rows-none">
+        <section className="min-w-0 @[40rem]/content:col-span-2 @[56rem]/content:col-span-1 @[56rem]/content:row-span-2 @[85rem]/content:row-span-1">
           <PlayList
             plays={plays}
             selectedIds={selectedIds}
@@ -223,7 +226,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
           <div className="studio-panel flex min-w-0 items-start gap-4 p-4 @[80rem]/content:p-5">
             {selectedPreset ? <PresetPreview preset={selectedPreset} className="w-14 shrink-0 @[80rem]/content:w-16" /> : null}
             <div className="flex min-w-0 flex-1 flex-col gap-2 @[80rem]/content:gap-3">
-              <label htmlFor="short-preset" className="font-mono text-meta uppercase tracking-ultra text-fg-3">
+              <label htmlFor="short-preset" className={STEP_LABEL_CLASS}>
                 {STEP.preset}
               </label>
               {visiblePresets !== null && visiblePresets.length === 0 ? (
@@ -235,7 +238,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
                   </Button>
                 </div>
               ) : (
-                <Select value={variant ?? undefined} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
+                <Select value={variant ?? ''} onValueChange={chooseVariant} disabled={busy || visiblePresets === null}>
                   <SelectTrigger id="short-preset" className="h-10 font-display font-semibold uppercase">
                     <SelectValue placeholder="Cargando estilos…" />
                   </SelectTrigger>
@@ -272,7 +275,7 @@ export function ShortProducer({ matchId, match, plays, seriesId }: ShortProducer
 
           <details className="group/overlays studio-panel px-4 py-3 @[80rem]/content:px-5 @[80rem]/content:py-4">
             <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-              <span className="font-mono text-meta uppercase tracking-ultra text-fg-3">{STEP.overlays}</span>
+              <span className={STEP_LABEL_CLASS}>{STEP.overlays}</span>
               <span className="flex items-center gap-1.5 font-display text-body-sm font-semibold uppercase text-fg-1">
                 <span className="wrap-anywhere">{overlaysSummary(editConfig)}</span>
                 <ChevronRight aria-hidden className="size-4 text-primary transition-transform duration-(--dur-fast) group-open/overlays:rotate-90" />

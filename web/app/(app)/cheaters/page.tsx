@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, FileVideo, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Match } from '@/lib/api/types';
+import { MATCH_STATUS_FAILED, type Match } from '@/lib/api/types';
 import {
   ANTICHEAT_STATUS,
+  anticheatErrorMessage,
   fetchAnticheat,
+  isDemoStillIngesting,
   fetchDossier,
   startAnticheat,
   type AnticheatDocument,
@@ -22,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { matchFromScan, pickCheaterDetectDemo } from '@/lib/cheater-detect-ingest';
 import { DEMO_EMPTY_ROSTER_HINT, demoListLoadError, demoScanError } from '@/lib/demo-parse-flow';
-import { matchDateLabel } from '@/lib/format';
+import { matchDateLabel, prettyMapName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /** How often a running analysis is re-polled, in milliseconds. */
@@ -51,8 +53,14 @@ function DemoPicker({
           )}
         >
           <span className="font-display text-body-sm font-semibold uppercase tracking-tight text-fg-1">
-            {match.map}
+            {prettyMapName(match.map)}
           </span>
+          {/* Four "Ancient" rows only differ by who was the target and when. */}
+          {match.player ? (
+            <span className="max-w-full truncate text-body-sm text-fg-2" title={match.player}>
+              {match.player}
+            </span>
+          ) : null}
           <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
             {match.score ? `${match.score} · ` : ''}
             {matchDateLabel(match)}
@@ -65,6 +73,7 @@ function DemoPicker({
 
 /** The analysis panel for the selected demo, across every lifecycle state. */
 function AnalysisPanel({
+  match,
   document,
   loading,
   error,
@@ -76,6 +85,7 @@ function AnalysisPanel({
   dossierPendingFor,
   dossierError,
 }: {
+  match: Match | undefined;
   document: AnticheatDocument | null;
   loading: boolean;
   error: string | null;
@@ -114,12 +124,32 @@ function AnalysisPanel({
     );
   }
 
+  // GET answers 409 whenever no analysis document exists yet — including for a
+  // demo whose clip pipeline failed, which can still be screened. Only a demo
+  // whose roster scan is still running is refused by POST, so that is the one
+  // state that hides the button instead of offering a request that will fail.
+  if (document === null && isDemoStillIngesting(match?.status)) {
+    return (
+      <StudioEmptyState
+        icon={Loader2}
+        title="La demo aún se está importando"
+        description="Podrás analizarla en cuanto termine de leerse el roster. Esta vista se actualiza sola."
+        compact
+      />
+    );
+  }
+
   if (document === null) {
+    const importFailed = match?.status === MATCH_STATUS_FAILED;
     return (
       <StudioEmptyState
         icon={ShieldAlert}
         title="Esta demo aún no se ha analizado"
-        description="El análisis lee la demo una vez y puntúa a los diez jugadores. No abre CS2 ni HLAE, no toca la partida y no cambia nada del reel."
+        description={
+          importFailed
+            ? 'La preparación de esta demo para clips falló, pero el análisis solo necesita el archivo de la demo, así que puedes intentarlo. Si el archivo está dañado o no llegó a descargarse, el análisis te dirá por qué.'
+            : 'El análisis lee la demo una vez y puntúa a los diez jugadores. No abre CS2 ni HLAE, no toca la partida y no cambia nada del reel.'
+        }
         compact
         actions={
           <Button onClick={onStart} loading={starting} loadingText="INICIANDO ANÁLISIS…">
@@ -292,6 +322,28 @@ export default function CheatersPage(): ReactNode {
     })();
   }, []);
 
+  // The list is read once, so a demo still importing at mount would keep its
+  // start button hidden until a reload. Re-read statuses until it settles.
+  const selectedStatus = matches?.find((row) => row.id === selected)?.status;
+  useEffect(() => {
+    if (!isDemoStillIngesting(selectedStatus)) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void api
+        .listMatches()
+        .then((rows) => {
+          if (!active) return;
+          const fresh = new Map(rows.map((row) => [row.id, row]));
+          setMatches((current) => current?.map((row) => fresh.get(row.id) ?? row) ?? rows);
+        })
+        .catch(() => undefined);
+    }, POLL_INTERVAL_MS);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [selectedStatus]);
+
   const load = useCallback(async (jobId: string, background: boolean) => {
     // Polls are refreshes, not superseding navigation. Skipping an overlapping
     // background request lets the current foreground request settle loading.
@@ -308,7 +360,7 @@ export default function CheatersPage(): ReactNode {
       setError(null);
     } catch (err) {
       if (selectedRef.current !== jobId || analysisRequest.current !== generation) return;
-      setError(err instanceof Error ? err.message : 'error desconocido');
+      setError(anticheatErrorMessage(err, 'load'));
     } finally {
       analysisInFlight.current -= 1;
       if (!background && selectedRef.current === jobId && analysisRequest.current === generation) {
@@ -354,7 +406,7 @@ export default function CheatersPage(): ReactNode {
       await load(jobId, true);
     } catch (err) {
       if (selectedRef.current === jobId && startRequest.current === generation) {
-        setError(err instanceof Error ? err.message : 'error desconocido');
+        setError(anticheatErrorMessage(err, 'start'));
       }
     } finally {
       if (selectedRef.current === jobId && startRequest.current === generation) setStarting(false);
@@ -375,7 +427,7 @@ export default function CheatersPage(): ReactNode {
         setDossier(next);
       } catch (err) {
         if (selectedRef.current === jobId && dossierRequest.current === generation) {
-          setDossierError(err instanceof Error ? err.message : 'error desconocido');
+          setDossierError(anticheatErrorMessage(err, 'dossier'));
         }
       } finally {
         if (selectedRef.current === jobId && dossierRequest.current === generation) {
@@ -450,24 +502,41 @@ export default function CheatersPage(): ReactNode {
     );
   } else {
     body = (
-      <div className="grid gap-6 @[44rem]/content:grid-cols-[minmax(200px,260px)_1fr] @[44rem]/content:gap-8">
+      <div className="grid items-start gap-6 @[44rem]/content:grid-cols-[minmax(200px,260px)_1fr] @[44rem]/content:gap-8">
         <div className="flex flex-col gap-3">
           {ingestError ? <IngestError message={ingestError} /> : null}
           {ingesting ? <IngestStatus fileName={ingestName} /> : dropzone}
           <DemoPicker matches={matches} selected={selected} onSelect={setSelected} />
         </div>
-        <AnalysisPanel
-          document={document}
-          loading={loading}
-          error={error}
-          starting={starting}
-          onStart={() => void start()}
-          expanded={expanded}
-          onToggle={toggle}
-          onOpenDossier={(player) => void openDossier(player)}
-          dossierPendingFor={dossierPendingFor}
-          dossierError={dossierError}
-        />
+        {/*
+          Top-aligned next to a long demo list. The short states (empty, running,
+          failed) also stick under the command strip so they stay in view while
+          the list scrolls; a full report does not, because a sticky block taller
+          than the viewport would hide its own end. `*:min-h-0!` drops the
+          empty state's viewport-height frame, which otherwise re-centres the
+          card half a screen down.
+        */}
+        <div
+          className={cn(
+            'min-w-0 *:min-h-0!',
+            document?.status !== ANTICHEAT_STATUS.ready &&
+              '@[44rem]/content:sticky @[44rem]/content:top-[calc(var(--shell-strip-height)+1.5rem)]',
+          )}
+        >
+          <AnalysisPanel
+            match={matches.find((row) => row.id === selected)}
+            document={document}
+            loading={loading}
+            error={error}
+            starting={starting}
+            onStart={() => void start()}
+            expanded={expanded}
+            onToggle={toggle}
+            onOpenDossier={(player) => void openDossier(player)}
+            dossierPendingFor={dossierPendingFor}
+            dossierError={dossierError}
+          />
+        </div>
       </div>
     );
   }
@@ -475,7 +544,7 @@ export default function CheatersPage(): ReactNode {
   return (
     <div className="measure-work flex flex-col gap-8 sm:gap-10">
       <StudioPageHeader
-        title="CHEATERDETECT"
+        title="CheaterDetect"
         description="Analiza una demo subida y compara la puntería, la información y los tiempos de reacción de cada jugador con una distribución de referencia medida. Es un detector de anomalías para decidir qué revisar a mano, no un veredicto."
       />
 

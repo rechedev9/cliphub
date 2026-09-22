@@ -29,7 +29,7 @@ export function PlayerProfile({ player, onUnfollow, unfollowing }: {
   return (
     <header className="flex flex-wrap items-center gap-5 border-b border-border p-4 sm:p-5">
       <div className="relative shrink-0">
-        <PlayerAvatar nickname={player.nickname} playerID={player.id} size={88} />
+        <PlayerAvatar nickname={player.nickname} playerID={player.id} avatar={player.avatar} size={88} />
         <LevelBadge level={player.skill_level} className="absolute -right-1 -bottom-1 size-8 text-body-sm" />
       </div>
       <div className="min-w-0 flex-1 basis-40">

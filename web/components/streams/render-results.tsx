@@ -7,7 +7,6 @@ import { PLAYBACK_REVIEW, streamPlaybackItem, type MediaPlaybackItem } from '@/l
 import { openYouTubeStudio } from '@/lib/publish-actions';
 import { formatStreamClock } from '@/lib/streams/plan';
 import { Button } from '@/components/ui/button';
-import { StreamSaveButton } from '@/components/streams/stream-save-button';
 import { MediaPlayer } from '@/components/studio/media-player';
 export function StreamRenderResults({
   renderState,
@@ -30,7 +29,7 @@ export function StreamRenderResults({
   if (!renderState) return null;
   const videos = renderState.videos ?? [];
   const empty = videos.length === 0;
-  let message = 'Tus vídeos están listos. Revísalos y guárdalos en tu equipo.';
+  let message = 'Tus vídeos están listos. Elige un Short y guárdalo en tu equipo con «Guardar vídeo».';
   if (empty) message = 'No se generó ningún vídeo. Vuelve a exportar para intentarlo de nuevo.';
   else if (stale) message = 'Hay cambios sin exportar. Exporta de nuevo para aplicarlos.';
   const playbackEntries = (job.rendered_outputs ?? [])
@@ -65,19 +64,14 @@ export function StreamRenderResults({
             <li key={v.clip_id} className="rounded-md border border-border-subtle p-3">
               <Button
                 variant={selectedClipId === v.clip_id ? 'secondary' : 'ghost'}
-                className="mb-2 h-auto w-full justify-start whitespace-normal text-left"
+                aria-pressed={selectedClipId === v.clip_id}
+                className="h-auto w-full justify-start whitespace-normal text-left"
                 onClick={() => onSelect(v.clip_id)}
               >
                 {label} · {formatStreamClock(v.duration_seconds ?? 0)}
               </Button>
-              <StreamSaveButton
-                jobId={job.id}
-                variant={renderedPlan.variant}
-                revision={renderedPlan.updated_at}
-                clipId={v.clip_id}
-                title={label}
-                disabled={stale}
-              />
+              {/* The footer's "Guardar vídeo" saves the selected Short; a second
+                  save button per row duplicated that primary action. */}
               {playback ? (
                 <Button
                   type="button"

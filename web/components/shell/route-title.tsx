@@ -24,6 +24,23 @@ export function useRouteTitle(title: string | undefined): void {
   }, [pathname, title, setTitle]);
 }
 
+/**
+ * Names the browser tab once a client page knows its subject, where the
+ * segment metadata can only give a static title. The static title is handed
+ * back on the way out only while the tab still shows ours: by the time an
+ * unmount cleanup runs, the next route may already have written its own.
+ */
+export function useDocumentTitle(title: string | undefined): void {
+  useEffect(() => {
+    if (!title) return;
+    const previous = document.title;
+    document.title = title;
+    return () => {
+      if (document.title === title) document.title = previous;
+    };
+  }, [title]);
+}
+
 export function useCurrentRouteTitle(): string | null {
   const pathname = usePathname();
   const value = useContext(TitleContext);

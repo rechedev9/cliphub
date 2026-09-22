@@ -134,7 +134,7 @@ export default function PlayersPage(): ReactNode {
   }
 
   return (
-    <div data-players-workspace className="flex w-full min-w-0 flex-col gap-6">
+    <div className="measure-work flex min-w-0 flex-col gap-8">
       <StudioPageHeader title="Jugadores" description="Sigue jugadores y convierte sus partidas en clips."
         actions={<FollowPlayerForm query={query} onQueryChange={setQuery} onSubmit={(event) => void onFollow(event)}
           disabled={state !== 'ready'} busy={busy} />} />

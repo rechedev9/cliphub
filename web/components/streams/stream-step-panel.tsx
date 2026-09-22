@@ -4,11 +4,15 @@ import type { ReactNode } from 'react';
 import { CircleCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-/** Right column shell: the active step's title over its scrollable content. */
+/**
+ * Right column content: the active step's title over its content. The surface
+ * and divider live on the scrolling column in StreamEditor so they run the
+ * full column height however short the step is.
+ */
 export function StreamStepPanel({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col gap-4 overflow-x-hidden bg-surface-1 p-4 shadow-[inset_1px_0_0_0_var(--border-subtle)]">
-      <h2 className="font-mono text-meta uppercase tracking-widest text-fg-3">{title}</h2>
+    <aside className="flex min-w-0 flex-col gap-4 overflow-x-hidden p-4">
+      <h2 className="font-display text-body font-semibold text-fg-1">{title}</h2>
       {children}
     </aside>
   );

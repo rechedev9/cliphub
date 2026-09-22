@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/rechedev9/cliphub/internal/recapplan"
+	"github.com/rechedev9/cliphub/internal/recording"
 )
 
 const fullDemoCaptureSeekPrerollFrames int64 = 2 * recapplan.OutputFPS
@@ -400,7 +401,7 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 	command := []string{runtime.ffmpeg, "-y", "-v", "error"}
 	var audio string
 	var maps []string
-	var sourceOffset, trimStart int64
+	var sourceOffset, trimStart, tailPad int64
 	if item.Role == "round" {
 		var input string
 		var captureStart int
@@ -424,6 +425,9 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 			return nil, err
 		}
 		sourceOffset = offset + item.SourceOffsetFrames
+		if tailPad, err = fullDemoItemTailPad(short.FullDemo.CaptureTailPads, item.SourceRef, sourceOffset, frames); err != nil {
+			return nil, err
+		}
 		var seekFrames int64
 		seekFrames, trimStart = fullDemoCaptureSeek(sourceOffset)
 		if seekFrames > 0 {
@@ -489,7 +493,7 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 	}
 	var clauses []string
 	if withVideo {
-		video := fmt.Sprintf("[0:v]fps=60,trim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s", trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
+		video := fmt.Sprintf("[0:v]fps=60,%strim=start_frame=%d:end_frame=%d,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p%s", fullDemoTailPadFilter(tailPad), trimStart, trimStart+frames, fullDemoTransitionVideo(short, item, edges))
 		hudFilter, err := fullDemoHUDFilter(short, item, output)
 		if err != nil {
 			return nil, err
@@ -542,6 +546,45 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		command = appendThreadArgs(command, short)
 	}
 	return append(command, output), nil
+}
+
+// fullDemoItemTailPad returns how many cloned frames a round item's video needs
+// at its end: the part of the item's capture-relative window [sourceOffset,
+// sourceOffset+frames) that lies past the clip's recorded frames. Only a
+// recorded, validated tail pad can produce a non-zero value, and the result is
+// bounded by that pad and by recording.FullDemoTailPadToleranceFrames before it
+// reaches the tpad filter. An item that would consist only of cloned frames is
+// refused, as is an item past the recorded pad.
+func fullDemoItemTailPad(pads []recording.FullDemoTailPad, segmentID string, sourceOffset, frames int64) (int64, error) {
+	for _, pad := range pads {
+		if pad.SegmentID != segmentID {
+			continue
+		}
+		if err := pad.Validate(); err != nil {
+			return 0, err
+		}
+		missing := sourceOffset + frames - pad.ClipFrames
+		if missing <= 0 {
+			return 0, nil
+		}
+		if missing > pad.PaddedFrames || missing >= frames {
+			return 0, fmt.Errorf("full_demo_capture_incomplete: %s: item needs %d frames past the clip's %d, outside its recorded tail pad of %d", segmentID, missing, pad.ClipFrames, pad.PaddedFrames)
+		}
+		return missing, nil
+	}
+	return 0, nil
+}
+
+// fullDemoTailPadFilter clones the clip's last frame before the item trim, so
+// the trim still emits exactly the canonical item length. The trim keeps that
+// length exact even if the decoder yields more frames than the probe reported.
+// Zero, and any value outside the tolerance, leaves the chain unchanged; the
+// caller has already refused an out-of-range pad.
+func fullDemoTailPadFilter(frames int64) string {
+	if frames < 1 || frames > recording.FullDemoTailPadToleranceFrames {
+		return ""
+	}
+	return fmt.Sprintf("tpad=stop_mode=clone:stop=%d,", frames)
 }
 
 type fullDemoItemProgress struct {

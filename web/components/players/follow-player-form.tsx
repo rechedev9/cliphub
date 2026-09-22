@@ -21,7 +21,10 @@ export function FollowPlayerForm({ query, onQueryChange, onSubmit, disabled, bus
           className="pl-10" disabled={disabled || busy} autoComplete="off" />
       </div>
       <Button type="submit" disabled={disabled || busy || query.trim() === ''}
-        loading={busy} loadingText="Siguiendo…" className="shadow-none">
+        loading={busy} loadingText="Siguiendo…"
+        // The kit's disabled recipe (secondary fill, fg-3, 50% opacity) all but
+        // vanished on this header; keep it flat and inert but still readable.
+        className="shadow-none disabled:border disabled:border-border-strong disabled:bg-surface-2 disabled:text-fg-3 disabled:opacity-100">
         <Plus aria-hidden className="size-4" /> Seguir jugador
       </Button>
     </form>

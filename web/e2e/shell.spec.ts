@@ -120,7 +120,7 @@ test.describe('navigation state', () => {
     });
   }
 
-  test('the sidebar exposes every numbered section', async ({ page }) => {
+  test('the sidebar exposes every section', async ({ page }) => {
     await gotoStudio(page, '/clips');
     for (const { href } of NAV_ROUTES) {
       await expect(page.locator(`[data-slot="sidebar"] a[href="${href}"]`).first()).toBeVisible();

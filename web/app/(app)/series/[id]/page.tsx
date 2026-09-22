@@ -32,8 +32,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-// A series detail belongs to the demo-upload journey, so it shares its number.
-
 /** Fast while any map is still working, relaxed once the series has settled. */
 const FAST_MS = 2500;
 const IDLE_MS = 8000;
@@ -220,11 +218,10 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
       <StudioEmptyState
         icon={Layers}
         title="Serie no encontrada"
-        description="Ese enlace de serie no es válido. Carga tus demos para empezar una serie nueva."
-        note="Una serie se crea al cargar varias demos a la vez desde Cargar demo."
+        description="Ese enlace de serie no es válido. Carga varias demos a la vez para empezar una serie nueva."
         actions={
           <Button asChild variant="hero">
-            <Link href={NEW_DEMO_HREF}>CARGAR DEMOS</Link>
+            <Link href={NEW_DEMO_HREF}>Cargar demos</Link>
           </Button>
         }
       />
@@ -249,7 +246,7 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
         note={offline ? 'ClipHub no envía tus demos a ningún servidor: todo el análisis es local.' : undefined}
         actions={
           <Button asChild variant="outline">
-            <Link href={NEW_DEMO_HREF}>CARGAR DEMOS</Link>
+            <Link href={NEW_DEMO_HREF}>Cargar demos</Link>
           </Button>
         }
       />
@@ -261,11 +258,11 @@ export default function SeriesPage({ params }: { params: Promise<{ id: string }>
     return (
       <StudioEmptyState
         icon={Layers}
-        title="Esta serie está vacía"
-        description="No hay demos en esta serie. Carga las demos de tu bo3/bo5 para crear sus vídeos."
+        title="No encontramos esta serie"
+        description="Puede que sus demos se hayan borrado o que el enlace sea de una sola partida. Carga las demos de tu bo3/bo5 para crear una serie."
         actions={
           <Button asChild variant="hero">
-            <Link href={NEW_DEMO_HREF}>CARGAR DEMOS</Link>
+            <Link href={NEW_DEMO_HREF}>Cargar demos</Link>
           </Button>
         }
       />

@@ -3,7 +3,7 @@ import { NAV_SECTIONS } from '../lib/nav.ts';
 
 /** Every shell route, keyed by nav order. */
 export const NAV_ROUTES = NAV_SECTIONS.map((section) => ({
-  name: `${section.number} ${section.label}`,
+  name: section.label,
   href: section.href,
 }));
 

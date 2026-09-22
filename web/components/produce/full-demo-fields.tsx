@@ -6,10 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export function FullDemoGroup({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactNode {
   return <section className="studio-panel min-w-0 space-y-2 p-3">
-    <div><h2 className="font-display text-body-lg font-semibold uppercase text-fg-1">{title}</h2>
+    <div><h2 className="font-display text-body-lg font-semibold text-fg-1">{title}</h2>
       {note ? <p className="mt-1 text-body-sm text-fg-2">{note}</p> : null}</div>
     {children}
   </section>;
+}
+
+/** A required file still missing: a quiet hint while editing, an error once a create attempt was blocked. */
+export function FullDemoMissing({ error, children }: { error: boolean; children: ReactNode }): ReactNode {
+  return <p role={error ? 'alert' : undefined} className={error ? 'text-body-sm text-destructive' : 'text-body-sm text-fg-2'}>{children}</p>;
 }
 
 export function FullDemoToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }): ReactNode {
@@ -30,7 +35,7 @@ export function FullDemoNumber({ label, value, min = 0, max, step = 1, onChange 
 }
 
 const SLIDER_CLASS =
-  'h-1 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50';
+  'h-1 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border-strong accent-stream disabled:cursor-not-allowed disabled:opacity-50';
 
 /** Gain slider shown as a percentage: 1.0 gain renders as 100 %. */
 export function FullDemoGain({ label, value, max = 2, step = 0.05, disabled = false, onChange }: {
@@ -38,7 +43,7 @@ export function FullDemoGain({ label, value, max = 2, step = 0.05, disabled = fa
 }): ReactNode {
   const id = useId();
   const percent = Math.round(value * 100);
-  return <div className="flex items-center gap-3">
+  return <div className="flex min-w-0 items-center gap-3">
     <label htmlFor={id} className="w-24 shrink-0 font-mono text-meta uppercase tracking-wider text-fg-2">
       {label} <span className="text-stream-text">· {percent}%</span>
     </label>

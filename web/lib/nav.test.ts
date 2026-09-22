@@ -2,29 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_SECTIONS, RETIRED_ROUTES } from './nav.ts';
 
-/** Rail order: the number is the padded index, not a historical slot. */
 const RAIL = [
-  ['01', 'Clips y vídeos', '/clips'],
-  ['02', 'Clips de stream', '/streams'],
-  ['03', 'Jugadores', '/players'],
-  ['04', 'Táctica', '/tactical'],
-  ['05', 'Anti-cheat', '/cheaters'],
-  ['06', 'Ajustes', '/settings'],
+  ['Clips y vídeos', '/clips'],
+  ['Clips de stream', '/streams'],
+  ['Jugadores', '/players'],
+  ['Táctica', '/tactical'],
+  ['Anti-cheat', '/cheaters'],
+  ['Ajustes', '/settings'],
 ] as const;
 
-test('nav: numbers follow rail order', () => {
+test('nav: sections follow rail order', () => {
   assert.deepEqual(
-    NAV_SECTIONS.map((section) => [section.number, section.label, section.href]),
+    NAV_SECTIONS.map((section) => [section.label, section.href]),
     RAIL,
   );
-});
-
-test('nav: numbers are unique and sequential from 01', () => {
-  const numbers = NAV_SECTIONS.map((section) => section.number);
-  assert.equal(new Set(numbers).size, numbers.length);
-  for (const [i, number] of numbers.entries()) {
-    assert.equal(number, String(i + 1).padStart(2, '0'));
-  }
 });
 
 test('nav: hrefs are unique', () => {

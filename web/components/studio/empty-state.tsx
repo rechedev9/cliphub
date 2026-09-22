@@ -26,7 +26,7 @@ export function StudioEmptyState({
   className,
 }: StudioEmptyStateProps): ReactNode {
   return (
-    <div className="studio-reveal flex min-h-[45vh] w-full items-center justify-center sm:min-h-[55vh]">
+    <div className={cn('studio-reveal flex w-full items-center justify-center', !compact && 'min-h-[45vh] sm:min-h-[55vh]')}>
       <section
         aria-label={title}
         data-slot="empty"
@@ -37,7 +37,7 @@ export function StudioEmptyState({
         )}
       >
         <IconTile icon={icon} size="lg" depth="inset" tone={accent === 'magenta' ? 'stream' : 'primary'} />
-        <h2 className="mt-5 font-display text-title font-bold uppercase text-fg-1">{title}</h2>
+        <h2 className="mt-5 font-display text-title font-bold text-fg-1">{title}</h2>
         <div className="mt-2 max-w-xl text-body text-fg-2">{description}</div>
         {actions ? (
           <div className="mt-7 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">{actions}</div>

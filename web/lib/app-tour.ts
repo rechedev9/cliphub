@@ -17,7 +17,7 @@ export interface TourPoint {
 
 export interface TourChapter {
   readonly id: string;
-  /** Rail number of the section it explains, or a short tag outside the rail. */
+  /** Rail label of the section it explains, or a short tag outside the rail. */
   readonly kicker: string;
   /** Short name for the chapter list. */
   readonly label: string;
@@ -31,7 +31,7 @@ export interface TourChapter {
 export const TOUR_CHAPTERS: readonly TourChapter[] = [
   {
     id: 'welcome',
-    kicker: '00',
+    kicker: 'ClipHub',
     label: 'Qué es ClipHub',
     title: 'De tus partidas de CS2 a vídeos listos para subir',
     lead:
@@ -53,7 +53,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'load',
-    kicker: '01',
+    kicker: 'Clips y vídeos',
     label: 'Cargar una partida',
     title: 'Todo empieza con una partida',
     lead:
@@ -80,7 +80,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'short',
-    kicker: '01',
+    kicker: 'Clips y vídeos',
     label: 'Crear un Short',
     title: 'Un Short vertical con las mejores jugadas',
     lead:
@@ -106,7 +106,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'full',
-    kicker: '01',
+    kicker: 'Clips y vídeos',
     label: 'Vídeo largo',
     title: 'La partida entera desde un jugador',
     lead:
@@ -132,7 +132,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'deliver',
-    kicker: '01',
+    kicker: 'Clips y vídeos',
     label: 'Descargar y publicar',
     title: 'Tus vídeos, listos para subir',
     lead:
@@ -155,7 +155,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'streams',
-    kicker: '02',
+    kicker: 'Clips de stream',
     label: 'Clips de stream',
     title: 'Recorta tus streams en Shorts',
     lead:
@@ -182,7 +182,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'players',
-    kicker: '03',
+    kicker: 'Jugadores',
     label: 'Jugadores',
     title: 'Sigue jugadores de FACEIT',
     lead:
@@ -201,7 +201,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'tactical',
-    kicker: '04',
+    kicker: 'Táctica',
     label: 'Táctica',
     title: 'Análisis táctico de una partida',
     lead:
@@ -224,7 +224,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'cheaters',
-    kicker: '05',
+    kicker: 'Anti-cheat',
     label: 'Anti-cheat',
     title: 'Detecta comportamientos anómalos',
     lead:
@@ -247,7 +247,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'settings',
-    kicker: '06',
+    kicker: 'Ajustes',
     label: 'Ajustes',
     title: 'Prepara este PC y tus conexiones',
     lead: 'En Ajustes compruebas que todo está listo para grabar y gestionas las conexiones opcionales.',
@@ -269,7 +269,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
   },
   {
     id: 'capture',
-    kicker: 'REC',
+    kicker: 'Captura',
     label: 'Grabación y progreso',
     title: 'Mientras ClipHub graba',
     lead:

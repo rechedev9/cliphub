@@ -12,22 +12,22 @@ function sectionOf(href: string): (typeof NAV_SECTIONS)[number] | undefined {
   return NAV_SECTIONS.find((section) => path === section.href || path.startsWith(`${section.href}/`));
 }
 
-test('app tour: every rail section is explained by a chapter wearing its number', () => {
+test('app tour: every rail section is explained by a chapter wearing its label', () => {
   for (const section of NAV_SECTIONS) {
     const chapter = TOUR_CHAPTERS.find(
-      (entry) => entry.link !== undefined && sectionOf(entry.link.href)?.href === section.href && entry.kicker === section.number,
+      (entry) => entry.link !== undefined && sectionOf(entry.link.href)?.href === section.href && entry.kicker === section.label,
     );
-    assert.ok(chapter, `no tour chapter links to ${section.href} with kicker ${section.number}`);
+    assert.ok(chapter, `no tour chapter links to ${section.href} with kicker ${section.label}`);
   }
 });
 
-test('app tour: a chapter that borrows a rail number links inside that section', () => {
+test('app tour: a chapter that borrows a rail label links inside that section', () => {
   for (const chapter of TOUR_CHAPTERS) {
     if (chapter.link === undefined) continue;
     const section = sectionOf(chapter.link.href);
     assert.ok(section, `${chapter.id} links outside the rail: ${chapter.link.href}`);
-    const numbered = NAV_SECTIONS.some((entry) => entry.number === chapter.kicker);
-    if (numbered && chapter.id !== 'capture') assert.equal(chapter.kicker, section.number, chapter.id);
+    const railed = NAV_SECTIONS.some((entry) => entry.label === chapter.kicker);
+    if (railed && chapter.id !== 'capture') assert.equal(chapter.kicker, section.label, chapter.id);
   }
 });
 

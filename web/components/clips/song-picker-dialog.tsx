@@ -142,7 +142,7 @@ export function SongPickerDialog({ open, onOpenChange, onChoose, selectedSongId 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-[family-name:var(--font-display)] tracking-tight">ELIGE UN TEMA</DialogTitle>
+          <DialogTitle className="font-[family-name:var(--font-display)] tracking-tight">Elige un tema</DialogTitle>
           <DialogDescription>Cortamos la acción al ritmo del beat. Pulsa play para escucharlo.</DialogDescription>
         </DialogHeader>
         <SongCatalog
@@ -185,10 +185,10 @@ function SongRow({ song, playing, selected, onTogglePlay, onUse }: SongRowProps)
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-body-sm font-semibold text-fg-1">{song.title}</p>
-        <p className="truncate font-mono text-meta tracking-wider text-fg-3">
-          {song.artist}
-          {/* No dimmer step below --fg-3 exists for text; the separator does the work. */}
-          {meta ? <span> · {meta}</span> : null}
+        {/* Only the artist truncates, so genre and length always stay readable. */}
+        <p className="flex min-w-0 font-mono text-meta tracking-wider text-fg-3">
+          <span className="min-w-0 truncate">{song.artist}</span>
+          {meta ? <span className="shrink-0 whitespace-nowrap">&nbsp;· {meta}</span> : null}
         </p>
       </div>
 

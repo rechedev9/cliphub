@@ -22,7 +22,14 @@ const TRAIL = {
   newShort: 'nuevo short',
   newFull: 'vídeo largo',
   publish: 'publicar',
+  series: 'serie',
 } as const;
+
+/** Series belong to the demo journey but live outside /clips. */
+const SERIES_PREFIX = '/series/';
+
+/** Job, series and project ids are not names; the page supplies one via useRouteTitle. */
+const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Full-inset 56px ceiling: own padding, no max-w, opaque --surface-0 (no backdrop-blur).
 export function CommandStrip(): ReactElement {
@@ -48,16 +55,8 @@ export function CommandStrip(): ReactElement {
       />
 
       {/* 6px inside the label, 14px across the level break, so the breadcrumb
-          reads as two levels instead of four equal tokens. */}
+          reads as two levels. */}
       <nav aria-label="Ruta actual" className="flex min-w-0 items-baseline gap-1.5">
-        {section === null ? null : (
-          <span
-            className="font-[family-name:var(--font-mono)] text-meta text-fg-3 tabular-nums"
-            aria-hidden
-          >
-            {`// ${section.number}`}
-          </span>
-        )}
         <span className="truncate font-[family-name:var(--font-display)] text-label font-semibold tracking-wide text-fg-1 uppercase">
           {section?.label ?? 'ClipHub'}
         </span>
@@ -111,15 +110,17 @@ function CapturePip(): ReactElement {
 }
 
 function sectionForPath(pathname: string): NavSection | null {
+  if (pathname.startsWith(SERIES_PREFIX)) return NAV_SECTIONS.find((section) => section.href === CLIPS_HREF) ?? null;
   for (const section of NAV_SECTIONS) {
     if (pathname === section.href || pathname.startsWith(`${section.href}/`)) return section;
   }
   return null;
 }
 
-// Screen names for the 01 section; other sections show the nested segment as-is.
+// Screen names for Clips y vídeos; other sections show a readable nested segment.
 function trailForPath(pathname: string, section: NavSection | null, format: string | null): string | null {
   if (section === null) return null;
+  if (pathname.startsWith(SERIES_PREFIX)) return TRAIL.series;
   const rest = pathname.slice(section.href.length).replace(/^\/+|\/+$/g, '');
   if (rest === '') return null;
   const segments = rest.split('/');
@@ -129,5 +130,6 @@ function trailForPath(pathname: string, section: NavSection | null, format: stri
     if (segments[1] === 'nuevo') return format === PRODUCE_FORMAT.full ? TRAIL.newFull : TRAIL.newShort;
     if (segments[1] === 'publicar') return TRAIL.publish;
   }
-  return decodeURIComponent(segments[0] ?? '');
+  const segment = decodeURIComponent(segments[0] ?? '');
+  return OPAQUE_ID.test(segment) ? null : segment;
 }

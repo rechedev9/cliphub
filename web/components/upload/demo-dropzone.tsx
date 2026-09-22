@@ -121,9 +121,13 @@ export function DemoDropzone({
             {extracting ? 'Extrayendo archivo…' : DROPZONE_TITLE}
           </span>
           {!compact && !extracting ? <span className="rounded-md border border-border-strong bg-surface-3 px-4 py-2 text-body-sm font-semibold text-primary">Elegir archivo</span> : null}
-          <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
-            .dem · .dem.zst · .rar · .zip · hasta {MAX_DEMO_FILES} demos
-          </span>
+          {compact ? (
+            <span className="text-body-sm text-fg-3">.dem, .zst, .rar o .zip</span>
+          ) : (
+            <span className="font-mono text-meta uppercase tracking-wider text-fg-3">
+              .dem · .dem.zst · .rar · .zip · hasta {MAX_DEMO_FILES} demos
+            </span>
+          )}
         </span>
 
         <input

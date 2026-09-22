@@ -85,7 +85,7 @@ export function AppTour(): ReactElement {
                       aria-hidden
                       className={cn('w-6 shrink-0 font-mono text-meta tabular-nums', i === index ? 'text-primary' : 'text-fg-3')}
                     >
-                      {i < index ? <Check className="size-3.5" /> : entry.kicker}
+                      {i < index ? <Check className="size-3.5" /> : String(i + 1).padStart(2, '0')}
                     </span>
                     <span className="min-w-0 truncate">{entry.label}</span>
                   </button>

@@ -8,6 +8,11 @@ export function streamTitle(job: Pick<StreamJob, 'title' | 'source_url' | 'edit_
   return clipTitle || 'Clip de stream';
 }
 
+/** Browser tab title for one stream project; follows the root `%s · ClipHub` template. */
+export function streamDocumentTitle(projectTitle: string): string {
+  return `${projectTitle} · Clips de stream · ClipHub`;
+}
+
 function readableTitle(raw: string | undefined): string {
   const title = raw?.trim() ?? '';
   // U+FFFD means that the original byte was discarded. Keep persisted data
