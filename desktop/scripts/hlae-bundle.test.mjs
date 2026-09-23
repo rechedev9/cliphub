@@ -98,3 +98,21 @@ test('downloads over a cached archive that no longer matches the pin', async (t)
   assert.deepEqual(readFileSync(archive), bytes);
   assert.deepEqual(readFileSync(join(cacheDirectory, spec.archiveName)), bytes);
 });
+
+test('stages a verified download even when the cache cannot be written', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'cliphub-hlae-bundle-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const bytes = Buffer.from('pinned release fixture');
+  const spec = fixtureSpec(bytes);
+  const cacheDirectory = join(directory, 'cache');
+  writeFileSync(cacheDirectory, 'not a directory');
+
+  const archive = await stageBundledHLAE({
+    destinationDirectory: join(directory, 'out'),
+    cacheDirectory,
+    spec,
+    fetchImpl: async () => new Response(bytes, { status: 200 }),
+  });
+
+  assert.deepEqual(readFileSync(archive), bytes);
+});

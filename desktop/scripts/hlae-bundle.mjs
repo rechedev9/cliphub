@@ -57,9 +57,8 @@ export async function stageBundledHLAE({
   rmSync(temporary, { force: true });
 
   try {
-    if (cached && existsSync(cached) && sha256File(cached) === spec.sha256) {
-      copyFileSync(cached, temporary);
-    } else {
+    const fromCache = cached !== '' && copyVerifiedCache(cached, temporary, spec);
+    if (!fromCache) {
       const response = await fetchImpl(spec.url, {
         headers: { 'User-Agent': 'ClipHub-Studio-build' },
         redirect: 'follow',
@@ -70,15 +69,38 @@ export async function stageBundledHLAE({
       writeFileSync(temporary, Buffer.from(await response.arrayBuffer()));
     }
     verifyBundledHLAE(temporary, spec);
-    if (cached) {
-      mkdirSync(cacheDirectory, { recursive: true });
-      copyFileSync(temporary, cached);
-    }
+    if (cached && !fromCache) writeCache(cacheDirectory, cached, temporary);
     rmSync(destination, { force: true });
     renameSync(temporary, destination);
     return destination;
   } finally {
     rmSync(temporary, { force: true });
+  }
+}
+
+// The cache is an optimization only: an unreadable or mismatching entry falls
+// back to the download, and a failed cache write never fails the staging.
+function copyVerifiedCache(cached, temporary, spec) {
+  try {
+    if (!existsSync(cached) || sha256File(cached) !== spec.sha256) return false;
+    copyFileSync(cached, temporary);
+    return true;
+  } catch (err) {
+    console.warn(`[hlae-bundle] ignoring unreadable cache ${cached}: ${String(err)}`);
+    rmSync(temporary, { force: true });
+    return false;
+  }
+}
+
+function writeCache(cacheDirectory, cached, source) {
+  const partial = `${cached}.tmp`;
+  try {
+    mkdirSync(cacheDirectory, { recursive: true });
+    copyFileSync(source, partial);
+    renameSync(partial, cached);
+  } catch (err) {
+    console.warn(`[hlae-bundle] could not update cache ${cached}: ${String(err)}`);
+    rmSync(partial, { force: true });
   }
 }
 
