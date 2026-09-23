@@ -114,8 +114,9 @@ func mergeDemoIntoScoreboard(board faceit.Scoreboard, roster parser.RosterResult
 	}
 	board.Teams = teams
 	// A substitute or a disconnect can leave a player out of either side;
-	// anything beyond that is a different match.
-	if total == 0 || matched < total-2 {
+	// anything beyond that is a different match. The majority floor keeps a
+	// small roster (a 1v1 or 2v2) from passing with no player in common.
+	if matched < total-2 || 2*matched <= total {
 		return faceit.Scoreboard{}, false
 	}
 	return board, true

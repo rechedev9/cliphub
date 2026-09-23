@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseFaceitScoreboard } from './faceit-scoreboard.ts';
+import { getFaceitScoreboard, parseFaceitScoreboard } from './faceit-scoreboard.ts';
 
 const upstream = {
   scoreboard: {
@@ -66,4 +66,30 @@ test('parseFaceitScoreboard leaves an unresolved ELO or a malformed Steam ID uns
   assert.equal(board.teams[0].averageElo, undefined);
   assert.equal(board.teams[0].players[0].elo, undefined);
   assert.equal(board.teams[0].players[0].steamId, undefined);
+});
+
+async function withFetch<T>(impl: typeof fetch, run: () => Promise<T>): Promise<T> {
+  const original = globalThis.fetch;
+  globalThis.fetch = impl;
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
+test('getFaceitScoreboard falls back to null so the picker keeps the demo tables', async () => {
+  const jobId = '8019aa74-60cc-48dc-8334-4f2d017a80b6';
+  const cases: Array<[string, typeof fetch]> = [
+    ['not a FACEIT demo', async () => Response.json({ code: 'not_faceit_demo' }, { status: 404 })],
+    ['FACEIT unavailable', async () => Response.json({ code: 'faceit_unavailable' }, { status: 502 })],
+    ['network failure', async () => { throw new TypeError('fetch failed'); }],
+    ['unexpected body', async () => Response.json({ scoreboard: { teams: [] } })],
+  ];
+  for (const [name, impl] of cases) {
+    assert.equal(await withFetch(impl, () => getFaceitScoreboard(jobId)), null, name);
+  }
+  const served = parseFaceitScoreboard(upstream);
+  const board = await withFetch(async () => Response.json({ scoreboard: served }), () => getFaceitScoreboard(jobId));
+  assert.deepEqual(board, served);
 });
