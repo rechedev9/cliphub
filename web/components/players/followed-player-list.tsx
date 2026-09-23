@@ -26,7 +26,9 @@ export function FollowedPlayerList({ players, selectedID, onSelect }: {
   });
 
   return (
-    <section className="studio-panel min-w-0 self-start overflow-hidden" aria-labelledby="followed-players-heading">
+    // Sticky beside the long history on wide layouts, so switching player never needs a scroll back up.
+    <section className="studio-panel min-w-0 self-start overflow-hidden @[64rem]/content:sticky @[64rem]/content:top-[calc(var(--shell-strip-height)+1.5rem)]"
+      aria-labelledby="followed-players-heading">
       <div className="space-y-4 p-4">
         <div className="flex items-center gap-2.5">
           <h2 id="followed-players-heading" className="text-body font-semibold text-fg-1">Siguiendo</h2>

@@ -1,7 +1,7 @@
 'use client';
 
 import type { FormEvent, ReactNode } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, UserSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -15,7 +15,8 @@ export function FollowPlayerForm({ query, onQueryChange, onSubmit, disabled, bus
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
       <div className="relative min-w-0 flex-1 sm:w-64">
-        <Search aria-hidden className="pointer-events-none absolute top-3.5 left-3.5 size-4 text-fg-3" />
+        {/* Not the magnifier of the list filter below: this field finds a new FACEIT player to follow. */}
+        <UserSearch aria-hidden className="pointer-events-none absolute top-3.5 left-3.5 size-4 text-fg-3" />
         <Input value={query} onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Nick o URL de FACEIT" aria-label="Nick o URL de FACEIT"
           className="pl-10" disabled={disabled || busy} autoComplete="off" />

@@ -129,6 +129,15 @@
   --chart-4: oklch(0.527 0.037 249.9); /* dim #5b6d80 */
   --chart-5: oklch(0.39 0.044 250.2); /* dim #33475c */
 
+  /* FACEIT skill-level tiers, close to FACEIT's own gauge colours so a level
+   * reads at a glance. Only the level gauge uses them: level 10 used to borrow
+   * --destructive and a list of top players looked like a list of errors. */
+  --faceit-level-1: oklch(0.88 0.01 250);
+  --faceit-level-2: oklch(0.8 0.21 142);
+  --faceit-level-4: oklch(0.86 0.17 90);
+  --faceit-level-8: oklch(0.72 0.19 48);
+  --faceit-level-10: oklch(0.66 0.23 32);
+
   --sidebar-primary: oklch(0.811 0.135 207.6);
   --sidebar-primary-foreground: oklch(0.173 0.027 233.6);
   --sidebar-accent: oklch(0.214 0.05 265.4); /* #0e1830 */

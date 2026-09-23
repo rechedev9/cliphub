@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { FaceitMatch, FaceitMatchStats } from './api/faceit.ts';
-import { summarizeFaceitMatches } from './faceit-stats.ts';
+import { faceitTrend, summarizeFaceitMatches } from './faceit-stats.ts';
 
 function match(result?: FaceitMatchStats['result'], values: Partial<FaceitMatchStats> = {}): FaceitMatch {
   return { id: 'match', room_url: 'https://www.faceit.com/en/cs2/room/match', score: {},
@@ -32,4 +32,13 @@ test('averages keep real zeroes and exclude unavailable or non-finite measuremen
   assert.equal(summary.adr, 50);
   assert.equal(summary.headshots, 40);
   assert.equal(summarizeFaceitMatches([match()]).kd, undefined);
+});
+
+test('trends read oldest to newest and keep a slot for matches without a measurement', () => {
+  const newestFirst = [match('win', { adr: 120 }), match(), match('loss', { adr: Number.NaN }), match('win', { adr: 80 })];
+  const trend = faceitTrend(newestFirst, (stats) => stats.adr);
+  assert.deepEqual(trend.values, [80, undefined, undefined, 120]);
+  assert.equal(trend.min, 80);
+  assert.equal(trend.max, 120);
+  assert.deepEqual(faceitTrend([match()], (stats) => stats.adr), { values: [undefined], min: undefined, max: undefined });
 });
