@@ -25,7 +25,9 @@
 #   - Build the binaries first:  .\scripts\build.ps1   (produces .\bin\zv.exe)
 #   - Node.js + pnpm 11.22.0. If node_modules is missing, the script installs
 #     exactly the dependency graph in pnpm-lock.yaml.
-#   - CS2 + the latest official HLAE installed under C:\HLAE-<version>\HLAE.exe. Capture needs them;
+#   - CS2 + an HLAE build compatible with the installed CS2: the Studio pin from
+#     desktop/src/hlae-tool.json (%APPDATA%\cliphub-studio\tools\hlae\<version>\HLAE.exe)
+#     or an official release under C:\HLAE-<version>\HLAE.exe. Capture needs them;
 #     without them the app still runs the analyze flow and the Capture card tells
 #     you what is missing.
 

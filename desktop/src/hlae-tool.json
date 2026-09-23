@@ -1,9 +1,9 @@
 {
-  "version": "2.192.1",
-  "archiveName": "hlae_2_192_1.zip",
-  "url": "https://github.com/advancedfx/advancedfx/releases/download/v2.192.1/hlae_2_192_1.zip",
-  "sha256": "08ae68bb1c42c99bcd441f688d17e24bc52faed27eac07ebea5fc7c98e34b465",
-  "treeSha256": "fc5bc770e8492d779fc9599838eab09e781be993de6683872578ddd0660cee54",
+  "version": "2.192.2-cliphub.1",
+  "archiveName": "hlae_2_192_2_cliphub_1.zip",
+  "url": "https://github.com/rechedev9/advancedfx/releases/download/v2.192.2-cliphub.1/hlae_2_192_2_cliphub_1.zip",
+  "sha256": "b27d92058ee988d4da5cae60148fe437378d3229eec70f64e7ecdf0b0c2ddf19",
+  "treeSha256": "a69ae0286da696f1925bee3497f14b89b9677c5ed2686df91a358c3f21614f82",
   "exeRel": "HLAE.exe",
   "timeoutMs": 90000
 }

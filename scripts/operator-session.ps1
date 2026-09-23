@@ -1,8 +1,8 @@
-# Pins this shell to the packaged HLAE 2.192.1 unpack and prints capture readiness.
+# Pins this shell to the packaged HLAE 2.192.2-cliphub.1 unpack and prints capture readiness.
 # Identity is the unpacked path + Test-Path. Do not Get-FileHash HLAE.exe against
 # desktop/src/hlae-tool.json: sha256 is the zip, treeSha256 is Studio's tree digest.
 $ErrorActionPreference = 'Stop'
-$pin = Join-Path $env:APPDATA 'cliphub-studio\tools\hlae\2.192.1\HLAE.exe'
+$pin = Join-Path $env:APPDATA 'cliphub-studio\tools\hlae\2.192.2-cliphub.1\HLAE.exe'
 if (-not (Test-Path -LiteralPath $pin)) {
     throw "HLAE pin missing: $pin"
 }

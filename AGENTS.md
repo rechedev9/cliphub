@@ -98,6 +98,48 @@ Rules that follow from it:
   for the last successful run of the same path before X shipped. If every
   run in between failed, the regression window is the whole gap, not X.
 
+## HLAE pin and CS2 updates (`desktop/src/hlae-tool.*`)
+
+### Incident: every capture failed after a CS2 update (Studio 4.0.1, 2026-09-23)
+
+A user reported "Full Demo renders stopped working after the last updates".
+Telemetry showed the render never ran: `record:demo` exited 6 after 5 s with
+`HLAE hook crashed with a native error dialog ("Error - AfxHookSource2")`.
+Nothing in the capture path had changed since the last good run (3.0.8); the
+CS2 update of 2026-09-22 (build 14182) broke AfxHookSource2's signature scan in
+every HLAE release, including 2.192.2. Studio 5.0.0 pins
+`2.192.2-cliphub.1`: the official 2.192.2 archive with `x64/AfxHookSource2.dll`
+rebuilt from advancedfx PR #1213 (provenance in `cliphub-build.txt` inside the
+zip). `assemble.mjs` stages the pinned archive from `desktop/.hlae-cache/` when
+its sha256 matches the pin and only downloads `url` otherwise, so a local
+package does not depend on the archive being published.
+
+Rules that follow from it:
+
+- Exit code 6 / `capture_incompatible` means HLAE vs CS2 build, not a ClipHub
+  regression. Check the advancedfx issues and releases and the CS2 update time
+  against the user's last successful capture before bisecting our commits.
+- Studio passes `ZV_HLAE_PATH` for the pinned version and reinstalls the pin
+  when its cache digest does not match, so users cannot work around an
+  incompatible pin by installing a newer HLAE themselves. The fix always ships
+  as a new pin plus a Studio release.
+- When advancedfx has no fixed release yet: build `AfxHookSource2` from the
+  fix (`cmake --preset x64-release`, then
+  `cmake --build build/x64-release --config Release --target AfxHookSource2`),
+  replace only `x64/AfxHookSource2.dll` in the latest official zip, and pin the
+  result. `treeSha256` is the digest `runtime-tools.ts` computes over the
+  `Expand-Archive` output (path, NUL, file sha256, newline per file in
+  `localeCompare` order); recompute it, do not reuse the zip sha256.
+- Prove the pin with a real capture on the current CS2 build before release:
+  reproduce the crash with the old pin, then capture a kills plan, a
+  `deathnotices` plan and a Full Demo subset with the new one.
+- Go back to an official advancedfx release as soon as one supports the
+  current CS2 build.
+- Building advancedfx with only VS Build Tools needs `-products *` in the
+  `vswhere` calls of its top-level `CMakeLists.txt`, and the shader step fails
+  with code 9009 when `NoDefaultCurrentDirectoryInExePath` is set in the
+  environment.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,
