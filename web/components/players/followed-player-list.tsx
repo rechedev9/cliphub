@@ -46,7 +46,8 @@ export function FollowedPlayerList({ players, selectedID, onSelect }: {
           </Select>
         </div>
       </div>
-      <nav aria-label="Jugadores seguidos" className="max-h-[calc(4*4rem+1px)] overflow-y-auto overscroll-contain border-t border-border @[64rem]/content:max-h-[calc(9*4rem+1px)]">
+      {/* Sticky, the rail must also fit a short window: past 9 rows or the viewport, whichever is lower, the list scrolls. */}
+      <nav aria-label="Jugadores seguidos" className="max-h-[calc(4*4rem+1px)] overflow-y-auto overscroll-contain border-t border-border @[64rem]/content:max-h-[min(calc(9*4rem+1px),calc(100dvh_-_var(--shell-strip-height)_-_11rem))]">
         {filtered.map((player) => (
           <button key={player.id} type="button" onClick={() => onSelect(player.id)}
             aria-current={selectedID === player.id ? 'true' : undefined}
