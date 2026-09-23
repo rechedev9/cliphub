@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { DEMO_CREATION_STEPS } from '@/lib/clips/copy';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
 import { aggregateGroupedSeriesRoster } from '@/lib/api/series-roster';
+import { getFaceitScoreboard, type FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import { MATCH_STATUS_SCANNED } from '@/lib/clips/hub';
 import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
 import {
@@ -101,6 +102,8 @@ export default function NewDemoPage({
   const [jobId, setJobId] = useState<string | null>(null);
   const [players, setPlayers] = useState<DemoPlayer[]>([]);
   const [match, setMatch] = useState<RosterMatch | null>(null);
+
+  const [faceitBoard, setFaceitBoard] = useState<{ jobId: string; board: FaceitScoreboard } | null>(null);
 
   const [scanRows, setScanRows] = useState<ScanRow[]>([]);
   const [parseRows, setParseRows] = useState<ParseRow[]>([]);
@@ -268,6 +271,16 @@ export default function NewDemoPage({
     [stage, runScan, runSeriesScan],
   );
 
+  // A FACEIT demo shows the room's scoreboard; any other demo, or any failure, keeps the demo's own.
+  useEffect(() => {
+    if (stage !== 'picking' || seriesMode || jobId === null) return;
+    const controller = new AbortController();
+    void getFaceitScoreboard(jobId, controller.signal).then((board) => {
+      if (!controller.signal.aborted && board !== null) setFaceitBoard({ jobId, board });
+    });
+    return () => controller.abort();
+  }, [stage, seriesMode, jobId]);
+
   // The hub's empty-state dropzone parks its files here; `take` empties the store, so re-runs are no-ops.
   useEffect(() => {
     const handed = takePendingDemoFiles();
@@ -422,7 +435,7 @@ export default function NewDemoPage({
         <ScannedDemoRow fileName={fileName} match={match} />
         {error ? <ErrorBanner message={error} /> : null}
         <Card className="studio-panel-raised p-4 @[40rem]/content:p-6">
-          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSingle} match={match ?? undefined} cancelHref={CLIPS_HREF} />
+          <PlayerPicker players={players} purpose={format === PRODUCE_FORMAT.full ? 'full-demo' : 'highlights'} allowDestinationSwitch={false} onPick={onPickSingle} match={match ?? undefined} cancelHref={CLIPS_HREF} faceit={faceitBoard?.jobId === jobId ? faceitBoard.board : null} />
         </Card>
       </div>
     );

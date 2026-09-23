@@ -167,6 +167,9 @@ func (a *rosterAccumulator) register(p demoinfocs.Parser) {
 		}
 		if assister := a.observeInRound(e.Assister); assister != nil {
 			assister.Assists++
+			if e.AssistedFlash {
+				assister.FlashAssists++
+			}
 		}
 		if e.Killer != nil && e.Victim != nil && e.Killer.SteamID64 != 0 && e.Victim.SteamID64 != 0 {
 			rk := roundKill{

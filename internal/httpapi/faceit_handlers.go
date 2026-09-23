@@ -28,6 +28,8 @@ type faceitResponseCache struct {
 	players map[string]cachedFaceitPlayer
 	matches map[string]cachedFaceitMatches
 	avatars map[string]string
+	// scoreboards is keyed by match id and map; see GetFaceitScoreboard.
+	scoreboards map[string]cachedFaceitScoreboard
 }
 
 type cachedFaceitPlayer struct {

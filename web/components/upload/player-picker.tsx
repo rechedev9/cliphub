@@ -4,6 +4,8 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Users } from 'lucide-react';
 import type { DemoPlayer, RosterMatch } from '@/lib/api/types';
+import type { FaceitScoreboard } from '@/lib/api/faceit-scoreboard';
+import { FaceitRoster } from '@/components/upload/faceit-roster';
 import { cn } from '@/lib/utils';
 import { ratingBarPct, prettyMapName } from '@/lib/format';
 import { StatusTag, type StatusTagTone } from '@/components/studio/status-tag';
@@ -28,6 +30,8 @@ export type PlayerPickerProps = {
   /** Where "Cancelar" leads; omitted when the host owns the way back. */
   cancelHref?: string;
   allowDestinationSwitch?: boolean;
+  /** FACEIT room scoreboard of this demo; replaces the demo's own tables so the numbers match the room. */
+  faceit?: FaceitScoreboard | null;
 };
 
 /** Tooltip copy for the abbreviated stat column headers. */
@@ -172,6 +176,7 @@ export function PlayerPicker({
   purpose = 'highlights',
   allowDestinationSwitch = true,
   cancelHref,
+  faceit,
 }: PlayerPickerProps): ReactNode {
   const recommended = purpose === 'full-demo' ? pickPovRecommended(players) : pickRecommended(players);
   const [selected, setSelected] = useState<string | null>(recommended?.steamId ?? players[0]?.steamId ?? null);
@@ -185,6 +190,11 @@ export function PlayerPicker({
   }, [players, recommended?.steamId]);
   const isSeries = (seriesMapCount ?? 0) >= 2;
   const selectedPlayer = players.find((p) => p.steamId === selected);
+  // Series stats are aggregated from the demos, so FACEIT only replaces a single map.
+  const faceitBoard = !isSeries && faceit ? faceit : null;
+  const faceitSelected = faceitBoard?.teams.flatMap((t) => t.players).find((p) => p.steamId === selected);
+  const selectable = new Set(players.map((p) => p.steamId));
+  const recommendedLabel = purpose === 'full-demo' ? 'Mejor rendimiento' : 'Recomendado';
   let contextLabel = 'Demo';
   if (isSeries) contextLabel = `Serie · ${seriesMapCount} mapas`;
   else if (match) contextLabel = prettyMapName(match.map);
@@ -229,8 +239,18 @@ export function PlayerPicker({
 
   return (
     <div className="flex flex-col gap-5">
-      {header}
-      {groups.map(({ side, roster }) => {
+      {faceitBoard ? (
+        <FaceitRoster
+          board={faceitBoard}
+          selected={selected}
+          onSelect={setSelected}
+          selectable={selectable}
+          recommended={recommended?.steamId}
+          recommendedLabel={recommendedLabel}
+        />
+      ) : null}
+      {faceitBoard ? null : header}
+      {faceitBoard ? null : groups.map(({ side, roster }) => {
         const meta = TEAM_META[side];
         const avg = roster.reduce((s, p) => s + p.rating, 0) / roster.length;
         return (
@@ -327,7 +347,7 @@ export function PlayerPicker({
                       <span className="flex flex-wrap items-center gap-1.5 pl-[2.375rem]">
                         {isRecommended ? (
                           <Badge shape="square" className="min-h-7 px-2">
-                            {purpose === 'full-demo' ? 'Mejor rendimiento' : 'Recomendado'}
+                            {recommendedLabel}
                           </Badge>
                         ) : null}
                         {mapsChip}
@@ -361,9 +381,9 @@ export function PlayerPicker({
             {selectedPlayer ? (
               <>
                 {contextLabel} <span className="text-fg-3">·</span>{' '}
-                <span className="text-primary">{selectedPlayer.name}</span>{' '}
+                <span className="text-primary">{faceitSelected?.nickname ?? selectedPlayer.name}</span>{' '}
                 <span className="text-fg-3">
-                  · {selectedPlayer.kills}K / {selectedPlayer.deaths}D
+                  · {faceitSelected?.kills ?? selectedPlayer.kills}K / {faceitSelected?.deaths ?? selectedPlayer.deaths}D
                 </span>
               </>
             ) : (
