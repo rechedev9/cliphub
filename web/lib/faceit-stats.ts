@@ -1,4 +1,4 @@
-import type { FaceitMatch } from './api/faceit.ts';
+import type { FaceitMatch, FaceitMatchStats } from './api/faceit.ts';
 
 type FaceitPerformance = {
   wins: number;
@@ -27,5 +27,26 @@ export function summarizeFaceitMatches(matches: FaceitMatch[]): FaceitPerformanc
     kd: average(matches.map((match) => match.stats?.kd_ratio)),
     adr: average(matches.map((match) => match.stats?.adr)),
     headshots: average(matches.map((match) => match.stats?.headshots_percent)),
+  };
+}
+
+export type FaceitTrend = {
+  /** Oldest match first, one slot per match; undefined where FACEIT had no measurement. */
+  values: (number | undefined)[];
+  min: number | undefined;
+  max: number | undefined;
+};
+
+/** The API lists matches newest first; a trend reads left to right, so it is reversed here. */
+export function faceitTrend(matches: FaceitMatch[], pick: (stats: FaceitMatchStats) => number | undefined): FaceitTrend {
+  const values = [...matches].reverse().map((match) => {
+    const value = match.stats ? pick(match.stats) : undefined;
+    return value !== undefined && Number.isFinite(value) ? value : undefined;
+  });
+  const known = values.filter((value): value is number => value !== undefined);
+  return {
+    values,
+    min: known.length === 0 ? undefined : Math.min(...known),
+    max: known.length === 0 ? undefined : Math.max(...known),
   };
 }

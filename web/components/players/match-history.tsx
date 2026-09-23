@@ -13,8 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const ALL = 'all';
 const UNKNOWN = 'unknown';
 const PAGE_SIZE = 10;
-const HEAD = 'px-3 py-3 text-left text-body-sm font-medium whitespace-nowrap text-fg-2';
+const HEAD = 'px-3 py-3 text-body-sm font-medium whitespace-nowrap text-fg-2';
 const CELL = 'px-3 py-1 text-body-sm whitespace-nowrap tabular-nums text-fg-2';
+// Numbers align on their last digit so a column of K/D or ADR can be scanned; headers follow their cells.
+const COLUMNS = [
+  ['Fecha', 'text-left'], ['Mapa', 'text-left'], ['Resultado', 'text-left'], ['Marcador', 'text-left'],
+  ['K / D / A', 'text-right'], ['K/D', 'text-right'], ['ADR', 'text-right'], ['HS', 'text-right'], ['Acción', 'text-right'],
+] as const;
 const RESULTS = {
   win: { label: 'Victoria', tone: 'success' },
   loss: { label: 'Derrota', tone: 'danger' },
@@ -68,8 +73,8 @@ export function MatchHistory({ matches, refreshing, onRefresh }: {
           <table className="w-full min-w-[780px] border-collapse">
             <caption className="sr-only">Partidas recientes de FACEIT. Abre una sala para descargar su demo.</caption>
             <thead className="bg-surface-3"><tr className="border-b border-border">
-              {['Fecha', 'Mapa', 'Resultado', 'Marcador', 'K / D / A', 'K/D', 'ADR', 'HS', 'Acción'].map((heading) => (
-                <th key={heading} scope="col" className={HEAD}>{heading}</th>
+              {COLUMNS.map(([heading, align]) => (
+                <th key={heading} scope="col" className={cn(HEAD, align)}>{heading}</th>
               ))}
             </tr></thead>
             <tbody>
@@ -112,25 +117,33 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
   const map = prettyMapName(stats?.map ?? '') || 'Sin mapa';
   const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
   return (
-    <tr className="h-12 border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3 focus-within:bg-surface-3">
+    <tr className="group h-12 border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3 focus-within:bg-surface-3">
       <td className={CELL}>{match.finished_at ? formatShortDate(match.finished_at) : '—'}</td>
       <td className={CELL}><div className="flex items-center gap-2.5">
         <MapCover map={stats?.map ?? ''} className="h-8 w-11 shrink-0 rounded-sm" />
         <span className="font-semibold text-fg-1">{map}</span>
       </div></td>
       <td className={CELL}><ResultBadge result={stats?.result} /></td>
-      <td className={cn(CELL, 'text-fg-1')}>{score}</td>
-      <td className={CELL}>{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</td>
-      <td className={cn(CELL, stats?.kd_ratio !== undefined && stats.kd_ratio >= 1.3 && 'text-success')}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</td>
-      <td className={cn(CELL, stats?.adr !== undefined && stats.adr >= 100 && 'text-success')}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
-      <td className={CELL}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</td>
-      <td className={cn(CELL, 'text-right')}><Button asChild variant="link" size="sm" className="px-0 has-[>svg]:px-0">
+      <td className={cn(CELL, 'font-semibold text-fg-1')}>{score}</td>
+      <td className={cn(CELL, 'text-right')}>{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</td>
+      <td className={cn(CELL, 'text-right', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</td>
+      <td className={cn(CELL, 'text-right')}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
+      <td className={cn(CELL, 'text-right')}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</td>
+      <td className={cn(CELL, 'text-right')}><Button asChild variant="link" size="sm"
+        // Ten bright links in a column outshouted the stats; the row that is pointed at lights its own.
+        className="px-0 text-fg-2 group-hover:text-primary group-focus-within:text-primary has-[>svg]:px-0">
         <a href={match.room_url} target="_blank" rel="noreferrer" aria-label={`Abrir sala FACEIT de ${map}`}>
           Abrir sala <ExternalLink aria-hidden className="size-3.5" />
         </a>
       </Button></td>
     </tr>
   );
+}
+
+/** K/D reads against 1.0: above it the player out-fragged their deaths, below it they did not. */
+function kdTone(kd: number | undefined): string {
+  if (kd === undefined) return '';
+  return kd >= 1 ? 'text-success' : 'text-destructive';
 }
 
 function ResultBadge({ result }: { result?: FaceitMatchStats['result'] }): ReactNode {
@@ -153,7 +166,7 @@ function MobileMatch({ match }: { match: FaceitMatch }): ReactNode {
       </div>
       <dl className="mt-3 grid grid-cols-3 gap-2 border-y border-border-subtle py-3 text-meta tracking-normal tabular-nums">
         <div><dt className="text-fg-3">K / D / A</dt><dd className="mt-1 text-fg-1">{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</dd></div>
-        <div><dt className="text-fg-3">K/D</dt><dd className="mt-1 text-fg-1">{stats?.kd_ratio?.toFixed(2) ?? '—'}</dd></div>
+        <div><dt className="text-fg-3">K/D</dt><dd className={cn('mt-1 text-fg-1', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</dd></div>
         <div><dt className="text-fg-3">ADR · HS</dt><dd className="mt-1 text-fg-1">{stats?.adr !== undefined ? Math.round(stats.adr) : '—'} · {stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</dd></div>
       </dl>
       <div className="mt-1 flex items-center justify-between gap-2">
