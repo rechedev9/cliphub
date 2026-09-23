@@ -258,10 +258,12 @@ test('removes obsolete versioned HLAE caches after the pinned version is ready',
   seedCompleteFFmpeg(toolsDir);
   seedCompleteYtdlp(toolsDir);
   const obsolete = path.join(toolsDir, 'hlae', '2.190.2');
+  // Studio 5.0.0 shipped this custom build; 5.1.x must not leave it behind for autodetect.
+  const obsoleteCustom = path.join(toolsDir, 'hlae', '2.192.2-cliphub.1');
   const unrelated = path.join(toolsDir, 'hlae', 'manual-backup');
-  fs.mkdirSync(obsolete, { recursive: true });
-  fs.mkdirSync(unrelated, { recursive: true });
+  for (const dir of [obsolete, obsoleteCustom, unrelated]) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(obsolete, 'HLAE.exe'), 'old');
+  fs.writeFileSync(path.join(obsoleteCustom, 'HLAE.exe'), 'old custom');
   const logs: string[] = [];
 
   const env = await provisionRuntimeTools(withFixtureTrust({
@@ -272,8 +274,10 @@ test('removes obsolete versioned HLAE caches after the pinned version is ready',
 
   assert.equal(typeof env.ZV_HLAE_PATH, 'string');
   assert.equal(fs.existsSync(obsolete), false);
+  assert.equal(fs.existsSync(obsoleteCustom), false);
   assert.equal(fs.existsSync(unrelated), true);
   assert.match(logs.join(''), /removed obsolete HLAE 2\.190\.2/);
+  assert.match(logs.join(''), /removed obsolete HLAE 2\.192\.2-cliphub\.1/);
 });
 
 test('rejects a hash mismatch without publishing the failed tool', async (t) => {

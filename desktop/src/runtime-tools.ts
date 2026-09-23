@@ -102,6 +102,7 @@ const INSTALL_MARKER = '.cliphub-install.json';
 const INSTALL_MARKER_SCHEMA_VERSION = 2;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROGRESS_REPORT_MIN_INTERVAL_MS = 1000;
+const OBSOLETE_HLAE_VERSION_DIR = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$/;
 
 /** Installs pinned tools concurrently; cache hits skip the network. */
 export async function provisionRuntimeTools(
@@ -320,9 +321,12 @@ function cleanupObsoleteHLAEVersions(toolsDir: string, logLine: (text: string) =
     return;
   }
 
+  const pinned = PINNED_HLAE_TOOL.version;
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === PINNED_HLAE_TOOL.version) continue;
-    if (!/^\d+\.\d+\.\d+$/.test(entry.name)) continue;
+    if (!entry.isDirectory() || entry.name === pinned || entry.name.startsWith(`${pinned}.`)) continue;
+    // Suffixed builds count too: a leftover 2.192.2-cliphub.1 would otherwise
+    // be the HLAE the orchestrator autodetects whenever the pin fails to install.
+    if (!OBSOLETE_HLAE_VERSION_DIR.test(entry.name)) continue;
     const obsolete = path.join(parent, entry.name);
     try {
       fs.rmSync(obsolete, { recursive: true, force: true });
