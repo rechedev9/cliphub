@@ -11,3 +11,4 @@ dist/
 e2e/artifacts/
 .env*
 !.env.example
+.hlae-cache/

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -33,9 +34,18 @@ export function readPinnedHLAETool(desktopDirectory = defaultDesktopDirectory) {
   return manifest;
 }
 
+// build-resources/ is wiped on every assemble, so a verified copy of the pinned
+// archive is kept here and reused before downloading. A cached file that no
+// longer matches the pin is ignored, so the digest check stays the only trust
+// decision.
+export function defaultHLAECacheDirectory(desktopDirectory = defaultDesktopDirectory) {
+  return join(desktopDirectory, '.hlae-cache');
+}
+
 export async function stageBundledHLAE({
   desktopDirectory = defaultDesktopDirectory,
   destinationDirectory,
+  cacheDirectory = defaultHLAECacheDirectory(desktopDirectory),
   fetchImpl = fetch,
   spec = readPinnedHLAETool(desktopDirectory),
 }) {
@@ -43,18 +53,27 @@ export async function stageBundledHLAE({
   mkdirSync(destinationDirectory, { recursive: true });
   const destination = join(destinationDirectory, spec.archiveName);
   const temporary = `${destination}.tmp`;
+  const cached = cacheDirectory ? join(cacheDirectory, spec.archiveName) : '';
   rmSync(temporary, { force: true });
 
   try {
-    const response = await fetchImpl(spec.url, {
-      headers: { 'User-Agent': 'ClipHub-Studio-build' },
-      redirect: 'follow',
-    });
-    if (!response.ok) {
-      throw new Error(`[hlae-bundle] download failed with HTTP ${response.status}`);
+    if (cached && existsSync(cached) && sha256File(cached) === spec.sha256) {
+      copyFileSync(cached, temporary);
+    } else {
+      const response = await fetchImpl(spec.url, {
+        headers: { 'User-Agent': 'ClipHub-Studio-build' },
+        redirect: 'follow',
+      });
+      if (!response.ok) {
+        throw new Error(`[hlae-bundle] download failed with HTTP ${response.status}`);
+      }
+      writeFileSync(temporary, Buffer.from(await response.arrayBuffer()));
     }
-    writeFileSync(temporary, Buffer.from(await response.arrayBuffer()));
     verifyBundledHLAE(temporary, spec);
+    if (cached) {
+      mkdirSync(cacheDirectory, { recursive: true });
+      copyFileSync(temporary, cached);
+    }
     rmSync(destination, { force: true });
     renameSync(temporary, destination);
     return destination;
@@ -63,11 +82,15 @@ export async function stageBundledHLAE({
   }
 }
 
+function sha256File(filePath) {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+}
+
 export function verifyBundledHLAE(archivePath, spec = readPinnedHLAETool()) {
   if (!existsSync(archivePath)) {
     throw new Error(`[hlae-bundle] missing bundled archive ${archivePath}`);
   }
-  const digest = createHash('sha256').update(readFileSync(archivePath)).digest('hex');
+  const digest = sha256File(archivePath);
   if (digest !== spec.sha256) {
     throw new Error(`[hlae-bundle] sha256 mismatch: got ${digest}, want ${spec.sha256}`);
   }
