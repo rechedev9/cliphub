@@ -107,7 +107,7 @@ Telemetry showed the render never ran: `record:demo` exited 6 after 5 s with
 `HLAE hook crashed with a native error dialog ("Error - AfxHookSource2")`.
 Nothing in the capture path had changed since the last good run (3.0.8); the
 CS2 update of 2026-09-22 (build 14182) broke AfxHookSource2's signature scan in
-every HLAE release, including 2.192.2. Studio 4.0.2 pins
+every HLAE release, including 2.192.2. Studio 5.0.0 pins
 `2.192.2-cliphub.1`: the official 2.192.2 archive with `x64/AfxHookSource2.dll`
 rebuilt from advancedfx PR #1213 (provenance in `cliphub-build.txt` inside the
 zip). `assemble.mjs` stages the pinned archive from `desktop/.hlae-cache/` when

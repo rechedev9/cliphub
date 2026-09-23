@@ -100,7 +100,12 @@ function writeCache(cacheDirectory, cached, source) {
     renameSync(partial, cached);
   } catch (err) {
     console.warn(`[hlae-bundle] could not update cache ${cached}: ${String(err)}`);
-    rmSync(partial, { force: true });
+    // force only ignores ENOENT; a cache path under a file throws ENOTDIR here.
+    try {
+      rmSync(partial, { force: true });
+    } catch {
+      // Nothing was written, so there is nothing to clean up.
+    }
   }
 }
 
