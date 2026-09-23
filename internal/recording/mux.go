@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"strings"
+	"sync"
 )
 
 // MuxSegmentClips combines each segment take's video.mp4 and audio.wav into a
@@ -36,8 +39,7 @@ func MuxSegmentClips(ctx context.Context, plan RecordingPlan, artifacts []Record
 		return segmentOrder[pairs[i].segmentID] < segmentOrder[pairs[j].segmentID]
 	})
 
-	out := make([]RecordingArtifact, 0, len(pairs))
-	for _, pair := range pairs {
+	return muxSegmentPairs(pairs, min(4, runtime.NumCPU()), func(pair segmentMediaPair) RecordingArtifact {
 		path := filepath.Join(outDir, pair.segmentID+".mp4")
 		artifact := RecordingArtifact{
 			SegmentID: pair.segmentID,
@@ -54,13 +56,11 @@ func MuxSegmentClips(ctx context.Context, plan RecordingPlan, artifacts []Record
 			if ffprobePath != "" {
 				probeArtifact(ctx, ffprobePath, &artifact)
 			}
-			out = append(out, artifact)
-			continue
+			return artifact
 		}
 		if err := muxPair(ctx, ffmpegPath, pair.video.Path, pair.audio.Path, path); err != nil {
 			artifact.ProbeError = fmt.Sprintf("ffmpeg mux: %v", err)
-			out = append(out, artifact)
-			continue
+			return artifact
 		}
 		if info, err := os.Stat(path); err == nil {
 			artifact.SizeBytes = info.Size()
@@ -68,8 +68,48 @@ func MuxSegmentClips(ctx context.Context, plan RecordingPlan, artifacts []Record
 		if ffprobePath != "" {
 			probeArtifact(ctx, ffprobePath, &artifact)
 		}
-		out = append(out, artifact)
+		return artifact
+	})
+}
+
+// Finalization runs after capture has stopped. Muxing copies video packets and
+// encodes only audio, so a small pool can finish outstanding clips and probe
+// already-published ones together. Preserve input order and serialize pairs
+// sharing a segment destination: multiple takes must never write the same
+// .part file or replace an incremental clip concurrently.
+func muxSegmentPairs(pairs []segmentMediaPair, jobs int, process func(segmentMediaPair) RecordingArtifact) []RecordingArtifact {
+	out := make([]RecordingArtifact, len(pairs))
+	groups := make([][]int, 0, len(pairs))
+	bySegment := make(map[string]int, len(pairs))
+	for i, pair := range pairs {
+		// Tokens are ASCII; fold case conservatively for Windows/macOS paths.
+		key := strings.ToLower(pair.segmentID)
+		group, ok := bySegment[key]
+		if !ok {
+			group = len(groups)
+			bySegment[key] = group
+			groups = append(groups, nil)
+		}
+		groups[group] = append(groups[group], i)
 	}
+	queue := make(chan []int)
+	var workers sync.WaitGroup
+	for range min(max(1, jobs), len(groups)) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for indices := range queue {
+				for _, i := range indices {
+					out[i] = process(pairs[i])
+				}
+			}
+		}()
+	}
+	for _, indices := range groups {
+		queue <- indices
+	}
+	close(queue)
+	workers.Wait()
 	return out
 }
 

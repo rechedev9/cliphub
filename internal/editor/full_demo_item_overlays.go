@@ -61,6 +61,26 @@ func fullDemoProgramUsesItemOverlays(short ShortEdit) bool {
 	return fullDemoItemOverlayEligible(short)
 }
 
+// Most rounds lie entirely between the intro and outro. They do not need to
+// decode and animate those stills again. Keep a conservative millisecond around
+// each inclusive window: betweenExpression rounds its bounds to milliseconds,
+// while item PTS are exact 1/60 frame indices.
+func fullDemoItemOverlaysInactive(short ShortEdit, item recapplan.TimelineItem) bool {
+	if !fullDemoItemOverlayEligible(short) || len(short.Effects) == 0 || item.StartFrame < 0 || item.EndFrame <= item.StartFrame {
+		return false
+	}
+	first := float64(item.StartFrame) / recapplan.OutputFPS
+	last := float64(item.EndFrame-1) / recapplan.OutputFPS
+	for _, effect := range short.Effects {
+		start := max(0, effect.StartSeconds)
+		end := max(start, effect.EndSeconds)
+		if start-.001 <= last && end+.001 >= first {
+			return false
+		}
+	}
+	return true
+}
+
 // fullDemoItemVideoClauses builds the item's video filter clauses.
 //
 // videoBase is the unlabeled item chain after transitions and custom HUD, in
@@ -72,6 +92,12 @@ func fullDemoProgramUsesItemOverlays(short ShortEdit) bool {
 // match the indices the graph expects; imageInputStart is the FFmpeg input index
 // of the first image.
 func fullDemoItemVideoClauses(short ShortEdit, item recapplan.TimelineItem, videoBase string, images []Effect, imageInputStart int) ([]string, string) {
+	if fullDemoItemOverlaysInactive(short, item) {
+		// overlay=format=auto negotiates RGBA even while every overlay is
+		// disabled. Preserve that round trip, including its chroma rounding and
+		// color range; simply removing the overlays changes inactive pixels.
+		return []string{videoBase + ",format=rgba,format=yuv420p,settb=expr=1/60,setpts=N[vout]"}, "[vout]"
+	}
 	if !fullDemoItemOverlayEligible(short) || len(images) == 0 {
 		return []string{videoBase + "[v]"}, "[v]"
 	}

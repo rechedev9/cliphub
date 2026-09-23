@@ -1,0 +1,428 @@
+{
+  "baseline_commit": "1e7e5e4a",
+  "full_renders": [
+    {
+      "label": "baseline-current",
+      "wall_seconds": 253.57850639999378,
+      "render_ms": 251432,
+      "output": "phase-a-out\\baseline-current\\out\\short-001-demo-compilation.mp4",
+      "bytes": 4501498794,
+      "delivery": {
+        "full_decode": true,
+        "frame_count": 55836,
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration_seconds": 930.6,
+        "content_sha256": "2b69b26322d2a9f56f7adf7ee1c68bd527a636b4aee391312404b1e8ca258fb8"
+      },
+      "program_loudness": {
+        "status": "measured",
+        "integrated_lufs": -14.44,
+        "true_peak_dbtp": -3.35,
+        "lra": 14,
+        "threshold": -26.44,
+        "offset": -0.26
+      },
+      "stage_wall_ms": {
+        "transitions": 2399,
+        "voice_analysis": 18590,
+        "items": 171976,
+        "voice_prepare": 3409,
+        "items_audio": 1441,
+        "audio_assembly": 16434,
+        "audio_candidate_encode": 129532,
+        "audio_candidate_analysis": 77441,
+        "full_demo": 35,
+        "audio_input_analysis": 33305,
+        "assembly": 2957,
+        "final_mux": 3589,
+        "final_audio_analysis": 11618,
+        "delivery": 43645
+      },
+      "program_pcm_sha256": "68baf2bace35ff3a660e5a5bbd61fbed5e913032dfd73a5652576e38942d407a"
+    },
+    {
+      "label": "candidate-filter4",
+      "wall_seconds": 240.91950499999803,
+      "render_ms": 238693,
+      "output": "phase-a-out\\candidate-filter4\\out\\short-001-demo-compilation.mp4",
+      "bytes": 4501498794,
+      "delivery": {
+        "full_decode": true,
+        "frame_count": 55836,
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration_seconds": 930.6,
+        "content_sha256": "2b69b26322d2a9f56f7adf7ee1c68bd527a636b4aee391312404b1e8ca258fb8"
+      },
+      "program_loudness": {
+        "status": "measured",
+        "integrated_lufs": -14.44,
+        "true_peak_dbtp": -3.35,
+        "lra": 14,
+        "threshold": -26.44,
+        "offset": -0.26
+      },
+      "stage_wall_ms": {
+        "transitions": 2462,
+        "voice_analysis": 18698,
+        "items": 158900,
+        "voice_prepare": 3175,
+        "items_audio": 1059,
+        "audio_assembly": 15334,
+        "audio_candidate_encode": 118823,
+        "audio_candidate_analysis": 71605,
+        "full_demo": 37,
+        "audio_input_analysis": 30201,
+        "assembly": 2687,
+        "final_mux": 3758,
+        "final_audio_analysis": 11691,
+        "delivery": 43828
+      },
+      "program_pcm_sha256": "68baf2bace35ff3a660e5a5bbd61fbed5e913032dfd73a5652576e38942d407a"
+    },
+    {
+      "label": "baseline-repeat",
+      "wall_seconds": 265.069917599998,
+      "render_ms": 262884,
+      "output": "phase-a-out\\baseline-repeat\\out\\short-001-demo-compilation.mp4",
+      "bytes": 4501498794,
+      "delivery": {
+        "full_decode": true,
+        "frame_count": 55836,
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration_seconds": 930.6,
+        "content_sha256": "2b69b26322d2a9f56f7adf7ee1c68bd527a636b4aee391312404b1e8ca258fb8"
+      },
+      "program_loudness": {
+        "status": "measured",
+        "integrated_lufs": -14.44,
+        "true_peak_dbtp": -3.35,
+        "lra": 14,
+        "threshold": -26.44,
+        "offset": -0.26
+      },
+      "stage_wall_ms": {
+        "transitions": 2409,
+        "voice_analysis": 26980,
+        "items": 180320,
+        "voice_prepare": 4820,
+        "items_audio": 2058,
+        "audio_assembly": 16866,
+        "audio_candidate_encode": 128209,
+        "audio_candidate_analysis": 78646,
+        "full_demo": 32,
+        "audio_input_analysis": 32726,
+        "assembly": 6071,
+        "final_mux": 5647,
+        "final_audio_analysis": 11843,
+        "delivery": 44382
+      },
+      "program_pcm_sha256": "68baf2bace35ff3a660e5a5bbd61fbed5e913032dfd73a5652576e38942d407a"
+    },
+    {
+      "label": "candidate-repeat",
+      "wall_seconds": 241.8805132999987,
+      "render_ms": 239633,
+      "output": "phase-a-out\\candidate-repeat\\out\\short-001-demo-compilation.mp4",
+      "bytes": 4501498794,
+      "delivery": {
+        "full_decode": true,
+        "frame_count": 55836,
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration_seconds": 930.6,
+        "content_sha256": "2b69b26322d2a9f56f7adf7ee1c68bd527a636b4aee391312404b1e8ca258fb8"
+      },
+      "program_loudness": {
+        "status": "measured",
+        "integrated_lufs": -14.44,
+        "true_peak_dbtp": -3.35,
+        "lra": 14,
+        "threshold": -26.44,
+        "offset": -0.26
+      },
+      "stage_wall_ms": {
+        "transitions": 2551,
+        "voice_analysis": 18835,
+        "items": 159848,
+        "voice_prepare": 3233,
+        "items_audio": 1175,
+        "audio_assembly": 15356,
+        "audio_candidate_encode": 119686,
+        "audio_candidate_analysis": 71668,
+        "full_demo": 35,
+        "audio_input_analysis": 30370,
+        "assembly": 2724,
+        "final_mux": 3878,
+        "final_audio_analysis": 11689,
+        "delivery": 43780
+      },
+      "program_pcm_sha256": "68baf2bace35ff3a660e5a5bbd61fbed5e913032dfd73a5652576e38942d407a"
+    }
+  ],
+  "fresh_renders": [
+    {
+      "label": "baseline",
+      "wall_seconds": 49.933767200003786,
+      "render_ms": 48270,
+      "output": "fresh-renders\\baseline\\out\\short-001-demo-compilation.mp4",
+      "bytes": 607052527,
+      "delivery": {
+        "full_decode": true,
+        "frame_count": 7646,
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration_seconds": 127.43333333333334,
+        "content_sha256": "4c76d4b50f1a9875d3c4062a010394901628a30467ca56bf24e937631724abcd"
+      },
+      "program_loudness": {
+        "status": "measured",
+        "integrated_lufs": -14.44,
+        "true_peak_dbtp": -3.2,
+        "lra": 9.9,
+        "threshold": -26.44,
+        "offset": -0.62
+      },
+      "stage_wall_ms": {
+        "transitions": 450,
+        "voice_analysis": 20067,
+        "items": 32096,
+        "voice_prepare": 3387,
+        "items_audio": 247,
+        "audio_assembly": 2038,
+        "audio_candidate_encode": 13302,
+        "audio_candidate_analysis": 8344,
+        "full_demo": 26,
+        "audio_input_analysis": 3411,
+        "assembly": 437,
+        "final_mux": 435,
+        "final_audio_analysis": 1639,
+        "delivery": 5931
+      }
+    },
+    {
+      "label": "candidate",
+      "wall_seconds": 47.76379349999479,
+      "render_ms": 46323,
+      "output": "fresh-renders\\candidate\\out\\short-001-demo-compilation.mp4",
+      "bytes": 607052527,
+      "delivery": {
+        "full_decode": true,
+        "frame_count": 7646,
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration_seconds": 127.43333333333334,
+        "content_sha256": "4c76d4b50f1a9875d3c4062a010394901628a30467ca56bf24e937631724abcd"
+      },
+      "program_loudness": {
+        "status": "measured",
+        "integrated_lufs": -14.44,
+        "true_peak_dbtp": -3.2,
+        "lra": 9.9,
+        "threshold": -26.44,
+        "offset": -0.62
+      },
+      "stage_wall_ms": {
+        "transitions": 437,
+        "voice_analysis": 18922,
+        "items": 32665,
+        "voice_prepare": 3023,
+        "items_audio": 244,
+        "audio_assembly": 1778,
+        "audio_candidate_encode": 12971,
+        "audio_candidate_analysis": 8330,
+        "full_demo": 25,
+        "audio_input_analysis": 3324,
+        "assembly": 434,
+        "final_mux": 436,
+        "final_audio_analysis": 1634,
+        "delivery": 5930
+      }
+    }
+  ],
+  "mux": [
+    {
+      "mode": "all-pending",
+      "baseline_seconds": [
+        2.0915869,
+        2.1005731,
+        2.0728166
+      ],
+      "baseline_median_seconds": 2.0915869,
+      "candidate_seconds": [
+        1.0019547,
+        1.0035224,
+        0.9911327
+      ],
+      "candidate_median_seconds": 1.0019547,
+      "reduction_percent": 52.09595642428244
+    },
+    {
+      "mode": "last-pending",
+      "baseline_seconds": [
+        1.0952881,
+        1.0883666,
+        1.0858839
+      ],
+      "baseline_median_seconds": 1.0883666,
+      "candidate_seconds": [
+        0.9723107,
+        0.971693,
+        0.9767345
+      ],
+      "candidate_median_seconds": 0.9723107,
+      "reduction_percent": 10.6633095870454
+    }
+  ],
+  "capture_verified": true,
+  "capture_wall_seconds": 84.29003740000189,
+  "capture_performance": {
+    "version": 1,
+    "runs": [
+      {
+        "capture_segment_ids": [
+          "round-001",
+          "round-002",
+          "round-003"
+        ],
+        "stream": {
+          "full_demo_profile": "full-demo-pov-chill-v1",
+          "full_demo_capture": {
+            "hud_profile": "broadcast-clean-v2",
+            "xray": false,
+            "camera_policy": "strict-first-person",
+            "crosshair": {
+              "mode": "observed",
+              "code": "",
+              "allow_capture_default": false
+            },
+            "contract_version": "full-demo-observer-v1"
+          },
+          "mode": "ffmpeg_direct",
+          "hud_mode": "gameplay",
+          "fps": 60,
+          "width": 1920,
+          "height": 1080,
+          "crf": 18,
+          "encoder": "nvenc-h264"
+        },
+        "prepare_ms": 124,
+        "launch_and_capture_ms": 82340,
+        "incremental_mux_ms": 1240,
+        "artifact_probe_ms": 103,
+        "final_mux_ms": 1003,
+        "before_result_write_ms": 83595,
+        "segments": [
+          {
+            "segment_id": "round-001",
+            "video_frame_count": 1475,
+            "video_duration_seconds": 24.583008
+          },
+          {
+            "segment_id": "round-002",
+            "video_frame_count": 2208,
+            "video_duration_seconds": 36.8
+          },
+          {
+            "segment_id": "round-003",
+            "video_frame_count": 3969,
+            "video_duration_seconds": 66.15
+          }
+        ]
+      }
+    ]
+  },
+  "full_demo_evidence_equal": true,
+  "fresh_demo_evidence_equal": true,
+  "program_pcm_equal": true,
+  "environment": {
+    "os": "Windows 11 amd64",
+    "cpu": "AMD Ryzen 7 9800X3D",
+    "logical_cpus": 16,
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "go": "1.26.6",
+    "ffmpeg": "n8.1.2-30-g45f1910444-20260723",
+    "capture_hlae": "2.192.2"
+  },
+  "capture_restored": true,
+  "capture_files_restored": true,
+  "methodology": {
+    "long_fixture_frames": 55836,
+    "long_fixture_duration_seconds": 930.6,
+    "fresh_fixture_frames": 7646,
+    "fresh_fixture_duration_seconds": 127.43333333333334,
+    "mux_repeats_per_variant": 3,
+    "mux_order": "baseline-candidate, candidate-baseline, baseline-candidate",
+    "wall_includes_delivery_decode": true,
+    "media_tests_and_benchmarks_overlapped": false
+  },
+  "validation": {
+    "affected_suites": {
+      "command": "go test ./internal/editor ./internal/recording ./internal/workers ./cmd/zv-recorder ./internal/demooverlay ./internal/recapplan -count=1 -timeout 10m -json",
+      "test_and_subtest_counts": {
+        "pass": 2248,
+        "skip": 16
+      },
+      "packages": [
+        {
+          "Package": "github.com/rechedev9/cliphub/internal/recapplan",
+          "Action": "pass",
+          "Elapsed": 0.2
+        },
+        {
+          "Package": "github.com/rechedev9/cliphub/cmd/zv-recorder",
+          "Action": "pass",
+          "Elapsed": 0.759
+        },
+        {
+          "Package": "github.com/rechedev9/cliphub/internal/demooverlay",
+          "Action": "pass",
+          "Elapsed": 4.676
+        },
+        {
+          "Package": "github.com/rechedev9/cliphub/internal/recording",
+          "Action": "pass",
+          "Elapsed": 8.822
+        },
+        {
+          "Package": "github.com/rechedev9/cliphub/internal/workers",
+          "Action": "pass",
+          "Elapsed": 8.736
+        },
+        {
+          "Package": "github.com/rechedev9/cliphub/internal/editor",
+          "Action": "pass",
+          "Elapsed": 184.691
+        }
+      ]
+    },
+    "race": {
+      "command": "go test -race ./internal/recording -run 'TestMuxSegmentPairs|TestConcurrentMux|TestMuxSegmentClips' -count=1 -timeout 3m",
+      "status": "pass"
+    },
+    "vet": {
+      "command": "go vet ./...",
+      "status": "pass"
+    },
+    "chromium": {
+      "command": "go test ./internal/demooverlay -run '^TestChromium' -count=1 -timeout 3m",
+      "environment": "ZV_OVERLAY_RENDERER_PATH set to installed Studio overlay renderer",
+      "status": "pass"
+    },
+    "diff_review": {
+      "skill": "code-review",
+      "level": "medium",
+      "findings": 0
+    },
+    "visual_samples_frames": [
+      60,
+      600,
+      1472,
+      1474,
+      4200,
+      7550
+    ]
+  }
+}
