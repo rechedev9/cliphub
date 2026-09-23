@@ -276,3 +276,47 @@ func argIndex(command []string, flag string) int {
 	}
 	return -1
 }
+
+func TestFullDemoInactiveOverlaysKeepInclusiveRoundedWindows(t *testing.T) {
+	short := fullDemoItemOverlayFixtureShort(t.TempDir())
+	for _, tc := range []struct {
+		name       string
+		start, end int64
+		inactive   bool
+	}{
+		{"intro end is inclusive", 300, 301, false},
+		{"after intro", 301, 900, true},
+		{"middle", 600, 1200, true},
+		{"before outro", 3119, 3120, true},
+		{"outro first frame", 3120, 3121, false},
+		{"crosses outro", 3119, 3121, false},
+		{"empty item", 600, 600, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := fullDemoItemOverlaysInactive(short, recapplan.TimelineItem{StartFrame: tc.start, EndFrame: tc.end}); got != tc.inactive {
+				t.Fatalf("inactive = %t, want %t", got, tc.inactive)
+			}
+		})
+	}
+	short.Effects[0].EndSeconds = 2.0496 // serialized enable ends at 2.050
+	if fullDemoItemOverlaysInactive(short, recapplan.TimelineItem{StartFrame: 123, EndFrame: 124}) {
+		t.Fatal("rounded inclusive overlay endpoint was removed")
+	}
+}
+
+func TestFullDemoInactiveItemOmitsStillInputs(t *testing.T) {
+	dir := t.TempDir()
+	short := fullDemoItemOverlayFixtureShort(dir)
+	item := recapplan.TimelineItem{Role: "round", SourceRef: "round-001", SourceStartTick: 64, StartFrame: 600, EndFrame: 900, EndSample: 240000}
+	command, err := fullDemoItemVideoCommand(short, item, filepath.Join(dir, "item.nut"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fullDemoInputCount(command) != 1 {
+		t.Fatalf("inactive overlays still add image inputs: %v", command)
+	}
+	filter := command[argIndex(command, "-filter_complex")+1]
+	if !strings.Contains(filter, "format=rgba,format=yuv420p,settb=expr=1/60,setpts=N[vout]") || strings.Contains(filter, "overlay=") {
+		t.Fatalf("inactive item lost color/clock equivalence: %s", filter)
+	}
+}

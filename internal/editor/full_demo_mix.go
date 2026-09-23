@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -399,6 +400,9 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 	frames, samples := item.EndFrame-item.StartFrame, item.EndSample-item.StartSample
 	edges := fullDemoEdges(short, item)
 	command := []string{runtime.ffmpeg, "-y", "-v", "error"}
+	if streams == fullDemoItemVideoOnly {
+		command = append(command, "-filter_complex_threads", strconv.Itoa(fullDemoVideoFilterThreads()))
+	}
 	var audio string
 	var maps []string
 	var sourceOffset, trimStart, tailPad int64
@@ -512,7 +516,7 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		// compatible H.264 stream. Unsupported effect combinations keep the
 		// byte-identical legacy item chain and the legacy post-concat pass.
 		videoClauses, videoLabel := func() ([]string, string) {
-			if !fullDemoItemOverlayEligible(short) {
+			if !fullDemoItemOverlayEligible(short) || fullDemoItemOverlaysInactive(short, item) {
 				return fullDemoItemVideoClauses(short, item, video, nil, 0)
 			}
 			images := imageEffects(short.Effects)
@@ -546,6 +550,12 @@ func fullDemoItemStreamCommand(short ShortEdit, item recapplan.TimelineItem, out
 		command = appendThreadArgs(command, short)
 	}
 	return append(command, output), nil
+}
+
+// Each item already owns a slot in the three-process video pool and overlaps
+// the audio branch. Bound filter workers independently of encoder threads.
+func fullDemoVideoFilterThreads() int {
+	return min(4, max(1, runtime.NumCPU()))
 }
 
 // fullDemoItemTailPad returns how many cloned frames a round item's video needs

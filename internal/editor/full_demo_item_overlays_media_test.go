@@ -139,7 +139,7 @@ func fullDemoItemBaseClause(item fullDemoMediaItem) string {
 // item: the lossless base plus the ordered overlay stills.
 func fullDemoPerItemOverlayArgs(short ShortEdit, base string, item fullDemoMediaItem) []string {
 	images := imageEffects(short.Effects)
-	args := []string{"-i", base}
+	args := []string{"-filter_complex_threads", strconv.Itoa(fullDemoVideoFilterThreads()), "-i", base}
 	for _, effect := range images {
 		args = append(args, "-i", effect.Path)
 	}
@@ -165,6 +165,17 @@ func TestFullDemoItemOverlaysMatchLegacyPreEncodePixels(t *testing.T) {
 		outro   [2]float64
 		items   []fullDemoMediaItem
 	}{
+		{
+			name:    "inactive middle item keeps the original color round trip",
+			seconds: 12,
+			intro:   [2]float64{0, 2},
+			outro:   [2]float64{10, 12},
+			items: []fullDemoMediaItem{
+				{0, 180, "round"},
+				{180, 540, "round"},
+				{540, 720, "round"},
+			},
+		},
 		{
 			name:    "non-millisecond starts and inclusive intro end",
 			seconds: 6,

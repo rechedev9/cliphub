@@ -111,6 +111,36 @@ func firstInputSeek(command []string) (float64, bool) {
 	return 0, false
 }
 
+func TestFullDemoVideoFilterBudgetDoesNotChangeEncoderOrAudioThreads(t *testing.T) {
+	short := fullDemoItemOverlayFixtureShort(t.TempDir())
+	short.Threads = 7 // Explicit encoder setting remains independent.
+	item := recapplan.TimelineItem{Role: "round", SourceRef: "round-001", SourceStartTick: 64, EndFrame: 60, EndSample: 48000}
+	for _, streams := range []fullDemoItemStreams{fullDemoItemVideoOnly, fullDemoItemAudioOnly, fullDemoItemMuxed} {
+		command, err := fullDemoItemStreamCommand(short, item, "item.nut", streams)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := argIndex(command, "-filter_complex_threads")
+		if streams == fullDemoItemVideoOnly {
+			if i < 0 {
+				t.Fatal("video item has no filter budget")
+			}
+			threads, err := strconv.Atoi(command[i+1])
+			if err != nil || threads < 1 || threads > 4 || threads > runtime.NumCPU() {
+				t.Fatalf("unbounded filter budget: %v", command)
+			}
+		} else if i >= 0 {
+			t.Fatalf("filter budget changed another stream kind: %v", command)
+		}
+		if streams != fullDemoItemAudioOnly {
+			j := argIndex(command, "-threads")
+			if j < 0 || command[j+1] != "7" {
+				t.Fatalf("encoder setting changed: %v", command)
+			}
+		}
+	}
+}
+
 // Audio-only items run no encoder, so they get their own budget instead of the
 // item encoder budget. It still has to be explicitly bounded and CPU-aware.
 func TestFullDemoAudioItemJobsIsBoundedAndCPUAware(t *testing.T) {
