@@ -140,6 +140,26 @@ Rules that follow from it:
   with code 9009 when `NoDefaultCurrentDirectoryInExePath` is set in the
   environment.
 
+### Incident: black first-person capture with the interim pin (Studio 5.0.0, 2026-09-23)
+
+A user's Full Demo render passed every check but the video was black while
+the POV player was alive: only the native HUD and crosshair were drawn, and
+the world appeared only on the death camera. The delivered 1080p60 file
+averaged 2.4 Mb/s, against about 40 Mb/s for a normal capture. The
+`2.192.2-cliphub.1` DLL had been built from `8f355239`, an intermediate
+commit of PR #1213. Upstream then landed `9ba34af6` ("Fix
+QueueCallbackBeforeUi being called in random order from different threads
+and in wrong state") and shipped both in official 2.192.3 the same day.
+The failure depended on the machine: the pin's own 17-round Full Demo run
+on the dev PC captured normally. Studio 5.1.1 pins official 2.192.3.
+
+- Build an interim DLL only from a merged upstream commit, and re-pin the
+  official release as soon as it ships, even when the interim build looks
+  fine locally.
+- Delivery decode proves the file decodes, not that it shows the game. When
+  verifying a capture, check its frames and bitrate (`blackdetect`,
+  `signalstats`), not only exit codes.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,

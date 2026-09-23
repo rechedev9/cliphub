@@ -124,7 +124,7 @@ const STEPS = [
 const REQUIREMENTS: { icon: LucideIcon; label: string; detail: string }[] = [
   { icon: MonitorCheck, label: "Windows 10 / 11", detail: "64-bit desktop" },
   { icon: Gamepad2, label: "Counter-Strike 2", detail: "Installed through Steam" },
-  { icon: Film, label: "HLAE 2.192.2", detail: "Bundled and installed automatically" },
+  { icon: Film, label: "Official HLAE 2.192.3", detail: "Bundled and installed automatically" },
   { icon: Zap, label: "Dedicated GPU", detail: "Recommended for capture" },
   { icon: HardDrive, label: "~1 GB", detail: "Free disk space" },
 ];
