@@ -13,12 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const ALL = 'all';
 const UNKNOWN = 'unknown';
 const PAGE_SIZE = 10;
-const HEAD = 'px-3 py-3 text-body-sm font-medium whitespace-nowrap text-fg-2';
-const CELL = 'px-3 py-1 text-body-sm whitespace-nowrap tabular-nums text-fg-2';
+// The table keys its density to its own width, not to @container/content: the players grid splits into two
+// columns at 64rem/content, so a wider stage can leave the table narrower (≈670px at a 1366px window with the
+// sidebar open). Below 44rem the cells tighten, and below 40rem "Abrir sala" collapses to its icon, so the
+// room link never scrolls out of view.
+const HEAD = 'px-2 py-3 text-body-sm font-medium whitespace-nowrap text-fg-2 @[44rem]/matches:px-3';
+const CELL = 'px-2 py-1 text-body-sm whitespace-nowrap tabular-nums text-fg-2 @[44rem]/matches:px-3';
 // Numbers align on their last digit so a column of K/D or ADR can be scanned; headers follow their cells.
 const COLUMNS = [
-  ['Fecha', 'text-left'], ['Mapa', 'text-left'], ['Resultado', 'text-left'], ['Marcador', 'text-left'],
-  ['K / D / A', 'text-right'], ['K/D', 'text-right'], ['ADR', 'text-right'], ['HS', 'text-right'], ['Acción', 'text-right'],
+  ['Partida', 'text-left'], ['Resultado', 'text-left'],
+  ['K / D / A', 'text-right'], ['K/D', 'text-right'], ['ADR', 'text-right'], ['HS', 'text-right'],
 ] as const;
 const RESULTS = {
   win: { label: 'Victoria', tone: 'success' },
@@ -68,18 +72,19 @@ export function MatchHistory({ matches, refreshing, onRefresh }: {
           </Button>
         </div>
       </div>
-      <div className="hidden overflow-hidden rounded-lg border border-border @[40rem]/content:block">
+      <div className="@container/matches hidden overflow-hidden rounded-lg border border-border @[40rem]/content:block">
         <div className="overflow-x-auto focus-visible:outline-primary" role="region" aria-label="Tabla de partidas" tabIndex={0}>
-          <table className="w-full min-w-[780px] border-collapse">
+          <table className="w-full border-collapse">
             <caption className="sr-only">Partidas recientes de FACEIT. Abre una sala para descargar su demo.</caption>
             <thead className="bg-surface-3"><tr className="border-b border-border">
               {COLUMNS.map(([heading, align]) => (
                 <th key={heading} scope="col" className={cn(HEAD, align)}>{heading}</th>
               ))}
+              <th scope="col" className={cn(HEAD, 'text-right')}><span className="sr-only">Sala FACEIT</span></th>
             </tr></thead>
             <tbody>
               {visible.map((match) => <MatchRow key={match.id} match={match} />)}
-              {visible.length === 0 ? <tr><td colSpan={9} className="px-4 py-10 text-center text-body-sm text-fg-2">
+              {visible.length === 0 ? <tr><td colSpan={COLUMNS.length + 1} className="px-4 py-10 text-center text-body-sm text-fg-2">
                 No hay partidas con estos filtros.
                 <Button variant="link" onClick={() => { setMap(ALL); setResult(ALL); setPage(1); }}>Restablecer filtros</Button>
               </td></tr> : null}
@@ -118,22 +123,29 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
   const score = match.score.for !== undefined && match.score.against !== undefined ? `${match.score.for}–${match.score.against}` : '—';
   return (
     <tr className="group h-12 border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-3 focus-within:bg-surface-3">
-      <td className={CELL}>{match.finished_at ? formatShortDate(match.finished_at) : '—'}</td>
+      {/* Date under the map, as on the mobile card: a column of its own cost ~100px the room link needed. */}
       <td className={CELL}><div className="flex items-center gap-2.5">
         <MapCover map={stats?.map ?? ''} className="h-8 w-11 shrink-0 rounded-sm" />
-        <span className="font-semibold text-fg-1">{map}</span>
+        <div><p className="font-semibold text-fg-1">{map}</p>
+          <p className="text-meta tracking-normal text-fg-3">{match.finished_at ? formatShortDate(match.finished_at) : '—'}</p>
+        </div>
       </div></td>
-      <td className={CELL}><ResultBadge result={stats?.result} /></td>
-      <td className={cn(CELL, 'font-semibold text-fg-1')}>{score}</td>
+      {/* The score is the result's evidence, so it shares its column; a fixed right-aligned box keeps both the
+          scores and the badges in line whatever their widths. */}
+      <td className={CELL}><div className="flex items-center gap-2">
+        <span className="min-w-[5ch] text-right font-semibold text-fg-1">{score}</span>
+        <ResultBadge result={stats?.result} />
+      </div></td>
       <td className={cn(CELL, 'text-right')}>{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</td>
       <td className={cn(CELL, 'text-right', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</td>
       <td className={cn(CELL, 'text-right')}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
       <td className={cn(CELL, 'text-right')}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</td>
       <td className={cn(CELL, 'text-right')}><Button asChild variant="link" size="sm"
         // Ten bright links in a column outshouted the stats; the row that is pointed at lights its own.
-        className="px-0 text-fg-2 group-hover:text-primary group-focus-within:text-primary has-[>svg]:px-0">
+        className="min-w-8 justify-end px-0 text-fg-2 group-hover:text-primary group-focus-within:text-primary has-[>svg]:px-0">
         <a href={match.room_url} target="_blank" rel="noreferrer" aria-label={`Abrir sala FACEIT de ${map}`}>
-          Abrir sala <ExternalLink aria-hidden className="size-3.5" />
+          <span className="hidden @[40rem]/matches:inline">Abrir sala</span>
+          <ExternalLink aria-hidden className="size-4 @[40rem]/matches:size-3.5" />
         </a>
       </Button></td>
     </tr>
