@@ -27,8 +27,8 @@ import KillfeedReel from "@/components/killfeed-reel";
 import Reveal from "@/components/reveal";
 
 const DOWNLOAD_URL =
-  "https://github.com/rechedev9/cliphub/releases/download/v4.0.1/ClipHub.Studio.Setup.4.0.1.exe";
-const RELEASE_VERSION = "v4.0.1";
+  "https://github.com/rechedev9/cliphub/releases/download/v4.0.2/ClipHub.Studio.Setup.4.0.2.exe";
+const RELEASE_VERSION = "v4.0.2";
 const REPO_URL = "https://github.com/rechedev9/cliphub";
 
 function Corners() {
@@ -80,7 +80,7 @@ const FEATURES: {
   {
     icon: Cpu,
     title: "Your GPU. Real CS2.",
-    body: "The official HLAE release drives CS2 locally and captures clean, high-fidelity POV footage instead of faking the moment.",
+    body: "HLAE drives CS2 locally and captures clean, high-fidelity POV footage instead of faking the moment.",
     signal: "120 FPS CAPTURE",
     className: "md:col-span-5",
   },
@@ -124,7 +124,7 @@ const STEPS = [
 const REQUIREMENTS: { icon: LucideIcon; label: string; detail: string }[] = [
   { icon: MonitorCheck, label: "Windows 10 / 11", detail: "64-bit desktop" },
   { icon: Gamepad2, label: "Counter-Strike 2", detail: "Installed through Steam" },
-  { icon: Film, label: "Official HLAE 2.192.1", detail: "Bundled and installed automatically" },
+  { icon: Film, label: "HLAE 2.192.2", detail: "Bundled and installed automatically" },
   { icon: Zap, label: "Dedicated GPU", detail: "Recommended for capture" },
   { icon: HardDrive, label: "~1 GB", detail: "Free disk space" },
 ];
