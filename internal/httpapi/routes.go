@@ -62,6 +62,7 @@ func Routes(h *Handlers) chi.Router {
 	r.Get("/api/jobs/{id}/renders/{variant}/full-demo/{document}", h.GetFullDemoRenderDocument)
 	r.Get("/api/jobs/{id}/renders/{variant}/revisions/{revision}/full-demo/{document}", h.GetFullDemoRenderDocument)
 	r.Get("/api/jobs/{id}/roster", h.GetRoster)
+	r.Get("/api/jobs/{id}/faceit-scoreboard", h.GetFaceitScoreboard)
 	r.Post("/api/jobs/{id}/parse", h.StartParse)
 	r.Post("/api/jobs/{id}/anticheat", h.StartAnticheat)
 	r.Get("/api/jobs/{id}/anticheat", h.GetAnticheat)

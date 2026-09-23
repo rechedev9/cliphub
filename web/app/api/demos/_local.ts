@@ -3,6 +3,7 @@ import { localAPIRequestError } from '@/lib/api/local-request-guard';
 import { projectBatchStatusItem, type BatchStatusUpstreamItem } from '@/lib/api/batch-status';
 import { parseControlJSONObject, prepareLocalUploadBody, readBoundedText } from '@/lib/api/bounded-request-body';
 import { ANTICHEAT_DOCUMENT_KEYS } from '@/lib/api/anticheat';
+import { parseFaceitScoreboard } from '@/lib/api/faceit-scoreboard';
 import {
   TACTICAL_DOCUMENT_KEYS,
   TACTICAL_FILTER_PARAM_NAMES,
@@ -302,6 +303,19 @@ export async function localStartAnticheat(jobId: string): Promise<Response> {
 /** GET /api/demos/{jobId}/anticheat (local) - proxy the analysis document. */
 export async function localAnticheat(jobId: string): Promise<Response> {
   return forwardJson(jobUrl(jobId, '/anticheat'), ANTICHEAT_DOCUMENT_KEYS);
+}
+
+/** GET FACEIT scoreboard — reshaped and whitelisted; an unusable body is a 502. */
+export async function localFaceitScoreboard(jobId: string): Promise<Response> {
+  const url = jobUrl(jobId, '/faceit-scoreboard');
+  if (!url) return NextResponse.json({ error: 'invalid job id' }, { status: 400 });
+
+  const res = await callOrchestrator(url);
+  if (res === null) return serviceUnavailable();
+  if (!res.ok) return forwardError(res);
+  const scoreboard = parseFaceitScoreboard(await res.json());
+  if (scoreboard === null) return NextResponse.json({ error: 'FACEIT scoreboard is invalid' }, { status: 502 });
+  return NextResponse.json({ scoreboard }, { headers: { 'cache-control': 'no-store' } });
 }
 
 /** GET anticheat dossier — validate SteamID64 before building the upstream URL. */

@@ -357,6 +357,29 @@ func TestRosterScanUsesPerPlayerRoundDenominatorsAndKeepsDamageOnlyPlayers(t *te
 	}
 }
 
+func TestRosterScanCountsFlashAssistsWithinAssists(t *testing.T) {
+	killer := mkPlayer(killerID, "Killer", common.TeamCounterTerrorists)
+	support := mkPlayer(victimID+1, "Support", common.TeamCounterTerrorists)
+	victim := mkPlayer(victimID, "Victim", common.TeamTerrorists)
+	p := &fakeScanParser{gs: &scanGameState{}}
+	p.script = func(p *fakeScanParser) {
+		p.matchStart(events.MatchStart{})
+		p.gs.participants = []*common.Player{killer, support, victim}
+		p.roundStart(events.RoundStart{})
+		p.kill(events.Kill{Killer: killer, Victim: victim, Assister: support})
+		p.kill(events.Kill{Killer: killer, Victim: victim, Assister: support, AssistedFlash: true})
+		p.roundEnd(events.RoundEnd{})
+	}
+
+	result, err := RosterScan(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findRosterPlayer(result.Players, strconv.FormatUint(support.SteamID64, 10)); got == nil || got.Assists != 2 || got.FlashAssists != 1 {
+		t.Fatalf("support = %#v, want 2 assists of which 1 flash", got)
+	}
+}
+
 func TestRosterScanWithoutRoundStartMergesPlayingRosterAfterCombat(t *testing.T) {
 	killer := mkPlayer(killerID, "Killer", common.TeamCounterTerrorists)
 	teammate := mkPlayer(killerID+1, "Teammate", common.TeamCounterTerrorists)

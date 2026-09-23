@@ -36,6 +36,10 @@ type PlayerStat struct {
 	Rounds3K int `json:"rounds_3k,omitempty"`
 	Rounds4K int `json:"rounds_4k,omitempty"`
 	Rounds5K int `json:"rounds_5k,omitempty"`
+
+	// FlashAssists is the subset of Assists credited for a flash. FACEIT's
+	// room scoreboard leaves them out of its A column.
+	FlashAssists int `json:"flash_assists,omitempty"`
 }
 
 // MatchInfo is match-level metadata gathered in the same roster scan pass: the
