@@ -3,6 +3,8 @@ package telemetryalert
 import (
 	"strings"
 	"testing"
+
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 func TestParseFailureCode(t *testing.T) {
@@ -65,5 +67,13 @@ func TestIssueKeysSeparateTodaysRecordFailures(t *testing.T) {
 	other := newOccurrence(Record{Message: "failure_code=hlae_hook_incompatible; x"}, Labels{"orchestrator", "pipeline.error", "worker", "render:variant"}, false).Key
 	if other == IssueKey(labels, "hlae_hook_incompatible") {
 		t.Fatalf("labels do not separate keys")
+	}
+}
+
+func TestSignatureSkipsRelayedTraceLines(t *testing.T) {
+	trace := obs.TracePrefix + `{"event":"cs2.console_tail","message":"lines=2\nNETWORK_DISCONNECT error"}`
+	got := Signature("capture started\n" + trace + "\nrecord:demo: exit status 6: HLAE hook crashed")
+	if want := Signature("record:demo: exit status 6: HLAE hook crashed"); got != want {
+		t.Fatalf("Signature = %q, want %q", got, want)
 	}
 }

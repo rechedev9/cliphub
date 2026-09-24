@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 // Issue keys never leave the VPS. They are derived only from labels and the
@@ -52,7 +54,9 @@ func Signature(message string) string {
 	var line string
 	for _, candidate := range strings.Split(message, "\n") {
 		candidate = strings.TrimSpace(candidate)
-		if candidate == "" {
+		// Relayed trace lines (a CS2 console tail, tool events) copy other
+		// text and must never become the key line of an issue.
+		if candidate == "" || obs.IsTraceLine(candidate) {
 			continue
 		}
 		if line == "" {
