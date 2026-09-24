@@ -597,6 +597,7 @@ func runFFmpegOutput(ctx context.Context, command []string, label string) (strin
 	if label == "" {
 		label = "command"
 	}
+	enterFullDemoStage(ctx, command)
 	command, cleanup, err := commandWithFilterComplexScript(command)
 	if err != nil {
 		return "", err

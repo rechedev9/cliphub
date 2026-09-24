@@ -1,12 +1,17 @@
 package editor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 const EditorProgressSchema = "editor-progress/1"
@@ -265,4 +270,112 @@ func (s *encodeProgressState) percentLocked() int {
 		return progressFinalizeStart
 	}
 	return best
+}
+
+// Full Demo stage breadcrumbs. A failed render shows only its UI percentage,
+// which support used to map to a pipeline stage by hand (76-82 % master loop,
+// 83-86 % AAC recovery, 87 %+ delivery). stage.entered records name the
+// weighted stage instead. They derive from the timing annotation every FFmpeg
+// run of a Full Demo render already carries: the first run of a stage attempt
+// emits one record, so concurrent branches (item encodes next to the audio
+// master, the speculative AAC recovery next to the native masters) cannot make
+// the breadcrumbs flap. audio_master records carry the loudnorm TP target of
+// that attempt, read from its command.
+const stageEnteredTraceEvent = "stage.entered"
+
+type fullDemoStageBreadcrumbsKey struct{}
+
+type fullDemoStageBreadcrumbs struct {
+	mu      sync.Mutex
+	entered map[string]bool
+}
+
+// withFullDemoStageBreadcrumbs attaches the breadcrumb state for one Full Demo
+// render; without it enterFullDemoStage does nothing.
+func withFullDemoStageBreadcrumbs(ctx context.Context) context.Context {
+	return context.WithValue(ctx, fullDemoStageBreadcrumbsKey{}, &fullDemoStageBreadcrumbs{entered: map[string]bool{}})
+}
+
+// loudnormTargetTPPattern matches the TP option of a loudnorm filter, not its
+// measured_TP input.
+var loudnormTargetTPPattern = regexp.MustCompile(`loudnorm=(?:[^,;\[\]\s]*:)?TP=(-?[0-9]+(?:\.[0-9]+)?)`)
+
+// fullDemoBreadcrumbStage maps a timing stage to the weighted progress stage.
+// Stages without a weighted counterpart emit nothing.
+func fullDemoBreadcrumbStage(stage, variant string, attempt int) string {
+	switch stage {
+	case "voice_analysis", "voice_prepare":
+		return "voice_prepare"
+	case "transitions":
+		return "transitions"
+	case "items":
+		return "video_items"
+	case "items_audio":
+		return "audio_items"
+	case "assembly":
+		return "video_assembly"
+	case "audio_assembly":
+		return "audio_assembly"
+	case "audio_input_analysis":
+		if attempt < 0 {
+			return "audio_analysis"
+		}
+		return "audio_master"
+	case "audio_candidate_encode", "audio_candidate_analysis":
+		if variant == "recovery" {
+			return "aac_recovery"
+		}
+		return "audio_master"
+	case "final_mux", "final_audio_analysis":
+		return "audio_publish"
+	case "delivery":
+		return "delivery_verify"
+	default:
+		return ""
+	}
+}
+
+// enterFullDemoStage is called before every FFmpeg run with its original
+// command. Attempts are 1-based like the UI's "(n/3)"; stages that are not
+// attempt-specific report attempt=1.
+func enterFullDemoStage(ctx context.Context, command []string) {
+	crumbs, _ := ctx.Value(fullDemoStageBreadcrumbsKey{}).(*fullDemoStageBreadcrumbs)
+	scope := fullDemoTimingScopeFrom(ctx)
+	if crumbs == nil || scope == nil {
+		return
+	}
+	stage := fullDemoBreadcrumbStage(scope.stage, scope.variant, scope.attempt)
+	if stage == "" {
+		return
+	}
+	attempt := max(scope.attempt, 0) + 1
+	message := fmt.Sprintf("stage=%s attempt=%d", stage, attempt)
+	crumbs.mu.Lock()
+	entered := crumbs.entered[message]
+	crumbs.entered[message] = true
+	crumbs.mu.Unlock()
+	if entered {
+		return
+	}
+	if stage == "audio_master" {
+		if tp, ok := loudnormTargetTP(command); ok {
+			message += " target_tp=" + tp
+		}
+	}
+	obs.EmitTrace(ctx, obs.TraceEntry{Event: stageEnteredTraceEvent, Level: "info", Message: message})
+}
+
+func loudnormTargetTP(command []string) (string, bool) {
+	for _, arg := range command {
+		match := loudnormTargetTPPattern.FindStringSubmatch(arg)
+		if match == nil {
+			continue
+		}
+		value, err := strconv.ParseFloat(match[1], 64)
+		if err != nil {
+			return "", false
+		}
+		return strconv.FormatFloat(value, 'f', -1, 64), true
+	}
+	return "", false
 }

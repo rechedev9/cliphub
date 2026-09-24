@@ -73,6 +73,7 @@ func ValidateSourceArtifact(artifact recording.RecordingArtifact) []string {
 var cropDetectPattern = regexp.MustCompile(`crop=([0-9]+):([0-9]+):([0-9]+):([0-9]+)`)
 
 func QualityWarningsFromFFmpegLog(segmentID, log string) []string {
+	log = withoutDeliveryQualityProbeLines(log)
 	var warnings []string
 	if strings.Contains(log, "black_start:") {
 		warnings = append(warnings, fmt.Sprintf("quality %s detected black frames", segmentID))
@@ -84,6 +85,25 @@ func QualityWarningsFromFFmpegLog(segmentID, log string) []string {
 		warnings = append(warnings, fmt.Sprintf("quality %s cropdetect suggested %s, possible border/letterbox", segmentID, crop))
 	}
 	return warnings
+}
+
+// withoutDeliveryQualityProbeLines drops the lines of the always-on delivery
+// quality probe, whose blackdetect instance logs next to the optional QC
+// filters in the shared decode. Its looser threshold feeds delivery.quality
+// only and must not change the QC warnings.
+func withoutDeliveryQualityProbeLines(log string) string {
+	marker := "@" + deliveryQualityInstance + " "
+	if !strings.Contains(log, marker) {
+		return log
+	}
+	lines := strings.Split(log, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if !strings.Contains(line, marker) {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 func tightestDetectedCrop(log string) string {
