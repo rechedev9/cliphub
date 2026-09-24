@@ -57,7 +57,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Cargar una partida',
     title: 'Todo empieza con una partida',
     lead:
-      'Una partida es una demo cargada en ClipHub más el jugador desde cuya vista se grabará el vídeo. Pulsa «Cargar demo» y elige primero el formato: «Short 9:16» o «Vídeo largo 16:9».',
+      'Una partida es una demo cargada en ClipHub más el jugador desde cuya vista se grabará el vídeo. Pulsa «Cargar demo» y elige primero el formato: «Vídeo largo 16:9» o «Short 9:16».',
     points: [
       {
         term: 'Archivo en mi PC',

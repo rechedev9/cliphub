@@ -10,10 +10,10 @@ import { jobFailureTitle, parseFailureReason } from '@/lib/api/failure-reason';
 import { HUB_ROW_STAGE, matchRowStage, type HubRowStage } from '@/lib/clips/hub';
 import {
   hubHref,
-  isProduceFormat,
   newDemoHref,
   PRODUCE_FORMAT,
   PRODUCE_QUERY,
+  produceFormatParam,
   produceHref,
   seriesHref,
   type ProduceFormat,
@@ -59,9 +59,8 @@ export type ProducePageQuery = Record<string, string | string[] | undefined>;
 
 /** Client body of `/clips/[id]/nuevo`; the server `page.tsx` resolves the route and names the tab. */
 export function ProducePage({ id, query }: { id: string; query: ProducePageQuery }): ReactNode {
-  const formato = query[PRODUCE_QUERY.format];
   const series = query[PRODUCE_QUERY.series];
-  const format: ProduceFormat = typeof formato === 'string' && isProduceFormat(formato) ? formato : PRODUCE_FORMAT.short;
+  const format: ProduceFormat = produceFormatParam(query[PRODUCE_QUERY.format]);
   const seriesId = typeof series === 'string' && isSeriesId(series) ? series : null;
   const router = useRouter();
 

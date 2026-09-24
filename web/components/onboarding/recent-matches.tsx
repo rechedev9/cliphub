@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { loadSteamAccount, type SteamStoredMatch } from '@/lib/api/steam-account';
 import { importShareCode } from '@/lib/api/steam-import';
-import { PRODUCE_FORMAT, newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
+import { newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
 
-export function RecentSteamMatches({ format = PRODUCE_FORMAT.short }: { format?: ProduceFormat }): ReactElement | null {
+export function RecentSteamMatches({ format }: { format: ProduceFormat }): ReactElement | null {
   const router = useRouter();
   const [matches, setMatches] = useState<SteamStoredMatch[] | null>(null);
   const [pending, setPending] = useState<string | null>(null);

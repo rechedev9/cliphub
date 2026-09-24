@@ -14,11 +14,11 @@ import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
 import {
   CLIPS_HREF,
   isJobIdParam,
-  isProduceFormat,
   PRODUCE_QUERY,
   newDemoHref,
   NEW_DEMO_QUERY,
   PRODUCE_FORMAT,
+  produceFormatParam,
   produceHref,
   seriesHref,
 } from '@/lib/clips/routes';
@@ -89,8 +89,7 @@ export default function NewDemoPage({
   const router = useRouter();
   const query = use(searchParams);
   const jobParam = query[NEW_DEMO_QUERY.job];
-  const formatParam = query[PRODUCE_QUERY.format];
-  const format = typeof formatParam === 'string' && isProduceFormat(formatParam) ? formatParam : PRODUCE_FORMAT.short;
+  const format = produceFormatParam(query[PRODUCE_QUERY.format]);
   const resuming = jobParam !== undefined;
   const resumeJobId = isJobIdParam(jobParam) ? jobParam : null;
 

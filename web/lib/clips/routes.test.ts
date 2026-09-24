@@ -1,8 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isJobIdParam, NEW_DEMO_HREF, newDemoHref, PRODUCE_FORMAT } from './routes.ts';
+import {
+  DEFAULT_PRODUCE_FORMAT,
+  isJobIdParam,
+  NEW_DEMO_HREF,
+  newDemoHref,
+  PRODUCE_FORMAT,
+  produceFormatParam,
+  produceHref,
+} from './routes.ts';
 
 const JOB_ID = '9a1c6e2f-4b3d-4a10-8f2e-1d6c7b9a0e55';
+const SERIES_ID = 'series-1';
 
 test('newDemoHref builds the fresh-upload and resume hrefs', () => {
   const cases = [
@@ -13,6 +22,38 @@ test('newDemoHref builds the fresh-upload and resume hrefs', () => {
   ];
   for (const { name, opts, want } of cases) {
     assert.equal(newDemoHref(opts), want, name);
+  }
+});
+
+test('the long video is the default produce format', () => {
+  assert.equal(DEFAULT_PRODUCE_FORMAT, PRODUCE_FORMAT.full);
+});
+
+test('produceHref omits the query only for the default format', () => {
+  const base = `/clips/${JOB_ID}/nuevo`;
+  const cases = [
+    { name: 'implicit format opens the long video', href: produceHref(JOB_ID), want: base },
+    { name: 'explicit long video needs no query', href: produceHref(JOB_ID, PRODUCE_FORMAT.full), want: base },
+    { name: 'explicit Short carries the format', href: produceHref(JOB_ID, PRODUCE_FORMAT.short), want: `${base}?formato=short` },
+    { name: 'series Short keeps both params', href: produceHref(JOB_ID, PRODUCE_FORMAT.short, SERIES_ID), want: `${base}?formato=short&series=${SERIES_ID}` },
+    { name: 'empty series id is dropped', href: produceHref(JOB_ID, PRODUCE_FORMAT.full, ''), want: base },
+  ];
+  for (const { name, href, want } of cases) {
+    assert.equal(href, want, name);
+  }
+});
+
+test('produceFormatParam falls back to the long video', () => {
+  const cases: Array<{ name: string; value: string | string[] | null | undefined; want: string }> = [
+    { name: 'missing param', value: undefined, want: PRODUCE_FORMAT.full },
+    { name: 'null from URLSearchParams', value: null, want: PRODUCE_FORMAT.full },
+    { name: 'unknown value', value: 'vertical', want: PRODUCE_FORMAT.full },
+    { name: 'repeated param', value: [PRODUCE_FORMAT.short, PRODUCE_FORMAT.short], want: PRODUCE_FORMAT.full },
+    { name: 'explicit short', value: PRODUCE_FORMAT.short, want: PRODUCE_FORMAT.short },
+    { name: 'explicit full', value: PRODUCE_FORMAT.full, want: PRODUCE_FORMAT.full },
+  ];
+  for (const { name, value, want } of cases) {
+    assert.equal(produceFormatParam(value), want, name);
   }
 });
 
