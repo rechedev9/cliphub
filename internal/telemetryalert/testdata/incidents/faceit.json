@@ -38,7 +38,7 @@
       "received_at": "2026-09-10T20:12:00Z", "occurred_at": "2026-09-10T20:11:50Z",
       "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000072", "release": "3.0.1",
       "source": "orchestrator", "level": "info", "event": "delivery.quality", "job_id": "face1001-0000-4000-8000-000000000004",
-      "operation": "render:variant", "message": "preset=full_demo width=1920 height=1080 fps=60 bitrate_kbps=39800 yavg_mean=88.0 black_ratio=0.02"
+      "operation": "render:variant", "message": "preset=gameplay-pov-60 width=1920 height=1080 fps=60 bitrate_kbps=39800 yavg_mean=88.0 black_ratio=0.02"
     },
     {
       "received_at": "2026-09-10T20:12:30Z", "occurred_at": "2026-09-10T20:12:20Z",

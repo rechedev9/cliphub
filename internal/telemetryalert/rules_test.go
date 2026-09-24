@@ -65,7 +65,7 @@ func TestIncidentReplay(t *testing.T) {
 			name: "black first-person capture: output quality P1 with the machine context", fixture: "black-capture.json", bootstrap: "2026-09-23T00:00:00Z",
 			steps: []replayStep{
 				{at: "2026-09-23T17:42:00Z", want: []string{"output_quality:P1"}, contain: []string{
-					"[P1] Calidad · full_demo · 5.0.0 · #1", "bitrate 2400 kb/s < 10000 · YAVG 18.5 < 25",
+					"[P1] Calidad · gameplay-pov-60 · 5.0.0 · #1", "bitrate 2400 kb/s < 10000 · YAVG 18.5 < 25",
 					"cs2_build=14182 hlae=v2.192.2-cliphub.1 encoder=h264_nvenc gpu_vendor=nvidia", "blackdetect/signalstats"}},
 			},
 		},
@@ -85,7 +85,7 @@ func TestIncidentReplay(t *testing.T) {
 				{at: "2026-09-11T07:31:00Z", want: []string{"user_report:P1"}, contain: []string{
 					"[P1] Reporte · wrong_overlay · 3.0.1 · #1 · render:variant", "job face1001…",
 					"render.profile: source_kind=faceit overlay_source=demo hud=circuit",
-					"delivery.quality: preset=full_demo bitrate_kbps=39800", "ver AGENTS.md › Full Demo overlay format"}},
+					"delivery.quality: preset=gameplay-pov-60 bitrate_kbps=39800", "ver AGENTS.md › Full Demo overlay format"}},
 			},
 		},
 	}
@@ -450,11 +450,11 @@ func TestQualityFloorsOnlyForFullDemoPresets(t *testing.T) {
 		quality string
 		want    bool
 	}{
-		{"preset=full_demo width=1920 height=1080 fps=60 bitrate_kbps=40000 yavg_mean=90 black_ratio=0.01", false},
-		{"preset=full_demo width=1920 height=1080 fps=60 bitrate_kbps=9000 yavg_mean=90 black_ratio=0.01", true},
-		{"preset=full-pov width=1920 height=1080 fps=60 bitrate_kbps=40000 yavg_mean=90 black_ratio=0.6", true},
-		{"preset=full_demo width=1280 height=720 fps=30 bitrate_kbps=6000 yavg_mean=90 black_ratio=0.01", false},
-		{"preset=full_demo width=1280 height=720 fps=30 bitrate_kbps=6000 yavg_mean=12 black_ratio=0.01", true},
+		{"preset=gameplay-pov-60 width=1920 height=1080 fps=60 bitrate_kbps=40000 yavg_mean=90 black_ratio=0.01", false},
+		{"preset=gameplay-pov-60 width=1920 height=1080 fps=60 bitrate_kbps=9000 yavg_mean=90 black_ratio=0.01", true},
+		{"preset=gameplay-pov-60 width=1920 height=1080 fps=60 bitrate_kbps=40000 yavg_mean=90 black_ratio=0.6", true},
+		{"preset=gameplay-pov-60 width=1280 height=720 fps=30 bitrate_kbps=6000 yavg_mean=90 black_ratio=0.01", false},
+		{"preset=gameplay-pov-60 width=1280 height=720 fps=30 bitrate_kbps=6000 yavg_mean=12 black_ratio=0.01", true},
 		{"preset=viral-aggressive width=1080 height=1920 fps=60 bitrate_kbps=900 yavg_mean=5 black_ratio=0.9", false},
 	}
 	for _, tt := range tests {

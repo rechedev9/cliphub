@@ -360,12 +360,13 @@ func evalPlatformBreak(in PlatformInput) (Alert, bool) {
 	return a, true
 }
 
-// Full Demo / Full POV floors. Other presets get floors once real renders
-// have been measured.
-var fullDemoPresets = map[string]bool{"full_demo": true, "full_pov": true}
+// Full Demo floors. Every Full Demo delivery uses the gameplay-pov-60 preset
+// (internal/editor/preset.go PresetGameplayPOV60); other presets get floors
+// once real renders have been measured.
+var fullDemoPresets = map[string]bool{"gameplay-pov-60": true}
 
 func isFullDemoPreset(preset string) bool {
-	return fullDemoPresets[strings.ReplaceAll(strings.ToLower(preset), "-", "_")]
+	return fullDemoPresets[strings.ToLower(preset)]
 }
 
 // evalQuality implements P1 output quality over one delivery.quality record.

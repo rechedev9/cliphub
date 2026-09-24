@@ -124,7 +124,8 @@ func (w *TraceWriter) emitPending() {
 			var entry TraceEntry
 			if json.Unmarshal([]byte(body), &entry) == nil {
 				switch entry.Event {
-				case "tool.started", "tool.finished", "process.stderr", "process.output_gap":
+				case "tool.started", "tool.finished", "process.stderr", "process.output_gap",
+					"attempt.toolchain", "cs2.console_tail", "delivery.quality", "render.profile", "stage.entered":
 					EmitTrace(w.ctx, entry)
 					w.pending = ""
 					return

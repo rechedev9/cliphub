@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -241,6 +242,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
 				var outcome *fullDemoDeliveryOutcome
 				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
+				err = obs.WithFailure(err, obs.FailureDeliveryVerifyFailed, obs.SubstageDeliveryVerify)
 				if err == nil {
 					short.FullDemo.Delivery = outcome.Evidence
 					emitFullDemoDeliveryQuality(ctx, short.Preset, outcome.Quality)
