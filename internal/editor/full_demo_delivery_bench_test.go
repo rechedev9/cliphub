@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -22,7 +23,14 @@ func BenchmarkFullDemoDelivery(b *testing.B) {
 		b.Skip("ffprobe not installed")
 	}
 	file := os.Getenv("FULL_DEMO_DELIVERY_BENCH_MP4")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// A real delivery fixture names its own canonical frame count.
+	frames := int64(300)
+	if value := os.Getenv("FULL_DEMO_DELIVERY_BENCH_FRAMES"); file != "" && value != "" {
+		if frames, err = strconv.ParseInt(value, 10, 64); err != nil || frames < 1 {
+			b.Fatalf("FULL_DEMO_DELIVERY_BENCH_FRAMES = %q", value)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	if file == "" {
 		file = filepath.Join(b.TempDir(), "delivery.mp4")
@@ -33,8 +41,8 @@ func BenchmarkFullDemoDelivery(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, 300, nil)
-		if err != nil || !evidence.FullDecode || evidence.FrameCount != 300 {
+		evidence, err := verifyFullDemoDelivery(ctx, ffmpeg, ffprobe, file, frames, nil)
+		if err != nil || !evidence.FullDecode || evidence.FrameCount != frames {
 			b.Fatalf("delivery: %+v %v", evidence, err)
 		}
 	}

@@ -94,6 +94,7 @@ func runFFmpegOutputProgressTo(ctx context.Context, command []string, label stri
 	if label == "" {
 		label = "command"
 	}
+	enterFullDemoStage(ctx, command)
 	command, cleanup, err := commandWithFilterComplexScript(command)
 	if err != nil {
 		return "", err

@@ -37,23 +37,21 @@ func main() {
 		return
 	}
 	// Plain stderr, no log timestamps: the zv wrapper forwards this text as the
-	// error field of its JSON envelope.
+	// error field of its JSON envelope. Known capture failures lead with their
+	// failure code.
+	fmt.Fprint(os.Stderr, stderrFailureLine(err))
 	var hookErr *hookIncompatibleError
 	if errors.As(err, &hookErr) {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(exitHookIncompatible)
 	}
 	var demoErr *demoParseError
 	if errors.As(err, &demoErr) {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(exitDemoIncompatible)
 	}
 	var startErr *unplayableStartError
 	if errors.As(err, &startErr) {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(exitUnplayableStart)
 	}
-	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	os.Exit(1)
 }
 
@@ -230,6 +228,17 @@ func run() (retErr error) {
 	ffprobePath := recording.FindFFprobe()
 	ffmpegPath := recording.FindFFmpeg()
 
+	// Registered before the settings recovery defer so it observes the final
+	// error. Only a console log this run reset is forwarded: before that, the
+	// file belongs to an earlier run.
+	consoleLogUsed := ""
+	defer func() {
+		if retErr != nil && consoleLogUsed != "" {
+			emitCS2ConsoleTail(consoleLogUsed)
+		}
+	}()
+	emitCaptureToolchain(readCaptureToolchain(absCS2Exe, absHLAEExe, plan.Stream.Encoder))
+
 	if err := validateExecutables(absHLAEExe, absCS2Exe); err != nil {
 		result.Error = err.Error()
 		_ = writeResult(plan.OutputDir, result)
@@ -319,7 +328,8 @@ func run() (retErr error) {
 
 	perfRun.PrepareMS = elapsedMilliseconds(runStarted)
 	captureStarted := time.Now()
-	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath, attestationToken, trace); err != nil {
+	onConsoleLogReset := func(path string) { consoleLogUsed = path }
+	if err := launchAndWait(ctx, absHLAEExe, absCS2Exe, plan, scriptPath, attestationToken, trace, onConsoleLogReset); err != nil {
 		perfRun.LaunchAndCaptureMS = elapsedMilliseconds(captureStarted)
 		stopIncrementalMux()
 		result.Error = err.Error()
@@ -680,7 +690,7 @@ func validateExecutables(hlaeExe, cs2Exe string) error {
 			return err
 		}
 		if running {
-			return fmt.Errorf("cs2.exe is already running; close it before recording")
+			return fmt.Errorf("%w; close it before recording", errCS2AlreadyRunning)
 		}
 	}
 	return nil
@@ -731,7 +741,7 @@ func newCaptureAttestationToken() (string, error) {
 	return hex.EncodeToString(token[:]), nil
 }
 
-func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.RecordingPlan, scriptPath, attestationToken string, trace *performanceTrace) error {
+func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.RecordingPlan, scriptPath, attestationToken string, trace *performanceTrace, onConsoleLogReset func(path string)) error {
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("HLAE/CS2 capture is supported only on Windows")
 	}
@@ -743,7 +753,7 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 		return fmt.Errorf("check for an existing cs2.exe before capture: %w", err)
 	}
 	if running {
-		return fmt.Errorf("cs2.exe is already running; close it before starting an HLAE capture")
+		return fmt.Errorf("%w; close it before starting an HLAE capture", errCS2AlreadyRunning)
 	}
 	hook, err := locateHookDLL(hlaeExe)
 	if err != nil {
@@ -752,6 +762,9 @@ func launchAndWait(ctx context.Context, hlaeExe, cs2Exe string, plan recording.R
 	consoleLogPath := cs2ConsoleLogPath(cs2Exe)
 	if err := prepareCS2ConsoleLog(consoleLogPath); err != nil {
 		return err
+	}
+	if onConsoleLogReset != nil {
+		onConsoleLogReset(consoleLogPath)
 	}
 	consoleLog := newCS2ConsoleLogMonitor(consoleLogPath, attestationToken)
 	consoleLog.trace = trace
@@ -1082,8 +1095,9 @@ func (m *cs2ConsoleLogMonitor) requireCaptureVerified() error {
 		return &unplayableStartError{path: m.path}
 	}
 	return &captureVerificationError{
-		path:   m.path,
-		reason: "CS2 exited without the completed POV verification marker",
+		path:          m.path,
+		reason:        "CS2 exited without the completed POV verification marker",
+		missingMarker: true,
 	}
 }
 
@@ -1117,6 +1131,9 @@ func (e *unplayableStartError) Error() string {
 type captureVerificationError struct {
 	path   string
 	reason string
+	// missingMarker is set when CS2 exited without any attestation, as opposed
+	// to the HLAE runtime explicitly rejecting the POV.
+	missingMarker bool
 }
 
 func (e *captureVerificationError) Error() string {
@@ -1194,7 +1211,7 @@ func validateCaptureResult(result recording.RecordingResult, cs2Exe string) erro
 		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
 	}
 	if err := recording.ValidateCaptureCoverage(result.CertifiedPlan(), result.Artifacts); err != nil {
-		return fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))
+		return &captureIncompleteError{err: fmt.Errorf("%w; check HLAE capture output and CS2 console log %q", err, cs2ConsoleLogPath(cs2Exe))}
 	}
 	return nil
 }
