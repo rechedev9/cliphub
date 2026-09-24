@@ -21,11 +21,7 @@ func newLogIngestBudget(salt [32]byte) *ingestBudget {
 }
 
 func (a *API) ingestLogs(w http.ResponseWriter, r *http.Request) {
-	reject := func(status int, code string) {
-		// Log labels only: never request bodies, client IPs, keys or diagnostics.
-		a.logf("telemetry stage=logs class=%s status=%d", code, status)
-		writeError(w, status, code)
-	}
+	reject := func(status int, code string) { a.rejectIngest(w, rejectionChannelLogs, status, code) }
 	if !secureEqual(r.Header.Get(IngestKeyHeader), a.ingestKey) {
 		reject(http.StatusUnauthorized, "unauthorized")
 		return
