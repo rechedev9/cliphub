@@ -174,7 +174,7 @@ func TestObservedCrosshairBlockerDoesNotOfferRetiredFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, blocker := range d.Blockers {
-		if blocker.Code == ErrPOVContract && strings.Contains(blocker.Message, "Observed player crosshair") {
+		if blocker.Code == ErrPOVContract && strings.Contains(blocker.Message, "mira del jugador") {
 			if strings.Contains(blocker.Message, "provide a code") || strings.Contains(blocker.Message, "capture default") {
 				t.Fatalf("retired fallback leaked into blocker: %q", blocker.Message)
 			}
