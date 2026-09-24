@@ -348,14 +348,18 @@ func (s state) seeIssue(ctx context.Context, o Occurrence, regressed bool, now t
 	return err
 }
 
-// duplicateInJob merges the event and log copies of one job failure.
-func (s state) duplicateInJob(ctx context.Context, key, job string, at time.Time) (bool, error) {
+// duplicateInJob merges the event and log copies of one job failure. The two
+// copies do not always share a key: today's clients send the error event with
+// its journal stage/class and the attempt.finished log with the operation, and
+// the texts can differ. Any occurrence of the same job within the window is
+// therefore the same failure, whatever its key.
+func (s state) duplicateInJob(ctx context.Context, job string, at time.Time) (bool, error) {
 	if job == "" {
 		return false, nil
 	}
 	var found int
-	err := s.q.QueryRowContext(ctx, "SELECT COUNT(*) FROM occurrences WHERE key=? AND job_id=? AND at BETWEEN ? AND ?",
-		key, job, ms(at.Add(-10*time.Minute)), ms(at.Add(10*time.Minute))).Scan(&found)
+	err := s.q.QueryRowContext(ctx, "SELECT COUNT(*) FROM occurrences WHERE job_id=? AND at BETWEEN ? AND ?",
+		job, ms(at.Add(-10*time.Minute)), ms(at.Add(10*time.Minute))).Scan(&found)
 	return found > 0, err
 }
 

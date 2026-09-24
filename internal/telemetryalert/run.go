@@ -336,7 +336,7 @@ func (e *engine) processLog(ctx context.Context, r Record, alias int) (bool, err
 func (e *engine) occurrence(ctx context.Context, r Record, labels Labels, crash bool, alias int) (Occurrence, error) {
 	occ := newOccurrence(r, labels, crash)
 	occ.Alias = alias
-	if duplicate, err := e.st.duplicateInJob(ctx, occ.Key, r.Job, r.At); err != nil || duplicate {
+	if duplicate, err := e.st.duplicateInJob(ctx, r.Job, r.At); err != nil || duplicate {
 		return occ, err
 	}
 	if inserted, err := e.st.insertOccurrence(ctx, occ, r); err != nil || !inserted {

@@ -143,6 +143,31 @@ func TestShutdownKillCreatesNoIssue(t *testing.T) {
 	}
 }
 
+// Today's clients label the error event with its journal stage/class and the
+// attempt.finished log with the operation, and the texts differ. One failed
+// job must still page once.
+func TestEventAndLogCopiesOfOneJobPageOnce(t *testing.T) {
+	h := newHarness(t, "shutdown-kill.json")
+	h.run("2026-09-24T09:00:00Z") // bootstrap
+	const support, session, job = "CH-1111-2222-3333-4444-5555", "5e551011-0000-4000-8000-0000000000aa", "4ae10001-0000-4000-8000-0000000000aa"
+	h.admin.add(fixtureFile{
+		Events: []ErrorEvent{{
+			ReceivedAt: mustTime(t, "2026-09-24T10:00:05Z"), OccurredAt: mustTime(t, "2026-09-24T10:00:00Z"), SupportCode: support, SessionID: session,
+			Release: "5.2.1", Component: "orchestrator", Name: "pipeline.error", Stage: "record", Class: "unknown",
+			JobID: job, Message: "HLAE hook crashed with a native error dialog (Error - AfxHookSource2)",
+		}},
+		Logs: []LogRecord{{
+			ReceivedAt: mustTime(t, "2026-09-24T10:00:06Z"), OccurredAt: mustTime(t, "2026-09-24T10:00:01Z"), SupportCode: support, SessionID: session,
+			Release: "5.2.1", Source: "orchestrator", Level: "error", Event: "attempt.finished", JobID: job,
+			Operation: "record:demo", Outcome: "error", Message: "record:demo exited 6 after 5 s",
+		}},
+	})
+	result := h.run("2026-09-24T10:01:00Z")
+	if got := summary(result.Alerts, false); !slices.Equal(got, []string{"new_issue:P1"}) {
+		t.Fatalf("alerts = %v, want a single new_issue", got)
+	}
+}
+
 func TestBootstrapSendsNothingAndMarksKeysKnown(t *testing.T) {
 	h := newHarness(t, "loudnorm.json", "hlae.json", "faceit.json", "black-capture.json", "shutdown-kill.json")
 	tg := newFakeTelegram(t)
