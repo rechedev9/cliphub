@@ -4,7 +4,9 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  crashReporter,
   ipcMain,
+  powerMonitor,
   screen,
   shell,
   session,
@@ -16,7 +18,6 @@ import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { escapeHtml } from './escaping';
 import { StreamDownloads } from './stream-downloads';
 import {
   createBootSecurityCapabilities,
@@ -35,13 +36,12 @@ import {
   validateWindowState,
   type WindowState,
 } from './window-state';
-import { lastLines } from './log-tail';
 import { bridgeEnvironment } from './bridge-environment';
 import { createOrchestratorEnvironment } from './orchestrator-environment';
 import { steamEnvironment } from './steam-environment';
-import { provisionRuntimeTools, RUNTIME_TOOL_LABELS } from './runtime-tools';
+import { provisionRuntimeTools, RUNTIME_TOOL_LABELS, type RuntimeToolEnvironment } from './runtime-tools';
 import { PINNED_HLAE_TOOL } from './hlae-tool';
-import { ProcessSession, type LaunchedProcess } from './process-session';
+import { ProcessExitError, ProcessSession, type LaunchedProcess } from './process-session';
 import { waitForDesktopServices } from './service-health';
 import { provisionMusicLibrary } from './music-library';
 import { allocateStableServicePorts } from './stable-ports';
@@ -63,7 +63,7 @@ import {
   parseAppUpdateRequest,
 } from './app-update-ipc';
 import { TelemetrySettingsStore } from './telemetry-settings';
-import { TelemetryClient, type TelemetryReleaseConfig } from './telemetry-client';
+import { TelemetryClient, type PublicTelemetryStatus, type TelemetryReleaseConfig } from './telemetry-client';
 import { TelemetryJournal } from './telemetry-journal';
 import { DiagnosticLogClient } from './diagnostic-log-client';
 import { PACKAGED_TELEMETRY_CONFIG } from './telemetry-release';
@@ -73,6 +73,16 @@ import {
 } from './telemetry-ipc';
 import { readPlaybackInfo, type PlaybackInfoCache } from './playback-diagnostics';
 import { isAllowedStudioPermission } from './studio-permission-policy';
+import { collectDeviceContext } from './device-context';
+import {
+  classifyExit,
+  clearSessionMarker,
+  markSessionShuttingDown,
+  recordPreviousSession,
+  takeCrashOutput,
+  type ExitClass,
+} from './crash-monitor';
+import { errorScreenHtml, RETRY_URL, SEND_DIAGNOSTIC_URL, type DiagnosticSendState } from './error-screen';
 
 // ClipHub never reads this; drop an inherited operator key before spawning children.
 delete process.env.XAI_API_KEY;
@@ -94,6 +104,9 @@ if (!ownsElectronInstance) {
   app.quit();
   process.exit(0);
 }
+
+// Minidumps stay in the local crashDumps dir; only their existence is reported.
+crashReporter.start({ uploadToServer: false });
 
 // Compiled to dist/main.js; bundled files still live one level up.
 const appRoot = path.join(__dirname, '..');
@@ -121,7 +134,26 @@ const musicDir = path.join(dataDir, 'music');
 const logFile = path.join(app.getPath('userData'), 'studio.log');
 let logStream: fs.WriteStream | null = null;
 let diagnosticLogs: DiagnosticLogClient | null = null;
+
+// This session's studio.log tail, kept in memory: the write stream may not have
+// flushed the last lines a child printed before it died.
+const RECENT_LOG_LINES = 400;
+const RECENT_LOG_LINE_CHARS = 4096;
+const recentLog: string[] = [];
+function rememberLog(text: string): void {
+  const lines = text.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  for (const line of lines) recentLog.push(line.slice(0, RECENT_LOG_LINE_CHARS));
+  if (recentLog.length > RECENT_LOG_LINES) recentLog.splice(0, recentLog.length - RECENT_LOG_LINES);
+}
+
+/** Raw (unfiltered) last lines of this session's log; diagnostic records filter it. */
+function recentLogText(maxLines: number): string {
+  return recentLog.slice(-maxLines).join('\n');
+}
+
 function logLine(text: string): void {
+  rememberLog(text);
   process.stdout.write(text);
   try {
     if (!logStream) {
@@ -196,14 +228,132 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const portsFile = path.join(app.getPath('userData'), 'ports.json');
+// Removed on clean quit; a leftover marker at start means the main process died.
+const sessionMarkerFile = path.join(app.getPath('userData'), 'session-marker.json');
+// The orchestrator's Go runtime appends fatal errors here (debug.SetCrashOutput).
+const orchestratorCrashFile = path.join(app.getPath('userData'), 'orchestrator-crash.log');
 
-/** Last lines of studio.log, HTML-escaped for the error screen. */
+/** Last lines of this session's studio.log for the error screen, which escapes them. */
 function logTail(maxLines = 40): string {
+  return recentLogText(maxLines) || '(sin registro)';
+}
+
+const BACKEND_CRASH_TAIL_LINES = 40;
+const SEND_LOG_TAIL_LINES = 200;
+const SEND_FLUSH_CAP_MS = 10_000;
+const QUIT_FLUSH_CAP_MS = 2_000;
+
+// Set when Windows ends the session: children then die with shutdown exit codes.
+let systemShuttingDown = false;
+
+function noteSystemShutdown(): void {
+  if (systemShuttingDown) return;
+  systemShuttingDown = true;
+  logLine('[runtime] Windows session is ending\n');
+  markSessionShuttingDown(sessionMarkerFile);
+}
+
+/** Diagnostics may leave the machine: a collector exists and the user said yes. */
+function diagnosticsEligible(): boolean {
+  const status = telemetryClient.status();
+  return status.available && status.enabled && status.noticeAcknowledged;
+}
+
+function telemetryStatusResponse(status: PublicTelemetryStatus): unknown {
+  return { ...status, sessionId: diagnosticSessionID, logDelivery: diagnosticLogs?.status() };
+}
+
+/** The opt-in the web notice and Ajustes perform; the error screen's send button reuses it. */
+function enableDiagnostics(): PublicTelemetryStatus {
+  telemetryJournal.discardPending();
+  const status = telemetryClient.update(true);
+  diagnosticLogs?.resetConsent(true);
+  diagnosticLogs?.record({ source: 'telemetry', event: 'delivery.enabled', message: 'Diagnostic collection enabled' });
+  return status;
+}
+
+/**
+ * Flushes both channels, bounded by capMS. Returns true when the log spool is
+ * empty afterwards, so the caller can tell the user the report arrived.
+ */
+async function drainDiagnostics(capMS: number): Promise<boolean> {
+  const deadline = Date.now() + capMS;
+  const drainLogs = async (): Promise<void> => {
+    let previous = Number.POSITIVE_INFINITY;
+    while (diagnosticLogs !== null && Date.now() < deadline) {
+      const pending = diagnosticLogs.status().pendingBytes;
+      // No progress means a deferred upload; it retries on its own schedule.
+      if (pending === 0 || pending >= previous) return;
+      previous = pending;
+      await diagnosticLogs.flush();
+    }
+  };
+  let timer: NodeJS.Timeout | undefined;
+  const cap = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, capMS);
+  });
+  await Promise.race([Promise.allSettled([telemetryClient.flush(), drainLogs()]), cap]);
+  clearTimeout(timer);
+  return (diagnosticLogs?.status().pendingBytes ?? 0) === 0;
+}
+
+// Tools resolved by the latest boot; device.context reads their pinned versions.
+let lastToolEnvironment: RuntimeToolEnvironment = {};
+let deviceContextLine: Promise<string> | null = null;
+let deviceContextRecorded = false;
+
+/** One device.context record per session, written only once diagnostics are allowed. */
+async function recordDeviceContext(): Promise<void> {
+  if (deviceContextRecorded || !diagnosticsEligible()) return;
+  deviceContextLine ??= collectDeviceContext({
+    dataDir,
+    toolsDir: path.join(app.getPath('userData'), 'tools'),
+    ffmpegPath: lastToolEnvironment.ZV_FFMPEG_PATH,
+    hlaePath: lastToolEnvironment.ZV_HLAE_PATH,
+    cachePath: path.join(app.getPath('userData'), 'device-context-cache.json'),
+    appVersion: app.getVersion(),
+    systemVersion: () => process.getSystemVersion(),
+    gpuInfo: () => app.getGPUInfo('basic'),
+  });
+  let line: string;
   try {
-    return escapeHtml(lastLines(fs.readFileSync(logFile, 'utf8'), maxLines));
-  } catch {
-    return '(sin registro)';
+    line = await deviceContextLine;
+  } catch (error) {
+    deviceContextLine = null;
+    logLine(`[runtime] device context unavailable: ${String(error)}\n`);
+    return;
   }
+  if (deviceContextRecorded || !diagnosticsEligible()) return;
+  deviceContextRecorded = true;
+  diagnosticLogs?.record({ event: 'device.context', level: 'info', message: line });
+}
+
+/** Reports a Go fatal error left by an earlier orchestrator run, then removes the file. */
+function recordOrchestratorCrashOutput(): void {
+  const excerpt = takeCrashOutput(orchestratorCrashFile);
+  if (excerpt === null) return;
+  logLine('[runtime] an earlier orchestrator run left a fatal error report\n');
+  diagnosticLogs?.record({ event: 'runtime.fatal_previous', level: 'error', message: `source=orchestrator\n${excerpt}` });
+}
+
+function recordBootFailure(err: unknown): void {
+  telemetryClient.recordError({
+    component: 'electron',
+    name: 'desktop.boot_failed',
+    stage: 'boot',
+    class: 'boot_failed',
+    message: err,
+  });
+}
+
+/** A backend child died after boot; the tail was captured when it happened. */
+function recordBackendCrash(child: string, exitCode: number | null, exitClass: ExitClass, tail: string): void {
+  diagnosticLogs?.record({
+    event: 'desktop.backend_crashed',
+    level: exitClass === 'shutdown_kill' ? 'info' : 'error',
+    message: `child=${child} exit=${exitCode ?? 'none'} exit_class=${exitClass}\n${tail}`,
+    exitCode: exitCode ?? undefined,
+  });
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -240,9 +390,6 @@ const loadingFileUrl = pathToFileURL(loadingHtmlPath).href;
 
 // At most one main-process data: URL is trusted at a time (the error screen).
 const allowedInternalUrls = new Set<string>();
-
-// Error-screen retry href; will-navigate intercepts it and never resolves it.
-const RETRY_URL = 'https://retry.cliphub.invalid/';
 
 const windowFile = path.join(app.getPath('userData'), 'window.json');
 
@@ -310,6 +457,16 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     mainWindow = null;
   });
+  // Windows log off / shutdown: children exit with session-termination codes.
+  win.on('session-end', noteSystemShutdown);
+  win.webContents.on('unresponsive', () => {
+    logLine('[window] renderer unresponsive\n');
+    diagnosticLogs?.record({ event: 'renderer.unresponsive', level: 'warn', message: 'window=main' });
+  });
+  win.webContents.on('responsive', () => {
+    logLine('[window] renderer responsive again\n');
+    diagnosticLogs?.record({ event: 'renderer.responsive', level: 'info', message: 'window=main' });
+  });
 
   // No popups; non-loopback http(s) opens in the system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -324,6 +481,11 @@ function createWindow(): BrowserWindow {
       retryBoot();
       return;
     }
+    if (url === SEND_DIAGNOSTIC_URL) {
+      event.preventDefault();
+      void sendErrorScreenDiagnostic();
+      return;
+    }
     if (url === loadingFileUrl || allowedInternalUrls.has(url) || isLoopbackOrigin(url)) return;
     event.preventDefault();
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
@@ -331,12 +493,14 @@ function createWindow(): BrowserWindow {
 
   win.webContents.on('render-process-gone', (_event, details) => {
     logLine(`[window] render process gone: ${JSON.stringify(details)}\n`);
-    telemetryClient.recordError({
+    const recordRendererGone = (): void => telemetryClient.recordError({
       component: 'renderer',
       name: 'renderer.process_gone',
       stage: 'runtime',
       class: 'process_gone',
+      message: `reason=${details.reason} exit=${details.exitCode}`,
     });
+    recordRendererGone();
     if (quitting) return;
     if (renderProcessGoneResetTimer) {
       clearTimeout(renderProcessGoneResetTimer);
@@ -358,6 +522,7 @@ function createWindow(): BrowserWindow {
       `La interfaz se ha bloqueado repetidamente (motivo: ${details.reason}).`,
       'La interfaz se ha bloqueado repetidamente',
       'Cierra ClipHub Studio y vuelve a abrirlo. Si el problema persiste, revisa el registro.',
+      recordRendererGone,
     );
   });
 
@@ -379,28 +544,47 @@ function setLoadingStatus(text: string): void {
     .catch(() => {}); // the page may already be gone; never block boot on this
 }
 
+interface ErrorScreenState {
+  error: unknown;
+  title?: string;
+  hint?: string;
+  /** Records this failure's diagnostics again once the user consents from the screen. */
+  report: () => void;
+  consented: boolean;
+  send: DiagnosticSendState;
+}
+
+// The error screen on display, if any; cleared when a boot attempt starts.
+let errorScreen: ErrorScreenState | null = null;
+
 /** Renders the fatal-error screen as a data: URL, so it never depends on the servers that just failed or died. */
-function showErrorScreen(err: unknown, title?: string, hint?: string): void {
+function showErrorScreen(err: unknown, title?: string, hint?: string, report: () => void = () => {}): void {
+  errorScreen = {
+    error: err,
+    title,
+    hint,
+    report,
+    consented: diagnosticsEligible(),
+    send: telemetryClient.status().available ? 'idle' : 'unavailable',
+  };
+  renderErrorScreen();
+}
+
+function renderErrorScreen(): void {
   loadingScreenShowing = false;
   const win = aliveWindow();
-  if (win === null) return;
-  const defaultTitle = 'ClipHub Studio no pudo arrancar';
-  const defaultHint =
-    'Si un antivirus ha bloqueado o puesto en cuarentena archivos de ClipHub, restáuralos y vuelve a abrir la app.';
-  const html = `<!doctype html><html><head><meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-    <style>
-      body{font:16px system-ui;background:#0a0a0a;color:#eee;padding:2rem}
-      a.retry{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;background:#22d9ee;color:#04121a;
-        font-weight:600;text-decoration:none;border-radius:4px}
-    </style></head>
-    <body>
-      <h2>${escapeHtml(title || defaultTitle)}</h2>
-      <p>${escapeHtml(err)}</p>
-      <p style="color:#999">${hint || defaultHint} Registro completo: ${escapeHtml(logFile)}</p>
-      <a class="retry" href="${RETRY_URL}">Reintentar</a>
-      <pre style="background:#111;padding:1rem;overflow:auto;max-height:40vh;font-size:12px">${logTail()}</pre>
-    </body></html>`;
+  const state = errorScreen;
+  if (win === null || state === null) return;
+  const html = errorScreenHtml({
+    error: state.error,
+    title: state.title,
+    hint: state.hint,
+    logFile,
+    logTail: logTail(),
+    send: state.send,
+    consented: state.consented,
+    supportCode: telemetrySettings.get().supportCode,
+  });
   const url = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   // Only the error screen currently on display is a trusted navigation
   // target; drop whatever the previous error screen (if any) allowed.
@@ -409,6 +593,40 @@ function showErrorScreen(err: unknown, title?: string, hint?: string): void {
   void win.loadURL(url).catch((loadErr: unknown) => {
     logLine(`[window] could not load error screen: ${String(loadErr)}\n`);
   });
+}
+
+/**
+ * "Enviar este diagnóstico": the click is the consent. It enables diagnostics
+ * the same way the notice does, records this failure and the filtered log
+ * tail, and flushes. A user who already consented only gets the flush, since
+ * the failure was recorded when it happened.
+ */
+async function sendErrorScreenDiagnostic(): Promise<void> {
+  const state = errorScreen;
+  if (state === null || (state.send !== 'idle' && state.send !== 'failed')) return;
+  state.send = 'sending';
+  renderErrorScreen();
+  if (!diagnosticsEligible()) {
+    try {
+      enableDiagnostics();
+    } catch (error) {
+      logLine(`[telemetry] could not enable diagnostics from the error screen: ${String(error)}\n`);
+      if (errorScreen === state) {
+        state.send = 'failed';
+        renderErrorScreen();
+      }
+      return;
+    }
+    state.report();
+    diagnosticLogs?.record({ event: 'desktop.log_tail', level: 'info', message: recentLogText(SEND_LOG_TAIL_LINES) });
+  }
+  await recordDeviceContext();
+  const delivered = await drainDiagnostics(SEND_FLUSH_CAP_MS);
+  logLine(`[telemetry] error screen diagnostic ${delivered ? 'delivered' : 'queued'}\n`);
+  // A retry may have replaced the screen while the upload ran.
+  if (errorScreen !== state) return;
+  state.send = delivered ? 'sent' : 'queued';
+  renderErrorScreen();
 }
 
 interface BootAttempt {
@@ -420,6 +638,8 @@ interface BootFailureDetails {
   title?: string;
   hint?: string;
   logLabel?: string;
+  /** Records this failure's diagnostics; defaults to the desktop.boot_failed event. */
+  report?: () => void;
 }
 
 let activeBootAttempt: BootAttempt | null = null;
@@ -506,6 +726,7 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   // error screen from the failed attempt.
   const existing = aliveWindow();
   const bootWindow = existing ?? createWindow();
+  errorScreen = null;
   await bootWindow.loadFile(loadingHtmlPath);
   assertBootAttemptActive(attempt);
   loadingScreenShowing = true;
@@ -534,6 +755,8 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
       setLoadingStatus(`Preparando ${RUNTIME_TOOL_LABELS[name]}${detail ? ` (${detail})` : ''}…`),
   );
   assertBootAttemptActive(attempt);
+  lastToolEnvironment = toolEnv;
+  void recordDeviceContext();
 
   // Probe ports after provisioning; first boot can take minutes.
   setLoadingStatus('Eligiendo puertos libres…');
@@ -551,22 +774,27 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   allowedOrigins.add(activeWebOrigin);
 
   setLoadingStatus('Iniciando el orquestador…');
+  // Before the new run reopens the file: whatever is there came from an earlier one.
+  recordOrchestratorCrashOutput();
   const orch = attempt.processes.launch(
     'orchestrator',
     orchestratorExe,
     [],
-    createOrchestratorEnvironment({
-      dataDir,
-      httpAddress: `${LOOPBACK_HOST}:${orchPort}`,
-      musicDir,
-      recorderPath: recorderExe,
-      overlayRendererPath: process.execPath,
-      overlayRendererApp: app.isPackaged ? undefined : app.getAppPath(),
-      securityEnvironment: orchestratorSecurityEnvironment(security),
-      toolEnvironment: toolEnv,
-      steamEnvironment: steamEnvironment(process.env),
-      bridgeEnvironment: bridgeEnvironment(process.env),
-    }),
+    {
+      ...createOrchestratorEnvironment({
+        dataDir,
+        httpAddress: `${LOOPBACK_HOST}:${orchPort}`,
+        musicDir,
+        recorderPath: recorderExe,
+        overlayRendererPath: process.execPath,
+        overlayRendererApp: app.isPackaged ? undefined : app.getAppPath(),
+        securityEnvironment: orchestratorSecurityEnvironment(security),
+        toolEnvironment: toolEnv,
+        steamEnvironment: steamEnvironment(process.env),
+        bridgeEnvironment: bridgeEnvironment(process.env),
+      }),
+      ZV_CRASH_OUTPUT: orchestratorCrashFile,
+    },
   );
 
   setLoadingStatus('Iniciando el servidor web…');
@@ -594,18 +822,23 @@ async function runBootAttempt(attempt: BootAttempt): Promise<void> {
   });
   assertBootAttemptActive(attempt);
 
-  const watchPostBoot = (child: LaunchedProcess): void => {
+  // A post-boot exit is a backend crash (or a Windows log off), not a boot failure.
+  const watchPostBoot = (label: 'orchestrator' | 'web', child: LaunchedProcess): void => {
     attempt.processes.watchUnexpectedExit(child, (err: unknown) => {
       if (quitting || activeBootAttempt !== attempt) return;
+      const exitCode = err instanceof ProcessExitError ? err.exitCode : null;
+      const exitClass = classifyExit(exitCode, systemShuttingDown);
+      const tail = recentLogText(BACKEND_CRASH_TAIL_LINES);
       failBootAttempt(attempt, err, {
         title: 'ClipHub Studio se ha detenido',
         hint: 'El backend se detuvo de forma inesperada. Cierra y vuelve a abrir la app.',
-        logLabel: 'post-boot crash',
+        logLabel: `post-boot crash (${exitClass})`,
+        report: () => recordBackendCrash(label, exitCode, exitClass, tail),
       });
     });
   };
-  watchPostBoot(orch);
-  watchPostBoot(web);
+  watchPostBoot('orchestrator', orch);
+  watchPostBoot('web', web);
 
   setLoadingStatus('Abriendo la interfaz…');
   allowedInternalUrls.clear();
@@ -630,14 +863,9 @@ function failBootAttempt(attempt: BootAttempt, err: unknown, details: BootFailur
   allowedInternalUrls.clear();
   activeWebOrigin = null;
   logLine(`[boot] ${details.logLabel ?? 'failed'}: ${String(err)}\n`);
-  telemetryClient.recordError({
-    component: 'electron',
-    name: 'desktop.boot_failed',
-    stage: 'boot',
-    class: 'boot_failed',
-    message: err,
-  });
-  if (!quitting) showErrorScreen(err, details.title, details.hint);
+  const report = details.report ?? ((): void => recordBootFailure(err));
+  report();
+  if (!quitting) showErrorScreen(err, details.title, details.hint, report);
 }
 
 function assertBootAttemptActive(attempt: BootAttempt): void {
@@ -705,7 +933,7 @@ function registerStudioSettingsIPC(): void {
     } catch {
       return settingsFailure('Solicitud de Ajustes no válida.');
     }
-    if (request.action === 'telemetry-status') return { ...telemetryClient.status(), logDelivery: diagnosticLogs?.status() };
+    if (request.action === 'telemetry-status') return telemetryStatusResponse(telemetryClient.status());
     if (request.action === 'telemetry-update') {
       if (!request.enabled) {
         diagnosticLogs?.resetConsent(false);
@@ -717,17 +945,15 @@ function registerStudioSettingsIPC(): void {
             logLine(`[telemetry] journal cursor reset deferred: ${String(error)}\n`);
           }
           diagnosticLogs?.resetConsent(false);
-          return { ...status, logDelivery: diagnosticLogs?.status() };
+          return telemetryStatusResponse(status);
         } catch {
           return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
         }
       }
       try {
-        telemetryJournal.discardPending();
-        const status = telemetryClient.update(true);
-        diagnosticLogs?.resetConsent(true);
-        diagnosticLogs?.record({ source: 'telemetry', event: 'delivery.enabled', message: 'Diagnostic collection enabled' });
-        return { ...status, logDelivery: diagnosticLogs?.status() };
+        const status = enableDiagnostics();
+        void recordDeviceContext();
+        return telemetryStatusResponse(status);
       } catch {
         return settingsFailure('No se pudo guardar la preferencia de diagnósticos.');
       }
@@ -949,21 +1175,53 @@ app.whenReady().then(() => {
   registerStudioTelemetryIPC();
   registerStudioClipboardIPC();
   registerAppUpdateIPC();
+  powerMonitor.on('shutdown', noteSystemShutdown);
   telemetryClient.start();
   telemetryJournal.start();
   diagnosticLogs?.start();
   diagnosticLogs?.record({ event: 'desktop.runtime', message: `Studio ${app.getVersion()} platform=${process.platform} arch=${process.arch} electron=${process.versions.electron} chromium=${process.versions.chrome} node=${process.versions.node}` });
+  recordPreviousSession({
+    markerPath: sessionMarkerFile,
+    crashDumpsDir: app.getPath('crashDumps'),
+    electronVersion: process.versions.electron,
+    record: (input) => diagnosticLogs?.record(input),
+    log: logLine,
+  });
   runBoot();
 });
 
+// GPU, utility and other helper processes; a GPU crash silently disables acceleration.
+app.on('child-process-gone', (_event, details) => {
+  const type = details.type.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const message = `type=${type} reason=${details.reason} exit=${details.exitCode}`;
+  logLine(`[runtime] child process gone: ${message}\n`);
+  if (quitting || details.reason === 'clean-exit') return;
+  diagnosticLogs?.record({ event: 'process.gone', level: 'error', message, exitCode: details.exitCode });
+});
+
+// Set once the queued diagnostics had their bounded chance to upload.
+let quitDrainStarted = false;
+let quitDrained = false;
+
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   quitting = true;
+  if (quitDrained) return;
+  event.preventDefault();
+  if (quitDrainStarted) return;
+  quitDrainStarted = true;
+  // The quit is intentional from here on, even if an installer kills the
+  // process before the drain below finishes.
+  clearSessionMarker(sessionMarkerFile);
   telemetryJournal.stop();
-  telemetryClient.stop();
   diagnosticLogs?.record({ event: 'desktop.stopping', message: 'Studio shutdown requested' });
-  diagnosticLogs?.stop();
   disposeAppUpdate();
   shutdown();
+  void drainDiagnostics(QUIT_FLUSH_CAP_MS).finally(() => {
+    quitDrained = true;
+    telemetryClient.stop();
+    diagnosticLogs?.stop();
+    app.quit();
+  });
 });
 process.on('exit', shutdown);

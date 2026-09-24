@@ -10,5 +10,23 @@ if (overlayArgument >= 0) {
     app.exit(1);
   });
 } else {
-  void import('./main');
+  // A failure while loading main (a missing module, a throwing constructor)
+  // happens before main's own logging exists: leave a trace in studio.log and
+  // tell the user instead of running on with no window.
+  void import('./main').catch(async (error: unknown) => {
+    const detail = error instanceof Error ? error.stack ?? `${error.name}: ${error.message}` : String(error);
+    const { app, dialog } = await import('electron');
+    try {
+      const { appendFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      appendFileSync(join(app.getPath('userData'), 'studio.log'), `[entry] main module failed to load: ${detail}\n`);
+    } catch {
+      // The dialog below is the remaining trace.
+    }
+    dialog.showErrorBox(
+      'ClipHub Studio no pudo arrancar',
+      `No se pudo cargar la aplicación. Reinstala ClipHub Studio; si el problema sigue, comparte studio.log.\n\n${detail}`,
+    );
+    app.exit(1);
+  });
 }

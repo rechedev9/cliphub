@@ -20,6 +20,20 @@ export interface LaunchedProcess {
   outputClosed: Promise<void>;
 }
 
+/** Rejection for a child that started and then exited; crash reporting classifies its code. */
+export class ProcessExitError extends Error {
+  readonly label: string;
+  readonly exitCode: number | null;
+
+  constructor(label: string, exitCode: number | null) {
+    // Desktop-facing process failures are Spanish to match the rest of the app chrome.
+    // The name stays "Error" so the boot error screen text is unchanged.
+    super(`${label} terminó inesperadamente (código ${exitCode})`);
+    this.label = label;
+    this.exitCode = exitCode;
+  }
+}
+
 export type ProcessLauncher = (
   executable: string,
   args: string[],
@@ -106,7 +120,7 @@ export class ProcessSession {
         settled = true;
         if (!handle.onClose) finishOutput();
         this.logLine(`[${label}] exited (${code})\n`);
-        reject(new Error(`${label} terminó inesperadamente (código ${code})`));
+        reject(new ProcessExitError(label, code));
       });
     });
     exited.catch(() => {}); // Consumers observe it selectively; never leave an unhandled rejection.

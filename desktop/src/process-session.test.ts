@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ProcessExitError,
   ProcessSession,
   terminateProcessTree,
   type ProcessHandle,
@@ -21,6 +22,24 @@ test('prefixes child output and exposes the first exit as a failure', async () =
   await rejected;
 
   assert.deepEqual(harness.logs, ['[web] ready\n', '[web] warning\n', '[web] exited (7)\n']);
+});
+
+test('carries the child label and raw exit code for crash classification', async () => {
+  const harness = sessionHarness();
+  const launched = harness.session.launch('orchestrator', 'zv-orchestrator.exe', [], {});
+  const child = harness.children[0];
+  if (!child) throw new Error('expected a launched child');
+  const failures: unknown[] = [];
+  harness.session.watchUnexpectedExit(launched, (err) => failures.push(err));
+
+  child.emitExit(1073807364);
+  await flushPromises();
+
+  const failure = failures[0];
+  assert.ok(failure instanceof ProcessExitError);
+  assert.equal(failure.label, 'orchestrator');
+  assert.equal(failure.exitCode, 1073807364);
+  assert.equal(String(failure), 'Error: orchestrator terminó inesperadamente (código 1073807364)');
 });
 
 test('reports a spawn failure once even if an exit event follows', async () => {
