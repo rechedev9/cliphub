@@ -160,6 +160,21 @@ on the dev PC captured normally. Studio 5.1.1 pins official 2.192.3.
   verifying a capture, check its frames and bitrate (`blackdetect`,
   `signalstats`), not only exit codes.
 
+### Incident: DeathMsg.cpp crash after the next CS2 update (Studio 5.3.0, 2026-09-24)
+
+One day after 2.192.3 shipped, CS2 1.41.8.3 (build 25492732) made
+AfxHookSource2 stop at a native `Error - AfxHookSource2` dialog reading
+`Problem in ...\AfxHookSource2\DeathMsg.cpp:1248` while CS2 was still on the
+Valve splash. advancedfx tracked it as issue #1216 and fixed it in official
+2.192.4 (AfxHookSource2 0.41.4) the same day. Studio 5.3.1 pins 2.192.4.
+
+- CS2 can break the pin twice in two days. Before bisecting a capture
+  failure, compare `PatchVersion` in `game\csgo\steam.inf` with the CS2
+  version named in the pinned release's AfxHookSource2 changelog.
+- The installed tool folder is not a clean source for `treeSha256`: HLAE
+  writes `ffmpeg/ffmpeg.ini` at runtime. Compute the digest over a fresh
+  `Expand-Archive` of the release zip.
+
 ## Local test environment caveat
 
 `TestFullDemoConcatsTwoFixtureRounds`,

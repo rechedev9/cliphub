@@ -38,10 +38,10 @@ phase("Doctor");
 let doctor_prompt = "";
 doctor_prompt += "In the ClipHub repo, first run powershell -NoProfile -File .\\scripts\\operator-session.ps1. ";
 doctor_prompt += "Then run .\\bin\\zv.exe capabilities --format json. Do not launch CS2 or HLAE. ";
-doctor_prompt += "The only allowed HLAE path is %APPDATA%\\cliphub-studio\\tools\\hlae\\2.192.3\\HLAE.exe. ";
+doctor_prompt += "The only allowed HLAE path is %APPDATA%\\cliphub-studio\\tools\\hlae\\2.192.4\\HLAE.exe. ";
 doctor_prompt += "C:\\HLAE\\HLAE.exe and C:\\HLAE-2.191.1\\HLAE.exe are wrong. ";
 doctor_prompt += "Set hlae_path to the path you will pass as --hlae on record. ";
-doctor_prompt += "Set pin_ok=true only if that path contains hlae\\2.192.3\\HLAE.exe and the file exists. ";
+doctor_prompt += "Set pin_ok=true only if that path contains hlae\\2.192.4\\HLAE.exe and the file exists. ";
 doctor_prompt += "Set record_ready from record.ready. Explain any mismatch in notes.";
 let doctor = agent(doctor_prompt, #{
     label: "doctor",
@@ -72,7 +72,7 @@ if probe == () || !probe.success || probe.output == () {
 let pin_ok = doctor.output.pin_ok;
 let next = probe.output.next;
 if pin_ok != true {
-    next = "STOP: pin HLAE 2.192.3 via scripts\\operator-session.ps1 and pass --hlae; autodetect on this PC is C:\\HLAE-2.191.1";
+    next = "STOP: pin HLAE 2.192.4 via scripts\\operator-session.ps1 and pass --hlae; autodetect on this PC is C:\\HLAE-2.191.1";
 }
 complete(#{
     ok: pin_ok == true,
