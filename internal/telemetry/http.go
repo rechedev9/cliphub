@@ -28,6 +28,9 @@ const (
 // behind Tailscale Funnel, while AdminHandler stays tailnet-only and still
 // requires a bearer token.
 type API struct {
+	// Version is the collector build stamp reported by the admin health check.
+	Version string
+
 	store      *Store
 	ingestKey  string
 	adminToken string
@@ -35,6 +38,8 @@ type API struct {
 	logf       func(string, ...any)
 	budget     *ingestBudget
 	logBudget  *ingestBudget
+	rejections *rejectionCounter
+	startedAt  time.Time
 }
 
 func NewAPI(store *Store, ingestKey, adminToken string) (*API, error) {
@@ -52,6 +57,7 @@ func NewAPI(store *Store, ingestKey, adminToken string) (*API, error) {
 		return nil, fmt.Errorf("create transient source limiter: %w", err)
 	}
 	return &API{
+		Version:    "dev",
 		store:      store,
 		ingestKey:  ingestKey,
 		adminToken: adminToken,
@@ -59,6 +65,8 @@ func NewAPI(store *Store, ingestKey, adminToken string) (*API, error) {
 		logf:       log.Printf,
 		budget:     newIngestBudget(sourceSalt),
 		logBudget:  newLogIngestBudget(sourceSalt),
+		rejections: newRejectionCounter(),
+		startedAt:  time.Now().UTC(),
 	}, nil
 }
 
@@ -74,6 +82,7 @@ func (a *API) AdminHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.adminHealth)
 	mux.HandleFunc("GET /v1/incidents", a.incidents)
+	mux.HandleFunc("GET /v1/errors", a.errorFeed)
 	mux.HandleFunc("GET /v1/stats", a.stats)
 	mux.HandleFunc("GET /v1/logs", a.queryLogs)
 	return securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -90,25 +99,67 @@ func (a *API) publicHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"service": "cliphub-telemetry", "status": "ok"})
 }
 
-func (a *API) adminHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"service": "cliphub-telemetry-admin", "status": "ok"})
+// AdminHealth is the private health report. The public health check stays
+// static; this one is only reachable through the tailnet with the admin token.
+type AdminHealth struct {
+	Service            string           `json:"service"`
+	Status             string           `json:"status"`
+	Version            string           `json:"version"`
+	StartedAt          string           `json:"started_at"`
+	DBOK               bool             `json:"db_ok"`
+	LastReceivedAt     LastReceivedAt   `json:"last_received_at"`
+	Rejections         map[string]int64 `json:"rejections"`
+	EventsStorageRatio float64          `json:"events_storage_ratio"`
+	LogsStorageRatio   float64          `json:"logs_storage_ratio"`
+}
+
+// LastReceivedAt reports the latest collector receipt per ingest channel.
+type LastReceivedAt struct {
+	Events *time.Time `json:"events"`
+	Logs   *time.Time `json:"logs"`
+}
+
+// adminHealth always answers 200 while the handler runs: a failing database is
+// reported as status "degraded" so the alerter can tell it from a dead process.
+func (a *API) adminHealth(w http.ResponseWriter, r *http.Request) {
+	report := AdminHealth{
+		Service:    "cliphub-telemetry-admin",
+		Status:     "ok",
+		Version:    a.Version,
+		StartedAt:  a.startedAt.UTC().Format(time.RFC3339),
+		Rejections: a.rejections.snapshot(),
+	}
+	queryContext, cancel := context.WithTimeout(r.Context(), adminQueryTimeout)
+	defer cancel()
+	health, err := a.store.Health(queryContext)
+	if err != nil {
+		a.logf("telemetry stage=admin class=health_degraded error=%v", err)
+		report.Status = "degraded"
+	} else {
+		report.DBOK = true
+		report.LastReceivedAt = LastReceivedAt{Events: health.EventsLastReceivedAt, Logs: health.LogsLastReceivedAt}
+		report.EventsStorageRatio = health.EventsStorageRatio
+		report.LogsStorageRatio = health.LogsStorageRatio
+	}
+	writeJSON(w, http.StatusOK, report)
 }
 
 func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
 	now := a.now().UTC()
+	reject := func(status int, code string) { a.rejectIngest(w, rejectionChannelEvents, status, code) }
 	if !secureEqual(r.Header.Get(IngestKeyHeader), a.ingestKey) {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
+		reject(http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	source := a.budget.sourceKey(r.RemoteAddr)
 	if !a.budget.AllowRequest(now, source) {
 		w.Header().Set("Retry-After", "60")
-		writeError(w, http.StatusTooManyRequests, "rate_limited")
+		reject(http.StatusTooManyRequests, "rate_limited")
 		return
 	}
 	contentType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
 	if contentType != "application/json" {
-		writeError(w, http.StatusUnsupportedMediaType, "content_type_must_be_json")
+		reject(http.StatusUnsupportedMediaType, "content_type_must_be_json")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
@@ -116,16 +167,16 @@ func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 	var batch Batch
 	if err := decoder.Decode(&batch); err != nil {
-		writeError(w, requestDecodeStatus(err), "invalid_request")
+		reject(requestDecodeStatus(err), "invalid_request")
 		return
 	}
 	if err := requireJSONEOF(decoder); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request")
+		reject(http.StatusBadRequest, "invalid_request")
 		return
 	}
 	events, err := ValidateBatch(batch, now)
 	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, "invalid_event")
+		reject(http.StatusUnprocessableEntity, "invalid_event")
 		return
 	}
 	inserted, err := a.store.Insert(r.Context(), events, now, func(inserted int) (func(), bool) {
@@ -134,16 +185,15 @@ func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrIngestBudget) {
 			w.Header().Set("Retry-After", "3600")
-			writeError(w, http.StatusTooManyRequests, "event_budget_exhausted")
+			reject(http.StatusTooManyRequests, "event_budget_exhausted")
 			return
 		}
 		if errors.Is(err, ErrStorageHighWater) {
-			a.logf("telemetry stage=ingest class=storage_high_water")
-			writeError(w, http.StatusInsufficientStorage, "storage_capacity_reached")
+			reject(http.StatusInsufficientStorage, "storage_capacity_reached")
 			return
 		}
 		a.logf("telemetry stage=ingest class=store_failed error=%v", err)
-		writeError(w, http.StatusInternalServerError, "storage_unavailable")
+		reject(http.StatusInternalServerError, "storage_unavailable")
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]int{"accepted": len(events), "inserted": inserted})
@@ -189,6 +239,30 @@ func (a *API) incidents(w http.ResponseWriter, r *http.Request) {
 		"support_code": supportCode,
 		"events":       events,
 	})
+}
+
+// errorFeed serves error events of every installation in receipt order, so
+// an alerter can scan new errors without knowing a support code or job id.
+func (a *API) errorFeed(w http.ResponseWriter, r *http.Request) {
+	after, err := ParseErrorCursor(r.URL.Query().Get("after"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_cursor")
+		return
+	}
+	limit, err := boundedInt(r.URL.Query().Get("limit"), 100, 1, 200)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_limit")
+		return
+	}
+	queryContext, cancel := context.WithTimeout(r.Context(), adminQueryTimeout)
+	defer cancel()
+	page, err := a.store.Errors(queryContext, after, limit)
+	if err != nil {
+		a.logf("telemetry stage=admin class=error_feed_query_failed error=%v", err)
+		writeError(w, http.StatusInternalServerError, "storage_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (a *API) stats(w http.ResponseWriter, r *http.Request) {

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -23,6 +24,9 @@ const (
 	defaultAdminAddress  = "127.0.0.1:8121"
 	defaultRetentionDays = 30
 )
+
+// version is stamped at build time with -ldflags "-X main.version=...".
+var version = "dev"
 
 type config struct {
 	publicAddress string
@@ -55,6 +59,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	api.Version = version
 	publicListener, err := net.Listen("tcp", cfg.publicAddress)
 	if err != nil {
 		return fmt.Errorf("listen public: %w", err)
@@ -74,13 +79,16 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	retentionDone := make(chan struct{})
-	go runRetention(ctx, store, cfg.retention, retentionDone)
+	// Backups stay inside the data directory, the collector's only writable path.
+	backupDir := filepath.Join(filepath.Dir(cfg.databasePath), "backups")
+	go runRetention(ctx, store, cfg.retention, backupDir, retentionDone)
 
 	serveErrors := make(chan error, 2)
 	go serve("public", publicServer, publicListener, serveErrors)
 	go serve("admin", adminServer, adminListener, serveErrors)
 	log.Printf(
-		"telemetry stage=service class=started public=%s admin=%s retention_days=%d proxy_protocol=%t",
+		"telemetry stage=service class=started version=%s public=%s admin=%s retention_days=%d proxy_protocol=%t",
+		version,
 		publicListener.Addr().String(),
 		adminListener.Addr().String(),
 		int(cfg.retention/(24*time.Hour)),
@@ -120,9 +128,9 @@ func serve(name string, server *http.Server, listener net.Listener, failures cha
 	}
 }
 
-func runRetention(ctx context.Context, store *telemetry.Store, retention time.Duration, done chan<- struct{}) {
+func runRetention(ctx context.Context, store *telemetry.Store, retention time.Duration, backupDir string, done chan<- struct{}) {
 	defer close(done)
-	deleteExpired := func() {
+	maintain := func() {
 		deleted, err := store.DeleteBefore(ctx, time.Now().UTC().Add(-retention))
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Printf("telemetry stage=retention class=delete_failed error=%v", err)
@@ -131,8 +139,17 @@ func runRetention(ctx context.Context, store *telemetry.Store, retention time.Du
 		if deleted > 0 {
 			log.Printf("telemetry stage=retention class=deleted count=%d", deleted)
 		}
+		// Back up only after retention so no copy holds rows past the policy.
+		copies, err := store.BackupDaily(ctx, backupDir, time.Now().UTC())
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("telemetry stage=backup class=failed error=%v", err)
+			return
+		}
+		if copies > 0 {
+			log.Printf("telemetry stage=backup class=completed copies=%d", copies)
+		}
 	}
-	deleteExpired()
+	maintain()
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	for {
@@ -140,7 +157,7 @@ func runRetention(ctx context.Context, store *telemetry.Store, retention time.Du
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			deleteExpired()
+			maintain()
 		}
 	}
 }

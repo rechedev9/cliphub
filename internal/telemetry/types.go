@@ -40,6 +40,7 @@ var (
 		"file_error", "corrupt", "target_not_found", "parse_failed",
 		"capture_incompatible", "unplayable_start", "record_failed", "rhythm_failed",
 		"render_failed", "stage_failed", "write_plan", "ffmpeg_failed", "unknown",
+		"missing_plate", "capture_flake", "recording_not_reusable", "faceit_roster_incomplete",
 	)
 	allowedTaskNames = stringSet(
 		"parse:demo", "scan:roster", "analyze:anticheat", "analyze:tactical",
