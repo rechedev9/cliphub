@@ -3,12 +3,16 @@ package editor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -148,9 +152,13 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 	fallbackProgress := progress.within(.65, 1)
 	progress = progress.within(0, .65)
 	e := ProgramLoudnessEvidence{Policy: target.PolicyVersion, DecodedAAC: []LoudnessMeasurement{}, MasterTargets: []recapplan.LoudnessOptions{}, Status: "unverified"}
+	// fail classifies an error of the native master chain for remote grouping.
+	fail := func(err error) (ProgramLoudnessEvidence, error) {
+		return e, fullDemoAudioFailure(ctx, err, obs.SubstageAudioMaster)
+	}
 	measurement, err := fullDemoProgramInputLoudness(ctx, ffmpeg, input, target, filepath.Join(logDir, "program-input-loudness.txt"), duration, progress.pass("Analizando audio final", 0, .08), assembled)
 	if err != nil {
-		return e, err
+		return fail(err)
 	}
 	e.Input = measurement
 	if measurement.Status == "silent" && !silentApproved {
@@ -177,34 +185,34 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 			if attempt > 0 {
 				measurement, err = measureLoudness(fullDemoTimingStage(ctx, "audio_input_analysis", attempt), ffmpeg, input, attemptTarget, filepath.Join(logDir, fmt.Sprintf("program-remaster-%d-input.txt", attempt)), duration, progress.pass(stage, start, start+.07))
 				if err != nil {
-					return e, err
+					return fail(err)
 				}
 			}
 			filter, err = measuredLoudnessFilter(attemptTarget, measurement)
 			if err != nil {
-				return e, err
+				return fail(err)
 			}
 		}
 		e.MasterTargets = append(e.MasterTargets, attemptTarget)
 		candidate, candidateCleanup, err := fullDemoAudioCandidatePath(output)
 		if err != nil {
-			return e, err
+			return fail(err)
 		}
 		command := fullDemoNativeCandidateCommand(ffmpeg, input, candidate, filter, masterSamples, duration)
 		if err := runFFmpegWithOptionalLogAndProgress(fullDemoTimingStageVariant(ctx, "audio_candidate_encode", attempt, "aac", "native"), command, "Full Demo program master", filepath.Join(logDir, fmt.Sprintf("program-master-%d.txt", attempt)), duration, progress.pass(stage, start+.07, start+.16)); err != nil {
 			candidateCleanup()
-			return e, err
+			return fail(err)
 		}
 		decoded, err := measureLoudness(fullDemoTimingStageVariant(ctx, "audio_candidate_analysis", attempt, "aac", "native"), ffmpeg, candidate, target, filepath.Join(logDir, fmt.Sprintf("decoded-aac-%d.txt", attempt)), duration, progress.pass(fmt.Sprintf("Comprobando audio final (%d/3)", attempt+1), start+.16, start+.25))
 		if err != nil {
 			candidateCleanup()
-			return e, err
+			return fail(err)
 		}
 		e.DecodedAAC = append(e.DecodedAAC, decoded)
 		accepted, err := fullDemoDecodedAACAccepted(decoded, target, silentApproved)
 		if err != nil {
 			candidateCleanup()
-			return e, err
+			return fail(err)
 		}
 		if accepted {
 			if recovery != nil {
@@ -218,7 +226,7 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 			}
 			result, err := deliverFullDemoAACCandidate(ctx, ffmpeg, program, candidate, output, logDir, target, silentApproved, duration, e, progress.pass("Publicando el audio final", .85, .99))
 			candidateCleanup()
-			return result, err
+			return result, fullDemoAudioFailure(ctx, err, obs.SubstageAudioMaster)
 		}
 		candidateCleanup()
 		if recovery == nil {
@@ -233,7 +241,9 @@ func masterFullDemoMeasuredProgram(ctx context.Context, ffmpeg, input string, vi
 		attemptTarget = next
 	}
 	// Every path out of the loop has rejected at least one native master, so the
-	// recovery chain is already running.
+	// recovery chain is already running. Its failures are classified there:
+	// audio_master_exhausted when no candidate passed, aac_recovery_failed when
+	// the recovery itself broke.
 	fallbackProgress.report("Recuperando audio final", 0)
 	result := recovery.wait()
 	recovery = nil
@@ -261,4 +271,39 @@ func nextMasterTarget(current, target recapplan.LoudnessOptions, decoded Loudnes
 	next.TargetILUFS = max(loudnormMinILUFS, min(loudnormMaxILUFS, next.TargetILUFS))
 	next.TargetTPDBTP = max(loudnormMinTPDBTP, min(loudnormMaxTPDBTP, next.TargetTPDBTP))
 	return next, next != current
+}
+
+// loudnormRangeRejection matches FFmpeg refusing a loudnorm option outside its
+// accepted range, as in the Studio 3.0.0 incident:
+// "[Parsed_loudnorm_0] Value -10.180000 for parameter 'TP' out of range [-9 - 0]".
+var loudnormRangeRejection = regexp.MustCompile(`loudnorm[^\n]*for parameter '[^']+' out of range|option '[^']+' to filter 'loudnorm'`)
+
+// fullDemoAudioFailure attaches a failure code to an error leaving the program
+// master (audio_master) or the AAC recovery (aac_recovery). Cancellation wins
+// over the error it caused. Only the recovery owns a catch-all code; a native
+// master error that is neither a rejected loudnorm option nor a failed FFmpeg
+// process keeps its original text and stays unclassified.
+func fullDemoAudioFailure(ctx context.Context, err error, substage obs.Substage) error {
+	switch {
+	case err == nil:
+		return nil
+	case ctx.Err() != nil:
+		return obs.WithFailure(err, obs.FailureRenderInterrupted, substage)
+	case loudnormRangeRejection.MatchString(err.Error()):
+		return obs.WithFailure(err, obs.FailureLoudnormParamOutOfRange, substage)
+	case substage == obs.SubstageAACRecovery:
+		return obs.WithFailure(err, obs.FailureAACRecoveryFailed, substage)
+	case ffmpegProcessFailed(err):
+		return obs.WithFailure(err, obs.FailureFFmpegFailed, substage)
+	default:
+		return err
+	}
+}
+
+// ffmpegProcessFailed reports an FFmpeg process that could not start or exited
+// unsuccessfully, as opposed to a measurement it printed that was rejected.
+func ffmpegProcessFailed(err error) bool {
+	var exitErr *exec.ExitError
+	var startErr *exec.Error
+	return errors.As(err, &exitErr) || errors.As(err, &startErr)
 }

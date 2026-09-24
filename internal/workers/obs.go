@@ -36,12 +36,17 @@ func recordStageFailure(id uuid.UUID, stage, task, class string, err error) {
 
 // recordFailure intentionally condenses stderr for the UI. Keep its underlying
 // subprocess output in the journal so remote diagnostics can explain the cause.
+// A failure_code carried anywhere in the chain leads the message, which is
+// where remote alerting parses it.
 func workerDiagnosticMessage(err error) string {
 	text := err.Error()
 	var failure *recordFailure
-	if errors.As(err, &failure) && failure.err != nil && !strings.Contains(text, failure.err.Error()) {
-		text += "\nRecorder output:\n" + failure.err.Error()
+	if errors.As(err, &failure) && failure.err != nil {
+		if output := commandText(failure.err); !strings.Contains(text, output) {
+			text += "\nRecorder output:\n" + output
+		}
 	}
+	text = obs.LeadWithFailure(err, text)
 	// Stay below the journal reader's per-poll bound even for verbose subprocesses.
 	if len(text) > 64*1024 {
 		text = text[:16*1024] + "\n[truncated]\n" + text[len(text)-48*1024:]

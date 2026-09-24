@@ -508,7 +508,9 @@ func executeTracedTask(ctx context.Context, task *asynq.Task, handler taskHandle
 			panic(recovered)
 		}
 		if err != nil {
-			entry.Level, entry.Outcome, entry.Message = "error", "error", err.Error()
+			// A concise wrapper (the recorder's user-facing reason) can hide the
+			// failure_code prefix from Error(); alerting parses it first.
+			entry.Level, entry.Outcome, entry.Message = "error", "error", obs.LeadWithFailure(err, err.Error())
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				entry.Outcome = "timeout"
 			}

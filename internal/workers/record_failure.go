@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -64,7 +65,7 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 	if runErr == nil {
 		return false
 	}
-	text := runErr.Error() + "\n" + result.Error
+	text := commandText(runErr) + "\n" + result.Error
 	if !strings.Contains(text, missingCaptureAttestationMarker) {
 		return false
 	}
@@ -77,9 +78,11 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 // reason. An incompatible-demo failure (keyed on the stable CS2 marker) becomes
 // the demo_incompatible: prefix plus an optional captured-progress suffix; any
 // other failure is reduced to its last "error: " line, falling back to the
-// original text when there is none.
+// concise error when there is none. Markers are searched in the complete
+// recorder output. A failure_code prefix stays in the error chain for the
+// journal and is kept out of the user-facing reason.
 func recordFailureReason(runErr error, result recording.RecordingResult, requested []string) string {
-	text := runErr.Error()
+	text := commandText(runErr)
 	if strings.Contains(text, networkDisconnectMarker) || strings.Contains(text, playbackEndedMarker) {
 		reason := demoIncompatiblePrefix + demoIncompatibleMessage(text)
 		if captured := capturedSegmentCount(result); captured > 0 {
@@ -95,9 +98,9 @@ func recordFailureReason(runErr error, result recording.RecordingResult, request
 		return reason
 	}
 	if line, ok := lastErrorLine(text); ok {
-		return "recorder failed: " + line
+		return "recorder failed: " + obs.StripFailurePrefix(line)
 	}
-	return text
+	return obs.StripFailurePrefix(runErr.Error())
 }
 
 // demoIncompatibleMessage selects the explanation for a deterministic demo
