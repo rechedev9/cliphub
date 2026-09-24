@@ -123,7 +123,9 @@ test('unconfigured and empty states keep a useful next action', async ({ page })
   await expect(page.getByRole('textbox', { name: 'Nick o URL de FACEIT', exact: true })).toBeEnabled();
 });
 
-for (const width of VALIDATION_WIDTHS) {
+// 1366px is the common laptop width where the two-column grid left the table ~670px wide and the room link
+// scrolled out of its own region while the page itself still fit.
+for (const width of [...VALIDATION_WIDTHS, 1366]) {
   test(`populated players workspace fits ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 1080 });
     await stubFaceit(page);
@@ -135,6 +137,16 @@ for (const width of VALIDATION_WIDTHS) {
       mainWidth: document.querySelector('main')?.getBoundingClientRect().width ?? 0,
     }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
+    const table = page.getByRole('region', { name: 'Tabla de partidas' });
+    if (await table.isVisible()) {
+      const fit = await table.evaluate((region) => {
+        const links = [...region.querySelectorAll('a')].map((link) => link.getBoundingClientRect().right);
+        return { client: region.clientWidth, scroll: region.scrollWidth,
+          right: region.getBoundingClientRect().right, linkRight: Math.max(...links) };
+      });
+      expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+      expect(fit.linkRight).toBeLessThanOrEqual(fit.right);
+    }
     // Same stage as every other page: the 1440px cap binds instead of a full-bleed override.
     expect(geometry.mainWidth).toBeLessThanOrEqual(1440);
     await page.screenshot({ path: testInfo.outputPath(`players-${width}.png`), fullPage: true });
