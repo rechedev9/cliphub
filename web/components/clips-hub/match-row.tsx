@@ -38,6 +38,7 @@ import { CoverImage } from '@/components/studio/cover-image';
 import { StatusTag } from '@/components/studio/status-tag';
 import { Button } from '@/components/ui/button';
 import { OutputItem } from '@/components/clips-hub/output-item';
+import { CopyDiagnosticButton } from '@/components/videos/copy-diagnostic';
 
 export function matchRowId(matchId: string): string {
   return `partida-${matchId}`;
@@ -137,6 +138,7 @@ function MatchRowCard({ row, open, onToggle, onChange }: MatchRowProps): ReactNo
               </Link>
             </Button>
           ) : null}
+          {stage === HUB_ROW_STAGE.failed ? <CopyDiagnosticButton jobId={match.id} /> : null}
           <DeleteMatchButton
             label={prettyMapName(match.map)}
             onConfirm={() => api.deleteMatch(match.id)}
