@@ -7,7 +7,6 @@ import { StudioEmptyState } from '@/components/studio/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MatchHistory } from './match-history';
-import { PlayerPerformance } from './player-performance';
 
 const MATCH_TO_CLIP = [
   { icon: ExternalLink, text: 'Abre la sala en FACEIT' },
@@ -41,10 +40,7 @@ export function PlayerMatches({ playerID, enabled }: { playerID: string; enabled
   if (!enabled) {
     body = <p className="text-body-sm text-fg-2">El historial estará disponible cuando vuelva la conexión.</p>;
   } else if (matches === null && loading) {
-    body = <div role="status" aria-label="Cargando partidas" className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[0, 1, 2, 3].map((slot) => <Skeleton key={slot} className="h-28" />)}</div>
-      <Skeleton className="h-96 w-full" />
-    </div>;
+    body = <div role="status" aria-label="Cargando partidas"><Skeleton className="h-96 w-full" /></div>;
   } else if (error && matches === null) {
     body = <StudioEmptyState icon={History} title="No se pudieron cargar las partidas"
       description="Vuelve a intentarlo para consultar el historial de FACEIT."
@@ -54,10 +50,7 @@ export function PlayerMatches({ playerID, enabled }: { playerID: string; enabled
       description="Cuando este jugador termine una partida en FACEIT aparecerá aquí."
       actions={<Button variant="outline" onClick={refresh} loading={loading} loadingText="Actualizando…">Actualizar partidas</Button>} compact />;
   } else {
-    body = <>
-      <PlayerPerformance matches={matches ?? []} />
-      <MatchHistory matches={matches ?? []} refreshing={loading} onRefresh={refresh} />
-    </>;
+    body = <MatchHistory matches={matches ?? []} refreshing={loading} onRefresh={refresh} />;
   }
 
   return (
