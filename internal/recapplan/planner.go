@@ -8,6 +8,8 @@ import (
 	"math"
 	"reflect"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rechedev9/cliphub/internal/killplan"
@@ -249,24 +251,19 @@ func Plan(f Facts, options Options, voice VoiceEvidence, assets []AssetEvidence,
 		d.block(ErrFactsInsufficient, "No publishable player round remains")
 	}
 	if options.Capture.Crosshair.Mode == "observed" {
+		missing := []int{}
 		for _, round := range d.Rounds {
-			code := ""
-			missing := false
-			for _, sample := range f.Crosshairs {
-				if sample.Tick <= round.RequestedStartTick {
-					code = sample.Code
-				}
-				if sample.Tick > round.RequestedStartTick && sample.Tick < round.RequestedEndTick && !ValidCrosshairCode(sample.Code) {
-					missing = true
-				}
+			if observedCrosshairCovers(f.Crosshairs, round, options.Editorial.AllowSafeTailTrim) {
+				continue
 			}
-			if !ValidCrosshairCode(code) || missing {
-				if !options.Capture.Crosshair.AllowCaptureDefault {
-					d.block(ErrPOVContract, "Observed player crosshair is unavailable in "+round.ID+"; reparse a demo containing crosshair evidence")
-				} else {
-					d.Warnings = append(d.Warnings, Notice{Code: "crosshair_capture_default_approved", Message: "Capture default explicitly permitted where the demo crosshair is unavailable", RoundID: round.ID})
-				}
+			if options.Capture.Crosshair.AllowCaptureDefault {
+				d.Warnings = append(d.Warnings, Notice{Code: "crosshair_capture_default_approved", Message: "Capture default explicitly permitted where the demo crosshair is unavailable", RoundID: round.ID})
+			} else {
+				missing = append(missing, round.Number)
 			}
+		}
+		if len(missing) > 0 {
+			d.block(ErrPOVContract, observedCrosshairBlocker(missing, len(d.Rounds)))
 		}
 	}
 	for _, manual := range options.Editorial.ManualRanges {
@@ -421,6 +418,52 @@ func planRound(f Facts, source RoundFacts, opts EditorialOptions) (Round, []Noti
 		r.ExcludedIntervals = append(r.ExcludedIntervals, TickRange{end, limit})
 	}
 	return r, notices, nil
+}
+
+// observedCrosshairCovers reports whether the demo carries the target's own
+// crosshair on every frame the capture must show from the target's POV: the
+// fixed freeze lead-in and live play through LiveEndTick. CS2 draws that code
+// itself (cl_show_observer_crosshair 2) and ClipHub never decodes it, so any
+// code the demo networks for the player is evidence. Requiring the version-1
+// layout that sharecode decodes blocks every round of a demo whose codes use
+// another layout. With safe tail trim, later frames are not certified: the
+// capture ends the round where the target stops being observed, which is where
+// the parser records an empty code (the player left after dying or at the end
+// of the match).
+func observedCrosshairCovers(samples []CrosshairSample, r Round, tailTrim bool) bool {
+	last := r.RequestedEndTick - 1
+	if tailTrim {
+		last = min(r.LiveEndTick, last)
+	}
+	code := ""
+	for _, sample := range samples {
+		if sample.Tick > last {
+			break
+		}
+		if sample.Tick <= r.RequestedStartTick {
+			code = sample.Code
+		} else if sample.Code == "" {
+			return false
+		}
+	}
+	return code != ""
+}
+
+// observedCrosshairBlocker names the rounds without the player's crosshair and
+// what the user can change. The capture never substitutes another crosshair.
+func observedCrosshairBlocker(missing []int, rounds int) string {
+	where := ""
+	if len(missing) < rounds {
+		numbers := make([]string, len(missing))
+		for i, number := range missing {
+			numbers[i] = strconv.Itoa(number)
+		}
+		where = " en la ronda " + numbers[0]
+		if len(numbers) > 1 {
+			where = " en las rondas " + strings.Join(numbers[:len(numbers)-1], ", ") + " y " + numbers[len(numbers)-1]
+		}
+	}
+	return "La demo no incluye la mira del jugador" + where + ". ClipHub no graba con otra mira: elige otro jugador o importa otra demo de la partida."
 }
 
 func (d *Document) block(code, message string) {
