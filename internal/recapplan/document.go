@@ -388,7 +388,7 @@ func DefaultOptions() Options {
 		Capture:   CaptureOptions{HUDProfile: customhud.CaptureProfile, CameraPolicy: "strict-first-person", Crosshair: CrosshairOptions{Mode: "observed", AllowCaptureDefault: false}, ContractVersion: CaptureContract},
 		Editorial: EditorialOptions{FreezeSeconds: FixedFreezeSeconds, KeepFreezeVoice: false, VoiceContextSeconds: 0, MaxFreezeSeconds: FixedFreezeSeconds, DeathTailSeconds: 3, RoundTailSeconds: 2, AllowSafeTailTrim: true, ManualRanges: []ManualRange{}},
 		Audio: AudioOptions{
-			Voice:    VoiceOptions{Enabled: true, Gain: 0.85, TeamPolicy: "same-side-at-packet", Normalization: "bounded-activity-v1", ApprovedFallback: "block"},
+			Voice:    VoiceOptions{Enabled: true, Gain: 1.1, TeamPolicy: "same-side-at-packet", Normalization: "bounded-activity-v1", ApprovedFallback: "block"},
 			Game:     GameOptions{Gain: 1},
 			Music:    MusicOptions{Enabled: false, Assets: []AssetRef{}, ReferenceLevel: "track-lufs-minus-16-v1", BedGainDB: -21, LoopPolicy: "ordered-loop", Ducking: DuckingOptions{Enabled: true, AttackMS: 20, ReleaseMS: 800, Threshold: 0.025, Ratio: 8}},
 			Loudness: LoudnessOptions{TargetILUFS: -14, TargetTPDBTP: -1.5, TargetLRA: 11, PolicyVersion: "program-aac-v1"},

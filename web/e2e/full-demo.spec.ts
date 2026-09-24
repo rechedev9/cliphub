@@ -432,6 +432,17 @@ test.describe('Full POV simplified constructor', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'No hay una ronda certificada disponible para el sponsor.' })).toHaveCount(0);
   });
 
+  test('a fresh plan starts with the game at 100% and team voices at 110%', async ({ page }) => {
+    const defaults: unknown = JSON.parse(readFileSync(new URL('../lib/full-demo-go-defaults.fixture.json', import.meta.url), 'utf8'));
+    if (!isFullDemoOptions(defaults)) throw new Error('Invalid Go defaults fixture');
+    await stubParsedMatch(page, null, defaults);
+    await gotoStudio(page, PRODUCE_FULL);
+    await expect(page.getByRole('slider', { name: /^Juego/ })).toHaveValue('100');
+    await expect(page.getByRole('slider', { name: /^Voces/ })).toHaveValue('110');
+    await expect(page.getByText('Juego · 100%')).toBeVisible();
+    await expect(page.getByText('Voces · 110%')).toBeVisible();
+  });
+
   test('game and voice volume sliders travel with the plan options', async ({ page }) => {
     const document = editorial();
     const planned: FullDemoOptions[] = [];

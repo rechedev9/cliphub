@@ -1,6 +1,10 @@
 package recapplan
 
 import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -20,6 +24,35 @@ func TestDefaultOptionsUseSimplifiedFullDemoDefaults(t *testing.T) {
 	}
 	if o.Transitions == nil || !o.Transitions.Enabled {
 		t.Fatalf("Dinamico transitions are not enabled by default: %+v", o.Transitions)
+	}
+	if o.Audio.Game.Gain != 1 || o.Audio.Voice.Gain != 1.1 || !o.Audio.Voice.Enabled {
+		t.Fatalf("new plans must start at game 100%% and team voices 110%%: %+v", o.Audio)
+	}
+	if err := o.Validate(); err != nil {
+		t.Fatalf("default options fail validation: %v", err)
+	}
+}
+
+// The Sonido card of a fresh plan renders these defaults; the web fixture must
+// be the exact Go serialization so the two sides cannot drift.
+func TestDefaultOptionsMatchWebFixture(t *testing.T) {
+	b, err := os.ReadFile("../../web/lib/full-demo-go-defaults.fixture.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, got any
+	if err := json.Unmarshal(b, &want); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(encoded, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("web/lib/full-demo-go-defaults.fixture.json drifted from DefaultOptions():\n got %s\nwant %s", encoded, bytes.TrimSpace(b))
 	}
 }
 
