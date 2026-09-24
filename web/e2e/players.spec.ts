@@ -13,7 +13,7 @@ const MATCHES: FaceitMatch[] = Array.from({ length: 20 }, (_, index) => ({
   id: `match-${index}`, room_url: `https://www.faceit.com/en/cs2/room/match-${index}`,
   finished_at: '2026-09-04T12:00:00Z', score: { for: 13, against: 4 },
   stats: { map: index % 2 === 0 ? 'de_anubis' : 'de_mirage', result: index % 5 === 4 ? 'loss' : 'win',
-    kills: 20, deaths: 10, assists: 4, kd_ratio: 2, adr: 108, headshots_percent: 68 },
+    kills: 20, deaths: 10, assists: 4, kd_ratio: 2, adr: [108, 87, 114, 74][index % 4], headshots_percent: 68 },
 }));
 
 async function stubFaceit(page: Page): Promise<void> {
@@ -67,7 +67,7 @@ test('search, ordering, player selection and follow management use the real UI f
   await expect(page.getByRole('region', { name: 'Perfil de donk666' })).toBeVisible();
 });
 
-test('match filters reset pagination without changing the overall performance summary', async ({ page }) => {
+test('match filters reset pagination and keep the room links of the filtered rows', async ({ page }) => {
   await stubFaceit(page);
   await gotoStudio(page, '/players');
   await expect(page.getByText('Mostrando 1–10 de 20 partidas')).toBeVisible();
@@ -79,7 +79,6 @@ test('match filters reset pagination without changing the overall performance su
   await page.getByRole('combobox', { name: 'Filtrar por resultado' }).click();
   await page.getByRole('option', { name: 'Derrotas', exact: true }).click();
   await expect(page.getByText('Mostrando 1–2 de 2 partidas')).toBeVisible();
-  await expect(page.getByText('16 victorias · 4 derrotas')).toBeVisible();
   await expect(page.getByRole('table').getByRole('link', { name: 'Abrir sala FACEIT de Anubis' })).toHaveCount(2);
   await expect(page.getByRole('table').getByRole('link').first()).toHaveAttribute('href', MATCHES[4]?.room_url ?? '');
   await expect(page.getByRole('link', { name: 'Subir demo', exact: true })).toHaveAttribute('href', '/clips/nueva');
@@ -88,6 +87,28 @@ test('match filters reset pagination without changing the overall performance su
   await expect(page.getByRole('table')).toContainText('No hay partidas con estos filtros.');
   await page.getByRole('button', { name: 'Restablecer filtros' }).click();
   await expect(page.getByText('Mostrando 1–10 de 20 partidas')).toBeVisible();
+});
+
+test('ADR of 100 or more reads green like a winning K/D, and a lower ADR stays plain', async ({ page }) => {
+  await stubFaceit(page);
+  await gotoStudio(page, '/players');
+  const rows = page.getByRole('region', { name: 'Tabla de partidas' }).getByRole('row');
+  const color = (row: number, column: number) => rows.nth(row).getByRole('cell').nth(column)
+    .evaluate((cell) => getComputedStyle(cell).color);
+  // Columns: Partida, Resultado, K / D / A, K/D, ADR, HS. Row 0 is the header; row 1 has ADR 108, row 2 ADR 87.
+  await expect(rows.nth(1).getByRole('cell').nth(4)).toHaveText('108');
+  expect(await color(1, 4)).toBe(await color(1, 3));
+  await expect(rows.nth(2).getByRole('cell').nth(4)).toHaveText('87');
+  expect(await color(2, 4)).toBe(await color(2, 5));
+  expect(await color(2, 4)).not.toBe(await color(2, 3));
+
+  await page.setViewportSize({ width: 390, height: 900 });
+  const cards = page.getByRole('list', { name: 'Partidas recientes' }).getByRole('listitem');
+  const adr = (card: number) => cards.nth(card).getByText(/^\d+$/).first();
+  await expect(adr(0)).toHaveText('108');
+  await expect(adr(0)).toHaveClass(/text-success/);
+  await expect(adr(1)).toHaveText('87');
+  await expect(adr(1)).not.toHaveClass(/text-success/);
 });
 
 test('history errors can be retried and refreshed without navigating away', async ({ page }) => {

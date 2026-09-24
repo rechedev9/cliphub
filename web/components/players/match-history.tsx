@@ -138,7 +138,7 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
       </div></td>
       <td className={cn(CELL, 'text-right')}>{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</td>
       <td className={cn(CELL, 'text-right', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</td>
-      <td className={cn(CELL, 'text-right')}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
+      <td className={cn(CELL, 'text-right', adrTone(stats?.adr))}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</td>
       <td className={cn(CELL, 'text-right')}>{stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</td>
       <td className={cn(CELL, 'text-right')}><Button asChild variant="link" size="sm"
         // Ten bright links in a column outshouted the stats; the row that is pointed at lights its own.
@@ -156,6 +156,11 @@ function MatchRow({ match }: { match: FaceitMatch }): ReactNode {
 function kdTone(kd: number | undefined): string {
   if (kd === undefined) return '';
   return kd >= 1 ? 'text-success' : 'text-destructive';
+}
+
+/** ADR of 100 or more is a standout game and reads green; below it the value stays plain, since a low ADR is not a loss. */
+function adrTone(adr: number | undefined): string {
+  return adr !== undefined && adr >= 100 ? 'text-success' : '';
 }
 
 function ResultBadge({ result }: { result?: FaceitMatchStats['result'] }): ReactNode {
@@ -179,7 +184,7 @@ function MobileMatch({ match }: { match: FaceitMatch }): ReactNode {
       <dl className="mt-3 grid grid-cols-3 gap-2 border-y border-border-subtle py-3 text-meta tracking-normal tabular-nums">
         <div><dt className="text-fg-3">K / D / A</dt><dd className="mt-1 text-fg-1">{stats ? `${stats.kills} / ${stats.deaths} / ${stats.assists}` : '—'}</dd></div>
         <div><dt className="text-fg-3">K/D</dt><dd className={cn('mt-1 text-fg-1', kdTone(stats?.kd_ratio))}>{stats?.kd_ratio?.toFixed(2) ?? '—'}</dd></div>
-        <div><dt className="text-fg-3">ADR · HS</dt><dd className="mt-1 text-fg-1">{stats?.adr !== undefined ? Math.round(stats.adr) : '—'} · {stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</dd></div>
+        <div><dt className="text-fg-3">ADR · HS</dt><dd className="mt-1 text-fg-1"><span className={adrTone(stats?.adr)}>{stats?.adr !== undefined ? Math.round(stats.adr) : '—'}</span> · {stats?.headshots_percent !== undefined ? `${Math.round(stats.headshots_percent)}%` : '—'}</dd></div>
       </dl>
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="text-body-sm font-semibold tabular-nums text-fg-1">{score}</span>
