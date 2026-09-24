@@ -43,9 +43,9 @@ func traceHTTP(next http.Handler) http.Handler {
 					trace.JobID = id.String()
 				}
 			}
-			level, outcome := "info", "ok"
+			level, outcome := httpTraceLevel(status), "ok"
 			if status >= 400 {
-				level, outcome = "error", "error"
+				outcome = "error"
 			}
 			message := fmt.Sprintf("%s %s status=%d", r.Method, pattern, status)
 			if capture.body.Len() > 0 {
@@ -63,6 +63,20 @@ func traceHTTP(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(ww, r)
 	})
+}
+
+// httpTraceLevel keeps client errors (4xx: validation, not found, rate limit)
+// out of the error level that alerting reads; server errors (5xx) and panics
+// are errors.
+func httpTraceLevel(status int) string {
+	switch {
+	case status >= 500:
+		return "error"
+	case status >= 400:
+		return "warn"
+	default:
+		return "info"
+	}
 }
 
 type errorResponseCapture struct {

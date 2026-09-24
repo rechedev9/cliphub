@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +53,8 @@ CREATE INDEX IF NOT EXISTS telemetry_events_job_time
     ON telemetry_events (job_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS telemetry_spans_grouping
     ON telemetry_events (kind, occurred_at, release, component, name, outcome, duration_ms);
+CREATE INDEX IF NOT EXISTS telemetry_events_received
+    ON telemetry_events (received_at, id);
 `
 
 // Store persists remote diagnostic events in one SQLite database. A single
@@ -340,6 +343,186 @@ LIMIT ?`, args...)
 		return nil, fmt.Errorf("iterate telemetry incidents: %w", err)
 	}
 	return events, nil
+}
+
+// ErrorCursor pages the cross-installation error feed by the table's rowid.
+// Neither clock is safe: received_at is stamped when the request starts and
+// committed later, so under concurrent ingests a row can commit behind a
+// received_at cursor a scanner already passed. SQLite assigns the rowid under
+// the write lock, so rowid order is commit order, and retention deletes the
+// oldest rows, so the largest rowid is not reused while any row remains. The
+// zero value starts at the oldest retained event; on the wire it is an opaque
+// decimal string.
+type ErrorCursor int64
+
+var errInvalidErrorCursor = errors.New("error cursor is invalid")
+
+// ParseErrorCursor reads a previous page's next_after; empty is the start.
+func ParseErrorCursor(raw string) (ErrorCursor, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	if strings.Trim(raw, "0123456789") != "" || len(raw) > 18 {
+		return 0, errInvalidErrorCursor
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, errInvalidErrorCursor
+	}
+	return ErrorCursor(value), nil
+}
+
+func (c ErrorCursor) String() string {
+	if c <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(int64(c), 10)
+}
+
+// ErrorFeedEvent is a stored error with its collector receipt time.
+type ErrorFeedEvent struct {
+	Event
+	ReceivedAt time.Time `json:"received_at"`
+}
+
+// ErrorPage is one page of the admin error feed.
+type ErrorPage struct {
+	Events    []ErrorFeedEvent `json:"events"`
+	NextAfter string           `json:"next_after"`
+	HasMore   bool             `json:"has_more"`
+}
+
+// Errors lists error events of every installation after the cursor in commit
+// (rowid) order. A cursor above the newest rowid can only come from before
+// retention emptied the table (SQLite then restarts rowids at 1) or from a
+// restored backup; the page then restarts at the oldest retained event.
+func (s *Store) Errors(ctx context.Context, after ErrorCursor, limit int) (ErrorPage, error) {
+	page := ErrorPage{Events: []ErrorFeedEvent{}, NextAfter: after.String()}
+	if limit < 1 || limit > 200 {
+		return page, errors.New("limit must be between 1 and 200")
+	}
+	if after > 0 {
+		var newest int64
+		if err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(rowid), 0) FROM telemetry_events").Scan(&newest); err != nil {
+			return page, fmt.Errorf("read telemetry error feed head: %w", err)
+		}
+		if int64(after) > newest {
+			after, page.NextAfter = 0, ""
+		}
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT rowid, id, received_at, occurred_at, kind, support_code, session_id, release, component,
+       name, stage, class, fingerprint, os, arch, outcome, duration_ms, diagnostic_message, job_id
+FROM telemetry_events
+WHERE kind = 'error' AND rowid > ?
+ORDER BY rowid
+LIMIT ?`, int64(after), limit+1)
+	if err != nil {
+		return page, fmt.Errorf("query telemetry error feed: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if len(page.Events) == limit {
+			page.HasMore = true
+			break
+		}
+		var event ErrorFeedEvent
+		var rowID, receivedMS, occurredMS int64
+		if err := rows.Scan(
+			&rowID,
+			&event.ID,
+			&receivedMS,
+			&occurredMS,
+			&event.Kind,
+			&event.SupportCode,
+			&event.SessionID,
+			&event.Release,
+			&event.Component,
+			&event.Name,
+			&event.Stage,
+			&event.Class,
+			&event.Fingerprint,
+			&event.OS,
+			&event.Arch,
+			&event.Outcome,
+			&event.DurationMS,
+			&event.Message,
+			&event.JobID,
+		); err != nil {
+			return page, fmt.Errorf("scan telemetry error feed: %w", err)
+		}
+		event.SchemaVersion = SchemaVersion
+		event.OccurredAt = time.UnixMilli(occurredMS).UTC()
+		event.ReceivedAt = time.UnixMilli(receivedMS).UTC()
+		page.Events = append(page.Events, event)
+		page.NextAfter = ErrorCursor(rowID).String()
+	}
+	if err := rows.Err(); err != nil {
+		return page, fmt.Errorf("iterate telemetry error feed: %w", err)
+	}
+	return page, nil
+}
+
+// StoreHealth is the database part of the admin health report.
+type StoreHealth struct {
+	EventsLastReceivedAt *time.Time
+	LogsLastReceivedAt   *time.Time
+	EventsStorageRatio   float64
+	LogsStorageRatio     float64
+}
+
+// Health pings both databases and reads the cheap indicators an external
+// alerter needs: last receipt per channel and live pages over the page cap.
+func (s *Store) Health(ctx context.Context) (StoreHealth, error) {
+	var health StoreHealth
+	if err := errors.Join(s.db.PingContext(ctx), s.logs.db.PingContext(ctx)); err != nil {
+		return health, fmt.Errorf("ping telemetry databases: %w", err)
+	}
+	var err error
+	if health.EventsLastReceivedAt, err = lastReceivedAt(ctx, s.db, "telemetry_events"); err != nil {
+		return health, err
+	}
+	if health.LogsLastReceivedAt, err = lastReceivedAt(ctx, s.logs.db, "diagnostic_logs"); err != nil {
+		return health, err
+	}
+	if health.EventsStorageRatio, err = storageRatio(ctx, s.db); err != nil {
+		return health, err
+	}
+	if health.LogsStorageRatio, err = storageRatio(ctx, s.logs.db); err != nil {
+		return health, err
+	}
+	return health, nil
+}
+
+func lastReceivedAt(ctx context.Context, db *sql.DB, table string) (*time.Time, error) {
+	var received sql.NullInt64
+	// table is one of two package constants, never request input.
+	if err := db.QueryRowContext(ctx, "SELECT MAX(received_at) FROM "+table).Scan(&received); err != nil {
+		return nil, fmt.Errorf("read %s last receipt: %w", table, err)
+	}
+	if !received.Valid {
+		return nil, nil
+	}
+	value := time.UnixMilli(received.Int64).UTC()
+	return &value, nil
+}
+
+// storageRatio counts live pages, so space freed by retention and reusable by
+// SQLite does not look like pressure; this matches the ingest high-water test.
+func storageRatio(ctx context.Context, db *sql.DB) (float64, error) {
+	var pageCount, freePages, maxPageCount int64
+	for _, item := range []struct {
+		pragma string
+		value  *int64
+	}{{"page_count", &pageCount}, {"freelist_count", &freePages}, {"max_page_count", &maxPageCount}} {
+		if err := db.QueryRowContext(ctx, "PRAGMA "+item.pragma).Scan(item.value); err != nil {
+			return 0, fmt.Errorf("read storage pragma %s: %w", item.pragma, err)
+		}
+	}
+	if maxPageCount <= 0 {
+		return 0, nil
+	}
+	return float64(pageCount-freePages) / float64(maxPageCount), nil
 }
 
 // ErrorGroup is an aggregate suitable for an agent's first triage pass.

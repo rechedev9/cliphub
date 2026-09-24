@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { demoPlaybackItem } from '@/lib/api/playback';
 import { parseFailureReason } from '@/lib/api/failure-reason';
+import { reportableJobId } from '@/lib/api/job-report';
 import {
   isWorking,
   OUTPUT_STATE,
@@ -24,6 +25,8 @@ import { CoverImage } from '@/components/studio/cover-image';
 import { Button } from '@/components/ui/button';
 import { MediaPlayer } from '@/components/studio/media-player';
 import { DeleteVideoButton } from '@/components/videos/delete-video-button';
+import { DiagnosticInline } from '@/components/videos/copy-diagnostic';
+import { ReportVideoButton } from '@/components/videos/report-video-dialog';
 import { OutputTag } from '@/components/clips-hub/output-tag';
 
 const BORDER_CLASS = {
@@ -109,7 +112,7 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
           ) : null}
 
           {output.state === OUTPUT_STATE.failed ? (
-            <FailureLine output={output} />
+            <FailureLine output={output} matchId={matchId} />
           ) : (
             <span className="truncate font-mono text-meta uppercase tracking-wider text-fg-3">
               {output.state === OUTPUT_STATE.render && video.captureProgress?.stage
@@ -143,10 +146,13 @@ function OutputItemCard({ output, matchId, onChange }: OutputItemProps): ReactNo
 /** The hub rebuilds its model on every poll, so props compare by value, not identity. */
 export const OutputItem = memo(OutputItemCard, sameHubProps);
 
-function FailureLine({ output }: { output: MatchOutput }): ReactNode {
+function FailureLine({ output, matchId }: { output: MatchOutput; matchId: string }): ReactNode {
   const failure = parseFailureReason(output.video.failureReason, { fullDemo: output.type === OUTPUT_TYPE.full, fullDemoPlannerVersion: output.video.editConfig?.fullDemo?.document.planner_version });
   return (
-    <span className="text-body-sm text-destructive">{failure.message}</span>
+    <span className="flex flex-col gap-1">
+      <span className="text-body-sm text-destructive">{failure.message}</span>
+      <DiagnosticInline jobId={reportableJobId(output.video.jobId, matchId) ?? undefined} />
+    </span>
   );
 }
 
@@ -154,6 +160,10 @@ function FailureLine({ output }: { output: MatchOutput }): ReactNode {
 export function OutputActions({ output, matchId, onChange, onPlay, className, compact = false }: OutputActionsProps): ReactNode {
   const { video } = output;
   const [retrying, setRetrying] = useState(false);
+  const reportJobId = reportableJobId(video.jobId, matchId);
+  const report = reportJobId === null
+    ? null
+    : <ReportVideoButton jobId={reportJobId} videoTitle={video.title} compact={compact} />;
 
   if (output.state === OUTPUT_STATE.ready) {
     const url = video.downloadUrl;
@@ -191,6 +201,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
         <Button asChild size="xs" variant="outline">
           <Link href={publishHref(matchId, video.id)}>Publicar</Link>
         </Button>
+        {report}
       </span>
     );
   }
@@ -224,6 +235,7 @@ export function OutputActions({ output, matchId, onChange, onPlay, className, co
             Reintentar
           </Button>
         ) : null}
+        {report}
         <DeleteVideoButton video={video} onDeleted={onChange} />
       </span>
     );

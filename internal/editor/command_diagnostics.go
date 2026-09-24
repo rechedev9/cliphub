@@ -3,8 +3,10 @@ package editor
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +46,25 @@ func runDiagnosticFFmpeg(ctx context.Context, cmd *exec.Cmd, label string) error
 	fullDemoTimingRecord(ctx, label, cmd.Args, started, finished, err)
 	obs.EmitTrace(ctx, entry)
 	return err
+}
+
+// ffmpegFailure formats an FFmpeg exec failure as "ffmpeg <label>: exit status
+// N: <last real stderr error line>", so the first line of the error names the
+// command and its final cause; FFmpeg's generic trailers such as "Conversion
+// failed!" are skipped. The complete stderr follows on the next lines:
+// evidence logs and the delivery filter-setup fallback match markers anywhere
+// in it, and it was already streamed to diagnostics line by line.
+func ffmpegFailure(label string, err error, output string) error {
+	msg := strings.TrimSpace(output)
+	last := obs.LastFFmpegCauseLine(msg)
+	switch {
+	case msg == "":
+		return fmt.Errorf("ffmpeg %s: %w", label, err)
+	case last == "" || last == msg:
+		return fmt.Errorf("ffmpeg %s: %w: %s", label, err, msg)
+	default:
+		return fmt.Errorf("ffmpeg %s: %w: %s\n%s", label, err, last, msg)
+	}
 }
 
 // MultiWriter makes stdout and stderr different writers to os/exec, so protect

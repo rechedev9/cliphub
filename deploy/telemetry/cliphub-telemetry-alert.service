@@ -1,0 +1,41 @@
+[Unit]
+Description=ClipHub telemetry alerter (oneshot)
+Documentation=https://github.com/rechedev9/cliphub/blob/main/docs/telemetry-operations.md
+After=network-online.target cliphub-telemetry.service
+Wants=network-online.target
+
+# The environment file is attached by a local drop-in so its location never
+# lives in this public repository:
+#   systemctl edit cliphub-telemetry-alert.service
+#   [Service]
+#   EnvironmentFile=<alert env file>
+# See docs/telemetry-operations.md.
+
+[Service]
+Type=oneshot
+User=cliphub-telemetry-alert
+Group=cliphub-telemetry-alert
+StateDirectory=cliphub-telemetry-alert
+StateDirectoryMode=0750
+ExecStart=/opt/cliphub-telemetry/cliphub-telemetry alert
+TimeoutStartSec=50
+MemoryMax=64M
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectProc=invisible
+RestrictNamespaces=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+# Egress is required (Telegram, healthchecks); no IPAddressDeny here.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0027

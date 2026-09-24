@@ -152,6 +152,7 @@ type Handlers struct {
 	steamFetcher        *steamresolve.Fetcher
 	steamSessionMu      sync.Mutex
 	steamSessionCache   steamresolve.Session
+	userReports         userReportLimiter
 }
 
 type Option func(*Handlers)

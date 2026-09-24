@@ -18,6 +18,8 @@ export type StudioTelemetryStatus = {
   enabled: boolean;
   noticeAcknowledged: boolean;
   supportCode: string;
+  /** This Studio launch; absent from an older desktop build. */
+  sessionId?: string;
   retentionDays: 30;
   performanceSamplePercent: 10;
   logDelivery?: {

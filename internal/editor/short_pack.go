@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rechedev9/cliphub/internal/filecommit"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
 
@@ -203,6 +204,7 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 		var timing *fullDemoTimingCollector
 		ctx, timing = withFullDemoTimingCollector(ctx)
 		defer timing.snapshotInto(performance)
+		ctx = withFullDemoStageBreadcrumbs(ctx)
 	}
 	if short.FullDemo == nil && validatedExistingArtifact(p.previous, p.result.Shorts[i], short.Output, "video") {
 		p.result.Shorts[i].RenderSkipped = true
@@ -240,8 +242,10 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 				frames := short.FullDemo.Effective.Timeline[len(short.FullDemo.Effective.Timeline)-1].EndFrame
 				var outcome *fullDemoDeliveryOutcome
 				outcome, err = verifyFullDemoDeliveryWithDiagnostics(fullDemoTimingScope(ctx, "delivery", i, -1, expectedDuration), short.fullDemo.ffmpeg, p.opts.FFprobePath, short.Output, frames, fullProgress.within(.94, 1), diagnostics)
+				err = obs.WithFailure(err, obs.FailureDeliveryVerifyFailed, obs.SubstageDeliveryVerify)
 				if err == nil {
 					short.FullDemo.Delivery = outcome.Evidence
+					emitFullDemoDeliveryQuality(ctx, short.Preset, outcome.Quality)
 					if diagnostics != nil {
 						// Full Demo shares one process for the mandatory complete
 						// delivery decode and the optional quality filters, so this
@@ -267,6 +271,9 @@ func (p *shortPackRenderer) renderShort(ctx context.Context, i int, short *Short
 			}
 			if err == nil {
 				err = removeFullDemoTemporaryFiles(filepath.Dir(short.Output), []string{fullDemoProgramPath(*short), fullDemoProgramAudioPath(*short)})
+			}
+			if err == nil {
+				emitFullDemoRenderProfile(ctx, *short)
 			}
 		}
 		// The encode span is exactly the interval RenderMS reports: one clock

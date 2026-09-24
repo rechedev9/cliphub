@@ -13,11 +13,15 @@ function readWorkflow(name) {
   return readFileSync(join(workflowsDir, name), 'utf8').replaceAll('\r\n', '\n');
 }
 
-test('hosted workflows are the three CI lanes plus the unsigned release job', () => {
+test('hosted workflows are the three CI lanes, the unsigned release job and the telemetry probe', () => {
   const names = readdirSync(workflowsDir)
     .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
     .sort();
-  assert.deepEqual(names, [...ciWorkflows, 'desktop-release.yml']);
+  assert.deepEqual(names, [...ciWorkflows, 'desktop-release.yml', 'telemetry-probe.yml']);
+});
+
+test('the telemetry probe runs with no token permissions', () => {
+  assert.match(readWorkflow('telemetry-probe.yml'), /^permissions: \{\}$/m);
 });
 
 test('CI lanes are contents:read and never cut or sign the installer', () => {

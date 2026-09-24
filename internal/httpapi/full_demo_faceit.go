@@ -24,7 +24,9 @@ import (
 	"github.com/rechedev9/cliphub/internal/tasks"
 )
 
-const faceitRosterIncomplete = "faceit_roster_incomplete"
+// faceitRosterIncomplete is both the API error code and the obs class, so the
+// class stays in the shared vocabulary that telemetry allowlists.
+const faceitRosterIncomplete = obs.ClassFaceitRosterIncomplete
 
 type steamAvatarResolver interface {
 	ResolveSteamAvatars(context.Context, []string) map[string]faceit.SteamAvatar

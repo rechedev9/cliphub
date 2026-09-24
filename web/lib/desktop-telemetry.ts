@@ -3,15 +3,46 @@ interface DesktopTelemetryBridge {
   recordSpan(value: unknown): Promise<unknown>;
 }
 
+export type RendererErrorContext = {
+  /** Next's server digest, which also appears in the web server's log. */
+  digest?: string;
+  pathname?: string;
+};
+
 /** Reports a renderer failure through Electron main; browsers remain a no-op. */
-export function recordRendererError(name: string, error: Error): void {
+export function recordRendererError(name: string, error: Error, context: RendererErrorContext = {}): void {
   const bridge = getDesktopTelemetryBridge();
   if (bridge === null) return;
+  const pathname = context.pathname ?? currentPathname();
+  // First line, so it survives the head/tail truncation of long stacks.
+  const header = `digest=${context.digest?.trim() || 'none'} route=${rendererRoute(pathname)}`;
   void bridge.recordError({
     kind: 'error',
     name,
-    message: rendererErrorText(error),
+    message: `${header}\n${rendererErrorText(error)}`,
   }).catch(() => {});
+}
+
+// Static app segments; anything else is a job, clip or player id.
+const STATIC_ROUTE_SEGMENTS: ReadonlySet<string> = new Set([
+  'bootstrap', 'cheaters', 'clips', 'editor', 'feed', 'full-demo', 'matches', 'nueva', 'nuevo',
+  'onboarding', 'players', 'publicar', 'series', 'settings', 'streams', 'tactical', 'upload', 'videos',
+]);
+
+/**
+ * Route pattern for the renderer event, e.g. "/clips/<uuid>/nuevo" ->
+ * "clips.{id}.nuevo". Dots instead of slashes: the diagnostic filter redacts
+ * any "/"-token outside /api/ as a path, which would leave only "[path]".
+ */
+export function rendererRoute(pathname: string | undefined): string {
+  const segments = (pathname ?? '').split('?')[0]?.split('/').filter(Boolean) ?? [];
+  if (segments.length === 0) return pathname === undefined ? 'unknown' : 'root';
+  return segments.map((segment) => (STATIC_ROUTE_SEGMENTS.has(segment) ? segment : '{id}')).join('.');
+}
+
+function currentPathname(): string | undefined {
+  const location = isRecord(globalThis) ? (globalThis as { location?: unknown }).location : undefined;
+  return isRecord(location) && typeof location.pathname === 'string' ? location.pathname : undefined;
 }
 
 function rendererErrorText(error: Error): string {

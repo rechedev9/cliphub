@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -35,11 +36,35 @@ const gracefulShutdownTimeout = 10 * time.Second
 
 const streamAcquireRecoveryDisabledReason = "interrupted: stream acquisition cannot resume because the acquisition worker is disabled"
 
+// crashOutputEnv names the file Studio passes so that a fatal Go runtime error
+// (an unrecovered panic, a concurrent map write) outlives the process. Studio
+// reads, filters and deletes it on its next start.
+const crashOutputEnv = "ZV_CRASH_OUTPUT"
+
 func main() {
+	obs.UseRFC3339Log(os.Stderr)
+	if path := os.Getenv(crashOutputEnv); path != "" {
+		if err := setCrashOutput(path); err != nil {
+			log.Printf("crash output: %v", err)
+		}
+	}
 	if err := run(); err != nil {
 		log.Printf("fatal: %v", err)
 		os.Exit(1)
 	}
+}
+
+// setCrashOutput appends the runtime's fatal error report to path in addition
+// to stderr, which Studio only keeps as a bounded tail.
+func setCrashOutput(path string) error {
+	// #nosec G304 -- path is the crash file Studio assigned to this process.
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	// SetCrashOutput duplicates the descriptor, so f can be closed right away.
+	defer f.Close()
+	return debug.SetCrashOutput(f, debug.CrashOptions{})
 }
 
 func run() error {

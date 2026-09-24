@@ -11,6 +11,40 @@ import (
 	"github.com/google/uuid"
 )
 
+// The recorder and editor emit these records as child processes; the worker
+// relays them with the job context instead of flattening them to stderr.
+func TestTraceWriterRelaysChildDiagnosticRecords(t *testing.T) {
+	for _, event := range []string{"attempt.toolchain", "cs2.console_tail", "delivery.quality", "render.profile", "stage.entered"} {
+		t.Run(event, func(t *testing.T) {
+			var output bytes.Buffer
+			previous := log.Writer()
+			log.SetOutput(&output)
+			defer log.SetOutput(previous)
+			parent := TraceContext{JobID: uuid.NewString(), AttemptID: uuid.NewString(), Operation: "record:demo", Attempt: 1}
+			encoded, err := json.Marshal(TraceEntry{Event: event, Level: "info", Message: "k=v"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			writer := NewTraceWriter(WithTrace(context.Background(), parent), "recorder")
+			if _, err := writer.Write([]byte(TracePrefix + string(encoded) + "\n")); err != nil {
+				t.Fatal(err)
+			}
+			_ = writer.Close()
+			_, body, ok := strings.Cut(strings.TrimSpace(output.String()), TracePrefix)
+			if !ok {
+				t.Fatal(output.String())
+			}
+			var result TraceEntry
+			if err := json.Unmarshal([]byte(body), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.Event != event || result.Message != "k=v" || result.TraceContext != parent {
+				t.Fatalf("relayed %+v", result)
+			}
+		})
+	}
+}
+
 func TestTraceWriterRestoresChildToolEvidenceWithParentCorrelation(t *testing.T) {
 	var output bytes.Buffer
 	previous := log.Writer()

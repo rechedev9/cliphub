@@ -2,16 +2,25 @@
 
 import { useEffect } from 'react';
 import { recordRendererError } from '@/lib/desktop-telemetry';
+import { RendererErrorGuard, rendererErrorKey } from '@/lib/renderer-error-guard';
+
+// One guard per page load: remounts of the shell must not reset the budget.
+const guard = new RendererErrorGuard();
+
+function report(error: Error): void {
+  if (!guard.allow(rendererErrorKey(error))) return;
+  recordRendererError('global.error', error);
+}
 
 /** Error boundaries do not catch event handlers or rejected async operations. */
 export function DesktopErrors(): null {
   useEffect(() => {
     const onError = (event: ErrorEvent): void => {
-      recordRendererError('global.error', event.error instanceof Error
+      report(event.error instanceof Error
         ? event.error : new Error(`Uncaught renderer error: ${event.message || 'details unavailable'}`));
     };
     const onRejection = (event: PromiseRejectionEvent): void => {
-      recordRendererError('global.error', event.reason instanceof Error
+      report(event.reason instanceof Error
         ? event.reason : new Error(`Unhandled promise rejection: ${typeof event.reason === 'string' ? event.reason : 'non-error value'}`));
     };
     window.addEventListener('error', onError);

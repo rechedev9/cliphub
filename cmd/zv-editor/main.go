@@ -14,9 +14,11 @@ import (
 	"strings"
 
 	"github.com/rechedev9/cliphub/internal/editor"
+	"github.com/rechedev9/cliphub/internal/obs"
 )
 
 func main() {
+	obs.UseRFC3339Log(os.Stderr)
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}

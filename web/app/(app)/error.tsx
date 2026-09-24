@@ -1,19 +1,19 @@
 'use client';
 
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import Link from 'next/link';
 import { RotateCcw, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/brand/section-eyebrow';
-import { writeClipboardText } from '@/lib/clipboard-write';
+import { DiagnosticBlock } from '@/components/videos/copy-diagnostic';
 import { recordRendererError } from '@/lib/desktop-telemetry';
 
 /**
  * Route-level error boundary. ClipHub ships packaged with `devTools: false`,
  * so before this existed a thrown render error put the user on Next's unstyled
  * "Application error: a client-side exception has occurred" — no brand, no
- * recovery path, and nothing to send anyone. Studio already keeps a `studio.log`
- * tail, so the least this can do is hand over a copyable digest.
+ * recovery path, and nothing to send anyone. The diagnostic block hands over
+ * the support code, session and digest that find this failure in telemetry.
  */
 export default function AppError({
   error,
@@ -22,21 +22,11 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }): ReactElement {
-  const [copied, setCopied] = useState(false);
-
   useEffect(() => {
     // The packaged app has no console to read, so the log is the only trail.
     console.error('[cliphub] route error', error);
-    recordRendererError('route.error', error);
+    recordRendererError('route.error', error, { digest: error.digest });
   }, [error]);
-
-  const diagnostics = [
-    `mensaje: ${error.message}`,
-    error.digest === undefined ? null : `digest: ${error.digest}`,
-    `ruta: ${typeof window === 'undefined' ? '' : window.location.pathname}`,
-  ]
-    .filter((line) => line !== null)
-    .join('\n');
 
   return (
     <div className="flex min-h-[60svh] items-center">
@@ -58,9 +48,7 @@ export default function AppError({
           </div>
         </div>
 
-        <pre className="max-h-40 overflow-auto rounded-md border border-border bg-surface-0 p-3 font-mono text-meta tracking-normal text-fg-2">
-          {diagnostics}
-        </pre>
+        <DiagnosticBlock digest={error.digest} message={error.message} />
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={reset}>
@@ -69,15 +57,6 @@ export default function AppError({
           </Button>
           <Button asChild variant="outline">
             <Link href="/clips">Volver a partidas</Link>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              void writeClipboardText(diagnostics).then(() => setCopied(true));
-            }}
-          >
-            {copied ? 'Diagnóstico copiado' : 'Copiar diagnóstico'}
           </Button>
         </div>
       </section>

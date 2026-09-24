@@ -1,0 +1,163 @@
+{{define "head"}}<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>{{.}}</title>
+<style>
+:root{color-scheme:dark;--bg:#0c121d;--surface:#141c2b;--line:#27324a;--text:#e6ebf4;--muted:#9aa7bf;--accent:#22d9ee;--bad:#ff6b5e;--warn:#f2b64a;--ok:#3ddc97}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:4px 0 2px}
+h2{font-size:1.02rem;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+section{margin-top:22px}
+a{color:var(--accent)}
+.meta,.empty{color:var(--muted);font-size:.86rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.tile span{display:block;color:var(--muted);font-size:.8rem}
+.tile strong{display:block;font-size:1rem;overflow-wrap:anywhere}
+.bad{color:var(--bad)}
+.cards{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.card .line{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.card .title{font-weight:600;overflow-wrap:anywhere}
+.card .sub{color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
+.tag{display:inline-block;padding:0 6px;border:1px solid currentColor;border-radius:3px;font-size:.78rem;font-weight:600}
+.open{color:var(--warn)}.regressed{color:var(--bad)}.resolved{color:var(--ok)}.ignored{color:var(--muted)}
+.msg{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:.84rem}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:.8rem}
+td.num,th.num{text-align:right}
+pre{margin:6px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-x:auto;font:.84rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;user-select:all}
+ul.plain{margin:0;padding-left:18px}
+</style>
+</head>
+<body>
+<main>
+{{end}}
+
+{{define "foot"}}</main>
+</body>
+</html>
+{{end}}
+
+{{define "index"}}{{template "head" "Telemetría ClipHub"}}
+<h1>Telemetría ClipHub</h1>
+<p class="meta">Generado {{.Generated}} (hora de Madrid). Solo tailnet; contiene códigos de soporte y mensajes filtrados.</p>
+
+<section>
+<h2>Colector</h2>
+{{with .Health}}{{if .Available}}<div class="tiles">
+<div class="tile"><span>Estado</span><strong>{{.Status}}</strong></div>
+<div class="tile"><span>Versión</span><strong>{{if .Version}}{{.Version}}{{else}}—{{end}}</strong></div>
+<div class="tile"><span>Base de datos</span><strong{{if .DBBad}} class="bad"{{end}}>{{.DBOK}}</strong></div>
+<div class="tile"><span>Último evento</span><strong>{{.LastEvents}}</strong></div>
+<div class="tile"><span>Último log</span><strong>{{.LastLogs}}</strong></div>
+<div class="tile"><span>Almacenamiento eventos / logs</span><strong>{{.EventsStorage}} / {{.LogsStorage}}</strong></div>
+</div>
+{{if .Rejections}}<div class="scroll"><table>
+<tr><th>Rechazo (canal:estado:código)</th><th class="num">Desde el arranque</th></tr>
+{{range .Rejections}}<tr><td>{{.Key}}</td><td class="num">{{.Count}}</td></tr>
+{{end}}</table></div>{{else}}<p class="empty">Sin rechazos de ingesta desde el arranque del colector.</p>{{end}}
+{{else}}<p class="empty bad">No se pudo leer /healthz en esta ejecución.</p>{{end}}{{end}}
+</section>
+
+<section>
+<h2>Issues</h2>
+{{if .Issues}}<ul class="cards">
+{{range .Issues}}<li class="card">
+<div class="line"><a class="title" href="{{.Link}}">{{.Label}}</a><span class="tag {{.StatusClass}}">{{.Status}}</span></div>
+<div class="sub">{{.Code}} · {{.Count}} en 30 días · instalaciones: {{.Installs}} · {{.FirstRelease}} → {{.LastRelease}} · última {{.LastSeen}}</div>
+</li>
+{{end}}</ul>{{else}}<p class="empty">Ninguna issue registrada.</p>{{end}}
+</section>
+
+<section>
+<h2>Intentos por versión y operación (30 días)</h2>
+{{if .ReleaseOps}}<div class="scroll"><table>
+<tr><th>Versión</th><th>Operación</th><th class="num">ok</th><th class="num">error</th></tr>
+{{range .ReleaseOps}}<tr><td>{{.Release}}</td><td>{{.Operation}}</td><td class="num">{{.OK}}</td><td class="num">{{.Error}}</td></tr>
+{{end}}</table></div>{{else}}<p class="empty">Sin attempt.finished en 30 días.</p>{{end}}
+</section>
+
+<section>
+<h2>Reportes de usuario</h2>
+{{if .Reports}}<ul class="cards">
+{{range .Reports}}<li class="card">
+<div class="line"><span class="title">{{.Category}}</span><span class="sub">{{.At}} · {{.Release}} · {{.Alias}} {{.SupportCode}}</span></div>
+<pre>{{.Command}}</pre>
+</li>
+{{end}}</ul>{{else}}<p class="empty">Sin reportes.</p>{{end}}
+</section>
+
+<section>
+<h2>Cambios de render.profile y builds de CS2</h2>
+{{if .Changes}}<ul class="plain">{{range .Changes}}<li>{{.}}</li>{{end}}</ul>{{else}}<p class="empty">Sin cambios de perfil entre versiones.</p>{{end}}
+<p class="meta">cs2_build vistos en 30 días: {{if .CS2Builds}}{{range $i, $b := .CS2Builds}}{{if $i}}, {{end}}{{$b}}{{end}}{{else}}ninguno{{end}}</p>
+</section>
+
+<section>
+<h2>Últimos errores</h2>
+{{with .Errors}}<ul class="cards">
+{{range .}}<li class="card">
+<div class="line"><span class="title">{{.Label}}</span><span class="sub">{{.At}} · {{.Release}} · {{.Alias}} {{.SupportCode}}</span></div>
+<div class="sub"><a href="issue/{{.Key}}.html">{{.Key}}</a>{{if .Job}} · job {{.Job}}{{end}}</div>
+{{if .Message}}<p class="msg">{{.Message}}</p>{{end}}
+</li>
+{{end}}</ul>{{else}}<p class="empty">Sin errores en los últimos 30 días.</p>{{end}}
+</section>
+{{template "foot"}}{{end}}
+
+{{define "issue"}}{{template "head" .Issue.Label}}
+<p class="meta"><a href="../index.html">Volver al resumen</a> · generado {{.Generated}} (hora de Madrid)</p>
+<h1>{{.Issue.Label}}</h1>
+<p><span class="tag {{.Issue.StatusClass}}">{{.Issue.Status}}</span></p>
+<div class="tiles">
+<div class="tile"><span>Código</span><strong>{{.Issue.Code}}</strong></div>
+<div class="tile"><span>Ocurrencias (30 días)</span><strong>{{.Issue.Count}}</strong></div>
+<div class="tile"><span>Instalaciones</span><strong>{{.Issue.Installs}}</strong></div>
+<div class="tile"><span>Primera vez</span><strong>{{.Issue.FirstSeen}} · {{.Issue.FirstRelease}}</strong></div>
+<div class="tile"><span>Última vez</span><strong>{{.Issue.LastSeen}} · {{.Issue.LastRelease}}</strong></div>
+</div>
+<p class="meta">Etiquetas {{.Issue.Labels}} · clave {{.Issue.Key}}</p>
+{{if .Issue.Signature}}<p class="msg">Firma normalizada: {{.Issue.Signature}}</p>{{end}}
+
+<section>
+<h2>Versiones</h2>
+{{if .Releases}}<div class="scroll"><table>
+<tr><th>Versión</th><th class="num">Ocurrencias</th></tr>
+{{range .Releases}}<tr><td>{{.Key}}</td><td class="num">{{.Count}}</td></tr>
+{{end}}</table></div>{{else}}<p class="empty">Sin ocurrencias en 30 días.</p>{{end}}
+</section>
+
+<section>
+<h2>Jobs</h2>
+{{if .Jobs}}<ul class="cards">
+{{range .Jobs}}<li class="card"><div class="sub">{{.Release}} · job {{.Job}}</div><pre>{{.Command}}</pre></li>
+{{end}}</ul>{{else}}<p class="empty">Ninguna ocurrencia lleva job.</p>{{end}}
+</section>
+
+<section>
+<h2>Último intento correcto de {{if .Operation}}{{.Operation}}{{else}}la operación{{end}}</h2>
+{{with .LastGood}}<div class="card"><div class="sub">{{.Release}} · job {{.Job}}</div><pre>{{.Command}}</pre></div>
+{{else}}<p class="empty">Sin intento correcto en 30 días{{if not .Operation}} o la issue no es de una tarea{{end}}.</p>{{end}}
+</section>
+
+<section>
+<h2>Cronología</h2>
+{{with .Timeline}}<ul class="cards">
+{{range .}}<li class="card">
+<div class="line"><span class="title">{{.At}}</span><span class="sub">{{.Release}} · {{.Alias}} {{.SupportCode}}</span></div>
+{{if .Job}}<div class="sub">job {{.Job}}</div>{{end}}
+{{if .Message}}<p class="msg">{{.Message}}</p>{{end}}
+</li>
+{{end}}</ul>{{else}}<p class="empty">Sin ocurrencias en 30 días.</p>{{end}}
+</section>
+{{template "foot"}}{{end}}

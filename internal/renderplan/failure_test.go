@@ -27,3 +27,11 @@ func TestRenderVariantFailureMessageAllowsEmptyInput(t *testing.T) {
 		t.Fatalf("RenderVariantFailureMessage = %q, want empty", got)
 	}
 }
+
+func TestRenderVariantFailureMessageDropsFailureCode(t *testing.T) {
+	resultErr := RenderVariantFailureMessage(editor.Result{Error: "failure_code=audio_master_exhausted substage=audio_master; audio_loudness_failed after three masters"}, nil)
+	processErr := RenderVariantFailureMessage(editor.Result{}, errors.New("failure_code=delivery_verify_failed substage=delivery_verify; full_demo_output_invalid"))
+	if resultErr != "audio_loudness_failed after three masters" || processErr != "full_demo_output_invalid" {
+		t.Fatalf("messages = %q, %q", resultErr, processErr)
+	}
+}

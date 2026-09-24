@@ -597,6 +597,7 @@ func runFFmpegOutput(ctx context.Context, command []string, label string) (strin
 	if label == "" {
 		label = "command"
 	}
+	enterFullDemoStage(ctx, command)
 	command, cleanup, err := commandWithFilterComplexScript(command)
 	if err != nil {
 		return "", err
@@ -609,11 +610,7 @@ func runFFmpegOutput(ctx context.Context, command []string, label string) (strin
 	err = runDiagnosticFFmpeg(ctx, cmd, label)
 	output := out.String()
 	if err != nil {
-		msg := strings.TrimSpace(output)
-		if msg != "" {
-			return output, fmt.Errorf("ffmpeg %s: %w: %s", label, err, msg)
-		}
-		return output, fmt.Errorf("ffmpeg %s: %w", label, err)
+		return output, ffmpegFailure(label, err, output)
 	}
 	return output, nil
 }

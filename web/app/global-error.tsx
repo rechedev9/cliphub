@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, type CSSProperties, type ReactElement } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactElement } from 'react';
+import { useStudioTelemetry } from '@/hooks/use-studio-telemetry';
+import { writeClipboardText } from '@/lib/clipboard-write';
 import { recordRendererError } from '@/lib/desktop-telemetry';
+import { diagnosticLines, diagnosticText } from '@/lib/diagnostic-summary';
 
 /**
  * The last boundary: a crash in the root layout itself, where `app/(app)/
@@ -45,18 +48,35 @@ const EYEBROW: CSSProperties = {
 
 const TITLE: CSSProperties = { margin: '12px 0 0', fontSize: '24px', lineHeight: 1.15 };
 const BODY: CSSProperties = { margin: '12px 0 0', fontSize: '15px', lineHeight: 1.6, color: '#aab7ca' };
-const CODE: CSSProperties = {
+const DIAGNOSTIC: CSSProperties = {
   margin: '20px 0 0',
-  padding: '10px 12px',
+  padding: '12px 14px',
   borderRadius: '6px',
+  border: '1px solid #3a4560',
   backgroundColor: '#0b0f1a',
-  color: '#aab7ca',
-  fontFamily: 'ui-monospace, monospace',
-  fontSize: '12px',
-  overflowX: 'auto',
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
+  columnGap: '16px',
+  rowGap: '6px',
+  fontSize: '13px',
+  lineHeight: 1.45,
+};
+const DIAGNOSTIC_LABEL: CSSProperties = { margin: 0, color: '#8593a8' };
+const DIAGNOSTIC_VALUE: CSSProperties = { margin: 0, color: '#eef3f8', wordBreak: 'break-all', fontVariantNumeric: 'tabular-nums' };
+const COPY_LABEL = { idle: 'Copiar diagnóstico', copied: 'Diagnóstico copiado', failed: 'No se pudo copiar' } as const;
+const ACTIONS: CSSProperties ={ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginTop: '20px' };
+const SECONDARY: CSSProperties = {
+  minHeight: '44px',
+  padding: '0 18px',
+  borderRadius: '6px',
+  border: '1px solid #3a4560',
+  backgroundColor: 'transparent',
+  color: '#eef3f8',
+  fontSize: '14px',
+  fontWeight: 600,
+  cursor: 'pointer',
 };
 const ACTION: CSSProperties = {
-  marginTop: '20px',
   minHeight: '44px',
   padding: '0 20px',
   borderRadius: '6px',
@@ -75,10 +95,29 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }): ReactElement {
+  const status = useStudioTelemetry();
+  const [route, setRoute] = useState<string | undefined>(undefined);
+  const [copy, setCopy] = useState<keyof typeof COPY_LABEL>('idle');
+
   useEffect(() => {
     console.error('[cliphub] global error', error);
-    recordRendererError('global.error', error);
+    recordRendererError('global.error', error, { digest: error.digest });
+    // The root layout is gone, so read the route straight from the window.
+    setRoute(window.location.pathname);
   }, [error]);
+
+  const lines = diagnosticLines({
+    supportCode: status?.supportCode,
+    sessionId: status?.sessionId,
+    digest: error.digest,
+    route,
+    message: error.message,
+  });
+  const copyDiagnostic = (): void => {
+    void writeClipboardText(diagnosticText(lines))
+      .then(() => setCopy('copied'))
+      .catch(() => setCopy('failed'));
+  };
 
   return (
     <html lang="es">
@@ -90,10 +129,22 @@ export default function GlobalError({
             Ha fallado la aplicación entera, no solo una pantalla. Tus demos, capturas y renders están en el
             orquestador local y no se han tocado. Si vuelve a ocurrir, revisa <code>studio.log</code>.
           </p>
-          <pre style={CODE}>{error.digest === undefined ? error.message : `${error.message}\n${error.digest}`}</pre>
-          <button type="button" style={ACTION} onClick={reset}>
-            Reiniciar Studio
-          </button>
+          <dl style={DIAGNOSTIC}>
+            {lines.map((line) => (
+              <div key={line.label} style={{ display: 'contents' }}>
+                <dt style={DIAGNOSTIC_LABEL}>{line.label}</dt>
+                <dd style={DIAGNOSTIC_VALUE}>{line.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div style={ACTIONS}>
+            <button type="button" style={ACTION} onClick={reset}>
+              Reiniciar Studio
+            </button>
+            <button type="button" style={SECONDARY} onClick={copyDiagnostic} aria-live="polite">
+              {COPY_LABEL[copy]}
+            </button>
+          </div>
         </main>
       </body>
     </html>

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the ClipHub telemetry alerter every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=cliphub-telemetry-alert.service
+
+[Install]
+WantedBy=timers.target

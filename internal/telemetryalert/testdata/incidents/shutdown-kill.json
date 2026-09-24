@@ -1,0 +1,25 @@
+{
+  "comment": "Crash noise from Windows logoff/shutdown kills. Today's boot_failed with 1073807364 (0x40010004), the new backend_crashed shutdown_kill record and taskkill's 3221225794 must produce nothing.",
+  "events": [
+    {
+      "received_at": "2026-09-23T13:35:00Z", "occurred_at": "2026-09-22T23:06:00Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000060", "release": "4.0.1",
+      "component": "electron", "name": "desktop.boot_failed", "stage": "boot", "class": "boot_failed",
+      "message": "Error: web terminó inesperadamente (código 1073807364)"
+    }
+  ],
+  "logs": [
+    {
+      "received_at": "2026-09-23T13:35:05Z", "occurred_at": "2026-09-22T23:06:01Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000060", "release": "4.0.1",
+      "source": "studio", "level": "info", "event": "desktop.backend_crashed",
+      "message": "child=orchestrator exit=1073807364 exit_class=shutdown_kill\nshutting down"
+    },
+    {
+      "received_at": "2026-09-23T13:35:06Z", "occurred_at": "2026-09-22T23:06:02Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000060", "release": "4.0.1",
+      "source": "studio", "level": "error", "event": "session.crashed_previous",
+      "message": "process_type=utility minidump=false electron=v38.2.1 taskkill exited 3221225794"
+    }
+  ]
+}

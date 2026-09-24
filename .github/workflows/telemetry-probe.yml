@@ -1,0 +1,62 @@
+# External liveness probe for the telemetry collector's public ingest path.
+# It holds no alert logic: on success it pings a dead-man check, and a missed
+# ping raises the alarm in the same channel as the collector's own alerts.
+# The endpoint comes from the packaged Studio config; nothing about the host,
+# the check or its URL is written to the log.
+name: Telemetry probe
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: telemetry-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe public health and ping the dead-man check
+        env:
+          RELEASE_CONFIG_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/desktop/src/telemetry-release.ts
+          PING_URL: ${{ secrets.TELEMETRY_PROBE_PING_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PING_URL:-}" ]; then
+            echo "::error::TELEMETRY_PROBE_PING_URL is not configured"
+            exit 1
+          fi
+          echo "::add-mask::$PING_URL"
+
+          config=$(curl -fsS --max-time 20 "$RELEASE_CONFIG_URL" 2>/dev/null) || {
+            echo "::error::could not read the packaged telemetry config (curl exit $?)"
+            exit 1
+          }
+          endpoint=$(sed -n "s|^[[:space:]]*endpoint:[[:space:]]*'\(https://[^'/]*\)/v1/ingest',.*|\1|p" <<<"$config" | head -n 1)
+          if [ -z "$endpoint" ]; then
+            echo "::error::the packaged telemetry config has no HTTPS ingest endpoint"
+            exit 1
+          fi
+          host=${endpoint#https://}
+          echo "::add-mask::$endpoint"
+          echo "::add-mask::${host%%:*}"
+
+          health=$(curl -fsS --max-time 20 "$endpoint/healthz" 2>/dev/null) || {
+            echo "::error::public telemetry health check failed (curl exit $?)"
+            exit 1
+          }
+          service=$(jq -r '.service // empty' <<<"$health" 2>/dev/null || true)
+          if [ "$service" != "cliphub-telemetry" ]; then
+            echo "::error::public telemetry health check returned an unexpected body"
+            exit 1
+          fi
+
+          curl -fsS --max-time 20 -o /dev/null "$PING_URL" 2>/dev/null || {
+            echo "::error::dead-man ping failed (curl exit $?)"
+            exit 1
+          }

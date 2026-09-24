@@ -8,11 +8,16 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/rechedev9/cliphub/internal/customhud"
 	"github.com/rechedev9/cliphub/internal/mediaassets"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 	"github.com/rechedev9/cliphub/internal/recording"
 )
@@ -41,6 +46,9 @@ type fullDemoDeliveryOutcome struct {
 	QualityLog      string
 	QualityWarnings []string
 	DecodeMS        int64
+	// Quality is the always-on output quality probe; nil when the probe could
+	// not run, which never affects delivery.
+	Quality *fullDemoDeliveryQuality
 }
 
 func verifyFullDemoDelivery(ctx context.Context, ffmpeg, ffprobe, path string, frames int64, progress fullDemoProgress) (*FullDemoDeliveryEvidence, error) {
@@ -97,6 +105,7 @@ func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe,
 	}
 	e := &FullDemoDeliveryEvidence{DurationSeconds: float64(frames) / recapplan.OutputFPS}
 	video, audio := false, false
+	width, height := 0, 0
 	for _, stream := range probe.Streams {
 		duration, parseErr := strconv.ParseFloat(stream.Duration, 64)
 		if parseErr != nil || math.IsNaN(duration) || math.IsInf(duration, 0) || math.Abs(duration-e.DurationSeconds) > 1.0/recapplan.OutputFPS {
@@ -107,7 +116,7 @@ func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe,
 			if video || stream.Codec != "h264" || stream.Width != 1920 || stream.Height != 1080 || !frameRateMatches(stream.FrameRate, 60) {
 				return nil, fmt.Errorf("full_demo_output_invalid: delivered video differs from 1080p60 H.264 (got codec=%s, size=%dx%d, fps=%s, duplicate=%t)", stream.Codec, stream.Width, stream.Height, stream.FrameRate, video)
 			}
-			video = true
+			video, width, height = true, stream.Width, stream.Height
 		case "audio":
 			if audio || stream.Codec != "aac" || stream.SampleRate != "48000" || stream.Channels != 2 {
 				return nil, fmt.Errorf("full_demo_output_invalid: delivered audio is not stereo AAC at 48 kHz")
@@ -125,15 +134,28 @@ func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe,
 	// output frame duplication/dropping from hiding a noncanonical source count.
 	// The optional black/freeze quality filters run on the same decode: they do
 	// not change frames or samples, so the canonical evidence is unchanged.
-	filters := []string(nil)
-	if diagnostics != nil {
-		filters = diagnostics.Filters
+	// The always-on quality probe follows them, so they still see full-size
+	// frames; its downscale only shrinks what the null muxer discards.
+	var filters []string
+	qualityChecks := diagnostics != nil && len(diagnostics.Filters) > 0
+	if qualityChecks {
+		filters = append(filters, diagnostics.Filters...)
+	}
+	qualityProbe := newDeliveryQualityProbe(path)
+	defer qualityProbe.remove()
+	if qualityProbe != nil {
+		filters = append(filters, qualityProbe.filters()...)
 	}
 	strictCommand := []string{ffmpeg, "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough", "-f", "null", "-"}
 	combinedCommand := strictCommand
 	if len(filters) > 0 {
-		// blackdetect/freezedetect emit their event lines at info level.
-		combinedCommand = []string{ffmpeg, "-v", "info", "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-vf", strings.Join(filters, ","), "-fps_mode", "passthrough", "-f", "null", "-"}
+		// blackdetect/freezedetect emit their event lines at info level; the
+		// probe writes its metadata to files and needs no log output.
+		level := "error"
+		if qualityChecks {
+			level = "info"
+		}
+		combinedCommand = []string{ffmpeg, "-v", level, "-xerror", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-vf", strings.Join(filters, ","), "-fps_mode", "passthrough", "-f", "null", "-"}
 	}
 	var decoded bytes.Buffer
 	decodeStarted := time.Now()
@@ -141,7 +163,11 @@ func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe,
 	qualityLog := setupLog
 	diagnosticSetupWarning := ""
 	if err != nil && len(filters) > 0 && fullDemoDeliveryDiagnosticSetupError(err) {
-		diagnosticSetupWarning = fmt.Sprintf("quality check %s: %v", diagnostics.SegmentID, err)
+		if qualityChecks {
+			diagnosticSetupWarning = fmt.Sprintf("quality check %s: %v", diagnostics.SegmentID, err)
+		}
+		qualityProbe.remove()
+		qualityProbe = nil
 		// The optional diagnostics must never fail or weaken the mandatory
 		// strict decode. Retry without them, and keep BOTH the original setup
 		// stderr (the real cause) and the retry log instead of overwriting it.
@@ -159,7 +185,8 @@ func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe,
 		return nil, fmt.Errorf("full_demo_output_invalid: complete decode did not certify %d frames (got %d): %v", frames, count, err)
 	}
 	e.FrameCount = count
-	if info, err := os.Stat(path); err != nil || info.Size() == 0 {
+	info, err := os.Stat(path)
+	if err != nil || info.Size() == 0 {
 		return nil, fmt.Errorf("full_demo_output_invalid: missing delivered file")
 	}
 	progress.report("Verificando archivo final", .9)
@@ -170,7 +197,8 @@ func verifyFullDemoDeliveryWithDiagnostics(ctx context.Context, ffmpeg, ffprobe,
 	e.ContentSHA256 = digest.hash
 	e.FullDecode = true
 	outcome := &fullDemoDeliveryOutcome{Evidence: e, DecodeMS: decodeMS}
-	if len(filters) > 0 {
+	outcome.Quality = qualityProbe.result(width, height, info.Size(), e.DurationSeconds)
+	if qualityChecks {
 		outcome.QualityLog = qualityLog
 		outcome.QualityWarnings = QualityWarningsFromFFmpegLog(diagnostics.SegmentID, qualityLog)
 		if diagnosticSetupWarning != "" {
@@ -321,4 +349,225 @@ func (e *FullDemoRenderEvidence) ValidateCompleted() error {
 		return fmt.Errorf("audio_loudness_failed: final decoded AAC misses its approved targets")
 	}
 	return nil
+}
+
+// Output quality probe. A render can pass every strict check and still deliver
+// a black or starved picture (the 5.0.0 black first-person capture averaged
+// 2.4 Mb/s against about 40). The probe measures the delivered picture inside
+// the mandatory decode: a 128x72 nearest-neighbour copy of every frame feeds
+// blackdetect and signalstats, whose per-frame metadata is printed to files in
+// a scratch directory, so the strict decode keeps its error-only log level.
+// blackdetect's picture threshold is looser than the optional QC checker's
+// because a visible HUD and crosshair keep a black capture under 98 % black
+// pixels; the mean luma covers the case where it stays under 90 % too.
+const (
+	deliveryQualityInstance   = "cliphub_quality"
+	deliveryQualityBlackMinS  = 0.5
+	deliveryQualityBlackKey   = "lavfi.black_start"
+	deliveryQualityUnblackKey = "lavfi.black_end"
+	deliveryQualityYAVGKey    = "lavfi.signalstats.YAVG"
+)
+
+var deliveryQualityEnumPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,47}$`)
+
+// fullDemoDeliveryQuality is the numbers-only delivery.quality record body.
+type fullDemoDeliveryQuality struct {
+	Width       int
+	Height      int
+	FPS         int
+	BitrateKbps int64
+	YAVGMean    float64
+	BlackRatio  float64
+}
+
+func (q fullDemoDeliveryQuality) message(preset string) string {
+	return fmt.Sprintf("preset=%s width=%d height=%d fps=%d bitrate_kbps=%d yavg_mean=%.1f black_ratio=%.3f",
+		deliveryQualityEnum(preset), q.Width, q.Height, q.FPS, q.BitrateKbps, q.YAVGMean, q.BlackRatio)
+}
+
+// deliveryQualityEnum keeps record values to code-controlled identifiers.
+func deliveryQualityEnum(value string) string {
+	if deliveryQualityEnumPattern.MatchString(value) {
+		return value
+	}
+	return "other"
+}
+
+type deliveryQualityProbe struct{ dir string }
+
+// newDeliveryQualityProbe returns nil when its scratch directory cannot be
+// created: the probe is optional and must never fail delivery.
+func newDeliveryQualityProbe(output string) *deliveryQualityProbe {
+	dir, err := os.MkdirTemp(filepath.Dir(output), ".delivery-quality-*")
+	if err != nil {
+		return nil
+	}
+	return &deliveryQualityProbe{dir: dir}
+}
+
+func (p *deliveryQualityProbe) remove() {
+	if p != nil {
+		_ = os.RemoveAll(p.dir)
+	}
+}
+
+func (p *deliveryQualityProbe) file(key string) string {
+	return filepath.Join(p.dir, strings.ReplaceAll(key, ".", "-")+".txt")
+}
+
+func (p *deliveryQualityProbe) filters() []string {
+	printKey := func(key string) string {
+		return "metadata=mode=print:key=" + key + ":file=" + ffmpegQuotedFilterPath(p.file(key))
+	}
+	return []string{
+		"scale=128:72:flags=neighbor",
+		"blackdetect@" + deliveryQualityInstance + "=d=" + strconv.FormatFloat(deliveryQualityBlackMinS, 'f', -1, 64) + ":pic_th=0.90",
+		printKey(deliveryQualityBlackKey),
+		printKey(deliveryQualityUnblackKey),
+		"signalstats",
+		printKey(deliveryQualityYAVGKey),
+	}
+}
+
+// result reads the probe output after a successful decode. It returns nil when
+// the probe did not run or produced no luma samples.
+func (p *deliveryQualityProbe) result(width, height int, sizeBytes int64, durationSeconds float64) *fullDemoDeliveryQuality {
+	if p == nil || durationSeconds <= 0 {
+		return nil
+	}
+	luma, err := deliveryQualityMetadata(p.file(deliveryQualityYAVGKey), deliveryQualityYAVGKey)
+	if err != nil || len(luma) == 0 {
+		return nil
+	}
+	starts, err := deliveryQualityMetadata(p.file(deliveryQualityBlackKey), deliveryQualityBlackKey)
+	if err != nil {
+		return nil
+	}
+	ends, err := deliveryQualityMetadata(p.file(deliveryQualityUnblackKey), deliveryQualityUnblackKey)
+	if err != nil {
+		return nil
+	}
+	var sum float64
+	for _, value := range luma {
+		sum += value
+	}
+	return &fullDemoDeliveryQuality{
+		Width:       width,
+		Height:      height,
+		FPS:         recapplan.OutputFPS,
+		BitrateKbps: int64(math.Round(float64(sizeBytes) * 8 / durationSeconds / 1000)),
+		YAVGMean:    sum / float64(len(luma)),
+		BlackRatio:  deliveryBlackRatio(starts, ends, durationSeconds),
+	}
+}
+
+// deliveryQualityMetadata reads every value of one key from a metadata=print
+// file ("frame:N pts:P pts_time:T" lines followed by "key=value" lines).
+func deliveryQualityMetadata(path, key string) ([]float64, error) {
+	file, err := os.Open(path) // #nosec G304 -- the probe's own scratch file.
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // the key never appeared
+		}
+		return nil, err
+	}
+	defer file.Close()
+	var values []float64
+	prefix := key + "="
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		raw, ok := strings.CutPrefix(strings.TrimSpace(scanner.Text()), prefix)
+		if !ok {
+			continue
+		}
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+			return nil, fmt.Errorf("invalid %s value", key)
+		}
+		values = append(values, value)
+	}
+	return values, scanner.Err()
+}
+
+// deliveryBlackRatio pairs blackdetect's per-frame start/end markers into
+// runs. The markers are set for every run, so runs shorter than the minimum
+// duration are dropped here; a run still open at the end of the stream (no end
+// marker) lasts until the end.
+func deliveryBlackRatio(starts, ends []float64, durationSeconds float64) float64 {
+	sort.Float64s(starts)
+	sort.Float64s(ends)
+	var black float64
+	next := 0
+	for _, start := range starts {
+		for next < len(ends) && ends[next] < start {
+			next++
+		}
+		end := durationSeconds
+		if next < len(ends) {
+			end = ends[next]
+			next++
+		}
+		end = math.Min(end, durationSeconds)
+		if end-start >= deliveryQualityBlackMinS {
+			black += end - math.Max(start, 0)
+		}
+	}
+	return math.Max(0, math.Min(1, black/durationSeconds))
+}
+
+// ffmpegQuotedFilterPath escapes a file path used as a filter option value
+// inside a filtergraph: first for the filter's key=value parser, then quoted
+// for the graph parser, so drive colons, quotes, commas, brackets and
+// semicolons in the path stay literal.
+func ffmpegQuotedFilterPath(path string) string {
+	value := filepath.ToSlash(path)
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `'`, `\'`)
+	value = strings.ReplaceAll(value, ":", `\:`)
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
+// fullDemoRenderProfile is the enums-only render.profile record body of a
+// completed Full Demo render. The delivered format is fixed: delivery
+// verification certifies 1920x1080 at 60 fps before this runs.
+func fullDemoRenderProfile(short ShortEdit) string {
+	e := short.FullDemo
+	options := e.Effective.Options
+	overlay := options.OverlaySource()
+	if overlay == "" {
+		overlay = "demo" // demo-facts-only overlays
+	}
+	hud := "native"
+	if options.Overlays.HUDTheme != "" {
+		hud = "custom"
+		if _, ok := customhud.Lookup(options.Overlays.HUDTheme); ok {
+			hud = options.Overlays.HUDTheme
+		}
+	}
+	encoder := "x264"
+	if strings.TrimSpace(short.VideoEncoder) == VideoEncoderNVENC {
+		encoder = "nvenc"
+	}
+	// Recovery masters are folded into the evidence only when every native
+	// master failed and the Media Foundation candidate was delivered.
+	aacPath := "native"
+	if e.ProgramLoudness != nil && len(e.ProgramLoudness.FallbackMasters) > 0 {
+		aacPath = "mf_recovery"
+	}
+	return fmt.Sprintf("source_kind=%s overlay_source=%s hud=%s fps=%d resolution=1080p encoder=%s aac_path=%s capture_tail_pads=%d",
+		deliveryQualityEnum(options.SourceKind), deliveryQualityEnum(overlay), deliveryQualityEnum(hud), recapplan.OutputFPS, encoder, aacPath, len(e.CaptureTailPads))
+}
+
+// emitFullDemoDeliveryQuality and emitFullDemoRenderProfile write the records
+// the media worker relays with the job's trace context.
+func emitFullDemoDeliveryQuality(ctx context.Context, preset string, quality *fullDemoDeliveryQuality) {
+	if quality != nil {
+		obs.EmitTrace(ctx, obs.TraceEntry{Event: "delivery.quality", Level: "info", Message: quality.message(preset)})
+	}
+}
+
+func emitFullDemoRenderProfile(ctx context.Context, short ShortEdit) {
+	if short.FullDemo != nil {
+		obs.EmitTrace(ctx, obs.TraceEntry{Event: "render.profile", Level: "info", Message: fullDemoRenderProfile(short)})
+	}
 }
