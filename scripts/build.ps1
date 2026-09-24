@@ -121,12 +121,15 @@ try {
     foreach ($name in $commands) {
         $out = Join-Path $stagingDir "$name.exe"
         $pkg = "./cmd/$name"
+        # -trimpath keeps the build machine's paths out of the binaries, so panic
+        # frames read module-relative (github.com/...) and survive the telemetry
+        # redaction filter instead of collapsing into [path].
         if ($name -eq "zv-orchestrator" -and $faceitEmbedKey -ne "") {
-            Write-Host "go build -ldflags [faceit-embed] -o $out $pkg"
-            & go build -ldflags "-X main.embeddedFaceitAPIKey=$faceitEmbedKey" -o $out $pkg
+            Write-Host "go build -trimpath -ldflags [faceit-embed] -o $out $pkg"
+            & go build -trimpath -ldflags "-X main.embeddedFaceitAPIKey=$faceitEmbedKey" -o $out $pkg
         } else {
-            Write-Host "go build -o $out $pkg"
-            & go build -o $out $pkg
+            Write-Host "go build -trimpath -o $out $pkg"
+            & go build -trimpath -o $out $pkg
         }
         if ($LASTEXITCODE -ne 0) {
             throw "go build failed for $pkg"

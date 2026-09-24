@@ -53,5 +53,95 @@
     "name": "unquoted Windows path with spaces",
     "input": "open C:\\Users\\Zach Arias\\private.dem: access denied",
     "expected": "open [path]: access denied"
+  },
+  {
+    "name": "API route pattern stays readable",
+    "input": "POST /api/jobs/{id}/render status=500",
+    "expected": "POST /api/jobs/{id}/render status=500"
+  },
+  {
+    "name": "API route with a job id stays readable (production GET [path] status=404)",
+    "input": "GET /api/jobs/8a46e7a4-d86a-4512-bc41-dc270a296461/events status=404",
+    "expected": "GET /api/jobs/8a46e7a4-d86a-4512-bc41-dc270a296461/events status=404"
+  },
+  {
+    "name": "API route with a dot-segment is still a path",
+    "input": "GET /api/../etc/passwd status=400",
+    "expected": "GET [path] status=400"
+  },
+  {
+    "name": "API route with a percent sign is still a path",
+    "input": "GET /api/%2e%2e/etc status=400",
+    "expected": "GET [path] status=400"
+  },
+  {
+    "name": "API route holding a steam id is still a path",
+    "input": "GET /api/players/76561198000000000 status=404",
+    "expected": "GET [path] status=404"
+  },
+  {
+    "name": "API route glued to other text is still a path",
+    "input": "route=/api/jobs failed",
+    "expected": "route=[path] failed"
+  },
+  {
+    "name": "frame rate fractions stay readable",
+    "input": "ffprobe stream fps=60/1 tbr=30000/1001 sar 1/1",
+    "expected": "ffprobe stream fps=60/1 tbr=30000/1001 sar 1/1"
+  },
+  {
+    "name": "production loudness failure keeps its timestamp; other slash tokens stay redacted",
+    "input": "exit status 1: 2026/09/07 17:09:49 audio_loudness_failed: could not reach loudness/true-peak targets",
+    "expected": "exit status 1: 2026/09/07 17:09:49 audio_loudness_failed: could not reach loudness[path] targets"
+  },
+  {
+    "name": "trimmed Go panic frames keep module functions and file lines",
+    "input": "panic: runtime error: index out of range [3] with length 3\n\ngoroutine 42 [running]:\ngithub.com/rechedev9/cliphub/internal/editor.(*fullDemoMaster).nextTarget(0xc0001a2000, {0x7ff6a1b2c3d4, 0xc000012345})\n\tgithub.com/rechedev9/cliphub/internal/editor/full_demo_audio.go:238 +0x1a5\ncreated by github.com/rechedev9/cliphub/internal/workers.(*Pool).Start in goroutine 1\n\tgithub.com/rechedev9/cliphub/internal/workers/pool.go:77 +0x9c",
+    "expected": "panic: runtime error: index out of range [3] with length 3\n\ngoroutine 42 [running]:\ngithub.com/rechedev9/cliphub/internal/editor.(*fullDemoMaster).nextTarget(0xc0001a2000, {0x7ff6a1b2c3d4, 0xc000012345})\n\tgithub.com/rechedev9/cliphub/internal/editor/full_demo_audio.go:238 +0x1a5\ncreated by github.com/rechedev9/cliphub/internal/workers.(*Pool).Start in goroutine 1\n\tgithub.com/rechedev9/cliphub/internal/workers/pool.go:77 +0x9c"
+  },
+  {
+    "name": "module path escaping the module is still a path",
+    "input": "load github.com/rechedev9/cliphub/../../home/zach/secret.txt",
+    "expected": "load github.com[path]"
+  },
+  {
+    "name": "Studio bundle frame keeps its chunk location without the port",
+    "input": "TypeError: row is undefined\n    at renderRow (http://127.0.0.1:43127/_next/static/chunks/app/(app)/jobs/page-4bd1b696a1.js:1:23456)",
+    "expected": "TypeError: row is undefined\n    at renderRow ([app]/_next/static/chunks/app/(app)/jobs/page-4bd1b696a1.js:1:23456)"
+  },
+  {
+    "name": "other loopback URLs are still URLs",
+    "input": "fetch http://127.0.0.1:43127/api/jobs failed",
+    "expected": "fetch [url] failed"
+  },
+  {
+    "name": "own versions with a v prefix are not addresses",
+    "input": "attempt.toolchain cs2_build=14182 hlae=v2.192.3.0 encoder=h264_nvenc",
+    "expected": "attempt.toolchain cs2_build=14182 hlae=v2.192.3.0 encoder=h264_nvenc"
+  },
+  {
+    "name": "IPv4 addresses are still redacted",
+    "input": "connect 10.0.0.1:443 refused",
+    "expected": "connect [address]:443 refused"
+  },
+  {
+    "name": "Windows executable exit stays a path (production 3.0.2)",
+    "input": "C:\\Users\\Zach\\AppData\\Local\\Programs\\ClipHub Studio\\resources\\bin\\ffmpeg.exe: exit status 1",
+    "expected": "[path]: exit status 1"
+  },
+  {
+    "name": "Windows demo path is still redacted",
+    "input": "open C:\\Users\\x\\a.dem failed",
+    "expected": "open [path]"
+  },
+  {
+    "name": "home path is still redacted",
+    "input": "read /home/x/y failed",
+    "expected": "read [path] failed"
+  },
+  {
+    "name": "placeholder characters in the input are dropped",
+    "input": "queued \ue000 /api/jobs \uf8ff done",
+    "expected": "queued  /api/jobs  done"
   }
 ]
