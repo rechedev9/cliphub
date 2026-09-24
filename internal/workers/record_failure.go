@@ -65,7 +65,7 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 	if runErr == nil {
 		return false
 	}
-	text := commandText(runErr) + "\n" + result.Error
+	text := commandMarkerText(runErr) + "\n" + result.Error
 	if !strings.Contains(text, missingCaptureAttestationMarker) {
 		return false
 	}
@@ -79,10 +79,11 @@ func retryableCaptureCrash(runErr error, result recording.RecordingResult) bool 
 // the demo_incompatible: prefix plus an optional captured-progress suffix; any
 // other failure is reduced to its last "error: " line, falling back to the
 // concise error when there is none. Markers are searched in the complete
-// recorder output. A failure_code prefix stays in the error chain for the
-// journal and is kept out of the user-facing reason.
+// recorder output except its diagnostic trace lines. A failure_code prefix
+// stays in the error chain for the journal and is kept out of the user-facing
+// reason.
 func recordFailureReason(runErr error, result recording.RecordingResult, requested []string) string {
-	text := commandText(runErr)
+	text := commandMarkerText(runErr)
 	if strings.Contains(text, networkDisconnectMarker) || strings.Contains(text, playbackEndedMarker) {
 		reason := demoIncompatiblePrefix + demoIncompatibleMessage(text)
 		if captured := capturedSegmentCount(result); captured > 0 {

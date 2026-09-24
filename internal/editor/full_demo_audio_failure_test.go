@@ -132,7 +132,7 @@ func TestFullDemoMasterLoudnormRejectionIsClassified(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	_, err := runFailingFullDemoMaster(t, ctx, map[string]string{"FAKE_REJECT_LOUDNORM": "1"})
-	if err == nil || !strings.HasPrefix(err.Error(), "failure_code=loudnorm_param_out_of_range substage=audio_master; ffmpeg Full Demo program master: exit status 1: Error opening output files: Result too large") {
+	if err == nil || !strings.HasPrefix(err.Error(), "failure_code=loudnorm_param_out_of_range substage=audio_master; ffmpeg Full Demo program master: exit status 1: Error applying option 'TP' to filter 'loudnorm': Result too large\n") {
 		t.Fatalf("rejected loudnorm option = %v", err)
 	}
 	if !strings.Contains(err.Error(), "Value -10.180000 for parameter 'TP' out of range [-9 - 0]") {
@@ -172,7 +172,9 @@ func TestFFmpegFailureNamesTheFinalCauseFirst(t *testing.T) {
 	stderr := "Input #0, nut, from 'program.nut':\n[Parsed_loudnorm_0 @ 01] Value -10.180000 for parameter 'TP' out of range [-9 - 0]\nError opening output files: Result too large\n"
 	err := ffmpegFailure("Full Demo program master", errors.New("exit status 1"), stderr)
 	first, rest, _ := strings.Cut(err.Error(), "\n")
-	if first != "ffmpeg Full Demo program master: exit status 1: Error opening output files: Result too large" {
+	// FFmpeg's generic "Error opening output files" trailer never names the
+	// cause; the loudnorm rejection above it does.
+	if first != "ffmpeg Full Demo program master: exit status 1: [Parsed_loudnorm_0 @ 01] Value -10.180000 for parameter 'TP' out of range [-9 - 0]" {
 		t.Fatalf("first line = %q", first)
 	}
 	if rest != strings.TrimSpace(stderr) {

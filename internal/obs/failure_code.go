@@ -101,7 +101,7 @@ func FindFailure(text string) (Failure, string, bool) {
 	lines := strings.Split(text, "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(lines[i])
-		if line == "" || strings.Contains(line, TracePrefix) {
+		if line == "" || IsTraceLine(line) {
 			continue
 		}
 		match := failurePrefixPattern.FindStringSubmatchIndex(line)
@@ -153,12 +153,94 @@ func LastDiagnosticLine(text string) string {
 	lines := strings.Split(text, "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(lines[i])
-		if line == "" || strings.Contains(line, TracePrefix) {
+		if line == "" || IsTraceLine(line) {
 			continue
 		}
 		return logTimestampPattern.ReplaceAllString(line, "")
 	}
 	return ""
+}
+
+// IsTraceLine reports whether a line of subprocess output is a diagnostic
+// trace record. Trace records carry copies of other text (a child's failure
+// messages, the CS2 console tail), so parsers looking for a child's failure
+// line or for classifier markers must skip them.
+func IsTraceLine(line string) bool {
+	return strings.Contains(line, TracePrefix)
+}
+
+// WithoutTraceLines returns text without its diagnostic trace lines, for
+// substring marker parsers that read a subprocess's complete output.
+func WithoutTraceLines(text string) string {
+	if !strings.Contains(text, TracePrefix) {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if !IsTraceLine(line) {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
+}
+
+// execFailurePattern is the canonical text of a Go exec failure at the start
+// of a line: "<label>: exit status <n>", optionally followed by ": <cause>".
+// Go prints Windows exit codes of 1<<16 and above in hex ("0xc0000005").
+var execFailurePattern = regexp.MustCompile(`^\S.*?: exit status (?:0x[0-9a-f]+|\d+)(?:: (.*))?$`)
+
+// LastExecFailureLine returns the head of a child's final exec failure without
+// a leading Go log timestamp: a "<label>: exit status <n>[: <cause>]" line
+// that is either the last diagnostic line or the first line of a multi-line
+// record whose following lines include its cause, the way zv-editor's
+// log.Fatal prints an FFmpeg failure followed by the complete FFmpeg output.
+// The search never crosses an earlier timestamped log record, so a recovered
+// failure logged before the final one is not taken for it. It returns "" when
+// the final failure has no such head.
+func LastExecFailureLine(text string) string {
+	lines := strings.Split(text, "\n")
+	below := map[string]struct{}{}
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || IsTraceLine(line) {
+			continue
+		}
+		stripped := logTimestampPattern.ReplaceAllString(line, "")
+		if match := execFailurePattern.FindStringSubmatch(stripped); match != nil {
+			if _, follows := below[match[1]]; len(below) == 0 || follows {
+				return stripped
+			}
+		}
+		if stripped != line {
+			return "" // the final log record starts here
+		}
+		below[stripped] = struct{}{}
+	}
+	return ""
+}
+
+// ffmpegTrailerPattern matches the generic lines FFmpeg prints after the real
+// error: the run summary, the open-file summaries and the final statistics
+// line. None of them names the cause.
+var ffmpegTrailerPattern = regexp.MustCompile(`^(?:Conversion failed!|Error opening (?:input|output) files?\b.*|Error : .*|(?:frame|size)=.*\btime=.*)$`)
+
+// LastFFmpegCauseLine is LastDiagnosticLine for FFmpeg output: it skips
+// FFmpeg's generic trailing lines ("Conversion failed!", "Error opening output
+// files: ...", the statistics line) so the preceding real error names the
+// failure. When every line is generic it returns LastDiagnosticLine.
+func LastFFmpegCauseLine(text string) string {
+	lines := strings.Split(text, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || IsTraceLine(line) {
+			continue
+		}
+		if line = logTimestampPattern.ReplaceAllString(line, ""); line != "" && !ffmpegTrailerPattern.MatchString(line) {
+			return line
+		}
+	}
+	return LastDiagnosticLine(text)
 }
 
 // UseRFC3339Log switches the standard logger to RFC3339 timestamps written to

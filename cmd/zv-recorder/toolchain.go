@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,21 +34,9 @@ const (
 	consoleTailMaxBytes = 8 << 10
 	// Only this much of the file end is read to find the last lines.
 	consoleTailReadBytes = 64 << 10
-	// Keeps the escaped trace line well below the relay's 48 KiB line limit.
+	// Keeps the JSON-escaped trace line well below the relay's 48 KiB line
+	// limit.
 	consoleTailMaxLineBytes = 40 << 10
-)
-
-// Failure codes written at the start of the recorder's stderr failure line.
-// They are the recorder members of the internal/obs failure code enum
-// (FailureHLAEHookIncompatible, FailureCS2AlreadyRunning,
-// FailureCapturePOVUnverified, FailureCaptureIncomplete and SubstageCapture)
-// and use the same "failure_code=<code> substage=<substage>; " prefix.
-const (
-	failureHLAEHookIncompatible = "hlae_hook_incompatible"
-	failureCS2AlreadyRunning    = "cs2_already_running"
-	failureCapturePOVUnverified = "capture_pov_unverified"
-	failureCaptureIncomplete    = "capture_incomplete"
-	substageCapture             = "capture"
 )
 
 var (
@@ -67,37 +54,33 @@ type captureIncompleteError struct{ err error }
 func (e *captureIncompleteError) Error() string { return e.err.Error() }
 func (e *captureIncompleteError) Unwrap() error { return e.err }
 
-// withFailureCode renders the failure-code prefix the alerter keys on.
-func withFailureCode(code, substage, message string) string {
-	return "failure_code=" + code + " substage=" + substage + "; " + message
-}
-
 // recorderFailureCode maps the recorder's known capture failures to their
-// stable code, or "" when the failure has none.
-func recorderFailureCode(err error) string {
+// stable internal/obs code, or "" when the failure has none.
+func recorderFailureCode(err error) obs.FailureCode {
 	var hookErr *hookIncompatibleError
 	var verificationErr *captureVerificationError
 	var incompleteErr *captureIncompleteError
 	switch {
 	case errors.As(err, &hookErr):
-		return failureHLAEHookIncompatible
+		return obs.FailureHLAEHookIncompatible
 	case errors.Is(err, errCS2AlreadyRunning):
-		return failureCS2AlreadyRunning
+		return obs.FailureCS2AlreadyRunning
 	case errors.As(err, &verificationErr) && verificationErr.missingMarker:
-		return failureCapturePOVUnverified
+		return obs.FailureCapturePOVUnverified
 	case errors.As(err, &incompleteErr):
-		return failureCaptureIncomplete
+		return obs.FailureCaptureIncomplete
 	default:
 		return ""
 	}
 }
 
 // stderrFailureLine is the final "error: ..." line the media worker condenses
-// into the job failure reason, prefixed with the failure code when known.
+// into the job failure reason, led by the failure-code prefix the alerter keys
+// on when the failure is known.
 func stderrFailureLine(err error) string {
 	message := err.Error()
 	if code := recorderFailureCode(err); code != "" {
-		message = withFailureCode(code, substageCapture, message)
+		message = obs.Failure{Code: code, Substage: obs.SubstageCapture}.Prefix() + " " + message
 	}
 	return "error: " + message + "\n"
 }
@@ -275,33 +258,18 @@ func boundConsoleTail(lines []string) (string, int) {
 	return tail, len(lines)
 }
 
-// consoleTailTraceEntry is obs.TraceEntry with a pre-encoded message.
-type consoleTailTraceEntry struct {
-	Time    time.Time       `json:"time"`
-	Event   string          `json:"event"`
-	Level   string          `json:"level"`
-	Message json.RawMessage `json:"message"`
-}
-
-// consoleTailTraceLine encodes the cs2.console_tail trace with every space,
-// underscore and ASCII capital of the message written as a \u escape. The
-// media worker classifies recorder failures by substring over the recorder's
-// whole output (NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR, ResetBreakpadAppId,
-// unplayable_start:, playback-ended text), and console text must never trigger
-// those classes. The relay decodes the JSON, so the log record carries the
-// plain console text.
+// consoleTailTraceLine encodes the cs2.console_tail trace as one JSON line,
+// dropping the oldest console lines until it fits consoleTailMaxLineBytes. The
+// console text stays readable: the media worker's failure marker parsers skip
+// diagnostic trace lines, so CS2 console output never classifies a failure.
 func consoleTailTraceLine(tail string, lines int, now time.Time) (string, error) {
 	parts := strings.Split(tail, "\n")
 	for {
-		message, err := json.Marshal(fmt.Sprintf("lines=%d\n%s", lines, strings.Join(parts, "\n")))
-		if err != nil {
-			return "", err
-		}
-		encoded, err := json.Marshal(consoleTailTraceEntry{
+		encoded, err := json.Marshal(obs.TraceEntry{
 			Time:    now.UTC(),
 			Event:   consoleTailTraceEvent,
 			Level:   "warn",
-			Message: opaqueJSONString(message),
+			Message: fmt.Sprintf("lines=%d\n%s", lines, strings.Join(parts, "\n")),
 		})
 		if err != nil {
 			return "", err
@@ -312,20 +280,4 @@ func consoleTailTraceLine(tail string, lines int, now time.Time) (string, error)
 		}
 		parts, lines = parts[1:], lines-1
 	}
-}
-
-// opaqueJSONString escapes spaces, underscores and ASCII capitals of one
-// encoded JSON string. JSON escape sequences never contain those bytes, so
-// the result decodes to exactly the same string.
-func opaqueJSONString(encoded []byte) []byte {
-	var out bytes.Buffer
-	out.Grow(len(encoded) * 2)
-	for _, b := range encoded {
-		if b == ' ' || b == '_' || (b >= 'A' && b <= 'Z') {
-			fmt.Fprintf(&out, `\u%04x`, b)
-			continue
-		}
-		out.WriteByte(b)
-	}
-	return out.Bytes()
 }

@@ -89,6 +89,85 @@ func TestCommandFailureWithoutCodeKeepsToolExitAndLastStderrLine(t *testing.T) {
 	}
 }
 
+// editorFFmpegFailureStderr is zv-editor's stderr for an unclassified FFmpeg
+// failure: trace records, then log.Fatal's record whose first line is the
+// canonical "ffmpeg <label>: exit status N: <cause>" and whose following lines
+// are the complete FFmpeg 8.1 stderr, ending with FFmpeg's generic trailers.
+var editorFFmpegFailureStderr = strings.Join([]string{
+	"2026-09-24T10:00:00+02:00 " + obs.TracePrefix + `{"event":"tool.started","message":"ffmpeg HUD transition composition"}`,
+	"2026-09-24T10:00:01+02:00 " + obs.TracePrefix + `{"event":"tool.finished","message":"ffmpeg HUD transition composition: exit status 1","outcome":"error"}`,
+	"2026-09-24T10:00:01+02:00 ffmpeg HUD transition composition: exit status 0xfffffffe: [in#1 @ 000001a7d1e7a340] Error opening input: No such file or directory",
+	"Input #0, matroska,webm, from 'hud-base.mkv':",
+	"  Duration: 00:00:02.00, start: 0.000000, bitrate: 181 kb/s",
+	"  Stream #0:0: Video: ffv1, bgra, 1920x1080, 60 fps, 60 tbr, 1k tbn",
+	"[in#1 @ 000001a7d1e7a340] Error opening input: No such file or directory",
+	"Error opening input file hud-transition.mkv.",
+	"Error opening input files: No such file or directory",
+	"2026-09-24T10:00:01+02:00 " + obs.TracePrefix + `{"event":"process.output_gap","message":"late"}`,
+	"",
+}, "\n")
+
+func TestEditorFFmpegFailureCauseNamesTheFailingCommand(t *testing.T) {
+	runErr := newCommandError("zv-editor.exe", errors.New("exit status 1"), editorFFmpegFailureStderr, editorFFmpegFailureStderr)
+	want := "zv-editor.exe: exit status 1: ffmpeg HUD transition composition: exit status 0xfffffffe: [in#1 @ 000001a7d1e7a340] Error opening input: No such file or directory"
+	if runErr.Error() != want {
+		t.Fatalf("Error() = %q\nwant      %q", runErr.Error(), want)
+	}
+	if _, ok := obs.FailureOf(runErr); ok {
+		t.Fatal("an unclassified editor failure was given a code")
+	}
+	if text := commandText(runErr); !strings.Contains(text, "Error opening input files: No such file or directory") {
+		t.Fatalf("complete output is not available to failure parsers: %q", text)
+	}
+
+	id := uuid.New()
+	repo := newFakeJobRepo(job.Job{ID: id, Status: job.StatusRecorded})
+	if err := recordTaskFailure(context.Background(), repo, id, tasks.TypeRenderVariant, runErr); err != nil {
+		t.Fatal(err)
+	}
+	events, selectErr := obs.Default().SelectErrors(id.String(), tasks.TypeRenderVariant)
+	if selectErr != nil || len(events) != 1 {
+		t.Fatalf("journal events = %#v, %v", events, selectErr)
+	}
+	if first, _, _ := strings.Cut(events[0].Message, "\n"); first != want {
+		t.Fatalf("pipeline.error message = %q", events[0].Message)
+	}
+}
+
+func TestCommandFailureCauseIgnoresEarlierExecFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name, stderr, want string
+	}{
+		{
+			// A master attempt that failed and was recovered is not the cause
+			// of a later, different final failure.
+			name: "recovered FFmpeg failure before the final one",
+			stderr: "2026-09-24T10:00:00+02:00 full demo master attempt 1: ffmpeg Full Demo program master: exit status 1: [fc#0 @ 00000207057a5dc0] Error applying option 'TP' to filter 'loudnorm': Result too large\n" +
+				"[fc#0 @ 00000207057a5dc0] Error applying option 'TP' to filter 'loudnorm': Result too large\n" +
+				"Error : Result too large\n" +
+				"2026-09-24T10:05:00+02:00 full_demo_output_invalid: complete decode did not certify 50400 frames (got 50399)\n",
+			want: "zv-editor.exe: exit status 1: full_demo_output_invalid: complete decode did not certify 50400 frames (got 50399)",
+		},
+		{
+			name: "recorder error line after a logged helper failure",
+			stderr: "2026/09/24 10:00:00 capture job cleanup: taskkill: exit status 128\n" +
+				"error: HLAE not found\n",
+			want: "zv-editor.exe: exit status 1: error: HLAE not found",
+		},
+		{
+			name:   "exec failure without output",
+			stderr: "2026-09-24T10:00:00+02:00 ffmpeg Full Demo delivery probe: exit status 1\n",
+			want:   "zv-editor.exe: exit status 1: ffmpeg Full Demo delivery probe: exit status 1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := newCommandError("zv-editor.exe", errors.New("exit status 1"), tc.stderr, tc.stderr).Error(); got != tc.want {
+				t.Fatalf("Error() = %q\nwant      %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRecorderFailureCodeStaysOutOfReasonButLeadsJournal(t *testing.T) {
 	output := "windowed capture: patched cs2_video.txt\n" +
 		"error: failure_code=hlae_hook_incompatible substage=capture; HLAE hook crashed with a native error dialog\n"

@@ -113,6 +113,92 @@ func TestLastDiagnosticLine(t *testing.T) {
 	}
 }
 
+func TestWithoutTraceLines(t *testing.T) {
+	text := "Preparing\n2026/09/24 10:00:03 " + TracePrefix + `{"event":"cs2.console_tail","message":"lines=1\nNETWORK_DISCONNECT_MESSAGE_PARSE_ERROR"}` + "\nerror: HLAE not found\n"
+	if got := WithoutTraceLines(text); got != "Preparing\nerror: HLAE not found\n" {
+		t.Fatalf("WithoutTraceLines = %q", got)
+	}
+	if got := WithoutTraceLines("plain\n"); got != "plain\n" {
+		t.Fatalf("text without traces changed: %q", got)
+	}
+	if !IsTraceLine("2026-09-24T10:00:00Z "+TracePrefix+"{}") || IsTraceLine("error: cliphub-diagnostic") {
+		t.Fatal("IsTraceLine misclassified a line")
+	}
+}
+
+// FFmpeg 8.1 stderr captured from real failing runs.
+const (
+	ffmpegLoudnormFilterStderr = `Input #0, lavfi, from 'sine=f=440:d=1':
+  Duration: N/A, start: 0.000000, bitrate: 705 kb/s
+  Stream #0:0: Audio: pcm_s16le, 44100 Hz, mono, s16, 705 kb/s
+[Parsed_loudnorm_0 @ 0000021405cd0340] Value -10.180000 for parameter 'TP' out of range [-9 - 0]
+[fc#-1 @ 0000021407baa900] Error applying option 'TP' to filter 'loudnorm': Result too large
+Error opening output file master.m4a.
+Error opening output files: Result too large
+`
+	ffmpegLoudnormComplexStderr = `[Parsed_loudnorm_0 @ 0000020705831a00] Value -10.180000 for parameter 'TP' out of range [-9 - 0]
+[fc#0 @ 00000207057a5dc0] Error applying option 'TP' to filter 'loudnorm': Result too large
+Error : Result too large
+`
+	ffmpegMissingInputStderr = `[in#0 @ 000001a7d1e7a340] Error opening input: No such file or directory
+Error opening input file missing-input.wav.
+Error opening input files: No such file or directory
+`
+	ffmpegEncoderRuntimeStderr = `[libx264 @ 000001e7b6f583c0] width not divisible by 2 (15x15)
+[vost#0:0/libx264 @ 000001e7b6f53080] [enc:libx264 @ 000001e7b6f54400] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vost#0:0/libx264 @ 000001e7b6f53080] Terminating thread with return code -22 (Invalid argument)
+[out#0/null @ 000001e7b6ec1600] Nothing was written into output file, because at least one of its streams received no packets.
+frame=    0 fps=0.0 q=0.0 Lsize=       0KiB time=N/A bitrate=N/A speed=N/A elapsed=0:00:00.00
+Conversion failed!
+`
+)
+
+func TestLastFFmpegCauseLineSkipsGenericTrailers(t *testing.T) {
+	for _, tc := range []struct {
+		name, stderr, want string
+	}{
+		{"loudnorm option in -af", ffmpegLoudnormFilterStderr, "[fc#-1 @ 0000021407baa900] Error applying option 'TP' to filter 'loudnorm': Result too large"},
+		{"loudnorm option in -filter_complex", ffmpegLoudnormComplexStderr, "[fc#0 @ 00000207057a5dc0] Error applying option 'TP' to filter 'loudnorm': Result too large"},
+		{"missing input", ffmpegMissingInputStderr, "[in#0 @ 000001a7d1e7a340] Error opening input: No such file or directory"},
+		{"runtime encoder failure", ffmpegEncoderRuntimeStderr, "[out#0/null @ 000001e7b6ec1600] Nothing was written into output file, because at least one of its streams received no packets."},
+		{"late trace line", ffmpegMissingInputStderr + "2026-09-24T10:00:00Z " + TracePrefix + `{"event":"tool.finished"}` + "\n", "[in#0 @ 000001a7d1e7a340] Error opening input: No such file or directory"},
+		{"only trailers", "Conversion failed!\n", "Conversion failed!"},
+		{"no trailer", "[aac_mf @ 01] could not set the desired input type\nError while opening encoder for output stream #0:0\n", "Error while opening encoder for output stream #0:0"},
+		{"empty", "\n \n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := LastFFmpegCauseLine(tc.stderr); got != tc.want {
+				t.Fatalf("LastFFmpegCauseLine = %q\nwant                  %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLastExecFailureLine(t *testing.T) {
+	head := "ffmpeg Full Demo program master: exit status 1: [fc#-1 @ 0000021407baa900] Error applying option 'TP' to filter 'loudnorm': Result too large"
+	editorFatal := "2026-09-24T10:00:00+02:00 " + TracePrefix + `{"event":"tool.finished","message":"ffmpeg Full Demo program master: exit status 1"}` + "\n" +
+		"2026-09-24T10:00:01+02:00 " + head + "\n" + ffmpegLoudnormFilterStderr +
+		"2026-09-24T10:00:01+02:00 " + TracePrefix + `{"event":"process.output_gap","message":"late"}` + "\n"
+	for _, tc := range []struct {
+		name, stderr, want string
+	}{
+		{"editor log.Fatal with the FFmpeg output", editorFatal, head},
+		{"wrapped label", "2026/09/24 10:00:01 render short 3: " + head + "\n" + ffmpegLoudnormFilterStderr, "render short 3: " + head},
+		{"last line", "Preparing\nffmpeg probe: exit status 3\n", "ffmpeg probe: exit status 3"},
+		{"Windows hex exit status", "2026-09-24T10:00:01+02:00 " + strings.Replace(head, "exit status 1", "exit status 0xffffffde", 1) + "\r\n" + strings.ReplaceAll(ffmpegLoudnormFilterStderr, "\n", "\r\n"), strings.Replace(head, "exit status 1", "exit status 0xffffffde", 1)},
+		{"recovered failure before a different final one", "2026-09-24T10:00:01+02:00 master attempt 1: " + head + "\n" + ffmpegLoudnormFilterStderr + "2026-09-24T10:05:00+02:00 full_demo_output_invalid: complete decode did not certify 50400 frames\n", ""},
+		{"logged helper failure before a plain error line", "2026/09/24 10:00:00 capture job cleanup: taskkill: exit status 128\nerror: HLAE not found\n", ""},
+		{"cause not in the following output", "tool: exit status 1: device lost\nunrelated line\n", ""},
+		{"no exec failure", "Preparing\nerror: HLAE not found\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := LastExecFailureLine(tc.stderr); got != tc.want {
+				t.Fatalf("LastExecFailureLine = %q\nwant                  %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRFC3339LogWriter(t *testing.T) {
 	var out bytes.Buffer
 	at := time.Date(2026, 9, 24, 10, 0, 0, 0, time.FixedZone("CEST", 2*60*60))

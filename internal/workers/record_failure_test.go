@@ -3,15 +3,19 @@ package workers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/rechedev9/cliphub/internal/job"
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recording"
 	"github.com/rechedev9/cliphub/internal/rules"
 )
@@ -189,6 +193,71 @@ func TestRetryableCaptureCrash(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := retryableCaptureCrash(tt.runErr, tt.result); got != tt.want {
 				t.Fatalf("retryableCaptureCrash() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// consoleTailTrace is the cs2.console_tail line zv-recorder logs after a
+// capture failure: plain JSON carrying raw CS2 console text.
+func consoleTailTrace(t *testing.T, console string) string {
+	t.Helper()
+	encoded, err := json.Marshal(obs.TraceEntry{
+		Time:    time.Date(2026, 9, 24, 8, 0, 3, 0, time.UTC),
+		Event:   "cs2.console_tail",
+		Level:   "warn",
+		Message: fmt.Sprintf("lines=%d\n%s", strings.Count(console, "\n")+1, console),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "2026/09/24 10:00:03 " + obs.TracePrefix + string(encoded)
+}
+
+func TestRelayedConsoleTailDoesNotChangeRecorderClassification(t *testing.T) {
+	trace := consoleTailTrace(t, strings.Join([]string{
+		"09/24 10:00:01 [Networking] Disconnect reason: " + networkDisconnectMarker,
+		"09/24 10:00:02 [zackvideo] capture_failed: " + playbackEndedMarker,
+		"09/24 10:00:02 " + unplayableStartPrefix + " probe",
+		"09/24 10:00:02 " + resetBreakpadMarker,
+		"09/24 10:00:03 " + missingCaptureAttestationMarker,
+	}, "\n"))
+	for _, marker := range []string{networkDisconnectMarker, playbackEndedMarker, unplayableStartPrefix, resetBreakpadMarker, missingCaptureAttestationMarker} {
+		if !strings.Contains(trace, marker) {
+			t.Fatalf("test premise: the relayed trace does not carry %q: %s", marker, trace)
+		}
+	}
+	consoleLog := `"C:\\Users\\player\\AppData\\Local\\ClipHub\\work\\console.log"`
+	for _, tc := range []struct {
+		name       string
+		failure    string
+		wantReason string
+		wantRetry  bool
+	}{
+		{
+			name:       "observer drift",
+			failure:    "error: capture POV verification failed: observer target drifted from 7656 to 7657; check CS2 console log " + consoleLog,
+			wantReason: "recorder failed: capture POV verification failed: observer target drifted from 7656 to 7657; check CS2 console log " + consoleLog,
+		},
+		{
+			name:       "transient CS2 exit",
+			failure:    "error: failure_code=capture_pov_unverified substage=capture; capture POV verification failed: " + missingCaptureAttestationMarker + "; check CS2 console log " + consoleLog,
+			wantReason: "recorder failed: capture POV verification failed: " + missingCaptureAttestationMarker + "; check CS2 console log " + consoleLog,
+			wantRetry:  true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, output := range []string{
+				"2026/09/24 10:00:00 windowed capture: patched cs2_video.txt\n" + tc.failure + "\n",
+				"2026/09/24 10:00:00 windowed capture: patched cs2_video.txt\n" + trace + "\n" + tc.failure + "\n",
+			} {
+				runErr := newCommandError("zv-recorder.exe", errors.New("exit status 1"), output, output)
+				if got := recordFailureReason(runErr, recording.RecordingResult{}, nil); got != tc.wantReason {
+					t.Fatalf("recordFailureReason() = %q\nwant                   %q", got, tc.wantReason)
+				}
+				if got := retryableCaptureCrash(runErr, recording.RecordingResult{}); got != tc.wantRetry {
+					t.Fatalf("retryableCaptureCrash() = %v, want %v", got, tc.wantRetry)
+				}
 			}
 		})
 	}

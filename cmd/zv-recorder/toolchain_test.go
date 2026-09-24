@@ -170,6 +170,9 @@ func TestStderrFailureLineCarriesFailureCodes(t *testing.T) {
 			if !strings.HasSuffix(strings.TrimSpace(rest), strings.TrimSpace(tc.err.Error())) {
 				t.Fatalf("failure line lost the original message: %q", line)
 			}
+			if want := "error: failure_code=" + tc.code + " substage=capture; " + tc.err.Error() + "\n"; line != want {
+				t.Fatalf("failure line = %q\nwant           %q", line, want)
+			}
 		})
 	}
 	if !strings.Contains(stderrFailureLine(hook), "HLAE hook crashed with a native error dialog") {
@@ -206,7 +209,7 @@ func writeConsoleLog(t *testing.T, lines []string) string {
 	return path
 }
 
-func TestCS2ConsoleTailKeepsLastFortyLinesAndHidesClassifierMarkers(t *testing.T) {
+func TestCS2ConsoleTailKeepsLastFortyLinesAsPlainJSON(t *testing.T) {
 	var lines []string
 	for i := 0; i < 50; i++ {
 		lines = append(lines, fmt.Sprintf("09/23 23:22:%02d [Client] line %d", i, i))
@@ -230,10 +233,10 @@ func TestCS2ConsoleTailKeepsLastFortyLinesAndHidesClassifierMarkers(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range append(markers, "demo playback ended", "unplayable_start:") {
-		if strings.Contains(line, marker) {
-			t.Fatalf("encoded trace exposes classifier marker %q: %s", marker, line)
-		}
+	// The media worker's marker parsers skip trace lines, so the console text
+	// needs no escaping beyond JSON's own.
+	if strings.Contains(line, `\u`) || strings.Count(line, "\n") != 0 || !strings.Contains(line, "NETWORK_DISCONNECT_MESSAGE_PARSE_ERROR") {
+		t.Fatalf("console tail trace is not plain single-line JSON: %s", line)
 	}
 	entry := decodeTraceLine(t, line)
 	if entry.Event != "cs2.console_tail" || entry.Level != "warn" || !entry.Time.Equal(time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)) {
@@ -262,13 +265,10 @@ func TestCS2ConsoleTailIsCappedAtEightKiB(t *testing.T) {
 	if len(one) > consoleTailMaxBytes || oneCount != 1 || !strings.HasPrefix(one, "é") {
 		t.Fatalf("oversized single line = %d bytes, %d lines", len(one), oneCount)
 	}
-	shouting := strings.Repeat("A B_", consoleTailMaxBytes/4)
-	line, err := consoleTailTraceLine(shouting, 1, time.Now())
-	if err != nil || len(line) > consoleTailMaxLineBytes+consoleTailMaxBytes*6 {
-		t.Fatalf("single-line escape = %d bytes, %v", len(line), err)
-	}
-	many := strings.TrimSuffix(strings.Repeat(strings.Repeat("A", 200)+"\n", 40), "\n")
-	line, err = consoleTailTraceLine(many, 40, time.Now())
+	// Control bytes are escaped six bytes each, so a hostile console tail
+	// still has to be trimmed to fit the relay's line limit.
+	control := strings.TrimSuffix(strings.Repeat(strings.Repeat("\x01", 200)+"\n", 40), "\n")
+	line, err := consoleTailTraceLine(control, 40, time.Now())
 	if err != nil || len(line) > consoleTailMaxLineBytes {
 		t.Fatalf("escaped trace line = %d bytes, %v", len(line), err)
 	}

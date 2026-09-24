@@ -228,7 +228,7 @@ func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([
 }
 
 // commandError is a failed worker subprocess. Error() is the concise
-// "<tool>: exit status N: <last non-empty stderr line>": the executable path
+// "<tool>: exit status N: <the child's failure line>": the executable path
 // would be redacted whole, and the complete output was already streamed to
 // diagnostics line by line. Failure parsers read the full output through
 // commandText.
@@ -250,11 +250,16 @@ func (e *commandError) Unwrap() error { return e.err }
 
 // newCommandError builds the error of a failed subprocess. When the child
 // printed a failure_code prefix, that line is the cause and the code is raised
-// to the front of the parent's error, so journals start with it.
+// to the front of the parent's error, so journals start with it. Otherwise a
+// final "<label>: exit status N: ..." line is the cause: zv-editor's log.Fatal
+// prints that line first and the complete FFmpeg output after it, whose last
+// line never names the failing command.
 func newCommandError(tool string, err error, stderr, output string) error {
 	failure, cause, coded := obs.FindFailure(stderr)
 	if !coded {
-		cause = obs.LastDiagnosticLine(stderr)
+		if cause = obs.LastExecFailureLine(stderr); cause == "" {
+			cause = obs.LastDiagnosticLine(stderr)
+		}
 	}
 	commandErr := &commandError{tool: tool, err: err, cause: cause, output: strings.TrimSpace(output)}
 	if coded {
@@ -273,6 +278,13 @@ func commandText(err error) string {
 		return text + "\n" + command.output
 	}
 	return text
+}
+
+// commandMarkerText is commandText without diagnostic trace lines. Substring
+// marker parsers read it: trace records relay copies of other text, such as
+// the recorder's cs2.console_tail, which must never classify a failure.
+func commandMarkerText(err error) string {
+	return obs.WithoutTraceLines(commandText(err))
 }
 
 // maxCommandStderrTail bounds the stderr kept for the final cause line. Only
