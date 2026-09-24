@@ -35,6 +35,12 @@ async function fulfillJson(page: Page, path: string, status: number, body: unkno
   await page.route(`**/api/demos/${JOB}${path}`, (route) => route.fulfill({ status, json: body }));
 }
 
+/** The asset upload is multipart; its `config` part carries the provenance declaration. */
+function uploadedConfig(body: Buffer | null): unknown {
+  const config = body?.toString('utf8').match(/name="config"\r\n\r\n(.*?)\r\n--/)?.[1];
+  return config === undefined ? null : JSON.parse(config);
+}
+
 async function stubParsedMatch(page: Page, document: FullDemoDocument | null = editorial(), defaults = editorial().options): Promise<void> {
   await fulfillJson(page, '/status', 200, { status: 'parsed' });
   await fulfillJson(page, '/plan', 200, PLAN);
@@ -189,27 +195,59 @@ test.describe('Full POV simplified constructor', () => {
     expect(planned).toBe(0);
   });
 
-  test('uploads an opted-in sponsor asset with its provenance', async ({ page }) => {
+  test('uploads an opted-in sponsor from the file alone with a local declaration', async ({ page }) => {
     const document = editorial();
     document.options.sponsor.enabled = false;
     document.options.sponsor.video = null;
-    let uploaded = 0;
+    const provenances: unknown[] = [];
     await stubParsedMatch(page, document);
     await page.route('**/api/editor/assets', async (route) => {
-      uploaded += 1;
       expect(route.request().method()).toBe('POST');
+      provenances.push(uploadedConfig(route.request().postDataBuffer()));
+      await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
+    });
+    await gotoStudio(page, PRODUCE_FULL);
+    await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
+    await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'ZACK KEYDROP PREROLL.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
+    // The rights fields stay folded: choosing the file is enough.
+    await expect(page.getByLabel('Autor o titular', { exact: true })).toBeHidden();
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await expect.poll(() => provenances).toEqual([{ provenance: {
+      title: 'ZACK KEYDROP PREROLL.mp4', creator: 'No declarado', source_url: 'local:ZACK%20KEYDROP%20PREROLL.mp4',
+      permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+    } }]);
+    await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
+  });
+
+  test('explains an invalid typed sponsor source before uploading and keeps the typed rights', async ({ page }) => {
+    const document = editorial();
+    document.options.sponsor.enabled = false;
+    document.options.sponsor.video = null;
+    const provenances: unknown[] = [];
+    await stubParsedMatch(page, document);
+    await page.route('**/api/editor/assets', async (route) => {
+      provenances.push(uploadedConfig(route.request().postDataBuffer()));
       await route.fulfill({ status: 201, json: { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', sha256: 'c'.repeat(64) } });
     });
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
-    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
-    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
-    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
+    await page.getByText('Autoría y licencia (opcional)', { exact: true }).click();
+    await page.getByLabel('Autor o titular', { exact: true }).fill('Zack');
+    const source = page.getByLabel('Fuente', { exact: true });
+    await source.fill('zack keydrop');
     await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
-    await expect.poll(() => uploaded).toBe(1);
-    await expect(page.getByText('Vídeo: Archivo pendiente de revisar en el plan', { exact: true })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'La fuente debe ser un enlace que empiece por https://' })).toBeVisible();
+    await expect(source).toBeFocused();
+    await expect(source).toHaveAttribute('aria-invalid', 'true');
+    expect(provenances).toEqual([]);
+    await source.fill('https://zack.gg/preroll');
+    await expect(page.getByRole('alert').filter({ hasText: 'La fuente debe ser' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
+    await expect.poll(() => provenances).toEqual([{ provenance: {
+      title: 'sponsor.mp4', creator: 'Zack', source_url: 'https://zack.gg/preroll',
+      permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+    } }]);
   });
 
   for (const width of [390, 1024, 1440]) {
@@ -366,10 +404,6 @@ test.describe('Full POV simplified constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
-    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
-    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
-    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
     await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
     await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
     await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();
@@ -418,10 +452,6 @@ test.describe('Full POV simplified constructor', () => {
     await gotoStudio(page, PRODUCE_FULL);
     await page.getByRole('checkbox', { name: 'Incluir sponsor', exact: true }).check();
     await page.getByLabel('Archivo local', { exact: true }).setInputFiles({ name: 'sponsor.mp4', mimeType: 'video/mp4', buffer: Buffer.from('sponsor') });
-    await page.getByLabel('Título', { exact: true }).fill('Patrocinador');
-    await page.getByLabel('Autor o titular', { exact: true }).fill('Titular');
-    await page.getByLabel('Fuente (https://… o local:archivo-propio)', { exact: true }).fill('local:sponsor.mp4');
-    await page.getByLabel('Licencia o permiso de uso', { exact: true }).fill('Autorizado');
     await page.getByRole('button', { name: 'Añadir archivo', exact: true }).click();
     await page.getByRole('combobox', { name: 'Colocación', exact: true }).click();
     await page.getByRole('option', { name: 'Después de una ronda concreta', exact: true }).click();

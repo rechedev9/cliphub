@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, isFullDemoOptions, isFullDemoSnapshot,
-  loadFullDemoPlan, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, type FullDemoOptions, type FullDemoSnapshot,
+  approveFullDemo, bumperSummary, currentFullDemoOptions, fixedFullDemoFreeze, fullDemoApprovalKey, fullDemoOptionsKey, fullDemoOverlaySource, fullDemoPlanEdit, fullDemoProvenance, fullDemoSourceError, isFullDemoOptions, isFullDemoSnapshot,
+  loadFullDemoPlan, localFileProvenance, saveFullDemoPlan, uploadFullDemoAsset, uploadFullDemoBumper, type FullDemoOptions, type FullDemoSnapshot,
 } from './full-demo-plan.ts';
 import { buildEditRequest, editConfigsEqual } from './api/edit-request.ts';
 import { coerceEditConfig, coerceIntents } from './api/reel-store.ts';
@@ -363,4 +363,28 @@ test('bumper upload accepts MP4 directly without inventing ownership and rejects
   Object.defineProperty(oversized, 'size', { value: 2 * 1024 ** 3 });
   await assert.rejects(uploadFullDemoBumper(oversized), /2 GB/);
   assert.equal(calls, 1);
+});
+
+test('a file-only asset declares itself as local, and typed rights fields win over the declaration', () => {
+  const file = new File(['test'], 'ZACK KEYDROP PREROLL.mp4', { type: 'video/mp4' });
+  const blank = { title: ' ', creator: '', source_url: '', permission: '', attribution: '' };
+  // Same values as internal/mediaassets TestProvenanceValidateLocalFileDeclaration.
+  assert.deepEqual(fullDemoProvenance(file, blank), {
+    title: 'ZACK KEYDROP PREROLL.mp4', creator: 'No declarado', source_url: 'local:ZACK%20KEYDROP%20PREROLL.mp4',
+    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+  });
+  assert.deepEqual(fullDemoProvenance(file, { ...blank, creator: ' Zack ', source_url: 'https://zack.gg/preroll', attribution: 'Patrocinado por Zack' }), {
+    ...localFileProvenance(file), creator: 'Zack', source_url: 'https://zack.gg/preroll', attribution: 'Patrocinado por Zack',
+  });
+  // The server bounds the title in UTF-8 bytes, not UTF-16 units.
+  const long = localFileProvenance(new File(['test'], `${'ñ'.repeat(150)}.mp4`));
+  assert.equal(long.title, 'ñ'.repeat(100));
+  assert.equal(long.source_url, `local:${encodeURIComponent('ñ'.repeat(100))}`);
+});
+
+test('an asset source must be an http(s) link or a local declaration before it reaches the server', () => {
+  for (const source of ['', '  ', 'local:archivo-propio', 'LOCAL:x', 'https://zack.gg/preroll', 'http://zack.gg']) assert.equal(fullDemoSourceError(source), null, source);
+  for (const source of ['ZACK KEYDROP', 'www.zack.gg/preroll', 'https:zack.gg', 'https://user@zack.gg', 'ftp://zack.gg', 'C:\\Videos\\preroll.mp4']) {
+    assert.match(fullDemoSourceError(source) ?? '', /https:\/\/.*local:/, source);
+  }
 });

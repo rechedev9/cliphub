@@ -290,15 +290,50 @@ export async function saveFullDemoPlan(jobId: string, options: FullDemoOptions, 
 }
 
 export type FullDemoProvenance = { title: string; creator: string; source_url: string; permission: string; attribution: string };
+/** The server bounds provenance fields in UTF-8 bytes; cut on a code point so the name stays readable. */
+function clipUTF8(value: string, maxBytes: number): string {
+  const encoder = new TextEncoder();
+  let clipped = '';
+  let size = 0;
+  for (const char of value) {
+    size += encoder.encode(char).length;
+    if (size > maxBytes) break;
+    clipped += char;
+  }
+  return clipped;
+}
+/**
+ * Declares a local file the user brought to this edit without inventing
+ * authorship or a licence. Every Full Demo upload falls back to it, so only
+ * the file is required.
+ */
+export function localFileProvenance(file: File): FullDemoProvenance {
+  const title = clipUTF8(file.name, 200);
+  return {
+    title, creator: 'No declarado', source_url: `local:${encodeURIComponent(title)}`,
+    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
+  };
+}
+/** Typed rights fields win; blank ones keep the local declaration. */
+export function fullDemoProvenance(file: File, typed: FullDemoProvenance): FullDemoProvenance {
+  const local = localFileProvenance(file);
+  const pick = (key: keyof FullDemoProvenance): string => typed[key].trim() || local[key];
+  return { title: pick('title'), creator: pick('creator'), source_url: pick('source_url'), permission: pick('permission'), attribution: typed.attribution.trim() };
+}
+/** Mirrors the server's source rule so a typo is explained before it becomes a 400. */
+export function fullDemoSourceError(source: string): string | null {
+  const value = source.trim();
+  if (value === '' || /^local:/i.test(value)) return null;
+  // The slashes matter: the browser reads `https:host` as a host, the server as an opaque path.
+  const url = /^https?:\/\//i.test(value) && URL.canParse(value) ? new URL(value) : null;
+  if (url && url.hostname !== '' && url.username === '' && url.password === '') return null;
+  return 'La fuente debe ser un enlace que empiece por https:// o una declaración local: (por ejemplo, local:archivo-propio). Déjala vacía si el archivo es tuyo.';
+}
 export async function uploadFullDemoBumper(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
   if (!/\.mp4$/i.test(file.name) || (file.type && file.type !== 'video/mp4')) throw new Error('Selecciona un vídeo MP4.');
   // Leave room for the multipart envelope under the existing 2 GiB proxy cap.
   if (file.size === 0 || file.size > 2 * 1024 ** 3 - 2 * 1024 ** 2) throw new Error('El MP4 está vacío o supera el límite de 2 GB.');
-  // Record the local source without inventing authorship or a licence.
-  return uploadFullDemoAsset(file, {
-    title: file.name.slice(0, 200), creator: 'No declarado', source_url: `local:${encodeURIComponent(file.name)}`,
-    permission: 'Archivo local aportado para esta edición; licencia no declarada.', attribution: '',
-  }, signal);
+  return uploadFullDemoAsset(file, localFileProvenance(file), signal);
 }
 export async function uploadFullDemoPortrait(file: File, signal?: AbortSignal): Promise<FullDemoAssetRef> {
   if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new Error('El retrato debe ocupar entre 1 byte y 10 MB.');

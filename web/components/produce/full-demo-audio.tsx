@@ -97,7 +97,7 @@ export function FullDemoSponsor({ options, document, onChange, onAssetBusy, onPr
       <p className="text-body-sm text-fg-2">Durante el anuncio no suena el juego ni las voces.</p>
       {sponsor.video ? <p className="text-body-sm text-fg-1">Vídeo: {assetName(sponsor.video.id)}</p> : <FullDemoMissing error={showMissing}>{FULL_DEMO_SPONSOR_MISSING}</FullDemoMissing>}
       {sponsor.video ? <FullDemoMediaPreview asset={sponsor.video} video label="Previsualizar vídeo del sponsor" gain={sponsor.audio_policy === 'embedded' ? 1 : 0} /> : null}
-      <FullDemoAssetInput label={sponsor.video ? 'Cambiar vídeo del sponsor' : 'Añadir vídeo del sponsor y permisos'} open={!sponsor.video} accept="video/*" onBusyChange={onAssetBusy} onUploaded={(video) => change({ video })} />
+      <FullDemoAssetInput label={sponsor.video ? 'Cambiar vídeo del sponsor' : 'Añadir vídeo del sponsor'} open={!sponsor.video} accept="video/*" onBusyChange={onAssetBusy} onUploaded={(video) => change({ video })} />
       {sponsor.video ? <>
       <FullDemoChoice label="Audio del anuncio" value={sponsor.audio_policy} options={[{ value: 'embedded', label: 'Audio incluido en el vídeo' }, { value: 'replace-narration', label: 'Reemplazar por narración' }]} onChange={(audio_policy) => change({ audio_policy })} />
       {sponsor.audio_policy === 'replace-narration' ? <>
