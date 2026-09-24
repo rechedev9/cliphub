@@ -197,9 +197,10 @@ func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([
 	started := time.Now()
 	obs.EmitTrace(ctx, obs.TraceEntry{Event: "process.started", Message: tool + " started"})
 	var output commandOutputBuffer
+	var stderrTail commandStderrTail
 	stderr := obs.NewTraceWriter(ctx, tool)
 	cmd.Stdout = &output
-	cmd.Stderr = io.MultiWriter(&output, stderr)
+	cmd.Stderr = io.MultiWriter(&output, stderr, &stderrTail)
 	err := cmd.Run()
 	_ = stderr.Close()
 	out := output.Bytes()
@@ -223,10 +224,85 @@ func (execCommandRunner) Run(ctx context.Context, exe string, args ...string) ([
 	if err == nil {
 		return out, nil
 	}
-	if text := strings.TrimSpace(string(out)); text != "" {
-		return out, fmt.Errorf("%s failed: %w: %s", exe, err, text)
+	return out, newCommandError(tool, err, stderrTail.String(), string(out))
+}
+
+// commandError is a failed worker subprocess. Error() is the concise
+// "<tool>: exit status N: <last non-empty stderr line>": the executable path
+// would be redacted whole, and the complete output was already streamed to
+// diagnostics line by line. Failure parsers read the full output through
+// commandText.
+type commandError struct {
+	tool   string
+	err    error
+	cause  string
+	output string
+}
+
+func (e *commandError) Error() string {
+	if e.cause == "" {
+		return e.tool + ": " + e.err.Error()
 	}
-	return out, fmt.Errorf("%s failed: %w", exe, err)
+	return e.tool + ": " + e.err.Error() + ": " + e.cause
+}
+
+func (e *commandError) Unwrap() error { return e.err }
+
+// newCommandError builds the error of a failed subprocess. When the child
+// printed a failure_code prefix, that line is the cause and the code is raised
+// to the front of the parent's error, so journals start with it.
+func newCommandError(tool string, err error, stderr, output string) error {
+	failure, cause, coded := obs.FindFailure(stderr)
+	if !coded {
+		cause = obs.LastDiagnosticLine(stderr)
+	}
+	commandErr := &commandError{tool: tool, err: err, cause: cause, output: strings.TrimSpace(output)}
+	if coded {
+		return obs.WithFailure(commandErr, failure.Code, failure.Substage)
+	}
+	return commandErr
+}
+
+// commandText is err's text followed by the complete subprocess output when
+// err came from a worker subprocess. Marker parsers need the whole output; the
+// concise Error() keeps only the final cause.
+func commandText(err error) string {
+	text := err.Error()
+	var command *commandError
+	if errors.As(err, &command) && command.output != "" {
+		return text + "\n" + command.output
+	}
+	return text
+}
+
+// maxCommandStderrTail bounds the stderr kept for the final cause line. Only
+// the last lines matter; the complete output is buffered separately.
+const maxCommandStderrTail = 64 << 10
+
+// commandStderrTail keeps the last bytes of a subprocess's stderr, trimming
+// only when twice the bound is reached so long outputs cost amortized O(1).
+type commandStderrTail struct {
+	mu   sync.Mutex
+	data []byte
+}
+
+func (t *commandStderrTail) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.data = append(t.data, p...)
+	if len(t.data) > 2*maxCommandStderrTail {
+		t.data = append(t.data[:0], t.data[len(t.data)-maxCommandStderrTail:]...)
+	}
+	return len(p), nil
+}
+
+func (t *commandStderrTail) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.data) > maxCommandStderrTail {
+		return string(t.data[len(t.data)-maxCommandStderrTail:])
+	}
+	return string(t.data)
 }
 
 // stdout and stderr are copied concurrently by os/exec when stderr is also
@@ -2188,6 +2264,11 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 	_, runErr := w.runner.Run(runCtx, cfg.EditorPath, args...)
 	progressCancel()
 	<-progressDone
+	if runErr != nil && runCtx.Err() != nil {
+		// The editor was stopped by the render timeout or a cancellation, not by
+		// a failure of its own. A code the editor already printed wins.
+		runErr = obs.WithFailure(runErr, obs.FailureRenderInterrupted, "")
+	}
 
 	resultPath := filepath.Join(outDir, "shorts-result.json")
 	if err := readJSONFile(resultPath, &result); err != nil {

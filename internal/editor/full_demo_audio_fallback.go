@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rechedev9/cliphub/internal/obs"
 	"github.com/rechedev9/cliphub/internal/recapplan"
 )
 
@@ -163,9 +164,9 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 	defer result.release()
 	if result.unavailable {
 		if result.err != nil {
-			return e, result.err
+			return e, fullDemoAudioFailure(ctx, result.err, obs.SubstageAACRecovery)
 		}
-		return e, fullDemoAACFailure("Media Foundation AAC recovery is unavailable after three masters", e)
+		return e, obs.WithFailure(fullDemoAACFailure("Media Foundation AAC recovery is unavailable after three masters", e), obs.FailureAudioMasterExhausted, obs.SubstageAudioMaster)
 	}
 	for _, attempt := range result.attempts {
 		e.MasterTargets = append(e.MasterTargets, fullDemoAACRecoveryTarget(target))
@@ -175,10 +176,12 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 		}
 	}
 	if result.err != nil {
-		return e, result.err
+		return e, fullDemoAudioFailure(ctx, result.err, obs.SubstageAACRecovery)
 	}
 	if result.candidate == "" {
-		return e, fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e)
+		// Every native and recovery master was measured and rejected: the master
+		// as a whole ran out of attempts, which is not a broken recovery.
+		return e, obs.WithFailure(fullDemoAACFailure("approved targets remain unmet after three masters and three recovery attempts", e), obs.FailureAudioMasterExhausted, obs.SubstageAudioMaster)
 	}
 	if result.deliveryErr != nil {
 		return e, result.deliveryErr
@@ -194,13 +197,14 @@ func finishFullDemoAACRecovery(ctx context.Context, ffmpeg string, video fullDem
 		if err == nil {
 			progress.report("Publicando el audio recuperado", .99)
 		}
-		return evidence, err
+		return evidence, fullDemoAudioFailure(ctx, err, obs.SubstageAACRecovery)
 	}
 	program, err := video(ctx)
 	if err != nil {
 		return e, err
 	}
-	return deliverFullDemoAACCandidate(ctx, ffmpeg, program, result.candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
+	evidence, err := deliverFullDemoAACCandidate(ctx, ffmpeg, program, result.candidate, output, logDir, target, false, duration, e, progress.pass("Publicando el audio recuperado", .82, .99))
+	return evidence, fullDemoAudioFailure(ctx, err, obs.SubstageAACRecovery)
 }
 
 func recoverFullDemoAAC(ctx context.Context, ffmpeg, input string, video fullDemoProgramVideo, output, logDir string, target recapplan.LoudnessOptions, duration float64, e ProgramLoudnessEvidence, progress fullDemoProgress) (ProgramLoudnessEvidence, error) {
@@ -257,7 +261,9 @@ func speculateFullDemoAACDelivery(ctx context.Context, result *fullDemoAACRecove
 	}
 	delivery, err := prepareFullDemoAACDelivery(ctx, ffmpeg, program, result.candidate, output, logDir, target, duration, nil)
 	if err != nil {
-		result.deliveryErr = err
+		// Classified here, unlike a failed program video above, which is not an
+		// audio recovery failure.
+		result.deliveryErr = fullDemoAudioFailure(ctx, err, obs.SubstageAACRecovery)
 		return
 	}
 	result.delivery = &delivery

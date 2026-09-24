@@ -114,11 +114,7 @@ func runFFmpegOutputProgressTo(ctx context.Context, command []string, label stri
 	err = runDiagnosticFFmpeg(ctx, cmd, label)
 	output := out.String()
 	if err != nil {
-		msg := strings.TrimSpace(output)
-		if msg != "" {
-			return output, fmt.Errorf("ffmpeg %s: %w: %s", label, err, msg)
-		}
-		return output, fmt.Errorf("ffmpeg %s: %w", label, err)
+		return output, ffmpegFailure(label, err, output)
 	}
 	return output, nil
 }

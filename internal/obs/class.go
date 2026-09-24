@@ -12,6 +12,7 @@ const (
 	ClassRecordingNotReusable   = "recording_not_reusable"
 	ClassInterrupted            = "interrupted"
 	ClassTargetNotFound         = "target_not_found"
+	ClassFaceitRosterIncomplete = "faceit_roster_incomplete"
 	prefixDemoIncompatible      = "demo_incompatible:"
 	prefixUnplayableStart       = "unplayable_start:"
 	prefixRecordingNotReusable  = "recording_not_reusable:"
@@ -24,10 +25,26 @@ const (
 	phraseOrchestratorRestarted = "orchestrator restarted"
 )
 
+// Classes lists every class Go code emits besides task types, so the desktop
+// and collector allowlists can be checked against one source.
+func Classes() []string {
+	return []string{
+		ClassMissingPlate,
+		ClassCaptureFlake,
+		ClassDemoIncompatible,
+		ClassUnplayableStart,
+		ClassRecordingNotReusable,
+		ClassInterrupted,
+		ClassTargetNotFound,
+		ClassFaceitRosterIncomplete,
+	}
+}
+
 // ClassOf maps a failure message onto a stable class. Unknown text returns
 // empty so callers can fall back to an existing task type rather than invent
-// a parallel taxonomy.
+// a parallel taxonomy. A leading failure_code prefix is ignored.
 func ClassOf(message string) string {
+	message = StripFailurePrefix(message)
 	switch {
 	case strings.HasPrefix(message, prefixDemoIncompatible):
 		return ClassDemoIncompatible
