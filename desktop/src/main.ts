@@ -332,6 +332,12 @@ async function recordDeviceContext(): Promise<void> {
 function recordOrchestratorCrashOutput(): void {
   const excerpt = takeCrashOutput(orchestratorCrashFile);
   if (excerpt === null) return;
+  if (!diagnosticsEligible()) {
+    // The crash file is gone either way; keep the report in studio.log so a
+    // later "Enviar este diagnóstico" or a support request still has it.
+    logLine(`[runtime] an earlier orchestrator run left a fatal error report:\n${excerpt}\n`);
+    return;
+  }
   logLine('[runtime] an earlier orchestrator run left a fatal error report\n');
   diagnosticLogs?.record({ event: 'runtime.fatal_previous', level: 'error', message: `source=orchestrator\n${excerpt}` });
 }
