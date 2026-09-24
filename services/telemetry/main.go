@@ -39,6 +39,9 @@ type config struct {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "alert" {
+		os.Exit(runAlert(os.Args[2:]))
+	}
 	if err := run(); err != nil {
 		log.Printf("telemetry stage=service class=fatal error=%v", err)
 		os.Exit(1)

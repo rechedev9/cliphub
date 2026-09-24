@@ -1,0 +1,48 @@
+{
+  "comment": "Black first-person capture with the interim HLAE pin (5.0.0, 2026-09-23): every check passes, only delivery.quality shows it. Install #2 is the dev PC with a normal render of the same preset.",
+  "events": [],
+  "logs": [
+    {
+      "received_at": "2026-09-23T17:00:00Z", "occurred_at": "2026-09-23T16:59:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000050", "release": "5.0.0",
+      "source": "studio", "level": "info", "event": "device.context",
+      "message": "win_build=26200 edition=home gpu_vendor=nvidia gpu_device=rtx_3060 gpu_driver=v581.57 cpu_cores=12 cpu_model=AMD_Ryzen_5_5600 ram_gb=32 disk_free_gb=120 ffmpeg=v8.1.2 aac_mf=true hlae=v2.192.2-cliphub.1"
+    },
+    {
+      "received_at": "2026-09-23T17:05:00Z", "occurred_at": "2026-09-23T17:04:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000050", "release": "5.0.0",
+      "source": "recorder", "level": "info", "event": "attempt.toolchain", "job_id": "b1ac0001-0000-4000-8000-000000000001",
+      "operation": "record:demo", "message": "cs2_build=14182 cs2_patch=v1.41.0.2 hlae=v2.192.2-cliphub.1 encoder=h264_nvenc"
+    },
+    {
+      "received_at": "2026-09-23T17:20:00Z", "occurred_at": "2026-09-23T17:19:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000050", "release": "5.0.0",
+      "source": "orchestrator", "level": "info", "event": "attempt.finished", "job_id": "b1ac0001-0000-4000-8000-000000000001",
+      "operation": "record:demo", "outcome": "ok", "duration_ms": 900000, "message": "Task attempt completed"
+    },
+    {
+      "received_at": "2026-09-23T17:39:00Z", "occurred_at": "2026-09-23T17:38:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000050", "release": "5.0.0",
+      "source": "orchestrator", "level": "info", "event": "render.profile", "job_id": "b1ac0001-0000-4000-8000-000000000001",
+      "operation": "render:variant", "message": "source_kind=faceit overlay_source=faceit hud=circuit fps=60 resolution=1080p encoder=h264_nvenc aac_path=native capture_tail_pads=1"
+    },
+    {
+      "received_at": "2026-09-23T17:40:00Z", "occurred_at": "2026-09-23T17:39:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000050", "release": "5.0.0",
+      "source": "orchestrator", "level": "info", "event": "delivery.quality", "job_id": "b1ac0001-0000-4000-8000-000000000001",
+      "operation": "render:variant", "message": "preset=full_demo width=1920 height=1080 fps=60 bitrate_kbps=2400 yavg_mean=18.5 black_ratio=0.21"
+    },
+    {
+      "received_at": "2026-09-23T17:41:00Z", "occurred_at": "2026-09-23T17:40:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000050", "release": "5.0.0",
+      "source": "orchestrator", "level": "info", "event": "attempt.finished", "job_id": "b1ac0001-0000-4000-8000-000000000001",
+      "operation": "render:variant", "outcome": "ok", "duration_ms": 1200000, "message": "Task attempt completed"
+    },
+    {
+      "received_at": "2026-09-23T17:30:00Z", "occurred_at": "2026-09-23T17:29:50Z",
+      "support_code": "CH-AAAA-BBBB-CCCC-DDDD-EEEE", "session_id": "5e551011-0000-4000-8000-000000000051", "release": "5.0.0",
+      "source": "orchestrator", "level": "info", "event": "delivery.quality", "job_id": "b1ac0001-0000-4000-8000-000000000002",
+      "operation": "render:variant", "message": "preset=full_demo width=1920 height=1080 fps=60 bitrate_kbps=40210 yavg_mean=92.4 black_ratio=0.01"
+    }
+  ]
+}

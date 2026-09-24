@@ -1,0 +1,48 @@
+{
+  "comment": "Loudnorm TP out of range: 2.4.62 on 2026-09-07 (today's clients, no failure code) and 3.0.0 on 2026-09-10 (failure_code prefix). Events only: the log channel did not exist on 09-07.",
+  "events": [
+    {
+      "received_at": "2026-09-07T13:09:40Z", "occurred_at": "2026-09-07T13:09:31Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000001", "release": "2.4.62",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "render:variant",
+      "job_id": "10b10001-0000-4000-8000-000000000001",
+      "message": "exit status 1: 2026[path] 15:09:31 audio_loudness_failed: true peak -0.42 dBTP above -1.00 target after three masters"
+    },
+    {
+      "received_at": "2026-09-07T13:24:10Z", "occurred_at": "2026-09-07T13:24:02Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000001", "release": "2.4.62",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "render:variant",
+      "job_id": "10b10001-0000-4000-8000-000000000002",
+      "message": "exit status 1: 2026[path] 15:24:02 audio_loudness_failed: true peak -0.31 dBTP above -1.00 target after three masters"
+    },
+    {
+      "received_at": "2026-09-07T13:41:05Z", "occurred_at": "2026-09-07T13:40:58Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000001", "release": "2.4.62",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "render:variant",
+      "job_id": "10b10001-0000-4000-8000-000000000003",
+      "message": "exit status 1: 2026[path] 15:40:58 audio_loudness_failed: true peak -0.9 dBTP above -1.00 target after three masters"
+    },
+    {
+      "received_at": "2026-09-07T14:05:30Z", "occurred_at": "2026-09-07T14:05:21Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000001", "release": "2.4.62",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "render:variant",
+      "job_id": "10b10001-0000-4000-8000-000000000004",
+      "message": "exit status 1: 2026[path] 16:05:21 audio_loudness_failed: true peak -0.12 dBTP above -1.00 target after three masters"
+    },
+    {
+      "received_at": "2026-09-07T15:30:00Z", "occurred_at": "2026-09-07T15:29:51Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000001", "release": "2.4.62",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "render:variant",
+      "job_id": "10b10001-0000-4000-8000-000000000005",
+      "message": "exit status 1: 2026[path] 17:29:51 audio_loudness_failed: true peak -0.55 dBTP above -1.00 target after three masters"
+    },
+    {
+      "received_at": "2026-09-10T16:02:00Z", "occurred_at": "2026-09-10T16:01:40Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000002", "release": "3.0.0",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "render:variant",
+      "job_id": "10b10001-0000-4000-8000-000000000006",
+      "message": "failure_code=loudnorm_param_out_of_range substage=audio_master; [Parsed_loudnorm_0] Value -10.180000 for parameter 'TP' out of range [-9 - 0]\nError applying option 'TP' to filter 'loudnorm': Result too large"
+    }
+  ],
+  "logs": []
+}

@@ -1,0 +1,56 @@
+{
+  "comment": "FACEIT overlay format (3.0.1, 2026-09-10): no error exists. 2.4.60 rendered the FACEIT layout, every 3.0.0 render failed for an unrelated reason, and the first good 3.0.1 render carries overlay_source=demo. The user reports it the next morning.",
+  "events": [],
+  "logs": [
+    {
+      "received_at": "2026-09-05T18:00:00Z", "occurred_at": "2026-09-05T17:59:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000070", "release": "2.4.60",
+      "source": "orchestrator", "level": "info", "event": "render.profile", "job_id": "face1001-0000-4000-8000-000000000001",
+      "operation": "render:variant", "message": "source_kind=faceit overlay_source=faceit hud=default fps=60 resolution=1080p encoder=h264_nvenc aac_path=native capture_tail_pads=0"
+    },
+    {
+      "received_at": "2026-09-05T18:02:00Z", "occurred_at": "2026-09-05T18:01:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000070", "release": "2.4.60",
+      "source": "orchestrator", "level": "info", "event": "attempt.finished", "job_id": "face1001-0000-4000-8000-000000000001",
+      "operation": "render:variant", "outcome": "ok", "duration_ms": 1300000, "message": "Task attempt completed"
+    },
+    {
+      "received_at": "2026-09-10T14:00:00Z", "occurred_at": "2026-09-10T13:59:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000071", "release": "3.0.0",
+      "source": "orchestrator", "level": "error", "event": "attempt.finished", "job_id": "face1001-0000-4000-8000-000000000002",
+      "operation": "render:variant", "outcome": "error", "duration_ms": 900000,
+      "message": "failure_code=loudnorm_param_out_of_range substage=audio_master; [Parsed_loudnorm_0] Value -10.180000 for parameter 'TP' out of range [-9 - 0]"
+    },
+    {
+      "received_at": "2026-09-10T14:30:00Z", "occurred_at": "2026-09-10T14:29:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000071", "release": "3.0.0",
+      "source": "orchestrator", "level": "error", "event": "attempt.finished", "job_id": "face1001-0000-4000-8000-000000000003",
+      "operation": "render:variant", "outcome": "error", "duration_ms": 910000,
+      "message": "failure_code=loudnorm_param_out_of_range substage=audio_master; [Parsed_loudnorm_0] Value -10.230000 for parameter 'TP' out of range [-9 - 0]"
+    },
+    {
+      "received_at": "2026-09-10T20:10:00Z", "occurred_at": "2026-09-10T20:09:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000072", "release": "3.0.1",
+      "source": "orchestrator", "level": "info", "event": "render.profile", "job_id": "face1001-0000-4000-8000-000000000004",
+      "operation": "render:variant", "message": "source_kind=faceit overlay_source=demo hud=circuit fps=60 resolution=1080p encoder=h264_nvenc aac_path=native capture_tail_pads=0"
+    },
+    {
+      "received_at": "2026-09-10T20:12:00Z", "occurred_at": "2026-09-10T20:11:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000072", "release": "3.0.1",
+      "source": "orchestrator", "level": "info", "event": "delivery.quality", "job_id": "face1001-0000-4000-8000-000000000004",
+      "operation": "render:variant", "message": "preset=full_demo width=1920 height=1080 fps=60 bitrate_kbps=39800 yavg_mean=88.0 black_ratio=0.02"
+    },
+    {
+      "received_at": "2026-09-10T20:12:30Z", "occurred_at": "2026-09-10T20:12:20Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000072", "release": "3.0.1",
+      "source": "orchestrator", "level": "info", "event": "attempt.finished", "job_id": "face1001-0000-4000-8000-000000000004",
+      "operation": "render:variant", "outcome": "ok", "duration_ms": 1250000, "message": "Task attempt completed"
+    },
+    {
+      "received_at": "2026-09-11T07:30:00Z", "occurred_at": "2026-09-11T07:29:50Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000073", "release": "3.0.1",
+      "source": "web", "level": "warn", "event": "user.report", "job_id": "face1001-0000-4000-8000-000000000004",
+      "message": "category=wrong_overlay"
+    }
+  ]
+}

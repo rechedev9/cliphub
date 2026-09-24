@@ -13,6 +13,8 @@
 /.env
 /.env.*
 !/.env.example
+# Telemetry deploy target (host details never enter the repo)
+/.telemetry-deploy.local
 
 # Built binaries
 *.exe
