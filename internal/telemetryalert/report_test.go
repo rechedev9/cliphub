@@ -26,8 +26,8 @@ func TestReportGolden(t *testing.T) {
 	}
 	hlaeKey := IssueKey(Labels{"orchestrator", "pipeline.error", "worker", "record:demo"}, "hlae_hook_incompatible")
 	for page, golden := range map[string]string{
-		"index.html":                     "index.golden.html",
-		"issue/" + hlaeKey + ".html":     "issue-hlae.golden.html",
+		"index.html":                 "index.golden.html",
+		"issue/" + hlaeKey + ".html": "issue-hlae.golden.html",
 	} {
 		// core.autocrlf may check the template or goldens out with CRLF.
 		got := strings.ReplaceAll(readPage(t, h, page), "\r\n", "\n")
@@ -45,6 +45,51 @@ func TestReportGolden(t *testing.T) {
 		if got != strings.ReplaceAll(string(want), "\r\n", "\n") {
 			t.Errorf("%s differs from %s; run go test ./internal/telemetryalert -run TestReportGolden -update", page, golden)
 		}
+	}
+}
+
+// index.html is rewritten every run; an issue page only when the issue, its
+// last good attempt or the page file changed.
+func TestIssuePagesRenderOnlyWhenTheyChange(t *testing.T) {
+	h := newHarness(t, "hlae.json")
+	page := "issue/" + IssueKey(Labels{"orchestrator", "pipeline.error", "worker", "record:demo"}, "hlae_hook_incompatible") + ".html"
+	generated := func(at string) string { return "generado " + at + " (hora de Madrid)" }
+	h.run("2026-09-22T00:00:00Z")
+	steps := []struct {
+		at, issueStamp string
+		before         func()
+	}{
+		{at: "2026-09-23T13:40:00Z", issueStamp: "2026-09-23 15:40"}, // first failure
+		{at: "2026-09-23T13:45:00Z", issueStamp: "2026-09-23 15:40"}, // nothing new
+		{at: "2026-09-23T13:52:00Z", issueStamp: "2026-09-23 15:52"}, // second failure
+		{at: "2026-09-23T13:55:00Z", issueStamp: "2026-09-23 15:52"},
+		{at: "2026-09-23T14:01:00Z", issueStamp: "2026-09-23 16:01", before: func() { // a newer last good attempt
+			h.admin.add(fixtureFile{Logs: []LogRecord{{ReceivedAt: mustTime(t, "2026-09-23T14:00:00Z"), SupportCode: "CH-1111-2222-3333-4444-5555",
+				SessionID: "5e551011-0000-4000-8000-000000000023", Release: "4.0.2", Source: "orchestrator", Level: "info", Event: "attempt.finished",
+				JobID: "4ae10001-0000-4000-8000-000000000077", Operation: "record:demo", Outcome: "ok", Message: "Task attempt completed"}}})
+		}},
+		{at: "2026-09-23T14:02:00Z", issueStamp: "2026-09-23 16:02", before: func() { // the page was deleted
+			if err := os.Remove(filepath.Join(h.cfg.StateDir, "www", filepath.FromSlash(page))); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{at: "2026-09-23T14:03:00Z", issueStamp: "2026-09-23 16:02"},
+	}
+	for _, step := range steps {
+		if step.before != nil {
+			step.before()
+		}
+		h.run(step.at)
+		local := mustTime(t, step.at).In(madrid).Format("2006-01-02 15:04")
+		if index := readPage(t, h, "index.html"); !strings.Contains(index, "Generado "+local) {
+			t.Fatalf("%s: index.html not rendered", step.at)
+		}
+		if issue := readPage(t, h, page); !strings.Contains(issue, generated(step.issueStamp)) {
+			t.Fatalf("%s: issue page stamp, want %s", step.at, step.issueStamp)
+		}
+	}
+	if issue := readPage(t, h, page); !strings.Contains(issue, "4.0.2 · 2026-09-23 16:00") {
+		t.Fatalf("issue page lacks the newer last good attempt")
 	}
 }
 

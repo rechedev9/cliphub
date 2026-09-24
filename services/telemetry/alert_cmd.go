@@ -47,7 +47,7 @@ func runAlert(args []string) int {
 	}
 	// Partial failures were already reported to the dead-man check; the unit
 	// itself stays successful so the journal is not flooded with failed runs.
-	log.Printf("telemetry-alert stage=run class=done bootstrap=%t alerts=%d delivered=%d failures=%d",
-		result.Bootstrap, len(result.Alerts), result.Delivered, len(result.Failures))
+	log.Printf("telemetry-alert stage=run class=done bootstrap=%t alerts=%d delivered=%d dead_lettered=%d failures=%d",
+		result.Bootstrap, len(result.Alerts), result.Delivered, result.DeadLettered, len(result.Failures))
 	return 0
 }

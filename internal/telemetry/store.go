@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
 
@@ -346,41 +345,38 @@ LIMIT ?`, args...)
 	return events, nil
 }
 
-// ErrorCursor pages the cross-installation error feed by collector receipt.
-// Receipt time, unlike the client clock, never lets a late delivery land
-// behind a cursor that a scanner already passed. The zero value starts at the
-// oldest retained event.
-type ErrorCursor struct {
-	ReceivedMS int64
-	ID         string
-}
+// ErrorCursor pages the cross-installation error feed by the table's rowid.
+// Neither clock is safe: received_at is stamped when the request starts and
+// committed later, so under concurrent ingests a row can commit behind a
+// received_at cursor a scanner already passed. SQLite assigns the rowid under
+// the write lock, so rowid order is commit order, and retention deletes the
+// oldest rows, so the largest rowid is not reused while any row remains. The
+// zero value starts at the oldest retained event; on the wire it is an opaque
+// decimal string.
+type ErrorCursor int64
 
 var errInvalidErrorCursor = errors.New("error cursor is invalid")
 
-// ParseErrorCursor reads "<received_unix_ms>:<event_id>"; empty is the start.
+// ParseErrorCursor reads a previous page's next_after; empty is the start.
 func ParseErrorCursor(raw string) (ErrorCursor, error) {
 	if raw == "" {
-		return ErrorCursor{}, nil
+		return 0, nil
 	}
-	milliseconds, id, ok := strings.Cut(raw, ":")
-	if !ok || milliseconds == "" || strings.Trim(milliseconds, "0123456789") != "" || len(milliseconds) > 15 {
-		return ErrorCursor{}, errInvalidErrorCursor
+	if strings.Trim(raw, "0123456789") != "" || len(raw) > 18 {
+		return 0, errInvalidErrorCursor
 	}
-	received, err := strconv.ParseInt(milliseconds, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return ErrorCursor{}, errInvalidErrorCursor
+		return 0, errInvalidErrorCursor
 	}
-	if _, err := uuid.Parse(id); err != nil {
-		return ErrorCursor{}, errInvalidErrorCursor
-	}
-	return ErrorCursor{ReceivedMS: received, ID: id}, nil
+	return ErrorCursor(value), nil
 }
 
 func (c ErrorCursor) String() string {
-	if c.ID == "" {
+	if c <= 0 {
 		return ""
 	}
-	return strconv.FormatInt(c.ReceivedMS, 10) + ":" + c.ID
+	return strconv.FormatInt(int64(c), 10)
 }
 
 // ErrorFeedEvent is a stored error with its collector receipt time.
@@ -396,20 +392,31 @@ type ErrorPage struct {
 	HasMore   bool             `json:"has_more"`
 }
 
-// Errors lists error events of every installation after the cursor, ordered by
-// (received_at, id), so equal receipt times still page deterministically.
+// Errors lists error events of every installation after the cursor in commit
+// (rowid) order. A cursor above the newest rowid can only come from before
+// retention emptied the table (SQLite then restarts rowids at 1) or from a
+// restored backup; the page then restarts at the oldest retained event.
 func (s *Store) Errors(ctx context.Context, after ErrorCursor, limit int) (ErrorPage, error) {
 	page := ErrorPage{Events: []ErrorFeedEvent{}, NextAfter: after.String()}
 	if limit < 1 || limit > 200 {
 		return page, errors.New("limit must be between 1 and 200")
 	}
+	if after > 0 {
+		var newest int64
+		if err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(rowid), 0) FROM telemetry_events").Scan(&newest); err != nil {
+			return page, fmt.Errorf("read telemetry error feed head: %w", err)
+		}
+		if int64(after) > newest {
+			after, page.NextAfter = 0, ""
+		}
+	}
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, received_at, occurred_at, kind, support_code, session_id, release, component,
+SELECT rowid, id, received_at, occurred_at, kind, support_code, session_id, release, component,
        name, stage, class, fingerprint, os, arch, outcome, duration_ms, diagnostic_message, job_id
 FROM telemetry_events
-WHERE kind = 'error' AND (received_at, id) > (?, ?)
-ORDER BY received_at, id
-LIMIT ?`, after.ReceivedMS, after.ID, limit+1)
+WHERE kind = 'error' AND rowid > ?
+ORDER BY rowid
+LIMIT ?`, int64(after), limit+1)
 	if err != nil {
 		return page, fmt.Errorf("query telemetry error feed: %w", err)
 	}
@@ -420,8 +427,9 @@ LIMIT ?`, after.ReceivedMS, after.ID, limit+1)
 			break
 		}
 		var event ErrorFeedEvent
-		var receivedMS, occurredMS int64
+		var rowID, receivedMS, occurredMS int64
 		if err := rows.Scan(
+			&rowID,
 			&event.ID,
 			&receivedMS,
 			&occurredMS,
@@ -447,7 +455,7 @@ LIMIT ?`, after.ReceivedMS, after.ID, limit+1)
 		event.OccurredAt = time.UnixMilli(occurredMS).UTC()
 		event.ReceivedAt = time.UnixMilli(receivedMS).UTC()
 		page.Events = append(page.Events, event)
-		page.NextAfter = ErrorCursor{ReceivedMS: receivedMS, ID: event.ID}.String()
+		page.NextAfter = ErrorCursor(rowID).String()
 	}
 	if err := rows.Err(); err != nil {
 		return page, fmt.Errorf("iterate telemetry error feed: %w", err)

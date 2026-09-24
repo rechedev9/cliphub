@@ -3,11 +3,16 @@ package telemetryalert
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"html"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const testBotToken = "123456:test-bot-token"
@@ -24,6 +29,10 @@ type fakeTelegram struct {
 	calls   []telegramCall
 	updates []map[string]any
 	server  *httptest.Server
+	// reject, when set, refuses a sendMessage text with an HTTP status and a
+	// Bot API description; status 0 accepts it. Refused calls are not in calls.
+	reject   func(text string) (int, string)
+	rejected []string
 }
 
 func newFakeTelegram(t *testing.T) *fakeTelegram {
@@ -39,6 +48,15 @@ func newFakeTelegram(t *testing.T) *fakeTelegram {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		f.mu.Lock()
+		if text, _ := body["text"].(string); method == "sendMessage" && f.reject != nil {
+			if status, description := f.reject(text); status != 0 {
+				f.rejected = append(f.rejected, text)
+				f.mu.Unlock()
+				w.WriteHeader(status)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error_code": status, "description": description})
+				return
+			}
+		}
 		f.calls = append(f.calls, telegramCall{method, body})
 		var result any = true
 		switch method {
@@ -245,5 +263,138 @@ func TestTelegramPayloadPrivacy(t *testing.T) {
 		} else if !strings.Contains(payloads, "after three masters") {
 			t.Errorf("excerpt flag on but no excerpt in payloads")
 		}
+	}
+}
+
+func (f *fakeTelegram) setReject(reject func(text string) (int, string)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reject = reject
+}
+
+// queueFailures makes the next run page one new issue per failure code.
+func queueFailures(t *testing.T, h *harness, at string, codes ...string) {
+	t.Helper()
+	var events []ErrorEvent
+	for i, code := range codes {
+		events = append(events, ErrorEvent{ReceivedAt: mustTime(t, at).Add(time.Duration(i) * time.Second),
+			SupportCode: "CH-1111-2222-3333-4444-5555", SessionID: "5e551011-0000-4000-8000-000000000083", Release: "5.2.1",
+			Component: "orchestrator", Name: "pipeline.error", Stage: "worker", Class: "render:variant",
+			Message: "failure_code=" + code + " substage=test; boom"})
+	}
+	h.admin.add(fixtureFile{Events: events})
+}
+
+// One alert Telegram refuses for good (400) must not hold back the ones
+// queued after it; rate limits and channel-wide failures (a revoked token)
+// keep the queue for the next run.
+func TestOutboxDeadLettersPermanentRejectionsAndDeliversTheRest(t *testing.T) {
+	h := newHarness(t)
+	tg := newFakeTelegram(t)
+	h.notifier = tg.client()
+	var logLines []string
+	captureLog := func(o *Options) {
+		o.Logf = func(format string, args ...any) { logLines = append(logLines, fmt.Sprintf(format, args...)) }
+	}
+	h.run("2026-09-20T09:00:00Z") // bootstrap
+
+	queueFailures(t, h, "2026-09-20T10:00:00Z", "synthetic_a", "synthetic_b", "synthetic_c")
+	tg.setReject(func(text string) (int, string) {
+		if strings.Contains(text, "synthetic_b") {
+			return http.StatusBadRequest, "Bad Request: message is too long"
+		}
+		return 0, ""
+	})
+	result := h.run("2026-09-20T10:01:00Z", captureLog)
+	if result.Delivered != 2 || result.DeadLettered != 1 || !slices.Equal(result.Failures, []string{"dead_letter=1"}) {
+		t.Fatalf("result: delivered=%d dead=%d failures=%v", result.Delivered, result.DeadLettered, result.Failures)
+	}
+	var sent []string
+	for _, message := range tg.messages() {
+		sent = append(sent, message["text"].(string))
+	}
+	if len(sent) != 2 || !strings.Contains(sent[0], "synthetic_a") || !strings.Contains(sent[1], "synthetic_c") {
+		t.Fatalf("delivered %q", sent)
+	}
+	if n := countRows(t, h, "SELECT COUNT(*) FROM outbox"); n != 0 {
+		t.Fatalf("outbox keeps %d rows", n)
+	}
+	if !slices.Contains(logLines, "telemetry-alert stage=outbox class=dead_letter rule=new_issue status=400") ||
+		strings.Contains(strings.Join(logLines, "\n"), "too long") {
+		t.Fatalf("dead-letter log lines: %q", logLines)
+	}
+
+	queueFailures(t, h, "2026-09-20T10:05:00Z", "synthetic_d", "synthetic_e")
+	for _, refusal := range []struct {
+		status      int
+		description string
+	}{{http.StatusTooManyRequests, "Too Many Requests: retry after 5"}, {http.StatusUnauthorized, "Unauthorized"}} {
+		tg.setReject(func(string) (int, string) { return refusal.status, refusal.description })
+		result = h.run("2026-09-20T10:06:00Z")
+		if result.Delivered != 0 || result.DeadLettered != 0 || !slices.Equal(result.Failures, []string{"telegram"}) {
+			t.Fatalf("status %d: delivered=%d dead=%d failures=%v", refusal.status, result.Delivered, result.DeadLettered, result.Failures)
+		}
+		if n := countRows(t, h, "SELECT COUNT(*) FROM outbox"); n != 2 {
+			t.Fatalf("status %d: outbox keeps %d rows, want 2", refusal.status, n)
+		}
+	}
+	tg.setReject(nil)
+	if result = h.run("2026-09-20T10:07:00Z"); result.Delivered != 2 || len(result.Failures) != 0 {
+		t.Fatalf("after recovery: delivered=%d failures=%v", result.Delivered, result.Failures)
+	}
+}
+
+var validEntity = regexp.MustCompile(`&(amp|lt|gt|#34|#39);`)
+
+// Telegram refuses texts over 4096 characters with a 400 that would
+// dead-letter the alert. The digest has no natural bound (one line per
+// release and operation), so every text is cut to whole lines.
+func TestTelegramTextNeverExceedsTheLimit(t *testing.T) {
+	tg := newFakeTelegram(t)
+	tg.setReject(func(text string) (int, string) {
+		if utf16Len(text) > telegramTextLimit {
+			return http.StatusBadRequest, "Bad Request: message is too long"
+		}
+		return 0, ""
+	})
+	data := digestData{Day: "2026-09-24"}
+	for i := range 400 {
+		data.Attempts = append(data.Attempts, releaseOpCount{Release: fmt.Sprintf("5.%d.0", i), Operation: "render:variant", OK: i, Error: 1})
+	}
+	digest := buildDigest(data)
+	digest.Link = "https://report.invalid/alerts/index.html"
+	if err := tg.client().Send(context.Background(), digest); err != nil {
+		t.Fatal(err)
+	}
+	text := tg.messages()[0]["text"].(string)
+	lines := strings.Split(text, "\n")
+	if lines[len(lines)-1] != digest.Link {
+		t.Fatalf("link dropped: %q", lines[len(lines)-1])
+	}
+	var dropped int
+	if _, err := fmt.Sscanf(lines[len(lines)-2], "… %d líneas más", &dropped); err != nil {
+		t.Fatalf("no dropped-lines marker: %q", lines[len(lines)-2])
+	}
+	kept := lines[1 : len(lines)-2]
+	if len(kept)+dropped != len(digest.Lines) || len(kept) < 50 {
+		t.Fatalf("kept %d + dropped %d != %d lines", len(kept), dropped, len(digest.Lines))
+	}
+	for i, line := range kept {
+		if line != html.EscapeString(digest.Lines[i]) {
+			t.Fatalf("line %d cut: %q", i, line)
+		}
+	}
+
+	// Lines are measured escaped and dropped whole, so no entity is cut.
+	noisy := newAlert(RuleRepeat, "k", "x")
+	for range 400 {
+		noisy.Lines = append(noisy.Lines, strings.Repeat(`&<"`, 7))
+	}
+	text = FormatHTML(noisy)
+	if utf16Len(text) > telegramTextLimit || strings.Contains(validEntity.ReplaceAllString(text, ""), "&") {
+		t.Fatalf("noisy text: %d units, broken entity: %t", utf16Len(text), strings.Contains(validEntity.ReplaceAllString(text, ""), "&"))
+	}
+	if short := FormatHTML(newAlert(RuleRepeat, "k", "x")); strings.Contains(short, "más") {
+		t.Fatalf("short alert gained a marker: %q", short)
 	}
 }

@@ -8,9 +8,22 @@ import (
 
 // Notifier delivers one alert. It is the only seam between the rules and a
 // channel, so a self-hosted ntfy can replace Telegram without rule changes.
+// Send returns a *PermanentError when the channel rejected this alert for
+// good; any other error is retried on the next run.
 type Notifier interface {
 	Send(ctx context.Context, alert Alert) error
 }
+
+// PermanentError is a channel's final refusal of one message (malformed,
+// too long). Retrying cannot succeed, so the outbox dead-letters it.
+type PermanentError struct {
+	Status int
+	Err    error
+}
+
+func (e *PermanentError) Error() string { return e.Err.Error() }
+
+func (e *PermanentError) Unwrap() error { return e.Err }
 
 // Callback is an inline-button press (Ack / Resolver / Silenciar 24h).
 type Callback struct {

@@ -107,6 +107,7 @@ type Record struct {
 	ID         string
 	Cursor     int64
 	At         time.Time // collector receipt time; every window uses it
+	Occurred   time.Time // client clock; only pairs a job's event and log copies
 	Install    string    // support code; never leaves the VPS
 	Session    string
 	Job        string
@@ -123,15 +124,23 @@ type Record struct {
 }
 
 func recordFromEvent(e ErrorEvent) Record {
-	return Record{Stream: "event", ID: e.ID, At: e.ReceivedAt.UTC(), Install: e.SupportCode, Session: e.SessionID, Job: e.JobID,
+	return Record{Stream: "event", ID: e.ID, At: e.ReceivedAt.UTC(), Occurred: e.OccurredAt.UTC(), Install: e.SupportCode, Session: e.SessionID, Job: e.JobID,
 		Release: e.Release, Labels: Labels{e.Component, e.Name, e.Stage, e.Class}, Event: e.Name, Level: "error", Message: e.Message,
 		Operation: taskOperation(e.Name, e.Class)}
 }
 
 func recordFromLog(l LogRecord) Record {
-	return Record{Stream: "log", ID: l.ID, Cursor: l.Cursor, At: l.ReceivedAt.UTC(), Install: l.SupportCode, Session: l.SessionID,
+	return Record{Stream: "log", ID: l.ID, Cursor: l.Cursor, At: l.ReceivedAt.UTC(), Occurred: l.OccurredAt.UTC(), Install: l.SupportCode, Session: l.SessionID,
 		Job: l.JobID, Release: l.Release, Labels: Labels{Component: l.Source, Name: l.Event}, Event: l.Event, Level: l.Level,
 		Operation: l.Operation, Outcome: l.Outcome, Message: l.Message, DurationMS: l.DurationMS, ExitCode: l.ExitCode, Lost: l.LostRecords}
+}
+
+// occurred is the client time, or the receipt time when a record lacks one.
+func (r Record) occurred() time.Time {
+	if r.Occurred.IsZero() {
+		return r.At
+	}
+	return r.Occurred
 }
 
 func taskOperation(name, class string) string {
@@ -435,7 +444,34 @@ func evalUserReport(category string, c JobContext, alias int, release, job strin
 	return a
 }
 
-var rejectionStatuses = map[string]bool{"400": true, "401": true, "413": true, "415": true, "422": true, "429": true, "507": true}
+// rejectionStatuses page through P1 channel health: each one can mean client
+// events were lost. 500 and 503 are store failures (storage_unavailable) that
+// drop events while db_ok stays true. 401 is left out on purpose: internet
+// scanners hit the public ingest without the key, so it only reaches the
+// daily digest as a count (unauthorizedDelta). 409 is an idempotent log
+// retry with different content, not a loss.
+var rejectionStatuses = map[string]bool{"400": true, "413": true, "415": true, "422": true, "429": true, "500": true, "503": true, "507": true}
+
+// rejectionDelta is the growth of one collector counter since the previous
+// run; a counter below its previous value was reset, so all of it is new.
+func rejectionDelta(current, previous map[string]int64, key string) int64 {
+	delta := current[key]
+	if before, ok := previous[key]; ok && before <= delta {
+		delta -= before
+	}
+	return delta
+}
+
+// unauthorizedDelta sums the new 401 rejections of every channel.
+func unauthorizedDelta(h Health, previous map[string]int64) int64 {
+	var total int64
+	for key := range h.Rejections {
+		if parts := strings.SplitN(key, ":", 3); len(parts) == 3 && parts[1] == "401" {
+			total += rejectionDelta(h.Rejections, previous, key)
+		}
+	}
+	return total
+}
 
 // evalHealth implements P1 channel health from the admin healthz and the
 // rejection counters seen by the previous run.
@@ -454,11 +490,7 @@ func evalHealth(h Health, previous map[string]int64) []Alert {
 		if len(parts) != 3 || !rejectionStatuses[parts[1]] {
 			continue
 		}
-		delta := h.Rejections[key]
-		if before, ok := previous[key]; ok && before <= delta {
-			delta -= before
-		}
-		if delta > 0 {
+		if delta := rejectionDelta(h.Rejections, previous, key); delta > 0 {
 			alerts = append(alerts, newAlert(RuleChannelHealth, key, "rechazos "+safe(key), fmt.Sprintf("+%d desde la última ejecución", delta)))
 		}
 	}

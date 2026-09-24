@@ -20,12 +20,18 @@ operator's password manager.
      and keeps working from `/v1/logs`);
   2. updates its own SQLite state (`<state dir>/alert.db`: issues, releases,
      cursors, sent alerts, outbox) in one transaction;
-  3. sends pending alerts to Telegram and reads button presses;
+  3. sends pending alerts to Telegram and reads button presses. A transient
+     failure (network, 5xx, 429, or a 401/403/404 bad token or blocked bot)
+     keeps the alert and the ones after it for the next run, for up to 24
+     hours. An alert Telegram refuses for good (any other 4xx, such as a
+     text it cannot parse) is dropped, logged by rule and status only, and
+     the run continues with the next one. Every text is cut to Telegram's
+     4096 characters by dropping trailing lines behind "… N líneas más";
   4. renders the static report into `<state dir>/www`;
   5. pings healthchecks check A: success when the run was green, `/fail` with
      a short reason label otherwise (`healthz`, `errors`, `logs`, `telegram`,
      `telegram_updates`, `outbox`, `notifier`, `report`, `db_ok=false`,
-     `config`, `run`).
+     `dead_letter=<n>`, `config`, `run`).
 - **Check B**: a scheduled GitHub Actions job curls the public `/healthz`
   and pings a second healthchecks check. Both checks notify the same Telegram
   chat, so a dead VPS, a dead alerter or a dead public ingest path all reach
@@ -41,10 +47,16 @@ An issue is `sha256(component|name|stage|class|code)[:16]`. `code` is the
 `unclassified:<signature>`, where the signature is the first error-looking
 line with timestamps, paths, ids, versions and numbers replaced. The key does
 not depend on the release, so "new", "regressed" and "resolved" work across
-versions. A failed job arrives twice (the error event and the
-`attempt.finished` log), and on current clients the two copies can have
-different labels and text. Every occurrence of the same job within 10 minutes
-is therefore counted once, on the key of the first copy.
+versions. A failed job arrives twice: the error event (`pipeline.error`) and
+the log (`attempt.finished` with outcome `error`, or a `pipeline.error` log).
+On current clients the two copies can have different labels and text, and the
+log can arrive hours later when the client spool was deferred. The copies are
+paired 1:1 per job: an occurrence is the paired copy of a failure already
+counted when the job has more stored occurrences from the other stream than
+from its own (within 24 hours of client time). A paired copy is stored but
+creates or updates no issue, pages nothing and is left out of counts,
+repeats, the digest and the report. A retry that fails differently is a new
+failure, and an old client that only sends events counts every failure.
 
 ### Rules
 
@@ -56,10 +68,10 @@ is therefore counted once, on the key of the first copy.
 | Crash | P1 | a known issue from the crash family happens again (backend crash, uncaught exception, process gone with reason crashed/oom/launch-failed, previous-session crash, fatal runtime, HTTP panic, boot failure); shutdown kills are excluded | every 6 h |
 | Reporte | P1 | a user sends "report a video" | every 10 min |
 | Calidad | P1 | a Full Demo / Full POV delivery is below the floors (bitrate under 10 Mb/s at 1080p60, mean luma under 25, black ratio over 0.5) | every 6 h per installation and preset |
-| Canal | P1 | new ingest rejections since the last run, storage at 80 % of a cap, or the collector DB ping fails | every 24 h per cause |
+| Canal | P1 | new ingest rejections since the last run with status 400, 413, 415, 422, 429, 500, 503 or 507 (500/503 are store failures that lose events while `db_ok` stays true), storage at 80 % of a cap, or the collector DB ping fails. 401 does not page: internet scanners hit the public ingest without the key | every 24 h per cause |
 | Repite | P2, silent | an open, not acknowledged issue keeps occurring | every hour, 6 h per issue |
 | Entrega | P2, silent | a client reports lost, dropped or rejected log records (`delivery.gap`, `delivery.health`) | every 24 h per installation |
-| Resumen diario | P2, silent | first run after 09:00 Europe/Madrid | daily |
+| Resumen diario | P2, silent | first run after 09:00 Europe/Madrid; includes the 401 ingest rejections since the previous digest | daily |
 | Avalancha de alertas | P1 | 10 P1 alerts in the last hour; later P1s of that hour arrive silent | every hour |
 
 Messages carry a hint with the matching AGENTS.md section when the failure
@@ -149,7 +161,9 @@ systemd-run --wait --pty --collect \
 ```
 
 - `--bootstrap` resets the cursors and re-reads the retained history as known.
-  Use it after restoring or deleting `alert.db`. Acknowledged, resolved and
+  Use it after restoring or deleting `alert.db`, and after restoring a
+  collector database: the `/v1/errors` cursor is the events table's row id,
+  which a restored copy does not have to preserve. Acknowledged, resolved and
   silenced issues keep their status.
 - `--dry-run` (same command) prints the alerts the run would send and rolls
   the state back. It does not ping healthchecks or answer buttons. On an
@@ -226,7 +240,10 @@ Buttons under issue alerts:
 The report (`<report base>/index.html`, refreshed every minute) shows the
 collector health and ingest rejections, the issues with status, attempts per
 release and operation, user reports with the command to rebuild them, render
-profile changes and CS2 builds, and the latest errors. Each issue page lists
+profile changes and CS2 builds, and the latest errors. An issue page is
+rewritten only when its issue changes (occurrence, status, button press,
+retention, a newer successful attempt of its operation), so its "generado"
+time is that of its last change. Each issue page lists
 its releases, the jobs with the `node scripts/telemetry-debug.mjs --job <id>`
 command to rebuild each one, the last successful attempt of the same
 operation, and its timeline. To go further, use the queries in

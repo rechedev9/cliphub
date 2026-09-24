@@ -3,7 +3,9 @@ package telemetryalert
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"os"
@@ -28,23 +30,23 @@ type keyCount struct {
 }
 
 type reportHealth struct {
-	Available                 bool
-	Status, Version, Started  string
-	DBOK                      string
-	DBBad                     bool
-	LastEvents, LastLogs      string
-	Rejections                []keyCount
+	Available                  bool
+	Status, Version, Started   string
+	DBOK                       string
+	DBBad                      bool
+	LastEvents, LastLogs       string
+	Rejections                 []keyCount
 	EventsStorage, LogsStorage string
 }
 
 type reportIssue struct {
-	Key, Label, Code, Labels     string
-	Status, StatusClass          string
-	FirstRelease, LastRelease    string
-	FirstSeen, LastSeen          string
-	Count, Installs              int
-	Signature                    string
-	Link                         string
+	Key, Label, Code, Labels  string
+	Status, StatusClass       string
+	FirstRelease, LastRelease string
+	FirstSeen, LastSeen       string
+	Count, Installs           int
+	Signature                 string
+	Link                      string
 }
 
 type reportOccurrence struct {
@@ -138,10 +140,11 @@ func buildHealth(h *Health) reportHealth {
 	return out
 }
 
+// occurrencesForReport lists counted occurrences; paired copies stay out.
 func (s state) occurrencesForReport(ctx context.Context, where string, args ...any) ([]reportOccurrence, error) {
 	rows, err := s.q.QueryContext(ctx, `SELECT o.at, COALESCE(a.alias,0), o.support_code, o.release, i.labels, i.substage, o.key, o.job_id, o.message
 		FROM occurrences o JOIN issues i ON i.key=o.key LEFT JOIN install_alias a ON a.support_code=o.support_code
-		WHERE `+where, args...)
+		WHERE o.dup=0 AND `+where, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -239,18 +242,27 @@ func loadIssuePage(ctx context.Context, s state, issue Issue, now time.Time) (is
 	}
 	sort.Slice(page.Releases, func(i, j int) bool { return compareReleases(page.Releases[i].Key, page.Releases[j].Key) > 0 })
 	if page.Operation != "" {
-		good, err := s.attempts(ctx, "a.operation=? AND a.outcome='ok'", page.Operation)
+		good, err := s.lastGood(ctx, "a.operation=?", page.Operation)
 		if err != nil {
 			return page, err
 		}
-		if len(good) > 0 {
-			page.LastGood = &reportJob{Job: good[0].Job, Release: good[0].Release + " · " + localTime(good[0].At), Command: debugCommand(good[0].Job)}
+		if good != nil {
+			page.LastGood = &reportJob{Job: good.Job, Release: good.Release + " · " + localTime(good.At), Command: debugCommand(good.Job)}
 		}
 	}
 	return page, nil
 }
 
-// renderReport writes index.html and one page per issue atomically.
+// reportVersion identifies the page template; a new binary with a changed
+// template re-renders every issue page once.
+var reportVersion = func() string {
+	sum := sha256.Sum256([]byte(reportTemplateText))
+	return hex.EncodeToString(sum[:8])
+}()
+
+// renderReport writes index.html on every run and an issue page only when
+// the issue changed since its last render (the dirty flag), when the page is
+// missing or when the template changed. Every write is atomic.
 func renderReport(ctx context.Context, s state, cfg Config, h *Health, now time.Time) error {
 	dir := filepath.Join(cfg.StateDir, "www")
 	if err := os.MkdirAll(filepath.Join(dir, "issue"), 0o750); err != nil {
@@ -263,16 +275,32 @@ func renderReport(ctx context.Context, s state, cfg Config, h *Health, now time.
 	if err := writePage(filepath.Join(dir, "index.html"), "index", overview); err != nil {
 		return err
 	}
+	rendered, err := s.cursor(ctx, "report_version")
+	if err != nil {
+		return err
+	}
 	for _, issue := range issues {
+		path := filepath.Join(dir, "issue", issue.Key+".html")
+		if !issue.Dirty && rendered == reportVersion {
+			if _, err := os.Stat(path); err == nil {
+				continue
+			}
+		}
 		page, err := loadIssuePage(ctx, s, issue, now)
 		if err != nil {
 			return err
 		}
-		if err := writePage(filepath.Join(dir, "issue", issue.Key+".html"), "issue", page); err != nil {
+		if err := writePage(path, "issue", page); err != nil {
+			return err
+		}
+		if _, err := s.q.ExecContext(ctx, "UPDATE issues SET dirty=0 WHERE key=?", issue.Key); err != nil {
 			return err
 		}
 	}
-	return nil
+	if rendered == reportVersion {
+		return nil
+	}
+	return s.setCursor(ctx, "report_version", reportVersion)
 }
 
 func writePage(path, name string, data any) error {

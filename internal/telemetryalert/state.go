@@ -30,13 +30,18 @@ var schema = []string{
 		resolved_in_release TEXT NOT NULL DEFAULT '', sample_message TEXT,
 		crash INTEGER NOT NULL DEFAULT 0, acked INTEGER NOT NULL DEFAULT 0,
 		silenced_until INTEGER NOT NULL DEFAULT 0, notified_at INTEGER NOT NULL DEFAULT 0,
-		notified_through INTEGER NOT NULL DEFAULT 0)`,
+		notified_through INTEGER NOT NULL DEFAULT 0,
+		operation TEXT NOT NULL DEFAULT '', dirty INTEGER NOT NULL DEFAULT 1)`,
+	// stream is "event" or "log"; dup marks the paired copy of a failure that
+	// was already counted from the other stream (see pairedCopy).
 	`CREATE TABLE IF NOT EXISTS occurrences (
-		id TEXT PRIMARY KEY, key TEXT NOT NULL, at INTEGER NOT NULL, support_code TEXT NOT NULL,
+		id TEXT PRIMARY KEY, key TEXT NOT NULL, at INTEGER NOT NULL, occurred_at INTEGER NOT NULL,
+		stream TEXT NOT NULL, dup INTEGER NOT NULL DEFAULT 0, support_code TEXT NOT NULL,
 		session_id TEXT NOT NULL, job_id TEXT NOT NULL, release TEXT NOT NULL,
 		crash INTEGER NOT NULL, message TEXT NOT NULL)`,
 	`CREATE INDEX IF NOT EXISTS occurrences_key_at ON occurrences(key, at)`,
 	`CREATE INDEX IF NOT EXISTS occurrences_at ON occurrences(at)`,
+	`CREATE INDEX IF NOT EXISTS occurrences_job ON occurrences(job_id, occurred_at)`,
 	`CREATE TABLE IF NOT EXISTS daily (
 		day TEXT NOT NULL, release TEXT NOT NULL, operation TEXT NOT NULL, outcome TEXT NOT NULL,
 		count INTEGER NOT NULL, PRIMARY KEY (day, release, operation, outcome))`,
@@ -44,6 +49,7 @@ var schema = []string{
 		id TEXT PRIMARY KEY, at INTEGER NOT NULL, support_code TEXT NOT NULL, session_id TEXT NOT NULL,
 		job_id TEXT NOT NULL, operation TEXT NOT NULL, release TEXT NOT NULL, outcome TEXT NOT NULL)`,
 	`CREATE INDEX IF NOT EXISTS attempts_install ON attempts(support_code, operation, release, at)`,
+	`CREATE INDEX IF NOT EXISTS attempts_last_good ON attempts(operation, outcome, at)`,
 	`CREATE TABLE IF NOT EXISTS jobs (
 		job_id TEXT PRIMARY KEY, support_code TEXT NOT NULL, session_id TEXT NOT NULL,
 		operation TEXT NOT NULL DEFAULT '', release TEXT NOT NULL,
@@ -234,6 +240,10 @@ func (s state) insertAttempt(ctx context.Context, r Record) (bool, error) {
 			_, err = s.q.ExecContext(ctx, "UPDATE jobs SET finished_at=? WHERE job_id=?", ms(r.At), r.Job)
 		}
 	}
+	if err == nil && r.Outcome == "ok" {
+		// Issue pages of this operation show its last good attempt.
+		_, err = s.q.ExecContext(ctx, "UPDATE issues SET dirty=1 WHERE operation=?", r.Operation)
+	}
 	return true, err
 }
 
@@ -245,9 +255,14 @@ type attemptRow struct {
 	Toolchain map[string]string
 }
 
-func (s state) attempts(ctx context.Context, where string, args ...any) ([]attemptRow, error) {
-	rows, err := s.q.QueryContext(ctx, `SELECT a.at,a.release,a.job_id,a.outcome,COALESCE(j.toolchain,'')
-		FROM attempts a LEFT JOIN jobs j ON j.job_id=a.job_id WHERE `+where+` ORDER BY a.at DESC, a.rowid DESC`, args...)
+// attempts lists matching attempts newest first; limit 0 means all.
+func (s state) attempts(ctx context.Context, limit int, where string, args ...any) ([]attemptRow, error) {
+	query := `SELECT a.at,a.release,a.job_id,a.outcome,COALESCE(j.toolchain,'')
+		FROM attempts a LEFT JOIN jobs j ON j.job_id=a.job_id WHERE ` + where + ` ORDER BY a.at DESC, a.rowid DESC`
+	if limit > 0 {
+		query += " LIMIT " + strconv.Itoa(limit)
+	}
+	rows, err := s.q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +281,15 @@ func (s state) attempts(ctx context.Context, where string, args ...any) ([]attem
 	return out, rows.Err()
 }
 
+// lastGood is the newest successful attempt matching where, or nil.
+func (s state) lastGood(ctx context.Context, where string, args ...any) (*attemptRow, error) {
+	rows, err := s.attempts(ctx, 1, where+" AND a.outcome='ok'", args...)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return &rows[0], nil
+}
+
 // Issue is one row of the issues table.
 type Issue struct {
 	Key, Code, Substage, Signature  string
@@ -277,20 +301,23 @@ type Issue struct {
 	SampleMessage                   string
 	Crash, Acked                    bool
 	SilencedUntil, NotifiedAt, Thru time.Time
+	// Dirty is set by every change that shows on the issue page and cleared
+	// when the report renders it.
+	Dirty bool
 }
 
 // Regressed is true for an open issue that was resolved before.
 func (i Issue) Regressed() bool { return i.Status == "open" && i.ResolvedIn != "" }
 
 const issueColumns = `key,labels,code,substage,signature,first_seen_at,first_release,last_seen_at,last_release,
-	count_30d,installs,status,resolved_in_release,COALESCE(sample_message,''),crash,acked,silenced_until,notified_at,notified_through`
+	count_30d,installs,status,resolved_in_release,COALESCE(sample_message,''),crash,acked,silenced_until,notified_at,notified_through,dirty`
 
 func scanIssue(scan func(...any) error) (Issue, error) {
 	var i Issue
 	var labels string
 	var first, last, silenced, notified, through int64
 	err := scan(&i.Key, &labels, &i.Code, &i.Substage, &i.Signature, &first, &i.FirstRelease, &last, &i.LastRelease,
-		&i.Count, &i.Installs, &i.Status, &i.ResolvedIn, &i.SampleMessage, &i.Crash, &i.Acked, &silenced, &notified, &through)
+		&i.Count, &i.Installs, &i.Status, &i.ResolvedIn, &i.SampleMessage, &i.Crash, &i.Acked, &silenced, &notified, &through, &i.Dirty)
 	i.Labels, i.FirstSeen, i.LastSeen = parseLabels(labels), fromMS(first), fromMS(last)
 	i.SilencedUntil, i.NotifiedAt, i.Thru = fromMS(silenced), fromMS(notified), fromMS(through)
 	return i, err
@@ -330,17 +357,17 @@ func (s state) insertIssue(ctx context.Context, o Occurrence, notified bool, now
 		notifiedAt, through = ms(now), ms(o.At)
 	}
 	_, err := s.q.ExecContext(ctx, `INSERT INTO issues(key,labels,code,substage,signature,first_seen_at,first_release,
-		last_seen_at,last_release,count_30d,installs,sample_message,crash,notified_at,notified_through)
-		VALUES(?,?,?,?,?,?,?,?,?,1,1,?,?,?,?)`,
+		last_seen_at,last_release,count_30d,installs,sample_message,crash,notified_at,notified_through,operation)
+		VALUES(?,?,?,?,?,?,?,?,?,1,1,?,?,?,?,?)`,
 		o.Key, o.Labels.String(), o.Code, o.Substage, o.Signature, ms(o.At), o.Release, ms(o.At), o.Release,
-		o.Message, o.Crash, notifiedAt, through)
+		o.Message, o.Crash, notifiedAt, through, taskOperation(o.Labels.Name, o.Labels.Class))
 	return err
 }
 
 // seeIssue records a later occurrence; regressed reopens the issue.
 func (s state) seeIssue(ctx context.Context, o Occurrence, regressed bool, now time.Time) error {
 	_, err := s.q.ExecContext(ctx, `UPDATE issues SET last_seen_at=MAX(last_seen_at,?),
-		last_release=CASE WHEN ?>=last_seen_at THEN ? ELSE last_release END, sample_message=?, count_30d=count_30d+1 WHERE key=?`,
+		last_release=CASE WHEN ?>=last_seen_at THEN ? ELSE last_release END, sample_message=?, count_30d=count_30d+1, dirty=1 WHERE key=?`,
 		ms(o.At), ms(o.At), o.Release, o.Message, o.Key)
 	if err == nil && regressed {
 		_, err = s.q.ExecContext(ctx, "UPDATE issues SET status='open', acked=0, silenced_until=0, notified_at=?, notified_through=? WHERE key=?", ms(now), ms(o.At), o.Key)
@@ -348,24 +375,57 @@ func (s state) seeIssue(ctx context.Context, o Occurrence, regressed bool, now t
 	return err
 }
 
-// duplicateInJob merges the event and log copies of one job failure. The two
-// copies do not always share a key: today's clients send the error event with
-// its journal stage/class and the attempt.finished log with the operation, and
-// the texts can differ. Any occurrence of the same job within the window is
-// therefore the same failure, whatever its key.
-func (s state) duplicateInJob(ctx context.Context, job string, at time.Time) (bool, error) {
-	if job == "" {
-		return false, nil
+// pairWindow bounds the pairing lookup on the client's occurred_at. Both
+// copies of a failure come from the same machine and clock, so a log copy
+// that waited hours in the client spool still pairs with its event.
+const pairWindow = 24 * time.Hour
+
+// pairedCopy pairs the two copies of a failed job 1:1: the error event
+// (pipeline.error) and the log (attempt.finished outcome=error, or a
+// pipeline.error log). The copies do not always share a key: today's clients
+// send the event with its journal stage/class and the log with the operation,
+// and the texts can differ. An occurrence from one stream is the paired copy
+// of an already-counted failure iff the job has more stored occurrences from
+// the other stream than from its own; it then returns the key of the copy it
+// pairs with (the other stream's occurrence in the same position). A retry
+// that fails differently therefore still counts, and an events-only client
+// counts every failure.
+func (s state) pairedCopy(ctx context.Context, r Record) (bool, string, error) {
+	if r.Job == "" {
+		return false, "", nil
 	}
-	var found int
-	err := s.q.QueryRowContext(ctx, "SELECT COUNT(*) FROM occurrences WHERE job_id=? AND at BETWEEN ? AND ?",
-		job, ms(at.Add(-10*time.Minute)), ms(at.Add(10*time.Minute))).Scan(&found)
-	return found > 0, err
+	other := map[string]string{"event": "log", "log": "event"}[r.Stream]
+	occurred := r.occurred()
+	window := []any{r.Job, ms(occurred.Add(-pairWindow)), ms(occurred.Add(pairWindow))}
+	rows, err := s.q.QueryContext(ctx, "SELECT stream, COUNT(*) FROM occurrences WHERE job_id=? AND occurred_at BETWEEN ? AND ? GROUP BY stream", window...)
+	if err != nil {
+		return false, "", err
+	}
+	counts := map[string]int{}
+	for rows.Next() {
+		var stream string
+		var count int
+		if err := rows.Scan(&stream, &count); err != nil {
+			rows.Close()
+			return false, "", err
+		}
+		counts[stream] = count
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil || counts[other] <= counts[r.Stream] {
+		return false, "", err
+	}
+	var key string
+	err = s.q.QueryRowContext(ctx, "SELECT key FROM occurrences WHERE job_id=? AND occurred_at BETWEEN ? AND ? AND stream=? ORDER BY rowid LIMIT 1 OFFSET ?",
+		append(window, other, counts[r.Stream])...).Scan(&key)
+	return true, key, err
 }
 
-func (s state) insertOccurrence(ctx context.Context, o Occurrence, r Record) (bool, error) {
-	result, err := s.q.ExecContext(ctx, "INSERT OR IGNORE INTO occurrences(id,key,at,support_code,session_id,job_id,release,crash,message) VALUES(?,?,?,?,?,?,?,?,?)",
-		r.ID, o.Key, ms(o.At), r.Install, r.Session, r.Job, r.Release, o.Crash, r.Message)
+// insertOccurrence stores the occurrence once; false means a replay.
+func (s state) insertOccurrence(ctx context.Context, o Occurrence, r Record, dup bool) (bool, error) {
+	result, err := s.q.ExecContext(ctx, `INSERT OR IGNORE INTO occurrences(id,key,at,occurred_at,stream,dup,support_code,session_id,job_id,release,crash,message)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		r.ID, o.Key, ms(o.At), ms(r.occurred()), r.Stream, dup, r.Install, r.Session, r.Job, r.Release, o.Crash, r.Message)
 	if err != nil {
 		return false, err
 	}
@@ -378,7 +438,7 @@ func (s state) insertOccurrence(ctx context.Context, o Occurrence, r Record) (bo
 func (s state) pendingRepeats(ctx context.Context, i Issue) (map[int]int, time.Time, error) {
 	rows, err := s.q.QueryContext(ctx, `SELECT COALESCE(a.alias,0), COUNT(*), MAX(o.at) FROM occurrences o
 		LEFT JOIN install_alias a ON a.support_code=o.support_code
-		WHERE o.key=? AND o.at>? AND o.crash=0 GROUP BY 1`, i.Key, ms(i.Thru))
+		WHERE o.key=? AND o.at>? AND o.crash=0 AND o.dup=0 GROUP BY 1`, i.Key, ms(i.Thru))
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -436,8 +496,12 @@ func (s state) prune(ctx context.Context, now time.Time) error {
 		{"DELETE FROM install_alias WHERE last_seen_at<?", []any{cutoff}},
 		{"DELETE FROM daily WHERE day<?", []any{now.Add(-retention).UTC().Format("2006-01-02")}},
 		{"UPDATE issues SET sample_message=NULL WHERE last_seen_at<?", []any{cutoff}},
-		{`UPDATE issues SET count_30d=(SELECT COUNT(*) FROM occurrences o WHERE o.key=issues.key),
-			installs=(SELECT COUNT(DISTINCT support_code) FROM occurrences o WHERE o.key=issues.key)`, nil},
+		// Paired copies are not counted. A count that moves (a new install,
+		// an expired occurrence) changes the issue page.
+		{`UPDATE issues SET dirty=1 WHERE count_30d<>(SELECT COUNT(*) FROM occurrences o WHERE o.key=issues.key AND o.dup=0)
+			OR installs<>(SELECT COUNT(DISTINCT support_code) FROM occurrences o WHERE o.key=issues.key AND o.dup=0)`, nil},
+		{`UPDATE issues SET count_30d=(SELECT COUNT(*) FROM occurrences o WHERE o.key=issues.key AND o.dup=0),
+			installs=(SELECT COUNT(DISTINCT support_code) FROM occurrences o WHERE o.key=issues.key AND o.dup=0)`, nil},
 	} {
 		if _, err := s.q.ExecContext(ctx, statement.sql, statement.args...); err != nil {
 			return fmt.Errorf("prune: %w", err)

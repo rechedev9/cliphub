@@ -37,7 +37,10 @@ type Result struct {
 	Bootstrap bool
 	Alerts    []Alert
 	Delivered int
-	Failures  []string
+	// DeadLettered counts queued alerts the channel rejected for good; they
+	// are dropped and reported as "dead_letter=<n>" in Failures.
+	DeadLettered int
+	Failures     []string
 }
 
 const (
@@ -336,11 +339,19 @@ func (e *engine) processLog(ctx context.Context, r Record, alias int) (bool, err
 func (e *engine) occurrence(ctx context.Context, r Record, labels Labels, crash bool, alias int) (Occurrence, error) {
 	occ := newOccurrence(r, labels, crash)
 	occ.Alias = alias
-	if duplicate, err := e.st.duplicateInJob(ctx, r.Job, r.At); err != nil || duplicate {
+	paired, pairedKey, err := e.st.pairedCopy(ctx, r)
+	if err != nil {
 		return occ, err
 	}
-	if inserted, err := e.st.insertOccurrence(ctx, occ, r); err != nil || !inserted {
+	if inserted, err := e.st.insertOccurrence(ctx, occ, r, paired); err != nil || !inserted {
 		return occ, err
+	}
+	if paired {
+		// The failure was counted from the other stream. This copy is stored
+		// only to keep the pairing counts right; a platform break it triggers
+		// links the counted copy's issue.
+		occ.Key = pairedKey
+		return occ, nil
 	}
 	jc, err := e.st.jobContext(ctx, r.Job, r.Session)
 	if err != nil {
@@ -369,18 +380,15 @@ func (e *engine) occurrence(ctx context.Context, r Record, labels Labels, crash 
 }
 
 func (e *engine) platformBreak(ctx context.Context, r Record, alias int, occ Occurrence) error {
-	recent, err := e.st.attempts(ctx, "a.support_code=? AND a.operation=? AND a.release=?", r.Install, r.Operation, r.Release)
+	recent, err := e.st.attempts(ctx, 0, "a.support_code=? AND a.operation=? AND a.release=?", r.Install, r.Operation, r.Release)
 	if err != nil {
 		return err
 	}
-	good, err := e.st.attempts(ctx, "a.support_code=? AND a.operation=? AND a.outcome='ok'", r.Install, r.Operation)
+	good, err := e.st.lastGood(ctx, "a.support_code=? AND a.operation=?", r.Install, r.Operation)
 	if err != nil {
 		return err
 	}
-	in := PlatformInput{Alias: alias, Operation: r.Operation, Release: r.Release, Recent: recent, Latest: occ}
-	if len(good) > 0 {
-		in.LastGood = &good[0]
-	}
+	in := PlatformInput{Alias: alias, Operation: r.Operation, Release: r.Release, Recent: recent, LastGood: good, Latest: occ}
 	if a, ok := evalPlatformBreak(in); ok {
 		return e.emitIgnore(ctx, a)
 	}
@@ -488,6 +496,9 @@ func (e *engine) digest(ctx context.Context) error {
 	if err := e.emitIgnore(ctx, buildDigest(data)); err != nil {
 		return err
 	}
+	if err := e.st.setCursor(ctx, "digest_unauthorized", "0"); err != nil {
+		return err
+	}
 	return e.st.setCursor(ctx, "digest_day", day)
 }
 
@@ -512,6 +523,16 @@ func (e *engine) checkHealth(ctx context.Context) error {
 	}
 	for _, a := range evalHealth(*e.health, previous) {
 		if err := e.emitIgnore(ctx, a); err != nil {
+			return err
+		}
+	}
+	if delta := unauthorizedDelta(*e.health, previous); delta > 0 {
+		total, err := e.st.cursor(ctx, "digest_unauthorized")
+		if err != nil {
+			return err
+		}
+		sum, _ := strconv.ParseInt(total, 10, 64)
+		if err := e.st.setCursor(ctx, "digest_unauthorized", strconv.FormatInt(sum+delta, 10)); err != nil {
 			return err
 		}
 	}
@@ -575,25 +596,33 @@ func (e *engine) applyCallback(ctx context.Context, data string) (string, error)
 	}
 	switch action {
 	case "ack":
-		_, err = e.st.q.ExecContext(ctx, "UPDATE issues SET acked=1 WHERE key=?", key)
+		_, err = e.st.q.ExecContext(ctx, "UPDATE issues SET acked=1, dirty=1 WHERE key=?", key)
 		return "Ack: sin repeticiones hasta que se reabra", err
 	case "res":
 		release := e.latest
 		if release == "" {
 			release = issue.LastRelease
 		}
-		_, err = e.st.q.ExecContext(ctx, "UPDATE issues SET status='resolved', resolved_in_release=?, acked=0 WHERE key=?", release, key)
+		_, err = e.st.q.ExecContext(ctx, "UPDATE issues SET status='resolved', resolved_in_release=?, acked=0, dirty=1 WHERE key=?", release, key)
 		return "Resuelta en " + release, err
 	case "sil":
-		_, err = e.st.q.ExecContext(ctx, "UPDATE issues SET silenced_until=? WHERE key=?", ms(e.now.Add(24*time.Hour)), key)
+		_, err = e.st.q.ExecContext(ctx, "UPDATE issues SET silenced_until=?, dirty=1 WHERE key=?", ms(e.now.Add(24*time.Hour)), key)
 		return "Silenciada 24 h", err
 	}
 	return "Acción desconocida", nil
 }
 
-// deliver sends queued alerts in order and stops at the first failure so the
-// rest wait for the next run. Alerts older than a day are dropped.
+// deliver sends queued alerts in order and stops at the first transient
+// failure so the rest wait for the next run. An alert the channel rejects for
+// good (PermanentError) is dead-lettered and the next one is tried, so one
+// unsendable alert cannot hold back every later P1 until it expires. Alerts
+// older than a day are dropped.
 func (e *engine) deliver(ctx context.Context) {
+	defer func() {
+		if e.result.DeadLettered > 0 {
+			e.result.Failures = append(e.result.Failures, fmt.Sprintf("dead_letter=%d", e.result.DeadLettered))
+		}
+	}()
 	rows, err := e.db.QueryContext(ctx, "SELECT id, created_at, alert FROM outbox ORDER BY id LIMIT 100")
 	if err != nil {
 		e.fail("outbox", err)
@@ -619,8 +648,14 @@ func (e *engine) deliver(ctx context.Context) {
 			e.fail("notifier", errors.New("no notifier configured"))
 			return
 		} else if err := e.opts.Notifier.Send(ctx, q.alert); err != nil {
-			e.fail("telegram", err)
-			return
+			var permanent *PermanentError
+			if !errors.As(err, &permanent) {
+				e.fail("telegram", err)
+				return
+			}
+			// Label-only: the channel's description can quote the message.
+			e.opts.Logf("telemetry-alert stage=outbox class=dead_letter rule=%s status=%d", q.alert.Rule, permanent.Status)
+			e.result.DeadLettered++
 		} else {
 			e.result.Delivered++
 		}

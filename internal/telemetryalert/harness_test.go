@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,9 +20,12 @@ const testAdminToken = "admin-token-with-at-least-32-characters-long"
 // fakeAdmin implements the admin API contract (contracts.md §1) over fixture
 // records, showing only what the collector had received by `now`.
 type fakeAdmin struct {
-	mu       sync.Mutex
-	now      time.Time
-	events   []ErrorEvent
+	mu     sync.Mutex
+	now    time.Time
+	events []ErrorEvent
+	// eventRow is the collector's rowid: assigned when an event becomes
+	// visible (committed), so the feed pages in commit order.
+	eventRow map[string]int64
 	logs     []LogRecord
 	health   Health
 	noErrors bool // an old collector without /v1/errors
@@ -96,17 +98,26 @@ func (f *fakeAdmin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		var afterMS int64
-		var afterID string
-		if raw := query.Get("after"); raw != "" {
-			msText, id, _ := strings.Cut(raw, ":")
-			afterMS, _ = strconv.ParseInt(msText, 10, 64)
-			afterID = id
+		if f.eventRow == nil {
+			f.eventRow = map[string]int64{}
 		}
-		page := errorPage{Events: []ErrorEvent{}, NextAfter: query.Get("after")}
 		for _, event := range f.events {
-			received := event.ReceivedAt.UnixMilli()
-			if event.ReceivedAt.After(f.now) || received < afterMS || received == afterMS && event.ID <= afterID {
+			if _, ok := f.eventRow[event.ID]; !ok && !event.ReceivedAt.After(f.now) {
+				f.eventRow[event.ID] = int64(len(f.eventRow) + 1)
+			}
+		}
+		committed := make([]ErrorEvent, 0, len(f.eventRow))
+		for _, event := range f.events {
+			if _, ok := f.eventRow[event.ID]; ok {
+				committed = append(committed, event)
+			}
+		}
+		sort.Slice(committed, func(i, j int) bool { return f.eventRow[committed[i].ID] < f.eventRow[committed[j].ID] })
+		after, _ := strconv.ParseInt(query.Get("after"), 10, 64)
+		page := errorPage{Events: []ErrorEvent{}, NextAfter: query.Get("after")}
+		for _, event := range committed {
+			row := f.eventRow[event.ID]
+			if row <= after {
 				continue
 			}
 			if len(page.Events) == limit {
@@ -114,7 +125,7 @@ func (f *fakeAdmin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			page.Events = append(page.Events, event)
-			page.NextAfter = fmt.Sprintf("%d:%s", received, event.ID)
+			page.NextAfter = strconv.FormatInt(row, 10)
 		}
 		_ = json.NewEncoder(w).Encode(page)
 	case "/v1/logs":

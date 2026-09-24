@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode/utf16"
 )
 
 const defaultTelegramAPI = "https://api.telegram.org"
@@ -59,7 +60,11 @@ func (t Telegram) call(ctx context.Context, method string, body any, result any)
 		return fmt.Errorf("telegram %s: status %d", method, resp.StatusCode)
 	}
 	if !decoded.OK {
-		return fmt.Errorf("telegram %s: status %d: %s", method, resp.StatusCode, decoded.Description)
+		err := fmt.Errorf("telegram %s: status %d: %s", method, resp.StatusCode, decoded.Description)
+		if permanentTelegramStatus(resp.StatusCode) {
+			return &PermanentError{Status: resp.StatusCode, Err: err}
+		}
+		return err
 	}
 	if result != nil {
 		return json.Unmarshal(decoded.Result, result)
@@ -67,25 +72,111 @@ func (t Telegram) call(ctx context.Context, method string, body any, result any)
 	return nil
 }
 
+// permanentTelegramStatus reports a 4xx that rejects this message for good
+// (400: too long, unparsable HTML). 429 is a rate limit. 401 and 404 mean a
+// bad or revoked bot token and 403 a bot the chat blocked or removed: those
+// fail every message alike until the operator fixes the channel, so they stay
+// transient and the outbox keeps its alerts, as for a token rotation.
+func permanentTelegramStatus(status int) bool {
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests:
+		return false
+	}
+	return status >= 400 && status < 500
+}
+
 type inlineButton struct {
 	Text         string `json:"text"`
 	CallbackData string `json:"callback_data"`
 }
 
+// telegramTextLimit is the Bot API cap on a message text. It is checked on
+// the HTML source in UTF-16 units, which is never shorter than the parsed
+// text Telegram counts.
+const telegramTextLimit = 4096
+
 // FormatHTML renders an alert for parse_mode=HTML; every value is escaped.
+// A text over telegramTextLimit drops trailing body lines behind a
+// "… N líneas más" line and keeps the header, excerpt and link. Only whole
+// escaped lines are dropped, so an HTML entity or tag is never cut.
 func FormatHTML(a Alert) string {
-	var b strings.Builder
-	b.WriteString("<b>" + html.EscapeString(a.Header()) + "</b>")
-	for _, line := range a.Lines {
-		b.WriteString("\n" + html.EscapeString(line))
+	header := "<b>" + html.EscapeString(a.Header()) + "</b>"
+	body := make([]string, len(a.Lines))
+	for i, line := range a.Lines {
+		body[i] = html.EscapeString(line)
 	}
+	var tail []string
 	if a.Excerpt != "" {
-		b.WriteString("\n<i>extracto:</i> " + html.EscapeString(a.Excerpt))
+		tail = append(tail, "<i>extracto:</i> "+html.EscapeString(a.Excerpt))
 	}
 	if a.Link != "" {
-		b.WriteString("\n" + html.EscapeString(a.Link))
+		tail = append(tail, html.EscapeString(a.Link))
+	}
+	compose := func(header string, kept int, tail []string) string {
+		parts := append([]string{header}, body[:kept]...)
+		if dropped := len(body) - kept; dropped > 0 {
+			parts = append(parts, moreLines(dropped))
+		}
+		return strings.Join(append(parts, tail...), "\n")
+	}
+	// prefix[k] is the size of the first k body lines, newline included.
+	prefix := make([]int, len(body)+1)
+	for i, line := range body {
+		prefix[i+1] = prefix[i] + utf16Len(line) + 1
+	}
+	for {
+		fixed := utf16Len(header)
+		for _, line := range tail {
+			fixed += utf16Len(line) + 1
+		}
+		for kept := len(body); kept >= 0; kept-- {
+			size := fixed + prefix[kept]
+			if dropped := len(body) - kept; dropped > 0 {
+				size += utf16Len(moreLines(dropped)) + 1
+			}
+			if size <= telegramTextLimit {
+				return compose(header, kept, tail)
+			}
+		}
+		if len(tail) == 0 {
+			break
+		}
+		tail = tail[:len(tail)-1]
+	}
+	// Only an absurd header gets here: cut it at a rune boundary.
+	header = "<b>" + escapeWithin(a.Header(), telegramTextLimit-utf16Len("<b></b>\n"+moreLines(len(body)))) + "</b>"
+	return compose(header, 0, nil)
+}
+
+func moreLines(n int) string {
+	if n == 1 {
+		return "… 1 línea más"
+	}
+	return fmt.Sprintf("… %d líneas más", n)
+}
+
+// escapeWithin escapes s rune by rune and stops, with an ellipsis, before the
+// escaped text exceeds budget UTF-16 units.
+func escapeWithin(s string, budget int) string {
+	var b strings.Builder
+	used := 0
+	for _, r := range s {
+		escaped := html.EscapeString(string(r))
+		if used+utf16Len(escaped)+1 > budget {
+			return b.String() + "…"
+		}
+		b.WriteString(escaped)
+		used += utf16Len(escaped)
 	}
 	return b.String()
+}
+
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		n += utf16.RuneLen(r)
+	}
+	return n
 }
 
 func (t Telegram) Send(ctx context.Context, a Alert) error {

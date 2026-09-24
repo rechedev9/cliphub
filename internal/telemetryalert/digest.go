@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // Europe/Madrid must resolve on minimal hosts and in tests.
@@ -57,6 +58,9 @@ type digestData struct {
 	Changes     []string
 	CS2Builds   []string
 	Stuck       []stuckJob
+	// Unauthorized counts 401 ingest rejections since the previous digest;
+	// they do not page (see rejectionStatuses).
+	Unauthorized int64
 }
 
 func (s state) attemptCounts(ctx context.Context, since time.Time) ([]releaseOpCount, error) {
@@ -187,6 +191,11 @@ func (s state) loadDigest(ctx context.Context, now time.Time, day string) (diges
 	if d.CS2Builds, err = s.cs2Builds(ctx, since); err != nil {
 		return d, err
 	}
+	unauthorized, err := s.cursor(ctx, "digest_unauthorized")
+	if err != nil {
+		return d, err
+	}
+	d.Unauthorized, _ = strconv.ParseInt(unauthorized, 10, 64)
 	d.Stuck, err = s.stuckJobs(ctx, since)
 	return d, err
 }
@@ -299,6 +308,9 @@ func buildDigest(d digestData) Alert {
 	a.Lines = append(a.Lines, d.Changes...)
 	if len(d.CS2Builds) > 0 {
 		a.Lines = append(a.Lines, "cs2_build vistos: "+strings.Join(d.CS2Builds, ", "))
+	}
+	if d.Unauthorized > 0 {
+		a.Lines = append(a.Lines, fmt.Sprintf("ingesta rechazada 401 (sin clave válida): %d desde el último resumen", d.Unauthorized))
 	}
 	for _, job := range d.Stuck {
 		a.Lines = append(a.Lines, fmt.Sprintf("job >3 h sin attempt.finished: %s %s %s (%.1f h)", aliasLabel(job.Alias), safe(job.Operation), jobPrefix(job.Job), job.Hours))

@@ -168,6 +168,130 @@ func TestEventAndLogCopiesOfOneJobPageOnce(t *testing.T) {
 	}
 }
 
+// failedJob returns today's two copies of one failed attempt: the error event
+// (journal stage/class labels) received at `received`, and the
+// attempt.finished log (operation labels) received `logDelay` later. Both
+// carry the client time of the failure.
+func failedJob(t *testing.T, job, code, received string, logDelay time.Duration) (ErrorEvent, LogRecord) {
+	t.Helper()
+	const support, session = "CH-1111-2222-3333-4444-5555", "5e551011-0000-4000-8000-0000000000bb"
+	at := mustTime(t, received)
+	message := "failure_code=" + code + " substage=capture; record:demo exited 6 after 5 s"
+	return ErrorEvent{
+			ReceivedAt: at, OccurredAt: at.Add(-5 * time.Second), SupportCode: support, SessionID: session, Release: "5.2.1",
+			Component: "orchestrator", Name: "pipeline.error", Stage: "record", Class: "unknown", JobID: job, Message: message,
+		}, LogRecord{
+			ReceivedAt: at.Add(logDelay), OccurredAt: at.Add(-4 * time.Second), SupportCode: support, SessionID: session, Release: "5.2.1",
+			Source: "orchestrator", Level: "error", Event: "attempt.finished", JobID: job, Operation: "record:demo", Outcome: "error", Message: message,
+		}
+}
+
+func newIssues(alerts []Alert) []string {
+	var out []string
+	for _, a := range alerts {
+		if a.Rule == RuleNewIssue {
+			out = append(out, a.Headline[0]+" "+a.Headline[1])
+		}
+	}
+	return out
+}
+
+const pairedJob = "4ae10001-0000-4000-8000-0000000000bb"
+
+// A retry of the same job that fails differently within minutes is a second
+// failure, not a copy of the first.
+func TestJobRetryWithADifferentFailurePagesIt(t *testing.T) {
+	h := newHarness(t)
+	h.run("2026-09-24T09:00:00Z") // bootstrap
+	eventA, logA := failedJob(t, pairedJob, "code_a", "2026-09-24T10:00:05Z", time.Second)
+	h.admin.add(fixtureFile{Events: []ErrorEvent{eventA}, Logs: []LogRecord{logA}})
+	if got := newIssues(h.run("2026-09-24T10:01:00Z").Alerts); !slices.Equal(got, []string{"pipeline.error/capture code_a"}) {
+		t.Fatalf("first failure paged %v", got)
+	}
+	eventB, logB := failedJob(t, pairedJob, "code_b", "2026-09-24T10:05:05Z", time.Second)
+	h.admin.add(fixtureFile{Events: []ErrorEvent{eventB}, Logs: []LogRecord{logB}})
+	result := h.run("2026-09-24T10:06:00Z")
+	if got := newIssues(result.Alerts); !slices.Equal(got, []string{"pipeline.error/capture code_b"}) {
+		t.Fatalf("retry failure paged %v, want code_b\n%s", got, texts(result.Alerts))
+	}
+	// The log copy triggers the platform break; it links the counted issue.
+	var issueB, breakIssue string
+	for _, a := range result.Alerts {
+		switch a.Rule {
+		case RuleNewIssue:
+			issueB = a.IssueKey
+		case RulePlatformBreak:
+			breakIssue = a.IssueKey
+		}
+	}
+	if breakIssue == "" || breakIssue != issueB {
+		t.Fatalf("platform break links %q, want the counted issue %q", breakIssue, issueB)
+	}
+	if n := countRows(t, h, "SELECT COUNT(*) FROM occurrences WHERE dup=1 AND stream='log'"); n != 2 {
+		t.Fatalf("paired log copies = %d, want 2", n)
+	}
+	if n := countRows(t, h, "SELECT SUM(count_30d) FROM issues"); n != 2 {
+		t.Fatalf("counted failures = %d, want 2", n)
+	}
+}
+
+// A log spool deferred for hours still pairs with its event: one page, no
+// second issue from the log copy and no repeat.
+func TestLateLogCopyPairsWithItsEvent(t *testing.T) {
+	h := newHarness(t)
+	h.run("2026-09-24T09:00:00Z") // bootstrap
+	event, log := failedJob(t, pairedJob, "code_a", "2026-09-24T10:00:05Z", 3*time.Hour)
+	h.admin.add(fixtureFile{Events: []ErrorEvent{event}, Logs: []LogRecord{log}})
+	if got := summary(h.run("2026-09-24T10:01:00Z").Alerts, false); !slices.Equal(got, []string{"new_issue:P1"}) {
+		t.Fatalf("event paged %v", got)
+	}
+	for _, at := range []string{"2026-09-24T13:01:00Z", "2026-09-24T14:05:00Z"} {
+		if got := summary(h.run(at).Alerts, false); len(got) != 0 {
+			t.Fatalf("%s: late log copy paged %v", at, got)
+		}
+	}
+	if n := countRows(t, h, "SELECT COUNT(*) FROM issues"); n != 1 {
+		t.Fatalf("issues = %d, want 1", n)
+	}
+}
+
+func TestLogCopyFirstThenEventPagesOnce(t *testing.T) {
+	h := newHarness(t)
+	h.run("2026-09-24T09:00:00Z") // bootstrap
+	event, log := failedJob(t, pairedJob, "code_a", "2026-09-24T10:02:00Z", -2*time.Minute)
+	h.admin.add(fixtureFile{Logs: []LogRecord{log}})
+	if got := summary(h.run("2026-09-24T10:01:00Z").Alerts, false); !slices.Equal(got, []string{"new_issue:P1"}) {
+		t.Fatalf("log copy paged %v", got)
+	}
+	h.admin.add(fixtureFile{Events: []ErrorEvent{event}})
+	if got := summary(h.run("2026-09-24T10:03:00Z").Alerts, false); len(got) != 0 {
+		t.Fatalf("event after its log copy paged %v", got)
+	}
+	if n := countRows(t, h, "SELECT COUNT(*) FROM occurrences WHERE dup=1 AND stream='event'"); n != 1 {
+		t.Fatalf("paired event copies = %d, want 1", n)
+	}
+}
+
+// An old client sends only error events: every failure of a job counts, and
+// each distinct key pages once.
+func TestEventsOnlyJobCountsEveryFailure(t *testing.T) {
+	h := newHarness(t)
+	h.run("2026-09-24T09:00:00Z") // bootstrap
+	first, _ := failedJob(t, pairedJob, "code_a", "2026-09-24T10:00:05Z", 0)
+	second, _ := failedJob(t, pairedJob, "code_b", "2026-09-24T10:02:05Z", 0)
+	third, _ := failedJob(t, pairedJob, "code_a", "2026-09-24T10:04:05Z", 0)
+	h.admin.add(fixtureFile{Events: []ErrorEvent{first, second, third}})
+	if got := newIssues(h.run("2026-09-24T10:05:00Z").Alerts); !slices.Equal(got, []string{"pipeline.error/capture code_a", "pipeline.error/capture code_b"}) {
+		t.Fatalf("events-only job paged %v", got)
+	}
+	if n := countRows(t, h, "SELECT count_30d FROM issues WHERE code='code_a'"); n != 2 {
+		t.Fatalf("code_a count = %d, want 2", n)
+	}
+	if n := countRows(t, h, "SELECT COUNT(*) FROM occurrences WHERE dup=1"); n != 0 {
+		t.Fatalf("paired copies = %d, want 0", n)
+	}
+}
+
 func TestBootstrapSendsNothingAndMarksKeysKnown(t *testing.T) {
 	h := newHarness(t, "loudnorm.json", "hlae.json", "faceit.json", "black-capture.json", "shutdown-kill.json")
 	tg := newFakeTelegram(t)
@@ -361,14 +485,19 @@ func TestChannelHealthAndDeadman(t *testing.T) {
 		t.Fatalf("green ping = %q", got)
 	}
 
-	h.admin.health.Rejections = map[string]int64{"events:400:invalid_request": 5, "logs:409:log_identity_conflict": 4}
+	// Store failures (500/503) lose events while db_ok stays true and page;
+	// 401s from scanners without the ingest key do not.
+	h.admin.health.Rejections = map[string]int64{"events:400:invalid_request": 5, "logs:409:log_identity_conflict": 4,
+		"events:401:unauthorized": 7, "events:500:storage_unavailable": 1, "logs:503:storage_unavailable": 2}
 	high := 0.83
 	h.admin.health.LogsStorageRatio = &high
 	h.run("2026-09-20T09:02:00Z")
 	got := h.rec.take()
-	if !slices.Equal(summary(got, false), []string{"channel_health:P1", "channel_health:P1"}) ||
+	if !slices.Equal(summary(got, false), []string{"channel_health:P1", "channel_health:P1", "channel_health:P1", "channel_health:P1"}) ||
 		!strings.Contains(texts(got), "rechazos events:400:invalid_request · +2 desde la última ejecución") ||
-		!strings.Contains(texts(got), "almacenamiento logs · 83% del límite") {
+		!strings.Contains(texts(got), "rechazos events:500:storage_unavailable · +1") ||
+		!strings.Contains(texts(got), "rechazos logs:503:storage_unavailable · +2") ||
+		!strings.Contains(texts(got), "almacenamiento logs · 83% del límite") || strings.Contains(texts(got), "401") {
 		t.Fatalf("channel health delivered:\n%s", texts(got))
 	}
 
@@ -386,10 +515,30 @@ func TestChannelHealthAndDeadman(t *testing.T) {
 	up := true
 	h.admin.health.DBOK = &up
 	h.admin.health.StartedAt = "2026-09-20T09:03:30Z"
-	h.admin.health.Rejections = map[string]int64{"logs:429:rate_limited": 1}
+	h.admin.health.Rejections = map[string]int64{"logs:429:rate_limited": 1, "logs:401:unauthorized": 3}
 	h.run("2026-09-20T09:04:00Z")
-	if got := texts(h.rec.take()); !strings.Contains(got, "rechazos logs:429:rate_limited · +1") {
+	if got := texts(h.rec.take()); !strings.Contains(got, "rechazos logs:429:rate_limited · +1") || strings.Contains(got, "401") {
 		t.Fatalf("after restart:\n%s", got)
+	}
+
+	// The 401s of both collector lifetimes reach the next digest as a count.
+	digestAt := func(at string) string {
+		t.Helper()
+		h.run(at)
+		for _, a := range h.rec.take() {
+			if a.Rule == RuleDigest {
+				return a.Text()
+			}
+		}
+		t.Fatalf("%s: no digest", at)
+		return ""
+	}
+	if digest := digestAt("2026-09-21T07:05:00Z"); !strings.Contains(digest, "ingesta rechazada 401 (sin clave válida): 10 desde el último resumen") {
+		t.Fatalf("digest lacks the 401 count:\n%s", digest)
+	}
+	h.admin.health.Rejections["logs:401:unauthorized"] = 5
+	if digest := digestAt("2026-09-22T07:05:00Z"); !strings.Contains(digest, "401 (sin clave válida): 2 desde") {
+		t.Fatalf("second digest does not restart the count:\n%s", digest)
 	}
 }
 

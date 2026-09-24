@@ -241,8 +241,8 @@ func (a *API) incidents(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// errorFeed serves error events of every installation in receipt order, so
-// an alerter can scan new errors without knowing a support code or job id.
+// errorFeed serves error events of every installation in commit order, so an
+// alerter can scan new errors without knowing a support code or job id.
 func (a *API) errorFeed(w http.ResponseWriter, r *http.Request) {
 	after, err := ParseErrorCursor(r.URL.Query().Get("after"))
 	if err != nil {

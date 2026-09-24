@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -57,17 +57,16 @@ func TestErrorFeedPagesAcrossEqualReceiptTimes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Commit order: the batch order within a request, then the next request.
 	var want []string
 	for _, event := range batchOne[:5] {
 		want = append(want, event.ID)
 	}
-	sort.Strings(want)
-	secondIDs := []string{batchTwo[0].ID, batchTwo[1].ID}
-	sort.Strings(secondIDs)
-	want = append(want, secondIDs...)
+	want = append(want, batchTwo[0].ID, batchTwo[1].ID)
 
 	var got []string
 	after := ""
+	var lastCursor int64
 	for pages := 0; ; pages++ {
 		if pages > 10 {
 			t.Fatal("error feed did not terminate")
@@ -94,10 +93,11 @@ func TestErrorFeedPagesAcrossEqualReceiptTimes(t *testing.T) {
 			got = append(got, event.ID)
 		}
 		if len(page.Events) > 0 {
-			last := page.Events[len(page.Events)-1]
-			if page.NextAfter != fmt.Sprintf("%d:%s", last.ReceivedAt.UnixMilli(), last.ID) {
-				t.Fatalf("next_after = %q for last row %s", page.NextAfter, last.ID)
+			cursor, err := strconv.ParseInt(page.NextAfter, 10, 64)
+			if err != nil || cursor <= lastCursor {
+				t.Fatalf("next_after = %q after %d", page.NextAfter, lastCursor)
 			}
+			lastCursor = cursor
 		} else if page.NextAfter != after {
 			t.Fatalf("empty page moved the cursor: %q -> %q", after, page.NextAfter)
 		}
@@ -123,18 +123,89 @@ func TestErrorFeedPagesAcrossEqualReceiptTimes(t *testing.T) {
 	}
 }
 
+// A request stamps received_at when it starts and commits later, so under
+// concurrent ingests receipt times go backwards relative to commit order. The
+// feed pages by commit order and must return every row committed after the
+// cursor, whatever its received_at.
+func TestErrorFeedNeverSkipsRowsCommittedBehindTheCursor(t *testing.T) {
+	store, api, now := logFixture(t)
+	insert := func(received time.Time) Event {
+		t.Helper()
+		event := feedEvent(received, KindError)
+		if _, err := store.Insert(context.Background(), []Event{event}, received, nil); err != nil {
+			t.Fatal(err)
+		}
+		return event
+	}
+	page := func(after string) (ids []string, next string) {
+		t.Helper()
+		response := adminGet(t, api, "/v1/errors?limit=200&after="+after)
+		if response.Code != http.StatusOK {
+			t.Fatalf("errors page: %d %s", response.Code, response.Body.String())
+		}
+		var body struct {
+			Events []struct {
+				ID         string    `json:"id"`
+				ReceivedAt time.Time `json:"received_at"`
+			} `json:"events"`
+			NextAfter string `json:"next_after"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range body.Events {
+			if event.ReceivedAt.IsZero() {
+				t.Fatalf("row %s lacks received_at", event.ID)
+			}
+			ids = append(ids, event.ID)
+		}
+		return ids, body.NextAfter
+	}
+
+	first := insert(now)
+	ids, cursor := page("")
+	if strings.Join(ids, ",") != first.ID {
+		t.Fatalf("first page = %v", ids)
+	}
+	// Two requests that started earlier commit after the scanner read.
+	late := insert(now.Add(-time.Second))
+	later := insert(now.Add(-time.Minute))
+	ids, cursor = page(cursor)
+	if strings.Join(ids, ",") != late.ID+","+later.ID {
+		t.Fatalf("rows committed behind the cursor were skipped: %v", ids)
+	}
+	if ids, _ = page(cursor); len(ids) != 0 {
+		t.Fatalf("caught-up page = %v", ids)
+	}
+	if ids, _ = page(""); strings.Join(ids, ",") != strings.Join([]string{first.ID, late.ID, later.ID}, ",") {
+		t.Fatalf("full feed = %v", ids)
+	}
+
+	// Retention that empties the table restarts SQLite's rowids at 1; a cursor
+	// from before then restarts at the oldest retained event.
+	if _, err := store.DeleteBefore(context.Background(), now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	fresh := insert(now.Add(2 * time.Hour))
+	if ids, next := page(cursor); strings.Join(ids, ",") != fresh.ID || next == "" {
+		t.Fatalf("after retention emptied the table: %v next=%q", ids, next)
+	}
+}
+
 func TestErrorFeedRejectsInvalidInput(t *testing.T) {
 	_, api, _ := logFixture(t)
 	for query, code := range map[string]string{
-		"after=abc":                           "invalid_cursor",
-		"after=12":                            "invalid_cursor",
-		"after=-1:" + uuid.NewString():        "invalid_cursor",
-		"after=1:not-a-uuid":                  "invalid_cursor",
-		"after=%3A" + uuid.NewString():        "invalid_cursor",
-		"limit=0":                             "invalid_limit",
-		"limit=201":                           "invalid_limit",
-		"limit=x&after=1:" + uuid.NewString(): "invalid_limit",
-		"after=99999999999999999999:" + uuid.NewString(): "invalid_cursor",
+		"after=abc":                    "invalid_cursor",
+		"after=-1":                     "invalid_cursor",
+		"after=1.5":                    "invalid_cursor",
+		"after=0x10":                   "invalid_cursor",
+		"after=1:" + uuid.NewString():  "invalid_cursor",
+		"after=%3A" + uuid.NewString(): "invalid_cursor",
+		"after=9999999999999999999":    "invalid_cursor",
+		"after=99999999999999999999":   "invalid_cursor",
+		"limit=0":                      "invalid_limit",
+		"limit=201":                    "invalid_limit",
+		"limit=x&after=12":             "invalid_limit",
 	} {
 		response := adminGet(t, api, "/v1/errors?"+query)
 		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), code) {

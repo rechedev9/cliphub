@@ -23,7 +23,7 @@ fi
 usage() {
   printf 'usage: %s incident CH-XXXX-XXXX-XXXX-XXXX-XXXX [limit]\n' "$0" >&2
   printf '       %s stats [hours]\n' "$0" >&2
-  printf '       %s errors [--after <received_ms>:<event_id>] [--limit 1-200]\n' "$0" >&2
+  printf '       %s errors [--after CURSOR] [--limit 1-200]\n' "$0" >&2
   printf '       %s logs (--job ID | --support CODE | --session ID | --event NAME)... [--after CURSOR] [--limit 1-500]\n' "$0" >&2
   printf '       %s health\n' "$0" >&2
   exit 2
@@ -47,8 +47,9 @@ case "${1:-}" in
     request_path="/v1/stats?hours=$hours"
     ;;
   errors)
-    # Error events of every installation in collector receipt order; pass the
-    # previous page's next_after as --after to continue.
+    # Error events of every installation in collector commit order; pass the
+    # previous page's next_after (an opaque decimal cursor) as --after to
+    # continue.
     shift
     after=''
     limit=100
@@ -56,7 +57,7 @@ case "${1:-}" in
       case "$1" in
         --after)
           after="${2:-}"
-          [[ "$after" =~ ^[0-9]{1,15}:[0-9A-Fa-f-]{36}$ ]] || usage
+          [[ "$after" =~ ^[0-9]{1,18}$ ]] || usage
           ;;
         --limit)
           limit="${2:-}"
