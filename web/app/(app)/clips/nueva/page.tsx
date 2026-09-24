@@ -448,7 +448,7 @@ export default function NewDemoPage({
       {stage === 'idle' && !resuming ? (
         <ProduceFormatBar value={format} onChange={(next) => router.replace(newDemoHref({ format: next }), { scroll: false })} />
       ) : null}
-      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás Short o vídeo largo para cada mapa después del análisis.</p> : null}
+      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div
           role="alert"

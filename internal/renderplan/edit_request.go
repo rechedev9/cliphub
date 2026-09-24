@@ -34,7 +34,8 @@ const (
 	DemoSourceFACEIT         = "faceit"
 	OverlayThemeFaceitOrange = "faceit-orange"
 	OverlayThemeNeonViolet   = "neon-violet"
-	// DefaultRecapVoiceVolume is the locked Full Demo team-comms gain.
+	// DefaultRecapVoiceVolume is the team-comms gain of the legacy recap chain,
+	// which goes through the Shorts editor and is capped at 1.0.
 	DefaultRecapVoiceVolume = 0.85
 )
 
