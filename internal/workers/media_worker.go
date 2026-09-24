@@ -106,10 +106,13 @@ const chainedRenderUniqueTTL = 24 * time.Hour
 // deadline or shutdown (pgxpool.Exec refuses to run on a cancelled context).
 // The secondary error is logged rather than discarded: a job stranded in a
 // non-terminal status is otherwise invisible to operators.
+//
+// The failure_code prefix is for remote diagnostics only: the stored reason is
+// what Studio matches (by prefix) to explain the failure, so it never carries it.
 func markFailed(repo statusUpdater, id uuid.UUID, reason string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), failureWriteTimeout)
 	defer cancel()
-	if err := repo.UpdateStatus(ctx, id, job.StatusFailed, reason); err != nil {
+	if err := repo.UpdateStatus(ctx, id, job.StatusFailed, obs.StripFailurePrefix(reason)); err != nil {
 		logWorkerError(id, "mark failed", err)
 		return err
 	}
