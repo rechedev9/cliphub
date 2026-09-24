@@ -44,6 +44,11 @@ Rules that follow from it:
 
 ### How to diagnose a user's render failure
 
+- Start from the Telegram alert: it names the failure code, substage,
+  release, CS2 build / HLAE pin and a hint, and links the tailnet report page
+  of the issue. The page lists the jobs with the
+  `node scripts/telemetry-debug.mjs --job <id>` command that rebuilds each
+  one from the collector (see `docs/telemetry-operations.md`).
 - The UI shows a generic message ("No se pudo completar el video en este
   equipo"). The real ffmpeg stderr is kept in remote telemetry.
 - Query it with `bash scripts/telemetry-query.sh incident CH-XXXX-...`
@@ -56,6 +61,22 @@ Rules that follow from it:
   83-86 % is AAC recovery, 87 %+ is delivery verification.
 - Working-directory logs (`out/logs/program-*.txt`) are deleted with the
   temp workdir on failure unless `ZV_MEDIA_WORK_DIR` is set.
+
+### Keeping failures alertable
+
+- A new way for a job to fail gets a failure code: wrap the error with
+  `obs.WithFailure` (`internal/obs/failure_code.go`) and, when the fix is
+  known, add a hint in `internal/telemetryalert/hints.go`. Unclassified
+  failures still alert, but on a text signature that changes when the
+  message is reworded.
+- A new log record label is only watched if a rule or the daily digest in
+  `internal/telemetryalert` reads it. Add one, or accept that it is only
+  visible in `telemetry-debug` reports.
+- New event classes or stages must be added to both allowlists
+  (`internal/telemetry/types.go` and `desktop/src/telemetry-journal.ts`);
+  `allowlist_contract_test.go` fails otherwise. Deploy the collector before
+  the Studio release that sends them: the old collector rejects the event and
+  the client drops it.
 
 ### Capture tail shortfall tolerance (2026-09-22)
 

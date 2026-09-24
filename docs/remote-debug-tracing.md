@@ -71,6 +71,13 @@ is `POST /v1/logs`, authenticated with the existing ingest key. A 202 response
 includes the exact `accepted_ids` only after a SQLite FULL-synchronous commit.
 Identical retries retain the same IDs; conflicting identities are rejected.
 
+`GET /v1/errors` (admin) pages error events by receipt time with an
+`after=<received_ms>:<id>` cursor, and `GET /healthz` on the admin listener
+reports the build version, database health, last receipt per channel, ingest
+rejection counters and storage ratios. The alerter reads both, plus
+`/v1/logs` by cursor, every minute; `scripts/telemetry-query.sh` exposes them
+as `errors`, `logs` and `health`.
+
 ## Capacity and incomplete evidence
 
 - The desktop fsyncs filtered JSONL segments before upload. It retains pending

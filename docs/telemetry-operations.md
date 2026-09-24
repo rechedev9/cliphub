@@ -41,8 +41,10 @@ An issue is `sha256(component|name|stage|class|code)[:16]`. `code` is the
 `unclassified:<signature>`, where the signature is the first error-looking
 line with timestamps, paths, ids, versions and numbers replaced. The key does
 not depend on the release, so "new", "regressed" and "resolved" work across
-versions. The log copy of a task failure lands on the same issue as its error
-event and is counted once per job within 10 minutes.
+versions. A failed job arrives twice (the error event and the
+`attempt.finished` log), and on current clients the two copies can have
+different labels and text. Every occurrence of the same job within 10 minutes
+is therefore counted once, on the key of the first copy.
 
 ### Rules
 
