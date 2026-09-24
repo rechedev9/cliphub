@@ -50,8 +50,12 @@ export const PRODUCE_FORMAT = {
 } as const;
 export type ProduceFormat = (typeof PRODUCE_FORMAT)[keyof typeof PRODUCE_FORMAT];
 
-export function isProduceFormat(value: string | null): value is ProduceFormat {
-  return value === PRODUCE_FORMAT.short || value === PRODUCE_FORMAT.full;
+/** The long video is what creators make most, so a link without `?formato=` opens it. */
+export const DEFAULT_PRODUCE_FORMAT: ProduceFormat = PRODUCE_FORMAT.full;
+
+/** Resolves `?formato=`; a missing, repeated or unknown value falls back to the default format. */
+export function produceFormatParam(value: string | string[] | null | undefined): ProduceFormat {
+  return value === PRODUCE_FORMAT.short || value === PRODUCE_FORMAT.full ? value : DEFAULT_PRODUCE_FORMAT;
 }
 
 export function hubHref(opts: { lens?: HubLens; open?: string } = {}): string {
@@ -64,11 +68,11 @@ export function hubHref(opts: { lens?: HubLens; open?: string } = {}): string {
 
 export function produceHref(
   matchId: string,
-  format: ProduceFormat = PRODUCE_FORMAT.short,
+  format: ProduceFormat = DEFAULT_PRODUCE_FORMAT,
   seriesId?: string,
 ): string {
   const params = new URLSearchParams();
-  if (format !== PRODUCE_FORMAT.short) params.set(PRODUCE_QUERY.format, format);
+  if (format !== DEFAULT_PRODUCE_FORMAT) params.set(PRODUCE_QUERY.format, format);
   if (seriesId !== undefined && seriesId !== '') params.set(PRODUCE_QUERY.series, seriesId);
   const base = `${CLIPS_HREF}/${encodeURIComponent(matchId)}/nuevo`;
   const query = params.toString();

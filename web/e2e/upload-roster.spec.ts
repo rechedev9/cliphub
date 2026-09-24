@@ -88,7 +88,7 @@ test('choosing a player advances to preparing the video while the parse request 
     await route.fulfill({ status: 503, json: { code: 'service_unavailable' } });
   });
   try {
-    await page.getByRole('button', { name: 'Continuar al Short' }).click();
+    await page.getByRole('button', { name: 'Continuar al vídeo largo' }).click();
     const progress = page.getByRole('list', { name: 'Pasos de creación' });
     await expect(progress.locator('[aria-current="step"]')).toContainText('Preparar vídeo');
     await expect(progress.getByLabel('Completado')).toHaveCount(2);
@@ -307,6 +307,6 @@ for (const format of ['short', 'full']) {
     expect((await request).postDataJSON()).toHaveProperty('steamId');
     await page.route(`**/api/demos/${JOB_ID}/status`, (route) => route.fulfill({ json: { status: 'parsed' } }));
     await page.route(`**/api/demos/${JOB_ID}/plan`, (route) => route.fulfill({ json: { demo: { map: 'de_mirage' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz' }, stats: {}, segments: [] } }));
-    await expect(page).toHaveURL(new RegExp(`/clips/${JOB_ID}/nuevo${format === 'full' ? '\\?formato=full' : ''}$`));
+    await expect(page).toHaveURL(new RegExp(`/clips/${JOB_ID}/nuevo${format === 'short' ? '\\?formato=short' : ''}$`));
   });
 }

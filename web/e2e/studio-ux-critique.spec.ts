@@ -37,7 +37,7 @@ test.describe('Produce screen empty states', () => {
       ],
       match: { map: 'de_inferno', score_team_a: 7, score_team_b: 5 },
     });
-    await gotoStudio(page, `/clips/${JOB}/nuevo`);
+    await gotoStudio(page, `/clips/${JOB}/nuevo?formato=short`);
     await expect(page.getByRole('heading', { name: MATCH_PLAYS_ANALYZING_TITLE })).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_ANALYZING_DESCRIPTION)).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_EMPTY_TITLE)).toHaveCount(0);
@@ -80,7 +80,7 @@ test.describe('Produce screen empty states', () => {
       ],
     });
     await fulfillJson(page, '/recap-plan', 409, { error: 'recap plan not ready' });
-    await gotoStudio(page, `/clips/${JOB}/nuevo`);
+    await gotoStudio(page, `/clips/${JOB}/nuevo?formato=short`);
     await expect(page.getByRole('heading', { name: MATCH_PLAYS_EMPTY_TITLE })).toBeVisible();
     await expect(page.getByText(MATCH_PLAYS_ANALYZING_TITLE)).toHaveCount(0);
   });

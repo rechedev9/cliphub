@@ -14,11 +14,11 @@ import { takePendingDemoFiles } from '@/lib/clips/pending-upload';
 import {
   CLIPS_HREF,
   isJobIdParam,
-  isProduceFormat,
   PRODUCE_QUERY,
   newDemoHref,
   NEW_DEMO_QUERY,
   PRODUCE_FORMAT,
+  produceFormatParam,
   produceHref,
   seriesHref,
 } from '@/lib/clips/routes';
@@ -89,8 +89,7 @@ export default function NewDemoPage({
   const router = useRouter();
   const query = use(searchParams);
   const jobParam = query[NEW_DEMO_QUERY.job];
-  const formatParam = query[PRODUCE_QUERY.format];
-  const format = typeof formatParam === 'string' && isProduceFormat(formatParam) ? formatParam : PRODUCE_FORMAT.short;
+  const format = produceFormatParam(query[PRODUCE_QUERY.format]);
   const resuming = jobParam !== undefined;
   const resumeJobId = isJobIdParam(jobParam) ? jobParam : null;
 
@@ -449,7 +448,7 @@ export default function NewDemoPage({
       {stage === 'idle' && !resuming ? (
         <ProduceFormatBar value={format} onChange={(next) => router.replace(newDemoHref({ format: next }), { scroll: false })} />
       ) : null}
-      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás Short o vídeo largo para cada mapa después del análisis.</p> : null}
+      {seriesMode ? <p className="text-body-sm text-fg-2">En una serie elegirás vídeo largo o Short para cada mapa después del análisis.</p> : null}
       {warning ? (
         <div
           role="alert"

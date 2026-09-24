@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { SteamDownloadDialog } from '@/components/onboarding/steam-download-dialog';
 import { resolveShareCode, type ShareCodeResolution } from '@/lib/api/share-code-resolve';
 import { importShareCode } from '@/lib/api/steam-import';
-import { PRODUCE_FORMAT, newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
+import { newDemoHref, type ProduceFormat } from '@/lib/clips/routes';
 import { checkShareCode } from '@/lib/sharecode';
 
 const STEPS = [
@@ -29,7 +29,7 @@ type DoorState =
   | { phase: 'done'; result: ShareCodeResolution };
 
 /** Paste a CS2 match share code, then enqueue its demo. */
-export function ShareCodeDoor({ format = PRODUCE_FORMAT.short }: { format?: ProduceFormat }): ReactElement {
+export function ShareCodeDoor({ format }: { format: ProduceFormat }): ReactElement {
   const router = useRouter();
   const [state, setState] = useState<DoorState>({ phase: 'idle' });
   const [downloadCode, setDownloadCode] = useState<string | null>(null);

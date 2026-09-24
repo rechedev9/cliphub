@@ -32,6 +32,17 @@ test('file and Steam inputs are separate and keep the chosen format', async ({ p
   await expect(page).toHaveURL(/formato=full$/);
 });
 
+test('a new demo opens on the long video, listed before the Short', async ({ page }) => {
+  await gotoStudio(page, '/clips/nueva');
+  const formats = page.getByRole('group', { name: 'Tipo de vídeo' }).getByRole('button');
+  await expect(formats).toHaveText(['Vídeo largo 16:9', 'Short 9:16']);
+  await expect(formats.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'Crea un vídeo largo' })).toBeVisible();
+  await formats.last().click();
+  await expect(page).toHaveURL(/\/clips\/nueva\?formato=short$/);
+  await expect(page.getByRole('heading', { name: 'Crea un Short' })).toBeVisible();
+});
+
 test('Steam import preserves long-video intent through the player handoff', async ({ page }) => {
   await page.route('**/api/steam/sharecode', route => route.fulfill({ json: { status: 'decoded', matchId: '3230642215713767581', outcomeId: '3230642252279119992', tokenId: 31463 } }));
   await page.route('**/api/steam/import', route => route.fulfill({ status: 201, json: { id: JOB, status: 'queued' } }));
@@ -74,7 +85,7 @@ test('an import with a configured player waits for parsing before opening the ed
   await expect(page.getByText('Cargando jugadores…', { exact: true })).toBeVisible();
   expect(earlyRosterRequests).toBe(0);
   status = 'parsed';
-  await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo\\?formato=full$`));
+  await expect(page).toHaveURL(new RegExp(`/clips/${JOB}/nuevo$`));
   await expect(page.getByRole('button', { name: 'Vídeo largo 16:9' })).toHaveAttribute('aria-pressed', 'true');
   expect(earlyRosterRequests).toBe(0);
 });

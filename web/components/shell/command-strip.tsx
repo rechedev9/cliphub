@@ -14,7 +14,7 @@ import {
   shellActivitySnapshot,
   subscribeToShellActivity,
 } from '@/lib/shell-activity';
-import { CLIPS_HREF, NEW_DEMO_HREF, PRODUCE_FORMAT, PRODUCE_QUERY } from '@/lib/clips/routes';
+import { CLIPS_HREF, NEW_DEMO_HREF, PRODUCE_FORMAT, PRODUCE_QUERY, produceFormatParam } from '@/lib/clips/routes';
 import { NAV_SECTIONS, type NavSection } from '@/lib/nav';
 
 const TRAIL = {
@@ -127,7 +127,7 @@ function trailForPath(pathname: string, section: NavSection | null, format: stri
   if (section.href === '/streams') return 'Editar stream';
   if (section.href === CLIPS_HREF) {
     if (pathname === NEW_DEMO_HREF) return TRAIL.newMatch;
-    if (segments[1] === 'nuevo') return format === PRODUCE_FORMAT.full ? TRAIL.newFull : TRAIL.newShort;
+    if (segments[1] === 'nuevo') return produceFormatParam(format) === PRODUCE_FORMAT.full ? TRAIL.newFull : TRAIL.newShort;
     if (segments[1] === 'publicar') return TRAIL.publish;
   }
   const segment = decodeURIComponent(segments[0] ?? '');

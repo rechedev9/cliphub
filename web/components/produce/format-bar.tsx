@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const FORMAT_ITEMS = [
-  { value: PRODUCE_FORMAT.short, label: 'Short 9:16', description: 'Jugadas seleccionadas · un vídeo vertical · estilo y música a tu elección' },
   { value: PRODUCE_FORMAT.full, label: 'Vídeo largo 16:9', description: 'Todas las rondas · vista de un jugador · HUD y voces del equipo' },
+  { value: PRODUCE_FORMAT.short, label: 'Short 9:16', description: 'Jugadas seleccionadas · un vídeo vertical · estilo y música a tu elección' },
 ] as const;
 
 /** Selected: primary fill and border. Unselected: quiet until hovered, so the choice never reads inverted. */

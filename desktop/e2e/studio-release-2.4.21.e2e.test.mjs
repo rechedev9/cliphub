@@ -133,7 +133,7 @@ test('demo reel uses the selected settings without brief approval', async () => 
     presets: [{ name: 'viral-60-clean', label: 'Clean POV', hud_mode: 'clean', default: true, width: 1080, height: 1920 }],
   } }));
   try {
-    await goto(`/clips/${jobId}/nuevo`);
+    await goto(`/clips/${jobId}/nuevo?formato=short`);
     const brief = page.getByRole('region', { name: /Configuración del render/ }).filter({ visible: true });
     await brief.waitFor();
     const forge = page.getByRole('button', { name: 'Crear Short', exact: true });

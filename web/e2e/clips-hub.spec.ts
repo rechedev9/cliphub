@@ -284,7 +284,7 @@ test.describe('clips hub', () => {
     const parsePost = page.waitForRequest(
       (request) => request.method() === 'POST' && request.url().includes(`/api/demos/${SCANNED_JOB_ID}/parse`),
     );
-    await page.getByRole('button', { name: 'Continuar al Short' }).click();
+    await page.getByRole('button', { name: 'Continuar al vídeo largo' }).click();
     expect((await parsePost).postDataJSON()).toEqual({ steamId: '76561198000000003' });
     await expect(page.getByText('Analizando las jugadas…')).toBeVisible();
   });

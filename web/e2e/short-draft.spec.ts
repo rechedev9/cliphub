@@ -4,7 +4,7 @@ import { defaultShortSettings, shortDraftKey } from '../lib/produce/short-draft.
 import { PRODUCE_SHORT_DRAFT_RESET, PRODUCE_SHORT_DRAFT_RESTORED } from '../lib/produce/copy.ts';
 
 const JOB = '11111111-1111-4111-8111-111111111111';
-const HREF = `/clips/${JOB}/nuevo`;
+const HREF = `/clips/${JOB}/nuevo?formato=short`;
 const KEY = shortDraftKey(JOB);
 const PLAN = {
   demo: { map: 'de_inferno' }, target: { steamid64: '76561198000000001', name_in_demo: 'ropz', team_at_start: 'CT' },
@@ -150,7 +150,7 @@ test('resetting while presets load does not restore the discarded preset when th
 });
 
 test('viewing the long format does not create a Short draft', async ({ page }) => {
-  await gotoStudio(page, `${HREF}?formato=full`);
+  await gotoStudio(page, `/clips/${JOB}/nuevo`);
   await expect(page.locator('#short-preset')).toContainText('Estilo limpio');
   expect(await stored(page)).toBeNull();
   await page.getByRole('button', { name: 'Short 9:16', exact: true }).click();
