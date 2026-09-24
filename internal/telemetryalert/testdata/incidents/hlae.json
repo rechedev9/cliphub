@@ -1,0 +1,71 @@
+{
+  "comment": "HLAE hook crash after CS2 build 14182 (4.0.1, 2026-09-23), with the failure code and attempt.toolchain records of the new clients. 3.0.8 captured fine the day before.",
+  "events": [
+    {
+      "received_at": "2026-09-23T13:38:25Z", "occurred_at": "2026-09-23T13:38:05Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000023", "release": "4.0.1",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "record:demo",
+      "job_id": "4ae10001-0000-4000-8000-000000000003",
+      "message": "failure_code=hlae_hook_incompatible substage=hook_start; record:demo exited 6 after 5 s: HLAE hook crashed with a native error dialog (\"Error - AfxHookSource2\")"
+    },
+    {
+      "received_at": "2026-09-23T13:50:25Z", "occurred_at": "2026-09-23T13:50:04Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000023", "release": "4.0.1",
+      "component": "orchestrator", "name": "pipeline.error", "stage": "worker", "class": "record:demo",
+      "job_id": "4ae10001-0000-4000-8000-000000000004",
+      "message": "failure_code=hlae_hook_incompatible substage=hook_start; record:demo exited 6 after 5 s: HLAE hook crashed with a native error dialog (\"Error - AfxHookSource2\")"
+    }
+  ],
+  "logs": [
+    {
+      "received_at": "2026-09-22T18:00:00Z", "occurred_at": "2026-09-22T17:59:40Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000022", "release": "3.0.8",
+      "source": "recorder", "level": "info", "event": "attempt.toolchain", "job_id": "4ae10001-0000-4000-8000-000000000001",
+      "operation": "record:demo", "message": "cs2_build=14170 cs2_patch=v1.41.0.1 hlae=v2.192.2 encoder=h264_nvenc"
+    },
+    {
+      "received_at": "2026-09-22T18:20:00Z", "occurred_at": "2026-09-22T18:19:40Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000022", "release": "3.0.8",
+      "source": "orchestrator", "level": "info", "event": "attempt.finished", "job_id": "4ae10001-0000-4000-8000-000000000001",
+      "operation": "record:demo", "outcome": "ok", "duration_ms": 1180000, "message": "Task attempt completed"
+    },
+    {
+      "received_at": "2026-09-22T19:00:00Z", "occurred_at": "2026-09-22T18:59:40Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000022", "release": "3.0.8",
+      "source": "recorder", "level": "info", "event": "attempt.toolchain", "job_id": "4ae10001-0000-4000-8000-000000000002",
+      "operation": "record:demo", "message": "cs2_build=14170 cs2_patch=v1.41.0.1 hlae=v2.192.2 encoder=h264_nvenc"
+    },
+    {
+      "received_at": "2026-09-22T19:25:00Z", "occurred_at": "2026-09-22T19:24:40Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000022", "release": "3.0.8",
+      "source": "orchestrator", "level": "info", "event": "attempt.finished", "job_id": "4ae10001-0000-4000-8000-000000000002",
+      "operation": "record:demo", "outcome": "ok", "duration_ms": 1480000, "message": "Task attempt completed"
+    },
+    {
+      "received_at": "2026-09-23T13:38:10Z", "occurred_at": "2026-09-23T13:37:55Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000023", "release": "4.0.1",
+      "source": "recorder", "level": "info", "event": "attempt.toolchain", "job_id": "4ae10001-0000-4000-8000-000000000003",
+      "operation": "record:demo", "message": "cs2_build=14182 cs2_patch=v1.41.0.2 hlae=v2.192.2 encoder=h264_nvenc"
+    },
+    {
+      "received_at": "2026-09-23T13:38:20Z", "occurred_at": "2026-09-23T13:38:04Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000023", "release": "4.0.1",
+      "source": "orchestrator", "level": "error", "event": "attempt.finished", "job_id": "4ae10001-0000-4000-8000-000000000003",
+      "operation": "record:demo", "outcome": "error", "duration_ms": 5000, "exit_code": 6,
+      "message": "failure_code=hlae_hook_incompatible substage=hook_start; record:demo exited 6 after 5 s: HLAE hook crashed with a native error dialog (\"Error - AfxHookSource2\")"
+    },
+    {
+      "received_at": "2026-09-23T13:50:10Z", "occurred_at": "2026-09-23T13:49:55Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000023", "release": "4.0.1",
+      "source": "recorder", "level": "info", "event": "attempt.toolchain", "job_id": "4ae10001-0000-4000-8000-000000000004",
+      "operation": "record:demo", "message": "cs2_build=14182 cs2_patch=v1.41.0.2 hlae=v2.192.2 encoder=h264_nvenc"
+    },
+    {
+      "received_at": "2026-09-23T13:50:20Z", "occurred_at": "2026-09-23T13:50:03Z",
+      "support_code": "CH-1111-2222-3333-4444-5555", "session_id": "5e551011-0000-4000-8000-000000000023", "release": "4.0.1",
+      "source": "orchestrator", "level": "error", "event": "attempt.finished", "job_id": "4ae10001-0000-4000-8000-000000000004",
+      "operation": "record:demo", "outcome": "error", "duration_ms": 5000, "exit_code": 6,
+      "message": "failure_code=hlae_hook_incompatible substage=hook_start; record:demo exited 6 after 5 s: HLAE hook crashed with a native error dialog (\"Error - AfxHookSource2\")"
+    }
+  ]
+}

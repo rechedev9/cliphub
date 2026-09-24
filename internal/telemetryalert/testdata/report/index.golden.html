@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Telemetría ClipHub</title>
+<style>
+:root{color-scheme:dark;--bg:#0c121d;--surface:#141c2b;--line:#27324a;--text:#e6ebf4;--muted:#9aa7bf;--accent:#22d9ee;--bad:#ff6b5e;--warn:#f2b64a;--ok:#3ddc97}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:4px 0 2px}
+h2{font-size:1.02rem;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+section{margin-top:22px}
+a{color:var(--accent)}
+.meta,.empty{color:var(--muted);font-size:.86rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.tile span{display:block;color:var(--muted);font-size:.8rem}
+.tile strong{display:block;font-size:1rem;overflow-wrap:anywhere}
+.bad{color:var(--bad)}
+.cards{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.card .line{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.card .title{font-weight:600;overflow-wrap:anywhere}
+.card .sub{color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
+.tag{display:inline-block;padding:0 6px;border:1px solid currentColor;border-radius:3px;font-size:.78rem;font-weight:600}
+.open{color:var(--warn)}.regressed{color:var(--bad)}.resolved{color:var(--ok)}.ignored{color:var(--muted)}
+.msg{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:.84rem}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:.8rem}
+td.num,th.num{text-align:right}
+pre{margin:6px 0 0;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-x:auto;font:.84rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;user-select:all}
+ul.plain{margin:0;padding-left:18px}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Telemetría ClipHub</h1>
+<p class="meta">Generado 2026-09-23 15:52 (hora de Madrid). Solo tailnet; contiene códigos de soporte y mensajes filtrados.</p>
+
+<section>
+<h2>Colector</h2>
+<div class="tiles">
+<div class="tile"><span>Estado</span><strong>ok</strong></div>
+<div class="tile"><span>Versión</span><strong>test</strong></div>
+<div class="tile"><span>Base de datos</span><strong>sí</strong></div>
+<div class="tile"><span>Último evento</span><strong>—</strong></div>
+<div class="tile"><span>Último log</span><strong>—</strong></div>
+<div class="tile"><span>Almacenamiento eventos / logs</span><strong>— / —</strong></div>
+</div>
+<p class="empty">Sin rechazos de ingesta desde el arranque del colector.</p>
+
+</section>
+
+<section>
+<h2>Issues</h2>
+<ul class="cards">
+<li class="card">
+<div class="line"><a class="title" href="issue/86670dddbcef433a.html">record:demo/hook_start</a><span class="tag open">abierta</span></div>
+<div class="sub">hlae_hook_incompatible · 2 en 30 días · instalaciones: 1 · 4.0.1 → 4.0.1 · última 2026-09-23 15:50</div>
+</li>
+<li class="card">
+<div class="line"><a class="title" href="issue/94639c4087ec0d40.html">render:variant/audio_master</a><span class="tag open">abierta</span></div>
+<div class="sub">loudnorm_param_out_of_range · 2 en 30 días · instalaciones: 1 · 3.0.0 → 3.0.0 · última 2026-09-10 16:30</div>
+</li>
+</ul>
+</section>
+
+<section>
+<h2>Intentos por versión y operación (30 días)</h2>
+<div class="scroll"><table>
+<tr><th>Versión</th><th>Operación</th><th class="num">ok</th><th class="num">error</th></tr>
+<tr><td>4.0.1</td><td>record:demo</td><td class="num">0</td><td class="num">2</td></tr>
+<tr><td>3.0.8</td><td>record:demo</td><td class="num">2</td><td class="num">0</td></tr>
+<tr><td>3.0.1</td><td>render:variant</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td>3.0.0</td><td>render:variant</td><td class="num">0</td><td class="num">2</td></tr>
+<tr><td>2.4.60</td><td>render:variant</td><td class="num">1</td><td class="num">0</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2>Reportes de usuario</h2>
+<ul class="cards">
+<li class="card">
+<div class="line"><span class="title">wrong_overlay</span><span class="sub">2026-09-11 09:30 · 3.0.1 · #1 CH-1111-2222-3333-4444-5555</span></div>
+<pre>node scripts/telemetry-debug.mjs --job face1001-0000-4000-8000-000000000004</pre>
+</li>
+</ul>
+</section>
+
+<section>
+<h2>Cambios de render.profile y builds de CS2</h2>
+<ul class="plain"><li>render.profile source_kind=faceit ahora overlay_source=demo (3.0.1); último con overlay_source=faceit: 2.4.60 2026-09-05</li><li>render.profile source_kind=faceit ahora hud=circuit (3.0.1); último con hud=default: 2.4.60 2026-09-05</li></ul>
+<p class="meta">cs2_build vistos en 30 días: 14170, 14182</p>
+</section>
+
+<section>
+<h2>Últimos errores</h2>
+<ul class="cards">
+<li class="card">
+<div class="line"><span class="title">record:demo/hook_start</span><span class="sub">2026-09-23 15:50 · 4.0.1 · #1 CH-1111-2222-3333-4444-5555</span></div>
+<div class="sub"><a href="issue/86670dddbcef433a.html">86670dddbcef433a</a> · job 4ae10001-0000-4000-8000-000000000004</div>
+<p class="msg">failure_code=hlae_hook_incompatible substage=hook_start; record:demo exited 6 after 5 s: HLAE hook crashed with a native error dialog (&#34;Error - AfxHookSource2&#34;)</p>
+</li>
+<li class="card">
+<div class="line"><span class="title">record:demo/hook_start</span><span class="sub">2026-09-23 15:38 · 4.0.1 · #1 CH-1111-2222-3333-4444-5555</span></div>
+<div class="sub"><a href="issue/86670dddbcef433a.html">86670dddbcef433a</a> · job 4ae10001-0000-4000-8000-000000000003</div>
+<p class="msg">failure_code=hlae_hook_incompatible substage=hook_start; record:demo exited 6 after 5 s: HLAE hook crashed with a native error dialog (&#34;Error - AfxHookSource2&#34;)</p>
+</li>
+<li class="card">
+<div class="line"><span class="title">render:variant/audio_master</span><span class="sub">2026-09-10 16:30 · 3.0.0 · #1 CH-1111-2222-3333-4444-5555</span></div>
+<div class="sub"><a href="issue/94639c4087ec0d40.html">94639c4087ec0d40</a> · job face1001-0000-4000-8000-000000000003</div>
+<p class="msg">failure_code=loudnorm_param_out_of_range substage=audio_master; [Parsed_loudnorm_0] Value -10.230000 for parameter &#39;TP&#39; out of range [-9 - 0]</p>
+</li>
+<li class="card">
+<div class="line"><span class="title">render:variant/audio_master</span><span class="sub">2026-09-10 16:00 · 3.0.0 · #1 CH-1111-2222-3333-4444-5555</span></div>
+<div class="sub"><a href="issue/94639c4087ec0d40.html">94639c4087ec0d40</a> · job face1001-0000-4000-8000-000000000002</div>
+<p class="msg">failure_code=loudnorm_param_out_of_range substage=audio_master; [Parsed_loudnorm_0] Value -10.180000 for parameter &#39;TP&#39; out of range [-9 - 0]</p>
+</li>
+</ul>
+</section>
+</main>
+</body>
+</html>
