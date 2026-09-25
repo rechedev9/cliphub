@@ -482,3 +482,27 @@ func TestFollowStoreDismissSeedTable(t *testing.T) {
 		}
 	})
 }
+
+func TestFollowStoreRosterDismissedSeedLendsNoZone(t *testing.T) {
+	t.Parallel()
+	store, err := NewFollowStore(filepath.Join(t.TempDir(), "followed.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DismissSeed("seeded-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Follow(Player{ID: "seeded-1", Nickname: "nipl"}); err != nil {
+		t.Fatal(err)
+	}
+	seed := seedFor(time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC),
+		RankedPlayer{PlayerID: "seeded-1", Nickname: "nipl", Country: "ua", Region: "EU", Position: 1, ELO: 4700},
+	)
+	roster, err := store.Roster(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roster) != 1 || roster[0].Seeded || roster[0].Zone != "" {
+		t.Fatalf("roster = %#v, want only the follow, outside the zone the user dismissed it from", roster)
+	}
+}

@@ -184,9 +184,13 @@ func (s *FollowStore) Roster(seed SeedDocument) ([]RosterPlayer, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A dismissed seed lends no zone: the user removed that player from the
+	// zone list, and following them must not bring them back into it.
 	zones := make(map[string]string, len(seed.Players))
 	for _, player := range seed.Players {
-		zones[player.PlayerID] = player.Zone
+		if !dismissed[player.PlayerID] {
+			zones[player.PlayerID] = player.Zone
+		}
 	}
 	out := make([]RosterPlayer, 0, len(followed)+len(seed.Players))
 	shown := make(map[string]bool, len(followed)+len(seed.Players))

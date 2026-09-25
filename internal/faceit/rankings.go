@@ -189,49 +189,18 @@ func (c *Client) Rankings(ctx context.Context, region, country string, offset, l
 	return players, nil
 }
 
-// GlobalTop returns the highest-ELO CS2 players FACEIT knows about, across
-// every allowlisted region.
-//
-// FACEIT publishes no global leaderboard, so this queries each region's own top
-// `limit` and merges them. That is exact, not an approximation: a regional
-// leaderboard is the global one filtered down to that region, and removing
-// other players can only move a player up, so anyone inside the true global
-// top N is necessarily inside their own region's top N. Reading N rows per
-// region therefore cannot miss a global top-N player. (Measured 2026-09-04:
-// EU's 10th at 4107 elo outranks every other region's 1st, so the current
-// global top 10 is entirely EU. The merge still has to run, because which
-// region leads is data, not a constant.)
-func (c *Client) GlobalTop(ctx context.Context, limit int) ([]RankedPlayer, error) {
-	players, _, err := c.globalTop(ctx, limit)
-	return players, err
-}
-
-// globalTop also reports which regions actually answered. A partial outage
-// still produces a usable roster, and the covered list is how that gets
-// recorded instead of being silently dropped.
-func (c *Client) globalTop(ctx context.Context, limit int) ([]RankedPlayer, []string, error) {
-	if c == nil || c.apiKey == "" {
-		return nil, nil, ErrNotConfigured
-	}
-	ladders := make([]rankingLadder, 0, len(rankingRegions))
-	for _, region := range rankingRegions {
-		ladders = append(ladders, rankingLadder{region: region})
-	}
-	players, covered, failed := c.topAcross(ctx, ladders, limit)
-	if len(covered) == 0 {
-		return nil, nil, fmt.Errorf("list FACEIT global rankings: %w", failed)
-	}
-	return players, covered, nil
-}
-
 // ZoneTop returns the highest-ELO CS2 players whose FACEIT country belongs to
 // zone. Players queue on any region regardless of country (measured
 // 2026-09-25: the best Mexican played on EU, not NA), so every zone country is
-// read on every region. GlobalTop's argument holds per ladder: a zone top-N
-// player is inside the top N of their own region+country leaderboard.
+// read on every region.
 //
-// Unlike GlobalTop this is all or nothing. A missing ladder would silently drop
-// a country from the roster, so any failed read fails the call.
+// Reading N rows per ladder is exact, not an approximation: a ladder is the
+// zone ranking filtered down to one region and country, and removing other
+// players can only move a player up, so anyone inside the zone top N is
+// necessarily inside their own ladder's top N.
+//
+// A zone roster is all or nothing. A missing ladder would silently drop a
+// country from it, so any failed read fails the call.
 func (c *Client) ZoneTop(ctx context.Context, zone string, limit int) ([]RankedPlayer, error) {
 	if c == nil || c.apiKey == "" {
 		return nil, ErrNotConfigured
@@ -246,7 +215,7 @@ func (c *Client) ZoneTop(ctx context.Context, zone string, limit int) ([]RankedP
 			ladders = append(ladders, rankingLadder{region: region, country: country})
 		}
 	}
-	players, _, failed := c.topAcross(ctx, ladders, limit)
+	players, failed := c.topAcross(ctx, ladders, limit)
 	if failed != nil {
 		return nil, fmt.Errorf("list FACEIT %s rankings: %w", zone, failed)
 	}
@@ -254,16 +223,14 @@ func (c *Client) ZoneTop(ctx context.Context, zone string, limit int) ([]RankedP
 }
 
 // topAcross reads the top `limit` of every ladder and merges them into one
-// ELO ranking. It returns the ladders that answered, in ladder order, and the
-// joined per-ladder failures (nil when every ladder answered); the caller
-// decides how much coverage is enough.
-func (c *Client) topAcross(ctx context.Context, ladders []rankingLadder, limit int) ([]RankedPlayer, []string, error) {
+// ELO ranking, with the joined per-ladder failures (nil when every ladder
+// answered).
+func (c *Client) topAcross(ctx context.Context, ladders []rankingLadder, limit int) ([]RankedPlayer, error) {
 	limit = clampRankingLimit(limit)
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	merged := make([]RankedPlayer, 0, limit*len(ladders))
-	covered := make(map[rankingLadder]bool, len(ladders))
 	failures := make(map[rankingLadder]error, len(ladders))
 	gate := make(chan struct{}, rankingWorkers)
 	for _, ladder := range ladders {
@@ -286,7 +253,6 @@ func (c *Client) topAcross(ctx context.Context, ladders []rankingLadder, limit i
 				failures[ladder] = err
 				return
 			}
-			covered[ladder] = true
 			merged = append(merged, players...)
 		}()
 	}
@@ -306,21 +272,18 @@ func (c *Client) topAcross(ctx context.Context, ladders []rankingLadder, limit i
 		merged = merged[:limit]
 	}
 
-	answered := make([]string, 0, len(covered))
 	var failed []error
 	for _, ladder := range ladders {
-		if covered[ladder] {
-			answered = append(answered, ladder.String())
-		} else if err := failures[ladder]; err != nil {
+		if err := failures[ladder]; err != nil {
 			failed = append(failed, fmt.Errorf("%s: %w", ladder, err))
 		}
 	}
-	return merged, answered, errors.Join(failed...)
+	return merged, errors.Join(failed...)
 }
 
 // dedupeRankedPlayers keeps the highest-ELO row per player id. A player should
-// appear on exactly one regional leaderboard, but a duplicate would otherwise
-// take two slots in the Players section.
+// appear on exactly one ladder, but a duplicate would otherwise take two slots
+// in the Players section.
 func dedupeRankedPlayers(players []RankedPlayer) []RankedPlayer {
 	best := make(map[string]int, len(players))
 	out := make([]RankedPlayer, 0, len(players))

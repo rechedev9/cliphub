@@ -306,96 +306,17 @@ func leaderboardServer(t *testing.T, population []rankedFixture, broken map[stri
 	return client
 }
 
-// globalTopOf is the answer the merge has to reproduce: the whole population
-// ranked, truncated to limit.
-func globalTopOf(population []rankedFixture, limit int) []string {
-	ranked := append([]rankedFixture(nil), population...)
-	sort.Slice(ranked, func(i, j int) bool {
-		if ranked[i].elo != ranked[j].elo {
-			return ranked[i].elo > ranked[j].elo
-		}
-		return ranked[i].id < ranked[j].id
-	})
-	if len(ranked) > limit {
-		ranked = ranked[:limit]
-	}
-	out := make([]string, 0, len(ranked))
-	for _, player := range ranked {
-		out = append(out, player.id)
-	}
-	return out
-}
-
-// TestGlobalTopEqualsTheTrueGlobalRanking encodes the invariant the merge rests
-// on: a player inside the global top N is necessarily inside their own
-// region's top N, so N rows per region are enough to reproduce the global
-// ranking exactly. The population is deliberately lopsided the way the real
-// one is — the strong region's Nth outranks every other region's 1st.
-func TestGlobalTopEqualsTheTrueGlobalRanking(t *testing.T) {
-	t.Parallel()
-	var population []rankedFixture
-	for i := range 30 {
-		population = append(population, rankedFixture{id: fmt.Sprintf("eu-%02d", i), region: "EU", elo: 4600 - i*10})
-	}
-	for i := range 30 {
-		population = append(population, rankedFixture{id: fmt.Sprintf("na-%02d", i), region: "NA", elo: 4000 - i*10})
-	}
-	for i := range 12 {
-		population = append(population, rankedFixture{id: fmt.Sprintf("sa-%02d", i), region: "SA", elo: 3800 - i*10})
-	}
-	population = append(population,
-		rankedFixture{id: "oce-00", region: "OCE", elo: 3500},
-		rankedFixture{id: "sea-00", region: "SEA", elo: 3400},
-	)
-
-	client := leaderboardServer(t, population, nil)
-	for _, limit := range []int{1, 5, 10, 25} {
-		players, err := client.GlobalTop(context.Background(), limit)
-		if err != nil {
-			t.Fatalf("limit %d: %v", limit, err)
-		}
-		got := make([]string, 0, len(players))
-		for _, player := range players {
-			got = append(got, player.PlayerID)
-		}
-		want := globalTopOf(population, limit)
-		if fmt.Sprint(got) != fmt.Sprint(want) {
-			t.Fatalf("limit %d: global top = %v, want %v", limit, got, want)
-		}
-	}
-
-	players, err := client.GlobalTop(context.Background(), 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(players) != 10 {
-		t.Fatalf("players = %d, want 10", len(players))
-	}
-	for _, player := range players {
-		if player.Region != "EU" {
-			t.Fatalf("player %#v, want the lopsided population to leave only EU in the top 10", player)
-		}
-	}
-	if players[0].ELO < players[9].ELO {
-		t.Fatalf("players are not ordered by elo: %d then %d", players[0].ELO, players[9].ELO)
-	}
-	// Region position is preserved, so a seeded row can say where it came from.
-	if players[9].Position != 10 {
-		t.Fatalf("tenth player position = %d, want its EU position 10", players[9].Position)
-	}
-}
-
-func TestGlobalTopBreaksTiesByPlayerID(t *testing.T) {
+func TestZoneTopBreaksTiesByPlayerID(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{
-		{id: "zz-tied", region: "EU", elo: 4000},
-		{id: "aa-tied", region: "NA", elo: 4000},
-		{id: "mm-tied", region: "SA", elo: 4000},
-		{id: "low", region: "SEA", elo: 3000},
+		{id: "zz-tied", region: "EU", country: "ru", elo: 4000},
+		{id: "aa-tied", region: "NA", country: "ua", elo: 4000},
+		{id: "mm-tied", region: "SA", country: "kz", elo: 4000},
+		{id: "low", region: "SEA", country: "by", elo: 3000},
 	}
 	client := leaderboardServer(t, population, nil)
 	for attempt := range 5 {
-		players, err := client.GlobalTop(context.Background(), 4)
+		players, err := client.ZoneTop(context.Background(), ZoneCIS, 4)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -410,15 +331,15 @@ func TestGlobalTopBreaksTiesByPlayerID(t *testing.T) {
 	}
 }
 
-func TestGlobalTopDropsDuplicatePlayerAcrossRegions(t *testing.T) {
+func TestZoneTopDropsDuplicatePlayerAcrossLadders(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{
-		{id: "double", region: "EU", elo: 4200},
-		{id: "double", region: "NA", elo: 4100},
-		{id: "single", region: "SA", elo: 4000},
+		{id: "double", region: "EU", country: "ru", elo: 4200},
+		{id: "double", region: "NA", country: "ru", elo: 4100},
+		{id: "single", region: "SA", country: "ua", elo: 4000},
 	}
 	client := leaderboardServer(t, population, nil)
-	players, err := client.GlobalTop(context.Background(), 10)
+	players, err := client.ZoneTop(context.Background(), ZoneCIS, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,65 +348,6 @@ func TestGlobalTopDropsDuplicatePlayerAcrossRegions(t *testing.T) {
 	}
 	if players[0].PlayerID != "double" || players[0].ELO != 4200 {
 		t.Fatalf("first player = %#v, want the higher-elo copy", players[0])
-	}
-}
-
-func TestGlobalTopRegionOutages(t *testing.T) {
-	t.Parallel()
-	population := []rankedFixture{
-		{id: "eu-0", region: "EU", elo: 4600},
-		{id: "na-0", region: "NA", elo: 4000},
-		{id: "sa-0", region: "SA", elo: 3900},
-		{id: "oce-0", region: "OCE", elo: 3800},
-		{id: "sea-0", region: "SEA", elo: 3700},
-	}
-	tests := []struct {
-		name        string
-		broken      []string
-		wantIDs     string
-		wantRegions string
-		wantErr     bool
-	}{
-		{name: "all regions answer", wantIDs: "[eu-0 na-0 sa-0 oce-0 sea-0]", wantRegions: "[EU NA SA OCE SEA]"},
-		{name: "one region down", broken: []string{"EU"}, wantIDs: "[na-0 sa-0 oce-0 sea-0]", wantRegions: "[NA SA OCE SEA]"},
-		{name: "only one region up", broken: []string{"EU", "NA", "SA", "OCE"}, wantIDs: "[sea-0]", wantRegions: "[SEA]"},
-		{name: "every region down", broken: []string{"EU", "NA", "SA", "OCE", "SEA"}, wantErr: true},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			broken := make(map[string]bool, len(test.broken))
-			for _, region := range test.broken {
-				broken[region] = true
-			}
-			client := leaderboardServer(t, population, broken)
-			players, regions, err := client.globalTop(context.Background(), 10)
-			if test.wantErr {
-				if err == nil {
-					t.Fatal("error = nil, want a failure when no region answers")
-				}
-				if !errors.Is(err, ErrUnavailable) {
-					t.Fatalf("error = %v, want the per-region cause joined in", err)
-				}
-				if players != nil || regions != nil {
-					t.Fatalf("players = %#v regions = %#v, want none", players, regions)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			ids := make([]string, 0, len(players))
-			for _, player := range players {
-				ids = append(ids, player.PlayerID)
-			}
-			if fmt.Sprint(ids) != test.wantIDs {
-				t.Fatalf("players = %v, want %s", ids, test.wantIDs)
-			}
-			if fmt.Sprint(regions) != test.wantRegions {
-				t.Fatalf("regions = %v, want %s", regions, test.wantRegions)
-			}
-		})
 	}
 }
 
@@ -525,7 +387,7 @@ func TestZoneTopEqualsTheTrueZoneRanking(t *testing.T) {
 }
 
 // A zone roster missing one country would look complete, so one failed ladder
-// fails the whole zone instead of being tolerated like a GlobalTop region.
+// fails the whole zone.
 func TestZoneTopFailsOnAnyMissingLadder(t *testing.T) {
 	t.Parallel()
 	population := []rankedFixture{{id: "ru-eu", region: "EU", country: "ru", elo: 4600}}
@@ -553,9 +415,6 @@ func TestRankingsRequiresAPIKey(t *testing.T) {
 			t.Parallel()
 			if _, err := client.Rankings(context.Background(), "EU", "", 0, 10); !errors.Is(err, ErrNotConfigured) {
 				t.Fatalf("Rankings error = %v, want ErrNotConfigured", err)
-			}
-			if _, err := client.GlobalTop(context.Background(), 10); !errors.Is(err, ErrNotConfigured) {
-				t.Fatalf("GlobalTop error = %v, want ErrNotConfigured", err)
 			}
 			if _, err := client.ZoneTop(context.Background(), ZoneCIS, 10); !errors.Is(err, ErrNotConfigured) {
 				t.Fatalf("ZoneTop error = %v, want ErrNotConfigured", err)
