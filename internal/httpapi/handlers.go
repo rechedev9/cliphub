@@ -1966,10 +1966,18 @@ func (h *Handlers) readOrMaterializeRenderVariantStateLocked(
 		warnings := knownWarnings
 		if warnings == nil {
 			decoded, err := h.readCompleteRenderWarnings(*stored)
-			if err != nil {
+			switch {
+			case err == nil:
+				warnings = decoded
+			case stored.Status == renderplan.RenderVariantStatusReview:
+				// A legacy review state was always served without reading its
+				// result. Keep doing so when the result is unreadable: clients
+				// treat review_required as ready, and failing the read would
+				// break every poll of an old job.
+				return stored, true, false, nil
+			default:
 				return nil, false, false, err
 			}
-			warnings = decoded
 		}
 		// QA warnings are informational: a legacy review_required state is
 		// promoted to ready so nothing waits on a human sign-off.

@@ -2001,12 +2001,11 @@ func (w *RenderWorker) render(ctx context.Context, j job.Job, variant, musicKey 
 		return err
 	}
 	if ready {
-		cachedStatus := renderplan.RenderVariantStatusReady
-		if previousState == nil || previousState.Status != cachedStatus || !reflect.DeepEqual(previousState.Warnings, cachedWarnings) {
+		if previousState == nil || previousState.Status != renderplan.RenderVariantStatusReady || !reflect.DeepEqual(previousState.Warnings, cachedWarnings) {
 			migratedState, stateErr := renderplan.NewRenderVariantStateForLoadout(renderplan.NewRenderVariantStateForLoadoutOptions{
 				JobID:    j.ID,
 				Loadout:  loadout,
-				Status:   cachedStatus,
+				Status:   renderplan.RenderVariantStatusReady,
 				Warnings: cachedWarnings,
 				Previous: previousState,
 			})

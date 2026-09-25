@@ -3354,6 +3354,16 @@ func TestReadyRenderStateSyncsWarningsFromResultOnGet(t *testing.T) {
 }
 
 func TestGetRenderVariantPromotesLegacyReviewStateToReady(t *testing.T) {
+	// Without a readable render result the legacy state is served unchanged, as
+	// it was before; it must not start failing every poll.
+	for _, withResult := range []bool{true, false} {
+		t.Run(fmt.Sprintf("result=%v", withResult), func(t *testing.T) {
+			testGetRenderVariantPromotesLegacyReviewState(t, withResult)
+		})
+	}
+}
+
+func testGetRenderVariantPromotesLegacyReviewState(t *testing.T, withResult bool) {
 	const warning = "freeze at 00:12.400"
 	repo := newFakeRepo()
 	store := newFakeStorage()
@@ -3379,10 +3389,12 @@ func TestGetRenderVariantPromotesLegacyReviewStateToReady(t *testing.T) {
 	if err := h.writeRenderVariantState(legacy); err != nil {
 		t.Fatal(err)
 	}
-	putAssistantJSON(t, store, legacy.RenderResultKey, editor.Result{
-		Preset:   variant,
-		Warnings: []string{warning},
-	})
+	if withResult {
+		putAssistantJSON(t, store, legacy.RenderResultKey, editor.Result{
+			Preset:   variant,
+			Warnings: []string{warning},
+		})
+	}
 
 	r := chi.NewRouter()
 	r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
@@ -3398,6 +3410,12 @@ func TestGetRenderVariantPromotesLegacyReviewStateToReady(t *testing.T) {
 	}
 	if err := json.Unmarshal(rw.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
+	}
+	if !withResult {
+		if got.Status != renderplan.RenderVariantStatusReview {
+			t.Fatalf("status = %q, want the unreadable legacy state served unchanged", got.Status)
+		}
+		return
 	}
 	if got.Status != renderplan.RenderVariantStatusReady || !slices.Equal(got.Warnings, []string{warning}) {
 		t.Fatalf("response = %#v, want ready with the warning kept", got)
