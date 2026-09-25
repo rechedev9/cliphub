@@ -186,7 +186,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     label: 'Jugadores',
     title: 'Sigue jugadores de FACEIT',
     lead:
-      'Busca por nick o URL de FACEIT y añádelo a «Siguiendo». Verás su nivel, victorias, K/D, ADR, headshots y su historial de partidas filtrable por mapa y resultado.',
+      'Busca por nick o URL de FACEIT y añádelo a tu lista Custom, o explora los mejores de CIS y LATAM. Verás su nivel, victorias, K/D, ADR, headshots y su historial de partidas filtrable por mapa y resultado.',
     points: [
       {
         term: 'De la partida al clip',

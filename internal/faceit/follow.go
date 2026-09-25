@@ -48,13 +48,16 @@ type dismissedFile struct {
 }
 
 // RosterPlayer is one row of the Players section. Seeded marks a row that came
-// from the default FACEIT top-N roster instead of from the user's own follows:
+// from the default FACEIT zone rosters instead of from the user's own follows:
 // it is never written to followed.json and never consumes one of the
 // MaxFollowedPlayers slots, so the default list cannot quietly spend the
-// budget the user needs for their own players.
+// budget the user needs for their own players. Zone names the seeded roster
+// the player is in, and is kept on a follow too, so a followed zone player
+// still shows in that zone's list.
 type RosterPlayer struct {
 	FollowedPlayer
 	Seeded   bool   `json:"seeded,omitempty"`
+	Zone     string `json:"zone,omitempty"`
 	Region   string `json:"region,omitempty"`
 	Position int    `json:"position,omitempty"`
 }
@@ -160,7 +163,7 @@ func (s *FollowStore) Unfollow(playerID string) error {
 }
 
 // Roster projects the Players section: the user's own follows first, newest
-// first as List returns them, then the seeded default roster minus anyone the
+// first as List returns them, then the seeded zone rosters minus anyone the
 // user already follows or has dismissed.
 //
 // Nothing here is persisted. A seeded row exists only for as long as the caller
@@ -181,11 +184,19 @@ func (s *FollowStore) Roster(seed SeedDocument) ([]RosterPlayer, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A dismissed seed lends no zone: the user removed that player from the
+	// zone list, and following them must not bring them back into it.
+	zones := make(map[string]string, len(seed.Players))
+	for _, player := range seed.Players {
+		if !dismissed[player.PlayerID] {
+			zones[player.PlayerID] = player.Zone
+		}
+	}
 	out := make([]RosterPlayer, 0, len(followed)+len(seed.Players))
 	shown := make(map[string]bool, len(followed)+len(seed.Players))
 	for _, player := range followed {
 		shown[player.ID] = true
-		out = append(out, RosterPlayer{FollowedPlayer: player})
+		out = append(out, RosterPlayer{FollowedPlayer: player, Zone: zones[player.ID]})
 	}
 	for _, player := range seed.Players {
 		if shown[player.PlayerID] || dismissed[player.PlayerID] {
@@ -207,6 +218,7 @@ func (s *FollowStore) Roster(seed SeedDocument) ([]RosterPlayer, error) {
 				FollowedAt: seed.GeneratedAt,
 			},
 			Seeded:   true,
+			Zone:     player.Zone,
 			Region:   player.Region,
 			Position: player.Position,
 		})
