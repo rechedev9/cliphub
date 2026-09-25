@@ -341,7 +341,7 @@ func attachFullDemoExecution(manifest *Manifest, result recording.RecordingResul
 		short.Caption += " Opens with a channel intro."
 	}
 	if _, ok := d.Options.SponsorBumper(); ok {
-		short.Caption += " Includes a sponsor video after round 2."
+		short.Caption += " Includes a sponsor video."
 	}
 	if _, ok := d.Options.OutroBumper(); ok {
 		short.Caption += " Ends with a channel outro."

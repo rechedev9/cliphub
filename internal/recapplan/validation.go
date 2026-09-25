@@ -143,7 +143,12 @@ func dropRetiredSponsorValue(value any) bool {
 // hasRetiredSponsor reports a stored document written before the sponsor
 // became a bumper slot.
 func hasRetiredSponsor(data []byte) bool {
-	return bytes.Contains(data, []byte(`"sponsor_placement"`))
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(data, &fields) != nil {
+		return false
+	}
+	_, ok := fields["sponsor_placement"]
+	return ok
 }
 
 func requireFields(data []byte, typ reflect.Type, field string, depth int) error {

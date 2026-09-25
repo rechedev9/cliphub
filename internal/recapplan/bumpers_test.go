@@ -89,6 +89,17 @@ func TestSponsorFollowsTheOnlyRoundOfAShortProgram(t *testing.T) {
 	if err := d.Validate(); err != nil {
 		t.Fatalf("rebuilding the timeline must not repeat the warning: %v", err)
 	}
+
+	sponsor.HasVideo = false
+	d, err = Plan(facts, options, VoiceEvidence{Availability: "no_packets"}, []AssetEvidence{sponsor, outro}, "facts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range d.Warnings {
+		if n.Code == WarnSponsorAfterLastRound {
+			t.Fatalf("a sponsor that is not placed must not warn about its placement: %+v", d.Warnings)
+		}
+	}
 }
 
 func TestBumperBlockersKeepMissingClipsOffTheTimeline(t *testing.T) {
@@ -234,5 +245,8 @@ func TestRetiredSponsorFieldsStillDecodeAndOldPlansReadAsAbsent(t *testing.T) {
 	}
 	if _, found, err := LoadCurrentDocument(store, id); err != nil || found {
 		t.Fatalf("legacy plan: found=%v err=%v", found, err)
+	}
+	if hasRetiredSponsor([]byte(`{"assets":[{"title":"\"sponsor_placement\""}]}`)) {
+		t.Fatal("a value that mentions the retired key is not a retired plan")
 	}
 }

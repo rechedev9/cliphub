@@ -18,11 +18,13 @@ func (d *Document) RebuildTimeline() error {
 	d.Timeline = []TimelineItem{}
 	d.Warnings = slices.DeleteFunc(slices.Clone(d.Warnings), func(n Notice) bool { return n.Code == WarnSponsorAfterLastRound })
 	var cursor int64
-	appendBumper := func(role string) {
-		if item, ok := d.bumperItem(role, cursor); ok {
+	appendBumper := func(role string) bool {
+		item, ok := d.bumperItem(role, cursor)
+		if ok {
 			d.Timeline = append(d.Timeline, item)
 			cursor = item.EndFrame
 		}
+		return ok
 	}
 	appendBumper(BumperRoleIntro)
 	rounds := 0
@@ -40,9 +42,8 @@ func (d *Document) RebuildTimeline() error {
 			appendBumper(BumperRoleSponsor)
 		}
 	}
-	if _, ok := d.Options.SponsorBumper(); ok && rounds > 0 && rounds < SponsorAfterRounds {
+	if rounds > 0 && rounds < SponsorAfterRounds && appendBumper(BumperRoleSponsor) {
 		d.Warnings = append(d.Warnings, Notice{Code: WarnSponsorAfterLastRound, Message: "The program has one round, so the sponsor plays after it"})
-		appendBumper(BumperRoleSponsor)
 	}
 	if len(d.Timeline) > 0 {
 		appendBumper(BumperRoleOutro)
