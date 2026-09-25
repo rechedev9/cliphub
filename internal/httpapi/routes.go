@@ -81,7 +81,6 @@ func Routes(h *Handlers) chi.Router {
 	r.Post("/api/jobs/{id}/compose", h.StartComposition)
 	r.Post("/api/jobs/{id}/renders/{variant}", h.StartRenderVariant)
 	r.Get("/api/jobs/{id}/renders/{variant}", h.GetRenderVariant)
-	r.Post("/api/jobs/{id}/renders/{variant}/review", h.ResolveRenderReview)
 	r.Get("/api/jobs/{id}/renders/{variant}/publish", h.GetRenderPublishBoard)
 	r.Get("/api/jobs/{id}/renders/{variant}/quality", h.GetRenderQuality)
 	r.Get("/api/jobs/{id}/renders/{variant}/pack", h.GetRenderPack)

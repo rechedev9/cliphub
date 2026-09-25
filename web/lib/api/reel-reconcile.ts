@@ -13,6 +13,7 @@ export type RenderStatus =
   | 'queued'
   | 'rendering'
   | 'ready'
+  /** Legacy: QA warnings no longer hold a render; treated exactly like ready. */
   | 'review_required'
   | 'failed';
 
@@ -59,7 +60,7 @@ export type ReelView = {
   failureReason?: string;
   /** Stable orchestrator failure class; only set when the job (not the render) failed. */
   failureCode?: string;
-  /** Exact QA warnings that block publication while review is required. */
+  /** Informational render QA warnings; they never block publication. */
   warnings?: string[];
   /** Immutable revision that produced `warnings`; required for review CAS. */
   reviewArtifactPrefix?: string;
@@ -270,17 +271,11 @@ export function deriveReelView(input: ReconcileInput): ReelView {
     recordAdmitted,
   } = input;
 
-  // A finished render is terminal even if the job later fails.
-  if (renderStatus === 'ready') {
+  // A finished render is terminal even if the job later fails. QA warnings
+  // are informational: they ride along but never hold the reel back.
+  if (renderStatus === 'ready' || renderStatus === 'review_required') {
     return {
       status: 'ready',
-      action: 'none',
-      ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),
-    };
-  }
-  if (renderStatus === 'review_required') {
-    return {
-      status: 'review_required',
       action: 'none',
       ...(renderWarnings?.length ? { warnings: renderWarnings } : {}),
       ...(renderArtifactPrefix ? { reviewArtifactPrefix: renderArtifactPrefix } : {}),

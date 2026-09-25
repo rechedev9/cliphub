@@ -251,16 +251,10 @@ func (w *Watcher) readJSON(key string, target any) (bool, error) {
 }
 
 // variantPublishable reports whether a render variant is finished and safe to
-// send to the submitter: rendered successfully, and either warning-free or
-// with its warnings explicitly reviewed and accepted on this exact revision.
-// A variant still queued, rendering, failed, or awaiting review is skipped —
-// it may still change.
+// send to the submitter. QA warnings are informational and never hold a
+// render back; a legacy review_required state counts as rendered. A variant
+// still queued, rendering, or failed is skipped — it may still change.
 func variantPublishable(state *renderplan.RenderVariantState) bool {
-	if state == nil || state.Status != renderplan.RenderVariantStatusReady {
-		return false
-	}
-	if len(state.Warnings) == 0 {
-		return true
-	}
-	return state.ReviewResolvedFor(state.Warnings)
+	return state != nil &&
+		(state.Status == renderplan.RenderVariantStatusReady || state.Status == renderplan.RenderVariantStatusReview)
 }

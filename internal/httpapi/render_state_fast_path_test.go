@@ -104,18 +104,18 @@ func TestRenderVariantReadStillMigratesUnsettledStateUnderTheLock(t *testing.T) 
 	repo.jobs[j.ID] = j
 	h := NewHandlers(repo, store, &fakeQueue{})
 	// The result carries a warning the stored ready state never recorded: the
-	// locked path must rewrite it as review_required, exactly as before.
+	// locked path must sync it into the ready state.
 	seedReadyRender(t, h, store, j.ID, []string{"freeze at 00:12"})
 
 	state, blocked := readWhileLocked(t, h, j.ID, editor.PresetViral60Clean)
 	if !blocked {
 		t.Fatal("an unsettled ready state must wait for renderStateMu before migrating")
 	}
-	if state.Status != renderplan.RenderVariantStatusReview || !slices.Equal(state.Warnings, []string{"freeze at 00:12"}) {
-		t.Fatalf("state = %#v, want review with the result's warning", state)
+	if state.Status != renderplan.RenderVariantStatusReady || !slices.Equal(state.Warnings, []string{"freeze at 00:12"}) {
+		t.Fatalf("state = %#v, want ready with the result's warning", state)
 	}
 	// Once migrated the document is settled and the next read is lock-free.
 	if _, blocked := readWhileLocked(t, h, j.ID, editor.PresetViral60Clean); blocked {
-		t.Fatal("a migrated review state must be served without the lock on the next read")
+		t.Fatal("a migrated ready state must be served without the lock on the next read")
 	}
 }

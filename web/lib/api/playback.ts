@@ -8,7 +8,6 @@ export const PLAYBACK_SOURCE = {
 
 export const PLAYBACK_REVIEW = {
   ready: 'ready',
-  pending: 'pending',
   stale: 'stale',
 } as const;
 
@@ -90,7 +89,7 @@ export function demoPlaybackItem(video: Video): MediaPlaybackItem | null {
     playbackUrl: immutableBase === null
       ? video.downloadUrl
       : `${immutableBase}/videos/${encodeURIComponent(artifactName)}`,
-    review: video.status === 'review_required' ? PLAYBACK_REVIEW.pending : PLAYBACK_REVIEW.ready,
+    review: PLAYBACK_REVIEW.ready,
     warnings: video.warnings ?? [],
   };
 }
@@ -105,9 +104,7 @@ export function streamPlaybackItem(job: StreamJob, output: StreamRenderedOutput)
   const playbackUrl = browserStreamUrl(output.video_url);
   if (playbackUrl === null || output.render_status !== 'rendered') return null;
   const posterUrl = output.cover_url ? browserStreamUrl(output.cover_url) ?? undefined : undefined;
-  let review: PlaybackReview = PLAYBACK_REVIEW.ready;
-  if (output.stale) review = PLAYBACK_REVIEW.stale;
-  else if (output.review_required) review = PLAYBACK_REVIEW.pending;
+  const review: PlaybackReview = output.stale ? PLAYBACK_REVIEW.stale : PLAYBACK_REVIEW.ready;
   return {
     id: `stream:${job.id}:${output.variant}:${output.artifact_revision}:${output.clip_id}`,
     source: PLAYBACK_SOURCE.stream,

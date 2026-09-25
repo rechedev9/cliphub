@@ -63,8 +63,10 @@ func TestStreamRenderedOutputsComeFromPublishedRevision(t *testing.T) {
 	if got.ArtifactRevision != revision.String() || got.ClipID != "draft-clip" || got.Title != "Published title" || got.DurationSeconds != 3 || got.AspectRatio != "9:16" {
 		t.Fatalf("published output = %+v", got)
 	}
-	if got.Stale || !got.ReviewRequired || len(got.Warnings) != 1 {
-		t.Fatalf("published review projection = %+v", got)
+	// QA warnings are informational: they are listed but only a stale
+	// output needs review.
+	if got.Stale || got.ReviewRequired || len(got.Warnings) != 1 {
+		t.Fatalf("published output projection = %+v", got)
 	}
 	if !strings.Contains(got.VideoURL, "/revisions/"+revision.String()+"/videos/draft-clip") || !strings.Contains(got.CoverURL, "/revisions/"+revision.String()+"/delivery/cover.jpg") {
 		t.Fatalf("revision URLs = video %q cover %q", got.VideoURL, got.CoverURL)
