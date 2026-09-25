@@ -16,10 +16,13 @@ const (
 	POVAcquireSeconds  = 2
 	FixedFreezeSeconds = 2
 	CaptureContract    = "full-demo-observer-v1"
-	ClockIngame        = "ingame_tick"
-	OutputFPS          = 60
-	SampleRate         = 48000
-	SamplesPerFrame    = SampleRate / OutputFPS
+	// NativeHUDProfile keeps the observed player's own CS2 HUD and hides only
+	// spectator-only panels. It is the capture used without a custom HUD.
+	NativeHUDProfile = "native-clean-spectator"
+	ClockIngame      = "ingame_tick"
+	OutputFPS        = 60
+	SampleRate       = 48000
+	SamplesPerFrame  = SampleRate / OutputFPS
 )
 
 // Options contains creative decisions only. Facts and resolved media properties
@@ -107,6 +110,10 @@ type CaptureOptions struct {
 	CameraPolicy    string           `json:"camera_policy"`
 	Crosshair       CrosshairOptions `json:"crosshair"`
 	ContractVersion string           `json:"contract_version"`
+	// TrueView replays the player's recorded client prediction (CS2
+	// cl_demo_predict 1) instead of the interpolated server view. Omitted when
+	// off so existing documents keep their wire format and capture hash.
+	TrueView bool `json:"trueview,omitempty"`
 }
 
 type CrosshairOptions struct {

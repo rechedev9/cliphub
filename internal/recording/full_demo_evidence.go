@@ -158,6 +158,9 @@ func (e *FullDemoCaptureEvidence) Validate(plan RecordingPlan) error {
 		return failed("Crosshair source readback differs")
 	}
 	required := map[string]float64{"cl_drawhud": 1, "cl_draw_only_deathnotices": 0, "crosshair": 1, "cl_demo_predict": 0, "cl_trueview_show_status": 0}
+	if plan.FullDemo.Options.Capture.TrueView {
+		required["cl_demo_predict"] = 1
+	}
 	if plan.FullDemo.Options.Capture.HUDProfile == "native-clean-spectator" || customhud.IsCaptureProfile(plan.FullDemo.Options.Capture.HUDProfile) {
 		for name, value := range map[string]float64{"cl_spec_show_bindings": 0, "cl_drawhud_specvote": 0, "cl_teamid_overhead_mode": 0, "cl_drawhud_force_teamid_overhead": -1, "hud_showtargetid": 0} {
 			required[name] = value

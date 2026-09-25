@@ -121,11 +121,16 @@ func CanonicalNewOptions(options Options) (Options, error) {
 		canonical.Bumpers = &bumpers
 	}
 
-	// Existing compatible HUD choices remain selectable. An absent or native
-	// HUD becomes the current broadcast HUD default instead of disabling it.
-	if options.Overlays.HUDTheme != "" {
+	// The custom HUD is optional. A native capture without a theme keeps the
+	// player's own CS2 HUD; plain "native" also retires its spectator panels.
+	// Any other absent HUD becomes the current broadcast default.
+	if options.Overlays.HUDTheme == "" && (options.Capture.HUDProfile == NativeHUDProfile || options.Capture.HUDProfile == "native") {
+		canonical.Capture.HUDProfile = NativeHUDProfile
+		canonical.Overlays.HUDTheme = ""
+	} else if options.Overlays.HUDTheme != "" {
 		canonical.Overlays.HUDTheme = options.Overlays.HUDTheme
 	}
+	canonical.Capture.TrueView = options.Capture.TrueView
 	if canonical.Overlays.HUDTheme == "focus" {
 		canonical.Overlays.HUDPortrait = options.Overlays.HUDPortrait
 	}
@@ -155,7 +160,7 @@ func (o Options) ValidateCurrentFullDemoPolicy() error {
 		return err
 	}
 	if o.Capture != canonical.Capture {
-		return fmt.Errorf("observed player crosshair and automatic broadcast HUD are required")
+		return fmt.Errorf("observed player crosshair and a current HUD capture profile are required")
 	}
 	if o.Overlays != canonical.Overlays {
 		return fmt.Errorf("automatic neon-violet roster and scoreboard overlays are required")

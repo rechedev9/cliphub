@@ -4,6 +4,7 @@ import { gotoStudio } from './contract.ts';
 import { currentFullDemoOptions, isFullDemoOptions, isFullDemoSnapshot, type FullDemoDocument, type FullDemoOptions } from '../lib/full-demo-plan.ts';
 import { PRODUCE_DRAFT_RESET, PRODUCE_FULL_CTA, PRODUCE_FULL_DRAFT_RESTORED, PRODUCE_SHORT_TITLE } from '../lib/produce/copy.ts';
 import { FULL_DEMO_MISSING_FILES } from '../lib/produce/full-demo-requirements.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE, NATIVE_HUD_CAPTURE_PROFILE } from '../lib/custom-hud.ts';
 
 const FULL_DEMO_SPONSOR_MISSING = 'Añade el vídeo del sponsor o desactívalo.';
 
@@ -19,7 +20,8 @@ const ROSTER = { players: [{ steamid64: '76561198000000001', name: 'ropz', team:
 function editorial(legacy = false): FullDemoDocument {
   const raw: unknown = JSON.parse(readFileSync(new URL('../lib/full-demo-plan.fixture.json', import.meta.url), 'utf8'));
   if (!isFullDemoSnapshot(raw)) throw new Error('Invalid Full Demo fixture');
-  if (!legacy) raw.document.options = currentFullDemoOptions(raw.document.options);
+  // The fixture predates custom HUDs; current plans start from the broadcast default.
+  if (!legacy) raw.document.options = currentFullDemoOptions({ ...raw.document.options, capture: { ...raw.document.options.capture, hud_profile: CUSTOM_HUD_CAPTURE_PROFILE } });
   return raw.document;
 }
 
@@ -89,6 +91,43 @@ test.describe('Full POV simplified constructor', () => {
       await expect(page.getByRole('button', { name: 'Quitar retrato', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
       await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { overlays: { hud_theme: 'focus', hud_portrait: portrait } } } } } });
+    });
+  }
+
+  for (const width of [390, 1024, 1440]) {
+    test(`the original CS2 HUD and TrueView POV reach generation at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubParsedMatch(page);
+      let planned: FullDemoOptions | undefined;
+      await page.route(`**/api/demos/${JOB}/full-demo/plan`, async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        planned = route.request().postDataJSON().options;
+        await route.fulfill({ status: 201, json: { ...editorial(), options: planned, plan_hash: 'b'.repeat(64) } });
+      });
+      let generated: unknown;
+      await page.route(`**/api/demos/${JOB}/generate`, async (route) => { generated = route.request().postDataJSON(); await route.fulfill({ status: 202, json: { accepted: true } }); });
+      await gotoStudio(page, PRODUCE_FULL);
+      const trueView = page.getByRole('checkbox', { name: 'POV original 1:1 (TrueView)', exact: true });
+      await expect(trueView).not.toBeChecked();
+      await page.getByRole('combobox', { name: 'Diseño', exact: true }).click();
+      await page.getByRole('option', { name: 'Mono', exact: true }).click();
+      await expect(page.getByRole('radio', { name: 'Diseño de retransmisión', exact: true })).toBeChecked();
+      await page.getByText('Original de CS2', { exact: true }).click();
+      await expect(page.getByRole('radio', { name: 'Original de CS2', exact: true })).toBeChecked();
+      await expect(page.getByRole('combobox', { name: 'Diseño', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('img', { name: 'Vista previa ilustrativa del HUD original de CS2', exact: true })).toBeVisible();
+      await trueView.check();
+      await page.screenshot({ path: testInfo.outputPath('native-trueview.png'), animations: 'disabled' });
+      expect(await page.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      // Switching back restores the last chosen design.
+      await page.getByText('Diseño de retransmisión', { exact: true }).click();
+      await expect(page.getByRole('img', { name: 'Vista previa del HUD Mono', exact: true })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('custom-trueview.png'), animations: 'disabled' });
+      await page.getByText('Original de CS2', { exact: true }).click();
+      await page.getByRole('button', { name: PRODUCE_FULL_CTA, exact: true }).click();
+      await expect.poll(() => planned?.capture).toMatchObject({ hud_profile: NATIVE_HUD_CAPTURE_PROFILE, trueview: true });
+      expect(planned?.overlays.hud_theme).toBeUndefined();
+      await expect.poll(() => generated).toMatchObject({ edit: { full_demo: { document: { options: { capture: { hud_profile: NATIVE_HUD_CAPTURE_PROFILE, trueview: true } } } } } });
     });
   }
 

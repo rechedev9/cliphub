@@ -114,7 +114,7 @@ export const TOUR_CHAPTERS: readonly TourChapter[] = [
     points: [
       {
         term: 'HUD de la partida',
-        text: 'Elige entre once diseños de retransmisión o el HUD nativo de CS2, con retrato del jugador opcional.',
+        text: 'Elige entre once diseños de retransmisión o el HUD original de CS2, y activa el POV original 1:1 con TrueView.',
       },
       {
         term: 'Sonido',

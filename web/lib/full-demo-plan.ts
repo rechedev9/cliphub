@@ -1,5 +1,5 @@
 import type { EditConfig } from './api/types.ts';
-import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
+import { CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE, CUSTOM_HUD_THEMES, NATIVE_HUD_CAPTURE_PROFILE, isCustomHudCaptureProfile, isCustomHudTheme } from './custom-hud.ts';
 import { fullDemoTransitionPreset } from './full-demo-transitions.ts';
 
 export const FULL_DEMO_PROFILE = 'full-demo-pov-chill-v1';
@@ -63,10 +63,12 @@ export type FullDemoBumperOptions = Guarded<typeof bumperOptions>;
 const optionsShape = object({
   profile_id: oneOf(FULL_DEMO_PROFILE), source_kind: oneOf('demo', 'premier', 'professional', 'faceit'),
   capture: object({
-    hud_profile: oneOf('native-clean-spectator', 'native', CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE), xray: (value): value is false => value === false,
+    hud_profile: oneOf(NATIVE_HUD_CAPTURE_PROFILE, 'native', CUSTOM_HUD_CAPTURE_PROFILE, CUSTOM_HUD_LEGACY_CAPTURE_PROFILE), xray: (value): value is false => value === false,
     camera_policy: oneOf('strict-first-person'), contract_version: oneOf('full-demo-observer-v1'),
     crosshair: object({ mode: oneOf('observed', 'provided-code'), code: string, allow_capture_default: boolean }),
-  }),
+    // Go omits it when off, so only a present key can mean TrueView.
+    trueview: boolean,
+  }, ['trueview']),
   editorial: object({
     freeze_seconds: number(0, 20), keep_freeze_voice: boolean, voice_context_seconds: number(0, 3), max_freeze_seconds: number(0, 60),
     death_tail_seconds: number(0, 3), round_tail_seconds: number(0, 2), allow_safe_tail_trim: boolean,
@@ -112,18 +114,23 @@ export function fixedFullDemoFreeze(options: FullDemoOptions): FullDemoOptions {
  */
 export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySponsor = false): FullDemoOptions {
   const fixed = fixedFullDemoFreeze(options);
-  const hudTheme = fixed.overlays.hud_theme ?? CUSTOM_HUD_THEMES[0]?.id;
+  // Mirrors Go's CanonicalNewOptions: a native capture without a theme keeps
+  // the player's own CS2 HUD; any other missing theme gets the default one.
+  const nativeHud = !fixed.overlays.hud_theme && (fixed.capture.hud_profile === NATIVE_HUD_CAPTURE_PROFILE || fixed.capture.hud_profile === 'native');
+  const hudTheme = nativeHud ? undefined : fixed.overlays.hud_theme ?? CUSTOM_HUD_THEMES[0]?.id;
+  const { trueview, ...capture } = fixed.capture;
   // Go's `omitempty` leaves retired image fields out of persisted plans. Do
   // the same here so an already-approved document does not become dirty just
   // because the old screenshot option disappeared from the form.
   const { team1_image: _team1Image, team2_image: _team2Image, scoreboard_image: _scoreboardImage, hud_portrait: portrait, ...overlays } = fixed.overlays;
-  if (!hudTheme) throw new Error('No hay diseños de HUD disponibles.');
+  if (!nativeHud && !hudTheme) throw new Error('No hay diseños de HUD disponibles.');
   return {
     ...fixed,
     capture: {
-      ...fixed.capture,
-      hud_profile: CUSTOM_HUD_CAPTURE_PROFILE,
+      ...capture,
+      hud_profile: nativeHud ? NATIVE_HUD_CAPTURE_PROFILE : CUSTOM_HUD_CAPTURE_PROFILE,
       crosshair: { ...fixed.capture.crosshair, mode: 'observed', code: '', allow_capture_default: false },
+      ...(trueview ? { trueview: true } : {}),
     },
     editorial: { ...fixed.editorial, death_tail_seconds: 3, round_tail_seconds: 2, allow_safe_tail_trim: true, manual_ranges: [] },
     audio: {
@@ -152,7 +159,7 @@ export function currentFullDemoOptions(options: FullDemoOptions, disableEmptySpo
       theme: 'neon-violet',
       source: 'demo',
       mode: 'generated',
-      hud_theme: hudTheme,
+      ...(hudTheme ? { hud_theme: hudTheme } : {}),
       ...(hudTheme === 'focus' && portrait ? { hud_portrait: portrait } : {}),
     },
     transitions: { ...fullDemoTransitionPreset(), enabled: fixed.transitions?.enabled ?? true },

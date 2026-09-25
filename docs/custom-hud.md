@@ -333,3 +333,34 @@ preview and exercised all four detail views at 390, 1024 and 1440 px.
 The full 19-round Arena export then passed with 56,413 frames (940.217 seconds),
 decoded AAC at -14.24 LUFS / -3.63 dBTP, and working seek/play/pause in Studio.
 Sampled final frames include both sides of the match and the last round.
+
+## Optional HUD and TrueView POV (2026-09-25)
+
+The custom HUD is optional again. The constructor's "HUD" choice selects a
+broadcast design (`broadcast-clean-v2` plus `overlays.hud_theme`) or
+"Original de CS2", which captures `native-clean-spectator` with no theme: the
+observed player's own health, ammunition, radar, killfeed and crosshair, with
+only spectator panels hidden. `CanonicalNewOptions` and
+`currentFullDemoOptions` keep that native choice instead of upgrading it to the
+default design; plain `native` (with spectator panels) is canonicalized to the
+clean profile and a broadcast capture without a theme still gets the default.
+
+"POV original 1:1 (TrueView)" sets `capture.trueview`. Full Demo captures used
+to force `cl_demo_predict 0`, which disables CS2's TrueView demo playback and
+shows the interpolated server view. With TrueView the runtime applies
+`cl_demo_predict 1`, CS2's default, so the client re-runs the recorded player
+prediction; the readback and evidence contract require that value. CS2 only
+enables TrueView for demos recorded by the same game version (value `2` would
+force it and is deliberately not used), so older demos fall back to the
+standard view. The field is `omitempty`: existing documents keep their wire
+format and capture hash, and TrueView changes the capture hash because it
+changes the footage. It is independent of the HUD choice.
+
+`mirv_pov` (advancedfx PR #1174) is not a substitute: it makes the radar,
+flash, enemy details in the team bar, sound circles and voice HUD follow the
+observed player, but it does not change the camera. TrueView does the camera.
+The PR was closed unmerged on 2026-08-26 and the pinned 2.192.4
+`AfxHookSource2.dll` does not register the command (checked 2026-09-25). When
+an official release ships it, it belongs in the "Original de CS2" capture
+profile; do not build it from the unmerged branch (see the HLAE pin rules in
+`AGENTS.md`).

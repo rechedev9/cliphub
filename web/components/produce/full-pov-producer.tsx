@@ -166,6 +166,7 @@ export function FullPovProducer({ active, matchId, match, recBusy, seriesId }: F
   const briefItems = options ? [
     { label: 'Jugador', value: match.player ?? document?.input.target_steamid64 ?? 'Pendiente' },
     { label: 'HUD', value: customHudLabel(options.overlays.hud_theme) },
+    { label: 'POV', value: options.capture.trueview ? 'Original 1:1' : 'Estándar' },
     { label: 'Voces', value: options.audio.voice.enabled ? 'Incluidas' : 'Sin voces' },
     { label: 'Transiciones', value: options.transitions?.enabled ? 'Dinámico' : 'Corte limpio' },
     { label: 'Sponsor', value: options.sponsor.enabled ? 'Incluido' : 'Desactivado' },
